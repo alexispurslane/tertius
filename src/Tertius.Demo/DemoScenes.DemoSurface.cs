@@ -64,6 +64,21 @@ public static partial class DemoScenes
     /// person's eye along the way the person walks, 0.8 m above it, and looks toward the point 2 m ahead of it, tilted down as
     /// far as the person's whole box needs to stay in the picture. It goes with the person into the shuttle's frame, and
     /// stops short of the terminal's walls and the cabin's.</item>
+    /// <item>The shuttle has windows (see <see cref="Shuttle.Windows"/>): one in the nose wall and three in each side wall,
+    /// at eye height, each with a pane of glass, <c>pane-nose</c>, <c>pane-port-1</c> to <c>pane-port-3</c> and
+    /// <c>pane-starboard-1</c> to <c>pane-starboard-3</c>, numbered from the nose. Its flight controls also carry
+    /// <see cref="TranslationThrusters"/>.</item>
+    /// <item>Views of the rendezvous, still in the shuttle's frame: <c>window-camera</c>, 1.2 m behind the nose window at eye
+    /// height, looks out along the nose; <c>bow-camera</c>, 30 m ahead of the nose and 5 m above it, looks aft, 30 degrees to
+    /// port of astern, at the shuttle and past it; <c>port-window-camera</c>, 0.6 m inside the aft port window and 0.3 m
+    /// forward of its middle, at eye height, looks out through its middle, 20 degrees aft of abeam, where the station passes
+    /// from 33 to 9 degrees aft of abeam in the brake; <c>cockpit-camera</c>, aft of the seat, to starboard of it and above the
+    /// head of a person at the seat, looks down past the seat at the nose window. From starboard it sees the pen in the
+    /// person's right hand both when the person floats upside down and when a burn has tipped it with its head toward the
+    /// nose.</item>
+    /// <item>The <c>station</c> (see <see cref="DemoStation"/>), a wheel 202 m across that turns about its axis, flies on a
+    /// circle 400 km up in the launch plane, and passes over the pad at <see cref="DemoStation.OverPadAt"/>. It spawns
+    /// before the shuttle, whose <see cref="RendezvousAutopilot"/> flies to it after a <see cref="Rendezvous"/> order. Its view <c>rim-camera</c> turns with it.</item>
     /// <item>The frame <c>sun</c> lies far away, toward +X and +Z and high up, so its light falls the same way on the pad and
     /// in orbit.</item>
     /// </list>
@@ -90,6 +105,15 @@ public static partial class DemoScenes
         /// shuttle is clear of the ramp.
         /// </summary>
         public const double ClimbClearance = 30;
+
+        /// <summary>
+        /// The normal of the launch plane, a unit vector in the axes of <c>earth-surface</c>: -X. The launch plane is the
+        /// plane through Earth's center that holds the pad's up, +Y, and the ramp's incline, <see cref="LaunchRamp.Up"/>. The
+        /// normal is the plane's prograde normal, the pad's up across the incline, so that the normal across the up of a
+        /// ship in the plane points the way that the ship flies. The ramp, the climb and the station share it: the ascent
+        /// autopilot steers into the plane, and the parking orbit and the station's orbit lie in it.
+        /// </summary>
+        public static Double3 LaunchPlaneNormal { get; } = Double3.Cross(Double3.UnitY, LaunchRamp.Up).Normalized();
 
         /// <summary>The pen's half extents, in meters: 14 cm long along its own Z, and 12 mm thick.</summary>
         public static Vector3 PenHalf { get; } = new(0.006f, 0.006f, 0.07f);
@@ -292,9 +316,11 @@ public static partial class DemoScenes
                 Render = Drawn(resources, Primitives.Box(towerHalf), new Vector4(0.55f, 0.3f, 0.2f, 1), boundingRadius: towerHalf.Length()),
             }));
 
+            // The station spawns before the shuttle, whose rendezvous autopilot takes the station's entity.
+            Entity station = DemoStation.Spawn(world, surface, scene, resources);
             Entity shuttle = Shuttle.Park(world, surface, ShuttleParked,
                 Drawn(resources, Shuttle.HullMesh(), new Vector4(0.85f, 0.85f, 0.88f, 1), boundingRadius: MathF.Ceiling(Shuttle.Hull.Length())),
-                Shuttle.FlightControls(LaunchRamp.Height + ClimbClearance));
+                Shuttle.FlightControls(LaunchRamp.Height + ClimbClearance, LaunchPlaneNormal, station));
             scene.Add("shuttle", shuttle);
             FrameHandle cabin = world.GetOwnedFrame(shuttle);
             Vector3 seatHalf = Shuttle.Seat.Extents;
@@ -304,6 +330,7 @@ public static partial class DemoScenes
                 Pose = new DPose(Shuttle.Seat.Center, DQuaternion.Identity),
                 Render = Drawn(resources, Primitives.Box(seatHalf), new Vector4(0.15f, 0.25f, 0.6f, 1), boundingRadius: seatHalf.Length()),
             }));
+            Shuttle.Panes(world, cabin, scene, resources);
             world.Spawn(Lamp(cabin, new Double3(0, Shuttle.Cabin.Y - 0.05, 2), range: 10));
             world.Spawn(Lamp(cabin, new Double3(0, Shuttle.Cabin.Y - 0.05, -4.5), range: 10));
 
@@ -401,6 +428,37 @@ public static partial class DemoScenes
                 Pose = LookingAt(new Double3(0.5, -0.9, -0.7), new Double3(-0.7, 0.05, -0.95)),
                 Render = new RenderData(),
             }));
+            // The views of the rendezvous (docs/plans/blue-danube-demo.md, "The shuttle's windows and the cameras"), still in
+            // the shuttle's frame.
+            double eye = -Shuttle.Cabin.Y + 1.65;
+            scene.Add("window-camera", world.Spawn(new SpawnDesc
+            {
+                Frame = cabin,
+                Pose = new DPose(new Double3(0, eye, -Shuttle.Cabin.Z + 1.2), DQuaternion.Identity),
+                Render = new RenderData(),
+            }));
+            var bow = new Double3(0, 5, -Shuttle.Hull.Z - 30);
+            double portOfAstern = 30 * Math.PI / 180;
+            scene.Add("bow-camera", world.Spawn(new SpawnDesc
+            {
+                Frame = cabin,
+                Pose = LookingAt(bow, bow + new Double3(-Math.Sin(portOfAstern), 0, Math.Cos(portOfAstern))),
+                Render = new RenderData(),
+            }));
+            var portWindow = new Double3(-Shuttle.Cabin.X + 0.6, eye, 4.2);
+            double aftOfAbeam = 20 * Math.PI / 180;
+            scene.Add("port-window-camera", world.Spawn(new SpawnDesc
+            {
+                Frame = cabin,
+                Pose = LookingAt(portWindow, portWindow + new Double3(-Math.Cos(aftOfAbeam), 0, Math.Sin(aftOfAbeam))),
+                Render = new RenderData(),
+            }));
+            scene.Add("cockpit-camera", world.Spawn(new SpawnDesc
+            {
+                Frame = cabin,
+                Pose = LookingAt(new Double3(1.9, 0.9, -1.4), new Double3(0.7, -1.3, -5.2)),
+                Render = new RenderData(),
+            }));
 
             // The sun stands at the distance of the real one, so its light falls the same way everywhere on the flight.
             SunAt(world, scene, surface, new Double3(0, EarthRadius, 0) + new Double3(60, 80, 40).Normalized() * AstronomicalUnit);
@@ -417,6 +475,11 @@ public static partial class DemoScenes
             scene.AddView("pen-camera");
             scene.AddView("hand-camera");
             scene.AddView("follow-camera");
+            scene.AddView("window-camera");
+            scene.AddView("bow-camera");
+            scene.AddView("port-window-camera");
+            scene.AddView("cockpit-camera");
+            scene.AddView("rim-camera");
             world.Camera = overview;
             return scene;
         }

@@ -188,6 +188,20 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
     }
 
     /// <summary>
+    /// The climb steers into the launch plane, the plane through Earth's center that holds the pad's up and the ramp's
+    /// incline. So the parking orbit lies in it: at the first tick of the orbit, the shuttle is within 100 m of the plane,
+    /// and slower than 0.1 m/s across it.
+    /// </summary>
+    [Fact]
+    public void TheClimbEndsInTheLaunchPlane()
+    {
+        LaunchTick first = Log.First(tick => tick.Ascent.Value is Orbit);
+
+        Math.Abs(Double3.Dot(first.Position, DemoSurface.LaunchPlaneNormal)).Should().BeLessThan(100);
+        Math.Abs(Double3.Dot(first.Velocity, DemoSurface.LaunchPlaneNormal)).Should().BeLessThan(0.1);
+    }
+
+    /// <summary>
     /// After the engines stop, nothing pushes the shuttle: its frame falls freely, so the cabin is weightless, and the orbit
     /// at the end of the run is the orbit at the stop.
     /// </summary>

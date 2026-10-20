@@ -1,0 +1,482 @@
+using Tertius.Demo;
+using Tertius.Frames.Rails;
+using Tertius.Host.Scripting;
+using Tertius.Physics;
+using Tertius.Simulation;
+using static Tertius.Host.Tests.HostTesting;
+using DemoSurface = Tertius.Demo.DemoScenes.DemoSurface;
+using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
+
+namespace Tertius.Host.Tests;
+
+/// <summary>
+/// The checked-in long script, scripts/blue-danube.json, through its film <see cref="LastFilm"/>, in one run on the real
+/// World and the real Jolt backend with no renderer (docs/plans/blue-danube-demo.md, "The station and the rendezvous"). The
+/// run keeps a log of every tick from the first tick of the parking orbit, and at each frame it records what the frame's
+/// camera sees of the station and of the person. It runs without the world's invariant checks: with the station, they cost
+/// 6.6 ms a tick, and the run takes about 290,000 ticks.
+/// </summary>
+public sealed class BlueDanubeRendezvousRun : IDisposable
+{
+    /// <summary>The last film of the run.</summary>
+    public const string LastFilm = "hold";
+
+    public BlueDanubeRendezvousRun()
+    {
+        Script full = Script.Load(Path.Combine(RepositoryRoot(), "scripts", "blue-danube.json"));
+        int last = full.Steps.ToList().FindIndex(step => step.Value is FilmStep { Name: LastFilm });
+        if (last < 0)
+            throw new InvalidOperationException($"scripts/blue-danube.json has no film '{LastFilm}'.");
+        World = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = false, DisposePhysics = true }, new JoltPhysicsBackend());
+        World.Log += line => Logged.Add(line);
+        Scene = DemoScenes.All.Single(s => s.Name == full.Scene).Build(World, RenderResources.None);
+        Surface = World.GetFrame(Scene["shuttle"]);
+        Mu = KeplerOrbit.MuFrom(World.Frames.Gravity(Surface));
+        var recorder = new Recorder(this);
+        ScriptRunner.Run(full with { Steps = [.. full.Steps.Take(last + 1)] }, World, Scene, outputFolder: null, recorder);
+        // The playback asks before each tick, so the run records the state after the last tick itself.
+        recorder.WaitForTick();
+    }
+
+    public World World { get; }
+    public SceneInstance Scene { get; }
+
+    /// <summary>The frame earth-surface, in which the shuttle and the station fly.</summary>
+    public FrameHandle Surface { get; }
+
+    /// <summary>Earth's G·M in earth-surface, from its point gravity, in m³/s².</summary>
+    public double Mu { get; }
+
+    /// <summary>One <see cref="RendezvousTick"/> for each tick from the first tick of the parking orbit, in order.</summary>
+    public List<RendezvousTick> Ticks { get; } = new();
+
+    /// <summary>One <see cref="RendezvousFrame"/> for each frame of the run, in order.</summary>
+    public List<RendezvousFrame> Frames { get; } = new();
+
+    /// <summary>The lines that the world logged.</summary>
+    public List<string> Logged { get; } = new();
+
+    public void Dispose() => World.Dispose();
+
+    private void RecordTick()
+    {
+        Entity shuttle = Scene["shuttle"], person = Scene["person"], station = Scene["station"];
+        if (World.GetComponent<AscentAutopilot>(shuttle)!.State.Value is not Orbit)
+            return;
+        if (Ticks.Count > 0 && Ticks[^1].Tick == World.TickNumber)
+            return;
+        FrameHandle cabin = World.GetOwnedFrame(shuttle);
+        DPose pose = World.PoseIn(shuttle, Surface), stationPose = World.PoseIn(station, Surface);
+        PassengerState passenger = World.GetComponent<Passenger>(person)!.State;
+        Double3 personUp = World.PoseIn(person, cabin).Rotation.Rotate(Double3.UnitY);
+        Ticks.Add(new RendezvousTick(World.TickNumber, World.Time, pose.Position, World.VelocityIn(shuttle, Surface), pose.Rotation.Rotate(-Double3.UnitZ),
+            stationPose.Position, World.VelocityIn(station, Surface), stationPose.Rotation.Rotate(Double3.UnitY),
+            World.GetComponent<RendezvousAutopilot>(shuttle)!.State, passenger, World.Frames.ProperAcceleration(cabin), World.GetFrame(shuttle),
+            PenFromHand(passenger, cabin), personUp));
+    }
+
+    /// <summary>
+    /// How far the drawn copy of the pen is from the person's hand, at <see cref="Passenger.PenHold"/> in its view, in
+    /// meters, while the passenger holds a living copy, or null.
+    /// </summary>
+    private double? PenFromHand(PassengerState passenger, FrameHandle cabin)
+    {
+        Entity copy = CopyOf(passenger);
+        if (copy.IsNull || !World.IsAlive(copy))
+            return null;
+        Entity person = Scene["person"];
+        Double3 hand = World.PoseIn(person, cabin).TransformPoint((Double3)World.GetRender(person).ViewOffset.TransformPoint(Passenger.PenHold));
+        return Double3.Distance(hand, World.PoseIn(copy, cabin).Position);
+    }
+
+    /// <summary>The drawn copy of the pen that the passenger holds, or <see cref="Entity.Null"/>.</summary>
+    private static Entity CopyOf(PassengerState passenger) => passenger.Value switch
+    {
+        Holding holding => holding.Copy,
+        Returning returning => returning.Copy,
+        Strapped strapped => strapped.Copy,
+        _ => Entity.Null,
+    };
+
+    private RendezvousFrame RecordFrame(string name)
+    {
+        Entity person = Scene["person"];
+        FrameHandle cabin = World.GetOwnedFrame(Scene["shuttle"]);
+        DPose personPose = World.PoseIn(person, cabin);
+        Entity copy = CopyOf(World.GetComponent<Passenger>(person)!.State);
+        return new RendezvousFrame(name, World.PoseIn(World.Camera, cabin), World.PoseIn(Scene["station"], cabin).Position, personPose,
+            personPose.TransformPoint((Double3)World.GetRender(person).ViewOffset.Position),
+            !copy.IsNull && World.IsAlive(copy) ? World.PoseIn(copy, cabin).Position : null, World.VerticalFov);
+    }
+
+    /// <summary>A playback that records the state before each tick and what each frame's camera sees, and draws nothing.</summary>
+    private sealed class Recorder(BlueDanubeRendezvousRun run) : IPlayback
+    {
+        public bool WaitForTick()
+        {
+            run.RecordTick();
+            return true;
+        }
+
+        public bool Capture(World world, string name)
+        {
+            run.Frames.Add(run.RecordFrame(name));
+            return true;
+        }
+    }
+}
+
+/// <summary>The state of the shuttle, the station and the person before one tick of the long script.</summary>
+/// <param name="Tick">The number of completed ticks.</param>
+/// <param name="Time">The world's time, in seconds.</param>
+/// <param name="Position">The shuttle's position in earth-surface, in meters from Earth's center.</param>
+/// <param name="Velocity">The shuttle's velocity in earth-surface, in m/s.</param>
+/// <param name="Nose">The shuttle's nose, its -Z, in earth-surface's axes.</param>
+/// <param name="StationCenter">The station's center in earth-surface, in meters.</param>
+/// <param name="StationVelocity">The station's velocity in earth-surface, in m/s.</param>
+/// <param name="Axis">The station's axis, its +Y, in earth-surface's axes.</param>
+/// <param name="Rendezvous">What the rendezvous autopilot does.</param>
+/// <param name="Passenger">What the person does.</param>
+/// <param name="CabinAcceleration">The proper acceleration of the shuttle's frame in the last finished step, in m/s², in its axes.</param>
+/// <param name="ShuttleFrame">The shuttle's frame.</param>
+/// <param name="PenFromHand">How far the drawn copy of the pen is from the person's hand, in meters, while the person holds it, or null.</param>
+/// <param name="PersonUp">The person's up, the +Y of its pose, in the axes of the shuttle's frame.</param>
+public sealed record RendezvousTick(long Tick, double Time, Double3 Position, Double3 Velocity, Double3 Nose, Double3 StationCenter,
+    Double3 StationVelocity, Double3 Axis, RendezvousState Rendezvous, PassengerState Passenger, System.Numerics.Vector3 CabinAcceleration,
+    FrameHandle ShuttleFrame, double? PenFromHand, Double3 PersonUp)
+{
+    /// <summary>The shuttle's place relative to the station's center, in meters, in earth-surface's axes.</summary>
+    public Double3 FromStation => Position - StationCenter;
+
+    /// <summary>The shuttle's velocity relative to the station, in m/s.</summary>
+    public Double3 Relative => Velocity - StationVelocity;
+}
+
+/// <summary>What the camera of one frame of the long script sees, in the shuttle's frame.</summary>
+/// <param name="Name">The frame's name, such as <c>brake-000012</c>.</param>
+/// <param name="View">The camera's pose in the shuttle's frame.</param>
+/// <param name="Station">The station's center in the shuttle's frame, in meters.</param>
+/// <param name="Person">The person's pose in the shuttle's frame.</param>
+/// <param name="Eye">The person's eye in the shuttle's frame, in meters.</param>
+/// <param name="Pen">The center of the drawn copy of the pen in the person's hand, in the shuttle's frame, while the person holds it, or null.</param>
+/// <param name="VerticalFov">The world's vertical view angle, in radians.</param>
+public sealed record RendezvousFrame(string Name, DPose View, Double3 Station, DPose Person, Double3 Eye, Double3? Pen, double VerticalFov)
+{
+    /// <summary>True when the frame belongs to the film <paramref name="film"/>.</summary>
+    public bool Of(string film) => Name.StartsWith(film + "-", StringComparison.Ordinal) && Name.Length == film.Length + 7;
+}
+
+public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run) : IClassFixture<BlueDanubeRendezvousRun>
+{
+    private IReadOnlyList<RendezvousTick> Log => run.Ticks;
+
+    private static double Degrees(Double3 a, Double3 b) => Math.Acos(Math.Clamp(Double3.Dot(a.Normalized(), b.Normalized()), -1, 1)) * 180 / Math.PI;
+
+    /// <summary>
+    /// The angle along the orbit, φ, in degrees from 0 to 360: about the launch plane's normal, from the pad's up, +Y of
+    /// earth-surface, toward -Z.
+    /// </summary>
+    private static double AlongTheOrbit(Double3 position)
+    {
+        Double3 ahead = Double3.Cross(DemoSurface.LaunchPlaneNormal, Double3.UnitY);
+        double degrees = Math.Atan2(Double3.Dot(position, ahead), position.Y) * 180 / Math.PI;
+        return degrees < 0 ? degrees + 360 : degrees;
+    }
+
+    private RendezvousTick Window => Log.First(tick => tick.Rendezvous.Value is Transfer);
+
+    /// <summary>The ticks from the first in which the autopilot waits for its window, after the order.</summary>
+    private IEnumerable<RendezvousTick> AfterTheOrder => Log.SkipWhile(tick => tick.Rendezvous.Value is Standby);
+
+    private RendezvousTick FirstOf<T>() => Log.First(tick => tick.Rendezvous.Value is T);
+
+    /// <summary>
+    /// The climb ends in the launch plane, and nothing pushes the shuttle until the transfer. So in every tick from the
+    /// first of the parking orbit to the window, the shuttle is within 100 m of the plane, and slower than 0.1 m/s across it.
+    /// </summary>
+    [Fact]
+    public void TheParkingOrbitLiesInTheLaunchPlane()
+    {
+        RendezvousTick[] parking = [.. Log.TakeWhile(tick => tick.Rendezvous.Value is not Transfer)];
+
+        parking.Should().HaveCountGreaterThan(60 * 60 * 20, "the shuttle waits about 26 minutes for its window");
+        parking.Max(tick => Math.Abs(Double3.Dot(tick.Position, DemoSurface.LaunchPlaneNormal))).Should().BeLessThan(100);
+        parking.Max(tick => Math.Abs(Double3.Dot(tick.Velocity, DemoSurface.LaunchPlaneNormal))).Should().BeLessThan(0.1);
+    }
+
+    /// <summary>
+    /// The script tells the person to fasten its belt before it orders the rendezvous. So at the first tick after the order
+    /// in which the cabin is not weightless, the first push of the transfer's burn, the passenger is strapped at its seat.
+    /// </summary>
+    [Fact]
+    public void ThePassengerIsStrappedBeforeTheFirstBurn()
+    {
+        RendezvousTick firstPush = AfterTheOrder.First(tick => tick.CabinAcceleration.Length() >= FrameTree.ZeroGravityThreshold);
+
+        firstPush.Rendezvous.Value.Should().BeOfType<Transfer>("the first push of the parking orbit is the transfer's burn");
+        firstPush.Passenger.Value.Should().BeOfType<Strapped>();
+    }
+
+    /// <summary>
+    /// The burn tips the strapped person with its head toward the nose. Once the burn's thrust leaves the cabin weightless,
+    /// the trim's push stays at most half <see cref="FrameTree.ZeroGravityThreshold"/>, and the nose turns to the brake's
+    /// direction at the demo plan's <see cref="RendezvousPlan.WeightlessTurnRate"/>, so the turn's felt gravity at the seat stays below
+    /// half the threshold too. The cabin stays weightless, and a character's up does not turn there. So from the first
+    /// weightless tick after the burn's first push to the first tick of the brake, the person's up in the cabin's axes stays
+    /// within 1 degree of its up in that tick.
+    /// </summary>
+    [Fact]
+    public void TheStrappedPassengerKeepsItsUpThroughTheTrimAfterTheBurn()
+    {
+        RendezvousTick[] afterTheBurn = [.. AfterTheOrder.SkipWhile(tick => tick.CabinAcceleration.Length() < FrameTree.ZeroGravityThreshold)
+            .SkipWhile(tick => tick.CabinAcceleration.Length() >= FrameTree.ZeroGravityThreshold)
+            .TakeWhile(tick => tick.Rendezvous.Value is Transfer)];
+
+        afterTheBurn.Should().HaveCountGreaterThan(60 * 60 * 30, "the trim and the coast last about 40 minutes");
+        afterTheBurn.Should().OnlyContain(tick => tick.Passenger.Value is Strapped);
+        afterTheBurn.Max(tick => Degrees(tick.PersonUp, afterTheBurn[0].PersonUp)).Should().BeLessThan(1);
+    }
+
+    /// <summary>
+    /// The slow turn of the trim and the coast still ends in time: in the first tick of the brake, the nose lies within
+    /// 3 degrees of the coast's direction, against the velocity relative to the station, so the brake starts nearly
+    /// without a turn. It lies 2.1 degrees off (measured on 2026-10-20): at about 3,300 s the brake's direction passes 9
+    /// degrees from straight down, the roof, away from Earth across the nose, swings about the nose there, and at
+    /// the demo plan's <see cref="RendezvousPlan.WeightlessTurnRate"/> the nose catches up only slowly afterward.
+    /// </summary>
+    [Fact]
+    public void TheSlowTurnBringsTheNoseToTheBrakesDirectionBeforeTheBrake()
+    {
+        RendezvousTick brake = FirstOf<Brake>();
+
+        Degrees(brake.Nose, -brake.Relative).Should().BeLessThan(3);
+    }
+
+    /// <summary>
+    /// <see cref="DemoScenes.DemoStation.OverPadAt"/> sets the window so that the shuttle arrives where the sun lights the
+    /// station and Earth's limb below it: the transfer starts with the shuttle between 115 and 125 degrees along the orbit.
+    /// </summary>
+    [Fact]
+    public void TheWindowOpensBetween115And125DegreesAlongTheOrbit()
+    {
+        AlongTheOrbit(Window.Position).Should().BeInRange(115, 125);
+    }
+
+    /// <summary>
+    /// The burn puts the shuttle on the two-body path that reaches the arrival point at the arrival time, one transfer time
+    /// after the window. The brake starts in the coast, where its braking curve meets the shuttle, d / u before the arrival
+    /// time for a shuttle d meters from the arrival point that closes on it at u m/s. So the time from the window to the
+    /// brake is the transfer time less that lead, within 2 s.
+    /// </summary>
+    [Fact]
+    public void TheTransferTakesTheTimeThatTwoBodyMotionPredicts()
+    {
+        RendezvousTick window = Window, brake = FirstOf<Brake>();
+        Double3 arrivalPoint = brake.StationCenter + brake.Axis * RendezvousPlan.Demo.ArrivalDistance;
+        double lead = (brake.Position - arrivalPoint).Length / brake.Relative.Length;
+
+        lead.Should().BeInRange(0, TransferGuidance.CoastTime, "the brake starts in the coast");
+        (brake.Time - window.Time).Should().BeApproximately(RendezvousPlan.Demo.TransferTime - lead, 2);
+    }
+
+    /// <summary>
+    /// The two-body cost of the transfer, from the shuttle's state at the window to the station's velocity at the arrival
+    /// point (see <see cref="TransferCost"/>), is about 120 m/s. The burn, the trim and the brake, from the window to the
+    /// glide, change the shuttle's velocity by the integral of the cabin's proper acceleration, which lies within 10
+    /// percent of that cost.
+    /// </summary>
+    [Fact]
+    public void TheTotalChangeOfVelocityIsWithin10PercentOfTheTwoBodyCost()
+    {
+        double cost = TransferCost(Window);
+        double flown = Log.SkipWhile(tick => tick.Rendezvous.Value is not Transfer).TakeWhile(tick => tick.Rendezvous.Value is not Glide)
+            .Sum(tick => (double)tick.CabinAcceleration.Length()) / 60;
+
+        cost.Should().BeInRange(100, 140, "the plan's transfer costs about 120 m/s");
+        flown.Should().BeApproximately(cost, cost * 0.1);
+    }
+
+    /// <summary>
+    /// The two-body cost of the transfer from the shuttle's state at <paramref name="window"/>: the velocity to gain onto
+    /// Lambert's path to the arrival point one transfer time later, plus the velocity relative to the station at its end,
+    /// in m/s.
+    /// </summary>
+    private double TransferCost(RendezvousTick window)
+    {
+        var guidance = new TransferGuidance(run.Mu);
+        (Double3 arrival, Double3 stationAtArrival) = guidance.Arrival(window.StationCenter, window.StationVelocity, window.Axis,
+            RendezvousPlan.Demo.ArrivalDistance, RendezvousPlan.Demo.TransferTime);
+        (Double3 departure, Double3 atArrival) = KeplerOrbit.Lambert(window.Position, arrival, RendezvousPlan.Demo.TransferTime, run.Mu,
+            TransferGuidance.OrbitNormal(window.StationCenter, window.StationVelocity));
+        return (departure - window.Velocity).Length + (atArrival - stationAtArrival).Length;
+    }
+
+    /// <summary>
+    /// The hold point lies outside the station's bubble, so the shuttle never enters the station's frame: in every tick of
+    /// the step, from the parking orbit to the end of the hold, the shuttle is in earth-surface.
+    /// </summary>
+    [Fact]
+    public void TheShuttleStaysInEarthSurfaceThroughTheWholeStep()
+    {
+        Log.Should().NotBeEmpty();
+        Log.Should().OnlyContain(tick => tick.ShuttleFrame == run.Surface);
+        Log[^1].Rendezvous.Value.Should().BeOfType<Hold>("the run ends in the hold");
+    }
+
+    /// <summary>The brake ends slower than 0.1 m/s, so the glide stays within 5 m of the station's axis all the way.</summary>
+    [Fact]
+    public void TheGlideStaysWithin5MOfTheAxis()
+    {
+        RendezvousTick[] glide = [.. Log.Where(tick => tick.Rendezvous.Value is Glide)];
+
+        glide.Should().HaveCountGreaterThan(60 * 60, "the glide takes several minutes");
+        glide.Max(tick => (tick.FromStation - tick.Axis * Double3.Dot(tick.FromStation, tick.Axis)).Length).Should().BeLessThan(5);
+    }
+
+    /// <summary>
+    /// In every tick of the hold, the shuttle is within 0.5 m of the hold point, slower than 0.02 m/s relative to the
+    /// station, and its nose lies within 1 degree of minus the station's axis, at the slot.
+    /// </summary>
+    [Fact]
+    public void TheShuttleHoldsAtTheHoldPointWithItsNoseAtTheSlot()
+    {
+        RendezvousTick[] hold = [.. Log.SkipWhile(tick => tick.Rendezvous.Value is not Hold)];
+
+        hold.Should().HaveCountGreaterThanOrEqualTo(60 * 8, "the films arrival and hold go on 8 s after the hold starts");
+        hold.Should().OnlyContain(tick => tick.Rendezvous.Value is Hold);
+        hold.Max(tick => (tick.FromStation - tick.Axis * RendezvousPlan.Demo.HoldDistance).Length).Should().BeLessThan(RendezvousAutopilot.HoldDistanceTolerance);
+        hold.Max(tick => tick.Relative.Length).Should().BeLessThan(RendezvousAutopilot.HoldSpeedTolerance);
+        hold.Max(tick => Degrees(tick.Nose, -tick.Axis)).Should().BeLessThan(1);
+    }
+
+    /// <summary>
+    /// In every frame of the film <c>brake</c>, from <c>port-window-camera</c>, the station's center lies in the picture,
+    /// and the line from the camera to it passes through the aft port window, at both faces of the wall. So does the line
+    /// from <c>window-camera</c> through the nose window in every frame of <c>glide-window</c>.
+    /// </summary>
+    [Theory]
+    [InlineData("brake", "pane-port-3")]
+    [InlineData("glide-window", "pane-nose")]
+    public void TheStationLiesInsideTheWindowInEveryFrameOfTheWindowFilms(string film, string pane)
+    {
+        Opening window = Shuttle.Windows.Single(w => w.Pane == pane).Window;
+        RendezvousFrame[] frames = [.. run.Frames.Where(frame => frame.Of(film))];
+
+        frames.Should().NotBeEmpty();
+        foreach (RendezvousFrame frame in frames)
+        {
+            Picture.Contains(Picture.Project(frame.View, frame.Station, frame.VerticalFov)).Should().BeTrue($"the station is in the picture of {frame.Name}");
+            ThroughTheOpening(window, frame.View.Position, frame.Station).Should().BeTrue($"the station lies inside the window in {frame.Name}");
+        }
+    }
+
+    /// <summary>
+    /// True when the line from <paramref name="eye"/> to <paramref name="target"/>, in the shuttle's frame, crosses both
+    /// faces of the wall that holds <paramref name="window"/> inside the window's hole.
+    /// </summary>
+    private static bool ThroughTheOpening(Opening window, Double3 eye, Double3 target)
+    {
+        int through = window.Through.X != 0 ? 0 : 2;
+        Double3 min = (Double3)window.Bounds.Min, max = (Double3)window.Bounds.Max, line = target - eye;
+        foreach (double face in (double[])[Along(min, through), Along(max, through)])
+        {
+            double t = (face - Along(eye, through)) / Along(line, through);
+            if (!(t > 0 && t < 1))
+                return false;
+            Double3 hit = eye + line * t;
+            for (int axis = 0; axis < 3; axis++)
+                if (axis != through && (Along(hit, axis) < Along(min, axis) || Along(hit, axis) > Along(max, axis)))
+                    return false;
+        }
+        return true;
+    }
+
+    /// <summary>The component of <paramref name="v"/> along the axis X, Y or Z, numbered 0, 1 or 2.</summary>
+    private static double Along(Double3 v, int axis) => axis switch { 0 => v.X, 1 => v.Y, _ => v.Z };
+
+    /// <summary>
+    /// The film <c>closing</c>, from <c>bow-camera</c> ahead of the nose, shows the shuttle and the station behind it: the
+    /// station's center lies in the picture in every frame.
+    /// </summary>
+    [Fact]
+    public void TheStationIsInThePictureOfEveryFrameOfClosing()
+    {
+        RendezvousFrame[] closing = [.. run.Frames.Where(frame => frame.Of("closing"))];
+
+        closing.Should().NotBeEmpty();
+        closing.Should().OnlyContain(frame => Picture.Contains(Picture.Project(frame.View, frame.Station, frame.VerticalFov)));
+    }
+
+    /// <summary>
+    /// The strapped passenger keeps the drawn copy of the pen in its hand: in every tick from the first push of the burn to
+    /// the end of the brake, the copy lives, and it lies within 5 cm of the hand, which it follows one tick late.
+    /// </summary>
+    [Fact]
+    public void ThePenStaysInThePassengersHandThroughTheBurns()
+    {
+        RendezvousTick[] burns = [.. AfterTheOrder.SkipWhile(tick => tick.CabinAcceleration.Length() < FrameTree.ZeroGravityThreshold)
+            .TakeWhile(tick => tick.Rendezvous.Value is not Glide)];
+
+        burns.Should().NotBeEmpty();
+        burns.Should().OnlyContain(tick => tick.Passenger.Value is Strapped);
+        burns.Should().OnlyContain(tick => tick.PenFromHand != null && tick.PenFromHand < 0.05);
+    }
+
+    /// <summary>
+    /// <c>cockpit-camera</c>, aft of the seat and above it, films the strapped person at its seat with the pen, and the nose
+    /// window beyond it: in every frame of its films, the person's eye, the pen in its hand and the middle of the nose window
+    /// lie in the picture, and the person's box covers at most half of it. The person floats upside down from the take, and
+    /// the burn tips it with its head toward the nose, by the up rule of every character. The trim keeps that up, and so
+    /// does the glide, whose push along the nose turns it back after the turn to the slot. So the camera frames both: in
+    /// every frame, the line from the camera to the pen passes outside the person's box.
+    /// </summary>
+    [Fact]
+    public void TheCockpitCameraShowsTheStrappedPersonWithThePenAndTheNoseWindow()
+    {
+        Double3 noseWindow = (Double3)Shuttle.Windows.Single(w => w.Pane == "pane-nose").Window.Bounds.Center, half = (Double3)DemoSurface.PersonHalf;
+        RendezvousFrame[] cockpit = [.. run.Frames.Where(frame => frame.Of("night") || frame.Of("burn") || frame.Of("transfer-night") || frame.Of("arrival"))];
+
+        cockpit.Should().NotBeEmpty();
+        foreach (RendezvousFrame frame in cockpit)
+        {
+            frame.Pen.Should().NotBeNull($"the person holds the pen in {frame.Name}");
+            Picture.Contains(Picture.Project(frame.View, frame.Eye, frame.VerticalFov)).Should().BeTrue($"the person's eye is in the picture of {frame.Name}");
+            Picture.Contains(Picture.Project(frame.View, frame.Pen!.Value, frame.VerticalFov)).Should().BeTrue($"the pen is in the picture of {frame.Name}");
+            Picture.Contains(Picture.Project(frame.View, noseWindow, frame.VerticalFov)).Should().BeTrue($"the nose window is in the picture of {frame.Name}");
+            CrossesTheBox(frame.Person.InverseTransformPoint(frame.View.Position), frame.Person.InverseTransformPoint(frame.Pen!.Value), half)
+                .Should().BeFalse($"the person's body hides the pen in {frame.Name}");
+            Picture.Cover(frame.View, frame.Person, half, frame.VerticalFov).Should().BeLessThanOrEqualTo(0.5, frame.Name);
+        }
+    }
+
+    /// <summary>
+    /// True when the segment from <paramref name="from"/> to <paramref name="to"/> passes through the box with half extents
+    /// <paramref name="half"/> round the origin, by the slab test.
+    /// </summary>
+    private static bool CrossesTheBox(Double3 from, Double3 to, Double3 half)
+    {
+        double enter = 0, leave = 1;
+        Double3 line = to - from;
+        for (int axis = 0; axis < 3; axis++)
+        {
+            double start = Along(from, axis), step = Along(line, axis), extent = Along(half, axis);
+            if (Math.Abs(step) < 1e-12)
+            {
+                if (Math.Abs(start) > extent)
+                    return false;
+                continue;
+            }
+            double a = (-extent - start) / step, b = (extent - start) / step;
+            (enter, leave) = (Math.Max(enter, Math.Min(a, b)), Math.Min(leave, Math.Max(a, b)));
+        }
+        return enter <= leave;
+    }
+
+    [Fact]
+    public void TheWorldLogsNoErrors()
+    {
+        run.World.Errors.Should().BeEmpty();
+        run.Logged.Should().NotContain(line => line.Contains(nameof(RendezvousAutopilot)));
+    }
+
+}

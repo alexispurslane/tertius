@@ -31,8 +31,8 @@ From a survey of the code on 2026-10-18.
 | Character walking, floating, grabbing | Exists (`MoveCharacter`, `Jump`, grab within 3 m). The pen, its `Clip` and the `Passenger` who takes it exist in the Demo (ter-m13s, see "The launch"). | A path-following walker component. A capsule hides that the rigid form never turns. |
 | Seat | Exists: `Shuttle.Seat`, a static box in the shuttle's interior shape, which the demo surface draws (ter-na4f). A character has no sitting pose, so the person stands at `Shuttle.SeatStand`. The `Passenger` component's belt holds the person there while the cabin's gravity would not keep it on its feet (ter-m13s). | None |
 | Ground at the pad | Earth's sphere sags about 480 m between vertices | A large static slab under the pad, as in the surface yard |
-| Cylinders, rings, tori | Missing: only box, sphere and plane meshes | Mesh generators and matching compound or convex shapes for the wheel, spokes, barrel and chute |
-| Ship thrust and steering | Partial: the climb to orbit exists in the Demo (ter-m13s): `MainEngine`, `AttitudeAutopilot` and `AscentAutopilot`, which steers by `AscentGuidance` (see "The launch") | Autopilot components: the rendezvous, the spin match and the docking |
+| Cylinders, rings, tori | Exists: `RevolvedSolid` (ter-fb3w) sweeps a convex profile about an axis into a cylinder, a ring or a torus, with its mesh and a collision shape that matches it. The station's wheel uses it (ter-tzf6). The spokes and the hub are `BoxMesh` tubes and boxes. | The chute of step 6 |
+| Ship thrust and steering | Partial: the climb to orbit exists in the Demo (ter-m13s): `MainEngine`, `AttitudeAutopilot` and `AscentAutopilot`, which steers by `AscentGuidance` into the launch plane (see "The launch"). The rendezvous exists too (ter-tzf6): `TranslationThrusters` and `RendezvousAutopilot`, which steers by `TransferGuidance` and `ApproachGuidance` (see "The station and the rendezvous"). | Autopilot components: the spin match and the docking |
 | Spin gravity, Coriolis, a ship in a turning frame, characters in a turning frame | Exists (the spin gravity epic `ter-s9m0`, [Spin gravity](spin-gravity.md)): every turning frame gives its contents the centrifugal, Coriolis and Euler terms, characters stand, walk and jump in it, and the scene `spin-station` shows it. | The ship in the turning station, and the autopilots that use it |
 
 ## The launch
@@ -40,12 +40,688 @@ From a survey of the code on 2026-10-18.
 Step 3 of the sequence, as ticket ter-m13s built it in the Demo, in the scene `demo-surface` and the script `scripts/demo-launch.json`. Nothing in the engine changed.
 
 - The ramp (`DemoScenes.LaunchRamp`) is one static body without friction: a flat bed under the parked shuttle, 2 cm above the slab, so that the hull touches only the greased ramp and never the slab, which has friction, and one straight incline at 30 degrees, 250 m long, from under the shuttle's nose to 125 m up (`LaunchRampTests`). A curved ramp of short planks threw the hull off near 90 m/s: from there the hull moves more than 0.75 of its inner radius in a step, Jolt sweeps it, and the sweep stopped it at each joint. The straight incline has one joint, at its foot, which the hull crosses at about 27 m/s.
-- A script posts `Ignition` to the shuttle. Its `AscentAutopilot` unparks the hull with `Self.Body.SetMotion(BodyMotion.Dynamic)` and runs the `MainEngine` at full throttle, 3 g along the nose, with the nose toward the velocity, until the shuttle is 30 m above the ramp's top. Then `AscentGuidance` steers a closed loop to a circle 200 km up: it splits the thrust between the climb and the speed along the track, so that the shuttle reaches the circle's height with no vertical speed when it reaches the circle's speed. The thrust pitches up from the ramp's 30 degrees to about 60, then over, and a little below the horizon at the end. The engine stops when the trim's thrust would fall below the weightless threshold. The autopilot talks to the engine and to the `AttitudeAutopilot` only through its entity's events: in each tick it adds a `Throttle` and an `AttitudeTarget`, which those two components read after it, and a tick without them gives no thrust and no torque (`FlightControlTests`). Its state is the custom union `AscentState`: `Parked`, `Ramp` with the guidance and the launch radius, `Climb` with the guidance, and `Orbit`. In the run of the script, the climb takes 321 s, and the periapsis and the apoapsis lie within 5 km of 200 km (`DemoLaunchTests`), well above the top of the air at 100 km (`DemoScenes.AtmosphereTop`).
+- A script posts `Ignition` to the shuttle. Its `AscentAutopilot` unparks the hull with `Self.Body.SetMotion(BodyMotion.Dynamic)` and runs the `MainEngine` at full throttle, 3 g along the nose, with the nose toward the velocity, until the shuttle is 30 m above the ramp's top. Then `AscentGuidance` steers a closed loop to a circle 200 km up: it splits the thrust between the climb and the speed along the track, so that the shuttle reaches the circle's height with no vertical speed when it reaches the circle's speed. It also steers into the launch plane, `DemoSurface.LaunchPlaneNormal`, the plane of the station's orbit, as a real launch flies into the plane of its target (ter-tzf6): it pushes back toward the plane a ship that drifts across it or lies beside it, and never takes thrust from the climb to do so. So the parking orbit lies in that plane (`DemoLaunchTests`, `BlueDanubeRendezvousTests`). The thrust pitches up from the ramp's 30 degrees to about 60, then over, and a little below the horizon at the end. The engine stops when the trim's thrust would fall below the weightless threshold. The autopilot talks to the engine and to the `AttitudeAutopilot` only through its entity's events: in each tick it adds a `Throttle` and an `AttitudeTarget`, which those two components read after it, and a tick without them gives no thrust and no torque (`FlightControlTests`). Its state is the custom union `AscentState`: `Parked`, `Ramp` with the guidance and the launch radius, `Climb` with the guidance, and `Orbit`. In the run of the script, the climb takes 321 s, and the periapsis and the apoapsis lie within 5 km of 200 km (`DemoLaunchTests`), well above the top of the air at 100 km (`DemoScenes.AtmosphereTop`).
 - The cabin's weight comes from the frame's derived proper acceleration alone: the weight of the ground on the pad, the ramp's push and the engine's thrust in the climb, and nothing in orbit.
 - The person's `Passenger` belt holds it at its seat while the cabin's gravity leans more than 45 degrees from the floor's down or the cabin is weightless: it pushes the person with its mass times the opposite of that gravity, plus a spring and a damper. The foot of the ramp jolts the person by about 0.17 m. Nothing holds the person's up to the seat: it follows the felt gravity in the air at most at the air rate of 1 rad/s, as for every character (`ter-1b21`, [Spin gravity](spin-gravity.md), "Characters"). At the end of the climb the engine throttles down to about 0.2 m/s², the felt gravity leans 14 degrees from the cabin's aft axis toward its ceiling, and the person's head, toward the nose, dips onto the seat, which lifts the person by 67 mm. The belt reads the gravity that the person feels, with the rotation terms of the cabin's turn (`FrameTree.FeltGravity`), which physics applies to a character too. In orbit, after 2 s weightless by that read, the person opens the belt, in the demo launch 5.2 s after the engines stop, once the change of the cabin's turn that the attitude autopilot makes has settled, and floats with thrusters as weak as `PersonControl`'s, so that its hand, in front of its chest (`Passenger.PenHold`), comes onto the drifting pen. The hand first lines up 0.5 m behind the pen, on the line ahead of the person's view, and then closes in along that line, so that the pen comes to the hand from in front and never touches the body. Once the hand is within 2 cm of the pen, the person uses it and takes it as `Carry` takes a crate, and the drawn copy in its hand keeps the place and the turn that the loose pen had relative to the view, so the pen does not jump into the hand. The hand is nearer than `Carry` holds a crate, so that the pen's near end lies just in front of the body: a pen held as far out as a crate read as a pen that floats free. A character does not turn, so the passenger does not plan a way round the pen: in the demo it floats face-down below the pen and well to the side of it, so its straight way from the seat passes clear of the pen, and nothing touches the pen until the take (`DemoLaunchTests`). The passenger's state is the custom union `PassengerState`: `Boarding`, `Seated` with its weightless ticks, `Fetching`, `Holding` with the copy, and `Stopped`, for a pen that goes before the take.
 - A `Clip` on the pen holds it on the cabin's port wall, at head height, aft of the seat (user, 2026-10-19). While the cabin has weight, the clip steers the pen to its place in every tick (`Self.Body.SteerTo`), so that physics carries it back each step: the weight of a step moves it about 8 mm at three gravities, and the jolt at the ramp's foot drops it about 0.1 m for one step. Once the cabin has been weightless at the clip for 1 s, by the gravity felt there with the rotation terms of the cabin's turn (`FrameTree.FeltGravity`), the clip lets go with a push of 0.2 m/s away from the wall and a slow spin, end over end, at 0.5 rad/s. In the demo launch the clip lets go 2.9 s after the engines stop, once the change of the cabin's turn that the attitude autopilot makes has settled. The pen drifts into the cabin, and nothing touches it until the person takes it 10.6 s later, about 2.1 m from the wall and 2.0 m above the floor (`PenClipTests`, `DemoLaunchTests`). The clip's state is the custom union `ClipState`: `Clipped` with its weightless ticks, or `Released`.
 - The script films the launch from cameras that the scene places for each part: `pad-camera` for the parked shuttle and the start up the ramp, `ramp-camera` for the ramp, `ramp-top-camera` for the flight past the ramp's top, `climb-camera` high behind the shuttle for the climb with the ground below, `chase-camera` for the high climb and the orbit, `pen-camera` within 2 m of the pen's way for the pen on the wall, its drift and the person's start from the seat, and `hand-camera` for the hand that closes on the pen and the pen in it. A 14 cm pen seen from the cabin's corners, 6 to 8 m away, shows only a few pixels.
 - Under the climb's thrust, the engine turns a character's up against the cabin's gravity, so the belted person tips toward the nose, face toward the floor, and it floats that way in orbit, because a weightless character keeps its last up. Engine ticket ter-yrfa will let a weightless character turn its own up, which will right the person. Until then, the demo leaves the person as the engine's rule puts it (user, 2026-10-19).
+
+## The station and the rendezvous
+
+Ticket ter-tzf6 designs step 4 of "Order of the work", which is item 3 of "The sequence" (2026-10-20). The step is built. Its one engine change is `KeplerOrbit.Propagate` and `KeplerOrbit.Lambert` (see "Engine changes" below). Steps 5 (ter-ftnj) and 6 (ter-y0e5) start where this step ends.
+
+### What the step does
+
+- The station is a wheel 202 m across, on a circle 400 km up, in the plane of the launch. It turns about its axis at 0.31321 rad/s. That rate gives 9.81 m/s² on the wheel's floor, 100 m from the axis. The axis points along the orbit's normal. The docking slot on the axis faces the side of the orbit's plane where the sun shines.
+- The climb to orbit now steers into that plane, as a real launch flies into the plane of its target.
+- After the person takes the pen, the script tells the person to fasten its belt. The person floats back to its seat with the pen in its hand and straps in. So the burns do not throw it.
+- Then the script orders the rendezvous. The shuttle's new autopilot waits about 26 minutes in the parking orbit for its window. Then it burns about 60 m/s onto a transfer of 170 degrees. The transfer reaches the arrival point 2,560 s later, 1,500 m from the station on its axis.
+- At the arrival point the shuttle brakes with its main engine and turns its nose to the slot. Then it glides along the axis on translation thrusters to the hold point, 150 m from the station's center. It holds there, outside the station's bubble, and step 5 takes over.
+- The shuttle gets windows and translation thrusters. The scene gets cameras that look through the windows at the station.
+
+Terms used in this section:
+
+- The launch plane: the plane through Earth's center that holds the pad's up and the ramp's incline. The pad's up is +Y of `earth-surface`, and the incline is `LaunchRamp.Up`. The plane's normal is `Ŷ × LaunchRamp.Up`, normalized, which is -X. The parking orbit and the station's orbit lie in this plane.
+- The station's axis: the station's own +Y, about which it turns. In `earth-surface` it is +X. It stays fixed there, because `earth-surface` does not turn and the station's spin is steady. The slot is on the station's +Y side.
+- The arrival point: the point on the station's axis 1,500 m from the station's center, on the slot's side.
+- The hold point: the point on the station's axis 150 m from the station's center, on the slot's side.
+- The angle along the orbit, φ: the angle about the launch plane's normal from the pad's up toward -Z. The shuttle's φ grows as it flies. The pad is at φ = 0.
+- The transfer angle: the angle from the shuttle's position to a target point, seen from Earth's center. It turns about the station's orbit normal, the way that the orbit runs, from 0 to 360 degrees.
+- The window: the first tick of the rendezvous at which the transfer angle lies between 150 and 170 degrees. The angle is taken to the arrival point of 2,560 s later.
+- The needed velocity: the velocity that puts the shuttle on the two-body path that reaches the arrival point at the arrival time.
+- The velocity to gain: the needed velocity less the shuttle's velocity, both in `earth-surface`.
+- A target point's relative state: the shuttle's position less the target point's, and the shuttle's velocity less the station's. Both are in `earth-surface`. The axis does not turn there, so a point on the axis moves with the station's center.
+- A layer: an autopilot of the flight program. In its tick it adds `Throttle`, `AttitudeTarget` and `Translation` events to the shuttle's events. The ascent autopilot is the first layer and the rendezvous autopilot is the second. Step 5's docking autopilot will be the third.
+
+### The station
+
+`DemoScenes.DemoStation` holds the station's constants and spawns the station in `demo-surface`. It spawns before the shuttle, because the shuttle's rendezvous autopilot takes the station's entity. The table gives the parts in the station's own axes. +Y is the axis. The angle θ about it runs from +X toward -Z, as `RevolvedSolid` measures it.
+
+| Part | Size | Why | Body and shape | Drawn |
+|---|---|---|---|---|
+| Wheel floor | A ring from 100 to 101 m from the axis, 20 m wide, from y = -10 to 10 m, in 256 segments | The radius and the rate of the spin station (`SpinStation.FloorRadius`, `SpinStation.Rate`) give 9.81 m/s² on the floor. The person walks there in step 6. The facets are 2.45 m long. | The station's `BodyDesc.InteriorShape`: the exact mesh of the ring, as the note of ter-fb3w asks | The ring's mesh, on the station's own entity |
+| Wheel ceiling | A ring from 94.5 to 95 m, 20 m wide | It closes the wheel's tube 5 m above the floor, so the wheel looks closed from outside. Step 6 opens it where the chute ends. | A static body in the station's frame: `RevolvedSolid.Shape`, one hull per segment | Its ring mesh |
+| Wheel side walls | Two rings from 95 to 100 m, 0.3 m thick, centered at y = ±9.85 m | They close the tube's sides. The spin station's walls do the same for its floor. | Static bodies, one hull per segment | Their ring meshes |
+| Spokes | Four square tubes in the plane y = 0, at θ = 0, 90, 180 and 270 degrees. Each is 4 m on a side outside, with walls 0.25 m thick. | Inside, 3.5 m on a side holds the chute of step 6, a capsule 0.6 m wide. The Coriolis force presses it on one wall (see "Physics notes"). | One static body: a compound of the 16 wall boxes | `BoxMesh` tubes, open at both ends |
+| Spoke length | From the hub's outer face, 8.5 m from the axis, to the ceiling's face toward the axis, 94.5 m from it: 86 m | The spoke at θ = 180 degrees lies under the deck, so the chute starts at the deck. | | |
+| Hub, the docking barrel | A square tube along the axis, 17 by 26 by 17 m outside, with walls 0.5 m thick. Its half extents are 8.5, 13 and 8.5 m along X, Y and Z. | The bay inside is 16 by 25 by 16 m. Its four inner walls are flat, so the shuttle lands flat on one of them in step 5. The bay holds the shuttle's 16 m with 4.5 m to spare at each end. | One static body: a compound of the wall boxes, with the slot open | A `BoxMesh` box with the slot as an opening, seen from outside and from inside |
+| Slot | Through the hub's +Y wall, 6 m along X by 8 m along Z, on the axis | The shuttle's cross-section is 4 m tall and 6 m wide. `DemoStation.SlotClearance`, 1 m, adds room on each side. The shuttle enters with its belly toward the deck, so its height lies along X. | An opening | |
+| Slot clearance | | A spin mismatch of 3 degrees moves a corner of the shuttle by 0.19 m. The corner is 3.6 m from the shuttle's axis. The clearance of 1 m holds that. | | |
+| Deck | The bay's wall at x = -8 m, the inner face of the hub's -X wall | The landing floor of step 5. Its gravity is ω² × 8 m = 0.785 m/s², about 8 percent of a gravity. That is the weak spin gravity of the sequence. | Part of the hub | |
+| Deck under a landed shuttle | | A landed shuttle's cabin floor lies 7.8 m from the axis, at 0.765 m/s². | | |
+| Bay lamps | Four glowing panels on the bay's walls, with point lights | The slot glows from inside, as in the film. | Render only | Lamp panels, as in the cabin |
+
+Box openings run along X or Z only (`Opening.ThroughX`, `Opening.ThroughZ`). So the hub's body and mesh are built in the hub's own axes, whose +Z is the station's +Y. The slot is an opening through Z. The hub's child in the hull compound carries the same quarter turn about X, so the deck stays at x = -8 m.
+
+In `earth-surface`, the station's hull is kinematic. Its shape is a compound of three solids. The wheel is a solid ring from 94.5 to 101 m, in 256 segment hulls. The spokes and the hub are solid boxes. The bounding radius of the hull is 101.5 m, at the corner of the wheel's rim. Its mass is 1e7 kg, which a kinematic hull does not use. In its own frame, the station is the floor mesh and the static bodies in the table.
+
+Every part is drawn with `RenderFlags.NoImpostor`, beside `Visible` and `CastsShadow`. An impostor records the view direction in object space (ARCHITECTURE.md, "Impostors"). The spin turns the station 18 degrees a second, so a capture goes stale within a few ticks. The station has about ten thousand triangles, so the geometry costs little. The closed wheel shades its own inside. Step 6 lights the inside with lamps, as the spin station's walls carry lamps.
+
+The frame:
+
+- Bubble: a sphere of 120 m (`DemoStation.Bubble`). It holds the hull's 101.5 m with 18.5 m to spare. So a body enters the frame before it reaches the hull.
+- The shuttle's bubble reaches 17.3 m from its center. That is less than half of 120 m, so the shuttle's frame fits in the station's (`FrameBounds.Fits`), as "Physics notes" asks.
+- The shuttle's bounding sphere is 8.8 m. It touches the bubble at 128.8 m from the station's center.
+- Field: none. The turn alone gives weight inside, as in the spin station.
+- Motion: a `KeplerMotion` with the orbit of `DemoStation.Orbit`:
+
+```csharp
+new KeplerOrbit(SemiMajorAxis: OrbitRadius, Eccentricity: 0, Inclination: Math.PI / 2, LongitudeOfAscendingNode: -Math.PI / 2,
+    ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: Math.PI / 2 - meanMotion * OverPadAt, Epoch: 0,
+    AxialTilt: DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2), SpinRate: SpinStation.Rate, SpinPhaseAtEpoch: 0,
+    Attitude: KeplerAttitude.Spin)
+```
+
+where
+
+- `OrbitRadius` = `DemoScenes.OrbitRadius`, 6,771 km from Earth's center: Earth's mean radius plus 400 km.
+- `Inclination`, `LongitudeOfAscendingNode` = the turns that put the orbit's normal on -X, the launch plane's normal. At mean anomaly 0 the station is at +Z of `earth-surface` and moves toward +Y. At mean anomaly 90 degrees it is over the pad and moves toward -Z, as the shuttle does.
+- `meanMotion` = the orbit's mean motion, `Math.Sqrt(EarthMu / OrbitRadius³)`, 1.13316e-3 rad/s.
+- `OverPadAt` = the world time at which the station passes over the pad: 38 s, 18 s after the ignition. It sets the launch window. "The orbits, the window and the times" derives it.
+- `AxialTilt` = the quarter turn about Z that takes the station's +Y to +X of `earth-surface`, the slot's side. The spin turns about that axis, so the axis stays fixed.
+- `SpinRate` = 0.31321 rad/s, one turn in 20.1 s.
+
+The spawn carries the first motion intent of the orbit (`FirstMove`), as `Station.Build` does. It holds the pose, the velocity and the angular velocity of the orbit at the world's time. So the frame is on its rails and turns from its first step. Its proper acceleration is exactly zero, because a Kepler frame in a parent that does not turn falls freely (ARCHITECTURE.md, "How a frame moves"). The hull moves fast, so it lives in a following frame of its own (ARCHITECTURE.md, "Numeric frames"), as the orbiting station's hull does.
+
+The orbiting station of ter-dhkf is the analogue of the frame and the hull: a Kepler frame whose kinematic hull carries an interior. The spin station is the analogue of the turn, the floor mesh and the first motion intent. The orbit stays in `earth-surface`, and the spin lives in the orbit's attitude. A Kepler orbit inside a turning parent turns with the parent. So this is the one rails form in which a frame both orbits and spins.
+
+Why the axis points along the orbit's normal:
+
+- The axis is fixed in `earth-surface`. Of the directions fixed there, only the orbit's normal also stays fixed relative to the station's local vertical.
+- So the arrival point, the glide and the hold keep one place relative to Earth. Earth lies below the line of sight from the shuttle to the station for the whole approach, as in the film.
+- The sun's direction in `earth-surface` is (0.557, 0.743, 0.371). The slot's face has the normal +X, so it takes the sun at 56 degrees from its normal on every orbit. The shuttle on that side sees it lit.
+
+### The launch plane
+
+Today the climb does not hold its plane. Dumps of the launch on 2026-10-20 show this. The climb ends 0.17 degrees out of the plane of its launch, with a speed of 22.9 m/s across it. That speed builds up through the whole climb, at about 0.07 m/s².
+
+That puts the parking orbit up to 19.7 km to the side of a station in the launch plane. Where the window falls, the shuttle is 17 km to the side. From there, a transfer of 170 degrees costs about 116 m/s more at the burn. That is as much as the whole transfer.
+
+So `AscentGuidance` gets the launch plane's normal and a third part, across the plane. It already has a vertical part and a part along the track. The cross part takes the law of the vertical part: it reaches the plane with no speed across it at the end of the time to go. The track is now the direction in the plane across the up. So the part along the track no longer keeps a speed across the plane.
+
+```
+up = r / |r|,   track = (normal × up) / |normal × up|,   side = up × track
+across = r · normal,   acrossSpeed = v · normal,   alongTrack = v · track
+timeToGo = max((CircleSpeed - alongTrack) / MaxAcceleration, ShortestTimeToGo)
+vertical = 6 (OrbitRadius - |r|) / timeToGo² - 4 (v · up) / timeToGo + Mu / |r|² - (alongTrack² + acrossSpeed²) / |r|,   at most ±MaxAcceleration
+acrossPlane = -6 across / timeToGo² - 4 acrossSpeed / timeToGo,   at most ±sqrt(MaxAcceleration² - vertical²)
+horizontal = min(sqrt(MaxAcceleration² - vertical² - acrossPlane²), max(0, (CircleSpeed - alongTrack) / TrimTime))
+acceleration = up · vertical + side · acrossPlane + track · horizontal
+```
+
+where
+
+- `r`, `v` = the shuttle's position and velocity in `earth-surface`, from Earth's center.
+- `normal` = `DemoSurface.LaunchPlaneNormal`, -X. The scene gives it to the ascent autopilot. It is the plane's prograde normal, so `normal × up` points the way that the shuttle flies.
+- `track` = the unit direction in the plane across the up, the way that the shuttle flies.
+- `side` = the part of `normal` across the up, as a unit vector. The cross part pushes along `side`, not along `normal`: beside the plane, the up leans from the plane by `across / |r|`, so `normal` is not quite across the up. `up`, `track` and `side` are orthogonal, so the three parts share the thrust exactly.
+- `across` = how far the shuttle is from the launch plane, in meters.
+- `acrossSpeed` = how fast the shuttle moves across the launch plane, in m/s.
+- `alongTrack` = the speed along the track in the plane, in m/s.
+- `CircleSpeed`, `MaxAcceleration`, `ShortestTimeToGo`, `TrimTime`, `OrbitRadius`, `Mu` = as today.
+
+The vertical part comes first, then the part across the plane, then the part along the track. `Reached` does not change. The climb lasts 321 s. The cross part takes out its drift of 0.07 m/s² with a few hundredths of a degree of the thrust. The test of the launch requires the parking orbit within 100 m of the plane, and slower than 0.1 m/s across it. The cue of every section stays the same. But the climb changes a little, so the script is written again.
+
+### The orbits, the window and the times
+
+The numbers below come from the dumps of the launch on 2026-10-20, with the insertion moved into the launch plane. They use a two-body model with Earth's G·M. At the insertion, 340.5 s into the run, the shuttle is 199.98 km up, at φ = 11.06 degrees, at 7,788 m/s.
+
+| Quantity | Value | Arithmetic |
+|---|---|---|
+| Parking orbit | 6,571 km from Earth's center. n₁ = 1.18528e-3 rad/s, one turn in 5,301 s (88.4 min). | n = sqrt(μ / r³) |
+| Station's orbit | 6,771 km. n₂ = 1.13316e-3 rad/s, one turn in 5,545 s (92.4 min). 7,673 m/s. | |
+| How fast the shuttle gains on the station | 5.213e-5 rad/s, 0.179 degrees a minute, once in 33.5 h | n₁ less n₂ |
+| A Hohmann transfer, for comparison | 2,711 s and 115.9 m/s (58.2 + 57.7). At the burn, the station is 4.0 degrees ahead. | Half a turn of an orbit of 6,671 km, T = π sqrt(a³ / μ) |
+| The chosen transfer | 170 degrees in 2,560 s, the time of the cheapest transfer of 170 degrees between the two circles | A scan of Lambert solutions over the time of flight, in steps of 10 s |
+| Cost of the chosen transfer | 119.5 m/s (60.0 + 59.6) in the run's geometry. About 10 m/s at each end turns the plane to reach the arrival point 1.5 km to the side. | |
+| Transfer orbit | 199.3 by 400.5 km | |
+| Station at the insertion | φ = 19.6 degrees, 8.6 degrees ahead of the shuttle | n₂ × (340.5 s less 38 s), in degrees |
+| Transfer angle at the order, at about 366 s | 174.7 degrees | |
+| The window | 170 degrees, 1,578 s after the order. That is about 1,944 s into the run, 27 minutes after the insertion. The shuttle is at φ = 120 degrees. | The angle falls at 0.179 degrees a minute. |
+| Arrival | 1,944 + 2,560 = 4,504 s, at φ = 290 degrees | |
+| Velocity relative to the station at the arrival | 59.7 m/s: 57.8 m/s slower along the orbit, 11.2 m/s up, and 9.6 m/s across the plane | |
+| Brake | It starts about 740 m before the arrival point, 12 s before the arrival time. It stops the shuttle there in about 24 s. | 59.7² / (2 × 2.4) |
+| Glide | 1,350 m along the axis in about 350 s, at 5 m/s at most | A model of the law below, with the two-step lag of the thrust |
+| Hold | Reached about 4,870 s into the run, at 81 minutes | |
+
+Why 170 degrees:
+
+- A Hohmann transfer turns half an orbit. At exactly 180 degrees, the plane of the transfer is not defined.
+- An arrival point 1.5 km to the side of the orbit's plane tilts the plane of a transfer near 180 degrees steeply. At 175 degrees, the turn across the plane costs about 20 m/s at each end. At 180 degrees the cost has no bound.
+- At 170 degrees it costs about 10 m/s. The whole transfer costs 3 percent more than Hohmann's.
+
+Why the window falls at φ = 120 degrees:
+
+- The light decides. With the sun's direction above, the shuttle at 200 km is in Earth's shadow from φ = 80.7 to 226.3 degrees. The station at 400 km is in Earth's shadow from φ = 87.6 to 219.4 degrees.
+- A transfer that starts right after the insertion arrives at about φ = 190 degrees, in Earth's shadow.
+- With the window at 120 degrees, the shuttle arrives at 290 degrees. There the sun stands 37 degrees above the station's horizon. The part of Earth's limb that the shuttle sees below the station is lit.
+- The glide and step 5 run on toward φ = 330 degrees, where Earth's limb is lit best.
+- The cost is a coast of 26 minutes in the parking orbit, which a real rendezvous flies too. The burn falls in Earth's night, so the film shows it from the cabin (see "Sections of the long script").
+
+How `OverPadAt` sets the window:
+
+- The window opens at the tick where the station's lead over the shuttle shrinks to 3.8 degrees, the lead of the chosen transfer. The station moves 166.2 degrees in 2,560 s, and 166.2 + 3.8 = 170.
+- One second more of `OverPadAt` puts the station 0.065 degrees further back. That opens the window 22 s earlier and 1.5 degrees earlier along the orbit.
+- The builder of the station sets `OverPadAt` from the rehearsal. The aim is a window at φ between 115 and 125 degrees. The model gives 38 s, and the run test pins the range.
+
+Measured in the run of the checked-in script on 2026-10-20 (`BlueDanubeRendezvousTests`), with `OverPadAt` at the model's 38 s:
+
+- The window opens 1,950.6 s into the run, with the shuttle at φ = 120.4 degrees.
+- The two-body cost of the transfer from the shuttle's state at the window is 119.5 m/s. The burn, the trim and the brake change the shuttle's velocity by 119.5 m/s too, the integral of the cabin's proper acceleration.
+- The brake starts 4,498.2 s into the run, at φ = 289.6 degrees, with the shuttle 59.6 m/s fast relative to the station. It ends 23.8 s later.
+- The glide takes 341 s, and the hold starts 4,862.7 s into the run, at 81 minutes.
+
+### If the insertion changes
+
+The autopilot measures every state from the run and solves every burn from it. It keeps no number from a rehearsal.
+
+- Radius, eccentricity and plane: the transfer is a Lambert solution from the shuttle's measured position and velocity to the arrival point. The arrival point comes from the station's measured position and velocity.
+- The parking orbit can be a few kilometers higher or lower, a little oval, or a little out of the plane. That changes only the velocity to gain, by a few m/s. Today the insertion lies within 5 km of 200 km (`DemoLaunchTests`).
+- Phase and time: the window waits for the measured transfer angle. An insertion 1 s late puts the shuttle 0.07 degrees further back. That opens the window about 22 s later, and moves the arrival 1.5 degrees further along the orbit.
+- A change of 10 s either way keeps the arrival between φ = 275 and 305 degrees, where the light still works. A larger change fails the run test's range for the window, and the builder sets `OverPadAt` again.
+- A late order: the transfer angle at the order can already lie between 150 and 170 degrees. Then the window opens at once, and the transfer costs a few m/s more.
+- An order after the window: below 150 degrees, the autopilot waits for the next window, 33.5 h later. The generator then stops at that section's limit and names the section.
+- The burns are finite, about 32 s, and the thrust acts two steps after the read. The guidance solves again in every tick from the state that the last step left. So neither error lasts.
+
+### The rendezvous autopilot
+
+#### Layers
+
+The flight program is a stack of layers on the shuttle. The actuators follow the last layer that speaks. `MainEngine` and `AttitudeAutopilot` already take the last `Throttle` and the last `AttitudeTarget` of a tick. Their documentation says that a component that runs later overrides one that runs earlier. The layers get explicit priorities in the order of the flight, and the actuators run after all of them.
+
+| Component | Priority | What it adds |
+|---|---|---|
+| `AscentAutopilot` | 0 | In its `Orbit` case, an `AttitudeTarget` with the nose along the velocity, in every tick |
+| `RendezvousAutopilot` | 1 | Nothing in `Standby` and `Phasing`. From the window on, an `AttitudeTarget` in every tick. It adds a `Throttle` in the ticks of a burn, and a `Translation` in the ticks that its translation thrusters push. |
+| The docking autopilot of step 5 | 2 | Step 5 designs it. |
+| `AttitudeAutopilot`, `MainEngine`, `TranslationThrusters` | 10 (today 1) | They read what the layers added. |
+
+An active layer adds an `AttitudeTarget` in every tick. So the target of a layer before it never reaches the attitude autopilot. Before the rendezvous, only the orbit case of the ascent autopilot writes a target, and it writes no throttle. So a tick in which the rendezvous adds no throttle runs no engine. The ascent autopilot stays as it is. It holds the orbit's attitude until the window.
+
+#### The translation thrusters
+
+The shuttle has only its main engine, along the nose. The brake must push along the orbit while the station lies to the side. The glide must push toward and away from the station while the nose looks at it. So the shuttle gets translation thrusters, a new demo component that matches `MainEngine`:
+
+- `Translation`, an event payload: `Force`, a `Double3` in newtons, in the axes of the entity's frame.
+- `TranslationThrusters(maxThrust)` acts in each tick that brings a `Translation`. It turns the force into the hull's axes and limits each axis to ±`maxThrust`, as jets along each axis do. Then it turns the force back and adds it with `self.Body.AddForce`.
+- It reads the hull's rotation in `self.Frame`, as the main engine reads its nose.
+- A tick without a translation gives no force. The last translation of a tick counts.
+- A force that is not finite makes it throw `ArgumentOutOfRangeException`, which the world logs. It then pushes nothing.
+- `Shuttle.TranslationThrust` = 4,000 N per axis, 0.2 m/s² for the shuttle's 20 t.
+
+#### The phases
+
+`RendezvousState` is a custom C# 15 union, like `AscentState`, with one record per case. Each case holds the data that it needs, so no case reads a value that only another case sets. The default value is `Standby`. The passenger's union already has cases named `Holding` and `Stopped` in the same namespace, so the rendezvous names its last cases `Hold` and `Halted`.
+
+| Case | Data | What the autopilot does | Next case |
+|---|---|---|---|
+| `Standby` | None | It adds nothing. | A `Rendezvous` order arrives: `Phasing`. The autopilot builds its guidance then, as the ascent autopilot does at the ignition. |
+| `Phasing(Transfer)` | The transfer guidance | It adds nothing, so the orbit attitude of the ascent autopilot flies on. | The transfer angle lies between 150 and 170 degrees: `Transfer`, with the arrival time 2,560 s from now |
+| `Transfer(Transfer, ArrivalTime)` | The transfer guidance, and the arrival time in the world's seconds | It burns and trims onto the Lambert path that reaches the arrival point at the arrival time. | In the coast, the braking curve reaches the shuttle, or the arrival time comes: `Brake` |
+| `Brake(Approach)` | The approach guidance of the brake | It stops the shuttle at the arrival point with the main engine. | The shuttle is within 10 m of the arrival point and slower than 0.1 m/s relative to the station: `Glide` |
+| `Glide(Approach)` | The approach guidance of the glide | It turns the nose to the slot. It flies the shuttle along the axis to the hold point on the translation thrusters. | Distance, speed and nose are within the hold's tolerances (see "Tolerances and the end state"): `Hold` |
+| `Hold(Approach)` | The approach guidance of the glide | It holds the shuttle at the hold point, with its nose at the slot. | None. The layer of step 5 overrides it. |
+| `Halted` | None | It adds nothing more. | None |
+
+The guidance takes Earth's G·M from the point gravity of the shuttle's frame (`KeplerOrbit.MuFrom`). The autopilot goes to `Halted`, and logs the reason once, in these cases (a hull without mass is a fourth, as for the ascent autopilot):
+
+- The station is gone.
+- The shuttle's frame has no point gravity to fly in.
+- The shuttle is no longer in the frame that holds the station, as after a hand-off into the station's bubble in step 5. The laws below hold only in a frame that does not turn, and `earth-surface` is one.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Standby
+  Standby --> Phasing: the order Rendezvous
+  Phasing --> Transfer: transfer angle from 150 to 170 degrees
+  Transfer --> Brake: braking curve reached in the coast, or the arrival time
+  Brake --> Glide: within 10 m and 0.1 m/s
+  Glide --> Hold: within 0.5 m, 0.02 m/s and 1 degree
+  Standby --> Halted: no gravity at the order
+  Phasing --> Halted: station gone, no mass, or another frame
+  Transfer --> Halted
+  Brake --> Halted
+  Glide --> Halted
+  Hold --> Halted
+```
+
+#### Reads and writes, and their frames
+
+Every read is in `earth-surface`, the frame of the shuttle's hull, `self.Frame`, which does not turn:
+
+- The shuttle's position and velocity: `self.PoseIn(self.Frame)` and `self.VelocityIn(self.Frame)`.
+- The station's position, rotation and velocity: `self.Snapshot.TryGetPoseIn(station, self.Frame)` and `TryGetVelocityIn(station, self.Frame)`. The station's axis is its rotation applied to +Y.
+- Earth's G·M: from the point gravity of `self.Frame`, once, at the order.
+
+Both the shuttle and the station own frames. A frame and its owner are one entity: the frame tree row is exact, and the float transform row is filled from the frame's last step record (`World.MirrorFrameOwners`). That record keeps the instant velocity (ARCHITECTURE.md, "Rails components and motion intents"). So the two velocities mean the same thing. Their difference has no bias of half a step of gravity. The pods of the orbiting station's scene are plain bodies. Their reads are Jolt's chords, and they read 7 cm/s off for that reason.
+
+Every write is relative to `self.Frame`, in its axes: the rotation of the `AttitudeTarget`, the force of the `Translation`, and the main engine's push along the nose. The tick reads the state at the end of the last finished step. Its pushes act in the step of the next tick, two steps late, as for the ascent autopilot. Every time constant below is 0.5 s or longer, 30 steps, so the lag costs little.
+
+#### The transfer guidance
+
+The two-body math lives in `KeplerOrbit`, in Core. The user's rule for the rails library makes two-body math with no orbit elements a static method of `KeplerOrbit`, and the user chose that this rule holds here too (user, 2026-10-20). It is the one engine change of this step (see "Engine changes"). The analogue is `KeplerOrbit.Chord`, which also takes a state and G·M:
+
+- `KeplerOrbit.Propagate(position, velocity, mu, time)`: the state after `time` seconds on a two-body path, as `StateAt` gives it, a position and a velocity. It uses the universal variable and Stumpff's functions, with Newton's method. The method keeps bounds on the solution and halves them where a step of Newton's leaves them or gains too little, as on a hyperbola over days. It refuses a hyperbola over more than about 1e28 s, where it does not converge. The station moves on exactly such a path, so the propagation of its measured state equals its rails to the rounding.
+- `KeplerOrbit.Lambert(from, to, timeOfFlight, mu, normal)`: the velocities at both ends of the two-body path from `from` to `to` in `timeOfFlight`. The path turns about `normal` through the angle from `from` to `to`, measured that way from 0 to 360 degrees, in less than one revolution. So above 180 degrees it runs the long way.
+- `Lambert` uses the universal-variable method of Bate, Mueller and White (Curtis, algorithm 5.2). It finds the variable z by bisection, over a single revolution. It refuses a transfer angle within 1 degree of 0 or 180 degrees, where the plane of the path is not defined, and a time of flight faster than its search covers: a hyperbola whose anomaly turns by more than 2π.
+`TransferGuidance(Mu)` is a record struct of the demo, like `AscentGuidance`. It holds Earth's G·M for the two calls, and the guidance of the transfer below. Its one member of geometry is:
+
+- `TransferAngle(from, to, normal)`: the angle from `from` to `to` about `normal`, from 0 to 2π.
+
+In each tick of `Phasing`:
+
+```
+arrival = KeplerOrbit.Propagate(stationPosition, stationVelocity, Mu, TransferTime).Position + axis · ArrivalDistance
+angle = TransferAngle(shuttlePosition, arrival, orbitNormal)
+```
+
+where
+
+- `stationPosition`, `stationVelocity` = the station's center and velocity in `earth-surface`.
+- `shuttlePosition` = the shuttle's center in `earth-surface`.
+- `TransferTime` = 2,560 s. `ArrivalDistance` = 1,500 m.
+- `axis` = the station's axis in `earth-surface`.
+- `orbitNormal` = the station's orbit normal, `stationPosition × stationVelocity`, normalized.
+- `angle` = the transfer angle. The window is open while it lies between 150 and 170 degrees.
+
+In each tick of `Transfer`:
+
+```
+timeLeft = ArrivalTime - time
+arrival = KeplerOrbit.Propagate(stationPosition, stationVelocity, Mu, timeLeft).Position + axis · ArrivalDistance
+(needed, atArrival) = KeplerOrbit.Lambert(shuttlePosition, arrival, timeLeft, Mu, orbitNormal)
+toGain = needed - shuttleVelocity
+push = toGain / TrimTime, at most BurnAcceleration long
+```
+
+where
+
+- `time` = the time at the end of the last finished step, `self.TimeAt(self.Tick)`.
+- `needed` = the needed velocity now.
+- `atArrival` = the shuttle's velocity at the arrival point, on that path.
+- `toGain` = the velocity to gain.
+- `TrimTime` = 4 s, as `AscentGuidance.TrimTime`, so the thrust of the burn falls in its last seconds.
+- `BurnAcceleration` = 3 m/s², a throttle of about 0.10. So the departure burn lasts about 32 s: the push stays at the cap of 3 m/s² for about 16 s, until about 12 m/s is left to gain, and the trim time then takes the rest, as the push falls with the velocity to gain.
+
+The transfer runs in three modes:
+
+- The burn: `toGain` is longer than 0.1 m/s. The nose turns toward `toGain`. The throttle is the part of `push` along the nose, never below 0, times the mass, over the engine's full thrust. The translation thrusters take the rest of `push`.
+- 0.1 m/s is `TransferGuidance.SpeedTolerance`, the speed that the trim takes in 4 s at half the weightless threshold. So the trim's push is at most 0.025 m/s², and the cabin stays clearly weightless through the trim. A strapped person floats there in the rigid form of a character, which keeps its up. At a push of the threshold itself, a person who touches its seat walks again and turns its up to the push at once. The first value was 0.2 m/s, `AscentGuidance.SpeedTolerance`, the speed that the trim takes in 4 s at the threshold. The trim's first push then came to 0.0499 m/s², at the threshold to the rounding. The burn's thrust now leaves the cabin weightless about 3 s before the burn ends, at a throttle of about 0.001 (ter-tzf6, 2026-10-20).
+- The trim: `toGain` is 0.1 m/s or shorter. Only the translation thrusters trim it, with `toGain / TrimTime`. The nose turns toward the brake's direction at the plan's weightless turn rate, so the brake starts after only a small turn.
+- In the trim and the coast, the nose turns at most at the plan's `RendezvousPlan.WeightlessTurnRate`: 0.002 rad/s in the demo's plan, and the full 0.15 rad/s in the short test plan, whose shuttle carries no crew and must turn within its 300 s. Each `AttitudeTarget` carries the fastest turn that its layer allows, `MaxTurnRate`, and the attitude autopilot asks for at most that and its own 0.15 rad/s. A turn of the hull gives the crew a felt gravity: the centrifugal term ω² r, and the Euler term while the attitude autopilot brings the hull to its rate in a third of a second, 3 ω r. At the seat, 4 m from the hull's center, the Euler term of 0.002 rad/s is 0.024 m/s², less than half the threshold. At 0.15 rad/s, the turn of 160 degrees from the burn's nose to the brake's direction gave about 0.1 m/s² there. That put the strapped person into the walking form, and its up turned at the air rate to about 155 degrees from the nose: on its side, with its body over the pen. At 0.002 rad/s the turn takes about 1,400 s of the trim's 2,450 s, and the person keeps the up of the burn, with its head toward the nose (`BlueDanubeRendezvousTests`).
+- The brake's direction is the opposite of the shuttle's velocity relative to the station at the arrival point: `atArrival` less the station's propagated velocity.
+- The coast: in the last 60 s before the arrival time, the autopilot solves nothing more. A short transfer turns a small miss into a large velocity to gain. The nose turns against `u`, the velocity relative to the station, at `RendezvousPlan.WeightlessTurnRate`.
+- With the trim, the shuttle reaches the arrival point within about 12 m. The trim lasts about 2,450 s, and it holds the velocity to gain below 5 mm/s.
+
+The transfer ends in the coast at the braking curve, where `sqrt(2 × 2.4 m/s² × d)` is no more than `|u|`. Here `d` is the distance to the arrival point and `u` the velocity relative to the station. It also ends at the arrival time. The test holds only in the coast: earlier, the shuttle is thousands of kilometers from the arrival point, where `|u|` (about 15 km/s at the window) exceeds the curve's speed (about 8 km/s), and the relative motion is not that of a free mass. The brake starts about 12 s before the arrival time, well inside the coast of 60 s. In the coast, the nose turns against `u`, which differs from the brake's direction of the last solution by 0.15 degrees. At about 3,300 s the brake's direction passes 9 degrees from straight down, and the roof, away from Earth across the nose, swings about the nose there. At the slow turn rate the nose catches up only slowly afterward: it lies 2.9 degrees off the brake's direction when the coast starts, and 2.1 degrees off `-u` when the brake starts.
+
+#### The approach guidance
+
+`ApproachGuidance(Mu, BrakeAcceleration, SpeedCap, FinalRate, VelocityTime, MaxAcceleration)` is one law for the brake, the glide and the hold. It flies the shuttle to a point fixed to the station and stops it there. It cancels the difference of Earth's gravity between the shuttle and the station's center. So the shuttle moves relative to the point as a free mass in empty space does, and a simple law flies it exactly.
+
+```
+x = shuttlePosition - target,   d = |x|
+u = shuttleVelocity - stationVelocity
+wanted = -(x / d) · min(SpeedCap, sqrt(2 BrakeAcceleration d), FinalRate d)
+push = (wanted - u) / VelocityTime - (g(shuttlePosition) - g(stationPosition)),   at most MaxAcceleration long
+g(r) = -Mu r / |r|³
+```
+
+where
+
+- `target` = the target point in this tick: the station's center plus the point's distance along the axis.
+- `wanted` = the velocity relative to the station that the law asks for.
+- `push` = the acceleration that the shuttle's thrust must give, in m/s².
+- `g` = the point gravity of Earth.
+
+The target is the arrival point for the brake, and the hold point for the glide and the hold. The wanted velocity points toward the target. Its speed is the least of three limits:
+
+- The speed cap.
+- The speed that stops the shuttle at `BrakeAcceleration` in the distance left.
+- Near the target, `FinalRate` times the distance, as the passenger's float slows (`Passenger.ApproachRate`).
+
+The difference of gravity is 1.9e-3 m/s² at 1.5 km to the side of the orbit. At the hold point it is 1.9e-4 m/s², about 4 N for the shuttle.
+
+| Phase | Target | `BrakeAcceleration` | `SpeedCap` | `FinalRate` | `VelocityTime` | `MaxAcceleration` | Thrust | Nose |
+|---|---|---|---|---|---|---|---|---|
+| `Brake` | Arrival point | 2.4 m/s², 80 percent of the burn's, so the law has room to follow its curve | None | 0.5 /s | 0.5 s | 3 m/s² | The main engine along the nose, and the translation thrusters for the rest | Along `push` |
+| `Glide`, `Hold` | Hold point | 0.05 m/s², a quarter of the thrusters' | 5 m/s | 0.1 /s | 2 s | 0.2 m/s² | The translation thrusters only | Toward the slot, along minus the axis |
+
+In every phase that steers, the roof turns away from Earth across the nose, as the ascent autopilot turns it. The target comes from `AttitudeAutopilot.Facing`, with the shuttle's position as the roof. In the glide and the hold, the roof points exactly away from Earth, because the axis lies across the vertical. The turn from the brake's nose to the slot is about 100 degrees about the roof. At the attitude autopilot's 0.15 rad/s it takes about 12 s, while the thrusters already push along the axis.
+
+#### Tolerances and the end state
+
+| Phase | Tolerance |
+|---|---|
+| Window | The transfer angle lies from 150 to 170 degrees. |
+| End of the burn | The velocity to gain is below 0.1 m/s. The trim then holds it below 5 mm/s. |
+| Miss at the arrival time | Within 100 m of the arrival point (about 12 m expected) |
+| End of the brake | Within 10 m of the arrival point, and slower than 0.1 m/s relative to the station. At 0.5 m/s, the glide inherits up to 0.5 m/s across the axis: its push is capped at 0.2 m/s² as a whole, and the speed of 5 m/s that it wants along the axis takes nearly all of it, so the drift across the axis reached 5.6 m on the short test plan. At 0.1 m/s it stays within 1.7 m. |
+| Glide | Within 5 m of the axis all the way |
+| Hold | Within 0.5 m of the hold point, slower than 0.02 m/s, and the nose within 1 degree of minus the axis |
+
+The end state, for step 5:
+
+- The shuttle holds at `DemoStation.HoldPoint`, 150 m from the station's center on its axis, on the slot's side, in `earth-surface`.
+- Its nose points at the slot, and its roof away from Earth. It does not turn relative to the stars.
+- Its bounding sphere lies 21 m outside the station's bubble, and its own bubble 12.7 m outside it. So no bubble holds the other, and no ghost crosses between them.
+- The rendezvous autopilot stays in `Hold`. It keeps the shuttle there until a later layer speaks.
+
+Why the hold point lies outside the bubble:
+
+- Inside the station's frame, the shuttle's reads and writes are in axes that turn at 0.31321 rad/s.
+- In those axes, a shuttle that does not turn relative to the stars turns backward at that rate. That is faster than the attitude autopilot's limit of 0.15 rad/s, so the attitude autopilot cannot hold it there.
+- Outside the bubble, step 5 can spin the shuttle up to the station's rate. The shuttle then enters at rest in the station's axes, and every read in its new frame stays still.
+
+### The passenger through the burns
+
+In a burn of 3 m/s², a person who floats in the cabin falls onto the aft wall. So the script tells the person to fasten its belt before it orders the rendezvous. The `Passenger` gets one order and two cases:
+
+- `FastenBelt`: an event with no payload that a script posts, as it posts `Ignition`. A passenger in `Holding` takes it. In every other case it changes nothing.
+- `Returning(Copy)`: the passenger floats its center back to `Shuttle.SeatStand`, with the thrusters and the law of its fetch. Its speed toward the seat is at most `FloatSpeed`, 1 m/s, and `ApproachRate` per meter of the way left.
+- During `Returning`, the drawn copy of the pen stays in its hand. Once its center is within `BuckleRadius`, 0.1 m, of the seat, it shuts its belt: `Strapped`.
+- `Strapped(Copy)`: the belt of `Seated`, which holds the passenger whenever the felt gravity does not keep it on its feet. But the passenger never opens it. Step 6 opens it.
+
+The person takes the pen near z = -1 m, about 2.1 m from the port wall and 2.0 m above the floor. The seat stand lies 3.4 m from there, aft of the seat. The straight way passes above and aft of the seat. The float takes about 8 s. The belt held the person through the climb at 30 m/s², so it holds the person at 3 m/s².
+
+### The shuttle's windows and the cameras
+
+The shuttle gets windows, as the ship of the orbit scene has them (`DemoScenes.Windows` and its panes):
+
+- A nose window through the front wall, 4 m wide and 1.4 m tall, centered at eye height, 1.65 m above the cabin floor.
+- Three windows in each side wall, 1.2 m wide and 0.8 m tall, at eye height, at z = -5.5, -3 and 4.5 m.
+- The side windows miss the hatch, from z = 1.4 to 2.6 m on the starboard wall. They also miss the pen's clip, at z = -1 m on the port wall.
+- Each window has a pane of glass with no body, as the ship's windows do. The interior shape stays solid at the windows, as in the ship.
+
+The windows change the look of the cabin in the earlier films, but none of their cues.
+
+New cameras, each a still view in its frame, as the pen camera and the spin station's views are:
+
+| Camera | Frame | Place | What it sees |
+|---|---|---|---|
+| `window-camera` | The shuttle's | 1.2 m behind the nose window at eye height, looking out along -Z | The station ahead through the nose window, with Earth's limb at the bottom |
+| `bow-camera` | The shuttle's | 30 m ahead of the nose and 5 m above it, looking aft along the hull, 30 degrees to port of astern | The shuttle in front and the station behind it, through the closing. The station lies 9 to 57 degrees to port of astern there. |
+| `port-window-camera` | The shuttle's | 0.6 m inside the aft port window and 0.3 m forward of its middle, at z = 4.2 m and eye height, looking out 20 degrees aft of abeam, through the window's middle | The station through the window during the brake. The station lies to port, from 33 to 9 degrees aft of abeam, and 1.5 degrees below the horizontal. At first the camera was 1 m inside the window, at z = 4.5 m: the window's outer edge then cut the view at 27 degrees aft of abeam, so the station lay outside it for the first 4 s of the brake. |
+| `cockpit-camera` | The shuttle's | Aft of the seat and to starboard of it, above the person's head, at (1.9, 0.9, -1.4) m, looking down at (0.7, -1.3, -5.2) m | The strapped person at its seat with the pen, and the nose window beyond it. The person floats upside down from the take, and the burn tips it with its head toward the nose, by the up rule of every character. The pen is in its right hand, so a camera to port, as first placed, saw the pen behind the person's body in the burn. The trim's push and its slow turn leave the cabin weightless, so the person keeps that up through `transfer-night`. The glide's turn to the slot swings the person's up by up to 105 degrees, and the glide's push along the nose turns it back before `arrival`. |
+| `rim-camera` | The station's | 2 m off the slot's face of the wheel, near its rim, looking across the axis | The hub and the shuttle on the axis together. It turns with the station, so Earth and the stars sweep behind them. That previews the spin match of step 5. |
+
+The builder of `rim-camera` aims it at a point on the axis between the hub and the hold point, with the axis across the picture. The picture's horizontal field is 92 degrees, so both fit.
+
+### Sections of the long script
+
+The step's sections replace the section `coast`. A section that waits longer than 10 minutes of the simulation names a larger `Limit`, twice its length: `phasing` 2,100 s, `transfer-night` 3,000 s and `transfer` 1,800 s. `night` lasts 586 s, within 14 s of the default limit, so it names 1,200 s too. The frames and seconds below are what the generator printed on 2026-10-20. The model above gave nearly the same, except for the belt, which took 5 s, and the burn, which took 32 s.
+
+| Film | Camera | Ticks per frame | Posts | Ends | Measured |
+|---|---|---|---|---|---|
+| `belt` | `cabin-camera` | 1 | `FastenBelt` to `person` | 1 s after the passenger is `Strapped` | From 357.0 s: 4.9 s, 292 frames |
+| `phasing` | `chase-camera` | 60 | `Rendezvous` to `shuttle` | The shuttle is in Earth's shadow. | 1,003 s, 1,003 frames |
+| `night` | `cockpit-camera` | 120 | | The autopilot is in `Transfer`. | 586 s, 293 frames |
+| `burn` | `cockpit-camera` | 2 | | 2 s after the shuttle's orbit reaches 399 km and the cabin is weightless | From 1,950.8 s: 34.2 s, 1,025 frames |
+| `transfer-night` | `cockpit-camera` | 240 | | The shuttle is out of Earth's shadow. | 1,468 s, 367 frames |
+| `transfer` | `chase-camera` | 60 | | The shuttle is within 10 km of the arrival point. | 890 s, 890 frames |
+| `closing` | `bow-camera` | 8 | | The autopilot is in `Brake`. | 155 s, 1,164 frames |
+| `brake` | `port-window-camera` | 1 | | The autopilot is in `Glide`. | From 4,498.2 s: 23.8 s, 1,425 frames |
+| `turn` | `window-camera` | 1 | | The nose is within 2 degrees of the direction to the station. | 12.1 s, 726 frames |
+| `glide` | `chase-camera` | 6 | | The shuttle is within 700 m of the station. | 160 s, 1,603 frames |
+| `glide-window` | `window-camera` | 4 | | Within 400 m | 60 s, 900 frames |
+| `glide-rim` | `rim-camera` | 4 | | Within 200 m | 54 s, 806 frames |
+| `arrival` | `cockpit-camera` | 4 | | 3 s after the autopilot is in `Hold` | 58 s, 864 frames |
+| `hold` | `rim-camera` | 1 | | After 5 s | From 4,865.7 s: 5 s, 300 frames |
+
+The step films 11,658 frames in 4,514 s of the simulation, 194 s of video at 60 frames per second.
+
+Every cue reads the run or the scene's constants:
+
+- In Earth's shadow: the cue reads the shuttle's position in `earth-surface` and the direction of the frame `sun` there. The shuttle is in the shadow while it lies on the far side of Earth from the sun. It must also lie less than `EarthRadius` from the line through Earth's center toward the sun.
+- The orbit reaches 399 km: the cue reads the apoapsis of the two-body orbit of the shuttle's state.
+- The end of the burn needs the apoapsis as well as the weightless cabin. The cabin is also weightless in the tick before the burn starts.
+- The other cues read the autopilot's case, the passenger's case, the cabin's proper acceleration, and distances from the station's measured center.
+
+The parts in Earth's night are filmed from the cabin. The demo's Earth casts no shadow, because `RenderFlags.CastsShadow` is off on the drawn `earth`. So an outside view at night shows a sunlit shuttle over the dark side of Earth.
+
+### Analogues
+
+| New value | Its analogue | What the new value takes from it |
+|---|---|---|
+| `RendezvousState` | `AscentState` | A custom union with one record per phase. Each case has the data that it needs. The guidance is made at the order. |
+| `RendezvousAutopilot` | `AscentAutopilot` | A layer that adds events for the actuators in every tick. It reads its own state in `self.Frame`, and takes G·M from the frame's point gravity. |
+| `KeplerOrbit.Propagate`, `KeplerOrbit.Lambert` | `KeplerOrbit.Chord` | A static method of `KeplerOrbit` that takes a state and G·M, with no orbit elements |
+| `TransferGuidance` | `AscentGuidance` | A pure record struct with `Mu`, which steers from the state alone, with the trim of `TrimTime` and `SpeedTolerance` |
+| `ApproachGuidance` | The float of `Passenger`, and the trim of `AscentGuidance` | A speed that falls with the distance left, and an acceleration that takes out the velocity error in a time constant |
+| `TranslationThrusters`, `Translation` | `MainEngine`, `Throttle` | An event per tick, of which the last counts, with no memory, and an error for a bad value |
+| `Rendezvous`, `FastenBelt` | `Ignition` | An order with no payload that the script posts |
+| `Returning`, `Strapped` | `Fetching`, `Seated` | The float of the fetch, and the belt of the seat without the count that opens it |
+| The station's frame and hull | The orbiting station (`Station.Build`) and the spin station (`SpinStation.Build`) | A kinematic hull on Kepler rails with its first motion intent, a floor mesh as the interior, and static walls in the turning frame |
+| The station's bubble | The spin station's sphere of 110 m | A sphere round the wheel with room to spare |
+| The arrival point and the hold point | `Shuttle.SeatStand`, `Shuttle.OutsideHatch` | A named place in the axes of the thing that it belongs to |
+| The new cameras | `pen-camera`, `cabin-camera`, the spin station's views | Still views in their frames |
+| The shuttle's windows | The `Windows` of the orbit scene's ship, and its panes | Openings in the drawn hull, glass with no body, and a solid interior |
+| `DemoSurface.LaunchPlaneNormal` | `LaunchRamp.Up` | One scene constant that the ramp, the climb and the station share |
+| The step's sections | The launch's sections | Cues that read the run, and time-lapses by the film interval |
+
+### Readers and writers
+
+Step k is the physics step that runs beside tick k. A tick reads the state at the end of step k - 1. The intents that it writes act in step k + 1.
+
+| Value | Writer, and when | Readers, and when |
+|---|---|---|
+| `Rendezvous`, `FastenBelt` | The script's post, between ticks | The rendezvous autopilot and the passenger, in the next tick |
+| `RendezvousAutopilot.State` | The autopilot, in its tick | The autopilot in the next tick. The section cues and the tests, between ticks. |
+| `PassengerState`'s `Returning` and `Strapped` | The passenger, in its tick | The passenger in the next tick. The cues and the tests, between ticks. |
+| `AttitudeTarget`, with its rotation and its `MaxTurnRate` | The ascent autopilot (priority 0) and the rendezvous autopilot (1), in tick k. Every layer sets both: 0.15 rad/s, except the rendezvous autopilot's trim and coast, at the plan's `WeightlessTurnRate` | The attitude autopilot (10) in tick k, which takes the last. Its torque acts in step k + 1. |
+| `Throttle` | The rendezvous autopilot, in tick k | The main engine in tick k. Its push acts in step k + 1. |
+| `Translation` | The rendezvous autopilot, in tick k | The translation thrusters in tick k. Their force acts in step k + 1. |
+| The shuttle's pose and instant velocity in `earth-surface` | Physics in step k, through the frame's record at step 2 of the sync point after it | The autopilots and the actuators in tick k + 1 |
+| The station's pose and instant velocity | The full sample of its `KeplerMotion` for step k, written in tick k - 1, recorded at step 2 after step k | The rendezvous autopilot in tick k + 1. The cues, between ticks. |
+| The station's turn and proper acceleration | The frame tree, at `BeginStep` and at step 2 | Physics, and `FrameTree.FeltGravity` in the tests |
+| `AscentGuidance.PlaneNormal` | The scene at the spawn, through the ascent autopilot's constructor | The law of the ascent autopilot in each tick of the climb |
+| The constants of `DemoStation`, `RendezvousPlan` | Code | The scene at its build, the rendezvous autopilot's constructor, the cues and the tests |
+
+### The flow per kind of entity
+
+| Entity | What moves it | Its components | Its frame | What it reads |
+|---|---|---|---|---|
+| Shuttle: a dynamic hull that owns the cabin's frame | Physics, by the forces of the main engine and the translation thrusters, and the torques of the attitude autopilot | `AscentAutopilot`, `RendezvousAutopilot`, `AttitudeAutopilot`, `MainEngine`, `TranslationThrusters` | `earth-surface`, in a falling numeric frame of its own | Its own pose and velocity, the station's pose and velocity, and the G·M, all in `earth-surface` |
+| Station: a kinematic hull on rails that owns the station's frame | The full samples of its `KeplerMotion`. The first comes from the spawn. | `KeplerMotion` | `earth-surface`, in a following frame of its own | The G·M of `earth-surface` |
+| The station's static parts | Nothing. They rest in the station's frame, which turns. | None | The station's | Nothing |
+| Person: a character in the cabin | Physics, by the forces of the passenger's belt and float | `Walker` (done), `Passenger` | The cabin | Its own pose and velocity in the cabin, and the cabin's felt gravity |
+| Cameras | Nothing. They are still in their frames. | None | The cabin's or the station's | Nothing |
+| The script | It posts orders between ticks. | | | |
+
+The shuttle and the station never touch in step 4. Their numeric frames stay apart. The merge test links two bodies only within 2 s of their relative speed plus 10 m. The hulls never come closer than about 40 m.
+
+### Built from scratch, compared
+
+A design from scratch, with every step known, has one launch plane that the ramp, the climb and the station share. It has one flight program of layers over shared actuators, with priorities in the order of the flight. The shuttle has windows and translation thrusters from the start. The passenger's union runs from the boarding to the exit. This design ends there, with the cases added at the end of each union. Three things differ, and the two-body math in `KeplerOrbit` is the same as from scratch:
+
+- From scratch, Earth casts its shadow, and the night shows outside. Here the night is filmed from the cabin (see "Not in this step").
+- From scratch, the actuators run after every layer from the start. Here their priority moves from 1 to 10.
+- From scratch, the station's phase is still a constant set from the launch's timeline. The only other way is a second model of the climb inside the scene. Here that constant is `OverPadAt`, and the run test pins the window that it gives.
+
+### Tests
+
+Every test of physics runs the real World on the real Jolt backend, in `tests/Tertius.Host.Tests`. A test that needs a component uses the project's small hand-written components. Each implementation brief asks for hand mutations. For each new test, the agent breaks the line that the test protects, watches the test fail, and restores the line.
+
+Pure math, with no World:
+
+- `KeplerOrbitTests`, in `tests/Tertius.Core.Tests`:
+  - `ThePropagatedStateOfACircularOrbitIsTheOrbitsStateLater`, against `KeplerOrbit.StateAt`, within 1 mm after 2,560 s.
+  - `ThePropagatedStateOfAnOvalOrbitIsTheOrbitsStateLater`, the same for an eccentricity of 0.3.
+  - `TheLambertVelocityLandsOnTheTargetAfterTheTimeOfFlight`: the propagated solution, within 1 mm.
+  - `TheLambertVelocityAtTheTargetIsThePropagatedVelocity`.
+  - `TheCheapestTransferOf170DegreesCostsAtMost4PercentMoreThanHohmanns`.
+  - `ATransferAngleWithinADegreeOf180DegreesIsRefused`.
+- `TransferGuidanceTests`:
+  - `TheTransferAngleRunsTheWayOfTheOrbit`.
+  - `TheTrimPushesAtMostHalfTheWeightlessThreshold`: at the speed tolerance, the trim's push is at most 0.025 m/s².
+- `ApproachGuidanceTests`:
+  - `AtTheTargetAndAtRestThePushOnlyCancelsTheDifferenceOfGravity`.
+  - `TheWantedSpeedNeverExceedsTheCap`.
+  - `TheWantedSpeedStopsTheShuttleAtTheBrakeAccelerationInTheDistanceLeft`.
+  - `NearTheTargetTheWantedSpeedFallsWithTheDistance`.
+  - `ThePushNeverExceedsItsMaximum`.
+- `AscentGuidanceTests`:
+  - `AShipThatDriftsAcrossTheLaunchPlaneIsToldToPushBackTowardIt`.
+  - `AShipBesideTheLaunchPlaneIsToldToReturnToIt`.
+  - `ThePushAcrossThePlaneNeverTakesThrustFromTheClimb`.
+  - The existing tests, with the plane's normal.
+
+Components on the real World, in scenes that the tests build from the demo's spawn helpers. Each test gives every value.
+
+- `TranslationThrusterTests`:
+  - `TheThrustersPushTheHullWithTheForceOfTheTick`.
+  - `EachAxisOfTheHullIsLimitedToTheThrustersMaximum`.
+  - `ATickWithoutATranslationGivesNoForce`.
+  - `TheLastTranslationOfATickCounts`.
+  - `ANonFiniteTranslationIsAnErrorAndGivesNoForce`.
+- `FlightLayerTests`:
+  - `ALaterLayersTargetOverridesAnEarlierLayersTarget`.
+  - `TheActuatorsRunAfterEveryLayer`.
+- `FlightControlTests`:
+  - `TheAttitudeAutopilotTurnsNoFasterThanTheTurnRateOfTheTarget`: a target with 0.01 rad/s turns the hull at that rate.
+- `RendezvousAutopilotTests` puts the station on its orbit in a root frame with Earth's point gravity, and spawns the shuttle in orbit near it. The autopilot takes its plan in its constructor. So a test flies a short plan, where the demo's plan takes an hour.
+  - `WithoutAnOrderTheAutopilotAddsNothing`.
+  - `AfterTheOrderTheAutopilotWaitsUntilTheTransferAngleFallsTo170Degrees`.
+  - `AnOrderInsideTheWindowStartsTheTransferAtOnce`.
+  - `TheBurnPutsTheShuttleOnATwoBodyPathThatReachesTheArrivalPointAtTheArrivalTime`. It uses the demo's plan, flies only the burn, about 32 s, and propagates the state. The path passes within 100 m.
+  - `TheBurnEndsAtTheSpeedThatTheTrimTakesAtHalfTheWeightlessThreshold`.
+  - `InTheTrimTheNoseTurnsNoFasterThanTheWeightlessTurnRate`: in the first 300 s after the burn, the hull turns at most at 0.002 rad/s, and does turn.
+  - `TheBrakeStopsTheShuttleAtTheArrivalPoint`, with a short plan: a transfer of 300 s from 5 km, and an arrival point 400 m out.
+  - `TheGlideFliesTheShuttleAlongTheAxisToTheHoldPoint`, with the same short plan.
+  - `TheShuttleHoldsAtTheHoldPointWithItsNoseAtTheSlot`: 60 s within the tolerances.
+  - `TheAutopilotStopsWhenTheStationIsGone`.
+- `PassengerTests`:
+  - `AFastenedBeltBringsTheHoldingPassengerBackToItsSeatWithThePen`.
+  - `AStrappedPassengerStaysAtItsSeatThroughABurn`: 3 m/s² for 20 s, within 0.1 m.
+  - `AStrappedPassengerNeverOpensItsBelt`: 60 s weightless.
+  - `AFastenBeltBeforeTheTakeChangesNothing`.
+- `ShuttleTests`:
+  - `TheWindowsAreHolesInTheDrawnHullAndTheInteriorStaysSolid`, as in `ShipWindowTests`.
+- `DemoStationTests` builds the scene `demo-surface` without a script:
+  - `TheStationOrbitsInTheLaunchPlane400KmUp`.
+  - `TheStationTurnsAboutItsAxisAtTheRateThatGivesOneGravityOnTheFloor`: `FrameTree.FeltGravity` on the floor gives 9.81 m/s².
+  - `TheStationFallsFreelyFromItsFirstStep`.
+  - `TheDeckHasTheWeakGravityOfItsRadius`.
+  - `ABoxOfTheShuttlesSizeFliesThroughTheSlotAlongTheAxisWithoutAContact`: on the axis, at rest in the station's axes, at 1 m/s inward.
+  - `TheStationsBubbleHoldsItsWholeHull`.
+  - `AShuttleAtTheHoldPointStaysInEarthSurface`: 60 s of the hold.
+
+The run of the checked-in script:
+
+- `BlueDanubeScriptTests` stays as it is. So `scripts/blue-danube.json` is written again with the new sections.
+- `BlueDanubeRendezvousRun` is a fixture like `BlueDanubeFilmRun`. It runs the checked-in script through the film `hold`, on the real World with no renderer, and without the world's invariant checks, which cost 6.6 ms a tick with the station. It keeps a log of every tick from the first of the parking orbit, like `LaunchLog`, and records what the camera of each frame sees.
+- Its tests:
+  - `TheParkingOrbitLiesInTheLaunchPlane`.
+  - `ThePassengerIsStrappedBeforeTheFirstBurn`.
+  - `TheStrappedPassengerKeepsItsUpThroughTheTrimAfterTheBurn`: from the first weightless tick after the burn to the brake, the person's up in the cabin's axes stays within 1 degree.
+  - `TheSlowTurnBringsTheNoseToTheBrakesDirectionBeforeTheBrake`: within 3 degrees of `-u` in the first tick of the brake.
+  - `TheWindowOpensBetween115And125DegreesAlongTheOrbit`.
+  - `TheTransferTakesTheTimeThatTwoBodyMotionPredicts`: from the window to the brake, 2,560 s less the brake's lead, within 2 s.
+  - `TheTotalChangeOfVelocityIsWithin10PercentOfTheTwoBodyCost`.
+  - `TheShuttleStaysInEarthSurfaceThroughTheWholeStep`.
+  - `TheGlideStaysWithin5MOfTheAxis`.
+  - `TheShuttleHoldsAtTheHoldPointWithItsNoseAtTheSlot`.
+  - `TheStationLiesInsideTheWindowInEveryFrameOfTheWindowFilms`: with `Picture.Project`, the station's center lies in the picture, and the line from the camera to it crosses both faces of the wall inside the hole: the aft port window in `brake` and the nose window in `glide-window`.
+  - `TheStationIsInThePictureOfEveryFrameOfClosing`.
+  - `ThePenStaysInThePassengersHandThroughTheBurns`.
+  - `TheCockpitCameraShowsTheStrappedPersonWithThePenAndTheNoseWindow`: in every frame of the films from `cockpit-camera`, the person's eye, the pen and the middle of the nose window lie in the picture, and the person covers at most half of it. In every frame of `night`, `burn`, `transfer-night` and `arrival`, the line from the camera to the pen passes outside the person's box.
+  - `TheWorldLogsNoErrors`.
+
+The screenshots that end the ticket come from one headless run of the long script with `--video` and the real renderer. `ffmpeg-headless` takes four frames out of the video, and the agent looks at each first:
+
+- The strapped person with the pen, at the end of `belt`.
+- The station through the port window during the brake.
+- The station in the nose window with Earth's limb below, at the end of `glide-window`.
+- The shuttle holding on the axis by the hub, from `rim-camera` in `hold`.
+
+A run that writes PNG files takes 80 ms for each of about 12,000 frames, so the video is the faster way.
+
+### Cost
+
+- Ticks: the step adds about 270,000 ticks. It runs from the end of `take`, about 357 s into the run, to the end of `hold`, about 4,876 s. The whole long script runs about 292,000 ticks, against 23,200 today.
+- A tick of the orbital coast took 0.133 ms headless on 2026-10-20. That is 60,000 ticks in 8.0 s, at a load average of 3 to 4.
+- The station adds a kinematic hull on rails in a following frame, its `KeplerMotion`, and static bodies in a frame with no moving body.
+- The autopilot adds one propagation in each tick of `Phasing`. In each tick of `Transfer` it adds one propagation and one Lambert solution, about 100 steps of bisection, a few microseconds.
+- So a tick takes about 0.15 to 0.17 ms, about 45 s for the ticks of the step.
+- Frames: about 12,100 more, 200 s of video, at 3.5 ms each into the video. That adds about 43 s.
+- The generator's rehearsal takes about 55 s, from 10 s. The headless video of the whole script takes about 110 to 115 s, from 22 to 24 s.
+- `BlueDanubeScriptTests` and `BlueDanubeRendezvousRun` each take about a minute. So the host tests take about 2 minutes longer.
+- Measured on 2026-10-20: the step's sections run 270,823 ticks and 11,658 frames, and the whole script runs 292,242 ticks and 15,806 frames. The rehearsal took 107 s, and the headless video 110 s, at a load average from 3.7 to 6.5. `BlueDanubeRendezvousTests` ran in about 112 s in Debug, without the world's invariant checks.
+- The component tests fly short plans of a few thousand ticks each. One flight of the short plan, shared by the tests of the brake, the glide and the hold, runs about 29,000 ticks: 300 s of transfer, 120 s of glide and 60 s of hold. Measured on 2026-10-20: with the station, the world's invariant checks (`WorldOptions.DebugChecks`) cost 6.6 ms a tick, against 0.125 ms without them. So `RendezvousAutopilotTests` runs without them, in about 10 s. With them, its 40,000 ticks would take about 4.5 minutes.
+
+### Order of the work
+
+Each part commits on its own, with its tests green. A part that changes the run writes `scripts/blue-danube.json` again. Parts that run at the same time each write the script, so the second to merge writes it again after the merge.
+
+| Part | Work | Depends on |
+|---|---|---|
+| 1. The launch plane | `DemoSurface.LaunchPlaneNormal`, the cross part of `AscentGuidance`, the plane's normal through the constructor of `AscentAutopilot`, the actuators' priority 10, and the guidance's tests. The script is written again. The launch's tests stay green, with a new test for the plane. | None |
+| 2. The shuttle's windows and thrusters | The windows and their panes, `Translation` and `TranslationThrusters` in `Shuttle.FlightControls`, the cameras `window-camera`, `bow-camera`, `port-window-camera` and `cockpit-camera`, and their tests | None |
+| 3. The station | `DemoScenes.DemoStation`: its constants, parts, meshes, bodies, orbit, bay lamps and `rim-camera`, its spawn in `demo-surface` before the shuttle, `OverPadAt` from the rehearsal, and `DemoStationTests` | None |
+| 4. The belt | `FastenBelt`, `Returning` and `Strapped`, and their tests | None |
+| 5. The guidance math | `KeplerOrbit.Propagate` and `KeplerOrbit.Lambert` in Core, with their tests and their lines in ARCHITECTURE.md, then `TransferGuidance` and `ApproachGuidance`, and their tests | None |
+| 6. The rendezvous autopilot | `RendezvousState`, `RendezvousPlan`, and `RendezvousAutopilot` in `Shuttle.FlightControls` with the station's entity, and its tests | 2, 3, 5 |
+| 7. The long script | The step's sections and cues, the script written again, `BlueDanubeRendezvousRun` and its tests, the video, the screenshots, and the lines below | 1, 4, 6 |
+
+```mermaid
+graph LR
+  P1[1 launch plane] --> P7[7 long script]
+  P2[2 windows and thrusters] --> P6[6 rendezvous autopilot]
+  P3[3 station] --> P6
+  P5[5 guidance math] --> P6
+  P4[4 belt] --> P7
+  P6 --> P7
+```
+
+Part 7 also changes lines elsewhere in this plan:
+
+- The row "Cylinders, rings, tori" of "What exists, and what the demo adds". They exist: `RevolvedSolid`, from ter-fb3w.
+- The row "Ship thrust and steering" of the same table.
+- The paragraph on the climb in "The launch". The climb now steers into the launch plane.
+- The table of sections and the run times in "The long script".
+
+ARCHITECTURE.md gets the two new methods of `KeplerOrbit` in its text on rails, in part 5.
+
+### Decisions
+
+Only engine changes go to the user (the user's rule of 2026-10-18). So this design settles every demo choice:
+
+| Question | Decision | Reason |
+|---|---|---|
+| Where the shuttle holds | 150 m out on the axis, outside the bubble, in `earth-surface` | In the station's axes, the shuttle turns backward at 0.31 rad/s, and the attitude autopilot cannot hold that. Step 5 spins up outside and enters at rest. |
+| Which way the axis points | Along the orbit's normal, with the slot on the sun's side, +X | The axis stays fixed relative to Earth and the orbit, so Earth stays below the view. The slot takes the sun at 56 degrees on every orbit. |
+| The station's orbit | A circle 400 km up in the launch plane, as the comment of the parking orbit already says | A transfer of half an orbit, about 43 minutes, which the video's viewer can check |
+| The planes | The climb steers into the launch plane. | A real launch flies into the plane of its target. A copy of the measured tilt of 0.17 degrees in the station breaks at the next change of the climb. |
+| The transfer | Lambert to the arrival point, 170 degrees in 2,560 s, from the window | One law that corrects every error from the state. At 180 degrees, an arrival point to the side has no plane. The cost is 3 percent above Hohmann's. |
+| The window | At φ = 120 degrees, set by `OverPadAt` = 38 s | The arrival at φ = 290 degrees falls in daylight, with Earth's limb lit below the station. |
+| The arrival point | 1.5 km out on the axis | The station is 7.7 degrees wide there, 84 px in the 720-line picture. It grows through the glide, and the brake's 740 m fit. |
+| The burns | 3 m/s² on the main engine, a throttle of about 0.10 | About 32 s for the departure burn, long enough to film, and far below the climb's force on the belt |
+| The glide | Translation thrusters at 0.2 m/s² per axis, at most 5 m/s, about 350 s | The nose stays on the station all the way. |
+| Translation thrusters | A new demo component, `TranslationThrusters` | The brake and the glide push across the nose while the nose looks at the station. |
+| The approach law | One law for the brake, the glide and the hold, with Earth's difference of gravity cancelled | The relative motion becomes that of a free mass, so the law is exact at every distance. |
+| The flight program | Layers by priority, with the actuators at 10 | The actuators already take the last target and throttle. The ascent autopilot stays as it is. |
+| The passenger in the burns | A `FastenBelt` order from the script, a float back to the seat, and a belt that stays shut | A floating person falls onto the aft wall in a burn. |
+| The order of the orders | The script orders the rendezvous after the passenger is strapped. | The engine is deterministic, so the order of the cues gives the safety. A run test pins it. |
+| The hub | A square tube with flat inner walls, with the slot as a box opening | The shuttle lands flat on a wall. A round end with a square slot is no revolved solid. |
+| The wheel | Revolved rings: the floor as the interior mesh, the ceiling and the side walls as static bodies | The floor follows the note of ter-fb3w. A closed tube looks closed from outside. |
+| The spokes | Four square tubes, 3.5 m inside | Room for the chute of step 6, and a spoke under the deck |
+| The bubble | A sphere of 120 m | It holds the wheel with room to spare, and the shuttle's bubble fits in it. |
+| Impostors | Off for the station's parts | The spin makes every capture stale within a few ticks. |
+| The cameras | Four still views in the shuttle's frame and one in the station's frame | No new camera component is needed. The rim camera previews the spin match. |
+| The closing view | `bow-camera`, ahead of the nose and looking aft | The shuttle arrives from ahead of the station, so the station lies behind it until the turn. |
+| The night | Filmed from the cabin | The demo's Earth casts no shadow, so an outside view at night shows a lit shuttle. |
+| Where the two-body math lives | `KeplerOrbit.Propagate` and `KeplerOrbit.Lambert`, static methods in Core | The user's rule for the rails library: two-body math with no orbit elements is a static method of `KeplerOrbit`. The user chose on 2026-10-20 that it holds for this engine change too. |
+
+### Engine changes
+
+One, which the user chose on 2026-10-20: `KeplerOrbit.Propagate` and `KeplerOrbit.Lambert` in `src/Tertius.Core/Frames/Rails/KeplerOrbit.cs`, with their tests in Core and their lines in ARCHITECTURE.md. Every other part lives in `src/Tertius.Demo`, `scripts/` and the demo's tests.
+
+### Not in this step
+
+- Earth's shadow. The demo's drawn Earth has no `CastsShadow`. To turn it on is a demo change, not an engine change. The orbit scene turns it on. But nobody measured what a caster of Earth's size does to the shadows of the pad. So the design films the night from the cabin. A later demo ticket can try it, with screenshots of the pad.
+- Readouts of speed, distance and the g-meter (see "Proof in the video"). The edit adds them.
+- The spin match, the entry, the landing on the deck, the exit, the chute and the openings in the ceiling: steps 5 and 6.
 
 ## The long script
 
@@ -87,7 +763,7 @@ dotnet run --project src/Tertius.Demo -- --generate scripts/blue-danube.json
 dotnet run -c Release --project src/Tertius.Demo -- --script scripts/blue-danube.json --headless --out runs/danube --video runs/danube/blue-danube.mkv --fps 60
 ```
 
-The first command rehearses the run, about 10 s, and writes the script. It prints each film with its frames, its film interval and the second of the run at which it starts. The second makes the video: in the last two runs of 2026-10-19 it took 22 s and 24 s, the second at a load average from 10 to 13, for the 4,210 frames and 23,101 ticks, 385 s of the simulation and 70 s of video. The test `BlueDanubeScriptTests` runs the first command and checks that its output equals the checked-in `scripts/blue-danube.json`, so the two cannot drift. A change of the scene, of the engine's timing or of the sections fails the test until the script is written again.
+The first command rehearses the run and writes the script. It prints each film with its frames, its film interval and the second of the run at which it starts. With the rendezvous, the rehearsal took 107 s on 2026-10-20, against about 10 s before. The second makes the video: on 2026-10-20 it took 110 s, at a load average from 3.7 to 6.5, for the 15,806 frames and 292,242 ticks, 4,871 s of the simulation and 263 s of video. Before the rendezvous, in the last two runs of 2026-10-19, it took 22 s and 24 s for 4,210 frames and 23,101 ticks. The test `BlueDanubeScriptTests` runs the first command and checks that its output equals the checked-in `scripts/blue-danube.json`, so the two cannot drift. A change of the scene, of the engine's timing or of the sections fails the test until the script is written again.
 
 The sections today, as `BlueDanube.Sections` lists them. The frames of each film and the second at which it starts come from the run, so the generator prints them, and this table does not copy them:
 
@@ -113,7 +789,22 @@ The sections today, as `BlueDanube.Sections` lists them. The frames of each film
 | `pen-release` | `pen-camera` | 1 | 2 s after the clip lets the pen go |
 | `fetch` | `pen-camera` | 1 | The person is within 1.5 m of `pen-camera`, or its hand within 1 m of the pen, so the person never fills the pen camera's lens (`BlueDanubeFilmTests`) |
 | `take` | `hand-camera` | 1 | 3 s after the person takes the pen. It also films the end of the fetch |
-| `coast` | `chase-camera` | 10 | After 30 s |
+| `belt` | `cabin-camera` | 1 | It posts `FastenBelt` to the person. 1 s after the person straps in at its seat |
+| `phasing` | `chase-camera` | 60 | It posts `Rendezvous` to the shuttle. The shuttle is in Earth's shadow |
+| `night` | `cockpit-camera` | 120 | The rendezvous autopilot is in `Transfer` |
+| `burn` | `cockpit-camera` | 2 | 2 s after the transfer's apoapsis reaches 399 km and the cabin is weightless |
+| `transfer-night` | `cockpit-camera` | 240 | The shuttle is out of Earth's shadow |
+| `transfer` | `chase-camera` | 60 | The shuttle is within 10 km of the arrival point |
+| `closing` | `bow-camera` | 8 | The autopilot is in `Brake` |
+| `brake` | `port-window-camera` | 1 | The autopilot is in `Glide` |
+| `turn` | `window-camera` | 1 | The nose is within 2 degrees of the direction to the station |
+| `glide` | `chase-camera` | 6 | The shuttle is within 700 m of the station's center |
+| `glide-window` | `window-camera` | 4 | Within 400 m |
+| `glide-rim` | `rim-camera` | 4 | Within 200 m |
+| `arrival` | `cockpit-camera` | 4 | 3 s after the autopilot is in `Hold` |
+| `hold` | `rim-camera` | 1 | After 5 s |
+
+The sections from `belt` to `hold` are the rendezvous (see "The station and the rendezvous", "Sections of the long script"). They replaced the section `coast`, which filmed 30 s of the parking orbit.
 
 ### How a later ticket adds a section
 

@@ -11,16 +11,26 @@ namespace Tertius.Demo;
 public struct AttitudeTarget : IEventPayload
 {
     /// <summary>The rotation to turn to, in the axes of the entity's frame.</summary>
-    public DQuaternion Rotation;
+    public required DQuaternion Rotation;
+
+    /// <summary>
+    /// The fastest turn that the autopilot may ask for to reach <see cref="Rotation"/>, in radians per second, at most
+    /// <see cref="AttitudeAutopilot.MaxTurnRate"/>. A layer that flies a weightless cabin with a strapped crew turns slowly,
+    /// so that the turn gives the crew no felt gravity (see <see cref="RendezvousPlan.WeightlessTurnRate"/>). A rate below
+    /// 0, or NaN, makes the autopilot throw <see cref="ArgumentOutOfRangeException"/>, which the world logs as an error, and
+    /// give no torque in that tick.
+    /// </summary>
+    public required double MaxTurnRate;
 }
 
 /// <summary>
 /// Turns its entity's body toward the <see cref="AttitudeTarget"/> of each tick that brings one, with a torque, as the
 /// attitude thrusters of a ship do. It asks for a turn rate along the shortest turn to the target, <see cref="Gain"/> per
-/// radian of the turn that is left, and at most <see cref="MaxTurnRate"/>. Then it gives the torque that brings the body's
+/// radian of the turn that is left, and at most the target's <see cref="AttitudeTarget.MaxTurnRate"/> and
+/// <see cref="MaxTurnRate"/>. Then it gives the torque that brings the body's
 /// angular velocity to that rate in <see cref="RateTime"/>, from the body's moments of inertia. A tick without a target
 /// gives no torque, so the autopilot keeps nothing from an earlier tick. When a tick brings several targets, the last one
-/// counts. Its entity needs a dynamic body, whose principal axes are its own axes.
+/// counts. It runs at priority 10, after every layer of the flight program, so it follows the last layer that speaks. Its entity needs a dynamic body, whose principal axes are its own axes.
 /// </summary>
 /// <remarks>
 /// The autopilot reads the body's rotation and angular velocity at the end of the last finished step, and its torque
@@ -41,8 +51,8 @@ public sealed class AttitudeAutopilot(Vector3 inertia) : IComponent
 
     private readonly Vector3 inertia = inertia;
 
-    // After the components that fly the hull, which add the target in the same tick.
-    public int Priority => 1;
+    // After every layer of the flight program, priorities 0 to 2, which add the target in the same tick.
+    public int Priority => 10;
 
     public EventMask Wants => EventMask.Of<AttitudeTarget>();
 
@@ -65,17 +75,33 @@ public sealed class AttitudeAutopilot(Vector3 inertia) : IComponent
         return FromAxes(x, y, z);
     }
 
+    /// <summary>
+    /// The rotation whose nose points along <paramref name="nose"/>, with the roof away from the planet across the nose:
+    /// along the position of <paramref name="pose"/>, in a frame whose origin is the planet's center. When the nose points
+    /// straight away from the planet or at it, the roof keeps its direction in <paramref name="pose"/>. Throws
+    /// <see cref="ArgumentException"/> when the nose is zero.
+    /// </summary>
+    public static DQuaternion Facing(Double3 nose, in DPose pose)
+    {
+        Double3 up = pose.Position.Normalized(), along = nose.Normalized();
+        Double3 roof = up - along * Double3.Dot(up, along);
+        return Facing(nose, roof.Length > 1e-6 ? roof : pose.Rotation.Rotate(Double3.UnitY));
+    }
+
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
         // The autopilot wants only AttitudeTarget, so the events hold at least one, and the last one counts.
-        DQuaternion target = default;
+        AttitudeTarget target = default;
         foreach (ref AttitudeTarget each in events.Of<AttitudeTarget>())
-            target = each.Rotation;
+            target = each;
+        if (target.MaxTurnRate is not >= 0)
+            throw new ArgumentOutOfRangeException(nameof(AttitudeTarget.MaxTurnRate), target.MaxTurnRate, "A turn rate lies from 0 up.");
         DPose pose = self.PoseIn(self.Frame);
         // The turn that is left, as a rotation vector in the frame's axes, and the turn rate that the autopilot asks for.
-        Double3 rate = pose.Rotation.AngularVelocityTo(target, 1) * Gain;
-        if (rate.Length > MaxTurnRate)
-            rate *= MaxTurnRate / rate.Length;
+        Double3 rate = pose.Rotation.AngularVelocityTo(target.Rotation, 1) * Gain;
+        double maxRate = Math.Min(MaxTurnRate, target.MaxTurnRate);
+        if (rate.Length > maxRate)
+            rate *= maxRate / rate.Length;
         Double3 angularAcceleration = (rate - (Double3)self.AngularVelocityIn(self.Frame)) / RateTime;
         Double3 inBody = pose.Rotation.Conjugate().Rotate(angularAcceleration);
         self.Body.AddTorque(pose.Rotation.Rotate(inBody * (Double3)inertia).ToVector3());

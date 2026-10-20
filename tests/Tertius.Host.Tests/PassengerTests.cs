@@ -38,11 +38,14 @@ public sealed class PassengerTests : IDisposable
     /// The shuttle parked in <paramref name="frame"/> with its belly at <paramref name="belly"/>, the pen at
     /// <see cref="PenPlace"/>, moving at <paramref name="penVelocity"/>, and the passenger at its seat, moving at
     /// <paramref name="personVelocity"/>. With <paramref name="thrust"/>, the shuttle unparks on its first tick and its
-    /// main engine pushes at full throttle from then on.
+    /// main engine pushes at full throttle from then on. With <paramref name="burn"/>, the shuttle unparks on its first tick
+    /// and its main engine pushes with the throttle of the burn.
     /// </summary>
-    private void Board(FrameHandle frame, double belly = 0, bool thrust = false, Double3 penVelocity = default, Double3 personVelocity = default)
+    private void Board(FrameHandle frame, double belly = 0, bool thrust = false, Double3 penVelocity = default, Double3 personVelocity = default,
+        Burn? burn = null)
     {
-        IComponent[] engine = thrust ? [new Unpark(), new FullThrottle(), new MainEngine(Shuttle.Mass * Shuttle.ThrustAcceleration)] : [];
+        IComponent[] engine = thrust ? [new Unpark(), new FullThrottle(), new MainEngine(Shuttle.Mass * Shuttle.ThrustAcceleration)]
+            : burn != null ? [new Unpark(), burn, new MainEngine(Shuttle.Mass * Shuttle.ThrustAcceleration)] : [];
         Entity shuttle = Shuttle.Park(world, frame, WorldTesting.At(0, belly + Shuttle.Hull.Y), components: engine);
         cabin = world.GetOwnedFrame(shuttle);
         pen = world.Spawn(Pen.Spawn(cabin, new DPose(PenPlace, DQuaternion.Identity), penVelocity));
@@ -57,8 +60,20 @@ public sealed class PassengerTests : IDisposable
         });
     }
 
-    private void BoardInSpace(bool thrust = false, Double3 penVelocity = default, Double3 personVelocity = default) =>
-        Board(world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f))), thrust: thrust, penVelocity: penVelocity, personVelocity: personVelocity);
+    private void BoardInSpace(bool thrust = false, Double3 penVelocity = default, Double3 personVelocity = default, Burn? burn = null) =>
+        Board(world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f))), thrust: thrust, penVelocity: penVelocity, personVelocity: personVelocity,
+            burn: burn);
+
+    /// <summary>Tells the passenger to fasten its belt, as the script does.</summary>
+    private void FastenBelt() => world.Post(Event.Create(person, Entity.Null, new FastenBelt()));
+
+    /// <summary>The passenger floats to the pen and takes it, is told to fasten its belt, and floats back to its seat and straps in.</summary>
+    private void TakeThePenAndStrapIn()
+    {
+        TickUntil<Holding>(limit: 1200);
+        FastenBelt();
+        TickUntil<Strapped>(limit: 1200);
+    }
 
     private Passenger PassengerOf() => world.GetComponent<Passenger>(person)!;
 
@@ -270,5 +285,113 @@ public sealed class PassengerTests : IDisposable
         PassengerOf().State.Value.Should().BeOfType<Stopped>("the passenger holds no pen");
         With<HeldInView>().Should().BeEmpty();
         world.VelocityIn(person, cabin).Length.Should().BeLessThan(0.02, "the passenger stops");
+    }
+
+    /// <summary>
+    /// The passenger holds the pen, away from its seat, and is told to fasten its belt. It floats back to its seat with the
+    /// copy of the pen still in its hand, never faster than <see cref="Passenger.FloatSpeed"/>, and straps in there, within
+    /// <see cref="Passenger.BuckleRadius"/> of the seat.
+    /// </summary>
+    [Fact]
+    public void AFastenedBeltBringsTheHoldingPassengerBackToItsSeatWithThePen()
+    {
+        BoardInSpace();
+        TickUntil<Holding>(limit: 1200);
+        Tick(world, 60);
+        Entity copy = With<HeldInView>().Should().ContainSingle().Which;
+        FromSeat().Should().BeGreaterThan(2, "the passenger took the pen away from its seat");
+
+        FastenBelt();
+        TickUntil<Returning>(limit: 2);
+        PassengerOf().State.Should().Be(new PassengerState(new Returning(copy)));
+        double fastest = 0;
+        for (int t = 0; t < 1200 && PassengerOf().State.Value is Returning; t++)
+        {
+            world.Tick();
+            fastest = Math.Max(fastest, world.VelocityIn(person, cabin).Length);
+        }
+
+        PassengerOf().State.Value.Should().BeOfType<Strapped>();
+        fastest.Should().BeInRange(0.9 * Passenger.FloatSpeed, 1.01 * Passenger.FloatSpeed, "the passenger floats at its float speed, and no faster");
+
+        PassengerOf().State.Should().Be(new PassengerState(new Strapped(copy)), "the passenger still holds the copy");
+        world.IsAlive(copy).Should().BeTrue();
+        With<HeldInView>().Should().Equal(copy);
+        FromSeat().Should().BeLessThanOrEqualTo(Passenger.BuckleRadius);
+    }
+
+    /// <summary>
+    /// The strapped passenger rides out a burn of 3 m/s² along the nose for 20 s, a throttle of 3 / 29.43, which would
+    /// throw a loose person onto the aft wall. The belt holds it within 0.1 m of its seat.
+    /// </summary>
+    [Fact]
+    public void AStrappedPassengerStaysAtItsSeatThroughABurn()
+    {
+        var burn = new Burn();
+        BoardInSpace(burn: burn);
+        TakeThePenAndStrapIn();
+        burn.Value = (float)(3 / Shuttle.ThrustAcceleration);
+        double farthest = 0;
+
+        for (int t = 0; t < 1200; t++)
+        {
+            world.Tick();
+            farthest = Math.Max(farthest, FromSeat());
+        }
+
+        world.Frames.ProperAcceleration(cabin).Z.Should().BeApproximately(-3, 0.1f, "the shuttle burns along its nose");
+        farthest.Should().BeLessThan(0.1);
+        PassengerOf().State.Value.Should().BeOfType<Strapped>();
+    }
+
+    /// <summary>
+    /// A seated passenger opens its belt after <see cref="Passenger.UnbuckleSeconds"/> in a weightless cabin. A strapped
+    /// passenger never does: after 60 s weightless, it is still strapped at its seat.
+    /// </summary>
+    [Fact]
+    public void AStrappedPassengerNeverOpensItsBelt()
+    {
+        BoardInSpace();
+        TakeThePenAndStrapIn();
+
+        Tick(world, 3600);
+
+        PassengerOf().State.Value.Should().BeOfType<Strapped>();
+        FromSeat().Should().BeLessThan(Passenger.BuckleRadius);
+    }
+
+    /// <summary>
+    /// The passenger is told to fasten its belt while it sits at its seat, and again while it floats to the pen. Neither
+    /// changes what it does: it takes the pen, and it holds it.
+    /// </summary>
+    [Fact]
+    public void AFastenBeltBeforeTheTakeChangesNothing()
+    {
+        BoardInSpace();
+        Tick(world, 30);
+        PassengerOf().State.Value.Should().BeOfType<Seated>();
+        FastenBelt();
+        TickUntil<Fetching>(limit: 200);
+        FastenBelt();
+
+        TickUntil<Holding>(limit: 1200);
+        Tick(world, 120);
+
+        PassengerOf().State.Value.Should().BeOfType<Holding>();
+    }
+
+    /// <summary>
+    /// A test component that adds a <see cref="Throttle"/> of <see cref="Value"/> to its entity's events on every tick, for
+    /// the entity's <see cref="MainEngine"/>, which runs after it. A test sets the value between ticks.
+    /// </summary>
+    private sealed class Burn : IComponent
+    {
+        public float Value { get; set; }
+
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) => events.Add(new Throttle { Value = Value });
     }
 }

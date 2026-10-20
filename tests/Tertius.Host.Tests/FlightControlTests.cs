@@ -60,13 +60,13 @@ public sealed class FlightControlTests : IDisposable
     }
 
     /// <summary>
-    /// A throttle that a component adds after the engine has run comes too late for it, so the engine gives no thrust,
+    /// A throttle that a component adds after the engine has run, at priority 11, comes too late for it, so the engine gives no thrust,
     /// rather than the throttle of the tick before.
     /// </summary>
     [Fact]
     public void AnEngineThatRunsBeforeTheComponentThatAddsItsThrottleGivesNoThrust()
     {
-        Launch(new ThrottleFor(ticks: int.MaxValue, value: 1, priority: 2), Engine());
+        Launch(new ThrottleFor(ticks: int.MaxValue, value: 1, priority: 11), Engine());
 
         Tick(world, 30);
 
@@ -111,6 +111,40 @@ public sealed class FlightControlTests : IDisposable
         world.AngularVelocityIn(shuttle, space).Length().Should().BeLessThan(0.01f);
     }
 
+    /// <summary>
+    /// A target a quarter turn about the roof's axis, with a turn rate of 0.01 rad/s: after 10 s the hull turns at that rate,
+    /// and has turned about 0.1 radians, not the 1.5 radians of <see cref="AttitudeAutopilot.MaxTurnRate"/>.
+    /// </summary>
+    [Fact]
+    public void TheAttitudeAutopilotTurnsNoFasterThanTheTurnRateOfTheTarget()
+    {
+        DQuaternion target = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
+        Launch(new TargetFor(ticks: int.MaxValue, target, maxTurnRate: 0.01), new AttitudeAutopilot(Shuttle.Inertia));
+
+        Tick(world, 600);
+
+        world.AngularVelocityIn(shuttle, space).Length().Should().BeApproximately(0.01f, 0.0005f);
+        (Math.PI / 2 - world.PoseIn(shuttle, space).Rotation.AngularVelocityTo(target, 1).Length).Should().BeApproximately(0.1, 0.01);
+    }
+
+    /// <summary>
+    /// A turn rate of NaN would lift every cap, and a negative one would turn the hull away from its target. Each is an
+    /// error that the world logs, as a bad throttle is for the main engine, and the hull gets no torque.
+    /// </summary>
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(-0.01)]
+    public void ATurnRateThatIsNaNOrBelowZeroIsAnErrorAndGivesNoTorque(double maxTurnRate)
+    {
+        DQuaternion target = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
+        Launch(new TargetFor(ticks: int.MaxValue, target, maxTurnRate), new AttitudeAutopilot(Shuttle.Inertia));
+
+        Tick(world, 30);
+
+        world.AngularVelocityIn(shuttle, space).Length().Should().BeLessThan(1e-6f);
+        world.Errors.Should().Contain(error => error.Contains(nameof(AttitudeAutopilot)) && error.Contains("A turn rate lies from 0 up"));
+    }
+
     /// <summary>The target stops after 60 ticks, while the hull turns, so the autopilot gives no more torque and the hull turns on at the rate it had.</summary>
     [Fact]
     public void ATickWithoutAnAttitudeTargetGivesNoTorque()
@@ -132,7 +166,7 @@ public sealed class FlightControlTests : IDisposable
     [Fact]
     public void WithoutPointGravityTheAscentAutopilotStaysParked()
     {
-        shuttle = Shuttle.Park(world, space, DPose.Identity, components: Shuttle.FlightControls(climbHeight: 30));
+        shuttle = Shuttle.Park(world, space, DPose.Identity, components: Shuttle.FlightControls(climbHeight: 30, planeNormal: -Double3.UnitX, station: Entity.Null));
         world.Post(Event.Create(shuttle, Entity.Null, new Ignition()));
 
         Tick(world, 30);
@@ -158,8 +192,11 @@ public sealed class FlightControlTests : IDisposable
         }
     }
 
-    /// <summary>A test component that adds an <see cref="AttitudeTarget"/> of <paramref name="target"/> to its entity's events on each of its first <paramref name="ticks"/> ticks.</summary>
-    private sealed class TargetFor(int ticks, DQuaternion target) : IComponent
+    /// <summary>
+    /// A test component that adds an <see cref="AttitudeTarget"/> of <paramref name="target"/>, with the turn rate
+    /// <paramref name="maxTurnRate"/>, to its entity's events on each of its first <paramref name="ticks"/> ticks.
+    /// </summary>
+    private sealed class TargetFor(int ticks, DQuaternion target, double maxTurnRate = AttitudeAutopilot.MaxTurnRate) : IComponent
     {
         private int handled;
 
@@ -170,7 +207,7 @@ public sealed class FlightControlTests : IDisposable
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
             if (handled++ < ticks)
-                events.Add(new AttitudeTarget { Rotation = target });
+                events.Add(new AttitudeTarget { Rotation = target, MaxTurnRate = maxTurnRate });
         }
     }
 }
