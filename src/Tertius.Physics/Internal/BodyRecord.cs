@@ -173,6 +173,11 @@ internal sealed class BodyRecord
     public Double3 ImpulseVelocityChange, ImpulseAngularVelocityChange;
     /// <summary>The step whose intent teleported the body, or -1.</summary>
     public long TeleportStep = -1;
+    /// <summary>
+    /// The step in which a hand-off moved the hull into its current home, or -1. Physics sets it only for a hull, whose
+    /// frame's step record then takes the acceleration of the hand-off (see <see cref="StepAcceleration"/>).
+    /// </summary>
+    public long HandOffStep = -1;
     /// <summary>The pose in its home, with a unit rotation, at which the teleport of <see cref="TeleportStep"/> put the body.</summary>
     public DPose TeleportPose;
     /// <summary>

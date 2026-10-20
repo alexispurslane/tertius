@@ -1,6 +1,6 @@
 ---
 id: ter-l8ay
-status: open
+status: closed
 deps: [ter-vja8]
 links: []
 created: 2026-10-20T07:48:29Z
@@ -20,3 +20,7 @@ Found by the merge of main into ter-1bnq (2026-10-20). The end-of-step terms of 
 **2026-10-20T07:49:21Z**
 
 2026-10-20: folded into ter-vja8, whose build adds these tests beside the landing case.
+
+**2026-10-20T08:59:04Z**
+
+2026-10-20: built by ter-vja8 (TurningFollowingFrameTests) and merged with it.
