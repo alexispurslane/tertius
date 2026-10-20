@@ -33,7 +33,7 @@ From a survey of the code on 2026-10-18.
 | Ground at the pad | Earth's sphere sags about 480 m between vertices | A large static slab under the pad, as in the surface yard |
 | Cylinders, rings, tori | Missing: only box, sphere and plane meshes | Mesh generators and matching compound or convex shapes for the wheel, spokes, barrel and chute |
 | Ship thrust and steering | Partial: the climb to orbit exists in the Demo (ter-m13s): `MainEngine`, `AttitudeAutopilot` and `AscentAutopilot`, which steers by `AscentGuidance` (see "The launch") | Autopilot components: the rendezvous, the spin match and the docking |
-| Spin gravity, Coriolis, a ship in a turning frame, characters in a turning frame | Planned: the spin gravity epic `ter-s9m0` | Waits for the epic |
+| Spin gravity, Coriolis, a ship in a turning frame, characters in a turning frame | Exists (the spin gravity epic `ter-s9m0`, [Spin gravity](spin-gravity.md)): every turning frame gives its contents the centrifugal, Coriolis and Euler terms, characters stand, walk and jump in it, and the scene `spin-station` shows it. | The ship in the turning station, and the autopilots that use it |
 
 ## The launch
 
@@ -670,12 +670,12 @@ The user settled the six forks of this design on 2026-10-18:
 - The window's freeze at a capture (ticket ter-viyi).
 - Old PNG files in a reused output folder. The video target overwrites its file, so it does not have this problem.
 
-### Questions that stay with the spin gravity epic
+### Questions that the spin gravity epic answered
 
-Two questions belong to the spin gravity epic, and its tickets carry notes about them:
+The spin gravity epic (`ter-s9m0`) answered the two questions that stayed with it:
 
-- The proper acceleration of a ship inside a turning parent frame (`ter-1bnq`).
-- Whether the choice between the walking and the weightless form of a character counts the centrifugal term near the hub (`ter-1b21`).
+- The proper acceleration of a ship inside a turning parent frame. The frame gives the ship the whole acceleration that it applies in a step (V4), and the accelerometer rule reads it for every frame, so a rotation force is no longer silent. The answer lives in [Spin gravity](spin-gravity.md), "V4, the acceleration that the frame gave a body" (`ter-1bnq`).
+- Whether the choice between the walking and the weightless form of a character counts the centrifugal term near the hub. It does: the form reads the effective gravity (V5), which holds the centrifugal and the Euler term, so a person near the hub of a turning station turns weightless. The answer lives in [Spin gravity](spin-gravity.md), "Characters", and in ARCHITECTURE.md, "Turning frames" (`ter-1b21`).
 
 ### Lines elsewhere that change
 
@@ -697,6 +697,6 @@ Two questions belong to the spin gravity epic, and its tickets carry notes about
 6. The exit and the chute.
 7. The edit: the time-lapse cuts, the title cards, the music and the final render.
 
-Steps 1 and 2 need the rails epic (`ter-ozm8`), and step 3 does not: it flies a dynamic shuttle, which falling numeric frames carry, so the following frames of the rails epic's last ticket (`ter-zg77`) do not matter to it (ticket note, 2026-10-19). Steps 4 to 6 need the spin gravity epic (`ter-s9m0`).
+Steps 1 and 2 need the rails epic (`ter-ozm8`), and step 3 does not: it flies a dynamic shuttle, which falling numeric frames carry, so the following frames of the rails epic's last ticket (`ter-zg77`) do not matter to it (ticket note, 2026-10-19). Steps 4 to 6 needed the spin gravity epic (`ter-s9m0`), which is built.
 
 The boarding in step 2 needed point 1 of `ter-imi5`: a static body that is not a hull gets a ghost in each child frame whose bubble it touches. With it, the slab has a ghost in the parked shuttle's bubble, so a person who walks into the bubble on the ground walks on, through the hatch and along the cabin to the seat. It also needed the motion intent (`ter-xdt8`), which derives every frame's proper acceleration from the frame's motion, so the parked cabin has the weight of the ground with no value that the scene writes. The walk in `scripts/demo-surface.json` ends at the seat. A character has no sitting pose for now, so the person stands at `Shuttle.SeatStand`, and in step 2 of "The sequence", the character leaves its seat when it walks away from `Shuttle.SeatStand`.

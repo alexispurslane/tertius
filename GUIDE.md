@@ -189,12 +189,13 @@ These tests prove it:
 
 Read this code in this order:
 
-1. `ApplySpin` at [line 371](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/World.Sync.cs#L371) of [World.Sync.cs](src/Tertius.Simulation/World.Sync.cs). The spin driver sets only the pose and the angular velocity.
-2. The section "Scope" of [ARCHITECTURE.md](ARCHITECTURE.md). It lists Coriolis and centrifugal forces as out of scope today.
-3. The comment at [line 42](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Demo/DemoScenes.SurfaceYard.cs#L42) of [DemoScenes.SurfaceYard.cs](src/Tertius.Demo/DemoScenes.SurfaceYard.cs). That scene leaves out the spin of Earth for this reason.
-4. [spin-gravity.md](docs/plans/spin-gravity.md), the plan. It adds the terms −2ω×v − ω×(ω×r) − α×r in every frame that turns.
+1. `ApplyTurningUpdate` in [JoltPhysicsBackend.Step.cs](src/Tertius.Physics/JoltPhysicsBackend.Step.cs). It gives a body of a turning frame the centrifugal, Coriolis and Euler terms, as one update over the step.
+2. `BeginStep` in [FrameTree.cs](src/Tertius.Core/Frames/FrameTree.cs). It fixes the turn of the frame's axes over the step before each step, and the gravity readers use it.
+3. The section "Turning frames" of [ARCHITECTURE.md](ARCHITECTURE.md), under "Physics". It says which terms act on a frame's contents. Only the tidal gravity of a parent stays out of scope.
+4. [DemoScenes.SpinStation.cs](src/Tertius.Demo/DemoScenes.SpinStation.cs), the scene `spin-station`, and its script [spin-station.json](scripts/spin-station.json). A ring station turns about its axis. A person stands, walks, jumps and throws a crate on its floor, and a dropped crate falls in a curve.
+5. [spin-gravity.md](docs/plans/spin-gravity.md), the plan. It adds the terms −2ω×v − ω×(ω×r) − α×r in every frame that turns.
 
-The test `AShipWhoseHullRestsOnTheHullOfASpinFrameIsCarriedRoundByIt` in [WorldSpinFrameTests.cs](tests/Tertius.Physics.Tests/WorldSpinFrameTests.cs) shows what works today. No test of spin gravity exists yet. The numbers in the plan come from a spike on a branch that is not in main. They are not tests of this code. The epic is the ticket `ter-s9m0` in `.tickets`.
+The tests are in [SpinStationSliceTests.cs](tests/Tertius.Host.Tests/SpinStationSliceTests.cs) and in the `SpinStation*Tests.cs` files of [tests/Tertius.Physics.Tests](tests/Tertius.Physics.Tests). The older test `AShipWhoseHullRestsOnTheHullOfASpinFrameIsCarriedRoundByIt` in [WorldSpinFrameTests.cs](tests/Tertius.Physics.Tests/WorldSpinFrameTests.cs) shows that a ship at rest on a spin frame is carried round by it.
 
 ## Entity-component system
 
