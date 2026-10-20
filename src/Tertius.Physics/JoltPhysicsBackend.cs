@@ -922,8 +922,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <summary>
     /// The step record of the frame of a dynamic hull at the end of the step, from Jolt's state after the update, relative
     /// to the hull's system: the hull's pose; the velocity of the frame's origin, the chord of the step, as Jolt keeps it;
-    /// the instant velocity at the end of the step, half a step of the hull's acceleration further on, relative to the instant
-    /// velocity of the home that every hand-off adds (see <see cref="HomeSteppedVelocityOverPlan"/>); that acceleration in
+    /// the instant velocity at the end of the step, half a step of the hull's acceleration further on, and in a turning home
+    /// the exact inverse of the chord rule for the turn's part of it (see <see cref="InstantVelocity"/>), relative to the
+    /// instant velocity of the home that every hand-off adds (see <see cref="HomeSteppedVelocityOverPlan"/>); that acceleration in
     /// the update, the change of Jolt's velocity without its float noise and without what the intents set before the
     /// update (see <see cref="ComputeProperAccelerations"/>); and Jolt's angular velocity and the change of it in the
     /// update. Physics releases the proper acceleration that it measured beside the record (see <see cref="WriteFrames"/>).
@@ -944,9 +945,18 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             // An awake hull took its home's linear gravity, so its chord plus half a step of its acceleration is relative
             // to the home's instant velocity in Jolt's stepping, and the record is relative to the one of every hand-off (see
             // HomeSteppedVelocityOverPlan). A hull that handed off in the step is awake in its new home.
-            Double3 velocity = chord + acceleration * (0.5 * stepDt);
+            double half = 0.5 * stepDt;
+            Double3 velocity = chord + acceleration * half;
             if (hull.World!.Bodies.IsActive(hull.Body))
+            {
                 velocity += HomeSteppedVelocityOverPlan(hull.Frame);
+                // In a turning home the chord of an awake hull that stayed there spans the home's turn of the step, so the
+                // exact inverse of the chord rule gives the instant velocity of its origin, as for every body (see
+                // InstantVelocity), in place of half a step of the rotation terms that the update gave it. The acceleration
+                // of a hand-off holds that turn's part already (see HandedOffVelocities).
+                if (hull.HandOffStep != stepIndex && StepEnd(hull.Frame) is { } moment)
+                    velocity += moment.InstantAtEndChange(s.Pose.Position, chord, stepDt) - (Double3)hull.FrameAcceleration.Turning * half;
+            }
             record = new MotionSample(s.Pose, chord, velocity, acceleration, s.Angular, hull.AngularAcceleration);
             return true;
         }

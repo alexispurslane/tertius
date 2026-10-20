@@ -47,25 +47,72 @@ public class SpinStationLandingTests
 
     private sealed record Station(FrameHandle Space, FrameHandle Frame);
 
-    /// <summary>The station and its floor of <see cref="FloorFaces"/> static slabs, 1 m thick and 20 m wide along +Y.</summary>
-    private static Station SpawnStation(World world)
+    /// <summary>What the station's floor is.</summary>
+    public enum FloorKind
+    {
+        /// <summary>A ring of <see cref="FloorFaces"/> static slabs in a station without a body.</summary>
+        Slabs,
+
+        /// <summary>
+        /// The interior of the station's owner: a ring mesh of <see cref="FloorFaces"/> faces, as ticket ter-n44b gives a
+        /// station. The owner's kinematic hull, which turns in the root frame, is the same ring of slabs as one compound.
+        /// </summary>
+        Interior,
+    }
+
+    /// <summary>
+    /// The station and its floor: <see cref="FloorFaces"/> static slabs, 1 m thick and 20 m wide along +Y, or the owner's
+    /// interior mesh with the same faces toward the axis.
+    /// </summary>
+    private static Station SpawnStation(World world, FloorKind floor = FloorKind.Slabs)
     {
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
-        Entity owner = world.Spawn(new SpawnDesc { Frame = space, AsFrame = new FrameSpec(FrameBounds.Sphere(150)) }
-            .Spinning(world, new FrameSpin(DQuaternion.Identity, StationRate), firstMove: true));
-        FrameHandle frame = world.GetOwnedFrame(owner);
-        // Half the width of a face along the ring, with 5 cm of overlap with its neighbors.
-        float halfWidth = (float)(FloorRadius * Math.Tan(Math.PI / FloorFaces)) + 0.05f;
-        for (int i = 0; i < FloorFaces; i++)
+        var desc = new SpawnDesc
         {
-            world.Spawn(new SpawnDesc
-            {
-                Frame = frame,
-                Pose = new DPose(FaceNormal(i) * (FloorRadius + 0.5), DQuaternion.FromAxisAngle(new Double3(0, 1, 0), -FaceAngle(i))),
-                Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f, 10, halfWidth)), BodyMotion.Static),
-            });
+            Frame = space, AsFrame = new FrameSpec(FrameBounds.Sphere(150)),
+            Body = floor == FloorKind.Interior
+                ? new BodyDesc(new CompoundShapeDesc([.. Enumerable.Range(0, FloorFaces).Select(i => new CompoundChild(Slab, SlabPose(i).ToPose()))]),
+                    BodyMotion.Kinematic, InteriorShape: RingMesh())
+                : null,
+        };
+        Entity owner = world.Spawn(desc.Spinning(world, new FrameSpin(DQuaternion.Identity, StationRate), firstMove: true));
+        FrameHandle frame = world.GetOwnedFrame(owner);
+        if (floor == FloorKind.Slabs)
+        {
+            for (int i = 0; i < FloorFaces; i++)
+                world.Spawn(new SpawnDesc { Frame = frame, Pose = SlabPose(i), Body = new BodyDesc(Slab, BodyMotion.Static) });
         }
         return new Station(space, frame);
+    }
+
+    /// <summary>A slab of the floor, 1 m thick, 20 m wide along +Y, and as long as a face along the ring with 5 cm of overlap with its neighbors.</summary>
+    private static readonly BoxShapeDesc Slab = new(new Vector3(0.5f, 10, (float)(FloorRadius * Math.Tan(Math.PI / FloorFaces)) + 0.05f));
+
+    /// <summary>The pose of slab <paramref name="i"/> in the station, with its face toward the axis on the face of <see cref="FaceNormal"/>.</summary>
+    private static DPose SlabPose(int i) =>
+        new(FaceNormal(i) * (FloorRadius + 0.5), DQuaternion.FromAxisAngle(new Double3(0, 1, 0), -FaceAngle(i)));
+
+    /// <summary>
+    /// The ring mesh of the floor: one quad of two triangles for each face, 20 m wide along +Y, whose middle lies
+    /// <see cref="FloorRadius"/> from the axis on <see cref="FaceNormal"/>, wound so that its front faces the axis.
+    /// </summary>
+    private static MeshShapeDesc RingMesh()
+    {
+        double corner = FloorRadius / Math.Cos(Math.PI / FloorFaces);
+        var vertices = new List<Vector3>();
+        var indices = new List<int>();
+        for (int i = 0; i < FloorFaces; i++)
+        {
+            double angle = FaceAngle(i) - Math.PI / FloorFaces;
+            vertices.Add(new Vector3((float)(corner * Math.Cos(angle)), -10, (float)(corner * Math.Sin(angle))));
+            vertices.Add(new Vector3((float)(corner * Math.Cos(angle)), 10, (float)(corner * Math.Sin(angle))));
+        }
+        for (int i = 0; i < FloorFaces; i++)
+        {
+            int low = 2 * i, high = low + 1, nextLow = 2 * ((i + 1) % FloorFaces), nextHigh = nextLow + 1;
+            indices.AddRange([low, nextLow, high, nextLow, nextHigh, high]);
+        }
+        return new MeshShapeDesc([.. vertices], [.. indices]);
     }
 
     /// <summary>The angle of face <paramref name="i"/> about the station's +Y, from its +X toward its +Z, in radians.</summary>
@@ -121,35 +168,49 @@ public class SpinStationLandingTests
         });
     }
 
+    /// <summary>What a run of one body across the station shows at one sync point.</summary>
+    /// <param name="Place">The body's place in the station.</param>
+    /// <param name="Depth">How deep the body reaches into the floor (see <see cref="Depth"/>).</param>
+    /// <param name="Falling">Whether the body's physics home is a numeric frame.</param>
+    /// <param name="Speed">The body's speed relative to the station, in m/s.</param>
+    /// <param name="HomeSpeed">The body's speed relative to its physics home, in m/s.</param>
+    private readonly record struct Moment(Double3 Place, double Depth, bool Falling, double Speed, double HomeSpeed);
+
     /// <summary>What a run of one body across the station shows, at each sync point.</summary>
-    /// <param name="Places">The body's place in the station.</param>
-    /// <param name="Depths">How deep the body reaches into the floor (see <see cref="Depth"/>).</param>
-    /// <param name="Falling">Whether the body's physics home was a numeric frame.</param>
-    /// <param name="Speeds">The body's speed relative to the station, in m/s.</param>
-    private sealed record Crossing(List<Double3> Places, List<double> Depths, List<bool> Falling, List<double> Speeds)
+    private sealed record Crossing(List<Moment> Moments)
     {
         /// <summary>The index of the first sync point at which the body touches the floor, within 5 cm, or -1.</summary>
-        public int Landing => Depths.FindIndex(depth => depth > -0.05);
+        public int Landing => Moments.FindIndex(moment => moment.Depth > -0.05);
+
+        /// <summary>The deepest that the body reaches into the floor, in m.</summary>
+        public double Deepest => Moments.Max(moment => moment.Depth);
+
+        /// <summary>
+        /// The largest distance between the body's places in this run and in <paramref name="other"/>, in m, over the sync
+        /// points from <paramref name="from"/> up to <paramref name="to"/>, without it.
+        /// </summary>
+        public double WorstDistance(Crossing other, int from, int to) =>
+            Enumerable.Range(from, to - from).Max(i => Double3.Distance(Moments[i].Place, other.Moments[i].Place));
     }
 
     /// <summary>
     /// Runs one body across the station under <paramref name="rules"/> for <paramref name="seconds"/> s, from
     /// <paramref name="radius"/> m from the axis (see <see cref="SpawnCrosser"/>).
     /// </summary>
-    private static Crossing Cross(NumericFrameOptions rules, BodyDesc body, bool thrusts, double seconds, double radius = 60)
+    private static Crossing Cross(NumericFrameOptions rules, BodyDesc body, bool thrusts, double seconds, double radius = 60,
+        FloorKind floor = FloorKind.Slabs)
     {
         using World world = NewWorld(out _, debugChecks: false, configure: options => options.NumericFrames = rules);
-        Station station = SpawnStation(world);
+        Station station = SpawnStation(world, floor);
         Entity crosser = SpawnCrosser(world, station, body, radius, thrusts: thrusts);
-        var crossing = new Crossing([], [], [], []);
+        var crossing = new Crossing([]);
         for (int tick = 0; tick < seconds * world.Options.TickRate; tick++)
         {
             world.Tick();
             DPose pose = world.PoseIn(crosser, station.Frame);
-            crossing.Places.Add(pose.Position);
-            crossing.Depths.Add(Depth(pose, body.Motion == BodyMotion.Character));
-            crossing.Falling.Add(world.Frames.IsNumeric(world.PhysicsHomeOf(crosser)));
-            crossing.Speeds.Add(world.VelocityIn(crosser, station.Frame).Length);
+            FrameHandle home = world.PhysicsHomeOf(crosser);
+            crossing.Moments.Add(new Moment(pose.Position, Depth(pose, body.Motion == BodyMotion.Character), world.Frames.IsNumeric(home),
+                world.VelocityIn(crosser, station.Frame).Length, world.VelocityIn(crosser, home).Length));
             world.GetFrame(crosser).Should().Be(station.Frame, "the body stays inside the station");
         }
         world.Errors.Should().BeEmpty();
@@ -160,40 +221,44 @@ public class SpinStationLandingTests
 
     /// <summary>
     /// The person leaves the far side of the floor, 98 m from the axis and 1.7 m above the floor, at 50.4 m/s relative to the
-    /// station, lands on the floor and stays on it, with the default numeric frames and without numeric frames. With the
-    /// default rules a person, who always thrusts, gets a falling frame from 50 m/s, but the merge test's reach of 2 s at its
-    /// speed links it to the floor's slabs all the way across the station, so it stays in the station's own system, and
-    /// Jolt's sweep of the person meets the real floor. In the spike, before ter-dhkf, it landed 0.7 m deep. Without the
-    /// link it falls through the floor.
+    /// station, lands on the floor and stays on it, with the default numeric frames and without numeric frames, on a floor of
+    /// static slabs or on the station owner's interior mesh. With the default rules a person, who always thrusts, gets a
+    /// falling frame from 50 m/s, but the merge test's reach of 2 s at its speed links it to the slabs, or to the interior,
+    /// all the way across the station, so it stays in the station's own system, and Jolt's sweep of the person meets the real
+    /// floor. In the spike, before ter-dhkf, it landed 0.7 m deep. Without the link it falls through the floor.
     /// <para>
-    /// Until ticket ter-1b21 gives a walking character the rotation terms, the person moves on a straight line in the
-    /// station's axes at its spawn velocity, with numeric frames and without. From that ticket on it follows the inertial line
-    /// through the axis at 40 m/s and meets the floor at 50.8 m/s, the spike's case. The test asks only that it lands and
-    /// stays.
+    /// This is not yet the spike's crossing. Until ticket ter-1b21 gives a walking character the rotation terms, the person
+    /// moves on a straight line in the station's axes at its spawn velocity, with numeric frames and without: a chord 59.7 m
+    /// from the axis. From that ticket on it follows the inertial line through the axis at 40 m/s and meets the floor at
+    /// 50.8 m/s, the spike's case, which a test must then pin.
     /// </para>
     /// </summary>
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void APersonWhoCrossesTheMiddleOfTheStationAt40MetersPerSecondLandsOnTheFloorAndStaysOnIt(bool numericFrames)
+    [InlineData(FloorKind.Slabs, true)]
+    [InlineData(FloorKind.Slabs, false)]
+    [InlineData(FloorKind.Interior, true)]
+    [InlineData(FloorKind.Interior, false)]
+    public void APersonWhoLeavesTheFloorAt50MetersPerSecondAcrossTheStationLandsOnTheFarSideAndStaysOnIt(FloorKind floor, bool numericFrames)
     {
         Crossing crossing = Cross(numericFrames ? new NumericFrameOptions() : NumericFrameTesting.WithoutNumericFrames, Person,
-            thrusts: false, seconds: 7, radius: 98);
+            thrusts: false, seconds: 7, radius: 98, floor);
 
         int landing = crossing.Landing;
         landing.Should().BeGreaterThan(0, "the person reaches the floor");
-        crossing.Depths.Max().Should().BeLessThan(0.05, "the person never sinks into the floor; in the spike it sank 0.7 m");
-        crossing.Depths.Skip(landing).Should().OnlyContain(depth => depth > -0.25, "the person stays on the floor after it lands");
-        (crossing.Places.Count - landing).Should().BeGreaterThan(120, "the run watches the person for 2 s after it lands");
-        crossing.Speeds[0].Should().BeGreaterThan(50, "the person moves fast enough for a falling frame");
-        crossing.Falling.Should().OnlyContain(falling => !falling, "the merge test links the person to the floor, so it stays in the station's own system");
+        crossing.Deepest.Should().BeLessThan(0.05, "the person never sinks into the floor; in the spike it sank 0.7 m");
+        crossing.Moments.Skip(landing).Should().OnlyContain(moment => moment.Depth > -0.25, "the person stays on the floor after it lands");
+        (crossing.Moments.Count - landing).Should().BeGreaterThan(120, "the run watches the person for 2 s after it lands");
+        crossing.Moments[0].Speed.Should().BeGreaterThan(50, "the person moves fast enough for a falling frame");
+        crossing.Moments.Should().OnlyContain(moment => !moment.Falling,
+            "the merge test links the person to the floor, so it stays in the station's own system");
     }
 
     /// <summary>
     /// A crate that thrusts gets a falling frame from 50 m/s, as a person does, and a dynamic body follows its inertial line
     /// in the station, so it crosses the middle at 40 m/s and passes 50 m/s relative to the station 4 m before the floor, the
-    /// spike's case. It lands where and when it lands without numeric frames, at every sync point within a float step at its
-    /// speed, because the merge test keeps it in the station's own system up to the floor.
+    /// spike's case. It lands where and when it lands without numeric frames, because the merge test keeps it in the
+    /// station's own system up to the floor: before it lands within a float step at its speed, and after it lands within the
+    /// contact noise of Jolt's push out of the floor.
     /// </summary>
     [Fact]
     public void ACrateThatThrustsAndCrossesTheMiddleOfTheStationAt40MetersPerSecondLandsAsWithoutNumericFrames()
@@ -203,25 +268,38 @@ public class SpinStationLandingTests
 
         int landing = plain.Landing;
         landing.Should().BeGreaterThan(0, "the crate reaches the floor");
-        plain.Speeds.Take(landing).Max().Should().BeGreaterThan(50, "the crate passes the speed at which a group that thrusts falls");
+        plain.Moments.Take(landing).Max(moment => moment.Speed).Should().BeGreaterThan(50, "the crate passes the speed at which a group that thrusts falls");
         numeric.Landing.Should().Be(landing, "the crate lands at the same sync point");
         // Jolt lets a box that hits a face at 50 m/s overlap it by 7.5 cm for a tick, without numeric frames too, and then
         // pushes it out. The spike's person sank 0.7 m and went through.
-        plain.Depths.Max().Should().BeLessThan(0.1, "Jolt keeps the crate out of the floor in the station's own system");
-        numeric.Depths.Max().Should().BeApproximately(plain.Depths.Max(), 1e-3, "the crate sinks no deeper than without numeric frames");
-        double worst = numeric.Places.Zip(plain.Places, Double3.Distance).Max();
-        worst.Should().BeLessThan(1e-3, "the crate moves as it does without numeric frames");
-        numeric.Falling[landing].Should().BeFalse("the merge test links the crate to the floor, so it lands in the station's own system");
+        plain.Deepest.Should().BeLessThan(0.1, "Jolt keeps the crate out of the floor in the station's own system");
+        numeric.Deepest.Should().BeApproximately(plain.Deepest, 1e-3, "the crate sinks no deeper than without numeric frames");
+        double before = numeric.WorstDistance(plain, 0, landing), after = numeric.WorstDistance(plain, landing, plain.Moments.Count);
+        before.Should().BeLessThan(BeforeLanding, "the crate flies as it does without numeric frames");
+        after.Should().BeLessThan(1e-3, "the crate lands and rests as it does without numeric frames");
+        numeric.Moments[landing].Falling.Should().BeFalse("the merge test links the crate to the floor, so it lands in the station's own system");
+        TestContext.Current.TestOutputHelper?.WriteLine($"thrusting crate: worst distance {before:E2} m before the landing, {after:E2} m after it");
     }
+
+    /// <summary>
+    /// The largest distance between a body's places with numeric frames and without them, before it lands, in m. Both runs
+    /// are free motion on the same chords until the landing, which Jolt rounds differently in different systems, so they
+    /// differ by about a float step of a place 100 m from the axis, 7.6e-6 m.
+    /// </summary>
+    private const double BeforeLanding = 3e-5;
 
     /// <summary>
     /// Under rules by which every group falls, with no lookahead, a body falls in a numeric frame below the station for most
     /// of its crossing, and joins the station's own system only where its bounding sphere meets a slab's, 11 m from the floor.
-    /// It moves as it does in the station's own system all the way, within a float step at its speed, and lands there.
-    /// In the falling frame the origin moves on the inertial line of a free body at its place, and the body feels only the
-    /// difference of its rotation terms and the origin's (docs/plans/spin-gravity.md, "The origin of a falling frame"). Until
-    /// ticket ter-1b21 a walking person feels none of the rotation terms in either system, so it moves on a straight line in
-    /// the station's axes in both.
+    /// It moves as it does in the station's own system all the way, within a float step at its speed before it lands, and
+    /// lands there. In the falling frame the origin moves on the inertial line of a free body at its place, and the body feels
+    /// only the difference of its rotation terms and the origin's (docs/plans/spin-gravity.md, "The origin of a falling
+    /// frame"), so a crate, which feels them, keeps a small velocity relative to its home while it falls: it starts at
+    /// 0.21 m/s, half a step of the crate's rotation terms of 25.7 m/s², by which a chord and an instant velocity differ, and
+    /// grows by less than 1 mm/s a tick as the crate and the origin drift apart, far below the drain speed of 1 m/s at which
+    /// the frame takes the members' velocity over. Without the origin's term it grows by 0.46 m/s a tick. Until ticket
+    /// ter-1b21 a walking person feels none of the rotation terms in either system, so it moves on a straight line in the
+    /// station's axes in both, and its velocity relative to the falling frame grows.
     /// </summary>
     [Theory]
     [InlineData(false)]
@@ -235,14 +313,26 @@ public class SpinStationLandingTests
 
         int landing = plain.Landing;
         landing.Should().BeGreaterThan(0, "the body reaches the floor");
-        numeric.Falling.Take(landing).Count(falling => falling).Should().BeGreaterThan(landing / 2, "the body falls in a numeric frame for most of its crossing");
-        numeric.Falling[landing].Should().BeFalse("the body joins the station's own system before it meets the floor");
+        numeric.Moments.Take(landing).Count(moment => moment.Falling).Should().BeGreaterThan(landing / 2, "the body falls in a numeric frame for most of its crossing");
+        numeric.Moments[landing].Falling.Should().BeFalse("the body joins the station's own system before it meets the floor");
         numeric.Landing.Should().Be(landing, "the body lands at the same sync point");
-        plain.Depths.Max().Should().BeLessThan(0.1, "Jolt keeps the body out of the floor in the station's own system");
-        numeric.Depths.Max().Should().BeApproximately(plain.Depths.Max(), 1e-3, "the body sinks no deeper than without numeric frames");
-        double worst = numeric.Places.Zip(plain.Places, Double3.Distance).Max();
-        worst.Should().BeLessThan(1e-3, "the body moves as it does without numeric frames");
-        TestContext.Current.TestOutputHelper?.WriteLine($"person={person}: worst distance {worst:E2} m, landing tick {landing}, deepest {plain.Depths.Max():F4} m");
+        plain.Deepest.Should().BeLessThan(0.1, "Jolt keeps the body out of the floor in the station's own system");
+        numeric.Deepest.Should().BeApproximately(plain.Deepest, 1e-3, "the body sinks no deeper than without numeric frames");
+        double before = numeric.WorstDistance(plain, 0, landing), after = numeric.WorstDistance(plain, landing, plain.Moments.Count);
+        before.Should().BeLessThan(BeforeLanding, "the body flies as it does without numeric frames");
+        after.Should().BeLessThan(1e-3, "the body lands and rests as it does without numeric frames");
+        double homeSpeed = numeric.Moments.Where(moment => moment.Falling).Max(moment => moment.HomeSpeed);
+        double homeSpeedChange = Enumerable.Range(1, landing - 1)
+            .Where(i => numeric.Moments[i].Falling && numeric.Moments[i - 1].Falling)
+            .Max(i => Math.Abs(numeric.Moments[i].HomeSpeed - numeric.Moments[i - 1].HomeSpeed));
+        if (!person)
+        {
+            homeSpeed.Should().BeLessThan(0.5 * falls.DrainSpeed, "the falling frame never has to take the crate's velocity over");
+            homeSpeedChange.Should().BeLessThan(5e-3, "the crate's velocity relative to its falling frame changes slowly");
+        }
+        TestContext.Current.TestOutputHelper?.WriteLine($"person={person}: worst distance {before:E2} m before the landing at tick {landing}, "
+            + $"{after:E2} m after it, deepest {plain.Deepest:F4} m, fastest relative to a falling home {homeSpeed:E2} m/s, "
+            + $"largest change of that in a tick {homeSpeedChange:E2} m/s");
     }
 
     // ---- Determinism ----

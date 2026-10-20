@@ -342,6 +342,7 @@ public sealed partial class JoltPhysicsBackend
             // update turns into the new home's axes, as the angular velocity does.
             record.StepAcceleration = plan.ChordAcceleration;
             record.AngularAcceleration = plan.AngularAcceleration;
+            record.HandOffStep = stepIndex;
         }
         // A contact that no system takes over can wait for the numeric update of the sync point (see ResolveLooseContacts).
         handedOff.Add(record.Entity);

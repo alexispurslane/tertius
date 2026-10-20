@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 using Tertius.Frames.Rails;
 using Tertius.Simulation;
@@ -23,30 +24,55 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public class TurningFollowingFrameTests
 {
+    /// <summary>The scenes of a hull in a turning frame that the tests run.</summary>
+    public enum SceneKind
+    {
+        /// <summary>The hull of <see cref="Fast"/>.</summary>
+        Fast,
+
+        /// <summary>The hull of <see cref="Far"/>.</summary>
+        Far,
+    }
+
     /// <summary>
     /// A scene of a hull in a turning frame: the frame's rate about its +Y in rad/s, the hull's place in the frame when the
-    /// scene is built, and the velocity of the hull's drift in the frame's coordinates, in m/s.
+    /// scene is built, the velocity of the hull's drift in the frame's coordinates, in m/s, and how far a body in the scene
+    /// may be from where it is without numeric frames, a few times the worst difference measured, near the float step at the
+    /// scene's speeds.
     /// </summary>
     /// <param name="Rate">The turning frame's angular velocity about its +Y, in rad/s.</param>
     /// <param name="Start">The hull's place in the turning frame at the spawn, in m.</param>
     /// <param name="Drift">The hull's velocity in the turning frame's coordinates while it drifts, in m/s.</param>
-    public sealed record HullScene(double Rate, Double3 Start, Double3 Drift);
+    /// <param name="PlaceTolerance">The largest distance in the turning frame from the body's place without numeric frames, in m.</param>
+    /// <param name="VelocityTolerance">The largest difference from the body's velocity without numeric frames, in m/s.</param>
+    public sealed record HullScene(double Rate, Double3 Start, Double3 Drift, double PlaceTolerance, double VelocityTolerance);
 
     /// <summary>
     /// A fast hull: 2 km/s along the frame's +X, 100 km from the axis of a frame that turns at 1e-3 rad/s. There the
     /// centrifugal term is 0.1 m/s², and the Coriolis term on the hull's drift is 4 m/s². The hull anchors a following frame
-    /// from 1,000 m/s, and keeps it down to 400 m/s.
+    /// from 1,000 m/s, and keeps it down to 400 m/s. A float velocity at 2 km/s has steps of 1.2e-4 m/s, and Jolt rounds the
+    /// two worlds' velocities differently, in different systems and about different origins: the worst differences measured
+    /// are 7.4e-5 m and 4.9e-4 m/s.
     /// </summary>
-    private static readonly HullScene Fast = new(1e-3, new Double3(0, 0, 1e5), new Double3(2_000, 0, 0));
+    private static readonly HullScene Fast = new(1e-3, new Double3(0, 0, 1e5), new Double3(2_000, 0, 0), PlaceTolerance: 3e-4,
+        VelocityTolerance: 1e-3);
 
     /// <summary>
     /// A far hull: 10 m/s along the frame's +X, 10,000 km from the axis of a frame that turns at 3e-4 rad/s, past the 2^23 m
     /// from which a kinematic body anchors a following frame at any speed. There the centrifugal term is 0.9 m/s², and the
-    /// frame's axes move at 3 km/s in inertial space.
+    /// frame's axes move at 3 km/s in inertial space. A float velocity at 10 to 20 m/s has steps of 1e-6 to 2e-6 m/s: the
+    /// worst differences measured are 1.3e-6 m and 2.9e-6 m/s. The turn's Coriolis half step on a change of 10 m/s is
+    /// ω v dt / 2 = 2.5e-5 m/s, so the tolerance sees an error in it.
     /// </summary>
-    private static readonly HullScene Far = new(3e-4, new Double3(0, 0, 1e7), new Double3(10, 0, 0));
+    private static readonly HullScene Far = new(3e-4, new Double3(0, 0, 1e7), new Double3(10, 0, 0), PlaceTolerance: 1e-5,
+        VelocityTolerance: 1e-5);
 
-    private static HullScene SceneNamed(string name) => name == "fast" ? Fast : Far;
+    private static HullScene SceneOf(SceneKind kind) => kind switch
+    {
+        SceneKind.Fast => Fast,
+        SceneKind.Far => Far,
+        var other => throw new UnreachableException($"The scene {other} has no hull."),
+    };
 
     /// <summary>How the hull's drift changes at the tick of the change.</summary>
     public enum DriftChange
@@ -87,9 +113,9 @@ public class TurningFollowingFrameTests
         }
     }
 
-    /// <summary>A world with the default numeric frames, or with none.</summary>
-    private static World NewTurningWorld(bool numericFrames, out JoltPhysicsBackend backend) =>
-        NewWorld(out backend, configure: numericFrames ? null : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
+    /// <summary>A world with the default numeric frames, or with none, on the real backend wrapped to record its steps.</summary>
+    private static World NewTurningWorld(bool numericFrames, out FaultInjectingBackend backend) =>
+        NewWorldWithFaults(out backend, configure: numericFrames ? null : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
 
     /// <summary>
     /// A root frame without a field, and in it a frame with a bubble of 100,000 km that turns in place about its +Y at the
@@ -137,9 +163,13 @@ public class TurningFollowingFrameTests
     /// with a bubble of 10 cm.
     /// </summary>
     private static (World World, FrameHandle Turning, Entity Owner, Entity Crate) LeavingCrate(bool numericFrames, HullScene scene,
-        DriftChange change, long changeTick, bool ship)
+        DriftChange change, long changeTick, bool ship) => LeavingCrate(numericFrames, scene, change, changeTick, ship, out _);
+
+    /// <summary>The scene of <see cref="LeavingCrate(bool, HullScene, DriftChange, long, bool)"/>, with its backend.</summary>
+    private static (World World, FrameHandle Turning, Entity Owner, Entity Crate) LeavingCrate(bool numericFrames, HullScene scene,
+        DriftChange change, long changeTick, bool ship, out FaultInjectingBackend faults)
     {
-        World world = NewTurningWorld(numericFrames, out _);
+        World world = NewTurningWorld(numericFrames, out faults);
         FrameHandle turning = TurningFrame(world, scene);
         Entity owner = SpawnHull(world, turning, scene, change, changeTick);
         Entity crate = world.Spawn(new SpawnDesc
@@ -158,23 +188,24 @@ public class TurningFollowingFrameTests
     /// The hand-off takes that difference and the turn's part of the crate's instant velocity in the turning frame, and a
     /// ship's step record after the hand-off takes both too.
     /// <para>
-    /// The fast crate moves at 2 km/s in both worlds, where a float velocity has steps of 1.2e-4 m/s, and Jolt rounds the
-    /// two worlds' velocities differently, in different systems and about different origins. A millimeter, and a millimeter
-    /// per second, covers that rounding over a second, as in <c>StillFollowingFrameTests</c>.
+    /// Each scene has its own tolerance near the float step at its speed (see <see cref="HullScene"/>). At least one of the
+    /// four change steps hands the crate off into the hull's following frame in a step whose plan differs from the plan of
+    /// the step before. A fast hull that stops loses its following frame at the update after the stop, below 400 m/s, so a
+    /// crate that leaves later leaves into the turning frame's own system.
     /// </para>
     /// </summary>
     [Theory]
-    [InlineData("fast", DriftChange.Stops, false)]
-    [InlineData("fast", DriftChange.Stops, true)]
-    [InlineData("fast", DriftChange.Skips, false)]
-    [InlineData("fast", DriftChange.Skips, true)]
-    [InlineData("far", DriftChange.Stops, false)]
-    [InlineData("far", DriftChange.Starts, false)]
-    [InlineData("far", DriftChange.Starts, true)]
-    public void ACrateThatLeavesTheBubbleOfAHullThatChangesItsDriftInATurningFrameMovesOnAsWithoutNumericFrames(string sceneName,
+    [InlineData(SceneKind.Fast, DriftChange.Stops, false)]
+    [InlineData(SceneKind.Fast, DriftChange.Stops, true)]
+    [InlineData(SceneKind.Fast, DriftChange.Skips, false)]
+    [InlineData(SceneKind.Fast, DriftChange.Skips, true)]
+    [InlineData(SceneKind.Far, DriftChange.Stops, false)]
+    [InlineData(SceneKind.Far, DriftChange.Starts, false)]
+    [InlineData(SceneKind.Far, DriftChange.Starts, true)]
+    public void ACrateThatLeavesTheBubbleOfAHullThatChangesItsDriftInATurningFrameMovesOnAsWithoutNumericFrames(SceneKind sceneKind,
         DriftChange change, bool ship)
     {
-        HullScene scene = SceneNamed(sceneName);
+        HullScene scene = SceneOf(sceneKind);
         long exitTick;
         (World probe, FrameHandle _, Entity probeOwner, Entity probeCrate) = LeavingCrate(numericFrames: true, scene,
             change == DriftChange.Starts ? DriftChange.Starts : DriftChange.Stops, long.MaxValue, ship);
@@ -188,10 +219,28 @@ public class TurningFollowingFrameTests
         }
 
         double worstPlace = 0, worstVelocity = 0;
+        var changedPlanExits = new List<long>();
         for (long changeTick = exitTick - 3; changeTick <= exitTick; changeTick++)
         {
-            (World world, FrameHandle turning, Entity owner, Entity crate) = LeavingCrate(numericFrames: true, scene, change, changeTick, ship);
+            (World world, FrameHandle turning, Entity owner, Entity crate) =
+                LeavingCrate(numericFrames: true, scene, change, changeTick, ship, out FaultInjectingBackend faults);
             (World plain, FrameHandle plainTurning, Entity plainOwner, Entity plainCrate) = LeavingCrate(numericFrames: false, scene, change, changeTick, ship);
+            // The crate's hand-off out of the hull's frame, read in the step that makes it, while the tree is as the step has
+            // it: whether it goes into a frame that the hull anchors, and whether the hull had a motion intent in that step and
+            // in the step before, which give its frame's plan.
+            faults.EditOutput = output =>
+            {
+                foreach (HandOff handOff in output.HandOffs)
+                {
+                    if (handOff.Entity != crate || !world.Frames.Anchors(handOff.To, owner))
+                        continue;
+                    long step = faults.Steps[^1].Tick;
+                    bool moves = faults.Moves.Any(move => move.Tick == step && move.Entity == owner);
+                    bool movedBefore = faults.Moves.Any(move => move.Tick == step - 1 && move.Entity == owner);
+                    if (moves != movedBefore)
+                        changedPlanExits.Add(changeTick);
+                }
+            };
             using (world)
             using (plain)
             {
@@ -203,9 +252,9 @@ public class TurningFollowingFrameTests
                         "the crate leaves the bubble at the same sync point, change tick {0}, sync point {1}", changeTick, world.TickNumber);
                     double place = (world.PoseIn(crate, turning).Position - plain.PoseIn(plainCrate, plainTurning).Position).Length;
                     double velocity = (world.VelocityIn(crate, turning) - plain.VelocityIn(plainCrate, plainTurning)).Length;
-                    place.Should().BeLessThan(1e-3, "the crate is where it is without numeric frames, change tick {0}, sync point {1}",
+                    place.Should().BeLessThan(scene.PlaceTolerance, "the crate is where it is without numeric frames, change tick {0}, sync point {1}",
                         changeTick, world.TickNumber);
-                    velocity.Should().BeLessThan(1e-3, "the crate moves as it does without numeric frames, change tick {0}, sync point {1}",
+                    velocity.Should().BeLessThan(scene.VelocityTolerance, "the crate moves as it does without numeric frames, change tick {0}, sync point {1}",
                         changeTick, world.TickNumber);
                     worstPlace = Math.Max(worstPlace, place);
                     worstVelocity = Math.Max(worstVelocity, velocity);
@@ -217,7 +266,9 @@ public class TurningFollowingFrameTests
                 plain.Errors.Should().BeEmpty();
             }
         }
-        TestContext.Current.TestOutputHelper?.WriteLine($"{sceneName} {change} ship={ship}: worst place {worstPlace:E2} m, worst velocity {worstVelocity:E2} m/s");
+        changedPlanExits.Should().NotBeEmpty("the crate leaves into the hull's following frame in the step in which its plan changes, for one of the change steps");
+        TestContext.Current.TestOutputHelper?.WriteLine($"{sceneKind} {change} ship={ship}: worst place {worstPlace:E2} m, worst velocity {worstVelocity:E2} m/s, "
+            + $"exits into a changed plan with the change ticks {string.Join(", ", changedPlanExits)} of {exitTick - 3} to {exitTick}");
     }
 
     // ---- A body that enters the bubble of a hull in the step in which the hull stops ----
@@ -233,14 +284,14 @@ public class TurningFollowingFrameTests
     /// and in that step it moves on by 33.5 m relative to the hull, and ends the step about 13 m from it, inside the bubble.
     /// </summary>
     private static (World World, FrameHandle Turning, Entity Owner, Entity Body) EnteringBody(bool numericFrames, bool character,
-        out JoltPhysicsBackend backend) => EnteringBody(numericFrames, character, Fast, StopTick, out backend);
+        out FaultInjectingBackend backend) => EnteringBody(numericFrames, character, Fast, StopTick, out backend);
 
     /// <summary>
-    /// The scene of <see cref="EnteringBody(bool, bool, out JoltPhysicsBackend)"/> with the hull of <paramref name="scene"/>,
+    /// The scene of <see cref="EnteringBody(bool, bool, out FaultInjectingBackend)"/> with the hull of <paramref name="scene"/>,
     /// which stops at <paramref name="stopTick"/>, or drifts on with <see cref="long.MaxValue"/>.
     /// </summary>
     private static (World World, FrameHandle Turning, Entity Owner, Entity Body) EnteringBody(bool numericFrames, bool character,
-        HullScene scene, long stopTick, out JoltPhysicsBackend backend)
+        HullScene scene, long stopTick, out FaultInjectingBackend backend)
     {
         World world = NewTurningWorld(numericFrames, out backend);
         FrameHandle turning = TurningFrame(world, scene);
@@ -287,8 +338,8 @@ public class TurningFollowingFrameTests
                     inside++;
                 double place = (world.PoseIn(body, turning).Position - plain.PoseIn(plainBody, plainTurning).Position).Length;
                 double velocity = (world.VelocityIn(body, turning) - plain.VelocityIn(plainBody, plainTurning)).Length;
-                place.Should().BeLessThan(1e-3, "the body is where it is without numeric frames at sync point {0}", world.TickNumber);
-                velocity.Should().BeLessThan(1e-3, "the body moves as it does without numeric frames at sync point {0}", world.TickNumber);
+                place.Should().BeLessThan(Fast.PlaceTolerance, "the body is where it is without numeric frames at sync point {0}", world.TickNumber);
+                velocity.Should().BeLessThan(Fast.VelocityTolerance, "the body moves as it does without numeric frames at sync point {0}", world.TickNumber);
                 worstPlace = Math.Max(worstPlace, place);
                 worstVelocity = Math.Max(worstVelocity, velocity);
             }
@@ -307,11 +358,11 @@ public class TurningFollowingFrameTests
     /// whose centrifugal half step moves it by ω² r dt / 2, 7.5 mm/s.
     /// </summary>
     [Theory]
-    [InlineData("fast")]
-    [InlineData("far")]
-    public void ACrateThatEntersTheBubbleOfAHullThatDriftsOnInATurningFrameMovesAsWithoutNumericFrames(string sceneName)
+    [InlineData(SceneKind.Fast)]
+    [InlineData(SceneKind.Far)]
+    public void ACrateThatEntersTheBubbleOfAHullThatDriftsOnInATurningFrameMovesAsWithoutNumericFrames(SceneKind sceneKind)
     {
-        HullScene scene = SceneNamed(sceneName);
+        HullScene scene = SceneOf(sceneKind);
         (World world, FrameHandle turning, Entity owner, Entity crate) = EnteringBody(numericFrames: true, character: false, scene, long.MaxValue, out _);
         (World plain, FrameHandle plainTurning, Entity plainOwner, Entity plainCrate) = EnteringBody(numericFrames: false, character: false, scene, long.MaxValue, out _);
         using (world)
@@ -333,15 +384,15 @@ public class TurningFollowingFrameTests
                     inside++;
                 double place = (world.PoseIn(crate, turning).Position - plain.PoseIn(plainCrate, plainTurning).Position).Length;
                 double velocity = (world.VelocityIn(crate, turning) - plain.VelocityIn(plainCrate, plainTurning)).Length;
-                place.Should().BeLessThan(1e-3, "the crate is where it is without numeric frames at sync point {0}", world.TickNumber);
-                velocity.Should().BeLessThan(1e-3, "the crate moves as it does without numeric frames at sync point {0}", world.TickNumber);
+                place.Should().BeLessThan(scene.PlaceTolerance, "the crate is where it is without numeric frames at sync point {0}", world.TickNumber);
+                velocity.Should().BeLessThan(scene.VelocityTolerance, "the crate moves as it does without numeric frames at sync point {0}", world.TickNumber);
                 worstPlace = Math.Max(worstPlace, place);
                 worstVelocity = Math.Max(worstVelocity, velocity);
             }
             inside.Should().BeGreaterThan(0, "the crate enters the hull's bubble");
             world.Errors.Should().BeEmpty();
             plain.Errors.Should().BeEmpty();
-            TestContext.Current.TestOutputHelper?.WriteLine($"entering {sceneName} hull that drifts on: worst place {worstPlace:E2} m, worst velocity {worstVelocity:E2} m/s");
+            TestContext.Current.TestOutputHelper?.WriteLine($"entering {sceneKind} hull that drifts on: worst place {worstPlace:E2} m, worst velocity {worstVelocity:E2} m/s");
         }
     }
 
@@ -391,8 +442,8 @@ public class TurningFollowingFrameTests
                 plain.Tick();
                 double place = (world.PoseIn(ship, turning).Position - plain.PoseIn(plainShip, plainTurning).Position).Length;
                 double velocity = (world.VelocityIn(ship, turning) - plain.VelocityIn(plainShip, plainTurning)).Length;
-                place.Should().BeLessThan(1e-3, "the ship is where it is without numeric frames at sync point {0}", world.TickNumber);
-                velocity.Should().BeLessThan(1e-3, "the ship moves as it does without numeric frames at sync point {0}", world.TickNumber);
+                place.Should().BeLessThan(Fast.PlaceTolerance, "the ship is where it is without numeric frames at sync point {0}", world.TickNumber);
+                velocity.Should().BeLessThan(Fast.VelocityTolerance, "the ship moves as it does without numeric frames at sync point {0}", world.TickNumber);
                 worstPlace = Math.Max(worstPlace, place);
                 worstVelocity = Math.Max(worstVelocity, velocity);
             }
