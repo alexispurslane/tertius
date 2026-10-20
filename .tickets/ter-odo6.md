@@ -27,3 +27,7 @@ Every allocation test measures per call or per tick, or warms up past the runtim
 **2026-10-17T01:30:01Z**
 
 2026-10-17: ContactAllocationTests.StepsWithManyPersistingContactsAndAPendingPairAllocateNothingOnAnyThread (ter-pnco) fails under tools/coverage/run.sh in Debug and in Release, and passes without coverage (558 and 559 Physics tests, 0 failed). It counts bytes on every thread, and the coverage instrumentation allocates on Jolt's worker threads when they first run managed code. Read a failure of this test under coverage as a tool artifact, or make the test detect the coverage collector.
+
+**2026-10-20T20:43:46Z**
+
+2026-10-20, coverage of ter-tzf6: Host's CaptureMailboxTests.ARequestStopsWaitingWhenTheWindowCloses (a 5 s timing test) failed once under tools/coverage/run.sh in Release, and passed 3 of 3 alone in Release without coverage. The branch does not touch it. A timing test that fails under the load of the coverage run, like the two ContactAllocationTests.
