@@ -65,15 +65,23 @@ public sealed class WindowsSliceTests(WindowsRun run) : IClassFixture<WindowsRun
     [Fact]
     public void FromOutsideThePersonSeesTheLampLitCabinThroughAPortPane()
     {
-        // The person drifts 6 m outside the port wall, level with the hatch, and looks back at the window 4 m forward of
+        // The person drifts 5.4 m outside the port wall, level with the hatch, and looks back at the window 4 m forward of
         // the hatch, 33 degrees to the left of the hatch and 5 degrees down. The sun stands straight above the ship, so
         // only the dim ambient light reaches the port face. Through the pane, across the cabin, the lamps light the
-        // starboard wall and the floor in their warm white. The window spans rows 274 to 375 and columns 595 to 715. The
-        // starboard wall shows above row 343, and the floor below row 349. The opposite window's pane, dark against space,
-        // spans columns 633 to 669 and rows 297 to 319, so the probe of the wall sits to its right.
-        Dump("outside").Entity("person").Pose.Position.X.Should().BeLessThan(-15, "the person is outside the hull, 6 m from its port face");
+        // starboard wall and the floor in their warm white. The lit window spans rows 279 to 395 and columns 543 to 689.
+        // The starboard wall shows above row 344, and the floor below row 349. The opposite window's pane, dark against
+        // space, spans columns 628 to 662 and rows 299 to 324, so the probe of the wall sits between it and the window's
+        // right edge.
+        //
+        // Changed on purpose by ter-1b21 (the user's fork F6, 2026-10-20): a standing person walks in the plane of every
+        // walkable face that Jolt reports, the faces of moving bodies included. While the inner door opens, the person
+        // walks along its rounded lower edge, a face 49.2 degrees from up. So the person stops 0.29 m short in the
+        // chamber, leaves the hatch at 2.97 m/s instead of 3.09 m/s, and drifts 0.55 m nearer the hull. From there the
+        // window shows 25 to 30 columns further left and a little larger, and the probe of the wall moved from column 692,
+        // now the dark hull beside the window, to column 676.
+        Dump("outside").Entity("person").Pose.Position.X.Should().BeLessThan(-15, "the person is outside the hull, 5.4 m from its port face");
         var image = run.Capture("cabin-through-pane");
-        (int r, int g, int b) hull = image.Average(640, 200), wall = image.Average(692, 308), floor = image.Average(650, 360);
+        (int r, int g, int b) hull = image.Average(640, 200), wall = image.Average(676, 308), floor = image.Average(650, 360);
 
         (hull.r + hull.g + hull.b).Should().BeLessThan(60, $"the port face above the window is dark, not {hull}");
         (wall.r > hull.r + 50 && wall.r > wall.b).Should().BeTrue($"the lamp-lit starboard wall shows through the pane, not {wall}");
