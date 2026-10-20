@@ -51,7 +51,7 @@ The user's words say that the shuttle "lands on its engine on the pad", and that
 | Place | One of the three shared places: the ramp, the landing pad and the slot (the enum `Place`) |
 | Slot | The station's way in: the axis from the deck out to just inside the arrival point, with the hub's slot and the bay. The arrival point lies 1,500 m out on the axis, outside the slot. |
 | Holder | The one shuttle that the timetable lets use a place |
-| Claim | The state of a request for a place, in a state that flies while it waits for the grant: `Asked` or `Granted` (the enum `Claim`) |
+| Claim | How far a request for a place has got: `Asked` or `Granted` (the enum `Claim`). A state that flies while it waits for the grant carries it. |
 | Held places | The places that a shuttle holds. One function of the state, `PilotState.Held`, gives them, and nothing stores them. |
 | Asked places | The places that a shuttle asked for and waits for. One function of the state, `PilotState.Asked`, gives them, and nothing stores them. |
 | Ground departure | The `Depart` that the timetable sends to the ramp's holder, 18 s before each pass |
@@ -64,7 +64,7 @@ The user's words say that the shuttle "lands on its engine on the pad", and that
 
 ## The cycle of one shuttle
 
-### The states
+### The states of one cycle
 
 The times below count from P, the pass of the orbit in which the shuttle departs. A cycle takes three orbits, 3T = 16,634.6 s, 277.2 minutes (see "Why the cycle takes three orbits"). The rows of `Next` that the table names are in "The table of Next".
 
@@ -158,9 +158,9 @@ Every staged component of this design has one shape:
 - One custom `[Union]` of its events, flat. It has two kinds of cases. A message case comes from a message of another entity. A report case comes from a delegate. When a component has only one event, it needs no union.
 - One pure static function of the state union, `Next(state, event)`. It returns the new state, or null when the pair has no row. It reads nothing but its two arguments, so unit tests pin every row with no World and no physics.
 - A switch expression on the state, which is the table from each state to its delegate. A state with nothing to fly has no delegate.
-- The effects of the tick follow from the state at the tick's start and the state at its end. No row carries a column of actions.
+- The effects of the tick follow from the state at the tick's start and the state at its end. No row carries a column of actions. The pilot's change of motion is the one write that cannot wait for the tick's end, so the pilot writes it as soon as `Next` makes it (see "One tick").
 
-Only `Next` changes which case the component is in. A delegate adds the tick's events for the entity's other components and returns at most one report. The user's rule lets a delegate change the data of its own state. No delegate of this design needs to, because every value that a case holds is fixed when `Next` makes the case. So each delegate takes its case by `in`. A later delegate that keeps data across ticks, as the passenger's `Seated(WeightlessTicks)` does, returns its own case's new data with its report.
+Only `Next` changes which case the component is in. A delegate adds the tick's events for the entity's other components and returns at most one report. The user's rule lets a delegate change the data of its own state. No delegate of this design needs to, because every value that a case holds is fixed when `Next` makes the case. So each delegate takes its case by `in`. A later delegate that keeps data across ticks, as the passenger's `Seated(WeightlessTicks)` does, takes a copy of its case by `ref`. The component stores that copy back as its state after the delegate flies, before it applies the report. The copy is still the same case, so only `Next` changes the case.
 
 A component turns each message of its inbox into its event case. A message case holds the message's payload. Where the next state needs more, the case also holds the message's sender and what the component reads from the snapshot when it takes the message. The pilot's `TowStarted` holds the tow plan, built from `TowStart` and the hull's own pose. The tug's `TowAsked` holds the sender, the sender's pose and the start of the drive. The seat's `UsedBy` holds the sender. A message that needs nothing more is its own case: the pilot's `Depart` and `PlaceGrant` are the payload structs themselves.
 
@@ -168,18 +168,20 @@ A component turns each message of its inbox into its event case. A message case 
 
 In each tick, a staged component does these steps in this order:
 
-1. It applies the messages of its inbox to `Next`, one at a time, in the order of the inbox.
+1. It applies the messages of its inbox to `Next`, one at a time, in the order of the inbox. Then, if the motion of the state differs from the motion of the state at the tick's start, the pilot writes the new motion with `self.Body.SetMotion`.
 2. The delegate of the state after step 1 flies the tick. It adds the tick's events and returns at most one report.
-3. It applies the report to `Next`.
+3. It applies the report to `Next`. Then, if the motion of the state differs from the motion of the state after step 1, the pilot writes the new motion with `self.Body.SetMotion`.
 4. It sends the effects that follow from the state at the tick's start and the state at its end.
+
+Only the pilot's states give its body's motion (`PilotState.Motion`, see "The held places, the requests and the motion"). The other staged components write no `SetMotion` in steps 1 and 3.
 
 Each pair that has no row is ignored: the state does not change, and the component logs the pair with `self.Log`. The nominal runs log nothing.
 
 ```mermaid
 flowchart LR
-    S[state at the tick's start] --> M[step 1: each message of the inbox, through Next]
+    S[state at the tick's start] --> M[step 1: each message of the inbox, through Next, then SetMotion if the motion changed]
     M --> D[step 2: the delegate of that state flies]
-    D --> R[step 3: its report, through Next]
+    D --> R[step 3: its report, through Next, then SetMotion if the motion changed]
     R --> E[step 4: effects from the start state and the end state]
     M -. no row .-> L[log the ignored pair]
     R -. no row .-> L
@@ -189,9 +191,11 @@ The reasons for this order:
 
 - A message was sent in the last tick, about the world at its end. So it applies before this tick's flight, and the state that it starts flies in the same tick. The ascent's throttle comes in the tick of `Depart`, as `Ignition` gives it today, and the glide starts in the tick of the slot's grant.
 - A delegate reads the snapshot of the tick, the state at the end of step N − 1, and its events and intents act in step N + 1. Its report is about those same reads. So the report changes the state after the delegate flew, and the new state's delegate flies from the next tick, with that tick's reads.
-- So exactly one delegate flies in each tick. The actuators (`AttitudeAutopilot`, `MainEngine` and `TranslationThrusters`) run at priority 10 and take the last event of each type in a tick (ARCHITECTURE.md, "The component pipeline"). The pilot at priority 0 is the only component of the shuttle that adds those events, and one delegate adds them. So the rule "the last one counts" never chooses between two writers.
+- So exactly one delegate flies in each tick. The actuators (`AttitudeAutopilot`, `MainEngine` and `TranslationThrusters`) run at priority 10, after the pilot at priority 0, because the worker calls the components in priority order (ARCHITECTURE.md, "The component pipeline"). Each actuator takes the last event of its type in a tick, as the documentation of each of the three says. The pilot is the only component of the shuttle that adds those events, and one delegate adds them. So the rule "the last one counts" never chooses between two writers.
 - A tick applies `Next` at most once for each message and once for the report, so it has no loop. A report that keeps the state, such as the deorbit window while the landing pad is still asked for, flies the same delegate again in the next tick, and nothing loops inside a tick.
-- The effects come at the end, from two states, so a tick sends each message at most once and writes at most one `SetMotion`. A place that a state asks for and loses inside one tick sends nothing.
+- A change of motion is written as soon as `Next` makes it, before the next delegate writes. The guard of every motion intent judges a write by the motion of the next step as it stands at the write: the change of motion that the owner wrote in the tick so far, or else the motion of the running step (`self.Body.NextStepMotion`, ARCHITECTURE.md, "Changes of motion" and "Rails components and motion intents"). So the first end pose of `FlyTowed`, in the tick of `TowStarted`, passes the guard only because `SetMotion(Kinematic)` comes before it, in step 1. A `SetMotion` at the tick's end would come after the end pose, and the writer would throw an `InvalidOperationException`.
+- So a tick writes at most two `SetMotion`, one in step 1 and one in step 3, and the last one gives the motion of the end state. The last `SetMotion` in a tick wins (ARCHITECTURE.md, "Changes of motion"). In this design, two come only when a fault halts the shuttle in the tick of `Depart`. The second then writes `Static`, the motion at the tick's start, so the hull's motion does not change.
+- The other effects come at the end, from two states, so a tick sends each message at most once. A place that a state asks for and loses inside one tick sends nothing.
 - The order is deterministic. The inbox has the same order in every run with the same inputs (ARCHITECTURE.md, "Outboxes, routing and order"). `Next` is pure, and each delegate reads only the tick's snapshot and its own case.
 
 The cost: a change of state by a report takes effect one tick later than in the station step's code, which changes the state and flies the new state in the same tick. "The ascent and the rendezvous" lists where this moves the flight.
@@ -307,7 +311,7 @@ Every other pair has no row, so the pilot ignores it and logs it. These ignored 
 - `Depart` in any state but `OnTheRamp` and `Docked`. The timetable offers the next departure one orbit later.
 - `PlaceGrant` of a place that the state does not wait for, such as a grant in `Halted`. The effects of the tick then release that place at once (see "The held places, the requests and the motion").
 - `TowStarted` in any state but `AwaitingTug`. It comes only from a bug, because the tug serves only a shuttle that asked for it.
-- A report in a state whose delegate does not return it. It comes only from a bug.
+- A report other than `Fault` in a state whose delegate does not return it. It comes only from a bug. `Fault` is not in this rule: row 28 halts every state but `Halted` on a fault, also a state with no delegate, such as `OnTheRamp`, and a state whose delegate lists no fault, such as `Towed`. So one pattern holds the halt, and a shuttle that a bug faults stops in any state. `Fault` in `Halted` has no row.
 
 This is the form of `Next`, as a sketch:
 
@@ -384,14 +388,14 @@ Every delegate reads in the shuttle's frame, `self.Frame`, as the autopilots do 
 | `Coast` | `DescentFlight.FlyCoast` | The nose against the velocity | `BrakingCurveReached`, at the braking curve | `NoPointGravity`, `NoMass` |
 | `PoweredBraking` | `DescentFlight.FlyPoweredBraking` | ZEM/ZEV guidance to the high gate | `HighGateReached`, at the high gate | `NoPointGravity`, `NoMass` |
 | `VerticalDescent` | `DescentFlight.FlyVerticalDescent` | The wanted descent speed, nose up and roof toward +Z | `TouchedDown`, with the tail within 0.05 m of the pad's top and slower than 0.1 m/s. In that tick it adds no throttle. | `NoPointGravity`, `NoMass` |
-| `Towed` | `ShuttlePilot.FlyTowed` | The end pose `Plan.ShuttleAt(t_(N+2))`, relative to `self.Frame` | `TowEnded`, in the first tick N with t_(N+1) at or after the plan's end. In that tick it writes no end pose, because the end pose of the tick before already reached the end. | None |
+| `Towed` | `ShuttlePilot.FlyTowed` | The end pose `Plan.ShuttleAt(t_(N+2))`, relative to `self.Frame` | `TowEnded`, in the first tick N with t_(N+1) at or after the plan's end. In that tick it writes no end pose, because the end pose of tick N − 1, which step N applies, already ends on the plan's end. | None |
 | `Halted` | None | Nothing | None | None |
 
 `AwaitingWindow` reports the open window whatever its claim, and `Next` decides with rows 21 and 22. So the guard on the landing pad lives in one pure place.
 
 #### The held places, the requests and the motion
 
-Four pure functions of the state give what the effects need. Nothing stores their values.
+Four pure functions of the state give what the effects and the writes of motion need. Nothing stores their values.
 
 - `PilotState.Held` returns the held places, a `Places` value, a `[Flags]` enum of `Place`.
 - `PilotState.Asked` returns the places that the state asked for and waits for, a `Places` value.
@@ -422,7 +426,6 @@ At the end of each tick, the pilot compares `start`, the state at the tick's sta
 | `PlaceRelease(p)` to the topic `timetable` | For each place p that `start.Held` holds or a `PlaceGrant` of the tick granted, and that `end.Held` does not hold |
 | `PlaceRequest(p)` to the topic `timetable` | For each place p in `end.Asked` that is not in `start.Asked` |
 | `TowRequest` to the topic `tug` | When `end.AsksForTow` is true and `start.AsksForTow` is false |
-| `self.Body.SetMotion(end.Motion)` | When `end.Motion` differs from `start.Motion` |
 | A log of the reason with `self.Log` | When `end` is `Halted` and `start` is not |
 
 The first rule counts the places that the timetable counts as the shuttle's: those it held at the start, and those that the tick granted. So one rule gives every release:
@@ -433,9 +436,9 @@ The first rule counts the places that the timetable counts as the shuttle's: tho
 
 The second and third rules give every request: the brake's start asks for the slot, the station departure asks for the landing pad, the touchdown asks for the ramp, and the ramp's grant on the landing pad sends `TowRequest`.
 
-The fourth rule gives every change of motion: `Depart` unparks the hull on the ramp and on the deck, the docking's end, the touchdown and the tow's end park it, `TowStarted` makes it kinematic, and a halt parks it where it is. A `SetMotion` and the end pose of the same tick both act in the next step, and the guards judge each write by the motion of that step (ARCHITECTURE.md, "Changes of motion"). So `Towed` writes its first end pose in the tick of `TowStarted`.
+The motion is not an effect of the tick's end. The pilot writes `self.Body.SetMotion(State.Motion)` at the end of step 1 and at the end of step 3 of "One tick", when that step changed the state's motion. That one rule gives every change of motion: `Depart` unparks the hull on the ramp and on the deck, the docking's end, the touchdown and the tow's end park it, `TowStarted` makes it kinematic, and a halt parks it where it is. A `SetMotion` and the end pose of the same tick both act in the next step. The guard of an end pose reads the motion that the owner wrote in the tick so far (`self.Body.NextStepMotion`, ARCHITECTURE.md, "Changes of motion" and "Rails components and motion intents"). So in the tick of `TowStarted`, the pilot writes `SetMotion(Kinematic)` in step 1, and `FlyTowed` then writes its first end pose in step 2. The park at the tow's end comes in step 3 of a tick in which `FlyTowed` writes no end pose (see "How the tow starts and runs").
 
-The first tick. The scene gives the timetable the first holders, so the held places of the first state are already the timetable's. The pilot counts the asked places of the first state as new in its first tick, the tick that brings `Spawned`. So a shuttle that starts on the landing pad asks for the ramp in its first tick. The spawn gives the hull the motion of the first state, so the first tick writes no `SetMotion`.
+The first tick. The scene gives the timetable the first holders, so the held places of the first state are already the timetable's. The pilot counts the asked places of the first state as new in its first tick, the tick that brings `Spawned`. So a shuttle that starts on the landing pad asks for the ramp in its first tick. The spawn gives the hull the motion of the first state. The writes of motion compare the states before and after a step, so the first tick writes no `SetMotion` unless `Next` changes the motion in it.
 
 The pilot reads `Spawned` only for that rule. Its `Handle`, as a sketch:
 
@@ -451,9 +454,12 @@ public void Handle(Self self, scoped ref EventList events, scoped ref Outbox out
                 granted |= grant.Place.AsPlaces();
             Apply(self, read);
         }
+    WriteMotion(self, from: start);
+    PilotState flown = State;
     PilotEvent report = Fly(self, ref events);
     if (report.HasValue)
         Apply(self, report);
+    WriteMotion(self, from: flown);
     SendEffects(self, start, granted, firstTick: events.Of<Spawned>().Any(), ref outbox);
 }
 ```
@@ -464,8 +470,10 @@ where
 - `granted` = the places that the tick's `PlaceGrant` messages granted.
 - `MessageCase` = turns a message into its case of `PilotEvent`, or null for `Tick` and `Spawned`. For `TowStart`, it reads the hull's pose in `earth-surface` and builds `TowStarted`.
 - `Apply` = sets `State` to the result of `Next`, or logs the pair when `Next` returns null.
+- `WriteMotion` = writes `self.Body.SetMotion(State.Motion)` when `State.Motion` differs from `from.Motion`, with `from` the state before the step.
+- `flown` = the state after step 1, whose delegate flies the tick.
 - `Fly` = the switch expression of "The delegates".
-- `SendEffects` = the five effects of the table above, with the asked places of `start` counted as none in the first tick.
+- `SendEffects` = the four effects of the table above, with the asked places of `start` counted as none in the first tick.
 
 #### The state diagram
 
@@ -529,7 +537,7 @@ The rendezvous's burns give the push across the nose to the translation thruster
 `ter-ftnj` designs the docking. This design fixes only what the cycle needs from it:
 
 - The docking is a group of flat cases of `PilotState`, with their reports in `PilotEvent` and their rows in `Next`. `ter-ftnj` builds no union of its own. Its first row leaves `Hold` on a report that `ter-ftnj` chooses. Its last row enters `Docked`.
-- It ends with the hull at rest on the deck, in the station's frame. `Docked` is static, so the effects of that tick park the hull with `SetMotion(Static)`, as on the ramp. A frame with a static hull holds still in its tree parent (ARCHITECTURE.md, "How a frame moves"), so the cabin turns with the station.
+- It ends with the hull at rest on the deck, in the station's frame. `Docked` is static, so the pilot parks the hull with `SetMotion(Static)` in step 3 of that tick, as on the ramp. A frame with a static hull holds still in its tree parent (ARCHITECTURE.md, "How a frame moves"), so the cabin turns with the station.
 - Its states hold the slot, and row 28 halts each of them on a fault.
 - Its budget is 330 s. The spin match at the hold point takes 60 s, and the entry along the axis 220 s. The move of 6 m out to the deck takes 40 s, and the hull settles in 10 s.
 - The station turns at 0.31321 rad/s. The attitude autopilot turns at most 0.15 rad/s (`MaxTurnRate`). So the spin match needs a target with a feed-forward angular velocity (see the next section).
@@ -574,7 +582,7 @@ The hull is static on the deck, in `Docked`. The cabin floor lies 7.8 m from the
 
 The undocking is the docking in reverse, in three states:
 
-1. `LiftOff`. At the station departure, row 2 gives `LiftOff(Asked)`. The effects of that tick unpark the hull (`SetMotion(Dynamic)`) and send `PlaceRequest(LandingPad)`. The translation thrusters lift the hull 6 m in to the axis in about 40 s. The push is at most 0.71 m/s², as for the move to the deck. On the axis, `FlyLiftOff` reports `OnTheAxis`, and row 18 gives `Exit` with the same claim.
+1. `LiftOff`. At the station departure, row 2 gives `LiftOff(Asked)`. The pilot unparks the hull with `SetMotion(Dynamic)` in step 1 of that tick, and the effects of the tick send `PlaceRequest(LandingPad)`. The translation thrusters lift the hull 6 m in to the axis in about 40 s. The push is at most 0.71 m/s², as for the move to the deck. On the axis, `FlyLiftOff` reports `OnTheAxis`, and row 18 gives `Exit` with the same claim.
 2. `Exit`. The hull flies out along the axis, through the slot, to the hold point 150 m out, in the entry's time of 220 s. In the station's frame, the target is the docked rotation relative to the station, with a feed-forward of zero. The hull leaves the station's bubble at about 137.5 m. That is the bubble's 120 m, plus the hull's bounding radius of 8.77 m, plus the margin. The margin is the larger of 2.4 m and 8.77 m. So the hold point lies outside the bubble. After that hand-off, the hull is in `earth-surface`, where it still turns with the station at 0.31321 rad/s about the axis. From the bubble's edge to the hold point, the target holds that turn. Its rotation is the station's rotation, read from the snapshot in `earth-surface`, times the docked rotation, and its feed-forward is the station's angular velocity in `earth-surface`. So the autopilot does not fight the turn before the spin-down, and the hull stays square to the slot. At the hold point, `FlyExit` reports `ExitEnded` with the tick's time, and row 19 gives `SpinDown` with that time as `Start`.
 3. `SpinDown`. At the hold point, the feed-forward falls linearly to zero over 60 s, and the target's rotation turns about the axis by the integral of that rate. With s = `self.Time` − `Start`, from 0 to 60 s:
 
@@ -641,7 +649,7 @@ At the high gate, the shuttle stands up. The nose points along the pad's up, the
 - The wanted velocity is down at `TouchSpeed` + h / `DescentTime`, with h the tail's height above the pad's top. It also takes out the offset from the pad's center line in 10 s.
 - The push takes out the velocity error in 0.5 s and cancels gravity. The main engine takes the part along the nose, and the translation thrusters take the rest.
 - The time from the gate is `DescentTime` × ln(1 + 100 / (0.3 × 30)) = 30 × ln 12.1 = 74.8 s.
-- Touchdown: the tail is within 0.05 m of the pad's top, and the speed is below 0.1 m/s. `FlyVerticalDescent` adds no throttle in that tick and reports `TouchedDown`. Row 26 gives `OnTheLandingPad`, which is static and asks for the ramp. So the effects of that tick park the hull with `SetMotion(Static)` and send `PlaceRequest(Ramp)`.
+- Touchdown: the tail is within 0.05 m of the pad's top, and the speed is below 0.1 m/s. `FlyVerticalDescent` adds no throttle in that tick and reports `TouchedDown`. Row 26 gives `OnTheLandingPad`, which is static and asks for the ramp. So the pilot parks the hull with `SetMotion(Static)` in step 3 of that tick, and the effects of the tick send `PlaceRequest(Ramp)`.
 
 The hull then stands on its tail with the nose up. `ter-4xkz` must give the tail a flat face to stand on (see "What this design asks of other tickets").
 
@@ -719,7 +727,7 @@ No other type in the namespace `Tertius.Demo` has these names. `TugEvent` is a c
 | State | Delegate | What it writes | Report, and when |
 |---|---|---|---|
 | `AtGarage` | None | Nothing. A kinematic body with no motion intent holds still. | None |
-| `DrivingOut` | `Tug.FlyDrivingOut` | The end pose `Drive` at t_(N+2), relative to the frame that the tug is in | `RiseEnding`, in the tick N with t_(N+2) at the rise's end, `Tow.Start` |
+| `DrivingOut` | `Tug.FlyDrivingOut` | The end pose `Drive` at t_(N+2) in `earth-surface`, or `Tow.ShuttleAt(t_(N+2))⁻¹ ∘` that pose in the cabin's frame. Up to `Tow.Start`, `ShuttleAt` gives the landed pose, where the static shuttle stands. | `RiseEnding`, in the tick N with t_(N+2) at the rise's end, `Tow.Start` |
 | `Towing` | `Tug.FlyTowing` | The end pose `Tow.TugAt(t_(N+2))` in `earth-surface`, or `Tow.ShuttleAt(t_(N+2))⁻¹ ∘ Tow.TugAt(t_(N+2))` in the cabin's frame | `TowEnded`, in the tick N with t_(N+2) at the plan's end, the tick of its last write of the plan |
 | `DrivingBack` | `Tug.FlyDrivingBack` | The end pose `Drive` at t_(N+2) in `earth-surface`, or `Tow.ShuttleAt(the plan's end)⁻¹ ∘` that pose in the cabin's frame, because the shuttle rests on the park pose | `AtTheGarage`, in the tick N with t_(N+2) at the drive's end |
 
@@ -761,11 +769,11 @@ The cradle sends nothing, so it has no effects.
 
 - In tick k0, the tug in `AtGarage` takes a `TowRequest` as `TowAsked`. It reads the landed pose from the shuttle's pose in `earth-surface` in the snapshot. Row 1 fixes every time on the tick grid. The drive starts at t_(k0+2), the end of the step that applies its first end pose, and lasts 30 s. The rise starts at the drive's end. The tow starts at the rise's end, 10 s later. In the same tick, `FlyDrivingOut` writes the first end pose, and the effects send the cradle `CradleRise(Start)`, so the cradle has its rise plan.
 - In tick k, with t_(k+2) the rise's end, `FlyDrivingOut` reports `RiseEnding`. Row 2 gives `Towing`, and the effects send `TowStart(Shuttle, Start)` to the shuttle and to its cradle, with Start = t_(k+2).
-- In tick k + 1, the shuttle reads `TowStart`. It reads the landed pose from its own pose in `earth-surface`, which has not changed since the touchdown, and builds `TowStarted`. Row 10 gives `Towed`. The effects call `SetMotion(Kinematic)`, and `FlyTowed` writes the end pose `TowPlan.ShuttleAt(t_(k+3))`. Both act in step k + 2, which starts at Start. The guards judge each write by the motion of the step that applies it. So the two writes in one tick are allowed (ARCHITECTURE.md, "Changes of motion").
+- In tick k + 1, the shuttle reads `TowStart`. It reads the landed pose from its own pose in `earth-surface`, which has not changed since the touchdown, and builds `TowStarted`. Row 10 gives `Towed`. The pilot writes `SetMotion(Kinematic)` at the end of step 1, and then `FlyTowed` writes the end pose `TowPlan.ShuttleAt(t_(k+3))` in step 2. Both act in step k + 2, which starts at Start. The guard of the end pose reads the motion that the owner wrote in the tick so far, `Kinematic`, so the end pose passes (ARCHITECTURE.md, "Changes of motion" and "Rails components and motion intents"). In the other order, the guard would still read `Static`, and the writer would throw.
 - In every later tick N, the shuttle and the tug each write the plan's value at t_(N+2), the end of the step that applies the write. Each writes it relative to the frame that it is in, `self.Frame`. The shuttle is always in `earth-surface` and writes `ShuttleAt(t_(N+2))`. The tug in `earth-surface` writes `TugAt(t_(N+2))`. The tug in the cabin's frame writes `ShuttleAt(t_(N+2))⁻¹ ∘ TugAt(t_(N+2))`, the plan's pose of the tug relative to the cabin at that moment, straight from the plan.
 - The cradle has no body. Step 7 of each sync point puts it at the tug's pose with its attach offset (ARCHITECTURE.md, "Creation and destruction"). The offset is relative to the tug, so it needs no frame. In tick k + 1, the cradle reads `TowStart`, and it reads the landed pose from the shuttle's pose in `earth-surface` in the snapshot, as the shuttle does. `TowStart` names the shuttle, and the pose has not changed since the touchdown. So the tug, the shuttle and the cradle build the same `TowPlan`. In tick N, the cradle writes `self.AttachOffset` as the plan's value at t_(N+1): the rise plan's offset before the tow, and `CradleAt(t_(N+1))` from the tow's start. Step 7 of the same tick's sync point applies the offset against the tug's pose at t_(N+1), which the tug's end pose of tick N − 1 gave.
 - In the tick N with t_(N+2) at the plan's end, the tug writes its last end pose of the plan and reports `TowEnded`. Row 3 gives `DrivingBack`, whose drive starts at the plan's end. So from tick N + 1 the tug drives to its garage with no gap. While it is still in the cabin's frame, it writes `ShuttleAt(the plan's end)⁻¹ ∘` the drive's pose, because the shuttle rests on the park pose.
-- In the tick N + 1, t_(N+1) is the plan's end, and the shuttle's end pose of tick N − 1 already reached it. So `FlyTowed` writes nothing and reports `TowEnded`. Row 27 gives `OnTheRamp`. The effects park the hull with `SetMotion(Static)`, and `OnTheRamp` holds no landing pad, so they release it. The shuttle reports one tick after the tug, because a park in the tick of its last end pose would drop that end pose.
+- In tick N + 1, t_(N+2) is the plan's end, and the shuttle's end pose of tick N, which step N + 1 applies, ends there. So `FlyTowed` writes nothing and reports `TowEnded`. Row 27 gives `OnTheRamp`. The pilot parks the hull with `SetMotion(Static)` in step 3, and `OnTheRamp` holds no landing pad, so the effects of the tick release it. The shuttle reports one tick after the tug, because a park in the tick of its last end pose would drop that end pose.
 
 The tick of a hand-off. The tug writes its end pose in tick N relative to the frame that it is in during tick N. The step that runs during tick N can hand it into the cabin's frame or out of it. The hand-off can come during the drive, while the shuttle is static, or during the lowering, while the shuttle moves. Step 7b of tick N's sync point then converts the end pose into the new frame (ARCHITECTURE.md, "Rails components and motion intents", steps 5 and 7b). It converts an end pose by the relation of the two frames at the end of the step that applies it, step N + 1, and a frame whose owner has an end pose in that step takes that end pose for the relation (`FrameTree.MotionRelativeInStep`). The shuttle's end pose of tick N is `ShuttleAt(t_(N+2))`. A frame whose hull is static holds still over the step, so its relation is exact too. So the converted pose is the plan's pose of the tug relative to the cabin, `ShuttleAt(t_(N+2))⁻¹ ∘ TugAt(t_(N+2))`, when the tug enters, and the plan's pose in `earth-surface` when it leaves, to the rounding of one composition of poses. ARCHITECTURE.md's "Ownership of transforms" gives the same rule, with the cases where a conversion misses. None of them applies to the tug: the cabin's frame moves on end poses or holds still, and no one writes its transform. The tug needs no rule of its own for that tick. From tick N + 1, it reads its new frame in `self.Frame` and writes in it.
 
@@ -831,9 +839,9 @@ The user asked for a `Depart` "every N station orbits". In this model, N = 3 for
 | `PlaceRequest` | `Place` | A pilot | The topic `timetable` | At the end of a tick whose end state asks for a place that its start state did not ask for, and in the first tick for each place that the first state asks for (see "The held places, the requests and the motion") |
 | `PlaceGrant` | `Place` | The timetable | The requester | When the place is free for it |
 | `PlaceRelease` | `Place` | A pilot | The topic `timetable` | At the end of a tick, for each place that the start state held or the tick granted, and that the end state does not hold |
-| `TowRequest` | None | A pilot | The topic `tug` | At the end of the tick whose end state is `AwaitingTug` |
-| `CradleRise` | `double Start` | The tug | Its cradle | At the end of the tick whose end state is `DrivingOut` |
-| `TowStart` | `Entity Shuttle`, `double Start` | The tug | The shuttle and the cradle | At the end of the tick whose end state is `Towing`, two ticks before the cradle's rise ends |
+| `TowRequest` | None | A pilot | The topic `tug` | At the end of the tick whose end state is `AwaitingTug` and whose start state is not |
+| `CradleRise` | `double Start` | The tug | Its cradle | At the end of the tick whose end state is `DrivingOut` and whose start state is not |
+| `TowStart` | `Entity Shuttle`, `double Start` | The tug | The shuttle and the cradle | At the end of the tick whose end state is `Towing` and whose start state is not, two ticks before the cradle's rise ends |
 | `Buckle` | `Waypoint Stand` | A `PlayerSeat` | The person who used it | At the end of the tick in which the seat becomes `Taken` |
 | `Unbuckle` | None | A `PlayerSeat` | Its user | At the end of the tick in which the seat becomes `Free` |
 | `Belted` | None | `PlayerBelt` | Its own entity | In each tick in which the belt's delegate flies `Fastening` or `Shut` |
@@ -1132,7 +1140,7 @@ The long script (`scripts/blue-danube.json`, `BlueDanube.Sections`) keeps only t
 |---|---|---|---|
 | `Ignition` to `shuttle` | The script posts it at the start of the section `ignition`, at tick 1,172, 19.5 s. | Part 1: the script posts `Depart` there. Part 2: the timetable's first ground departure, which the pilot reads in tick 1,200, 20.0 s. The script posts nothing. | 1, 2 |
 | `Rendezvous` to `shuttle` | The script posts it at the start of `phasing`, at about 366 s. | The rendezvous starts at the insertion, by row 12. `phasing` posts nothing. | 1 |
-| Cues on `AscentAutopilot.State` or `RendezvousAutopilot.State` (`BlueDanube.AscentOf` and `RendezvousOf`) | `ramp-top`, `climb-high`, `night`, `closing`, `brake` and `arrival` read the layers. | Each reads `ShuttlePilot.State` with pattern matching. `ramp-top` ends when the state is `Climb` or a state of the rendezvous: `Phasing`, `Transfer`, `Brake`, `AwaitingSlot`, `Glide` or `Hold`. `climb-high` ends when the state is a state of the rendezvous. `night`, `closing`, `brake` and `arrival` read `Transfer`, `Brake`, `Glide` and `Hold`. | 1 |
+| Cues on `AscentAutopilot.State` or `RendezvousAutopilot.State` (`BlueDanube.AscentOf` and `RendezvousOf`) | `ramp-top`, `climb-high`, `night`, `closing`, `brake` and `arrival` read the layers. | Part 1: each reads `ShuttlePilot.State` with pattern matching. `ramp-top` ends when the state is `Climb` or a state of the rendezvous of part 1: `Phasing`, `Transfer`, `Brake`, `Glide` or `Hold`. `climb-high` ends when the state is a state of the rendezvous. `night`, `closing`, `brake` and `arrival` read `Transfer`, `Brake`, `Glide` and `Hold`. Part 2, which builds `AwaitingSlot`, adds it to the states of the rendezvous of `ramp-top` and `climb-high`. | 1, 2 |
 | `on-the-pad` | Films for 1 s | Films until the shuttle's state leaves `OnTheRamp`, so the ignition section starts in the tick of the departure | 2 |
 | Every cue and post that names `shuttle` | `shuttle` | `shuttle-a` | 7 |
 | `FastenBelt` to `person` | The script posts it at the start of `belt`. | No change. The script drives its person. | None |
@@ -1157,7 +1165,7 @@ None. Every part lives in `src/Tertius.Demo`, `scripts/` and the demo's tests. T
 | A dynamic hull that owns a frame spawns with a velocity and an angular velocity, and falls on from them. | "Creation and destruction": a spawn velocity (`SpawnDesc.LinearVelocity`, `SpawnDesc.AngularVelocity`) is the first velocity of a body that physics integrates, a dynamic hull among them. `World.SpawnVelocityProblem` refuses no dynamic body, and `World.MakeLive` gives the new frame the velocity in doubles (`FrameTree.SetTreeLinearVelocity`). The numeric update of the first tick moves a fast spawn into a falling frame with its velocity in doubles ("Numeric frames", "Moves between systems"). The engine test `ABodyThatPhysicsIntegratesStartsWithItsSpawnVelocity` pins the spawn velocity of a dynamic hull at 1 m/s. `ACrateSpawnedAloneAtOrbitalSpeedFallsInAFrameThatTakesItsVelocityInDoubles` pins the move of a plain crate at orbital speed into a falling frame. No engine test covers a dynamic hull that owns a frame and that the first numeric update moves into a falling frame at orbital speed. | `TheParkingStartFliesTheCircleInAFallingFrame` is the first cover, with `TheParkingStartOpensTheWindowAtItsNominalTime`. If it fails, the failure is an engine bug for its own ticket, which goes to the user. |
 | A dynamic hull that owns a frame parks in free fall, and its frame stops in its semantic parent. | "Changes of motion": the park, and "A ship that is parked in free space keeps no thrust". A hull that leaves its following frame moves into the home that its new motion gives it. | `AHaltInOrbitParksTheHullWhereItIs`. Only a halt parks a hull in flight. |
 | A kinematic plain body that writes an end pose in every tick keeps its path through a hand-off into the frame of a hull that moves on end poses, and out of it again. | "Rails components and motion intents", steps 5 and 7b: an end pose converts by the two frames' relation at the end of the step that applies it, and a frame whose owner has an end pose in that step takes that end pose (`FrameTree.MotionRelativeInStep`, `MotionIntent.Converted`). The engine test `AnEndPoseThatConvertsAtAHandOffOutOfAMovingFrameConvertsByWhereThatFrameEndsTheStep` pins it for a body that leaves a moving frame. "Ownership of transforms" says the same. | `TheTugKeepsItsPlanThroughItsHandOffIntoTheCabinsFrame` and `TheTowedShuttleAndTheTugMoveTogether` |
-| A hull goes from static to kinematic with an end pose in the same tick, and back to static. | "Changes of motion": the guards judge each write by the motion of the step that applies it. | `TheTowedShuttleAndTheTugMoveTogether` |
+| A hull goes from static to kinematic with an end pose in the same tick, and back to static. | "Changes of motion" and "Rails components and motion intents": the guard of an end pose reads `self.Body.NextStepMotion`, the change of motion that the owner wrote in the tick so far. So a `SetMotion(Kinematic)` before the end pose in the same tick lets the end pose pass, and both act in the next step. A park in a tick with no end pose drops nothing. | `TheTowedShuttleAndTheTugMoveTogether` |
 | A landing from orbit leaves no falling numeric frame behind. | "Numeric frames": a thrusting group keeps a falling frame only down to 20 m/s. | `TheLandedShuttleRestsInEarthSurfacesOwnSystem` |
 | A character spawns at rest in a turning frame with no motion intent. | The spin station's person | `ThePlayerStartsStandingOnTheWheelFloor` |
 | A standing character rides a kinematic platform in a turning frame. | A standing character takes the velocity of the ground under it. No test covers a moving platform in a turning frame today. | `ARiderStandsOnTheLiftFromTheWheelToTheHub`. If it fails, the failure is an engine bug for its own ticket, not a change of this design. |
@@ -1232,7 +1240,7 @@ Step N is the physics step that runs during tick N. A tick reads the state at th
 | Whether a holder is alive | The world, at each sync point | The timetable, through `self.Snapshot.IsAlive`, in its tick |
 | `ShuttlePilot.State`, with its claims | `PilotState.Next`, through the pilot, in steps 1 and 3 of its tick. Nothing else. | The pilot in the same and the next tick. The cues and the tests, between ticks. |
 | A report of `PilotEvent` | The delegate of the state, in step 2 of the pilot's tick | `PilotState.Next`, in step 3 of the same tick. Nothing stores it. |
-| The held places, the asked places, the tow's request and the motion of a state | Nobody. `PilotState.Held`, `Asked`, `AsksForTow` and `Motion` derive them from a state. | The pilot in step 4 of its tick, for the start state and the end state. The tests, between ticks. |
+| The held places, the asked places, the tow's request and the motion of a state | Nobody. `PilotState.Held`, `Asked`, `AsksForTow` and `Motion` derive them from a state. | The pilot in step 4 of its tick, for the start state and the end state. The pilot at the end of steps 1 and 3, for the motion of the state before and after the step. The tests, between ticks. |
 | `AttitudeTarget`, `Throttle`, `Translation` | The delegate of the pilot's state (priority 0), in step 2 of tick N | The actuators (priority 10), in tick N. Their forces act in step N + 1. |
 | `TowRequest` | The pilot, at the end of tick N | The tug, in tick N + 1 |
 | `CradleRise` | The tug, at the end of tick k0, when it takes a request | The cradle, in tick k0 + 1 |
@@ -1242,7 +1250,7 @@ Step N is the physics step that runs during tick N. A tick reads the state at th
 | The cradle's offset | The cradle's delegate, in tick N, for t_(N+1) | Step 7 of tick N's sync point, against the tug's pose at t_(N+1). The renderer, from the snapshot after that sync point. |
 | The shuttle's pose and velocity in its frame | Physics in step N, or its end pose, recorded at the sync point after it | The pilot's delegates in tick N + 1. The tug, for the landed pose, in the tick in which it takes the `TowRequest`. The shuttle and the cradle, for the landed pose, in the tick in which they take `TowStart`. |
 | The station's pose and velocity | The full sample of `KeplerMotion` for step N, written in tick N − 1 | The pilot's delegates in tick N + 1 |
-| `SetMotion` of the shuttle | The pilot, at the end of tick N, when the end state's motion differs from the start state's | Physics, from the start of step N + 1 |
+| `SetMotion` of the shuttle | The pilot, in tick N, at the end of step 1 and at the end of step 3, when that step changed the state's motion | The guards of the shuttle's later writes in tick N, through `self.Body.NextStepMotion`. Physics, from the start of step N + 1 |
 | `Use` | `PersonControl`, in tick N | The seat, in tick N + 1 |
 | `Buckle`, `Unbuckle` | The seat, at the end of tick N + 1 | `PlayerBelt`, in tick N + 2 |
 | `PlayerSeatState`, `BeltState` | `PlayerSeatState.Next` and `BeltState.Next`, through their components, in their ticks | The same components in the same and the next tick. The tests, between ticks. |
@@ -1291,13 +1299,14 @@ The screenshots that end each part come from a headless run of the real renderer
 
 ### Part 1: the shuttle pilot
 
-Part 1 builds `PilotState` with the cases `OnTheRamp`, `UpTheRamp`, `Climb`, `Phasing`, `Transfer`, `Brake` with no claim, `Glide`, `Hold` and `Halted`, the event union `PilotEvent` with `Depart` and the reports of those states and `Fault`, `PilotFault`, and `Next` with rows 1, 11 to 15 and 17 in their forms with no claim, and row 28. It builds `PilotState.Motion`, the effects of motion and of the halt's log, the pilot's tick, and the delegates of `AscentFlight` and `RendezvousFlight`.
+Part 1 builds `PilotState` with the cases `OnTheRamp`, `UpTheRamp`, `Climb`, `Phasing`, `Transfer`, `Brake` with no claim, `Glide`, `Hold` and `Halted`, the event union `PilotEvent` with `Depart` and the reports of those states and `Fault`, `PilotFault`, and `Next` with rows 1, 11 to 15 and 17 in their forms with no claim, and row 28. It builds `PilotState.Motion`, the writes of motion in steps 1 and 3, the effect of the halt's log, the pilot's tick, and the delegates of `AscentFlight` and `RendezvousFlight`.
 
 - `PilotNextTests`, pure:
   - One test for each row of part 1, with the data that the row passes on, such as `TheTransferWindowGivesTheTransferItsArrivalTime`.
   - `ADepartOutsideOnTheRampHasNoRow`, for each state of part 1 but `OnTheRamp`.
-  - `AFaultInAnyStateButHaltedHaltsWithItsReason`, for each state of part 1 but `Halted`.
-  - `AReportInAStateThatDoesNotReturnItHasNoRow`.
+  - `AFaultInAnyStateButHaltedHaltsWithItsReason`, for each state of part 1 but `Halted`, with `OnTheRamp` among them, which has no delegate.
+  - `AFaultInHaltedHasNoRow`.
+  - `AReportOtherThanAFaultInAStateThatDoesNotReturnItHasNoRow`.
 - `PilotStateTests`, pure:
   - `TheHullsMotionFollowsTheState`: the rows of the motion column of "The held places, the requests and the motion" for the cases of part 1.
 - `ShuttlePilotTests`:
@@ -1309,7 +1318,7 @@ Part 1 builds `PilotState` with the cases `OnTheRamp`, `UpTheRamp`, `Climb`, `Ph
   - `TheRendezvousStartsAtTheInsertion`.
   - `PhasingKeepsTheNoseOnTheVelocityWithTheRoofAwayFromThePlanet`.
   - `AnIgnoredPairChangesNothingAndIsLogged`.
-  - `AFaultOnTheRampHaltsAndKeepsTheHullParked`.
+  - `AFaultOnTheRampHaltsAndKeepsTheHullParked`: `UpTheRamp` reports the fault in the tick of `Depart`, and the two writes of motion in that tick leave the hull `Static`.
   - `AHaltInOrbitParksTheHullWhereItIs`: the station is destroyed in the phasing.
   - `AHaltedPilotAddsNothingAndLogsItsReasonOnce`.
   - `TheActuatorsRunAfterThePilot`.
@@ -1450,6 +1459,7 @@ Part 6 adds `Towed`, the message case `TowStarted`, the report `TowEnded`, and r
   - `TheTugSendsTowStartTwoTicksBeforeTheRisesEnd`.
   - `TheCradleSitsOnItsPlanAtTheEndOfEachTick`: its offset at t_(N+1) after each sync point.
   - `TheTowedShuttleAndTheTugMoveTogether`: their relative pose stays within 1 mm through the lowering and the carry, also in the tick of each hand-off.
+  - `TheShuttleBecomesKinematicBeforeItsFirstEndPoseOfTheTow`: in the tick of `TowStarted`, the writer of the first end pose does not throw, and the end pose acts in the next step.
   - `TheTugKeepsItsPlanThroughItsHandOffIntoTheCabinsFrame`: its pose in `earth-surface` stays within 1 mm of `TugAt` in every tick, and it is in the cabin's frame for part of the tow.
   - `TheTugDrivesBackWithNoGapAfterTheTow`.
   - `TheTowEndsWithTheShuttleParkedOnTheBedAndTheLandingPadReleased`.
@@ -1603,13 +1613,14 @@ Only engine changes go to the user (the user's rule of 2026-10-18). So this desi
 | How long a cycle takes | Three orbits, 277.2 minutes | The docking ends after the first deorbit window, and the landing falls 120 s after a pass, after that orbit's departure. |
 | How often a shuttle departs | In every orbit. Each of the three shuttles departs in every third orbit. | The user chose three shuttles after this design found the cycle's length. |
 | What flies the shuttle | One pilot with one flat state machine: one union `PilotState` of every state of the cycle, one pure `PilotState.Next(state, event)` for every transition, and a switch expression from each state to its delegate. Messages and reports are the events. Only `Next` changes the case. | The user's decision of 2026-10-20 (`ter-qipk`), over a machine of two levels with legs that each hold states. A cycle repeats, and layers with their own states need rules to reset and to agree, which is why the user removed `MotionDriver`. A flat table puts every transition and every guard in one pure function that unit tests pin with no World, and a late case becomes a row. |
-| The order of one tick | The messages of the inbox through `Next` in inbox order, then the delegate of that state, then its report through `Next`, then the effects | A message is about the last tick, so its state flies at once. A report is about the reads that its delegate just flew on, so its state flies from the next tick. So one delegate writes the actuator events of each tick, a tick has no loop, and the order is the same in every run. |
+| The order of one tick | The messages of the inbox through `Next` in inbox order, then the delegate of that state, then its report through `Next`, then the effects. A change of motion is written at the end of the step of `Next` that makes it. | A message is about the last tick, so its state flies at once. A report is about the reads that its delegate just flew on, so its state flies from the next tick. So one delegate writes the actuator events of each tick, a tick has no loop, and the order is the same in every run. The guard of an end pose reads the motion written so far in the tick, so the motion comes before the delegate. |
 | Where the guards live | In the rows of `Next`. A delegate reports what it reads, such as an open window, and `Next` decides with the claim. | One pure place holds every decision, and a late case is a row that logs nothing. |
 | Where the held places live | In the state. The states that wait for a grant carry a `Claim`, and `PilotState.Held` and `Asked` derive the places. | A second value beside the state can disagree with it, which is the reason for which the user removed `MotionDriver`. |
-| How a shuttle sends releases, requests and changes of motion | At the end of each tick, from the state at its start, the grants of the tick, and the state at its end | One rule covers the climb, the burn's end, the tow's end, `Halted`, a grant that no row takes, every request and every park, with no column of actions. Each message goes out once, and a tick writes at most one `SetMotion`. |
+| How a shuttle sends releases and requests | At the end of each tick, from the state at its start, the grants of the tick, and the state at its end | One rule covers the climb, the burn's end, the tow's end, `Halted`, a grant that no row takes and every request, with no column of actions. Each message goes out once. |
+| How a shuttle changes its motion | `SetMotion(State.Motion)` at the end of step 1 and at the end of step 3, when that step changed the state's motion | One rule covers every unpark, every park and the tow, with no column of actions. The guard of every motion intent reads the motion that the owner wrote in the tick so far, so the first end pose of the tow passes only after `SetMotion(Kinematic)`. A tick writes at most two `SetMotion`, and the last one gives the end state's motion. |
 | What a halted shuttle does | It parks where it halted, and it releases every place. | The motion is a function of the state with no exception. A parked hull stays where it halted, which is the old rule, and it falls into nothing. |
 | What a case holds | Only a value that no later read gives again: a time or a velocity fixed at a transition, a claim, a plan or a reason. No case holds a guidance. | A guidance is a pure function of G·M, the mass and the settings, which every tick reads. So `Next` builds every case from its two arguments, and no copy of G·M or the mass sits in the state. |
-| What a delegate may change | Nothing but its report and its events. No delegate of this design changes its case's data. | Every value of a case is fixed when `Next` makes it. The user's rule allows a change of the own case's data, and a later delegate that needs it returns its case's new data. |
+| What a delegate may change | Nothing but its report and its events. No delegate of this design changes its case's data. | Every value of a case is fixed when `Next` makes it. The user's rule allows a change of the own case's data. A later delegate that needs it takes a copy of its case by `ref`, and the component stores the copy back as its state before it applies the report. |
 | How a message carries what its next state needs | The component turns the message into its event case, with the sender and the reads of the tick where the next state needs them | `Next` stays pure. The pilot's `TowStarted`, the tug's `TowAsked`, the cradle's `TowStarted` and the seat's `UsedBy` read what the old design read in the same tick. |
 | The other staged components | The tug, the cradle, the player's seat and the player's belt have the pilot's shape. The scripted passenger stays as built, and a later change to it follows the shape. | One coherent model for every component that goes through states |
 | The tug's queue | None. A `TowAsked` while the tug is busy has no row. | The ramp has one holder, and only its holder asks for the tow, so a second request cannot reach a busy tug while the places hold. |
