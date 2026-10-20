@@ -179,9 +179,11 @@ public sealed class OrbitClusterTests(OrbitClusterRun run) : IClassFixture<Orbit
 
     // How much a key body's change of step relative to the ship, less any thrust, may differ at a change of frame or
     // physics home from two ticks later, in meters: 0.05 mm. Float rounding of a body's place in a numeric frame moves it
-    // by under a micrometer. The thrown crate's change of rule at the ship's bubble, where the Coriolis force that the
-    // ship's frame leaves out (2ωv, 0.011 m/s² at 5 m/s) starts to show in the ship's axes, changes its step by about
-    // 3 micrometers. A hand-off that went through float coordinates in earth, 6771 km from its center, would move a body
+    // by under a micrometer. The ship's frame turns once per orbit, and physics keeps a free body on its inertial line in
+    // every turning frame (docs/plans/spin-gravity.md), so the Coriolis term (2ωv, 0.011 m/s² at 5 m/s) acts on the thrown
+    // crate in the ship's axes on both sides of the ship's bubble, and its hand-off does not change its step. Before the
+    // rotation terms, the ship's frame left that term out, and the hand-off changed the crate's step by about 3
+    // micrometers. A hand-off that went through float coordinates in earth, 6771 km from its center, would move a body
     // by up to 0.5 m.
     private const double JumpTolerance = 5e-5;
 
@@ -492,8 +494,8 @@ public sealed class OrbitClusterTests(OrbitClusterRun run) : IClassFixture<Orbit
         - No key body may jump relative to the ship at a change of its frame or physics home, or of the ship's: see the
           section on continuity below.
 
-        Two known differences from exact Newtonian motion, which no expectation checks, because each comes from a rule of
-        the engine and each moves the bodies together or only after the frames have let go of them:
+        One known difference from exact Newtonian motion, which no expectation checks, because it comes from a rule of the
+        engine and moves the bodies together:
 
         - The ship's orbit is not a true circle in the run. The physics step and the step of the falling numeric frames
           are semi-implicit Euler at 1/60 s (the velocity first, then the position), which moves the ship on a nearly
@@ -501,11 +503,12 @@ public sealed class OrbitClusterTests(OrbitClusterRun run) : IClassFixture<Orbit
           300 s; energy and angular momentum stay constant. The crates and the spacewalker fall by the same steps, so
           their motion relative to the ship keeps to the Clohessy-Wiltshire solution to well under 1 cm, and every
           expectation measures motion relative to the ship.
-        - Only the linear acceleration of a frame acts on its contents, with no Coriolis or centrifugal force
-          (ARCHITECTURE.md). For its first 3 s, the thrown crate is in the ship's frame, which turns once per orbit, so it
-          flies straight in the ship's turning axes and then falls freely in earth. After 5 minutes its offset from the
-          ship differs from exact Newtonian motion from the same start by about 8 m along the radius and 3 m along the
-          orbit.
+
+        The thrown crate is a free body in the ship's frame, which turns once per orbit, for its first 3 s. Physics keeps a
+        free body on its inertial line in every turning frame, so the ship's frame gives the crate the Coriolis and
+        centrifugal terms of its turn, and the crate moves there as it does in earth. Before the rotation terms, it flew
+        straight in the ship's turning axes, and after 5 minutes its offset from the ship differed from exact Newtonian
+        motion by about 8 m along the radius and 3 m along the orbit.
         """;
 
     /// <summary>What each capture of the script must show.</summary>
@@ -545,7 +548,7 @@ public sealed class OrbitClusterTests(OrbitClusterRun run) : IClassFixture<Orbit
         }
 
         text.AppendLine("## Continuity at each change").AppendLine();
-        text.AppendLine("For each tick k after which some key body's frame or physics home changed, each body's change of step relative to the ship at the ticks around it: |o(t + 1) − 2·o(t) + o(t − 1)|, in mm, where o(t) is the body's offset from the ship's center after tick t, in the ship's axes. It is the body's acceleration relative to the ship times the square of a tick. Earth's tide gives under 0.001 mm, the turn of the ship's axes up to about 0.01 mm more for a body that moves at 15 m/s relative to the ship, and the spacewalker's thrust 0.417 mm (1.5 m/s² times (1/60 s)²). In the ship's frame no Coriolis force acts, so the thrown crate's value rises from about 0 to about 0.003 mm when it leaves the ship's frame at 5 m/s. A jump of a body, or of the ship, between ticks k − 1 and k would add its size at the rows k − 1 and k. The expectation on jumps takes the thrust off and compares each value at k − 1 and k with the one at k + 2.").AppendLine();
+        text.AppendLine("For each tick k after which some key body's frame or physics home changed, each body's change of step relative to the ship at the ticks around it: |o(t + 1) − 2·o(t) + o(t − 1)|, in mm, where o(t) is the body's offset from the ship's center after tick t, in the ship's axes. It is the body's acceleration relative to the ship times the square of a tick. Earth's tide gives under 0.001 mm, the turn of the ship's axes up to about 0.01 mm more for a body that moves at 15 m/s relative to the ship, and the spacewalker's thrust 0.417 mm (1.5 m/s² times (1/60 s)²). The Coriolis term of the ship's turn acts on the thrown crate in the ship's frame and in earth alike, so its value does not change when it leaves the ship's frame at 5 m/s. A jump of a body, or of the ship, between ticks k − 1 and k would add its size at the rows k − 1 and k. The expectation on jumps takes the thrust off and compares each value at k − 1 and k with the one at k + 2.").AppendLine();
         foreach (long change in log.ChangeTicks)
         {
             IEnumerable<string> changed = log.Changes

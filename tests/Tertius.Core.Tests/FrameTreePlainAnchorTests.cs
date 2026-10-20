@@ -133,7 +133,7 @@ public class FrameTreePlainAnchorTests
             Double3 velocity = frames.LinearVelocity(home);
             var end = new DPose(place + new Double3(2_000, 50 * tick, 0) * Step, turn);
             frames.Update();
-            frames.BeginNumericStep(Moving(ball, new MotionIntent(new EndPose(end))), Step);
+            frames.BeginStep(Moving(ball, new MotionIntent(new EndPose(end))), Step, lastStepFailed: false);
 
             Double3 chord = (end.Position - place) / Step;
             frames.HomeAcceleration(home, space).Should().Be((chord - velocity) / Step, "the acceleration lands the frame on the plan");
@@ -272,7 +272,7 @@ public class FrameTreePlainAnchorTests
         frames.TreeParent(pod).Should().Be(home, "the pod's frame hangs in the following frame");
         var teleport = new DPose(new Double3(1_000, 0, 0), DQuaternion.Identity);
         frames.Update();
-        frames.BeginNumericStep(Moving(after[0], default, teleport), Step);
+        frames.BeginStep(Moving(after[0], default, teleport), Step, lastStepFailed: false);
         frames.AdvanceNumericFrames(Step);
         Double3 landed = frames.TreeLocalPose(home).Position;
         DPose podInSpace = frames.LocalPose(pod);
@@ -309,7 +309,7 @@ public class FrameTreePlainAnchorTests
         {
             Double3 velocity = frames.LinearVelocity(home);
             frames.Update();
-            frames.BeginNumericStep([], Step);
+            frames.BeginStep([], Step, lastStepFailed: false);
             frames.HomeAcceleration(home, earth).Should().Be(-velocity / Step, "the plan has no chord, so the frame stops");
             frames.HomeMoveOver(home, earth, Step).Length.Should().BeLessThan(1e-12, "a body at rest in the frame holds still in earth over the step");
             frames.AdvanceNumericFrames(Step);

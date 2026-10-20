@@ -152,6 +152,14 @@ internal sealed class FrameWorld : IDisposable
     public bool HasGravityState;
     public Vector3 WakePush;
     public GravityField LastGravity;
+    /// <summary>
+    /// The inertial angular velocity, in rad/s, and angular acceleration, in rad/s², of the system's semantic frame for the
+    /// step in which its dynamic bodies last woke, or in which the system first stepped, in the semantic frame's axes (V8 of
+    /// docs/plans/spin-gravity.md). With <see cref="WakePush"/> they are the state of the one wake test: a change of the
+    /// frame's push or turn since then wakes the bodies once the change of the acceleration that they feel relative to the
+    /// frame, which the test bounds, passes the wake threshold (see JoltPhysicsBackend.FeltChangeWakes).
+    /// </summary>
+    public Double3 WakeAngularVelocity, WakeAngularAcceleration;
 
     /// <summary>
     /// How fast the origin of <see cref="Frame"/> accelerates relative to its semantic frame in the current step, in

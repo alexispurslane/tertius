@@ -10,8 +10,9 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// A hand-off decided after the step, with the body's state already converted to the target frame: its pose, the
     /// velocities that Jolt gets there, the acceleration relative to the target that turned the linear velocity into its
-    /// chord (see <see cref="HandedOffVelocities"/>), and the angular acceleration of the step's update in the target's
-    /// axes (see <see cref="FrameMotion.AngularAccelerationToParent"/>).
+    /// chord (see <see cref="HandedOffVelocities"/>), and the angular acceleration of the step's update relative to the
+    /// target, in its axes, by the full rule with the frame's angular velocity and angular acceleration (see
+    /// <see cref="FrameMotion.AngularAccelerationToParent"/>).
     /// </summary>
     private readonly record struct HandOffPlan(
         BodyRecord Record,
@@ -26,18 +27,42 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// A frame that is not numeric, whose parent in the tree is a semantic frame or a numeric frame below it, with its motion
-    /// relative to that parent at the end of the step, with an instant velocity or a chord (see <see cref="BubblesFor"/>).
+    /// relative to that parent at the end of the step, with an instant velocity or a chord (see <see cref="BubblesFor"/>),
+    /// and for the ghosts its poses in that parent at both ends of the step when it turns against the parent (see
+    /// <see cref="PosesInStep"/>).
     /// </summary>
-    private readonly record struct BubbleSite(FrameHandle Parent, FrameHandle Frame, FrameMotion Motion);
+    private readonly record struct BubbleSite(FrameHandle Parent, FrameHandle Frame, FrameMotion Motion, StepPoses? Poses);
 
     /// <summary>
     /// A bubble that the members of one system meet: the frame <see cref="Frame"/>, whose tree parent is
-    /// <see cref="Parent"/>, its motion relative to that parent at the end of the step, and the position and velocity of
-    /// the system's origin in that parent then. Both are zero for a child of the system's own frame. Numeric frames never
-    /// rotate, so a shift of position and velocity takes a member's state from the system into the parent. The velocities
-    /// are instant ones or chords, as <see cref="BubblesFor"/> says.
+    /// <see cref="Parent"/>, its motion relative to that parent at the end of the step, for the ghosts its poses in that
+    /// parent at both ends of the step when it turns against the parent, and the position and velocity of the system's origin
+    /// in that parent then. Both are zero for a child of the system's own frame. Numeric frames never rotate, so a shift of
+    /// position and velocity takes a member's state from the system into the parent. The velocities are instant ones or
+    /// chords, as <see cref="BubblesFor"/> says.
     /// </summary>
-    private readonly record struct BubbleEntry(FrameHandle Parent, FrameHandle Frame, FrameMotion Motion, Double3 Offset, Double3 Velocity);
+    private readonly record struct BubbleEntry(FrameHandle Parent, FrameHandle Frame, FrameMotion Motion, StepPoses? Poses, Double3 Offset,
+        Double3 Velocity)
+    {
+        /// <summary>
+        /// The bubble's motion relative to <see cref="Parent"/>. It is a field, not a property, so that the scans of
+        /// <see cref="HandOffBodies"/> and <see cref="UpdateGhosts"/> read it in place, with no copy per body.
+        /// </summary>
+        public readonly FrameMotion Motion = Motion;
+
+        /// <summary>
+        /// The chord in <see cref="Frame"/> of a body that ends the step at <paramref name="pointInParent"/> with the chord
+        /// <paramref name="chord"/> in <see cref="Parent"/>: by the frame's poses at both ends of the step when it turns
+        /// against the parent (see <see cref="StepPoses.ChordFromParent"/>), else by its motion at the end of the step, which
+        /// holds no turn then (see <see cref="PosesInStep"/>). Only the entries of the ghosts hold chords.
+        /// </summary>
+        public Double3 ChordFromParent(Double3 pointInParent, Double3 chord, double dt) =>
+            Poses is { } poses ? poses.ChordFromParent(pointInParent, chord, dt) : Motion.VelocityFromParent(pointInParent, chord);
+
+        /// <summary>The angular chord in <see cref="Frame"/> of a body whose angular chord in <see cref="Parent"/> is <paramref name="chord"/>, by the rule of <see cref="ChordFromParent"/>.</summary>
+        public Double3 AngularChordFromParent(Double3 chord, double dt) =>
+            Poses is { } poses ? poses.AngularChordFromParent(chord, dt) : Motion.AngularFromParent(chord);
+    }
 
     /// <summary>What a list of bubbles serves, which sets when it is collected and which velocities it holds.</summary>
     private enum BubblesFor
@@ -50,7 +75,8 @@ public sealed partial class JoltPhysicsBackend
 
         /// <summary>
         /// The ghosts, after the hand-offs, which can move a frame to another parent. The velocities are chords (see
-        /// <see cref="MotionOf"/>), because a ghost follows the chord of its real body.
+        /// <see cref="MotionOf"/>), because a ghost follows the chord of its real body, and a frame that turns against its
+        /// parent converts them by its poses at both ends of the step (see <see cref="PosesInStep"/>).
         /// </summary>
         Ghosts,
     }
@@ -150,19 +176,22 @@ public sealed partial class JoltPhysicsBackend
                     }
                     DPose pose = frameMotion.PoseToParent(new DPose(s.Pose.Position + homeOffset, s.Pose.Rotation));
                     Double3 centerInBubble = s.CenterOfMass + homeOffset;
+                    Double3 angularInBubble = InstantAngularVelocity(member, s);
                     var (linear, angular, acceleration) = HandedOffVelocities(member, parent, frameMotion.Pose.TransformPoint(centerInBubble),
                         frameMotion.VelocityToParent(centerInBubble, InstantVelocity(member, s) + homeVelocity),
-                        frameMotion.AngularToParent(InstantAngularVelocity(member, s)));
+                        frameMotion.AngularToParent(angularInBubble));
                     handOffPlans.Add(new HandOffPlan(member, frame, parent, pose, linear, angular, acceleration,
-                        frameMotion.AngularAccelerationToParent(member.AngularAcceleration).ToVector3(), frameMotion.Pose.Rotation));
+                        frameMotion.AngularAccelerationToParent(member.AngularAcceleration, angularInBubble).ToVector3(), frameMotion.Pose.Rotation));
                     continue;
                 }
 
                 int best = -1;
                 double deepest = double.NegativeInfinity;
-                for (int i = 0; i < bubbleEntries.Count; i++)
+                // The scan reads each entry in place: a copy would move the whole entry, frame motion and all, for every body.
+                ReadOnlySpan<BubbleEntry> entries = CollectionsMarshal.AsSpan(bubbleEntries);
+                for (int i = 0; i < entries.Length; i++)
                 {
-                    BubbleEntry entry = bubbleEntries[i];
+                    ref readonly BubbleEntry entry = ref entries[i];
                     // A hull never enters its own frame. The other bubbles are those of its frame's semantic siblings,
                     // never of frames inside it: every hull starts the step in the system of its frame's parent in the
                     // tree, and the walk to the siblings passes only through numeric frames.
@@ -180,15 +209,16 @@ public sealed partial class JoltPhysicsBackend
                 }
                 if (best >= 0)
                 {
-                    BubbleEntry entry = bubbleEntries[best];
-                    FrameMotion motion = entry.Motion;
+                    ref readonly BubbleEntry entry = ref entries[best];
+                    ref readonly FrameMotion motion = ref entry.Motion;
                     var poseInParent = new DPose(s.Pose.Position + entry.Offset, s.Pose.Rotation);
                     Double3 centerInParent = s.CenterOfMass + entry.Offset;
+                    Double3 angularInParent = InstantAngularVelocity(member, s);
                     var (linear, angular, acceleration) = HandedOffVelocities(member, entry.Frame, motion.Pose.InverseTransformPoint(centerInParent),
                         motion.VelocityFromParent(centerInParent, InstantVelocity(member, s) + entry.Velocity),
-                        motion.AngularFromParent(InstantAngularVelocity(member, s)));
+                        motion.AngularFromParent(angularInParent));
                     handOffPlans.Add(new HandOffPlan(member, frame, entry.Frame, motion.PoseFromParent(poseInParent), linear, angular, acceleration,
-                        motion.AngularAccelerationFromParent(member.AngularAcceleration).ToVector3(), motion.Pose.Rotation.Conjugate()));
+                        motion.AngularAccelerationFromParent(member.AngularAcceleration, angularInParent).ToVector3(), motion.Pose.Rotation.Conjugate()));
                 }
             }
         }
@@ -230,7 +260,7 @@ public sealed partial class JoltPhysicsBackend
                 offsetInParent = frames.OffsetAfter(frame, parent, stepDt);
                 velocityInParent = velocity - HomeVelocityFor(use, parent, semantic);
             }
-            entries.Add(new BubbleEntry(site.Parent, site.Frame, site.Motion, offsetInParent, velocityInParent));
+            entries.Add(new BubbleEntry(site.Parent, site.Frame, site.Motion, site.Poses, offsetInParent, velocityInParent));
         }
     }
 
@@ -261,8 +291,17 @@ public sealed partial class JoltPhysicsBackend
     {
         List<FrameHandle> children = ChildrenOf(parent);
         foreach (FrameHandle child in children)
-            if (!frames.IsNumeric(child))
-                sites.Add(new BubbleSite(parent, child, use == BubblesFor.HandOff ? InstantMotionOf(child) : MotionOf(child)));
+        {
+            if (frames.IsNumeric(child))
+                continue;
+            if (use == BubblesFor.HandOff)
+            {
+                sites.Add(new BubbleSite(parent, child, InstantMotionOf(child), null));
+                continue;
+            }
+            FrameMotion motion = MotionOf(child);
+            sites.Add(new BubbleSite(parent, child, motion, PosesInStep(child, parent, motion.Pose)));
+        }
         foreach (FrameHandle child in children)
             if (frames.IsNumeric(child))
                 CollectBubbleSites(child, sites, use);
@@ -336,6 +375,45 @@ public sealed partial class JoltPhysicsBackend
     // ---- Ghosts ----
 
     /// <summary>
+    /// The poses of <paramref name="frame"/> in <paramref name="parent"/> at both ends of the step, by which a ghost converts
+    /// its real body's chords between the two (docs/plans/spin-gravity.md, "The two conversion rules"), when the frame turns
+    /// against its parent in the step: when the turn of the step in flight of the frame or of the parent is not the identity
+    /// (see <see cref="FrameTree.StepTurn"/>). The end is <paramref name="end"/>, the pose of the frame's step record (see
+    /// <see cref="MotionOf"/>), and the start the frame's pose where the step started (see <see cref="StartPoseOf"/>). Null
+    /// otherwise: the frame's rotation in its parent is the same at both ends, and the ghost converts by the frame's motion at
+    /// the end of the step, which keeps the results of frames that do not turn to the bit. Null too for a frame whose hull
+    /// handed off into <paramref name="parent"/> in the step: its pose where the step started is in its old parent, which
+    /// the design gives no rule for, so for that one step its ghosts keep the rule of the end of the step.
+    /// </summary>
+    private StepPoses? PosesInStep(FrameHandle frame, FrameHandle parent, in DPose end)
+    {
+        if (frames.StepTurn(frame).IsIdentity && frames.StepTurn(parent).IsIdentity)
+            return null;
+        if (frames.TreeParent(frame) != parent)
+            return null;
+        return new StepPoses(StartPoseOf(frame), end);
+    }
+
+    /// <summary>
+    /// The pose of <paramref name="frame"/> in its tree parent where the step started: the pose of the teleport that its
+    /// level took in the step, else its tree pose, as the frame tree's BeginStep takes the start of a level
+    /// (docs/plans/spin-gravity.md, "V1, the turn of the step in flight"). A hull's teleport is in the hull's home, the
+    /// frame's tree parent (see <see cref="ApplyBodyIntent"/> and <see cref="TeleportStaticHull"/>). A frame without a hull
+    /// takes the teleport of an intent whose motion intent gives the frame its step record (see
+    /// <see cref="PhysicsIntent.StepRecord"/>), and holds still where it stands otherwise (see <see cref="PredictRecord"/>).
+    /// </summary>
+    private DPose StartPoseOf(FrameHandle frame)
+    {
+        if (OwnerRecord(frame) is { } hull)
+            return hull.HasPrimary && hull.TeleportStep == stepIndex ? hull.TeleportPose : frames.TreeLocalPose(frame);
+        ReadOnlySpan<PhysicsIntent> intents = stepIntents.Span;
+        int slot = (int)frame.Entity.Index;
+        return slot < intents.Length && (intents[slot].Flags & IntentFlags.Teleport) != 0 && intents[slot].Move.FollowKind != FollowKind.Static
+            ? intents[slot].TeleportPose
+            : frames.TreeLocalPose(frame);
+    }
+
+    /// <summary>
     /// Keeps a ghost of each body in every system whose bodies can touch it (docs/plans/complete-ghosts.md): in each child
     /// frame whose content it reaches, and, for a body that can move and sticks out of its bubble, in the bubble's tree
     /// parent and in each sibling frame whose content it reaches. The content of a frame is its bubble grown by its
@@ -398,6 +476,7 @@ public sealed partial class JoltPhysicsBackend
             bool haveSiblingBubbles = false;
             bool haveFrameMotion = false;
             FrameMotion frameMotion = default;
+            StepPoses? framePoses = null;
             int centerStart = ghostCenterStarts[w];
 
             for (int m = 0; m < world.Members.Count; m++)
@@ -438,6 +517,7 @@ public sealed partial class JoltPhysicsBackend
                     if (!haveFrameMotion)
                     {
                         frameMotion = MotionOf(bubble);
+                        framePoses = PosesInStep(bubble, parent, frameMotion.Pose);
                         haveFrameMotion = true;
                     }
                     s = ReadPrimary(member);
@@ -445,8 +525,15 @@ public sealed partial class JoltPhysicsBackend
                     Double3 centerInBubble = s.CenterOfMass + homeOffset;
                     DPose parentPose = frameMotion.PoseToParent(new DPose(s.Pose.Position + homeOffset, s.Pose.Rotation));
                     Double3 parentCenter = frameMotion.Pose.TransformPoint(centerInBubble);
-                    Double3 parentLinear = frameMotion.VelocityToParent(centerInBubble, (Double3)s.Linear + homeVelocity);
-                    Double3 parentAngular = frameMotion.AngularToParent(s.Angular);
+                    Double3 chordInBubble = (Double3)s.Linear + homeVelocity;
+                    // A bubble that turns against its parent in the step converts the chords by its poses at both ends of the
+                    // step (see PosesInStep).
+                    Double3 parentLinear = framePoses is { } poses
+                        ? poses.ChordToParent(centerInBubble, chordInBubble, stepDt)
+                        : frameMotion.VelocityToParent(centerInBubble, chordInBubble);
+                    Double3 parentAngular = framePoses is { } turning
+                        ? turning.AngularChordToParent(s.Angular, stepDt)
+                        : frameMotion.AngularToParent(s.Angular);
                     WantGhost(member, parent, parentPose, parentLinear, parentAngular, BodyLayer.Ghost);
                     // The bubble's hull lives apart from its group, so the group's home holds the bodies that the merge
                     // test links to the hull, and the body has a ghost there too.
@@ -458,18 +545,18 @@ public sealed partial class JoltPhysicsBackend
                         PrepareBubbles(siblingBubbles, parent, BubblesFor.Ghosts);
                         haveSiblingBubbles = true;
                     }
-                    foreach (BubbleEntry sibling in siblingBubbles)
+                    foreach (ref readonly BubbleEntry sibling in CollectionsMarshal.AsSpan(siblingBubbles))
                     {
                         if (sibling.Frame == bubble || sibling.Frame == member.OwnedFrame)
                             continue;
-                        FrameMotion motion = sibling.Motion;
+                        ref readonly FrameMotion motion = ref sibling.Motion;
                         var poseInSiblingParent = new DPose(parentPose.Position + sibling.Offset, parentPose.Rotation);
                         if (frames.Bounds(sibling.Frame).SignedDistance(motion.Pose.InverseTransformPoint(poseInSiblingParent.Position)) >
                             radius + ContentExcessFor(member, sibling.Frame))
                             continue;
                         WantGhost(member, sibling.Frame, motion.PoseFromParent(poseInSiblingParent),
-                            motion.VelocityFromParent(parentCenter + sibling.Offset, parentLinear + sibling.Velocity),
-                            motion.AngularFromParent(parentAngular), childRole);
+                            sibling.ChordFromParent(parentCenter + sibling.Offset, parentLinear + sibling.Velocity, stepDt),
+                            sibling.AngularChordFromParent(parentAngular, stepDt), childRole);
                     }
                 }
 
@@ -483,12 +570,11 @@ public sealed partial class JoltPhysicsBackend
                 // update names. The child's system holds no hull of a frame that holds the body, so a child ghost of a
                 // static body or a hull meets hulls, as its body does (see GhostBody.Role).
                 double reach = member.IsHull ? Math.Max(radius, frames.Bounds(member.OwnedFrame).MaxRadius) : radius;
-                for (int i = 0; i < ghostBubbles.Count; i++)
+                foreach (ref readonly BubbleEntry child in CollectionsMarshal.AsSpan(ghostBubbles))
                 {
-                    BubbleEntry child = ghostBubbles[i];
                     if (child.Frame == member.OwnedFrame)
                         continue;
-                    FrameMotion motion = child.Motion;
+                    ref readonly FrameMotion motion = ref child.Motion;
                     if (frames.Bounds(child.Frame).SignedDistance(motion.Pose.InverseTransformPoint(center + child.Offset)) > reach + ContentExcessFor(member, child.Frame))
                         continue;
                     if (!haveSnapshot)
@@ -499,7 +585,8 @@ public sealed partial class JoltPhysicsBackend
                     var poseInParent = new DPose(s.Pose.Position + child.Offset, s.Pose.Rotation);
                     Double3 centerInParent = s.CenterOfMass + child.Offset;
                     WantGhost(member, child.Frame, motion.PoseFromParent(poseInParent),
-                        motion.VelocityFromParent(centerInParent, (Double3)s.Linear + child.Velocity), motion.AngularFromParent(s.Angular), childRole);
+                        child.ChordFromParent(centerInParent, (Double3)s.Linear + child.Velocity, stepDt),
+                        child.AngularChordFromParent(s.Angular, stepDt), childRole);
                 }
 
                 if (anchor)
@@ -837,8 +924,14 @@ public sealed partial class JoltPhysicsBackend
                 }
             }
             foreach (BodyRecord record in world.ReportedLast)
+            {
                 if (record.ReportedStep != stepIndex && record.World == world && Find(record.Entity) == record)
+                {
                     Report(world, record, output, track: false);
+                    // The body fell asleep in the step, and Jolt zeroed its velocity, which no update expected.
+                    record.Shadow = default;
+                }
+            }
             // A falling numeric frame or a following frame moves, so its sleeping and static members move in its semantic frame
             // too.
             if (frames.Numeric(world.Frame) is NumericMode.Falling or NumericMode.Following)
@@ -882,13 +975,13 @@ public sealed partial class JoltPhysicsBackend
     /// or kinematic hull without a motion intent, that teleported in the step, at the teleport's pose in its home, at rest
     /// there: a kinematic hull holds still in its home after a teleport too (see <see cref="ApplyBodyIntent"/>). Any other
     /// static hull, and a kinematic hull without a motion intent that anchors no following frame, held still, and the sync
-    /// point holds its frame still in its home (see <see cref="FrameTree.TakeStepRecords"/>). A record is relative to the frame's tree parent,
-    /// the hull's home, so a frame that a hand-off moved this step reports relative to its new parent, and a hull at the
-    /// origin of its following frame reports at that origin.
+    /// point holds its frame still in its home (see <see cref="FrameTree.TakeStepRecords"/>). A record is relative to the
+    /// frame's tree parent, the hull's home, so a frame that a hand-off moved this step reports relative to its new parent,
+    /// and a hull at the origin of its following frame reports at that origin.
     /// <para>
     /// The tree keeps the velocity of a frame in a numeric home relative to the home's frame velocity, the chord of the
     /// step, so that a read in the semantic parent gives the frame's instant velocity, and a hull that physics places from
-    /// the tree again takes the velocity that it had (see <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3)"/>).
+    /// the tree again takes the velocity that it had (see <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3, in TurningMoment?)"/>).
     /// A record from <see cref="StepRecordOf"/> is relative to the home's instant velocity of every hand-off (see
     /// <see cref="InstantHomeVelocity"/>; an awake dynamic hull's record converts to it, see <see cref="TryHullRecord"/>). So
     /// each record that physics releases adds the home's instant velocity past its chord (see

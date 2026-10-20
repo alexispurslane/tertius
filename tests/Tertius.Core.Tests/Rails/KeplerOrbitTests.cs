@@ -177,12 +177,19 @@ public class KeplerOrbitTests
     [Theory]
     [InlineData(KeplerAttitude.Spin)]
     [InlineData(KeplerAttitude.FacesParent)]
-    public void The_angular_acceleration_of_a_sample_is_that_of_the_orbit_at_the_start_of_its_step(KeplerAttitude attitude)
+    public void The_angular_acceleration_of_a_sample_is_the_mean_over_its_step(KeplerAttitude attitude)
     {
+        // Every step record means the same by its angular acceleration: the change of the angular velocity over the step,
+        // divided by the step (docs/plans/spin-gravity.md, "V3"). The mean is the value at the middle of the step, to the
+        // third derivative of the angular velocity times the step squared over 24, far under 1e-15 rad/s².
         KeplerOrbit orbit = InclinedOval with { Attitude = attitude };
 
         foreach (double stepEnd in StepEnds)
-            orbit.Sample(Mu, stepEnd, Tick).AngularAcceleration.Should().Be(orbit.AngularAccelerationAt(stepEnd - Tick, Mu));
+        {
+            Double3 mean = orbit.Sample(Mu, stepEnd, Tick).AngularAcceleration;
+            mean.Should().Be((orbit.AngularVelocityAt(stepEnd, Mu) - orbit.AngularVelocityAt(stepEnd - Tick, Mu)) / Tick);
+            (mean - orbit.AngularAccelerationAt(stepEnd - Tick / 2, Mu)).Length.Should().BeLessThan(1e-13);
+        }
     }
 
     // ---- An orbit around no G·M ---------------------------------------------------------------------------------

@@ -21,13 +21,22 @@ public class MotionIntentTests
         ChordVelocity: new Double3(1, 2, 3), Velocity: new Double3(1.5, 2.5, 3.5), Acceleration: new Double3(-0.1, 0.2, 0.3),
         AngularVelocity: new Double3(0.01, 0.02, 0.03), AngularAcceleration: new Double3(0.001, -0.002, 0.003));
 
-    // The old frame relative to the new one: away from its origin, turned about a tilted axis, moving and spinning, so a
-    // conversion moves, turns and adds the frame's motion.
-    private static readonly FrameMotion Motion = new(
+    // The old frame relative to the new one where the step starts and where it ends (see FrameTree.MotionRelativeInStep):
+    // away from the new frame's origin, turned about a tilted axis, moving, accelerating, spinning and spinning up, so a
+    // conversion moves, turns and adds the frame's motion. The two ends differ far more than one step would make them, so a
+    // part that converts by the wrong end misses by much more than rounding.
+    private static readonly FrameMotion StartMotion = new(
         new DPose(new Double3(7e6, 2e5, -3e5), DQuaternion.FromAxisAngle(new Double3(0.2, 1, 0.4).Normalized(), 1.1)),
         Velocity: new Double3(-120, 7600, 35),
-        AngularVelocity: new Double3(0.001, 0.02, -0.003));
-    private static readonly Double3 RelativeAcceleration = new(-8.1, 0.4, 0.25);
+        AngularVelocity: new Double3(0.001, 0.02, -0.003),
+        Acceleration: Double3.Zero,
+        AngularAcceleration: Double3.Zero);
+    private static readonly FrameMotion EndMotion = new(
+        new DPose(new Double3(7e6 - 2, 2e5 + 127, -3e5 + 0.5), DQuaternion.FromAxisAngle(new Double3(0.25, 1, 0.3).Normalized(), 1.2)),
+        Velocity: new Double3(-121, 7601, 36),
+        AngularVelocity: new Double3(0.002, 0.03, -0.004),
+        Acceleration: new Double3(-8.1, 0.4, 0.25),
+        AngularAcceleration: new Double3(0.01, -0.02, 0.005));
 
     // ---- The step record ----------------------------------------------------------------------------------------
 
@@ -119,46 +128,82 @@ public class MotionIntentTests
     // ---- Conversion into another frame --------------------------------------------------------------------------
 
     [Fact]
-    public void AnEndPoseConvertsAsAPoseAndStaysAnEndPose()
+    public void AnEndPoseConvertsByThePoseWhereTheStepEndsAndStaysAnEndPose()
     {
-        MotionIntent converted = new MotionIntent(new EndPose(End)).Converted(Motion, RelativeAcceleration);
+        MotionIntent converted = new MotionIntent(new EndPose(End)).Converted(StartMotion, EndMotion, Step);
 
         converted.TryGetValue(out EndPose end).Should().BeTrue("the frames' motion gives an end pose no velocity");
-        end.Pose.Should().Be(DPose.Compose(Motion.Pose, End));
+        end.Pose.Should().Be(DPose.Compose(EndMotion.Pose, End), "an end pose is a pose at the end of the step");
     }
 
     [Fact]
-    public void ASteerTargetConvertsAsAPoseAndStaysASteerTarget()
+    public void ASteerTargetConvertsByThePoseWhereTheStepEndsAndStaysASteerTarget()
     {
-        MotionIntent converted = new MotionIntent(new SteerTarget(End)).Converted(Motion, RelativeAcceleration);
+        MotionIntent converted = new MotionIntent(new SteerTarget(End)).Converted(StartMotion, EndMotion, Step);
 
         converted.TryGetValue(out SteerTarget steer).Should().BeTrue();
-        steer.Pose.Should().Be(DPose.Compose(Motion.Pose, End));
+        steer.Pose.Should().Be(DPose.Compose(EndMotion.Pose, End), "a steer target is a pose at the end of the step");
     }
 
     [Fact]
-    public void AFullSampleConvertsByTheRuleOfAHandOff()
+    public void AFullSampleConvertsItsPoseItsVelocitiesAndItsAccelerationsByTheRelationWhereTheStepEnds()
     {
-        MotionIntent converted = new MotionIntent(Sample).Converted(Motion, RelativeAcceleration);
+        // The sample describes the end of its step, so each of these parts converts at that moment, by the rules of a point
+        // and of a body in a frame that moves, turns and spins up.
+        MotionIntent converted = new MotionIntent(Sample).Converted(StartMotion, EndMotion, Step);
 
         converted.TryGetValue(out MotionSample sample).Should().BeTrue();
-        DQuaternion turn = Motion.Pose.Rotation;
-        DPose composed = DPose.Compose(Motion.Pose, Sample.Pose);
-        // A point that moves with the old frame, at the sample's place at the end of the step.
-        Double3 carried = Motion.Velocity + Double3.Cross(Motion.AngularVelocity, turn.Rotate(Sample.Pose.Position));
+        Double3 place = Sample.Pose.Position;
+        DPose composed = DPose.Compose(EndMotion.Pose, Sample.Pose);
         Distance(sample.Pose.Position, composed.Position).Should().BeLessThan(1e-6, "the place");
         Distance(sample.Pose.Rotation, composed.Rotation).Should().BeLessThan(1e-12, "the rotation");
-        Distance(sample.ChordVelocity, turn.Rotate(Sample.ChordVelocity) + carried).Should().BeLessThan(1e-9, "the chord");
-        Distance(sample.Velocity, turn.Rotate(Sample.Velocity) + carried).Should().BeLessThan(1e-9, "the velocity");
-        Distance(sample.Acceleration, turn.Rotate(Sample.Acceleration) + RelativeAcceleration).Should().BeLessThan(1e-12, "the acceleration");
-        Distance(sample.AngularVelocity, turn.Rotate(Sample.AngularVelocity) + Motion.AngularVelocity).Should().BeLessThan(1e-12, "the angular velocity");
-        Distance(sample.AngularAcceleration, turn.Rotate(Sample.AngularAcceleration)).Should().BeLessThan(1e-12, "the angular acceleration");
+        Distance(sample.Velocity, EndMotion.VelocityToParent(place, Sample.Velocity)).Should().BeLessThan(1e-9, "the velocity");
+        Distance(sample.Acceleration, EndMotion.AccelerationToParent(place, Sample.Velocity, Sample.Acceleration)).Should().BeLessThan(1e-9, "the acceleration");
+        Distance(sample.AngularVelocity, EndMotion.AngularToParent(Sample.AngularVelocity)).Should().BeLessThan(1e-12, "the angular velocity");
+        Distance(sample.AngularAcceleration, EndMotion.AngularAccelerationToParent(Sample.AngularAcceleration, Sample.AngularVelocity))
+            .Should().BeLessThan(1e-12, "the angular acceleration");
+    }
+
+    [Fact]
+    public void AFullSamplesChordConvertsByWhereTheFrameStoodAtBothEndsOfTheStep()
+    {
+        // The chord is the move of the sample's point over the step divided by the step: from where it started, its place less
+        // the chord times the step, in the frame where the frame stood at the start, to its place in the frame where the frame
+        // stood at the end.
+        MotionIntent converted = new MotionIntent(Sample).Converted(StartMotion, EndMotion, Step);
+
+        converted.TryGetValue(out MotionSample sample).Should().BeTrue();
+        Double3 place = Sample.Pose.Position;
+        Double3 expected = (EndMotion.Pose.TransformPoint(place) - StartMotion.Pose.TransformPoint(place - Sample.ChordVelocity * Step)) / Step;
+        Distance(sample.ChordVelocity, expected).Should().BeLessThan(1e-6, "the chord");
+    }
+
+    [Fact]
+    public void ASampleAtRestInASpinningFrameConvertsIntoAMotionOnItsCircleTowardTheAxis()
+    {
+        // The frame spins at ω about +Y in place, and has turned by ω dt over the step. A sample at rest at r = (100, 0, 0) in it
+        // moves on a circle in the parent: at ω × r, with ω² r toward the axis, and with the chord of the arc of the step.
+        const double rate = 0.31321;
+        var spin = new Double3(0, rate, 0);
+        DQuaternion endAxes = DQuaternion.FromAxisAngle(Double3.UnitY, 0.7);
+        DQuaternion startAxes = DQuaternion.FromAxisAngle(Double3.UnitY, 0.7 - rate * Step);
+        var start = new FrameMotion(new DPose(Double3.Zero, startAxes), Double3.Zero, spin, Double3.Zero, Double3.Zero);
+        var end = new FrameMotion(new DPose(Double3.Zero, endAxes), Double3.Zero, spin, Double3.Zero, Double3.Zero);
+        var place = new Double3(100, 0, 0);
+        var atRest = new MotionSample(new DPose(place, DQuaternion.Identity), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
+
+        new MotionIntent(atRest).Converted(start, end, Step).TryGetValue(out MotionSample sample).Should().BeTrue();
+
+        Distance(sample.Velocity, endAxes.Rotate(new Double3(0, 0, -rate * 100))).Should().BeLessThan(1e-12, "the velocity on the circle");
+        Distance(sample.Acceleration, endAxes.Rotate(new Double3(-rate * rate * 100, 0, 0))).Should().BeLessThan(1e-12, "the acceleration toward the axis");
+        Distance(sample.ChordVelocity, (endAxes.Rotate(place) - startAxes.Rotate(place)) / Step).Should().BeLessThan(1e-9, "the chord of the arc");
+        Distance(sample.AngularVelocity, spin).Should().BeLessThan(1e-12, "the frame's spin");
     }
 
     [Fact]
     public void NoMotionIntentStaysNoneWhenItConverts()
     {
-        default(MotionIntent).Converted(Motion, RelativeAcceleration).HasValue.Should().BeFalse();
+        default(MotionIntent).Converted(StartMotion, EndMotion, Step).HasValue.Should().BeFalse();
     }
 
     // ---- The intent ---------------------------------------------------------------------------------------------

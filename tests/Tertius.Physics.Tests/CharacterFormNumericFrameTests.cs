@@ -193,7 +193,7 @@ public class CharacterFormNumericFrameTests
             FrameHandle home = world.PhysicsHomeOf(person);
             home.Should().Be(world.PhysicsHomeOf(hull), $"the character shares the hull's following frame in step {step}");
             forms.Add(faults.Jolt.HasRigidForm(person) ? "rigid" : "walking");
-            ((double)world.Frames.EffectiveGravity(home, world.PoseIn(person, home).Position).Length()).Should().BeLessThan(1e-3,
+            world.Frames.EffectiveGravity(home, world.PoseIn(person, home).Position).Length.Should().BeLessThan(1e-3,
                 $"the following frame falls with the pull in step {step}, so its system shows only the tidal pull of about 1e-5 m/s² and the pull's change over a step, 1.6e-4 m/s²");
         }
 

@@ -171,23 +171,30 @@ public class RailsMotionIntentTests
         parentSpin.Length.Should().BeGreaterThan(1e-3, "the parent spins");
         DPose composed = DPose.Compose(parentPose, sample.Pose);
         // A point that moves with the child's sample, at the sample's place at the end of the step.
-        Double3 carried = parentVelocity + Double3.Cross(parentSpin, turn.Rotate(sample.Pose.Position));
+        Double3 place = turn.Rotate(sample.Pose.Position);
+        Double3 carried = parentVelocity + Double3.Cross(parentSpin, place);
 
         test.World.Destroy(parent.Entity);
 
+        // The parent dies before the step that applies the intent, so it keeps its relation at the moment of its death at
+        // both ends of that step (docs/plans/spin-gravity.md, "V7, the relative motion of two frames"): its pose, with its
+        // row's velocities and no accelerations, the relation by which the rows of its contents convert at the same moment.
+        // Its own acceleration on its orbit stays out, as the design accepts for a frame that dies. Its spin still gives the
+        // sample the rotation terms of a turning frame.
         PhysicsIntent intent = test.World.Entities.NextStepIntent(child.Entity);
         intent.Frame.Should().Be(test.Root);
         intent.Move.TryGetValue(out MotionSample converted).Should().BeTrue("a full sample stays a full sample");
         Distance(converted.Pose.Position, composed.Position).Should().BeLessThan(1e-6, "the place");
         Distance(converted.Pose.Rotation, composed.Rotation).Should().BeLessThan(1e-12, "the rotation");
-        Distance(converted.ChordVelocity, turn.Rotate(sample.ChordVelocity) + carried).Should().BeLessThan(1e-9, "the chord");
+        // The chord converts by the parent's poses at both ends of the step, which are the same pose, so it only turns: the
+        // converted sample misses by the parent's move over one step, the miss of every conversion through a frame that dies.
+        Distance(converted.ChordVelocity, turn.Rotate(sample.ChordVelocity)).Should().BeLessThan(1e-9, "the chord");
         Distance(converted.Velocity, turn.Rotate(sample.Velocity) + carried).Should().BeLessThan(1e-9, "the velocity");
-        // A known gap, not the right value: the right value also adds the dying parent's own acceleration on its orbit, which
-        // the frame tree no longer holds after step 2. FrameTree.AccelerationRelative adds no acceleration of a semantic frame
-        // on its path yet, so this pins only the turn of the sample's acceleration.
-        Distance(converted.Acceleration, turn.Rotate(sample.Acceleration)).Should().BeLessThan(1e-12, "the acceleration");
+        Double3 rotationTerms = Double3.Cross(parentSpin, Double3.Cross(parentSpin, place)) + 2 * Double3.Cross(parentSpin, turn.Rotate(sample.Velocity));
+        Distance(converted.Acceleration, turn.Rotate(sample.Acceleration) + rotationTerms).Should().BeLessThan(1e-12, "the acceleration");
         Distance(converted.AngularVelocity, turn.Rotate(sample.AngularVelocity) + parentSpin).Should().BeLessThan(1e-12, "the angular velocity");
-        Distance(converted.AngularAcceleration, turn.Rotate(sample.AngularAcceleration)).Should().BeLessThan(1e-12, "the angular acceleration");
+        Distance(converted.AngularAcceleration, turn.Rotate(sample.AngularAcceleration) + Double3.Cross(parentSpin, turn.Rotate(sample.AngularVelocity)))
+            .Should().BeLessThan(1e-12, "the angular acceleration");
     }
 
     [Fact]

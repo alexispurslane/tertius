@@ -93,7 +93,12 @@ public sealed class Clip(DPose place, Double3 push, Vector3 spin) : IComponent
     {
         if (State is not Clipped clipped)
             return;
-        bool weightless = self.Snapshot.Frames.EffectiveGravity(self.Frame, place.Position).Length() < FrameTree.ZeroGravityThreshold;
+        // The gravity of the last finished step at the clip's place: the frame's field less its proper acceleration. The frame
+        // tree's effective gravity, with the rotation terms of a turning frame, is a read of the step in flight that only
+        // physics makes (docs/plans/spin-gravity.md, "V5, the effective gravity").
+        FrameTree frames = self.Snapshot.Frames;
+        Double3 gravity = frames.Gravity(self.Frame).AtPrecise(place.Position) - (Double3)frames.ProperAcceleration(self.Frame);
+        bool weightless = gravity.Length < FrameTree.ZeroGravityThreshold;
         int weightlessTicks = weightless ? clipped.WeightlessTicks + 1 : 0;
         if (weightlessTicks * (double)self.DeltaTime >= ReleaseSeconds)
         {

@@ -212,7 +212,9 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
             case Seated { WeightlessTicks: int ticks }:
                 if (self.Frame != seat.Frame)
                     return;
-                Double3 gravity = self.Snapshot.Frames.EffectiveGravity(seat.Frame, self.PoseIn(seat.Frame).Position);
+                // The gravity of the last finished step at the seat: the frame's field less its proper acceleration (see Clip).
+                FrameTree frames = self.Snapshot.Frames;
+                Double3 gravity = frames.Gravity(seat.Frame).AtPrecise(self.PoseIn(seat.Frame).Position) - (Double3)frames.ProperAcceleration(seat.Frame);
                 bool weightless = gravity.Length < FrameTree.ZeroGravityThreshold;
                 if (weightless || Double3.Dot(gravity, -Double3.UnitY) < gravity.Length * Math.Cos(BeltAngle))
                     Belt(self, gravity, mass);

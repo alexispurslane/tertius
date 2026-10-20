@@ -134,8 +134,11 @@ public record struct KeplerOrbit(
     /// the pose, the instant velocity and the angular velocity, which equal <see cref="StateAt"/>, <see cref="RotationAt"/>
     /// and <see cref="AngularVelocityAt"/> there to the last bit. The chord velocity is <see cref="Chord"/> of that state.
     /// The acceleration is the pull (<see cref="Acceleration"/>) where the step starts, the end place less the chord times
-    /// the step, and the angular acceleration is <see cref="AngularAccelerationAt"/> at the start of the step. Around a
-    /// parent without G·M, the frame rests at the parent's origin with no chord and no acceleration.
+    /// the step. The angular acceleration is the mean over the step, the meaning of every step record's angular acceleration
+    /// (docs/plans/spin-gravity.md, "V3"): the change of the angular velocity over the step, divided by the step, with
+    /// <see cref="AngularVelocityAt"/> solved at the start of the step too. It is zero for <see cref="KeplerAttitude.Spin"/>,
+    /// which turns steadily. Around a parent without G·M, the frame rests at the parent's origin with no chord and no
+    /// acceleration.
     /// </summary>
     public readonly MotionSample Sample(double mu, double stepEnd, double step)
     {
@@ -149,7 +152,7 @@ public record struct KeplerOrbit(
         Double3 chord = orbits ? Chord(position, velocity, mu, step) : Double3.Zero;
         Double3 acceleration = orbits ? Acceleration(position - chord * step, mu) : Double3.Zero;
         return new MotionSample(new DPose(position, rotation), chord, velocity, acceleration, angularVelocity,
-            AngularAccelerationAt(stepEnd - step, mu));
+            (angularVelocity - AngularVelocityAt(stepEnd - step, mu)) / step);
     }
 
     /// <summary>

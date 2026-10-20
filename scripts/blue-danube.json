@@ -43,9 +43,9 @@
     {"do":"camera","entity":"pen-camera"},
     {"do":"film","name":"pen-release","frames":121,"every":1},
     {"do":"camera","entity":"pen-camera"},
-    {"do":"film","name":"fetch","frames":189,"every":1},
+    {"do":"film","name":"fetch","frames":183,"every":1},
     {"do":"camera","entity":"hand-camera"},
-    {"do":"film","name":"take","frames":505,"every":1},
+    {"do":"film","name":"take","frames":510,"every":1},
     {"do":"camera","entity":"chase-camera"},
     {"do":"film","name":"coast","frames":180,"every":10}
   ]

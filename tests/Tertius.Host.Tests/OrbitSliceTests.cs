@@ -230,12 +230,13 @@ public sealed class OrbitStartTests
         // The ship falls freely, so its proper acceleration is zero, and only its own field acts inside it. The belly, -Y,
         // faces Earth. Physics takes a person's gravity at the capsule's center, so a person on a spacewalk floats: on the
         // roof or against a side, the center is 0.92 m or 0.32 m out from the hull. The field ends at the cabin, inside
-        // the slabs.
-        world.Frames.EffectiveGravity(ship, new Double3(3, -2, 20)).Should().Be(new System.Numerics.Vector3(0, -9.81f, 0));
-        world.Frames.EffectiveGravity(ship, new Double3(0, 4.92, 0)).Should().Be(System.Numerics.Vector3.Zero);
-        world.Frames.EffectiveGravity(ship, new Double3(10.32, 0, 0)).Should().Be(System.Numerics.Vector3.Zero);
-        world.Frames.EffectiveGravity(ship, new Double3(0, 0, -30.32)).Should().Be(System.Numerics.Vector3.Zero);
-        world.Frames.EffectiveGravity(ship, new Double3(0, 3.75, 0)).Should().Be(System.Numerics.Vector3.Zero);
+        // the slabs. The ship turns on its facing orbit, but the reads come before its first step, when it has no turns yet,
+        // so the effective gravity is the linear gravity (docs/plans/spin-gravity.md, "V5, the effective gravity").
+        world.Frames.EffectiveGravity(ship, new Double3(3, -2, 20)).Should().Be(new Double3(0, -9.81f, 0));
+        world.Frames.EffectiveGravity(ship, new Double3(0, 4.92, 0)).Should().Be(Double3.Zero);
+        world.Frames.EffectiveGravity(ship, new Double3(10.32, 0, 0)).Should().Be(Double3.Zero);
+        world.Frames.EffectiveGravity(ship, new Double3(0, 0, -30.32)).Should().Be(Double3.Zero);
+        world.Frames.EffectiveGravity(ship, new Double3(0, 3.75, 0)).Should().Be(Double3.Zero);
     }
 
     [Fact]

@@ -10,9 +10,10 @@ namespace Tertius.Physics;
 /// The physics backend on Jolt in double precision. Each reference frame that contains bodies gets its own Jolt
 /// physics system, created when the first body arrives. All systems share one job system and step one after
 /// another; each update spreads over the job threads. Jolt gravity is zero: before each step, every awake dynamic
-/// body gets the force m · g_eff, where g_eff is the frame's own field minus the frame's proper acceleration. The force
-/// leaves the body's sleep timer alone, so a body at rest falls asleep. The sleep threshold of each system scales with the
-/// weakest effective gravity on its awake bodies, so a body that a small share of a weak gravity moves stays awake.
+/// body gets the force m · g, where g is the linear gravity: the frame's own field minus the frame's proper acceleration.
+/// The force leaves the body's sleep timer alone, so a body at rest falls asleep. The sleep threshold of each system scales
+/// with the weakest effective gravity on its awake bodies, the linear gravity plus the centrifugal and the Euler term of a
+/// turning frame, so a body that a small share of a weak gravity moves stays awake.
 /// After each step, the backend moves bodies between frames (hand-off) and keeps ghosts of bodies that cross a
 /// bubble boundary. See ARCHITECTURE.md, "Reference frames" and "Physics".
 /// </summary>
@@ -206,7 +207,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// intent moves the body on from the teleport pose.</item>
     /// <item>A velocity that SetVelocity, SetAngularVelocity, a teleport or a jump gives, like a velocity that a spawn
     /// gives, is an instant velocity: from the start of the step the body moves as it says, with Jolt's acceleration
-    /// (docs/plans/spin-gravity.md, "The velocity convention").</item>
+    /// (ARCHITECTURE.md, "Instant velocities and chords").</item>
     /// <item>An end pose or a full sample in <see cref="PhysicsIntent.Move"/> moves a kinematic body to its pose over one
     /// step, puts it exactly there, and stops it there unless the next step gives a new motion intent. A plain kinematic
     /// body reports the step record of that motion intent, and a hand-off carries the record's instant velocity. A steer
@@ -450,6 +451,16 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         float LinearDamping,
         float AngularDamping,
         bool EnhancedInternalEdgeRemoval);
+
+    /// <summary>
+    /// The velocity shadow of the body of <paramref name="entity"/> after the last step (see <see cref="BodyRecord.Shadow"/>),
+    /// or none for an entity without a body.
+    /// </summary>
+    internal VelocityShadow ShadowOf(Entity entity)
+    {
+        lock (JoltRuntime.NativeGate)
+            return Find(entity)?.Shadow ?? default;
+    }
 
     /// <summary>Every body in the system of <paramref name="frame"/>, in the order of its ID, as Jolt holds it.</summary>
     internal unsafe List<BodyFacts> BodiesIn(FrameHandle frame)
@@ -899,12 +910,13 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
 
     /// <summary>
     /// The motion of <paramref name="frame"/> relative to its current parent at the end of the step, with the chord of its
-    /// step record as its velocity, which a ghost follows (see <see cref="StepRecordOf"/>). Call it only during a step.
+    /// step record as its velocity, which a ghost follows, and the record's acceleration and angular acceleration (see
+    /// <see cref="StepRecordOf"/>). Call it only during a step.
     /// </summary>
     private FrameMotion MotionOf(FrameHandle frame)
     {
         MotionSample record = StepRecordOf(frame);
-        return new FrameMotion(record.Pose, record.ChordVelocity, record.AngularVelocity);
+        return new FrameMotion(record.Pose, record.ChordVelocity, record.AngularVelocity, record.Acceleration, record.AngularAcceleration);
     }
 
     /// <summary>
@@ -918,7 +930,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// A hull that handed off in the step is in its new home: Jolt's velocity is the chord of its first step there, so its
     /// acceleration is the one that the hand-off made that chord with, in the new home's axes (see
     /// <see cref="HandedOffVelocities"/>), the instant velocity is the one that the hand-off carried, and the angular
-    /// acceleration is the one of the update, turned into the new home's axes (see
+    /// acceleration is the one of the update, converted into the new home by the full rule (see
     /// <see cref="FrameMotion.AngularAccelerationToParent"/>). False for any other frame.
     /// </summary>
     private bool TryHullRecord(FrameHandle frame, out MotionSample record)
@@ -929,7 +941,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             // Jolt's velocity is at the center of mass. The frame origin is the body origin.
             Double3 chord = (Double3)s.Linear + Double3.Cross(s.Angular, s.Pose.Position - s.CenterOfMass);
             Double3 acceleration = hull.StepAcceleration;
-            // An awake hull took its home's effective gravity, so its chord plus half a step of its acceleration is relative
+            // An awake hull took its home's linear gravity, so its chord plus half a step of its acceleration is relative
             // to the home's instant velocity in Jolt's stepping, and the record is relative to the one of every hand-off (see
             // HomeSteppedVelocityOverPlan). A hull that handed off in the step is awake in its new home.
             Double3 velocity = chord + acceleration * (0.5 * stepDt);

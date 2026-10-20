@@ -4,7 +4,7 @@ using AwesomeAssertions;
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// How numeric frames move and what gravity their members feel: <see cref="FrameTree.BeginNumericStep"/>,
+/// How numeric frames move and what gravity their members feel: <see cref="FrameTree.BeginStep"/>,
 /// <see cref="FrameTree.AdvanceNumericFrames"/>, <see cref="FrameTree.HomeOffsetAfter"/>,
 /// <see cref="FrameTree.EffectiveGravity"/> and <see cref="FrameTree.SemanticGravity"/>, around Earth, with frames that a
 /// numeric update made.
@@ -45,7 +45,7 @@ public class FrameTreeNumericMotionTests
         };
         frames.UpdateNumericFrames([body], 0.1, 0.1, new PhysicsChanges(), moves => home = moves.Single().To);
         frames.Update();
-        frames.BeginNumericStep([], 1.0 / 60);
+        frames.BeginStep([], 1.0 / 60, lastStepFailed: false);
         return home;
     }
 
@@ -54,48 +54,63 @@ public class FrameTreeNumericMotionTests
     {
         FrameHandle pod = FrameFor(X(OrbitRadius), new Double3(0, 0, OrbitSpeed));
         frames.HomeAcceleration(pod, earth).Should().Be(Earth.AtPrecise(X(OrbitRadius)));
-        frames.EffectiveGravity(pod, Double3.Zero).Should().Be(Vector3.Zero);
+        frames.EffectiveGravity(pod, Double3.Zero).Should().Be(Double3.Zero);
     }
 
+    // A falling frame is a level of a path whose motion over the step is the numeric update's (see
+    // FrameTree.MotionRelativeInStep): it moves by its frame velocity plus its step acceleration times the step, as
+    // AdvanceNumericFrames moves it, ends the step at that velocity plus half a step of its acceleration, its instant
+    // velocity (see FrameTree.HomeInstantVelocityOverChord), and accelerates by its step acceleration. It never turns.
+
     [Fact]
-    public void A_falling_frame_accelerates_relative_to_its_semantic_frame_by_its_step_acceleration()
+    public void A_falling_frame_ends_the_step_where_the_numeric_update_carries_it_relative_to_its_semantic_frame()
     {
         FrameHandle pod = FrameFor(X(OrbitRadius), new Double3(0, 0, OrbitSpeed));
-        frames.AccelerationRelative(pod, earth).Should().Be(Earth.AtPrecise(X(OrbitRadius)));
+        Double3 field = Earth.AtPrecise(X(OrbitRadius));
+        Double3 chord = frames.TreeLinearVelocity(pod) + field * Dt;
+        Double3 place = frames.TreeLocalPose(pod).Position + chord * Dt;
+
+        (_, FrameMotion end) = frames.MotionRelativeInStep(pod, earth, [], Dt);
+
+        end.Acceleration.Should().Be(field);
+        end.Pose.Position.Should().Be(place);
+        end.Velocity.Should().Be(chord + field * (0.5 * Dt));
+        end.AngularVelocity.Should().Be(Double3.Zero);
     }
 
     [Fact]
     public void The_semantic_frame_accelerates_relative_to_a_falling_frame_against_the_frames_step_acceleration()
     {
         FrameHandle pod = FrameFor(X(OrbitRadius), new Double3(0, 0, OrbitSpeed));
-        frames.AccelerationRelative(earth, pod).Should().Be(-Earth.AtPrecise(X(OrbitRadius)));
+        frames.MotionRelativeInStep(earth, pod, [], Dt).End.Acceleration.Should().Be(-Earth.AtPrecise(X(OrbitRadius)));
     }
 
     [Fact]
     public void A_falling_frame_in_a_turned_frame_accelerates_relative_to_the_turned_frames_parent_by_its_step_acceleration_in_the_parents_axes()
     {
         // A frame at Earth's origin, turned by 0.9 rad about Z, with Earth's field in its own axes. A fast body in it gets a
-        // falling frame, which keeps the field at its origin, in the turned frame's axes, as its step acceleration.
+        // falling frame, which keeps the field at its origin, in the turned frame's axes, as its step acceleration. The turned
+        // frame holds still, so it adds no acceleration of its own.
         DQuaternion turn = DQuaternion.FromAxisAngle(Double3.UnitZ, 0.9);
         FrameHandle turned = frames.Create(new Entity(2, 1), earth, new DPose(Double3.Zero, turn), FrameBounds.Sphere(1e9f), Earth);
         FrameHandle pod = FrameFor(turned, X(OrbitRadius), new Double3(0, 0, OrbitSpeed));
         frames.TreeParent(pod).Should().Be(turned);
 
         Double3 expected = turn.Rotate(Earth.AtPrecise(X(OrbitRadius)));
-        (frames.AccelerationRelative(pod, earth) - expected).Length.Should().BeLessThan(1e-12);
+        (frames.MotionRelativeInStep(pod, earth, [], Dt).End.Acceleration - expected).Length.Should().BeLessThan(1e-12);
     }
 
     // Step 2 of every sync point converts the record of each frame in a numeric home into its semantic parent, on the serial
     // sync point, with the acceleration and the angular velocity of the home relative to that parent. The walk only goes up.
 
     [Fact]
-    public void The_acceleration_of_a_falling_frame_relative_to_its_semantic_frame_allocates_nothing()
+    public void The_motion_of_a_falling_frame_relative_to_its_semantic_frame_over_the_step_allocates_nothing()
     {
         FrameHandle pod = FrameFor(X(OrbitRadius), new Double3(0, 0, OrbitSpeed));
-        frames.AccelerationRelative(pod, earth);
+        frames.MotionRelativeInStep(pod, earth, [], Dt);
 
         long before = GC.GetAllocatedBytesForCurrentThread();
-        frames.AccelerationRelative(pod, earth);
+        frames.MotionRelativeInStep(pod, earth, [], Dt);
         (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0);
     }
 
@@ -114,17 +129,18 @@ public class FrameTreeNumericMotionTests
     public void A_body_away_from_the_origin_of_a_falling_frame_feels_the_tidal_gravity_from_doubles()
     {
         FrameHandle pod = FrameFor(X(OrbitRadius), new Double3(0, 0, OrbitSpeed));
-        Vector3 tidal = frames.EffectiveGravity(pod, X(100));
-        tidal.Should().Be((Earth.AtPrecise(X(OrbitRadius + 100)) - Earth.AtPrecise(X(OrbitRadius))).ToVector3());
-        // About 2·μ/r³ per meter outward: 2.6e-4 m/s² at 100 m. A difference of two floats near 8.7 m/s² steps by 9.5e-7.
-        tidal.X.Should().BeApproximately((float)(-2 * EarthMu / Math.Pow(OrbitRadius, 3) * -100), 1e-7f);
+        Double3 tidal = frames.EffectiveGravity(pod, X(100));
+        tidal.Should().Be(Earth.AtPrecise(X(OrbitRadius + 100)) - Earth.AtPrecise(X(OrbitRadius)));
+        // About 2·μ/r³ per meter outward: 2.6e-4 m/s² at 100 m. The read stays in doubles, so the reader that needs a float
+        // narrows only the difference, and a tidal gravity of a fraction of a mm/s² keeps its digits.
+        tidal.X.Should().BeApproximately(-2 * EarthMu / Math.Pow(OrbitRadius, 3) * -100, 1e-7);
     }
 
     [Fact]
     public void The_semantic_gravity_in_a_numeric_frame_is_the_field_at_the_bodys_true_position()
     {
         FrameHandle pod = FrameFor(X(OrbitRadius), new Double3(0, 0, OrbitSpeed));
-        frames.SemanticGravity(pod, X(100)).Should().Be(Earth.AtPrecise(X(OrbitRadius + 100)).ToVector3());
+        frames.SemanticGravity(pod, X(100)).Should().Be(Earth.AtPrecise(X(OrbitRadius + 100)));
         frames.SemanticGravity(earth, X(OrbitRadius)).Should().Be(frames.EffectiveGravity(earth, X(OrbitRadius)));
     }
 
@@ -160,6 +176,6 @@ public class FrameTreeNumericMotionTests
         frames.Numeric(raft).Should().Be(NumericMode.Resting);
         frames.AdvanceNumericFrames(Dt);
         frames.TreeLocalPose(raft).Position.Should().Be(X(RestRadius));
-        frames.EffectiveGravity(raft, X(100)).Should().Be(Earth.AtPrecise(X(RestRadius + 100)).ToVector3());
+        frames.EffectiveGravity(raft, X(100)).Should().Be(Earth.AtPrecise(X(RestRadius + 100)));
     }
 }

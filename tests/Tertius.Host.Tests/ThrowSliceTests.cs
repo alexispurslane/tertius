@@ -182,7 +182,15 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
         leaving.Velocity.X.Should().BeApproximately(-Carry.MaxThrowSpeed, 1e-3);
         // The velocity after the fifth step is the chord of that step: half a tick of gravity short of five ticks.
         leaving.Velocity.Y.Should().BeApproximately(-4.5 * GravityPerTick, 1e-3);
-        leaving.Velocity.Z.Should().BeApproximately(0, 1e-3);
+        // The ship turns once per orbit about its own X, at ω = 1.13e-3 rad/s. In the ship's turning axes the Coriolis term
+        // −2 ω × v acts on the crate's velocity along -Y, so in its second in the ship's frame that velocity bends toward
+        // -Z at 2 ω |v_y|, about 1.7e-3 m/s² (docs/plans/spin-gravity.md: physics keeps a free body on its inertial line in
+        // every turning frame). Before the rotation terms, the crate flew straight in the ship's axes and this was zero.
+        // The cabin's gravity pulled the crate only in its first five steps, so v_y was −4.5 ticks of gravity nearly all
+        // the way. The centrifugal term, ω² r = 3e-5 m/s² at 22 m, is far below the bound.
+        double omega = ((Double3)Dump("leaving").Entity("ship").AngularVelocity).Length;
+        double inShip = Dump("leaving").Time - Dump("thrown").Time;
+        leaving.Velocity.Z.Should().BeApproximately(-2 * omega * (4.5 * GravityPerTick) * inShip, 1e-4);
         // The hand-off keeps the crate's motion relative to the ship.
         ExpectNear(inEarth.Velocity, leaving.Velocity, 1e-3);
         // In earth, the crate and the ship fall freely round Earth together, so the crate moves on along a straight line

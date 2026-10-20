@@ -96,10 +96,12 @@ public sealed partial class World
         }
         FlushPhysicsChanges();
         Frames.Update();
-        // The falling numeric frames and the following frames fix their accelerations for the step, which physics reads and the
-        // sync point follows, and each following frame its step plan, from its anchor's motion intent in the intents of the step,
-        // while the tree stands where the step starts.
-        Frames.BeginNumericStep(entities.FrontIntents.Span, DeltaTime);
+        // Every frame fixes its turns for the step, which physics reads, the falling numeric frames and the following frames
+        // their accelerations, which physics reads and the sync point follows, and each following frame its step plan, from
+        // its anchor's motion intent in the intents of the step, while the tree stands where the step starts. After a step
+        // that failed, the chords of the bodies may or may not come from the turns of that step, so every frame takes its new
+        // turn as its last turn.
+        Frames.BeginStep(entities.FrontIntents.Span, DeltaTime, lastStepFailed);
         // The indexes that entity queries start from apply their queued changes, so that the workers only read them.
         topics.SettleMembers();
         entities.BeginTick(options.SpawnPoolSize);

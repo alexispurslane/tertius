@@ -8,7 +8,7 @@ namespace Tertius.Physics.Tests;
 /// A velocity that gameplay gives, at a spawn, through SetVelocity, with a teleport, by a jump or at a hand-off, is an
 /// instant velocity: the velocity at that moment. Jolt reads a stored velocity as a chord: the displacement over the last
 /// step divided by the step, which is the velocity half a step earlier. Physics gives Jolt the chord of each instant
-/// velocity (docs/plans/spin-gravity.md, "The velocity convention"), so a body moves as its instant velocity says, on the
+/// velocity (ARCHITECTURE.md, "Instant velocities and chords"), so a body moves as its instant velocity says, on the
 /// World and the real backend. Every expected path is worked out here in doubles from the instant state: a parabola under
 /// uniform gravity, a straight line without gravity, and an exponential decay of a velocity or a spin under damping.
 /// </summary>

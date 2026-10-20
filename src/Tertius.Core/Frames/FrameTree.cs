@@ -19,8 +19,9 @@ namespace Tertius;
 /// caller gives it, and physics normalizes the rotation that leaves Jolt. The poses that the tree composes itself, when it
 /// moves or destroys a frame, are unit length.</item>
 /// <item>A numeric frame (see <see cref="CreateNumeric"/>) has no owner, a parent, no bubble, the identity rotation, no
-/// spin, no gravity and no hull motion. A resting or nesting one has no velocity, no step acceleration and no step plan
-/// (see <see cref="HomeInstantVelocityOverChord"/>). The chain of
+/// spin, no gravity and no hull motion, and it keeps no turns of its own, no angular acceleration and no place in the list
+/// of frames without a last turn: it reads its semantic frame's turns (see <see cref="Turns"/>). A resting or nesting one
+/// has no velocity, no step acceleration and no step plan (see <see cref="HomeInstantVelocityOverChord"/>). The chain of
 /// tree parents of a numeric frame ends at a semantic frame: a falling or resting frame lies in a semantic frame or a
 /// nesting frame, a following frame lies in a semantic frame, and a nesting frame lies in a semantic frame, on a whole
 /// multiple of <see cref="NumericFrameOptions.NestGrid"/>, and holds only numeric frames. A following frame, and only a
@@ -75,7 +76,7 @@ public sealed partial class FrameTree
     // For a following frame, the step record of its anchor for the current step in the anchor's semantic frame: the record
     // of its motion intent, or without one the record of a kinematic body that holds still where the step starts
     // (PhysicsIntent.StepRecordOrStill). It is the step plan, which lands the following frame and which the sync point
-    // reads (see BeginNumericStep). Null for every other frame.
+    // reads (see BeginStep). Null for every other frame.
     private MotionSample?[] stepPlan = new MotionSample?[64];
     // How long the members of each numeric frame have been apart, in seconds, and the number of bodies whose physics home
     // it was at the end of the last UpdateNumericFrames.
@@ -163,6 +164,11 @@ public sealed partial class FrameTree
         apartTime[node.Id] = 0;
         numericBodies[node.Id] = 0;
         anchor[node.Id] = Entity.Null;
+        // A new frame has had no step, so it has no turn and no last turn until its first BeginStep. A numeric frame keeps
+        // no turns of its own (see Turns).
+        turns[node.Id] = NoTurns;
+        angularAcceleration[node.Id] = Double3.Zero;
+        withoutLastTurn[node.Id] = mode == NumericMode.None;
         return new FrameHandle(frameOwner, node.Id, node.Generation);
     }
 
@@ -248,6 +254,7 @@ public sealed partial class FrameTree
             NumericCount--;
         numeric[node.Id] = NumericMode.None;
         anchor[node.Id] = Entity.Null;
+        withoutLastTurn[node.Id] = false;
         RemovePoseNode(node);
     }
 
@@ -270,13 +277,18 @@ public sealed partial class FrameTree
         if (InFollowingFrame(frame))
             LeaveFollowingFrame(oldParent);
 
-        // Carry the frame origin's velocity and the frame's spin from the old parent into the new parent.
-        // A null parent is the virtual root above every root frame.
+        // Carry the frame origin's velocity, the frame's spin and its angular acceleration from the old parent into the new
+        // parent. A null parent is the virtual root above every root frame. The angular acceleration converts by the rule of
+        // a relative motion (see FrameMotion), with the motion of the old parent in the new one.
         DPose oldPose = poses.GetLocal(node);
         Double3 w = angularVelocity[node.Id];
         DQuaternion oldToNew = RootPose(newParent).Rotation.Conjugate() * RootPose(oldParent).Rotation;
+        Double3 relativeSpin = AngularVelocityRelative(oldParent, newParent);
+        var oldParentInNew = new FrameMotion(new DPose(Double3.Zero, oldToNew), Double3.Zero, relativeSpin, Double3.Zero,
+            AngularAccelerationRelative(oldParent, newParent));
+        angularAcceleration[node.Id] = oldParentInNew.AngularAccelerationToParent(angularAcceleration[node.Id], w);
         LinearVelocityForWrite(node.Id) = ConvertVelocity(oldParent, newParent, oldPose.Position, linearVelocity[node.Id]);
-        AngularVelocityForWrite(node.Id) = (oldToNew.Rotate(w) + AngularVelocityRelative(oldParent, newParent)).ToVector3();
+        AngularVelocityForWrite(node.Id) = (oldToNew.Rotate(w) + relativeSpin).ToVector3();
         MoveNode(node, newParent.IsNull ? PoseNode.Null : Node(newParent), keepWorldPose: true);
     }
 
@@ -622,6 +634,8 @@ public sealed partial class FrameTree
             Contract.Invariant(owner[id].IsNull && !parent.IsNull && bounds[id] == default);
             Contract.Invariant(locals[i].Rotation == DQuaternion.Identity && angularVelocity[id] == Vector3.Zero);
             Contract.Invariant(!gravity[id].HasValue && !hullMotion[id].HasValue);
+            // A numeric frame never turns: it reads its semantic frame's turns, and keeps none of its own.
+            Contract.Invariant(turns[id] == NoTurns && angularAcceleration[id] == Double3.Zero && !withoutLastTurn[id]);
             if (numeric[id] is NumericMode.Resting or NumericMode.Nesting)
                 Contract.Invariant(linearVelocity[id] == Double3.Zero && stepAcceleration[id] == Double3.Zero && stepPlan[id] is null);
             // Only a following frame has an anchor: a hull whose frame hangs in it, or a plain body of the last update whose
@@ -784,19 +798,57 @@ public sealed partial class FrameTree
     public const float ZeroGravityThreshold = 0.05f;
 
     /// <summary>
-    /// The effective gravity on a body at <paramref name="position"/> in the frame <paramref name="frame"/>, which holds the
+    /// The linear gravity on a body at <paramref name="position"/> in the frame <paramref name="frame"/>, which holds the
     /// body in its physics system, in frame axes: the field of the frame's semantic frame at the body's true position, minus
-    /// the acceleration of <paramref name="frame"/> relative to the semantic frame. For a semantic frame, that is its own
-    /// field minus its proper acceleration. In a falling numeric frame it is the tidal gravity. Both terms are in doubles,
-    /// and only their difference narrows to a float, so a tidal gravity of a fraction of a mm/s² keeps its digits.
+    /// the acceleration of <paramref name="frame"/> relative to the semantic frame (docs/plans/spin-gravity.md, "Terms"). For
+    /// a semantic frame, that is its own field minus its proper acceleration. In a falling numeric frame it is the tidal
+    /// gravity, plus the difference of the rotation terms that the frame's origin takes (see <see cref="BeginStep"/>). It
+    /// leaves out the rotation terms of a turning frame, which <see cref="EffectiveGravity"/> adds. Physics reads it for the
+    /// field part of a body's update and of the chord rule. It stays in doubles, so that the reader that needs a float narrows
+    /// only the difference, and a tidal gravity of a fraction of a mm/s² keeps its digits. Like the effective gravity, it
+    /// reads the home's acceleration in the step in flight, so it is internal.
     /// </summary>
-    public Vector3 EffectiveGravity(FrameHandle frame, Double3 position)
+    internal Double3 LinearGravity(FrameHandle frame, Double3 position)
     {
         int id = Node(frame).Id;
         if (numeric[id] == NumericMode.None)
-            return FieldOf(id, position).ToVector3();
+            return FieldOf(id, position);
         FrameHandle semantic = SemanticOf(frame);
-        return (FieldOf(semantic.Index, position + HomeOffset(frame, semantic)) - HomeAcceleration(frame, semantic)).ToVector3();
+        return FieldOf(semantic.Index, position + HomeOffset(frame, semantic)) - HomeAcceleration(frame, semantic);
+    }
+
+    /// <summary>
+    /// The effective gravity on a body at <paramref name="position"/> in the frame <paramref name="frame"/>, in frame axes,
+    /// which are the axes of its semantic frame (docs/plans/spin-gravity.md, "V5, the effective gravity"): the linear gravity
+    /// (see <see cref="LinearGravity"/>) plus the centrifugal and the Euler term of the semantic frame's turns at the body's
+    /// semantic place (see <see cref="WithRotationTerms"/>). It takes no velocity, so it has no Coriolis term. It is the one
+    /// continuous value for the readers that need one: the form, the standing and the weight of a character, the sleep
+    /// threshold, and the acceleration that a sleeping hull rests against. The sum of its double terms narrows once, in the
+    /// reader that needs a float. In a frame that does not turn it is the linear gravity, to the bit, and so it is before the
+    /// frame's first <see cref="BeginStep"/>.
+    /// <para>
+    /// It reads the turns, which describe the step in flight from <see cref="BeginStep"/> on and the last finished step from
+    /// step 2 on, so only physics and the frame tree read it, in the step whose turn they hold. A public read for gameplay,
+    /// when one is needed, describes the last finished step under a name of its own.
+    /// </para>
+    /// </summary>
+    internal Double3 EffectiveGravity(FrameHandle frame, Double3 position) => AddRotationTerms(frame, position, LinearGravity(frame, position));
+
+    /// <summary>
+    /// The effective gravity on a body at <paramref name="position"/> in the frame <paramref name="frame"/> (see
+    /// <see cref="EffectiveGravity"/>), from <paramref name="linear"/>, the linear gravity there that the caller read already
+    /// (see <see cref="LinearGravity"/>): <paramref name="linear"/> plus the centrifugal and the Euler term of the semantic
+    /// frame's turns at the body's semantic place, so that a reader of both evaluates the field once. It equals
+    /// <see cref="EffectiveGravity"/> to the bit. In a frame that does not turn it is <paramref name="linear"/> itself, and it
+    /// reads no place.
+    /// </summary>
+    internal Double3 AddRotationTerms(FrameHandle frame, Double3 position, Double3 linear)
+    {
+        int id = Node(frame).Id;
+        if (numeric[id] == NumericMode.None)
+            return WithRotationTerms(linear, id, position);
+        FrameHandle semantic = SemanticOf(frame);
+        return turns[semantic.Index].Turns ? WithRotationTerms(linear, semantic.Index, position + HomeOffset(frame, semantic)) : linear;
     }
 
     /// <summary>
@@ -804,10 +856,12 @@ public sealed partial class FrameTree
     /// reads, apart from the frame's own field. The members of the frame feel it, reversed, in their effective gravity (see
     /// <see cref="EffectiveGravity"/>). For a semantic frame it is the stored proper acceleration, which the step in flight
     /// subtracts. For a numeric frame it is the acceleration of its origin relative to its semantic frame in the step in
-    /// flight less the field of the semantic frame there, which takes in the semantic frame's own proper acceleration: zero
-    /// for a falling frame, the field reversed for a resting frame, and for a following frame the acceleration that lands it
-    /// on its anchor's step plan less the field. Physics wakes the members of a frame when its push moves
-    /// (docs/plans/numeric-frames.md, "Following frames"). Valid from <see cref="BeginNumericStep"/> to the end of the step.
+    /// flight less that of a free body at its origin (see <see cref="FreeAccelerationAtOrigin"/>), which takes in the
+    /// semantic frame's own proper acceleration, and in a turning semantic frame its rotation terms at the origin: zero for a
+    /// falling frame, the field reversed for a resting frame, and for a following frame the acceleration that lands it on
+    /// its anchor's step plan less the free body's. Physics wakes the members of a frame when its push moves, by the same
+    /// rule as a change of the frame's turn (docs/plans/spin-gravity.md, "The wake"). Valid from <see cref="BeginStep"/> to
+    /// the end of the step.
     /// </summary>
     internal Vector3 PushInStep(FrameHandle frame)
     {
@@ -815,18 +869,21 @@ public sealed partial class FrameTree
         if (numeric[id] == NumericMode.None)
             return properAcceleration[id];
         FrameHandle semantic = SemanticOf(frame);
-        return (HomeAcceleration(frame, semantic) - FieldOf(semantic.Index, HomeOffset(frame, semantic))).ToVector3();
+        return (HomeAcceleration(frame, semantic) - FreeAccelerationAtOrigin(frame, semantic, turnsStep)).ToVector3();
     }
 
     /// <summary>
     /// The gravity of the semantic frame of <paramref name="frame"/> at a body's true position, for a body at
-    /// <paramref name="position"/> in <paramref name="frame"/>, in frame axes. It equals <see cref="EffectiveGravity"/> in a
-    /// semantic frame. In a numeric frame it is the gravity that the semantic frame shows, which says where up is.
+    /// <paramref name="position"/> in <paramref name="frame"/>, in frame axes: the semantic frame's field minus its proper
+    /// acceleration, plus its centrifugal and Euler term there (see <see cref="WithRotationTerms"/>). It equals
+    /// <see cref="EffectiveGravity"/> in a semantic frame. In a numeric frame it is the gravity that the semantic frame
+    /// shows, which says where up is. It reads the turns as the effective gravity does.
     /// </summary>
-    internal Vector3 SemanticGravity(FrameHandle frame, Double3 position)
+    internal Double3 SemanticGravity(FrameHandle frame, Double3 position)
     {
         FrameHandle semantic = SemanticOf(frame);
-        return FieldOf(semantic.Index, position + HomeOffset(frame, semantic)).ToVector3();
+        Double3 place = position + HomeOffset(frame, semantic);
+        return WithRotationTerms(FieldOf(semantic.Index, place), semantic.Index, place);
     }
 
     /// <summary>The field of the semantic frame with index <paramref name="id"/> minus its proper acceleration, in doubles.</summary>
@@ -846,8 +903,7 @@ public sealed partial class FrameTree
     /// <summary>
     /// The acceleration of the origin of <paramref name="home"/> relative to <paramref name="semantic"/>, which is the home
     /// itself or an ancestor of it, during the current step: the sum of the step accelerations of the numeric frames
-    /// between them. It equals <see cref="AccelerationRelative"/> of the two frames, without its turns, because a numeric
-    /// frame never turns in its parent.
+    /// between them, with no rotation terms, because a numeric frame never turns in its parent.
     /// </summary>
     internal Double3 HomeAcceleration(FrameHandle home, FrameHandle semantic)
     {
@@ -910,14 +966,14 @@ public sealed partial class FrameTree
     /// one acceleration over the step, so its instant velocity at the end of the step is half a step of that acceleration
     /// past the chord. A following frame moves as its anchor's step plan does, so the excess is the plan's instant velocity
     /// less its chord, which takes in the change of the orbit's pull over the step, and is zero for the plan of an anchor
-    /// that holds still (see <see cref="BeginNumericStep"/>). Zero for a semantic frame.
+    /// that holds still (see <see cref="BeginStep"/>). Zero for a semantic frame.
     /// <para>
     /// The tree keeps the velocity of a frame under a numeric home relative to the home's frame velocity, so that a read in
     /// the semantic frame gives the frame's instant velocity. Physics keeps a velocity relative to the home's instant
     /// velocity. So a velocity converts from physics into the tree by the addition of this one term, and back by its
     /// subtraction: a frame at rest in its home keeps it (see <see cref="TakeStepRecords"/>), every step record that physics
     /// releases adds it. A velocity that a body gets at the start of a step converts by the excess where the step starts
-    /// instead (see <see cref="HomeInstantVelocityOverChordAtStepStart"/>). A body that takes its home's effective gravity
+    /// instead (see <see cref="HomeInstantVelocityOverChordAtStepStart"/>). A body that takes its home's linear gravity
     /// moves as Jolt moves it in the semantic frame's own system, so physics measures its velocity at the end of a step
     /// against the home's frame velocity after the step plus half a step of the home's step acceleration, and adds the
     /// difference of that excess and this one before it hands the body off or releases its record.
@@ -947,7 +1003,7 @@ public sealed partial class FrameTree
     /// velocity that a body gets at the start of that step into the motion that Jolt gives it in the semantic frame's own
     /// system: the step acceleration then cancels out of the body's motion in the semantic frame (docs/plans/numeric-frames.md,
     /// "Velocity"). Physics converts every velocity that a spawn, gameplay or a hand-off gives a body for a step with it.
-    /// Zero for a semantic frame. Valid from <see cref="BeginNumericStep"/> to the end of the step.
+    /// Zero for a semantic frame. Valid from <see cref="BeginStep"/> to the end of the step.
     /// </summary>
     internal Double3 HomeInstantVelocityOverChordAtStepStart(FrameHandle home, FrameHandle semantic, double dt)
     {
@@ -1203,42 +1259,6 @@ public sealed partial class FrameTree
         return ref angularVelocity[id];
     }
 
-    /// <summary>
-    /// The linear acceleration of the origin of frame <paramref name="of"/> relative to frame <paramref name="to"/> in the
-    /// current step, in <paramref name="to"/> axes. An acceleration in <paramref name="of"/> converts into
-    /// <paramref name="to"/> as the acceleration turned into <paramref name="to"/> axes plus this, as a velocity converts with
-    /// the motion of one frame relative to the other (see <see cref="ConvertVelocity"/>). It adds the acceleration of each
-    /// frame on the path through the common ancestor relative to its tree parent, level by level. The tree keeps that
-    /// acceleration for a numeric frame, its step acceleration (see <see cref="BeginNumericStep"/>), so between a physics home
-    /// and its semantic frame this equals <see cref="HomeAcceleration"/>. Two terms are not in it yet. A semantic frame adds
-    /// none, because the tree keeps no acceleration of a semantic frame in its parent: only the frame's step record holds it.
-    /// And a turning frame on the path adds no rotation terms (Euler, centrifugal and Coriolis), which spin gravity brings
-    /// (docs/plans/spin-gravity.md). A null frame is the virtual root above every root frame.
-    /// </summary>
-    internal Double3 AccelerationRelative(FrameHandle of, FrameHandle to)
-    {
-        // Sum the accelerations up to the common ancestor in its axes, then subtract the path down to 'to'.
-        FrameHandle x = of;
-        Double3 acceleration = Double3.Zero;
-        while (!x.IsNull && x != to && !IsAncestorOrNull(x, to))
-        {
-            FrameHandle parent = TreeParent(x);
-            acceleration = TreeLocalPose(x).TransformDirection(acceleration) + stepAcceleration[Node(x).Id];
-            x = parent;
-        }
-        if (x == to)
-            return acceleration;
-        var path = new Stack<FrameHandle>();
-        for (FrameHandle y = to; !y.IsNull && y != x; y = TreeParent(y))
-            path.Push(y);
-        while (path.Count > 0)
-        {
-            FrameHandle child = path.Pop();
-            acceleration = TreeLocalPose(child).InverseTransformDirection(acceleration - stepAcceleration[Node(child).Id]);
-        }
-        return acceleration;
-    }
-
     private void Grow(int needed)
     {
         if (needed <= owner.Length)
@@ -1260,6 +1280,7 @@ public sealed partial class FrameTree
         Array.Resize(ref numericBodies, size);
         Array.Resize(ref anchor, size);
         Array.Resize(ref anchorSeen, size);
+        GrowTurns(size);
     }
 }
 

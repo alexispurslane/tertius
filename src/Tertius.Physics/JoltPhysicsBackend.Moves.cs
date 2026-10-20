@@ -22,7 +22,8 @@ public sealed partial class JoltPhysicsBackend
     /// Applies the <see cref="PhysicsChanges.BodiesMoved"/> of a batch: each body leaves the system of its physics home for
     /// the system of its new home, a numeric frame below the same semantic frame or that semantic frame. Its pose and
     /// velocity move by the difference of the two homes' offsets and frame velocities, in doubles; numeric frames do not
-    /// rotate, so nothing turns. A sleeping rigid body stays asleep. A character is created again, as in a hand-off, and
+    /// rotate, so nothing turns. Its velocity shadow moves the same way (see <see cref="VelocityShadow.Moved"/>). A sleeping
+    /// rigid body stays asleep. A character is created again, as in a hand-off, and
     /// looks up its contacts. A frame's hull keeps its body state too, and the simulation has already put the frame under
     /// the new home. A moved body keeps its ghosts in the systems of other frames: a move stays within one semantic frame,
     /// and every frame where a ghost may be (see <see cref="GhostAllowed"/>) depends only on that semantic frame, so the
@@ -79,8 +80,11 @@ public sealed partial class JoltPhysicsBackend
             RemoveGhostIn(record, WorldFor(move.To));
             if (record.IsHull)
                 MoveGhostsThatStickOut(record.OwnedFrame, record.World!, move.To, move.Offset, move.HomeVelocity);
+            // The body's velocity shadow moves with it, as its state does.
+            VelocityShadow shadow = record.Shadow;
             RemovePrimary(record);
             CreatePrimary(record, move.To, move.Pose, move.Linear, move.Angular, upFromGravity: record.Standing, awake: move.Awake);
+            record.Shadow = shadow.Moved(move.Offset, move.HomeVelocity);
             if (record.Character is { } character)
                 character.RefreshContacts(PrimaryLayer(record), record.World!.System);
         }

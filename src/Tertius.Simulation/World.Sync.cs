@@ -60,12 +60,19 @@ public sealed partial class World
     }
 
     /// <summary>
+    /// Whether the physics step of the last sync point failed, so that its results were dropped. The next tick's preparation
+    /// passes it to <see cref="FrameTree.BeginStep"/>.
+    /// </summary>
+    private bool lastStepFailed;
+
+    /// <summary>
     /// The sync point, the steps of "Threads and the tick" in ARCHITECTURE.md. One thread runs it; nothing else runs
     /// meanwhile. Each step calls into the subsystems, which keep their own bookkeeping; the comments say why a step
     /// needs what came before it.
     /// </summary>
     private void Sync(Exception? physicsError)
     {
+        lastStepFailed = physicsError != null;
         double endTime = TimeAt(TickNumber + 1);
         Profile.Start();
 
@@ -616,7 +623,10 @@ public sealed partial class World
             ref PhysicsIntent intent = ref entities.NextStepIntent(entity);
             ref readonly TransformRow row = ref entities.BackRow(entity);
             if (intent.Frame != row.Frame)
-                ConvertIntent(ref intent, row.Frame, row.Pose.Position);
+            {
+                (FrameMotion start, FrameMotion end) = Frames.MotionRelativeInStep(intent.Frame, row.Frame, entities.FrontIntents.Span, DeltaTime);
+                ConvertIntent(ref intent, row.Frame, row.Pose.Position, start, end);
+            }
         }
         convertedAtRowFrameChanges = entities.RowFrameChanges;
     }
@@ -673,35 +683,38 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// Converts <paramref name="intent"/> from the frame that it names into <paramref name="to"/>, with the frames' relation
-    /// now, for a body at <paramref name="position"/> in <paramref name="to"/>, and makes it name <paramref name="to"/>. The
-    /// teleport's pose converts as a pose, the velocities of SetVelocity and SetAngularVelocity with the motion of one frame
-    /// relative to the other, the motion intent by its case (see <see cref="MotionIntent.Converted"/>), and forces, torques,
-    /// impulses and a character's walk as directions. The velocities are instant velocities at the start of the next step,
-    /// the moment of the relation, so they convert exactly. An end pose and a steer target are places at the end of the
-    /// step, so they miss by how far the two frames move relative to each other in a step.
+    /// Converts <paramref name="intent"/> from the frame that it names into <paramref name="to"/>, for a body at
+    /// <paramref name="position"/> in <paramref name="to"/>, and makes it name <paramref name="to"/>. <paramref name="start"/>
+    /// and <paramref name="end"/> are the motion of the old frame in the new one where the step that applies the intent
+    /// starts and where it ends (see <see cref="FrameTree.MotionRelativeInStep"/>), and each part of the intent converts by
+    /// the moment that it describes (docs/plans/spin-gravity.md, "V7, the relative motion of two frames"). The motion intent
+    /// converts by its case (see <see cref="MotionIntent.Converted"/>): an end pose and a steer target by the pose where the
+    /// step ends, a full sample by the relation where the step ends, and its chord by the poses at both ends. The velocities
+    /// of SetVelocity and SetAngularVelocity are instant velocities where the step starts, so they convert by the instant rule
+    /// with <paramref name="start"/>; without a teleport on the path, the velocity of SetVelocity converts through the tree
+    /// (see <see cref="FrameTree.ConvertVelocity"/>), which is the same relation and rounds as before the rotation terms. The teleport's pose, the forces, the torques, the impulses and a character's walk act
+    /// where the step starts too, so they convert by its pose. Without a teleport on the path, that pose is the tree's
+    /// relative pose of the two frames, to the bit.
     /// </summary>
-    private void ConvertIntent(ref PhysicsIntent intent, FrameHandle to, Double3 position)
+    private void ConvertIntent(ref PhysicsIntent intent, FrameHandle to, Double3 position, in FrameMotion start, in FrameMotion end)
     {
-        FrameHandle from = intent.Frame;
-        Contract.Requires(Frames.IsAlive(from) && Frames.IsAlive(to));
-        DPose relative = Frames.Relative(from, to);
+        DPose relative = start.Pose;
         IntentFlags flags = intent.Flags;
         if ((flags & IntentFlags.SetVelocity) != 0)
         {
             // A teleport in the same intent puts the body at its pose before the velocity applies.
             Double3 at = (flags & IntentFlags.Teleport) != 0 ? intent.TeleportPose.Position : relative.InverseTransformPoint(position);
-            intent.Velocity = Frames.ConvertVelocity(from, to, at, intent.Velocity);
+            // Without a teleport on the path, the start's relation is the tree's: its pose is the tree's relative pose to the
+            // bit, and its velocities are the rows'. Then the tree converts the velocity level by level, as it did before the
+            // rotation terms, which rounds as before. A composed relation rounds otherwise on a path of two levels or more.
+            intent.Velocity = relative == Frames.Relative(intent.Frame, to)
+                ? Frames.ConvertVelocity(intent.Frame, to, at, intent.Velocity)
+                : start.VelocityToParent(at, intent.Velocity);
         }
         if ((flags & IntentFlags.SetAngularVelocity) != 0)
-            intent.AngularVelocity = (relative.TransformDirection(intent.AngularVelocity) + Frames.AngularVelocityRelative(from, to)).ToVector3();
+            intent.AngularVelocity = start.AngularToParent(intent.AngularVelocity).ToVector3();
         if (intent.Move.HasValue)
-        {
-            // The motion of the old frame in the new one now, by which a full sample converts as a body that hands off
-            // between the two frames does. An end pose and a steer target read only its pose.
-            var motion = new FrameMotion(relative, Frames.ConvertVelocity(from, to, Double3.Zero, Double3.Zero), Frames.AngularVelocityRelative(from, to));
-            intent.Move = intent.Move.Converted(motion, Frames.AccelerationRelative(from, to));
-        }
+            intent.Move = intent.Move.Converted(start, end, DeltaTime);
         if ((flags & IntentFlags.Teleport) != 0)
             intent.TeleportPose = DPose.Compose(relative, intent.TeleportPose);
         intent.Force = relative.TransformDirection(intent.Force).ToVector3();

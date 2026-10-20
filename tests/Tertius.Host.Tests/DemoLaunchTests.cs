@@ -44,13 +44,23 @@ public sealed class DemoLaunchRun : CheckedInRun
 /// The loose pen's position, velocity and rotation in the shuttle's frame, in meters and m/s, while the loose pen lives,
 /// or null.
 /// </param>
+/// <param name="PenFromShuttle">
+/// The loose pen's place relative to the shuttle's center, in earth-surface's axes, which do not turn with the cabin, in
+/// meters, while the loose pen lives, or null.
+/// </param>
 /// <param name="Clip">What the pen's clip does, while the loose pen lives, or null.</param>
 /// <param name="Held">The pose of the drawn copy of the pen in the person's hand, in the shuttle's frame, while the person holds it, or null.</param>
 internal sealed record LaunchTick(long Tick, Double3 Position, Double3 Velocity, AscentState Ascent, System.Numerics.Vector3 CabinAcceleration,
     FrameHandle PersonFrame, Double3 PersonInCabin, PassengerState Passenger, (Double3 Position, Double3 Velocity, DQuaternion Rotation)? Pen,
-    ClipState? Clip, DPose? Held);
+    Double3? PenFromShuttle, ClipState? Clip, DPose? Held);
 
-/// <summary>A ball at rest in the cabin, 2 s after the engines stop, and where it is after 5 s.</summary>
+/// <summary>
+/// A ball at rest in the cabin, 7 s after the engines stop, and where it is after 5 s. The attitude autopilot turns the
+/// shuttle from its climb to face the planet for about 5 s after the engines stop, at up to 0.1 rad/s. A free body keeps
+/// its inertial motion while the cabin's turn changes under it (docs/plans/spin-gravity.md), so a ball put there 2 s after
+/// the engines stop leaves its place by about 1 m in 5 s. From 7 s the cabin turns at the orbit's rate, about 1.2e-3 rad/s,
+/// and its rate changes by less than 4e-5 rad/s more, which moves the ball by about 1 mm in 5 s.
+/// </summary>
 /// <param name="Start">Where the ball was put, in the shuttle's frame, in meters.</param>
 /// <param name="End">Where it is 5 s later.</param>
 /// <param name="EndVelocity">Its velocity relative to the shuttle's frame then, in m/s.</param>
@@ -84,10 +94,11 @@ internal sealed class LaunchLog
         Ticks.Add(new LaunchTick(world.TickNumber, world.PoseIn(shuttle, surface).Position, world.VelocityIn(shuttle, surface), ascent,
             world.Frames.ProperAcceleration(cabin), world.GetFrame(person), world.PoseIn(person, cabin).Position, passenger,
             penLives ? (world.PoseIn(pen, cabin).Position, world.VelocityIn(pen, cabin), world.PoseIn(pen, cabin).Rotation) : null,
+            penLives ? world.PoseIn(pen, surface).Position - world.PoseIn(shuttle, surface).Position : null,
             penLives ? world.GetComponent<Clip>(pen)!.State : null, held));
         if (ascent.Value is Orbit && orbitTick < 0)
             orbitTick = world.TickNumber;
-        if (orbitTick >= 0 && ball.IsNull && world.TickNumber == orbitTick + 120)
+        if (orbitTick >= 0 && ball.IsNull && world.TickNumber == orbitTick + 420)
         {
             ball = world.Spawn(new SpawnDesc { Frame = cabin, Pose = new DPose(BallStart, DQuaternion.Identity), Body = Ball(0.1f) });
             ballTick = world.TickNumber;
@@ -244,8 +255,12 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
 
     /// <summary>
     /// In orbit the clip lets the pen go. From the step that applies its push to the person's take, nothing touches the
-    /// pen, so it keeps the push's velocity, and when the person takes it, it floats more than half a meter from every face
-    /// of the cabin.
+    /// pen, so it moves on a straight line in inertial space, and when the person takes it, it floats more than half a
+    /// meter from every face of the cabin. The line is measured from the shuttle's center in earth-surface's axes: the
+    /// shuttle and the pen fall together, and those axes do not turn with the cabin. The clip lets go about 1.25 s after
+    /// the engines stop, while the attitude autopilot still changes the cabin's turn, so in the cabin's turning axes the
+    /// pen's velocity changes by the rotation terms (docs/plans/spin-gravity.md, "The model from scratch"). Before the
+    /// rotation terms, the test asked for the push's velocity in the cabin's axes.
     /// </summary>
     [Fact]
     public void InOrbitThePenFloatsFreeInTheMiddleOfTheCabinUntilThePersonTakesIt()
@@ -253,9 +268,16 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
         // The push of the tick on which the clip lets go acts in the step beside the next tick, so the snapshots of the
         // first two logged ticks after the release show the pen before the push.
         List<LaunchTick> free = [.. Log.Where(tick => tick.Clip?.Value is Released).Skip(2)];
+        double dt = run.World.DeltaTime;
 
         free.Should().HaveCountGreaterThan(120);
-        free.Should().OnlyContain(tick => (tick.Pen!.Value.Velocity - DemoSurface.PenPush).Length < 1e-3);
+        // The line is that of the first two places. The pen stays within 0.25 mm of it to the take, about 2.5 s later: the
+        // Coriolis term of earth-surface's own day turn, 2 · 7.3e-5 rad/s · 0.2 m/s, bends it by about 0.1 mm. Without the
+        // rotation terms of the cabin's turn the pen leaves the line by more than 0.5 mm within 0.2 s.
+        Double3 start = free[0].PenFromShuttle!.Value, velocity = (free[1].PenFromShuttle!.Value - start) / dt;
+        for (int k = 0; k < free.Count; k++)
+            Double3.Distance(free[k].PenFromShuttle!.Value, start + velocity * (k * dt)).Should().BeLessThan(5e-4, $"{k} ticks after the push");
+        velocity.Length.Should().BeGreaterThan(0.15, "the push sets the pen moving");
         PenClipTests.Clearance(free[^1].Pen!.Value.Position).Should().BeGreaterThan(0.5);
     }
 

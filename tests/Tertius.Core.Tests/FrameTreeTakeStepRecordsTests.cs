@@ -217,7 +217,7 @@ public class FrameTreeTakeStepRecordsTests
         frames.UpdateNumericFrames([body], 0.1, 0.1, new PhysicsChanges(), _ => { });
         frames.Numeric(frames.TreeParent(hull)).Should().Be(NumericMode.Falling);
         frames.Update();
-        frames.BeginNumericStep([], Step);
+        frames.BeginStep([], Step, lastStepFailed: false);
         frames.AdvanceNumericFrames(Step);
 
         frames.TakeStepRecords([], Step);

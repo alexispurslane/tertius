@@ -18,22 +18,25 @@ public readonly record struct MotionSample(
     Double3 AngularVelocity, Double3 AngularAcceleration)
 {
     /// <summary>
-    /// This sample in another frame, which <paramref name="motion"/> calls the parent: the motion of the sample's frame
-    /// relative to it now. The pose, the chord velocity and the instant velocity at the sample's place at the end of its
-    /// step, the angular velocity and the angular acceleration convert with that motion, by the rule of a hand-off (see
-    /// <see cref="FrameMotion"/>). The acceleration turns into the parent's axes and adds
-    /// <paramref name="relativeAcceleration"/>, the acceleration of the sample's frame relative to the parent, in the
-    /// parent's axes (see <see cref="FrameTree.AccelerationRelative"/>).
+    /// This sample in another frame, which the two relations call the parent: <paramref name="start"/> and
+    /// <paramref name="end"/>, the motion of the sample's frame relative to it where the step of <paramref name="step"/>
+    /// seconds starts and where it ends (see <see cref="FrameTree.MotionRelativeInStep"/>). Each part converts by the moment
+    /// that it describes (docs/plans/spin-gravity.md, "V7, the relative motion of two frames" and "The two conversion
+    /// rules"). The pose, the instant velocity, the acceleration, the angular velocity and the angular acceleration describe
+    /// the end of the step, so they convert by <paramref name="end"/>, by the rules of a point and of a body in a frame that
+    /// moves, turns and spins up (see <see cref="FrameMotion"/>), which hold the frame's rotation terms. The chord is the
+    /// move of the sample's place over the step, so it converts by where the frame stood at both ends of the step (see
+    /// <see cref="StepPoses.ChordToParent"/>).
     /// </summary>
-    internal MotionSample Converted(in FrameMotion motion, Double3 relativeAcceleration)
+    internal MotionSample Converted(in FrameMotion start, in FrameMotion end, double step)
     {
         Double3 place = Pose.Position;
         return new MotionSample(
-            motion.PoseToParent(Pose),
-            motion.VelocityToParent(place, ChordVelocity),
-            motion.VelocityToParent(place, Velocity),
-            motion.Pose.TransformDirection(Acceleration) + relativeAcceleration,
-            motion.AngularToParent(AngularVelocity),
-            motion.AngularAccelerationToParent(AngularAcceleration));
+            end.PoseToParent(Pose),
+            new StepPoses(start.Pose, end.Pose).ChordToParent(place, ChordVelocity, step),
+            end.VelocityToParent(place, Velocity),
+            end.AccelerationToParent(place, Velocity, Acceleration),
+            end.AngularToParent(AngularVelocity),
+            end.AngularAccelerationToParent(AngularAcceleration, AngularVelocity));
     }
 }

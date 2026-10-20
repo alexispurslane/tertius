@@ -129,7 +129,7 @@ internal sealed class BodyRecord
     public bool Standing;
     /// <summary>
     /// For a character: true when its last update held it on its ground against gravity, because it stood and did not jump,
-    /// so it took no gravity and moved with its ground (see <see cref="GravityApplied"/>). A new character starts false.
+    /// so it took no gravity and moved with its ground (see <see cref="FrameAcceleration"/>). A new character starts false.
     /// </summary>
     public bool Held;
 
@@ -156,20 +156,39 @@ internal sealed class BodyRecord
     /// gravity that the step applied plus its proper acceleration, less the change of velocity that the intents made
     /// before the update, and the change of Jolt's angular velocity in the update, each divided by the step. A hand-off
     /// in the step gives the linear one the acceleration that made Jolt's chord in the new home, in the new home's axes
-    /// (see JoltPhysicsBackend.HandedOffVelocities), and turns the angular one into the new home's axes, as it turns the
-    /// angular velocity (see <see cref="FrameMotion.AngularAccelerationToParent"/>).
+    /// (see JoltPhysicsBackend.HandedOffVelocities), and converts the angular one into the new home by the full rule, with
+    /// the frame's angular velocity and angular acceleration and the body's angular velocity (see
+    /// <see cref="FrameMotion.AngularAccelerationToParent"/>).
     /// </summary>
     public Double3 StepAcceleration;
     public Vector3 AngularAcceleration;
+    /// <summary>The step whose intent gave the dynamic body an impulse or an angular impulse, or -1.</summary>
+    public long ImpulseStep = -1;
+    /// <summary>
+    /// The change of Jolt's linear and angular velocity that the impulses of <see cref="ImpulseStep"/> made at the start of
+    /// that step, in the axes of the body's home then: the difference of Jolt's velocities before and after them, exact in
+    /// doubles. The update of a turning frame takes each change out of Jolt's velocity, which it reads as the chord of the
+    /// step that ended, and puts it back as a change of the step in flight (docs/plans/spin-gravity.md, "Impulses").
+    /// </summary>
+    public Double3 ImpulseVelocityChange, ImpulseAngularVelocityChange;
     /// <summary>The step whose intent teleported the body, or -1.</summary>
     public long TeleportStep = -1;
     /// <summary>The pose in its home, with a unit rotation, at which the teleport of <see cref="TeleportStep"/> put the body.</summary>
     public DPose TeleportPose;
     /// <summary>
-    /// The effective gravity that the last step applied to the body, in the axes of its home: to a dynamic rigid body
-    /// while it was awake, and to a character that the ground did not hold (zero when it did).
+    /// The acceleration that the body's frame gave it in the last step in which physics moved it, in the axes of its home
+    /// (V4 of docs/plans/spin-gravity.md): the linear gravity, to a dynamic rigid body while it was awake and to a character
+    /// that the ground did not hold (zero when it did), and the change that a turning frame's update made beyond it. A
+    /// sleeping dynamic hull gets the effective gravity, with the centrifugal and the Euler term of a turning frame, against
+    /// which it rests.
     /// </summary>
-    public Vector3 GravityApplied;
+    public AppliedFrameAcceleration FrameAcceleration;
+    /// <summary>
+    /// For a dynamic body in a turning frame: what the last two-turn update expects of it at the end of its step (V6 of
+    /// docs/plans/spin-gravity.md), or none. Every new primary body starts without one, and so does a body after a
+    /// teleport, a velocity that the game sets, an impulse or a steer target, or after it falls asleep.
+    /// </summary>
+    public VelocityShadow Shadow;
     /// <summary>For a dynamic frame hull: the frame's proper acceleration in frame axes, from the last step.</summary>
     public Vector3 ProperAcceleration;
     /// <summary>The step whose motion intent aimed or steered the body, or -1 (see JoltPhysicsBackend.ApplyBodyIntent).</summary>
