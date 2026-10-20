@@ -1,6 +1,6 @@
 ---
 id: ter-1bnq
-status: in_progress
+status: closed
 deps: [ter-ediu, ter-xdt8, ter-6azq]
 links: []
 created: 2026-10-16T23:00:45Z
@@ -40,3 +40,7 @@ From the Blue Danube demo survey (2026-10-18): the design is silent on the prope
 **2026-10-20T00:41:25Z**
 
 2026-10-19, stage 2 part 8: an intent's force in a turning frame (a ship's thrust, a jetpack) kept the cross term that the ruling on part 6 removed for the field. Jolt adds the intent force in the frame's axes, unturned. At 50 m in the 0.31321 rad/s station with a thrust of 4.9 m/s^2, a ship drifted 0.026 m/s^2 sideways, 0.11 m off its path in 3 s, linear in the thrust. Turning the force by V1's step turn in ApplyTurningUpdate (added to ahead, so the shadow's chord carries it) kept the path within 5e-5 m, and the accelerometer reading did not change. The orchestrator settled it by the same rule as part 6 (a body's path in inertial space is exact): an intent's force turns too, and builder 9 applies the rule to every other force fixed in the frame's axes.
+
+**2026-10-20T07:48:29Z**
+
+2026-10-20, merged. Stage 2 was built in 9 parts by 9 builders, reviewed (12 findings, all fixed or recorded), and merged with main twice (the second time for ter-zsku, with no test changed). Coverage of the changed lines in src/ (Core, Simulation, Physics and Host tests, Debug): 661 of 665 lines (99.4%), 276 of 294 branches. The uncovered lines need no test: VelocityShadow.Value and ToString are debug helpers; FrameTree.MotionInStep.cs line 173 is a resting numeric frame, which does not move; JoltPhysicsBackend.Step.cs line 733 clears the shadow when Jolt's damping stops a body in one step (linear damping of 60 per second or more), which no material uses. Two allocation tests fail only under coverage instrumentation, as known. Follow-ups: ter-fsst (the public felt-gravity read, which the user chose to build next), ter-04lz (the wake test's reach), notes on ter-1b21, and ter-l8ay (a following frame inside a turning frame, tested only by algebra).
