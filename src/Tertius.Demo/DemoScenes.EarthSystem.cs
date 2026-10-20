@@ -7,25 +7,6 @@ namespace Tertius.Demo;
 
 public static partial class DemoScenes
 {
-    /// <summary>The Moon's mean radius, in meters.</summary>
-    public const double MoonRadius = 1.7374e6;
-
-    /// <summary>The tilt of the Moon's orbit to the ecliptic, the plane of Earth's orbit: 5.145 degrees, in radians.</summary>
-    public const double MoonInclination = 5.145 * Math.PI / 180;
-
-    /// <summary>
-    /// The Moon's mean orbit round Earth, in earth's axes: semi-major axis 384,400 km, eccentricity 0.0549, tilted
-    /// <see cref="MoonInclination"/> to the ecliptic. Its ascending node on the ecliptic lies on the March equinox direction,
-    /// earth's +X, as at the major lunar standstill of 2024 and 2025. Earth's axes lean from the ecliptic by
-    /// <see cref="Obliquity"/> about that same line, so the two tilts add: the orbit leans 28.58 degrees from Earth's
-    /// equator, with its node on +X. Its perigee lies on the node. At time 0 the Moon stands 45 degrees past it, toward
-    /// -Z and north, which at the June solstice is 45 degrees from the Sun as seen from Earth: a waxing crescent, so that
-    /// from beside the Moon, Earth shows mostly its day side. Its attitude does not turn. The Moon has no gravity of its own: only Earth's pulls in
-    /// earth, so the orbit takes earth's G·M, <see cref="EarthMu"/>.
-    /// </summary>
-    public static KeplerOrbit MoonOrbit { get; } = new(SemiMajorAxis: 3.844e8, Eccentricity: 0.0549, Inclination: Obliquity + MoonInclination,
-        LongitudeOfAscendingNode: 0, ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: MeanAnomaly(Math.PI / 4, 0.0549), Epoch: 0, AxialTilt: DQuaternion.Identity, SpinRate: 0, SpinPhaseAtEpoch: 0);
-
     /// <summary>
     /// The Earth system at its true sizes, at the June solstice, with the demo's station and a pad at the north pole, and
     /// views that show each part.
@@ -88,7 +69,7 @@ public static partial class DemoScenes
                 },
             }));
 
-            // Where the Sun stands from Earth at the world's time, in earth's axes, and so in earth-surface's at time 0.
+            // Where the Sun stands from Earth at the world's time, in earth's axes.
             KeplerOrbit earthOrbit = EarthOrbit(date);
             Double3 earthPlace = earthOrbit.StateAt(world.Time, SunMu).Position;
             Double3 toSun = earthOrbit.RotationAt(world.Time, SunMu).Conjugate().Rotate(-earthPlace).Normalized();
@@ -117,8 +98,12 @@ public static partial class DemoScenes
             double down = 11 * Math.PI / 180;
             View("station-view", earth, new DPose(station + axis * 300, AttitudeAutopilot.Facing(-axis * Math.Cos(down) - up * Math.Sin(down), up)));
 
-            // The pad from the ground, looking past it toward the Sun on the horizon.
-            var padEye = new Double3(-toSun.X * 22 + 6, EarthRadius + 6, -toSun.Z * 22);
+            // The pad from the ground, looking past it toward the Sun, which stands 23.44 degrees up: the eye stands 22 m
+            // from the pole on the side away from the Sun. earth-surface has turned from earth's axes by the sidereal spin at
+            // the world's time, so the Sun's direction turns back by that spin into earth-surface's axes.
+            Double3 toSunInSurface = new FrameSpin(DQuaternion.Identity, SiderealRate).RotationAt(world.Time).Conjugate().Rotate(toSun);
+            Double3 sunAcross = new Double3(toSunInSurface.X, 0, toSunInSurface.Z).Normalized();
+            Double3 padEye = -sunAcross * 22 + new Double3(0, EarthRadius + 6, 0);
             View("pad-view", surface, LookingAt(padEye, new Double3(0, EarthRadius + 8, 0)));
 
             Double3 farEye = (toSun + Double3.UnitX * 0.6).Normalized() * 5e7;

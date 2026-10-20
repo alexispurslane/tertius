@@ -1,6 +1,7 @@
 using System.Numerics;
 using Tertius.Demo;
 using Tertius.Frames.Rails;
+using Tertius.Physics;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
 using DemoStation = Tertius.Demo.DemoScenes.DemoStation;
@@ -135,6 +136,61 @@ public sealed class EarthSystemTests : IDisposable
         world.GetFrame(box).Should().Be(surface);
         (world.PoseIn(box, surface).Position - restingOn).Length.Should().BeLessThan(0.02, "the box rests on the pad");
         world.VelocityIn(box, surface).Length.Should().BeLessThan(0.01, "the box is at rest in earth-surface");
+    }
+
+    /// <summary>
+    /// At the June solstice, the Moon stands about 45 degrees west of the Sun, as seen from Earth, and the angle between
+    /// them shrinks, because the Moon moves prograde, toward the Sun: a waning crescent, a few days before new Moon.
+    /// </summary>
+    [Fact]
+    public void AtTheJuneSolsticeTheMoonIsAWaningCrescent()
+    {
+        KeplerOrbit earthOrbit = DemoScenes.EarthOrbit(DemoScenes.EarthDate.JuneSolstice);
+
+        // The angle between the Moon and the Sun as seen from Earth, in radians, at a time in seconds.
+        double Elongation(double time)
+        {
+            Double3 toSun = earthOrbit.RotationAt(time, DemoScenes.SunMu).Conjugate().Rotate(-earthOrbit.StateAt(time, DemoScenes.SunMu).Position);
+            Double3 toMoon = DemoScenes.MoonOrbit.StateAt(time, DemoScenes.EarthMu).Position;
+            return Math.Acos(Double3.Dot(toSun.Normalized(), toMoon.Normalized()));
+        }
+
+        (Elongation(0) * 180 / Math.PI).Should().BeApproximately(45, 1, "the Moon stands about 45 degrees from the Sun");
+        Elongation(86_400).Should().BeLessThan(Elongation(0), "the Moon moves toward the Sun, so it wanes");
+    }
+
+    /// <summary>
+    /// pad-view stands 22 m from the pole, horizontally in earth-surface, and looks at the pole along the Sun's horizontal
+    /// direction, so that the Sun, 23.44 degrees up, stands straight ahead of it.
+    /// </summary>
+    [Fact]
+    public void PadViewStands22MFromThePoleAndFacesTheSun() => PadViewFacesTheSun(world, scene);
+
+    /// <summary>
+    /// In a world that starts a quarter of a sidereal day after time 0, earth-surface has turned by 90 degrees, and pad-view
+    /// still faces the Sun, because the scene places it for the world's current time.
+    /// </summary>
+    [Fact]
+    public void PadViewFacesTheSunInAWorldThatStartsLater()
+    {
+        using var later = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true, StartTime = Math.PI / 2 / DemoScenes.SiderealRate },
+            new JoltPhysicsBackend());
+        SceneInstance laterScene = DemoScenes.All.Single(s => s.Name == "earth-system").Build(later, RenderResources.None);
+
+        PadViewFacesTheSun(later, laterScene);
+    }
+
+    private static void PadViewFacesTheSun(World world, SceneInstance scene)
+    {
+        FrameHandle surface = world.GetOwnedFrame(scene["earth-surface"]);
+        Double3 eye = world.PoseIn(scene["pad-view"], surface).Position;
+        Double3 toSun = world.PoseIn(scene["sun"], surface).Position.Normalized();
+
+        var eyeOut = new Double3(eye.X, 0, eye.Z);
+        eyeOut.Length.Should().BeApproximately(22, 1e-6, "pad-view stands 22 m from the pole");
+        var sunAcross = new Double3(toSun.X, 0, toSun.Z);
+        (Math.Acos(Double3.Dot(-eyeOut.Normalized(), sunAcross.Normalized())) * 180 / Math.PI)
+            .Should().BeLessThan(0.01, "pad-view looks at the pole along the Sun's horizontal direction");
     }
 
     /// <summary>The orbit scene keeps Earth at the March equinox: along -X of the Sun's axes, so the Sun stands toward +X from Earth.</summary>

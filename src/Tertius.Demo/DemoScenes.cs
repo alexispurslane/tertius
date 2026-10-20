@@ -54,6 +54,26 @@ public static partial class DemoScenes
     /// <summary>The tilt of Earth's axis from the pole of its orbit: 23.4392811 degrees, in radians.</summary>
     public const double Obliquity = 23.4392811 * Math.PI / 180;
 
+    /// <summary>The Moon's mean radius, in meters.</summary>
+    public const double MoonRadius = 1.7374e6;
+
+    /// <summary>The tilt of the Moon's orbit to the ecliptic, the plane of Earth's orbit: 5.145 degrees, in radians.</summary>
+    public const double MoonInclination = 5.145 * Math.PI / 180;
+
+    /// <summary>
+    /// The Moon's mean orbit round Earth, in earth's axes: semi-major axis 384,400 km, eccentricity 0.0549, tilted
+    /// <see cref="MoonInclination"/> to the ecliptic. Its ascending node on the ecliptic lies on the March equinox direction,
+    /// earth's +X, as at the major lunar standstill of 2024 and 2025. Earth's axes lean from the ecliptic by
+    /// <see cref="Obliquity"/> about that same line, so the two tilts add: the orbit leans 28.58 degrees from Earth's
+    /// equator, with its node on +X. Its perigee lies on the node. At time 0 the Moon stands 45 degrees past it, toward
+    /// -Z and north, which at the June solstice is 45 degrees from the Sun as seen from Earth: a waning crescent, three or
+    /// four days before new Moon, so that from beside the Moon, Earth shows mostly its day side. Its attitude does not
+    /// turn. The Moon has no gravity of its own: only Earth's pulls in earth, so the orbit takes earth's G·M,
+    /// <see cref="EarthMu"/>.
+    /// </summary>
+    public static KeplerOrbit MoonOrbit { get; } = new(SemiMajorAxis: 3.844e8, Eccentricity: 0.0549, Inclination: Obliquity + MoonInclination,
+        LongitudeOfAscendingNode: 0, ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: MeanAnomaly(Math.PI / 4, 0.0549), Epoch: 0, AxialTilt: DQuaternion.Identity, SpinRate: 0, SpinPhaseAtEpoch: 0);
+
     /// <summary>
     /// The vertical slice's first scene: a ship falls freely round an Earth that goes round the sun, at the March equinox.
     /// <list type="bullet">
@@ -234,7 +254,7 @@ public static partial class DemoScenes
     }
 
     /// <summary>
-    /// Where Earth stands on its orbit at the world's time: its longitude, the angle in radians about the Sun's +Y from the
+    /// Where Earth stands on its orbit at the world's time 0: its longitude, the angle in radians about the Sun's +Y from the
     /// Sun's +X, Earth's place at the September equinox, the way Earth moves, from +X toward -Z.
     /// </summary>
     public readonly record struct EarthDate(double Longitude)
