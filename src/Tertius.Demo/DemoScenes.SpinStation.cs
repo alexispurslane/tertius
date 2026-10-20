@@ -20,11 +20,12 @@ public static partial class DemoScenes
     /// gives 9.81 m/s² at 100 m. Its spawn carries its first motion intent, so it turns from its first step, and the
     /// person and the crates spawned on its floor turn with it from their first step. Its frame has no field, so only the
     /// turn holds things on the floor. The ring runs from <see cref="FloorRadius"/>, 100 m, to 101 m from the axis and is
-    /// 16 m wide along it, in <see cref="Segments"/>, 256, segments. In space its shape is the compound of one hull per
+    /// 20 m wide along it, in <see cref="Segments"/>, 256, segments. In space its shape is the compound of one hull per
     /// segment (<see cref="RevolvedSolid.Shape"/>). In its own frame it is the ring's exact mesh, the floor people walk on:
     /// on the hull compound a sliding box trips at every joint, and on the mesh it does not (ter-fb3w). Each facet of the
     /// floor is 2.45 m long, and its middle lies 7.5 mm inside the circle of 100 m. The bubble is a sphere of 110 m.</item>
-    /// <item>Two static <c>rim</c>s, rings 0.3 m high and 0.2 m wide on the floor at its two edges, keep crates on it.</item>
+    /// <item>Two static walls, <c>wall-left</c> and <c>wall-right</c>, rings 4 m high and 0.3 m thick on the floor at
+    /// its two edges, keep crates on it and close the view to the sides.</item>
     /// <item>The <c>person</c>, a capsule character 1.8 m tall, stands on the middle of facet 0, in the middle of the
     /// floor's width, and faces spinward. Its eye, 1.65 m above the floor, is a view. While that view is on,
     /// <see cref="PersonControl"/> steers it, and with <see cref="Carry"/>, E picks up a crate within reach and the left
@@ -36,10 +37,11 @@ public static partial class DemoScenes
     /// floor in about 0.6 s. It has no <see cref="Crate"/>, so no one picks it up.</item>
     /// <item>The views, both in the station's frame, so that they turn with it: <c>view</c>, the camera at the start,
     /// stands 2.2 m above the floor about 10 m antispinward of the person and looks spinward along the floor, which curves
-    /// up behind the person. <c>wide</c> stands 12 m above the floor, 30 m antispinward, and looks up the ring.</item>
-    /// <item>The light comes from the frame <c>sun</c>, at rest in the station 25 m along its +Y from its center, so that
-    /// it shines from near the axis down onto the floor near the views and turns with the station. The ring and the rims
-    /// cast no shadows, because the far side of the ring would shade the floor; the person and the crates do.</item>
+    /// up behind the person. <c>wide</c> stands 8 m above the floor, 25 m antispinward, and looks up the ring.</item>
+    /// <item>Lamps on both walls, 3.8 m above the floor, one on each wall over every fourth joint, light the floor all
+    /// round the ring. A dim sun, the frame <c>sun</c> at rest in the station 25 m along its +Y from its center, shines from
+    /// near the axis down onto the floor near the views and turns with the station, so the person and the crates cast
+    /// shadows there. The ring and the walls cast none, because the far side of the ring would shade the floor.</item>
     /// </list>
     /// </summary>
     public static class SpinStation
@@ -54,7 +56,7 @@ public static partial class DemoScenes
         public const int Segments = 256;
 
         /// <summary>Half the ring's width along the axis, in meters.</summary>
-        public const float HalfWidth = 8;
+        public const float HalfWidth = 10;
 
         /// <summary>How far a standing person's center lies from the floor, in meters: the capsule's half height and radius.</summary>
         public const double StandingHeight = 0.9;
@@ -65,7 +67,11 @@ public static partial class DemoScenes
         /// <summary>The mass of each crate, in kilograms.</summary>
         public const float CrateMass = 5;
 
-        private const float HullThickness = 1, RimHeight = 0.3f, RimWidth = 0.2f, Bubble = 110;
+        private const float HullThickness = 1, WallHeight = 4, WallThickness = 0.3f, Bubble = 110;
+
+        /// <summary>The lamps: one on each wall over every fourth joint of the floor, this high above it, in meters.</summary>
+        private const int LampEvery = 4;
+        private const double LampHeight = 3.8;
 
         /// <summary>The angle of one facet of the floor, in radians.</summary>
         private static double Facet => Math.Tau / Segments;
@@ -133,17 +139,41 @@ public static partial class DemoScenes
             scene.Add("station", station);
             FrameHandle frame = world.GetOwnedFrame(station);
 
-            RevolvedSolid rim = RevolvedSolid.Ring(FloorRadius - RimHeight, FloorRadius, RimWidth / 2, Segments);
-            ShapeDesc rimShape = rim.Shape();
-            MeshData rimMesh = rim.Mesh();
-            foreach ((string id, double y) in new[] { ("rim-left", -(HalfWidth - RimWidth / 2)), ("rim-right", HalfWidth - RimWidth / 2) })
+            RevolvedSolid wall = RevolvedSolid.Ring(FloorRadius - WallHeight, FloorRadius, WallThickness / 2, Segments);
+            ShapeDesc wallShape = wall.Shape();
+            RenderData wallRender = Unshadowed(resources, wall.Mesh(), new Vector4(0.42f, 0.44f, 0.5f, 1), wallShape.BoundingRadius());
+            foreach ((string id, double y) in new[] { ("wall-left", -(HalfWidth - WallThickness / 2)), ("wall-right", HalfWidth - WallThickness / 2) })
                 scene.Add(id, world.Spawn(new SpawnDesc
                 {
                     Frame = frame,
                     Pose = new DPose(new Double3(0, y, 0), DQuaternion.Identity),
-                    Body = new BodyDesc(rimShape, BodyMotion.Static),
-                    Render = Unshadowed(resources, rimMesh, new Vector4(0.35f, 0.37f, 0.42f, 1), rimShape.BoundingRadius()),
+                    Body = new BodyDesc(wallShape, BodyMotion.Static),
+                    Render = wallRender,
                 }));
+
+            // Each lamp is a glowing panel on the inner face of a wall, with its light just in front of it.
+            MeshId lampMesh = resources.CreateMesh(Primitives.Box(new Vector3(0.05f, 0.3f, 0.6f)));
+            MaterialId lampMaterial = resources.CreateMaterial(new MaterialDesc(new Vector4(0, 0, 0, 1), SpecularIntensity: 0, Emissive: new Vector3(6, 5.4f, 4.5f)));
+            for (int k = 0; k < Segments; k += LampEvery)
+            {
+                double theta = k * Facet, radius = FloorRadius - LampHeight;
+                foreach (double side in new[] { -1.0, 1.0 })
+                {
+                    world.Spawn(new SpawnDesc
+                    {
+                        Frame = frame,
+                        Pose = new DPose(new Double3(radius * Math.Cos(theta), side * (HalfWidth - WallThickness - 0.05), -radius * Math.Sin(theta)), Upright(theta)),
+                        Render = new RenderData
+                        {
+                            Mesh = lampMesh,
+                            Material = lampMaterial,
+                            BoundingRadius = 0.85f,
+                            Flags = RenderFlags.Visible,
+                            Light = new PointLightData(new Pose(new Vector3((float)-side * 0.3f, -0.3f, 0), Quaternion.Identity), new Vector3(1, 0.92f, 0.8f), Intensity: 80, Range: 18),
+                        },
+                    });
+                }
+            }
 
             // The person stands on the middle of facet 0, 2 cm above the floor, upright and facing spinward. Physics turns
             // its up against the effective gravity, which points away from the axis.
@@ -172,7 +202,7 @@ public static partial class DemoScenes
 
             Entity view = world.Spawn(new SpawnDesc { Frame = frame, Pose = View(-0.09, 2.2, 0.05), Render = new RenderData() });
             scene.Add("view", view);
-            scene.Add("wide", world.Spawn(new SpawnDesc { Frame = frame, Pose = View(-0.3, 12, 0.35), Render = new RenderData() }));
+            scene.Add("wide", world.Spawn(new SpawnDesc { Frame = frame, Pose = View(-0.25, 8, 0.2), Render = new RenderData() }));
             world.Camera = view;
 
             Entity sun = world.Spawn(new SpawnDesc
@@ -183,7 +213,8 @@ public static partial class DemoScenes
             });
             scene.Add("sun", sun);
             world.SunFrame = world.GetOwnedFrame(sun);
-            world.Ambient = new AmbientLight { SkyColor = new Vector3(0.18f), GroundColor = new Vector3(0.12f), Intensity = 1 };
+            world.SunIntensity = 0.6f;
+            world.Ambient = new AmbientLight { SkyColor = new Vector3(0.12f), GroundColor = new Vector3(0.12f), Intensity = 1 };
 
             scene.AddView("view");
             scene.AddView("wide");

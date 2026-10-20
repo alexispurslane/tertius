@@ -278,10 +278,11 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
     public void TheJumpLandsWhereTheInertialLineOfItsTakeoffMeetsTheFloor()
     {
         // The jump is an instant velocity of PersonControl.JumpSpeed along up, relative to the ground, where the step of the
-        // jump starts: the sample after the tick that reads Space, the second tick after the dump (see Walk). In inertial space the person then moves on the straight
-        // line through its place there with that velocity plus the velocity of the floor under it, ω × x, until the plane of
-        // the facet under it, 0.9 m nearer the axis, meets its center again. The landing that the flight shows is the
-        // crossing of that plane by the straight line through its last two free places. The spike measured 7 µm.
+        // jump starts: the sample after the tick that reads Space, the second tick after the dump (see Walk). In inertial
+        // space the person then moves on the straight line through its place there with that velocity plus the velocity of
+        // the floor under it, ω × x, until the plane of the facet under it, 0.9 m nearer the axis, meets its center again.
+        // The landing that the flight shows is the crossing of that plane by the straight line through its last two free
+        // places. The bound is the spike's 7 µm, and the run measured 6e-8 to 8e-8 m.
         int jump = At("jump") + 2;
         SpinStationSample start = Samples[jump];
         start.Standing.Should().BeTrue("the person stands where it jumps");
@@ -305,7 +306,8 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
         Double3.Distance(measured, place).Should().BeLessThan(7e-6, "the person flies on the inertial line of its takeoff");
         (last.Time - start.Time + measuredTime).Should().BeApproximately(time, 1e-4);
         Samples.Skip(landed + 2).Take(30).Should().OnlyContain(s => s.Standing, "it stands again after it lands");
-        // The ground holds a standing character, so the person stops where it lands: measured 8.4e-5 m from the place.
+        // The ground holds a standing character, so the person stops where it lands: measured 3.6e-5 to 8.4e-5 m from the
+        // place.
         Double3.Distance(Samples[landed + 30].Person.InStation, place).Should().BeLessThan(1e-3, "the person rests where its line met the floor");
     }
 
@@ -365,7 +367,7 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
 
     /// <summary>
     /// How far the dropped crate may rest from where its expected path met the floor, in meters. It lands at 6 m/s
-    /// relative to the floor, nearly along the facet's normal, and friction stops what slides: measured 3.1 mm.
+    /// relative to the floor, nearly along the facet's normal, and friction stops what slides: measured 3.1 to 3.3 mm.
     /// </summary>
     private const double DropRestBound = 0.01;
 
