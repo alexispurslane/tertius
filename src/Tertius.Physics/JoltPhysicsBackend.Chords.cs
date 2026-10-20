@@ -48,9 +48,10 @@ namespace Tertius.Physics;
 // above. The half step of the linear gravity is a change of velocity at the instant, in the axes then, so the chord behind
 // takes its field part turned back into the axes of the step that ended, and an instant velocity read at the end of a step
 // takes it as it is (see TurningMoment). The angular velocity of a dynamic body that can turn has the same pair,
-// FrameTurn.AngularChordBehind and FrameTurn.InstantAngularAtEnd. A kinematic body moves in the frame's coordinates, and a
-// walking character's update keeps its own rules, so neither takes the turn. A ghost converts its real body's chord by the
-// poses of the frame at both ends of the step (see StepPoses).
+// FrameTurn.AngularChordBehind and FrameTurn.InstantAngularAtEnd. A kinematic body moves in the frame's coordinates, so it
+// takes no turn. A walking character takes the chord rule and the two-turn update in its own update, by what its velocity
+// means at the start of the update (see NextCharacterVelocity). A ghost converts its real body's chord by the poses of the
+// frame at both ends of the step (see StepPoses).
 
 public sealed partial class JoltPhysicsBackend
 {
