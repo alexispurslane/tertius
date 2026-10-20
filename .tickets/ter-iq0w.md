@@ -1,6 +1,6 @@
 ---
 id: ter-iq0w
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-20T14:50:37Z

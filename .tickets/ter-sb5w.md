@@ -1,6 +1,6 @@
 ---
 id: ter-sb5w
-status: open
+status: in_progress
 deps: [ter-ozm8]
 links: []
 created: 2026-10-18T15:20:44Z
