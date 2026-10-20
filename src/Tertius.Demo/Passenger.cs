@@ -18,20 +18,32 @@ public readonly record struct Fetching;
 /// <param name="Copy">The drawn copy of the pen in its hand.</param>
 public readonly record struct Holding(Entity Copy);
 
+/// <summary>Tells a <see cref="Passenger"/> that holds the pen to float back to its seat and strap in.</summary>
+public struct FastenBelt : IEventPayload;
+
+/// <summary>A <see cref="Passenger"/> floats back to its seat with the pen in its hand, to strap in.</summary>
+/// <param name="Copy">The drawn copy of the pen in its hand.</param>
+public readonly record struct Returning(Entity Copy);
+
+/// <summary>A <see cref="Passenger"/> is strapped in at its seat with the pen in its hand, and never opens its belt.</summary>
+/// <param name="Copy">The drawn copy of the pen in its hand.</param>
+public readonly record struct Strapped(Entity Copy);
+
 /// <summary>The pen went before a <see cref="Passenger"/> took it, so the passenger stops where it is, with empty hands.</summary>
 public readonly record struct Stopped;
 
 /// <summary>
 /// What a <see cref="Passenger"/> does, in the order of a flight: <see cref="Boarding"/>, <see cref="Seated"/>,
-/// <see cref="Fetching"/>, and then <see cref="Holding"/> or <see cref="Stopped"/>. The default value is
+/// <see cref="Fetching"/>, and then <see cref="Holding"/> or <see cref="Stopped"/>. From <see cref="Holding"/>, a
+/// <see cref="FastenBelt"/> leads to <see cref="Returning"/> and then <see cref="Strapped"/>. The default value is
 /// <see cref="Boarding"/>. This is a custom C# 15 union, like <see cref="AscentState"/>.
 /// </summary>
 [Union]
 public readonly struct PassengerState : IEquatable<PassengerState>
 {
-    private const byte KindBoarding = 0, KindSeated = 1, KindFetching = 2, KindHolding = 3, KindStopped = 4;
+    private const byte KindBoarding = 0, KindSeated = 1, KindFetching = 2, KindHolding = 3, KindStopped = 4, KindReturning = 5, KindStrapped = 6;
 
-    // A seated state fills the weightless ticks, and a holding one the copy. Every other field is zero, so equality
+    // A seated state fills the weightless ticks, and a holding, returning or strapped one the copy. Every other field is zero, so equality
     // compares every field.
     private readonly Entity copy;
     private readonly int weightlessTicks;
@@ -42,6 +54,8 @@ public readonly struct PassengerState : IEquatable<PassengerState>
     public PassengerState(Fetching fetching) { kind = KindFetching; }
     public PassengerState(Holding holding) { kind = KindHolding; copy = holding.Copy; }
     public PassengerState(Stopped stopped) { kind = KindStopped; }
+    public PassengerState(Returning returning) { kind = KindReturning; copy = returning.Copy; }
+    public PassengerState(Strapped strapped) { kind = KindStrapped; copy = strapped.Copy; }
 
     /// <summary>Always true: every value is a state, and the default value is <see cref="Boarding"/>.</summary>
     public bool HasValue => true;
@@ -76,12 +90,26 @@ public readonly struct PassengerState : IEquatable<PassengerState>
         return kind == KindStopped;
     }
 
+    public bool TryGetValue(out Returning value)
+    {
+        value = new Returning(copy);
+        return kind == KindReturning;
+    }
+
+    public bool TryGetValue(out Strapped value)
+    {
+        value = new Strapped(copy);
+        return kind == KindStrapped;
+    }
+
     public object Value => kind switch
     {
         KindSeated => new Seated(weightlessTicks),
         KindFetching => new Fetching(),
         KindHolding => new Holding(copy),
         KindStopped => new Stopped(),
+        KindReturning => new Returning(copy),
+        KindStrapped => new Strapped(copy),
         _ => new Boarding(),
     };
 
@@ -95,7 +123,8 @@ public readonly struct PassengerState : IEquatable<PassengerState>
 }
 
 /// <summary>
-/// A passenger who rides out the climb at its seat, and in orbit floats to a loose pen and takes it. Its entity needs a
+/// A passenger who rides out the climb at its seat, and in orbit floats to a loose pen and takes it. Told to fasten its
+/// belt, it floats back to its seat with the pen in its hand and straps in for the burns that follow. Its entity needs a
 /// character body and a view offset, whose eye the pen in its hand follows (see <see cref="HeldInView"/>). It goes through
 /// the cases of <see cref="PassengerState"/>:
 /// <list type="bullet">
@@ -116,7 +145,15 @@ public readonly struct PassengerState : IEquatable<PassengerState>
 /// <see cref="Carry"/> takes a crate: it tells the pen that it is taken, so that the pen goes, and it holds a drawn copy
 /// of the pen in its hand, where and as the loose pen was, relative to its view. If the pen goes in another way, the
 /// passenger stops.</item>
-/// <item><see cref="Holding"/> and <see cref="Stopped"/>: its thrusters stop it relative to its frame.</item>
+/// <item><see cref="Holding"/>: its thrusters stop it relative to its frame. A <see cref="FastenBelt"/> sends it back to
+/// its seat, in the same tick. In every other case, a <see cref="FastenBelt"/> changes nothing.</item>
+/// <item><see cref="Returning"/>: its thrusters float its center back to <paramref name="seat"/>, with the law of the
+/// fetch: toward the seat at <see cref="ApproachRate"/> per meter of the way that is left, up to <see cref="FloatSpeed"/>.
+/// The drawn copy of the pen stays in its hand. Once its center is within <see cref="BuckleRadius"/> of the seat, it
+/// shuts its belt.</item>
+/// <item><see cref="Strapped"/>: the belt holds it at its seat as in <see cref="Seated"/>, with the copy of the pen in
+/// its hand, but it never opens the belt.</item>
+/// <item><see cref="Stopped"/>: its thrusters stop it relative to its frame.</item>
 /// </list>
 /// </summary>
 /// <remarks>
@@ -198,7 +235,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
 
     public int Priority => 0;
 
-    public EventMask Wants => EventMask.Of<Tick>().And<CrateOffer>();
+    public EventMask Wants => EventMask.Of<Tick>().And<CrateOffer>().And<FastenBelt>();
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
@@ -212,13 +249,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
             case Seated { WeightlessTicks: int ticks }:
                 if (self.Frame != seat.Frame)
                     return;
-                // The gravity that the passenger feels over the last finished step, with the rotation terms of the frame's
-                // turn, which physics applies to a character too: the belt pushes against the gravity that physics applies.
-                Double3 gravity = self.Snapshot.Frames.FeltGravity(seat.Frame, self.PoseIn(seat.Frame).Position);
-                bool weightless = gravity.Length < FrameTree.ZeroGravityThreshold;
-                if (weightless || Double3.Dot(gravity, -Double3.UnitY) < gravity.Length * Math.Cos(BeltAngle))
-                    Belt(self, gravity, mass);
-                ticks = weightless ? ticks + 1 : 0;
+                ticks = HoldAtSeat(self, mass) ? ticks + 1 : 0;
                 State = ticks * (double)self.DeltaTime >= UnbuckleSeconds ? new Fetching() : new Seated(ticks);
                 return;
             case Fetching:
@@ -232,10 +263,64 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
                 }
                 Fetch(self, outbox, mass);
                 return;
+            case Holding { Copy: Entity held }:
+                if (!events.Of<FastenBelt>().Any())
+                {
+                    Steer(self, Double3.Zero, mass);
+                    return;
+                }
+                State = new Returning(held);
+                Return(self, held, mass);
+                return;
+            case Returning { Copy: Entity held }:
+                Return(self, held, mass);
+                return;
+            case Strapped:
+                if (self.Frame == seat.Frame)
+                    HoldAtSeat(self, mass);
+                return;
             default:
                 Steer(self, Double3.Zero, mass);
                 return;
         }
+    }
+
+    /// <summary>
+    /// Shuts the belt when the gravity that the passenger feels would not keep it on its feet, and returns whether the
+    /// passenger is weightless. The passenger is in its seat's frame.
+    /// </summary>
+    private bool HoldAtSeat(Self self, float mass)
+    {
+        // The gravity that the passenger feels over the last finished step, with the rotation terms of the frame's turn,
+        // which physics applies to a character too: the belt pushes against the gravity that physics applies.
+        Double3 gravity = self.Snapshot.Frames.FeltGravity(seat.Frame, self.PoseIn(seat.Frame).Position);
+        bool weightless = gravity.Length < FrameTree.ZeroGravityThreshold;
+        if (weightless || Double3.Dot(gravity, -Double3.UnitY) < gravity.Length * Math.Cos(BeltAngle))
+            Belt(self, gravity, mass);
+        return weightless;
+    }
+
+    /// <summary>
+    /// Floats the passenger, with <paramref name="held"/> in its hand, toward its seat, at <see cref="ApproachRate"/> per
+    /// meter of the way that is left, up to <see cref="FloatSpeed"/>, and straps it in once its center is within
+    /// <see cref="BuckleRadius"/> of the seat. Outside the seat's frame, it stops relative to its frame instead, as a
+    /// passenger that holds the pen does.
+    /// </summary>
+    private void Return(Self self, Entity held, float mass)
+    {
+        if (self.Frame != seat.Frame)
+        {
+            Steer(self, Double3.Zero, mass);
+            return;
+        }
+        Double3 way = seat.Position - self.PoseIn(seat.Frame).Position;
+        double distance = way.Length;
+        if (distance <= BuckleRadius)
+        {
+            State = new Strapped(held);
+            return;
+        }
+        Steer(self, way * (Math.Min(FloatSpeed, distance * ApproachRate) / distance), mass);
     }
 
     /// <summary>

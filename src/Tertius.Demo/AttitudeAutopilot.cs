@@ -20,7 +20,7 @@ public struct AttitudeTarget : IEventPayload
 /// radian of the turn that is left, and at most <see cref="MaxTurnRate"/>. Then it gives the torque that brings the body's
 /// angular velocity to that rate in <see cref="RateTime"/>, from the body's moments of inertia. A tick without a target
 /// gives no torque, so the autopilot keeps nothing from an earlier tick. When a tick brings several targets, the last one
-/// counts. Its entity needs a dynamic body, whose principal axes are its own axes.
+/// counts. It runs at priority 10, after every layer of the flight program, so it follows the last layer that speaks. Its entity needs a dynamic body, whose principal axes are its own axes.
 /// </summary>
 /// <remarks>
 /// The autopilot reads the body's rotation and angular velocity at the end of the last finished step, and its torque
@@ -41,8 +41,8 @@ public sealed class AttitudeAutopilot(Vector3 inertia) : IComponent
 
     private readonly Vector3 inertia = inertia;
 
-    // After the components that fly the hull, which add the target in the same tick.
-    public int Priority => 1;
+    // After every layer of the flight program, priorities 0 to 2, which add the target in the same tick.
+    public int Priority => 10;
 
     public EventMask Wants => EventMask.Of<AttitudeTarget>();
 
