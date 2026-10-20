@@ -1,6 +1,6 @@
 ---
 id: ter-tzf6
-status: in_progress
+status: closed
 deps: [ter-s9m0, ter-m13s, ter-r1hi]
 links: []
 created: 2026-10-18T14:08:42Z
