@@ -718,7 +718,7 @@ One, which the user chose on 2026-10-20: `KeplerOrbit.Propagate` and `KeplerOrbi
 
 ## The shuttle's tram shape and glass canopy
 
-Ticket ter-4xkz designs the shuttle's new shape and its glass (2026-10-20). The user asked for huge panoramic windows all around the shuttle. A viewer then sees what goes on outside, and sees that the shuttle moves while things move inside it. The user also asked for a nicer shape than a box. From two designs, the user chose the tram shape and the glass canopy. The live world design adds one need: the hull stands on its tail, nose up, on a flat landing pad ([Live world](live-world.md), part 3, and "What this design asks of other tickets"). Nothing in the renderer changes. One engine change is open, for the center of mass (see "Engine changes").
+Ticket ter-4xkz designs the shuttle's new shape and its glass (2026-10-20). The user asked for huge panoramic windows all around the shuttle. A viewer then sees what goes on outside, and sees that the shuttle moves while things move inside it. The user also asked for a nicer shape than a box. From two designs, the user chose the tram shape and the glass canopy. The live world design adds one need: the hull stands on its tail, nose up, on a flat landing pad ([Live world](live-world.md), part 3, and "What this design asks of other tickets"). Nothing in the renderer changes. The engine gets no change for mass properties: the user decided on 2026-10-20 that the hull has one density (see "Engine changes").
 
 ### What the step does
 
@@ -745,6 +745,7 @@ Terms used in this section:
 - A rib: the solid strip across the glass at a rib place, 0.2 m wide. A pillar is a rib's part on a side.
 - A mullion: the solid strip along a fold between two cells of glass, 0.12 m wide.
 - The sill: the line along each side at y = -1.2 m, 0.6 m above the cabin floor, where the glass band starts.
+- The hull's middle: the origin. The hull's middle line: the line x = 0, y = 0, along Z.
 - The long axis: the hull's principal axis of least inertia, through its center of mass.
 
 ### The cross-sections
@@ -785,7 +786,7 @@ The shape:
 - The tail is short: the hull keeps the full cross-section to its aft end, and the aft end is a flat face across all of it, the tail face.
 - The sill corners, 3 and 8, lie on the straight sides. They only split each side into the solid lower edge and the glass upper edge.
 
-Every edge of the front is parallel to the same edge of the full cross-section. So every cell is flat, and the cross-section at each z between them is the blend of the two, which is also their Minkowski blend. So the loft between two cross-sections is exactly their convex hull, and the whole outer skin is convex.
+Every edge of the front is parallel to the same edge of the full cross-section. Every cross-section but the tail face lies at a rib place, at z = -8 and -5, so no bay holds a bend. So every cell is flat, and the cross-section at each z between them is the blend of the two, which is also their Minkowski blend. So the loft between two cross-sections is exactly their convex hull, and the whole outer skin is convex.
 
 The inner skin is each cross-section moved in by the wall, 0.2 m, along each edge's normal in the plane of the cross-section. Its inner end faces lie at z = -7.8 and 7.8. In the full cross-section, the inner skin has:
 
@@ -875,9 +876,10 @@ For a body with a mass, physics takes the mass properties of its shape at one de
 
 - X is a principal axis, because the hull is mirror symmetric across x = 0.
 - The center of mass lies low and aft, and the long axis tilts, for one reason: the roof bevels are larger than the belly bevels, and the nose's roof falls while its belly stays flat. Both take volume from above, and the nose takes it from the front.
-- The live world needs a center of mass on the long axis. Here that means a center of mass on the hull's middle line, with principal axes along the hull's own. A hull of one density with the look that the user chose cannot meet the need. This design keeps the hull of one density. An engine change meets the need (see "Engine changes").
+- The live world asks for a center of mass on the long axis. Its long axis is the hull's middle line, because it measures the seat's distance from x = 0, y = 0. A hull of one density with the look that the user chose puts the center of mass 9 cm below that line, with principal axes that tilt from the hull's own.
+- The user decided on 2026-10-20 that the hull keeps one density, with no engine change for mass properties apart from the collision shape (see "Engine changes"). So the center of mass sits where physics derives it, the attitude autopilot takes the principal axes, and the nozzle pushes through the center of mass. The reason: these two demo changes cover every effect of the offset that the demo shows, so the engine change would add a field of `BodyDesc` that the demo does not need.
 
-How the demo derives the values: `LoftedHull.MassOf(mass)` integrates the outer loft exactly. Between two cross-sections, the cross-section at each z has corners that move linearly in z. So the area is a polynomial in z of degree 2, the first moments of degree 3, and the second moments of degree 4. Each integrand, with its factor of z or z², has a degree of at most 4. A Gauss rule of three points over each loft piece is exact to degree 5. The method returns a `HullMass(Vector3 CenterOfMass, PrincipalInertia Inertia)`, where `PrincipalInertia(Vector3 Moments, Quaternion Axes)` holds the moments about the principal axes and the rotation from the body's axes to them.
+How the demo derives the values: `LoftedHull.MassOf(mass)` integrates the outer loft exactly. Between two cross-sections, the cross-section at each z has corners that move linearly in z. So the area is a polynomial in z of degree 2, the first moments of degree 3, and the second moments of degree 4. Each integrand, with its factor of z or z², has a degree of at most 4. A Gauss rule of three points over each loft piece is exact to degree 5. The method integrates in doubles and rounds its result to floats once. It returns a `HullMass(Vector3 CenterOfMass, PrincipalInertia Inertia)`, where `PrincipalInertia(Vector3 Moments, Quaternion Axes)` holds the moments about the principal axes and the rotation from the body's axes to them.
 
 - `Shuttle.CenterOfMass` and `Shuttle.Inertia`, now a `PrincipalInertia`, come from `Loft.MassOf(Mass)`. `BoxInertia` goes.
 - `AttitudeAutopilot` takes a `PrincipalInertia`. It turns the angular acceleration that it asks for into the principal axes, multiplies it by the moments there, and turns the torque back. The torque about a tilted tensor matters: a torque about the hull's Y, on this tensor, turns the hull about an axis 4.7 degrees from Y. With only the moments in the body's own axes, as today, the autopilot asks for one turn and gets another.
@@ -895,11 +897,17 @@ The interior shape is the drawn hull's solid, in convex pieces. The glass is sol
 | Pieces | How many | Each piece |
 |---|---|---|
 | A wall piece for each face, in the nose from z = -7.8 to -5 and in the body from -5 to 7.8 | 8 faces, twice, 16 | The convex hull of the face's outer and inner edges at both ends, 8 points |
-| The starboard side of the body, around the hatch | It replaces one of the 16 by 4 | The four boxes of `AroundDoorway` round `Shuttle.Hatch` |
+| The starboard side of the body, around the hatch | It replaces one of the 16 by 4 | The side's wall piece, cut by `Door` round `Shuttle.Hatch` into four convex hulls: aft of the doorway, forward of it, above it and below it |
 | The nose wall | 1 | The convex hull of the outer cross-sections at z = -8 and -7.8 |
 | The tail wall | 1 | The full cross-section from z = 7.8 to 8 |
 | The housing | 1 | A box 1.8 m on a side, from z = 7.2 to 7.8 |
 | The seat | 1 | `Shuttle.Seat`, as before |
+
+The wall pieces meet in mitres: two neighbor pieces share the plane through the outer and the inner corner between their faces. So the starboard side's piece runs from y = -1.8 to 1.2 at x = 3, and from -1.717 to 1.117 at x = 2.8. Boxes cannot fill that shape. The four boxes of `AroundDoorway` would overlap the bevels' pieces or leave wedges between them. So `Door` cuts the mitred piece itself:
+
+- Aft of the doorway and forward of it: the whole side's piece, from z = -5 to 1.4 and from 2.6 to 7.8.
+- Above the doorway: the side's piece from y = 0.4 up to its mitre, from z = 1.4 to 2.6.
+- Below the doorway: the side's piece from its mitre up to y = -1.7, from z = 1.4 to 2.6. It is 1.7 cm tall at the inner skin.
 
 That makes 23 pieces. Every piece has the convex radius 0, as the hulls of `RevolvedSolid` have. So the pieces meet the drawn skins exactly, and physics gives the body edge removal, because its shape is made of sharp pieces.
 
@@ -912,7 +920,7 @@ Why not the solid box of today: at the nose's front, the cabin box's ceiling lie
 | Member | What it gives | Part |
 |---|---|---|
 | `LoftedHull(HullSection[] crossSections, float wall, float[] ribs)` | A hull through the cross-sections, each a `HullSection(float Z, Vector2[] Corners)`, in order of Z. The first is the nose's front and the last the tail face. `wall` is the wall's thickness in the plane of a cross-section. `ribs` are the rib places, from the first cross-section's Z to before the last. | A |
-| `Door(BoundingBox door, int bay, int fromCorner, int toCorner)` | A doorway through the flat panel of the edges from `fromCorner` to `toCorner` in `bay`. The box spans the wall, as `Opening.ThroughX` does. | A |
+| `Door(BoundingBox door, int bay, int fromCorner, int toCorner)` | A doorway through the flat panel of the edges from `fromCorner` to `toCorner` in `bay`. The box spans the wall, as `Opening.ThroughX` does. `Interior()` cuts the wall piece of that face into four convex hulls round it. | A |
 | `TailPocket(float half, float depth, float housing)` | A square pocket in the tail face, on the line along Z through the center of mass. It reaches `half` from its middle to each side and is `depth` deep. The walls of its housing are `housing` thick. | A |
 | `Mesh()` | The drawn hull | A |
 | `Shape()` | The outer collision shape | A |
@@ -965,6 +973,7 @@ The generator refuses, with an `ArgumentException` that names the problem, as `B
 - A cross-section that is not convex, or not counterclockwise.
 - An edge that is not parallel to the same edge of every other cross-section.
 - Rib places that are not in order, or that lie outside the loft.
+- A cross-section, other than the last, whose Z is not a rib place. A cell is flat only when no cross-section lies inside its bay.
 - A door that reaches the edge of its panel, or a panel whose edges do not lie in one plane.
 - A pane in a cell narrower than its surrounds, or a pocket whose housing reaches the hull's wall.
 
@@ -1024,7 +1033,7 @@ The script is written again in part A, because the hull's mass changes the run, 
 | `LoftedHull` | `RevolvedSolid` and `BoxMesh` | One description gives the mesh and the collision shapes that match it. The mesh is closed with no T-junction, and an opening has its sides. Errors are `ArgumentException`s. |
 | `HullSection` | `RevolvedSolid`'s profile | A convex polygon whose sweep is the solid |
 | The cells and the rib places | `RevolvedSolid`'s segments | Flat pieces between fixed places |
-| `Door` | `Opening.ThroughX` and `AroundDoorway` | A hole through a wall with its sides, and the wall pieces round it |
+| `Door` | `Opening.ThroughX` and `AroundDoorway` | A hole through a wall with its sides, and four wall pieces round it. Here the pieces are cut from the mitred wall piece, not boxes. |
 | The panes | `PaneIn` | Glass with no body, 2 cm thick in the middle of its wall, 1 cm larger than its hole, transparent, with no shadow |
 | `LoftedHull.Shape` | The hull of `RevolvedSolid.Cylinder` | The convex hull of the corners |
 | `LoftedHull.Interior` | `RevolvedSolid.Shape`'s compound | Exactly the drawn solid, in convex pieces with the convex radius 0 |
@@ -1066,7 +1075,7 @@ The hull's values are fixed at the scene's build. Only the pen, the person and t
 
 A design from scratch, with the canopy known from the start, lofts the hull from its first ticket. It has the glass, the lamps and the clip on pillars, and the cameras placed for the glass. This design ends there, with two differences:
 
-- From scratch, a body's mass is a description of its own, apart from its collision shape, as a real hull's ballast is. Then the center of mass sits on the long axis. Here the hull has one density (see "Engine changes").
+- From scratch, a body's mass is a description of its own, apart from its collision shape, as a real hull's ballast is. Then the center of mass sits on the hull's middle line. Here the hull has one density, as the user decided on 2026-10-20 (see "Engine changes").
 - From scratch, the rib places follow only the look. Here a rib place sits at z = -1 because the clip was there first. The bays still come out about 2 m long, so the look does not suffer.
 
 ### Tests
@@ -1077,15 +1086,18 @@ The generator, with no World, in `LoftedHullTests`, with the checks of `MeshChec
 
 - `TheHullsMeshIsClosed`: `MeshChecks.ExpectClosed`.
 - `TheHullsMeshFacesOutOfItsSolid`: `MeshChecks.ExpectFacingOut`, with a test of the solid that the test writes from the tables: inside the outer loft, and outside the cabin, the holes and the pocket.
-- `EachPaneIsAHoleThroughBothSkinsWhereTheDesignSays`: the test lists the 40 panes from the tables of bays and edges. For each, a segment across the wall runs from 0.5 m inside to 0.5 m outside. It crosses no triangle at the hole's middle and 5 cm inside each corner. It crosses both skins 5 cm outside each side of the hole.
+- `EachPaneIsAHoleThroughBothSkinsWhereTheDesignSays`: the test lists the 40 panes from the tables of bays and edges. For each:
+  - The segment from the middle of the outer hole to the middle of the inner hole, extended 0.5 m past each skin, crosses no triangle.
+  - For each corner of the hole, the segment from the outer hole's corner to the matching inner hole's corner crosses no triangle. Both ends are moved 5 cm in from the two sides that meet at the corner. The segment runs along the reveal, which slants at a fold, so it stays in the hole.
+  - A point 5 cm outside the middle of each side of the hole, halfway between the skins, lies in the mesh's solid: a ray from it crosses the closed mesh an odd number of times. At a fold the mullion is 12 cm wide, so the point lies in it.
 - `TheGlassBandStartsAtTheSillAndRunsOverTheRoof`: no pane reaches below y = -1.1. The five glass edges hold panes in every bay from 1 to 8, and the solid edges hold none.
 - `TheHatchIsAHoleThroughTheStarboardWallAndTheGlassBreaksAroundIt`: the doorway is open through both skins, and bay 6 holds no starboard pane.
 - `EachPaneIsASlab2CmThickInTheMiddleOfItsWall`: each pane's mesh is closed and faces out. Its two large faces are parallel to its cell, 2 cm apart and halfway between the skins. Its outline is 1 cm larger than its hole.
 - `TheTailPocketIsARecessClosedAtItsDepth`: a line along -Z through the pocket's middle first meets the pocket's floor, at z = 7.4. A line 5 cm outside the pocket meets the tail face at z = 8.
 - `TheShapeIsTheConvexHullOfTheCrossSectionsCorners`: its points are the 24 corners, and every vertex of the outer skin lies within 1 mm of the hull.
-- `TheInteriorFillsTheWallsAndLeavesTheCabinAndTheDoorwayOpen`: the test takes a grid of points 5 cm apart. A point in the wall or in a pane's hole lies in exactly one piece. A point in the cabin or the doorway lies in none. Points within 1 mm of a skin are left out.
-- `TheMassOfAPrismIsTheBoxsMass` and `TheMassOfAFrustumIsTheFrustumsMass`: `MassOf` against the closed formulas, within 1e-9 of each value.
-- The refusals: `CrossSectionsWithDifferentCountsOfCornersAreAnError`, `ACrossSectionThatIsNotConvexIsAnError`, `AnEdgeThatIsNotParallelAcrossTheCrossSectionsIsAnError`, `ARibPlaceOutsideTheLoftIsAnError`, `ADoorThatReachesTheEdgeOfItsPanelIsAnError` and `APaneNarrowerThanItsSurroundsIsAnError`.
+- `TheInteriorFillsTheWallsAndLeavesTheCabinAndTheDoorwayOpen`: the test takes a grid of points 5 cm apart. A point in the wall, in a pane's hole or in the tail pocket lies in exactly one piece. A point in the cabin or the doorway lies in none. Points within 1 mm of a skin are left out.
+- `TheMassOfAPrismIsTheBoxsMass` and `TheMassOfAFrustumIsTheFrustumsMass`: `MassOf` against the closed formulas, within a relative 1e-6 of each value. `MassOf` rounds to floats once, so its error is float's rounding, about 6e-8.
+- The refusals: `CrossSectionsWithDifferentCountsOfCornersAreAnError`, `ACrossSectionThatIsNotConvexIsAnError`, `AnEdgeThatIsNotParallelAcrossTheCrossSectionsIsAnError`, `ARibPlaceOutsideTheLoftIsAnError`, `ACrossSectionBetweenRibPlacesIsAnError`, `ADoorThatReachesTheEdgeOfItsPanelIsAnError` and `APaneNarrowerThanItsSurroundsIsAnError`.
 
 The shuttle, on the World, in `ShuttleTests`:
 
@@ -1132,12 +1144,12 @@ The screenshots: part A takes two from a headless run of `scripts/demo-shuttle.j
 | At the station, the outside from inside: the station in the nose glass | `window-camera` | The long script | The last frame of `glide-window` | B |
 | At the station, the person inside from outside, with the station ahead | `chase-camera` | The long script | The last frame of `hold-chase` | B |
 
-The scene `demo-shuttle`, for part A, has a root frame `ground` with 1 g along -Y and a static floor. A static pad, 16 by 16 m and 1.2 m tall, stands on the floor, as the live world's landing pad does. A dynamic shuttle, `standing`, stands on its tail on the pad. It is turned a quarter turn about +X, so its nose points up and its roof faces +Z. A parked shuttle, `lying`, rests on the floor beside the pad. Both carry their nozzles, and in part B their panes. `side-camera` sees both from the side. `tail-camera` looks at the tail face of `lying` from behind and a little below. `nose-camera` looks at its front from ahead and above. The script runs 120 ticks and captures from each view, as `scripts/demo-meshes.json` does.
+The scene `demo-shuttle`, for part A, has a root frame `ground` with 1 g along -Y and a static floor. A static pad, 16 by 16 m and 1.2 m tall, stands on the floor, as the live world's landing pad does. A dynamic shuttle, `standing`, stands on its tail on the pad. It is turned a quarter turn about +X, so its nose points up and its roof faces +Z. A parked shuttle, `lying`, rests on the floor beside the pad. Both carry their nozzles, and in part B their panes. A scene id belongs to one entity, and `SceneInstance.Add` refuses an id that is taken. So each shuttle's nozzle and panes take the shuttle's id as a prefix, such as `standing-nozzle` and `lying-pane-roof-4`. `Shuttle.Panes` and the nozzle's spawn take the prefix. `demo-surface` passes an empty prefix, so its ids stay `nozzle` and `pane-port-7`. `side-camera` sees both from the side. `tail-camera` looks at the tail face of `lying` from behind and a little below. `nose-camera` looks at its front from ahead and above. The script runs 120 ticks and captures from each view, as `scripts/demo-meshes.json` does.
 
 ### Cost
 
 - The drawn hull: about 1,500 triangles, which part B counts. The 40 panes add 40 transparent commands, where the old windows had 7. Part B measures `RenderStats.TransparentCommands` and the time of the long script's video against today's 110 s.
-- Physics: the hull is a convex hull of 24 points in place of a box, and the interior has 23 pieces in place of 9. Part A measures the rehearsal's time against today's 107 s.
+- Physics: the hull is a convex hull of 24 points in place of a box, and the interior has 23 pieces in place of 10. Part A measures the rehearsal's time against today's 107 s.
 - The run keeps its ticks and its frames, because the new films take their time from `seated` and `hold`.
 
 ### Order of the work
@@ -1189,7 +1201,7 @@ Lines elsewhere that change, in step B5:
 - The doc comments of `DemoSurface` and `Shuttle` that describe the windows, the roof lamps and the box hull.
 - ARCHITECTURE.md does not change, because nothing in the engine changes.
 
-The live world (live-world.md, "What a person inside feels") puts the seat 1.35 m from the hull's long axis. Measured from the long axis of this hull, it lies 1.24 m from it. Which line the hull turns about in the station is the docking's choice (`ter-ftnj`).
+The live world (live-world.md, "What a person inside feels") puts the seat 1.35 m from the hull's middle line, which it calls the hull's long axis. Measured from the long axis of this hull, it lies 1.24 m from it. Which line the hull turns about in the station is the docking's choice (`ter-ftnj`).
 
 ### Decisions
 
@@ -1208,7 +1220,7 @@ Only engine changes go to the user (the user's rule of 2026-10-18). So this desi
 | The hull's impostor | `NoImpostor` | A flat picture cannot hold the person inside at its depth. |
 | The outer collision shape | The convex hull of the 24 corners, with the default convex radius | The ticket's rule, and the same rounding at the ramp's foot as the box |
 | The interior shape | The drawn solid in 23 convex pieces of convex radius 0, solid at the glass | The box reaches outside the new hull. Where the walk, the seat, the pen and the float happen, the pieces are the box. |
-| The mass | One density over the convex hull, as physics derives it, with `MassOf` computing the same exactly | No engine change, and the demo's value and physics agree by a test |
+| The mass | One density over the convex hull, as physics derives it, with `MassOf` computing the same exactly. The user decided this on 2026-10-20. | No engine change. The autopilot on the principal axes and the nozzle through the center of mass cover the offset, and the demo's value and physics agree by a test. |
 | The autopilot's inertia | `PrincipalInertia`, the moments with their axes | The tilted tensor turns the hull 4.7 degrees off a turn about Y that the diagonal asks for. |
 | The clip | It stays at its place, on the pillar at z = -1 | Its drift, the take and their tests keep their numbers. |
 | The lamps | Four, on pillars at z = -3 and 3, 2.4 m above the floor | The roof is glass. A pillar hides its lamp from outside. Together they give today's light. |
@@ -1219,10 +1231,20 @@ Only engine changes go to the user (the user's rule of 2026-10-18). So this desi
 
 ### Engine changes
 
-None in this design. One is open, and it goes to the user: a body's mass properties apart from its collision shape.
+None. The user decided on 2026-10-20 that the hull has one density. Physics derives the hull's mass properties from its collision shape, as it does for every body. The engine gets no change for mass properties apart from the shuttle's new collision shape. So:
 
-- With it: `BodyDesc` gets an optional center of mass, and principal moments with their axes. Physics uses them in place of those of the shape at one density. In Jolt, that is a shape with an offset center of mass and a provided inertia. The shuttle then sets its center of mass on the hull's middle line, and its principal axes along its own, as ballast does. The live world's need holds exactly. The cost: a new field of `BodyDesc`, its checks, the backend's mapping and its tests, and its lines in ARCHITECTURE.md.
-- Without it, as this design is written: the center of mass lies 9 cm below and 36 cm aft of the hull's middle. The long axis tilts 1.03 degrees, nose end down. The attitude autopilot takes the principal axes. A hull that spins at the station's rate about its own Z needs about 650 N·m to hold that axis. The hull still stands on its tail with a wide margin.
+- The center of mass sits where physics derives it, 9 cm below and 36 cm aft of the hull's middle. The long axis tilts 1.03 degrees from Z, nose end down.
+- The attitude autopilot takes the principal axes.
+- The nozzle pushes through the center of mass.
+
+The reason: the two demo changes cover every effect of the offset that the demo shows.
+
+- The main engine pushes at the center of mass, and the drawn nozzle sits on that line. So the thrust turns nothing, and it looks so.
+- The autopilot on the principal axes turns the hull about the axis that it asks for. With the moments in the body's own axes, a torque about Y turns the hull 4.7 degrees off.
+- Jolt applies no gyroscopic torque (ARCHITECTURE.md). So a hull that spins about its own Z keeps that spin with no torque, though Z lies 1.03 degrees from the long axis.
+- The hull still stands on its tail with a wide margin. The center of mass lies 9 cm from the middle line, and the tail face's edge lies at least 1.9 m from the center of mass on every side.
+
+The change that the design weighed and the user did not take: `BodyDesc` gets an optional center of mass, and principal moments with their axes. Physics uses them in place of those of the shape at one density. In Jolt, that is a shape with an offset center of mass and a provided inertia. The shuttle would then set its center of mass on the hull's middle line, and its principal axes along its own, as ballast does. The cost: a new field of `BodyDesc`, its checks, the backend's mapping and its tests, and its lines in ARCHITECTURE.md.
 
 ### Not in this step
 
