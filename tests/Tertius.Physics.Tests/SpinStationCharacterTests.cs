@@ -286,4 +286,108 @@ public class SpinStationCharacterTests
         worstAfter.Should().BeLessThan(1e-5, "the impulse's change is turned with the station's axes of its moment, not one step more");
         world.Errors.Should().BeEmpty();
     }
+
+    // ---- Hand-offs ----
+
+    /// <summary>
+    /// Spawns a person in <paramref name="frame"/> at 140 m on its X axis, with the spawn velocity that gives it 10 m/s along
+    /// that axis in inertial space, when the frame's pose in inertial space is <paramref name="pose"/> and its inertial angular
+    /// velocity in its own axes is <paramref name="frameSpin"/>: the place and the velocity in inertial space now. At 140 m
+    /// from the station's axis the effective gravity is ω² r = 13.7 m/s², so the person keeps its walking form, and it touches
+    /// nothing on its way out of the bubble of 150 m.
+    /// </summary>
+    private static Entity SpawnOutwardPerson(World world, FrameHandle frame, in DPose pose, Double3 frameSpin, out Double3 place, out Double3 velocity)
+    {
+        var start = new Double3(140, 0, 0);
+        var inertialVelocity = new Double3(10, 0, 0);
+        Entity person = world.Spawn(new SpawnDesc
+        {
+            Frame = frame,
+            Pose = new DPose(start, DQuaternion.Identity),
+            LinearVelocity = inertialVelocity - Double3.Cross(frameSpin, start),
+            Body = Person,
+        });
+        place = pose.TransformPoint(start);
+        velocity = pose.Rotation.Rotate(inertialVelocity);
+        return person;
+    }
+
+    [Fact]
+    public void APersonWhoLeavesTheStationsBubbleHandsOffWithTheVelocityOfItsInertialLine()
+    {
+        // In the air of the station the person moves on its inertial line, and Jolt's velocity is the chord of that line in
+        // the station's turning axes. The hand-off into space carries its instant velocity at the end of the step, which the
+        // chord rule's inverse gives from that chord: the velocity of the line, 10 m/s outward. The chord itself, read as an
+        // instant velocity, is off by about ω² r dt / 2, 0.1 m/s.
+        using World world = NewWorld(out _, debugChecks: false);
+        Station station = SpawnStation(world);
+        Tick(world, 30);
+        double start = world.Time;
+        Entity person = SpawnOutwardPerson(world, station.Frame, station.Pose(world), new Double3(0, StationRate, 0), out Double3 place,
+            out Double3 velocity);
+
+        double worstPlace = 0;
+        int ticks = TickUntil(world, () =>
+        {
+            worstPlace = Math.Max(worstPlace, Double3.Distance(world.PoseIn(person, station.Space).Position, place + velocity * (world.Time - start)));
+            return world.GetFrame(person) == station.Space;
+        }, 200);
+
+        ticks.Should().BeLessThan(200, "the person leaves the bubble of 150 m within 2 s");
+        Double3.Distance(world.VelocityIn(person, station.Space), velocity).Should().BeLessThan(1e-4);
+        for (int tick = 0; tick < 60; tick++)
+        {
+            world.Tick();
+            worstPlace = Math.Max(worstPlace, Double3.Distance(world.PoseIn(person, station.Space).Position, place + velocity * (world.Time - start)));
+        }
+        worstPlace.Should().BeLessThan(1e-4);
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>The angular acceleration of the outer frame in <see cref="APersonWhoLeavesTheStationIntoAParentThatSpinsUpKeepsItsInertialLine"/>, in rad/s².</summary>
+    private const double OuterSpinUp = 0.02;
+
+    [Fact]
+    public void APersonWhoLeavesTheStationIntoAParentThatSpinsUpKeepsItsInertialLine()
+    {
+        // The station turns about the +X of an outer frame that spins up about its +Y from its spawn, so both frames turn,
+        // and their rates change in every step. The hand-off reads the person's instant velocity in the station with the
+        // station's turn of the step that just ended, and gives Jolt the chord behind it in the outer frame with the outer
+        // frame's turn of that step, which the person's next update carries on along the line. In the outer frame, 150 m
+        // from its axis after 1 s or more of spin-up, the Euler term alone is α r = 3 m/s², so the person keeps its walking
+        // form there.
+        using World world = NewWorld(out _, debugChecks: false);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        double spinStart = world.Time;
+        FrameHandle outer = world.GetOwnedFrame(world.Spawn(SpinUp.Spawning(
+            new SpawnDesc { Frame = space, AsFrame = new FrameSpec(FrameBounds.Sphere(1e4f)) }, world, OuterSpinUp)));
+        // The tilt takes the spin's pole, +Y, to +X.
+        var spin = new FrameSpin(DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2), StationRate);
+        FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = outer, AsFrame = new FrameSpec(FrameBounds.Sphere(150)) }
+            .Spinning(world, spin, firstMove: true)));
+        Tick(world, world.Options.TickRate);
+        DPose pose = world.Frames.Relative(station, space);
+        Double3 inSpace = new Double3(0, OuterSpinUp * (world.Time - spinStart), 0) + world.Frames.Relative(outer, space).Rotation.Rotate(spin.AngularVelocity);
+        double start = world.Time;
+        Entity person = SpawnOutwardPerson(world, station, pose, pose.Rotation.Conjugate().Rotate(inSpace), out Double3 place, out Double3 velocity);
+
+        double worstPlace = 0;
+        int ticks = TickUntil(world, () =>
+        {
+            worstPlace = Math.Max(worstPlace, Double3.Distance(world.PoseIn(person, space).Position, place + velocity * (world.Time - start)));
+            return world.GetFrame(person) == outer;
+        }, 200);
+        ticks.Should().BeLessThan(200, "the person leaves the bubble of 150 m within 2 s");
+
+        for (int tick = 0; tick < 120; tick++)
+        {
+            world.Tick();
+            worstPlace = Math.Max(worstPlace, Double3.Distance(world.PoseIn(person, space).Position, place + velocity * (world.Time - start)));
+        }
+
+        world.GetFrame(person).Should().Be(outer);
+        world.IsStanding(person).Should().BeFalse();
+        worstPlace.Should().BeLessThan(1e-4);
+        world.Errors.Should().BeEmpty();
+    }
 }
