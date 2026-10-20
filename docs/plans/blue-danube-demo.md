@@ -1158,7 +1158,7 @@ Measured in part A, on 2026-10-20:
 - Physics agrees with `MassOf`. The center of mass is (0, -0.0902, 0.3561) m. The moments are 420,614, 451,666 and 80,645 kg·m², and the long axis lies 1.026 degrees from Z, with its nose end down. The tests of the spin and of the torques hold within 1 mm and 0.1 %.
 - With the moments in the hull's own axes, the autopilot's turn about Y starts 4.70 degrees off Y, as the design says. On the principal axes it stays within 0.5 degrees.
 - The rehearsal took 108.6 s, against 107 s before, with the build of the Demo. The new hull changed the frames of 11 films of the long script by a few frames each. `boarding` has 10 frames more, and `pen-release` 34 fewer.
-- One measured value leaves its test's range. At the end of the climb, 311 s in, the seat lifts the belted person by 72.9 mm, against 66.9 mm with the box, and `DemoLaunchTests.ThePassengerStaysAtItsSeatThroughTheClimb` allows 7 cm. The seat's convex radius does not cause it: with the seat's rounded edges of today the lift is 73.3 mm. Part A leaves the range as it is, as this design asks, and the choice goes to the user.
+- One measured value leaves its test's range. At the end of the climb, 311 s in, the seat lifts the belted person by 72.9 mm, against 66.9 mm with the box, and `DemoLaunchTests.ThePassengerStaysAtItsSeatThroughTheClimb` allows 7 cm. The seat's convex radius does not cause it: with the seat's rounded edges of today the lift is 73.3 mm. Part A left the range as it was, as this design asks, and reported it. The orchestrator then widened the bound to 8 cm on 2026-10-20. The old bound sat 3 mm above the box hull's 66.9 mm. The tram hull's mass properties give 72.9 mm, and 8 cm still fails for a person who leaves the seat.
 
 ### Order of the work
 
