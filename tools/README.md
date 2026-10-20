@@ -1,8 +1,36 @@
 # Tools
 
-These helpers start JetBrains Rider inside the dev shell, and run code coverage and Stryker.NET mutation testing on the lines that a branch changed. For the rules on which helper to run, read the Testing section of CLAUDE.md. The scripts are tool code: they never ship, so they skip polish.
+These helpers run every test project in one command, start JetBrains Rider inside the dev shell, and run code coverage and Stryker.NET mutation testing on the lines that a branch changed. For the rules on which helper to run, read the Testing section of CLAUDE.md. The scripts are tool code: they never ship, so they skip polish.
 
 Run every command in the dev shell, from the repository root. The build copies the Jolt library and the Vulkan loader next to each output, so the tests need no `DYLD_*` variable. Outside the dev shell, the GPU tests cannot find `libvulkan`, and the scripts stop with a message. Write the output to a folder outside the repository, for example `/tmp/tertius-coverage`.
+
+## Every test project in one command
+
+`tools/test-all.sh` builds the solution once per build configuration. Then it runs every test project in that configuration with `--no-build`. It works from any folder in the repository:
+
+```bash
+nix develop --command bash -c 'bash tools/test-all.sh'
+```
+
+For each configuration and module, the script prints one line with the counts, and one indented line for each failed test:
+
+```
+Debug Core: total 512, failed 1, succeeded 511, skipped 0, exit code 2
+    failed: Tertius.Core.Tests.FrameTreeTests.Some_test
+```
+
+The options:
+
+- `-c Debug,Release` gives the build configurations, separated by commas. The default is both.
+- `-m Core,Physics` gives the test modules, separated by commas. The default is all five: Core, Simulation, Physics, Rendering and Host.
+- `-o <folder>` gives the folder for the logs. The default is a new temporary folder, and the first line of the output names it. The script writes `<folder>/<configuration>/build.log` and one `<folder>/<configuration>/<module>.log` with the full test output of each module.
+- Everything after `--` goes to each `dotnet test` command unchanged, for example a filter:
+
+  ```bash
+  nix develop --command bash -c 'bash tools/test-all.sh -c Debug -m Core,Physics -- --filter-class "*FrameTree*"'
+  ```
+
+The exit code is 1 when a build fails, a test fails, or a test run ends without its summary. A module in which no test matches the filter is not a failure: its line ends with "(no tests ran)". When a build fails, the script prints the first compiler errors and skips the tests of that configuration. The exit code is 2 when an option is wrong or names a module that has no test project.
 
 ## JetBrains Rider
 
