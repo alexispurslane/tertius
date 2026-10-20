@@ -588,6 +588,43 @@ public class FrameTreeBeginStepTests
         frames.PushInStep(pod).Length().Should().BeLessThan(1e-6f);
     }
 
+    [Fact]
+    public void AFollowingFrameWithoutAMotionIntentInATurningFrameHoldsStillInItsTurningAxesWithNoTurnTerm()
+    {
+        // A plain kinematic ball 10,000 km from the station's axis anchors a following frame, which starts with the chord of
+        // a free fall there. Its anchor has no motion intent, so its step plan is the record of a kinematic body that holds
+        // still where the step starts (ticket ter-zsku): no velocity in the station's coordinates, which is rest in its
+        // turning axes. The plan is motion in the semantic frame's coordinates already, so the frame takes the landing
+        // acceleration of every plan and none of the rotation terms that a falling frame's origin takes (see
+        // FreeAccelerationAtOrigin), and it holds still in the station.
+        FrameHandle station = Frame(space, DPose.Identity);
+        var place = new Double3(1e7, 0, 0);
+        FrameHandle home = FrameHandle.Null;
+        var ball = new NumericBody
+        {
+            Entity = new Entity(100, 1), Semantic = station, Home = station, Position = place, HomePosition = place,
+            Velocity = Double3.Zero, Radius = 0.5, Mass = 1, Kinematic = true,
+        };
+        frames.UpdateNumericFrames([ball], Step, Step, new PhysicsChanges(), moves => home = moves.Single().To);
+        frames.Anchors(home, ball.Entity).Should().BeTrue("a kinematic body 10,000 km out anchors a following frame");
+
+        for (int k = 1; k <= 3; k++)
+        {
+            Double3 velocity = frames.LinearVelocity(home);
+            frames.Update();
+            frames.BeginStep(Intents((station, Spin(End(k)))), Step, lastStepFailed: false);
+            frames.Turns(station).Turns.Should().BeTrue();
+            frames.HomeAcceleration(home, station).Should().Be(-velocity / Step, "the plan has no chord, so the frame stops");
+            frames.HomeInstantVelocityOverChord(home, station, Step).Should().Be(Double3.Zero, "the plan has no velocity past its chord");
+            frames.HomeInstantVelocityOverChordAtStepStart(home, station, Step).Should().Be(-velocity / Step * (0.5 * Step));
+            frames.AdvanceNumericFrames(Step);
+            frames.PlaceFollowingFrame(home);
+            frames.TreeLocalPose(home).Position.Should().Be(place, "the frame takes the plan's place, where its anchor stands");
+            frames.LinearVelocity(home).Should().Be(Double3.Zero, "and the plan's chord");
+            frames.TakeStepRecords(Intents((station, Spin(End(k)))), Step);
+        }
+    }
+
     /// <summary>The falling numeric frame that a numeric update gives one body of <paramref name="semantic"/> at <paramref name="position"/>.</summary>
     private FrameHandle FallingFrame(FrameHandle semantic, Double3 position, Double3 velocity)
     {
