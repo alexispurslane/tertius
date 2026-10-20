@@ -207,11 +207,11 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
 
     /// <summary>
     /// The burn ends in the first tick that adds no throttle. The velocity to gain is then within
-    /// <see cref="TransferGuidance.SpeedTolerance"/>, 0.2 m/s, but not far within it, and the last throttle pushed the shuttle
-    /// with about the weightless threshold, <see cref="FrameTree.ZeroGravityThreshold"/>.
+    /// <see cref="TransferGuidance.SpeedTolerance"/>, 0.1 m/s, but not far within it, and the last throttle pushed the shuttle
+    /// with about half the weightless threshold, <see cref="FrameTree.ZeroGravityThreshold"/>.
     /// </summary>
     [Fact]
-    public void TheBurnEndsAtTheSpeedThatTheTrimTakesAtTheWeightlessThreshold()
+    public void TheBurnEndsAtTheSpeedThatTheTrimTakesAtHalfTheWeightlessThreshold()
     {
         ParkAt(169.99);
         Order();
@@ -228,9 +228,47 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
         }, limit: 60 * 60);
 
         recorder.Throttle.Should().BeNull("the burn ended within a minute");
-        SteeringNow(transfer).ToGain.Length.Should().BeInRange(0.15, TransferGuidance.SpeedTolerance);
-        ((double)last * Thrust / Shuttle.Mass).Should().BeLessThan(FrameTree.ZeroGravityThreshold * 1.2,
-            "the thrust of the burn falls to the weightless threshold at its end");
+        SteeringNow(transfer).ToGain.Length.Should().BeInRange(0.075, TransferGuidance.SpeedTolerance);
+        ((double)last * Thrust / Shuttle.Mass).Should().BeLessThan(FrameTree.ZeroGravityThreshold / 2 * 1.2,
+            "the thrust of the burn falls to half the weightless threshold at its end");
+    }
+
+    /// <summary>
+    /// After the burn, the nose turns from the burn's direction to the brake's, about 160 degrees, while the cabin is
+    /// weightless. So in the first 300 s of the trim the hull turns no faster than
+    /// the demo plan's <see cref="RendezvousPlan.WeightlessTurnRate"/>, with 5 percent for the attitude autopilot's lag, and it does turn.
+    /// </summary>
+    [Fact]
+    public void InTheTrimTheNoseTurnsNoFasterThanTheWeightlessTurnRate()
+    {
+        ParkAt(169.99);
+        Order();
+        world.Tick();
+        recorder.Throttle.Should().NotBeNull("the burn starts in the tick after the order");
+        TickUntil(world, () => recorder.Throttle is null, limit: 60 * 60);
+        double fastest = 0;
+
+        for (int tick = 0; tick < 300 * 60; tick++)
+        {
+            world.Tick();
+            fastest = Math.Max(fastest, world.AngularVelocityIn(shuttle, earth).Length());
+        }
+
+        fastest.Should().BeInRange(RendezvousPlan.Demo.WeightlessTurnRate * 0.9, RendezvousPlan.Demo.WeightlessTurnRate * 1.05);
+    }
+
+    /// <summary>
+    /// A plan whose weightless turn rate is not above 0, or is faster than the attitude autopilot turns, is refused at the
+    /// autopilot's construction.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(AttitudeAutopilot.MaxTurnRate * 1.01)]
+    public void APlanWithAWeightlessTurnRateOutsideTheAttitudeAutopilotsRangeIsRefused(double rate)
+    {
+        Action build = () => new RendezvousAutopilot(station, RendezvousPlan.Demo with { WeightlessTurnRate = rate }, Thrust);
+
+        build.Should().Throw<ArgumentException>().WithParameterName("plan");
     }
 
     /// <summary>
@@ -356,10 +394,11 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
         /// <summary>
         /// The short plan: a transfer of 300 s to an arrival point 400 m out on the axis, and the demo's hold point, 150 m
         /// out. From 5 km behind the station, the transfer angle is about 19.5 degrees, inside the window from 30 down to 10
-        /// degrees.
+        /// degrees. The shuttle carries no crew, and the turn to the brake's direction must end in the 300 s, so the nose
+        /// turns at the attitude autopilot's full rate in the trim and the coast too.
         /// </summary>
         public static RendezvousPlan Plan { get; } = new(TransferTime: 300, ArrivalDistance: 400, HoldDistance: DemoStation.HoldPoint.Y,
-            WindowOpens: 30 * Math.PI / 180, WindowCloses: 10 * Math.PI / 180);
+            WindowOpens: 30 * Math.PI / 180, WindowCloses: 10 * Math.PI / 180, WeightlessTurnRate: AttitudeAutopilot.MaxTurnRate);
 
         /// <summary>The state of the autopilot after a tick, and the shuttle's state relative to the station then.</summary>
         /// <param name="Time">The world's time after the tick, in seconds.</param>

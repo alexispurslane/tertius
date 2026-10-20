@@ -344,14 +344,15 @@ where
 
 The transfer runs in three modes:
 
-- The burn: `toGain` is longer than 0.2 m/s. The nose turns toward `toGain`. The throttle is the part of `push` along the nose, never below 0, times the mass, over the engine's full thrust. The translation thrusters take the rest of `push`.
-- 0.2 m/s is `AscentGuidance.SpeedTolerance`, the speed that the trim takes in 4 s at the weightless threshold. So the burn ends at the point where its thrust leaves the cabin weightless.
-- The trim: `toGain` is 0.2 m/s or shorter. Only the translation thrusters trim it, with `toGain / TrimTime`. The nose holds the brake's direction, so the brake starts without a turn.
+- The burn: `toGain` is longer than 0.1 m/s. The nose turns toward `toGain`. The throttle is the part of `push` along the nose, never below 0, times the mass, over the engine's full thrust. The translation thrusters take the rest of `push`.
+- 0.1 m/s is `TransferGuidance.SpeedTolerance`, the speed that the trim takes in 4 s at half the weightless threshold. So the trim's push is at most 0.025 m/s², and the cabin stays clearly weightless through the trim. A strapped person floats there in the rigid form of a character, which keeps its up. At a push of the threshold itself, a person who touches its seat walks again and turns its up to the push at once. The first value was 0.2 m/s, `AscentGuidance.SpeedTolerance`, the speed that the trim takes in 4 s at the threshold. The trim's first push then came to 0.0499 m/s², at the threshold to the rounding. The burn's thrust now leaves the cabin weightless about 3 s before the burn ends, at a throttle of about 0.001 (ter-tzf6, 2026-10-20).
+- The trim: `toGain` is 0.1 m/s or shorter. Only the translation thrusters trim it, with `toGain / TrimTime`. The nose turns to the brake's direction, so the brake starts nearly without a turn.
+- In the trim and the coast, the nose turns at most at the plan's `RendezvousPlan.WeightlessTurnRate`: 0.002 rad/s in the demo's plan, and the full 0.15 rad/s in the short test plan, whose shuttle carries no crew and must turn within its 300 s. Each `AttitudeTarget` carries the fastest turn that its layer allows, `MaxTurnRate`, and the attitude autopilot asks for at most that and its own 0.15 rad/s. A turn of the hull gives the crew a felt gravity: the centrifugal term ω² r, and the Euler term while the attitude autopilot brings the hull to its rate in a third of a second, 3 ω r. At the seat, 4 m from the hull's center, the Euler term of 0.002 rad/s is 0.024 m/s², less than half the threshold. At 0.15 rad/s, the turn of 160 degrees from the burn's nose to the brake's direction gave about 0.1 m/s² there. That put the strapped person into the walking form, and its up turned at the air rate to about 155 degrees from the nose: on its side, with its body over the pen. At 0.002 rad/s the turn takes about 1,400 s of the trim's 2,450 s, and the person keeps the up of the burn, with its head toward the nose (`BlueDanubeRendezvousTests`).
 - The brake's direction is the opposite of the shuttle's velocity relative to the station at the arrival point: `atArrival` less the station's propagated velocity.
 - The coast: in the last 60 s before the arrival time, the autopilot solves nothing more. A short transfer turns a small miss into a large velocity to gain. The nose keeps the brake's direction.
 - With the trim, the shuttle reaches the arrival point within about 12 m. The coast lasts about 2,500 s, and the trim holds the velocity to gain below 5 mm/s.
 
-The transfer ends in the coast at the braking curve, where `sqrt(2 × 2.4 m/s² × d)` is no more than `|u|`. Here `d` is the distance to the arrival point and `u` the velocity relative to the station. It also ends at the arrival time. The test holds only in the coast: earlier, the shuttle is thousands of kilometers from the arrival point, where `|u|` (about 15 km/s at the window) exceeds the curve's speed (about 8 km/s), and the relative motion is not that of a free mass. The brake starts about 12 s before the arrival time, well inside the coast of 60 s. In the coast, the nose turns against `u`, which differs from the brake's direction of the last solution by about 0.1 degrees.
+The transfer ends in the coast at the braking curve, where `sqrt(2 × 2.4 m/s² × d)` is no more than `|u|`. Here `d` is the distance to the arrival point and `u` the velocity relative to the station. It also ends at the arrival time. The test holds only in the coast: earlier, the shuttle is thousands of kilometers from the arrival point, where `|u|` (about 15 km/s at the window) exceeds the curve's speed (about 8 km/s), and the relative motion is not that of a free mass. The brake starts about 12 s before the arrival time, well inside the coast of 60 s. In the coast, the nose turns against `u`, which differs from the brake's direction of the last solution by 0.15 degrees. At about 3,300 s the brake's direction passes 9 degrees from straight down, and the roof, away from Earth across the nose, swings about the nose there. At the slow turn rate the nose catches up only slowly afterward: it lies 2.9 degrees off the brake's direction when the coast starts, and 2.1 degrees off `-u` when the brake starts.
 
 #### The approach guidance
 
@@ -392,7 +393,7 @@ In every phase that steers, the roof turns away from Earth across the nose, as t
 | Phase | Tolerance |
 |---|---|
 | Window | The transfer angle lies from 150 to 170 degrees. |
-| End of the burn | The velocity to gain is below 0.2 m/s. The trim then holds it below 5 mm/s. |
+| End of the burn | The velocity to gain is below 0.1 m/s. The trim then holds it below 5 mm/s. |
 | Miss at the arrival time | Within 100 m of the arrival point (about 12 m expected) |
 | End of the brake | Within 10 m of the arrival point, and slower than 0.1 m/s relative to the station. At 0.5 m/s, the glide inherits up to 0.5 m/s across the axis: its push is capped at 0.2 m/s² as a whole, and the speed of 5 m/s that it wants along the axis takes nearly all of it, so the drift across the axis reached 5.6 m on the short test plan. At 0.1 m/s it stays within 1.7 m. |
 | Glide | Within 5 m of the axis all the way |
@@ -440,7 +441,7 @@ New cameras, each a still view in its frame, as the pen camera and the spin stat
 | `window-camera` | The shuttle's | 1.2 m behind the nose window at eye height, looking out along -Z | The station ahead through the nose window, with Earth's limb at the bottom |
 | `bow-camera` | The shuttle's | 30 m ahead of the nose and 5 m above it, looking aft along the hull, 30 degrees to port of astern | The shuttle in front and the station behind it, through the closing. The station lies 9 to 57 degrees to port of astern there. |
 | `port-window-camera` | The shuttle's | 0.6 m inside the aft port window and 0.3 m forward of its middle, at z = 4.2 m and eye height, looking out 20 degrees aft of abeam, through the window's middle | The station through the window during the brake. The station lies to port, from 33 to 9 degrees aft of abeam, and 1.5 degrees below the horizontal. At first the camera was 1 m inside the window, at z = 4.5 m: the window's outer edge then cut the view at 27 degrees aft of abeam, so the station lay outside it for the first 4 s of the brake. |
-| `cockpit-camera` | The shuttle's | Aft of the seat and to starboard of it, above the person's head, at (1.9, 0.9, -1.4) m, looking down at (0.7, -1.3, -5.2) m | The strapped person at its seat with the pen, and the nose window beyond it. The person floats upside down from the take, and the burn tips it with its head toward the nose, by the up rule of every character. The pen is in its right hand, so a camera to port, as first placed, saw the pen behind the person's body in the burn. In `transfer-night` the trim's small pushes have turned the person onto its side, with its head to port and its face to the floor, and its body hides the pen from above. |
+| `cockpit-camera` | The shuttle's | Aft of the seat and to starboard of it, above the person's head, at (1.9, 0.9, -1.4) m, looking down at (0.7, -1.3, -5.2) m | The strapped person at its seat with the pen, and the nose window beyond it. The person floats upside down from the take, and the burn tips it with its head toward the nose, by the up rule of every character. The pen is in its right hand, so a camera to port, as first placed, saw the pen behind the person's body in the burn. The trim's push and its slow turn leave the cabin weightless, so the person keeps that up through `transfer-night`. The glide's turn to the slot swings the person's up by up to 105 degrees, and the glide's push along the nose turns it back before `arrival`. |
 | `rim-camera` | The station's | 2 m off the slot's face of the wheel, near its rim, looking across the axis | The hub and the shuttle on the axis together. It turns with the station, so Earth and the stars sweep behind them. That previews the spin match of step 5. |
 
 The builder of `rim-camera` aims it at a point on the axis between the hub and the hold point, with the axis across the picture. The picture's horizontal field is 92 degrees, so both fit.
@@ -506,7 +507,7 @@ Step k is the physics step that runs beside tick k. A tick reads the state at th
 | `Rendezvous`, `FastenBelt` | The script's post, between ticks | The rendezvous autopilot and the passenger, in the next tick |
 | `RendezvousAutopilot.State` | The autopilot, in its tick | The autopilot in the next tick. The section cues and the tests, between ticks. |
 | `PassengerState`'s `Returning` and `Strapped` | The passenger, in its tick | The passenger in the next tick. The cues and the tests, between ticks. |
-| `AttitudeTarget` | The ascent autopilot (priority 0) and the rendezvous autopilot (1), in tick k | The attitude autopilot (10) in tick k, which takes the last. Its torque acts in step k + 1. |
+| `AttitudeTarget`, with its rotation and its `MaxTurnRate` | The ascent autopilot (priority 0) and the rendezvous autopilot (1), in tick k. Every layer sets both: 0.15 rad/s, except the rendezvous autopilot's trim and coast, at the plan's `WeightlessTurnRate` | The attitude autopilot (10) in tick k, which takes the last. Its torque acts in step k + 1. |
 | `Throttle` | The rendezvous autopilot, in tick k | The main engine in tick k. Its push acts in step k + 1. |
 | `Translation` | The rendezvous autopilot, in tick k | The translation thrusters in tick k. Their force acts in step k + 1. |
 | The shuttle's pose and instant velocity in `earth-surface` | Physics in step k, through the frame's record at step 2 of the sync point after it | The autopilots and the actuators in tick k + 1 |
@@ -551,6 +552,7 @@ Pure math, with no World:
   - `ATransferAngleWithinADegreeOf180DegreesIsRefused`.
 - `TransferGuidanceTests`:
   - `TheTransferAngleRunsTheWayOfTheOrbit`.
+  - `TheTrimPushesAtMostHalfTheWeightlessThreshold`: at the speed tolerance, the trim's push is at most 0.025 m/s².
 - `ApproachGuidanceTests`:
   - `AtTheTargetAndAtRestThePushOnlyCancelsTheDifferenceOfGravity`.
   - `TheWantedSpeedNeverExceedsTheCap`.
@@ -574,12 +576,15 @@ Components on the real World, in scenes that the tests build from the demo's spa
 - `FlightLayerTests`:
   - `ALaterLayersTargetOverridesAnEarlierLayersTarget`.
   - `TheActuatorsRunAfterEveryLayer`.
+- `FlightControlTests`:
+  - `TheAttitudeAutopilotTurnsNoFasterThanTheTurnRateOfTheTarget`: a target with 0.01 rad/s turns the hull at that rate.
 - `RendezvousAutopilotTests` puts the station on its orbit in a root frame with Earth's point gravity, and spawns the shuttle in orbit near it. The autopilot takes its plan in its constructor. So a test flies a short plan, where the demo's plan takes an hour.
   - `WithoutAnOrderTheAutopilotAddsNothing`.
   - `AfterTheOrderTheAutopilotWaitsUntilTheTransferAngleFallsTo170Degrees`.
   - `AnOrderInsideTheWindowStartsTheTransferAtOnce`.
   - `TheBurnPutsTheShuttleOnATwoBodyPathThatReachesTheArrivalPointAtTheArrivalTime`. It uses the demo's plan, flies only the burn, about 25 s, and propagates the state. The path passes within 100 m.
-  - `TheBurnEndsAtTheSpeedThatTheTrimTakesAtTheWeightlessThreshold`.
+  - `TheBurnEndsAtTheSpeedThatTheTrimTakesAtHalfTheWeightlessThreshold`.
+  - `InTheTrimTheNoseTurnsNoFasterThanTheWeightlessTurnRate`: in the first 300 s after the burn, the hull turns at most at 0.002 rad/s, and does turn.
   - `TheBrakeStopsTheShuttleAtTheArrivalPoint`, with a short plan: a transfer of 300 s from 5 km, and an arrival point 400 m out.
   - `TheGlideFliesTheShuttleAlongTheAxisToTheHoldPoint`, with the same short plan.
   - `TheShuttleHoldsAtTheHoldPointWithItsNoseAtTheSlot`: 60 s within the tolerances.
@@ -607,6 +612,8 @@ The run of the checked-in script:
 - Its tests:
   - `TheParkingOrbitLiesInTheLaunchPlane`.
   - `ThePassengerIsStrappedBeforeTheFirstBurn`.
+  - `TheStrappedPassengerKeepsItsUpThroughTheTrimAfterTheBurn`: from the first weightless tick after the burn to the brake, the person's up in the cabin's axes stays within 1 degree.
+  - `TheSlowTurnBringsTheNoseToTheBrakesDirectionBeforeTheBrake`: within 3 degrees of `-u` in the first tick of the brake.
   - `TheWindowOpensBetween115And125DegreesAlongTheOrbit`.
   - `TheTransferTakesTheTimeThatTwoBodyMotionPredicts`: from the window to the brake, 2,560 s less the brake's lead, within 2 s.
   - `TheTotalChangeOfVelocityIsWithin10PercentOfTheTwoBodyCost`.
@@ -616,7 +623,7 @@ The run of the checked-in script:
   - `TheStationLiesInsideTheWindowInEveryFrameOfTheWindowFilms`: with `Picture.Project`, the station's center lies in the picture, and the line from the camera to it crosses both faces of the wall inside the hole: the aft port window in `brake` and the nose window in `glide-window`.
   - `TheStationIsInThePictureOfEveryFrameOfClosing`.
   - `ThePenStaysInThePassengersHandThroughTheBurns`.
-  - `TheCockpitCameraShowsTheStrappedPersonWithThePenAndTheNoseWindow`: in every frame of the films from `cockpit-camera`, the person's eye, the pen and the middle of the nose window lie in the picture, and the person covers at most half of it. In `night`, `burn` and `arrival` the line from the camera to the pen passes outside the person's box.
+  - `TheCockpitCameraShowsTheStrappedPersonWithThePenAndTheNoseWindow`: in every frame of the films from `cockpit-camera`, the person's eye, the pen and the middle of the nose window lie in the picture, and the person covers at most half of it. In every frame of `night`, `burn`, `transfer-night` and `arrival`, the line from the camera to the pen passes outside the person's box.
   - `TheWorldLogsNoErrors`.
 
 The screenshots that end the ticket come from one headless run of the long script with `--video` and the real renderer. `ffmpeg-headless` takes four frames out of the video, and the agent looks at each first:

@@ -68,10 +68,11 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
         FrameHandle cabin = World.GetOwnedFrame(shuttle);
         DPose pose = World.PoseIn(shuttle, Surface), stationPose = World.PoseIn(station, Surface);
         PassengerState passenger = World.GetComponent<Passenger>(person)!.State;
+        Double3 personUp = World.PoseIn(person, cabin).Rotation.Rotate(Double3.UnitY);
         Ticks.Add(new RendezvousTick(World.TickNumber, World.Time, pose.Position, World.VelocityIn(shuttle, Surface), pose.Rotation.Rotate(-Double3.UnitZ),
             stationPose.Position, World.VelocityIn(station, Surface), stationPose.Rotation.Rotate(Double3.UnitY),
             World.GetComponent<RendezvousAutopilot>(shuttle)!.State, passenger, World.Frames.ProperAcceleration(cabin), World.GetFrame(shuttle),
-            PenFromHand(passenger, cabin)));
+            PenFromHand(passenger, cabin), personUp));
     }
 
     /// <summary>
@@ -139,9 +140,10 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
 /// <param name="CabinAcceleration">The proper acceleration of the shuttle's frame in the last finished step, in m/s², in its axes.</param>
 /// <param name="ShuttleFrame">The shuttle's frame.</param>
 /// <param name="PenFromHand">How far the drawn copy of the pen is from the person's hand, in meters, while the person holds it, or null.</param>
+/// <param name="PersonUp">The person's up, the +Y of its pose, in the axes of the shuttle's frame.</param>
 public sealed record RendezvousTick(long Tick, double Time, Double3 Position, Double3 Velocity, Double3 Nose, Double3 StationCenter,
     Double3 StationVelocity, Double3 Axis, RendezvousState Rendezvous, PassengerState Passenger, System.Numerics.Vector3 CabinAcceleration,
-    FrameHandle ShuttleFrame, double? PenFromHand)
+    FrameHandle ShuttleFrame, double? PenFromHand, Double3 PersonUp)
 {
     /// <summary>The shuttle's place relative to the station's center, in meters, in earth-surface's axes.</summary>
     public Double3 FromStation => Position - StationCenter;
@@ -213,6 +215,41 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run) : ICl
 
         firstPush.Rendezvous.Value.Should().BeOfType<Transfer>("the first push of the parking orbit is the transfer's burn");
         firstPush.Passenger.Value.Should().BeOfType<Strapped>();
+    }
+
+    /// <summary>
+    /// The burn tips the strapped person with its head toward the nose. Once the burn's thrust leaves the cabin weightless,
+    /// the trim's push stays at most half <see cref="FrameTree.ZeroGravityThreshold"/>, and the nose turns to the brake's
+    /// direction at the demo plan's <see cref="RendezvousPlan.WeightlessTurnRate"/>, so the turn's felt gravity at the seat stays below
+    /// half the threshold too. The cabin stays weightless, and a character's up does not turn there. So from the first
+    /// weightless tick after the burn's first push to the first tick of the brake, the person's up in the cabin's axes stays
+    /// within 1 degree of its up in that tick.
+    /// </summary>
+    [Fact]
+    public void TheStrappedPassengerKeepsItsUpThroughTheTrimAfterTheBurn()
+    {
+        RendezvousTick[] afterTheBurn = [.. AfterTheOrder.SkipWhile(tick => tick.CabinAcceleration.Length() < FrameTree.ZeroGravityThreshold)
+            .SkipWhile(tick => tick.CabinAcceleration.Length() >= FrameTree.ZeroGravityThreshold)
+            .TakeWhile(tick => tick.Rendezvous.Value is Transfer)];
+
+        afterTheBurn.Should().HaveCountGreaterThan(60 * 60 * 30, "the trim and the coast last about 40 minutes");
+        afterTheBurn.Should().OnlyContain(tick => tick.Passenger.Value is Strapped);
+        afterTheBurn.Max(tick => Degrees(tick.PersonUp, afterTheBurn[0].PersonUp)).Should().BeLessThan(1);
+    }
+
+    /// <summary>
+    /// The slow turn of the trim and the coast still ends in time: in the first tick of the brake, the nose lies within
+    /// 3 degrees of the coast's direction, against the velocity relative to the station, so the brake starts nearly
+    /// without a turn. It lies 2.1 degrees off (measured on 2026-10-20): at about 3,300 s the brake's direction passes 9
+    /// degrees from straight down, the roof, away from Earth across the nose, swings about the nose there, and at
+    /// the demo plan's <see cref="RendezvousPlan.WeightlessTurnRate"/> the nose catches up only slowly afterward.
+    /// </summary>
+    [Fact]
+    public void TheSlowTurnBringsTheNoseToTheBrakesDirectionBeforeTheBrake()
+    {
+        RendezvousTick brake = FirstOf<Brake>();
+
+        Degrees(brake.Nose, -brake.Relative).Should().BeLessThan(3);
     }
 
     /// <summary>
@@ -389,10 +426,9 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run) : ICl
     /// <c>cockpit-camera</c>, aft of the seat and above it, films the strapped person at its seat with the pen, and the nose
     /// window beyond it: in every frame of its films, the person's eye, the pen in its hand and the middle of the nose window
     /// lie in the picture, and the person's box covers at most half of it. The person floats upside down from the take, and
-    /// the burn tips it with its head toward the nose, by the up rule of every character, so the camera frames both: in
-    /// <c>night</c>, <c>burn</c> and <c>arrival</c>, the line from the camera to the pen passes outside the person's box.
-    /// In <c>transfer-night</c> the person lies on its side, with its head to port and its face to the floor, after the
-    /// trim's small pushes turned its up, so its body hides the pen from above.
+    /// the burn tips it with its head toward the nose, by the up rule of every character. The trim keeps that up, and so
+    /// does the glide, whose push along the nose turns it back after the turn to the slot. So the camera frames both: in
+    /// every frame, the line from the camera to the pen passes outside the person's box.
     /// </summary>
     [Fact]
     public void TheCockpitCameraShowsTheStrappedPersonWithThePenAndTheNoseWindow()
@@ -407,9 +443,8 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run) : ICl
             Picture.Contains(Picture.Project(frame.View, frame.Eye, frame.VerticalFov)).Should().BeTrue($"the person's eye is in the picture of {frame.Name}");
             Picture.Contains(Picture.Project(frame.View, frame.Pen!.Value, frame.VerticalFov)).Should().BeTrue($"the pen is in the picture of {frame.Name}");
             Picture.Contains(Picture.Project(frame.View, noseWindow, frame.VerticalFov)).Should().BeTrue($"the nose window is in the picture of {frame.Name}");
-            if (!frame.Of("transfer-night"))
-                CrossesTheBox(frame.Person.InverseTransformPoint(frame.View.Position), frame.Person.InverseTransformPoint(frame.Pen!.Value), half)
-                    .Should().BeFalse($"the person's body hides the pen in {frame.Name}");
+            CrossesTheBox(frame.Person.InverseTransformPoint(frame.View.Position), frame.Person.InverseTransformPoint(frame.Pen!.Value), half)
+                .Should().BeFalse($"the person's body hides the pen in {frame.Name}");
             Picture.Cover(frame.View, frame.Person, half, frame.VerticalFov).Should().BeLessThanOrEqualTo(0.5, frame.Name);
         }
     }

@@ -111,6 +111,22 @@ public sealed class FlightControlTests : IDisposable
         world.AngularVelocityIn(shuttle, space).Length().Should().BeLessThan(0.01f);
     }
 
+    /// <summary>
+    /// A target a quarter turn about the roof's axis, with a turn rate of 0.01 rad/s: after 10 s the hull turns at that rate,
+    /// and has turned about 0.1 radians, not the 1.5 radians of <see cref="AttitudeAutopilot.MaxTurnRate"/>.
+    /// </summary>
+    [Fact]
+    public void TheAttitudeAutopilotTurnsNoFasterThanTheTurnRateOfTheTarget()
+    {
+        DQuaternion target = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
+        Launch(new TargetFor(ticks: int.MaxValue, target, maxTurnRate: 0.01), new AttitudeAutopilot(Shuttle.Inertia));
+
+        Tick(world, 600);
+
+        world.AngularVelocityIn(shuttle, space).Length().Should().BeApproximately(0.01f, 0.0005f);
+        (Math.PI / 2 - world.PoseIn(shuttle, space).Rotation.AngularVelocityTo(target, 1).Length).Should().BeApproximately(0.1, 0.01);
+    }
+
     /// <summary>The target stops after 60 ticks, while the hull turns, so the autopilot gives no more torque and the hull turns on at the rate it had.</summary>
     [Fact]
     public void ATickWithoutAnAttitudeTargetGivesNoTorque()
@@ -158,8 +174,11 @@ public sealed class FlightControlTests : IDisposable
         }
     }
 
-    /// <summary>A test component that adds an <see cref="AttitudeTarget"/> of <paramref name="target"/> to its entity's events on each of its first <paramref name="ticks"/> ticks.</summary>
-    private sealed class TargetFor(int ticks, DQuaternion target) : IComponent
+    /// <summary>
+    /// A test component that adds an <see cref="AttitudeTarget"/> of <paramref name="target"/>, with the turn rate
+    /// <paramref name="maxTurnRate"/>, to its entity's events on each of its first <paramref name="ticks"/> ticks.
+    /// </summary>
+    private sealed class TargetFor(int ticks, DQuaternion target, double maxTurnRate = AttitudeAutopilot.MaxTurnRate) : IComponent
     {
         private int handled;
 
@@ -170,7 +189,7 @@ public sealed class FlightControlTests : IDisposable
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
             if (handled++ < ticks)
-                events.Add(new AttitudeTarget { Rotation = target });
+                events.Add(new AttitudeTarget { Rotation = target, MaxTurnRate = maxTurnRate });
         }
     }
 }

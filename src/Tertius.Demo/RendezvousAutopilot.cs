@@ -153,15 +153,30 @@ public readonly struct RendezvousState : IEquatable<RendezvousState>
 /// shuttle gains on the station, so the window is open while the angle lies from <paramref name="WindowCloses"/> to this.
 /// </param>
 /// <param name="WindowCloses">The transfer angle at which the window closes, in radians.</param>
-public readonly record struct RendezvousPlan(double TransferTime, double ArrivalDistance, double HoldDistance, double WindowOpens, double WindowCloses)
+/// <param name="WeightlessTurnRate">
+/// The fastest turn of the nose in the trim and the coast of the transfer, while the cabin is weightless, in radians per
+/// second, at most <see cref="AttitudeAutopilot.MaxTurnRate"/>. The turn from the burn's nose to the brake's direction
+/// must end within the trim and the coast.
+/// </param>
+public readonly record struct RendezvousPlan(double TransferTime, double ArrivalDistance, double HoldDistance, double WindowOpens, double WindowCloses,
+    double WeightlessTurnRate)
 {
     /// <summary>
     /// The demo's plan: a transfer of 170 degrees in 2,560 s, the time of the cheapest transfer of 170 degrees between the
     /// parking orbit and the station's, to the arrival point 1,500 m out on the axis, and then to
     /// <see cref="DemoScenes.DemoStation.HoldPoint"/>, 150 m out. The window is open from 170 down to 150 degrees.
     /// </summary>
+    /// <remarks>
+    /// The weightless turn rate is 0.002 rad/s, about 0.11 degrees per second. A turn of the hull gives the strapped
+    /// person a felt gravity: the centrifugal term ω² r, and, while the <see cref="AttitudeAutopilot"/> brings the hull to
+    /// its rate in <see cref="AttitudeAutopilot.RateTime"/>, the Euler term ω r / RateTime. At the seat, 4 m from the hull's
+    /// center, the Euler term of this rate is 0.024 m/s², less than half <see cref="FrameTree.ZeroGravityThreshold"/>, so
+    /// the cabin stays weightless and the person keeps its up. At <see cref="AttitudeAutopilot.MaxTurnRate"/>, the turn of
+    /// about 160 degrees from the burn's nose to the brake's direction gave about 0.1 m/s² there and turned the person onto
+    /// its side. This rate turns it in about 1,400 s, inside the trim and the coast of about 2,450 s.
+    /// </remarks>
     public static RendezvousPlan Demo { get; } = new(TransferTime: 2560, ArrivalDistance: 1500, HoldDistance: DemoScenes.DemoStation.HoldPoint.Y,
-        WindowOpens: 170 * Math.PI / 180, WindowCloses: 150 * Math.PI / 180);
+        WindowOpens: 170 * Math.PI / 180, WindowCloses: 150 * Math.PI / 180, WeightlessTurnRate: 0.002);
 }
 
 /// <summary>
@@ -183,7 +198,8 @@ public readonly record struct RendezvousPlan(double TransferTime, double Arrival
 /// the nose turns toward it, the main engine gives the part of the push along the nose, and the translation thrusters the
 /// rest. Below that, the thrusters alone trim it, and the nose holds the brake's direction. In the last
 /// <see cref="TransferGuidance.CoastTime"/>, the autopilot solves nothing more, and the nose turns against the velocity
-/// relative to the station. The brake starts in the coast, where the braking curve of the brake reaches the shuttle, or at
+/// relative to the station. In the trim and the coast, the cabin is weightless, so the nose turns at most at the plan's
+/// <see cref="RendezvousPlan.WeightlessTurnRate"/>. The brake starts in the coast, where the braking curve of the brake reaches the shuttle, or at
 /// the arrival time.</item>
 /// <item><see cref="Brake"/>: the brake's <see cref="ApproachGuidance"/> flies the shuttle to the arrival point, with the
 /// nose along its push, and the main engine and the thrusters split the push as in the burn. Within
@@ -233,8 +249,9 @@ public sealed class RendezvousAutopilot(Entity station, RendezvousPlan plan, dou
         plan.TransferTime > TransferGuidance.CoastTime && double.IsFinite(plan.TransferTime)
         && plan.ArrivalDistance > 0 && double.IsFinite(plan.ArrivalDistance) && plan.HoldDistance > 0 && double.IsFinite(plan.HoldDistance)
         && plan.WindowCloses > 0 && plan.WindowCloses < plan.WindowOpens && plan.WindowOpens < 2 * Math.PI
+        && plan.WeightlessTurnRate > 0 && plan.WeightlessTurnRate <= AttitudeAutopilot.MaxTurnRate
             ? plan
-            : throw new ArgumentException($"A plan needs a transfer longer than the coast, positive distances, and a window inside a turn, not {plan}.", nameof(plan));
+            : throw new ArgumentException($"A plan needs a transfer longer than the coast, positive distances, a window inside a turn, and a weightless turn rate above 0 and at most the attitude autopilot's, not {plan}.", nameof(plan));
 
     private readonly double maxThrust = maxThrust > 0 && double.IsFinite(maxThrust)
         ? maxThrust
@@ -306,32 +323,32 @@ public sealed class RendezvousAutopilot(Entity station, RendezvousPlan plan, dou
                 double timeLeft = arrivalTime - time;
                 if (timeLeft <= TransferGuidance.CoastTime)
                 {
-                    Face(ref events, -relative, pose);
+                    Face(ref events, -relative, pose, plan.WeightlessTurnRate);
                     break;
                 }
                 TransferSteering steering = guidance.Steer(position, velocity, center, stationVelocity, axis, plan.ArrivalDistance, timeLeft);
                 if (steering.Burns)
                 {
-                    Face(ref events, steering.ToGain, pose);
+                    Face(ref events, steering.ToGain, pose, AttitudeAutopilot.MaxTurnRate);
                     Burn(ref events, steering.Push, nose, mass);
                 }
                 else
                 {
-                    Face(ref events, steering.BrakeDirection, pose);
+                    Face(ref events, steering.BrakeDirection, pose, plan.WeightlessTurnRate);
                     events.Add(new Translation { Force = steering.Push * mass });
                 }
                 break;
             case Brake { Guidance: var guidance }:
                 Double3 push = guidance.Push(position, velocity, arrivalPoint, center, stationVelocity);
-                Face(ref events, push, pose);
+                Face(ref events, push, pose, AttitudeAutopilot.MaxTurnRate);
                 Burn(ref events, push, nose, mass);
                 break;
             case Glide { Guidance: var guidance }:
-                Face(ref events, -axis, pose);
+                Face(ref events, -axis, pose, AttitudeAutopilot.MaxTurnRate);
                 events.Add(new Translation { Force = guidance.Push(position, velocity, holdPoint, center, stationVelocity) * mass });
                 break;
             case Hold { Guidance: var guidance }:
-                Face(ref events, -axis, pose);
+                Face(ref events, -axis, pose, AttitudeAutopilot.MaxTurnRate);
                 events.Add(new Translation { Force = guidance.Push(position, velocity, holdPoint, center, stationVelocity) * mass });
                 break;
         }
@@ -363,10 +380,11 @@ public sealed class RendezvousAutopilot(Entity station, RendezvousPlan plan, dou
 
     /// <summary>
     /// Adds the attitude target that points the nose along <paramref name="nose"/>, with the roof away from the planet, or
-    /// that holds the rotation of <paramref name="pose"/> when the nose has no direction.
+    /// that holds the rotation of <paramref name="pose"/> when the nose has no direction, at most at
+    /// <paramref name="maxTurnRate"/>, in radians per second.
     /// </summary>
-    private static void Face(scoped ref EventList events, Double3 nose, in DPose pose) =>
-        events.Add(new AttitudeTarget { Rotation = nose.Length > 1e-9 ? AttitudeAutopilot.Facing(nose, pose) : pose.Rotation });
+    private static void Face(scoped ref EventList events, Double3 nose, in DPose pose, double maxTurnRate) =>
+        events.Add(new AttitudeTarget { Rotation = nose.Length > 1e-9 ? AttitudeAutopilot.Facing(nose, pose) : pose.Rotation, MaxTurnRate = maxTurnRate });
 
     /// <summary>
     /// Adds the throttle and the translation that give the hull of <paramref name="mass"/> kilograms the acceleration

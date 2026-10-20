@@ -171,15 +171,15 @@ public sealed class AscentAutopilot(double maxThrust, double orbitRadius, double
             case Ramp:
                 events.Add(new Throttle { Value = 1 });
                 if (velocity.Length > SteerSpeed)
-                    events.Add(new AttitudeTarget { Rotation = AttitudeAutopilot.Facing(velocity, pose) });
+                    events.Add(new AttitudeTarget { Rotation = AttitudeAutopilot.Facing(velocity, pose), MaxTurnRate = AttitudeAutopilot.MaxTurnRate });
                 break;
             case Climb { Guidance: var guidance }:
                 Double3 acceleration = guidance.Acceleration(position, velocity);
                 events.Add(new Throttle { Value = (float)Math.Min(1, acceleration.Length / guidance.MaxAcceleration) });
-                events.Add(new AttitudeTarget { Rotation = AttitudeAutopilot.Facing(acceleration, pose) });
+                events.Add(new AttitudeTarget { Rotation = AttitudeAutopilot.Facing(acceleration, pose), MaxTurnRate = AttitudeAutopilot.MaxTurnRate });
                 break;
             case Orbit:
-                events.Add(new AttitudeTarget { Rotation = AttitudeAutopilot.Facing(velocity, pose) });
+                events.Add(new AttitudeTarget { Rotation = AttitudeAutopilot.Facing(velocity, pose), MaxTurnRate = AttitudeAutopilot.MaxTurnRate });
                 break;
         }
     }

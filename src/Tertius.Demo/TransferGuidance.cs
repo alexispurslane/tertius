@@ -24,10 +24,14 @@ public readonly record struct TransferGuidance(double Mu)
 
     /// <summary>
     /// The length of the velocity to gain, in m/s, above which the shuttle burns its main engine, and at or below which it
-    /// trims with the translation thrusters: 0.2, <see cref="AscentGuidance.SpeedTolerance"/>, the speed that the trim takes
-    /// in <see cref="TrimTime"/> at the weightless threshold. So the burn ends where its thrust leaves the cabin weightless.
+    /// trims with the translation thrusters: 0.1, the speed that the trim takes in <see cref="TrimTime"/> at half
+    /// <see cref="FrameTree.ZeroGravityThreshold"/>. So the trim's push, the velocity to gain over <see cref="TrimTime"/>, is
+    /// at most half the threshold, and the cabin stays clearly weightless through the trim. A strapped person floats there
+    /// in the rigid form of a character, which does not turn its up. At a push of the threshold itself, a person who
+    /// touches its seat walks again and turns its up to the push at once. The burn runs on below the threshold for about
+    /// 3 s, at a throttle of about 0.001.
     /// </summary>
-    public const double SpeedTolerance = AscentGuidance.SpeedTolerance;
+    public const double SpeedTolerance = FrameTree.ZeroGravityThreshold / 2 * TrimTime;
 
     /// <summary>
     /// The longest push of a burn, in m/s²: a throttle of about 0.10, so that a burn of about 60 m/s lasts about 20 s, long

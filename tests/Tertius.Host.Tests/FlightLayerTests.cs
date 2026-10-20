@@ -86,7 +86,7 @@ public sealed class FlightLayerTests : IDisposable
 
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
-            events.Add(new AttitudeTarget { Rotation = target });
+            events.Add(new AttitudeTarget { Rotation = target, MaxTurnRate = AttitudeAutopilot.MaxTurnRate });
             if (throttle is float value)
                 events.Add(new Throttle { Value = value });
             if (translation is Double3 force)

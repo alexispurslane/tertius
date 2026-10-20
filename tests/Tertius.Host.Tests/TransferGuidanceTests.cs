@@ -82,23 +82,42 @@ public sealed class TransferGuidanceTests
         Double3.Distance(steering.Push.Normalized(), steering.ToGain.Normalized()).Should().BeLessThan(1e-12);
     }
 
-    /// <summary>0.1 m/s short of the needed velocity, below the speed tolerance of 0.2 m/s, the trim takes it in 4 s.</summary>
+    /// <summary>0.05 m/s short of the needed velocity, below the speed tolerance of 0.1 m/s, the trim takes it in 4 s.</summary>
     [Fact]
     public void NearTheNeededVelocityTheTrimTakesTheVelocityToGainInTheTrimTime()
     {
-        TransferSteering first = Guidance.Steer(Shuttle.Position, Shuttle.Velocity, Station.Position, Station.Velocity, Axis, ArrivalDistance, TransferTime);
-        Double3 velocity = Shuttle.Velocity + first.ToGain - first.ToGain.Normalized() * 0.1;
-
-        TransferSteering steering = Guidance.Steer(Shuttle.Position, velocity, Station.Position, Station.Velocity, Axis, ArrivalDistance, TransferTime);
+        TransferSteering steering = SteeringShortBy(0.05);
 
         steering.Burns.Should().BeFalse();
-        steering.ToGain.Length.Should().BeApproximately(0.1, 1e-6);
+        steering.ToGain.Length.Should().BeApproximately(0.05, 1e-6);
         Double3.Distance(steering.Push, steering.ToGain / TransferGuidance.TrimTime).Should().BeLessThan(1e-15);
     }
 
+    /// <summary>
+    /// The longest velocity to gain that the trim takes is the speed tolerance. Its push, that velocity over the trim time,
+    /// is at most half <see cref="FrameTree.ZeroGravityThreshold"/>, so the trim leaves the cabin clearly weightless, and a
+    /// strapped person who touches its seat does not walk and turn its up to the trim's push.
+    /// </summary>
+    [Fact]
+    public void TheTrimPushesAtMostHalfTheWeightlessThreshold()
+    {
+        TransferSteering steering = SteeringShortBy(TransferGuidance.SpeedTolerance - 1e-9);
+
+        steering.Burns.Should().BeFalse();
+        steering.Push.Length.Should().BeLessThanOrEqualTo(FrameTree.ZeroGravityThreshold / 2);
+    }
+
     [Theory]
-    [InlineData(0.19, false)]
-    [InlineData(0.21, true)]
+    [InlineData(0.09, false)]
+    [InlineData(0.11, true)]
     public void TheShuttleBurnsWhileTheVelocityToGainIsLongerThanTheSpeedTolerance(double toGain, bool burns) =>
         new TransferSteering(new Double3(0, 0, toGain), Double3.Zero, Double3.UnitX).Burns.Should().Be(burns);
+
+    /// <summary>The steering of the demo's window for a shuttle whose velocity lies <paramref name="short"/> m/s short of the needed velocity, along the velocity to gain.</summary>
+    private static TransferSteering SteeringShortBy(double @short)
+    {
+        TransferSteering first = Guidance.Steer(Shuttle.Position, Shuttle.Velocity, Station.Position, Station.Velocity, Axis, ArrivalDistance, TransferTime);
+        Double3 velocity = Shuttle.Velocity + first.ToGain - first.ToGain.Normalized() * @short;
+        return Guidance.Steer(Shuttle.Position, velocity, Station.Position, Station.Velocity, Axis, ArrivalDistance, TransferTime);
+    }
 }
