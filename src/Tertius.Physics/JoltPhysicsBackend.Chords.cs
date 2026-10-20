@@ -335,12 +335,13 @@ public sealed partial class JoltPhysicsBackend
     /// The motion of <paramref name="frame"/> relative to its current parent at the end of the step, with the instant velocity
     /// of its step record, which a hand-off carries into the parent (see <see cref="StepRecordOf"/>). Jolt's velocity of a
     /// dynamic hull is the chord of the step, so its record takes the hull's acceleration over the step, its gravity plus its
-    /// proper acceleration, half a step further on. A sample has its instant velocity already. Call it only after
-    /// <see cref="ComputeProperAccelerations"/>.
+    /// proper acceleration, half a step further on. A sample has its instant velocity already. The motion holds the record's
+    /// acceleration and angular acceleration, by which the hand-off converts a body's angular acceleration (see
+    /// <see cref="FrameMotion.AngularAccelerationToParent"/>). Call it only after <see cref="ComputeProperAccelerations"/>.
     /// </summary>
     private FrameMotion InstantMotionOf(FrameHandle frame)
     {
         MotionSample record = StepRecordOf(frame);
-        return new FrameMotion(record.Pose, record.Velocity, record.AngularVelocity);
+        return new FrameMotion(record.Pose, record.Velocity, record.AngularVelocity, record.Acceleration, record.AngularAcceleration);
     }
 }

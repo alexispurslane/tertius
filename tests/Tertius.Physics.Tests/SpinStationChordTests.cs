@@ -590,6 +590,92 @@ public class SpinStationChordTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// An undamped ship of 1 m, a cube, so that its inertia is the same about every axis and it keeps its inertial angular
+    /// velocity, with a bubble of 5 m inside it that nothing enters.
+    /// </summary>
+    private static SpawnDesc SpinningShip(FrameHandle frame, Double3 place, Double3 velocity, Double3 angularVelocity) => new()
+    {
+        Frame = frame,
+        Pose = new DPose(place, DQuaternion.Identity),
+        LinearVelocity = velocity,
+        AngularVelocity = angularVelocity.ToVector3(),
+        Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(0.5f)),
+    };
+
+    /// <summary>The angular acceleration of the station that spins up in the tests of a spinning ship, in rad/s².</summary>
+    private const double StationSpinUp = 0.2;
+
+    /// <summary>
+    /// A root frame without a field, and in it a station with a bubble of radius 150 m that spins up about its +Y at
+    /// <see cref="StationSpinUp"/> from its spawn, after 1 s of that, when it turns at 0.2 rad/s.
+    /// </summary>
+    private static Station SpawnStationThatSpinsUp(World world)
+    {
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        Entity owner = world.Spawn(SpinUp.Spawning(new SpawnDesc { Frame = space, AsFrame = new FrameSpec(FrameBounds.Sphere(150)) },
+            world, StationSpinUp));
+        Tick(world, world.Options.TickRate);
+        return new Station(space, world.GetOwnedFrame(owner));
+    }
+
+    [Fact]
+    public void AShipThatSpinsAcrossTheAxisOfAStationThatSpinsUpGivesItsFrameNoAngularAccelerationInSpaceWhenItLeaves()
+    {
+        // The ship spins at 1 rad/s about an axis at right angles to the station's, and moves outward at 10 m/s, both in
+        // inertial space. In the station's axes its spin turns backward and the station's spin-up adds to its angular
+        // velocity relative to the station, which changes at −ω × Ω_s − α, about 0.3 rad/s², and its step record holds that
+        // as its angular acceleration. The hand-off converts it by the full rule, α' = R α_b + α + ω × (R ω_b), with the
+        // station's ω and α from its step record, so the ship's frame in space reads the zero angular acceleration of a free
+        // cube. Without the cross term the frame kept |ω| |Ω|, and without the station's α it kept 0.2 rad/s². The record's
+        // angular acceleration is the change of Jolt's angular chords, centered a step before the instant angular velocity
+        // that the cross term takes, so the frame keeps about one step of the change of α_b, (α + ω²) |Ω| dt = 6e-3 rad/s²
+        // at a rate of 0.4 rad/s (measured 5.3e-3 rad/s²).
+        using World world = NewWorld(out _, debugChecks: false);
+        Station station = SpawnStationThatSpinsUp(world);
+        Double3 omega = world.Frames.AngularVelocity(station.Frame);
+        var spin = new Double3(1, 0, 0);
+        var place = new Double3(140, 0, 0);
+        Entity ship = world.Spawn(SpinningShip(station.Frame, place, new Double3(10, 0, 0) - Double3.Cross(omega, place), spin - omega));
+        FrameHandle shipFrame = world.GetOwnedFrame(ship);
+        world.Tick();
+        Double3 inStation = world.Frames.AngularAcceleration(shipFrame);
+
+        int ticks = TickUntil(world, () => world.GetFrame(ship) == station.Space, 200);
+
+        ticks.Should().BeLessThan(200, "the ship leaves the bubble of 150 m within 2 s");
+        inStation.Length.Should().BeGreaterThan(0.25, "in the station's axes the ship's spin turns and the station spins up under it");
+        world.Frames.AngularAcceleration(shipFrame).Length.Should().BeLessThan(1e-2, "a free cube keeps its spin in inertial space");
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AShipThatSpinsAcrossTheAxisOfAStationThatSpinsUpGivesItsFrameTheChangeOfItsSpinThereWhenItEnters()
+    {
+        // The reverse of the test before: the ship keeps a spin of 1 rad/s in inertial space and flies into the station. Its
+        // angular velocity relative to the station, in the station's axes, changes at −α − ω × Ω_s, with Ω_s its spin in the
+        // station's axes and ω the station's rate when it enters. The hand-off converts its zero angular acceleration in
+        // space by the full rule back, α_b = R⁻¹ (α' − α − ω × Ω'), which gives that. The rule that only turns the vector
+        // gave zero.
+        using World world = NewWorld(out _, debugChecks: false);
+        Station station = SpawnStationThatSpinsUp(world);
+        var spin = new Double3(1, 0, 0);
+        Entity ship = world.Spawn(SpinningShip(station.Space, new Double3(158, 0, 0), new Double3(-10, 0, 0), spin));
+        FrameHandle shipFrame = world.GetOwnedFrame(ship);
+
+        int ticks = TickUntil(world, () => world.GetFrame(ship) == station.Frame, 200);
+
+        ticks.Should().BeLessThan(200, "the ship enters the bubble of 150 m within 2 s");
+        // The station turns about +Y, so its rate and its spin-up have the same components in its axes and in space's.
+        Double3 omega = world.Frames.AngularVelocity(station.Frame);
+        Double3 spinInStation = station.Pose(world).Rotation.Conjugate().Rotate(spin);
+        Double3 expected = -new Double3(0, StationSpinUp, 0) - Double3.Cross(omega, spinInStation);
+        Double3.Distance(world.Frames.AngularAcceleration(shipFrame), expected).Should().BeLessThan(1e-6,
+            $"the ship's angular velocity in the station changes at {expected}, and it read {world.Frames.AngularAcceleration(shipFrame)}");
+        world.Errors.Should().BeEmpty();
+    }
+
     [Fact]
     public void AStaticPillarThatReachesIntoTheStationHasAGhostThereThatMovesByItsChordInTheStationsAxes()
     {

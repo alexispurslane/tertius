@@ -10,8 +10,9 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// A hand-off decided after the step, with the body's state already converted to the target frame: its pose, the
     /// velocities that Jolt gets there, the acceleration relative to the target that turned the linear velocity into its
-    /// chord (see <see cref="HandedOffVelocities"/>), and the angular acceleration of the step's update in the target's
-    /// axes (see <see cref="FrameMotion.AngularAccelerationToParent(Double3)"/>).
+    /// chord (see <see cref="HandedOffVelocities"/>), and the angular acceleration of the step's update relative to the
+    /// target, in its axes, by the full rule with the frame's angular velocity and angular acceleration (see
+    /// <see cref="FrameMotion.AngularAccelerationToParent"/>).
     /// </summary>
     private readonly record struct HandOffPlan(
         BodyRecord Record,
@@ -175,11 +176,12 @@ public sealed partial class JoltPhysicsBackend
                     }
                     DPose pose = frameMotion.PoseToParent(new DPose(s.Pose.Position + homeOffset, s.Pose.Rotation));
                     Double3 centerInBubble = s.CenterOfMass + homeOffset;
+                    Double3 angularInBubble = InstantAngularVelocity(member, s);
                     var (linear, angular, acceleration) = HandedOffVelocities(member, parent, frameMotion.Pose.TransformPoint(centerInBubble),
                         frameMotion.VelocityToParent(centerInBubble, InstantVelocity(member, s) + homeVelocity),
-                        frameMotion.AngularToParent(InstantAngularVelocity(member, s)));
+                        frameMotion.AngularToParent(angularInBubble));
                     handOffPlans.Add(new HandOffPlan(member, frame, parent, pose, linear, angular, acceleration,
-                        frameMotion.AngularAccelerationToParent(member.AngularAcceleration).ToVector3(), frameMotion.Pose.Rotation));
+                        frameMotion.AngularAccelerationToParent(member.AngularAcceleration, angularInBubble).ToVector3(), frameMotion.Pose.Rotation));
                     continue;
                 }
 
@@ -211,11 +213,12 @@ public sealed partial class JoltPhysicsBackend
                     ref readonly FrameMotion motion = ref entry.Motion;
                     var poseInParent = new DPose(s.Pose.Position + entry.Offset, s.Pose.Rotation);
                     Double3 centerInParent = s.CenterOfMass + entry.Offset;
+                    Double3 angularInParent = InstantAngularVelocity(member, s);
                     var (linear, angular, acceleration) = HandedOffVelocities(member, entry.Frame, motion.Pose.InverseTransformPoint(centerInParent),
                         motion.VelocityFromParent(centerInParent, InstantVelocity(member, s) + entry.Velocity),
-                        motion.AngularFromParent(InstantAngularVelocity(member, s)));
+                        motion.AngularFromParent(angularInParent));
                     handOffPlans.Add(new HandOffPlan(member, frame, entry.Frame, motion.PoseFromParent(poseInParent), linear, angular, acceleration,
-                        motion.AngularAccelerationFromParent(member.AngularAcceleration).ToVector3(), motion.Pose.Rotation.Conjugate()));
+                        motion.AngularAccelerationFromParent(member.AngularAcceleration, angularInParent).ToVector3(), motion.Pose.Rotation.Conjugate()));
                 }
             }
         }

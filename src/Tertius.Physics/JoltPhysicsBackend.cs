@@ -910,12 +910,13 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
 
     /// <summary>
     /// The motion of <paramref name="frame"/> relative to its current parent at the end of the step, with the chord of its
-    /// step record as its velocity, which a ghost follows (see <see cref="StepRecordOf"/>). Call it only during a step.
+    /// step record as its velocity, which a ghost follows, and the record's acceleration and angular acceleration (see
+    /// <see cref="StepRecordOf"/>). Call it only during a step.
     /// </summary>
     private FrameMotion MotionOf(FrameHandle frame)
     {
         MotionSample record = StepRecordOf(frame);
-        return new FrameMotion(record.Pose, record.ChordVelocity, record.AngularVelocity);
+        return new FrameMotion(record.Pose, record.ChordVelocity, record.AngularVelocity, record.Acceleration, record.AngularAcceleration);
     }
 
     /// <summary>
@@ -928,8 +929,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// A hull that handed off in the step is in its new home: Jolt's velocity is the chord of its first step there, so its
     /// acceleration is the one that the hand-off made that chord with, in the new home's axes (see
     /// <see cref="HandedOffVelocities"/>), the instant velocity is the one that the hand-off carried, and the angular
-    /// acceleration is the one of the update, turned into the new home's axes (see
-    /// <see cref="FrameMotion.AngularAccelerationToParent(Double3)"/>). False for any other frame.
+    /// acceleration is the one of the update, converted into the new home by the full rule (see
+    /// <see cref="FrameMotion.AngularAccelerationToParent"/>). False for any other frame.
     /// </summary>
     private bool TryHullRecord(FrameHandle frame, out MotionSample record)
     {

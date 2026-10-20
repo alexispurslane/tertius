@@ -7,8 +7,8 @@ namespace Tertius;
 /// converts a full sample with it (see <see cref="Frames.Rails.MotionSample.Converted"/>) when its entity changes frame
 /// (see <c>World.ConvertIntent</c>). The conversions follow ARCHITECTURE.md, hand-off rule 5: v' = R⁻¹(v − v_frame − ω × r).
 /// The rules of the accelerations, with the frame's rotation terms, are those of docs/plans/spin-gravity.md, "V7, the
-/// relative motion of two frames". The two accelerations have default values only until spin gravity moves the callers of
-/// today; then the defaults go, and every producer states both.
+/// relative motion of two frames". Every producer states both accelerations: the motion of a frame at the start of a step
+/// states an explicit zero for each, because a value left out would drop a record's accelerations without a word.
 /// </summary>
 /// <param name="Pose">The frame's pose in the parent: R, its rotation into the parent's axes, and the place of its origin.</param>
 /// <param name="Velocity">The velocity of the frame's origin in the parent, in m/s.</param>
@@ -16,7 +16,7 @@ namespace Tertius;
 /// <param name="Acceleration">A, the acceleration of the frame's origin in the parent, in the parent's axes, in m/s².</param>
 /// <param name="AngularAcceleration">α, the frame's angular acceleration relative to the parent, in the parent's axes, in rad/s².</param>
 internal readonly record struct FrameMotion(DPose Pose, Double3 Velocity, Double3 AngularVelocity,
-    Double3 Acceleration = default, Double3 AngularAcceleration = default)
+    Double3 Acceleration, Double3 AngularAcceleration)
 {
     public DPose PoseToParent(in DPose local) => DPose.Compose(Pose, local);
 
@@ -24,7 +24,7 @@ internal readonly record struct FrameMotion(DPose Pose, Double3 Velocity, Double
     /// The motion in the parent of an inner frame whose motion in this frame is <paramref name="local"/>: its pose composed
     /// with this pose, its origin's velocity and acceleration by the rules of a point (<see cref="VelocityToParent"/> and
     /// <see cref="AccelerationToParent"/>), and its angular velocity and angular acceleration by the rules of a body
-    /// (<see cref="AngularToParent"/> and <see cref="AngularAccelerationToParent(Double3, Double3)"/>). A path of frames
+    /// (<see cref="AngularToParent"/> and <see cref="AngularAccelerationToParent"/>). A path of frames
     /// composes level by level with it, from the inner end, as the pose tree composes poses
     /// (see <see cref="FrameTree.MotionRelativeInStep"/>).
     /// </summary>
@@ -39,7 +39,7 @@ internal readonly record struct FrameMotion(DPose Pose, Double3 Velocity, Double
     /// The motion of the parent in this frame, in the frame's axes: the inverse pose, and the motion of the parent's origin
     /// and axes, which stand still in the parent, by the rules from the parent (<see cref="VelocityFromParent"/>,
     /// <see cref="AccelerationFromParent"/>, <see cref="AngularFromParent"/> and
-    /// <see cref="AngularAccelerationFromParent(Double3, Double3)"/>). So <c>m.Inverse().MotionToParent(m)</c> is the frame
+    /// <see cref="AngularAccelerationFromParent"/>). So <c>m.Inverse().MotionToParent(m)</c> is the frame
     /// at rest in itself.
     /// </summary>
     public FrameMotion Inverse() => new(
@@ -103,24 +103,8 @@ internal readonly record struct FrameMotion(DPose Pose, Double3 Velocity, Double
     /// <summary>
     /// The angular acceleration in the frame of a body that turns at <paramref name="angularVelocity"/> and spins up at
     /// <paramref name="alpha"/> in the parent, both in the parent's axes, the inverse of
-    /// <see cref="AngularAccelerationToParent(Double3, Double3)"/>: α_b = R⁻¹ (α' − α − ω × Ω').
+    /// <see cref="AngularAccelerationToParent"/>: α_b = R⁻¹ (α' − α − ω × Ω').
     /// </summary>
     public Double3 AngularAccelerationFromParent(Double3 alpha, Double3 angularVelocity) =>
         Pose.InverseTransformDirection(alpha - AngularAcceleration - Double3.Cross(AngularVelocity, angularVelocity));
-
-    /// <summary>
-    /// The angular acceleration in the parent of a body whose angular acceleration in the frame is <paramref name="alpha"/>:
-    /// the same direction in the parent's axes. It leaves out the frame's angular acceleration and the cross product of
-    /// <see cref="AngularVelocity"/> with the body's angular velocity, which the full rule,
-    /// <see cref="AngularAccelerationToParent(Double3, Double3)"/>, adds. Spin gravity moves its callers to the full rule and
-    /// then removes it (docs/plans/spin-gravity.md, "V7, the relative motion of two frames").
-    /// </summary>
-    public Double3 AngularAccelerationToParent(Double3 alpha) => Pose.TransformDirection(alpha);
-
-    /// <summary>
-    /// The angular acceleration in the frame of a body whose angular acceleration in the parent is <paramref name="alpha"/>,
-    /// by the rule of <see cref="AngularAccelerationToParent(Double3)"/>. Its full rule is
-    /// <see cref="AngularAccelerationFromParent(Double3, Double3)"/>.
-    /// </summary>
-    public Double3 AngularAccelerationFromParent(Double3 alpha) => Pose.InverseTransformDirection(alpha);
 }
