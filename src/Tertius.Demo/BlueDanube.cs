@@ -10,11 +10,12 @@ namespace Tertius.Demo;
 /// <summary>
 /// The Blue Danube demo's one unbroken run, as a script of film steps (docs/plans/blue-danube-demo.md, "The long script"):
 /// one <see cref="FilmSection"/> for each part of the sequence, in its order, in the scene <c>demo-surface</c>. Today the
-/// sections cover the parts that exist: the walk through the terminal into the shuttle, and the launch to orbit with the
-/// pen. Each later part of the demo adds its sections at the end of <see cref="Sections"/>.
+/// sections cover the parts that exist: the walk through the terminal into the shuttle, the launch to orbit with the pen,
+/// and the rendezvous with the station, to the hold point on its axis. Each later part of the demo adds its sections at the end of <see cref="Sections"/>.
 /// </summary>
 /// <remarks>
-/// A section films every tick where the action is fast, and every Nth tick for the long climb and the coast, which gives
+/// A section films every tick where the action is fast, and every Nth tick for the long climb and the long waits and
+/// flights of the rendezvous, which gives
 /// the time-lapse. The script is meant for a video at 60 frames per second (<c>--fps 60</c>), so a section that films every
 /// tick plays at the speed of the simulation, and one that films every Nth tick plays N times faster. Each cue reads the
 /// run, or a place of the scene's constants, never a tick number copied from an earlier run, so the sections follow the
@@ -69,9 +70,39 @@ public static class BlueDanube
         // The hand camera films the end of the fetch, the take and the person holding the pen.
         new("take", "hand-camera", Every: 1, (world, scene) => PassengerOf(world, scene).Value is Holding or Stopped, Hold: Second * 3),
 
-        // The coast in orbit, as a time-lapse. The rendezvous with the station follows here.
-        new("coast", "chase-camera", Every: 10, FilmSection.Now, Hold: Second * 30),
+        // The rendezvous (docs/plans/blue-danube-demo.md, "Sections of the long script"): the person floats back to its
+        // seat with the pen and straps in. Then the shuttle waits in the parking orbit for its window, burns onto the
+        // transfer in Earth's night, flies half an orbit to the arrival point, brakes there, and glides along the station's
+        // axis to the hold point. The parts in Earth's night are filmed from the cabin, because the demo's Earth casts no
+        // shadow. A section that waits longer than 10 minutes names a limit of twice its length.
+        new("belt", "cabin-camera", Every: 1, (world, scene) => PassengerOf(world, scene).Value is Strapped, Hold: Second,
+            Posts: [new PostStep(new ToEntity("person"), nameof(FastenBelt))]),
+        new("phasing", "chase-camera", Every: 60, InEarthsShadow, Limit: Second * 2100,
+            Posts: [new PostStep(new ToEntity("shuttle"), nameof(Rendezvous))]),
+        new("night", "cockpit-camera", Every: 120, (world, scene) => RendezvousOf(world, scene).Value is Transfer, Limit: Second * 1200),
+        // The cabin is also weightless in the tick before the burn starts, so the end of the burn needs the transfer's
+        // apoapsis too.
+        new("burn", "cockpit-camera", Every: 2, (world, scene) => Apoapsis(world, scene) > TransferApoapsis && CabinWeightless(world, scene), Hold: Second * 2),
+        new("transfer-night", "cockpit-camera", Every: 240, (world, scene) => !InEarthsShadow(world, scene), Limit: Second * 3000),
+        new("transfer", "chase-camera", Every: 60, (world, scene) => ToArrivalPoint(world, scene) < 10e3, Limit: Second * 1800),
+        new("closing", "bow-camera", Every: 8, (world, scene) => RendezvousOf(world, scene).Value is Brake),
+        new("brake", "port-window-camera", Every: 1, (world, scene) => RendezvousOf(world, scene).Value is Glide),
+        new("turn", "window-camera", Every: 1, (world, scene) => NoseFromStation(world, scene) < NoseOnStation),
+        new("glide", "chase-camera", Every: 6, (world, scene) => ToStation(world, scene) < 700),
+        new("glide-window", "window-camera", Every: 4, (world, scene) => ToStation(world, scene) < 400),
+        new("glide-rim", "rim-camera", Every: 4, (world, scene) => ToStation(world, scene) < 200),
+        new("arrival", "cockpit-camera", Every: 4, (world, scene) => RendezvousOf(world, scene).Value is Hold, Hold: Second * 3),
+        new("hold", "rim-camera", Every: 1, FilmSection.Now, Hold: Second * 5),
     ];
+
+    /// <summary>
+    /// The apoapsis above Earth's mean radius at which the burn of the transfer has nearly ended, in meters: 399 km, below
+    /// the transfer orbit's 400.5 km.
+    /// </summary>
+    private const double TransferApoapsis = 399e3;
+
+    /// <summary>How near the direction to the station the nose must point for the turn to end, in radians: 2 degrees.</summary>
+    private const double NoseOnStation = 2 * Math.PI / 180;
 
     /// <summary>The script of the run, which the generator rehearses in a new world (see <see cref="FilmScript.Generate"/>).</summary>
     public static Script Generate() => FilmScript.Generate(DemoScenes.All.Single(scene => scene.Name == SceneName), Window, Sections);
@@ -91,6 +122,8 @@ public static class BlueDanube
 
     private static PassengerState PassengerOf(World world, SceneInstance scene) => world.GetComponent<Passenger>(scene["person"])!.State;
 
+    private static RendezvousState RendezvousOf(World world, SceneInstance scene) => world.GetComponent<RendezvousAutopilot>(scene["shuttle"])!.State;
+
     private static AscentState AscentOf(World world, SceneInstance scene) => world.GetComponent<AscentAutopilot>(scene["shuttle"])!.State;
 
     /// <summary>True once the pen's clip has let the pen go, or the loose pen is gone.</summary>
@@ -104,6 +137,61 @@ public static class BlueDanube
     /// <summary>How high the shuttle's center is above Earth's mean radius, in meters.</summary>
     private static double Altitude(World world, SceneInstance scene) =>
         world.PoseIn(scene["shuttle"], world.GetFrame(scene["shuttle"])).Position.Length - DemoScenes.EarthRadius;
+
+    /// <summary>
+    /// True while the shuttle is in Earth's shadow: its center, in earth-surface, lies on the far side of Earth's center from
+    /// the frame <c>sun</c>, less than <see cref="DemoScenes.EarthRadius"/> from the line through Earth's center toward it.
+    /// </summary>
+    private static bool InEarthsShadow(World world, SceneInstance scene)
+    {
+        FrameHandle surface = world.GetFrame(scene["shuttle"]);
+        Double3 position = world.PoseIn(scene["shuttle"], surface).Position, sun = world.PoseIn(scene["sun"], surface).Position.Normalized();
+        double towardTheSun = Double3.Dot(position, sun);
+        return towardTheSun < 0 && (position - sun * towardTheSun).Length < DemoScenes.EarthRadius;
+    }
+
+    /// <summary>The apoapsis of the two-body orbit of the shuttle's state in earth-surface, in meters above Earth's mean radius.</summary>
+    private static double Apoapsis(World world, SceneInstance scene)
+    {
+        FrameHandle surface = world.GetFrame(scene["shuttle"]);
+        Double3 position = world.PoseIn(scene["shuttle"], surface).Position, velocity = world.VelocityIn(scene["shuttle"], surface);
+        double r = position.Length, energy = velocity.LengthSquared / 2 - DemoScenes.EarthMu / r, a = -DemoScenes.EarthMu / (2 * energy);
+        double h = Double3.Cross(position, velocity).Length;
+        double e = Math.Sqrt(Math.Max(0, 1 + 2 * energy * h * h / (DemoScenes.EarthMu * DemoScenes.EarthMu)));
+        return a * (1 + e) - DemoScenes.EarthRadius;
+    }
+
+    /// <summary>True when the proper acceleration of the shuttle's frame, in its last step, lies below <see cref="FrameTree.ZeroGravityThreshold"/>.</summary>
+    private static bool CabinWeightless(World world, SceneInstance scene) =>
+        world.Frames.ProperAcceleration(world.GetOwnedFrame(scene["shuttle"])).Length() < FrameTree.ZeroGravityThreshold;
+
+    /// <summary>
+    /// How far the shuttle's center is from the arrival point of <see cref="RendezvousPlan.Demo"/>, on the station's axis
+    /// from its measured center, in meters.
+    /// </summary>
+    private static double ToArrivalPoint(World world, SceneInstance scene)
+    {
+        FrameHandle surface = world.GetFrame(scene["shuttle"]);
+        DPose station = world.PoseIn(scene["station"], surface);
+        Double3 arrival = station.Position + station.Rotation.Rotate(Double3.UnitY) * RendezvousPlan.Demo.ArrivalDistance;
+        return Double3.Distance(world.PoseIn(scene["shuttle"], surface).Position, arrival);
+    }
+
+    /// <summary>How far the shuttle's center is from the station's measured center, in meters.</summary>
+    private static double ToStation(World world, SceneInstance scene)
+    {
+        FrameHandle surface = world.GetFrame(scene["shuttle"]);
+        return Double3.Distance(world.PoseIn(scene["shuttle"], surface).Position, world.PoseIn(scene["station"], surface).Position);
+    }
+
+    /// <summary>The angle between the shuttle's nose, its -Z, and the direction from its center to the station's, in radians.</summary>
+    private static double NoseFromStation(World world, SceneInstance scene)
+    {
+        FrameHandle surface = world.GetFrame(scene["shuttle"]);
+        DPose shuttle = world.PoseIn(scene["shuttle"], surface);
+        Double3 nose = shuttle.Rotation.Rotate(-Double3.UnitZ), toStation = (world.PoseIn(scene["station"], surface).Position - shuttle.Position).Normalized();
+        return Math.Acos(Math.Clamp(Double3.Dot(nose, toStation), -1, 1));
+    }
 
     /// <summary>How far the person's center is from the pen camera, in meters.</summary>
     private static double PersonToPenCamera(World world, SceneInstance scene)

@@ -70,9 +70,12 @@ public static partial class DemoScenes
     /// <see cref="TranslationThrusters"/>.</item>
     /// <item>Views of the rendezvous, still in the shuttle's frame: <c>window-camera</c>, 1.2 m behind the nose window at eye
     /// height, looks out along the nose; <c>bow-camera</c>, 30 m ahead of the nose and 5 m above it, looks aft, 30 degrees to
-    /// port of astern, at the shuttle and past it; <c>port-window-camera</c>, 1 m inside the aft port window at eye height,
-    /// looks out 20 degrees aft of abeam; <c>cockpit-camera</c>, aft of the seat, to port and above the head of a person at
-    /// the seat, looks down past the seat at the nose window.</item>
+    /// port of astern, at the shuttle and past it; <c>port-window-camera</c>, 0.6 m inside the aft port window and 0.3 m
+    /// forward of its middle, at eye height, looks out through its middle, 20 degrees aft of abeam, where the station passes
+    /// from 33 to 9 degrees aft of abeam in the brake; <c>cockpit-camera</c>, aft of the seat, to starboard of it and above the
+    /// head of a person at the seat, looks down past the seat at the nose window. From starboard it sees the pen in the
+    /// person's right hand both when the person floats upside down and when a burn has tipped it with its head toward the
+    /// nose.</item>
     /// <item>The <c>station</c> (see <see cref="DemoStation"/>), a wheel 202 m across that turns about its axis, flies on a
     /// circle 400 km up in the launch plane, and passes over the pad at <see cref="DemoStation.OverPadAt"/>. It spawns
     /// before the shuttle, whose <see cref="RendezvousAutopilot"/> flies to it after a <see cref="Rendezvous"/> order. Its view <c>rim-camera</c> turns with it.</item>
@@ -442,7 +445,7 @@ public static partial class DemoScenes
                 Pose = LookingAt(bow, bow + new Double3(-Math.Sin(portOfAstern), 0, Math.Cos(portOfAstern))),
                 Render = new RenderData(),
             }));
-            var portWindow = new Double3(-Shuttle.Cabin.X + 1, eye, 4.5);
+            var portWindow = new Double3(-Shuttle.Cabin.X + 0.6, eye, 4.2);
             double aftOfAbeam = 20 * Math.PI / 180;
             scene.Add("port-window-camera", world.Spawn(new SpawnDesc
             {
@@ -453,7 +456,7 @@ public static partial class DemoScenes
             scene.Add("cockpit-camera", world.Spawn(new SpawnDesc
             {
                 Frame = cabin,
-                Pose = LookingAt(new Double3(-0.6, 1.1, -1.2), new Double3(0.5, -0.5, -6)),
+                Pose = LookingAt(new Double3(1.9, 0.9, -1.4), new Double3(0.7, -1.3, -5.2)),
                 Render = new RenderData(),
             }));
 
