@@ -65,6 +65,19 @@ public sealed class AttitudeAutopilot(Vector3 inertia) : IComponent
         return FromAxes(x, y, z);
     }
 
+    /// <summary>
+    /// The rotation whose nose points along <paramref name="nose"/>, with the roof away from the planet across the nose:
+    /// along the position of <paramref name="pose"/>, in a frame whose origin is the planet's center. When the nose points
+    /// straight away from the planet or at it, the roof keeps its direction in <paramref name="pose"/>. Throws
+    /// <see cref="ArgumentException"/> when the nose is zero.
+    /// </summary>
+    public static DQuaternion Facing(Double3 nose, in DPose pose)
+    {
+        Double3 up = pose.Position.Normalized(), along = nose.Normalized();
+        Double3 roof = up - along * Double3.Dot(up, along);
+        return Facing(nose, roof.Length > 1e-6 ? roof : pose.Rotation.Rotate(Double3.UnitY));
+    }
+
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
         // The autopilot wants only AttitudeTarget, so the events hold at least one, and the last one counts.

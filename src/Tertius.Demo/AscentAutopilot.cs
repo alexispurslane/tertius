@@ -171,27 +171,16 @@ public sealed class AscentAutopilot(double maxThrust, double orbitRadius, double
             case Ramp:
                 events.Add(new Throttle { Value = 1 });
                 if (velocity.Length > SteerSpeed)
-                    events.Add(new AttitudeTarget { Rotation = Facing(velocity, pose) });
+                    events.Add(new AttitudeTarget { Rotation = AttitudeAutopilot.Facing(velocity, pose) });
                 break;
             case Climb { Guidance: var guidance }:
                 Double3 acceleration = guidance.Acceleration(position, velocity);
                 events.Add(new Throttle { Value = (float)Math.Min(1, acceleration.Length / guidance.MaxAcceleration) });
-                events.Add(new AttitudeTarget { Rotation = Facing(acceleration, pose) });
+                events.Add(new AttitudeTarget { Rotation = AttitudeAutopilot.Facing(acceleration, pose) });
                 break;
             case Orbit:
-                events.Add(new AttitudeTarget { Rotation = Facing(velocity, pose) });
+                events.Add(new AttitudeTarget { Rotation = AttitudeAutopilot.Facing(velocity, pose) });
                 break;
         }
-    }
-
-    /// <summary>
-    /// The rotation whose nose points along <paramref name="nose"/>, with the roof away from the planet across the nose.
-    /// When the nose points straight away from the planet or at it, the roof keeps its direction in <paramref name="pose"/>.
-    /// </summary>
-    private static DQuaternion Facing(Double3 nose, in DPose pose)
-    {
-        Double3 up = pose.Position.Normalized(), along = nose.Normalized();
-        Double3 roof = up - along * Double3.Dot(up, along);
-        return AttitudeAutopilot.Facing(nose, roof.Length > 1e-6 ? roof : pose.Rotation.Rotate(Double3.UnitY));
     }
 }

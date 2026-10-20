@@ -75,7 +75,7 @@ public static partial class DemoScenes
     /// the seat, looks down past the seat at the nose window.</item>
     /// <item>The <c>station</c> (see <see cref="DemoStation"/>), a wheel 202 m across that turns about its axis, flies on a
     /// circle 400 km up in the launch plane, and passes over the pad at <see cref="DemoStation.OverPadAt"/>. It spawns
-    /// before the shuttle. Its view <c>rim-camera</c> turns with it.</item>
+    /// before the shuttle, whose <see cref="RendezvousAutopilot"/> flies to it after a <see cref="Rendezvous"/> order. Its view <c>rim-camera</c> turns with it.</item>
     /// <item>The frame <c>sun</c> lies far away, toward +X and +Z and high up, so its light falls the same way on the pad and
     /// in orbit.</item>
     /// </list>
@@ -314,10 +314,10 @@ public static partial class DemoScenes
             }));
 
             // The station spawns before the shuttle, whose rendezvous autopilot takes the station's entity.
-            DemoStation.Spawn(world, surface, scene, resources);
+            Entity station = DemoStation.Spawn(world, surface, scene, resources);
             Entity shuttle = Shuttle.Park(world, surface, ShuttleParked,
                 Drawn(resources, Shuttle.HullMesh(), new Vector4(0.85f, 0.85f, 0.88f, 1), boundingRadius: MathF.Ceiling(Shuttle.Hull.Length())),
-                Shuttle.FlightControls(LaunchRamp.Height + ClimbClearance, LaunchPlaneNormal));
+                Shuttle.FlightControls(LaunchRamp.Height + ClimbClearance, LaunchPlaneNormal, station));
             scene.Add("shuttle", shuttle);
             FrameHandle cabin = world.GetOwnedFrame(shuttle);
             Vector3 seatHalf = Shuttle.Seat.Extents;

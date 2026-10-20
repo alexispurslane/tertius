@@ -132,7 +132,7 @@ public sealed class FlightControlTests : IDisposable
     [Fact]
     public void WithoutPointGravityTheAscentAutopilotStaysParked()
     {
-        shuttle = Shuttle.Park(world, space, DPose.Identity, components: Shuttle.FlightControls(climbHeight: 30, planeNormal: -Double3.UnitX));
+        shuttle = Shuttle.Park(world, space, DPose.Identity, components: Shuttle.FlightControls(climbHeight: 30, planeNormal: -Double3.UnitX, station: Entity.Null));
         world.Post(Event.Create(shuttle, Entity.Null, new Ignition()));
 
         Tick(world, 30);

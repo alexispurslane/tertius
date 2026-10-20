@@ -69,21 +69,23 @@ public static partial class DemoScenes
         public const double ParkingOrbitAltitude = 200e3;
 
         /// <summary>
-        /// The shuttle's flight controls for the climb to its parking orbit, in the order in which they run in a tick: the
-        /// <see cref="AscentAutopilot"/>, which adds the <see cref="Throttle"/> and the <see cref="AttitudeTarget"/> of
-        /// each tick to the shuttle's events, then the <see cref="AttitudeAutopilot"/> and the <see cref="MainEngine"/>,
-        /// which read them. The engine pushes <see cref="Mass"/> with <see cref="ThrustAcceleration"/> at full throttle,
-        /// and the ascent autopilot plans with that thrust. It steers only once the shuttle is
-        /// <paramref name="climbHeight"/> meters higher than where it launched, clear of its ramp, and it steers into the
-        /// plane whose prograde normal is <paramref name="planeNormal"/>, in the axes of the shuttle's frame. The
-        /// <see cref="TranslationThrusters"/>, with <see cref="TranslationThrust"/> on each axis, push with the
-        /// <see cref="Translation"/> of each tick. They run after the layers of the flight program, at priority 10.
+        /// The shuttle's flight controls, in the order in which they run in a tick: the layers of the flight program, the
+        /// <see cref="AscentAutopilot"/> at priority 0 and the <see cref="RendezvousAutopilot"/> at 1, which add the
+        /// <see cref="Throttle"/>, the <see cref="AttitudeTarget"/> and the <see cref="Translation"/> of each tick to the
+        /// shuttle's events, then the actuators at 10, the <see cref="AttitudeAutopilot"/>, the <see cref="MainEngine"/>
+        /// and the <see cref="TranslationThrusters"/>, which read them and follow the last layer that speaks. The engine
+        /// pushes <see cref="Mass"/> with <see cref="ThrustAcceleration"/> at full throttle, and both autopilots plan with
+        /// that thrust. The ascent autopilot steers only once the shuttle is <paramref name="climbHeight"/> meters higher
+        /// than where it launched, clear of its ramp, and it steers into the plane whose prograde normal is
+        /// <paramref name="planeNormal"/>, in the axes of the shuttle's frame. The rendezvous autopilot flies
+        /// <see cref="RendezvousPlan.Demo"/> to <paramref name="station"/>. The thrusters have
+        /// <see cref="TranslationThrust"/> on each axis.
         /// </summary>
-        public static IComponent[] FlightControls(double climbHeight, Double3 planeNormal)
+        public static IComponent[] FlightControls(double climbHeight, Double3 planeNormal, Entity station)
         {
             const float thrust = Mass * ThrustAcceleration;
-            return [new AscentAutopilot(thrust, ParkingOrbitRadius, climbHeight, planeNormal), new AttitudeAutopilot(Inertia), new MainEngine(thrust),
-                new TranslationThrusters(TranslationThrust)];
+            return [new AscentAutopilot(thrust, ParkingOrbitRadius, climbHeight, planeNormal), new RendezvousAutopilot(station, RendezvousPlan.Demo, thrust),
+                new AttitudeAutopilot(Inertia), new MainEngine(thrust), new TranslationThrusters(TranslationThrust)];
         }
 
         private static Vector3 BoxInertia(float mass, Vector3 size) => mass / 12 * new Vector3(

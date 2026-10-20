@@ -176,6 +176,22 @@ public sealed class DemoStationTests : IDisposable
     }
 
     /// <summary>
+    /// The parked shuttle's rendezvous autopilot flies to the scene's station: after a <see cref="Rendezvous"/> order, it
+    /// leaves its standby and does not halt, so it has a live station in its own frame and Earth's point gravity.
+    /// </summary>
+    [Fact]
+    public void TheShuttlesRendezvousAutopilotFliesToTheStation()
+    {
+        world.Post(Event.Create(scene["shuttle"], Entity.Null, new Rendezvous()));
+
+        Tick(world, 2);
+
+        object state = world.GetComponent<RendezvousAutopilot>(scene["shuttle"])!.State.Value;
+        (state is Phasing or Transfer).Should().BeTrue($"the autopilot flies, not {state}");
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
     /// A free shuttle at <see cref="DemoStation.HoldPoint"/>, 150 m out on the axis, with the station's velocity and its nose
     /// at the slot, drifts less than a meter in 60 s and stays in <c>earth-surface</c> all the while: its bounding sphere of
     /// 8.8 m lies 21 m outside the station's bubble.

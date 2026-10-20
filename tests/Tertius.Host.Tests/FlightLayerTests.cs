@@ -7,13 +7,14 @@ using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The shuttle's flight program as a stack of layers (docs/plans/blue-danube-demo.md, "Layers"), on the World and the real
-/// Jolt backend. A layer is a component that adds a <see cref="Throttle"/> and an <see cref="AttitudeTarget"/> to its
-/// entity's events in its tick. The layers run in the order of the flight, by their priorities: the ascent autopilot at 0,
-/// the rendezvous autopilot at 1 and the docking autopilot at 2. The actuators, the <see cref="MainEngine"/> and the
-/// <see cref="AttitudeAutopilot"/>, run after every layer and follow the last one that speaks. Each test lists the
-/// actuators before the layers, so that only the priorities put them after the layers. The shuttle starts unturned in a
-/// root frame without gravity, and unparks on its first tick.
+/// The shuttle's flight program as a stack of layers (docs/plans/blue-danube-demo.md, "Layers"), on the World and the
+/// real Jolt backend. A layer is a component that adds a <see cref="Throttle"/> and an <see cref="AttitudeTarget"/> to
+/// its entity's events in its tick. The layers run in the order of the flight, by their priorities: the ascent
+/// autopilot at 0, the rendezvous autopilot at 1 and the docking autopilot at 2. The actuators, the
+/// <see cref="MainEngine"/>, the <see cref="AttitudeAutopilot"/> and the <see cref="TranslationThrusters"/>, run after
+/// every layer and follow the last one that speaks. Each test lists the actuators before the layers, so that only the
+/// priorities put them after the layers. The shuttle starts unturned in a root frame without gravity, and unparks on
+/// its first tick.
 /// </summary>
 public sealed class FlightLayerTests : IDisposable
 {
@@ -54,26 +55,30 @@ public sealed class FlightLayerTests : IDisposable
     }
 
     /// <summary>
-    /// The docking layer, at 2, the last layer of the flight, asks for half throttle and a quarter turn. Both actuators
-    /// read what it added: the engine pushes, and the nose turns onto -X.
+    /// The docking layer, at 2, the last layer of the flight, asks for half throttle, a quarter turn and a translation of
+    /// 4,000 N up. Every actuator reads what it added: the engine pushes, the nose turns onto -X, and the translation
+    /// thrusters push the shuttle up at 0.2 m/s², 4 m/s in 20 s.
     /// </summary>
     [Fact]
     public void TheActuatorsRunAfterEveryLayer()
     {
         Launch(new MainEngine(Shuttle.Mass * Shuttle.ThrustAcceleration), new AttitudeAutopilot(Shuttle.Inertia),
-            new Layer(priority: 2, target: QuarterTurn, throttle: 0.5f));
+            new TranslationThrusters(Shuttle.TranslationThrust),
+            new Layer(priority: 2, target: QuarterTurn, throttle: 0.5f, translation: new Double3(0, Shuttle.TranslationThrust, 0)));
 
         Tick(world, 1200);
 
         world.VelocityIn(shuttle, space).Length.Should().BeGreaterThan(100, "the engine pushed at half throttle");
         DegreesFrom(-Double3.UnitX).Should().BeLessThan(1);
+        world.VelocityIn(shuttle, space).Y.Should().BeApproximately(4, 0.1, "the thrusters pushed up for 20 s");
     }
 
     /// <summary>
     /// A test layer of the flight program: in every tick it adds an <see cref="AttitudeTarget"/> of <paramref name="target"/>
-    /// and, when <paramref name="throttle"/> is set, a <see cref="Throttle"/> of it, to its entity's events.
+    /// and, when <paramref name="throttle"/> or <paramref name="translation"/> is set, a <see cref="Throttle"/> or a
+    /// <see cref="Translation"/> of it, to its entity's events.
     /// </summary>
-    private sealed class Layer(int priority, DQuaternion target, float? throttle = null) : IComponent
+    private sealed class Layer(int priority, DQuaternion target, float? throttle = null, Double3? translation = null) : IComponent
     {
         public int Priority => priority;
 
@@ -84,6 +89,8 @@ public sealed class FlightLayerTests : IDisposable
             events.Add(new AttitudeTarget { Rotation = target });
             if (throttle is float value)
                 events.Add(new Throttle { Value = value });
+            if (translation is Double3 force)
+                events.Add(new Translation { Force = force });
         }
     }
 }

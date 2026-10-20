@@ -243,19 +243,19 @@ The shuttle has only its main engine, along the nose. The brake must push along 
 
 #### The phases
 
-`RendezvousState` is a custom C# 15 union, like `AscentState`, with one record per case. Each case holds the data that it needs, so no case reads a value that only another case sets. The default value is `Standby`.
+`RendezvousState` is a custom C# 15 union, like `AscentState`, with one record per case. Each case holds the data that it needs, so no case reads a value that only another case sets. The default value is `Standby`. The passenger's union already has cases named `Holding` and `Stopped` in the same namespace, so the rendezvous names its last cases `Hold` and `Halted`.
 
 | Case | Data | What the autopilot does | Next case |
 |---|---|---|---|
 | `Standby` | None | It adds nothing. | A `Rendezvous` order arrives: `Phasing`. The autopilot builds its guidance then, as the ascent autopilot does at the ignition. |
 | `Phasing(Transfer)` | The transfer guidance | It adds nothing, so the orbit attitude of the ascent autopilot flies on. | The transfer angle lies between 150 and 170 degrees: `Transfer`, with the arrival time 2,560 s from now |
-| `Transfer(Transfer, ArrivalTime)` | The transfer guidance, and the arrival time in the world's seconds | It burns and trims onto the Lambert path that reaches the arrival point at the arrival time. | The braking curve reaches the shuttle, or the arrival time comes: `Brake` |
-| `Brake(Approach)` | The approach guidance of the brake | It stops the shuttle at the arrival point with the main engine. | The shuttle is within 10 m of the arrival point and slower than 0.5 m/s relative to the station: `Glide` |
-| `Glide(Approach)` | The approach guidance of the glide | It turns the nose to the slot. It flies the shuttle along the axis to the hold point on the translation thrusters. | Distance, speed and nose are within the hold's tolerances (see "Tolerances and the end state"): `Holding` |
-| `Holding(Approach)` | The approach guidance of the glide | It holds the shuttle at the hold point, with its nose at the slot. | None. The layer of step 5 overrides it. |
-| `Stopped` | None | It adds nothing more. | None |
+| `Transfer(Transfer, ArrivalTime)` | The transfer guidance, and the arrival time in the world's seconds | It burns and trims onto the Lambert path that reaches the arrival point at the arrival time. | In the coast, the braking curve reaches the shuttle, or the arrival time comes: `Brake` |
+| `Brake(Approach)` | The approach guidance of the brake | It stops the shuttle at the arrival point with the main engine. | The shuttle is within 10 m of the arrival point and slower than 0.1 m/s relative to the station: `Glide` |
+| `Glide(Approach)` | The approach guidance of the glide | It turns the nose to the slot. It flies the shuttle along the axis to the hold point on the translation thrusters. | Distance, speed and nose are within the hold's tolerances (see "Tolerances and the end state"): `Hold` |
+| `Hold(Approach)` | The approach guidance of the glide | It holds the shuttle at the hold point, with its nose at the slot. | None. The layer of step 5 overrides it. |
+| `Halted` | None | It adds nothing more. | None |
 
-The guidance takes Earth's G·M from the point gravity of the shuttle's frame (`KeplerOrbit.MuFrom`). The autopilot goes to `Stopped`, and logs the reason once, in three cases:
+The guidance takes Earth's G·M from the point gravity of the shuttle's frame (`KeplerOrbit.MuFrom`). The autopilot goes to `Halted`, and logs the reason once, in these cases (a hull without mass is a fourth, as for the ascent autopilot):
 
 - The station is gone.
 - The shuttle's frame has no point gravity to fly in.
@@ -266,14 +266,15 @@ stateDiagram-v2
   [*] --> Standby
   Standby --> Phasing: the order Rendezvous
   Phasing --> Transfer: transfer angle from 150 to 170 degrees
-  Transfer --> Brake: braking curve reached, or the arrival time
-  Brake --> Glide: within 10 m and 0.5 m/s
-  Glide --> Holding: within 0.5 m, 0.02 m/s and 1 degree
-  Phasing --> Stopped: station gone, no gravity, or another frame
-  Transfer --> Stopped
-  Brake --> Stopped
-  Glide --> Stopped
-  Holding --> Stopped
+  Transfer --> Brake: braking curve reached in the coast, or the arrival time
+  Brake --> Glide: within 10 m and 0.1 m/s
+  Glide --> Hold: within 0.5 m, 0.02 m/s and 1 degree
+  Standby --> Halted: no gravity at the order
+  Phasing --> Halted: station gone, no mass, or another frame
+  Transfer --> Halted
+  Brake --> Halted
+  Glide --> Halted
+  Hold --> Halted
 ```
 
 #### Reads and writes, and their frames
@@ -343,7 +344,7 @@ The transfer runs in three modes:
 - The coast: in the last 60 s before the arrival time, the autopilot solves nothing more. A short transfer turns a small miss into a large velocity to gain. The nose keeps the brake's direction.
 - With the trim, the shuttle reaches the arrival point within about 12 m. The coast lasts about 2,500 s, and the trim holds the velocity to gain below 5 mm/s.
 
-The transfer ends at the braking curve, where `sqrt(2 × 2.4 m/s² × d)` is no more than `|u|`. Here `d` is the distance to the arrival point and `u` the velocity relative to the station. It also ends at the arrival time.
+The transfer ends in the coast at the braking curve, where `sqrt(2 × 2.4 m/s² × d)` is no more than `|u|`. Here `d` is the distance to the arrival point and `u` the velocity relative to the station. It also ends at the arrival time. The test holds only in the coast: earlier, the shuttle is thousands of kilometers from the arrival point, where `|u|` (about 15 km/s at the window) exceeds the curve's speed (about 8 km/s), and the relative motion is not that of a free mass. The brake starts about 12 s before the arrival time, well inside the coast of 60 s. In the coast, the nose turns against `u`, which differs from the brake's direction of the last solution by about 0.1 degrees.
 
 #### The approach guidance
 
@@ -375,7 +376,7 @@ The difference of gravity is 1.9e-3 m/s² at 1.5 km to the side of the orbit. At
 | Phase | Target | `BrakeAcceleration` | `SpeedCap` | `FinalRate` | `VelocityTime` | `MaxAcceleration` | Thrust | Nose |
 |---|---|---|---|---|---|---|---|---|
 | `Brake` | Arrival point | 2.4 m/s², 80 percent of the burn's, so the law has room to follow its curve | None | 0.5 /s | 0.5 s | 3 m/s² | The main engine along the nose, and the translation thrusters for the rest | Along `push` |
-| `Glide`, `Holding` | Hold point | 0.05 m/s², a quarter of the thrusters' | 5 m/s | 0.1 /s | 2 s | 0.2 m/s² | The translation thrusters only | Toward the slot, along minus the axis |
+| `Glide`, `Hold` | Hold point | 0.05 m/s², a quarter of the thrusters' | 5 m/s | 0.1 /s | 2 s | 0.2 m/s² | The translation thrusters only | Toward the slot, along minus the axis |
 
 In every phase that steers, the roof turns away from Earth across the nose, as the ascent autopilot turns it. The target comes from `AttitudeAutopilot.Facing`, with the shuttle's position as the roof. In the glide and the hold, the roof points exactly away from Earth, because the axis lies across the vertical. The turn from the brake's nose to the slot is about 100 degrees about the roof. At the attitude autopilot's 0.15 rad/s it takes about 12 s, while the thrusters already push along the axis.
 
@@ -386,7 +387,7 @@ In every phase that steers, the roof turns away from Earth across the nose, as t
 | Window | The transfer angle lies from 150 to 170 degrees. |
 | End of the burn | The velocity to gain is below 0.2 m/s. The trim then holds it below 5 mm/s. |
 | Miss at the arrival time | Within 100 m of the arrival point (about 12 m expected) |
-| End of the brake | Within 10 m of the arrival point, and slower than 0.5 m/s relative to the station |
+| End of the brake | Within 10 m of the arrival point, and slower than 0.1 m/s relative to the station. At 0.5 m/s, the glide inherits up to 0.5 m/s across the axis: its push is capped at 0.2 m/s² as a whole, and the speed of 5 m/s that it wants along the axis takes nearly all of it, so the drift across the axis reached 5.6 m on the short test plan. At 0.1 m/s it stays within 1.7 m. |
 | Glide | Within 5 m of the axis all the way |
 | Hold | Within 0.5 m of the hold point, slower than 0.02 m/s, and the nose within 1 degree of minus the axis |
 
@@ -395,7 +396,7 @@ The end state, for step 5:
 - The shuttle holds at `DemoStation.HoldPoint`, 150 m from the station's center on its axis, on the slot's side, in `earth-surface`.
 - Its nose points at the slot, and its roof away from Earth. It does not turn relative to the stars.
 - Its bounding sphere lies 21 m outside the station's bubble, and its own bubble 12.7 m outside it. So no bubble holds the other, and no ghost crosses between them.
-- The rendezvous autopilot stays in `Holding`. It keeps the shuttle there until a later layer speaks.
+- The rendezvous autopilot stays in `Hold`. It keeps the shuttle there until a later layer speaks.
 
 Why the hold point lies outside the bubble:
 
@@ -455,7 +456,7 @@ The step's sections replace the section `coast`. A section that waits longer tha
 | `glide` | `chase-camera` | 6 | | The shuttle is within 700 m of the station. | 160 s, 1,600 frames |
 | `glide-window` | `window-camera` | 4 | | Within 400 m | 60 s, 900 frames |
 | `glide-rim` | `rim-camera` | 4 | | Within 200 m | 55 s, 825 frames |
-| `arrival` | `cockpit-camera` | 4 | | 3 s after the autopilot is `Holding` | 67 s, 1,000 frames |
+| `arrival` | `cockpit-camera` | 4 | | 3 s after the autopilot is in `Hold` | 67 s, 1,000 frames |
 | `hold` | `rim-camera` | 1 | | After 5 s | 5 s, 300 frames |
 
 Every cue reads the run or the scene's constants:
@@ -627,7 +628,7 @@ A run that writes PNG files takes 80 ms for each of about 12,000 frames, so the 
 - Frames: about 12,100 more, 200 s of video, at 3.5 ms each into the video. That adds about 43 s.
 - The generator's rehearsal takes about 55 s, from 10 s. The headless video of the whole script takes about 110 to 115 s, from 22 to 24 s.
 - `BlueDanubeScriptTests` and `BlueDanubeRendezvousRun` each take about a minute. So the host tests take about 2 minutes longer.
-- The component tests fly short plans of a few thousand ticks each. The glide of the short plan is the longest, about 25,000 ticks.
+- The component tests fly short plans of a few thousand ticks each. One flight of the short plan, shared by the tests of the brake, the glide and the hold, runs about 29,000 ticks: 300 s of transfer, 120 s of glide and 60 s of hold. Measured on 2026-10-20: with the station, the world's invariant checks (`WorldOptions.DebugChecks`) cost 6.6 ms a tick, against 0.125 ms without them. So `RendezvousAutopilotTests` runs without them, in about 10 s. With them, its 40,000 ticks would take about 4.5 minutes.
 
 ### Order of the work
 
