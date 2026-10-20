@@ -538,13 +538,22 @@ public class GhostPlaceTests
     private sealed record FarStation(FrameHandle Space, Entity Owner, FrameHandle Station, Entity Crate, Double3 CratePlace, Double3 Up,
         Double3 Forward, Double3 Velocity);
 
-    private static FarStation SpawnFarStation(World world)
+    /// <summary>
+    /// Spawns the <see cref="FarStation"/>. With <paramref name="firstMove"/> the spawn gives the hull the sample of its first
+    /// step as its first motion intent, so the hull is on its orbit from its first step. Without one it holds still in that
+    /// step, and its following frame with it (ticket ter-zsku). The merge test reaches as far as two seconds of a body's
+    /// speed, so at the sync point after that step it does not link the still hull to a body 8.9 m away, and physics makes
+    /// the hull's ghost in that body's home one step later than with a first motion intent. The tests of the ghosts of the
+    /// hull look for the ghost after two ticks, so they spawn the hull with a first motion intent. The comparison with numeric
+    /// frames off runs both ways.
+    /// </summary>
+    private static FarStation SpawnFarStation(World world, bool firstMove)
     {
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(FarMu)));
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = space, Body = ShipHull with { Motion = BodyMotion.Kinematic }, AsFrame = new FrameSpec(FrameBounds.Sphere(40)),
-        }.OnKeplerOrbit(world, KeplerOrbit.Circular(Far), firstMove: true));
+        }.OnKeplerOrbit(world, KeplerOrbit.Circular(Far), firstMove));
         FrameHandle station = world.GetOwnedFrame(owner);
         Entity crate = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 40), Body = CrateBody });
         Double3 cratePlace = world.Frames.PointToParent(station, new Double3(0, 40, 0));
@@ -573,10 +582,10 @@ public class GhostPlaceTests
     /// only through a ghost of the crate in that home. Without numeric frames, everything lies in the system of space, and
     /// the ghost of the crate there meets the pod. The expected home of the contact is the rock's home.
     /// </summary>
-    private static Outcome RunPodBesideAFarStation(bool numericFrames)
+    private static Outcome RunPodBesideAFarStation(bool numericFrames, bool firstMove)
     {
         using World world = NewWorld(numericFrames, out _);
-        FarStation scene = SpawnFarStation(world);
+        FarStation scene = SpawnFarStation(world, firstMove);
         var podLog = new CollisionLog();
         Entity pod = world.Spawn(new SpawnDesc
         {
@@ -609,11 +618,13 @@ public class GhostPlaceTests
         return outcome;
     }
 
-    [Fact]
-    public void ABodyInTheHomeOfAGroupWhoseKeplerHullLivesApartMeetsACrateThatSticksOutOfTheHullsFrameAsItDoesWithoutNumericFrames()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ABodyInTheHomeOfAGroupWhoseKeplerHullLivesApartMeetsACrateThatSticksOutOfTheHullsFrameAsItDoesWithoutNumericFrames(bool firstMove)
     {
-        Outcome with = RunPodBesideAFarStation(numericFrames: true);
-        Outcome without = RunPodBesideAFarStation(numericFrames: false);
+        Outcome with = RunPodBesideAFarStation(numericFrames: true, firstMove);
+        Outcome without = RunPodBesideAFarStation(numericFrames: false, firstMove);
 
         // The pod closes the gap of 1 m to the crate's face at 0.5 m/s in 2 s.
         without.HitTick.Should().BeInRange(118, 126, "the pod hits the ghost of the crate in space after about 2 s");
@@ -638,7 +649,7 @@ public class GhostPlaceTests
     public void TheGhostsOfAKeplerHullAndOfTheCrateThatSticksOutOfItsFrameGoAtTheSyncPointWhoseUpdateStopsNamingTheirHome()
     {
         using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
-        FarStation scene = SpawnFarStation(world);
+        FarStation scene = SpawnFarStation(world, firstMove: true);
         Double3 hullPlace = world.Frames.LocalPose(scene.Station).Position;
         Entity rock = world.Spawn(new SpawnDesc
         {
@@ -680,7 +691,7 @@ public class GhostPlaceTests
     public void AHomeThatKeepsTheGhostOfAKeplerHullDiesInTheBatchThatWithdrawsTheGhostsPlace()
     {
         using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
-        FarStation scene = SpawnFarStation(world);
+        FarStation scene = SpawnFarStation(world, firstMove: true);
         Double3 hullPlace = world.Frames.LocalPose(scene.Station).Position;
         Entity rock = world.Spawn(new SpawnDesc
         {
