@@ -24,3 +24,7 @@ The live world design (docs/plans/live-world.md) makes the docking the pilot's l
 **2026-10-20T19:54:34Z**
 
 After the second review of docs/plans/live-world.md: the docking raises the translation thrusters to 30,000 N for every law, not only for its own legs, because the rendezvous gives the push off the nose to the thrusters. So this ticket also runs BlueDanubeRendezvousRun again, corrects the four times of LiveTimeline and adds DockedAfterPass, and writes the long script again. AttitudeTarget becomes one 48-byte struct: the DQuaternion attitude, a Vector3 feed-forward angular velocity and a float MaxTurnRate. The first test of a dynamic hull that enters and leaves a turning frame's bubble is this ticket's run test, because DynamicHullRecordTests' station does not turn. If that test fails, the failure is an engine bug for its own ticket, which goes to the user.
+
+**2026-10-20T23:09:16Z**
+
+After ter-qipk (docs/plans/live-world.md, The pilot): the docking has no DockingState union of its own. Its phases are flat states of PilotState, its reports are cases of PilotEvent, and it adds its rows to PilotState.Next. Its delegate is DockingFlight. The pilot writes SetMotion at the end of the step that changes the state's motion, before any delegate flies.
