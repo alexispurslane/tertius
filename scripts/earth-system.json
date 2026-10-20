@@ -1,0 +1,28 @@
+{
+  "scene": "earth-system",
+  "window": { "width": 1280, "height": 720 },
+  "steps": [
+    { "do": "camera", "entity": "sun-near" },
+    { "do": "capture", "name": "sun-near" },
+    { "do": "camera", "entity": "sun-from-earth" },
+    { "do": "capture", "name": "sun-from-earth" },
+    { "do": "camera", "entity": "earth-moon" },
+    { "do": "capture", "name": "earth-moon-0h" },
+    { "do": "camera", "entity": "station-view" },
+    { "do": "capture", "name": "station" },
+    { "do": "camera", "entity": "pad-view" },
+    { "do": "capture", "name": "pad-0h" },
+    { "do": "camera", "entity": "earth-far" },
+    { "do": "capture", "name": "earth-far-0h" },
+    { "do": "dump", "name": "start" },
+    { "do": "run", "ticks": 72000 },
+    { "do": "capture", "name": "earth-far-20min" },
+    { "do": "run", "ticks": 360000 },
+    { "do": "dump", "name": "two-hours" },
+    { "do": "capture", "name": "earth-far-2h" },
+    { "do": "camera", "entity": "earth-moon" },
+    { "do": "capture", "name": "earth-moon-2h" },
+    { "do": "camera", "entity": "pad-view" },
+    { "do": "capture", "name": "pad-2h" }
+  ]
+}

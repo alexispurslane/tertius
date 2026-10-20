@@ -1,7 +1,7 @@
 ---
 id: ter-yywb
 status: open
-deps: [ter-tzf6]
+deps: [ter-tzf6, ter-qipk, ter-yhu8, ter-6jxo]
 links: []
 created: 2026-10-20T18:45:50Z
 type: task
