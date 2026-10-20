@@ -1,6 +1,6 @@
 ---
 id: ter-fsst
-status: in_progress
+status: closed
 deps: [ter-1bnq]
 links: []
 created: 2026-10-20T07:42:03Z
@@ -14,3 +14,9 @@ tags: [engine, physics, demo]
 
 Found by the review of stage 2 of ter-1bnq (2026-10-19). The user chose to build it right after stage 2 merges. Game code has no public read of the felt gravity with the rotation terms: ter-1bnq made FrameTree.EffectiveGravity internal, so the demo's Clip and Passenger now read Gravity(frame).AtPrecise(p) - ProperAcceleration(frame), the field minus the frame's proper acceleration. They leave out the centrifugal and Euler terms, up to 0.27 m/s^2 at the seat while the attitude autopilot stops the cabin's turn, so the clip lets the pen go about 1.25 s after engine cut while the cabin still turns. The design (docs/plans/spin-gravity.md) says this read gets its own name and describes the last finished step. It can be composed from stored values: AngularVelocityRelative(frame, FrameHandle.Null) gives omega and AngularAccelerationRelative(frame, FrameHandle.Null) gives alpha from V3 and the rows; the read is the field at the place, minus the proper acceleration, minus omega x (omega x r), minus alpha x r, turned into the frame's axes. Then move Clip and Passenger onto it, so that the clip waits until the turn settles, regenerate scripts/blue-danube.json, and keep DemoLaunchTests' check of the pen's straight line in inertial space.
 
+
+## Notes
+
+**2026-10-20T08:23:29Z**
+
+2026-10-20, merged. FrameTree.FeltGravity(frame, position): the field at the place less the proper acceleration, less omega x (omega x r) and alpha x r in the frame's axes, from stored values only (the last finished step); no allocation; to the bit the old formula in a frame that does not turn. Coverage of the changed lines (Core, Physics, Host, Debug): 11 of 11 lines, 4 of 4 branches. The demo's Clip uses it, so the pen lets go 2.9 s after engine cut (was 1.0 s), when the cabin's turn has settled; films pen-release 235 frames (was 121), fetch 75 (183), take 514 (510). Passenger's move went to ter-ukj2, which is folded into ter-1b21.
