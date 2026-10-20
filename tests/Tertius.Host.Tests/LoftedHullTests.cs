@@ -728,6 +728,42 @@ public sealed class LoftedHullTests
         glass.Should().Throw<InvalidOperationException>().WithMessage("*Surrounds*");
     }
 
+    /// <summary>The front is one panel above its line, so it holds one pane.</summary>
+    [Fact]
+    public void ASecondPaneInTheFrontIsAnError()
+    {
+        Action glass = () => SmallBox().Surrounds(rib: 0.1f, fold: 0.06f, solid: 0.1f).NoseGlass("first", fromCorner: 1, toCorner: 3).NoseGlass("second", fromCorner: 1, toCorner: 3);
+
+        glass.Should().Throw<InvalidOperationException>().WithMessage("*front holds a pane*");
+    }
+
+    /// <summary>The part of the small box's front from corner 1 to corner 2 is one edge, not a panel with three corners.</summary>
+    [Fact]
+    public void APaneInTheFrontNeedsAPartWithThreeCorners()
+    {
+        Action glass = () => SmallBox().Surrounds(rib: 0.1f, fold: 0.06f, solid: 0.1f).NoseGlass("pane", fromCorner: 1, toCorner: 2);
+
+        glass.Should().Throw<ArgumentException>().WithMessage("*three*");
+    }
+
+    /// <summary>The door comes before the glass, so that the glass cannot already lie in the door's panel.</summary>
+    [Fact]
+    public void ADoorAfterTheGlassIsAnError()
+    {
+        Action door = () => SmallBox().Surrounds(rib: 0.1f, fold: 0.06f, solid: 0.1f).Glass("pane", edge: 1, bay: 2)
+            .Door(new BoundingBox(new Vector3(1.8f, -1, -0.5f), new Vector3(2, 1, 0.5f)), bay: 2, fromCorner: 1, toCorner: 2);
+
+        door.Should().Throw<InvalidOperationException>().WithMessage("*before the glass*");
+    }
+
+    [Fact]
+    public void SurroundsTwiceAreAnError()
+    {
+        Action surrounds = () => SmallBox().Surrounds(rib: 0.1f, fold: 0.06f, solid: 0.1f).Surrounds(rib: 0.2f, fold: 0.06f, solid: 0.1f);
+
+        surrounds.Should().Throw<InvalidOperationException>().WithMessage("*surrounds already*");
+    }
+
     /// <summary>The small box's cabin reaches 1.8 m from its middle to each side, so a housing 2 m square reaches its wall.</summary>
     [Fact]
     public void APocketWhoseHousingReachesTheWallIsAnError()
