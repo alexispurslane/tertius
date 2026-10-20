@@ -6,8 +6,8 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// The one rule for characters (User): physics stands a character only on walkable ground under gravity. A character
-/// that does not stand keeps its momentum in any gravity, turns its up under gravity only while it touches something,
-/// and loses its motion into what it hits. Physics reports whether it stood each character in each step. These tests run
+/// that does not stand keeps its momentum in any gravity, turns its up against the gravity whenever it is under gravity,
+/// touching or not, and loses its motion into what it hits. Physics reports whether it stood each character in each step. These tests run
 /// the World on the real Jolt backend and read the report through <see cref="Snapshot.IsStanding"/>. A component writes a
 /// command through <see cref="BodyHandle"/> during a tick, and physics applies it in the step of the next tick. So a test
 /// sends a command with <see cref="Send"/>, which ticks once, and ticks on to see what the command did.
@@ -121,8 +121,13 @@ public class CharacterStandingTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Changed on purpose by ter-1b21 (docs/plans/spin-gravity.md, "Characters", fork F5): up follows the gravity in the
+    /// air too. Before, a character in the air kept its up until it touched something, so this test was
+    /// UnderGravityACharacterInTheAirKeepsItsUpAndTurnsItToTheGravityOnceItLands and expected the old up in the air.
+    /// </summary>
     [Fact]
-    public void UnderGravityACharacterInTheAirKeepsItsUpAndTurnsItToTheGravityOnceItLands()
+    public void UnderGravityACharacterInTheAirTurnsItsUpAgainstTheGravityAndLandsUpright()
     {
         var (world, ground) = WorldWithFloor();
         using (world)
@@ -137,11 +142,11 @@ public class CharacterStandingTests
             Tick(world, 10);
 
             world.PoseInOwnFrame(person).Position.Y.Should().BeGreaterThan(3, "the character is still in the air");
-            Vector3.Distance(UpOf(world, person), Vector3.UnitY).Should().BeLessThan(1e-5f, "in the air nothing turns the character");
+            Vector3.Distance(UpOf(world, person), -tilted).Should().BeLessThan(1e-3f, "under gravity, up turns against it in the air too");
 
             Tick(world, 90);
             world.Snapshot.IsStanding(person).Should().BeTrue("it landed on the floor");
-            Vector3.Distance(UpOf(world, person), -tilted).Should().BeLessThan(1e-3f, "it touches the floor, so its up turns against the gravity");
+            Vector3.Distance(UpOf(world, person), -tilted).Should().BeLessThan(1e-3f, "it keeps its up against the gravity");
             world.Errors.Should().BeEmpty();
         }
     }
@@ -149,8 +154,8 @@ public class CharacterStandingTests
     /// <summary>
     /// A character lands on a floor tilted by <paramref name="tiltDegrees"/> about +Z, as a person who tumbled in the air
     /// does. At 60 degrees it lands on its side, and Jolt finds steep ground under it. At 120 and 180 degrees it lands
-    /// on its head, and Jolt finds a contact that does not support it at all. Under gravity, any touch turns its up
-    /// against the gravity, so it turns upright and stands.
+    /// on its head, and Jolt finds a contact that does not support it at all. Under gravity its up turns against the
+    /// gravity, in the air too (fork F5 of docs/plans/spin-gravity.md), so it turns upright and stands.
     /// </summary>
     [Theory]
     [InlineData(60)]

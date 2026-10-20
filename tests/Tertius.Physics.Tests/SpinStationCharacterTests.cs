@@ -287,6 +287,90 @@ public class SpinStationCharacterTests
         world.Errors.Should().BeEmpty();
     }
 
+    // ---- Up and form ----
+
+    /// <summary>The jump speed of <see cref="APersonWhoJumpsAcrossTheStationLandsUprightOnTheFarFloorAndStands"/>, in m/s along up.</summary>
+    private const double CrossingJump = 30;
+
+    /// <summary>The up of a person at rest in the station at <paramref name="place"/>: toward the axis, against the centrifugal term.</summary>
+    private static Double3 StationUpAt(Double3 place) => -new Double3(place.X, 0, place.Z).Normalized();
+
+    [Fact]
+    public void APersonWhoJumpsAcrossTheStationLandsUprightOnTheFarFloorAndStands()
+    {
+        // The person jumps at 30 m/s toward the axis. In inertial space it moves on a straight line that leaves the floor's
+        // circle at an angle φ / 2 to its tangent, with tan(φ / 2) = u / (ω r), and meets the circle again after the chord
+        // across the angle φ. The station turns by ω t = sin φ in that time, so the person lands φ − sin φ = 0.54 rad
+        // ahead of its takeoff in the station, after about 3.2 s, and passes 71 m from the axis on the way. A second slab
+        // lies there. Up turns against the gravity in the air too (fork F5), so the person comes down feet first on the far
+        // floor, 31 degrees from the up of its takeoff, and stands. It measured a tilt of 5e-5 rad where it lands, 9e-6 rad
+        // from the predicted place, and stood from the tick after it landed.
+        using World world = NewWorld(out _, debugChecks: false);
+        Station station = SpawnStation(world);
+        double half = Math.Atan(CrossingJump / (StationRate * StandingRadius));
+        double landing = 2 * half - Math.Sin(2 * half);
+        // A turn about +Y by the landing angle takes the station's +X onto the far floor's normal away from the axis.
+        var far = DQuaternion.FromAxisAngle(Double3.UnitY, landing);
+        world.Spawn(new SpawnDesc
+        {
+            Frame = station.Frame,
+            Pose = new DPose(far.Rotate(new Double3(FloorRadius + 0.5, 0, 0)), far),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f, 10, 10)), BodyMotion.Static),
+        });
+        var pilot = new Pilot();
+        Entity person = SpawnPerson(world, station, new Double3(StandingRadius - 0.01, 0, 0), pilot);
+        Tick(world, 60);
+        world.IsStanding(person).Should().BeTrue("the person stands on the floor of its takeoff");
+        Send(world, pilot, body => body.Jump((float)CrossingJump));
+        var samples = new List<Sample> { Take(world, station, person) };
+        var ups = new List<Double3> { UpInStation(world, station, person) };
+        for (int tick = 0; tick < 300; tick++)
+        {
+            world.Tick();
+            samples.Add(Take(world, station, person));
+            ups.Add(UpInStation(world, station, person));
+        }
+
+        int landed = FirstConstrainedStep(samples, 10);
+        landed.Should().BeGreaterThan(150, "the person flies for about 3.2 s");
+        Sample last = samples[landed - 1];
+        double tilt = Math.Acos(Math.Clamp(Double3.Dot(ups[landed - 1], StationUpAt(last.InStation)), -1, 1));
+        tilt.Should().BeLessThan(1e-3, "the person comes down upright, its up against the gravity where it lands");
+        Double3 end = samples[^1].InStation;
+        Math.Atan2(-end.Z, end.X).Should().BeApproximately(landing, 1e-3, "it lands on the far floor where its inertial line meets it");
+        samples.Skip(landed + 2).Should().OnlyContain(s => s.Standing, "it stands on the far floor from the tick after it lands on");
+        Double3.Distance(ups[^1], StationUpAt(end)).Should().BeLessThan(1e-3);
+        world.PhysicsHomeOf(person).Should().Be(station.Frame, "the person stays in the station's own system");
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void APersonNearTheHubOfTheStationTakesTheRigidForm()
+    {
+        // The effective gravity of the station is ω² r away from its axis, 0.029 m/s² at 0.3 m, below the 0.05 m/s² under
+        // which a character takes the rigid form, and 0.20 m/s² at 2 m, above twice that, from which a character walks.
+        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
+        Station station = SpawnStation(world);
+        Entity nearHub = SpawnPerson(world, station, new Double3(0.3, 0, 0), new Pilot());
+        Entity farther = SpawnPerson(world, station, new Double3(0, 0, 2), new Pilot());
+        Tick(world, 3);
+
+        backend.HasRigidForm(nearHub).Should().BeTrue("the centrifugal term near the hub is too weak to stand on");
+        backend.HasRigidForm(farther).Should().BeFalse("the centrifugal term at 2 m from the axis is enough to stand on");
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>The up of <paramref name="person"/> in the station's axes.</summary>
+    private static Double3 UpInStation(World world, Station station, Entity person) =>
+        world.PoseIn(person, station.Frame).Rotation.Rotate(Double3.UnitY);
+
+    /// <summary>Gives <paramref name="command"/> to the pilot and ticks once, so that the step of the next tick applies it.</summary>
+    private static void Send(World world, Pilot pilot, BodyCommand command)
+    {
+        pilot.Once = command;
+        world.Tick();
+    }
+
     // ---- Hand-offs ----
 
     /// <summary>

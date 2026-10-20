@@ -23,8 +23,9 @@ namespace Tertius.Demo;
 /// does not tip it.</para>
 /// <para>A character that physics does not stand on walkable ground counts as weightless: in the air, on steep ground,
 /// where no gravity acts, or in free fall round a planet. (User) Physics keeps its momentum, gravity and forces change
-/// it, and a walk or a jump does not move it. Its up turns only while it touches anything under gravity, so in free
-/// fall it keeps its last up. There the person drifts or falls until a thrust changes its velocity. The person reads
+/// it, and a walk or a jump does not move it. Under gravity its up turns against the gravity, in the air too, and where
+/// the gravity is weaker than the zero-gravity threshold it keeps its last up. There the person drifts or falls until a
+/// thrust changes its velocity. The person reads
 /// <see cref="BodyHandle.Standing"/>, which physics reports for the step of the previous tick. So its thrusters start
 /// and stop a tick late. The walk and the jump do not wait for the report: the person asks for the walk on every tick
 /// and for a jump on each press, and physics applies them only in the steps in which it stands the person.</para>

@@ -493,8 +493,13 @@ public class CharacterFormTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Changed on purpose by ter-1b21 (docs/plans/spin-gravity.md, "Characters", fork F5): up follows the gravity in the
+    /// air too. Before, this test was ACharacterThatWalksAgainKeepsTheUpThatItHadBeforeItWasWeightless: a character that
+    /// touched nothing kept the up of before its rigid form under the new gravity, as in free fall.
+    /// </summary>
     [Fact]
-    public void ACharacterThatWalksAgainKeepsTheUpThatItHadBeforeItWasWeightless()
+    public void ACharacterThatWalksAgainTurnsItsUpAgainstTheNewGravityThoughItTouchesNothing()
     {
         using World world = NewWorld(out JoltPhysicsBackend backend);
         // Gravity along -X, so the character's up is +X.
@@ -507,12 +512,12 @@ public class CharacterFormTests
         world.SetFrameGravity(space, GravityField.None);
         Tick(world, 10);
         backend.HasRigidForm(person).Should().BeTrue();
-        // The new gravity is along -Y, but the character touches nothing, so nothing turns it, as in free fall.
+        // The new gravity is along -Y. The character touches nothing, but it walks again under gravity, so its up turns.
         world.SetFrameGravity(space, GravityField.Uniform(Down));
         Tick(world, 10);
 
         backend.HasRigidForm(person).Should().BeFalse();
-        Vector3.Distance(UpOf(world, person), Vector3.UnitX).Should().BeLessThan(1e-5f, "the character kept its up through its rigid form");
+        Vector3.Distance(UpOf(world, person), Vector3.UnitY).Should().BeLessThan(1e-5f, "under gravity, up turns against it in the air too");
         world.Errors.Should().BeEmpty();
     }
 

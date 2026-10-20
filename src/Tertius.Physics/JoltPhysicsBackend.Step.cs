@@ -818,8 +818,9 @@ public sealed partial class JoltPhysicsBackend
     /// every character. The velocity rule goes by what the character's velocity means at the start of the update (see
     /// <see cref="StartVelocity"/> and <see cref="NextCharacterVelocity"/>). After the update, a character that did not stand loses
     /// its motion into what it hit, as <see cref="WithoutMotionIntoContacts"/> says. Under gravity, up turns against the
-    /// gravity whenever the character touched anything in its last update, also with its side or its head, so a character
-    /// that landed tilted turns upright and can stand. A character in free fall that touches nothing keeps its last up.
+    /// semantic gravity, with the centrifugal and the Euler term of a turning frame, whether the character touches anything
+    /// or not (docs/plans/spin-gravity.md, fork F5). So a character that tumbled lands upright and can stand, and a person who
+    /// jumps across a spinning station comes down feet first on the far floor. Below the zero-gravity threshold up stays.
     /// Returns the velocity that the character moved with in the update.
     /// </summary>
     private Vector3 UpdateCharacter(FrameWorld world, BodyRecord record, CharacterVirtual character)
@@ -833,16 +834,16 @@ public sealed partial class JoltPhysicsBackend
         Vector3 effective = frames.AddRotationTerms(world.Frame, position, linear).ToVector3();
         float strength = effective.Length();
         bool underGravity = strength >= FrameTree.ZeroGravityThreshold;
-        // The ground state comes from the last update. Any touch counts, also on steep ground and on the head or the
-        // side, so a character that landed tilted turns upright.
+        // The ground state comes from the last update.
         GroundState groundState = character.GroundState;
-        bool touching = groundState != GroundState.InAir;
         Vector3 up = record.Up;
         // Up is against the semantic frame's gravity, which in a falling numeric frame is far stronger than the effective
         // gravity. In a semantic frame the two are the same. Both hold the centrifugal and the Euler term of a turning frame.
+        // Up follows that gravity whether the character touches anything or not (docs/plans/spin-gravity.md, fork F5), so a
+        // person who jumps across a spinning station comes down feet first on the far floor, and one that tumbled lands upright.
         Vector3 semanticGravity = frames.SemanticGravity(world.Frame, position).ToVector3();
         float semanticStrength = semanticGravity.Length();
-        if (semanticStrength >= FrameTree.ZeroGravityThreshold && touching)
+        if (semanticStrength >= FrameTree.ZeroGravityThreshold)
         {
             up = -semanticGravity / semanticStrength;
             if (Vector3.DistanceSquared(up, record.Up) > 1e-12f)
