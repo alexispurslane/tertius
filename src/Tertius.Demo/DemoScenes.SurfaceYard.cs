@@ -39,8 +39,9 @@ public static partial class DemoScenes
     /// <list type="bullet">
     /// <item>The root frame <c>earth-surface</c> has its origin at Earth's center and Earth's point gravity, μ =
     /// <see cref="EarthMu"/>. It does not turn. The scene leaves out the sun, Earth's orbit round it and Earth's spin,
-    /// because none of them changes what happens on the ground here: the engine applies no Coriolis or centrifugal
-    /// force, and Earth falls freely round the sun. The yard lies at the north pole, so +Y is up, and the surface
+    /// because none of them changes what happens on the ground here: Earth falls freely round the sun, and the yard
+    /// lies at the pole, where Earth's spin of 7.3e-5 rad/s would give no centrifugal term and only a Coriolis term of
+    /// 1.5e-4 m/s² per m/s, which the scene does not need. The yard lies at the north pole, so +Y is up, and the surface
     /// gravity there is μ / R² ≈ 9.820 m/s², with R = <see cref="EarthRadius"/>.</item>
     /// <item>The planet has no ground (ticket ter-7u6t), so a static gray slab, the <c>floor</c>, 50 by 50 m and 1 m
     /// thick, has its top at y = R.</item>

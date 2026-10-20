@@ -120,7 +120,16 @@ where
 - `Rotate` = turns a vector by a rotation.
 - The result = the change of the chord over the step in flight, in m/s, that keeps the body on its inertial line.
 
-For a steady spin at ω, the result is `(−2 ω × c − ω × (ω × x)) dt` to first order in `dt`. A rate that changes between the two steps adds `−α × x dt`. The update holds all three rotation terms exactly, at any step length, and the free part of the motion drifts by nothing but rounding. Physics adds the linear gravity times `dt`, in doubles, and narrows the sum once. The cross term between the linear gravity and the turn is of order ω g `dt`²: 2e-7 m/s per step on the ground of Earth, and zero in a station without a field.
+For a steady spin at ω, the result is `(−2 ω × c − ω × (ω × x)) dt` to first order in `dt`. A rate that changes between the two steps adds `−α × x dt`. The update holds all three rotation terms exactly, at any step length, and the free part of the motion drifts by nothing but rounding. Physics adds the linear gravity, in doubles, and narrows the sum once.
+
+A push that is fixed in the frame's axes acts at the start of the step, in the axes then, so the turn of the step carries it into the axes at the end. The update turns each such push by `R_n`:
+
+- The field part of the linear gravity, `g`, which is the linear gravity plus the home's acceleration: `x_(n+1)` gains `R_n g dt²`. The home's acceleration is motion in the semantic frame's coordinates, which takes no turn, so it stays unturned.
+- A force of the intent, `F`: Jolt adds `F / m · dt` unturned, so the update adds `(R_n − I) F / m · dt` to the chord, which the shadow carries.
+- A torque of the intent, `τ`: Jolt adds `I⁻¹ τ dt` to the angular velocity, unturned, after the angular form sets it. So `AngularChordAhead` takes that change as a change of the inertial angular velocity at the start of the step, as it takes an angular impulse, and the angular velocity that physics gives Jolt leaves Jolt's own addition out.
+- A falling frame's origin turns its field the same way (see "The origin of a falling frame").
+
+This corrects the first version of this section, which left the field unturned and estimated the cross term between the linear gravity and the turn at ω g `dt`²: 2e-7 m/s per step on the ground of Earth, and zero in a station without a field. That estimate missed a frame at rest inside a spinning station: there the linear gravity is that frame's push reversed, ω² R, so the cross term is ω³ R `dt` sideways, 0.026 m/s² at R = 50 m, and a free crate left its line by 2.9 cm in 1.5 s and about 1.3 m in 10 s (measured). With the field turned, it keeps its line within 1e-4 m. A ship that thrust at 4.9 m/s² in the station left the path of its thrust by 0.11 m in 3 s, linear in the thrust, and keeps it within 5e-5 m with the force turned. A ball under a torque of 1 N m turned 5.2 mrad off its path in 5 s, and keeps it within 7e-6 rad with the torque turned. A frame that does not turn keeps every expression, to the bit. (Settled in `ter-1bnq` on 2026-10-19 by the design's own goal, that a free body's path in inertial space is exact.)
 
 The spike's `SpinKinematics` was a static class. The user's rule puts every function in the struct that it belongs to, so the update becomes an instance method of the struct that holds the two turns:
 
@@ -324,18 +333,18 @@ The prediction has a lag of one step, the same as the hull's proper acceleration
 `BodyRecord.FrameAcceleration`, of the type `AppliedFrameAcceleration(Vector3 Field, Vector3 Turning)`, with the read `Total => Field + Turning`. It replaces `BodyRecord.GravityApplied`. It holds the acceleration that the body's frame gave it in the last step in which physics moved it, in the home's axes:
 
 - `Field` = the linear gravity at the body's place.
-- `Turning` = the change that the turning frame's update made to the chord beyond the field, divided by the step: the rotation part of the two-turn update, plus the velocity shadow's take-back of Jolt's rounding of the last step. Zero in a frame that does not turn.
+- `Turning` = the whole acceleration of the update's force beyond the field: the rotation part of the two-turn update, the turns of the field and of the intent's force, the move of an impulse's change behind, the velocity shadow's take-back of Jolt's rounding of the last step, and the contact turn. Zero in a frame that does not turn.
 
 `ComputeProperAccelerations` computes the change of velocity over the step divided by the step, minus `Total`. So every velocity change that is not in `Total` reads as proper acceleration. Each correction has its own reason:
 
-- The contact turn stays out of `Total`. It turns a contact's change into the axes at the end of the step, and the contact cancels it in the same step, so the change of velocity over the step does not hold it. For example, a hull at rest on a station floor gets a contact turn of about ω³ r `dt`, 0.051 m/s² at the spike's floor. Left in `Total`, it would read as a sideways thrust of that size.
+- The contact turn joins `Total`, through `Turning`. A hull at rest on a station floor gets an update whose rotation part leans across the floor by about ω³ r `dt`, 0.051 m/s² at the spike's floor, and the contact turn takes that lean out of the force. So a `Total` without the contact turn holds the lean, and the accelerometer reads the floor's push across itself. The first version of this rule kept the contact turn out, by a derivation error: it took the contact turn for a change that the contact cancels in the same step. Measured on a ship on the spike's floor: with the contact turn out, the ship read 0.0507 m/s² across the floor; with it in, 4.4e-5 m/s². The design's stated result, a ship on the floor reads ω² R toward the axis, and its analogue, a sleeping hull's `Total` is V5, settle it.
 - The shadow's take-back joins `Total`, through `Turning`. It is a velocity change that physics makes on purpose, and it can pass the dead band of `AboveResolution`, which is one ulp of the velocity divided by the step, or two ulps of the gravity, per component. Jolt's float update rounds several times in each step, so the error that the take-back undoes can pass one ulp. Left out, the accelerometer would read it as noise above the band.
 
 The cases:
 
 | Body | `Field` | `Turning` |
 |---|---|---|
-| An awake dynamic body, a rigid character | The linear gravity at its place | The two-turn update's change over the step, and the shadow's take-back |
+| An awake dynamic body, a rigid character | The linear gravity at its place | The two-turn update's change over the step, the turns of the field and of the intent's force, the move of an impulse's change, the shadow's take-back and the contact turn |
 | An awake dynamic body with a steer target | The linear gravity at its place | Zero: the steering velocity takes the place of the update (see "The flow per kind of entity") |
 | A walking character that the ground holds | Zero | Zero |
 | A walking character in the air, or one that jumps or gets a velocity | The linear gravity at its place | The rotation part of its case's rule |
@@ -380,7 +389,7 @@ With `Total`, a ship on a station floor reads ω² R toward the axis. Its cargo 
 | Reader of `LinearGravity` | When | What for |
 |---|---|---|
 | `ApplyGravity` and `UpdateCharacter` | Step k + 1 | The field part of the update |
-| `LinearChord`, `ChordAcceleration`, `HandedOffVelocities` and `InstantVelocity` | Start and end of step k + 1 | Half a step of the field part in the chord rule |
+| `LinearChord`, `ChordAcceleration`, `HandedOffVelocities` and `InstantVelocity` | Start and end of step k + 1 | Half a step of the field part in the chord rule: turned back by the turn in the chord behind, unturned in the instant read (see "The chord rule") |
 | `FrameTree.BeginStep` | `PrepareTick` | The field part of a falling frame's origin |
 
 `FrameWorld.ForceAcceleration`, which the minimum rebound reads, counts the force of the two-turn update without a change, because it reads the accumulated force.
@@ -424,7 +433,7 @@ where
 | Reader | When | What it does |
 |---|---|---|
 | `ApplyGravity` | Step k + 1 | If the shadow is from the last step and Jolt's velocity differs from `JoltTarget` by at most 1e-6 times the sum of `JoltTarget`'s length and 1 m/s (the spike's bound for rounding), the update starts from `Chord` and `Place`, and Jolt gets the velocity that also takes back its rounding of the last step. If Jolt's velocity differs by more, a contact changed it: the update starts from Jolt's velocity, with the contact's change turned by `R_(n−1)` (the contact turn). Otherwise the update starts from Jolt's velocity. `JoltTarget` and `Chord` hold Jolt's damping, so a damped body in free motion passes the test too. |
-| `ApplyGravity`, for `JoltTarget`, `Chord` and the angular form | Step k + 1 | The body's linear damping and angular damping, from its description: `BodyRecord.Material`, the `BodyDesc` that created the body (`LinearDamping` and `AngularDamping`) |
+| `ApplyGravity`, for `JoltTarget`, `Chord` and the angular form | Step k + 1 | The body's linear damping and angular damping, from its description: `BodyRecord.Material`, the `BodyDesc` that created the body (`LinearDamping` and `AngularDamping`). `JoltTarget` holds the intent's force as Jolt applies it, and `Chord` holds it turned by `R_n` (see "The two-turn update"). |
 
 #### Jolt's damping in the shadow
 
@@ -632,21 +641,23 @@ where
 - `v + ω × x` = the body's inertial velocity, in the frame's axes at the instant.
 - `R⁻¹ (x − (v + ω × x) dt)` = the place on the inertial line one step earlier, in the frame's axes then.
 
-The two are exact inverses of each other. Physics then subtracts half a step of the linear gravity and of the damping, as today:
+The two are exact inverses of each other. Physics then subtracts half a step of the field part of the linear gravity and of the damping. The field acts in the frame's axes at the start of the step, so the chord behind takes its half step turned back by the turn, `R⁻¹ g dt / 2`. The instant read at the end of a step keeps it unturned, because the field at the end of the step, in the axes then, is the frame's field itself. A crate at rest in inertial space that a room sweeps over kept 8.8e-6 m/s through both hand-offs with the instant read unturned, and left at 2.1e-4 m/s with it turned (measured):
 
 | Site | When | The `FrameTurn` | Then |
 |---|---|---|---|
-| `ApplyBodyIntent`: `SetVelocity`, the rest after a teleport | Start of step k + 1 | V2 | Jolt's velocity is `ChordBehind(x, v)` minus half a step of the linear gravity and the damping. The step's two-turn update, with V1 and V2, then carries it onto the inertial line ahead. |
+| `ApplyBodyIntent`: `SetVelocity`, the rest after a teleport | Start of step k + 1 | V2 | Jolt's velocity is `ChordBehind(x, v)` minus half a step of the field turned back, `R⁻¹ g dt / 2`, and of the damping. The step's two-turn update, with V1 and V2, then carries it onto the inertial line ahead. |
 | The instant case of `UpdateCharacter`: a jump, or a velocity that `ApplyCharacterIntent` stored | Step k + 1, in the character's update | V2 | The same, then the two-turn update, in one update |
 | `ConvertSpawnVelocities` | Start of the first step after a spawn | V2 | The same |
 | `HandedOffVelocities` | End of step k + 1, after the update | The new frame's V1, the step that just ended | The chord behind the instant velocity in the new frame: the chord of the step that ends at the hand-off, which Jolt's next step carries on. A character that stood keeps its instant velocity as its chord, as today. The next `BeginStep` copies V1 into V2, so the next update reads the same turn. |
 | `ApplyBodyIntent` and `ApplyGravity`: an impulse | Start of step k + 1 | V2 | See "Impulses" below |
 | `UpdateCharacter`: `PendingVelocityChange` | Step k + 1, in the character's update | V2 | See "Characters" and "Impulses" |
-| `InstantVelocity` | End of step k + 1 | V1 | The instant velocity at the end of the step: `InstantAtEnd(x, c)` plus half a step of V4's `Field` and of the damping |
+| `InstantVelocity` | End of step k + 1 | V1 | The instant velocity at the end of the step: `InstantAtEnd(x, c)` plus half a step of V4's `Field`, unturned, and of the damping |
 
 The chord rule followed by the two-turn update gives the chord ahead on the inertial line through the instant state: `(R_n (x + (v + ω × x) dt) − x) / dt`, which is the spike's `FreeChordFromInstant`. The angular form has the same pair, `AngularChordBehind` and `InstantAngularAtEnd`, with the inertial angular velocity `ω_b + ω`. With both turns the identity, physics skips the turn and keeps today's formulas, so frames that do not turn keep their results bit for bit.
 
 In a numeric home the rule acts on the semantic place and velocity, with the same home terms that `LinearChord` and `InstantVelocity` use today (`FrameTree.HomeInstantVelocityOverChord`). The result loses the home's frame velocity of the same step to give Jolt's local chord.
+
+The rule cannot follow the jerk of the origin of a frame that lies off the axis of a turning parent, ω³ R for a room at the distance R from the axis. So a crate spawned at rest in such a room drifts at ω³ R `dt`² / 6: 7.1e-5 m/s at R = 50 m in the spike's station (measured 7.15e-5 m/s). On the ground of Earth the jerk is 2.5e-6 m/s³, so the term is negligible there. A test pins it.
 
 ### Impulses
 
@@ -689,7 +700,7 @@ A group with a body that thrusts, such as any character, gets a falling numeric 
 `BeginStep` gives a falling frame the step acceleration that keeps its origin on the inertial line of a free body at its place:
 
 ```
-stepAcceleration = FieldOf(semantic, place) + turns.FreeChange(place, chord, dt) / dt − HomeAcceleration(parent, semantic)
+stepAcceleration = R_n FieldOf(semantic, place) + turns.FreeChange(place, chord, dt) / dt − HomeAcceleration(parent, semantic)
 ```
 
 where
@@ -697,7 +708,7 @@ where
 - `place` = the origin's semantic place, `HomeOffset(frame, semantic)`.
 - `chord` = the origin's semantic chord, `HomeVelocity(frame, semantic)`: the sum of the frame velocities, which are chords.
 - `turns` = the semantic frame's V1 and V2, which `BeginStep` fixed earlier in the same pass.
-- `FieldOf(semantic, place)` = the semantic frame's field at the place minus its proper acceleration.
+- `FieldOf(semantic, place)` = the semantic frame's field at the place minus its proper acceleration. `R_n` = V1's turn, which carries the field from the axes at the start of the step to the axes at its end, as the update of the members does (see "The two-turn update"). In a frame that does not turn the term is the field, to the bit.
 - `HomeAcceleration(parent, semantic)` = the step accelerations of the numeric frames above, which hold their own origins' terms.
 
 The members' acceleration in Jolt is the linear gravity at their place, which subtracts the home's whole acceleration, plus the two-turn update at their semantic place and chord. So they feel only the difference between their terms and the origin's. The origin's terms must match the members' update, for a named reason: a falling group then keeps small local velocities, which is what the frame is for. With the field alone, as today, a group in a turning frame drifts away from its origin at a growing rate. A following frame lands on its step plan and a resting frame does not move, so neither needs a term on its origin. A following frame whose anchor has no motion intent in the step has no step plan, so it falls as a falling frame and takes this term.
@@ -855,17 +866,19 @@ Each test changes with its reason in the commit and in a comment:
 |---|---|---|
 | `WorldSpinFrameTests.ABallThatLeavesASpinFrameKeepsTheVelocityOfTheGroundItLeft` | `ter-1bnq` | The ball now feels the rotation terms in the turning frame |
 | `HandOffTests.BallThrownOutOfSpinningPhysicsShipKeepsItsParentVelocity` (lines 80 to 130) | `ter-1bnq` | Its comment at line 111 says no Coriolis force acts in the ship |
-| `OrbitClusterTests`, lines 182, 504 and 548 | `ter-1bnq` | They state that no Coriolis or centrifugal force acts in the ship |
+| `OrbitClusterTests`, lines 182, 504 and 548 | `ter-1bnq` | They state that no Coriolis or centrifugal force acts in the ship. Only their comments and report texts change. |
+| `HandOffTests`, the two tests that put a ball in a station that faces its planet: near apoapsis, and with and without numeric frames | `ter-1bnq` | The rotation terms fling the ball out of the station earlier, and a faster ball stays in the hull's orbit frame. Each keeps what it checks, and spawns the ball 5 s before apoapsis at 3 m/s. The apoapsis test checks that the hand-off velocity is the ball's chord in the planet over the step. The design check missed both. |
+| `ThrowSliceTests` | `ter-1bnq` | The thrown crate bends by the ship's Coriolis term, −2 ω \|v_y\| t, about −1.6e-3 m/s |
 | `FrameMotionAccelerationTests`, a new file in `Tertius.Core.Tests` | `ter-1bnq`, stage 1 | The new acceleration terms. No test of the struct `FrameMotion` existed. `FrameMotionTests` in `Tertius.Simulation.Tests` tests frames that move with their owners, and it does not change. |
 | `FrameTreeNumericMotionTests`, lines 64 to 98 | `ter-1bnq` | `AccelerationRelative` gives way to `MotionRelativeInStep` |
 | `KeplerOrbitTests`, for the angular acceleration | `ter-1bnq` | The mean over the step in place of the value at its start |
 | The tests of `MotionSample.Converted` that `ter-xdt8` writes | `ter-1bnq` | The rotation terms of a conversion, and the new parameters `(start, end, step)` |
 | `OrbitSliceTests` (line 225 on) | `ter-1bnq` | It reads `EffectiveGravity` on the turning ship right after the scene's build, before the first `BeginStep`, so its values stay. The read returns a `Double3` now, so the test compares `Double3` values. Its runs of `scripts/orbit.json` change as the other tests on the scene do. |
-| Tests on the `orbit` scene and its scripts: `FreePlayTests`, `ShipWindowTests`, `WindowingTests`, `CameraInShipCrateInEarthTests`, `AirlockSliceTests`, `SpacewalkSliceTests`, `ThrowSliceTests`, `WalkSliceTests`, `WindowsSliceTests` | `ter-1bnq` | The ship turns at about 1.1e-3 rad/s. Each one that fails changes with its reason. |
+| Tests on the `orbit` scene and its scripts: `FreePlayTests`, `ShipWindowTests`, `WindowingTests`, `CameraInShipCrateInEarthTests`, `AirlockSliceTests`, `SpacewalkSliceTests`, `WalkSliceTests`, `WindowsSliceTests` | `ter-1bnq` | The ship turns at about 1.1e-3 rad/s. Each one that fails changes with its reason. All of them pass unchanged. |
 | `CharacterStandingTests.UnderGravityACharacterInTheAirKeepsItsUpAndTurnsItToTheGravityOnceItLands` | `ter-1b21` | Up follows gravity in the air too (fork F5) |
 | `CharacterStandingTests.ACharacterOnASlopeTooSteepToStandOnDoesNotStandAndSlidesDown` (line 104) and `CharacterFormTests.ACharacterInTheAirUnderGravityIsNotHeldBackByTheSteepSlopeCancelFromAFreeWallThatItSlidesAlong` (line 542) | `ter-1b21` | They involve slopes, but neither should change: on ground too steep to stand on, the character does not stand, and fork F6 acts only on a standing character. The second character touches a wall, so its up turns today too (fork F5). Each runs, and one that fails changes with its reason. No test walks a standing character on a walkable slope today. The new test "A person walks along a slope in the ground plane" covers fork F6. |
 
-`CharacterOrbitHandOffTests` and `NumericFrameOrbitTests` build ships of their own and do not load the `orbit` scene, so they are not in the list. `ScriptRecorderTests` names the scene `orbit` in its records but builds no world on it: its one run uses the `probes` scene. The other test files that use `SpinMotion`, `FacesParent` or `.Spinning(` test the motion of frames with no body inside a turning frame, so they do not change.
+`CharacterOrbitHandOffTests` and `NumericFrameOrbitTests` build ships of their own and do not load the `orbit` scene, so they are not in the list. `ScriptRecorderTests` names the scene `orbit` in its records but builds no world on it: its one run uses the `probes` scene. The other test files that use `SpinMotion`, `FacesParent` or `.Spinning(` test the motion of frames with no body inside a turning frame, so they do not change. The design check said this of every such file, which was wrong for the two `HandOffTests` above.
 
 ## Decisions
 
@@ -895,7 +908,9 @@ The user made the decisions marked (User).
 | The default of V1 and V2 | `FrameTurn.None`, which `Grow` and `Create` write. The default `DQuaternion` is no rotation at all. (Design check, 2026-10-18) |
 | The row of a level in `BeginStep` | Chosen by `HullMotionInStep` and the case of the owner's front motion intent, as `FollowOwners` chooses the follow kind (Design check, 2026-10-18) |
 | A dead band on the predicted rate of a dynamic hull | None. The frame's axes turn by what the hull's record says, and a band at the rate's float resolution would not catch solver noise. (Design check, 2026-10-18) |
-| The shadow's take-back of Jolt's rounding | It joins V4's `Total`, through `Turning`, because it can pass the dead band of `AboveResolution`. The contact turn stays out, because the contact cancels it. (Design check, 2026-10-18) |
+| The shadow's take-back of Jolt's rounding | It joins V4's `Total`, through `Turning`, because it can pass the dead band of `AboveResolution`. (Design check, 2026-10-18) The contact turn joins it too. The design check kept it out, because it took the contact turn for a change that the contact cancels. That was a derivation error: the contact turn takes the update's lean across a floor back out of the force, so a total without it reads the floor's push across itself. A ship on the spike's floor read 0.0507 m/s² across the floor with it out, and 4.4e-5 m/s² with it in. (`ter-1bnq`, 2026-10-19) |
+| The cross term of the field and the turn | The field part of the linear gravity turns by V1's turn, `R_n g dt²`, in the update, in a falling frame's origin and in the chord behind. The design check left it unturned, with an estimate of ω g `dt`², 2e-7 m/s per step on the ground of Earth. Inside a frame at rest in a spinning station the linear gravity is ω² R, so the cross term is ω³ R `dt`, 0.026 m/s² at R = 50 m, and a free crate left its line by 2.9 cm in 1.5 s. With the turn it keeps its line within 1e-4 m. The instant read at the end of a step keeps the field's half step unturned, because the field at that instant, in the axes then, is the frame's field. (`ter-1bnq`, 2026-10-19) |
+| An intent's force and torque in a turning frame | They turn by V1's turn as the field does: the update adds `(R_n − I) F / m · dt` to the chord, and the angular form takes a torque's change `I⁻¹ τ dt` as a change at the start of the step. A thrust is fixed in the frame's axes, as the field is. Unturned, a ship that thrust at 4.9 m/s² left the path of its thrust by 0.11 m in 3 s, and a ball under a steady torque turned 5.2 mrad off in 5 s. Turned, they keep their paths within 5e-5 m and 7e-6 rad. No other push that is fixed in the frame's axes enters a step of a turning frame: an impulse goes through `ChangeBehind`, a contact through the contact turn, a steer target takes the place of the update, and a walking character's rules belong to `ter-1b21`. (`ter-1bnq`, 2026-10-19) |
 | Impulses in a turning frame | Their change enters as a change of the chord behind (`ChangeBehind`), so the update carries it by `R_n` alone. The angular change goes into `AngularChordAhead`. (Design check, 2026-10-18) |
 | A dynamic body with a steer target | Its steering velocities take the place of the update in that step (Design check, 2026-10-18) |
 | The reads in a frame, such as `VelocityIn` | They keep the instant rule on the row's chord, with an error in direction of up to ω `dt` / 2 times the speed in a turning frame, of the order of a chord's own lag (Design check, 2026-10-18) |
