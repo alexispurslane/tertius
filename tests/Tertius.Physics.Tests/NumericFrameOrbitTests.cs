@@ -230,12 +230,19 @@ public partial class NumericFrameOrbitTests
     /// <see cref="Rock"/>. The body joins the hull's new following frame K before K's first step, and physics converts the
     /// velocity of its spawn into K's system as into the system of any following frame, because K starts with the chord velocity
     /// that the numeric frames expect (see "The first step of a new following frame" in docs/plans/rails-components.md).
-    /// With a first motion intent of the hull, K's first step is planned, and without one, K falls in its first step. Either
-    /// way the body stays on its own orbit after a second, in which it moves 7.66 km, within the bound that a body spawned
-    /// beside an older following frame keeps: 1.35e-6 m there, 1.13e-6 m here with a first motion intent and 4.5e-7 m without
-    /// one. Those are the orbit's jerk times the square of a step, from the scheme that Jolt uses and from the conversion of a
-    /// spawn velocity. When K started with the hull's instant velocity, a body beside a hull with a first motion intent
-    /// drifted from its orbit by 3.6 cm in that second: a quarter of a step of the pull, 3.6 cm/s.
+    /// With a first motion intent of the hull, K's first step lands on the orbit's sample, and the body stays on its own orbit
+    /// after a second, in which it moves 7.66 km, within the bound that a body spawned beside an older following frame keeps:
+    /// 1.35e-6 m there, 1.13e-6 m here. Those are the orbit's jerk times the square of a step, from the scheme that Jolt uses
+    /// and from the conversion of a spawn velocity. When K started with the hull's instant velocity, a body beside a hull with
+    /// a first motion intent drifted from its orbit by 3.6 cm in that second: a quarter of a step of the pull, 3.6 cm/s.
+    /// <para>
+    /// Without a first motion intent, the hull holds still for its first step, and K lands on that plan, so K loses the
+    /// orbit's 7.66 km/s in one step (ticket ter-zsku). The body moves on by the field alone: physics converts its spawn
+    /// velocity with half a step of K's step acceleration, K's instant velocity where the step starts. Its float velocity in
+    /// K holds the orbit's speed for that step and rounds there, by up to 0.24 mm/s, so after the second it is within 0.3 mm
+    /// of its orbit. When the conversion took the plan's instant velocity past its chord at the end of the step, the body
+    /// lost half the orbit's speed and was 3.8 km off its orbit after the second.
+    /// </para>
     /// </summary>
     [Theory]
     [InlineData(true, true)]
@@ -260,7 +267,7 @@ public partial class NumericFrameOrbitTests
         Tick(world, 59);
 
         Double3 off = world.PoseIn(body, earth).Position - own.StateAt(world.Time, Scenes.EarthMu).Position;
-        off.Length.Should().BeLessThan(2e-6, $"the body keeps its orbit as beside an older following frame, but is off by {off}");
+        off.Length.Should().BeLessThan(firstMove ? 2e-6 : 3e-4, $"the body keeps its orbit, but is off by {off}");
         world.Errors.Should().BeEmpty();
     }
 
@@ -304,12 +311,13 @@ public partial class NumericFrameOrbitTests
 
     /// <summary>
     /// A rock flies past the station at 60 m/s relative to it, along +Y, 40 m to the side of its core, outside the bubble
-    /// and clear of the plate. It starts 300 m before the core.
+    /// and clear of the plate. It starts 300 m before the core. The station is on its orbit from its first step, so its
+    /// following frame never holds still and the rock stays slow in it.
     /// </summary>
     private static Pass PassTheStation(bool numericFrames, int threads)
     {
         using World world = NewWorld(numericFrames, threads, out FaultInjectingBackend faults);
-        Station station = KeplerStation(world);
+        Station station = KeplerStation(world, firstMove: true);
         (Double3 place, Double3 velocity) = station.StateAt(world.Time);
         var log = new CollisionLog();
         Entity rock = world.Spawn(new SpawnDesc
@@ -420,7 +428,7 @@ public partial class NumericFrameOrbitTests
             Frame = space,
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Kinematic, Mass: 1e4f, Restitution: 0),
             AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
-        }.OnKeplerOrbit(world, KeplerOrbit.Circular(FarOrbitRadius)));
+        }.OnKeplerOrbit(world, KeplerOrbit.Circular(FarOrbitRadius), firstMove: true));
         Entity rock = world.Spawn(new SpawnDesc
         {
             Frame = space, Pose = At(FarOrbitRadius + 8, 0, -100), Body = new BodyDesc(new SphereShapeDesc(1), BodyMotion.Static),

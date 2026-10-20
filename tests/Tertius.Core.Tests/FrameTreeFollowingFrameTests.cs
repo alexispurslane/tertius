@@ -217,18 +217,6 @@ public class FrameTreeFollowingFrameTests
     }
 
     [Fact]
-    public void An_following_frame_whose_anchor_has_no_applied_sample_stays_where_it_is_at_the_sync_point()
-    {
-        FrameHandle station = Station(10, Low);
-        FrameHandle orbit = Update(Hull(station))[0].Home;
-        DPose before = frames.TreeLocalPose(orbit);
-
-        frames.PlaceFollowingFrame(frames.TreeParent(station));
-
-        frames.TreeLocalPose(orbit).Should().Be(before);
-    }
-
-    [Fact]
     public void During_a_step_a_following_frame_falls_with_the_acceleration_that_lands_it_on_its_anchors_plan_and_ends_on_the_plan()
     {
         FrameHandle station = Station(10, Low);
@@ -290,18 +278,69 @@ public class FrameTreeFollowingFrameTests
         }
     }
 
+    /// <summary>
+    /// A step without a motion intent (ticket ter-zsku): the anchor's plan is the record that physics gives a kinematic body
+    /// without a motion intent, at rest where the step starts. The following frame takes the acceleration that lands it on
+    /// that plan by the rule of every plan, so it stops, ends the step where it started, and takes that place with no chord
+    /// at the sync point. The hull at its origin then holds still in earth, and feels the field of earth at its place
+    /// reversed, as a kinematic hull without a motion intent does in earth's own system. Before ter-zsku the frame fell by
+    /// that field.
+    /// </summary>
     [Fact]
-    public void An_following_frame_whose_anchor_has_no_sample_falls_as_a_falling_frame()
+    public void A_following_frame_whose_anchor_has_no_motion_intent_holds_still_in_its_semantic_frame()
     {
         FrameHandle station = Station(10, Low);
         FrameHandle orbit = Update(Hull(station))[0].Home;
         Double3 place = frames.TreeLocalPose(orbit).Position;
+        Double3 velocity = frames.LinearVelocity(orbit);
 
         frames.Update();
         frames.BeginNumericStep([], Step);
 
         frames.Numeric(orbit).Should().Be(NumericMode.Following, "the hull is still kinematic");
-        frames.HomeAcceleration(orbit, earth).Should().Be(GravityField.Point(EarthMu).AtPrecise(place), "the field of earth at its origin pulls it");
+        frames.HomeAcceleration(orbit, earth).Should().Be(-velocity / Step, "the plan has no chord, so the frame stops");
+        frames.HomeInstantVelocityOverChord(orbit, earth, Step).Should().Be(Double3.Zero, "the plan has no velocity past its chord");
+        frames.AdvanceNumericFrames(Step);
+        (frames.TreeLocalPose(orbit).Position - place).Length.Should().BeLessThan(1e-6, "the step lands the frame on the plan to its rounding");
+        frames.PlaceFollowingFrame(orbit);
+        frames.TreeLocalPose(orbit).Position.Should().Be(place, "the frame takes the plan's place, where the step started");
+        frames.LinearVelocity(orbit).Should().Be(Double3.Zero, "and the plan's chord");
+        frames.TakeStepRecords([], Step, new StepOwners());
+        frames.LinearVelocity(station).Should().Be(Double3.Zero, "the hull holds still in earth");
+        Vector3 reversed = frames.LocalPose(station).Rotation.Conjugate().Rotate(-GravityField.Point(EarthMu).AtPrecise(place)).ToVector3();
+        frames.ProperAcceleration(station).Should().Be(reversed, "a hull that holds still feels the field at its place reversed");
+    }
+
+    /// <summary>
+    /// A hull that teleports in a step without a motion intent holds still at the teleport's pose (ticket ter-zsku): the
+    /// plan starts there and stays there. Physics releases the hull's record at that place in the following frame, and the
+    /// frame jumps to the plan's place with no chord. The hull goes back to the origin, at rest in earth.
+    /// </summary>
+    [Fact]
+    public void A_following_frame_whose_hull_teleports_without_a_motion_intent_jumps_to_the_teleport_and_holds_still_there()
+    {
+        FrameHandle station = Station(10, Low);
+        FrameHandle orbit = Update(Hull(station))[0].Home;
+        var teleport = new DPose(frames.LocalPose(station).Position + new Double3(1_000, 0, 0), frames.LocalPose(station).Rotation);
+        PhysicsIntent[] intents = Moving(station, default, teleport);
+
+        frames.Update();
+        frames.BeginNumericStep(intents, Step);
+        frames.AdvanceNumericFrames(Step);
+        Double3 landed = frames.TreeLocalPose(orbit).Position;
+        // Physics put the hull at the teleport's place in the following frame where the step started, at rest there.
+        var record = new MotionSample(new DPose(teleport.Position - landed, teleport.Rotation), Double3.Zero, Double3.Zero, Double3.Zero,
+            Double3.Zero, Double3.Zero);
+        frames.TakeStepRecords(intents, Step, new StepOwners().WithHullRecord(station, record));
+        changes.Clear();
+
+        frames.JumpFollowingFrame(orbit, changes);
+
+        frames.TreeLocalPose(orbit).Position.Should().Be(teleport.Position, "the frame jumps to the plan's place, the teleport's");
+        frames.LinearVelocity(orbit).Should().Be(Double3.Zero, "with the plan's chord");
+        frames.TreeLocalPose(station).Should().Be(new DPose(Double3.Zero, teleport.Rotation), "the hull goes back to the origin");
+        frames.LinearVelocity(station).Should().Be(Double3.Zero, "the hull holds still in earth");
+        changes.FramesShifted.Should().Equal(new FrameShift(orbit, teleport.Position - landed, Double3.Zero));
     }
 
     /// <summary>
@@ -493,7 +532,7 @@ public class FrameTreeFollowingFrameTests
         frames.TakeStepRecords(intents, Step, new StepOwners().WithHullRecord(station, record).WithHullRecord(pod, podRecord));
         changes.Clear();
 
-        frames.JumpFollowingFrame(frames.TreeParent(station), record, changes);
+        frames.JumpFollowingFrame(frames.TreeParent(station), changes);
 
         frames.TreeLocalPose(orbit).Position.Should().Be(sample.Pose.Position);
         frames.LinearVelocity(orbit).Should().Be(sample.ChordVelocity);

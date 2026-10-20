@@ -19,9 +19,15 @@ namespace Tertius.Physics;
 // A velocity relative to a numeric home has two forms. A velocity that gameplay gives is relative to the home's frame
 // velocity in the step, as LocalVelocity gives it. The home's frame velocity is a chord too, because the numeric update
 // steps it the way that Jolt steps a body (see FrameTree.AdvanceNumericFrames), so the home's instant velocity lies further
-// on: half a step of its acceleration for a falling frame, and for a following frame whose hull has a sample, the sample's
-// instant velocity past its chord (see FrameTree.HomeInstantVelocityOverChord). Only the velocity relative to that instant
-// velocity is the body's local instant velocity, whose chord Jolt needs.
+// on. Where the step starts, that is half a step of the home's step acceleration (see
+// FrameTree.HomeInstantVelocityOverChordAtStepStart), and only the velocity relative to it is the body's local instant
+// velocity, whose chord Jolt needs: a velocity that a spawn, gameplay or a hand-off gives a body converts by it, and the
+// home's step acceleration then cancels out of the body's motion in the semantic frame. At the end of the step, the
+// instant velocity of a hand-off and of a record for the tree lies past the frame velocity by half a step of a falling
+// frame's acceleration, and for a following frame by its plan's instant velocity past its chord (see
+// FrameTree.HomeInstantVelocityOverChord, InstantHomeVelocity). A body that takes the home's effective gravity is relative
+// to the home's instant velocity in Jolt's stepping instead, so physics adds the difference (see
+// HomeSteppedVelocityOverPlan).
 //
 // The paths that carry a chord on as a chord need no conversion: a move between the systems of one semantic frame and a
 // shift of a numeric frame (both homes' velocities are chords, and the body's acceleration in the semantic frame stays
@@ -40,23 +46,51 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// How much the instant velocity of the origin of <paramref name="home"/> at the end of the step exceeds its frame
-    /// velocity, relative to its semantic frame: half a step of a falling frame's acceleration, the sample's instant velocity
-    /// past its chord for a following frame whose hull has a sample, zero for a semantic frame (see
-    /// <see cref="FrameTree.HomeInstantVelocityOverChord"/>). A velocity relative to the home's frame velocity is this much
-    /// more than the same velocity relative to the home's instant velocity.
+    /// velocity, relative to its semantic frame: half a step of a falling frame's acceleration, the plan's instant velocity
+    /// past its chord for a following frame, zero for a semantic frame (see
+    /// <see cref="FrameTree.HomeInstantVelocityOverChord"/>). A record that physics releases for the tree adds it, and a
+    /// hand-off measures every velocity against the home's frame velocity after the step plus it (see
+    /// <see cref="InstantHomeVelocity"/>).
     /// </summary>
     private Double3 HomeInstantVelocityOverChord(FrameHandle home) => frames.HomeInstantVelocityOverChord(home, frames.SemanticOf(home), stepDt);
 
     /// <summary>
+    /// How much the instant velocity of the origin of <paramref name="home"/> where the current step starts exceeds its frame
+    /// velocity, relative to its semantic frame: half a step of its step acceleration, zero for a semantic frame (see
+    /// <see cref="FrameTree.HomeInstantVelocityOverChordAtStepStart"/>). A velocity that a body gets for the step, relative to
+    /// the home's frame velocity, is this much more than the same velocity relative to the home's instant velocity.
+    /// </summary>
+    private Double3 HomeInstantVelocityOverChordAtStart(FrameHandle home) =>
+        frames.HomeInstantVelocityOverChordAtStepStart(home, frames.SemanticOf(home), stepDt);
+
+    /// <summary>
+    /// How much the instant velocity of the origin of <paramref name="home"/> at the end of the step in Jolt's stepping
+    /// exceeds the one of <see cref="InstantHomeVelocity"/>, relative to its semantic frame. A body that takes the home's
+    /// effective gravity in the step, an awake dynamic body or a character that its ground does not hold, also takes minus
+    /// the home's step acceleration (see <see cref="FrameTree.EffectiveGravity"/>), so it moves in the semantic frame as Jolt
+    /// moves it in the semantic frame's own system. Its chord plus half a step of its acceleration is then relative to the
+    /// home's frame velocity after the step plus half a step of the home's step acceleration (see
+    /// <see cref="HomeInstantVelocityOverChordAtStart"/>). Every hand-off, and every record that physics releases, is relative
+    /// to the instant velocity of <see cref="InstantHomeVelocity"/>, whose excess over the frame velocity is the plan's for a
+    /// following frame (see <see cref="HomeInstantVelocityOverChord"/>). The two differ only for a following frame whose plan
+    /// changes its velocity at the start of the step: by half the change when its anchor stops (ticket ter-zsku), and by
+    /// the plan's jerk on a smooth plan. Zero for a semantic frame and a falling frame. A body that takes no gravity, such as
+    /// a body that sleeps, moves with its home, so its velocity is relative to the home itself.
+    /// </summary>
+    private Double3 HomeSteppedVelocityOverPlan(FrameHandle home) => HomeInstantVelocityOverChordAtStart(home) - HomeInstantVelocityOverChord(home);
+
+    /// <summary>
     /// Jolt's linear velocity for the rigid body of <paramref name="record"/> in the system of <paramref name="home"/>,
     /// with its center of mass at <paramref name="center"/>, when its instant velocity relative to the home's frame
-    /// velocity in the step is <paramref name="velocity"/>: the chord of the step. Call it only during a step.
+    /// velocity in the step is <paramref name="velocity"/>, at the start of the step: the chord of the step. Call it only
+    /// during a step. The body then moves in the semantic frame as Jolt moves it in the semantic frame's own system: the
+    /// step acceleration of the home cancels out (see <see cref="HomeInstantVelocityOverChordAtStart"/>).
     /// </summary>
     private Vector3 LinearChord(BodyRecord record, FrameHandle home, Double3 center, Double3 velocity)
     {
         Contract.Requires(stepDt > 0);
-        // The local instant velocity: relative to the home's instant velocity, past its frame velocity.
-        Double3 local = velocity - HomeInstantVelocityOverChord(home);
+        // The local instant velocity: relative to the home's instant velocity where the step starts, past its frame velocity.
+        Double3 local = velocity - HomeInstantVelocityOverChordAtStart(home);
         return (local - ChordAcceleration(record, home, center, local) * (0.5 * stepDt)).ToVector3();
     }
 
@@ -106,9 +140,11 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// The instant velocity at the end of the step of the primary body of <paramref name="record"/>, whose state Jolt has
-    /// at <paramref name="s"/>: relative to the instant velocity of its home there. It is Jolt's chord plus half a step of
-    /// the acceleration that the step gave the body: the gravity that physics applied to it, and its damping. A body that
-    /// sleeps got none. Call it only after the update of a step.
+    /// at <paramref name="s"/>: relative to the instant velocity of its home there, as <see cref="InstantHomeVelocity"/>
+    /// gives it, which every hand-off adds. It is Jolt's chord plus half a step of the acceleration that the step gave the
+    /// body: the gravity that physics applied to it, and its damping. A body that sleeps, and a character that its ground
+    /// held, got none. A body that got the gravity is relative to the home's instant velocity in Jolt's stepping, so it
+    /// also takes <see cref="HomeSteppedVelocityOverPlan"/>. Call it only after the update of a step.
     /// </summary>
     private Double3 InstantVelocity(BodyRecord record, in BodySnapshot s)
     {
@@ -121,9 +157,9 @@ public sealed partial class JoltPhysicsBackend
         Double3 chord = s.Linear;
         return record.Motion switch
         {
-            BodyMotion.Character => chord + (Double3)record.GravityApplied * half,
+            BodyMotion.Character when !record.Held => chord + (Double3)record.GravityApplied * half + HomeSteppedVelocityOverPlan(record.Frame),
             BodyMotion.Dynamic when record.World!.Bodies.IsActive(record.Body) =>
-                chord + ((Double3)record.GravityApplied - record.Material.LinearDamping * chord) * half,
+                chord + ((Double3)record.GravityApplied - record.Material.LinearDamping * chord) * half + HomeSteppedVelocityOverPlan(record.Frame),
             _ => chord,
         };
     }
@@ -144,24 +180,32 @@ public sealed partial class JoltPhysicsBackend
     /// <paramref name="to"/>, with its center of mass at <paramref name="center"/> there, when its instant velocities
     /// relative to the instant motion of <paramref name="to"/> at the end of the step are <paramref name="linear"/> and
     /// <paramref name="angular"/>: the chords of the next step, and the acceleration relative to <paramref name="to"/> that
-    /// turned the linear velocity into its chord. Call it only after the update of a step.
+    /// turned the linear velocity, relative to the instant velocity of <paramref name="to"/> in Jolt's stepping, into its
+    /// chord (see <see cref="HomeSteppedVelocityOverPlan"/>). Call it only after the update of a step.
     /// </summary>
     private (Vector3 Linear, Vector3 Angular, Double3 Acceleration) HandedOffVelocities(BodyRecord record, FrameHandle to, Double3 center,
         Double3 linear, Double3 angular)
     {
         Contract.Requires(stepDt > 0);
         double half = 0.5 * stepDt;
+        // The frame velocity of a numeric home in the next step is its velocity at the end of this step. The local velocity
+        // is relative to the home's instant velocity in Jolt's stepping, half a step of the home's step acceleration past
+        // that frame velocity, so the body moves on in the semantic frame as Jolt moves it in the semantic frame's own
+        // system (see HomeSteppedVelocityOverPlan).
+        Double3 local = linear - HomeSteppedVelocityOverPlan(to);
+        center += frames.HomeMoveOver(to, frames.SemanticOf(to), stepDt);
         if (record.Character is not null)
         {
             // A character that stood in the step stands in its new frame too, as a rule, where the ground holds it, so its
             // chord is its instant velocity. One that did not stand falls freely there.
-            Double3 acceleration = record.Standing ? Double3.Zero : (Double3)frames.EffectiveGravity(to, center);
-            return ((linear - acceleration * half).ToVector3(), Vector3.Zero, acceleration);
+            if (record.Standing)
+                return (linear.ToVector3(), Vector3.Zero, Double3.Zero);
+            Double3 gravity = (Double3)frames.EffectiveGravity(to, center);
+            return ((local - gravity * half).ToVector3(), Vector3.Zero, gravity);
         }
-        // The frame velocity of a numeric home in the next step is its velocity at the end of this step, which lies behind
-        // its instant velocity by the home's instant velocity past its chord.
-        Double3 velocity = linear + HomeInstantVelocityOverChord(to);
-        return (LinearChord(record, to, center, velocity), AngularChord(record, angular.ToVector3()), ChordAcceleration(record, to, center, linear));
+        // The chord plus half a step of the acceleration is the local velocity again (see TryHullRecord).
+        Double3 acceleration = ChordAcceleration(record, to, center, local);
+        return ((local - acceleration * half).ToVector3(), AngularChord(record, angular.ToVector3()), acceleration);
     }
 
     /// <summary>

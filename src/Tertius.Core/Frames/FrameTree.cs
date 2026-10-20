@@ -72,9 +72,10 @@ public sealed partial class FrameTree
     // parent. A semantic frame has the mode None and no step acceleration.
     private NumericMode[] numeric = new NumericMode[64];
     private Double3[] stepAcceleration = new Double3[64];
-    // For a following frame whose anchor has a motion intent with a record for the current step, that record in the anchor's
-    // semantic frame: the step plan, which lands the following frame and which the sync point reads (see BeginNumericStep).
-    // Null for every other frame.
+    // For a following frame, the step record of its anchor for the current step in the anchor's semantic frame: the record
+    // of its motion intent, or without one the record of a kinematic body that holds still where the step starts
+    // (PhysicsIntent.StepRecordOrStill). It is the step plan, which lands the following frame and which the sync point
+    // reads (see BeginNumericStep). Null for every other frame.
     private MotionSample?[] stepPlan = new MotionSample?[64];
     // How long the members of each numeric frame have been apart, in seconds, and the number of bodies whose physics home
     // it was at the end of the last UpdateNumericFrames.
@@ -907,15 +908,19 @@ public sealed partial class FrameTree
     /// an ancestor of it: the sum of that excess for each numeric frame between them. A numeric frame steps as Jolt steps a
     /// body (see <see cref="AdvanceNumericFrames"/>), so its frame velocity is the chord of the step. A falling frame keeps
     /// one acceleration over the step, so its instant velocity at the end of the step is half a step of that acceleration
-    /// past the chord. A following frame whose anchor has a step plan moves as the plan does, so the excess is the plan's
-    /// instant velocity less its chord, which takes in the change of the orbit's pull over the step (see
-    /// <see cref="BeginNumericStep"/>). Zero for a semantic frame.
+    /// past the chord. A following frame moves as its anchor's step plan does, so the excess is the plan's instant velocity
+    /// less its chord, which takes in the change of the orbit's pull over the step, and is zero for the plan of an anchor
+    /// that holds still (see <see cref="BeginNumericStep"/>). Zero for a semantic frame.
     /// <para>
     /// The tree keeps the velocity of a frame under a numeric home relative to the home's frame velocity, so that a read in
     /// the semantic frame gives the frame's instant velocity. Physics keeps a velocity relative to the home's instant
     /// velocity. So a velocity converts from physics into the tree by the addition of this one term, and back by its
     /// subtraction: a frame at rest in its home keeps it (see <see cref="TakeStepRecords"/>), every step record that physics
-    /// releases adds it, and the gameplay velocity of a body loses it when physics gives the body its chord.
+    /// releases adds it. A velocity that a body gets at the start of a step converts by the excess where the step starts
+    /// instead (see <see cref="HomeInstantVelocityOverChordAtStepStart"/>). A body that takes its home's effective gravity
+    /// moves as Jolt moves it in the semantic frame's own system, so physics measures its velocity at the end of a step
+    /// against the home's frame velocity after the step plus half a step of the home's step acceleration, and adds the
+    /// difference of that excess and this one before it hands the body off or releases its record.
     /// </para>
     /// </summary>
     internal Double3 HomeInstantVelocityOverChord(FrameHandle home, FrameHandle semantic, double dt)
@@ -927,6 +932,29 @@ public sealed partial class FrameTree
             int id = Node(f).Id;
             excess += stepPlan[id] is { } plan ? plan.Velocity - plan.ChordVelocity : stepAcceleration[id] * (0.5 * dt);
         }
+        return excess;
+    }
+
+    /// <summary>
+    /// Like <see cref="HomeInstantVelocityOverChord"/>, but where the current step starts: how much the instant velocity of
+    /// the origin of <paramref name="home"/> there exceeds its frame velocity, the chord of the step before, relative to
+    /// <paramref name="semantic"/>, the home itself or an ancestor of it. Each numeric frame between them steps as Jolt steps
+    /// a body, with one step acceleration (see <see cref="AdvanceNumericFrames"/>), so the excess is half a step of that
+    /// acceleration, for a falling frame and a following frame alike. It equals the excess at the end of the step for a
+    /// falling frame, and for a following frame on a smooth plan to the plan's jerk. A following frame whose plan changes its
+    /// velocity at the start of the step, such as an end pose that speeds up, or the plan of an anchor that stops (ticket
+    /// ter-zsku), lands with the acceleration that turns its velocity into the plan's chord, and only this excess converts a
+    /// velocity that a body gets at the start of that step into the motion that Jolt gives it in the semantic frame's own
+    /// system: the step acceleration then cancels out of the body's motion in the semantic frame (docs/plans/numeric-frames.md,
+    /// "Velocity"). Physics converts every velocity that a spawn, gameplay or a hand-off gives a body for a step with it.
+    /// Zero for a semantic frame. Valid from <see cref="BeginNumericStep"/> to the end of the step.
+    /// </summary>
+    internal Double3 HomeInstantVelocityOverChordAtStepStart(FrameHandle home, FrameHandle semantic, double dt)
+    {
+        Contract.Requires(home == semantic || IsAncestorOf(semantic, home));
+        Double3 excess = Double3.Zero;
+        for (FrameHandle f = home; f != semantic; f = TreeParent(f))
+            excess += stepAcceleration[Node(f).Id] * (0.5 * dt);
         return excess;
     }
 

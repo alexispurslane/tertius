@@ -433,6 +433,7 @@ public sealed partial class JoltPhysicsBackend
             rotation = Rotations.AlignUp(rotation, record.Up);
         }
         record.Standing = false;
+        record.Held = false;
         CharacterVirtual character = NewCharacter(record, world.System, pose.Position.ToJolt(), rotation, linearVelocity);
         world.WalkingCharacterCount++;
         return character;

@@ -440,7 +440,9 @@ public class MotionChangeTests
     /// on with the velocity of its last sample, and the following frame that follows it falls on. The ship goes back into orbit
     /// when the owner adds a <see cref="KeplerMotion"/> and makes its hull kinematic: the hull holds still for one step,
     /// because the new component has written no sample yet, and then every step has a sample, which physics releases as the
-    /// step record of the frame.
+    /// step record of the frame. In the step without a sample, the hull rests at the origin of its following frame, whose
+    /// plan holds it still, so the frame holds still in the planet too (ticket ter-zsku), and physics releases the frame's
+    /// record at rest at that origin.
     /// </summary>
     [Fact]
     public void AKeplerHullThatBecomesDynamicCoastsOnItsOrbitAndFollowsTheOrbitAgainWhenItBecomesKinematic()
@@ -486,7 +488,9 @@ public class MotionChangeTests
             (sample is null).Should().Be(i == 0, "only the first step after the change has no sample: the new component writes its first one in the tick beside it, and the next step applies it");
             if (sample is not { } applied)
             {
-                records.Should().BeEmpty("a kinematic hull holds still in a step without a sample, and its frame with it");
+                records.Should().OnlyContain(record => record.Motion.Pose.Position == Double3.Zero && record.Motion.Velocity == Double3.Zero,
+                    "a kinematic hull holds still in a step without a sample, at the origin of its following frame");
+                world.Frames.LinearVelocity(station).Should().Be(Double3.Zero, "and its frame holds still in the planet with it");
                 continue;
             }
             // The step releases the sample that it applied, and the frame stands on it at the sync point.

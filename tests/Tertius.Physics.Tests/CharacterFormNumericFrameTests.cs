@@ -121,8 +121,9 @@ public class CharacterFormNumericFrameTests
     /// of about 1e-5 m/s², and the character has the rigid form. Without numeric frames it lives in earth's own system,
     /// where the pull is 8.6 m/s², so it keeps the walking form and falls freely, without standing. Either way it falls with
     /// the hull and stays beside it: in K to a micrometer, and in earth's own system to a few millimeters, because a float
-    /// velocity of 7.66 km/s steps by 0.5 mm/s, and each step's pull of 0.14 m/s rounds to that step. The hull has no first
-    /// motion intent, so it holds still in K for its first step, which falls, and its first planned step is the second.
+    /// velocity of 7.66 km/s steps by 0.5 mm/s, and each step's pull of 0.14 m/s rounds to that step. The hull is on its
+    /// orbit from its first step, by its first motion intent. Without one it would hold still for that step, and K with it
+    /// (ticket ter-zsku), so K's system would show the whole pull of the orbit's speed lost in one step.
     /// </summary>
     [Theory]
     [InlineData(true)]
@@ -134,7 +135,7 @@ public class CharacterFormNumericFrameTests
         Entity hull = world.Spawn(new SpawnDesc
         {
             Frame = earth, Body = Core, AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
-        }.OnKeplerOrbit(world, LowOrbit));
+        }.OnKeplerOrbit(world, LowOrbit, firstMove: true));
         (Double3 place, Double3 velocity) = LowOrbit.StateAt(world.Time, Scenes.EarthMu);
         var offset = new Double3(0, -3.5, 0);
         Entity person = world.Spawn(new SpawnDesc { Frame = earth, Pose = new DPose(place + offset, DQuaternion.Identity), LinearVelocity = velocity, Body = Person });
@@ -164,24 +165,24 @@ public class CharacterFormNumericFrameTests
     /// <summary>
     /// The scene of
     /// <see cref="ACharacterAtRestBesideAKeplerHullIsRigidInTheHullsFollowingFrameAndWalksInEarthsOwnSystemAndStaysBesideTheHull"/>
-    /// with numeric frames, with and without a first motion intent of the hull. The hull's new following frame K starts with the
-    /// chord velocity that the numeric frames expect (docs/plans/rails-components.md, "The first step of a new following
-    /// frame"). So K's acceleration is the pull of 8.6 m/s² in every step: in a first step that falls, and in each planned
-    /// step, the first included, where it lands on its anchor's plan. The gravity in K is the tidal pull in every step, and
-    /// the character at rest in K has the rigid form from its first step on. When K started with the hull's instant
-    /// velocity, its first planned step took half the pull, and the character walked in that step.
+    /// with numeric frames, with a first motion intent of the hull. The hull's new following frame K starts with the chord
+    /// velocity that the numeric frames expect (docs/plans/rails-components.md, "The first step of a new following frame").
+    /// So K's acceleration is the pull of 8.6 m/s² in each planned step, the first included, where it lands on its anchor's
+    /// plan. The gravity in K is the tidal pull in every step, and the character at rest in K has the rigid form from its
+    /// first step on. When K started with the hull's instant velocity, its first planned step took half the pull, and the
+    /// character walked in that step. Before ticket ter-zsku the test ran without a first motion intent too, in which K's
+    /// first step fell. Since ter-zsku the hull holds still in that step, and K with it, so K's system shows the orbit's speed
+    /// lost in one step, about 460,000 m/s², and a character there is not weightless in that step.
     /// </summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ACharacterAtRestBesideANewKeplerHullIsRigidInEveryStepOfTheHullsFollowingFrame(bool firstMove)
+    [Fact]
+    public void ACharacterAtRestBesideANewKeplerHullIsRigidInEveryStepOfTheHullsFollowingFrame()
     {
         using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
         FrameHandle earth = Earth(world);
         Entity hull = world.Spawn(new SpawnDesc
         {
             Frame = earth, Body = Core, AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
-        }.OnKeplerOrbit(world, LowOrbit, firstMove));
+        }.OnKeplerOrbit(world, LowOrbit, firstMove: true));
         (Double3 place, Double3 velocity) = LowOrbit.StateAt(world.Time, Scenes.EarthMu);
         Entity person = world.Spawn(new SpawnDesc { Frame = earth, Pose = new DPose(place + new Double3(0, -3.5, 0), DQuaternion.Identity), LinearVelocity = velocity, Body = Person });
 
