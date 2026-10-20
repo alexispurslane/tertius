@@ -1,6 +1,6 @@
 ---
 id: ter-0pvs
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-20T17:40:45Z
