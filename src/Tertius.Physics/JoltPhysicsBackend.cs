@@ -231,8 +231,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// surface with friction. It keeps its up and its rotation. From twice the threshold on, or from the threshold on
     /// while it touches something, it is a Jolt character again, the walking form. A walking character that does not
     /// stand loses its motion into each static or kinematic surface that it hits. Under gravity, the walking form's up
-    /// turns against the gravity whenever it touches anything, so a character that lands on its side or its head turns
-    /// upright, and a character in free fall that touches nothing does not turn. A switch of form keeps the character's
+    /// turns against the semantic gravity: at once when the character touches anything, so a character that lands on its
+    /// side or its head turns upright, and at most at <see cref="JoltBackendOptions.CharacterAirUpTurnRate"/> when it
+    /// touches nothing. Below the zero-gravity threshold it keeps its last up. A switch of form keeps the character's
     /// pose, velocity, up and contacts.</item>
     /// </list>
     /// <para>

@@ -576,14 +576,14 @@ A character's update has three cases, by what its velocity at the start of the u
 | Case | When | Velocity rule | Jolt's weight input | V4 |
 |---|---|---|---|---|
 | `HeldStart(Vector3 Velocity)` | The character stands and does not jump | The ground's velocity plus the walk along the ground plane. No term: the ground holds the character against the whole acceleration of its frame, as it holds it against gravity today. | The part of V5 plus the Coriolis term along up, pressed along the ground normal | Zero |
-| `InstantStart(Double3 Velocity)` | The character stands and jumps (ground plus walk plus jump along up), or the game gave it a velocity since its last update, less the home's instant velocity past its frame velocity | The chord rule at the start of the step, with V2, and then the two-turn update, with V1 and V2, in one update | V5 plus the Coriolis term; along the ground normal for a jump, which stands | `Field`, and the rotation part of the rule |
+| `InstantStart(Vector3 Velocity, Vector3 Over)` | The character stands and jumps (ground plus walk plus jump along up, with no excess), or the game gave it a velocity since its last update, with the home's instant velocity past its frame velocity as its excess | The chord rule at the start of the step, with V2, and then the two-turn update, with V1 and V2, in one update | V5 plus the Coriolis term; along the ground normal for a jump, which stands | `Field`, and the rotation part of the rule |
 | `ChordStart(Double3 Velocity)` | The character does not stand, and nothing gave it a velocity | Jolt's chord plus the two-turn update plus the linear gravity times the step | V5 plus the Coriolis term | Both parts |
 
 The declaration, in the shape of `ter-xdt8`'s `MotionIntent`:
 
 ```csharp
 internal readonly record struct HeldStart(Vector3 Velocity);
-internal readonly record struct InstantStart(Double3 Velocity);
+internal readonly record struct InstantStart(Vector3 Velocity, Vector3 Over);
 internal readonly record struct ChordStart(Double3 Velocity);
 
 [Union]
@@ -591,6 +591,7 @@ internal readonly struct CharacterStartVelocity
 {
     private const byte KindNone = 0, KindHeld = 1, KindInstant = 2, KindChord = 3;
     private readonly Double3 velocity;   // the three cases share it
+    private readonly Vector3 over;       // the instant case's excess
     private readonly byte kind;
 
     public CharacterStartVelocity(HeldStart held) { ... }
@@ -606,9 +607,10 @@ internal readonly struct CharacterStartVelocity
 where
 
 - `HeldStart.Velocity` = the ground's velocity plus the walk, relative to the home, in m/s. It is a float, as Jolt gives the ground's velocity.
-- `InstantStart.Velocity` = the character's instant velocity relative to the home's instant velocity, in m/s, in doubles.
+- `InstantStart.Velocity` = the character's instant velocity as the character holds it, in m/s, relative to the home's instant velocity where the step starts less `Over`.
+- `InstantStart.Over` = how much the home's instant velocity where the step starts exceeds the velocity that `Velocity` is relative to, in m/s: zero for a jump, which is relative to the ground and so to the home's instant velocity, and the home's instant velocity past its frame velocity, half a step of its step acceleration, for a velocity that the game gave, which is relative to the home's frame velocity. The exact rule takes `Velocity − Over`, the instant velocity relative to the home's instant velocity. The float rule of a frame that does not turn takes `Velocity − (g dt / 2 + Over)`, which is the rule of before the rotation terms for both: a jump never took the excess, and a velocity that the game gave took both in one subtraction. With the jump measured against the home's instant velocity and the excess added back and taken off again, a jump in a numeric home with a step acceleration rounded differently (review of ter-1b21).
 - `ChordStart.Velocity` = Jolt's chord of the step that ended, relative to the home, widened to doubles.
-- `velocity`, `kind` = the private fields that the cases share. `HeldStart` widens its float to the shared double and narrows it back, which is exact.
+- `velocity`, `kind` = the private fields that the cases share, and `over` the instant case's own. `HeldStart` and `InstantStart` widen their float to the shared double and narrow it back, which is exact.
 - The default holds no case. Only a bug produces it, because `UpdateCharacter` builds a case for every character that it updates, so the `switch` breaks a contract on it.
 
 In a frame that does not turn, each rule reduces to today's: a held character gets no gravity, an instant velocity loses half a step of gravity before it gains a whole step, and a free character gains a whole step.
@@ -617,7 +619,7 @@ An impulse on a character is in `PendingVelocityChange`, the change of velocity 
 
 The other rules of a character in every frame:
 
-- Up. Under gravity, up turns against the semantic gravity with the centrifugal and the Euler term, whether the character touches anything or not (fork F5, design A). A character that touched anything in its last update turns its up at once, as before. One that touched nothing turns it at most at the air rate, `JoltBackendOptions.CharacterAirUpTurnRate`, 1 rad/s by default, on the great circle toward the up against the gravity (the user's choice of 2026-10-20). So a flip of the felt gravity for one step, such as the jolt at the foot of the demo's ramp or its ignition, turns a floating person's up by at most 0.95 degrees, and a person who jumps across the middle of a station lands upright on the far floor and stands. In a point field the same rule acts. A person who drifts out of a ship in orbit now turns its feet toward the planet, which changes the rule in `ARCHITECTURE.md` that a character in free fall keeps its last up.
+- Up. Under gravity, up turns against the semantic gravity with the centrifugal and the Euler term, whether the character touches anything or not (fork F5, design A). A character that touched anything in its last update turns its up at once, as before. One that touched nothing turns it at most at the air rate, `JoltBackendOptions.CharacterAirUpTurnRate`, 1 rad/s by default, on the great circle toward the up against the gravity (the user's choice of 2026-10-20). So a flip of the felt gravity for one step, such as the jolt at the foot of the demo's ramp or its ignition, turns a floating person's up by at most 0.95 degrees, and a person who jumps across the middle of a station lands upright on the far floor and stands. In a point field the same rule acts. A person who drifts out of a ship in orbit turns its feet toward the planet only where it walks under the planet's field, which is so only without numeric frames, and that changes the rule in `ARCHITECTURE.md` that a character in free fall keeps its last up. With the default numeric frames its home outside the ship is a falling frame, where the effective gravity is about zero, so it takes the rigid form and keeps its last up, as before.
 - Form. `SwitchCharacterForms` reads V5. Near the hub of a station, a person whose effective gravity is below 0.05 m/s² takes the rigid form. In the spike's station that is within 0.5 m of the axis.
 - Standing. The character stands when V5 is at least `FrameTree.ZeroGravityThreshold`, Jolt found walkable ground, and the character moves away from the ground along the ground normal slower than 0.1 m/s. Before `ter-1b21` the test measured along up. The ground normal is the normal of the walkable face that holds the character up: of the faces that it touched in its last update, the one nearest its up, as Jolt chooses the contact that supports a character, and up when that face is steeper than `CharacterMaxSlopeDegrees` (`JoltPhysicsBackend.GroundFaceNormal`). Jolt's own ground normal is the mean of every face that the character touched within 85 degrees of up: at the rounded edge of a stair it leaned 68 degrees toward the riser, and a walk in its plane threw the person up the riser at 2.8 m/s, 0.16 m above the stair (measured, `CharacterStandingTests.AStandingCharacterThatWalksIntoAStairClimbsByTheStairsHeightOnly`).
 - Walking. A standing character walks with the part of its desired velocity across up, turned into the ground plane at the same speed (fork F6, design A). On flat ground the normal is up, so nothing changes. On a slope, and on a faceted station floor, the walk follows the face, so the character does not creep after a landing. The rule holds for every walkable face, the faces of moving bodies included (the user's choice of 2026-10-20): at the rounded lower edge of a door that opens, a face 49.2 degrees from up, the walk follows that edge, which slows a person who walks through the airlock of the orbit scene's ship from 3.09 m/s to 2.97 m/s.
@@ -860,7 +862,7 @@ The spike's experiments become the acceptance tests, each against the expected p
 
 `ter-1b21`, characters:
 
-- A person stands for 600 of 600 ticks, walks both ways, and weighs `m (ω r ± v)² / r`, to the tolerance that the floor's faces allow.
+- A person stands for 600 of 600 ticks, and walks spinward and antispinward on the floor at its asked speed while it stands in every step (`SpinStationCharacterTests`). On a flat dynamic plank in the station it weighs `m (ω² r ± 2 ω v)`, within 2 percent (`APersonWhoWalksOnAPlankInTheStationPressesItWithTheEffectiveGravityAndTheCoriolisTermAlongItsNormal`). The part `m v² / r` that the turns of a curved floor's faces add, which makes `m (ω r ± v)² / r`, is not measured here: the faceted station scene of ticket `ter-n44b` measures it.
 - A person jumps and lands within 7 µm of the predicted place.
 - A person who jumps across the middle lands upright on the far floor and stands.
 - A person near the hub takes the rigid form.

@@ -133,6 +133,60 @@ public class SpinStationCharacterTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// A person who stands on the floor of the station walks at 2 m/s for 2 s spinward, along the station's −Z, and then for
+    /// 2 s antispinward. The ground holds a standing character against the whole acceleration of its frame, so neither the
+    /// centrifugal term, which on the flat floor 4 m from its middle leans 2.3 degrees along it, nor the Coriolis term of
+    /// 1.25 m/s² changes its velocity. Its up is against the centrifugal term, which leans along the floor away from the
+    /// floor's middle, and it walks with the part of its asked velocity across its up, turned into the floor's plane at the
+    /// same speed (docs/plans/spin-gravity.md, "Characters", fork F6): 2 m/s times the cosine of that lean, 4 m from the
+    /// middle 1.6 mm/s less than 2 m/s. So it moves at that speed along the floor in every step after the one in which the
+    /// walk changes, rests on the floor, and stands in every step.
+    /// </summary>
+    [Fact]
+    public void APersonWhoStandsOnTheFloorOfTheStationWalksSpinwardAndAntispinwardAtItsAskedSpeedAndStandsInEveryStep()
+    {
+        using World world = NewWorld(out _, debugChecks: false);
+        Station station = SpawnStation(world);
+        var pilot = new Pilot();
+        Entity person = SpawnPerson(world, station, new Double3(StandingRadius - 0.03, 0, 0), pilot);
+        TickUntil(world, () => world.IsStanding(person), 60).Should().BeLessThan(60, "the person lands and stands on the floor");
+        Tick(world, 10);
+
+        const float speed = 2;
+        int standing = 0, steps = 0;
+        double worstSpeed = 0, worstHeight = 0;
+        foreach (float along in new[] { -speed, speed })
+        {
+            pilot.EveryTick = body => body.MoveCharacter(new Vector3(0, 0, along));
+            for (int tick = 0; tick < 120; tick++)
+            {
+                // The update of the step takes the person's up at its place where the step starts.
+                Double3 up = StationUpAt(world.PoseIn(person, station.Frame).Position);
+                world.Tick();
+                steps++;
+                if (world.IsStanding(person))
+                    standing++;
+                worstHeight = Math.Max(worstHeight, Math.Abs(world.PoseIn(person, station.Frame).Position.X - StandingRadius));
+                // The tick writes the walk, and the step of the next tick applies it, so the first step of each walk still
+                // moves with the walk before.
+                if (tick == 0)
+                    continue;
+                Double3 velocity = world.VelocityIn(person, station.Frame);
+                var asked = new Double3(0, 0, along);
+                double across = (asked - Double3.Dot(asked, up) * up).Length;
+                worstSpeed = Math.Max(worstSpeed, (velocity - new Double3(0, 0, Math.Sign(along) * across)).Length);
+            }
+        }
+
+        standing.Should().Be(steps, "the person stands in every step of its walk");
+        worstSpeed.Should().BeLessThan(1e-4, "the person moves at its asked speed along the floor, spinward and antispinward");
+        worstHeight.Should().BeLessThan(1e-3, "the person rests on the floor while it walks");
+        world.PoseIn(person, station.Frame).Position.Z.Should().BeApproximately(0, 0.1, "the walk back undoes the walk out");
+        TestContext.Current.TestOutputHelper?.WriteLine($"walk: worst speed error {worstSpeed:E2} m/s, worst height {worstHeight:E2} m");
+        world.Errors.Should().BeEmpty();
+    }
+
     [Fact]
     public void APersonWhoJumpsInTheStationLandsWhereTheInertialLineOfItsTakeoffSays()
     {
@@ -406,8 +460,10 @@ public class SpinStationCharacterTests
         // across the angle φ. The station turns by ω t = sin φ in that time, so the person lands φ − sin φ = 0.54 rad
         // ahead of its takeoff in the station, after about 3.2 s, and passes 71 m from the axis on the way. A second slab
         // lies there. Up turns against the gravity in the air too (fork F5), so the person comes down feet first on the far
-        // floor, 31 degrees from the up of its takeoff, and stands. It measured a tilt of 5e-5 rad where it lands, 9e-6 rad
-        // from the predicted place, and stood from the tick after it landed.
+        // floor, 31 degrees from the up of its takeoff, and stands. With the air rate of up it measured a tilt of 7.9e-4 rad
+        // where it lands (5e-5 rad when up turned at once in the air), 9e-6 rad from the predicted place, and stood from the
+        // tick after it landed. The bound of 1e-3 rad on the tilt sits at the dead band of AlignUp, inside which the body's
+        // rotation does not follow up, so the rotation can lag up by nearly that much.
         using World world = NewWorld(out _, debugChecks: false);
         Station station = SpawnStation(world);
         double half = Math.Atan(CrossingJump / (StationRate * StandingRadius));

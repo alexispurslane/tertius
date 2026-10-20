@@ -343,8 +343,17 @@ public sealed partial class JoltPhysicsBackend
     {
         if ((intent.Flags & IntentFlags.CharacterMove) != 0)
             record.DesiredVelocity = intent.CharacterVelocity;
+        if ((intent.Flags & IntentFlags.Teleport) != 0)
+            record.Up = TeleportUp(intent);
         ApplyBodyIntent(record, intent, intent.Flags & (IntentFlags.Teleport | IntentFlags.SetVelocity), move: false);
     }
+
+    /// <summary>
+    /// The up of a character that <paramref name="intent"/> teleports: the +Y of the teleport's rotation. Up is the body's
+    /// +Y, so a teleport sets both, as a spawn does, and under gravity the up then turns toward the gravity by the rule of
+    /// the character's update, at most at the air rate in the air.
+    /// </summary>
+    private static Vector3 TeleportUp(in PhysicsIntent intent) => Vector3.Normalize(Vector3.Transform(Vector3.UnitY, intent.TeleportPose.Rotation.ToJolt()));
 
     private void ApplyCharacterIntent(BodyRecord record, in PhysicsIntent intent)
     {
@@ -357,6 +366,8 @@ public sealed partial class JoltPhysicsBackend
             world.WakeAround(character.InnerBodyID);
             character.RPosition = InHome(record, intent.TeleportPose.Position).ToJolt();
             character.Rotation = intent.TeleportPose.Rotation.ToJolt();
+            record.Up = TeleportUp(intent);
+            character.Up = record.Up;
             character.LinearVelocity = LocalVelocity(record, Double3.Zero).ToVector3();
             record.InstantVelocityStep = stepIndex;
             record.PendingVelocityChange = Vector3.Zero;
@@ -820,8 +831,10 @@ public sealed partial class JoltPhysicsBackend
     /// <see cref="StartVelocity"/> and <see cref="NextCharacterVelocity"/>). After the update, a character that did not stand loses
     /// its motion into what it hit, as <see cref="WithoutMotionIntoContacts"/> says. Under gravity, up turns against the
     /// semantic gravity, with the centrifugal and the Euler term of a turning frame, whether the character touches anything
-    /// or not (docs/plans/spin-gravity.md, fork F5). So a character that tumbled lands upright and can stand, and a person who
-    /// jumps across a spinning station comes down feet first on the far floor. Below the zero-gravity threshold up stays.
+    /// or not (docs/plans/spin-gravity.md, fork F5): at once when it touched anything in its last update, and at most at
+    /// <see cref="JoltBackendOptions.CharacterAirUpTurnRate"/> when it touched nothing. So a character that tumbled lands
+    /// upright and can stand, a person who jumps across a spinning station comes down feet first on the far floor, and a
+    /// flip of the felt gravity for one step does not turn a floating person over. Below the zero-gravity threshold up stays.
     /// Returns the velocity that the character moved with in the update.
     /// </summary>
     private Vector3 UpdateCharacter(FrameWorld world, BodyRecord record, CharacterVirtual character)
@@ -926,8 +939,18 @@ public sealed partial class JoltPhysicsBackend
         Vector3 weight = turns.Turns
             ? (effective + turns.Coriolis((Double3)velocity + frames.HomeVelocity(frame, frames.SemanticOf(frame)))).ToVector3()
             : effective.ToVector3();
-        return standing ? Vector3.Dot(weight, up) * normal : weight;
+        return PressedWeight(weight, standing, up, normal);
     }
+
+    /// <summary>
+    /// The gravity that Jolt reads to press the weight of a character whose weight input is <paramref name="weight"/>, the
+    /// effective gravity plus the Coriolis term: for a character that stands (<paramref name="standing"/>), the part of the
+    /// weight along <paramref name="up"/>, along the ground's normal <paramref name="normal"/>, because the ground holds the
+    /// rest; for any other character the whole weight, because nothing holds it. Jolt presses the ground of a character that
+    /// does not stand, steep ground, with the part of this input along the ground's normal, along the input.
+    /// </summary>
+    internal static Vector3 PressedWeight(Vector3 weight, bool standing, Vector3 up, Vector3 normal) =>
+        standing ? Vector3.Dot(weight, up) * normal : weight;
 
     /// <summary>
     /// The normal of the walkable face that holds <paramref name="character"/> up, which the walk and the test of standing
@@ -996,10 +1019,10 @@ public sealed partial class JoltPhysicsBackend
             Vector3 walked = ground + InGroundPlane(desired - Vector3.Dot(desired, up) * up, normal);
             if (record.PendingJump == 0)
                 return new HeldStart(walked);
-            return new InstantStart(walked + record.PendingJump * up);
+            return InstantStart.Jump(walked + record.PendingJump * up);
         }
         if (record.InstantVelocityStep == stepIndex)
-            return new InstantStart((Double3)velocity - (Double3)HomeInstantVelocityOverChordAtStart(record.Frame).ToVector3());
+            return InstantStart.Given(velocity, HomeInstantVelocityOverChordAtStart(record.Frame).ToVector3());
         return new ChordStart(velocity);
     }
 
@@ -1040,15 +1063,13 @@ public sealed partial class JoltPhysicsBackend
                 record.FrameAcceleration = new AppliedFrameAcceleration(Vector3.Zero, Vector3.Zero);
                 return held.Velocity + change;
             case InstantStart instant:
-                // The float rule loses the home's instant velocity past its frame velocity together with the half step of
-                // the gravity, as it did before the rotation terms, so that a velocity that the game gave keeps its bits.
-                Vector3 over = HomeInstantVelocityOverChordAtStart(frame).ToVector3();
-                plain = ((Double3)instant.Velocity + (Double3)over).ToVector3();
-                plain -= gravity * (dt * 0.5f) + over;
-                plainBehind = instant.Velocity - linear * (0.5 * stepDt);
+                // The float rule loses the half step of the gravity, and a velocity that the game gave also the home's
+                // instant velocity past its frame velocity, as before the rotation terms, so that both keep their bits.
+                plain = instant.FloatChordBehind(gravity * (dt * 0.5f));
+                plainBehind = instant.Local - linear * (0.5 * stepDt);
                 behind = plainBehind;
                 if (turns.Turns)
-                    behind += StepStart(frame)!.Value.ChordBehindChange(position, instant.Velocity + HomeInstantVelocityOverChordAtStart(frame), linear, stepDt);
+                    behind += StepStart(frame)!.Value.ChordBehindChange(position, instant.Local + HomeInstantVelocityOverChordAtStart(frame), linear, stepDt);
                 break;
             case ChordStart chord:
                 plain = chord.Velocity.ToVector3();

@@ -308,6 +308,83 @@ public class CharacterStandingTests
     }
 
     /// <summary>
+    /// A character falls high above the floor in a field along −Y, with its up along +Y, and the game teleports it to a
+    /// rotation tilted 60 degrees about +Z. Up is the body's +Y, so a teleport sets the up together with the rotation, as a
+    /// spawn does, and in the air the up then turns back against the gravity at most at the air rate, with the rotation
+    /// along. Before the review of ticket ter-1b21, the up kept its old value and the next step turned the rotation onto it
+    /// at once, which skipped the air rate.
+    /// </summary>
+    [Fact]
+    public void ACharacterInTheAirThatTheGameTeleportsToATiltedRotationTurnsUprightAtTheAirRate()
+    {
+        var (world, ground) = WorldWithFloor();
+        using (world)
+        {
+            var pilot = new Pilot();
+            Entity person = SpawnPerson(world, ground, At(0, 200, 0), pilot);
+            Tick(world, 5);
+            double tilt = 60 * Math.PI / 180;
+            var tilted = new DPose(new Double3(0, 190, 0), DQuaternion.FromAxisAngle(new Double3(0, 0, 1), tilt));
+            Send(world, pilot, body => body.Teleport(tilted));
+            // The step of this tick teleports the character, and its update turns it once.
+            world.Tick();
+
+            var gaps = new List<float> { AngleBetween(UpOf(world, person), Vector3.UnitY) };
+            for (int tick = 0; tick < 70; tick++)
+            {
+                world.Tick();
+                gaps.Add(AngleBetween(UpOf(world, person), Vector3.UnitY));
+            }
+
+            gaps[0].Should().BeGreaterThan((float)tilt - AirUpTurnPerStep - 1e-3f, "the teleport's step turns the body by the air rate at most");
+            for (int n = 1; n < gaps.Count; n++)
+            {
+                float expected = Math.Max(0, gaps[n - 1] - AirUpTurnPerStep);
+                gaps[n].Should().BeApproximately(expected, 2e-4f, $"in step {n} up turns by the air rate times the step, until it is aligned");
+            }
+            gaps[^1].Should().BeLessThan(1e-3f, "under gravity, up turns against it in the air");
+            world.PoseInOwnFrame(person).Position.Y.Should().BeGreaterThan(100, "the character is still in the air");
+            world.Errors.Should().BeEmpty();
+        }
+    }
+
+    /// <summary>
+    /// The same teleport for a character in the rigid form: the field is off, so the character is weightless, and the game
+    /// teleports it to a rotation tilted 60 degrees about +Z. The teleport sets the up of the rigid form too, so when the
+    /// field comes back and the character walks again in the air, its up and its rotation turn upright together at the air
+    /// rate, not in one step.
+    /// </summary>
+    [Fact]
+    public void AWeightlessCharacterThatTheGameTeleportsToATiltedRotationTurnsUprightAtTheAirRateOnceGravityReturns()
+    {
+        var (world, ground) = WorldWithFloor();
+        using (world)
+        {
+            var pilot = new Pilot();
+            Entity person = SpawnPerson(world, ground, At(0, 200, 0), pilot);
+            world.SetFrameGravity(ground, GravityField.Uniform(Vector3.Zero));
+            Tick(world, 5);
+            double tilt = 60 * Math.PI / 180;
+            Send(world, pilot, body => body.Teleport(new DPose(new Double3(0, 190, 0), DQuaternion.FromAxisAngle(new Double3(0, 0, 1), tilt))));
+            Tick(world, 3);
+            AngleBetween(UpOf(world, person), Vector3.UnitY).Should().BeApproximately((float)tilt, 1e-3f, "a weightless character keeps the teleport's rotation");
+
+            world.SetFrameGravity(ground, GravityField.Uniform(new Vector3(0, -9.81f, 0)));
+            var gaps = new List<float> { AngleBetween(UpOf(world, person), Vector3.UnitY) };
+            for (int tick = 0; tick < 70; tick++)
+            {
+                world.Tick();
+                gaps.Add(AngleBetween(UpOf(world, person), Vector3.UnitY));
+            }
+
+            for (int n = 1; n < gaps.Count; n++)
+                gaps[n].Should().BeGreaterThan(gaps[n - 1] - AirUpTurnPerStep - 2e-4f, $"in step {n} up turns by the air rate at most");
+            gaps[^1].Should().BeLessThan(1e-3f, "under gravity, up turns against it in the air");
+            world.Errors.Should().BeEmpty();
+        }
+    }
+
+    /// <summary>
     /// A character floats high above the floor in a field along −Y, with its up along +Y. The frame's field then turns by
     /// <paramref name="flipDegrees"/> for one step, as the felt gravity in a cabin flips for a step when its engine starts or
     /// its hull jolts, and turns back. Up turns toward the flipped gravity by at most the air rate times the step, and then
