@@ -257,10 +257,12 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
     /// In orbit the clip lets the pen go. From the step that applies its push to the person's take, nothing touches the
     /// pen, so it moves on a straight line in inertial space, and when the person takes it, it floats more than half a
     /// meter from every face of the cabin. The line is measured from the shuttle's center in earth-surface's axes: the
-    /// shuttle and the pen fall together, and those axes do not turn with the cabin. The clip lets go about 1.25 s after
-    /// the engines stop, while the attitude autopilot still changes the cabin's turn, so in the cabin's turning axes the
-    /// pen's velocity changes by the rotation terms (docs/plans/spin-gravity.md, "The model from scratch"). Before the
-    /// rotation terms, the test asked for the push's velocity in the cabin's axes.
+    /// shuttle and the pen fall together, and those axes do not turn with the cabin. The clip reads the felt gravity with
+    /// the rotation terms of the cabin's turn (see <see cref="FrameTree.FeltGravity"/>), so it lets go about 2.9 s after the
+    /// engines stop, once the change of the turn that the attitude autopilot makes has settled. The autopilot turns the
+    /// cabin for about 5 s after the engines stop, so the cabin still turns then, and in the cabin's turning axes the pen's
+    /// velocity changes by the rotation terms (docs/plans/spin-gravity.md, "The model from scratch"). Before the rotation
+    /// terms, the test asked for the push's velocity in the cabin's axes.
     /// </summary>
     [Fact]
     public void InOrbitThePenFloatsFreeInTheMiddleOfTheCabinUntilThePersonTakesIt()

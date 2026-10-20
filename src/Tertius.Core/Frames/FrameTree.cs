@@ -857,8 +857,8 @@ public sealed partial class FrameTree
     /// frame's first <see cref="BeginStep"/>.
     /// <para>
     /// It reads the turns, which describe the step in flight from <see cref="BeginStep"/> on and the last finished step from
-    /// step 2 on, so only physics and the frame tree read it, in the step whose turn they hold. A public read for gameplay,
-    /// when one is needed, describes the last finished step under a name of its own.
+    /// step 2 on, so only physics and the frame tree read it, in the step whose turn they hold. Game code reads
+    /// <see cref="FeltGravity"/>, which describes the last finished step.
     /// </para>
     /// </summary>
     internal Double3 EffectiveGravity(FrameHandle frame, Double3 position) => AddRotationTerms(frame, position, LinearGravity(frame, position));
