@@ -33,3 +33,7 @@ The design (docs/plans/live-world.md) found that one cycle of a shuttle takes th
 **2026-10-20T19:10:36Z**
 
 The user chose three shuttles on 2026-10-20, after the finding above. One cycle takes three orbits, so three shuttles offset by one orbit give a ground departure in every orbit, every 92.4 minutes. This replaces the decision of two shuttles. The engine already spawns a dynamic hull with a spawn velocity (ARCHITECTURE.md, SpawnDesc.LinearVelocity), so a shuttle can start in the parking orbit with no engine change.
+
+**2026-10-20T23:19:28Z**
+
+The user decided on 2026-10-20 to postpone the live world until the Blue Danube demo is done. The demo's tickets no longer wait for any live world part. The live world's pilot (ter-yywb) later turns the demo's layered autopilots, the docking's included, into the flat state machine.

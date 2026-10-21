@@ -14,3 +14,9 @@ tags: [tests, physics]
 
 See step 8 of docs/plans/real-physics-in-tests.md.
 
+
+## Notes
+
+**2026-10-21T00:02:55Z**
+
+The user postponed the testing work on 2026-10-20 to focus on the demo. A started workflow was stopped before any commit.
