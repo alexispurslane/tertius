@@ -92,12 +92,24 @@ public sealed class AirlockSliceTests(AirlockRun run) : IClassFixture<AirlockRun
     {
         // A key acts from the fourth tick after its post: the post joins the routing at the end of the next tick, the person
         // handles it in the tick after that and sends its force to its back jet, the jet handles the force in the third
-        // tick, and physics moves the person in the step of the fourth tick. So 238 of the 241 ticks between W's down post
-        // and the dump thrust at 1.5 m/s², and they take 238 · 1.5 m/s² / 60 = 5.95 m/s off
-        // the drift away from the ship. One tick of thrust adds 0.025 m/s, so the margin counts the ticks exactly.
+        // tick, and physics moves the person in the step of the fourth tick. W is held for 240 ticks, as before the back jet,
+        // and the script runs one more tick before the dump. So 238 of the 241 ticks between W's down post and the dump
+        // thrust at 1.5 m/s², and they take 238 · 1.5 m/s² / 60 = 5.95 m/s off the drift away from the ship. One tick of
+        // thrust adds 0.025 m/s, so the margin counts the ticks exactly.
         (VelocityAt("turned-back").X - VelocityAt("drifting").X).Should().BeApproximately(238 * 1.5f / 60, 1e-3f);
         ExpectInTheChamber(PersonAt("returned"));
         new Vector2(VelocityAt("returned").X, VelocityAt("returned").Z).Length().Should().BeLessThan(1e-3f, "the person landed and stands still");
+    }
+
+    /// <summary>
+    /// The person's thrust lasts exactly as long as W is held: the press and the release each act from the fourth tick
+    /// after their posts, so the 240 ticks of W's hold give 240 ticks of thrust, 6 m/s at 1.5 m/s². The dump
+    /// <c>thrust-over</c> comes after the release has acted, and before the person reaches the ship.
+    /// </summary>
+    [Fact]
+    public void TheThrustTowardTheShipLastsAsLongAsWIsHeld()
+    {
+        (VelocityAt("thrust-over").X - VelocityAt("drifting").X).Should().BeApproximately(240 * 1.5f / 60, 1e-3f);
     }
 
     [Fact]
