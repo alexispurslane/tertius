@@ -40,3 +40,7 @@ The user postponed the live world on 2026-10-20, so this ticket no longer waits 
 **2026-10-20T23:39:27Z**
 
 The user approved the download of the music on 2026-10-20: The Blue Danube by the U.S. Marine Band, conducted by Albert F. Schoepper, 9 min 9 s, public domain as a work of the U.S. federal government (PD-USGov-Military-Marines), from Wikimedia Commons, File:"An der schönen, blauen Donau" performed by the U.S. Marine Band.mp3 (13,183,232 bytes, 192 kbps, 44.1 kHz stereo). It lies outside the repository at /private/tmp/claude-501/-Users-alexispurslane-Development-tertius/b4f88051-0baf-4ba9-9ee7-b029a9c77178/scratchpad/music/blue-danube-us-marine-band.mp3. The video's credits name the band, the conductor and the source.
+
+**2026-10-21T00:51:49Z**
+
+The user settled the edit's two engine questions on 2026-10-20. No split view: the video does not show numeric frames on and off side by side, so the Host gets no --numeric-frames option. No fill light: for the dark frames in Earth's shadow, the user said "If it is at all visible, leave it. Sounds dramatic". The edit keeps every stretch where any part of the shuttle or the station shows, however dark, and drops the 360-frame trim of transfer.
