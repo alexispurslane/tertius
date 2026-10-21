@@ -111,6 +111,27 @@ public sealed class ReadoutLogTests
     }
 
     [Fact]
+    public void ALogWithAnotherHeaderDoesNotRead()
+    {
+        string csv = ReadoutLog.ToCsv(Rows).Replace("frame,tick,", "frame,time,");
+
+        Action read = () => ReadoutLog.FromCsv(csv);
+
+        read.Should().Throw<FormatException>().WithMessage("*starts with the line*");
+    }
+
+    [Fact]
+    public void ALogLineWithAMissingCellDoesNotRead()
+    {
+        string[] lines = ReadoutLog.ToCsv(Rows).TrimEnd('\n').Split('\n');
+        lines[2] = lines[2][..lines[2].LastIndexOf(',')];
+
+        Action read = () => ReadoutLog.FromCsv(string.Join('\n', lines));
+
+        read.Should().Throw<FormatException>().WithMessage("Line 3 of the readout log has 7 cells, not 8.");
+    }
+
+    [Fact]
     public void TheDemosCommandLineWritesTheLogOfAScript()
     {
         string folder = HostTesting.NewFolder();
