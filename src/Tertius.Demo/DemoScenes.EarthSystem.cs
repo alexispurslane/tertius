@@ -8,14 +8,15 @@ namespace Tertius.Demo;
 public static partial class DemoScenes
 {
     /// <summary>
-    /// The Earth system at its true sizes, at the June solstice, with the demo's station and a pad at the north pole, and
+    /// The Earth system at its true sizes, at the demo's date, with the demo's station and a pad at the north pole, and
     /// views that show each part.
     /// <list type="bullet">
-    /// <item>The Sun, earth, earth-surface and the Moon of <see cref="SunAndEarth"/>, at <see cref="EarthDate.JuneSolstice"/>.
-    /// The Sun stands 23.44 degrees above the horizon of the north pole all day, and goes round it once a day.</item>
+    /// <item>The Sun, earth, earth-surface and the Moon of <see cref="SunAndEarth"/>, at <see cref="DemoSurface.Date"/>: the
+    /// June solstice, with the ground turned as the demo's. The Sun stands 23.44 degrees above the horizon of the north pole
+    /// all day, and goes round it once a day.</item>
     /// <item>The demo's <c>station</c> (see <see cref="DemoStation"/>) on the elements of <see cref="DemoStation.Orbit"/>,
-    /// but in <c>earth</c>, which does not turn: a polar circle 400 km up, over the north pole at
-    /// <see cref="DemoStation.OverPadAt"/>. Its bubble lies outside earth-surface's, which ends 100 km up.</item>
+    /// in <c>earth</c>, which does not turn: a polar circle 400 km up in the launch plane, over the north pole at
+    /// <see cref="DemoStation.OverPadAt"/>. Its bubble lies outside earth-surface's, which ends 50 km up.</item>
     /// <item>The <c>pad</c>, a static box 12 by 1 by 12 m, lies on the ground at the north pole in earth-surface, with its
     /// top at <see cref="PadTop"/>, and the red <c>mast</c>, 10 m tall, stands on its corner at x = 5, z = -5. Both turn
     /// with the ground.</item>
@@ -40,7 +41,7 @@ public static partial class DemoScenes
         public static SceneInstance Build(World world, IRenderResources resources)
         {
             var scene = new SceneInstance();
-            EarthDate date = EarthDate.JuneSolstice;
+            EarthDate date = DemoSurface.Date;
             FrameHandle earth = SunAndEarth(world, resources, scene, date);
             FrameHandle sun = world.GetOwnedFrame(scene["sun"]);
             FrameHandle surface = world.GetOwnedFrame(scene["earth-surface"]);
@@ -99,9 +100,9 @@ public static partial class DemoScenes
             View("station-view", earth, new DPose(station + axis * 300, AttitudeAutopilot.Facing(-axis * Math.Cos(down) - up * Math.Sin(down), up)));
 
             // The pad from the ground, looking past it toward the Sun, which stands 23.44 degrees up: the eye stands 22 m
-            // from the pole on the side away from the Sun. earth-surface has turned from earth's axes by the sidereal spin at
-            // the world's time, so the Sun's direction turns back by that spin into earth-surface's axes.
-            Double3 toSunInSurface = new FrameSpin(DQuaternion.Identity, SiderealRate).RotationAt(world.Time).Conjugate().Rotate(toSun);
+            // from the pole on the side away from the Sun. At the world's time, earth-surface has turned from earth's axes by
+            // the date's ground, so the Sun's direction turns back by that spin into earth-surface's axes.
+            Double3 toSunInSurface = date.Ground.RotationAt(world.Time).Conjugate().Rotate(toSun);
             Double3 sunAcross = new Double3(toSunInSurface.X, 0, toSunInSurface.Z).Normalized();
             Double3 padEye = -sunAcross * 22 + new Double3(0, EarthRadius + 6, 0);
             View("pad-view", surface, LookingAt(padEye, new Double3(0, EarthRadius + 8, 0)));

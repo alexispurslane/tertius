@@ -28,7 +28,7 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run)
     /// <summary>
     /// The script orders the docking during the rendezvous's hold. In the first tick of the spin-up the rendezvous still
     /// holds, and the shuttle lies within the hold's tolerances in the station's axes: within 0.5 m of the hold point, with
-    /// its nose within 1 degree of minus the axis.
+    /// its nose within 1 degree of minus the axis. It is in earth, the frame that holds the station, which does not turn.
     /// </summary>
     [Fact]
     public void TheDockingStartsFromTheRendezvousHold()
@@ -37,6 +37,7 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run)
         RendezvousTick start = Docking[0];
         start.Docking.Value.Should().BeOfType<SpinUp>();
         start.Rendezvous.Value.Should().BeOfType<Hold>();
+        start.ShuttleFrame.Should().Be(run.Earth, "the shuttle docks from earth, which holds the station");
         (start.InStation.Position - DemoStation.HoldPoint).Length.Should().BeLessThan(RendezvousAutopilot.HoldDistanceTolerance);
         (Math.Acos(Math.Clamp(Double3.Dot(start.InStation.Rotation.Rotate(-Double3.UnitZ), -Double3.UnitY), -1, 1))).Should().BeLessThan(Degree);
     }

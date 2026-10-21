@@ -1,7 +1,7 @@
 ---
 id: ter-2zrs
-status: in_progress
-deps: [ter-y0e5, ter-2n31, ter-p51r, ter-3j2b]
+status: closed
+deps: [ter-2n31, ter-p51r, ter-3j2b]
 links: []
 created: 2026-10-18T14:08:43Z
 type: task
@@ -44,3 +44,7 @@ The user approved the download of the music on 2026-10-20: The Blue Danube by th
 **2026-10-21T00:51:49Z**
 
 The user settled the edit's two engine questions on 2026-10-20. No split view: the video does not show numeric frames on and off side by side, so the Host gets no --numeric-frames option. No fill light: for the dark frames in Earth's shadow, the user said "If it is at all visible, leave it. Sounds dramatic". The edit keeps every stretch where any part of the shuttle or the station shows, however dark, and drops the 360-frame trim of transfer.
+
+**2026-10-21T01:51:49Z**
+
+The edit tools, the music and the round-2 render merged on 2026-10-20. Step 8, the docking and the exit in the cut list with the outlines and the final render, moved to ter-asce.

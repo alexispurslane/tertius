@@ -1,5 +1,6 @@
 using Tertius.Demo;
 using Tertius.Host.Scripting;
+using Tertius.Physics;
 using Tertius.Simulation;
 using static Tertius.Host.Tests.HostTesting;
 using DemoSurface = Tertius.Demo.DemoScenes.DemoSurface;
@@ -23,7 +24,8 @@ public sealed class BlueDanubeFilmRun : IDisposable
         int last = full.Steps.ToList().FindIndex(step => step.Value is FilmStep { Name: LastFilm });
         if (last < 0)
             throw new InvalidOperationException($"scripts/blue-danube.json has no film '{LastFilm}'.");
-        World = NewJoltWorld();
+        Backend = new JoltPhysicsBackend();
+        World = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true }, Backend);
         Scene = DemoScenes.All.Single(s => s.Name == full.Scene).Build(World, RenderResources.None);
         ScriptRunner.Run(full with { Steps = [.. full.Steps.Take(last + 1)] }, World, Scene, outputFolder: null, new Recorder(this));
     }
@@ -31,8 +33,40 @@ public sealed class BlueDanubeFilmRun : IDisposable
     public World World { get; }
     public SceneInstance Scene { get; }
 
+    /// <summary>The world's physics backend, which the run asks for rays between ticks.</summary>
+    private JoltPhysicsBackend Backend { get; }
+
     /// <summary>One <see cref="FilmFrame"/> for each frame of the run, in order.</summary>
     public List<FilmFrame> Frames { get; } = new();
+
+    /// <summary>One <see cref="SkyFrame"/> for each frame of the film <c>sky</c>, in order.</summary>
+    public List<SkyFrame> SkyFrames { get; } = new();
+
+    /// <summary>
+    /// What the camera of a frame of <c>sky</c> sees of the Sun, the Moon and the parked shuttle, in earth-surface, where
+    /// <c>sky-camera</c> stands: the projected centers, and whether a ray from the camera toward the Sun's center, and one
+    /// toward the Moon's, meets no body of earth-surface within 10 km.
+    /// </summary>
+    private SkyFrame ReadSky(string name)
+    {
+        FrameHandle surface = World.GetOwnedFrame(Scene["earth-surface"]);
+        DPose view = World.PoseIn(World.Camera, surface);
+        Double3 sun = World.PoseIn(Scene["sun"], surface).Position, moon = World.PoseIn(Scene["moon"], surface).Position;
+        bool Clear(Double3 toward)
+        {
+            var hits = new List<RayCastHit>();
+            Backend.CastRay(surface, view.Position, (toward - view.Position).Normalized(), 0, 1e4, new AcceptsEveryEntity(), RayCastKind.Nearest, hits);
+            return hits.Count == 0;
+        }
+        return new SkyFrame(name, Picture.Project(view, sun, World.VerticalFov), Picture.Project(view, moon, World.VerticalFov),
+            Picture.Project(view, World.PoseIn(Scene["shuttle"], surface).Position, World.VerticalFov), Clear(sun), Clear(moon));
+    }
+
+    /// <summary>A query filter that accepts every entity.</summary>
+    private sealed class AcceptsEveryEntity : IPhysicsQueryFilter
+    {
+        public bool Accepts(Entity entity) => true;
+    }
 
     private FilmFrame Read(string name)
     {
@@ -55,6 +89,8 @@ public sealed class BlueDanubeFilmRun : IDisposable
         public bool Capture(World world, string name)
         {
             run.Frames.Add(run.Read(name));
+            if (name.StartsWith("sky-", StringComparison.Ordinal))
+                run.SkyFrames.Add(run.ReadSky(name));
             return true;
         }
     }
@@ -68,6 +104,15 @@ public sealed class BlueDanubeFilmRun : IDisposable
 /// <param name="Eye">The person's eye in the shuttle's frame, in meters.</param>
 /// <param name="VerticalFov">The world's vertical view angle, in radians.</param>
 public sealed record FilmFrame(string Name, double PersonCover, bool PenInPicture, DPose View, Double3 Eye, double VerticalFov);
+
+/// <summary>What the camera of one frame of the film <c>sky</c> sees.</summary>
+/// <param name="Name">The frame's name, such as <c>sky-000012</c>.</param>
+/// <param name="Sun">The Sun's center in the picture (see <see cref="Picture.Project"/>).</param>
+/// <param name="Moon">The Moon's center in the picture.</param>
+/// <param name="Shuttle">The parked shuttle's center in the picture.</param>
+/// <param name="SunClear">True when a ray from the camera toward the Sun meets no body of earth-surface.</param>
+/// <param name="MoonClear">True when a ray from the camera toward the Moon meets no body of earth-surface.</param>
+public sealed record SkyFrame(string Name, Double3 Sun, Double3 Moon, Double3 Shuttle, bool SunClear, bool MoonClear);
 
 /// <summary>The picture of a camera of the long script: 1280 by 720 pixels, with the world's vertical view angle.</summary>
 public static class Picture
@@ -110,6 +155,26 @@ public static class Picture
 
 public sealed class BlueDanubeFilmTests(BlueDanubeFilmRun run) : IClassFixture<BlueDanubeFilmRun>
 {
+    /// <summary>
+    /// The film <c>sky</c>, from <c>sky-camera</c> ahead of the parked nose, shows the low Sun and the crescent Moon over
+    /// the parked shuttle (docs/plans/blue-danube-demo.md, "The Sun and the Moon in the films"): in every frame of it, the
+    /// centers of the Sun, the Moon and the shuttle lie in the picture, and a ray from the camera toward the Sun, and one
+    /// toward the Moon, meets no body of earth-surface.
+    /// </summary>
+    [Fact]
+    public void TheSkyCameraShowsTheSunTheMoonAndTheShuttle()
+    {
+        run.SkyFrames.Should().HaveCount(60, "the film sky lasts 1 s");
+        foreach (SkyFrame frame in run.SkyFrames)
+        {
+            Picture.Contains(frame.Sun).Should().BeTrue($"the Sun is in the picture of {frame.Name}, at {frame.Sun}");
+            Picture.Contains(frame.Moon).Should().BeTrue($"the Moon is in the picture of {frame.Name}, at {frame.Moon}");
+            Picture.Contains(frame.Shuttle).Should().BeTrue($"the shuttle is in the picture of {frame.Name}, at {frame.Shuttle}");
+            frame.SunClear.Should().BeTrue($"nothing on the ground hides the Sun in {frame.Name}");
+            frame.MoonClear.Should().BeTrue($"nothing on the ground hides the Moon in {frame.Name}");
+        }
+    }
+
     /// <summary>
     /// The film <c>fetch</c>, from <c>pen-camera</c> near the cabin's roof, shows the person floating to the loose pen: in
     /// every frame of it the person's box covers at most half of the picture, and the pen is in the picture. The person

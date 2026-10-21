@@ -1,44 +1,97 @@
 using System.Numerics;
 using Tertius.Demo;
+using Tertius.Frames.Rails;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
 using DemoStation = Tertius.Demo.DemoScenes.DemoStation;
+using DemoSurface = Tertius.Demo.DemoScenes.DemoSurface;
 using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
 
 namespace Tertius.Host.Tests;
 
 /// <summary>
 /// The station of the Blue Danube demo in the scene <c>demo-surface</c>, built without a script, on the World and the real
-/// Jolt backend (docs/plans/blue-danube-demo.md, "The station"): a wheel 202 m across on a circle 400 km up, in the launch
-/// plane, that turns about its axis at the rate that gives one gravity on its floor. In the station's own axes, +Y is the
-/// axis and the slot faces +Y. In <c>earth-surface</c>, the axis points along +X.
+/// Jolt backend (docs/plans/blue-danube-demo.md, "The station" and "The station's plane"): a wheel 202 m across on a
+/// circle 400 km up in <c>earth</c>, which does not turn, in the launch plane, that turns about its axis at the rate that
+/// gives one gravity on its floor. In the station's own axes, +Y is the axis and the slot faces +Y. In <c>earth</c>, the
+/// axis points along the launch plane's normal, reversed, the departure axes' +X. The pure tests pin the plane and the
+/// date that put the ramp in the station's plane at the departure.
 /// </summary>
 public sealed class DemoStationTests : IDisposable
 {
     private readonly World world = HostTesting.NewJoltWorld();
     private readonly SceneInstance scene;
     private readonly Entity station;
-    private readonly FrameHandle surface, frame;
+    private readonly FrameHandle earth, frame;
 
     public DemoStationTests()
     {
         scene = DemoScenes.All.Single(s => s.Name == "demo-surface").Build(world, RenderResources.None);
         station = scene["station"];
-        surface = world.GetOwnedFrame(scene["earth-surface"]);
+        earth = world.GetOwnedFrame(scene["earth"]);
         frame = world.GetOwnedFrame(station);
     }
 
     public void Dispose() => world.Dispose();
 
-    /// <summary>
-    /// The launch plane's normal, as the design defines it: the pad's up, +Y of <c>earth-surface</c>, across the ramp's
-    /// incline, normalized.
-    /// </summary>
-    private static Double3 LaunchPlaneNormal => Double3.Cross(Double3.UnitY, DemoScenes.LaunchRamp.Up).Normalized();
+    /// <summary>The angle between two directions, in degrees.</summary>
+    private static double Degrees(Double3 a, Double3 b) => Math.Acos(Math.Clamp(Double3.Dot(a.Normalized(), b.Normalized()), -1, 1)) * 180 / Math.PI;
+
+    /// <summary>The ground's rotation in earth at the departure, by the demo's date: the departure axes.</summary>
+    private static DQuaternion DepartureAxes => DemoSurface.Date.Ground.RotationAt(DemoSurface.DepartureAt);
+
+    /// <summary>The prograde normal of the station's orbit, in earth's axes: its position across its velocity.</summary>
+    private static Double3 OrbitNormal
+    {
+        get
+        {
+            (Double3 place, Double3 velocity) = DemoStation.Orbit.StateAt(0, DemoScenes.EarthMu);
+            return Double3.Cross(place, velocity).Normalized();
+        }
+    }
 
     /// <summary>
-    /// Over the first 10 s, sampled each second, the station's center lies 400 km above Earth's mean radius, in the launch
-    /// plane, and moves in it at the speed of a circle there.
+    /// At the departure, the ramp's incline, turned by the date's ground into earth's axes, lies in the plane of the
+    /// station's orbit, within 1e-9, and its part across the pad's up points the way that the station moves over the pole at
+    /// <see cref="DemoStation.OverPadAt"/>, within 1e-6 rad.
+    /// </summary>
+    [Fact]
+    public void AtTheDepartureTheRampLiesInTheStationsPlaneAlongItsMotion()
+    {
+        Double3 incline = DepartureAxes.Rotate(DemoScenes.LaunchRamp.Up);
+        (Double3 place, Double3 velocity) = DemoStation.Orbit.StateAt(DemoStation.OverPadAt, DemoScenes.EarthMu);
+        Double3 up = place.Normalized();
+
+        Math.Abs(Double3.Dot(incline, OrbitNormal)).Should().BeLessThan(1e-9, $"the incline {incline} lies in the station's plane");
+        Double3 across = incline - up * Double3.Dot(incline, up);
+        (Degrees(across, velocity) * Math.PI / 180).Should().BeLessThan(1e-6, $"the incline points along the station's motion {velocity}");
+    }
+
+    /// <summary>The launch plane's normal, in earth's axes, is the prograde normal of the station's orbit, within 1e-9.</summary>
+    [Fact]
+    public void TheLaunchPlaneNormalIsTheStationsOrbitNormal()
+    {
+        (DemoSurface.LaunchPlaneNormal - OrbitNormal).Length.Should().BeLessThan(1e-9, $"the launch plane's normal {DemoSurface.LaunchPlaneNormal} is the orbit's {OrbitNormal}");
+    }
+
+    /// <summary>
+    /// At the world's time 0, the Sun's direction from Earth lies 56.1 degrees from the station's axis on the slot's side,
+    /// within 0.5 degrees. The plane of the orbit was chosen for that light (docs/plans/blue-danube-demo.md, "The station's
+    /// plane"): the sun meets the slot's face at an angle, neither edge-on nor square.
+    /// </summary>
+    [Fact]
+    public void TheSunLightsTheSlotsFaceAt56DegreesFromTheAxis()
+    {
+        KeplerOrbit earthOrbit = DemoScenes.EarthOrbit(DemoSurface.Date);
+        Double3 toSun = earthOrbit.RotationAt(0, DemoScenes.SunMu).Conjugate().Rotate(-earthOrbit.StateAt(0, DemoScenes.SunMu).Position);
+        Double3 axis = DemoStation.Orbit.RotationAt(0, DemoScenes.EarthMu).Rotate(Double3.UnitY);
+
+        Degrees(axis, toSun).Should().BeApproximately(56.1, 0.5);
+    }
+
+    /// <summary>
+    /// Over the first 10 s, sampled each second, the station's center lies 400 km above Earth's mean radius in earth, in the
+    /// launch plane, and moves in it at the speed of a circle there.
     /// </summary>
     [Fact]
     public void TheStationOrbitsInTheLaunchPlane400KmUp()
@@ -47,51 +100,54 @@ public sealed class DemoStationTests : IDisposable
         for (int second = 0; second < 10; second++)
         {
             Tick(world, 60);
-            Double3 place = world.PoseIn(station, surface).Position, velocity = world.VelocityIn(station, surface);
+            Double3 place = world.PoseIn(station, earth).Position, velocity = world.VelocityIn(station, earth);
             place.Length.Should().BeApproximately(radius, 0.01, $"the station is 400 km up after {second + 1} s");
-            Double3.Dot(place, LaunchPlaneNormal).Should().BeApproximately(0, 0.01, $"the station is in the launch plane after {second + 1} s");
-            Double3.Dot(velocity, LaunchPlaneNormal).Should().BeApproximately(0, 1e-5, $"the station moves in the launch plane after {second + 1} s");
+            Double3.Dot(place, DemoSurface.LaunchPlaneNormal).Should().BeApproximately(0, 0.01, $"the station is in the launch plane after {second + 1} s");
+            Double3.Dot(velocity, DemoSurface.LaunchPlaneNormal).Should().BeApproximately(0, 1e-5, $"the station moves in the launch plane after {second + 1} s");
             velocity.Length.Should().BeApproximately(Math.Sqrt(DemoScenes.EarthMu / radius), 1e-5);
         }
     }
 
     /// <summary>
-    /// At <see cref="DemoStation.OverPadAt"/>, the station's orbit passes straight over the pad, along +Y of
-    /// <c>earth-surface</c>, and moves toward -Z, the way the ramp sends the shuttle.
+    /// At <see cref="DemoStation.OverPadAt"/>, the station's orbit passes straight over the pad, along +Y of earth, and moves
+    /// along the departure axes' -Z, the way the ramp sends the shuttle.
     /// </summary>
     [Fact]
     public void TheStationPassesOverThePadAtOverPadAtMovingTheWayOfTheClimb()
     {
         (Double3 place, Double3 velocity) = DemoStation.Orbit.StateAt(DemoStation.OverPadAt, DemoScenes.EarthMu);
+        Double3 climb = DepartureAxes.Rotate(-Double3.UnitZ);
 
         (place.Normalized() - Double3.UnitY).Length.Should().BeLessThan(1e-9, $"the station is over the pad, not at {place}");
-        (velocity.Normalized() + Double3.UnitZ).Length.Should().BeLessThan(1e-9, $"the station moves along -Z, not along {velocity}");
+        (velocity.Normalized() - climb).Length.Should().BeLessThan(1e-9, $"the station moves along {climb}, not along {velocity}");
     }
 
     /// <summary>
-    /// The station turns about its axis, +X of <c>earth-surface</c>, at <see cref="DemoScenes.SpinStation.Rate"/>, and so a
-    /// body at rest on the floor, 100 m from the axis, feels 9.81 m/s² away from the axis.
+    /// The station turns about its axis, the launch plane's normal reversed, at <see cref="DemoScenes.SpinStation.Rate"/>,
+    /// in earth, and so a body at rest on the floor, 100 m from the axis, feels 9.81 m/s² away from the axis.
     /// </summary>
     [Fact]
     public void TheStationTurnsAboutItsAxisAtTheRateThatGivesOneGravityOnTheFloor()
     {
         Tick(world, 3);
 
-        Vector3 turn = world.AngularVelocityIn(station, surface);
-        ((Double3)turn - Double3.UnitX * DemoScenes.SpinStation.Rate).Length.Should().BeLessThan(1e-6, $"the station turns about +X, not at {turn}");
-        world.PoseIn(station, surface).Rotation.Rotate(Double3.UnitY).X.Should().BeApproximately(1, 1e-9, "the station's axis points along +X of earth-surface");
+        Double3 axis = -DemoSurface.LaunchPlaneNormal;
+        Vector3 turn = world.AngularVelocityIn(station, earth);
+        ((Double3)turn - axis * DemoScenes.SpinStation.Rate).Length.Should().BeLessThan(1e-6, $"the station turns about {axis}, not at {turn}");
+        (world.PoseIn(station, earth).Rotation.Rotate(Double3.UnitY) - axis).Length.Should().BeLessThan(1e-9, "the station's axis points along the launch plane's normal, reversed");
         Double3 felt = world.Frames.FeltGravity(frame, new Double3(0, 0, -100));
         (felt - new Double3(0, 0, -9.81)).Length.Should().BeLessThan(0.005, $"the floor has one gravity away from the axis, not {felt}");
     }
 
     /// <summary>
-    /// The station is a Kepler frame in <c>earth-surface</c>, which does not turn, so it falls freely: its proper
-    /// acceleration is zero in every step, from the first on, because its spawn carries the first motion intent of its
-    /// orbit.
+    /// The station is a Kepler frame in earth, which does not turn and falls freely round the Sun, so it falls freely: its
+    /// proper acceleration is zero in every step, from the first on, because its spawn carries the first motion intent of
+    /// its orbit.
     /// </summary>
     [Fact]
     public void TheStationFallsFreelyFromItsFirstStep()
     {
+        world.GetFrame(station).Should().Be(earth);
         for (int tick = 1; tick <= 120; tick++)
         {
             world.Tick();
@@ -177,33 +233,42 @@ public sealed class DemoStationTests : IDisposable
     }
 
     /// <summary>
-    /// The parked shuttle's rendezvous autopilot flies to the scene's station: after a <see cref="Rendezvous"/> order, it
-    /// leaves its standby and does not halt, so it has a live station in its own frame and Earth's point gravity.
+    /// On the ground, the parked shuttle's rendezvous autopilot halts at a <see cref="Rendezvous"/> order: the shuttle is in
+    /// the turning earth-surface, and the station is in earth, so its guard finds the station outside the shuttle's frame
+    /// (docs/plans/blue-danube-demo.md, "The shuttle's flight in the turning ground"). In the run the order comes in orbit,
+    /// after the hand-off into earth, and the autopilot flies (<see cref="BlueDanubeRendezvousTests"/>).
     /// </summary>
     [Fact]
-    public void TheShuttlesRendezvousAutopilotFliesToTheStation()
+    public void OnTheGroundTheShuttlesRendezvousAutopilotHaltsBecauseTheStationIsInEarth()
     {
         world.Post(Event.Create(scene["shuttle"], Entity.Null, new Rendezvous()));
 
         Tick(world, 2);
 
         object state = world.GetComponent<RendezvousAutopilot>(scene["shuttle"])!.State.Value;
-        (state is Phasing or Transfer).Should().BeTrue($"the autopilot flies, not {state}");
+        state.Should().BeOfType<Halted>();
         world.Errors.Should().BeEmpty();
     }
 
     /// <summary>
-    /// The parked shuttle's docking autopilot docks in the scene's station: after a <see cref="Dock"/> order, it leaves its
-    /// standby and waits for the hold, and does not halt, so it has a live station that owns a frame.
+    /// The parked shuttle's docking autopilot docks in the scene's station. On the ground, after a <see cref="Dock"/> order,
+    /// it halts because of the frames alone: the shuttle is in the turning earth-surface, and the station is in earth, so
+    /// the shuttle is in neither the station's frame nor the frame that holds the station. It does not halt for a station
+    /// that is gone, so it has a live station that owns a frame. In the run the order comes at the hold, in earth, and the
+    /// autopilot docks (<see cref="BlueDanubeDockingTests"/>).
     /// </summary>
     [Fact]
-    public void TheShuttlesDockingAutopilotDocksInTheStation()
+    public void OnTheGroundTheShuttlesDockingAutopilotHaltsOnlyBecauseTheStationIsInEarth()
     {
+        var logged = new List<string>();
+        world.Log += logged.Add;
         world.Post(Event.Create(scene["shuttle"], Entity.Null, new Dock()));
 
         Tick(world, 2);
 
-        world.GetComponent<DockingAutopilot>(scene["shuttle"])!.State.Value.Should().BeOfType<Waiting>();
+        world.GetComponent<DockingAutopilot>(scene["shuttle"])!.State.Value.Should().BeOfType<Halted>();
+        logged.Should().ContainSingle().Which.Should()
+            .EndWith($"{nameof(DockingAutopilot)} halts: the shuttle is in neither the station's frame nor the frame that holds the station.");
         world.Errors.Should().BeEmpty();
     }
 
@@ -255,21 +320,21 @@ public sealed class DemoStationTests : IDisposable
 
     /// <summary>
     /// A free shuttle at <see cref="DemoStation.HoldPoint"/>, 150 m out on the axis, with the station's velocity and its nose
-    /// at the slot, drifts less than a meter in 60 s and stays in <c>earth-surface</c> all the while: its bounding sphere of
-    /// 8.8 m lies 21 m outside the station's bubble.
+    /// at the slot, drifts less than a meter in 60 s and stays in earth all the while: its bounding sphere of about 9 m lies
+    /// 21 m outside the station's bubble.
     /// </summary>
     [Fact]
-    public void AShuttleAtTheHoldPointStaysInEarthSurface()
+    public void AShuttleAtTheHoldPointStaysInEarth()
     {
         Tick(world, 1);
-        DPose pose = world.PoseIn(station, surface);
+        DPose pose = world.PoseIn(station, earth);
         Double3 axis = pose.Rotation.Rotate(Double3.UnitY);
         Double3 hold = pose.TransformPoint(DemoStation.HoldPoint);
         Entity shuttle = world.Spawn(new SpawnDesc
         {
-            Frame = surface,
+            Frame = earth,
             Pose = new DPose(hold, AttitudeAutopilot.Facing(-axis, hold)),
-            LinearVelocity = world.VelocityIn(station, surface),
+            LinearVelocity = world.VelocityIn(station, earth),
             Body = Shuttle.Body(BodyMotion.Dynamic),
             AsFrame = new FrameSpec(new FrameBounds(Shuttle.Bubble)),
         });
@@ -277,9 +342,9 @@ public sealed class DemoStationTests : IDisposable
         for (int tick = 0; tick < 60 * 60; tick++)
         {
             world.Tick();
-            world.GetFrame(shuttle).Should().Be(surface, $"the shuttle stays in earth-surface in tick {tick}");
+            world.GetFrame(shuttle).Should().Be(earth, $"the shuttle stays in earth in tick {tick}");
         }
-        double distance = (world.PoseIn(shuttle, surface).Position - world.PoseIn(station, surface).Position).Length;
+        double distance = (world.PoseIn(shuttle, earth).Position - world.PoseIn(station, earth).Position).Length;
         distance.Should().BeApproximately(DemoStation.HoldPoint.Length, 1, "the shuttle drifts little from the hold point");
     }
 

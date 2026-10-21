@@ -123,7 +123,7 @@ public sealed class TranslationThrusterTests : IDisposable
     public void TheShuttlesFlightControlsPushWith30000NPerAxis()
     {
         shuttle = Shuttle.Park(world, space, DPose.Identity,
-            components: [new Unpark(), new TranslationFor(int.MaxValue, new Double3(0, 0, -60000), priority: 1), .. Shuttle.FlightControls(climbHeight: 30, planeNormal: -Double3.UnitX, station: Entity.Null)]);
+            components: [new Unpark(), new TranslationFor(int.MaxValue, new Double3(0, 0, -60000), priority: 1), .. Shuttle.FlightControls(climbHeight: 30, plane: new LaunchPlane(space, -Double3.UnitX), station: Entity.Null)]);
         Tick(world, 3);
 
         ShouldBeNear(AccelerationOver(30), new Double3(0, 0, -1.5), 1e-4);

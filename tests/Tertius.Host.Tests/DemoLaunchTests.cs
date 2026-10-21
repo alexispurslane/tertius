@@ -33,8 +33,14 @@ public sealed class DemoLaunchRun : CheckedInRun
 
 /// <summary>The state of the shuttle and of the person before one tick.</summary>
 /// <param name="Tick">The number of completed ticks.</param>
-/// <param name="Position">The shuttle's position in earth-surface, in meters from Earth's center.</param>
-/// <param name="Velocity">The shuttle's velocity in earth-surface, in m/s.</param>
+/// <param name="Frame">The shuttle's home frame: earth-surface up to the hand-off, then earth.</param>
+/// <param name="Position">The shuttle's position in earth, in meters from Earth's center.</param>
+/// <param name="Velocity">The shuttle's velocity in earth, in m/s.</param>
+/// <param name="Rotation">The shuttle's rotation in earth.</param>
+/// <param name="AngularVelocity">The shuttle's angular velocity in earth, in rad/s, in earth's axes.</param>
+/// <param name="GroundPosition">The shuttle's position in earth-surface, the turning ground, in meters from Earth's center.</param>
+/// <param name="GroundVelocity">The shuttle's velocity in earth-surface, in m/s.</param>
+/// <param name="GroundRotation">earth-surface's rotation in earth: the turn from the ground's axes to earth's.</param>
 /// <param name="Ascent">What the ascent autopilot does.</param>
 /// <param name="CabinAcceleration">The proper acceleration of the shuttle's frame, in m/s², in its axes.</param>
 /// <param name="PersonFrame">The person's frame.</param>
@@ -45,12 +51,13 @@ public sealed class DemoLaunchRun : CheckedInRun
 /// or null.
 /// </param>
 /// <param name="PenFromShuttle">
-/// The loose pen's place relative to the shuttle's center, in earth-surface's axes, which do not turn with the cabin, in
-/// meters, while the loose pen lives, or null.
+/// The loose pen's place relative to the shuttle's center, in earth's axes, which do not turn, in meters, while the loose
+/// pen lives, or null.
 /// </param>
 /// <param name="Clip">What the pen's clip does, while the loose pen lives, or null.</param>
 /// <param name="Held">The pose of the drawn copy of the pen in the person's hand, in the shuttle's frame, while the person holds it, or null.</param>
-internal sealed record LaunchTick(long Tick, Double3 Position, Double3 Velocity, AscentState Ascent, System.Numerics.Vector3 CabinAcceleration,
+internal sealed record LaunchTick(long Tick, FrameHandle Frame, Double3 Position, Double3 Velocity, DQuaternion Rotation, Double3 AngularVelocity,
+    Double3 GroundPosition, Double3 GroundVelocity, DQuaternion GroundRotation, AscentState Ascent, System.Numerics.Vector3 CabinAcceleration,
     FrameHandle PersonFrame, Double3 PersonInCabin, PassengerState Passenger, (Double3 Position, Double3 Velocity, DQuaternion Rotation)? Pen,
     Double3? PenFromShuttle, ClipState? Clip, DPose? Held);
 
@@ -86,15 +93,18 @@ internal sealed class LaunchLog
     public void Record(World world, SceneInstance scene)
     {
         Entity shuttle = scene["shuttle"], person = scene["person"], pen = scene["pen"];
-        FrameHandle surface = world.GetFrame(shuttle), cabin = world.GetOwnedFrame(shuttle);
+        FrameHandle earth = world.GetOwnedFrame(scene["earth"]), surface = world.GetOwnedFrame(scene["earth-surface"]), cabin = world.GetOwnedFrame(shuttle);
         AscentState ascent = world.GetComponent<AscentAutopilot>(shuttle)!.State;
         PassengerState passenger = world.GetComponent<Passenger>(person)!.State;
         bool penLives = world.IsAlive(pen);
         DPose? held = passenger.TryGetValue(out Holding holding) && world.IsAlive(holding.Copy) ? world.PoseIn(holding.Copy, cabin) : null;
-        Ticks.Add(new LaunchTick(world.TickNumber, world.PoseIn(shuttle, surface).Position, world.VelocityIn(shuttle, surface), ascent,
+        DPose inEarth = world.PoseIn(shuttle, earth);
+        Ticks.Add(new LaunchTick(world.TickNumber, world.GetFrame(shuttle), inEarth.Position, world.VelocityIn(shuttle, earth), inEarth.Rotation,
+            world.AngularVelocityIn(shuttle, earth), world.PoseIn(shuttle, surface).Position, world.VelocityIn(shuttle, surface),
+            world.PoseIn(scene["earth-surface"], earth).Rotation, ascent,
             world.Frames.ProperAcceleration(cabin), world.GetFrame(person), world.PoseIn(person, cabin).Position, passenger,
             penLives ? (world.PoseIn(pen, cabin).Position, world.VelocityIn(pen, cabin), world.PoseIn(pen, cabin).Rotation) : null,
-            penLives ? world.PoseIn(pen, surface).Position - world.PoseIn(shuttle, surface).Position : null,
+            penLives ? world.PoseIn(pen, earth).Position - inEarth.Position : null,
             penLives ? world.GetComponent<Clip>(pen)!.State : null, held));
         if (ascent.Value is Orbit && orbitTick < 0)
             orbitTick = world.TickNumber;
@@ -113,7 +123,7 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
 {
     private StateDump Dump(string name) => run.Result.Dump(name);
 
-    private IReadOnlyList<LaunchTick> Log => run.Log.Ticks;
+    private List<LaunchTick> Log => run.Log.Ticks;
 
     /// <summary>The periapsis and the apoapsis of the orbit of a state, in meters above Earth's mean radius.</summary>
     private static (double Periapsis, double Apoapsis) Apsides(Double3 position, Double3 velocity)
@@ -131,7 +141,7 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
     private static readonly Double3 InclineNormal = new(0, Math.Cos(LaunchRamp.Angle), Math.Sin(LaunchRamp.Angle));
 
     /// <summary>How far up the incline the shuttle's center has come, along it, in meters from the foot.</summary>
-    private static double AlongTheRamp(LaunchTick tick) => Double3.Dot(tick.Position - LaunchRamp.Foot, LaunchRamp.Up);
+    private static double AlongTheRamp(LaunchTick tick) => Double3.Dot(tick.GroundPosition - LaunchRamp.Foot, LaunchRamp.Up);
 
     [Fact]
     public void TheShuttleStaysParkedUntilItsIgnition()
@@ -155,8 +165,8 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
         onTheRamp.Should().HaveCountGreaterThan(60);
         foreach (LaunchTick tick in onTheRamp)
         {
-            Double3.Dot(tick.Position - LaunchRamp.Foot, InclineNormal).Should().BeApproximately(Shuttle.Hull.Y, 0.2, $"at tick {tick.Tick}");
-            Degrees(tick.Velocity, LaunchRamp.Up).Should().BeLessThan(1, $"at tick {tick.Tick}");
+            Double3.Dot(tick.GroundPosition - LaunchRamp.Foot, InclineNormal).Should().BeApproximately(Shuttle.Hull.Y, 0.2, $"at tick {tick.Tick}");
+            Degrees(tick.GroundVelocity, LaunchRamp.Up).Should().BeLessThan(1, $"at tick {tick.Tick}");
         }
     }
 
@@ -171,8 +181,8 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
 
         off.Should().NotBeNull("the shuttle passes the ramp's top");
 
-        Degrees(off!.Velocity, LaunchRamp.Up).Should().BeLessThan(2);
-        off.Velocity.Length.Should().BeGreaterThan(100);
+        Degrees(off!.GroundVelocity, LaunchRamp.Up).Should().BeLessThan(2);
+        off.GroundVelocity.Length.Should().BeGreaterThan(100);
     }
 
     [Fact]
@@ -180,7 +190,7 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
     {
         EntityRecord shuttle = Dump("orbit").Entity("shuttle");
 
-        shuttle.Pose.Frame.Should().Be("earth-surface");
+        shuttle.Pose.Frame.Should().Be("earth");
         (double periapsis, double apoapsis) = Apsides(shuttle.Pose.Position, shuttle.Velocity);
         periapsis.Should().BeGreaterThan(DemoScenes.AtmosphereTop);
         periapsis.Should().BeGreaterThan(Shuttle.ParkingOrbitAltitude - 5e3, "the orbit is the parking circle");
@@ -189,8 +199,8 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
 
     /// <summary>
     /// The climb steers into the launch plane, the plane through Earth's center that holds the pad's up and the ramp's
-    /// incline. So the parking orbit lies in it: at the first tick of the orbit, the shuttle is within 100 m of the plane,
-    /// and slower than 0.1 m/s across it.
+    /// incline at the departure, fixed in earth. So the parking orbit lies in it: at the first tick of the orbit, the
+    /// shuttle is within 100 m of the plane in earth, and slower than 0.1 m/s across it.
     /// </summary>
     [Fact]
     public void TheClimbEndsInTheLaunchPlane()
@@ -277,8 +287,8 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
     /// <summary>
     /// In orbit the clip lets the pen go. From the step that applies its push to the person's take, nothing touches the
     /// pen, so it moves on a straight line in inertial space, and when the person takes it, it floats more than half a
-    /// meter from every face of the cabin. The line is measured from the shuttle's center in earth-surface's axes: the
-    /// shuttle and the pen fall together, and those axes do not turn with the cabin. The clip reads the felt gravity with
+    /// meter from every face of the cabin. The line is measured from the shuttle's center in earth's axes: the shuttle and
+    /// the pen fall together, and those axes do not turn. The clip reads the felt gravity with
     /// the rotation terms of the cabin's turn (see <see cref="FrameTree.FeltGravity"/>), so it lets go about 2.9 s after the
     /// engines stop, once the change of the turn that the attitude autopilot makes has settled. The autopilot turns the
     /// cabin for about 5 s after the engines stop, so the cabin still turns then, and in the cabin's turning axes the pen's
@@ -294,9 +304,8 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
         double dt = run.World.DeltaTime;
 
         free.Should().HaveCountGreaterThan(120);
-        // The line is that of the first two places. The pen stays within 0.25 mm of it to the take, about 2.5 s later: the
-        // Coriolis term of earth-surface's own day turn, 2 · 7.3e-5 rad/s · 0.2 m/s, bends it by about 0.1 mm. Without the
-        // rotation terms of the cabin's turn the pen leaves the line by more than 0.5 mm within 0.2 s.
+        // The line is that of the first two places, in earth's axes, which do not turn. Without the rotation terms of the
+        // cabin's turn the pen leaves the line by more than 0.5 mm within 0.2 s.
         Double3 start = free[0].PenFromShuttle!.Value, velocity = (free[1].PenFromShuttle!.Value - start) / dt;
         for (int k = 0; k < free.Count; k++)
             Double3.Distance(free[k].PenFromShuttle!.Value, start + velocity * (k * dt)).Should().BeLessThan(5e-4, $"{k} ticks after the push");
@@ -331,6 +340,117 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
         take.Pen.Should().NotBeNull("the loose pen goes one tick after the copy shows");
         Double3.Distance(take.Held!.Value.Position, take.Pen!.Value.Position).Should().BeLessThan(0.01);
         (take.Pen.Value.Rotation.AngularVelocityTo(take.Held.Value.Rotation, 1).Length * 180 / Math.PI).Should().BeLessThan(1);
+    }
+
+    /// <summary>
+    /// At the tick of the ignition, the first in which the autopilot leaves its parking, the ramp's incline, turned by the
+    /// ground's rotation into earth's axes, lies within 0.01 degrees of the launch plane, the station's plane. The script
+    /// ignites 0.8 s before the departure, and the ground turns 0.0042 degrees in a second.
+    /// </summary>
+    [Fact]
+    public void TheRampLiesInTheStationsPlaneAtTheIgnition()
+    {
+        LaunchTick ignition = Log.First(tick => tick.Ascent.Value is not Parked);
+        Double3 incline = ignition.GroundRotation.Rotate(LaunchRamp.Up);
+
+        (Math.Asin(Math.Abs(Double3.Dot(incline, DemoSurface.LaunchPlaneNormal))) * 180 / Math.PI).Should().BeLessThan(0.01);
+    }
+
+    /// <summary>The index in the log of the first tick after which the shuttle is in earth, the hand-off out of the turning ground.</summary>
+    private int HandOff
+    {
+        get
+        {
+            FrameHandle earth = run.World.GetOwnedFrame(run.Scene["earth"]);
+            int handOff = Log.FindIndex(tick => tick.Frame == earth);
+            handOff.Should().BeGreaterThan(10, "the shuttle leaves earth-surface in the run");
+            return handOff;
+        }
+    }
+
+    /// <summary>The indices in the log from 10 before the hand-off to 10 after it.</summary>
+    private IEnumerable<int> AroundTheHandOff => Enumerable.Range(HandOff - 10, 21);
+
+    /// <summary>
+    /// The shuttle is in earth-surface before one tick of the climb and in earth from that tick on, and never comes back.
+    /// It leaves where the engine's rule of the hand-off puts the exit (ARCHITECTURE.md, "Hand-off", rule 2): its center
+    /// lies at most 20 m above <see cref="TurningGroundHandOffRun.ExitRadius"/>, 178.4 km up, and it climbs at most 17 m
+    /// in a tick there.
+    /// </summary>
+    [Fact]
+    public void TheShuttleLeavesEarthSurfaceOnceAtTheExitOfItsBubbleInTheClimb()
+    {
+        int handOff = HandOff;
+        FrameHandle surface = run.World.GetOwnedFrame(run.Scene["earth-surface"]), earth = run.World.GetOwnedFrame(run.Scene["earth"]);
+
+        Log.Take(handOff).Should().OnlyContain(tick => tick.Frame == surface);
+        Log.Skip(handOff).Should().OnlyContain(tick => tick.Frame == earth);
+        Log[handOff].Ascent.Value.Should().BeOfType<Climb>("the shuttle hands off in the climb");
+        Log[handOff - 1].Position.Length.Should().BeLessThanOrEqualTo(TurningGroundHandOffRun.ExitRadius);
+        Log[handOff].Position.Length.Should().BeInRange(TurningGroundHandOffRun.ExitRadius, TurningGroundHandOffRun.ExitRadius + 20);
+    }
+
+    /// <summary>
+    /// In each tick from 10 before the hand-off to 10 after it, the shuttle's acceleration in earth, the second difference
+    /// of its center over the tick, lies within 0.01 m/s² of Earth's gravity at its place plus the thrust of the step that
+    /// the difference spans: the cabin's proper acceleration of that step, turned from the hull's axes into earth's. The
+    /// axes of earth-surface and of earth differ by about 143 degrees, so a thrust that a step applies in the wrong axes
+    /// misses by more than the thrust itself.
+    /// </summary>
+    [Fact]
+    public void TheShuttlesAccelerationInEarthStaysSmoothThroughTheHandOff()
+    {
+        double dt = run.World.DeltaTime;
+        foreach (int k in AroundTheHandOff)
+        {
+            LaunchTick tick = Log[k], next = Log[k + 1];
+            Double3 measured = (next.Position - 2 * tick.Position + Log[k - 1].Position) / (dt * dt);
+            Double3 gravity = -tick.Position * (DemoScenes.EarthMu / Math.Pow(tick.Position.Length, 3));
+            Double3 expected = gravity + next.Rotation.Rotate((Double3)next.CabinAcceleration);
+            (measured - expected).Length.Should().BeLessThan(0.01, $"at tick {tick.Tick}, {k - HandOff} from the hand-off: measured {measured}, expected {expected}");
+        }
+    }
+
+    /// <summary>In each tick from 10 before the hand-off to 10 after it, the cabin's proper acceleration changes by less than 0.01 m/s².</summary>
+    [Fact]
+    public void TheCabinsProperAccelerationStaysSmoothThroughTheHandOff()
+    {
+        foreach (int k in AroundTheHandOff)
+            ((Double3)Log[k].CabinAcceleration - (Double3)Log[k - 1].CabinAcceleration).Length
+                .Should().BeLessThan(0.01, $"at tick {Log[k].Tick}, {k - HandOff} from the hand-off: {Log[k - 1].CabinAcceleration} to {Log[k].CabinAcceleration}");
+    }
+
+    /// <summary>
+    /// In each tick from 10 before the hand-off to 10 after it, the hull's angular velocity in earth changes by less than
+    /// 3e-5 rad/s. The ground turns at 7.3e-5 rad/s, so a hand-off that loses or doubles the ground's turn fails it. The
+    /// design's bound was 1e-4 rad/s, which such a hand-off passes. On 2026-10-20 the largest change was 7.2e-6 rad/s, two
+    /// ticks after the hand-off, where the attitude autopilot answers the change of its frame.
+    /// </summary>
+    [Fact]
+    public void TheNoseTurnsSmoothlyInEarthThroughTheHandOff()
+    {
+        foreach (int k in AroundTheHandOff)
+            (Log[k].AngularVelocity - Log[k - 1].AngularVelocity).Length
+                .Should().BeLessThan(3e-5, $"at tick {Log[k].Tick}, {k - HandOff} from the hand-off");
+    }
+
+    /// <summary>
+    /// The belted person and the clipped pen stay in the cabin's frame through the hand-off, and across each tick from 10
+    /// before it to 10 after it the place of each in the cabin changes by less than 1 mm more than in the tick before.
+    /// </summary>
+    [Fact]
+    public void ThePersonAndThePenKeepTheirPlacesInTheCabinThroughTheHandOff()
+    {
+        FrameHandle cabin = run.World.GetOwnedFrame(run.Scene["shuttle"]);
+        foreach (int k in AroundTheHandOff)
+        {
+            Log[k].PersonFrame.Should().Be(cabin);
+            Log[k].Clip!.Value.Value.Should().BeOfType<Clipped>();
+            double person = Double3.Distance(Log[k + 1].PersonInCabin, Log[k].PersonInCabin), personBefore = Double3.Distance(Log[k].PersonInCabin, Log[k - 1].PersonInCabin);
+            person.Should().BeLessThan(personBefore + 1e-3, $"the person at tick {Log[k].Tick}, {k - HandOff} from the hand-off");
+            double pen = Double3.Distance(Log[k + 1].Pen!.Value.Position, Log[k].Pen!.Value.Position), penBefore = Double3.Distance(Log[k].Pen!.Value.Position, Log[k - 1].Pen!.Value.Position);
+            pen.Should().BeLessThan(penBefore + 1e-3, $"the pen at tick {Log[k].Tick}, {k - HandOff} from the hand-off");
+        }
     }
 
     [Fact]

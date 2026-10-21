@@ -40,9 +40,9 @@ public sealed class BlueDanubeExitTests(BlueDanubeRendezvousRun run)
     /// reaches the film <c>docked</c> and goes on past it. At the end, the person's exit component is in
     /// <see cref="Arrived"/>, and the person stands in the station's frame on the wheel's floor and feels a full gravity
     /// there: ω² × 99.1 m = 9.72 m/s², within 1 percent. It stops within 0.1 m of the stroll's end, still for the last half
-    /// second. The world records no error. Measured on 2026-10-20: the run is 305,468 ticks. The script posts the order
-    /// after tick 302,165, at 5,036.08 s, and the person arrives at tick 305,348, at 5,089.13 s, 53.05 s after the order. It
-    /// stands 99.10 m from the axis and feels 9.721 m/s².
+    /// second. The world records no error. Measured on 2026-10-21, after the merge with the Earth system: the run is 305,459
+    /// ticks. The script posts the order after tick 302,165, at 5,036.08 s, and the person arrives at tick 305,339, at
+    /// 5,088.98 s, 52.90 s after the order. It stands 99.10 m from the axis and feels 9.721 m/s².
     /// </summary>
     [Fact]
     public void TheLongRunTakesThePersonFromTheDockedSeatToTheWheelsFloor()
@@ -66,7 +66,7 @@ public sealed class BlueDanubeExitTests(BlueDanubeRendezvousRun run)
     /// <summary>
     /// The exit takes as long in the long run as in the scene <c>demo-exit</c>, which starts at the docking's end state:
     /// the person arrives between 50 and 56 s after the order, and the slide tops out between 8 and 10 m/s. Measured on
-    /// 2026-10-20: the person arrives 53.05 s after the order, against 53.0 s in its own scene. The slide starts 17.4 s
+    /// 2026-10-21: the person arrives 52.90 s after the order, against 53.0 s in its own scene. The slide starts 17.3 s
     /// after the order, takes 30.1 s and tops out at 8.87 m/s, as in its own scene.
     /// </summary>
     [Fact]

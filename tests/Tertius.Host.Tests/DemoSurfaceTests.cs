@@ -1,5 +1,6 @@
 using Tertius.Demo;
 using Tertius.Host.Scripting;
+using Tertius.Simulation;
 using DemoSurface = Tertius.Demo.DemoScenes.DemoSurface;
 using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
 
@@ -98,5 +99,60 @@ public sealed class DemoSurfaceTests(DemoSurfaceRun run) : IClassFixture<DemoSur
         end.Pose.Frame.Should().Be("shuttle");
         end.Standing.Should().BeTrue();
         Double3.Distance(end.Pose.Position, atTheSeat.Pose.Position).Should().BeLessThan(0.005);
+    }
+}
+
+/// <summary>
+/// The scene <c>demo-surface</c> in the Earth system (docs/plans/blue-danube-demo.md, "The demo in the Earth system"),
+/// built without a script, on the World and the real Jolt backend: the ground, the shuttle and the person start in the
+/// turning <c>earth-surface</c> at the north pole, and the ground's turn puts the ramp in the station's plane at the
+/// departure.
+/// </summary>
+public sealed class DemoSurfaceSceneTests : IDisposable
+{
+    private readonly World world = HostTesting.NewJoltWorld();
+    private readonly SceneInstance scene;
+    private readonly FrameHandle sun, earth, surface;
+
+    public DemoSurfaceSceneTests()
+    {
+        scene = DemoScenes.All.Single(s => s.Name == "demo-surface").Build(world, RenderResources.None);
+        sun = world.GetOwnedFrame(scene["sun"]);
+        earth = world.GetOwnedFrame(scene["earth"]);
+        surface = world.GetOwnedFrame(scene["earth-surface"]);
+    }
+
+    public void Dispose() => world.Dispose();
+
+    /// <summary>
+    /// The slab, the terminal, the ramp, the tower, the shuttle and the person are in earth-surface, which is in earth,
+    /// which is in sun. The parked shuttle stands over the pole, the axis of the ground's turn.
+    /// </summary>
+    [Fact]
+    public void TheGroundAndTheShuttleStartInEarthSurfaceAtTheNorthPole()
+    {
+        foreach (string id in new[] { "floor", "terminal", "ramp", "tower", "shuttle", "person" })
+            world.GetFrame(scene[id]).Should().Be(surface, $"the {id} starts in earth-surface");
+        world.Frames.Parent(surface).Should().Be(earth);
+        world.Frames.Parent(earth).Should().Be(sun);
+        DPose parked = world.PoseIn(scene["shuttle"], surface);
+        Double3.Distance(parked.Position, DemoSurface.ShuttleParked.Position).Should().BeLessThan(1e-9);
+        Math.Sqrt(parked.Position.X * parked.Position.X + parked.Position.Z * parked.Position.Z).Should().BeLessThan(1e-9, "the shuttle stands on the axis of the turn");
+    }
+
+    /// <summary>
+    /// The world runs to the departure, <see cref="DemoSurface.DepartureAt"/>. Then the ramp's incline, turned by
+    /// earth-surface's rotation in earth, lies within 0.001 degrees of the station's plane, the launch plane.
+    /// </summary>
+    [Fact]
+    public void EarthSurfaceTurnsSoThatTheRampLiesInTheStationsPlaneAtTheDeparture()
+    {
+        int ticks = (int)Math.Round(DemoSurface.DepartureAt / world.DeltaTime);
+        for (int tick = 0; tick < ticks; tick++)
+            world.Tick();
+
+        world.Time.Should().BeApproximately(DemoSurface.DepartureAt, 1e-5);
+        Double3 incline = world.PoseIn(scene["earth-surface"], earth).Rotation.Rotate(DemoScenes.LaunchRamp.Up);
+        (Math.Asin(Math.Abs(Double3.Dot(incline, DemoSurface.LaunchPlaneNormal))) * 180 / Math.PI).Should().BeLessThan(0.001);
     }
 }

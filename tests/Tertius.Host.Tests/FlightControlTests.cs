@@ -259,7 +259,7 @@ public sealed class FlightControlTests : IDisposable
     [Fact]
     public void WithoutPointGravityTheAscentAutopilotStaysParked()
     {
-        shuttle = Shuttle.Park(world, space, DPose.Identity, components: Shuttle.FlightControls(climbHeight: 30, planeNormal: -Double3.UnitX, station: Entity.Null));
+        shuttle = Shuttle.Park(world, space, DPose.Identity, components: Shuttle.FlightControls(climbHeight: 30, plane: new LaunchPlane(space, -Double3.UnitX), station: Entity.Null));
         world.Post(Event.Create(shuttle, Entity.Null, new Ignition()));
 
         Tick(world, 30);
@@ -291,7 +291,7 @@ public sealed class FlightControlTests : IDisposable
             LinearVelocity = velocity - axis,
             Body = Shuttle.Body(BodyMotion.Dynamic),
             AsFrame = new FrameSpec(new FrameBounds(Shuttle.Bubble)),
-            Components = [new AscentAutopilot(Shuttle.Mass * Shuttle.ThrustAcceleration, DemoScenes.OrbitRadius, climbHeight: -1, planeNormal: -Double3.UnitX), recorder],
+            Components = [new AscentAutopilot(Shuttle.Mass * Shuttle.ThrustAcceleration, DemoScenes.OrbitRadius, climbHeight: -1, new LaunchPlane(earth, -Double3.UnitX)), recorder],
         });
         orbit.Post(Event.Create(hull, Entity.Null, new Ignition()));
         Tick(orbit, 3);
@@ -305,6 +305,137 @@ public sealed class FlightControlTests : IDisposable
         orbit.GetFrame(hull).Should().Be(orbit.GetOwnedFrame(station));
         recorder.TicksWithEvents.Should().Be(before, "the orbit case adds nothing in a frame without point gravity");
         orbit.Errors.Should().BeEmpty();
+    }
+
+    /// A hull in a frame that turns in the frame of its <see cref="LaunchPlane"/>, as earth-surface turns in earth: the
+    /// plane's frame is a root with Earth's point gravity, and the hull's frame sits at its center, turned 90 degrees about
+    /// +Y and turning about +Y at the sidereal rate. By default the hull's frame has no gravity of its own, so the autopilot can
+    /// take Earth's G·M only from the plane's frame. Over the test's three ticks the missing pull moves the hull by 4 cm. With
+    /// <paramref name="withEarthsPull"/> the hull's frame holds Earth's point gravity, as earth-surface does, because the
+    /// autopilot's orbit case steers only in a frame with point gravity. The hull, dynamic, starts at
+    /// <paramref name="place"/> with <paramref name="velocity"/>, both in the plane's frame, converted into its own frame by
+    /// the frame's turn, with its nose along the velocity. Its components are an <see cref="AscentAutopilot"/> on the plane
+    /// whose normal is -X, with <paramref name="climbHeight"/>, by default below zero, so that the ignition starts the climb
+    /// at once, and an
+    /// <see cref="AscentRecorder"/>. The world runs a tick, in which the spawn lands, posts the ignition, and runs the tick that
+    /// handles it.
+    /// </summary>
+    private AscentRecorder AscentInATurnedFrame(Double3 place, Double3 velocity, double climbHeight = -1, bool withEarthsPull = false)
+    {
+        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(DemoScenes.EarthMu)));
+        var spin = new Tertius.Frames.Rails.FrameSpin(DQuaternion.Identity, DemoScenes.SiderealRate, PhaseAtEpoch: Math.PI / 2);
+        FrameHandle turned = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        {
+            Frame = planet,
+            Pose = new DPose(Double3.Zero, spin.RotationAt(world.Time)),
+            FirstMove = new MotionIntent(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1e8f), withEarthsPull ? GravityField.Point(DemoScenes.EarthMu) : GravityField.None),
+            Components = [new SpinMotion { Spin = spin }],
+        }));
+        DQuaternion turn = spin.RotationAt(world.Time);
+        Double3 velocityInTurned = turn.Conjugate().Rotate(velocity - Double3.Cross(spin.AngularVelocity, place));
+        var recorder = new AscentRecorder(planet);
+        shuttle = world.Spawn(new SpawnDesc
+        {
+            Frame = turned,
+            Pose = new DPose(turn.Conjugate().Rotate(place), turn.Conjugate() * AttitudeAutopilot.Facing(velocity, place)),
+            LinearVelocity = velocityInTurned.ToVector3(),
+            Body = Shuttle.Body(BodyMotion.Dynamic),
+            AsFrame = new FrameSpec(new FrameBounds(Shuttle.Bubble)),
+            Components = [new AscentAutopilot(Shuttle.Mass * Shuttle.ThrustAcceleration, Shuttle.ParkingOrbitRadius, climbHeight, new LaunchPlane(planet, -Double3.UnitX)), recorder],
+        });
+        Tick(world, 1);
+        world.Post(Event.Create(shuttle, Entity.Null, new Ignition()));
+        Tick(world, 2);
+        return recorder;
+    }
+
+    /// <summary>The nose of an attitude target given in the axes of the hull's frame, in the axes of the plane's frame.</summary>
+    private static Double3 NoseInPlaneAxes(AscentRecorder recorder) =>
+        (recorder.FrameInPlane * recorder.Target!.Value.Rotation).Rotate(-Double3.UnitZ);
+
+    private static double Angle(Double3 a, Double3 b) => Math.Acos(Math.Clamp(Double3.Dot(a.Normalized(), b.Normalized()), -1, 1));
+
+    /// <summary>
+    /// On the parking circle in the plane's frame, moving 45 degrees between the pole and the turn's way, so that neither
+    /// the frame's 90 degrees about the pole nor its turn leaves the direction of the velocity alone, the autopilot is in
+    /// its orbit case. The nose of its target, turned back from the axes of the hull's frame into the plane frame's axes,
+    /// lies within 1e-6 rad of the velocity in the plane's frame. The velocity in the turning frame differs from it by the
+    /// frame's turn, about 480 m/s.
+    /// </summary>
+    [Fact]
+    public void TheAscentAutopilotAimsInTheFrameOfItsPlaneFromAHullInATurnedFrame()
+    {
+        double r = Shuttle.ParkingOrbitRadius;
+        AscentRecorder recorder = AscentInATurnedFrame(new Double3(0, 0, r), new Double3(-1, 1, 0).Normalized() * Math.Sqrt(DemoScenes.EarthMu / r), withEarthsPull: true);
+
+        world.GetComponent<AscentAutopilot>(shuttle)!.State.Value.Should().BeOfType<Orbit>();
+        Angle(NoseInPlaneAxes(recorder), recorder.Velocity).Should().BeLessThan(1e-6);
+    }
+
+    /// <summary>
+    /// With a climb height of 1,000 km the autopilot stays in its ramp case, and the nose of its target, turned back into
+    /// the plane frame's axes, lies within 1e-6 rad of the velocity in the plane's frame, as in the orbit case.
+    /// </summary>
+    [Fact]
+    public void OnTheRampTheAscentAutopilotAimsAlongItsVelocityInTheFrameOfItsPlane()
+    {
+        double r = Shuttle.ParkingOrbitRadius;
+        AscentRecorder recorder = AscentInATurnedFrame(new Double3(0, 0, r), new Double3(-1, 1, 0).Normalized() * 2e3, climbHeight: 1e6);
+
+        world.GetComponent<AscentAutopilot>(shuttle)!.State.Value.Should().BeOfType<Ramp>();
+        Angle(NoseInPlaneAxes(recorder), recorder.Velocity).Should().BeLessThan(1e-6);
+    }
+
+    /// <summary>
+    /// On the parking circle, 5 m/s slower than the circle and climbing at 1 m/s, the autopilot is in its climb case. Its throttle and the nose of its target, turned back
+    /// into the plane frame's axes, are those of <see cref="AscentGuidance"/> on the hull's state in the plane's frame,
+    /// with the plane's normal in that frame's axes and Earth's G·M.
+    /// </summary>
+    [Fact]
+    public void TheAscentAutopilotReadsItsStateInTheFrameOfItsPlane()
+    {
+        double r = Shuttle.ParkingOrbitRadius;
+        AscentRecorder recorder = AscentInATurnedFrame(new Double3(0, 0, r), new Double3(0, Math.Sqrt(DemoScenes.EarthMu / r) - 5, 1));
+        var guidance = new AscentGuidance(DemoScenes.EarthMu, Shuttle.ParkingOrbitRadius, Shuttle.ThrustAcceleration, -Double3.UnitX);
+        Double3 acceleration = guidance.Acceleration(recorder.Position, recorder.Velocity);
+
+        world.GetComponent<AscentAutopilot>(shuttle)!.State.Value.Should().BeOfType<Climb>();
+        recorder.Throttle.Should().BeLessThan(1, "the guidance asks for less than full throttle near the circle");
+        recorder.Throttle.Should().BeApproximately((float)Math.Min(1, acceleration.Length / guidance.MaxAcceleration), 1e-6f);
+        Angle(NoseInPlaneAxes(recorder), acceleration).Should().BeLessThan(1e-6);
+    }
+
+    /// <summary>
+    /// A test component at priority 5, after the ascent autopilot: in each tick it keeps the last <see cref="Throttle"/>
+    /// and the last <see cref="AttitudeTarget"/> of its entity's events, the hull's state in <paramref name="plane"/> that
+    /// the autopilot read, and the turn from the axes of the hull's frame to those of the plane's frame.
+    /// </summary>
+    private sealed class AscentRecorder(FrameHandle plane) : IComponent
+    {
+        public float? Throttle { get; private set; }
+        public AttitudeTarget? Target { get; private set; }
+        public Double3 Position { get; private set; }
+        public Double3 Velocity { get; private set; }
+        public DQuaternion FrameInPlane { get; private set; }
+
+        public int Priority => 5;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            Throttle = null;
+            Target = null;
+            foreach (ref Throttle each in events.Of<Throttle>())
+                Throttle = each.Value;
+            foreach (ref AttitudeTarget each in events.Of<AttitudeTarget>())
+                Target = each;
+            DPose inPlane = self.PoseIn(plane);
+            Position = inPlane.Position;
+            Velocity = self.VelocityIn(plane);
+            FrameInPlane = inPlane.Rotation * self.PoseIn(self.Frame).Rotation.Conjugate();
+        }
     }
 
     /// <summary>A test component that adds a <see cref="Throttle"/> of <paramref name="value"/> to its entity's events on each of its first <paramref name="ticks"/> ticks.</summary>
