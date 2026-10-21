@@ -36,7 +36,7 @@
     { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "keyDown", "code": 87 } },
     { "do": "run", "ticks": 40 },
     { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "keyUp", "code": 87 } },
-    { "do": "run", "ticks": 120 },
+    { "do": "run", "ticks": 255 },
     { "do": "dump", "name": "outside" },
     { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "mouseMove", "delta": [1026.39, 34.91] } },
     { "do": "run", "ticks": 3 },

@@ -193,7 +193,7 @@ public sealed class ShuttleTests : IDisposable
         Double3 p = world.PoseIn(scene[camera], cabin).Position;
         LoftedHullTests.Inside(LoftedHullTests.OuterAt(p.Z), p.X, p.Y).Should().BeGreaterThanOrEqualTo(Shuttle.Wall + 0.2, $"{camera} at {p} lies 0.2 m inside the walls");
         Math.Abs(p.Z).Should().BeLessThanOrEqualTo(Shuttle.Cabin.Z - 0.2, $"{camera} at {p} lies 0.2 m inside the end walls");
-        bool byTheHousing = Math.Abs(p.X) < 0.9 + 0.2 && Math.Abs(p.Y - Shuttle.CenterOfMass.Y) < 0.9 + 0.2 && p.Z > 7.2 - 0.2;
+        bool byTheHousing = Math.Abs(p.X) < 0.9 + 0.2 && Math.Abs(p.Y - HostTesting.ShuttleCenterOfMass.Y) < 0.9 + 0.2 && p.Z > 7.2 - 0.2;
         byTheHousing.Should().BeFalse($"{camera} at {p} lies 0.2 m from the nozzle's housing");
     }
 
@@ -220,13 +220,13 @@ public sealed class ShuttleTests : IDisposable
     /// <summary>
     /// Spawns the free, dynamic hull at the origin of <paramref name="space"/>, unturned, turning at
     /// <paramref name="angular"/>, with the linear velocity at its origin that keeps the point at
-    /// <see cref="Shuttle.CenterOfMass"/> still: the turn's velocity at the origin about that point.
+    /// <see cref="HostTesting.ShuttleCenterOfMass"/> still: the turn's velocity at the origin about that point.
     /// </summary>
     private Entity FreeHull(FrameHandle space, Vector3 angular) => world.Spawn(new SpawnDesc
     {
         Frame = space,
         Pose = DPose.Identity,
-        LinearVelocity = Double3.Cross(angular, -(Double3)Shuttle.CenterOfMass),
+        LinearVelocity = Double3.Cross(angular, -(Double3)HostTesting.ShuttleCenterOfMass),
         AngularVelocity = angular,
         Body = Shuttle.Body(BodyMotion.Dynamic),
         AsFrame = new FrameSpec(new FrameBounds(Shuttle.Bubble)),
@@ -245,15 +245,16 @@ public sealed class ShuttleTests : IDisposable
 
         world.Snapshot.TryGetBody(hull, out BodyFacts facts).Should().BeTrue();
 
-        Vector3.Distance(facts.CenterOfMass, Shuttle.CenterOfMass).Should().BeLessThan(1e-3f,
-            $"the engine's center of mass {facts.CenterOfMass} is the loft's {Shuttle.CenterOfMass}");
+        Vector3 loft = Shuttle.Loft.MassOf(Shuttle.Mass).CenterOfMass;
+        Vector3.Distance(facts.CenterOfMass, loft).Should().BeLessThan(1e-3f,
+            $"the engine's center of mass {facts.CenterOfMass} is the loft's {loft}");
         facts.CenterOfMass.Length().Should().BeGreaterThan(0.1f, "the hull's center of mass is low and aft of its origin");
     }
 
     /// <summary>
     /// The free hull spins in a root frame with no gravity, about X at 0.5 rad/s and, in another root frame, about its long
     /// axis at 0.3 rad/s. Physics turns a free body about its center of mass, so after 2 s the point at
-    /// <see cref="Shuttle.CenterOfMass"/> is where it started, within 1 mm. A center of mass off by d moves that point by
+    /// <see cref="HostTesting.ShuttleCenterOfMass"/> is where it started, within 1 mm. A center of mass off by d moves that point by
     /// about d in that time, from the turn and from the drift that the spawn velocity gives the true center.
     /// </summary>
     [Fact]
@@ -274,8 +275,8 @@ public sealed class ShuttleTests : IDisposable
         foreach ((FrameHandle space, Entity hull, string spin) in cases)
         {
             DPose pose = world.PoseIn(hull, space);
-            Double3 center = pose.Position + pose.Rotation.Rotate((Double3)Shuttle.CenterOfMass);
-            (center - (Double3)Shuttle.CenterOfMass).Length.Should().BeLessThan(1e-3, $"the center of mass stays still while the hull spins {spin}");
+            Double3 center = pose.Position + pose.Rotation.Rotate((Double3)HostTesting.ShuttleCenterOfMass);
+            (center - (Double3)HostTesting.ShuttleCenterOfMass).Length.Should().BeLessThan(1e-3, $"the center of mass stays still while the hull spins {spin}");
             pose.Rotation.AngularVelocityTo(DQuaternion.Identity, 1).Length.Should().BeGreaterThan(0.5, $"the hull has turned {spin}");
         }
     }
@@ -401,8 +402,8 @@ public sealed class ShuttleTests : IDisposable
             DPose pose = world.PoseIn(nozzle, cabin);
             Double3 axis = pose.Rotation.Rotate(Double3.UnitY);
             Math.Abs(axis.Z).Should().BeApproximately(1, 1e-9, "the nozzle's axis lies along Z");
-            pose.Position.X.Should().BeApproximately(Shuttle.CenterOfMass.X, 1e-6, "the axis passes through the center of mass");
-            pose.Position.Y.Should().BeApproximately(Shuttle.CenterOfMass.Y, 1e-6, "the axis passes through the center of mass");
+            pose.Position.X.Should().BeApproximately(HostTesting.ShuttleCenterOfMass.X, 1e-6, "the axis passes through the center of mass");
+            pose.Position.Y.Should().BeApproximately(HostTesting.ShuttleCenterOfMass.Y, 1e-6, "the axis passes through the center of mass");
             pose.Position.Y.Should().BeApproximately(-0.090, 1e-3, "the axis passes through the pocket's middle");
 
             Double3[] points = [.. mesh.Vertices.Select(vertex => pose.Position + pose.Rotation.Rotate((Double3)vertex.Position))];

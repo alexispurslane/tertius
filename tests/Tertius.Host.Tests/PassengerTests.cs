@@ -103,6 +103,27 @@ public sealed class PassengerTests : IDisposable
     }
 
     /// <summary>
+    /// The passenger floats with one back jet, a part of the person (docs/plans/parts.md, "The demo's use"): in its first
+    /// tick it spawns an attached entity with a <see cref="BackJet"/> at <see cref="BackJet.Place"/> on its back. In a
+    /// weightless cabin it then floats away from its seat to the pen with that jet.
+    /// </summary>
+    [Fact]
+    public void ThePassengerFloatsWithABackJetOnItsBack()
+    {
+        BoardInSpace();
+        WorldTesting.Tick(world, 1);
+
+        Entity jet = PassengerOf().BackJetPart;
+        world.IsAlive(jet).Should().BeTrue();
+        world.GetComponent<BackJet>(jet).Should().NotBeNull();
+        DPose body = world.PoseIn(person, cabin), pose = world.PoseIn(jet, cabin);
+        (pose.Position - body.TransformPoint((Double3)BackJet.Place)).Length.Should().BeLessThan(1e-5, "the jet sits on the person's back");
+        TickUntil<Fetching>(limit: 600);
+        WorldTesting.Tick(world, 60);
+        FromSeat().Should().BeGreaterThan(0.05, "the back jet floats the passenger from its seat");
+    }
+
+    /// <summary>
     /// Three gravities along the nose for 4 s would throw a loose person 11.5 m aft onto the cabin's aft wall. The belt
     /// catches the person in the first ticks of the thrust and then holds it at its seat.
     /// </summary>

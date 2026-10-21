@@ -33,7 +33,7 @@ From a survey of the code on 2026-10-18.
 | Seat | Exists: `Shuttle.Seat`, a static box in the shuttle's interior shape, which the demo surface draws (ter-na4f). A character has no sitting pose, so the person stands at `Shuttle.SeatStand`. The `Passenger` component's belt holds the person there while the cabin's gravity would not keep it on its feet (ter-m13s). | None |
 | Ground at the pad | Earth's sphere sags about 480 m between vertices | A large static slab under the pad, as in the surface yard, in the turning `earth-surface` over the sphere of `SunAndEarth` |
 | Cylinders, rings, tori | Exists: `RevolvedSolid` (ter-fb3w) sweeps a convex profile about an axis into a cylinder, a ring or a torus, with its mesh and a collision shape that matches it. The station's wheel uses it (ter-tzf6). The spokes and the hub are `BoxMesh` tubes and boxes. | The chute of step 6 |
-| Ship thrust and steering | Partial: the climb to orbit exists in the Demo (ter-m13s): `MainEngine`, `AttitudeAutopilot` and `AscentAutopilot`, which steers by `AscentGuidance` into the launch plane (see "The launch"). The rendezvous exists too (ter-tzf6): `TranslationThrusters` and `RendezvousAutopilot`, which steers by `TransferGuidance` and `ApproachGuidance` (see "The station and the rendezvous"). So does the docking (ter-ftnj): `DockingAutopilot`, which spins the shuttle up to the station's turn, enters the slot and lands on the deck by `SpinUpProfile` and `ApproachGuidance` (see "The docking"). | None |
+| Ship thrust and steering | Partial: the climb to orbit exists in the Demo (ter-m13s): `MainEngine`, `AttitudeAutopilot` and `AscentAutopilot`, which steers by `AscentGuidance` into the launch plane (see "The launch"). The rendezvous exists too (ter-tzf6): `RendezvousAutopilot`, whose `Translation` the side jets give (`ShuttleJetControl`, see "The jets as parts"), which steers by `TransferGuidance` and `ApproachGuidance` (see "The station and the rendezvous"). So does the docking (ter-ftnj): `DockingAutopilot`, which spins the shuttle up to the station's turn, enters the slot and lands on the deck by `SpinUpProfile` and `ApproachGuidance` (see "The docking"). | None |
 | Spin gravity, Coriolis, a ship in a turning frame, characters in a turning frame | Exists (the spin gravity epic `ter-s9m0`, [Spin gravity](spin-gravity.md)): every turning frame gives its contents the centrifugal, Coriolis and Euler terms, characters stand, walk and jump in it, and the scene `spin-station` shows it. | The ship in the turning station, and the autopilots that use it |
 
 ## The launch
@@ -250,6 +250,7 @@ The shuttle has only its main engine, along the nose. The brake must push along 
 - It reads the hull's rotation in `self.Frame`, as the main engine reads its nose.
 - A tick without a translation gives no force. The last translation of a tick counts.
 - A force that is not finite makes it throw `ArgumentOutOfRangeException`, which the world logs. It then pushes nothing.
+- Ticket ter-diu0 later replaced `TranslationThrusters` with the translation pairs of the hull's jets, parts that `ShuttleJetControl` sends their throttles by message (see "The jets as parts"). Its limit of each axis and its error for a force that is not finite stay.
 - `Shuttle.TranslationThrust` = 30,000 N per axis, 1.5 m/s² for the shuttle's 20 t. This step gave them 4,000 N. The docking raised the force for every law, because its move out needs up to 1.2 m/s² on one axis (see "The translation thrusters' force").
 
 #### The phases
@@ -449,27 +450,27 @@ The builder of `rim-camera` aims it at a point on the axis between the hub and t
 
 ### Sections of the long script
 
-The step's sections replace the section `coast`. A section that waits longer than 10 minutes of the simulation names a larger `Limit`, twice its measured length, rounded up to 100 s: `phasing` 1,000 s, `night` 2,300 s, `transfer-night` 2,000 s and `transfer` 2,800 s. The frames and seconds below are what the generator printed on 2026-10-21, after the person's walk of ter-cdgt, whose start from rest brought the person to its seat 0.4 s later. So the cues of the rendezvous held a few frames earlier or later, and the rendezvous ended 8 s later. Before it, after the merge of the Earth system (ter-yhu8) with the docking (ter-ftnj) and the exit (ter-y0e5), the rendezvous filmed 11,764 frames in 4,518 s. The docking's ticket gave the translation thrusters 30,000 N and the attitude target a float turn rate, which made `glide` one frame longer. The nights moved 35 degrees earlier along the orbit, so `phasing` and `transfer-night` grew shorter and `night` and `transfer` longer, as the model of "The cues" in "The demo in the Earth system" gave.
+The step's sections replace the section `coast`. A section that waits longer than 10 minutes of the simulation names a larger `Limit`, twice its measured length, rounded up to 100 s: `phasing` 1,000 s, `night` 2,300 s, `transfer-night` 2,000 s and `transfer` 2,800 s. The frames and seconds below are what the generator printed on 2026-10-21, after the jets moved onto parts (ter-diu0, see "The jets as parts", "Measured"). Before the parts, after the person's walk of ter-cdgt, the step filmed 11,778 frames in 4,526 s. That walk's start from rest brought the person to its seat 0.4 s later. So the cues of the rendezvous held a few frames earlier or later, and the rendezvous ended 8 s later. Before it, after the merge of the Earth system (ter-yhu8) with the docking (ter-ftnj) and the exit (ter-y0e5), the rendezvous filmed 11,764 frames in 4,518 s. The docking's ticket gave the translation thrusters 30,000 N and the attitude target a float turn rate, which made `glide` one frame longer. The nights moved 35 degrees earlier along the orbit, so `phasing` and `transfer-night` grew shorter and `night` and `transfer` longer, as the model of "The cues" in "The demo in the Earth system" gave.
 
 | Film | Camera | Ticks per frame | Posts | Ends | Measured |
 |---|---|---|---|---|---|
-| `belt` | `cabin-camera` | 1 | `FastenBelt` to `person` | 1 s after the passenger is `Strapped` | From 357.2 s: 4.8 s, 290 frames |
+| `belt` | `cabin-camera` | 1 | `FastenBelt` to `person` | 1 s after the passenger is `Strapped` | From 357.0 s: 4.8 s, 290 frames |
 | `phasing` | `chase-camera` | 60 | `Rendezvous` to `shuttle` | The shuttle is in Earth's shadow. | 491 s, 491 frames |
-| `night` | `cockpit-camera` | 120 | | The autopilot is in `Transfer`. | 1,110 s, 555 frames |
-| `burn` | `cockpit-camera` | 2 | | 2 s after the shuttle's orbit reaches 399 km and the cabin is weightless | From 1,963.0 s: 34.1 s, 1,024 frames |
+| `night` | `cockpit-camera` | 120 | | The autopilot is in `Transfer`. | 1,112 s, 556 frames |
+| `burn` | `cockpit-camera` | 2 | | 2 s after the shuttle's orbit reaches 399 km and the cabin is weightless | From 1,964.8 s: 32.6 s, 977 frames |
 | `transfer-night` | `cockpit-camera` | 240 | | The shuttle is out of Earth's shadow. | 964 s, 241 frames |
 | `transfer` | `chase-camera` | 60 | | The shuttle is within 10 km of the arrival point. | 1,394 s, 1,394 frames |
 | `closing` | `bow-camera` | 8 | | The autopilot is in `Brake`. | 155 s, 1,165 frames |
-| `brake` | `port-window-camera` | 1 | | The autopilot is in `Glide`. | From 4,510.5 s: 23.6 s, 1,418 frames |
+| `brake` | `port-window-camera` | 1 | | The autopilot is in `Glide`. | From 4,510.7 s: 23.7 s, 1,420 frames |
 | `turn` | `window-camera` | 1 | | The nose is within 2 degrees of the direction to the station. | 12.1 s, 726 frames |
-| `glide` | `chase-camera` | 6 | | The shuttle is within 700 m of the station. | 160 s, 1,603 frames |
-| `glide-window` | `window-camera` | 4 | | Within 400 m | 60 s, 900 frames |
+| `glide` | `chase-camera` | 6 | | The shuttle is within 700 m of the station. | 160 s, 1,604 frames |
+| `glide-window` | `window-camera` | 4 | | Within 400 m | 60 s, 899 frames |
 | `glide-rim` | `rim-camera` | 4 | | Within 200 m | 54 s, 806 frames |
 | `arrival` | `cockpit-camera` | 4 | | 3 s after the autopilot is in `Hold` | 58 s, 865 frames |
-| `hold` | `rim-camera` | 1 | | After 3 s | From 4,877.9 s: 3 s, 180 frames |
-| `hold-chase` | `chase-camera` | 1 | | After 2 s | From 4,880.9 s: 2 s, 120 frames |
+| `hold` | `rim-camera` | 1 | | After 3 s | From 4,878.2 s: 3 s, 180 frames |
+| `hold-chase` | `chase-camera` | 1 | | After 2 s | From 4,881.2 s: 2 s, 120 frames |
 
-The step films 11,778 frames in 4,526 s of the simulation, 196 s of video at 60 frames per second. Ticket ter-4xkz split the 5 s of `hold` into `hold` and `hold-chase`.
+The step films 11,734 frames in 4,526 s of the simulation, 196 s of video at 60 frames per second. With the parts, the transfer starts 0.25 s later. `night` films every 120 ticks, so its cue holds at its next frame, and `burn` starts 1.8 s later. The burn still ends at the same apoapsis, so `burn` grew 47 frames shorter. Ticket ter-4xkz split the 5 s of `hold` into `hold` and `hold-chase`.
 
 Every cue reads the run or the scene's constants:
 
@@ -813,6 +814,8 @@ Why the parked hull is static:
 | `DockingAutopilot` | 2 | From the spin-up to the landing, an `AttitudeTarget` and a `Translation` in every tick. Nothing in `Standby`, `Waiting` and `Docked`. |
 | `AttitudeAutopilot`, `MainEngine`, `TranslationThrusters` | 10 | They read what the layers added and follow the last layer that speaks. |
 
+Since ticket ter-diu0, the actuators of the hull are `AttitudeAutopilot` at 10, which adds a `Torque`, and `ShuttleJetControl` at 20, which sends the throttles to the parts that carry `MainEngine` and `JetThruster` (see "The jets as parts").
+
 An active docking adds both an attitude target and a translation in every tick. So the targets and the translations of the rendezvous's hold never reach the actuators while the docking flies. The docking adds no `Throttle`, so the main engine stays off.
 
 #### Changes to the layers that exist
@@ -904,8 +907,7 @@ The autopilot reads and steers in the station's frame, whichever frame holds the
 - The shuttle's pose, velocity and angular velocity in the station's frame: `self.PoseIn(stationFrame)`, `self.VelocityIn(stationFrame)` and `self.AngularVelocityIn(stationFrame)`. Outside the bubble the engine converts them from the frame that holds the station, with the station's turn (ARCHITECTURE.md, "Hand-off", rule 5). Inside they are the hull's own rows.
 - The station's rate ω: minus `FrameTree.AngularVelocityRelative(FrameHandle.Null, stationFrame)`, the angular velocity of the virtual root relative to the station, which the frame tree gives in the station's axes. So the autopilot needs no pose of the station in the root.
 - Outside the bubble only, while `self.Frame` is the frame that holds the station: the shuttle's and the station's positions in `self.Frame`. They give the difference of the planet's gravity. The G·M comes from the point gravity of `self.Frame` (`KeplerOrbit.MuFrom`), as the rendezvous takes it.
-- The hull's mass, from `self.Snapshot.TryGetBody`.
-- The hull's center of mass in its own axes, `Shuttle.CenterOfMass`. It comes through the constructor, as the attitude autopilot takes its inertia.
+- The hull's mass and its center of mass in its own axes, from `self.Snapshot.TryGetBody`, `BodyFacts.Mass` and `BodyFacts.CenterOfMass`. The first build took the center of mass, `Shuttle.CenterOfMass`, through the constructor. Ticket ter-diu0 dropped that value for the engine's.
 
 Every write is relative to `self.Frame`, in its axes. The autopilot turns what it computed in the station's axes with the station frame's pose in `self.Frame`, `FrameTree.Relative(stationFrame, self.Frame)`. Inside the bubble that pose is the identity.
 
@@ -934,7 +936,7 @@ where
 - `origin` = the hull's origin, the middle of its box, in the station's axes.
 - `target` = the phase's target point in the station's axes: the hold point (0, 150, 0) m, the entry's end (0, 3, 0) m, or the landing point.
 - `u` = the shuttle's velocity in the station's frame, in its axes.
-- `c` = the hull's center of mass in the station's axes, `pose.TransformPoint(Shuttle.CenterOfMass)`. The spin's terms act on the body as a whole, at its center of mass. The law flies the origin, so the box stays centered in the slot, and cancels the terms where they act. The center of mass lies 9 cm below the origin. A law that cancels them at the origin misses the centrifugal term on that offset, and leaves the hold 0.2 m off its target.
+- `c` = the hull's center of mass in the station's axes, `pose.TransformPoint(body.CenterOfMass)`. The spin's terms act on the body as a whole, at its center of mass. The law flies the origin, so the box stays centered in the slot, and cancels the terms where they act. The center of mass lies 9 cm below the origin. A law that cancels them at the origin misses the centrifugal term on that offset, and leaves the hold 0.2 m off its target.
 - `outside` = 1 while `self.Frame` is the frame that holds the station, 0 inside the station's frame. Outside, the planet's gravity pulls the shuttle and the station's center differently. Inside, a semantic frame gives its contents no tidal gravity.
 - `g(r)` = the planet's point gravity, `KeplerOrbit.Acceleration(r, Mu)`. `R⁻¹` turns the parent's axes into the station's.
 - `push` = the acceleration that the thrusters must give, in m/s², in the station's axes.
@@ -1082,20 +1084,20 @@ The first build filmed the end of the spin-up from `rim-camera`, near the wheel'
 
 ### Sections of the long script
 
-The docking's sections follow `hold-chase`. Their cues read the docking autopilot's case and places in the station's frame, `world.GetOwnedFrame(scene["station"])`, because the shuttle's frame changes at the hand-off. None names the frame that holds the station. The model column comes from the model above. The measured column is what the generator printed on 2026-10-21, after the person's walk of ter-cdgt. The order to dock comes 8 s later than before it, and the spin-up still starts at the same roll window, so `dock` grew 250 frames shorter.
+The docking's sections follow `hold-chase`. Their cues read the docking autopilot's case and places in the station's frame, `world.GetOwnedFrame(scene["station"])`, because the shuttle's frame changes at the hand-off. None names the frame that holds the station. The model column comes from the model above. The measured column is what the generator printed on 2026-10-21, after the jets moved onto parts (ter-diu0). With the parts the order to dock comes 0.3 s later, and the spin-up starts at the same roll window, so `dock` grew 8 frames shorter. After the person's walk of ter-cdgt, the order to dock comes 8 s later than before it, and the spin-up still starts at the same roll window, so `dock` grew 250 frames shorter.
 
 | Film | Camera | Ticks per frame | Posts | Ends | Model | Measured |
 |---|---|---|---|---|---|---|
-| `dock` | `chase-camera` | 2 | `Dock` to `shuttle` | The docking autopilot is in `SpinUp` | Up to 20 s, up to 600 frames | From 4,882.9 s: 9.4 s, 282 frames |
+| `dock` | `chase-camera` | 2 | `Dock` to `shuttle` | The docking autopilot is in `SpinUp` | Up to 20 s, up to 600 frames | From 4,883.2 s: 9.1 s, 274 frames |
 | `spin-up` | `chase-camera` | 2 | | 20 s into the spin-up | 20 s, 600 frames | 20 s, 600 frames |
 | `spin-match` | `hold-camera` | 2 | | The docking autopilot is in `Entry` | About 10 s, 300 frames | 10 s, 300 frames |
 | `entry` | `window-camera` | 4 | | The nose is within 10 m of the slot's outer face: the shuttle's center within 31 m of the station's center, along the axis | About 62 s, 930 frames | 62.9 s, 944 frames |
 | `slot` | `bay-camera` | 2 | | The docking autopilot is in `MoveOut` | About 28 s, 840 frames | 22.1 s, 664 frames |
-| `move-out` | `cockpit-camera` | 2 | | The shuttle's center is within 1 m of the parked point | About 20 s, 600 frames | 15.3 s, 460 frames |
-| `landing` | `bay-camera` | 1 | | 2 s after the docking autopilot is in `Docked` | About 10 s, 600 frames | 10.4 s, 621 frames |
-| `docked` | `cabin-camera` | 1 | | After 3 s | 3 s, 180 frames | From 5,033.1 s: 3 s, 180 frames |
+| `move-out` | `cockpit-camera` | 2 | | The shuttle's center is within 1 m of the parked point | About 20 s, 600 frames | 15.3 s, 459 frames |
+| `landing` | `bay-camera` | 1 | | 2 s after the docking autopilot is in `Docked` | About 10 s, 600 frames | 10.3 s, 616 frames |
+| `docked` | `cabin-camera` | 1 | | After 3 s | 3 s, 180 frames | From 5,033.0 s: 3 s, 180 frames |
 
-So the docking films 4,051 frames in 153.2 s of the simulation, 68 s of video. Before the person's walk of ter-cdgt it filmed 4,301 frames in 161.5 s. The merge with the Earth system (ter-yhu8) on 2026-10-21 had left every film of the docking as it was. The model gave about 4,650 frames in about 175 s. The entry ended 5 s sooner than the model, because the cue of the entry's end lies 0.5 m before its target. Every section stays within the default limit of 10 minutes.
+So the docking films 4,037 frames in 152.8 s of the simulation, 67 s of video. Before the parts it filmed 4,051 frames in 153.2 s. Before the person's walk of ter-cdgt it filmed 4,301 frames in 161.5 s. The merge with the Earth system (ter-yhu8) on 2026-10-21 had left every film of the docking as it was. The model gave about 4,650 frames in about 175 s. The entry ended 5 s sooner than the model, because the cue of the entry's end lies 0.5 m before its target. Every section stays within the default limit of 10 minutes.
 
 `scripts/demo-docking.json` films the docking alone, for a quick look at it: it is the long script, with every film before `dock` run as plain ticks and the camera steps before it left out, and with nothing after the film `docked`. So it posts the same orders at the same ticks and reaches the hold at the same tick (`BlueDanubeDockingTests`). Each cut names its first and its last section. The last section came with the merge of the exit: without it, the cut filmed the exit too, which `scripts/demo-exit.json` films already. The generator writes it beside the long script, from `BlueDanube.Cuts` and `BlueDanube.FilmedBetween`, so it changes with the long script and cannot drift from it (`BlueDanubeScriptTests`). The first build wrote it by hand with a script of its own after each change of the long script.
 
@@ -1240,7 +1242,7 @@ Measured on 2026-10-20 in the shared flight of `DockingAutopilotTests`, from the
 
 Measured in the run of the long script, `BlueDanubeDockingTests`:
 
-- The order comes at 4,882.9 s. Before the person's walk of ter-cdgt it came at 4,874.6 s. The spin-up starts at 4,892.3 s, the entry at 4,922.3 s, the hand-off at 4,936.4 s, the move out at 5,007.4 s, and the docking at 5,031.1 s.
+- The order comes at 4,883.2 s, since the jets moved onto parts (ter-diu0). Before the parts it came at 4,882.9 s, and before the person's walk of ter-cdgt at 4,874.6 s. The spin-up starts at 4,892.3 s, the entry at 4,922.3 s, the hand-off at 4,936.4 s, the move out at 5,007.4 s, and the docking at 5,031.0 s. Before the parts, the docking came at 5,031.1 s. The miss of the landing and the docking, with and without the parts, is in "The jets as parts", "Measured".
 - The rendezvous autopilot logs its one line, its halt, in the tick after the hand-off. The run logs nothing else, and records no error.
 - The person keeps the pen within 2 cm of its hand. The belt holds it at the seat stand while the cabin is weightless. From about 20 s into the spin-up the felt gravity at the seat leans less than 45 degrees, so the person stands, its up 30 degrees to port of the cabin's up. The entry's pushes lift it off the floor for a few seconds at the entry's start and end, and the belt holds it again then. In the move out the belt holds it until the felt gravity turns toward the floor. Then it lets go under a gravity that leans 30 degrees toward port, the person's up turns to that gravity, and its feet settle about 0.6 m to port of where they hung. So in the docked cabin its center stands 0.31 m to port of the seat stand and 0.09 m lower, and stays there.
 
@@ -1504,7 +1506,7 @@ The film of the brake run is `brake-run`, not `brake`. The rendezvous films `bra
 
 The generated `scripts/demo-exit.json` films 399, 734, 560, 504, 207 and 398 frames: 2,802 frames in 3,306 ticks, 55.1 s of the simulation and 46.7 s of video. Before the person's walk of ter-cdgt, it filmed 2,794 frames in 3,298 ticks.
 
-In the long script, from 5,036.1 s of the run, the exit films 398, 726, 561, 504, 205 and 398 frames: 2,792 frames in 3,296 ticks, 54.9 s of the simulation and 46.5 s of video. These are the numbers after the person's walk of ter-cdgt and the coda of ter-h74c, on 2026-10-21. The person's walk alone gave 398, 733, 561, 504, 206 and 398 frames: 2,800 frames in 3,304 ticks. The coda's loose boxes rest on the wheel's floor through the whole long run, and with them the person drops into the chute 7 ticks sooner in the long run. `scripts/demo-exit.json` does not change with them. After the merge with the Earth system (ter-yhu8), the exit filmed 2,790 frames in 3,294 ticks, and before it 2,799 frames in 3,303 ticks. The person stands at its seat about 0.3 m to port of the stand at the docking's end, a little apart from `DemoExit.StandAtSeat`, so the first films differ by a few frames. In the run of the long script, the person arrives 52.93 s after the order, against 53.10 s in `demo-exit`. Its slide starts 17.23 s after the order and takes 30.1 s. Before the coda, the person arrived 53.07 s after the order, and the slide started 17.35 s after it and topped out at 8.87 m/s. The person stands 99.10 m from the axis at 9.721 m/s² (`BlueDanubeExitTests`). Before the person's walk of ter-cdgt it arrived 52.90 s after the order, and the slide started 17.3 s after it: the start from rest adds about 0.3 s to each of the two walks.
+In the long script, from 5,036.0 s of the run, the exit films 398, 749, 563, 504, 206 and 398 frames: 2,818 frames in 3,322 ticks, 55.4 s of the simulation and 47.0 s of video. These are the numbers after the jets moved onto parts (ter-diu0), with the person's walk of ter-cdgt and the coda of ter-h74c, on 2026-10-21. The jets as parts alone, after the person's walk, gave 398, 735, 561, 504, 207 and 398 frames. The coda alone, after the person's walk, gave 398, 726, 561, 504, 205 and 398 frames: 2,792 frames in 3,296 ticks. The person's walk alone gave 398, 733, 561, 504, 206 and 398 frames: 2,800 frames in 3,304 ticks. The coda's loose boxes rest on the wheel's floor through the whole long run, and with them the person drops into the chute 7 ticks sooner in the long run. `scripts/demo-exit.json` does not change with them. After the merge with the Earth system (ter-yhu8), the exit filmed 2,790 frames in 3,294 ticks, and before it 2,799 frames in 3,303 ticks. The person stands at its seat about 0.3 m to port of the stand at the docking's end, a little apart from `DemoExit.StandAtSeat`, so the first films differ by a few frames. In the run of the long script, the person arrives 53.37 s after the order, against 53.10 s in `demo-exit`, since the merge of the jets as parts and the coda. Before that merge, with the coda alone, it arrived 52.93 s after the order, and its slide started 17.23 s after the order and took 30.1 s. Before the coda, the person arrived 53.07 s after the order, and the slide started 17.35 s after it and topped out at 8.87 m/s. The person stands 99.10 m from the axis at 9.721 m/s² (`BlueDanubeExitTests`). Before the person's walk of ter-cdgt it arrived 52.90 s after the order, and the slide started 17.3 s after it: the start from rest adds about 0.3 s to each of the two walks.
 
 The docking was built at the same time on its own branch, and the exit starts from its end state. So the exit's sections also run in a short script of their own, `scripts/demo-exit.json`, for a quick look at the exit. Its scene, `demo-exit`, starts at the end state. The generator takes the scene as an argument: `--generate scripts/demo-exit.json demo-exit`. It writes no cut for that scene, because the cuts film parts of the long script. The merge of the docking and the exit appended `ExitSections` to `BlueDanube.Sections` after `docked`, and wrote `scripts/blue-danube.json`, `scripts/demo-docking.json` and `scripts/demo-exit.json` again. So the long script runs from the terminal on the ground through the docking and the exit to the person on the wheel's floor. One list of sections serves both scripts. `ExitSections` comes before `Sections` in `BlueDanube.cs`, because a static property's initializer runs in the order of the file, and `Sections` reads `ExitSections`.
 
@@ -1899,7 +1901,7 @@ How the demo derives the values: `LoftedHull.MassOf(mass)` integrates the outer 
 
 The tests that tie the values to physics read only what physics does, in a root frame with no gravity and no damping:
 
-- The point at `Shuttle.CenterOfMass` stays still while the free hull spins: about X at 0.5 rad/s, and about the long axis at 0.3 rad/s, each for 2 s, within 1 mm.
+- The point at `Shuttle.CenterOfMass` stays still while the free hull spins: about X at 0.5 rad/s, and about the long axis at 0.3 rad/s, each for 2 s, within 1 mm. Ticket ter-diu0 dropped `Shuttle.CenterOfMass`, and the test now reads the engine's value through `HostTesting.ShuttleCenterOfMass`.
 - A torque of 10,000 N·m along each principal axis acts on the hull at rest for 30 ticks. The angular velocity along that axis is then the torque times the time over the moment, within 0.1 %. Across the axis, it is less than 0.1 % of that.
 
 ### The interior shape
@@ -2067,7 +2069,7 @@ The hull's values are fixed at the scene's build. Only the pen, the person and t
 | The cross-sections, the rib places, the wall and the surrounds | Code, in `Shuttle` | `Shuttle.Loft`, at the first use of `Shuttle`'s statics |
 | The drawn hull | `Loft.Mesh()`, at the scene's build | The renderer, in every frame. The tests. |
 | `Shuttle.HullShape`, `Shuttle.InteriorShape` | `Loft.Shape()` and `Loft.Interior()` with the seat, at the first use | `Shuttle.Body`, at each spawn of a shuttle. Physics. |
-| `Shuttle.CenterOfMass`, `Shuttle.Inertia` | `Loft.MassOf(Mass)`, at the first use | `AttitudeAutopilot`, through `FlightControls`, at the spawn. The nozzle's place, at the scene's build. The tests. |
+| `Shuttle.Inertia` | `Loft.MassOf(Mass)`, at the first use | `AttitudeAutopilot`, through `FitActuators`, at the spawn. The couples of `ShuttleJets`. The tests. Ticket ter-diu0 dropped `Shuttle.CenterOfMass`: the nozzle's place, the jets and the docking read `BodyFacts.CenterOfMass`. |
 | The body's mass properties | Physics, at the spawn, from the hull's shape and `Mass` | Physics, in every step. The tests, through spins and torques. |
 | `Shuttle.Glass`, the panes' holes and meshes | `Loft.Panes()`, at the first use | `Shuttle.Panes`, at the scene's build. The tests of the glass and the cameras, between ticks. |
 | The pane, lamp and nozzle entities | The scene's build | The renderer |
@@ -2536,7 +2538,7 @@ The four films keep their cameras and their film intervals. `phasing` and `night
 | `AscentAutopilot` | Its pose and velocity in `earth`, the frame of its `LaunchPlane`. Its rotation in `self.Frame`, for the turn of its target. Earth's G·M from the point gravity of `earth`. | `Throttle`, with no frame. `AttitudeTarget`, in the axes of `self.Frame`, turned from earth's. |
 | `RendezvousAutopilot` | Its pose and velocity, and the station's, in `self.Frame`, which its guard holds to the station's frame, `earth`. Earth's G·M from `self.Frame`. | `Throttle`, `AttitudeTarget` and `Translation`, in the axes of `self.Frame`, which are earth's |
 | `AttitudeAutopilot` | Its rotation and angular velocity in `self.Frame` | A torque in the axes of `self.Frame` |
-| `MainEngine`, `TranslationThrusters` | Its rotation in `self.Frame` | A force in the axes of `self.Frame` |
+| `MainEngine`, `TranslationThrusters` | Its rotation in `self.Frame` | A force in the axes of `self.Frame`. Since ticket ter-diu0, `MainEngine` and `JetThruster` read and write so on their parts, and `ShuttleJetControl` replaced `TranslationThrusters` (see "The jets as parts"). |
 | `Passenger`, `Clip`, `Walker` | As today: the cabin, the cabin's felt gravity, and the walker's waypoints in `earth-surface` and the cabin | As today |
 | `KeplerMotion` of `earth`, the station and the Moon, `SpinMotion` of `earth-surface` | Their parent's G·M | Their motion intents |
 | The cues of the walk | The person in `earth-surface` and in the cabin | None |
@@ -2994,7 +2996,7 @@ dotnet run --project src/Tertius.Demo -- --generate scripts/blue-danube.json
 dotnet run -c Release --project src/Tertius.Demo -- --script scripts/blue-danube.json --headless --out runs/danube --video runs/danube/blue-danube.mkv --fps 60
 ```
 
-The first command rehearses the run and writes the script. Beside it, in the same folder, it writes each cut of `BlueDanube.Cuts`, such as `scripts/demo-docking.json`, which films the long script only from one section through another. It prints each film with its frames, its film interval and the second of the run at which it starts. With the rendezvous, the rehearsal took 107 s on 2026-10-20, against about 10 s before. The second makes the video: on 2026-10-20 it took 110 s, at a load average from 3.7 to 6.5, for the 15,806 frames and 292,242 ticks, 4,871 s of the simulation and 263 s of video. Before the rendezvous, in the last two runs of 2026-10-19, it took 22 s and 24 s for 4,210 frames and 23,101 ticks. With the glass canopy of ter-4xkz, it took 117 s on 2026-10-20, at a load average from 4 to 5, for 15,782 frames. With the docking of ter-ftnj, the script films 20,084 frames in 302,163 ticks, 5,036 s of the simulation and 335 s of video. Its rehearsal took about 4.5 minutes on 2026-10-20, in Release, while other test runs loaded the machine. With the exit of ter-y0e5, the script films 22,884 frames in 305,468 ticks, 5,091 s of the simulation and 381 s of video. Its rehearsal took 59 s on 2026-10-20, in Release. The video took 203 s on 2026-10-20, for 22,884 frames and 381.4 s of video. The first second of the film `floor` shows the person's box large in the picture, because the `follow-camera`'s arm, which the slide left short, grows back with its time constant of 0.5 s. `scripts/demo-exit.json` shows the same. In the Earth system of ter-yhu8, before its merge with the docking and the exit, the rehearsal took from 97 to 123 s and the video 114 s on 2026-10-20, at a load average from 9 to 13, for 15,895 frames. After that merge, on 2026-10-21, the script films 22,988 frames in 305,459 ticks, 5,091 s of the simulation and 383.1 s of video. Its rehearsal took 113 s in Release, with the build, and the video took 145 s, at a load average from 5 to 7. Step 8 (ter-asce) set the outlines of six sections and wrote the script again on 2026-10-21. The outlines change no tick, so every film kept its frames. The rehearsal took 72 s in Release, and the video 142 s. With the person's walk of ter-cdgt, on 2026-10-21, the script films 22,771 frames in 305,469 ticks, 5,091 s of the simulation and 379.5 s of video. Its rehearsal took 99 s in Release, with the build, and the video took 144 s, at a load average from 4 to 8. After the merge with the final assembly and the review's fix of the heading, the script filmed the same frames, and the video took 203 s, with the build, while other runs loaded the machine. With the coda of ter-h74c, before its merge with the person's walk, on 2026-10-21, the script filmed 24,046 frames in 306,517 ticks, and its rehearsal took 113 s in Release, with the build, and the video 209 s, at a load average from 11 to 14. After that merge, the script films 23,841 frames in 306,539 ticks, 5,109.0 s of the simulation and 397.4 s of video. After the merge, on 2026-10-21, the rehearsal took about 70 s in Release, the master 2 minutes 39 seconds, the readout log 67 s and the edit 72 s. The test `BlueDanubeScriptTests` runs the first command and checks that its output equals the checked-in `scripts/blue-danube.json`, and each cut the checked-in cut, so they cannot drift. A change of the scene, of the engine's timing or of the sections fails the test until the script is written again.
+The first command rehearses the run and writes the script. Beside it, in the same folder, it writes each cut of `BlueDanube.Cuts`, such as `scripts/demo-docking.json`, which films the long script only from one section through another. It prints each film with its frames, its film interval and the second of the run at which it starts. With the rendezvous, the rehearsal took 107 s on 2026-10-20, against about 10 s before. The second makes the video: on 2026-10-20 it took 110 s, at a load average from 3.7 to 6.5, for the 15,806 frames and 292,242 ticks, 4,871 s of the simulation and 263 s of video. Before the rendezvous, in the last two runs of 2026-10-19, it took 22 s and 24 s for 4,210 frames and 23,101 ticks. With the glass canopy of ter-4xkz, it took 117 s on 2026-10-20, at a load average from 4 to 5, for 15,782 frames. With the docking of ter-ftnj, the script films 20,084 frames in 302,163 ticks, 5,036 s of the simulation and 335 s of video. Its rehearsal took about 4.5 minutes on 2026-10-20, in Release, while other test runs loaded the machine. With the exit of ter-y0e5, the script films 22,884 frames in 305,468 ticks, 5,091 s of the simulation and 381 s of video. Its rehearsal took 59 s on 2026-10-20, in Release. The video took 203 s on 2026-10-20, for 22,884 frames and 381.4 s of video. The first second of the film `floor` shows the person's box large in the picture, because the `follow-camera`'s arm, which the slide left short, grows back with its time constant of 0.5 s. `scripts/demo-exit.json` shows the same. In the Earth system of ter-yhu8, before its merge with the docking and the exit, the rehearsal took from 97 to 123 s and the video 114 s on 2026-10-20, at a load average from 9 to 13, for 15,895 frames. After that merge, on 2026-10-21, the script films 22,988 frames in 305,459 ticks, 5,091 s of the simulation and 383.1 s of video. Its rehearsal took 113 s in Release, with the build, and the video took 145 s, at a load average from 5 to 7. Step 8 (ter-asce) set the outlines of six sections and wrote the script again on 2026-10-21. The outlines change no tick, so every film kept its frames. The rehearsal took 72 s in Release, and the video 142 s. With the person's walk of ter-cdgt, on 2026-10-21, the script films 22,771 frames in 305,469 ticks, 5,091 s of the simulation and 379.5 s of video. Its rehearsal took 99 s in Release, with the build, and the video took 144 s, at a load average from 4 to 8. After the merge with the final assembly and the review's fix of the heading, the script filmed the same frames, and the video took 203 s, with the build, while other runs loaded the machine. With the coda of ter-h74c, before its merge with the person's walk, on 2026-10-21, the script filmed 24,046 frames in 306,517 ticks, and its rehearsal took 113 s in Release, with the build, and the video 209 s, at a load average from 11 to 14. After that merge, the script films 23,841 frames in 306,539 ticks, 5,109.0 s of the simulation and 397.4 s of video. After the merge, on 2026-10-21, the rehearsal took about 70 s in Release, the master 2 minutes 39 seconds, the readout log 67 s and the edit 72 s. With the jets as parts of ter-diu0, after its merge with the coda, on 2026-10-21, the script films 23,814 frames in 306,558 ticks, 5,109.3 s of the simulation and 396.9 s of video. Its rehearsal took 77 s in Release, with the build. The test `BlueDanubeScriptTests` runs the first command and checks that its output equals the checked-in `scripts/blue-danube.json`, and each cut the checked-in cut, so they cannot drift. A change of the scene, of the engine's timing or of the sections fails the test until the script is written again.
 
 The sections today, as `BlueDanube.Sections` lists them. The frames of each film and the second at which it starts come from the run, so the generator prints them, and this table does not copy them:
 
@@ -4179,6 +4181,129 @@ Measured after the merge of the coda with the person's walk (ter-cdgt), on 2026-
 7. After the user's yes for a recording and its download: the final render with the music (done on 2026-10-20).
 8. After the docking and the exit merge: their parts and the wheel's panel go into the cut list, and the sections above get `Outlines`. The readout log gains the distance from the station's axis. The script is written again, the dark frames are measured again as in "The dark frames", and the video is rendered again (done on 2026-10-21, ter-asce).
 9. With the coda: its part and the throws panel go into the cut list, and the readout log gains the columns of the throws. The script is written again, the coda's films are measured as in "The dark frames", and the video is rendered again (done on 2026-10-21, ter-h74c).
+
+## The jets as parts
+
+Ticket `ter-diu0` moves the shuttle's actuators and the person's thrusters onto parts (docs/plans/parts.md, "The demo's use"). Two types hold the shuttle's half. `ShuttleJets` (`src/Tertius.Demo/ShuttleJets.cs`) says where the jets sit on the hull, and how the throttles of the jets come from the torque and the force that the flight program asks for. It is a pure type with no World, which `ShuttleJetsTests` pins. `ShuttleJetControl` spawns the parts and sends them their throttles (see "The wiring"). Every place, force and torque in this section is in the hull's own axes: +X starboard, +Y up, -Z the nose.
+
+`ShuttleJets` takes the center of mass as an input. `ShuttleJetControl.Fit` reads it from the engine's `BodyFacts.CenterOfMass`, by the user's choice of 2026-10-21. Today's value is (0, -0.0902, 0.3561) m.
+
+### The layout
+
+There are 25 jets: the main engine, 12 turning jets in 6 couples, and 12 side jets in 6 translation pairs.
+
+- The main engine sits at `MainEnginePlace`: in the nozzle's place in the tail pocket, at z = 7.7 m, on the line along Z through the center of mass. So its push gives the hull no torque.
+- A couple is two jets that push in exactly opposite directions with one thrust, from two places. It gives a torque about one of the hull's axes and no net force. Its torque does not depend on the point that it is taken about, so the couples need no center of mass.
+- A translation pair is two jets that push in one direction from two places. Their thrusts take the shares that put the line of their sum through the center of mass. So the pair gives no torque about the center of mass. At full throttle the two give `Shuttle.TranslationThrust`, 30,000 N, as the `TranslationThrusters` gave on each axis before the parts.
+
+Every jet sits on the solid skin of the full cross-section, off the canopy's glass. Above the sill, the canopy covers the sides, the bevels and the roof from the nose to the last rib at z = 7 m. Solid skin there is only the ribs, 0.2 m wide. So the jets use these places: the rib at z = -5 m, where the nose's loft ends (the nose ring), the solid band from the last rib to the tail face, at z = 7.5 m (the tail ring), the ribs at z = ±3 m, the belly, the lower sides at y = -1.5 m below the sill, and the tail face beside the engine's pocket. A jet on a rib keeps 0.1 m to the glass on each side.
+
+| Pair | Turns or pushes | First jet: place, push | Second jet: place, push | Thrust per jet |
+|---|---|---|---|---|
+| `pitch-up` | +X, the nose up | (0, -2, -5), +Y | (0, 2, 7.5), -Y | 30,284 N |
+| `pitch-down` | -X | (0, -2, 7.5), +Y | (0, 2, -5), -Y | 30,284 N |
+| `yaw-port` | +Y, the nose to port | (-3, -1.5, 7.5), +X | (3, -1.5, -5), -X | 32,515 N |
+| `yaw-starboard` | -Y | (-3, -1.5, -5), +X | (3, -1.5, 7.5), -X | 32,515 N |
+| `roll-port` | +Z, the roof to port | (2, -2, 7.5), +Y | (-2, 2, 7.5), -Y | 18,233 N |
+| `roll-starboard` | -Z | (-2, -2, -5), +Y | (2, 2, -5), -Y | 18,233 N |
+| `move-starboard` | +X | (-3, c.y, -3) | (-3, c.y, 3) | 13,219 N and 16,781 N |
+| `move-port` | -X | (3, c.y, -3) | (3, c.y, 3) | 13,219 N and 16,781 N |
+| `move-up` | +Y | (c.x, -2, -3) | (c.x, -2, 3) | 13,219 N and 16,781 N |
+| `move-down` | -Y | (c.x, 2, -3) | (c.x, 2, 3) | 13,219 N and 16,781 N |
+| `move-aft` | +Z | (-3, c.y, -5) | (3, c.y, -5) | 15,000 N each |
+| `move-forward` | -Z | (c.x - 1.6, c.y, 8) | (c.x + 1.6, c.y, 8) | 15,000 N each |
+
+where
+
+- `c` = the center of mass. A translation pair's places take its coordinates on the axis across the push that the two places share.
+- The push of a translation pair's jets is the pair's direction, for both jets.
+- The shares of the pairs across Z come from c.z = 0.356 m: the jet at z = 3 m is nearer the center of mass, so it takes the larger share, (3 + 0.356) / 6 = 0.559.
+
+Each jet pushes into the hull or along its skin, so its exhaust leaves the hull. The jets of `move-aft` sit on the sides at the nose ring and push aft, so their exhaust runs forward past the sides of the nose's loft, which close in by 0.6 m over its 3 m. The jets of `move-forward` lie 1.6 m to each side of the line of thrust, 0.7 m clear of the pocket's housing.
+
+The layout reaches a center of mass within |x| < 0.5 m, |y| < 1.2 m and |z| < 3 m. Outside that box a translation pair's share leaves 0 to 1, or a jet leaves the solid skin, so the constructor throws.
+
+### The thrust of the couples
+
+At full throttle, each couple gives the most torque that the attitude autopilot asks for about its axis, `AttitudeAutopilot.MostTorque`. The autopilot asks for the rate `FeedForward` plus a correction of at most `MaxTurnRate`, 0.15 rad/s. Once the hull follows, its angular velocity lies within the same 0.15 rad/s of the feed-forward. So the two differ by at most 0.3 rad/s, and the autopilot asks for at most 0.3 rad/s over `RateTime`, 1/3 s: 0.9 rad/s² in any direction. The torque about one axis is the dot product of that acceleration with the inertia tensor's row for the axis. So its most is the length of the row times 0.9 rad/s²:
+
+| Axis | Moment about the principal axis | Most torque | Arm of the couple | Thrust per jet |
+|---|---|---|---|---|
+| X, pitch | 420,614 kg·m² | 378,552 N·m | 12.5 m | 30,284 N |
+| Y, yaw | 451,666 kg·m² | 406,437 N·m | 12.5 m | 32,515 N |
+| Z, roll | 80,645 kg·m² | 72,934 N·m | 4 m | 18,233 N |
+
+The row of Z is a little longer than its moment, because the long axis tilts 1.03 degrees from Z. A turn from rest at the full rate asks for half the most torque in its first ticks. A turn that reverses at the full rate asks for all of it. A feed-forward that jumps asks for more, and no layer of the flight program jumps it: the docking's spin-up ramps it over 30 s. So with this thrust the couples saturate in no flight that the autopilot flies today, and the autopilot's settle time with the parts measures the extra tick alone.
+
+### The allocation
+
+`ShuttleJets.Allocate(torque, force, throttles)` writes one throttle from 0 to 1 for each of the 12 pairs, which both jets of the pair take. Each axis of the torque takes the couple of its sense, at the torque over the most torque, and the couple of the other sense stays off. Each axis of the force takes the translation pair of its direction, at the force over 30,000 N, and the other pair stays off. An axis that asks for more takes full throttle, and the other axes keep theirs.
+
+The couples give no force and the translation pairs give no torque about the center of mass. So the torque and the force do not mix, and the allocation needs no solver. The tests pin that the jets give the torque and the force asked for, within 1e-6 of the most, for random torques and forces within the jets' thrust, and for a center of mass off the middle on every axis.
+
+The two jets of a couple give exact negatives of one force. `Jet.Force(rotation, throttle)` turns the jet's push by `rotation` and scales it by the throttle times the thrust. The two jets of a couple push along exact negatives of one hull axis with one thrust, and the rotation of a vector is odd in the vector. So at one throttle and one rotation the two forces are exact negatives, and the couple gives the hull no net force at all. Forces that only nearly cancel leave a force of the order of 1e-7 of the thrust (docs/plans/parts.md, "The demo's use"). For this, each jet's part keeps the hull's rotation, as the main engine's part does, and passes its own rotation in its frame.
+
+The allocation allocates nothing, so the hull's components may call it in every tick.
+
+### Decisions
+
+- One couple for each sense of each axis, and one translation pair for each direction. A jet pushes one way only, from 0 to full, so each sense needs its own jets. The turning jets and the side jets are apart: a jet that both turns and pushes needs a solver to share its thrust, and a couple that also pushes would no longer give exact negatives.
+- The jets sit off the glass, so each translation pair splits its thrust in shares. The lines through the center of mass along X and Z cross the canopy, and a mirror pair across y = c.y needs a jet above the sill. The ribs and the solid bands hold jets at any height, but at fixed places along Z, so the shares take up the center of mass's place between them.
+- The allocation limits each axis, as the `TranslationThrusters` did before the parts, and does not scale the whole torque to keep its direction. The couples hold the autopilot's largest turn, so the limit acts only in a flight that the autopilot does not fly today.
+- The allocation takes the torque and the force in the hull's axes. The jets are fixed in the hull, and the caller turns the autopilot's torque and the flight program's translation, which are in the axes of `self.Frame`, by the conjugate of the hull's rotation, as `TranslationThrusters` turned its force before the parts.
+- `MostTorque` belongs to `AttitudeAutopilot`, because it is a fact of its law: its constants and the body's inertia. The layout reads it and does not copy the law.
+
+### The wiring
+
+`Shuttle.FitActuators(world, hull)` fits the actuators of a shuttle that flies, outside a tick. It adds `AttitudeAutopilot` to the hull and calls `Shuttle.FitJets`, which calls `ShuttleJetControl.Fit` with `Shuttle.MainEngineThrust`, `Shuttle.Inertia` and `Shuttle.TranslationThrust`. `Fit` reads the center of mass from `BodyFacts.CenterOfMass` and builds `ShuttleJets` with it. It spawns 25 attached entities of the hull and adds the `ShuttleJetControl` to the hull. Each part's offset has the part's place and the hull's rotation. The main engine's part carries `MainEngine`, at `ShuttleJets.MainEnginePlace`. Each jet's part carries a `JetThruster` of its jet, at the jet's place. `Shuttle.FlightControls` now gives the layers of the flight program only.
+
+In each tick, the components of the hull run in this order:
+
+1. The layers of the flight program, at priorities 0 to 2, add the `Throttle`, the `AttitudeTarget` and the `Translation` of the tick.
+2. `AttitudeAutopilot`, at 10, keeps its law and adds a `Torque` event. It pushes no body itself.
+3. `ShuttleJetControl`, at 20, reads the last `Throttle`, the last `Torque` and the last `Translation`. It turns the torque and the force into the hull's axes with the hull's rotation and calls `ShuttleJets.Allocate`. It sends the main engine's part the throttle, and each jet of a pair that fires its pair's throttle, by message.
+
+The messages route at step 10 of the sync point, so each part handles its command in the next tick. There it pushes with `self.Body.AddForce`, in the axes of its frame, from its own rotation, and the engine carries the push to the hull at step 5. So every actuator of the shuttle acts one tick later than a push of the hull's own body. The attitude autopilot now acts three steps after the pose that it reads.
+
+The person's thrusters are one back jet. `PersonControl` and `Passenger` spawn it in their first tick, with `BackJet.Spawn`, at `BackJet.Place`: (0, 0.3, 0.3) m in the person's axes, on its back at the height of its chest, with the person's rotation. In each tick that they thrust, they send it a `JetForce` in the person's own axes. The jet turns the force into the axes of its frame with its own rotation and pushes. A character reads no torque, so the jet's place turns nothing. The passenger's belt still pushes the person's own body, because the belt is not a jet. The parts have no emitters yet. The plumes come with ter-6u2m.
+
+### Decisions of the wiring
+
+Every choice here is a demo choice, so this design settles it (the user's rule of 2026-10-18). None needs an engine change.
+
+- The shuttle's parts spawn outside a tick. Spawns in a tick take slots from a pool that each chunk reserves, `WorldOptions.SpawnPoolSize`, 8 by default. 25 spawns take more, and the slots of the rest then depend on the timing of the threads. The world logs that the run is no longer deterministic. So every scene and test that flies a shuttle calls `FitActuators` after the spawn: `DemoScenes.DemoSurface`, the flight tests and the docking tests. A parked shuttle with no flight program gets no parts.
+- The person's back jet spawns in the person's first tick. Many scenes and tests spawn a person with its component in the spawn's description, and this way none of them changes. One spawn fits the pool. A force sent in that tick reaches the jet in the next, so a person thrusts no earlier than its second tick.
+- The autopilot gives its torque to the control as an event, `Torque`, as the layers give `Translation`. One component, the control, owns the allocation of both, because the couples and the translation pairs are one set of jets that each tick commands once. The autopilot keeps its law, and its tests read the torque that it asks for.
+- The control runs at 20, after the autopilot at 10, so that it sees the torque of the tick. A throttle that a component adds after 20 reaches no part (`FlightControlTests.AThrottleAddedAfterTheJetsControlHasRunGivesNoThrust`).
+- A tick without a command sends nothing, and a part keeps nothing from an earlier tick, as `MainEngine` already did. A pair at zero throttle gets no message.
+- The back jet takes its force in the person's own axes, not in those of its frame. So a force that the person sends in the tick before a hand-off still points the same way in the person after it.
+- The nozzle's mesh stays a separate entity in the shuttle's frame, with no component. Parked shuttles with no flight program draw the nozzle too, so the main engine's part can carry it only if every shuttle gets parts. The mesh is also turned a quarter turn about X from the hull's axes, which the main engine's part keeps. `ShuttleJets.MainEnginePlace` and `Shuttle.NozzlePose` both read `Shuttle.NozzleZ`, so they keep one place.
+- `Shuttle.CenterOfMass` goes, as the user's choice of 2026-10-21 asks. `DockingAutopilot` reads `BodyFacts.CenterOfMass` in each tick and takes only the station in its constructor. `Shuttle.SpawnNozzle` reads it at the spawn. The tests read the engine's value through `HostTesting.ShuttleCenterOfMass`.
+- No jet turns its own offset toward its force. The plumes can choose that when they come.
+
+### The slice scripts
+
+The back jet's extra tick changes three scripted runs of the orbit scene, in which a person leaves the ship's airlock. The scripts are written by hand, so this ticket retunes them:
+
+- `scripts/airlock.json` and `scripts/spacewalk.json`: the person leaves the hatch's sill one tick of thrust slower, and the sill's rounded inner edge then pushes it up at 34 mm/s instead of 7 mm/s. One tick of C, 8 ticks after the release of W, takes 25 mm/s off that, so the person drifts out as before, 9 mm/s upward. W's press and its release each act from the fourth tick after their posts now, not the third. So the airlock's thrust back toward the ship still holds W for 240 ticks and thrusts for 240 ticks, and its dump after the turn back comes one tick later, so that it sees the same 238 ticks of thrust. A new dump, `thrust-over`, comes after the release has acted, and `AirlockSliceTests` checks there that the thrust lasts as long as W is held. The person leaves the sill 16 mm/s slower, so the spacewalk's brake holds S 112 ticks instead of 113, and the person drifts out of the ship's bubble at 0.305 m/s instead of 0.296 m/s. The dump after the turn back in earth comes one tick later, so that it sees all 24 ticks of thrust.
+- `scripts/windows.json`: the person leaves the ground for a moment on the opening door's edge, and that hop now loses one tick of thrust. So the person stops in the chamber 12 mm further from the hatch, its step up onto the sill lifts it at 2.3 m/s, and its head scrapes the hatch's top. It drifts out at 1.38 m/s, 0.19 m higher than before. No change of the walk's timing moved that step. So the script lets the person drift 255 ticks instead of 120, to the same distance from the hull, and the test's probe of the lit floor moved 8 rows lower (`WindowsSliceTests`).
+
+### Measured
+
+Measured on 2026-10-21 in one run of the checked-in long script, before the parts (at 2f0b95a, the merge of main and the engine's parts, ter-ftk4, with no demo change) and with them. The miss is the distance of the hull's origin from `DemoStation.ParkedPose`, in the station's frame. The landing is the hull's first contact with an entity outside the cabin. The error of the attitude loop is the angle between the hull's rotation and the attitude target of the tick.
+
+| Quantity | Before the parts | With the parts |
+|---|---|---|
+| The landing | At 5,030.03 s, 18.4 mm off, 7.7e-5 degrees | At 5,030.07 s, 16.0 mm off, 7.7e-5 degrees |
+| The docking, static | At 5,031.07 s, 5.9 mm off, 1.0e-5 degrees | At 5,030.95 s, 6.0 mm off, 1.3e-5 degrees |
+| The spin-up: the time until the error stays within 0.01 degrees of its end, and the peak | 3.25 s, 0.2432 degrees | 3.25 s, 0.2432 degrees |
+| The entry: the time until the error stays below 0.01 degrees | 3.05 s | 3.03 s |
+| The transfer burn: the time until the error stays below 1 degree, below 0.2 degrees, and the peak | 2.70 s, 3.97 s, 13.25 degrees | 2.70 s, 3.98 s, 13.25 degrees |
+| The climb: the largest error after its first 30 s | 4.87 degrees | 4.81 degrees |
+
+The extra tick of the attitude loop changes no settle time by more than one tick, and the miss of the docking by less than 3 mm. The spin-up's end error, 0.243 degrees, is the steady lag of the loop behind a target that turns, with or without the parts. The rehearsal of the generator took 78 s, at a load average of about 7.
+
+After the merge with the person's walk of ter-cdgt and the coda of ter-h74c, the generator wrote `scripts/blue-danube.json`, `scripts/demo-docking.json` and `scripts/demo-exit.json` again. Against main, the long script films 23,814 frames in 306,558 ticks, against 23,841 frames in 306,539 ticks. These films change by more than 2 frames: `pen-release` 211 frames, against 201, `burn` 977 against 1,024, `dock` 274 against 282, `landing` 616 against 621, and `deck` 749 against 726. `scripts/demo-exit.json` does not change. The coda's films keep their frames, and the throws land as on main: the spinward box 5.88 m from the point under its release after 0.832 s, and the antispinward box 11.54 m away after 1.691 s (the readout log of the long run).
 
 ## Order of the work
 

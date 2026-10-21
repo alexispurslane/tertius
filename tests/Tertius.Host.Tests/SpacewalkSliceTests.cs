@@ -4,13 +4,14 @@ using Tertius.Host.Scripting;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// Control past the ship's bubble (ticket ter-l6oo): one headless run of the checked-in script scripts/spacewalk.json, at
-/// the orbit scene's start. The person goes out through the airlock as in scripts/airlock.json and drifts away from the
-/// ship along the ship's X axis. Near the edge of the ship's bubble, which fits just around the hull, it brakes, and it
-/// drifts slowly out of the bubble into the frame earth. There it falls freely with the ship, so it is weightless (User).
-/// It turns round, sees the ship's port face and the open hatch close by, and thrusts toward them. It drifts back into the
-/// ship's frame, thrusts toward the hatch, and drifts in through the hatch onto the chamber floor, where it stands. Every
-/// test of the class reads that one run.
+/// Control past the ship's bubble (ticket ter-l6oo): one headless run of the checked-in script scripts/spacewalk.json,
+/// at the orbit scene's start. The person goes out through the airlock as in scripts/airlock.json, with the same tap of
+/// C against the upward push of the sill's edge, and drifts away from the ship along the ship's X axis. Near the edge
+/// of the ship's bubble, which fits just around the hull, it brakes, and it drifts slowly out of the bubble into the
+/// frame earth. There it falls freely with the ship, so it is weightless (User). It turns round, sees the ship's port
+/// face and the open hatch close by, and thrusts toward them. It drifts back into the ship's frame, thrusts toward the
+/// hatch, and drifts in through the hatch onto the chamber floor, where it stands. Every test of the class reads that
+/// one run.
 /// </summary>
 public sealed class SpacewalkRun() : CheckedInRun("spacewalk");
 
@@ -113,8 +114,8 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
     {
         // The ship's X axis is the normal of its orbit. Along it, the motion relative to the ship in earth has no sideways
         // drift. The hand-offs keep the person's motion relative to the ship too. The person leaves the sill with a small
-        // upward drift, which the sill's rounded inner edge gave its rigid form (ticket ter-1w06, see
-        // AirlockSliceTests.OutsideTheHullThePersonIsWeightlessAndDriftsAwayFromTheShip). Nothing changes that drift, so
+        // upward drift, which the sill's rounded inner edge gave its rigid form (ticket ter-1w06) and one tick of C made
+        // smaller (see AirlockSliceTests.OutsideTheHullThePersonIsWeightlessAndDriftsAwayFromTheShip). Nothing changes that drift, so
         // the person's height grows by it in proportion to the time since the dump "outside", at 60 ticks a second.
         (Double3 start, Double3 drift) = RelativeToShip("outside");
         start.Y.Should().BeApproximately(OnTheSill, 0.02);
@@ -144,8 +145,8 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
         before.X.Should().BeApproximately(-0.3, 0.005, "the person drifts slowly away from the ship");
         after.X.Should().BeApproximately(0.3, 0.005, "the person drifts slowly back toward the ship");
         // Between the two dumps, the script turns the view round and runs 3 ticks. Then it posts W's press, runs 24 ticks,
-        // posts W's release and runs 2 more ticks. A post
-        // acts from the third tick after it, so the person thrusts in the last 24 ticks before the second dump. At
+        // posts W's release and runs 3 more ticks. A post acts from the fourth tick after it, because the person sends its
+        // force to its back jet, so the person thrusts in the last 24 ticks before the second dump. At
         // 1.5 m/s², that adds 0.6 m/s along the person's view, the ship's +X. One tick of thrust adds 0.025 m/s. Jolt keeps
         // velocities as floats, and at the 7.7 km/s of the orbit a float has steps of 0.5 mm/s. While the person thrusts,
         // each tick rounds the person's velocity and the ship's differently, so the thrust turns about 0.003 m/s sideways.

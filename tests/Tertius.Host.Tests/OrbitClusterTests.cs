@@ -156,11 +156,13 @@ public sealed class OrbitClusterTests(OrbitClusterRun run) : IClassFixture<Orbit
     // The spacewalker's mass in the scene, in kg. Its thrusters push with PersonControl.ThrustForce, 1.5 m/s² on it.
     private const double SpacewalkerMass = 70;
 
-    // A post acts from the third tick after it (see SpacewalkSliceTests): the person reads the key in the tick after the
-    // post, and its thrusters wait for physics's report of whether it stands, which comes a tick late. So a key posted
-    // after k ticks thrusts from the step that starts after k + 2 ticks. Both the press and the release wait so, so each
-    // thrust lasts as many ticks as the script holds the key.
-    private const int PostLatencyTicks = 2;
+    // A post acts from the fourth tick after it (see SpacewalkSliceTests): the person reads the key in the tick after the
+    // post, and its thrusters wait for physics's report of whether it stands, which comes a tick late. The person sends
+    // the force to its back jet, which pushes in the tick after that. So a key posted after k ticks thrusts from the step
+    // that starts after k + 3 ticks. Both the press and the release wait so, so each thrust lasts as many ticks as the
+    // script holds the key. With the latency of 2 ticks from before the back jet, the integration missed the dump
+    // farthest by 1.06 mm, and with 3 by 0.22 mm.
+    private const int PostLatencyTicks = 3;
 
     // Silk.NET's codes of the keys W and S, which thrust along the view and against it.
     private const int KeyW = 87, KeyS = 83;

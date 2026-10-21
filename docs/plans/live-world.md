@@ -191,7 +191,7 @@ The reasons for this order:
 
 - A message was sent in the last tick, about the world at its end. So it applies before this tick's flight, and the state that it starts flies in the same tick. The ascent's throttle comes in the tick of `Depart`, as `Ignition` gives it today, and the glide starts in the tick of the slot's grant.
 - A delegate reads the snapshot of the tick, the state at the end of step N − 1, and its events and intents act in step N + 1. Its report is about those same reads. So the report changes the state after the delegate flew, and the new state's delegate flies from the next tick, with that tick's reads.
-- So exactly one delegate flies in each tick. The actuators (`AttitudeAutopilot`, `MainEngine` and `TranslationThrusters`) run at priority 10, after the pilot at priority 0, because the worker calls the components in priority order (ARCHITECTURE.md, "The component pipeline"). Each actuator takes the last event of its type in a tick, as the documentation of each of the three says. The pilot is the only component of the shuttle that adds those events, and one delegate adds them. So the rule "the last one counts" never chooses between two writers.
+- So exactly one delegate flies in each tick. The actuators of the hull (`AttitudeAutopilot` at priority 10 and `ShuttleJetControl` at 20) run after the pilot at priority 0, because the worker calls the components in priority order (ARCHITECTURE.md, "The component pipeline"). Each takes the last event of its type in a tick, as its documentation says. The control sends the main engine's part and the jets' parts their throttles by message, so they push one tick later (docs/plans/blue-danube-demo.md, "The jets as parts"). The pilot is the only component of the shuttle that adds those events, and one delegate adds them. So the rule "the last one counts" never chooses between two writers.
 - A tick applies `Next` at most once for each message and once for the report, so it has no loop. A report that keeps the state, such as the deorbit window while the landing pad is still asked for, flies the same delegate again in the next tick, and nothing loops inside a tick.
 - A change of motion is written as soon as `Next` makes it, before the next delegate writes. The guard of every motion intent judges a write by the motion of the next step as it stands at the write: the change of motion that the owner wrote in the tick so far, or else the motion of the running step (`self.Body.NextStepMotion`, ARCHITECTURE.md, "Changes of motion" and "Rails components and motion intents"). So the first end pose of `FlyTowed`, in the tick of `TowStarted`, passes the guard only because `SetMotion(Kinematic)` comes before it, in step 1. A `SetMotion` at the tick's end would come after the end pose, and the writer would throw an `InvalidOperationException`.
 - So a tick writes at most two `SetMotion`, one in step 1 and one in step 3, and the last one gives the motion of the end state. The last `SetMotion` in a tick wins (ARCHITECTURE.md, "Changes of motion"). In this design, two come only when a fault halts the shuttle in the tick of `Depart`. The second then writes `Static`, the motion at the tick's start, so the hull's motion does not change.
@@ -202,11 +202,11 @@ The cost: a change of state by a report takes effect one tick later than in the 
 
 ### The pilot
 
-Today two layers fly the shuttle: `AscentAutopilot` at priority 0 and `RendezvousAutopilot` at priority 1. The actuators run at priority 10 and take the last event of each tick. Each layer keeps its own state. During the rendezvous, the ascent autopilot sits in `Orbit` and still adds the nose's target, and the rendezvous autopilot overrides it.
+Today two layers fly the shuttle: `AscentAutopilot` at priority 0 and `RendezvousAutopilot` at priority 1. The actuators run at priorities 10 and 20 and take the last event of each tick. Each layer keeps its own state. During the rendezvous, the ascent autopilot sits in `Orbit` and still adds the nose's target, and the rendezvous autopilot overrides it.
 
 The cycle repeats, so layers no longer fit. After the landing, the ascent autopilot stays in `Orbit`, and the rendezvous autopilot stays in `Hold`. Each layer then needs a rule to reset itself, and the states of five layers must agree on what the shuttle does. That is the problem for which the user removed `MotionDriver`: a second value beside the first can disagree with it.
 
-So one staged component, `ShuttlePilot`, at priority 0, holds one value, `State`, of the custom union `PilotState`. The actuators stay at priority 10, unchanged. The pilot wants `Depart`, `PlaceGrant`, `TowStart`, `Spawned` and `Tick`.
+So one staged component, `ShuttlePilot`, at priority 0, holds one value, `State`, of the custom union `PilotState`. The actuators stay at priorities 10 and 20, unchanged. The pilot wants `Depart`, `PlaceGrant`, `TowStart`, `Spawned` and `Tick`.
 
 #### The states
 
@@ -1232,7 +1232,7 @@ Step N is the physics step that runs during tick N. A tick reads the state at th
 
 | Value | Writer, and when | Readers, and when |
 |---|---|---|
-| `Depart` | The timetable, in tick N with t_N < the departure time ≤ t_(N+1) | The pilot of the holder, in tick N + 1, in step 1 of its tick. Its `SetMotion` and actuator events act in step N + 2. |
+| `Depart` | The timetable, in tick N with t_N < the departure time ≤ t_(N+1) | The pilot of the holder, in tick N + 1, in step 1 of its tick. Its `SetMotion` acts in step N + 2. The parts that its actuator events command push in tick N + 2, so their forces act in step N + 3. |
 | `PlaceRequest` | The pilot, at the end of tick N, when the end state asks for a place that the start state did not ask for. A pilot whose first state asks for a place, at the end of its first tick. | The timetable, in tick N + 1 |
 | `PlaceRelease` | The pilot, at the end of tick N, for each place that the start state held or the tick granted, and that the end state does not hold | The timetable, in tick N + 1 |
 | `PlaceGrant` | The timetable, in tick N + 1 | The pilot, in tick N + 2, in step 1 of its tick |
@@ -1241,7 +1241,7 @@ Step N is the physics step that runs during tick N. A tick reads the state at th
 | `ShuttlePilot.State`, with its claims | `PilotState.Next`, through the pilot, in steps 1 and 3 of its tick. Nothing else. | The pilot in the same and the next tick. The cues and the tests, between ticks. |
 | A report of `PilotEvent` | The delegate of the state, in step 2 of the pilot's tick | `PilotState.Next`, in step 3 of the same tick. Nothing stores it. |
 | The held places, the asked places, the tow's request and the motion of a state | Nobody. `PilotState.Held`, `Asked`, `AsksForTow` and `Motion` derive them from a state. | The pilot in step 4 of its tick, for the start state and the end state. The pilot at the end of steps 1 and 3, for the motion of the state before and after the step. The tests, between ticks. |
-| `AttitudeTarget`, `Throttle`, `Translation` | The delegate of the pilot's state (priority 0), in step 2 of tick N | The actuators (priority 10), in tick N. Their forces act in step N + 1. |
+| `AttitudeTarget`, `Throttle`, `Translation` | The delegate of the pilot's state (priority 0), in step 2 of tick N | The actuators (priorities 10 and 20), in tick N. The parts that they command push in tick N + 1, and their forces act in step N + 2. |
 | `TowRequest` | The pilot, at the end of tick N | The tug, in tick N + 1 |
 | `CradleRise` | The tug, at the end of tick k0, when it takes a request | The cradle, in tick k0 + 1 |
 | `TowStart` | The tug, at the end of tick k | The shuttle and the cradle, in tick k + 1. The shuttle's first end pose acts in step k + 2, from Start. |
@@ -1263,7 +1263,7 @@ Step N is the physics step that runs during tick N. A tick reads the state at th
 
 | Entity | What moves it | Its components | Its frame | What it reads |
 |---|---|---|---|---|
-| Shuttle, a hull that owns the cabin's frame | Physics by the forces of its actuators while dynamic. Its own end poses while towed. Nothing while static. | `ShuttlePilot`, `AttitudeAutopilot`, `MainEngine`, `TranslationThrusters` | `earth-surface`, or the station's frame from the entry to the exit | Its own pose and velocity, the station's pose and velocity, the gravity of its frame, its messages |
+| Shuttle, a hull that owns the cabin's frame | Physics by the forces of its actuators while dynamic. Its own end poses while towed. Nothing while static. | `ShuttlePilot`, `AttitudeAutopilot`, `ShuttleJetControl`. Its parts carry `MainEngine` and `JetThruster`. | `earth-surface`, or the station's frame from the entry to the exit | Its own pose and velocity, the station's pose and velocity, the gravity of its frame, its messages |
 | Station | The full samples of `KeplerMotion` | `KeplerMotion` | `earth-surface`, in a following frame of its own | G·M |
 | Timetable | Nothing. It has no body. | `Timetable` | `earth-surface` | `self.Time`, whether its shuttles are alive, its messages |
 | Tug, a kinematic plain body | Its own end poses, relative to the frame that it is in | `Tug` | `earth-surface`, or the towed shuttle's cabin frame while it is in that frame's bubble | The towed shuttle's landed pose, `self.Time`, `self.Frame`, its messages |

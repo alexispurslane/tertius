@@ -203,7 +203,7 @@ where
 
 After the change, the four additive members go through a new `World.WritablePush(entity)` instead of `WritableIntent`. It gives the back intent of an entity with a body, as today (`EntityTable.WritableIntent`). For an attached entity whose chain root has a body, it gives the part's own back intent through `EntityTable.WritablePush`, whose first call in the tick lists the part among the parts that pushed. For every other entity it throws an `InvalidOperationException` that says that the entity has no body and is not part of a chain whose root has one. The guard reads the part's own link and the root's body description, which the entity table keeps from the spawn and nothing writes during a tick, so the part's worker may read them while the root runs on another worker. The other members of `BodyHandle` keep `WritableIntent`, so they throw for a part. The documentation of the four members and of `BodyHandle` says that a part's push acts on its chain root's body at the part's place. Today the documentation of `BodyHandle` says that every method throws for an entity without a body.
 
-So a component that pushes runs on a hull or on a part with the same calls: `MainEngine`, `TranslationThrusters` and the test helper `Thruster` push from a part with no change to their calls of `AddForce`. Each one reads the rotation of its own entity (`self.PoseIn(self.Frame).Rotation`), so on a part it pushes in the part's axes, which are the root's axes turned by the offsets of the chain. `AddForce` keeps one meaning, add a force to my own intent, on every entity that can push.
+So a component that pushes runs on a hull or on a part with the same calls: `MainEngine` and the test helper `Thruster` push from a part with no change to their calls of `AddForce`. The demo's `TranslationThrusters` could too, but ticket ter-diu0 replaced it with the jets' parts, each with a `JetThruster`. Each one reads the rotation of its own entity (`self.PoseIn(self.Frame).Rotation`), so on a part it pushes in the part's axes, which are the root's axes turned by the offsets of the chain. `AddForce` keeps one meaning, add a force to my own intent, on every entity that can push.
 
 The reads do not change. `self.Body.Exists` stays false for a part, because the part has no body. `self.Body.NextStepMotion` stays null for a part. `self.Body.Pending` gives the entity's own writes in the tick: a part sees its own push, and a root sees only its own writes, never its parts' pushes, which join at the sync point.
 
@@ -443,11 +443,11 @@ The build measured, in a Release build with `-p:SyncProfile=true`, in the benchm
 | No part, all workers | 0.15 µs | 412 µs |
 
 The flow runs on the sync thread, so the workers change nothing in its lap. The rest of the growth of the sync point with parts is the 10,000 attached entities themselves: step 7 derives their rows, and step 8 and the render snapshot copy them. `CarryingThePushesAllocatesNothingAfterWarmUp` holds the allocations of a whole tick with 300 parts that push at zero.
-- In the demo, after its own ticket moves the jets onto parts: the miss of the docking and the settle time of the attitude loop with the extra tick, beside today's.
+- In the demo, measured by ticket ter-diu0 in the run of the long script (docs/plans/blue-danube-demo.md, "The jets as parts", "Measured"): the extra tick changes no settle time of the attitude loop by more than one tick. The spin-up settles in 3.25 s with and without the parts, and the transfer burn in 3.98 s against 3.97 s. The landing misses its parked pose by 16.0 mm against 18.4 mm, and the docked hull by 6.0 mm against 5.9 mm.
 
 ## The demo's use
 
-The demo work is in `ter-6u2m`, not in this ticket. Each actuator becomes a part with one emitter:
+The demo work is not in this ticket. Ticket ter-diu0 moved the actuators onto parts, and the plumes, ticket ter-6u2m, give each part one emitter. docs/plans/blue-danube-demo.md, "The jets as parts", describes what ter-diu0 built. It differs from this plan in one point: the layers of the flight program still add the `Throttle` and the `Translation` to the hull's own events, and one component of the hull, `ShuttleJetControl`, turns them and the attitude autopilot's torque into the throttles of the parts and sends each part its own by message. This plan, as written before the build:
 
 - The main engine: one part at the place of `Shuttle.NozzlePose`, on the line of thrust through the center of mass, with `MainEngine` on it. The hull's flight program sends it the `Throttle` of each tick as a message. The part's offset keeps the hull's rotation and not the rotation of `NozzlePose`, which turns the nozzle's mesh a quarter turn about X (`src/Tertius.Demo/DemoScenes.Shuttle.cs`, lines 203 and 204). `MainEngine` pushes along its own entity's -Z (`src/Tertius.Demo/MainEngine.cs`, line 51), so on a part with that rotation it would push along the hull's +Y. Today the nozzle is a separate entity in the shuttle's frame with no component. The demo ticket decides whether the nozzle's mesh moves onto the part.
 - The side jets: one part for each of the six directions of `TranslationThrusters`, on a line through the center of mass, or as pairs placed on both sides of it so that their torques cancel. Today a layer of the flight program adds the `Translation` to its own entity's events for `TranslationThrusters` on the same entity. After the change it sends it as a message to each jet, and the jets split it.
@@ -456,7 +456,7 @@ The demo work is in `ter-6u2m`, not in this ticket. Each actuator becomes a part
 
 ## Settled forks
 
-The user settled the one open fork on 2026-10-21: side A. `BodyFacts` gains `CenterOfMass`, and the demo takes the value from the engine and drops its own.
+The user settled the one open fork on 2026-10-21: side A. `BodyFacts` gains `CenterOfMass`, and the demo takes the value from the engine and drops its own. Ticket ter-diu0 dropped `Shuttle.CenterOfMass`.
 
 ### Fork 1: the center of mass in the body facts
 

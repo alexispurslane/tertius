@@ -65,12 +65,12 @@ public sealed class WindowsSliceTests(WindowsRun run) : IClassFixture<WindowsRun
     [Fact]
     public void FromOutsideThePersonSeesTheLampLitCabinThroughAPortPane()
     {
-        // The person drifts 5.4 m outside the port wall, level with the hatch, and looks back at the window 4 m forward of
-        // the hatch, 33 degrees to the left of the hatch and 5 degrees down. The sun stands straight above the ship, so
+        // The person drifts 5.4 m outside the port wall, a little above the hatch, and looks back at the window 4 m forward
+        // of the hatch, 33 degrees to the left of the hatch and 5 degrees down. The sun stands straight above the ship, so
         // only the dim ambient light reaches the port face. Through the pane, across the cabin, the lamps light the
-        // starboard wall and the floor in their warm white. The lit window spans rows 279 to 395 and columns 543 to 689.
-        // The starboard wall shows above row 344, and the floor below row 349. The opposite window's pane, dark against
-        // space, spans columns 628 to 662 and rows 299 to 324, so the probe of the wall sits between it and the window's
+        // starboard wall and the floor in their warm white. The lit window spans rows 296 to 410 and columns 537 to 686.
+        // The starboard wall shows above row 352, and the floor below row 355. The opposite window's pane, dark against
+        // space, spans columns 627 to 661 and rows 303 to 328, so the probe of the wall sits between it and the window's
         // right edge.
         //
         // Changed on purpose by ter-1b21 (the user's fork F6, 2026-10-20): a standing person walks in the plane of every
@@ -79,9 +79,16 @@ public sealed class WindowsSliceTests(WindowsRun run) : IClassFixture<WindowsRun
         // chamber, leaves the hatch at 2.97 m/s instead of 3.09 m/s, and drifts 0.55 m nearer the hull. From there the
         // window shows 25 to 30 columns further left and a little larger, and the probe of the wall moved from column 692,
         // now the dark hull beside the window, to column 676.
+        //
+        // Changed on purpose by ter-diu0: the person's thrust is a back jet, a part that pushes one tick after the
+        // person's tick. The person leaves the ground for a moment on the opening door's edge, and that hop now loses one
+        // tick of thrust, so the person stops in the chamber 12 mm further from the hatch. Its step up onto the sill then lifts it at
+        // 2.3 m/s, its head scrapes the hatch's top, and it drifts out at 1.38 m/s, 0.19 m higher than before. The script
+        // lets it drift 255 ticks instead of 120, to the same distance from the hull. From 0.19 m higher, the cabin shows
+        // about 15 rows lower, so the probe of the floor moved from row 360, now at the edge of the floor, to row 368.
         Dump("outside").Entity("person").Pose.Position.X.Should().BeLessThan(-15, "the person is outside the hull, 5.4 m from its port face");
         var image = run.Capture("cabin-through-pane");
-        (int r, int g, int b) hull = image.Average(640, 200), wall = image.Average(676, 308), floor = image.Average(650, 360);
+        (int r, int g, int b) hull = image.Average(640, 200), wall = image.Average(676, 308), floor = image.Average(650, 368);
 
         (hull.r + hull.g + hull.b).Should().BeLessThan(60, $"the port face above the window is dark, not {hull}");
         (wall.r > hull.r + 50 && wall.r > wall.b).Should().BeTrue($"the lamp-lit starboard wall shows through the pane, not {wall}");

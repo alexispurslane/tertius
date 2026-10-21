@@ -308,11 +308,11 @@ public sealed class PersonControlTests : IDisposable
         Ticks(3 + 24);
 
         // The plain jump of an instant 4 m/s is 0.815 m up after its 25 chords. Physics jumps the person in the step of the third tick and
-        // reports it in the air from the step of the fourth. The person reads that report in the fifth tick and thrusts, so
-        // the thrust acts from the step of the sixth tick on: in the last 22 of the 25 moves. Physics adds each tick's
-        // thrust to the velocity before the move, so the thrust lifts the person by 1.5 m/s² · Δt² · (1 + 2 + ... + 22),
-        // 0.105 m. One tick more or less of thrust changes that by 0.01 m.
-        double lift = Thrust * world.DeltaTime * world.DeltaTime * (22 * 23 / 2);
+        // reports it in the air from the step of the fourth. The person reads that report in the fifth tick and sends the
+        // thrust to its back jet, which pushes in the sixth, so the thrust acts from the step of the seventh tick on: in
+        // the last 21 of the 25 moves. Physics adds each tick's thrust to the velocity before the move, so the thrust lifts
+        // the person by 1.5 m/s² · Δt² · (1 + 2 + ... + 21), 0.096 m. One tick more or less of thrust changes that by 0.01 m.
+        double lift = Thrust * world.DeltaTime * world.DeltaTime * (21 * 22 / 2);
         (world.Snapshot.PoseInOwnFrame(person).Position.Y - standing).Should().BeApproximately(0.815 + lift, 0.005);
     }
 
@@ -437,6 +437,64 @@ public sealed class PersonControlTests : IDisposable
         Ticks(10);
 
         near.Seen.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The person's thrusters are one back jet, a part of the person (docs/plans/parts.md, "The demo's use"): in its first
+    /// tick the person spawns an attached entity with a <see cref="BackJet"/> at <see cref="BackJet.Place"/> on its back,
+    /// which keeps the person's rotation.
+    /// </summary>
+    [Fact]
+    public void ThePersonsThrustersAreABackJetOnItsBack()
+    {
+        Entity floating = FloatInSpace(DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2));
+
+        Entity jet = world.GetComponent<PersonControl>(floating)!.BackJetPart;
+
+        world.IsAlive(jet).Should().BeTrue();
+        world.GetComponent<BackJet>(jet).Should().NotBeNull();
+        FrameHandle frame = world.GetFrame(floating);
+        DPose body = world.PoseIn(floating, frame), pose = world.PoseIn(jet, frame);
+        (pose.Position - body.TransformPoint((Double3)BackJet.Place)).Length.Should().BeLessThan(1e-5, "the jet sits on the person's back");
+        body.Rotation.AngularVelocityTo(pose.Rotation, 1).Length.Should().BeLessThan(1e-6, "the jet keeps the person's rotation");
+    }
+
+    /// <summary>
+    /// A force that is not finite is a bug of the sender. The back jet refuses it with an error and pushes nothing, so the
+    /// person stays where it floats.
+    /// </summary>
+    [Fact]
+    public void ABackJetGivenAForceThatIsNotFiniteIsAnErrorAndPushesNothing()
+    {
+        Entity floating = FloatInSpace();
+        Entity jet = world.GetComponent<PersonControl>(floating)!.BackJetPart;
+        world.AddComponent(floating, new SendJetForce(jet, new JetForce { Force = new Vector3(float.NaN, 0, 10) }));
+
+        Ticks(30);
+
+        world.Snapshot.VelocityInOwnFrame(floating).Should().Be(Vector3.Zero);
+        world.Errors.Should().Contain(error => error.Contains(nameof(BackJet)) && error.Contains("A jet's force is finite"));
+    }
+
+    /// <summary>
+    /// A press of W joins the routing at the end of the next tick, the person handles it in the tick after that and sends
+    /// the force to its back jet, the jet pushes in the tick after that, and physics moves the person in the step of the
+    /// fourth tick: one tick later than a push of the person's own body.
+    /// </summary>
+    [Fact]
+    public void ThePersonsThrustActsOneTickLaterThroughItsBackJet()
+    {
+        Entity floating = FloatInSpace();
+        Press(Key.W);
+
+        int ticks = 0;
+        while (world.Snapshot.VelocityInOwnFrame(floating) == Vector3.Zero && ticks < 10)
+        {
+            world.Tick();
+            ticks++;
+        }
+
+        ticks.Should().Be(4);
     }
 
     [Fact]
@@ -566,9 +624,9 @@ public sealed class PersonControlTests : IDisposable
         Post(InputEvent.KeyUp((int)Key.Space));
         Press(key);
         // Physics jumps the person in the step of the third tick and reports it in the air from the step of the fourth.
-        // The person reads that report in the fifth tick, so the thrust acts from the step of the sixth tick on. With C the
-        // jump lasts about 42 ticks, so the person is in the air for all 35 samples.
-        Ticks(3);
+        // The person reads that report in the fifth tick and its back jet pushes in the sixth, so the thrust acts from the
+        // step of the seventh tick on. With C the jump lasts about 42 ticks, so the person is in the air for all 35 samples.
+        Ticks(4);
         Vector3 last = world.Snapshot.VelocityInOwnFrame(person);
         Vector3 acceleration = new Vector3(0, -9.81f, 0) + new Vector3(x, y, z) * Thrust;
         for (int sample = 0; sample < 35; sample++)
@@ -597,12 +655,22 @@ public sealed class PersonControlTests : IDisposable
         Post(InputEvent.KeyUp((int)Key.Space));
         Ticks(3 + 10);
 
-        // Physics jumps the person in the step of the third tick, and held Space thrusts it up from the step of the
-        // sixth on. The jump speed is an instant velocity, and physics moves the person by the chord of each step. So the
-        // jump peaks 0.934 m up, where a plain jump peaks 0.815 m up, and the person touches the floor in the step of the
-        // 59th tick, where a plain jump touches it in the step of the 51st.
-        (top - standing).Should().BeApproximately(0.934, 0.005);
+        // Physics jumps the person in the step of the third tick, and held Space thrusts it up through its back jet from
+        // the step of the seventh on. The jump speed is an instant velocity, and physics moves the person by the chord of
+        // each step. So the jump peaks 0.923 m up, where a plain jump peaks 0.815 m up, and the person is back on the floor
+        // before it lets go of Space.
+        (top - standing).Should().BeApproximately(0.923, 0.005);
         landed.Should().BeApproximately(standing, 0.005);
         world.Snapshot.PoseInOwnFrame(person).Position.Y.Should().BeApproximately(standing, 0.005);
+    }
+
+    /// <summary>A test component that sends <paramref name="force"/> to <paramref name="target"/> in every tick.</summary>
+    private sealed class SendJetForce(Entity target, JetForce force) : IComponent
+    {
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) => outbox.Send(target, force);
     }
 }

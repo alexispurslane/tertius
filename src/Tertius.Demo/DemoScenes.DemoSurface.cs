@@ -50,7 +50,8 @@ public static partial class DemoScenes
     /// <c>cabin-camera</c>, in the shuttle's frame in the cabin's aft port corner, sees the seat and the hatch.</item>
     /// <item>The launch (docs/plans/blue-danube-demo.md, "The sequence", step 2): the <c>ramp</c> (see
     /// <see cref="LaunchRamp"/>) starts under the parked shuttle and rises at 30 degrees along -Z. The shuttle carries its
-    /// <see cref="Shuttle.FlightControls"/>, which wait for an <see cref="Ignition"/> that a script posts to it. Then the
+    /// <see cref="Shuttle.FlightControls"/> and its actuators (see <see cref="Shuttle.FitActuators"/>): the main engine and
+    /// the jets are parts of the hull. The flight controls wait for an <see cref="Ignition"/> that a script posts to it. Then the
     /// shuttle unparks, slides up the ramp at three gravities, and flies to a circle 200 km up. A red <c>pen</c>, 14 cm
     /// long, hangs in a <see cref="Clip"/> on the pillar of the cabin's port wall at z = -1 m, at head height, aft of the seat (see
     /// <see cref="ClippedPen"/>). The clip holds it through the climb, and lets it go with a small push and a slow spin a
@@ -81,7 +82,7 @@ public static partial class DemoScenes
     /// <item>The shuttle has a glass canopy (see <see cref="Shuttle.Glass"/>): a band of glass along both sides from 0.7 m
     /// above the cabin floor, over the roof's bevels and the roof, and the front above the sill. It has 40 panes, each with
     /// its scene id, such as <c>pane-nose</c>, <c>pane-port-7</c> and <c>pane-roof-4</c>, named by their edge and their
-    /// bay from the nose. Its flight controls also carry <see cref="TranslationThrusters"/>.</item>
+    /// bay from the nose. Its flight controls also carry the jets of the <see cref="ShuttleJetControl"/>.</item>
     /// <item>Views of the rendezvous, still in the shuttle's frame: <c>window-camera</c>, 1.2 m behind the front's inner face
     /// at eye height, looks out along the nose through <c>pane-nose</c>; <c>bow-camera</c>, 30 m ahead of the nose and 5 m above it, looks aft, 30 degrees to
     /// port of astern, at the shuttle and past it; <c>port-window-camera</c>, 0.6 m inside the port wall at z = 4.2 m, at eye
@@ -445,6 +446,7 @@ public static partial class DemoScenes
             Entity shuttle = Shuttle.Park(world, surface, ShuttleParked, Shuttle.DrawnHull(resources),
                 Shuttle.FlightControls(LaunchRamp.Height + ClimbClearance, new LaunchPlane(earth, LaunchPlaneNormal), station));
             scene.Add("shuttle", shuttle);
+            Shuttle.FitActuators(world, shuttle);
             FrameHandle cabin = world.GetOwnedFrame(shuttle);
             Vector3 seatHalf = Shuttle.Seat.Extents;
             scene.Add("seat", world.Spawn(new SpawnDesc

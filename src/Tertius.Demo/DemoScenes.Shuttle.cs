@@ -20,8 +20,9 @@ public static partial class DemoScenes
     /// over the roof's bevels and the roof, and across the front above the sill. The glass breaks around the hatch. The
     /// panes have no body: the interior shape is solid at the glass. The cabin's <see cref="Lamps"/> hang on the pillars of
     /// the walls.</item>
-    /// <item>The hull has one density, so physics puts its center of mass at <see cref="CenterOfMass"/>, low and aft of
-    /// its middle, and gives it the principal axes of <see cref="Inertia"/>.</item>
+    /// <item>The hull has one density, so physics puts its center of mass low and aft of its middle, and gives it the
+    /// principal axes of <see cref="Inertia"/>. The demo reads that center of mass from the engine's
+    /// <see cref="BodyFacts.CenterOfMass"/>.</item>
     /// <item>The frame has no gravity field of its own. So its contents feel only the opposite of its proper acceleration
     /// (ARCHITECTURE.md, "Gravity"), which the engine derives from the frame's motion: the weight of the ground while the
     /// shuttle stands parked on it, and nothing once the shuttle falls freely in orbit.</item>
@@ -56,10 +57,10 @@ public static partial class DemoScenes
         public const float ThrustAcceleration = 3 * 9.81f;
 
         /// <summary>
-        /// The most force of the <see cref="TranslationThrusters"/> along each of the hull's axes, in newtons: 30,000 N, which
-        /// gives the shuttle's <see cref="Mass"/> 1.5 m/s². The docking's move out needs up to 1.2 m/s² on one of the hull's
-        /// axes, to hold the hull on its path against the station's spin. The thrusters are one piece of hardware, so every
-        /// law of the flight gets this limit (docs/plans/blue-danube-demo.md, "The translation thrusters' force").
+        /// The most force of the translation pairs of the <see cref="ShuttleJetControl"/> along each of the hull's axes, in
+        /// newtons: 30,000 N, which gives the shuttle's <see cref="Mass"/> 1.5 m/s². The docking's move out needs up to 1.2
+        /// m/s² on one of the hull's axes, to hold the hull on its path against the station's spin. The jets are one piece of
+        /// hardware, so every law of the flight gets this limit (docs/plans/blue-danube-demo.md, "The translation thrusters' force").
         /// </summary>
         public const float TranslationThrust = 30000;
 
@@ -75,26 +76,42 @@ public static partial class DemoScenes
         /// </summary>
         public const double ParkingOrbitAltitude = 200e3;
 
+        /// <summary>The force of the main engine at full throttle, in newtons: <see cref="Mass"/> times <see cref="ThrustAcceleration"/>.</summary>
+        public const float MainEngineThrust = Mass * ThrustAcceleration;
+
         /// <summary>
-        /// The shuttle's flight controls, in the order in which they run in a tick: the layers of the flight program, the
+        /// The layers of the shuttle's flight program, in the order in which they run in a tick: the
         /// <see cref="AscentAutopilot"/> at priority 0, the <see cref="RendezvousAutopilot"/> at 1 and the
-        /// <see cref="DockingAutopilot"/> at 2, which add the
-        /// <see cref="Throttle"/>, the <see cref="AttitudeTarget"/> and the <see cref="Translation"/> of each tick to the
-        /// shuttle's events, then the actuators at 10, the <see cref="AttitudeAutopilot"/>, the <see cref="MainEngine"/>
-        /// and the <see cref="TranslationThrusters"/>, which read them and follow the last layer that speaks. The engine
-        /// pushes <see cref="Mass"/> with <see cref="ThrustAcceleration"/> at full throttle, and both autopilots plan with
-        /// that thrust. The ascent autopilot steers only once the shuttle is <paramref name="climbHeight"/> meters higher
+        /// <see cref="DockingAutopilot"/> at 2, which add the <see cref="Throttle"/>, the <see cref="AttitudeTarget"/> and
+        /// the <see cref="Translation"/> of each tick to the shuttle's events. The actuators, which <see cref="FitActuators"/>
+        /// adds to the hull once it is spawned, read them after every layer and follow the last layer that speaks. The main
+        /// engine pushes <see cref="Mass"/> with <see cref="ThrustAcceleration"/> at full throttle, and both autopilots plan
+        /// with that thrust. The ascent autopilot steers only once the shuttle is <paramref name="climbHeight"/> meters higher
         /// than where it launched, clear of its ramp, and it steers into <paramref name="plane"/>, whose frame it reads in.
         /// The rendezvous autopilot flies <see cref="RendezvousPlan.Demo"/> to <paramref name="station"/>, and the docking
-        /// autopilot docks in it, with the hull's <see cref="CenterOfMass"/>. The thrusters have
-        /// <see cref="TranslationThrust"/> on each axis.
+        /// autopilot docks in it.
         /// </summary>
-        public static IComponent[] FlightControls(double climbHeight, LaunchPlane plane, Entity station)
+        public static IComponent[] FlightControls(double climbHeight, LaunchPlane plane, Entity station) =>
+            [new AscentAutopilot(MainEngineThrust, ParkingOrbitRadius, climbHeight, plane), new RendezvousAutopilot(station, RendezvousPlan.Demo, MainEngineThrust),
+                new DockingAutopilot(station)];
+
+        /// <summary>
+        /// Gives the spawned <paramref name="hull"/> the shuttle's actuators, outside a tick (docs/plans/blue-danube-demo.md,
+        /// "The jets as parts"): the <see cref="AttitudeAutopilot"/> at priority 10, which turns the attitude target of the
+        /// tick into a <see cref="Torque"/>, and the <see cref="ShuttleJetControl"/> at 20, which spawns the main engine and
+        /// the jets as parts of the hull and sends each its throttle by message: the main engine gives
+        /// <see cref="MainEngineThrust"/> at full throttle, and the translation pairs <see cref="TranslationThrust"/> on each
+        /// axis. Returns the control.
+        /// </summary>
+        public static ShuttleJetControl FitActuators(World world, Entity hull)
         {
-            const float thrust = Mass * ThrustAcceleration;
-            return [new AscentAutopilot(thrust, ParkingOrbitRadius, climbHeight, plane), new RendezvousAutopilot(station, RendezvousPlan.Demo, thrust),
-                new DockingAutopilot(station, CenterOfMass), new AttitudeAutopilot(Inertia), new MainEngine(thrust), new TranslationThrusters(TranslationThrust)];
+            world.AddComponent(hull, new AttitudeAutopilot(Inertia));
+            return FitJets(world, hull);
         }
+
+        /// <summary>Spawns the shuttle's main engine and jets as parts of <paramref name="hull"/> and adds their control, as <see cref="FitActuators"/> does, without the attitude autopilot.</summary>
+        public static ShuttleJetControl FitJets(World world, Entity hull) =>
+            ShuttleJetControl.Fit(world, hull, MainEngineThrust, Inertia, TranslationThrust);
 
         /// <summary>
         /// The hatch, the doorway through the starboard wall, in the shuttle's axes: 1.2 m wide, 2.1 m tall, centered 2 m
@@ -173,20 +190,14 @@ public static partial class DemoScenes
         public static ShapeDesc InteriorShape { get; } = new CompoundShapeDesc(
             [.. Loft.Interior(), new CompoundChild(new BoxShapeDesc(Seat.Extents, ConvexRadius: 0), new Pose(Seat.Center, Quaternion.Identity))]);
 
-        private static readonly HullMass LoftMass = Loft.MassOf(Mass);
-
-        /// <summary>
-        /// The hull's center of mass, in meters, in the shuttle's axes: where physics puts it for <see cref="HullShape"/> at
-        /// one density, about 9 cm below and 36 cm aft of the hull's middle. The user chose one density on 2026-10-20, so no
-        /// ballast moves it onto the middle line (docs/plans/blue-danube-demo.md, "Engine changes").
-        /// </summary>
-        public static Vector3 CenterOfMass { get; } = LoftMass.CenterOfMass;
-
         /// <summary>
         /// The hull's moments of inertia about its principal axes, in kg·m², and those axes in the shuttle's axes, as physics
-        /// derives them for <see cref="HullShape"/> with <see cref="Mass"/>. The long axis tilts about 1 degree from Z.
+        /// derives them for <see cref="HullShape"/> with <see cref="Mass"/>. The long axis tilts about 1 degree from Z. The
+        /// hull's center of mass is the engine's (<see cref="BodyFacts.CenterOfMass"/>), which every component reads from
+        /// the body facts: about 9 cm below and 36 cm aft of the hull's middle, at one density. The user chose one density
+        /// on 2026-10-20, so no ballast moves it onto the middle line (docs/plans/blue-danube-demo.md, "Engine changes").
         /// </summary>
-        public static PrincipalInertia Inertia { get; } = LoftMass.Inertia;
+        public static PrincipalInertia Inertia { get; } = Loft.MassOf(Mass).Inertia;
 
         /// <summary>
         /// The main engine's nozzle: a ring from 0.5 m to 0.6 m in radius and 0.5 m long, about its own Y axis, in 32
@@ -196,24 +207,36 @@ public static partial class DemoScenes
         public static RevolvedSolid Nozzle { get; } = RevolvedSolid.Ring(0.5f, 0.6f, 0.25f, 32);
 
         /// <summary>
-        /// Where the nozzle lies, in the shuttle's axes: its axis along Z through the center of mass, where the main engine
-        /// pushes, and the tail pocket's middle, and its aft rim 5 cm inside the tail face, so from z = 7.45 m to 7.95 m. A
-        /// nozzle off that line would show a thrust that turns the ship, and the ship does not turn.
+        /// The nozzle's middle along the shuttle's Z, in meters: its aft rim lies 5 cm inside the tail face, so it runs from
+        /// z = 7.45 m to 7.95 m. The main engine's part sits there too (see <see cref="ShuttleJets.MainEnginePlace"/>).
         /// </summary>
-        public static DPose NozzlePose { get; } =
-            new(new Double3(CenterOfMass.X, CenterOfMass.Y, Hull.Z - 0.05 - 0.25), DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2));
+        public static double NozzleZ { get; } = Hull.Z - 0.05 - 0.25;
 
         /// <summary>
-        /// Spawns the nozzle at <see cref="NozzlePose"/> in <paramref name="cabin"/>, the shuttle's frame, drawn in dark gray,
-        /// with no body. Its scene id is <c>nozzle</c>, after <paramref name="prefix"/> and a hyphen when the prefix is not
-        /// empty, so that each shuttle of a scene has its own.
+        /// Where the nozzle lies, in the shuttle's axes, for a hull whose center of mass lies at
+        /// <paramref name="centerOfMass"/>: its axis along Z through the center of mass, where the main engine pushes, and
+        /// the tail pocket's middle, at <see cref="NozzleZ"/>, turned a quarter turn about X so that the ring's own Y lies
+        /// along Z. A nozzle off that line would show a thrust that turns the ship, and the ship does not turn.
+        /// </summary>
+        public static DPose NozzlePose(Double3 centerOfMass) =>
+            new(new Double3(centerOfMass.X, centerOfMass.Y, NozzleZ), DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2));
+
+        /// <summary>
+        /// Spawns the nozzle in <paramref name="cabin"/>, the shuttle's frame, at <see cref="NozzlePose"/> for the center of
+        /// mass of the frame's owner, the hull, which it reads from the engine's body facts. It is drawn in dark gray, with
+        /// no body. Its scene id is <c>nozzle</c>, after <paramref name="prefix"/> and a hyphen when the prefix is not empty,
+        /// so that each shuttle of a scene has its own. The nozzle is its own entity, not the main engine's part: a parked
+        /// shuttle with no flight controls draws it too, and its mesh turns a quarter turn from the hull's axes, which the
+        /// main engine's part keeps.
         /// </summary>
         public static Entity SpawnNozzle(World world, FrameHandle cabin, SceneInstance scene, IRenderResources resources, string prefix = "")
         {
+            if (!world.Snapshot.TryGetBody(cabin.Entity, out BodyFacts hull))
+                throw new ArgumentException($"The frame {cabin} has no owner with a body, so it has no hull for the nozzle.", nameof(cabin));
             Entity nozzle = world.Spawn(new SpawnDesc
             {
                 Frame = cabin,
-                Pose = NozzlePose,
+                Pose = NozzlePose((Double3)hull.CenterOfMass),
                 Render = Drawn(resources, Nozzle.Mesh(), new Vector4(0.18f, 0.18f, 0.2f, 1), boundingRadius: 0.7f),
             });
             scene.Add(prefix.Length == 0 ? "nozzle" : $"{prefix}-nozzle", nozzle);

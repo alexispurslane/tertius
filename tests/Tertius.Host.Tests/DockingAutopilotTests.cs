@@ -304,10 +304,9 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
                 LinearVelocity = velocity,
                 Body = Shuttle.Body(BodyMotion.Dynamic),
                 AsFrame = new FrameSpec(new FrameBounds(Shuttle.Bubble)),
-                Components = [new DockingAutopilot(station, Shuttle.CenterOfMass), recorder, new AttitudeAutopilot(Shuttle.Inertia),
-                    new MainEngine(Shuttle.Mass * Shuttle.ThrustAcceleration), new TranslationThrusters(Shuttle.TranslationThrust),
-                    .. watcher is null ? Array.Empty<IComponent>() : [watcher]],
+                Components = [new DockingAutopilot(station), recorder, .. watcher is null ? Array.Empty<IComponent>() : [watcher]],
             });
+            Shuttle.FitActuators(world, shuttle);
             return (station, shuttle, recorder);
         }
 

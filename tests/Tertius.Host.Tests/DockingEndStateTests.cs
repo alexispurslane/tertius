@@ -119,7 +119,7 @@ public sealed class DockingEndStateTests
     [Fact]
     public void TheSpinPullsTheParkedShuttleIntoTheCorner()
     {
-        Double3 center = DemoStation.ParkedPose.TransformPoint((Double3)Shuttle.CenterOfMass);
+        Double3 center = DemoStation.ParkedPose.TransformPoint((Double3)HostTesting.ShuttleCenterOfMass);
         double rate = DemoScenes.SpinStation.Rate;
         Double3 gravity = new Double3(center.X, 0, center.Z) * (rate * rate);
         gravity.X.Should().BeNegative("the spin gravity presses the hull into the deck");

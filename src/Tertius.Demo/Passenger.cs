@@ -275,12 +275,17 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     /// <summary>What the passenger does now. It starts <see cref="Boarding"/>, unless a constructor names another state.</summary>
     public PassengerState State { get; private set; } = new Boarding();
 
+    /// <summary>The passenger's back jet, which it spawns in its first tick and floats with. Null before it.</summary>
+    public Entity BackJetPart { get; private set; }
+
     public int Priority => 0;
 
     public EventMask Wants => EventMask.Of<Tick>().And<CrateOffer>().And<FastenBelt>().And<LeaveShip>().And<PlayWithBoxes>();
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
+        if (BackJetPart.IsNull)
+            BackJetPart = BackJet.Spawn(self);
         float mass = self.Snapshot.TryGetBody(self.Entity, out BodyFacts body) ? body.Mass : 0;
         switch (State)
         {
@@ -299,7 +304,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
                 {
                     if (events[i].Is<CrateOffer>() && events[i].Sender == pen && Take(self, outbox, events[i].As<CrateOffer>().Crate))
                     {
-                        Steer(self, Double3.Zero, mass);
+                        Steer(self, outbox, Double3.Zero, mass);
                         return;
                     }
                 }
@@ -308,14 +313,14 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
             case Holding { Copy: Entity held }:
                 if (!events.Of<FastenBelt>().Any())
                 {
-                    Steer(self, Double3.Zero, mass);
+                    Steer(self, outbox, Double3.Zero, mass);
                     return;
                 }
                 State = new Returning(held);
-                Return(self, held, mass);
+                Return(self, outbox, held, mass);
                 return;
             case Returning { Copy: Entity held }:
-                Return(self, held, mass);
+                Return(self, outbox, held, mass);
                 return;
             case Strapped { Copy: Entity held }:
                 if (events.Of<LeaveShip>().Any())
@@ -336,7 +341,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
             case PenAway:
                 return;
             default:
-                Steer(self, Double3.Zero, mass);
+                Steer(self, outbox, Double3.Zero, mass);
                 return;
         }
     }
@@ -362,11 +367,11 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     /// <see cref="BuckleRadius"/> of the seat. Outside the seat's frame, it stops relative to its frame instead, as a
     /// passenger that holds the pen does.
     /// </summary>
-    private void Return(Self self, Entity held, float mass)
+    private void Return(Self self, Outbox outbox, Entity held, float mass)
     {
         if (self.Frame != seat.Frame)
         {
-            Steer(self, Double3.Zero, mass);
+            Steer(self, outbox, Double3.Zero, mass);
             return;
         }
         Double3 way = seat.Position - self.PoseIn(seat.Frame).Position;
@@ -376,7 +381,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
             State = new Strapped(held);
             return;
         }
-        Steer(self, way * (Math.Min(FloatSpeed, distance * ApproachRate) / distance), mass);
+        Steer(self, outbox, way * (Math.Min(FloatSpeed, distance * ApproachRate) / distance), mass);
     }
 
     /// <summary>
@@ -399,7 +404,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
         if (!self.Snapshot.TryGetPoseIn(pen, self.Frame, out DPose penPose) || !self.Snapshot.TryGetVelocityIn(pen, self.Frame, out Double3 penVelocity))
         {
             State = new Stopped();
-            Steer(self, Double3.Zero, mass);
+            Steer(self, outbox, Double3.Zero, mass);
             return;
         }
         // The hand and the line ahead of the view, in the passenger's frame.
@@ -416,7 +421,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
         Double3 lineUp = way - ahead * gap;
         double distance = lineUp.Length;
         double speed = Math.Min(FloatSpeed, distance * ApproachRate);
-        Steer(self, penVelocity + (distance > 0 ? lineUp * (speed / distance) : Double3.Zero), mass);
+        Steer(self, outbox, penVelocity + (distance > 0 ? lineUp * (speed / distance) : Double3.Zero), mass);
     }
 
     /// <summary>
@@ -436,14 +441,16 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     }
 
     /// <summary>
-    /// Thrusts toward <paramref name="velocity"/>, relative to the passenger's frame: the force that reaches it in
-    /// <see cref="SteerTime"/>, at most <see cref="PersonControl.ThrustForce"/>.
+    /// Thrusts toward <paramref name="velocity"/>, relative to the passenger's frame, with the back jet: the force that
+    /// reaches it in <see cref="SteerTime"/>, at most <see cref="PersonControl.ThrustForce"/>. The jet pushes in the next
+    /// tick.
     /// </summary>
-    private static void Steer(Self self, Double3 velocity, float mass)
+    private void Steer(Self self, Outbox outbox, Double3 velocity, float mass)
     {
         Double3 force = (velocity - self.VelocityIn(self.Frame)) * (mass / SteerTime);
         if (force.Length > PersonControl.ThrustForce)
             force *= PersonControl.ThrustForce / force.Length;
-        self.Body.AddForce(force.ToVector3());
+        // The back jet takes the force in the passenger's own axes, which it keeps.
+        outbox.Send(BackJetPart, new JetForce { Force = self.PoseIn(self.Frame).Rotation.Conjugate().Rotate(force).ToVector3() });
     }
 }
