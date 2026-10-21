@@ -10,7 +10,8 @@ namespace Tertius.Rendering;
 /// frame outlines, puffs. One per frame in flight.</description></item>
 /// <item><term>set 1, textures</term><description>the bindless texture array: variable count, partially bound, update-after-bind. One per frame in flight.</description></item>
 /// <item><term>set 2, G-buffer</term><description>the G-buffer targets for the lighting and transparent passes (rewritten on resize),
-/// the sun shadow cascades (binding 5) and their comparison sampler (binding 6, immutable). One.</description></item>
+/// the sun shadow cascades (binding 5) and their comparison sampler (binding 6, immutable), which the vertex stage also reads
+/// for the lit puffs. One.</description></item>
 /// <item><term>set 3, impostor atlas</term><description>the impostor atlas's color and depth-offset arrays and their
 /// sampler (immutable), for the billboards in the G-buffer pass. One, written once.</description></item>
 /// <item><term>post</term><description>the HDR image for tone mapping. One, rewritten on resize.</description></item>
@@ -66,8 +67,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             new(2, DescriptorType.SampledImage, 1, ShaderStageFlags.FragmentBit),
             new(3, DescriptorType.SampledImage, 1, ShaderStageFlags.FragmentBit),
             new(4, DescriptorType.SampledImage, 1, ShaderStageFlags.FragmentBit),
-            new(5, DescriptorType.SampledImage, 1, ShaderStageFlags.FragmentBit),
-            new(6, DescriptorType.Sampler, 1, ShaderStageFlags.FragmentBit, &shadowSampler),
+            // The vertex shader of the lit puffs samples the cascades once per puff, at its center.
+            new(5, DescriptorType.SampledImage, 1, graphics),
+            new(6, DescriptorType.Sampler, 1, graphics, &shadowSampler),
         ];
         GBufferSet = CreateLayout(gbuffer, "g-buffer set");
 
