@@ -4108,7 +4108,7 @@ One proof and one fix of the light needed engine changes. The user settled both 
 
 The recording: "The Blue Danube" by Johann Strauss II, played by the United States Marine Band and conducted by Albert F. Schoepper. It is a work of the US government, and so it is in the public domain. It comes from Wikimedia Commons, the file "An der schönen, blauen Donau" performed by the U.S. Marine Band.mp3: 13,183,232 bytes, MP3 at 192 kbit/s, 44.1 kHz, stereo. The user said yes to its download on 2026-10-20. The file stays outside the repository, and the edit takes its path with `--music`.
 
-ffprobe in the dev shell measures the recording at 549.06 s, 9 minutes 9 s. The last 2.8 s are silence. The video lasts 410.4 s, 75 percent of the recording. The edit fits the music to the cut with one rule:
+ffprobe in the dev shell measures the recording at 549.06 s, 9 minutes 9 s. The last 2.8 s are silence. The video lasts 409.9 s, 75 percent of the recording. The edit fits the music to the cut with one rule:
 
 - The music starts at second 0 of the recording (`--music-start 0`), with the first frame of the opening card. The waltz opens with its quiet introduction, at about 47 dB below full scale in its first second, so it starts under the black card with no jump.
 - It fades in over 2 s and out over the last 5 s of the video, which lie in the closing card. So the music ends with the picture.
@@ -4179,6 +4179,19 @@ Measured with the plumes (ter-6u2m), on 2026-10-21, on the same machine, with th
 - The edit took 66 s. The final video has 24,594 frames, 409.9 s at 60 frames per second. It is 75.7 MB.
 - Its frames show the plumes of the ignition, the climb, the transfer burn and the docking (see "The plumes", "The films").
 - The run prints the same one line of the rendezvous autopilot at tick 296,184, and no other line.
+
+Measured in the final render (ter-0692), with the coda, the plumes and the walk, on 2026-10-21, on the same machine, with the checked-in script and the music, at a 1-minute load near 17:
+
+- The master took 2 minutes 39 seconds from the command line: 23,814 frames, 1,172 MB.
+- The readout log took 63 s.
+- The edit took 68 s. The final video has 24,594 frames, 409.9 s at 60 frames per second, and an AAC track of 409.9 s. It is 86.0 MB. From 120 s to 130 s, the music has a mean volume of 21.3 dB and a peak of 4.2 dB below full scale.
+- The run prints the same one line of the rendezvous autopilot at tick 296,184, and no other line.
+- The copy for a phone, which takes files up to 30 MiB: 960 × 540, H.264 in two passes at 440 kbit/s, and AAC at 96 kbit/s. It is 28.3 MB (27.0 MiB). The command, in the dev shell:
+
+```
+ffmpeg -i runs/danube/blue-danube.mp4 -vf scale=960:540 -c:v libx264 -preset medium -b:v 440k -pass 1 -an -f mp4 /dev/null
+ffmpeg -i runs/danube/blue-danube.mp4 -vf scale=960:540 -c:v libx264 -preset medium -b:v 440k -pass 2 -c:a aac -b:a 96k -movflags +faststart runs/danube/blue-danube-phone.mp4
+```
 
 ### Order of the work
 
