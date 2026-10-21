@@ -26,7 +26,7 @@ public sealed class BlueDanubeEditTests
     [Fact]
     public void TheEditCanCutTheCheckedInScriptWithTheCutList()
     {
-        List<ReadoutRow> rows = [.. Films.SelectMany(film => Enumerable.Range(0, film.Frames).Select(k => new ReadoutRow($"{film.Name}-{k:000000}", film.FirstTick, new Double3(DemoScenes.EarthRadius, 0, 0), 0, 0, 0)))];
+        List<ReadoutRow> rows = [.. Films.SelectMany(film => Enumerable.Range(0, film.Frames).Select(k => new ReadoutRow($"{film.Name}-{k:000000}", film.FirstTick, new Double3(DemoScenes.EarthRadius, 0, 0), 0, 0, 0, 0)))];
 
         Action cut = () => EditSubtitles.Film(Stretch.Of(Films, BlueDanubeEdit.Cuts.Trims), rows, BlueDanubeEdit.Cuts);
 
@@ -63,9 +63,45 @@ public sealed class BlueDanubeEditTests
     }
 
     [Fact]
+    public void TheDockingPartStartsWithTheFirstFilmAfterTheHold()
+    {
+        // The hold ends with the film hold-chase, and the next section orders the docking.
+        EditPart docking = BlueDanubeEdit.Cuts.Parts.Single(part => part.Title == "The docking");
+
+        IndexOf(docking.FirstFilm).Should().Be(IndexOf("hold-chase") + 1);
+    }
+
+    [Fact]
+    public void TheWheelPartStartsWithTheFirstFilmOfTheExit()
+    {
+        EditPart wheel = BlueDanubeEdit.Cuts.Parts.Single(part => part.Title == "The wheel");
+
+        wheel.FirstFilm.Should().Be(BlueDanube.ExitSections[0].Name);
+    }
+
+    [Fact]
+    public void TheSpinGravityPanelSpansTheBrakeRunAndTheFloorToTheEndOfTheRun()
+    {
+        PanelSpan panel = BlueDanubeEdit.Cuts.Panels.Single(span => span.Panel == (CheckPanel)CheckPanels.SpinGravity);
+
+        // The slide ends with the film chute, 10 m above the wheel's ceiling, and the brake run and the landing follow.
+        IndexOf(panel.FirstFilm).Should().Be(IndexOf("chute") + 1);
+        panel.LastFilm.Should().Be(Films[^1].Name);
+    }
+
+    [Fact]
+    public void TheOutlinesShowWhereTheFramesMatter()
+    {
+        // The walk into the parked shuttle's bubble, the falling frame on the ramp, the hand-off out of the turning ground
+        // in the climb, the shuttle's own frame in orbit, the station's bubble and its following frame at the rim, and the
+        // entry into the station's turning bubble (docs/plans/blue-danube-demo.md, "The frames made visible").
+        Films.Where(film => film.Outlines).Select(film => film.Name).Should().Equal("boarding", "ramp", "climb-high", "orbit", "glide-rim", "entry");
+    }
+
+    [Fact]
     public void TheParkingOrbitPanelSpansTheCoastFromTheInsertionToTheTransferBurn()
     {
-        PanelSpan panel = BlueDanubeEdit.Cuts.Panels.Single();
+        PanelSpan panel = BlueDanubeEdit.Cuts.Panels.Single(span => span.Panel == (CheckPanel)CheckPanels.ParkingOrbit);
 
         // The climb ends when the ascent autopilot is in orbit, and the film burn holds the transfer burn.
         IndexOf(panel.FirstFilm).Should().Be(IndexOf("climb-high") + 1);

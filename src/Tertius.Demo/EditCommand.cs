@@ -9,7 +9,9 @@ namespace Tertius.Demo;
 /// <summary>
 /// <c>--edit</c>: turns the master video of a script into the final video (docs/plans/blue-danube-demo.md, "The edit"). It
 /// keeps the stretches of the cut list, draws the readouts of the readout log on each frame, puts the title cards before and
-/// after, adds the music, and encodes one MP4 with ffmpeg from the dev shell.
+/// after, adds the music, and encodes one MP4 with ffmpeg from the dev shell. Beside the video it writes the cue sheet, the
+/// file <c>&lt;out.mp4&gt;.cues.json</c>, which says where each film, each part's title and each card lie in the video (see
+/// <see cref="CueSheet"/>).
 /// </summary>
 public static class EditCommand
 {
@@ -104,7 +106,7 @@ public static class EditCommand
             return ScriptCommand.FileError;
         }
 
-        double length = cuts.Opening.Seconds + stretches.Sum(s => s.Count) / (double)Stretch.FramesPerSecond + cuts.Closing.Seconds;
+        CueSheet cues = CueSheet.Of(stretches, cuts);
         List<string> arguments = Arguments(stretches, cuts, options.Master, options.Music, options.MusicStart, options.Output, width, height);
         try
         {
@@ -120,7 +122,17 @@ public static class EditCommand
             error.WriteLine($"ffmpeg cannot start: {ex.Message}");
             return ScriptCommand.ToolError;
         }
-        output.WriteLine(string.Format(CultureInfo.InvariantCulture, "{0}: {1:F1} s", options.Output, length));
+        string cueSheet = options.Output + ".cues.json";
+        try
+        {
+            File.WriteAllText(cueSheet, cues.ToJson());
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            error.WriteLine($"The edit cannot write the cue sheet {cueSheet}: {ex.Message}");
+            return ScriptCommand.FileError;
+        }
+        output.WriteLine(string.Format(CultureInfo.InvariantCulture, "{0}: {1:F1} s", options.Output, cues.Length));
         return ScriptCommand.Ok;
     }
 

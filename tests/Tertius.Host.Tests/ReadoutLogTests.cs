@@ -11,6 +11,7 @@ namespace Tertius.Host.Tests;
 /// adds one row at each capture of a script, on the real World and the real Jolt backend. The log reads in the frame
 /// <c>earth</c>, which does not turn. The first scene of these tests drops a ball, the <c>person</c>, from 5 m in the root
 /// frame <c>earth</c>, whose uniform gravity is 9.81 m/s². The <c>station</c> is a static box 30 m to the side at the
+/// ball's first height, turned a quarter turn about earth's -Z, so that its axis, its +Y, lies along earth's +X at the
 /// ball's first height. The second scene, <see cref="Turning"/>, holds a turning ground in earth.
 /// </summary>
 public sealed class ReadoutLogTests
@@ -26,7 +27,7 @@ public sealed class ReadoutLogTests
         scene.Add("station", world.Spawn(new SpawnDesc
         {
             Frame = earth,
-            Pose = At(30, 5),
+            Pose = new DPose(new Double3(30, 5, 0), DQuaternion.FromAxisAngle(-Double3.UnitZ, Math.PI / 2)),
             Body = new BodyDesc(new BoxShapeDesc(new System.Numerics.Vector3(1)), BodyMotion.Static),
         }));
         scene.Add("camera", world.Spawn(new SpawnDesc { Frame = earth, Pose = At(0, 2, 10), Render = new RenderData() }));
@@ -142,6 +143,14 @@ public sealed class ReadoutLogTests
     }
 
     [Fact]
+    public void ARowHoldsTheDistanceFromThePersonToTheStationsAxis()
+    {
+        // The station's axis runs along earth's +X at the ball's first height, 5 m, so the ball falls away from it.
+        foreach (ReadoutRow row in Rows)
+            row.Axis.Should().BeApproximately(5 - row.Position.Y, 1e-9);
+    }
+
+    [Fact]
     public void ARowHoldsTheFeltGravityAtThePersonsPlace()
     {
         foreach (ReadoutRow row in Rows)
@@ -163,7 +172,7 @@ public sealed class ReadoutLogTests
     {
         string[] lines = ReadoutLog.ToCsv(Rows).TrimEnd('\n').Split('\n');
 
-        lines[0].Should().Be("frame,tick,x,y,z,speed,station,felt");
+        lines[0].Should().Be("frame,tick,x,y,z,speed,station,axis,felt");
         lines.Should().HaveCount(6);
         lines[1].Should().StartWith("a-000000,2,0,");
     }
@@ -186,7 +195,7 @@ public sealed class ReadoutLogTests
 
         Action read = () => ReadoutLog.FromCsv(string.Join('\n', lines));
 
-        read.Should().Throw<FormatException>().WithMessage("Line 3 of the readout log has 7 cells, not 8.");
+        read.Should().Throw<FormatException>().WithMessage("Line 3 of the readout log has 8 cells, not 9.");
     }
 
     [Fact]

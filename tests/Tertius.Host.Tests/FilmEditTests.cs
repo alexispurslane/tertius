@@ -120,7 +120,7 @@ public sealed class FilmEditTests
 
     /// <summary>One row for each frame of <paramref name="films"/>, named as the runner names the frames.</summary>
     private static List<ReadoutRow> RowsOf(IReadOnlyList<ScriptFilm> films) =>
-        [.. films.SelectMany(film => Enumerable.Range(0, film.Frames).Select(k => new ReadoutRow($"{film.Name}-{k:000000}", 0, default, 0, 0, 0)))];
+        [.. films.SelectMany(film => Enumerable.Range(0, film.Frames).Select(k => new ReadoutRow($"{film.Name}-{k:000000}", 0, default, 0, 0, 0, 0)))];
 
     [Fact]
     public void TheEditTakesALogWithOneRowForEachFrameOfTheScriptNamedAfterIt()

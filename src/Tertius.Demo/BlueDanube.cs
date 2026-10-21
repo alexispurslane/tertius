@@ -77,7 +77,8 @@ public static class BlueDanube
         new("pad", "follow-camera", Every: 1, (world, scene) => Double3.Distance(PersonInCabin(world, scene), Shuttle.OutsideHatch) < 1.5),
         // The follow camera, which looks through the hatch after the person, meets the hull's side and jumps into the
         // cabin, so the apron camera films the boarding until the follow camera is in the cabin.
-        new("boarding", "apron-camera", Every: 1, (world, scene) => InsideTheCabin(world.PoseIn(scene["follow-camera"], world.GetOwnedFrame(scene["shuttle"])).Position)),
+        new("boarding", "apron-camera", Every: 1, (world, scene) => InsideTheCabin(world.PoseIn(scene["follow-camera"], world.GetOwnedFrame(scene["shuttle"])).Position),
+            Outlines: true),
         new("cabin", "follow-camera", Every: 1, (world, scene) => PassengerOf(world, scene).Value is not Boarding, Hold: Second),
         // The person at its seat, seen from inside, and then from outside through the starboard glass.
         new("seated", "cabin-camera", Every: 1, FilmSection.Now, Hold: Second * 3 / 4),
@@ -88,7 +89,7 @@ public static class BlueDanube
         // The launch: the ignition, the ramp, and the flight past its top.
         new("ignition", "pad-camera", Every: 1, (world, scene) => Rise(world, scene) > LaunchRamp.Height / 8,
             Posts: [new PostStep(new ToEntity("shuttle"), nameof(Ignition))]),
-        new("ramp", "ramp-camera", Every: 1, (world, scene) => Rise(world, scene) > LaunchRamp.Height * 3 / 4),
+        new("ramp", "ramp-camera", Every: 1, (world, scene) => Rise(world, scene) > LaunchRamp.Height * 3 / 4, Outlines: true),
         new("ramp-top", "ramp-top-camera", Every: 1, (world, scene) => AscentOf(world, scene).Value is Climb or Orbit, Hold: Second),
 
         // The climb to orbit, as a time-lapse: the ground falls away, the belted person and the pen in the cabin, and the
@@ -96,10 +97,10 @@ public static class BlueDanube
         new("climb-low", "climb-camera", Every: 4, (world, scene) => Altitude(world, scene) > 15e3),
         new("climb-cabin", "follow-camera", Every: 4, FilmSection.Now, Hold: Second * 10),
         new("climb-pen", "pen-camera", Every: 4, FilmSection.Now, Hold: Second * 4),
-        new("climb-high", "chase-camera", Every: 20, (world, scene) => AscentOf(world, scene).Value is Orbit),
+        new("climb-high", "chase-camera", Every: 20, (world, scene) => AscentOf(world, scene).Value is Orbit, Outlines: true),
 
         // Orbit: the clip lets the pen go, and the person floats to it and takes it.
-        new("orbit", "chase-camera", Every: 1, FilmSection.Now, Hold: Second),
+        new("orbit", "chase-camera", Every: 1, FilmSection.Now, Hold: Second, Outlines: true),
         new("pen-release", "pen-camera", Every: 1, (world, scene) => PenReleased(world, scene), Hold: Second * 2),
         // The person floats toward the pen camera on its way to the pen, so the hand camera takes over before the person
         // fills the pen camera's lens.
@@ -128,7 +129,7 @@ public static class BlueDanube
         new("turn", "window-camera", Every: 1, (world, scene) => NoseFromStation(world, scene) < NoseOnStation),
         new("glide", "chase-camera", Every: 6, (world, scene) => ToStation(world, scene) < 700),
         new("glide-window", "window-camera", Every: 4, (world, scene) => ToStation(world, scene) < 400),
-        new("glide-rim", "rim-camera", Every: 4, (world, scene) => ToStation(world, scene) < 200),
+        new("glide-rim", "rim-camera", Every: 4, (world, scene) => ToStation(world, scene) < 200, Outlines: true),
         new("arrival", "cockpit-camera", Every: 4, (world, scene) => RendezvousOf(world, scene).Value is Hold, Hold: Second * 3),
         // The hold, from the station's rim, and then the person through the starboard glass with the station ahead. The
         // two films take the 5 s that the hold had alone, so the run ends at the same tick.
@@ -144,7 +145,8 @@ public static class BlueDanube
         new("spin-up", "chase-camera", Every: 2, (world, scene) => DockingOf(world, scene).Value is SpinUp { StartTime: var start } && world.Time - start >= SpinUpFilmed),
         new("spin-match", "hold-camera", Every: 2, (world, scene) => DockingOf(world, scene).Value is Entry),
         // The window camera films the slot ahead until the nose is 10 m from the slot's outer face.
-        new("entry", "window-camera", Every: 4, (world, scene) => InStation(world, scene).Position.Y < DemoStation.HubHalf.Y + Shuttle.Hull.Z + NoseToSlot),
+        new("entry", "window-camera", Every: 4, (world, scene) => InStation(world, scene).Position.Y < DemoStation.HubHalf.Y + Shuttle.Hull.Z + NoseToSlot,
+            Outlines: true),
         new("slot", "bay-camera", Every: 2, (world, scene) => DockingOf(world, scene).Value is MoveOut),
         new("move-out", "cockpit-camera", Every: 2, (world, scene) => Double3.Distance(InStation(world, scene).Position, DemoStation.ParkedPose.Position) < 1),
         new("landing", "bay-camera", Every: 1, (world, scene) => DockingOf(world, scene).Value is Docked, Hold: Second * 2),
