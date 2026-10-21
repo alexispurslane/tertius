@@ -47,7 +47,10 @@ public static partial class DemoScenes
         /// <summary>The wheel's segments, and so the facets of its floor: 2.45 m long each.</summary>
         public const int Segments = 256;
 
-        /// <summary>The radius of the ceiling's face toward the axis, in meters: it runs from 94.5 to 95 m, 5 m above the floor.</summary>
+        /// <summary>
+        /// The radius of the ceiling's face toward the axis, in meters: it runs from 94.5 to 95 m, 5 m above the floor. The
+        /// ceiling is three bands with an opening under the spoke at θ = 180 degrees (see <see cref="StationExit.CeilingBands"/>).
+        /// </summary>
         public const float CeilingRadius = 94.5f;
 
         /// <summary>The thickness of the ceiling, in meters.</summary>
@@ -207,9 +210,23 @@ public static partial class DemoScenes
             new Vector3(Slot.Min.X, Slot.Min.Z, Slot.Min.Y), new Vector3(Slot.Max.X, Slot.Max.Z, Slot.Max.Y)));
 
         /// <summary>
-        /// The boxes of the hub's walls, in its own axes, with the slot open: the far end wall across Z, the slot's end wall
-        /// in four parts round the slot, the walls across X between the end walls, and the walls across Y between those.
-        /// The boxes touch without gaps or overlaps.
+        /// The chute's top, <see cref="StationExit.DeckHole"/>, in the hub's own axes: an opening through its -X wall, the
+        /// deck's. The hub's turn takes the station's (x, y, z) from the hub's (x, z, -y), so the hole lies at y from 0.2 to
+        /// 1.0 m and z from -0.6 to 0.6 m there.
+        /// </summary>
+        private static Opening HubDeckHole
+        {
+            get
+            {
+                BoundingBox hole = StationExit.DeckHole;
+                return Opening.ThroughX(new BoundingBox(new Vector3(hole.Min.X, -hole.Max.Z, hole.Min.Y), new Vector3(hole.Max.X, -hole.Min.Z, hole.Max.Y)));
+            }
+        }
+
+        /// <summary>
+        /// The boxes of the hub's walls, in its own axes, with the slot and the chute's top open: the far end wall across
+        /// Z, the slot's end wall in four parts round the slot, the walls across X between the end walls, the deck's in four
+        /// parts round the chute's top, and the walls across Y between those. The boxes touch without gaps or overlaps.
         /// </summary>
         public static IEnumerable<BoundingBox> HubWalls()
         {
@@ -221,7 +238,8 @@ public static partial class DemoScenes
             yield return end with { Min = end.Min with { X = slot.Max.X } };
             yield return new BoundingBox(new Vector3(slot.Min.X, -outer.Y, inner.Z), new Vector3(slot.Max.X, slot.Min.Y, outer.Z));
             yield return new BoundingBox(new Vector3(slot.Min.X, slot.Max.Y, inner.Z), new Vector3(slot.Max.X, outer.Y, outer.Z));
-            yield return new BoundingBox(new Vector3(-outer.X, -outer.Y, -inner.Z), new Vector3(-inner.X, outer.Y, inner.Z));
+            foreach (BoundingBox part in AroundDoorway(new BoundingBox(new Vector3(-outer.X, -outer.Y, -inner.Z), new Vector3(-inner.X, outer.Y, inner.Z)), HubDeckHole.Bounds))
+                yield return part;
             yield return new BoundingBox(new Vector3(inner.X, -outer.Y, -inner.Z), new Vector3(outer.X, outer.Y, inner.Z));
             yield return new BoundingBox(new Vector3(-inner.X, -outer.Y, -inner.Z), new Vector3(inner.X, -inner.Y, inner.Z));
             yield return new BoundingBox(new Vector3(-inner.X, inner.Y, -inner.Z), new Vector3(inner.X, outer.Y, inner.Z));
@@ -315,15 +333,17 @@ public static partial class DemoScenes
             scene.Add("station", station);
             FrameHandle frame = world.GetOwnedFrame(station);
 
-            RevolvedSolid ceiling = RevolvedSolid.Ring(CeilingRadius, CeilingRadius + CeilingThickness, HalfWidth, Segments);
-            ShapeDesc ceilingShape = ceiling.Shape();
-            scene.Add("station-ceiling", world.Spawn(new SpawnDesc
+            foreach ((string id, RevolvedSolid band, DPose pose) in StationExit.CeilingBands())
             {
-                Frame = frame,
-                Pose = DPose.Identity,
-                Body = new BodyDesc(ceilingShape, BodyMotion.Static),
-                Render = Part(resources, ceiling.Mesh(), new Vector4(0.7f, 0.71f, 0.74f, 1), ceilingShape.BoundingRadius()),
-            }));
+                ShapeDesc bandShape = band.Shape();
+                scene.Add(id, world.Spawn(new SpawnDesc
+                {
+                    Frame = frame,
+                    Pose = pose,
+                    Body = new BodyDesc(bandShape, BodyMotion.Static),
+                    Render = Part(resources, band.Mesh(), new Vector4(0.7f, 0.71f, 0.74f, 1), bandShape.BoundingRadius()),
+                }));
+            }
 
             RevolvedSolid wall = RevolvedSolid.Ring(CeilingRadius + CeilingThickness, FloorRadius, SideWallThickness / 2, Segments);
             ShapeDesc wallShape = wall.Shape();
@@ -351,7 +371,7 @@ public static partial class DemoScenes
             }));
 
             Vector3 hubOwn = HubOwnHalf;
-            Opening slot = HubSlot;
+            Opening slot = HubSlot, hole = HubDeckHole;
             CompoundShapeDesc hubShape = Boxes(HubWalls());
             scene.Add("station-hub", world.Spawn(new SpawnDesc
             {
@@ -359,11 +379,14 @@ public static partial class DemoScenes
                 Pose = new DPose(Double3.Zero, HubTurn),
                 Body = new BodyDesc(hubShape, BodyMotion.Static),
                 Render = Part(resources, new BoxMesh()
-                    .Box(new BoundingBox(-hubOwn, hubOwn), openings: slot)
-                    .Box(new BoundingBox(-(hubOwn - new Vector3(HubWall)), hubOwn - new Vector3(HubWall)), inward: true, openings: slot)
+                    .Box(new BoundingBox(-hubOwn, hubOwn), openings: [slot, hole])
+                    .Box(new BoundingBox(-(hubOwn - new Vector3(HubWall)), hubOwn - new Vector3(HubWall)), inward: true, openings: [slot, hole])
                     .Sides(slot)
+                    .Sides(hole)
                     .Build(), new Vector4(0.82f, 0.82f, 0.84f, 1), hubShape.BoundingRadius()),
             }));
+
+            StationExit.Spawn(world, frame, scene, resources);
 
             // The bay lamps: glowing panels flat on the bay's walls, each with its light 0.3 m out from the wall, in the
             // station's axes. Three stand near the slot, 8 m in from it, and one in the middle of the far end wall.

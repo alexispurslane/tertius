@@ -102,7 +102,8 @@ public sealed class DemoStationTests : IDisposable
     /// <summary>
     /// The deck, the bay's wall at x = -8 m, holds a box that drops onto it from 0.75 m, and pulls it with the weak spin
     /// gravity of its radius, ω² · 8 m = 0.785 m/s², about 8 percent of a gravity. The box falls in about 1.4 s and rests on
-    /// the deck after 8 s.
+    /// the deck after 8 s. It drops 1 m spinward of the middle, clear of the chute's top, the hole in the deck from z = -1
+    /// to -0.2 m, toward which the Coriolis force of its fall pushes it.
     /// </summary>
     [Fact]
     public void TheDeckHasTheWeakGravityOfItsRadius()
@@ -111,7 +112,7 @@ public sealed class DemoStationTests : IDisposable
         Entity box = world.Spawn(new SpawnDesc
         {
             Frame = frame,
-            Pose = new DPose(new Double3(-7, 0, 0), DQuaternion.Identity),
+            Pose = new DPose(new Double3(-7, 0, 1), DQuaternion.Identity),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(half)), Mass: 10),
         });
 

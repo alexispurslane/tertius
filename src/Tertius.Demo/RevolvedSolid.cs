@@ -98,6 +98,9 @@ public sealed class RevolvedSolid
     /// <summary>The cosine and sine of θ_k, for each of the segments.</summary>
     private readonly double[] cos, sin;
 
+    /// <summary>For each segment, true when it is left out (see <see cref="LeavingOut"/>).</summary>
+    private readonly bool[] open;
+
     private RevolvedSolid(Vector2[] corners, bool smooth, bool convex, int segments)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(segments, 3);
@@ -106,12 +109,23 @@ public sealed class RevolvedSolid
         this.convex = convex;
         cos = new double[segments];
         sin = new double[segments];
+        open = new bool[segments];
         for (int k = 0; k < segments; k++)
         {
             double theta = Math.Tau * k / segments;
             cos[k] = Math.Cos(theta);
             sin[k] = Math.Sin(theta);
         }
+    }
+
+    private RevolvedSolid(RevolvedSolid solid, bool[] open)
+    {
+        corners = solid.corners;
+        smooth = solid.smooth;
+        convex = solid.convex;
+        cos = solid.cos;
+        sin = solid.sin;
+        this.open = open;
     }
 
     /// <summary>
@@ -177,6 +191,25 @@ public sealed class RevolvedSolid
     private int Segments => cos.Length;
 
     /// <summary>
+    /// This solid with <paramref name="segment"/> left out, as well as every segment that this solid leaves out: the shape
+    /// has no hull for it, and the mesh draws none of its faces. The mesh caps each cut end, where a segment that is drawn
+    /// meets one that is left out, with the profile, so it stays closed. A ring of the station's ceiling leaves out the
+    /// segment under a spoke this way (docs/plans/blue-danube-demo.md, "The exit"). Throws
+    /// <see cref="ArgumentOutOfRangeException"/> for a segment that the solid does not have, and
+    /// <see cref="InvalidOperationException"/> for a cylinder, which is one convex hull with no segments of its own.
+    /// </summary>
+    public RevolvedSolid LeavingOut(int segment)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(segment);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(segment, Segments);
+        if (convex)
+            throw new InvalidOperationException("A cylinder is one convex hull, so it cannot leave out a segment.");
+        bool[] more = [.. open];
+        more[segment] = true;
+        return new RevolvedSolid(this, more);
+    }
+
+    /// <summary>
     /// The mesh: a flat quad for each edge of the profile in each segment, or a triangle where the edge has one end on the
     /// axis, wound counterclockwise around the outward normal. An edge along the axis has no area and adds nothing. The
     /// vertices at each angle are shared by the two segments that meet there, and their normals are those of the true
@@ -231,6 +264,8 @@ public sealed class RevolvedSolid
         var indices = new List<uint>();
         for (int k = 0; k < n; k++)
         {
+            if (open[k])
+                continue;
             int next = (k + 1) % n;
             foreach ((int from, int to) in edges)
             {
@@ -244,7 +279,29 @@ public sealed class RevolvedSolid
                     indices.AddRange([a, bNext, b]);
             }
         }
-        return new MeshData(vertices, [.. indices]);
+        // The caps at the cut ends: the profile at the angle where a drawn segment meets one that is left out. The profile
+        // winds counterclockwise about -dθ, the way the angle falls, so the cap at the end of a drawn segment reverses it.
+        var all = new List<Vertex>(vertices);
+        for (int k = 0; k < n; k++)
+        {
+            int before = (k + n - 1) % n;
+            if (open[k] == open[before])
+                continue;
+            // Segment k starts at θ_k. The cap faces back along -dθ when k is drawn after a gap, and along dθ when the
+            // segment before is drawn and k is left out.
+            bool facesBack = !open[k];
+            var along = new Vector3((float)-sin[k], 0, (float)-cos[k]);
+            Vector3 normal = facesBack ? -along : along;
+            uint first = (uint)all.Count;
+            for (int c = 0; c < corners.Length; c++)
+                all.Add(new Vertex { Position = Point(c, k), Normal = normal, Tangent = new Vector4((float)cos[k], 0, (float)-sin[k], 1) });
+            for (int c = 1; c + 1 < corners.Length; c++)
+            {
+                uint b = first + (uint)c, d = first + (uint)c + 1;
+                indices.AddRange(facesBack ? [first, b, d] : [first, d, b]);
+            }
+        }
+        return new MeshData([.. all], [.. indices]);
     }
 
     /// <summary>
@@ -262,13 +319,15 @@ public sealed class RevolvedSolid
         // coincide, as the corners on the axis at every angle would.
         if (convex)
             return new ConvexHullShapeDesc([.. Enumerable.Range(0, n).SelectMany(k => all.Where(c => corners[c].X != 0).Select(c => Point(c, k)))], ConvexRadius: 0);
-        var children = new CompoundChild[n];
+        var children = new List<CompoundChild>(n);
         for (int k = 0; k < n; k++)
         {
+            if (open[k])
+                continue;
             int next = (k + 1) % n;
-            children[k] = new CompoundChild(new ConvexHullShapeDesc([.. all.SelectMany(c => new[] { Point(c, k), Point(c, next) })], ConvexRadius: 0), Pose.Identity);
+            children.Add(new CompoundChild(new ConvexHullShapeDesc([.. all.SelectMany(c => new[] { Point(c, k), Point(c, next) })], ConvexRadius: 0), Pose.Identity));
         }
-        return new CompoundShapeDesc(children);
+        return new CompoundShapeDesc([.. children]);
     }
 
     /// <summary>
