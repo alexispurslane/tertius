@@ -1,0 +1,14 @@
+{
+  "scene": "puff-yard",
+  "window": { "width": 1280, "height": 720 },
+  "steps": [
+    { "do": "run", "ticks": 20 },
+    { "do": "capture", "name": "early" },
+    { "do": "run", "ticks": 40 },
+    { "do": "capture", "name": "box-in-flight" },
+    { "do": "run", "ticks": 60 },
+    { "do": "capture", "name": "box-landed" },
+    { "do": "run", "ticks": 180 },
+    { "do": "capture", "name": "steady" }
+  ]
+}

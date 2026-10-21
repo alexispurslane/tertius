@@ -1265,6 +1265,8 @@ Measurement: the wall time of a script with puffs, against the same script with 
 
 ARCHITECTURE.md: the end of the new section "Puffs", from the table to the screen.
 
+What task 6 built. The two tests above, and `ASnapshotWithoutACameraShowsNoPuffs`, which locks in that a World without a camera publishes no puffs. The test scene is the demo's `puff-yard`, with `scripts/puff-yard.json`, because the demo's headless runner already draws a scene of the scene list through the real renderer. A script cannot set a world option, so the measurement is not in `benchmarks/Tertius.Benchmarks`, which does not reference the demo. It is the explicit test `PuffScriptCostMeasurement` in `tests/Tertius.Host.Tests`, beside `DemoFrameCostMeasurement`. It runs the script as the command does, with each capacity in turn. In Release, at a 1-minute load of 3.6, the median of 7 runs of 300 ticks and 4 captures was 347.3 ms with puffs (about 760 alive at the end) and 337.3 ms with a capacity of 0: about 33 µs per tick.
+
 ### Task 7: lit puffs
 
 The lit case in the vertex shader, with the sun, the far shadows, the cascades, the ambient mean and the point and spot lights.
