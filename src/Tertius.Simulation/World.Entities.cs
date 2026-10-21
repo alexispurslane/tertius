@@ -74,8 +74,10 @@ public sealed partial class World
         // Physics applies destroys before creates, so earlier outside-tick creations must reach it before this batch,
         // which may destroy them.
         FlushPhysicsChanges();
+        // Outside a tick no part's push waits: the sync point carried the pushes of the last tick.
         MarkDying(entity);
-        DestroyDying();
+        GrowDestroyBatch();
+        FinishDestroyBatch();
         FlushPhysicsChanges();
         FinishOutsideTickChange();
         return true;
@@ -459,10 +461,11 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// Destroys every entity in the batch, plus attached children. The survivors in a dying frame move to the nearest
-    /// ancestor frame that survives; if none survives, they die too. Step 5 of the sync point.
+    /// Grows the destroy batch to everything that dies with it: the attached children of each dying entity, and the members
+    /// of each dying frame that has no surviving ancestor. Step 5 of the sync point, and a destroy outside a tick, before
+    /// <see cref="FinishDestroyBatch"/>.
     /// </summary>
-    private void DestroyDying()
+    private void GrowDestroyBatch()
     {
         // Grow the batch until nothing changes. One pass is not enough: an ancestor frame can join the batch after
         // one of its descendants was looked at.
@@ -480,6 +483,14 @@ public sealed partial class World
                         grew |= MarkDying(member);
             }
         }
+    }
+
+    /// <summary>
+    /// Destroys every entity of the batch that <see cref="GrowDestroyBatch"/> grew. The survivors in a dying frame move to the
+    /// nearest ancestor frame that survives. Step 5 of the sync point, and a destroy outside a tick.
+    /// </summary>
+    private void FinishDestroyBatch()
+    {
 
         // Move the survivors in each dying frame straight into the nearest surviving ancestor: rows, topics and
         // bodies. The frame tree moves surviving child frames itself when their parent dies (FrameTree.Destroy), so

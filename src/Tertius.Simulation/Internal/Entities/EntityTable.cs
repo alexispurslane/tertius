@@ -38,13 +38,18 @@ namespace Tertius.Simulation;
 /// <see cref="CopyDirtyRows"/> never misses a change. Gameplay never writes the transform of a slot with a body.</item>
 /// <item>A live slot's back component flags are the types of its components. Its collision rows are the default for an
 /// entity without a body. Its kept bounding radii are the <see cref="ShapeDesc.BoundingRadius"/> of its body's shape and
-/// of the shape inside it (<see cref="BodyDesc.InteriorShape"/>, or the shape when it has none), or 0 without a body.</item>
+/// of the shape inside it (<see cref="BodyDesc.InteriorShape"/>, or the shape when it has none), or 0 without a body. Its
+/// kept center of mass is zero without a body, and finite with one.</item>
 /// <item>A slot is in the set of <see cref="BodyEntities"/> exactly when it is live and has a body.</item>
 /// <item>The component index lists exactly the live entities whose front flags hold each type. Nothing changes it
 /// during the gameplay part of a tick, which starts with it settled, so the workers read it without a race.</item>
-/// <item>A back intent is set only for a live entity in its chunk's list of intent writers, and a front intent only
-/// for an entity in <see cref="IntentEntities"/>. A writer that died since it wrote stays in the list until the swap,
-/// which skips it: releasing it cleared its slot.</item>
+/// <item>A back intent is set only for a live entity in its chunk's list of intent writers or in its list of pushers, and
+/// a front intent only for an entity in <see cref="IntentEntities"/>. A writer that died since it wrote stays in the list
+/// until the swap, which skips it: releasing it cleared its slot.</item>
+/// <item>Each live entity in a chunk's list of pushers is listed there once, has no body, has a written intent, and is not
+/// among the chunk's intent writers. Each live entity among the <see cref="FrontPushers"/> is listed once, has no body,
+/// is not in <see cref="IntentEntities"/>, and holds an empty front intent: the flow of the sync point carried its push
+/// (docs/plans/parts.md).</item>
 /// <item>A live entity is in its chunk's list of motion changers, once, exactly when its back intent has
 /// <see cref="IntentFlags.SetMotion"/>. Each motion changer is also an intent writer. A changer that died stays in the
 /// list until the swap, as a dead intent writer does. A live entity is in the list of front motion changers, once, exactly
@@ -1033,6 +1038,12 @@ internal sealed partial class EntityTable
         sum.WriteInto(ref intent);
         Contract.Ensures(intent.Frame == frame && frontIntentEntities.AsSpan().IndexOf(root) == frontIntentEntities.AsSpan().LastIndexOf(root));
     }
+
+    /// <summary>
+    /// True when the front intent of <paramref name="entity"/> is empty, every byte zero, as it is for every entity outside
+    /// <see cref="IntentEntities"/>. For the invariants of the World. Throws <see cref="StaleEntityException"/> for a stale handle.
+    /// </summary>
+    internal bool HasEmptyFrontIntent(Entity entity) => IsDefault(in frontIntent[LiveSlot(entity)]);
 
     /// <summary>
     /// Adds to <paramref name="pushers"/> each live entity that pushed in this tick, chunk by chunk, in the order of its

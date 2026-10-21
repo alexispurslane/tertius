@@ -335,6 +335,25 @@ public sealed partial class World
     }
 
     /// <summary>
+    /// The running entity's intent, for writing a push: a force, a torque, an impulse or an angular impulse
+    /// (docs/plans/parts.md, "The public API"). For an entity with a body, its own intent. For a part, an attached entity
+    /// whose chain root has a body, the part's own intent, which the sync point carries to the root's body at the part's
+    /// place. The guard reads the part's link and the root's body description, which nothing writes during a tick, so the
+    /// part's worker may read them while the root runs on another. Throws <see cref="InvalidOperationException"/> for an
+    /// entity that has no body and is not part of a chain whose root has one, and <see cref="StaleEntityException"/> for a
+    /// stale handle.
+    /// </summary>
+    internal ref PhysicsIntent WritablePush(Entity entity)
+    {
+        if (entities.Body(entity) != null)
+            return ref entities.WritableIntent(entity);
+        Entity root = attachments.RootOf(entity);
+        if (root.IsNull || entities.Body(root) == null)
+            throw new InvalidOperationException($"{entity} has no physics body, and it is not part of a chain whose root has one.");
+        return ref entities.WritablePush(entity);
+    }
+
+    /// <summary>
     /// The running entity's intent, for writing a velocity of its body: <paramref name="call"/>, <c>SetVelocity</c> or
     /// <c>SetAngularVelocity</c>. Throws <see cref="InvalidOperationException"/> as <see cref="WritableIntent"/> does, and
     /// also when the body is kinematic in the step that applies the velocity (see <see cref="NextStepMotion"/>, which counts

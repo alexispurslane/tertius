@@ -131,10 +131,24 @@ public sealed partial class World
         entities.SwapIntents(keep: physics != null);
         Profile.Lap(8);
 
-        // 5. Subscriptions first, while every entity that asked is still live, then the destroy batch.
+        // 5. Subscriptions first, while every entity that asked is still live, then the destroy batch, which grows to the
+        //    attached children of each dying entity and to the members of each dying frame without a surviving ancestor.
+        //    Then the pushes of the parts flow to their chain roots (see CarryPushes): after the swap, whose front intents
+        //    they write, and after the growth, so that a part that dies here gives no push. Before the rehomes and the
+        //    conversions of the batch and of step 7b, so that the intents of each part and of its root still name the front
+        //    frame of the chain, and before the numeric update of step 6c, whose thrust clock reads the sums. Then the
+        //    survivors in the dying frames move, the intents that name a dying frame convert, and the dead go.
         ApplySubscriptionChanges();
-        DestroyRequestedEntities();
+        MarkRequestedDestroys();
+        if (dying.Count > 0)
+            GrowDestroyBatch();
         Profile.Lap(9);
+        if (physics != null)
+            CarryPushes();
+        Profile.Lap(26);
+        if (dying.Count > 0)
+            FinishDestroyBatch();
+        Profile.Lap(27);
 
         // 6. New entities, after the destroy batch, so that a spawn into a frame that just died is dropped.
         MakeSpawnsLive();
@@ -566,15 +580,29 @@ public sealed partial class World
         }
     }
 
-    /// <summary>Destroys every entity that asked to be destroyed this tick, in chunk order, with everything that dies with it.</summary>
-    private void DestroyRequestedEntities()
+    /// <summary>Puts every entity that asked to be destroyed this tick in the destroy batch, in chunk order.</summary>
+    private void MarkRequestedDestroys()
     {
         foreach (ChunkState chunk in entities.Chunks)
             foreach (Entity entity in chunk.Destroys)
                 MarkDying(entity);
-        if (dying.Count > 0)
-            DestroyDying();
     }
+
+    /// <summary>
+    /// Step 5: the flow of the parts' pushes (see <see cref="Attachments.CarryPushes"/>), with the marks of the destroy batch
+    /// after its growth. A part whose push names another frame than its root's front row comes only from a bug, which a
+    /// build with contracts fails at once. Any other build skips the part and records the bug.
+    /// </summary>
+    private void CarryPushes()
+    {
+        attachments.CarryPushes(dyingMarks.AsSpan(), skippedPushers);
+        foreach (Entity part in skippedPushers)
+            Report($"tick {TickNumber}: the push of {part} named another frame than the front row of its chain root {attachments.RootOf(part)}, which only a bug in the engine makes. The push was dropped.", isError: true);
+        skippedPushers.Clear();
+    }
+
+    // Scratch of CarryPushes: the parts that the flow skipped for a frame that only a bug gives.
+    private readonly List<Entity> skippedPushers = new();
 
     // The owner view stamp of the frame tree (see FrameTree.OwnerViewStamp) at the end of the last pass of MirrorFrameOwners.
     // From that pass to the end of the sync point, only a write of the frame tree changes what the owners' rows must

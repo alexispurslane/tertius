@@ -227,17 +227,27 @@ public readonly ref struct BodyHandle
     /// <summary>The intent written so far during this tick.</summary>
     public PhysicsIntent Pending => world.Entities.PendingIntent(entity);
 
-    /// <summary>Adds a force for the next step, in newtons.</summary>
-    public void AddForce(Vector3 force) => Intent.Force += force;
+    /// <summary>
+    /// Adds a force for the next step, in newtons. On a part, the force acts on the body of the part's chain root at the
+    /// part's place (see <see cref="BodyHandle"/>).
+    /// </summary>
+    public void AddForce(Vector3 force) => PushIntent.Force += force;
 
-    /// <summary>Adds a torque for the next step, in newton-meters.</summary>
-    public void AddTorque(Vector3 torque) => Intent.Torque += torque;
+    /// <summary>
+    /// Adds a torque for the next step, in newton-meters. On a part, the torque acts on the body of the part's chain root.
+    /// </summary>
+    public void AddTorque(Vector3 torque) => PushIntent.Torque += torque;
 
-    /// <summary>Adds a linear impulse, in newton-seconds.</summary>
-    public void AddImpulse(Vector3 impulse) => Intent.Impulse += impulse;
+    /// <summary>
+    /// Adds a linear impulse, in newton-seconds. On a part, the impulse acts on the body of the part's chain root at the
+    /// part's place.
+    /// </summary>
+    public void AddImpulse(Vector3 impulse) => PushIntent.Impulse += impulse;
 
-    /// <summary>Adds an angular impulse.</summary>
-    public void AddAngularImpulse(Vector3 impulse) => Intent.AngularImpulse += impulse;
+    /// <summary>
+    /// Adds an angular impulse, in newton-meter-seconds. On a part, it acts on the body of the part's chain root.
+    /// </summary>
+    public void AddAngularImpulse(Vector3 impulse) => PushIntent.AngularImpulse += impulse;
 
     /// <summary>
     /// Sets the linear velocity before the next step, relative to the entity's frame, in its axes. Physics converts it
@@ -349,4 +359,6 @@ public readonly ref struct BodyHandle
     public void SetMotion(BodyMotion motion) => world.WriteHullMotion(entity, motion);
 
     private ref PhysicsIntent Intent => ref world.WritableIntent(entity);
+
+    private ref PhysicsIntent PushIntent => ref world.WritablePush(entity);
 }
