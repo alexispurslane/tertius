@@ -7,7 +7,7 @@ namespace Tertius.Rendering;
 /// The descriptor set layouts, pipeline layouts and pools shared by all passes.
 /// <list type="table">
 /// <item><term>set 0, frame</term><description>frame constants, instances, materials, lights, occluders, material sampler,
-/// frame outlines. One per frame in flight.</description></item>
+/// frame outlines, puffs. One per frame in flight.</description></item>
 /// <item><term>set 1, textures</term><description>the bindless texture array: variable count, partially bound, update-after-bind. One per frame in flight.</description></item>
 /// <item><term>set 2, G-buffer</term><description>the G-buffer targets for the lighting and transparent passes (rewritten on resize),
 /// the sun shadow cascades (binding 5) and their comparison sampler (binding 6, immutable). One.</description></item>
@@ -38,6 +38,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             new(4, DescriptorType.StorageBuffer, 1, graphics),
             new(5, DescriptorType.Sampler, 1, graphics),
             new(6, DescriptorType.StorageBuffer, 1, graphics),
+            new(7, DescriptorType.StorageBuffer, 1, graphics),
         ];
         FrameSet = CreateLayout(frame, "frame set");
 
@@ -95,7 +96,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         Span<DescriptorPoolSize> sizes =
         [
             new(DescriptorType.UniformBuffer, frames),
-            new(DescriptorType.StorageBuffer, 5 * frames),
+            new(DescriptorType.StorageBuffer, 6 * frames),
             // One per frame set, and the immutable samplers of the G-buffer and atlas sets.
             new(DescriptorType.Sampler, frames + 2),
             new(DescriptorType.SampledImage, 16),

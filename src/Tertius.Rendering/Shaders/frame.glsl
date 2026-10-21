@@ -52,6 +52,12 @@ struct GpuOutline
     uint flags;               // bit 0: a sphere, which also draws its rim as seen from the eye
 };
 
+struct GpuPuff
+{
+    vec4 positionRadius;      // xyz world center, w radius in meters, both at the render age
+    vec4 colorKind;           // rgb the own share × the radiance (glow) or the albedo (lit), w the case: 0 glow, 1 lit
+};
+
 layout(set = 0, binding = 0, std140) uniform FrameBlock
 {
     mat4 rangeViewProj[3];    // far, middle, near: clip space from world space
@@ -83,6 +89,7 @@ layout(set = 0, binding = 3, std430) readonly buffer LightBlock { GpuLight light
 layout(set = 0, binding = 4, std430) readonly buffer OccluderBlock { vec4 occluders[]; };
 layout(set = 0, binding = 5) uniform sampler materialSampler;
 layout(set = 0, binding = 6, std430) readonly buffer OutlineBlock { GpuOutline outlines[]; };
+layout(set = 0, binding = 7, std430) readonly buffer PuffBlock { GpuPuff puffs[]; };
 
 layout(set = 1, binding = 0) uniform texture2D textures[];
 

@@ -79,9 +79,9 @@ public sealed class BatcherTests
         PreparedScene scene = Prepare(snapshot);
 
         scene.InstanceCount.Should().Be(6);
-        scene.Transparent[DepthRanges.Far].Should().Be(new CommandRange(0, 1));
-        scene.Transparent[DepthRanges.Middle].Should().Be(new CommandRange(1, 1));
-        scene.Transparent[DepthRanges.Near].Should().Be(new CommandRange(2, 1));
+        scene.Transparent[DepthRanges.Far].Should().Equal(new TransparentRun(new MeshCommands(new CommandRange(0, 1))));
+        scene.Transparent[DepthRanges.Middle].Should().Equal(new TransparentRun(new MeshCommands(new CommandRange(1, 1))));
+        scene.Transparent[DepthRanges.Near].Should().Equal(new TransparentRun(new MeshCommands(new CommandRange(2, 1))));
         scene.Commands[2].InstanceCount.Should().Be(4u);
         float[] drawn = scene.Instances.AsSpan(0, scene.InstanceCount).ToArray().Select(i => -i.ModelRow2.W).ToArray();
         drawn.Should().Equal(1e7f, 3_000f, 700f, 20f, 12f, 5f);
@@ -440,6 +440,294 @@ public sealed class BatcherTests
         Prepare(snapshot).Constants.RootRotation.Should().Be(new Vector4(0, 0, 0, 1));
     }
 
+    // Puffs. Each puff of the snapshot draws as one GpuPuff, at its interpolated place and render age, or not at all. The
+    // camera sits at the render origin and looks down −Z, with a vertical field of view of 60° at 1600 × 900.
+
+    /// <summary>A glow look: life 2 s, a radius that grows from 1 m to 3 m, and an orange radiance of (4, 2, 1).</summary>
+    private static readonly PuffLook GlowLook = new(Life: 2f, StartRadius: 1f, EndRadius: 3f, TemperatureRatio: 3f,
+        Shading: PuffShading.Glow(new Vector3(4, 2, 1)));
+
+    /// <summary>A still puff: its previous place is its place.</summary>
+    private static RenderPuff Puff(Vector3 position, float age = 0.5f, int look = 0) =>
+        new() { Position = position, PreviousPosition = position, Age = age, Look = look };
+
+    /// <summary>A snapshot whose look table holds <paramref name="looks"/>, or only <see cref="GlowLook"/>.</summary>
+    private static RenderSnapshot PuffSnapshot(params PuffLook[] looks)
+    {
+        RenderSnapshot snapshot = Empty();
+        snapshot.PuffLooks.AddRange(looks.Length > 0 ? looks : [GlowLook]);
+        return snapshot;
+    }
+
+    private static GpuPuff[] Drawn(PreparedScene scene) => scene.Puffs.AsSpan(0, scene.PuffCount).ToArray();
+
+    private static Vector3 Center(GpuPuff puff) => new(puff.PositionRadius.X, puff.PositionRadius.Y, puff.PositionRadius.Z);
+    private static Vector3 Color(GpuPuff puff) => new(puff.ColorKind.X, puff.ColorKind.Y, puff.ColorKind.Z);
+
+    private static void ShouldBeClose(Vector3 actual, Vector3 expected, float precision = 1e-5f)
+    {
+        actual.X.Should().BeApproximately(expected.X, precision);
+        actual.Y.Should().BeApproximately(expected.Y, precision);
+        actual.Z.Should().BeApproximately(expected.Z, precision);
+    }
+
+    private static TransparentRun MeshRun(int first, int count) => new MeshCommands(new CommandRange(first, count));
+    private static TransparentRun PuffRun(int first, int count) => new PuffSprites(first, count);
+
+    [Fact]
+    public void PuffsInterpolatePositionAndAgeByAlpha()
+    {
+        RenderSnapshot snapshot = PuffSnapshot();
+        snapshot.PuffAgeStep = 0.2f;
+        snapshot.Puffs.Add(new RenderPuff { Position = new Vector3(4, 0, -10), PreviousPosition = new Vector3(-4, 0, -10), Age = 1f, Look = 0 });
+        snapshot.Camera.PreviousPosition = new Vector3(0, 2, 0);
+
+        GpuPuff puff = Drawn(Prepare(snapshot, alpha: 0.25f)).Should().ContainSingle().Subject;
+
+        // The place is lerp(−4, 4, 0.25) = −2, less the camera at lerp(2, 0, 0.25) = 1.5. The render age is
+        // 1 − 0.75 · 0.2 = 0.85 s, so t = 0.425: the radius is 1 + 2 · 0.425 and the own share is 0.575.
+        ShouldBeClose(Center(puff), new Vector3(-2, -1.5f, -10));
+        puff.PositionRadius.W.Should().BeApproximately(1.85f, 1e-5f);
+        ShouldBeClose(Color(puff), new Vector3(4, 2, 1) * 0.575f);
+    }
+
+    [Fact]
+    public void AtAlphaOneAPuffDrawsAtItsCurrentPlaceAndAge()
+    {
+        RenderSnapshot snapshot = PuffSnapshot();
+        snapshot.PuffAgeStep = 0.2f;
+        snapshot.Puffs.Add(new RenderPuff { Position = new Vector3(4, 0, -10), PreviousPosition = new Vector3(-4, 0, -10), Age = 1f, Look = 0 });
+        snapshot.Camera.PreviousPosition = new Vector3(0, 2, 0);
+
+        GpuPuff puff = Drawn(Prepare(snapshot, alpha: 1f)).Should().ContainSingle().Subject;
+
+        ShouldBeClose(Center(puff), new Vector3(4, 0, -10));
+        puff.PositionRadius.W.Should().BeApproximately(2f, 1e-5f);
+        ShouldBeClose(Color(puff), new Vector3(2, 1, 0.5f));
+    }
+
+    [Fact]
+    public void APuffIsNotDrawnBeforeItsBirthOrAfterItsLife()
+    {
+        // A newborn of age 0.04 s in a step of 0.1 s was born 0.06 s into the step. Its render age reaches 0 at alpha 0.6.
+        RenderSnapshot snapshot = PuffSnapshot();
+        snapshot.PuffAgeStep = 0.1f;
+        snapshot.Puffs.Add(Puff(new Vector3(-2, 0, -10), age: 0.04f));
+        // A puff at the end of its life: at alpha 1 its render age is its life, 2 s.
+        snapshot.Puffs.Add(Puff(new Vector3(0, 0, -10), age: 2f));
+        // A puff just before the end of its life.
+        snapshot.Puffs.Add(Puff(new Vector3(2, 0, -10), age: 1.999f));
+
+        Drawn(Prepare(snapshot, alpha: 0.5f)).Select(p => p.PositionRadius.X).Should().BeEquivalentTo([0f, 2f],
+            "at alpha 0.5 the newborn's render age is −0.01 s, and the old puff's is 1.95 s, inside its life");
+        Drawn(Prepare(snapshot, alpha: 0.7f)).Select(p => p.PositionRadius.X).Should().BeEquivalentTo([-2f, 0f, 2f],
+            "at alpha 0.7 the newborn is 0.01 s old");
+        Drawn(Prepare(snapshot, alpha: 1f)).Select(p => p.PositionRadius.X).Should().BeEquivalentTo([-2f, 2f],
+            "at alpha 1 the old puff's render age is its life, so it is dead");
+    }
+
+    [Fact]
+    public void APuffsRadiusGrowsAndItsWeightFallsLinearlyOverItsLife()
+    {
+        RenderSnapshot snapshot = PuffSnapshot();
+        float[] ages = [0f, 0.5f, 1f, 1.5f];
+        for (int i = 0; i < ages.Length; i++)
+            snapshot.Puffs.Add(Puff(new Vector3(3 * i - 4.5f, 0, -12), age: ages[i]));
+
+        GpuPuff[] drawn = Drawn(Prepare(snapshot)).OrderBy(p => p.PositionRadius.X).ToArray();
+
+        drawn.Select(p => p.PositionRadius.W).Should().Equal([1f, 1.5f, 2f, 2.5f], (a, b) => MathF.Abs(a - b) < 1e-5f);
+        drawn.Select(p => p.ColorKind.X / 4).Should().Equal([1f, 0.75f, 0.5f, 0.25f], (a, b) => MathF.Abs(a - b) < 1e-5f);
+    }
+
+    [Fact]
+    public void APuffOutsideTheFrustumIsCulledByItsRadius()
+    {
+        // At 1600 × 900, tan(30°) · 16 / 9 = 1.0264, so the right plane passes x = 10.26 at 10 m ahead. A center at x = 12 lies
+        // (12 − 10.264) / √(1 + 1.0264²) = 1.21 m outside it.
+        RenderSnapshot snapshot = PuffSnapshot(
+            GlowLook with { StartRadius = 1f, EndRadius = 1f },
+            GlowLook with { StartRadius = 1.5f, EndRadius = 1.5f });
+        snapshot.Puffs.Add(Puff(new Vector3(12, 0, -10), look: 0));
+        snapshot.Puffs.Add(Puff(new Vector3(12, 0, -10.0001f), look: 1));
+        // Behind the eye: one wholly behind the near plane, and one whose sphere reaches in front of it.
+        snapshot.Puffs.Add(Puff(new Vector3(0, 0, 5), look: 0));
+        snapshot.Puffs.Add(Puff(new Vector3(0, 0, 0.5f), look: 0));
+
+        GpuPuff[] drawn = Drawn(Prepare(snapshot));
+
+        drawn.Select(p => p.PositionRadius.W).Should().BeEquivalentTo([1.5f, 1f]);
+        drawn.Select(Center).Should().BeEquivalentTo([new Vector3(12, 0, -10.0001f), new Vector3(0, 0, 0.5f)]);
+    }
+
+    [Fact]
+    public void APuffWithANumberThatIsNotFiniteOrALookOutsideTheListIsLeftOut()
+    {
+        RenderSnapshot snapshot = PuffSnapshot(
+            GlowLook,
+            GlowLook with { StartRadius = 0f, EndRadius = 0f },
+            GlowLook with { StartRadius = -1f, EndRadius = -1f },
+            GlowLook with { Life = float.NaN },
+            GlowLook with { EndRadius = float.PositiveInfinity });
+        var ahead = new Vector3(0, 0, -10);
+        snapshot.Puffs.Add(Puff(ahead));                                                        // drawn
+        snapshot.Puffs.Add(Puff(new Vector3(float.NaN, 0, -10)));
+        snapshot.Puffs.Add(new RenderPuff { Position = ahead, PreviousPosition = new Vector3(float.PositiveInfinity, 0, -10), Look = 0, Age = 0.5f });
+        snapshot.Puffs.Add(Puff(ahead, age: float.NaN));
+        snapshot.Puffs.Add(Puff(ahead, look: 1));                                               // radius 0
+        snapshot.Puffs.Add(Puff(ahead, look: 2));                                               // radius below 0
+        snapshot.Puffs.Add(Puff(ahead, look: 3));                                               // life NaN
+        snapshot.Puffs.Add(Puff(ahead, look: 4));                                               // infinite radius
+        snapshot.Puffs.Add(Puff(ahead, look: 5));                                               // outside the list
+        snapshot.Puffs.Add(Puff(ahead, look: -1));
+
+        Drawn(Prepare(snapshot, alpha: 0.5f)).Should().ContainSingle().Which.PositionRadius.W.Should().BeApproximately(1.5f, 1e-5f);
+    }
+
+    [Fact]
+    public void APuffWhoseLookHoldsNoShadingIsLeftOut()
+    {
+        // The second look holds no case, and the third is a free entry of the look table, all zero.
+        RenderSnapshot snapshot = PuffSnapshot(GlowLook, GlowLook with { Shading = default }, default);
+        snapshot.Puffs.Add(Puff(new Vector3(0, 0, -10), look: 0));
+        snapshot.Puffs.Add(Puff(new Vector3(0, 0, -10), look: 1));
+        snapshot.Puffs.Add(Puff(new Vector3(0, 0, -10), look: 2));
+
+        Drawn(Prepare(snapshot)).Should().ContainSingle();
+    }
+
+    [Fact]
+    public void APuffBehindAPaneDrawsBeforeThePaneAndOneInFrontDrawsAfterIt()
+    {
+        RenderSnapshot snapshot = PuffSnapshot();
+        snapshot.Instances.Add(Gpu.Instance(new MeshId(2), new MaterialId(0), new Vector3(0, 0, -10), Vector3.One, flags: RenderFlags.Transparent));
+        snapshot.Puffs.Add(Puff(new Vector3(0, 0, -5)));
+        snapshot.Puffs.Add(Puff(new Vector3(0, 0, -15)));
+
+        PreparedScene scene = Prepare(snapshot);
+
+        scene.Transparent[DepthRanges.Near].Should().Equal(PuffRun(0, 1), MeshRun(0, 1), PuffRun(1, 1));
+        Drawn(scene).Select(p => p.PositionRadius.Z).Should().Equal(-15f, -5f);
+        scene.Transparent[DepthRanges.Far].Should().BeEmpty();
+        scene.Transparent[DepthRanges.Middle].Should().BeEmpty();
+    }
+
+    [Fact]
+    public void PuffsBetweenTwoPanesFormOneRun()
+    {
+        RenderSnapshot snapshot = PuffSnapshot();
+        snapshot.Instances.Add(Gpu.Instance(new MeshId(2), new MaterialId(0), new Vector3(0, 0, -5), Vector3.One, flags: RenderFlags.Transparent));
+        snapshot.Instances.Add(Gpu.Instance(new MeshId(2), new MaterialId(0), new Vector3(0, 0, -20), Vector3.One, flags: RenderFlags.Transparent));
+        snapshot.Puffs.Add(Puff(new Vector3(0, 0, -12)));
+        snapshot.Puffs.Add(Puff(new Vector3(0, 0, -8)));
+        snapshot.Puffs.Add(Puff(new Vector3(0, 0, -15)));
+
+        PreparedScene scene = Prepare(snapshot);
+
+        // The two panes share a mesh, but the puffs between them split their draws into two commands.
+        scene.Transparent[DepthRanges.Near].Should().Equal(MeshRun(0, 1), PuffRun(0, 3), MeshRun(1, 1));
+        Drawn(scene).Select(p => p.PositionRadius.Z).Should().Equal(-15f, -12f, -8f);
+        scene.Commands[0].FirstInstance.Should().Be(0u);
+        scene.Instances[0].ModelRow2.W.Should().Be(-20f);
+        scene.Commands[1].FirstInstance.Should().Be(1u);
+        scene.Instances[1].ModelRow2.W.Should().Be(-5f);
+    }
+
+    [Fact]
+    public void AtEqualDistancesAPaneDrawsBeforeAPuffAndPuffsKeepTheOrderOfTheSnapshot()
+    {
+        RenderSnapshot snapshot = PuffSnapshot();
+        snapshot.Puffs.Add(Puff(new Vector3(0, 0, -10), age: 1.5f));
+        snapshot.Puffs.Add(Puff(new Vector3(0, 0, -10), age: 0.5f));
+        snapshot.Instances.Add(Gpu.Instance(new MeshId(2), new MaterialId(0), new Vector3(0, 0, -10), Vector3.One, flags: RenderFlags.Transparent));
+
+        PreparedScene scene = Prepare(snapshot);
+
+        scene.Transparent[DepthRanges.Near].Should().Equal(MeshRun(0, 1), PuffRun(0, 2));
+        Drawn(scene).Select(p => p.PositionRadius.W).Should().Equal(2.5f, 1.5f);
+    }
+
+    [Fact]
+    public void APuffDrawsInTheRangeThatHoldsItsCenter()
+    {
+        // Each sphere of radius 30 m reaches across the border of 2 km, but a puff draws only in the range of its center,
+        // with depth clamping, as a transparent instance does.
+        RenderSnapshot snapshot = PuffSnapshot(GlowLook with { StartRadius = 30f, EndRadius = 30f });
+        snapshot.Puffs.Add(Puff(new Vector3(0, 0, -1_990)));
+        snapshot.Puffs.Add(Puff(new Vector3(0, 0, -2_010)));
+        snapshot.Puffs.Add(Puff(new Vector3(0, 0, -3e6f)));
+
+        PreparedScene scene = Prepare(snapshot);
+
+        scene.Transparent[DepthRanges.Far].Should().Equal(PuffRun(0, 1));
+        scene.Transparent[DepthRanges.Middle].Should().Equal(PuffRun(1, 1));
+        scene.Transparent[DepthRanges.Near].Should().Equal(PuffRun(2, 1));
+        Drawn(scene).Select(p => p.PositionRadius.Z).Should().Equal(-3e6f, -2_010f, -1_990f);
+    }
+
+    [Fact]
+    public void AGpuPuffIs32BytesAndCarriesTheCaseOfItsShading()
+    {
+        Unsafe.SizeOf<GpuPuff>().Should().Be(32);
+        ((int)Marshal.OffsetOf<GpuPuff>(nameof(GpuPuff.ColorKind))).Should().Be(16);
+        RenderSnapshot snapshot = PuffSnapshot(GlowLook, GlowLook with { Shading = PuffShading.Lit(new Vector3(0.8f, 0.6f, 0.4f)) });
+        snapshot.Puffs.Add(Puff(new Vector3(-2, 0, -10), look: 0));
+        snapshot.Puffs.Add(Puff(new Vector3(2, 0, -10), look: 1));
+
+        GpuPuff[] drawn = Drawn(Prepare(snapshot)).OrderBy(p => p.PositionRadius.X).ToArray();
+
+        // Age 0.5 s of a life of 2 s: the own share is 0.75.
+        ShouldBeClose(Color(drawn[0]), new Vector3(4, 2, 1) * 0.75f);
+        drawn[0].ColorKind.W.Should().Be(GpuPuff.GlowKind).And.Be(0f);
+        ShouldBeClose(Color(drawn[1]), new Vector3(0.8f, 0.6f, 0.4f) * 0.75f);
+        drawn[1].ColorKind.W.Should().Be(GpuPuff.LitKind).And.Be(1f);
+    }
+
+    [Fact]
+    public void ManyPuffsGrowThePuffArrayAndDrawBackToFront()
+    {
+        RenderSnapshot snapshot = PuffSnapshot();
+        for (int i = 0; i < 300; i++)
+            snapshot.Puffs.Add(Puff(new Vector3(0, 0, -5 - (i * 37 % 300))));
+
+        PreparedScene scene = Prepare(snapshot);
+
+        scene.Transparent[DepthRanges.Near].Should().Equal(PuffRun(0, 300));
+        Drawn(scene).Select(p => -p.PositionRadius.Z).Should().BeInDescendingOrder().And.HaveCount(300);
+    }
+
+    [Fact]
+    public void APreparedSceneDropsThePuffsAndTheRunsOfTheFrameBefore()
+    {
+        RenderSnapshot snapshot = PuffSnapshot();
+        snapshot.Puffs.Add(Puff(new Vector3(0, 0, -10)));
+        var scene = new PreparedScene();
+        var batcher = new SceneBatcher();
+        batcher.Prepare(snapshot, 1f, 1600, 900, Meshes, 8, scene);
+        scene.PuffCount.Should().Be(1);
+
+        batcher.Prepare(Empty(), 1f, 1600, 900, Meshes, 8, scene);
+
+        scene.PuffCount.Should().Be(0);
+        scene.Transparent.Should().AllSatisfy(runs => runs.Should().BeEmpty());
+    }
+
+    [Fact]
+    public void RenderStatsCountsTheDrawnPuffs()
+    {
+        RenderSnapshot snapshot = PuffSnapshot();
+        snapshot.Instances.Add(Gpu.Instance(new MeshId(2), new MaterialId(0), new Vector3(0, 0, -5), Vector3.One, flags: RenderFlags.Transparent));
+        snapshot.Instances.Add(Gpu.Instance(new MeshId(2), new MaterialId(0), new Vector3(0, 0, -20), Vector3.One, flags: RenderFlags.Transparent));
+        snapshot.Puffs.Add(Puff(new Vector3(0, 0, -12)));
+        snapshot.Puffs.Add(Puff(new Vector3(0, 0, -8)));
+        snapshot.Puffs.Add(Puff(new Vector3(0, 0, 30)));    // behind the eye
+
+        RenderStats stats = VulkanRenderer.StatsOf(Prepare(snapshot), impostors: null, indirectDrawCalls: 0);
+
+        stats.Puffs.Should().Be(2);
+        stats.TransparentCommands.Should().Be(2, "a run of puffs adds no indirect command");
+    }
+
     [Fact]
     public void GpuStructsMatchTheShaderLayouts()
     {
@@ -452,6 +740,7 @@ public sealed class BatcherTests
         Unsafe.SizeOf<GpuFrameConstants>().Should().Be(720);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.ShadowViewProj))).Should().Be(352);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.RootRotation))).Should().Be(704);
+        Unsafe.SizeOf<GpuPuff>().Should().Be(32);
         Unsafe.SizeOf<DrawPushConstants>().Should().Be(80);
         Unsafe.SizeOf<DrawIndexedIndirectCommand>().Should().Be(20);
         Unsafe.SizeOf<Vertex>().Should().Be(48);
@@ -471,6 +760,8 @@ public sealed class BatcherTests
     [InlineData("impostor.frag")]
     [InlineData("outline.vert")]
     [InlineData("outline.frag")]
+    [InlineData("puff.vert")]
+    [InlineData("puff.frag")]
     public void ShadersAreCompiledAndEmbedded(string file)
     {
         byte[] spirv = ShaderLibrary.LoadSpirv(file);

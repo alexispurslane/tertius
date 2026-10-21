@@ -358,28 +358,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         frame.Number = frameNumber;
         frameNumber++;
 
-        LastFrameStats = new RenderStats
-        {
-            SubmittedInstances = scene.SubmittedInstances,
-            VisibleInstances = scene.VisibleCount + (impostors?.Draws.Length ?? 0),
-            GpuInstances = scene.InstanceCount,
-            FarCommands = scene.Opaque[DepthRanges.Far].Count,
-            MiddleCommands = scene.Opaque[DepthRanges.Middle].Count,
-            NearCommands = scene.Opaque[DepthRanges.Near].Count,
-            TransparentCommands = scene.Transparent[DepthRanges.Far].Count + scene.Transparent[DepthRanges.Middle].Count + scene.Transparent[DepthRanges.Near].Count,
-            ShadowCommands = scene.ShadowCommands[0].Count + scene.ShadowCommands[1].Count + scene.ShadowCommands[2].Count + scene.ShadowCommands[3].Count,
-            ShadowCascades = scene.ShadowCascadeCount,
-            ShadowCasters = scene.ShadowCasters,
-            ShadowInstances = scene.ShadowInstances,
-            Impostors = impostors?.Draws.Length ?? 0,
-            ImpostorCaptures = impostors?.Captures.Length ?? 0,
-            ImpostorsWaiting = impostors?.Waiting ?? 0,
-            ImpostorTilesInUse = impostors?.TilesInUse ?? 0,
-            IndirectDrawCalls = context.IndirectDrawCalls,
-            Lights = scene.LightCount,
-            Outlines = scene.OutlineCount,
-            Rendered = true,
-        };
+        LastFrameStats = StatsOf(scene, impostors, context.IndirectDrawCalls);
 
         if (sink != null && capture != null)
         {
@@ -387,6 +366,31 @@ public sealed unsafe class VulkanRenderer : IRenderer
             HandOver(sink, capture, image.Extent);
         }
     }
+
+    /// <summary>What a frame drew, from its prepared scene, its impostors and the indirect draws that its passes recorded.</summary>
+    internal static RenderStats StatsOf(PreparedScene scene, ImpostorManager? impostors, int indirectDrawCalls) => new()
+    {
+        SubmittedInstances = scene.SubmittedInstances,
+        VisibleInstances = scene.VisibleCount + (impostors?.Draws.Length ?? 0),
+        GpuInstances = scene.InstanceCount,
+        FarCommands = scene.Opaque[DepthRanges.Far].Count,
+        MiddleCommands = scene.Opaque[DepthRanges.Middle].Count,
+        NearCommands = scene.Opaque[DepthRanges.Near].Count,
+        TransparentCommands = scene.TransparentCommandCount,
+        ShadowCommands = scene.ShadowCommands[0].Count + scene.ShadowCommands[1].Count + scene.ShadowCommands[2].Count + scene.ShadowCommands[3].Count,
+        ShadowCascades = scene.ShadowCascadeCount,
+        ShadowCasters = scene.ShadowCasters,
+        ShadowInstances = scene.ShadowInstances,
+        Impostors = impostors?.Draws.Length ?? 0,
+        ImpostorCaptures = impostors?.Captures.Length ?? 0,
+        ImpostorsWaiting = impostors?.Waiting ?? 0,
+        ImpostorTilesInUse = impostors?.TilesInUse ?? 0,
+        IndirectDrawCalls = indirectDrawCalls,
+        Lights = scene.LightCount,
+        Outlines = scene.OutlineCount,
+        Puffs = scene.PuffCount,
+        Rendered = true,
+    };
 
     private void ApplyPendingResize()
     {

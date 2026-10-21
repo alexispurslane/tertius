@@ -110,6 +110,27 @@ internal struct GpuOutline
     public uint Flags;
 }
 
+/// <summary>
+/// One puff to draw, in the puff storage buffer (std430, binding 7 of the frame set). 32 bytes. The batcher writes one for
+/// each puff that it keeps, in the order of the transparent pass's runs.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct GpuPuff
+{
+    /// <summary>The case of <see cref="PuffShading"/> in <see cref="ColorKind"/>.w: a glow puff.</summary>
+    public const float GlowKind = 0f;
+    /// <summary>The case of <see cref="PuffShading"/> in <see cref="ColorKind"/>.w: a lit puff.</summary>
+    public const float LitKind = 1f;
+
+    /// <summary>xyz the camera-relative center at the render age, in m; w the radius at the render age, in m.</summary>
+    public Vector4 PositionRadius;
+    /// <summary>
+    /// rgb the own share times the radiance of a glow puff or the albedo of a lit puff; w the case, <see cref="GlowKind"/>
+    /// or <see cref="LitKind"/>.
+    /// </summary>
+    public Vector4 ColorKind;
+}
+
 /// <summary>The frame uniform block (std140). 720 bytes.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct GpuFrameConstants

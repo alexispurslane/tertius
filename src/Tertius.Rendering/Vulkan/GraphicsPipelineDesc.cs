@@ -15,6 +15,17 @@ internal enum VertexInput
     PositionOnly,
 }
 
+/// <summary>How a pipeline blends its output into every color attachment. No case carries a field, so it is an enum.</summary>
+internal enum BlendMode
+{
+    /// <summary>The output replaces the target.</summary>
+    None,
+    /// <summary>Straight alpha blending: the color is mixed by the source alpha, and the alpha builds up.</summary>
+    Alpha,
+    /// <summary>The source color is added to the target, with the factors One and One. The target's alpha stays as it is.</summary>
+    Additive,
+}
+
 /// <summary>
 /// Everything that differs between the engine's graphics pipelines. All of them use dynamic rendering, a dynamic
 /// viewport and scissor, and read vertices as <see cref="VertexInput"/> says.
@@ -41,8 +52,42 @@ internal sealed class GraphicsPipelineDesc
     /// added to its depth. 0 disables depth bias.
     /// </summary>
     public float DepthBiasSlope { get; init; }
-    /// <summary>Straight alpha blending on every color attachment.</summary>
-    public bool AlphaBlend { get; init; }
+    /// <summary>How the output blends into every color attachment.</summary>
+    public BlendMode Blend { get; init; }
+
+    /// <summary>The blend state of one color attachment for <paramref name="mode"/>.</summary>
+    internal static PipelineColorBlendAttachmentState BlendState(BlendMode mode)
+    {
+        const ColorComponentFlags allChannels =
+            ColorComponentFlags.RBit | ColorComponentFlags.GBit | ColorComponentFlags.BBit | ColorComponentFlags.ABit;
+        return mode switch
+        {
+            BlendMode.Alpha => new PipelineColorBlendAttachmentState
+            {
+                BlendEnable = true,
+                SrcColorBlendFactor = BlendFactor.SrcAlpha,
+                DstColorBlendFactor = BlendFactor.OneMinusSrcAlpha,
+                ColorBlendOp = BlendOp.Add,
+                SrcAlphaBlendFactor = BlendFactor.One,
+                DstAlphaBlendFactor = BlendFactor.OneMinusSrcAlpha,
+                AlphaBlendOp = BlendOp.Add,
+                ColorWriteMask = allChannels,
+            },
+            // The target's alpha times One, plus the source's times Zero: it stays as it was.
+            BlendMode.Additive => new PipelineColorBlendAttachmentState
+            {
+                BlendEnable = true,
+                SrcColorBlendFactor = BlendFactor.One,
+                DstColorBlendFactor = BlendFactor.One,
+                ColorBlendOp = BlendOp.Add,
+                SrcAlphaBlendFactor = BlendFactor.Zero,
+                DstAlphaBlendFactor = BlendFactor.One,
+                AlphaBlendOp = BlendOp.Add,
+                ColorWriteMask = allChannels,
+            },
+            _ => new PipelineColorBlendAttachmentState { BlendEnable = false, ColorWriteMask = allChannels },
+        };
+    }
 
     /// <summary>Creates the pipeline. The caller destroys it.</summary>
     public unsafe Pipeline Create(VulkanDevice device, ShaderLibrary shaders)
@@ -124,17 +169,7 @@ internal sealed class GraphicsPipelineDesc
         PipelineColorBlendAttachmentState* blends = stackalloc PipelineColorBlendAttachmentState[Math.Max(colorCount, 1)];
         for (int i = 0; i < colorCount; i++)
         {
-            blends[i] = new PipelineColorBlendAttachmentState
-            {
-                BlendEnable = AlphaBlend,
-                SrcColorBlendFactor = BlendFactor.SrcAlpha,
-                DstColorBlendFactor = BlendFactor.OneMinusSrcAlpha,
-                ColorBlendOp = BlendOp.Add,
-                SrcAlphaBlendFactor = BlendFactor.One,
-                DstAlphaBlendFactor = BlendFactor.OneMinusSrcAlpha,
-                AlphaBlendOp = BlendOp.Add,
-                ColorWriteMask = ColorComponentFlags.RBit | ColorComponentFlags.GBit | ColorComponentFlags.BBit | ColorComponentFlags.ABit,
-            };
+            blends[i] = BlendState(Blend);
         }
         var colorBlend = new PipelineColorBlendStateCreateInfo
         {
