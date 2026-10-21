@@ -19,9 +19,10 @@ namespace Tertius.Physics;
 /// </summary>
 /// <remarks>
 /// <see cref="ApplyChanges"/> runs at the sync point and <see cref="Step"/> on the physics thread. They never run at
-/// the same time. <see cref="BoundingRadius"/> is thread-safe. Both start by reconciling with the frame tree, and
-/// <see cref="AssertInvariants"/> lists what every reconcile guarantees. A system that is full grows when the backend
-/// adds a body to it (see <see cref="Grow"/>), so every entity with a body keeps it for its whole life.
+/// the same time. Both start by reconciling with the frame tree, and <see cref="AssertInvariants"/> lists what every
+/// reconcile guarantees. <see cref="BoundingRadius"/>, <see cref="ShapeProblem"/> and <see cref="ShapeCenterOfMass"/> are
+/// thread-safe. A system that is full grows when the backend adds a body to it (see <see cref="Grow"/>), so every entity
+/// with a body keeps it for its whole life.
 /// </remarks>
 public sealed partial class JoltPhysicsBackend : IPhysicsBackend
 {
@@ -32,6 +33,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     private readonly ConcurrentDictionary<ShapeDesc, float> radii = new(ReferenceEqualityComparer.Instance);
     // The answer of ShapeProblem for each shape description that it was asked about: null when Jolt can build the shape.
     private readonly ConcurrentDictionary<ShapeDesc, string?> shapeProblems = new(ReferenceEqualityComparer.Instance);
+    // The answer of ShapeCenterOfMass for each shape description that it was asked about.
+    private readonly ConcurrentDictionary<ShapeDesc, Vector3> centersOfMass = new(ReferenceEqualityComparer.Instance);
 
     // Physics systems by frame index, and the same worlds as a list for iteration.
     private FrameWorld?[] worlds = new FrameWorld?[16];
@@ -338,7 +341,31 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         ArgumentNullException.ThrowIfNull(shape);
-        return shapeProblems.GetOrAdd(shape, BuildShape);
+        return shapeProblems.GetOrAdd(shape, static (desc, self) => self.BuildShape(desc), this);
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// The answer is the center of mass of the native shape that the backend builds for the description and keeps for the
+    /// body that uses it, so it is the center that Jolt gives that body. The first question about a shape takes the native
+    /// gate, so it waits for a step that is running. The backend keeps the answer, so a later question costs one dictionary
+    /// lookup and takes no lock.
+    /// </remarks>
+    public Vector3 ShapeCenterOfMass(ShapeDesc shape)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        ArgumentNullException.ThrowIfNull(shape);
+        return centersOfMass.GetOrAdd(shape, static (desc, self) => self.ReadCenterOfMass(desc), this);
+    }
+
+    /// <summary>
+    /// The center of mass of the native shape of <paramref name="shape"/>. The shape cache throws the message of
+    /// <see cref="ShapeProblem"/> for a shape that Jolt cannot build.
+    /// </summary>
+    private Vector3 ReadCenterOfMass(ShapeDesc shape)
+    {
+        lock (JoltRuntime.NativeGate)
+            return shapes.Get(shape).CenterOfMass;
     }
 
     /// <summary>Builds the native shape of <paramref name="shape"/>, or returns why Jolt cannot build it.</summary>

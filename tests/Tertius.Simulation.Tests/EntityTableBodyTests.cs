@@ -41,7 +41,7 @@ public class EntityTableBodyTests
         Entity reserved = table.Reserve();
 
         BodyEntities(table).Should().BeEmpty();
-        table.Activate(reserved, new TransformRow(), new RenderData(), [], [], Ball, FrameHandle.Null);
+        table.Activate(reserved, new TransformRow(), new RenderData(), [], [], Ball, Vector3.Zero, FrameHandle.Null);
         BodyEntities(table).Should().Equal(reserved);
     }
 

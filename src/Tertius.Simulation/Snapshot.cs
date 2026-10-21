@@ -59,7 +59,7 @@ public readonly struct Snapshot
         world.Entities.IsAlive(entity) && world.Entities.FrontComponents(entity).Contains(ComponentType<T>.Id);
 
     /// <summary>
-    /// The physics facts of the entity's body: its motion, mass, shape kind, bounding radius, collision groups and mask,
+    /// The physics facts of the entity's body: its motion, mass, shape kind, bounding radius, center of mass, collision groups and mask,
     /// and whether it is a sensor (see <see cref="BodyFacts"/>). False, with the default facts, for an entity that was not
     /// live at the end of the previous tick and for an entity without a body. It allocates nothing.
     /// </summary>
@@ -73,7 +73,7 @@ public readonly struct Snapshot
         }
         ref readonly BodyCollision collision = ref entities.FrontCollision(entity);
         facts = new BodyFacts(MotionOf(body, entities.OwnedFrame(entity)), body.Mass, body.Shape.Kind, entities.BodyBoundingRadius(entity),
-            collision.Groups, collision.Mask, body.IsSensor);
+            entities.BodyCenterOfMass(entity), collision.Groups, collision.Mask, body.IsSensor);
         return true;
     }
 

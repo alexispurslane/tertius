@@ -24,7 +24,7 @@ public class EntityTableGrowthTests
     {
         Entity entity = table.Reserve();
         table.Activate(entity, RowAt(i), new RenderData { Scale = new Vector3(i + 1) }, [new Recorder()], [EventMask.Of<Ping>()],
-            i % 2 == 1 ? TestWorld.Ball : null, i % 3 == 0 ? OwnedFrame : FrameHandle.Null);
+            i % 2 == 1 ? TestWorld.Ball : null, Vector3.Zero, i % 3 == 0 ? OwnedFrame : FrameHandle.Null);
         return entity;
     })];
 
@@ -163,7 +163,7 @@ public class EntityTableGrowthTests
         table.PendingIntent(bodied).Force.Should().Be(new Vector3(0, 9, 0));
         table.AssertInvariants();
         foreach (Entity entity in spawned)
-            table.Activate(entity, default, new RenderData(), [], [], null, FrameHandle.Null);
+            table.Activate(entity, default, new RenderData(), [], [], null, Vector3.Zero, FrameHandle.Null);
         table.SwapIntents(keep: true);
         table.CopyDirtyRows();
         table.EndTick();

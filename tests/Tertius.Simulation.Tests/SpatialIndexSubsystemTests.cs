@@ -1,3 +1,4 @@
+using System.Numerics;
 using AwesomeAssertions;
 
 namespace Tertius.Simulation.Tests;
@@ -54,7 +55,7 @@ public class SpatialIndexSubsystemTests
         public Entity Add(FrameHandle frame, Double3 position)
         {
             Entity entity = Entities.Reserve();
-            Entities.Activate(entity, RowAt(frame, position), new RenderData(), [], [], null, FrameHandle.Null);
+            Entities.Activate(entity, RowAt(frame, position), new RenderData(), [], [], null, Vector3.Zero, FrameHandle.Null);
             return entity;
         }
 
