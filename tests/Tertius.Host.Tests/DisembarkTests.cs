@@ -379,15 +379,19 @@ public sealed class DisembarkShortRunTests : IDisposable
     }
 
     /// <summary>
-    /// When the station's frame dies during the walk, the exit halts with one log line, and adds nothing after that.
+    /// When the station's frame dies during the walk, the slide or the stroll, the exit halts with one log line, and adds
+    /// nothing after that.
     /// </summary>
-    [Fact]
-    public void TheExitHaltsWhenTheStationIsGone()
+    [Theory]
+    [InlineData(nameof(Walking))]
+    [InlineData(nameof(Sliding))]
+    [InlineData(nameof(Strolling))]
+    public void TheExitHaltsWhenTheStationIsGone(string during)
     {
         world.Post(Event.Create(Person, Entity.Null, new LeaveShip()));
-        for (int i = 0; i < 60; i++)
+        for (int i = 0; i < 120 * 60 && world.GetComponent<Disembark>(Person)!.State.Value.GetType().Name != during; i++)
             world.Tick();
-        world.GetComponent<Disembark>(Person)!.State.Value.Should().BeOfType<Walking>();
+        world.GetComponent<Disembark>(Person)!.State.Value.GetType().Name.Should().Be(during);
         world.Destroy(scene["station"]).Should().BeTrue();
         for (int i = 0; i < 60; i++)
             world.Tick();

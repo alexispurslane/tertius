@@ -1579,7 +1579,7 @@ On the real World, in the scene `demo-exit`, `DisembarkTests`. One shared run, `
 - `ThePersonWalksAFewStepsSpinwardAndStops`.
 - `ThePenStaysInThePersonsHand`.
 - `TheExitLogsNothingAndTheWorldHasNoErrors`.
-- `TheExitHaltsWhenTheStationIsGone`, in its own short world.
+- `TheExitHaltsWhenTheStationIsGone`, in its own short world, once in each of `Walking`, `Sliding` and `Strolling`.
 - `StandingAboveTheCeilingIsNoLandingAndTheSlideAsksForNoWalk`, in its own short world: a test component puts the sliding person back on the deck. It stands there, the exit stays in `Sliding`, and the person holds still.
 
 The scripts:
