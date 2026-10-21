@@ -113,6 +113,32 @@ public sealed class TransferGuidanceTests
     public void TheShuttleBurnsWhileTheVelocityToGainIsLongerThanTheSpeedTolerance(double toGain, bool burns) =>
         new TransferSteering(new Double3(0, 0, toGain), Double3.Zero, Double3.UnitX).Burns.Should().Be(burns);
 
+    /// <summary>
+    /// The autopilot coasts in the last <see cref="TransferGuidance.CoastTime"/>, and before it where the arrival point lies
+    /// within 2 degrees of the shuttle, ahead or behind, where Lambert's problem nears its refusal of an angle within a
+    /// degree of 0. The shuttle lies on the parking circle, <paramref name="aheadDegrees"/> behind the arrival point of
+    /// <paramref name="timeLeft"/> seconds, so a negative angle puts it past that point.
+    /// </summary>
+    [Theory]
+    [InlineData(3, 300, false)]
+    [InlineData(2.1, 300, false)]
+    [InlineData(1.9, 300, true)]
+    [InlineData(-1.9, 300, true)]
+    [InlineData(-2.1, 300, false)]
+    [InlineData(3, 60.5, false)]
+    [InlineData(3, 60, true)]
+    public void TheAutopilotCoastsInTheLastMinuteOrWithinTwoDegreesOfTheArrivalPoint(double aheadDegrees, double timeLeft, bool coasts)
+    {
+        Double3 normal = TransferGuidance.OrbitNormal(Station.Position, Station.Velocity);
+        Double3 arrival = Guidance.Arrival(Station.Position, Station.Velocity, Axis, ArrivalDistance, timeLeft).Point;
+        Double3 inPlane = (arrival - normal * Double3.Dot(arrival, normal)).Normalized();
+        Double3 shuttle = DQuaternion.FromAxisAngle(normal, -Degrees(aheadDegrees)).Rotate(inPlane) * ParkingRadius;
+        double expected = aheadDegrees >= 0 ? Degrees(aheadDegrees) : 2 * Math.PI + Degrees(aheadDegrees);
+        TransferGuidance.TransferAngle(shuttle, arrival, normal).Should().BeApproximately(expected, 1e-5, "the arrival point lies 1,500 m off the plane");
+
+        Guidance.Coasts(shuttle, Station.Position, Station.Velocity, Axis, ArrivalDistance, timeLeft).Should().Be(coasts);
+    }
+
     /// <summary>The steering of the demo's window for a shuttle whose velocity lies <paramref name="short"/> m/s short of the needed velocity, along the velocity to gain.</summary>
     private static TransferSteering SteeringShortBy(double @short)
     {

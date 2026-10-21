@@ -184,10 +184,11 @@ public static partial class DemoScenes
         }
 
         /// <summary>
-        /// The station's orbit in <c>earth-surface</c>: a circle of <see cref="OrbitRadius"/> whose normal is -X, the launch
+        /// The station's orbit in a frame that does not turn and holds Earth's point gravity (<c>earth-surface</c> of
+        /// demo-surface, <c>earth</c> of earth-system): a circle of <see cref="OrbitRadius"/> whose normal is -X, the launch
         /// plane's normal. At mean anomaly 0 the station is at +Z and moves toward +Y. It passes over the pad, at mean
         /// anomaly 90 degrees, at <see cref="OverPadAt"/>, and moves toward -Z there, as the shuttle does. The axial tilt
-        /// takes the station's +Y to +X of <c>earth-surface</c>, the slot's side, and the station spins about that axis at
+        /// takes the station's +Y to +X of that frame, the slot's side, and the station spins about that axis at
         /// <see cref="SpinStation.Rate"/>, so the axis stays fixed.
         /// </summary>
         public static KeplerOrbit Orbit { get; } = new(SemiMajorAxis: OrbitRadius, Eccentricity: 0, Inclination: Math.PI / 2, LongitudeOfAscendingNode: -Math.PI / 2,
@@ -196,7 +197,8 @@ public static partial class DemoScenes
             Attitude: KeplerAttitude.Spin);
 
         /// <summary>
-        /// The station's hull in <c>earth-surface</c>, in the station's axes: a compound of three solids. The wheel is a
+        /// The station's hull in a frame that does not turn and holds Earth's point gravity (<c>earth-surface</c> of
+        /// demo-surface, <c>earth</c> of earth-system), in the station's axes: a compound of three solids. The wheel is a
         /// solid ring from the ceiling, 94.5 m from the axis, to the floor's outer face, 101 m from it, in 256 segment hulls.
         /// The spokes and the hub are solid boxes. Its farthest point, a corner of the wheel's rim, lies 101.5 m from the
         /// center.
@@ -294,8 +296,10 @@ public static partial class DemoScenes
             Drawn(resources, mesh, color, boundingRadius) with { Flags = RenderFlags.Visible | RenderFlags.CastsShadow | RenderFlags.NoImpostor };
 
         /// <summary>
-        /// Spawns the station in <paramref name="surface"/>, <c>earth-surface</c>, on <see cref="Orbit"/> at the world's
-        /// time, with its parts, its bay lamps, its <c>rim-camera</c> and its <c>bay-camera</c>, and adds them to <paramref name="scene"/>: the
+        /// Spawns the station in <paramref name="parent"/>, a frame that does not turn and holds Earth's point gravity
+        /// (<c>earth-surface</c> of demo-surface, <c>earth</c> of earth-system), on <see cref="Orbit"/> at the world's
+        /// time, with its parts, its bay lamps, its <c>rim-camera</c> and its <c>bay-camera</c>, and adds them to
+        /// <paramref name="scene"/>: the
         /// owner <c>station</c>, <c>station-ceiling</c>, <c>station-wall-slot</c> and <c>station-wall-far</c>, the side walls
         /// on the slot's side and the other, <c>station-spokes</c> and <c>station-hub</c>. Returns the station.
         /// </summary>
@@ -305,7 +309,7 @@ public static partial class DemoScenes
         /// acceleration is zero. The hull is kinematic, and its <see cref="KeplerMotion"/> moves it. It moves fast, so it
         /// lives in a following frame of its own (ARCHITECTURE.md, "Numeric frames").
         /// </remarks>
-        public static Entity Spawn(World world, FrameHandle surface, SceneInstance scene, IRenderResources resources)
+        public static Entity Spawn(World world, FrameHandle parent, SceneInstance scene, IRenderResources resources)
         {
             KeplerOrbit orbit = Orbit;
             (Double3 place, Double3 velocity) = orbit.StateAt(world.Time, EarthMu);
@@ -314,7 +318,7 @@ public static partial class DemoScenes
             ShapeDesc hull = HullShape();
             Entity station = world.Spawn(new SpawnDesc
             {
-                Frame = surface,
+                Frame = parent,
                 Pose = new DPose(place, orbit.RotationAt(world.Time, EarthMu)),
                 LinearVelocity = velocity,
                 AngularVelocity = orbit.AngularVelocityAt(world.Time, EarthMu).ToVector3(),

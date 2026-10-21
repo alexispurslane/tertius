@@ -258,7 +258,7 @@ The shuttle has only its main engine, along the nose. The brake must push along 
 |---|---|---|---|
 | `Standby` | None | It adds nothing. | A `Rendezvous` order arrives: `Phasing`. The autopilot builds its guidance then, as the ascent autopilot does at the ignition. |
 | `Phasing(Transfer)` | The transfer guidance | It adds nothing, so the orbit attitude of the ascent autopilot flies on. | The transfer angle lies between 150 and 170 degrees: `Transfer`, with the arrival time 2,560 s from now |
-| `Transfer(Transfer, ArrivalTime)` | The transfer guidance, and the arrival time in the world's seconds | It burns and trims onto the Lambert path that reaches the arrival point at the arrival time. | In the coast, the braking curve reaches the shuttle, or the arrival time comes: `Brake` |
+| `Transfer(Transfer, ArrivalTime)` | The transfer guidance, and the arrival time in the world's seconds | It burns and trims onto the Lambert path that reaches the arrival point at the arrival time. In the coast at its end, it solves nothing more. | In the coast, the braking curve reaches the shuttle, or the arrival time comes: `Brake` |
 | `Brake(Approach)` | The approach guidance of the brake | It stops the shuttle at the arrival point with the main engine. | The shuttle is within 10 m of the arrival point and slower than 0.1 m/s relative to the station: `Glide` |
 | `Glide(Approach)` | The approach guidance of the glide | It turns the nose to the slot. It flies the shuttle along the axis to the hold point on the translation thrusters. | Distance, speed and nose are within the hold's tolerances (see "Tolerances and the end state"): `Hold` |
 | `Hold(Approach)` | The approach guidance of the glide | It holds the shuttle at the hold point, with its nose at the slot. | None. The layer of step 5 overrides it. |
@@ -351,7 +351,9 @@ The transfer runs in three modes:
 - The trim: `toGain` is 0.1 m/s or shorter. Only the translation thrusters trim it, with `toGain / TrimTime`. The nose turns toward the brake's direction at the plan's weightless turn rate, so the brake starts after only a small turn.
 - In the trim and the coast, the nose turns at most at the plan's `RendezvousPlan.WeightlessTurnRate`: 0.002 rad/s in the demo's plan, and the full 0.15 rad/s in the short test plan, whose shuttle carries no crew and must turn within its 300 s. Each `AttitudeTarget` carries the fastest turn that its layer allows, `MaxTurnRate`, and the attitude autopilot asks for at most that and its own 0.15 rad/s. A turn of the hull gives the crew a felt gravity: the centrifugal term ω² r, and the Euler term while the attitude autopilot brings the hull to its rate in a third of a second, 3 ω r. At the seat, 4 m from the hull's center, the Euler term of 0.002 rad/s is 0.024 m/s², less than half the threshold. At 0.15 rad/s, the turn of 160 degrees from the burn's nose to the brake's direction gave about 0.1 m/s² there. That put the strapped person into the walking form, and its up turned at the air rate to about 155 degrees from the nose: on its side, with its body over the pen. At 0.002 rad/s the turn takes about 1,400 s of the trim's 2,450 s, and the person keeps the up of the burn, with its head toward the nose (`BlueDanubeRendezvousTests`).
 - The brake's direction is the opposite of the shuttle's velocity relative to the station at the arrival point: `atArrival` less the station's propagated velocity.
-- The coast: in the last 60 s before the arrival time, the autopilot solves nothing more. A short transfer turns a small miss into a large velocity to gain. The nose turns against `u`, the velocity relative to the station, at `RendezvousPlan.WeightlessTurnRate`.
+- The coast: the autopilot solves nothing more in the last 60 s before the arrival time, `TransferGuidance.CoastTime`, or where the transfer angle from the shuttle to the arrival point lies within 2 degrees of 0, `TransferGuidance.CoastAngle`, whichever comes first. `TransferGuidance.Coasts` decides it in each tick, from the same arrival point that `Steer` solves for. A short transfer turns a small miss into a large velocity to gain. The nose turns against `u`, the velocity relative to the station, at `RendezvousPlan.WeightlessTurnRate`.
+- Why the coast has an angle too: the transfer angle left falls as the transfer goes on, and Lambert's problem refuses an angle within 1 degree of 0. In the demo's orbits, the shuttle turns about 4 degrees in the last 60 s, so the coast by the time comes first. In a slower orbit, the angle falls below 1 degree earlier. A geostationary station turns only 0.25 degrees a minute. There the steering threw and logged an error in every tick from about 240 s before the arrival to the coast (ter-lz8u, 2026-10-20). 2 degrees, twice the refused angle, keeps a degree of margin, so the rounding of the two angles never reaches the refusal.
+- Why not a guard on the plan: the angle at which the coast starts depends on the orbits, not on the plan alone. A plan holds no G·M and no orbit, so a guard in `RendezvousPlan` cannot see the case. The coast by the angle covers every plan with one rule: the guidance solves nothing more where Lambert's problem is close to its refusal, in time or in angle. The transfer's angle only falls, from a window below 179 degrees, so the coast never needs the refusal near 180 degrees.
 - With the trim, the shuttle reaches the arrival point within about 12 m. The trim lasts about 2,450 s, and it holds the velocity to gain below 5 mm/s.
 
 The transfer ends in the coast at the braking curve, where `sqrt(2 × 2.4 m/s² × d)` is no more than `|u|`. Here `d` is the distance to the arrival point and `u` the velocity relative to the station. It also ends at the arrival time. The test holds only in the coast: earlier, the shuttle is thousands of kilometers from the arrival point, where `|u|` (about 15 km/s at the window) exceeds the curve's speed (about 8 km/s), and the relative motion is not that of a free mass. The brake starts about 12 s before the arrival time, well inside the coast of 60 s. In the coast, the nose turns against `u`, which differs from the brake's direction of the last solution by 0.15 degrees. At about 3,300 s the brake's direction passes 9 degrees from straight down, and the roof, away from Earth across the nose, swings about the nose there. At the slow turn rate the nose catches up only slowly afterward: it lies 2.9 degrees off the brake's direction when the coast starts, and 2.1 degrees off `-u` when the brake starts.
@@ -397,6 +399,7 @@ In every phase that steers, the roof turns away from Earth across the nose, as t
 |---|---|
 | Window | The transfer angle lies from 150 to 170 degrees. |
 | End of the burn | The velocity to gain is below 0.1 m/s. The trim then holds it below 5 mm/s. |
+| Start of the coast | 60 s before the arrival time, or where the transfer angle left falls within 2 degrees of 0, whichever comes first. The demo's plan and the short test plan reach 60 s first, at about 4 degrees. |
 | Miss at the arrival time | Within 100 m of the arrival point (about 12 m expected) |
 | End of the brake | Within 10 m of the arrival point, and slower than 0.1 m/s relative to the station. At 0.5 m/s, the glide inherits up to 0.5 m/s across the axis: its push is capped at 0.2 m/s² as a whole, and the speed of 5 m/s that it wants along the axis takes nearly all of it, so the drift across the axis reached 5.6 m on the short test plan. At 0.1 m/s it stays within 1.7 m. |
 | Glide | Within 5 m of the axis all the way |
@@ -550,6 +553,7 @@ Pure math, with no World:
 - `TransferGuidanceTests`:
   - `TheTransferAngleRunsTheWayOfTheOrbit`.
   - `TheTrimPushesAtMostHalfTheWeightlessThreshold`: at the speed tolerance, the trim's push is at most 0.025 m/s².
+  - `TheAutopilotCoastsInTheLastMinuteOrWithinTwoDegreesOfTheArrivalPoint`: 1.9 degrees ahead or behind coasts, 2.1 degrees does not, and 60 s left coasts at any angle.
 - `ApproachGuidanceTests`:
   - `AtTheTargetAndAtRestThePushOnlyCancelsTheDifferenceOfGravity`.
   - `TheWantedSpeedNeverExceedsTheCap`.
@@ -586,6 +590,9 @@ Components on the real World, in scenes that the tests build from the demo's spa
   - `TheGlideFliesTheShuttleAlongTheAxisToTheHoldPoint`, with the same short plan.
   - `TheShuttleHoldsAtTheHoldPointWithItsNoseAtTheSlot`: 60 s within the tolerances.
   - `TheAutopilotStopsWhenTheStationIsGone`.
+- `RendezvousCoastTests` flies a station in a geostationary orbit, 42,164 km from Earth's center, and the shuttle 5 km behind it, on a transfer of 1,000 s. The transfer angle starts at 4.2 degrees and falls below 1 degree about 240 s before the arrival.
+  - `ATransferWhoseAngleFallsBelowLambertsRefusalBeforeTheLastMinuteFliesWithoutAnError`: the world logs no error, and the brake starts.
+  - `TheCoastStartsADegreeBeforeTheAngleThatLambertRefuses`: the autopilot steers above 2 degrees and coasts below, about 478 s before the arrival.
 - `PassengerTests`:
   - `AFastenedBeltBringsTheHoldingPassengerBackToItsSeatWithThePen`.
   - `AStrappedPassengerStaysAtItsSeatThroughABurn`: 3 m/s² for 20 s, within 0.1 m.
@@ -637,13 +644,14 @@ A run that writes PNG files takes 80 ms for each of about 12,000 frames, so the 
 - Ticks: the step adds about 270,000 ticks. It runs from the end of `take`, about 357 s into the run, to the end of `hold`, about 4,876 s. The whole long script runs about 292,000 ticks, against 23,200 today.
 - A tick of the orbital coast took 0.133 ms headless on 2026-10-20. That is 60,000 ticks in 8.0 s, at a load average of 3 to 4.
 - The station adds a kinematic hull on rails in a following frame, its `KeplerMotion`, and static bodies in a frame with no moving body.
-- The autopilot adds one propagation in each tick of `Phasing`. In each tick of `Transfer` it adds one propagation and one Lambert solution, about 100 steps of bisection, a few microseconds.
+- The autopilot adds one propagation in each tick of `Phasing`. In each tick of `Transfer` before the coast, it adds two propagations, one for the coast's angle and one for the steering, and one Lambert solution, about 100 steps of bisection, a few microseconds. In the coast by the time, it adds none.
 - So a tick takes about 0.15 to 0.17 ms, about 45 s for the ticks of the step.
 - Frames: about 12,100 more, 200 s of video, at 3.5 ms each into the video. That adds about 43 s.
 - The generator's rehearsal takes about 55 s, from 10 s. The headless video of the whole script takes about 110 to 115 s, from 22 to 24 s.
 - `BlueDanubeScriptTests` and `BlueDanubeRendezvousRun` each take about a minute. So the host tests take about 2 minutes longer.
 - Measured on 2026-10-20: the step's sections run 270,823 ticks and 11,658 frames, and the whole script runs 292,242 ticks and 15,806 frames. The rehearsal took 107 s, and the headless video 110 s, at a load average from 3.7 to 6.5. `BlueDanubeRendezvousTests` ran in about 112 s in Debug, without the world's invariant checks.
 - The component tests fly short plans of a few thousand ticks each. One flight of the short plan, shared by the tests of the brake, the glide and the hold, runs about 29,000 ticks: 300 s of transfer, 120 s of glide and 60 s of hold. Measured on 2026-10-20: with the station, the world's invariant checks (`WorldOptions.DebugChecks`) cost 6.6 ms a tick, against 0.125 ms without them. So `RendezvousAutopilotTests` runs without them, in about 10 s. With them, its 40,000 ticks would take about 4.5 minutes.
+- `RendezvousCoastTests` flies one transfer of about 60,000 ticks, without the invariant checks. It ran in about 17 s in Debug on 2026-10-20.
 
 ### Order of the work
 
@@ -689,6 +697,7 @@ Only engine changes go to the user (the user's rule of 2026-10-18). So this desi
 | The station's orbit | A circle 400 km up in the launch plane, as the comment of the parking orbit already says | A transfer of half an orbit, about 43 minutes, which the video's viewer can check |
 | The planes | The climb steers into the launch plane. | A real launch flies into the plane of its target. A copy of the measured tilt of 0.17 degrees in the station breaks at the next change of the climb. |
 | The transfer | Lambert to the arrival point, 170 degrees in 2,560 s, from the window | One law that corrects every error from the state. At 180 degrees, an arrival point to the side has no plane. The cost is 3 percent above Hohmann's. |
+| The end of the steering | A coast from 60 s before the arrival, or from a transfer angle of 2 degrees, whichever comes first | Lambert's problem refuses an angle within 1 degree of 0. The angle at the coast depends on the orbits, so a guard on the plan cannot see it. |
 | The window | At φ = 120 degrees, set by `OverPadAt` = 38 s | The arrival at φ = 290 degrees falls in daylight, with Earth's limb lit below the station. |
 | The arrival point | 1.5 km out on the axis | The station is 7.7 degrees wide there, 84 px in the 720-line picture. It grows through the glide, and the brake's 740 m fit. |
 | The burns | 3 m/s² on the main engine, a throttle of about 0.10 | About 32 s for the departure burn, long enough to film, and far below the climb's force on the belt |
@@ -1542,7 +1551,7 @@ The generator refuses, with an `ArgumentException` that names the problem, as `B
 
 ### How the panes are drawn
 
-The panes use what the renderer has today. Each pane is its own entity in the cabin's frame, with no body. It has `RenderFlags.Transparent` and not `CastsShadow`. Its material is the glass of today: mostly clear, with a slight blue tint. It has an alpha of 0.2, a specular intensity of 1 and a gloss of 0.9.
+The panes use what the renderer has today. Each pane is its own entity in the cabin's frame, with no body. It has `RenderFlags.Transparent` and not `CastsShadow`. Its material has the color of today's glass: mostly clear, with a slight blue tint. It has an alpha of 0.2 and a gloss of 0.9. Its specular intensity is 0.18, that of glass with an anti-reflection coating, which reflects about 0.5 % of the light that meets it head-on. The orbit scene's glass has a specular intensity of 1 and reflects 16 % head-on. The window films look head-on through the glass, and the cabin's lamps lie in front of it. With 16 %, each lamp's highlight in `pane-nose` and `pane-port-7` was a white blob beside the station. At a grazing angle, glass reflects much more, whatever its coating, so the lamps' highlights on the side and roof glass in the cabin views stay.
 
 The renderer draws transparent instances in one forward pass after the lighting, blended, and sorted back to front by each instance's center (ARCHITECTURE.md, "Transparent objects"). It culls back faces, writes no depth, and tests occlusion against the G-buffer's distance. What that means for the canopy:
 
@@ -1676,6 +1685,10 @@ The shuttle, on the World, in `ShuttleTests`:
 - `TheOutsideCamerasSeeTheSeatedPersonThroughTheGlass`: a person stands at `Shuttle.SeatStand`. The lines to its eye from `chase-camera`, `climb-camera` and `apron-camera` cross the holes of the panes that "The cameras" names.
 - `ABallInTheParkedCabinFallsWithThePlanetsGravity` stays.
 
+The glass in the window films, on the real renderer, in `ShuttleGlareTests`:
+
+- `ALampsHighlightInTheGlassThatAWindowFilmLooksThroughStaysFaint`: in `demo-surface`, the test renders the view of `window-camera` and of `port-window-camera` with the cabin's lamps and without them. At the pixel of a lamp's mirror image in the inner face of `pane-nose` or `pane-port-7`, the highlight stands less than a quarter of full white above the glass 80 px above and below it. The review added it on 2026-10-20 (see "Found in the review").
+
 Components, on the World:
 
 - `FlightControlTests`:
@@ -1731,6 +1744,11 @@ Measured in part B, on 2026-10-20:
 - The panes have no body, so the run does not change. The script changed only in the films `seated`, `seated-outside`, `hold` and `hold-chase`.
 - Part B adds tests that the list in "Tests" does not name. `TheDrawnHullIsNeverAnImpostor` checks the hull's flags in `demo-surface`. One refusal test for each guard of the glass: `APaneInTheDoorsPanelIsAnError`, `TwoPanesInOneCellAreAnError`, `APaneBeforeTheSurroundsIsAnError`, `ASecondPaneInTheFrontIsAnError`, `APaneInTheFrontNeedsAPartWithThreeCorners`, `ADoorAfterTheGlassIsAnError` and `SurroundsTwiceAreAnError`.
 - The lamps are `Shuttle.Lamps`, each with its scene id, such as `lamp-port-fore`, and `Shuttle.SpawnLamps` spawns them. `Shuttle.DrawnHull` gives the drawn hull with `NoImpostor` to both scenes.
+
+Found in the review, on 2026-10-20:
+
+- In the window films, the cabin's lamps showed in the glass as large white blobs beside the station. In `turn`, `glide-window` and `brake`, the blobs were brighter than the station. A lamp's highlight in a pane lies at the lamp's mirror image in the pane's inner face. The fore lamps lie 4.9 m behind `pane-nose`, and the starboard aft lamp lies across the cabin from `pane-port-7`, so their mirror images lie in the middle of those views. A camera's place moves an image only a little, because the image lies behind the glass by the lamp's distance from it. A lamp lights the glass out to its range of 10 m, and the seat and the cockpit lie less than 10 m from the front. So the glass got the specular intensity of glass with an anti-reflection coating (see "How the panes are drawn"). The highlight in `pane-nose` fell from 192 of 255 above the glass beside it to 40. The test `ALampsHighlightInTheGlassThatAWindowFilmLooksThroughStaysFaint` checks it.
+- The two kinds of pane of `LoftedHull`, in a cell and in the front, were an abstract record with two subclasses. They are now a custom `[Union]`, `PaneCut`, with the cases `CellPane` and `FrontPane`, as every closed set of the demo is.
 
 ### Order of the work
 
@@ -1796,7 +1814,7 @@ Only engine changes go to the user (the user's rule of 2026-10-18). So this desi
 | The rib places | Every 2 m in the body and every 1.5 m in the nose. One lies at z = -1, and the hatch's bay runs from 1 to 3. | About every 2 m, as the user asked. The pen's clip and the hatch stay where they are. |
 | The surrounds | Ribs and pillars 0.2 m, mullions 0.12 m, 0.1 m next to solid skin | Thin, as the user asked, and wide enough for the pen and the lamps |
 | The panes | One flat pane per cell, with its mesh round its own center | The renderer sorts and culls per instance. A flat pane cannot cover itself. |
-| The glass's material | The orbit scene's glass, for every pane | When the sort swaps two panes, two equal colors blend the same in either order. |
+| The glass's material | The orbit scene's color and alpha, for every pane, with the specular intensity of glass with an anti-reflection coating, 0.18 | When the sort swaps two panes, two equal colors blend the same in either order. With the orbit scene's specular intensity of 1, each cabin lamp's highlight in the glass that a window film looks through was a white blob beside the station. |
 | The hull's impostor | `NoImpostor` | A flat picture cannot hold the person inside at its depth. |
 | The outer collision shape | The convex hull of the 24 corners, with the default convex radius | The ticket's rule, and the same rounding at the ramp's foot as the box |
 | The interior shape | The drawn solid in 23 convex pieces of convex radius 0, solid at the glass | The box reaches outside the new hull. Where the walk, the seat, the pen and the float happen, the pieces are the box. |

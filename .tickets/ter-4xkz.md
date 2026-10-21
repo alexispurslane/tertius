@@ -1,6 +1,6 @@
 ---
 id: ter-4xkz
-status: open
+status: closed
 deps: [ter-tzf6]
 links: []
 created: 2026-10-20T17:00:58Z
@@ -36,3 +36,11 @@ The ticket writes its design as a section of docs/plans/blue-danube-demo.md firs
 **2026-10-20T18:46:20Z**
 
 The live world design (docs/plans/live-world.md, part 3) needs the hull to stand on its tail on a flat pad. So the tail is a flat face across the whole cross-section of the hull, or it has landing feet at its corners. The engine's nozzle is recessed into that face, and the center of mass stays on the long axis.
+
+**2026-10-20T21:34:21Z**
+
+The user decided on 2026-10-20: the hull has one density, with no engine change for mass properties apart from the collision shape. The design found that a hull of one density with the chosen look puts the center of mass about 9 cm low and 36 cm aft of the hull's middle, with the long principal axis tilted 1.03 degrees, nose down. The attitude autopilot takes the principal axes, and the nozzle pushes through the center of mass.
+
+**2026-10-21T00:34:05Z**
+
+Merged on 2026-10-20 under the lean demo process: two builders, the orchestrator's look at the frames, and one review-and-fix agent, which made the canopy's glass anti-reflective (the lamp glare in the window films) and turned the pane kinds into a union. All five suites passed in Debug and Release, and Host and Rendering passed again after the merge with main. Coverage of the changed lines: 890 of 922. The 32 uncovered lines are argument guards of LoftedHull that the demo's fixed hulls never trip, branches for hulls without a nose pane or a tail pocket, and two unused members of the pane union.

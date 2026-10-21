@@ -19,7 +19,7 @@ public readonly record struct Phasing(TransferGuidance Guidance);
 
 /// <summary>
 /// A <see cref="RendezvousAutopilot"/> burns and trims onto the two-body path that reaches the arrival point at the arrival
-/// time, and coasts in the last <see cref="TransferGuidance.CoastTime"/>.
+/// time, and coasts at its end (see <see cref="TransferGuidance.Coasts"/>).
 /// </summary>
 /// <param name="Guidance">The guidance of the transfer, made at the order.</param>
 /// <param name="ArrivalTime">The time at which the shuttle reaches the arrival point, in the world's seconds.</param>
@@ -199,9 +199,10 @@ public readonly record struct RendezvousPlan(double TransferTime, double Arrival
 /// transfer starts, with the arrival time one transfer time from now.</item>
 /// <item><see cref="Transfer"/>: while the velocity to gain is longer than <see cref="TransferGuidance.SpeedTolerance"/>,
 /// the nose turns toward it, the main engine gives the part of the push along the nose, and the translation thrusters the
-/// rest. Below that, the thrusters alone trim it, and the nose turns toward the brake's direction. In the last
-/// <see cref="TransferGuidance.CoastTime"/>, the autopilot solves nothing more, and the nose turns against the velocity
-/// relative to the station. In the trim and the coast, the cabin is weightless, so the nose turns at most at the plan's
+/// rest. Below that, the thrusters alone trim it, and the nose turns toward the brake's direction. In the coast, in the
+/// last <see cref="TransferGuidance.CoastTime"/> or within <see cref="TransferGuidance.CoastAngle"/> of the arrival point,
+/// whichever comes first, the autopilot solves nothing more, and the nose turns against the velocity relative to the
+/// station. In the trim and the coast, the cabin is weightless, so the nose turns at most at the plan's
 /// <see cref="RendezvousPlan.WeightlessTurnRate"/>. The brake starts in the coast, where the braking curve of the brake reaches the shuttle, or at
 /// the arrival time.</item>
 /// <item><see cref="Brake"/>: the brake's <see cref="ApproachGuidance"/> flies the shuttle to the arrival point, with the
@@ -317,7 +318,9 @@ public sealed class RendezvousAutopilot(Entity station, RendezvousPlan plan, dou
 
         if (State is Phasing phasing && InWindow(phasing.Guidance, position, center, stationVelocity, axis))
             State = new Transfer(phasing.Guidance, time + plan.TransferTime);
-        if (State is Transfer transfer && BrakeStarts(transfer, time, (position - arrivalPoint).Length, relative.Length))
+        bool coasts = State is Transfer current
+            && current.Guidance.Coasts(position, center, stationVelocity, axis, plan.ArrivalDistance, current.ArrivalTime - time);
+        if (State is Transfer transfer && BrakeStarts(transfer, time, coasts, (position - arrivalPoint).Length, relative.Length))
             State = new Brake(ApproachGuidance.ForBrake());
         if (State is Brake && (position - arrivalPoint).Length < BrakeEndDistance && relative.Length < BrakeEndSpeed)
             State = new Glide(ApproachGuidance.ForGlide());
@@ -328,13 +331,12 @@ public sealed class RendezvousAutopilot(Entity station, RendezvousPlan plan, dou
         switch (State)
         {
             case Transfer { Guidance: var guidance, ArrivalTime: var arrivalTime }:
-                double timeLeft = arrivalTime - time;
-                if (timeLeft <= TransferGuidance.CoastTime)
+                if (coasts)
                 {
                     Face(ref events, -relative, pose, plan.WeightlessTurnRate);
                     break;
                 }
-                TransferSteering steering = guidance.Steer(position, velocity, center, stationVelocity, axis, plan.ArrivalDistance, timeLeft);
+                TransferSteering steering = guidance.Steer(position, velocity, center, stationVelocity, axis, plan.ArrivalDistance, arrivalTime - time);
                 if (steering.Burns)
                 {
                     Face(ref events, steering.ToGain, pose, AttitudeAutopilot.MaxTurnRate);
@@ -374,17 +376,15 @@ public sealed class RendezvousAutopilot(Entity station, RendezvousPlan plan, dou
     }
 
     /// <summary>
-    /// True when the brake starts: at the arrival time, or in the coast where the speed that stops the shuttle at the brake's
-    /// curve in the <paramref name="distance"/> left to the arrival point is no more than the <paramref name="speed"/>
-    /// relative to the station. Before the coast, the shuttle is far from the station, where the relative speed far exceeds
-    /// the braking curve's, so the curve says nothing there.
+    /// True when the brake starts: at the arrival time, or in the coast, while the autopilot <paramref name="coasts"/>
+    /// (see <see cref="TransferGuidance.Coasts"/>), where the speed that stops the shuttle at the brake's curve in the
+    /// <paramref name="distance"/> left to the arrival point is no more than the <paramref name="speed"/> relative to the
+    /// station. Before the coast, the shuttle is far from the station, where the relative speed far exceeds the braking
+    /// curve's, so the curve says nothing there.
     /// </summary>
-    private static bool BrakeStarts(Transfer transfer, double time, double distance, double speed)
-    {
-        double timeLeft = transfer.ArrivalTime - time;
-        return timeLeft <= 0
-            || timeLeft <= TransferGuidance.CoastTime && Math.Sqrt(2 * ApproachGuidance.ForBrake().BrakeAcceleration * distance) <= speed;
-    }
+    private static bool BrakeStarts(Transfer transfer, double time, bool coasts, double distance, double speed) =>
+        transfer.ArrivalTime - time <= 0
+            || coasts && Math.Sqrt(2 * ApproachGuidance.ForBrake().BrakeAcceleration * distance) <= speed;
 
     /// <summary>
     /// Adds the attitude target that points the nose along <paramref name="nose"/>, with the roof away from the planet, or
