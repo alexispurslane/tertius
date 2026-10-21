@@ -39,7 +39,10 @@ public static partial class DemoScenes
     /// where it stops and stays (see <see cref="Path"/>). The person enters the shuttle's frame on the pad, about 9.4 m
     /// from the shuttle's axis, when its bounding sphere touches the bubble. The slab has a ghost in the shuttle's bubble
     /// (ARCHITECTURE.md, "Ghosts"), so the person walks on in the shuttle's frame on the same ground, and climbs the
-    /// hatch's sill as a stair.</item>
+    /// hatch's sill as a stair. The person's own row draws nothing, since a character does not turn. Its view starts
+    /// facing the entrance, and its <see cref="WalkHeading"/> turns the view toward the walk. The attached
+    /// <c>person-body</c>, a blue box with the dark <c>person-visor</c> on its front, faces the way of the view and bobs
+    /// with each step (see <see cref="SpawnDrawnBody"/> and <see cref="Gait"/>).</item>
     /// <item>The views: <c>overview</c>, the camera at the start, high over the terminal's entrance side, sees the terminal
     /// and the shuttle; <c>terminal-camera</c>, high in the hall's corner by the gate, sees the walk through the hall;
     /// <c>apron-camera</c>, 3 m up off the shuttle's aft starboard quarter, between the shuttle and the terminal's gate side,
@@ -204,8 +207,37 @@ public static partial class DemoScenes
         /// <summary>The eye of the person, relative to its center, in its axes: 1.65 m above its feet.</summary>
         public static Vector3 Eye { get; } = new(0, 0.75f, 0);
 
-        /// <summary>The half extents of the box that draws the person, in meters, in its axes: 0.6 m wide and deep, 1.8 m tall.</summary>
+        /// <summary>
+        /// The half extents of the box round the drawn person, in meters, in the person's axes: 0.6 m wide and deep, 1.8 m
+        /// tall, round the person's center. The drawn body and its visor lie inside it at every heading and lift (see
+        /// <see cref="BodyHalf"/>). The cameras that keep the person in the picture and the checks of the films take this box.
+        /// </summary>
         public static Vector3 PersonHalf { get; } = new(0.3f, 0.9f, 0.3f);
+
+        /// <summary>
+        /// The half extents of the person's drawn body, in meters, in the body's axes: 0.5 m wide, 0.28 m deep and 1.76 m
+        /// tall. It is wider than it is deep, so a viewer sees which way it faces, and its footprint's corners lie 0.287 m
+        /// from its middle, inside <see cref="PersonHalf"/> at every heading.
+        /// </summary>
+        public static Vector3 BodyHalf { get; } = new(0.25f, 0.88f, 0.14f);
+
+        /// <summary>
+        /// Where the drawn body's center rests relative to the person's center, in meters: 2 cm lower, so that its bottom lies
+        /// at the capsule's bottom, and its top 4 cm below the top of <see cref="PersonHalf"/>, room for a step's rise.
+        /// </summary>
+        public static Vector3 BodyCenter { get; } = new(0, -0.02f, 0);
+
+        /// <summary>
+        /// The half extents of the visor on the drawn body's front, in meters, in the body's axes: 0.34 m wide, 10 cm tall and
+        /// 8 cm deep, so that it shows in the films from 10 m away. Its outer corners lie 0.278 m from the body's middle.
+        /// </summary>
+        public static Vector3 VisorHalf { get; } = new(0.17f, 0.05f, 0.04f);
+
+        /// <summary>
+        /// Where the visor's center lies relative to the drawn body's center, in meters, in the body's axes: at the eye's
+        /// height, with its back on the body's front face, -Z.
+        /// </summary>
+        public static Vector3 VisorCenter { get; } = new(0, 0.77f, -0.18f);
 
         /// <summary>How far behind the person's eye the <c>follow-camera</c> keeps, in meters (see <see cref="ChaseCamera"/>).</summary>
         public const double FollowBehind = 3.5;
@@ -281,6 +313,33 @@ public static partial class DemoScenes
             foreach (BoundingBox box in Furniture)
                 mesh.Box(box);
             return mesh.Build();
+        }
+
+        /// <summary>
+        /// Spawns the drawn body of <paramref name="person"/>, as <c>person-body</c>, and its visor, as <c>person-visor</c>, in
+        /// <paramref name="scene"/>. The person's own row draws nothing, since a character does not turn. The body is a box of
+        /// <see cref="BodyHalf"/> in the person's color, attached to the person, and its <see cref="Gait"/> turns it as the
+        /// person's view and bobs it with each step. The visor is a dark box of <see cref="VisorHalf"/>, attached to the body
+        /// at <see cref="VisorCenter"/>, so that a viewer sees the body's front. Both cast shadows.
+        /// </summary>
+        public static Entity SpawnDrawnBody(World world, SceneInstance scene, Entity person, IRenderResources resources)
+        {
+            Quaternion heading = Quaternion.CreateFromAxisAngle(Vector3.UnitY, (float)WalkHeading.Yaw(world.GetRender(person).ViewOffset.Rotation));
+            Entity body = world.Spawn(new SpawnDesc
+            {
+                AttachTo = person,
+                AttachOffset = new Pose(Vector3.Transform(BodyCenter, heading), heading),
+                Render = Drawn(resources, Primitives.Box(BodyHalf), new Vector4(0.2f, 0.45f, 0.8f, 1), boundingRadius: 1),
+                Components = [new Gait(BodyCenter)],
+            });
+            scene.Add("person-body", body);
+            scene.Add("person-visor", world.Spawn(new SpawnDesc
+            {
+                AttachTo = body,
+                AttachOffset = new Pose(VisorCenter, Quaternion.Identity),
+                Render = Drawn(resources, Primitives.Box(VisorHalf), new Vector4(0.06f, 0.06f, 0.08f, 1), boundingRadius: VisorHalf.Length()),
+            }));
+            return body;
         }
 
         /// <summary>
@@ -403,17 +462,22 @@ public static partial class DemoScenes
                 resources.CreateMaterial(MaterialDesc.Color(new Vector4(0.85f, 0.1f, 0.08f, 1))));
             Entity pen = world.Spawn(ClippedPen(penSpec, cabin));
             scene.Add("pen", pen);
-            RenderData personRender = Drawn(resources, Primitives.Box(PersonHalf), new Vector4(0.2f, 0.45f, 0.8f, 1), boundingRadius: 1);
-            personRender.ViewOffset = new Pose(Eye, Quaternion.Identity);
+            // The person starts facing its first waypoint, along -X, toward the terminal's entrance: a quarter turn about +Y.
+            var personRender = new RenderData { ViewOffset = new Pose(Eye, Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2)) };
             Entity person = world.Spawn(new SpawnDesc
             {
                 Frame = surface,
                 Pose = new DPose(PersonStart, DQuaternion.Identity),
                 Body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: YardPersonMass),
                 Render = personRender,
-                Components = [new Walker(Path(surface, cabin)), new Passenger(new Waypoint(cabin, Shuttle.SeatStand), pen), StationExit.Disembark(cabin, world.GetOwnedFrame(station))],
+                Components =
+                [
+                    new Walker(Path(surface, cabin)), new Passenger(new Waypoint(cabin, Shuttle.SeatStand), pen),
+                    StationExit.Disembark(cabin, world.GetOwnedFrame(station)), new WalkHeading(),
+                ],
             });
             scene.Add("person", person);
+            SpawnDrawnBody(world, scene, person, resources);
             // The person starts its walk along -X, toward the entrance, so the camera starts behind it along +X.
             scene.Add("follow-camera", world.Spawn(new SpawnDesc
             {

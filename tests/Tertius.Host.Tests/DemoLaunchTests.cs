@@ -56,10 +56,11 @@ public sealed class DemoLaunchRun : CheckedInRun
 /// </param>
 /// <param name="Clip">What the pen's clip does, while the loose pen lives, or null.</param>
 /// <param name="Held">The pose of the drawn copy of the pen in the person's hand, in the shuttle's frame, while the person holds it, or null.</param>
+/// <param name="PersonHeading">The person's heading: the turn of its view about its up, in radians, as <see cref="WalkHeading.Yaw"/> gives it.</param>
 internal sealed record LaunchTick(long Tick, FrameHandle Frame, Double3 Position, Double3 Velocity, DQuaternion Rotation, Double3 AngularVelocity,
     Double3 GroundPosition, Double3 GroundVelocity, DQuaternion GroundRotation, AscentState Ascent, System.Numerics.Vector3 CabinAcceleration,
     FrameHandle PersonFrame, Double3 PersonInCabin, PassengerState Passenger, (Double3 Position, Double3 Velocity, DQuaternion Rotation)? Pen,
-    Double3? PenFromShuttle, ClipState? Clip, DPose? Held);
+    Double3? PenFromShuttle, ClipState? Clip, DPose? Held, double PersonHeading);
 
 /// <summary>
 /// A ball at rest in the cabin, 7 s after the engines stop, and where it is after 5 s. The attitude autopilot turns the
@@ -105,7 +106,7 @@ internal sealed class LaunchLog
             world.Frames.ProperAcceleration(cabin), world.GetFrame(person), world.PoseIn(person, cabin).Position, passenger,
             penLives ? (world.PoseIn(pen, cabin).Position, world.VelocityIn(pen, cabin), world.PoseIn(pen, cabin).Rotation) : null,
             penLives ? world.PoseIn(pen, earth).Position - inEarth.Position : null,
-            penLives ? world.GetComponent<Clip>(pen)!.State : null, held));
+            penLives ? world.GetComponent<Clip>(pen)!.State : null, held, WalkHeading.Yaw(world.GetRender(person).ViewOffset.Rotation)));
         if (ascent.Value is Orbit && orbitTick < 0)
             orbitTick = world.TickNumber;
         if (orbitTick >= 0 && ball.IsNull && world.TickNumber == orbitTick + 420)
@@ -264,6 +265,22 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
         flight.Should().OnlyContain(tick => tick.Passenger.Value is Seated);
         flight.Max(tick => Double3.Distance(tick.PersonInCabin, Shuttle.SeatStand)).Should().BeLessThan(0.25);
         flight.Where(tick => tick.Ascent.Value is Climb).Max(tick => Double3.Distance(tick.PersonInCabin, Shuttle.SeatStand)).Should().BeLessThan(0.08);
+    }
+
+    /// <summary>
+    /// The person sits at its seat from the ignition, so its heading holds (docs/plans/blue-danube-demo.md, "The person's
+    /// walk"): in every tick from the ignition to the end of the run, it lies within 0.01 radians of its heading at the
+    /// ignition. This covers the jolt at the ramp's foot, the climb, where the seat lifts the person, and the fetch of the
+    /// pen in orbit, where the person floats.
+    /// </summary>
+    [Fact]
+    public void ThePersonsHeadingHoldsFromTheIgnitionToTheEndOfTheRun()
+    {
+        List<LaunchTick> flight = [.. Log.SkipWhile(tick => tick.Ascent.Value is Parked)];
+        double ignition = flight[0].PersonHeading;
+
+        flight.Should().HaveCountGreaterThan(10_000);
+        flight.Max(tick => Math.Abs(Math.IEEERemainder(tick.PersonHeading - ignition, 2 * Math.PI))).Should().BeLessThan(0.01);
     }
 
     /// <summary>

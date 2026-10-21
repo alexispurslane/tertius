@@ -31,3 +31,19 @@ The design settled with the user on 2026-10-21. A puff is a loose body without a
 **2026-10-21T14:39:35Z**
 
 The user asked on 2026-10-21 that the particle system be efficient and minimal. Puffs are not entities: no handle, no generation, no components, no messages, no render row, no body, no spawn description. 'A loose body without a shape' describes how a puff moves, not how it is stored. Puffs are rows of one compact store that the simulation owns, grouped by frame, born only by emitters at the sync point into a pool allocated up to the cap, and stepped in bulk, one loop per frame over a contiguous span, with that frame's turn and field of the step. A likely minimal row: the two-turn update keeps x_n and x_(n-1), which are also the current and previous positions that the renderer interpolates, so a puff may need two positions, an age and a look index, and no velocity. The design doc settles the layout and measures it.
+
+**2026-10-21T15:17:40Z**
+
+The user's choices on the draft 3da92c5 (docs/plans/particles.md on ter-4zt6-particles), 2026-10-21: (1) pure gravity: puffs feel the full gravity of their frame, with no lift number, so smoke on the pad sinks and fades at the ground; (2) the frame holds the air: each frame holds a medium beside its gravity field (for example none, uniform, or air that thins with height), and the engine gets that store and model, not a drag number on each emitter; (3) lit puffs are lit once per puff, at the center. Also from the user: puffs must be efficient and minimal. The draft's 104-byte Puff copies its emitter's settings and its frame handle into each row: one design agent revises it to puffs grouped by frame with no per-puff copies of what their emitter shares, and splits the order of the work into parts that touch separate files, with the interfaces stated, for parallel builders.
+
+**2026-10-21T15:18:25Z**
+
+Correction, 2026-10-21: the user's 'pure gravity' means no lift number on the emitter. Lift comes from the frame's medium, by Archimedes: at a puff's place the medium gives the drag toward its rest and a buoyancy from its density against the puff's own gas, so the net acceleration from gravity and buoyancy is g (1 - rho_medium(x) / rho_puff). In vacuum a puff feels the full gravity. In air, hot exhaust rises and cold gas heavier than air sinks. The look holds the puff's gas density. The user's words: 'I was hoping that the frame's knowledge about the medium could then impart lift to the puffs based on that, since the puffs are already grouped by frame.'
+
+**2026-10-21T15:58:07Z**
+
+The revised design is docs/plans/particles.md at 1951a75 (branch ter-4zt6-particles): a 56-byte Puff (place, chord, age, look index), ranges per frame, a shared look table, the medium as a [Union] beside the gravity field (UniformMedium, PlanetMedium), lift and drag from it, old puffs stepped at a new step 2b, and nine tasks of which 3, 4 and 5 run in parallel. The user settled its two forks on 2026-10-21: the medium acts only on puffs for now, and a look holds a temperature ratio (the ideal gas law), so lift and drag are the same at every height and stop at once at 50 km, where earth-surface's air ends.
+
+**2026-10-21T16:10:46Z**
+
+The build of 2026-10-21: tasks 1 to 7 of docs/plans/particles.md run in one workflow on the epic's branch ter-4zt6-particles, in its one worktree, with parallel builders on separate files (1 and 2 at once, then 4 and 5 after 1, 3 after 1 and 2, 6 after 3 and 4, 7 after 5), then one reviewer and one fixer. The doc's sentence that each task is its own ticket and branch gives way to this, because the tasks share one design and one review. Task 8 (ter-fwsy) and task 9 (ter-gk9o) are their own tickets after the epic, because the plumes wait for neither.

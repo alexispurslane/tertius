@@ -9,32 +9,32 @@ namespace Tertius.Host.Tests;
 public sealed class DisembarkStateTests
 {
     private static readonly DisembarkState[] States =
-        [new Aboard(), new Walking(0), new Walking(3), new Sliding(), new Strolling(0), new Strolling(1), new Arrived(), new Halted()];
+        [new Aboard(), new Walking(new WalkProgress(0, 0)), new Walking(new WalkProgress(3, 0)), new Sliding(), new Strolling(new WalkProgress(0, 0)), new Strolling(new WalkProgress(1, 0)), new Arrived(), new Halted()];
 
     private static readonly DisembarkEvent[] Events = [new LeaveShip(), new Dropped(), new Landed(), new WalkDone(), new StationGone()];
 
     [Fact]
     public void AnOrderToLeaveTheShipStartsTheWalkAtItsFirstWaypoint() =>
-        DisembarkState.Next(new Aboard(), new LeaveShip()).Should().Be((DisembarkState)new Walking(0));
+        DisembarkState.Next(new Aboard(), new LeaveShip()).Should().Be((DisembarkState)new Walking(new WalkProgress(0, 0)));
 
     [Fact]
     public void ADropOverTheChutesTopStartsTheSlide() =>
-        DisembarkState.Next(new Walking(3), new Dropped()).Should().Be((DisembarkState)new Sliding());
+        DisembarkState.Next(new Walking(new WalkProgress(3, 0)), new Dropped()).Should().Be((DisembarkState)new Sliding());
 
     [Fact]
     public void ALandingOnTheWheelsFloorStartsTheStrollAtItsFirstWaypoint() =>
-        DisembarkState.Next(new Sliding(), new Landed()).Should().Be((DisembarkState)new Strolling(0));
+        DisembarkState.Next(new Sliding(), new Landed()).Should().Be((DisembarkState)new Strolling(new WalkProgress(0, 0)));
 
     [Fact]
     public void TheEndOfTheStrollEndsTheExit() =>
-        DisembarkState.Next(new Strolling(1), new WalkDone()).Should().Be((DisembarkState)new Arrived());
+        DisembarkState.Next(new Strolling(new WalkProgress(1, 0)), new WalkDone()).Should().Be((DisembarkState)new Arrived());
 
     [Fact]
     public void AStationThatIsGoneHaltsTheWalkTheSlideAndTheStroll()
     {
-        DisembarkState.Next(new Walking(2), new StationGone()).Should().Be((DisembarkState)new Halted());
+        DisembarkState.Next(new Walking(new WalkProgress(2, 0)), new StationGone()).Should().Be((DisembarkState)new Halted());
         DisembarkState.Next(new Sliding(), new StationGone()).Should().Be((DisembarkState)new Halted());
-        DisembarkState.Next(new Strolling(0), new StationGone()).Should().Be((DisembarkState)new Halted());
+        DisembarkState.Next(new Strolling(new WalkProgress(0, 0)), new StationGone()).Should().Be((DisembarkState)new Halted());
     }
 
     /// <summary>Every pair that the rows above do not name has no row: <see cref="DisembarkState.Next"/> gives null.</summary>
@@ -86,8 +86,10 @@ public sealed class DisembarkStateTests
     public void TheDefaultStateIsAboardAndEqualStatesHaveTheSameCaseAndData()
     {
         default(DisembarkState).Value.Should().Be(new Aboard());
-        ((DisembarkState)new Walking(2)).Should().Be((DisembarkState)new Walking(2));
-        ((DisembarkState)new Walking(2)).Should().NotBe((DisembarkState)new Walking(3));
-        ((DisembarkState)new Walking(2)).Should().NotBe((DisembarkState)new Strolling(2));
+        ((DisembarkState)new Walking(new WalkProgress(2, 0))).Should().Be((DisembarkState)new Walking(new WalkProgress(2, 0)));
+        ((DisembarkState)new Walking(new WalkProgress(2, 0))).Should().NotBe((DisembarkState)new Walking(new WalkProgress(3, 0)));
+        ((DisembarkState)new Walking(new WalkProgress(2, 0))).Should().NotBe((DisembarkState)new Walking(new WalkProgress(2, 0.5)), "the pace is data of the case too");
+        ((DisembarkState)new Strolling(new WalkProgress(1, 0.5))).Value.Should().Be(new Strolling(new WalkProgress(1, 0.5)));
+        ((DisembarkState)new Walking(new WalkProgress(2, 0))).Should().NotBe((DisembarkState)new Strolling(new WalkProgress(2, 0)));
     }
 }

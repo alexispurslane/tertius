@@ -22,8 +22,9 @@ namespace Tertius.Host.Tests;
 /// <param name="Rotation">The person's rotation in the station's axes.</param>
 /// <param name="ChuteView">The pose in the station's frame of the camera that films the section <c>chute</c>.</param>
 /// <param name="ChuteViewClear">True when a ray from that camera to the person's center meets no body but the person's.</param>
+/// <param name="Facing">The way that the person faces, the -Z of its view, in the station's axes.</param>
 public sealed record ExitSample(long Tick, bool InCabin, bool InStation, Double3 Position, Double3 InCabinAxes, Double3 Velocity, bool Standing,
-    DisembarkState Exit, PassengerState Belt, double FeltGravity, bool CopyHeld, DQuaternion Rotation, DPose ChuteView, bool ChuteViewClear);
+    DisembarkState Exit, PassengerState Belt, double FeltGravity, bool CopyHeld, DQuaternion Rotation, DPose ChuteView, bool ChuteViewClear, Double3 Facing);
 
 /// <summary>
 /// One run of the scene <c>demo-exit</c> from the docking's end state: the order <see cref="LeaveShip"/> before the first
@@ -86,7 +87,7 @@ public sealed class ExitRun : IDisposable
         return new ExitSample(tick, frame == Cabin, frame == Station, position, World.PoseIn(person, Cabin).Position, World.VelocityIn(person, Station),
             World.IsStanding(person), World.GetComponent<Disembark>(person)!.State, World.GetComponent<Passenger>(person)!.State,
             World.Frames.FeltGravity(Station, position).Length, !copy.IsNull && World.IsAlive(copy) && World.Attachments.ParentOf(copy) == person,
-            pose.Rotation, view, hits.Count == 0);
+            pose.Rotation, view, hits.Count == 0, pose.Rotation.Rotate((Double3)System.Numerics.Vector3.Transform(-System.Numerics.Vector3.UnitZ, World.GetRender(person).ViewOffset.Rotation)));
     }
 
     private sealed class AllBut(Entity left) : IPhysicsQueryFilter
@@ -108,6 +109,30 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
 
     /// <summary>The first sample in which <paramref name="holds"/> holds.</summary>
     private ExitSample First(Func<ExitSample, bool> holds) => run.Samples.First(holds);
+
+    /// <summary>
+    /// The person faces its way (docs/plans/blue-danube-demo.md, "The person's walk"): in the ticks of the walk out and of
+    /// the stroll in which it stands and moves across its up at 0.9 m/s or more, it faces within 10 degrees of that motion
+    /// in 9 ticks of 10 or more. The rest are the ticks of a turn at a waypoint. It starts facing the nose, and its way out
+    /// leads aft, so without a turn it would face its back to the walk.
+    /// </summary>
+    [Fact]
+    public void ThePersonFacesItsWayOnTheWalkOutAndTheStroll()
+    {
+        List<double> angles = [];
+        foreach (ExitSample sample in run.Samples.Where(sample => sample.Standing && sample.Exit.Value is Walking or Strolling))
+        {
+            Double3 up = sample.Rotation.Rotate(Double3.UnitY);
+            Double3 across = sample.Velocity - up * Double3.Dot(sample.Velocity, up);
+            if (across.Length < 0.9)
+                continue;
+            Double3 facing = sample.Facing - up * Double3.Dot(sample.Facing, up);
+            angles.Add(Math.Acos(Math.Clamp(Double3.Dot(across.Normalized(), facing.Normalized()), -1, 1)) * 180 / Math.PI);
+        }
+
+        angles.Should().HaveCountGreaterThan(600, "the walk out and the stroll take more than 10 s at 1 m/s");
+        angles.Count(angle => angle < 10).Should().BeGreaterThanOrEqualTo(angles.Count * 9 / 10);
+    }
 
     /// <summary>
     /// The scene starts at the docking's end state: the hull is static at <see cref="DemoStation.ParkedPose"/>, its cabin's
