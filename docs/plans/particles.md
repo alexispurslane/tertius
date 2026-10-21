@@ -893,7 +893,7 @@ So L = albedo × (mean ambient + (E_sun · V_sun + Σ E_light) / (4π)), where
 - E_sun = the sun's radiance as the shader holds it, and V_sun = its visibility at the puff's center: the far shadows times the cascades, sampled with the sun's direction as the normal, which gives the least bias.
 - E_light = the radiance of a point or spot light times its distance attenuation and its cone, at the puff's center.
 
-The vertex shader computes L once per puff, at the center, from the same functions that `lighting.glsl` uses for surfaces. The cascades use `textureGrad` with zero gradients already (`src/Tertius.Rendering/Shaders/shadows.glsl:45-46`), which works in a vertex shader. Each of the 6 vertices of a puff computes the same value. So a lit puff in Earth's night is dark, a puff in the sun is pale, and a puff under a cabin lamp is lit by it. A puff casts no shadow and is not a light.
+The vertex shader computes L once per puff, at the center, from the same functions that `lighting.glsl` uses for surfaces. The cascades use `textureGrad` with zero gradients already (`src/Tertius.Rendering/Shaders/shadows.glsl:45-46`), which works in a vertex shader. The vertex stage needs two grants for it, which the validation layers asked for: the G-buffer set lets the vertex stage read the cascades and their sampler, and the transparent pass prepares the cascades with the image use `SampledVertexFragment`, so that the shadow pass's writes are visible to the vertex shader. Each of the 6 vertices of a puff computes the same value. So a lit puff in Earth's night is dark, a puff in the sun is pale, and a puff under a cabin lamp is lit by it. A puff casts no shadow and is not a light.
 
 A glow puff emits its radiance and takes no light.
 

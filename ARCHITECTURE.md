@@ -1074,7 +1074,11 @@ color × (1 − ρ²)² × clamp((D − d) / r, 0, 1) × clamp(d / r, 0, 1)
 
 where ρ is the distance of the fragment's point from the puff's center over the radius r, d is the distance of the point from the eye, and D is the G-buffer distance at the pixel. Sky, with D = 0, counts as no surface, so its factor is 1. So a puff fades within one radius of anything opaque, and the eye counts as an opaque point at distance 0. A puff behind a wall draws nothing, a puff that cuts into a wall or a floor shows no hard line, and a puff around the eye fades. The fade is one radius along the line of sight, so on a floor seen at a low angle it is shorter on the screen: a floor seen at 17° fades a puff of 1.2 m over 5 to 8 px at 10 m. Additive blending commutes up to the rounding of the target, so the puffs of one run need no order among themselves, and glass dims only the puffs behind it.
 
-A glow puff emits its color and takes no light. The lit case of `puff.vert`, `litPuffRadiance`, is a stub that returns no light, so a lit puff draws nothing until task 7 of ticket `ter-4zt6` lights it at its center (`docs/plans/particles.md`, "Lit puffs"). Puffs cast no shadow, never become impostors, and get no bloom: glow puffs saturate through the ACES curve until the bloom ticket (`ter-63wr`).
+A glow puff emits its color and takes no light. A lit puff is lit once, at its center, in the vertex shader (`docs/plans/particles.md`, "Lit puffs"). It has no surface and no normal. It scatters the light that reaches its center equally in every direction, which is the mean over every facing of a matte surface lit by the same lights. The mean of the cosine over every facing is 1/4, and the mean of the sky's share of the ambient light is one half. So `scatteredLight` in `lighting.glsl` gives
+
+L = color × (mean ambient + (E_sun · V_sun + Σ E_light) / (4π))
+
+where color is the own share times the albedo, mean ambient is the mean of the sky and the ground color, E_sun is the sun's radiance, V_sun is the sun's visibility at the center, and E_light is the radiance of a point or spot light times its distance attenuation and its cone at the center. V_sun is the far shadows times the cascades, as for a surface, with the sun's direction as the normal, which needs no normal offset and no receiver-plane slope. The surfaces and the puffs share the two functions that say how much of a light reaches a point: `sunReaches` for the sun and `lightReaches` for a point or spot light. The cascades sample with zero gradients, which works in a vertex shader. So the G-buffer set lets the vertex stage read the cascades and their sampler (bindings 5 and 6), and the transparent pass prepares the cascades with the image use `SampledVertexFragment`, which makes the shadow pass's writes visible to the vertex shader too. Each of the six vertices of a lit puff computes the same light. `LitPuffRenderTests` checks the model: each lit puff must look exactly as a glow puff whose radiance is the light that the formula gives it, for the ambient light, the sun, a point light, a spot light inside and outside its cone, the shadow of a box in the cascades, a far shadow and a puff halfway through its life. Puffs cast no shadow, never become impostors, and get no bloom: glow puffs saturate through the ACES curve until the bloom ticket (`ter-63wr`).
 
 `PuffRenderBenchmarks` measures one headless `Render` at 1280 × 720, as `OutlineRenderBenchmarks` does (ter-4zt6, Release, validation off), with the ground and the 100 boxes of that scene. Small puffs have radii from 0.2 m to 1 m, from 5 m to 100 m ahead. Puffs that fill the screen have a radius of 8 m, 3 m to 4 m ahead, so each one covers every pixel. The 1-minute load of the machine was 7.7 when the run began and 6.0 when it ended.
 
@@ -1086,6 +1090,17 @@ A glow puff emits its color and takes no light. The lit case of `puff.vert`, `li
 | 4,096 | 1.99 ms | 79 ms |
 
 Before the renderer drew puffs, the same scene took 1.28 to 1.38 ms, at a load of 8.6. So a frame with no puff costs what it cost before. Small puffs cost about 0.17 µs each. A puff that fills the screen costs about 19 µs, the fill of 0.9 million pixels, so the cost of puffs is the pixels that they cover. No frame allocates. The GPU time of the pass alone waits for the GPU timer of ticket `ter-yiii`.
+
+`LitPuffRenderBenchmarks` measures the same frame with the small puffs and eight point and spot lights of range 30 m among the near puffs, with lit puffs against glow puffs (ter-4zt6, Release, validation off, 20 iterations). The 1-minute load of the machine was 2.9 when the run began and 7.7 when it ended.
+
+| Puffs | Glow | Lit |
+|---|---|---|
+| 0 | 1.72 ms | 1.80 ms |
+| 100 | 1.67 ms | 1.74 ms |
+| 1,000 | 1.79 ms | 2.07 ms |
+| 4,096 | 2.16 ms | 2.30 ms |
+
+With no puff, the two cases are the same frame, and they differ by 0.08 ms, about the noise of the run. At 1,000 puffs the lighting adds 0.28 ms, about 0.3 µs per lit puff for its six vertices. At 4,096 the lit run's spread was 0.34 ms, so its difference of 0.15 ms is within the noise. No frame allocates.
 
 ### Shadows
 
@@ -1147,7 +1162,7 @@ A snapshot test renders a scene headlessly and compares the image with its appro
 - With the environment variable `TERTIUS_APPROVE_SNAPSHOTS` set to 1, the check makes the image the reference and passes. A snapshot proves only that nothing changed. So the first approval of each reference image is a real review against the description of its scene.
 - The references come from one machine with MoltenVK. On that machine, two headless renders of one scene give the same bytes. Tolerance across GPUs is out of scope.
 
-The first reference image is `frame-outlines.png`, of the overlay pass (`OutlineRenderTests`). It shows a turned box in its semantic bubble, a falling frame's sphere partly behind a wall, and one sphere of each other kind of numeric frame, over a gray ground. Four reference images of glow puffs come from `PuffRenderTests` (ter-4zt6). Each test also renders its scene without its puffs and measures what the puffs add.
+The first reference image is `frame-outlines.png`, of the overlay pass (`OutlineRenderTests`). It shows a turned box in its semantic bubble, a falling frame's sphere partly behind a wall, and one sphere of each other kind of numeric frame, over a gray ground. Four reference images of glow puffs come from `PuffRenderTests`, and one of lit puffs from `LitPuffRenderTests` (ter-4zt6). Each test also renders its scene without its puffs and measures what the puffs add.
 
 | Image | Scene |
 |---|---|
@@ -1155,6 +1170,7 @@ The first reference image is `frame-outlines.png`, of the overlay pass (`Outline
 | `puffs-glass.png` | Puffs behind and in front of a pane of alpha 0.2. The puff behind the pane is dimmed, and the one in front of it is not. |
 | `puffs-soft.png` | A puff that cuts into a wall and a floor, and a puff around the eye. No hard line, and the part of a puff behind the floor draws nothing. |
 | `puffs-far.png` | A trail 2.5 km away, in the middle range, at its true size: its first puff of 20 m covers 2.5 px, and nothing shows beyond its radius. |
+| `puffs-lit.png` | Three pale lit puffs over a gray ground, below and beside a roof. The puff in the sun is pale gray, the puff in the roof's shadow takes only the faint ambient light, and the puff under a warm lamp below the roof is warm. |
 
 More scenes come with ticket `ter-rtxu`, which also adds the switch for deterministic rendering.
 
