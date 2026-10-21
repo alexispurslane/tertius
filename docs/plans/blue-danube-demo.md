@@ -3728,6 +3728,81 @@ Measured in step 8 (ter-asce), the final render with the docking, the exit and t
 7. After the user's yes for a recording and its download: the final render with the music (done on 2026-10-20).
 8. After the docking and the exit merge: their parts and the wheel's panel go into the cut list, and the sections above get `Outlines`. The readout log gains the distance from the station's axis, and the edit writes the cue sheet. The script is written again, the dark frames are measured again as in "The dark frames", and the video is rendered again (done on 2026-10-21, ter-asce).
 
+## The jets as parts
+
+Ticket `ter-diu0` moves the shuttle's actuators onto parts (docs/plans/parts.md, "The demo's use"). This section holds the half that needs no parts: where the jets sit on the hull, and how the throttles of the jets come from the torque and the force that the flight program asks for. Both live in `ShuttleJets` (`src/Tertius.Demo/ShuttleJets.cs`), a pure type with no World, which `ShuttleJetsTests` pins. Every place, force and torque in this section is in the hull's own axes: +X starboard, +Y up, -Z the nose.
+
+`ShuttleJets` takes the center of mass as an input. The next step reads it from the engine's `BodyFacts.CenterOfMass`, by the user's choice of 2026-10-21. Today's value is (0, -0.0902, 0.3561) m.
+
+### The layout
+
+There are 25 jets: the main engine, 12 turning jets in 6 couples, and 12 side jets in 6 translation pairs.
+
+- The main engine sits at `MainEnginePlace`: in the nozzle's place in the tail pocket, at z = 7.7 m, on the line along Z through the center of mass. So its push gives the hull no torque.
+- A couple is two jets that push in exactly opposite directions with one thrust, from two places. It gives a torque about one of the hull's axes and no net force. Its torque does not depend on the point that it is taken about, so the couples need no center of mass.
+- A translation pair is two jets that push in one direction from two places. Their thrusts take the shares that put the line of their sum through the center of mass. So the pair gives no torque about the center of mass. At full throttle the two give `Shuttle.TranslationThrust`, 30,000 N, as the `TranslationThrusters` give on each axis today.
+
+Every jet sits on the solid skin of the full cross-section, off the canopy's glass. Above the sill, the canopy covers the sides, the bevels and the roof from the nose to the last rib at z = 7 m. Solid skin there is only the ribs, 0.2 m wide. So the jets use these places: the rib at z = -5 m, where the nose's loft ends (the nose ring), the solid band from the last rib to the tail face, at z = 7.5 m (the tail ring), the ribs at z = ±3 m, the belly, the lower sides at y = -1.5 m below the sill, and the tail face beside the engine's pocket. A jet on a rib keeps 0.1 m to the glass on each side.
+
+| Pair | Turns or pushes | First jet: place, push | Second jet: place, push | Thrust per jet |
+|---|---|---|---|---|
+| `pitch-up` | +X, the nose up | (0, -2, -5), +Y | (0, 2, 7.5), -Y | 30,284 N |
+| `pitch-down` | -X | (0, -2, 7.5), +Y | (0, 2, -5), -Y | 30,284 N |
+| `yaw-port` | +Y, the nose to port | (-3, -1.5, 7.5), +X | (3, -1.5, -5), -X | 32,515 N |
+| `yaw-starboard` | -Y | (-3, -1.5, -5), +X | (3, -1.5, 7.5), -X | 32,515 N |
+| `roll-port` | +Z, the roof to port | (2, -2, 7.5), +Y | (-2, 2, 7.5), -Y | 18,233 N |
+| `roll-starboard` | -Z | (-2, -2, -5), +Y | (2, 2, -5), -Y | 18,233 N |
+| `move-starboard` | +X | (-3, c.y, -3) | (-3, c.y, 3) | 13,219 N and 16,781 N |
+| `move-port` | -X | (3, c.y, -3) | (3, c.y, 3) | 13,219 N and 16,781 N |
+| `move-up` | +Y | (c.x, -2, -3) | (c.x, -2, 3) | 13,219 N and 16,781 N |
+| `move-down` | -Y | (c.x, 2, -3) | (c.x, 2, 3) | 13,219 N and 16,781 N |
+| `move-aft` | +Z | (-3, c.y, -5) | (3, c.y, -5) | 15,000 N each |
+| `move-forward` | -Z | (c.x - 1.6, c.y, 8) | (c.x + 1.6, c.y, 8) | 15,000 N each |
+
+where
+
+- `c` = the center of mass. A translation pair's places take its coordinates on the axis across the push that the two places share.
+- The push of a translation pair's jets is the pair's direction, for both jets.
+- The shares of the pairs across Z come from c.z = 0.356 m: the jet at z = 3 m is nearer the center of mass, so it takes the larger share, (3 + 0.356) / 6 = 0.559.
+
+Each jet pushes into the hull or along its skin, so its exhaust leaves the hull. The jets of `move-aft` sit on the sides at the nose ring and push aft, so their exhaust runs forward past the sides of the nose's loft, which close in by 0.6 m over its 3 m. The jets of `move-forward` lie 1.6 m to each side of the line of thrust, 0.7 m clear of the pocket's housing.
+
+The layout reaches a center of mass within |x| < 0.5 m, |y| < 1.2 m and |z| < 3 m. Outside that box a translation pair's share leaves 0 to 1, or a jet leaves the solid skin, so the constructor throws.
+
+### The thrust of the couples
+
+At full throttle, each couple gives the most torque that the attitude autopilot asks for about its axis, `AttitudeAutopilot.MostTorque`. The autopilot asks for the rate `FeedForward` plus a correction of at most `MaxTurnRate`, 0.15 rad/s. Once the hull follows, its angular velocity lies within the same 0.15 rad/s of the feed-forward. So the two differ by at most 0.3 rad/s, and the autopilot asks for at most 0.3 rad/s over `RateTime`, 1/3 s: 0.9 rad/s² in any direction. The torque about one axis is the dot product of that acceleration with the inertia tensor's row for the axis. So its most is the length of the row times 0.9 rad/s²:
+
+| Axis | Moment about the principal axis | Most torque | Arm of the couple | Thrust per jet |
+|---|---|---|---|---|
+| X, pitch | 420,614 kg·m² | 378,552 N·m | 12.5 m | 30,284 N |
+| Y, yaw | 451,666 kg·m² | 406,437 N·m | 12.5 m | 32,515 N |
+| Z, roll | 80,645 kg·m² | 72,934 N·m | 4 m | 18,233 N |
+
+The row of Z is a little longer than its moment, because the long axis tilts 1.03 degrees from Z. A turn from rest at the full rate asks for half the most torque in its first ticks. A turn that reverses at the full rate asks for all of it. A feed-forward that jumps asks for more, and no layer of the flight program jumps it: the docking's spin-up ramps it over 30 s. So with this thrust the couples saturate in no flight that the autopilot flies today, and the autopilot's settle time with the parts measures the extra tick alone.
+
+### The allocation
+
+`ShuttleJets.Allocate(torque, force, throttles)` writes one throttle from 0 to 1 for each of the 12 pairs, which both jets of the pair take. Each axis of the torque takes the couple of its sense, at the torque over the most torque, and the couple of the other sense stays off. Each axis of the force takes the translation pair of its direction, at the force over 30,000 N, and the other pair stays off. An axis that asks for more takes full throttle, and the other axes keep theirs.
+
+The couples give no force and the translation pairs give no torque about the center of mass. So the torque and the force do not mix, and the allocation needs no solver. The tests pin that the jets give the torque and the force asked for, within 1e-6 of the most, for random torques and forces within the jets' thrust, and for a center of mass off the middle on every axis.
+
+The two jets of a couple give exact negatives of one force. `Jet.Force(rotation, throttle)` turns the jet's push by `rotation` and scales it by the throttle times the thrust. The two jets of a couple push along exact negatives of one hull axis with one thrust, and the rotation of a vector is odd in the vector. So at one throttle and one rotation the two forces are exact negatives, and the couple gives the hull no net force at all. Forces that only nearly cancel leave a force of the order of 1e-7 of the thrust (docs/plans/parts.md, "The demo's use"). For this, each jet's part keeps the hull's rotation, as the main engine's part does, and passes its own rotation in its frame.
+
+The allocation allocates nothing, so the hull's components may call it in every tick.
+
+### Decisions
+
+- One couple for each sense of each axis, and one translation pair for each direction. A jet pushes one way only, from 0 to full, so each sense needs its own jets. The turning jets and the side jets are apart: a jet that both turns and pushes needs a solver to share its thrust, and a couple that also pushes would no longer give exact negatives.
+- The jets sit off the glass, so each translation pair splits its thrust in shares. The lines through the center of mass along X and Z cross the canopy, and a mirror pair across y = c.y needs a jet above the sill. The ribs and the solid bands hold jets at any height, but at fixed places along Z, so the shares take up the center of mass's place between them.
+- The allocation limits each axis, as the `TranslationThrusters` do today, and does not scale the whole torque to keep its direction. The couples hold the autopilot's largest turn, so the limit acts only in a flight that the autopilot does not fly today.
+- The allocation takes the torque and the force in the hull's axes. The jets are fixed in the hull, and the caller turns the autopilot's torque and the flight program's translation, which are in the axes of `self.Frame`, by the conjugate of the hull's rotation, as `TranslationThrusters` turns its force today.
+- `MostTorque` belongs to `AttitudeAutopilot`, because it is a fact of its law: its constants and the body's inertia. The layout reads it and does not copy the law.
+
+### What the next step wires
+
+The next step spawns the parts and sends them their throttles. It reads the center of mass from `BodyFacts.CenterOfMass`, builds `ShuttleJets` with it, `Shuttle.Inertia` and `Shuttle.TranslationThrust`, and spawns one part for each jet at its `Place`, with the hull's rotation, and the main engine's part at `MainEnginePlace`. `AttitudeAutopilot` keeps its law and ends in `Allocate` instead of `AddTorque`. The translation goes to `Allocate` instead of to `TranslationThrusters`. Each jet gets its pair's throttle by message, one tick later than today. The measurements of the docking's miss and the attitude loop's settle time belong to that step (docs/plans/parts.md, "Costs and measurements").
+
 ## Order of the work
 
 1. The video pipeline: the script generator, the chase camera, a measured frame time (ter-2n31, see "The long script"). ffmpeg in the dev shell and the video target came with E4 (ter-mln3).

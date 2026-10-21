@@ -65,6 +65,26 @@ public sealed class AttitudeAutopilot(PrincipalInertia inertia) : IComponent
     /// <summary>The time in which the torque brings the body's angular velocity to the rate asked for, in seconds.</summary>
     public const double RateTime = 1.0 / 3;
 
+    /// <summary>
+    /// The most torque about each of the body's own axes that the autopilot asks for while the body turns within its cap,
+    /// in N·m, for a body of <paramref name="inertia"/>. The rate that it asks for lies within <see cref="MaxTurnRate"/> of
+    /// the target's feed-forward, and so does the body's angular velocity once the body follows, so the two differ by at
+    /// most twice the cap, and the autopilot asks for an angular acceleration of at most twice the cap over
+    /// <see cref="RateTime"/>, in any direction. The torque about one axis is the dot product of that acceleration with the
+    /// inertia tensor's row for the axis, so its most is the length of the row times that acceleration. A feed-forward
+    /// that jumps, or a body that spins faster than the target, asks for more. The shuttle's turning jets give this torque
+    /// at full throttle (see <see cref="ShuttleJets"/>).
+    /// </summary>
+    public static Double3 MostTorque(PrincipalInertia inertia)
+    {
+        double acceleration = 2 * MaxTurnRate / RateTime;
+        DQuaternion axes = DQuaternion.FromQuaternion(inertia.Axes).Normalized();
+        Double3 moments = inertia.Moments;
+        // The tensor is symmetric, so its row for an axis is its column, the torque of a unit acceleration about the axis.
+        double Row(Double3 axis) => axes.Rotate(axes.Conjugate().Rotate(axis) * moments).Length * acceleration;
+        return new Double3(Row(Double3.UnitX), Row(Double3.UnitY), Row(Double3.UnitZ));
+    }
+
     private readonly Double3 moments = inertia.Moments;
 
     /// <summary>The rotation that turns the body's own axes into its principal axes.</summary>
