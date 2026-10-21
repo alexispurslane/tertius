@@ -2,7 +2,7 @@ namespace Tertius.Demo;
 
 /// <summary>
 /// The cut list of the Blue Danube demo (docs/plans/blue-danube-demo.md, "The cut list"): the parts of the sequence, its
-/// trims, the check panel of the parking orbit, and the two title cards. It names films of
+/// trims, the check panels of the parking orbit and of the wheel's spin gravity, and the two title cards. It names films of
 /// <see cref="BlueDanube.Sections"/>, never frame numbers, so it follows the script when the sections change.
 /// </summary>
 public static class BlueDanubeEdit
@@ -15,13 +15,20 @@ public static class BlueDanubeEdit
             new("ignition", "The launch", "Up the ramp and into an orbit 200 km up."),
             new("orbit", "Weightless", "The ship's frame falls freely, so the cabin is weightless by itself."),
             new("belt", "The rendezvous", "A transfer of 170 degrees to the station, 400 km up."),
+            new("dock", "The docking", "The shuttle matches the station's spin and lands on its deck."),
+            new(BlueDanube.ExitSections[0].Name, "The wheel", "Down a spoke to the wheel's floor, in full spin gravity."),
         ],
         // No trims: the user keeps every frame where any part of the shuttle or the station shows, however dark
         // (2026-10-20), and a measure of the master found one of them in every frame (docs/plans/blue-danube-demo.md,
         // "The dark frames").
         Trims: [],
-        // The coast in the parking orbit, from the insertion to the transfer burn.
-        Panels: [new("orbit", "night", CheckPanels.ParkingOrbit)],
+        Panels:
+        [
+            // The coast in the parking orbit, from the insertion to the transfer burn.
+            new("orbit", "night", CheckPanels.ParkingOrbit),
+            // The brake run at the chute's end, the landing and the person on the wheel's floor, to the end of the run.
+            new("brake-run", BlueDanube.ExitSections[^1].Name, CheckPanels.SpinGravity),
+        ],
         Opening: new TitleCard(5,
         [
             new("Tertius", 96),

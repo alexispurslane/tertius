@@ -23,7 +23,7 @@ public sealed class EditSubtitlesTests
     [
         .. FilmsOf.SelectMany(film => Enumerable.Range(0, film.Frames).Select(k => (film, k)))
             .Select((frame, index) => new ReadoutRow($"{frame.film.Name}-{frame.k:000000}", frame.film.FirstTick + (frame.k + 1L) * frame.film.Every,
-                new Double3(DemoScenes.EarthRadius + 200e3, 0, 0), 1000 + index, 2e6, 0)),
+                new Double3(DemoScenes.EarthRadius + 200e3, 0, 0), 1000 + index, 2e6, 0, 0)),
     ];
 
     private static readonly TitleCard Card = new(2, [new CardLine("Tertius", 96), new CardLine("", 24), new CardLine("A {gray} line", 24, Gray: true)]);

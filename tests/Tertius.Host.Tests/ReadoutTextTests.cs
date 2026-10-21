@@ -9,8 +9,8 @@ namespace Tertius.Host.Tests;
 public sealed class ReadoutTextTests
 {
     /// <summary>A row of the person at <paramref name="altitude"/> above Earth's mean radius, on the X axis.</summary>
-    private static ReadoutRow At(double altitude, long tick = 0, double speed = 0, double toStation = 0, double felt = 0) =>
-        new("f-000000", tick, new Double3(DemoScenes.EarthRadius + altitude, 0, 0), speed, toStation, felt);
+    private static ReadoutRow At(double altitude, long tick = 0, double speed = 0, double toStation = 0, double axis = 0, double felt = 0) =>
+        new("f-000000", tick, new Double3(DemoScenes.EarthRadius + altitude, 0, 0), speed, toStation, axis, felt);
 
     [Theory]
     [InlineData(0.0, "0.0 m/s")]
@@ -109,8 +109,8 @@ public sealed class ReadoutTextTests
     {
         // A circle at 200 km takes 2π √(r³ / GM) = 5,301.0 s, 88.4 min. A quarter turn in 1,350 s is a turn in 5,400 s, 90.0 min.
         double r = DemoScenes.EarthRadius + 200e3;
-        var start = new ReadoutRow("orbit-000000", 1000, new Double3(r, 0, 0), 0, 0, 0);
-        var row = new ReadoutRow("night-000010", 1000 + 1350 * 60, new Double3(0, 0, r), 0, 0, 0);
+        var start = new ReadoutRow("orbit-000000", 1000, new Double3(r, 0, 0), 0, 0, 0, 0);
+        var row = new ReadoutRow("night-000010", 1000 + 1350 * 60, new Double3(0, 0, r), 0, 0, 0, 0);
 
         string[] panel = CheckPanels.ParkingOrbit(start, row);
 
@@ -121,8 +121,8 @@ public sealed class ReadoutTextTests
     public void TheParkingOrbitPanelShowsMeasuringForTheRunsPeriodInTheFirst10Seconds()
     {
         double r = DemoScenes.EarthRadius + 200e3;
-        var start = new ReadoutRow("orbit-000000", 1000, new Double3(r, 0, 0), 0, 0, 0);
-        var row = new ReadoutRow("orbit-000599", 1599, new Double3(r, 100, 0), 0, 0, 0);
+        var start = new ReadoutRow("orbit-000000", 1000, new Double3(r, 0, 0), 0, 0, 0, 0);
+        var row = new ReadoutRow("orbit-000599", 1599, new Double3(r, 100, 0), 0, 0, 0, 0);
         var later = row with { Tick = 1600 };
 
         CheckPanels.ParkingOrbit(start, row)[2].TrimEnd().Should().EndWith("run measuring");
@@ -133,6 +133,35 @@ public sealed class ReadoutTextTests
     public void TheLinesOfTheParkingOrbitPanelAreOfOneWidth()
     {
         string[] panel = CheckPanels.ParkingOrbit(At(200e3), At(200e3, tick: 6000, speed: 7788.12));
+
+        panel.Should().HaveCount(3);
+        panel.Select(line => line.Length).Distinct().Should().ContainSingle();
+    }
+
+    [Fact]
+    public void TheSpinGravityPanelNamesTheStationsSpinRateAndTheRowsDistanceFromTheAxis()
+    {
+        string[] panel = CheckPanels.SpinGravity(At(400e3), At(400e3, axis: 99.104));
+
+        panel[0].TrimEnd().Should().Contain("spin gravity");
+        panel[1].TrimEnd().Should().Contain("ω 0.31321 rad/s").And.Contain("r 99.10 m");
+    }
+
+    [Theory]
+    [InlineData(100.0, "9.81 m/s²")]
+    [InlineData(50.0, "4.91 m/s²")]
+    public void TheSpinGravityPanelSetsOmegaSquaredRAtTheRowsDistanceFromTheAxisBesideTheRunsFeltGravity(double axis, string textbook)
+    {
+        // ω² r with ω = 0.31321 rad/s: 9.81 m/s² at 100 m from the axis, and half of it at 50 m.
+        string[] panel = CheckPanels.SpinGravity(At(400e3), At(400e3, axis: axis, felt: 9.7213));
+
+        panel[2].TrimEnd().Should().Contain("ω²r").And.Contain(textbook).And.EndWith("run 9.72 m/s²");
+    }
+
+    [Fact]
+    public void TheLinesOfTheSpinGravityPanelAreOfOneWidth()
+    {
+        string[] panel = CheckPanels.SpinGravity(At(400e3), At(400e3, axis: 99.1, felt: 9.72));
 
         panel.Should().HaveCount(3);
         panel.Select(line => line.Length).Distinct().Should().ContainSingle();

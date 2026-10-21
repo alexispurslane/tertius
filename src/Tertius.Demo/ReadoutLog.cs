@@ -18,8 +18,12 @@ namespace Tertius.Demo;
 /// <param name="Position">The person's position in <c>earth</c>, in meters from Earth's center.</param>
 /// <param name="Speed">The length of the person's velocity in <c>earth</c>, in m/s.</param>
 /// <param name="ToStation">The distance from the person to the center of the scene's <c>station</c>, in meters.</param>
+/// <param name="Axis">
+/// The distance from the person to the station's axis, in meters: to the line through the station's center along the +Y of
+/// the station's own frame, the axis of its turn. It is the radius of the spin gravity's textbook check, ω² r.
+/// </param>
 /// <param name="Felt">The length of the felt gravity at the person's place (see <see cref="FrameTree.FeltGravity"/>), in m/s².</param>
-public readonly record struct ReadoutRow(string Frame, long Tick, Double3 Position, double Speed, double ToStation, double Felt);
+public readonly record struct ReadoutRow(string Frame, long Tick, Double3 Position, double Speed, double ToStation, double Axis, double Felt);
 
 /// <summary>
 /// The readout log of a script: one <see cref="ReadoutRow"/> for each capture, in the order of the captures, so row k
@@ -29,7 +33,7 @@ public readonly record struct ReadoutRow(string Frame, long Tick, Double3 Positi
 public sealed class ReadoutLog : IPlayback
 {
     /// <summary>The header line of the log's CSV.</summary>
-    public const string Header = "frame,tick,x,y,z,speed,station,felt";
+    public const string Header = "frame,tick,x,y,z,speed,station,axis,felt";
 
     private readonly Entity person, station;
     private readonly FrameHandle earth;
@@ -56,8 +60,11 @@ public sealed class ReadoutLog : IPlayback
         Double3 position = world.PoseIn(person, earth).Position;
         FrameHandle home = world.GetFrame(person);
         Double3 felt = world.Frames.FeltGravity(home, world.PoseIn(person, home).Position);
+        // The station's axis is its +Y through its center. The part of the offset along the axis leaves the part across it.
+        DPose stationPose = world.PoseIn(station, earth);
+        Double3 offset = position - stationPose.Position, axis = stationPose.Rotation.Rotate(Double3.UnitY);
         rows.Add(new ReadoutRow(name, world.TickNumber, position, world.VelocityIn(person, earth).Length,
-            Double3.Distance(position, world.PoseIn(station, earth).Position), felt.Length));
+            offset.Length, (offset - axis * Double3.Dot(offset, axis)).Length, felt.Length));
         return true;
     }
 
@@ -84,7 +91,7 @@ public sealed class ReadoutLog : IPlayback
         ArgumentNullException.ThrowIfNull(rows);
         var text = new StringBuilder(Header).Append('\n');
         foreach (ReadoutRow row in rows)
-            text.Append(CultureInfo.InvariantCulture, $"{row.Frame},{row.Tick},{row.Position.X:R},{row.Position.Y:R},{row.Position.Z:R},{row.Speed:R},{row.ToStation:R},{row.Felt:R}\n");
+            text.Append(CultureInfo.InvariantCulture, $"{row.Frame},{row.Tick},{row.Position.X:R},{row.Position.Y:R},{row.Position.Z:R},{row.Speed:R},{row.ToStation:R},{row.Axis:R},{row.Felt:R}\n");
         return text.ToString();
     }
 
@@ -99,10 +106,10 @@ public sealed class ReadoutLog : IPlayback
         for (int i = 1; i < lines.Length; i++)
         {
             string[] cells = lines[i].Split(',');
-            if (cells.Length != 8)
-                throw new FormatException($"Line {i + 1} of the readout log has {cells.Length} cells, not 8.");
+            if (cells.Length != 9)
+                throw new FormatException($"Line {i + 1} of the readout log has {cells.Length} cells, not 9.");
             double Number(int cell) => double.Parse(cells[cell], NumberStyles.Float, CultureInfo.InvariantCulture);
-            rows.Add(new ReadoutRow(cells[0], long.Parse(cells[1], CultureInfo.InvariantCulture), new Double3(Number(2), Number(3), Number(4)), Number(5), Number(6), Number(7)));
+            rows.Add(new ReadoutRow(cells[0], long.Parse(cells[1], CultureInfo.InvariantCulture), new Double3(Number(2), Number(3), Number(4)), Number(5), Number(6), Number(7), Number(8)));
         }
         return rows;
     }

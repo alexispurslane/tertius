@@ -9,7 +9,9 @@ namespace Tertius.Demo;
 /// <summary>
 /// <c>--edit</c>: turns the master video of a script into the final video (docs/plans/blue-danube-demo.md, "The edit"). It
 /// keeps the stretches of the cut list, draws the readouts of the readout log on each frame, puts the title cards before and
-/// after, adds the music, and encodes one MP4 with ffmpeg from the dev shell.
+/// after, adds the music, and encodes one MP4 with ffmpeg from the dev shell. Beside the video it writes the cue sheet, the
+/// file <c>&lt;out.mp4&gt;.cues.json</c>, which says where each film, each part's title and each card lie in the video (see
+/// <see cref="CueSheet"/>).
 /// </summary>
 public static class EditCommand
 {
@@ -104,7 +106,7 @@ public static class EditCommand
             return ScriptCommand.FileError;
         }
 
-        double length = cuts.Opening.Seconds + stretches.Sum(s => s.Count) / (double)Stretch.FramesPerSecond + cuts.Closing.Seconds;
+        CueSheet cues = CueSheet.Of(stretches, cuts);
         List<string> arguments = Arguments(stretches, cuts, options.Master, options.Music, options.MusicStart, options.Output, width, height);
         try
         {
@@ -120,7 +122,17 @@ public static class EditCommand
             error.WriteLine($"ffmpeg cannot start: {ex.Message}");
             return ScriptCommand.ToolError;
         }
-        output.WriteLine(string.Format(CultureInfo.InvariantCulture, "{0}: {1:F1} s", options.Output, length));
+        string cueSheet = options.Output + ".cues.json";
+        try
+        {
+            File.WriteAllText(cueSheet, cues.ToJson());
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            error.WriteLine($"The edit cannot write the cue sheet {cueSheet}: {ex.Message}");
+            return ScriptCommand.FileError;
+        }
+        output.WriteLine(string.Format(CultureInfo.InvariantCulture, "{0}: {1:F1} s", options.Output, cues.Length));
         return ScriptCommand.Ok;
     }
 
@@ -198,7 +210,10 @@ public static class EditCommand
     public static List<string> Arguments(IReadOnlyList<Stretch> stretches, CutList cuts, string master, string? music, double musicStart, string output, int width, int height)
     {
         double film = stretches.Sum(s => s.Count) / (double)Stretch.FramesPerSecond;
-        double length = cuts.Opening.Seconds + film + cuts.Closing.Seconds;
+        // Each card lasts its whole frames, as its subtitles and the cue sheet count them, so the video ends where the
+        // sheet's length says.
+        double opening = cuts.Opening.Frames / (double)Stretch.FramesPerSecond, closing = cuts.Closing.Frames / (double)Stretch.FramesPerSecond;
+        double length = opening + film + closing;
         string select = string.Join("+", stretches.Select(s => $"between(n,{s.From},{s.From + s.Count - 1})"));
         var invariant = CultureInfo.InvariantCulture;
         string Card(string name, double seconds) => string.Format(invariant,
@@ -207,8 +222,8 @@ public static class EditCommand
         string graph = string.Join(";",
             string.Format(invariant, "[0:v]settb=1/60,setpts=N,ass=film.ass:fontsdir=fonts,select='{0}',settb=1/60,setpts=N,fade=t=in:st=0:d={1},fade=t=out:st={2}:d={3},format=yuv420p,setsar=1[film]",
                 select, Fade, film - FilmFadeOut, FilmFadeOut),
-            Card("opening", cuts.Opening.Seconds),
-            Card("closing", cuts.Closing.Seconds),
+            Card("opening", opening),
+            Card("closing", closing),
             "[opening][film][closing]concat=n=3:v=1:a=0[v]");
         List<string> arguments = ["-hide_banner", "-loglevel", "error", "-nostats", "-i", master];
         if (music != null)
