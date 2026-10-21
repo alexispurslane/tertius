@@ -32,7 +32,7 @@ public sealed class DemoFollowCameraRun : IDisposable
         SeatedTick = Ticks.First(tick => tick.Seated).Tick;
         // A posted event joins the routing of the next tick, and the shuttle handles it in the tick after that.
         IgnitionTick = Ticks.First(tick => tick.Riding).Tick - 2;
-        ShuttleTravel = Double3.Distance(World.PoseIn(Scene["shuttle"], World.GetFrame(Scene["shuttle"])).Position, DemoSurface.ShuttleParked.Position);
+        ShuttleTravel = Double3.Distance(World.PoseIn(Scene["shuttle"], World.GetOwnedFrame(Scene["earth-surface"])).Position, DemoSurface.ShuttleParked.Position);
     }
 
     public World World { get; }

@@ -9,12 +9,14 @@ namespace Tertius.Demo;
 
 /// <summary>
 /// What the engine said at one frame of a script, for the readouts of the demo edit (docs/plans/blue-danube-demo.md, "The
-/// readout log"). Every quantity is about the scene's <c>person</c>, in the root frame <c>earth-surface</c>.
+/// readout log"). Every quantity is about the scene's <c>person</c>, in the frame <c>earth</c>, which has its origin at
+/// Earth's center and does not turn: the frame of the guidance and of the parking orbit's textbook check. A speed in the
+/// turning <c>earth-surface</c> misses the ground's turn, up to 480 m/s on an orbit 200 km up.
 /// </summary>
 /// <param name="Frame">The name of the capture, such as <c>climb-low-000012</c>.</param>
 /// <param name="Tick">The world's tick number at the capture.</param>
-/// <param name="Position">The person's position in <c>earth-surface</c>, in meters.</param>
-/// <param name="Speed">The length of the person's velocity in <c>earth-surface</c>, in m/s.</param>
+/// <param name="Position">The person's position in <c>earth</c>, in meters from Earth's center.</param>
+/// <param name="Speed">The length of the person's velocity in <c>earth</c>, in m/s.</param>
 /// <param name="ToStation">The distance from the person to the center of the scene's <c>station</c>, in meters.</param>
 /// <param name="Felt">The length of the felt gravity at the person's place (see <see cref="FrameTree.FeltGravity"/>), in m/s².</param>
 public readonly record struct ReadoutRow(string Frame, long Tick, Double3 Position, double Speed, double ToStation, double Felt);
@@ -30,17 +32,17 @@ public sealed class ReadoutLog : IPlayback
     public const string Header = "frame,tick,x,y,z,speed,station,felt";
 
     private readonly Entity person, station;
-    private readonly FrameHandle surface;
+    private readonly FrameHandle earth;
     private readonly List<ReadoutRow> rows = new();
 
-    /// <summary>A log of the <c>person</c>, the <c>station</c> and the frame <c>earth-surface</c> of <paramref name="scene"/>.</summary>
+    /// <summary>A log of the <c>person</c>, the <c>station</c> and the frame <c>earth</c> of <paramref name="scene"/>.</summary>
     public ReadoutLog(World world, SceneInstance scene)
     {
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(scene);
         person = scene["person"];
         station = scene["station"];
-        surface = world.GetOwnedFrame(scene["earth-surface"]);
+        earth = world.GetOwnedFrame(scene["earth"]);
     }
 
     /// <summary>The rows of the captures so far, in their order.</summary>
@@ -51,11 +53,11 @@ public sealed class ReadoutLog : IPlayback
     /// <summary>Adds the row of the capture <paramref name="name"/>, read from <paramref name="world"/> now.</summary>
     public bool Capture(World world, string name)
     {
-        Double3 position = world.PoseIn(person, surface).Position;
+        Double3 position = world.PoseIn(person, earth).Position;
         FrameHandle home = world.GetFrame(person);
         Double3 felt = world.Frames.FeltGravity(home, world.PoseIn(person, home).Position);
-        rows.Add(new ReadoutRow(name, world.TickNumber, position, world.VelocityIn(person, surface).Length,
-            Double3.Distance(position, world.PoseIn(station, surface).Position), felt.Length));
+        rows.Add(new ReadoutRow(name, world.TickNumber, position, world.VelocityIn(person, earth).Length,
+            Double3.Distance(position, world.PoseIn(station, earth).Position), felt.Length));
         return true;
     }
 

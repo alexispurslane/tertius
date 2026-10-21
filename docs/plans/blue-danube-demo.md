@@ -30,7 +30,7 @@ From a survey of the code on 2026-10-18.
 | A camera that follows the character | Exists: the camera is an entity, a camera step is a hard cut, and the Demo's `ChaseCamera`, on an entity attached to the character, follows it from behind (ter-2n31, see "The long script") | None |
 | Character walking, floating, grabbing | Exists (`MoveCharacter`, `Jump`, grab within 3 m). The pen, its `Clip` and the `Passenger` who takes it exist in the Demo (ter-m13s, see "The launch"). | A path-following walker component. A capsule hides that the rigid form never turns. |
 | Seat | Exists: `Shuttle.Seat`, a static box in the shuttle's interior shape, which the demo surface draws (ter-na4f). A character has no sitting pose, so the person stands at `Shuttle.SeatStand`. The `Passenger` component's belt holds the person there while the cabin's gravity would not keep it on its feet (ter-m13s). | None |
-| Ground at the pad | Earth's sphere sags about 480 m between vertices | A large static slab under the pad, as in the surface yard |
+| Ground at the pad | Earth's sphere sags about 480 m between vertices | A large static slab under the pad, as in the surface yard, in the turning `earth-surface` over the sphere of `SunAndEarth` |
 | Cylinders, rings, tori | Exists: `RevolvedSolid` (ter-fb3w) sweeps a convex profile about an axis into a cylinder, a ring or a torus, with its mesh and a collision shape that matches it. The station's wheel uses it (ter-tzf6). The spokes and the hub are `BoxMesh` tubes and boxes. | The chute of step 6 |
 | Ship thrust and steering | Partial: the climb to orbit exists in the Demo (ter-m13s): `MainEngine`, `AttitudeAutopilot` and `AscentAutopilot`, which steers by `AscentGuidance` into the launch plane (see "The launch"). The rendezvous exists too (ter-tzf6): `TranslationThrusters` and `RendezvousAutopilot`, which steers by `TransferGuidance` and `ApproachGuidance` (see "The station and the rendezvous"). | Autopilot components: the spin match and the docking |
 | Spin gravity, Coriolis, a ship in a turning frame, characters in a turning frame | Exists (the spin gravity epic `ter-s9m0`, [Spin gravity](spin-gravity.md)): every turning frame gives its contents the centrifugal, Coriolis and Euler terms, characters stand, walk and jump in it, and the scene `spin-station` shows it. | The ship in the turning station, and the autopilots that use it |
@@ -62,16 +62,16 @@ Ticket ter-tzf6 designs step 4 of "Order of the work", which is item 3 of "The s
 
 Terms used in this section:
 
-- The launch plane: the plane through Earth's center that holds the pad's up and the ramp's incline. The pad's up is +Y of `earth-surface`, and the incline is `LaunchRamp.Up`. The plane's normal is `Ŷ × LaunchRamp.Up`, normalized, which is -X. The parking orbit and the station's orbit lie in this plane.
-- The station's axis: the station's own +Y, about which it turns. In `earth-surface` it is +X. It stays fixed there, because `earth-surface` does not turn and the station's spin is steady. The slot is on the station's +Y side.
+- The launch plane: the plane through Earth's center that holds the pad's up and the ramp's incline at the departure. The pad's up is +Y of `earth` and of `earth-surface`, and the incline is `LaunchRamp.Up`, in the ground's axes. The plane is fixed in `earth`, which does not turn. Its normal, `DemoSurface.LaunchPlaneNormal`, is `Ŷ × LaunchRamp.Up`, normalized and turned into earth's axes by the departure axes' turn: (0.795, 0, 0.607), which is -X of the departure axes. The parking orbit and the station's orbit lie in this plane.
+- The station's axis: the station's own +Y, about which it turns. In `earth` it is (-0.795, 0, -0.607), +X of the departure axes. It stays fixed there, because `earth` does not turn and the station's spin is steady. The slot is on the station's +Y side.
 - The arrival point: the point on the station's axis 1,500 m from the station's center, on the slot's side.
 - The hold point: the point on the station's axis 150 m from the station's center, on the slot's side.
-- The angle along the orbit, φ: the angle about the launch plane's normal from the pad's up toward -Z. The shuttle's φ grows as it flies. The pad is at φ = 0.
+- The angle along the orbit, φ: the angle about the launch plane's normal from the pad's up toward the ramp's incline at the departure, -Z of the departure axes. The shuttle's φ grows as it flies. The pad is at φ = 0.
 - The transfer angle: the angle from the shuttle's position to a target point, seen from Earth's center. It turns about the station's orbit normal, the way that the orbit runs, from 0 to 360 degrees.
 - The window: the first tick of the rendezvous at which the transfer angle lies between 150 and 170 degrees. The angle is taken to the arrival point of 2,560 s later.
 - The needed velocity: the velocity that puts the shuttle on the two-body path that reaches the arrival point at the arrival time.
-- The velocity to gain: the needed velocity less the shuttle's velocity, both in `earth-surface`.
-- A target point's relative state: the shuttle's position less the target point's, and the shuttle's velocity less the station's. Both are in `earth-surface`. The axis does not turn there, so a point on the axis moves with the station's center.
+- The velocity to gain: the needed velocity less the shuttle's velocity, both in `earth`.
+- A target point's relative state: the shuttle's position less the target point's, and the shuttle's velocity less the station's. Both are in `earth`. The axis does not turn there, so a point on the axis moves with the station's center.
 - A layer: an autopilot of the flight program. In its tick it adds `Throttle`, `AttitudeTarget` and `Translation` events to the shuttle's events. The ascent autopilot is the first layer and the rendezvous autopilot is the second. Step 5's docking autopilot will be the third.
 
 ### The station
@@ -94,7 +94,7 @@ Terms used in this section:
 
 Box openings run along X or Z only (`Opening.ThroughX`, `Opening.ThroughZ`). So the hub's body and mesh are built in the hub's own axes, whose +Z is the station's +Y. The slot is an opening through Z. The hub's child in the hull compound carries the same quarter turn about X, so the deck stays at x = -8 m.
 
-In `earth-surface`, the station's hull is kinematic. Its shape is a compound of three solids. The wheel is a solid ring from 94.5 to 101 m, in 256 segment hulls. The spokes and the hub are solid boxes. The bounding radius of the hull is 101.5 m, at the corner of the wheel's rim. Its mass is 1e7 kg, which a kinematic hull does not use. In its own frame, the station is the floor mesh and the static bodies in the table.
+In `earth`, the station's hull is kinematic. Its shape is a compound of three solids. The wheel is a solid ring from 94.5 to 101 m, in 256 segment hulls. The spokes and the hub are solid boxes. The bounding radius of the hull is 101.5 m, at the corner of the wheel's rim. Its mass is 1e7 kg, which a kinematic hull does not use. In its own frame, the station is the floor mesh and the static bodies in the table.
 
 Every part is drawn with `RenderFlags.NoImpostor`, beside `Visible` and `CastsShadow`. An impostor records the view direction in object space (ARCHITECTURE.md, "Impostors"). The spin turns the station 18 degrees a second, so a capture goes stale within a few ticks. The station has about ten thousand triangles, so the geometry costs little. The closed wheel shades its own inside. Step 6 lights the inside with lamps, as the spin station's walls carry lamps.
 
@@ -107,30 +107,31 @@ The frame:
 - Motion: a `KeplerMotion` with the orbit of `DemoStation.Orbit`:
 
 ```csharp
-new KeplerOrbit(SemiMajorAxis: OrbitRadius, Eccentricity: 0, Inclination: Math.PI / 2, LongitudeOfAscendingNode: -Math.PI / 2,
-    ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: Math.PI / 2 - meanMotion * OverPadAt, Epoch: 0,
-    AxialTilt: DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2), SpinRate: SpinStation.Rate, SpinPhaseAtEpoch: 0,
-    Attitude: KeplerAttitude.Spin)
+new(SemiMajorAxis: OrbitRadius, Eccentricity: 0, Inclination: Math.PI / 2,
+    LongitudeOfAscendingNode: -Math.PI / 2 + DemoSurface.GroundTurnAtDeparture,
+    ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: Math.PI / 2 - Math.Sqrt(EarthMu / (OrbitRadius * OrbitRadius * OrbitRadius)) * OverPadAt, Epoch: 0,
+    AxialTilt: DQuaternion.FromAxisAngle(Double3.UnitY, DemoSurface.GroundTurnAtDeparture) * DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2),
+    SpinRate: SpinStation.Rate, SpinPhaseAtEpoch: 0, Attitude: KeplerAttitude.Spin)
 ```
 
 where
 
 - `OrbitRadius` = `DemoScenes.OrbitRadius`, 6,771 km from Earth's center: Earth's mean radius plus 400 km.
-- `Inclination`, `LongitudeOfAscendingNode` = the turns that put the orbit's normal on -X, the launch plane's normal. At mean anomaly 0 the station is at +Z of `earth-surface` and moves toward +Y. At mean anomaly 90 degrees it is over the pad and moves toward -Z, as the shuttle does.
-- `meanMotion` = the orbit's mean motion, `Math.Sqrt(EarthMu / OrbitRadius³)`, 1.13316e-3 rad/s.
-- `OverPadAt` = the world time at which the station passes over the pad: 38 s, 18 s after the ignition. It sets the launch window. "The orbits, the window and the times" derives it.
-- `AxialTilt` = the quarter turn about Z that takes the station's +Y to +X of `earth-surface`, the slot's side. The spin turns about that axis, so the axis stays fixed.
+- `Inclination`, `LongitudeOfAscendingNode` = the turns that put the orbit's normal on the launch plane's normal, -X of the departure axes. The node is the old -π/2 turned by `DemoSurface.GroundTurnAtDeparture`, 142.6 degrees, the ground's turn at the departure. At mean anomaly 0 the station is at +Z of the departure axes and moves toward +Y. At mean anomaly 90 degrees it is over the pad and moves along -Z of the departure axes, the way that the ramp points at the departure.
+- `Math.Sqrt(EarthMu / OrbitRadius³)` = the orbit's mean motion, 1.13316e-3 rad/s.
+- `OverPadAt` = the world time at which the station passes over the pad: 38 s, `DemoStation.DepartureLead`, 18 s, after the departure. It sets the launch window. "The orbits, the window and the times" derives it.
+- `AxialTilt` = the quarter turn about Z that takes the station's +Y to +X, then the turn by `GroundTurnAtDeparture` about earth's +Y. So the station's +Y lies along +X of the departure axes, the slot's side. The spin turns about that axis, so the axis stays fixed in `earth`.
 - `SpinRate` = 0.31321 rad/s, one turn in 20.1 s.
 
 The spawn carries the first motion intent of the orbit (`FirstMove`), as `Station.Build` does. It holds the pose, the velocity and the angular velocity of the orbit at the world's time. So the frame is on its rails and turns from its first step. Its proper acceleration is exactly zero, because a Kepler frame in a parent that does not turn falls freely (ARCHITECTURE.md, "How a frame moves"). The hull moves fast, so it lives in a following frame of its own (ARCHITECTURE.md, "Numeric frames"), as the orbiting station's hull does.
 
-The orbiting station of ter-dhkf is the analogue of the frame and the hull: a Kepler frame whose kinematic hull carries an interior. The spin station is the analogue of the turn, the floor mesh and the first motion intent. The orbit stays in `earth-surface`, and the spin lives in the orbit's attitude. A Kepler orbit inside a turning parent turns with the parent. So this is the one rails form in which a frame both orbits and spins.
+The orbiting station of ter-dhkf is the analogue of the frame and the hull: a Kepler frame whose kinematic hull carries an interior. The spin station is the analogue of the turn, the floor mesh and the first motion intent. The orbit stays in `earth`, and the spin lives in the orbit's attitude. A Kepler orbit inside a turning parent turns with the parent. So this is the one rails form in which a frame both orbits and spins.
 
 Why the axis points along the orbit's normal:
 
-- The axis is fixed in `earth-surface`. Of the directions fixed there, only the orbit's normal also stays fixed relative to the station's local vertical.
+- The axis is fixed in `earth`, which does not turn. Of the directions fixed there, only the orbit's normal also stays fixed relative to the station's local vertical.
 - So the arrival point, the glide and the hold keep one place relative to Earth. Earth lies below the line of sight from the shuttle to the station for the whole approach, as in the film.
-- The sun's direction in `earth-surface` is (0.557, 0.743, 0.371). The slot's face has the normal +X, so it takes the sun at 56 degrees from its normal on every orbit. The shuttle on that side sees it lit.
+- The sun's direction in the departure axes is (0.557, 0.398, 0.729). The slot's face has the normal +X of the departure axes, so it takes the sun at 56 degrees from its normal on every orbit. The shuttle on that side sees it lit.
 
 ### The launch plane
 
@@ -152,8 +153,8 @@ acceleration = up · vertical + side · acrossPlane + track · horizontal
 
 where
 
-- `r`, `v` = the shuttle's position and velocity in `earth-surface`, from Earth's center.
-- `normal` = `DemoSurface.LaunchPlaneNormal`, -X. The scene gives it to the ascent autopilot. It is the plane's prograde normal, so `normal × up` points the way that the shuttle flies.
+- `r`, `v` = the shuttle's position and velocity in `earth`, from Earth's center. The ascent autopilot reads them in the frame of its `LaunchPlane`, which does not turn.
+- `normal` = `DemoSurface.LaunchPlaneNormal`, in earth's axes, -X of the departure axes. The scene gives it to the ascent autopilot. It is the plane's prograde normal, so `normal × up` points the way that the shuttle flies.
 - `track` = the unit direction in the plane across the up, the way that the shuttle flies.
 - `side` = the part of `normal` across the up, as a unit vector. The cross part pushes along `side`, not along `normal`: beside the plane, the up leans from the plane by `across / |r|`, so `normal` is not quite across the up. `up`, `track` and `side` are orthogonal, so the three parts share the thrust exactly.
 - `across` = how far the shuttle is from the launch plane, in meters.
@@ -193,9 +194,9 @@ Why 170 degrees:
 
 Why the window falls at φ = 120 degrees:
 
-- The light decides. With the sun's direction above, the shuttle at 200 km is in Earth's shadow from φ = 80.7 to 226.3 degrees. The station at 400 km is in Earth's shadow from φ = 87.6 to 219.4 degrees.
-- A transfer that starts right after the insertion arrives at about φ = 190 degrees, in Earth's shadow.
-- With the window at 120 degrees, the shuttle arrives at 290 degrees. There the sun stands 37 degrees above the station's horizon. The part of Earth's limb that the shuttle sees below the station is lit.
+- The light decides. With the sun's direction of "The station's plane", the shuttle at 200 km is in Earth's shadow from φ = 45.8 to 191.5 degrees. The station at 400 km is in Earth's shadow from φ = 52.7 to 184.6 degrees.
+- A transfer that starts right after the insertion arrives at about φ = 190 degrees, at the end of Earth's shadow.
+- With the window at 120 degrees, in the night, the shuttle arrives at 290 degrees. There the sun stands 55 degrees above the station's horizon (55.1 measured on 2026-10-20, `TheArrivalFallsInSunlight`). The part of Earth's limb that the shuttle sees below the station is lit.
 - The glide and step 5 run on toward φ = 330 degrees, where Earth's limb is lit best.
 - The cost is a coast of 26 minutes in the parking orbit, which a real rendezvous flies too. The burn falls in Earth's night, so the film shows it from the cabin (see "Sections of the long script").
 
@@ -268,7 +269,7 @@ The guidance takes Earth's G·M from the point gravity of the shuttle's frame (`
 
 - The station is gone.
 - The shuttle's frame has no point gravity to fly in.
-- The shuttle is no longer in the frame that holds the station, as after a hand-off into the station's bubble in step 5. The laws below hold only in a frame that does not turn, and `earth-surface` is one.
+- The shuttle is no longer in the frame that holds the station, as after a hand-off into the station's bubble in step 5, or before the hand-off of the climb out of the turning `earth-surface`. The laws below hold only in a frame that does not turn, and `earth` is one.
 
 ```mermaid
 stateDiagram-v2
@@ -288,7 +289,7 @@ stateDiagram-v2
 
 #### Reads and writes, and their frames
 
-Every read is in `earth-surface`, the frame of the shuttle's hull, `self.Frame`, which does not turn:
+Every read is in `self.Frame`, the frame of the shuttle's hull, which is `earth` after the hand-off of the climb, 178.4 km up, and does not turn:
 
 - The shuttle's position and velocity: `self.PoseIn(self.Frame)` and `self.VelocityIn(self.Frame)`.
 - The station's position, rotation and velocity: `self.Snapshot.TryGetPoseIn(station, self.Frame)` and `TryGetVelocityIn(station, self.Frame)`. The station's axis is its rotation applied to +Y.
@@ -318,10 +319,10 @@ angle = TransferAngle(shuttlePosition, arrival, orbitNormal)
 
 where
 
-- `stationPosition`, `stationVelocity` = the station's center and velocity in `earth-surface`.
-- `shuttlePosition` = the shuttle's center in `earth-surface`.
+- `stationPosition`, `stationVelocity` = the station's center and velocity in `earth`.
+- `shuttlePosition` = the shuttle's center in `earth`.
 - `TransferTime` = 2,560 s. `ArrivalDistance` = 1,500 m.
-- `axis` = the station's axis in `earth-surface`.
+- `axis` = the station's axis in `earth`.
 - `orbitNormal` = the station's orbit normal, `stationPosition × stationVelocity`, normalized.
 - `angle` = the transfer angle. The window is open while it lies between 150 and 170 degrees.
 
@@ -406,7 +407,7 @@ In every phase that steers, the roof turns away from Earth across the nose, as t
 
 The end state, for step 5:
 
-- The shuttle holds at `DemoStation.HoldPoint`, 150 m from the station's center on its axis, on the slot's side, in `earth-surface`.
+- The shuttle holds at `DemoStation.HoldPoint`, 150 m from the station's center on its axis, on the slot's side, in `earth`.
 - Its nose points at the slot, and its roof away from Earth. It does not turn relative to the stars.
 - Its bounding sphere lies 21 m outside the station's bubble, and its own bubble 12.7 m outside it. So no bubble holds the other, and no ghost crosses between them.
 - The rendezvous autopilot stays in `Hold`. It keeps the shuttle there until a later layer speaks.
@@ -446,36 +447,36 @@ The builder of `rim-camera` aims it at a point on the axis between the hub and t
 
 ### Sections of the long script
 
-The step's sections replace the section `coast`. A section that waits longer than 10 minutes of the simulation names a larger `Limit`, twice its length: `phasing` 2,100 s, `transfer-night` 3,000 s and `transfer` 1,800 s. `night` lasts 586 s, within 14 s of the default limit, so it names 1,200 s too. The frames and seconds below are what the generator printed on 2026-10-20. The model above gave nearly the same, except for the belt, which took 5 s, and the burn, which took 32 s.
+The step's sections replace the section `coast`. A section that waits longer than 10 minutes of the simulation names a larger `Limit`, twice its measured length, rounded up to 100 s: `phasing` 1,000 s, `night` 2,300 s, `transfer-night` 2,000 s and `transfer` 2,800 s. The frames and seconds below are what the generator printed on 2026-10-20, after the demo moved into the Earth system (ter-yhu8). The nights moved 35 degrees earlier along the orbit, so `phasing` and `transfer-night` grew shorter and `night` and `transfer` longer, as the model of "The cues" in "The demo in the Earth system" gave.
 
 | Film | Camera | Ticks per frame | Posts | Ends | Measured |
 |---|---|---|---|---|---|
-| `belt` | `cabin-camera` | 1 | `FastenBelt` to `person` | 1 s after the passenger is `Strapped` | From 357.0 s: 4.9 s, 292 frames |
-| `phasing` | `chase-camera` | 60 | `Rendezvous` to `shuttle` | The shuttle is in Earth's shadow. | 1,003 s, 1,003 frames |
-| `night` | `cockpit-camera` | 120 | | The autopilot is in `Transfer`. | 586 s, 293 frames |
-| `burn` | `cockpit-camera` | 2 | | 2 s after the shuttle's orbit reaches 399 km and the cabin is weightless | From 1,950.8 s: 34.2 s, 1,025 frames |
-| `transfer-night` | `cockpit-camera` | 240 | | The shuttle is out of Earth's shadow. | 1,468 s, 367 frames |
-| `transfer` | `chase-camera` | 60 | | The shuttle is within 10 km of the arrival point. | 890 s, 890 frames |
-| `closing` | `bow-camera` | 8 | | The autopilot is in `Brake`. | 155 s, 1,164 frames |
-| `brake` | `port-window-camera` | 1 | | The autopilot is in `Glide`. | From 4,498.2 s: 23.8 s, 1,425 frames |
+| `belt` | `cabin-camera` | 1 | `FastenBelt` to `person` | 1 s after the passenger is `Strapped` | From 357.1 s: 4.9 s, 292 frames |
+| `phasing` | `chase-camera` | 60 | `Rendezvous` to `shuttle` | The shuttle is in Earth's shadow. | 491 s, 491 frames |
+| `night` | `cockpit-camera` | 120 | | The autopilot is in `Transfer`. | 1,102 s, 551 frames |
+| `burn` | `cockpit-camera` | 2 | | 2 s after the shuttle's orbit reaches 399 km and the cabin is weightless | From 1,954.9 s: 33.9 s, 1,018 frames |
+| `transfer-night` | `cockpit-camera` | 240 | | The shuttle is out of Earth's shadow. | 972 s, 243 frames |
+| `transfer` | `chase-camera` | 60 | | The shuttle is within 10 km of the arrival point. | 1,386 s, 1,386 frames |
+| `closing` | `bow-camera` | 8 | | The autopilot is in `Brake`. | 155 s, 1,165 frames |
+| `brake` | `port-window-camera` | 1 | | The autopilot is in `Glide`. | From 4,502.2 s: 23.6 s, 1,418 frames |
 | `turn` | `window-camera` | 1 | | The nose is within 2 degrees of the direction to the station. | 12.1 s, 726 frames |
-| `glide` | `chase-camera` | 6 | | The shuttle is within 700 m of the station. | 160 s, 1,603 frames |
+| `glide` | `chase-camera` | 6 | | The shuttle is within 700 m of the station. | 160 s, 1,602 frames |
 | `glide-window` | `window-camera` | 4 | | Within 400 m | 60 s, 900 frames |
 | `glide-rim` | `rim-camera` | 4 | | Within 200 m | 54 s, 806 frames |
 | `arrival` | `cockpit-camera` | 4 | | 3 s after the autopilot is in `Hold` | 58 s, 864 frames |
 | `hold` | `rim-camera` | 1 | | After 3 s | From 4,869.4 s: 3 s, 180 frames |
 | `hold-chase` | `chase-camera` | 1 | | After 2 s | From 4,872.4 s: 2 s, 120 frames |
 
-The step films 11,658 frames in 4,514 s of the simulation, 194 s of video at 60 frames per second. Ticket ter-4xkz split the 5 s of `hold` into `hold` and `hold-chase`, and its new hull moved the hold's start, so the last two rows are its generator's values of 2026-10-20.
+The step films 11,762 frames in 4,517 s of the simulation, 196 s of video at 60 frames per second.
 
 Every cue reads the run or the scene's constants:
 
-- In Earth's shadow: the cue reads the shuttle's position in `earth-surface` and the direction of the frame `sun` there. The shuttle is in the shadow while it lies on the far side of Earth from the sun. It must also lie less than `EarthRadius` from the line through Earth's center toward the sun.
+- In Earth's shadow: the cue reads the shuttle's position in `earth` and the direction of the Sun's center there. The shuttle is in the shadow while it lies on the far side of Earth from the sun. It must also lie less than `EarthRadius` from the line through Earth's center toward the sun.
 - The orbit reaches 399 km: the cue reads the apoapsis of the two-body orbit of the shuttle's state.
 - The end of the burn needs the apoapsis as well as the weightless cabin. The cabin is also weightless in the tick before the burn starts.
 - The other cues read the autopilot's case, the passenger's case, the cabin's proper acceleration, and distances from the station's measured center.
 
-The parts in Earth's night are filmed from the cabin. The demo's Earth casts no shadow, because `RenderFlags.CastsShadow` is off on the drawn `earth`. So an outside view at night shows a sunlit shuttle over the dark side of Earth.
+The parts in Earth's night are filmed from the cabin, where the lamps light the strapped person. Earth casts its shadow, as `SunAndEarth` draws it, so no sunlight comes in through the glass there. A film of the night from outside is left to the edit or a later ticket.
 
 ### Analogues
 
@@ -509,7 +510,7 @@ Step k is the physics step that runs beside tick k. A tick reads the state at th
 | `AttitudeTarget`, with its rotation and its `MaxTurnRate` | The ascent autopilot (priority 0) and the rendezvous autopilot (1), in tick k. Every layer sets both: 0.15 rad/s, except the rendezvous autopilot's trim and coast, at the plan's `WeightlessTurnRate` | The attitude autopilot (10) in tick k, which takes the last. Its torque acts in step k + 1. |
 | `Throttle` | The rendezvous autopilot, in tick k | The main engine in tick k. Its push acts in step k + 1. |
 | `Translation` | The rendezvous autopilot, in tick k | The translation thrusters in tick k. Their force acts in step k + 1. |
-| The shuttle's pose and instant velocity in `earth-surface` | Physics in step k, through the frame's record at step 2 of the sync point after it | The autopilots and the actuators in tick k + 1 |
+| The shuttle's pose and instant velocity in `earth` | Physics in step k, through the frame's record at step 2 of the sync point after it, converted from `earth-surface` while the shuttle is there | The autopilots in tick k + 1. The actuators read the rotation in `self.Frame`. |
 | The station's pose and instant velocity | The full sample of its `KeplerMotion` for step k, written in tick k - 1, recorded at step 2 after step k | The rendezvous autopilot in tick k + 1. The cues, between ticks. |
 | The station's turn and proper acceleration | The frame tree, at `BeginStep` and at step 2 | Physics, and `FrameTree.FeltGravity` in the tests |
 | `AscentGuidance.PlaneNormal` | The scene at the spawn, through the ascent autopilot's constructor | The law of the ascent autopilot in each tick of the climb |
@@ -519,8 +520,8 @@ Step k is the physics step that runs beside tick k. A tick reads the state at th
 
 | Entity | What moves it | Its components | Its frame | What it reads |
 |---|---|---|---|---|
-| Shuttle: a dynamic hull that owns the cabin's frame | Physics, by the forces of the main engine and the translation thrusters, and the torques of the attitude autopilot | `AscentAutopilot`, `RendezvousAutopilot`, `AttitudeAutopilot`, `MainEngine`, `TranslationThrusters` | `earth-surface`, in a falling numeric frame of its own | Its own pose and velocity, the station's pose and velocity, and the G·M, all in `earth-surface` |
-| Station: a kinematic hull on rails that owns the station's frame | The full samples of its `KeplerMotion`. The first comes from the spawn. | `KeplerMotion` | `earth-surface`, in a following frame of its own | The G·M of `earth-surface` |
+| Shuttle: a dynamic hull that owns the cabin's frame | Physics, by the forces of the main engine and the translation thrusters, and the torques of the attitude autopilot | `AscentAutopilot`, `RendezvousAutopilot`, `AttitudeAutopilot`, `MainEngine`, `TranslationThrusters` | `earth-surface` to 178.4 km up, then `earth`, each time in a falling numeric frame of its own | Its own pose and velocity, the station's pose and velocity, and the G·M, all in `earth` |
+| Station: a kinematic hull on rails that owns the station's frame | The full samples of its `KeplerMotion`. The first comes from the spawn. | `KeplerMotion` | `earth`, in a following frame of its own | The G·M of `earth` |
 | The station's static parts | Nothing. They rest in the station's frame, which turns. | None | The station's | Nothing |
 | Person: a character in the cabin | Physics, by the forces of the passenger's belt and float | `Walker` (done), `Passenger` | The cabin | Its own pose and velocity in the cabin, and the cabin's felt gravity |
 | Cameras | Nothing. They are still in their frames. | None | The cabin's or the station's | Nothing |
@@ -532,7 +533,7 @@ The shuttle and the station never touch in step 4. Their numeric frames stay apa
 
 A design from scratch, with every step known, has one launch plane that the ramp, the climb and the station share. It has one flight program of layers over shared actuators, with priorities in the order of the flight. The shuttle has windows and translation thrusters from the start. The passenger's union runs from the boarding to the exit. This design ends there, with the cases added at the end of each union. Three things differ, and the two-body math in `KeplerOrbit` is the same as from scratch:
 
-- From scratch, Earth casts its shadow, and the night shows outside. Here the night is filmed from the cabin (see "Not in this step").
+- From scratch, the night is filmed from outside, in Earth's shadow. Here Earth casts its shadow too, but the night is still filmed from the cabin (see "Not in this step").
 - From scratch, the actuators run after every layer from the start. Here their priority moves from 1 to 10.
 - From scratch, the station's phase is still a constant set from the launch's timeline. The only other way is a second model of the climb inside the scene. Here that constant is `OverPadAt`, and the run test pins the window that it gives.
 
@@ -578,7 +579,7 @@ Components on the real World, in scenes that the tests build from the demo's spa
   - `TheActuatorsRunAfterEveryLayer`.
 - `FlightControlTests`:
   - `TheAttitudeAutopilotTurnsNoFasterThanTheTurnRateOfTheTarget`: a target with 0.01 rad/s turns the hull at that rate.
-- `RendezvousAutopilotTests` puts the station on its orbit in a root frame with Earth's point gravity, and spawns the shuttle in orbit near it. The autopilot takes its plan in its constructor. So a test flies a short plan, where the demo's plan takes an hour.
+- `RendezvousAutopilotTests` puts the station on its orbit in a root frame with Earth's point gravity, the analogue of `earth`, and spawns the shuttle in orbit near it. The autopilot takes its plan in its constructor. So a test flies a short plan, where the demo's plan takes an hour.
   - `WithoutAnOrderTheAutopilotAddsNothing`.
   - `AfterTheOrderTheAutopilotWaitsUntilTheTransferAngleFallsTo170Degrees`.
   - `AnOrderInsideTheWindowStartsTheTransferAtOnce`.
@@ -606,7 +607,7 @@ Components on the real World, in scenes that the tests build from the demo's spa
   - `TheDeckHasTheWeakGravityOfItsRadius`.
   - `ABoxOfTheShuttlesSizeFliesThroughTheSlotAlongTheAxisWithoutAContact`: on the axis, at rest in the station's axes, at 1 m/s inward.
   - `TheStationsBubbleHoldsItsWholeHull`.
-  - `AShuttleAtTheHoldPointStaysInEarthSurface`: 60 s of the hold.
+  - `AShuttleAtTheHoldPointStaysInEarth`: 60 s of the hold.
 
 The run of the checked-in script:
 
@@ -620,7 +621,7 @@ The run of the checked-in script:
   - `TheWindowOpensBetween115And125DegreesAlongTheOrbit`.
   - `TheTransferTakesTheTimeThatTwoBodyMotionPredicts`: from the window to the brake, 2,560 s less the brake's lead, within 2 s.
   - `TheTotalChangeOfVelocityIsWithin10PercentOfTheTwoBodyCost`.
-  - `TheShuttleStaysInEarthSurfaceThroughTheWholeStep`.
+  - `TheShuttleStaysInEarthThroughTheWholeStep`.
   - `TheGlideStaysWithin5MOfTheAxis`.
   - `TheShuttleHoldsAtTheHoldPointWithItsNoseAtTheSlot`.
   - `TheStationLiesInsideTheWindowInEveryFrameOfTheWindowFilms`: with `Picture.Project`, the station's center lies in the picture, and the line from the camera to it crosses both skins inside the holes of a pane of `Shuttle.Glass`: `pane-port-7` in `brake` and `pane-nose` in `glide-window`. Ticket ter-4xkz changed it on purpose from the small windows.
@@ -691,7 +692,7 @@ Only engine changes go to the user (the user's rule of 2026-10-18). So this desi
 
 | Question | Decision | Reason |
 |---|---|---|
-| Where the shuttle holds | 150 m out on the axis, outside the bubble, in `earth-surface` | In the station's axes, the shuttle turns backward at 0.31 rad/s, and the attitude autopilot cannot hold that. Step 5 spins up outside and enters at rest. |
+| Where the shuttle holds | 150 m out on the axis, outside the bubble, in `earth` | In the station's axes, the shuttle turns backward at 0.31 rad/s, and the attitude autopilot cannot hold that. Step 5 spins up outside and enters at rest. |
 | Which way the axis points | Along the orbit's normal, with the slot on the sun's side, +X | The axis stays fixed relative to Earth and the orbit, so Earth stays below the view. The slot takes the sun at 56 degrees on every orbit. |
 | The station's orbit | A circle 400 km up in the launch plane, as the comment of the parking orbit already says | A transfer of half an orbit, about 43 minutes, which the video's viewer can check |
 | The planes | The climb steers into the launch plane. | A real launch flies into the plane of its target. A copy of the measured tilt of 0.17 degrees in the station breaks at the next change of the climb. |
@@ -713,7 +714,7 @@ Only engine changes go to the user (the user's rule of 2026-10-18). So this desi
 | Impostors | Off for the station's parts | The spin makes every capture stale within a few ticks. |
 | The cameras | Four still views in the shuttle's frame and one in the station's frame | No new camera component is needed. The rim camera previews the spin match. |
 | The closing view | `bow-camera`, ahead of the nose and looking aft | The shuttle arrives from ahead of the station, so the station lies behind it until the turn. |
-| The night | Filmed from the cabin | The demo's Earth casts no shadow, so an outside view at night shows a lit shuttle. |
+| The night | Filmed from the cabin | The lamps light the strapped person there. Earth casts its shadow, but nobody has tried a film of the night from outside yet. |
 | Where the two-body math lives | `KeplerOrbit.Propagate` and `KeplerOrbit.Lambert`, static methods in Core | The user's rule for the rails library: two-body math with no orbit elements is a static method of `KeplerOrbit`. The user chose on 2026-10-20 that it holds for this engine change too. |
 
 ### Engine changes
@@ -722,7 +723,7 @@ One, which the user chose on 2026-10-20: `KeplerOrbit.Propagate` and `KeplerOrbi
 
 ### Not in this step
 
-- Earth's shadow. The demo's drawn Earth has no `CastsShadow`. To turn it on is a demo change, not an engine change. The orbit scene turns it on. But nobody measured what a caster of Earth's size does to the shadows of the pad. So the design films the night from the cabin. A later demo ticket can try it, with screenshots of the pad.
+- A film of the night from outside. Earth casts its shadow since the demo moved into the Earth system (ter-yhu8), but the design still films the night from the cabin. A later demo ticket can try an outside view.
 - Readouts of speed, distance and the g-meter (see "Proof in the video"). The edit adds them.
 - The spin match, the entry, the landing on the deck, the exit, the chute and the openings in the ceiling: steps 5 and 6.
 
@@ -1018,6 +1019,7 @@ So the look needs no change to the renderer.
 | `bow-camera` | The shuttle's | 30 m ahead of the nose and 5 m above it, looking aft 30 degrees to port of astern | Kept | Its job is the station behind the shuttle in `closing`. It also looks at the windscreen. |
 | `apron-camera` | `earth-surface` | At (13, R + 3, 10), looking at (5, R + 1.2, 0.5) | Kept, and films `seated-outside` | The line to the seated person's eye passes through `pane-starboard-4` at (3, 0.04, -1.46) in the shuttle's axes, 18 m away. |
 | `follow-camera` | It follows the person | As before | Kept | The glass is solid in the interior shape, so its arm stops at the glass as at a wall. |
+| `sky-camera` | `earth-surface` | At (6, R + 8, -40), looking between the Sun and the Moon, 10 degrees lower | New in ter-yhu8, films `sky` | It shows the low Sun and the crescent Moon over the parked shuttle ("The Sun and the Moon in the films"). |
 
 A scratch script of this design checked each line through the glass on 2026-10-20, with the holes of "The glass canopy". The tests check them in the run.
 
@@ -1079,7 +1081,7 @@ The hull's values are fixed at the scene's build. Only the pen, the person and t
 | Panes, lamps, the nozzle and the seat | Nothing. They are still in the cabin's frame. | None | The cabin's | Nothing |
 | Pen | The `Clip`, then physics, as before. It hangs on a pillar. | `Clip` | The cabin's | As before |
 | Person | As before. The cabin is the box where it walks, sits and floats. | `Walker`, `Passenger` | As before | As before |
-| Cameras | Nothing, except `follow-camera`, which `ChaseCamera` moves as before | None, or `ChaseCamera` | The cabin's, the station's or `earth-surface` | Nothing |
+| Cameras | Nothing, except `follow-camera`, which `ChaseCamera` moves as before | None, or `ChaseCamera` | The cabin's, the station's or `earth-surface`, where `sky-camera` stands too | Nothing |
 
 ### Built from scratch, compared
 
@@ -1290,6 +1292,488 @@ The change that the design weighed and the user did not take: `BodyDesc` gets an
 - The cradle's arms of the tow, which the live world's part 6 builds.
 - A fill light in the cabin. If the frames show the cabin too dark, that is a renderer change and goes to the user.
 
+## The demo in the Earth system
+
+Ticket ter-yhu8 designs the move of the demo's world into the Earth system (2026-10-20). The user said on 2026-10-20 that the demo must happen in the proper Earth system. Ticket ter-rlks built that system. `DemoScenes.SunAndEarth` builds the Sun, Earth's orbit frame `earth`, the turning `earth-surface` and the Moon. An `EarthDate` sets where Earth stands, and the scene `earth-system` shows the system, with its tests. This step builds the scene `demo-surface` on it. Nothing in the engine changes. The live world is postponed, so its turntable is not built. This design keeps only the turntable's rule: its home angle is the ramp's angle at the cinematic's departure, the angle that this design puts in the station's plane.
+
+### What the step does
+
+- `demo-surface` builds its world with `SunAndEarth`, at the June solstice. The Sun is the root frame `sun`, at its true size. `earth` goes round it on Earth's Kepler orbit and does not turn. `earth-surface` sits at Earth's center in `earth`, turns once per sidereal day about the north pole, and draws Earth. Its bubble ends 50 km up, at the stratopause. The Moon goes round Earth in `earth` on its Kepler orbit.
+- The slab, the terminal, the ramp, the tower and the pad start in `earth-surface` at the north pole, at today's places. The parked shuttle and the person start there too. The pole lies on the axis of the turn. So the pad stays in its place and only turns about its own up, once a day.
+- The station's orbit moves into `earth`. Its plane still passes through the pole. It is the plane of the earth-system scene, turned about the pole by 142.6 degrees. So the sun lights the wheel's face at 56 degrees from its axis, as in the old design, and the orbits keep their nights.
+- The ground's turn at the world's start puts the ramp in the station's plane at the departure, 20 s into the run.
+- The ascent autopilot reads every state in `earth` and turns what it writes into the axes of the shuttle's frame. The rendezvous autopilot and the cues of the flight read in `earth` too.
+- The shuttle leaves `earth-surface` through the top of its bubble during the climb, 178.4 km up, where the engine's exit margin ends. That is the first hand-off of a dynamic hull with a cabin frame out of a turning frame. A small test and the run test check it.
+- A new film, `sky`, shows the parked shuttle under the low Sun and the crescent Moon. The long script is written again.
+
+Terms used in this section:
+
+- The ground's axes: the axes of `earth-surface`. They turn in `earth` about earth's +Y, the north pole, at `SiderealRate`, 7.292e-5 rad/s.
+- The ground's turn: the angle about earth's +Y from earth's axes to the ground's axes, in radians.
+- The departure: the world time `DemoSurface.DepartureAt`, 20 s. It is `DemoStation.OverPadAt` less `DemoStation.DepartureLead`, 18 s, which is the lead of the live world's ground departure before the station's pass ([Live world](live-world.md), "Departures"). The long script ignites at 19.7 s, and `scripts/demo-launch.json` at 19.2 s.
+- The departure axes: the ground's axes at the departure. Every direction in the design of step 4 that names `earth-surface` holds in the departure axes. Until this step `earth-surface` did not turn, so the two were the same.
+- The launch plane: the plane through Earth's center that holds the pad's up and the ramp's incline at the departure. The station's orbit and the parking orbit lie in it.
+- The angle along the orbit, φ: the angle about the launch plane's normal from the pad's up, earth's +Y, toward the ramp's incline at the departure. The pad is at φ = 0.
+- β: the angle between the sun's direction and the plane of an orbit. It decides how long the orbit's nights last, and how the sun falls on the wheel, whose axis lies along the orbit's normal.
+
+### The frames
+
+```mermaid
+graph TD
+  sun["sun: root frame, the Sun's gravity, draws the Sun"] --> earth["earth: Earth's Kepler orbit round the Sun, does not turn, Earth's gravity"]
+  earth --> surface["earth-surface: turns once per sidereal day, draws Earth, bubble 50 km up"]
+  earth --> moon["moon: an entity on its Kepler orbit, with no frame"]
+  earth --> station["station: Kepler orbit 400 km up, spins"]
+  surface --> ground["slab, terminal, ramp, tower: static bodies"]
+  surface --> parked["shuttle's cabin: from the start to 178.4 km up"]
+  earth -.-> flying["shuttle's cabin: from 178.4 km up"]
+  station --> parts["the station's static parts"]
+```
+
+The dashed line is the hand-off of the climb. `earth-surface` holds Earth's point gravity, as `earth` does, so the shuttle feels the same gravity on both sides of it. In `earth-surface` the shuttle also feels the rotation terms of the ground's turn. These terms are how a turning frame keeps a free path, so the shuttle's path in `earth` is that of gravity and thrust alone.
+
+### The date and the ground's turn
+
+`EarthDate` gets a second field, so that a date says both where Earth stands on its orbit and how far the ground is turned:
+
+- `EarthDate(double Longitude, double GroundTurn)`: `Longitude` as today, and `GroundTurn`, the ground's turn at the world's time 0. The longitude gives the season. The ground's turn gives the time of day.
+- `EarthDate.Ground`: the `FrameSpin` of `earth-surface`: the turn `GroundTurn` about +Y, then the sidereal turn. `SunAndEarth` takes it for the spin of `earth-surface`, in place of its fixed `FrameSpin(DQuaternion.Identity, SiderealRate)`.
+- `MarchEquinox` and `JuneSolstice` keep the ground's turn 0. So the orbit and station scenes keep their ground.
+- The pad view of the earth-system scene turns the Sun's direction into the ground's axes with `date.Ground`. Today it keeps its own copy of the spin.
+
+The demo's date, `DemoSurface.Date`:
+
+```csharp
+EarthDate.JuneSolstice with { GroundTurn = GroundTurnAtDeparture - SiderealRate * DepartureAt }
+```
+
+where
+
+- `GroundTurnAtDeparture` = the ground's turn at the departure: 142.6 degrees, in radians. "The station's plane" derives it.
+- `SiderealRate` = Earth's spin relative to the stars, in rad/s.
+- `DepartureAt` = the departure, 20 s.
+
+So the ground's turn at the world's start is 142.516 degrees. At the departure, the departure axes are earth's axes turned by 142.6 degrees about the pole. The scene `earth-system` takes the demo's date too, so that it shows the demo's world.
+
+The ignition does not need to fall exactly at the departure. The ground turns by 0.0042 degrees in a second. The long script ignites 0.3 s before the departure, with the ramp 0.001 degrees out of the plane. The climb steers into the plane anyway (see "The launch plane").
+
+### The station's plane
+
+At the June solstice, the sun stands toward (0, 0.398, -0.917) in earth's axes: 23.44 degrees north of the equator, toward -Z (`EarthDate.JuneSolstice`). Every plane through the pole holds earth's +Y. The plane of the earth-system scene, whose normal is -X, holds the sun's direction too. So its β is 0, the sun lies across the wheel's axis, and it lights the wheel edge-on, as the scene showed.
+
+A plane through the pole can have a β of up to 66.6 degrees, the sun's angle from the pole. A larger β lights the wheel's face more squarely and shortens the nights. Above a β of 70.2 degrees, an orbit 400 km up has no night at all. The design keeps the β of the old design:
+
+| Quantity | The old design, in an `earth-surface` that did not turn | This design, in `earth` |
+|---|---|---|
+| The sun in the departure axes | (0.557, 0.743, 0.371) | (0.557, 0.398, 0.729) |
+| β | 33.9 degrees | 33.9 degrees |
+| The sun's angle from the station's axis, on the slot's side | 56 degrees | 56 degrees |
+| The sun's height over the pad | 48 degrees | 23.4 degrees, all day, at the pole |
+| The sun's angle along the orbit, φ | -26.5 degrees | -61.4 degrees |
+| The shuttle in Earth's shadow, 200 km up | From φ = 80.7 to 226.3 degrees | From φ = 45.8 to 191.5 degrees |
+| The station in Earth's shadow, 400 km up | From φ = 87.6 to 219.4 degrees | From φ = 52.7 to 184.6 degrees |
+| The sun over the station's horizon at the arrival, φ = 290 degrees | 37 degrees | 55 degrees |
+
+So the sun meets the slot's face at 56 degrees, as "Why the axis points along the orbit's normal" chose. The nights keep their lengths: 145.7 degrees of the parking orbit, and 131.9 degrees of the station's. Only their place moves, 35 degrees earlier along the orbit. The window at φ = 120 degrees still falls in the night. The arrival at φ = 290 degrees falls in the day, with Earth's limb lit below the station. The sun stands lower over the pad. That is the true sun of the pole at the solstice.
+
+How the turn follows from β:
+
+- In the departure axes, the sun's part along the pad's up is sin 23.44° = 0.398, whatever the turn. Its part across the up is 0.917.
+- For a sun at 56 degrees from the slot's side, +X, the sun's part along +X must be 0.557, as in the old design. So the sun's direction across the up lies asin(0.557 / 0.917) = 37.4 degrees from the launch plane, on the slot's side.
+- Two turns give that. In one, the ramp points 37.4 degrees from the sun's direction across the up, and the sun stands ahead of the launch. Then the night of the parking orbit runs from φ = 168.6 to 314.3 degrees. The arrival at φ = 290 degrees falls in that night.
+- In the other, the ramp points 37.4 degrees from straight away from the sun. The sun stands behind the launch, as in the old design. The design takes this one. The ramp then points 180 - 37.4 = 142.6 degrees from the sun's direction across the up. That direction is earth's -Z, so the angle is the ground's turn at the departure.
+
+The directions in earth's axes:
+
+| Direction | In earth's axes | In the departure axes |
+|---|---|---|
+| The ramp's incline across the up, the station's way over the pole | (-0.607, 0, 0.795) | -Z |
+| The launch plane's normal, `DemoSurface.LaunchPlaneNormal` | (0.795, 0, 0.607) | -X |
+| The station's axis, on the slot's side | (-0.795, 0, -0.607) | +X |
+| The sun | (0, 0.398, -0.917) | (0.557, 0.398, 0.729) |
+
+`DemoSurface.LaunchPlaneNormal` becomes a vector in earth's axes: the departure axes' turn applied to `Ŷ × LaunchRamp.Up`, normalized. `LaunchRamp.Up` stays in the ground's axes, where the ramp lies.
+
+`DemoStation.Orbit` is today's orbit turned by `GroundTurnAtDeparture` about earth's +Y:
+
+- `LongitudeOfAscendingNode` = -π/2 plus `GroundTurnAtDeparture`, or minus it, as `KeplerOrbit` measures the node. The test of the plane pins the sign.
+- `AxialTilt` = today's quarter turn about Z, then the turn by `GroundTurnAtDeparture` about +Y. So the station's +Y, the slot's side, lies along the departure axes' +X.
+- `MeanAnomalyAtEpoch` stays. The turn about the pole keeps the pole in its place. So the station still passes over the pad at `OverPadAt`, and moves the way that the ramp points.
+- `SpinRate`, the spin's phase at the epoch, the station's own frame, its parts and its bubble stay as they are. The docking (ter-ftnj) and the exit (ter-y0e5) work in the station's own frame, so their work merges with this step.
+
+The window does not move. The climb's path in `earth` is the old path, turned with the plane:
+
+- The pad lies on the axis of the ground's turn, so the ground gives the parked shuttle no velocity in `earth`. At the ramp's top, 224 m from the axis, the ground moves at 1.6 cm/s.
+- On the ramp, the Coriolis term of the ground's turn is at most 2 × 7.3e-5 rad/s × 90 m/s = 0.013 m/s². It acts across the ramp for about 5 s. That gives the shuttle at most about 3 cm/s across the plane, which the climb steers out.
+- Earth's point gravity is the same in `earth-surface` and in `earth`. No tide of the Sun acts in `earth`, because a semantic frame applies no tidal gravity.
+
+So `OverPadAt` stays 38 s. The window, the transfer of 170 degrees in 2,560 s and the arrival point stay. So do the times of "The orbits, the window and the times". The run test still pins the window between φ = 115 and 125 degrees. If the window leaves that range, the builder sets `OverPadAt` again, as "If the insertion changes" says, and `DepartureAt` and the ground's turn follow it.
+
+### The shuttle's flight in the turning ground
+
+Up to 178.4 km, the shuttle flies in `earth-surface`, the ground's frame, in a falling numeric frame of its own (ARCHITECTURE.md, "Numeric frames"). Numeric frames inside turning frames give their members the rotation terms (ter-vja8). In the climb, the Coriolis term of the ground's turn reaches 2 × 7.3e-5 rad/s × 2 km/s = 0.29 m/s². The centrifugal term reaches about 2e-3 m/s². Both are the terms that keep the shuttle on its path in `earth`.
+
+The reads and the writes of the ascent autopilot:
+
+- It reads the shuttle's pose and velocity in `earth`: `self.PoseIn(earth)` and `self.VelocityIn(earth)`. `AscentGuidance` is two-body math, which holds only in a frame that does not turn, with its origin at the planet's center. `earth` is that frame from the ignition to the orbit. A velocity in `earth-surface` misses the ground's turn, about 46 m/s at the hand-off.
+- It takes Earth's G·M from the point gravity of `earth`.
+- The ramp's case reads in `earth` too. At the pad the ground does not move. At the ramp's top, the velocity in `earth` lies at most 0.01 degrees from the velocity along the ramp. So one rule serves every case.
+- It writes the `Throttle`, which has no frame, and the `AttitudeTarget`, whose rotation is in the axes of `self.Frame`. It finds the rotation in earth's axes, by `AttitudeAutopilot.Facing` with the velocity or the guidance's acceleration and the pose in `earth`. Then it turns the rotation into the axes of `self.Frame` by the hull's own two rotations:
+
+```csharp
+DQuaternion intoFrame = self.PoseIn(self.Frame).Rotation * self.PoseIn(earth).Rotation.Conjugate()
+```
+
+where
+
+- `intoFrame` = the turn from earth's axes to the axes of the shuttle's frame, at the end of the last finished step.
+- `self.PoseIn(self.Frame).Rotation` = the hull's rotation in its frame.
+- `self.PoseIn(earth).Rotation` = the hull's rotation in `earth`.
+
+After the hand-off `self.Frame` is `earth`, and the turn is the identity to the rounding. The ground's axes turn 2.4e-6 rad between the read and the step in which the torque acts, which the attitude autopilot does not notice.
+
+The autopilot takes the plane as one value, `LaunchPlane(FrameHandle Frame, Double3 Normal)`: the frame in which it reads, and the plane's prograde normal in that frame's axes. A normal has no meaning without the axes that it is given in, so the two go together. The scene passes `new LaunchPlane(earth, DemoSurface.LaunchPlaneNormal)` through `Shuttle.FlightControls`. `AscentGuidance` does not change: it takes vectors, and its `PlaneNormal` is the plane's normal in the axes of the frame of its reads.
+
+The attitude autopilot, the main engine and the translation thrusters keep their reads in `self.Frame`. They are actuators, which turn and push the hull in its own frame. In `earth-surface`, a target that is fixed in `earth` turns backward at 7.3e-5 rad/s, and the attitude autopilot follows it 0.005 degrees behind. At the hand-off, the hull's angular velocity in its frame changes by the ground's 7.3e-5 rad/s. The attitude autopilot answers with a torque of about 100 N·m for a step, which turns nothing that a viewer sees.
+
+The rendezvous autopilot starts after the climb, with the shuttle in `earth`. It keeps its reads in `self.Frame` and its guard. The guard halts the autopilot for a shuttle outside the frame that holds the station, and that frame is `earth`. So its reads are in `earth`, with no change to its code. The docking of step 5 builds on that guard.
+
+### The hand-off
+
+`earth-surface`'s bubble is a sphere of Earth's radius plus `DemoScenes.GroundBubbleTop`, 50 km: the stratopause, the top of the turning ground's bubble. `DemoScenes.AtmosphereTop` keeps its 100 km, the top of the air, above which the demo keeps every periapsis. The two are separate values, because the bubble's top decides where the shuttle leaves the ground's frame, and the air's top decides where an orbit may go.
+
+Rule 2 of ARCHITECTURE.md "Hand-off" says where the shuttle leaves the bubble. A body leaves a frame when its center lies outside the bubble by its bounding sphere plus an exit margin. The exit margin is the larger of 2 percent of the bubble's radius and the body's bounding sphere (`FrameBounds.ExitMargin`). So the exit lies at this distance from Earth's center:
+
+```csharp
+double bubble = DemoScenes.EarthRadius + DemoScenes.GroundBubbleTop, radius = DemoScenes.Shuttle.Hull.Length();
+return bubble + Math.Max(0.02 * bubble, radius) + radius;
+```
+
+where
+
+- `bubble` = the radius of `earth-surface`'s bubble, 6,421 km.
+- `radius` = the shuttle's bounding sphere, about 9 m.
+- `0.02 * bubble` = the 2 percent term of the exit margin, 128.4 km. It is far larger than the bounding sphere, so it is the margin.
+
+The exit therefore lies 178.4 km up, 128.4 km above the bubble's top. It lies 21.6 km below the parking orbit at 200 km. A bubble that ends 100 km up puts the exit at 229.4 km, above the parking orbit, and the shuttle never leaves `earth-surface` before the rendezvous autopilot's guard halts it. A parking orbit above 229.4 km changes the window, the transfer and many bounds. An engine that caps the 2 percent term is an engine change. So the bubble ends at 50 km, and the 2 percent term stays as it is.
+
+The climb passes the exit 232 s into its 321 s, with the ascent autopilot flying. The shuttle then lies 5.6 degrees along the orbit and 633 km from the axis, and climbs at 630 m/s. So the ground's turn there moves at 46 m/s. A scratch run of `scripts/demo-launch.json` on 2026-10-20 measured these values. The hand-off converts the pose by the ground's turn and the velocity by that speed. It converts the intents of the step too (ARCHITECTURE.md, the sync point's step 7b). The cabin's frame goes with its hull. The person, the pen, the panes, the lamps, the seat, the nozzle and the cameras go with the cabin's frame.
+
+No orbit of the demo comes back below 50 km: the parking orbit's periapsis lies within 5 km of 200 km (`DemoLaunchTests`), and the transfer runs from 199.3 to 400.5 km. So the shuttle hands off once, in the climb, and stays in `earth` to the hold.
+
+This is the first hand-off of a dynamic hull with a cabin frame out of a turning frame. Two tests check it, a small one first and then the run:
+
+- `TurningGroundHandOffTests` builds the scene `earth-system`. It spawns the real hull, `Shuttle.Body(BodyMotion.Dynamic)`, in `earth-surface`, 1 km below the exit's distance from Earth's center and 200 km from the axis. It moves at 1 km/s out from Earth's center and 1 km/s across, with its nose along that velocity. A test component gives it a throttle of 1/3 in every tick, 10 m/s² along the nose. A crate rests on the cabin's aft wall beside the engine's housing, where the thrust gives it weight. The test runs 120 ticks, and the hand-off falls near the middle.
+- The run test reads the run of `scripts/demo-launch.json` in `DemoLaunchTests`, whose log records every tick.
+
+Each checks:
+
+- The shuttle is in `earth-surface` before one tick and in `earth` from that tick on, and never comes back. In the run, the shuttle is at most 20 m above the exit's 178.4 km at the hand-off, in the climb, with the ascent autopilot in its climb. In a tick it climbs at most 17 m.
+- The test takes the ticks from 10 before the hand-off to 10 after it. In each, the shuttle's acceleration in `earth` lies within 0.01 m/s² of the gravity at its place plus the thrust along its nose. The acceleration is the second difference of its position in `earth` over the tick. The two axes differ by about 143 degrees at the hand-off. So a thrust that a step applies in the wrong axes misses by more than the thrust itself.
+- The cabin's proper acceleration stays within 0.01 m/s² of the thrust in the same ticks.
+- The hull's angular velocity in `earth` changes by less than 1e-4 rad/s across the hand-off, and its nose turns smoothly there.
+- The crate in the small test stays in the cabin's frame, and so do the belted person and the clipped pen in the run. Across the hand-off, the place of each in the cabin changes by less than 1 mm more than in the tick before.
+- The world logs no errors.
+
+If a check fails, the failure is an engine bug. The build stops and reports it with the measured values, and does not work round it.
+
+### The Sun and the Moon in the films
+
+The Sun and the Moon are drawn at their true sizes, as `SunAndEarth` draws them: each is about 0.5 degrees across from Earth, about 7 pixels in the 720-line picture. At the June solstice the Moon is a waning crescent, 45 degrees from the Sun as seen from Earth (`MoonOrbit`). Only 15 percent of its face is lit.
+
+Where they stand:
+
+| Body | From the pad, in the departure axes | Relative to the station's orbit |
+|---|---|---|
+| The Sun | 23.4 degrees up, 37.4 degrees from aft (+Z) toward starboard (+X) | 33.9 degrees out of the plane on the slot's side, at φ = -61.4 degrees |
+| The Moon | 18.8 degrees up, 11.3 degrees from aft toward port (-X) | 10.6 degrees out of the plane on the far side from the slot, at φ = 290 degrees |
+
+Seen from the pad, the two stand aft of the parked shuttle, 46 degrees apart. Seen from the orbit, the Moon stands near the zenith over the arrival point.
+
+- A new still view, `sky-camera`, in `earth-surface`, stands to starboard of the ramp, ahead of the parked nose: at (6, R + 8, -40), where R is Earth's radius. It looks toward the middle between the Sun's and the Moon's directions, 10 degrees lower. The scene computes both directions in the ground's axes at the world's time, as the pad view of the earth-system scene does. In its picture the Sun stands at the upper left above the terminal, and the Moon at the upper right above the shuttle. A scratch calculation of this design checked the three lines from the camera. The line to the Moon passes 8 m above the ramp's incline. The line to the Sun runs away from the ramp and 20 m above the terminal's roof. The line to the shuttle's roof passes 2 m above the ramp's foot.
+- A new film, `sky`, after `overview`, films 1 s from `sky-camera`. It takes its time from `approach`, whose cue reads the person's place. So the walk, the ignition and every later tick keep their ticks. The camera looks toward the Sun, so the parked shuttle shows its shaded side.
+- The rim camera turns with the station about the axis, and looks across the axis, 26 degrees toward the slot's side. So its view sweeps a cone round the axis once in 20.1 s. The cone passes 8 degrees from the Sun and 37 degrees from the Moon. The Moon and the Sun pass through the films `glide-rim` and `hold` with no new camera. The run test checks that some frames of `glide-rim` show each.
+- No other film is aimed at them. They show where a view happens to look.
+
+### The light
+
+`SunAndEarth` sets the sunlight to 2.5 and the dim light of space to 0.03, for the orbit scene. `demo-surface` sets its own light after it: the sunlight 1, and the world's default ambient light, as today. Every film of the demo was judged with that light. The light is the renderer's exposure, not a part of the system.
+
+Earth's drawn sphere of `SunAndEarth` casts shadows, as in the orbit scene. Earth's shadow then falls on the shuttle in the night, and no sunlight comes in through the cabin's glass there. The night films keep their cameras in the cabin. The build looks at a frame of `night` too, in which only the lamps light the cabin. Nobody measured what a caster of Earth's size does to the shadows of the pad (see "Not in this step" of step 4). The build looks at the shadows of the terminal, the tower and the shuttle on the slab in its screenshots of the ground. If Earth's shadow spoils them, that is a renderer matter: the build stops and reports it with the screenshots.
+
+The sphere has Earth's radius, and the slab's top lies at that radius at the pole. Away from the pole's vertex, the sphere's facets fall below the slab's top, by 0.86 m at the slab's edge. The drawn pad covers the vertex. The demo's own drawn `earth`, 1 m smaller, goes, and so does its own frame `sun`: `SunAndEarth` adds `sun`, `earth`, `earth-surface` and `moon` to the scene.
+
+### The cues
+
+Each cue reads in the frame of the thing that it measures against:
+
+| Cue | Today | After this step |
+|---|---|---|
+| `PersonOnTheGround`, for the walk through the terminal | The person in the shuttle's frame, which is the ground's | The person in `earth-surface`, by its scene id. The terminal's walls lie there. |
+| `PersonInCabin`, `InsideTheCabin`, `PersonToPenCamera`, `HandToPen` | The cabin | The cabin |
+| `Rise`, `Altitude` | The shuttle in its frame | The shuttle in `earth`. Both read a distance from Earth's center, which is the same in both frames. |
+| `InEarthsShadow` | The shuttle and the frame `sun` in the shuttle's frame | The shuttle and the Sun's center in `earth` |
+| `Apoapsis` | The shuttle's state in its frame | The shuttle's state in `earth`. A velocity in `earth-surface` misses the ground's turn. |
+| `ToArrivalPoint`, `ToStation`, `NoseFromStation` | The shuttle and the station in the shuttle's frame | In `earth` |
+| `CabinWeightless` | The cabin's proper acceleration | The same. It has no frame. |
+
+The lengths and the limits of the films of the night, by the model, after the nights move:
+
+| Film | Ends | Length before this step | Model length | Measured after this step | Limit |
+|---|---|---|---|---|---|
+| `phasing` | The shuttle is in Earth's shadow. | 1,003 s | About 490 s | 491 s | 1,000 s |
+| `night` | The autopilot is in `Transfer`. | 586 s | About 1,100 s | 1,102 s | 2,300 s |
+| `transfer-night` | The shuttle is out of Earth's shadow. | 1,468 s | About 980 s | 972 s | 2,000 s |
+| `transfer` | The shuttle is within 10 km of the arrival point. | 890 s | About 1,380 s | 1,386 s | 2,800 s |
+
+The four films keep their cameras and their film intervals. `phasing` and `night` together still last from the order to the window. `transfer-night` and `transfer` together still last from the burn to 10 km before the arrival point. Their frames change from 2,553 to 2,671, and `sky` adds 60. The builder sets each limit to twice the measured length, rounded up to 100 s.
+
+### Reads and writes, and their frames
+
+| Component or cue | Reads, and their frame | Writes, and their frame |
+|---|---|---|
+| `AscentAutopilot` | Its pose and velocity in `earth`, the frame of its `LaunchPlane`. Its rotation in `self.Frame`, for the turn of its target. Earth's G·M from the point gravity of `earth`. | `Throttle`, with no frame. `AttitudeTarget`, in the axes of `self.Frame`, turned from earth's. |
+| `RendezvousAutopilot` | Its pose and velocity, and the station's, in `self.Frame`, which its guard holds to the station's frame, `earth`. Earth's G·M from `self.Frame`. | `Throttle`, `AttitudeTarget` and `Translation`, in the axes of `self.Frame`, which are earth's |
+| `AttitudeAutopilot` | Its rotation and angular velocity in `self.Frame` | A torque in the axes of `self.Frame` |
+| `MainEngine`, `TranslationThrusters` | Its rotation in `self.Frame` | A force in the axes of `self.Frame` |
+| `Passenger`, `Clip`, `Walker` | As today: the cabin, the cabin's felt gravity, and the walker's waypoints in `earth-surface` and the cabin | As today |
+| `KeplerMotion` of `earth`, the station and the Moon, `SpinMotion` of `earth-surface` | Their parent's G·M | Their motion intents |
+| The cues of the walk | The person in `earth-surface` and in the cabin | None |
+| The cues of the flight | The shuttle, the station and the Sun in `earth`, and the cabin's proper acceleration | None |
+| The scene's build of `sky-camera` | The Sun's and the Moon's directions in the ground's axes at the world's time | The camera's pose in `earth-surface` |
+
+### Readers and writers
+
+Step k is the physics step that runs beside tick k. A tick reads the state at the end of step k - 1. The intents that it writes act in step k + 1.
+
+| Value | Writer, and when | Readers, and when |
+|---|---|---|
+| `EarthDate.GroundTurn`, `EarthDate.Ground` | Code: `DemoSurface.Date` | `SunAndEarth`, at the scene's build. The pad view of the earth-system scene. The tests. |
+| `DemoSurface.GroundTurnAtDeparture`, `DemoSurface.DepartureAt`, `DemoStation.DepartureLead` | Code | `DemoSurface.Date`, `DemoSurface.LaunchPlaneNormal` and `DemoStation.Orbit`, at the first use of their statics. The tests. |
+| `DemoSurface.LaunchPlaneNormal`, in earth's axes | Code | The scene, which builds the `LaunchPlane` for the ascent autopilot's constructor. The tests. |
+| `earth-surface`'s pose in `earth` | Its `SpinMotion`'s sample for step k, written in tick k - 1, recorded at step 2 after step k | Physics in step k. The ascent autopilot's two rotations of the hull, in tick k + 1. The renderer. |
+| The shuttle's home frame | Physics, by the hand-off in step k. The tree takes it at step 2 after step k. | Every reader of `self.Frame` in tick k + 1, and the cues between ticks |
+| The shuttle's pose and instant velocity in `earth` | Physics in step k, through the frame's record at step 2 after it, converted from `earth-surface` while the shuttle is there | The ascent and rendezvous autopilots in tick k + 1. The cues and the tests, between ticks. |
+| The shuttle's rotation in `self.Frame` | The same record | The ascent autopilot's turn of its target, the attitude autopilot, the main engine and the thrusters, in tick k + 1 |
+| `AttitudeTarget` | The ascent autopilot (priority 0) and the rendezvous autopilot (1), in tick k, in the axes of `self.Frame` | The attitude autopilot (10), in tick k. Its torque acts in step k + 1, converted by a hand-off at the sync point between. |
+| The Sun's and the Moon's places | The Sun's root frame does not move. `KeplerMotion` moves `earth` and the Moon. | The cue `InEarthsShadow`, between ticks. `sky-camera`'s aim, at the build. The run tests. The renderer. |
+
+### The flow per kind of entity
+
+| Entity | What moves it | Its components | Its frame | What it reads |
+|---|---|---|---|---|
+| `sun` | Nothing. It is the root. | None | None | Nothing |
+| `earth` | The samples of its `KeplerMotion` round the Sun | `KeplerMotion` | `sun` | The Sun's G·M |
+| `earth-surface` | The samples of its `SpinMotion`, from the date's ground turn | `SpinMotion` | `earth` | Nothing |
+| `moon` | The samples of its `KeplerMotion` | `KeplerMotion` | `earth` | Earth's G·M |
+| The slab, the terminal, the ramp and the tower | Nothing. They rest in `earth-surface`, which turns. | None | `earth-surface` | Nothing |
+| The pad's drawing, the lamps of the terminal | Nothing | None | `earth-surface` | Nothing |
+| Shuttle: a hull that owns the cabin's frame | Parked: nothing, a static hull in `earth-surface`. Then physics, by the forces of its actuators. | As today. The ascent autopilot takes its `LaunchPlane`. | `earth-surface` to 178.4 km up, then `earth`, each time in a falling numeric frame of its own | The ascent autopilot: its state in `earth`. The rendezvous autopilot: its state and the station's in `earth`. The actuators: its rotation in its frame. |
+| Person | The walker on the ground, then the passenger's belt and float | `Walker`, `Passenger` | `earth-surface`, then the cabin | As today |
+| Pen | The clip, then physics | `Clip` | The cabin | As today |
+| Station: a kinematic hull on rails that owns the station's frame | The samples of its `KeplerMotion`, the first from the spawn | `KeplerMotion` | `earth`, in a following frame of its own | Earth's G·M |
+| The station's parts | Nothing | None | The station's | Nothing |
+| Still cameras | Nothing | None | `earth-surface`, the cabin's or the station's | Nothing |
+| `follow-camera` | `ChaseCamera`, as today | `ChaseCamera` | It follows the person. | As today |
+| The script | It posts orders between ticks. | | | |
+
+### Analogues
+
+| New value | Its analogue | What the new value takes from it |
+|---|---|---|
+| `EarthDate.GroundTurn` | `EarthDate.Longitude` | A place of the system at the world's time 0, from which the rails move it on |
+| `EarthDate.Ground` | `EarthOrbit(date)` | The rails of one frame of the system, derived from the date |
+| `DemoSurface.GroundTurnAtDeparture` | `LaunchRamp.Up` and `DemoSurface.LaunchPlaneNormal` | One scene constant that the ramp, the climb and the station share |
+| `DemoStation.DepartureLead` | The live world's `Timetable.DepartureLead` | The ground departure 18 s before the station's pass |
+| `LaunchPlane(Frame, Normal)` | The station's entity in the rendezvous autopilot's constructor | A constructor value that names what a layer reads |
+| The turn of the ascent's target into the axes of `self.Frame` | `TranslationThrusters`, which turns a force into the hull's axes and back | A direction that changes axes by a rotation that the component reads |
+| The slab in `earth-surface` | The slab of `EarthSurface` | The same static slab, now in a frame that a builder gives it |
+| `sky-camera` | The pad view of the earth-system scene | A still view on the ground, aimed by directions in the ground's axes at the world's time |
+| `TurningGroundHandOffTests` | `Scenes.ApproachToBubble` and `DemoStationTests.AShuttleAtTheHoldPointStaysInEarth` | A real hull in a real scene, flown across a bubble, with the real Jolt backend |
+| The station's orbit in `earth` | The station of the earth-system scene | The demo's station on its rails in `earth` |
+
+### Built from scratch, compared
+
+A design from scratch knows the Earth system from the start. It builds the demo in `SunAndEarth` from its first ticket, at a date that sets both the season and the ground's turn. Its launch plane lies in `earth`, and the station's plane is chosen for the light. Every layer of the flight program reads in the frame of what it flies to. It turns its writes into the axes of its own frame. This design ends there, with two differences:
+
+- From scratch, the rendezvous autopilot reads in the station's frame and turns its writes, as the ascent autopilot does. So it needs no guard for its frame. Here it keeps its reads in `self.Frame` and its guard. After the hand-off the two give the same reads, and the docking of step 5 builds on the guard.
+- From scratch, the plane is chosen once for the light at the pad and in orbit. Here it keeps the old design's β. So the sun on the wheel, the lengths of the nights and the window stay as the run measured them.
+
+### Tests
+
+Every test of physics runs the real World on the real Jolt backend, in `tests/Tertius.Host.Tests`. Each implementation brief asks for hand mutations: for each new test, the agent breaks the production line that the test protects, watches the test fail, and restores the line.
+
+Pure math, with no World:
+
+- `EarthSystemTests`, or a new `EarthDateTests`:
+  - `ADatesGroundStartsAtItsTurnAndTurnsAtTheSiderealRate`: `EarthDate.Ground` at time 0 is the turn `GroundTurn` about +Y, and one sidereal day later the same.
+  - `TheEquinoxAndTheSolsticeKeepTheGroundTurnZero`.
+- `DemoStationTests`:
+  - `AtTheDepartureTheRampLiesInTheStationsPlaneAlongItsMotion`: `LaunchRamp.Up`, turned by the date's ground rotation at `DepartureAt`, lies within 1e-9 of the plane of `DemoStation.Orbit`. It points with the station's velocity over the pole at `OverPadAt`.
+  - `TheLaunchPlaneNormalIsTheStationsOrbitNormal`.
+  - `TheSunLightsTheSlotsFaceAt56DegreesFromTheAxis`: the angle between the station's +Y in `earth` and the Sun's direction from Earth at the world's time 0 lies within 0.5 degrees of 56.1. It locks in the choice of the plane by the behavior that depends on it.
+  - `TheStationPassesOverThePadAtOverPadAtMovingTheWayOfTheClimb`, in `earth`.
+
+On the World, in a scene that a test builds:
+
+- `TurningGroundHandOffTests`, as "The hand-off" describes:
+  - `AThrustingShuttleLeavesTheTurningGroundOnceThroughTheTopOfItsBubble`.
+  - `TheShuttlesAccelerationInEarthStaysThatOfGravityAndThrustThroughTheHandOff`.
+  - `TheCabinsProperAccelerationStaysThatOfTheThrustThroughTheHandOff`.
+  - `ACrateOnTheCabinsAftWallStaysInPlaceThroughTheHandOff`.
+  - `TheWorldLogsNoErrors`.
+- `FlightControlTests`:
+  - `TheAscentAutopilotAimsInTheFrameOfItsPlaneFromAHullInATurnedFrame`: a hull in a frame turned 90 degrees about +Y from the frame of the `LaunchPlane`, in the autopilot's `Orbit` case. A recording component at priority 5 keeps the last `AttitudeTarget`. Turned back into the plane frame's axes, its nose lies within 1e-6 rad of the velocity in the plane's frame.
+  - `TheAscentAutopilotReadsItsStateInTheFrameOfItsPlane`: in the `Climb` case, from the same hull, the throttle and the target's nose are those of `AscentGuidance` on the state in the plane's frame.
+- `DemoSurfaceTests`, on the scene `demo-surface` without a script:
+  - `TheGroundAndTheShuttleStartInEarthSurfaceAtTheNorthPole`: the slab, the terminal, the ramp, the tower, the shuttle and the person are in `earth-surface`. `earth-surface` is in `earth`, which is in `sun`.
+  - `EarthSurfaceTurnsSoThatTheRampLiesInTheStationsPlaneAtTheDeparture`: the world runs to the tick of `DepartureAt`. Then `LaunchRamp.Up`, turned by `earth-surface`'s rotation in `earth`, lies within 0.001 degrees of the station's plane.
+  - The existing tests, with the person and the shuttle in `earth-surface` by its scene id.
+- `DemoStationTests`: `TheStationOrbitsInTheLaunchPlane400KmUp`, `TheStationTurnsAboutItsAxisAtTheRateThatGivesOneGravityOnTheFloor` and `TheStationFallsFreelyFromItsFirstStep` read in `earth`. `AShuttleAtTheHoldPointStaysInEarthSurface` becomes `AShuttleAtTheHoldPointStaysInEarth`.
+- `RendezvousAutopilotTests` keep their root frame with Earth's point gravity, the analogue of `earth`.
+- `EarthSystemTests` stay green with the turned station and the demo's date.
+
+The runs of the checked-in scripts:
+
+- `DemoLaunchTests`, on `scripts/demo-launch.json`, whose `LaunchLog` records in `earth`:
+  - The hand-off's tests: `TheShuttleLeavesEarthSurfaceOnceAtTheExitOfItsBubbleInTheClimb`, `TheShuttlesAccelerationInEarthStaysSmoothThroughTheHandOff`, `TheCabinsProperAccelerationStaysSmoothThroughTheHandOff`, `TheNoseTurnsSmoothlyInEarthThroughTheHandOff` and `ThePersonAndThePenKeepTheirPlacesInTheCabinThroughTheHandOff`.
+  - `TheRampLiesInTheStationsPlaneAtTheIgnition`: at the tick of the ignition, the incline in `earth` lies within 0.01 degrees of the station's plane.
+  - `TheAutopilotReachesAnOrbitWhosePeriapsisIsAboveTheTopOfTheAir` finds the shuttle in `earth`. `TheClimbEndsInTheLaunchPlane` reads in `earth`. `InOrbitThePenFloatsFreeInTheMiddleOfTheCabinUntilThePersonTakesIt` measures the pen's line in earth's axes, which do not turn. So the Coriolis term of the ground's turn, which its comment names, no longer bends the line.
+- `BlueDanubeRendezvousTests`:
+  - `TheShuttleStaysInEarthSurfaceThroughTheWholeStep` becomes `TheShuttleStaysInEarthThroughTheWholeStep`.
+  - `TheWindowOpensBetween115And125DegreesAlongTheOrbit`, with φ as this section defines it.
+  - `TheBurnFallsInEarthsShadow`: in every tick of the burn, the cue `InEarthsShadow` holds.
+  - `TheArrivalFallsInSunlight`: at the first tick of the brake, the station lies outside Earth's shadow, and the sun stands at least 30 degrees above its horizon. The model gives 55.
+  - `TheMoonAndTheSunPassThroughTheRimCameraInGlideRim`: the Moon's center lies in the picture (`Picture.Project`) in some frame of `glide-rim`, and the Sun's in some frame. In those frames the line from the camera to each misses Earth's sphere.
+  - The rest stay as they are, with their reads in `earth`.
+- `BlueDanubeFilmTests`:
+  - `TheSkyCameraShowsTheSunTheMoonAndTheShuttle`: in every frame of `sky`, the centers of the Sun, the Moon and the shuttle lie in the picture. A ray from the camera toward the Sun, and one toward the Moon, meets no body of `earth-surface`.
+- `BlueDanubeScriptTests` stays as it is. So `scripts/blue-danube.json` is written again.
+- `DemoFollowCameraTests`, `LaunchRampTests`, `PenClipTests`, `PassengerTests`, `WalkerTests` and `ShuttleTests` stay green. If a measured value leaves its test's range, the agent reports it and does not widen the range.
+
+The screenshots come from one headless run of the long script with `--video`, through `ffmpeg-headless`. The agent looks at each first:
+
+| Screenshot | Camera | Film and frame |
+|---|---|---|
+| The parked shuttle under the low Sun and the crescent Moon | `sky-camera` | The last frame of `sky` |
+| The pad in the low sun, with the long shadows of the terminal, the tower and the shuttle | `pad-camera` | The last frame of `on-the-pad` |
+| The climb after the hand-off, with Earth's grid turning below | `climb-camera` | The last frame of `climb-low` |
+| The station's face, lit at an angle, through the nose glass | `window-camera` | The last frame of `glide-window` |
+| The Moon behind the hub, from the rim | `rim-camera` | A frame of `glide-rim` that shows the Moon, which the run test finds |
+
+### Cost
+
+- Ticks: the run keeps its ticks. `sky` takes its time from `approach`, and the window does not move.
+- The system adds the Sun's root frame, `earth` on Kepler rails, the turning `earth-surface` and the Moon: two Kepler solutions and one spin in each tick, a few microseconds.
+- The turning `earth-surface` gives the rotation terms to the bodies of its system that are awake: the person on the walk and the shuttle up to 178.4 km. The rest of its bodies are static.
+- The renderer: the Sun's sphere of 64 by 32 segments and the Moon's of 128 by 64 add about 20,000 triangles. Earth's sphere of 256 by 128 replaces the demo's own of the same size. Earth now casts shadows, so its 65,000 triangles enter the shadow pass.
+- The build measures the rehearsal against 129 s and the headless video against 117 s, from ter-4xkz. A change of more than 10 percent goes into the report with its cause. On 2026-10-20 the rehearsal took from 97 to 123 s and the video 114 s, at a load average from 9 to 13, for 15,895 frames.
+
+### Order of the work
+
+Each part commits on its own, with its tests green. A part that changes the run writes `scripts/blue-danube.json` again.
+
+| Part | Work | Depends on |
+|---|---|---|
+| 1. The hand-off test | `TurningGroundHandOffTests`, on the scene `earth-system` as it is today. If it fails, the build stops and reports the engine bug. | None |
+| 2. The date | `EarthDate.GroundTurn` and `EarthDate.Ground`, `SunAndEarth` on them, the pad view of `earth-system` on `date.Ground`, and their tests | None |
+| 3. The plane | `GroundTurnAtDeparture`, `DepartureLead`, `DepartureAt` and `DemoSurface.Date`. `LaunchPlaneNormal` in earth's axes, and the turned `DemoStation.Orbit`. `earth-system` on the demo's date. The docs of `DemoStation.Spawn` and `DemoStation.Orbit`. The pure tests of `DemoStationTests`. | 2 |
+| 4. The ascent's frame | `LaunchPlane`, the ascent autopilot's reads in its frame and the turn of its target, `Shuttle.FlightControls` with the plane, and the tests of `FlightControlTests` | None |
+| 5. `demo-surface` in the system | `SunAndEarth` with the demo's date in place of `EarthSurface`, the demo's own `earth` and its `sun`. The slab in `earth-surface` through a builder that `EarthSurface` shares. The demo's light. The station in `earth`. `sky-camera`. The cues in `earth`. The tests of `DemoSurfaceTests`, `DemoStationTests` and `DemoLaunchTests`, with the hand-off's run tests. `scripts/demo-launch.json` and `scripts/demo-surface.json` run unchanged. | 1, 3, 4 |
+| 6. The long script | `sky` and the new limits. The script written again. The tests of `BlueDanubeFilmTests` and `BlueDanubeRendezvousTests`. The video, the screenshots and the measured times. The lines below. | 5 |
+
+```mermaid
+graph LR
+  P1[1 hand-off test] --> P5[5 demo-surface in the system]
+  P2[2 date] --> P3[3 plane]
+  P3 --> P5
+  P4[4 ascent's frame] --> P5
+  P5 --> P6[6 long script]
+```
+
+Part 1 comes first, because it carries the one risk of the step: if the engine fails the hand-off, the rest waits for the user.
+
+### Decisions
+
+Only engine changes go to the user (the user's rule of 2026-10-18). So this design settles every demo choice:
+
+| Question | Decision | Reason |
+|---|---|---|
+| Where the ground lies | In the turning `earth-surface` at the north pole, at today's places | The pole lies on the axis of the turn, so the pad keeps its place in `earth` and only turns about its up. The walk, the boarding and the ramp keep their numbers. |
+| The date | The June solstice, as the earth-system scene | The Sun stands 23.4 degrees over the pole all day, so the pad has daylight at every ground turn. |
+| How the date sets the time of day | A second field of `EarthDate`, the ground's turn at the world's time 0 | A date says where Earth is on its orbit and how far the ground is turned. One value builds both frames. |
+| The ground's turn | The ramp lies in the station's plane at the departure, 20 s, `OverPadAt` less the live world's 18 s | The ramp's incline leads the shuttle into the station's plane, as a real launch flies into the plane of its target. The live world's turntable will start at that angle. |
+| The station's plane | Through the pole, turned 142.6 degrees from the plane of the earth-system scene, with the sun behind the launch | It keeps the old β of 33.9 degrees. So the sun meets the slot's face at 56 degrees, and the nights keep their lengths. The window falls in the night and the arrival in the day. The plane with the sun in it lights the wheel edge-on. |
+| `OverPadAt`, the window, the arrival point | Unchanged | The climb's path in `earth` is the old path turned with the plane, and the run test pins the window. |
+| Where the guidance reads | In `earth` | Two-body math holds only in a frame that does not turn. In `earth-surface` the velocity misses the ground's turn. |
+| How the ascent autopilot knows `earth` | `LaunchPlane(Frame, Normal)` in its constructor | A normal has no meaning without its axes, so the two go in one value. |
+| Where the ascent autopilot writes | In the axes of `self.Frame`, turned from earth's by the hull's two rotations | Writes stay relative to `self.Frame`, the engine's rule. The two rotations come from one record, so they agree. |
+| The rendezvous autopilot | Unchanged, with its reads in `self.Frame` and its guard | After the hand-off its frame is `earth`, and a second frame beside the station's can disagree with it. The docking builds on the guard. |
+| The actuators | They read in `self.Frame`, as today | They turn and push the hull in its own frame. The ground's turn costs them 0.005 degrees. |
+| The cues | Each reads in the frame of the thing that it measures against: the walk in `earth-surface`, the flight in `earth` | The terminal lies in `earth-surface`, and the orbit in `earth`. |
+| The top of `earth-surface`'s bubble | 50 km, the stratopause, as `GroundBubbleTop`. `AtmosphereTop` stays 100 km, the top of the air. | By rule 2 of the hand-off, the exit then lies 178.4 km up, below the parking orbit, so the shuttle hands off in the climb. A bubble 100 km up puts the exit at 229.4 km, above the parking orbit. A higher parking orbit retunes the window and the transfer. A cap on the 2 percent term is an engine change. |
+| The hand-off | The engine's rule, with no help from the demo, checked first in a small test and then in the run | It is the first hand-off of a dynamic hull with a cabin out of a turning frame. A failure is an engine bug. |
+| The Sun and the Moon | At their true sizes. One new film, `sky`, aims at both over the parked shuttle. They pass through the rim camera's films by the geometry. | The camera follows the person. Only on the ground do both stand still in a view, and from there they stand 46 degrees apart, aft of the shuttle. |
+| The time of `sky` | 1 s from `approach` | The walk's cue reads the person's place, so every later tick keeps its tick. |
+| The light | The demo keeps its sunlight 1 and the default ambient light | Every film was judged with that light. |
+| Earth's shadow | On, as `SunAndEarth` draws Earth | The true system. The night films stay in the cabin. A spoilt shadow on the pad goes to the user as a renderer matter. |
+| The demo's own Earth and Sun | They go | `SunAndEarth` draws both, and two Earths draw over each other. |
+| The limits of the four films of the night | Twice their measured lengths | The rule of "Sections of the long script" |
+
+### Engine changes
+
+None. Every part lives in `src/Tertius.Demo`, `scripts/` and the demo's tests. Two findings of the build go to the user:
+
+- A failed check of the hand-off: an engine bug, with the measured values.
+- Shadows on the pad that Earth's shadow spoils: a renderer matter, with the screenshots.
+
+### Lines elsewhere that change
+
+The build corrects each line below in part 6, or in the part that changes the code it describes.
+
+This plan, the lines that say that Earth does not turn, or that the launch flies from a root frame that does not turn:
+
+- "What exists, and what the demo adds", the row "Ground at the pad": the slab lies in the turning `earth-surface`, over the sphere of `SunAndEarth`.
+- "The station and the rendezvous", "Terms used in this section": the launch plane, now in `earth` with its normal (0.795, 0, 0.607). The station's axis, fixed in `earth` because `earth` does not turn. The angle φ, toward the ramp's incline at the departure. The velocity to gain and a target point's relative state, in `earth`.
+- "The station": "In `earth-surface`, the station's hull is kinematic" becomes `earth`. The code of `DemoStation.Orbit` and its `where` list take the node and the tilt turned by `GroundTurnAtDeparture`. Over the pad the station moves along the ramp's incline at the departure, and its axis lies along the departure axes' +X. "The orbit stays in `earth-surface`" becomes `earth`.
+- "Why the axis points along the orbit's normal": the axis is fixed in `earth`. The sun's direction is (0.557, 0.398, 0.729) in the departure axes.
+- "The launch plane": `r` and `v` in `earth`, and `normal` in earth's axes.
+- "The orbits, the window and the times": "Why the window falls at φ = 120 degrees" takes the new shadows. The shuttle is in shadow from φ = 45.8 to 191.5 degrees, and the station from 52.7 to 184.6 degrees. At the arrival the sun stands 55 degrees over the station's horizon.
+- "The phases": the third reason to halt names `earth`, the frame that does not turn.
+- "Reads and writes, and their frames": every read is in `self.Frame`, which is `earth` after the hand-off, 178.4 km up.
+- "The transfer guidance": `stationPosition`, `stationVelocity`, `shuttlePosition` and `axis` in `earth`.
+- "Tolerances and the end state": the shuttle holds in `earth`.
+- "Sections of the long script": the measured lengths and limits of `phasing`, `night`, `transfer-night` and `transfer`. The cue of Earth's shadow reads in `earth`. "The demo's Earth casts no shadow" becomes: Earth casts its shadow, and the night is still filmed from the cabin.
+- "Readers and writers" and "The flow per kind of entity": the shuttle's pose and velocity in `earth`. The shuttle in `earth-surface` to 178.4 km and then in `earth`. The station in `earth`, with the G·M of `earth`.
+- "Built from scratch, compared": the line on Earth's shadow.
+- "Tests": `AShuttleAtTheHoldPointStaysInEarthSurface` and `TheShuttleStaysInEarthSurfaceThroughTheWholeStep`, renamed for `earth`. The root frame of `RendezvousAutopilotTests` is the analogue of `earth`.
+- "Decisions": "Where the shuttle holds" in `earth`, and "The night", whose reason is no longer that Earth casts no shadow.
+- "Not in this step": the item on Earth's shadow.
+- "The shuttle's tram shape and glass canopy", "The cameras" and "The flow per kind of entity": the frames of the still cameras add `sky-camera` in `earth-surface`.
+- "The long script": the table of sections gets `sky`, and the measured run times.
+- "Physics notes": "The launch flies from the root frame `earth-surface`, which does not turn" becomes: the launch flies from the turning `earth-surface`. Numeric frames give the climb the rotation terms of the ground's turn there (`ter-vja8`), and the shuttle leaves it 178.4 km up.
+
+The code's docs:
+
+- `DemoSurface`: the class's summary, on the ground in the root frame that does not turn, the drawn `earth`, and the frame `sun`. `LaunchPlaneNormal`, in earth's axes. `ShuttleParked`.
+- `DemoStation.Spawn` and `DemoStation.Orbit`, which still name `earth-surface` (from ter-rlks), and `OverPadAt`, which names the ignition.
+- `AscentAutopilot`, on the frame of its reads and the axes of its plane's normal. `AscentGuidance`, `TransferGuidance` and `ApproachGuidance`, on the frame of their states. `RendezvousAutopilot`'s remarks, "as `earth-surface` does".
+- `Shuttle.ParkingOrbitRadius`, "in `earth-surface`".
+- The docs of the cues in `BlueDanube` that name `earth-surface`.
+- `EarthDate`, and the earth-system scene's summary.
+- The comments of `DemoLaunchTests`, `DemoStationTests` and `BlueDanubeRendezvousTests` that name `earth-surface` as the frame of the flight.
+
+ARCHITECTURE.md does not change, because nothing in the engine changes.
+
+The docking (ter-ftnj) and the exit (ter-y0e5) run on other branches. After this step, the station's axis is no longer +X of `earth-surface`, and the shuttle holds in `earth`. The ticket that merges second changes the tests of the docking and the exit that read the old frames.
+
+### Not in this step
+
+- The live world's turntable. Its home angle is the ramp's angle of this design.
+- A film of the night from outside. Earth now casts its shadow, so the edit or a later ticket can try one.
+- The Moon's gravity and the Sun's tide. The engine applies no tidal gravity in a semantic frame.
+- A sky. The demo adds none (user, 2026-10-18).
+
 ## The long script
 
 Step 1 of "Order of the work", as ticket ter-2n31 built it in the Demo: the generator of the long script, the chase camera, and the frame time of the demo scene (see change 1, "Measured for the demo scene"). Nothing in the engine changed.
@@ -1330,13 +1814,14 @@ dotnet run --project src/Tertius.Demo -- --generate scripts/blue-danube.json
 dotnet run -c Release --project src/Tertius.Demo -- --script scripts/blue-danube.json --headless --out runs/danube --video runs/danube/blue-danube.mkv --fps 60
 ```
 
-The first command rehearses the run and writes the script. It prints each film with its frames, its film interval and the second of the run at which it starts. With the rendezvous, the rehearsal took 107 s on 2026-10-20, against about 10 s before. The second makes the video: on 2026-10-20 it took 110 s, at a load average from 3.7 to 6.5, for the 15,806 frames and 292,242 ticks, 4,871 s of the simulation and 263 s of video. Before the rendezvous, in the last two runs of 2026-10-19, it took 22 s and 24 s for 4,210 frames and 23,101 ticks. With the glass canopy of ter-4xkz, it took 117 s on 2026-10-20, at a load average from 4 to 5, for 15,782 frames. The test `BlueDanubeScriptTests` runs the first command and checks that its output equals the checked-in `scripts/blue-danube.json`, so the two cannot drift. A change of the scene, of the engine's timing or of the sections fails the test until the script is written again.
+The first command rehearses the run and writes the script. It prints each film with its frames, its film interval and the second of the run at which it starts. With the rendezvous, the rehearsal took 107 s on 2026-10-20, against about 10 s before. The second makes the video: on 2026-10-20 it took 110 s, at a load average from 3.7 to 6.5, for the 15,806 frames and 292,242 ticks, 4,871 s of the simulation and 263 s of video. Before the rendezvous, in the last two runs of 2026-10-19, it took 22 s and 24 s for 4,210 frames and 23,101 ticks. With the glass canopy of ter-4xkz, it took 117 s on 2026-10-20, at a load average from 4 to 5, for 15,782 frames. In the Earth system of ter-yhu8, the rehearsal took from 97 to 123 s and the video 114 s on 2026-10-20, at a load average from 9 to 13, for 15,895 frames. The test `BlueDanubeScriptTests` runs the first command and checks that its output equals the checked-in `scripts/blue-danube.json`, so the two cannot drift. A change of the scene, of the engine's timing or of the sections fails the test until the script is written again.
 
 The sections today, as `BlueDanube.Sections` lists them. The frames of each film and the second at which it starts come from the run, so the generator prints them, and this table does not copy them:
 
 | Film | Camera | Ticks per frame | Ends |
 |---|---|---|---|
 | `overview` | `overview` | 1 | After 1.5 s |
+| `sky` | `sky-camera` | 1 | After 1 s. The low Sun and the crescent Moon over the parked shuttle. It takes its time from `approach`. |
 | `approach` | `follow-camera` | 1 | The person is 1 m inside the terminal's entrance |
 | `terminal` | `terminal-camera` | 1 | The person is 1 m outside the gate |
 | `pad` | `follow-camera` | 1 | The person is within 1.5 m of `Shuttle.OutsideHatch` |
@@ -1410,7 +1895,7 @@ One more limit comes from the attachment. It keeps the offset in the subject's a
 - Weak gravity in the barrel does not return by itself while the ship coasts. A ship that matches the spin and moves out from the axis must keep pushing toward the axis to stay on its rotating path. Its contents then feel that push as weight, which grows with the radius: ω² r. The docking autopilot holds the ship on that path.
 - A character that slides down a spoke feels the Coriolis force press it against one wall of the chute, about 2 ω v: 12 m/s² at 20 m/s with ω = 0.313 rad/s. The chute's friction needs tuning, and the fall speed comes near the threshold of a numeric frame for a thrusting group, 50 m/s.
 - The station's bubble must be at least twice the size of the ship's bubble so that it can hold it. A sphere suits the wheel better than a flat ellipsoid.
-- The launch flies from the root frame `earth-surface`, which does not turn, so it needs no spin gravity in numeric frames inside turning frames (`ter-vja8`).
+- The launch flies from the turning `earth-surface`. Numeric frames give the climb the rotation terms of the ground's turn there (`ter-vja8`), and the shuttle leaves it 178.4 km up, where the exit margin of its bubble ends.
 
 ## Proof in the video
 
@@ -1985,7 +2470,7 @@ Why a playback, and not a component or the Host:
 - The playback is the seam that the runner already calls at exactly the moments that the video shows, with the frame's name. `BlueDanubeFilmTests` reads the long script through a playback in the same way.
 - The Host is engine code. A log beside the video sink in the same run needs a Host change. A second run takes about as long as the rehearsal, under two minutes today, and it changes nothing in the engine.
 
-Why one row for each frame and not for each tick: the video shows only the captured ticks. A row for each frame needs no join by tick. The log is also 18 times smaller than a log with a row for each tick: 15,782 frames against 292,467 ticks today.
+Why one row for each frame and not for each tick: the video shows only the captured ticks. A row for each frame needs no join by tick. The log is also 18 times smaller than a log with a row for each tick: 15,895 frames against 292,467 ticks in the Earth system of ter-yhu8.
 
 Each row holds raw quantities from the engine, and the edit derives the rest:
 
@@ -1993,12 +2478,12 @@ Each row holds raw quantities from the engine, and the edit derives the rest:
 |---|---|
 | `frame` | The capture's name, such as `climb-low-000012` |
 | `tick` | `World.TickNumber` at the capture |
-| `x`, `y`, `z` | The person's position in `earth-surface`, in meters. `earth-surface` is the root frame at Earth's center, and it does not turn. |
-| `speed` | The length of the person's velocity in `earth-surface`, in m/s |
+| `x`, `y`, `z` | The person's position in `earth`, in meters from Earth's center. `earth` has its origin at Earth's center, and it does not turn. |
+| `speed` | The length of the person's velocity in `earth`, in m/s |
 | `station` | The distance from the person to the station's center, in meters |
 | `felt` | The length of the felt gravity at the person's place, `FrameTree.FeltGravity` of the person's frame at its position there, in m/s² |
 
-Every readout is about the person, in the one frame `earth-surface`. The camera follows the person, and from the boarding on the person rides in the shuttle, so the readouts tell the shuttle's flight too. The log writes each number in the round-trip format, so a read of the log gives back the same doubles.
+Every readout is about the person, in the one frame `earth`, as the guidance reads (see "The demo in the Earth system"). The ground's frame `earth-surface` turns once per sidereal day. A speed in it misses the ground's turn: by up to 480 m/s in the parking orbit, which passes over the pole. So the speed and the textbook check of the parking orbit read in `earth`. The altitude, the distance to the station and the felt gravity are the same in both frames. On the ground the person walks at most 40 m from the axis of the turn, where the ground moves at 3 mm/s in `earth`. The camera follows the person, and from the boarding on the person rides in the shuttle, so the readouts tell the shuttle's flight too. The log writes each number in the round-trip format, so a read of the log gives back the same doubles.
 
 ### The readouts on the frame
 
@@ -2086,7 +2571,7 @@ The other films are on the ground, in the cabin, at the pen and at the windows, 
 
 The trims stay in the rules of the cut list. The docking and the exit can have frames that show nothing, and the rule above decides them.
 
-The stretches of today hold all 15,782 frames of the master, 263.0 s at 60 frames per second. With the cards, the final video lasts 276.0 s, 4 minutes 36 s. The docking and the exit add their own stretches.
+The stretches of today hold all 15,895 frames of the master, 264.9 s at 60 frames per second, with the film `sky` of the Earth system (ter-yhu8). With the cards, the final video lasts 277.9 s, 4 minutes 38 s. The docking and the exit add their own stretches.
 
 ### The title cards and the transitions
 
@@ -2126,13 +2611,13 @@ One proof and one fix of the light needed engine changes. The user settled both 
 
 The recording: "The Blue Danube" by Johann Strauss II, played by the United States Marine Band and conducted by Albert F. Schoepper. It is a work of the US government, and so it is in the public domain. It comes from Wikimedia Commons, the file "An der schönen, blauen Donau" performed by the U.S. Marine Band.mp3: 13,183,232 bytes, MP3 at 192 kbit/s, 44.1 kHz, stereo. The user said yes to its download on 2026-10-20. The file stays outside the repository, and the edit takes its path with `--music`.
 
-ffprobe in the dev shell measures the recording at 549.06 s, 9 minutes 9 s. The last 2.8 s are silence. The video lasts 276.0 s today, about half of the recording. The edit fits the music to the cut with one rule:
+ffprobe in the dev shell measures the recording at 549.06 s, 9 minutes 9 s. The last 2.8 s are silence. The video lasts 277.9 s today, about half of the recording. The edit fits the music to the cut with one rule:
 
 - The music starts at second 0 of the recording (`--music-start 0`), with the first frame of the opening card. The waltz opens with its quiet introduction, at about 47 dB below full scale in its first second, so it starts under the black card with no jump.
 - It fades in over 2 s and out over the last 5 s of the video, which lie in the closing card. So the music ends with the picture.
 - It is encoded as AAC at 192 kbit/s, the rate of the source.
 
-Why a fade and no cut of the music: the waltz is twice as long as the run, and the run is one unbroken take, so the picture cannot follow the music's sections. A cut inside the music, to end on its last chord, needs an edit of the music by ear. A fade over the closing card ends the music where the picture ends, and it stays right when the docking and the exit make the video longer: the recording is long enough for a video of up to 9 minutes. In the cut of today, the fade ends 0.2 s before a short pause of the waltz: from 276.25 s to 276.75 s of the recording, its level falls to about 45 dB below full scale.
+Why a fade and no cut of the music: the waltz is twice as long as the run, and the run is one unbroken take, so the picture cannot follow the music's sections. A cut inside the music, to end on its last chord, needs an edit of the music by ear. A fade over the closing card ends the music where the picture ends, and it stays right when the docking and the exit make the video longer: the recording is long enough for a video of up to 9 minutes. In the cut of round 2, 276.0 s long, the fade ended 0.2 s before a short pause of the waltz: from 276.25 s to 276.75 s of the recording, its level falls to about 45 dB below full scale. The film `sky` of the Earth system made the video 1.9 s longer, so the fade of today passes through that pause and ends about 1.2 s after it.
 
 ### The final render
 
@@ -2146,7 +2631,7 @@ dotnet run -c Release --project src/Tertius.Demo -- --edit runs/danube/blue-danu
 - The output is an MP4 with H.264 at quality 18 (`-crf 18`), 1280 × 720 at 60 frames per second. Its pixel format is yuv420p, which every player reads. Its index is at the front of the file (`-movflags +faststart`).
 - `--music`, `--music-start` and `--music-credit` are optional, and the video has no sound without them.
 - The command refuses a log whose rows do not match the frames of the script by count and by name. It also refuses a master whose count of frames does not match. So a log or a master from another script cannot reach the edit.
-- The length today: 276.0 s, 4 minutes 36 s. The docking and the exit add theirs.
+- The length today: 277.9 s, 4 minutes 38 s. The docking and the exit add theirs.
 
 Measured in round 1, on 2026-10-20, on an Apple M1 Max, with the script of that day and no music: the master took 2 minutes 53 seconds, 15,806 frames and 410 MB. The edit took 55 s. Its frames showed the readouts, the clock, the rate and the check panel as designed, and also the titles, the cards and the dips to black.
 
@@ -2156,6 +2641,13 @@ Measured in round 2, the final render, on 2026-10-20, on the same machine, with 
 - The readout log took 1 minute 44 seconds.
 - The edit took 51 s, with libx264 on all cores. The final video has 16,562 frames, 276.0 s at 60 frames per second, and an AAC track of 276.0 s. It is 42.6 MB.
 - Its frames show the closing card with the line of the music, and the shuttle in the darkest frame of `transfer`.
+
+Measured in the review of the Earth system (ter-yhu8), on 2026-10-20, on the same machine, at a load average from 7 to 10, with the checked-in script and no music:
+
+- The master took 1 minute 55 seconds from the command line: 15,895 frames, 524 MB.
+- The readout log took 58 s. It reads in `earth`. In the coast of the parking orbit, the run's speed lies within 1.3 m/s of the circular speed at its radius, and the run's orbit within 0.01 minutes of the circle's 88.3 minutes.
+- The edit took 41 s. The final video has 16,675 frames, 277.9 s at 60 frames per second. It is 35.3 MB.
+- Its frames of `phasing` and `night` show the readouts and the check panel, with the run's numbers beside the textbook's.
 
 ### Order of the work
 

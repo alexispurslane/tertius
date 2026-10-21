@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Frames.Rails;
 using Tertius.Host;
 using Tertius.Simulation;
 
@@ -11,9 +12,16 @@ public static partial class DemoScenes
     /// boarding terminal on Earth's surface, a parked shuttle on the pad, and a passenger who walks through the terminal and
     /// boards the shuttle.
     /// <list type="bullet">
-    /// <item>The ground is the surface yard's (see <see cref="EarthSurface"/>): the root frame <c>earth-surface</c> at
-    /// Earth's center, which does not turn, with Earth's point gravity, and at the north pole a static gray slab, the
-    /// <c>floor</c>, 140 by 100 m, with its top at y = R = <see cref="EarthRadius"/>. +Y is up.</item>
+    /// <item>The world is the Earth system of <see cref="SunAndEarth"/> at the demo's <see cref="Date"/>
+    /// (docs/plans/blue-danube-demo.md, "The demo in the Earth system"): the Sun is the root frame <c>sun</c>; <c>earth</c>
+    /// goes round it on Earth's Kepler orbit and does not turn; <c>earth-surface</c> sits at Earth's center, turns once per
+    /// sidereal day about the north pole, earth's +Y, draws Earth, casts Earth's shadow, and its bubble ends 50 km up; the
+    /// <c>moon</c> goes round Earth in earth. The demo keeps the world's own sunlight and ambient light, with which every
+    /// film was judged.</item>
+    /// <item>The ground is the surface yard's slab (see <see cref="Floor"/>) in <c>earth-surface</c>: at the north pole, on
+    /// the axis of the ground's turn, a static gray slab, the <c>floor</c>, 140 by 100 m, with its top at y = R =
+    /// <see cref="EarthRadius"/>. +Y is up. Every body of the ground stands still in earth-surface and turns with it once a
+    /// day about the pole.</item>
     /// <item>The <c>terminal</c> is a static gray box building, 10 m deep along X, 16 m wide along Z and 5 m tall, centered
     /// at x = 22 m (see <see cref="TerminalCenter"/>): walls and a roof 0.3 m thick, standing on the slab, which is the
     /// hall's floor. Its entrance faces +X, 2.5 m wide and 3 m tall above a sill 3 cm high, centered at z = 0. Its gate, of the same size, faces -X toward the pad, centered
@@ -46,8 +54,6 @@ public static partial class DemoScenes
     /// second after the cabin becomes weightless in orbit, so that the pen drifts into the middle of the cabin. The person
     /// is a <see cref="Passenger"/>: its belt holds it at <see cref="Shuttle.SeatStand"/> through the climb, and in the
     /// weightless cabin it floats to the drifting pen and takes it in its hand, where and as the pen floats.</item>
-    /// <item>The <c>earth</c>, only drawn, is a sphere 1 m smaller than Earth, with the grid of the orbit scene, so the
-    /// slab hides it at the pad and the climb shows the planet below.</item>
     /// <item>More views: <c>pad-camera</c>, 6 m up, 32 m to starboard of the shuttle and 30 m aft of it, sees the whole
     /// parked shuttle, with the tower behind it and the ramp rising beyond it; <c>ramp-camera</c> hovers 25 m above the
     /// ground, 140 m to starboard of the ramp, and sees all of it; <c>ramp-top-camera</c> hovers 105 m above the ground,
@@ -79,11 +85,15 @@ public static partial class DemoScenes
     /// head of a person at the seat, looks down past the seat at <c>pane-nose</c>. From starboard it sees the pen in the
     /// person's right hand both when the person floats upside down and when a burn has tipped it with its head toward the
     /// nose.</item>
-    /// <item>The <c>station</c> (see <see cref="DemoStation"/>), a wheel 202 m across that turns about its axis, flies on a
-    /// circle 400 km up in the launch plane, and passes over the pad at <see cref="DemoStation.OverPadAt"/>. It spawns
-    /// before the shuttle, whose <see cref="RendezvousAutopilot"/> flies to it after a <see cref="Rendezvous"/> order. Its view <c>rim-camera</c> turns with it.</item>
-    /// <item>The frame <c>sun</c> lies far away, toward +X and +Z and high up, so its light falls the same way on the pad and
-    /// in orbit.</item>
+    /// <item>The <c>station</c> (see <see cref="DemoStation"/>), a wheel 202 m across that turns about its axis, flies in
+    /// <c>earth</c> on a circle 400 km up in the launch plane, and passes over the pad at <see cref="DemoStation.OverPadAt"/>.
+    /// It spawns before the shuttle, whose <see cref="RendezvousAutopilot"/> flies to it after a <see cref="Rendezvous"/>
+    /// order. Its view <c>rim-camera</c> turns with it.</item>
+    /// <item>The climb: the shuttle's <see cref="AscentAutopilot"/> reads in <c>earth</c>, through its
+    /// <see cref="LaunchPlane"/>. The shuttle leaves earth-surface through the top of its bubble during the climb, 178.4 km
+    /// up, where the engine's exit margin ends, and flies on in earth.</item>
+    /// <item><c>sky-camera</c>, in earth-surface, stands to starboard of the ramp ahead of the parked nose, and looks aft and up
+    /// toward the low Sun and the crescent Moon over the parked shuttle (see <see cref="SkyCamera"/>).</item>
     /// </list>
     /// </summary>
     /// <remarks>
@@ -110,13 +120,38 @@ public static partial class DemoScenes
         public const double ClimbClearance = 30;
 
         /// <summary>
-        /// The normal of the launch plane, a unit vector in the axes of <c>earth-surface</c>: -X. The launch plane is the
-        /// plane through Earth's center that holds the pad's up, +Y, and the ramp's incline, <see cref="LaunchRamp.Up"/>. The
+        /// The normal of the launch plane, a unit vector in earth's axes, which do not turn: about (0.795, 0, 0.607), -X of
+        /// the departure axes, the ground's axes at <see cref="DepartureAt"/>. The launch plane is the plane through Earth's
+        /// center that holds the pad's up, +Y, and the ramp's incline, <see cref="LaunchRamp.Up"/>, at the departure. The
         /// normal is the plane's prograde normal, the pad's up across the incline, so that the normal across the up of a
         /// ship in the plane points the way that the ship flies. The ramp, the climb and the station share it: the ascent
-        /// autopilot steers into the plane, and the parking orbit and the station's orbit lie in it.
+        /// autopilot steers into the plane, and the parking orbit and the station's orbit lie in it. The incline lies in the
+        /// ground's axes, so the departure axes' turn takes the normal into earth's.
         /// </summary>
-        public static Double3 LaunchPlaneNormal { get; } = Double3.Cross(Double3.UnitY, LaunchRamp.Up).Normalized();
+        public static Double3 LaunchPlaneNormal { get; } =
+            DQuaternion.FromAxisAngle(Double3.UnitY, GroundTurnAtDeparture).Rotate(Double3.Cross(Double3.UnitY, LaunchRamp.Up)).Normalized();
+
+        /// <summary>
+        /// The ground's turn at the departure, the angle in radians about earth's +Y from earth's axes to the ground's axes:
+        /// 142.6 degrees (docs/plans/blue-danube-demo.md, "The station's plane"). At the June solstice the Sun's direction
+        /// across the pad's up is earth's -Z. This turn sets the ramp 142.6 degrees from it, so that the Sun stands behind
+        /// the launch and 37.4 degrees out of the launch plane on the slot's side. So the station's orbit keeps a β of 33.9
+        /// degrees, and the Sun meets the slot's face at 56 degrees from the station's axis.
+        /// </summary>
+        public const double GroundTurnAtDeparture = 142.6 * Math.PI / 180;
+
+        /// <summary>
+        /// The departure, in seconds of world time: 20 s, <see cref="DemoStation.DepartureLead"/> before the station passes
+        /// over the pad at <see cref="DemoStation.OverPadAt"/>. At the departure the ground stands turned by
+        /// <see cref="GroundTurnAtDeparture"/>, so the ramp lies in the station's plane.
+        /// </summary>
+        public const double DepartureAt = DemoStation.OverPadAt - DemoStation.DepartureLead;
+
+        /// <summary>
+        /// The demo's date: the June solstice, with the ground turned at the world's time 0 so that it stands turned by
+        /// <see cref="GroundTurnAtDeparture"/> at <see cref="DepartureAt"/>.
+        /// </summary>
+        public static EarthDate Date { get; } = EarthDate.JuneSolstice with { GroundTurn = GroundTurnAtDeparture - SiderealRate * DepartureAt };
 
         /// <summary>The pen's half extents, in meters: 14 cm long along its own Z, and 12 mm thick.</summary>
         public static Vector3 PenHalf { get; } = new(0.006f, 0.006f, 0.07f);
@@ -154,8 +189,8 @@ public static partial class DemoScenes
             pen.Spawn(cabin, PenClip, Double3.Zero, new Clip(PenClip, PenPush, PenSpin));
 
         /// <summary>
-        /// Where the shuttle stands parked, in <c>earth-surface</c>: over the north pole, unturned, with its hull's bottom on
-        /// the launch ramp's bed (<see cref="LaunchRamp.BedTop"/>).
+        /// Where the shuttle stands parked, in <c>earth-surface</c>: over the north pole, on the axis of the ground's turn,
+        /// unturned, with its hull's bottom on the launch ramp's bed (<see cref="LaunchRamp.BedTop"/>).
         /// </summary>
         public static DPose ShuttleParked { get; } = new(new Double3(0, LaunchRamp.BedTop + Shuttle.Hull.Y, 0), DQuaternion.Identity);
 
@@ -256,22 +291,40 @@ public static partial class DemoScenes
             new(cabin, Shuttle.SeatStand),
         ];
 
+        /// <summary>Where <c>sky-camera</c> stands, in earth-surface: to starboard of the ramp, 40 m ahead of the parked nose, 8 m up.</summary>
+        public static Double3 SkyEye { get; } = new(6, EarthRadius + 8, -40);
+
+        /// <summary>
+        /// The pose of <c>sky-camera</c> in earth-surface at the world's time: at <see cref="SkyEye"/>, looking toward the
+        /// middle between the Sun's direction and the Moon's, 10 degrees lower, with no roll. Both directions are turned
+        /// from earth's axes into the ground's by the date's ground, as the pad view of the earth-system scene does. Seen
+        /// from the pad, the Sun and the Moon stand aft of the parked shuttle, 46 degrees apart, so the view takes in both
+        /// and the shuttle below them.
+        /// </summary>
+        private static DPose SkyCamera(World world)
+        {
+            KeplerOrbit earthOrbit = EarthOrbit(Date);
+            Double3 toSun = earthOrbit.RotationAt(world.Time, SunMu).Conjugate().Rotate(-earthOrbit.StateAt(world.Time, SunMu).Position).Normalized();
+            DQuaternion intoGround = Date.Ground.RotationAt(world.Time).Conjugate();
+            Double3 sun = intoGround.Rotate(toSun);
+            Double3 moon = (intoGround.Rotate(MoonOrbit.StateAt(world.Time, EarthMu).Position) - SkyEye).Normalized();
+            Double3 middle = (sun + moon).Normalized();
+            double lower = 10 * Math.PI / 180;
+            double height = Math.Asin(middle.Y) - lower;
+            Double3 across = new Double3(middle.X, 0, middle.Z).Normalized();
+            return LookingAt(SkyEye, SkyEye + across * Math.Cos(height) + Double3.UnitY * Math.Sin(height));
+        }
+
         public static SceneInstance Build(World world, IRenderResources resources)
         {
             var scene = new SceneInstance();
-            FrameHandle surface = EarthSurface(world, resources, scene, new Vector3(70, 0.5f, 50));
-            scene.Add("earth", world.Spawn(new SpawnDesc
-            {
-                Frame = surface,
-                Pose = new DPose(Double3.Zero, DQuaternion.Identity),
-                Render = new RenderData
-                {
-                    Mesh = resources.CreateMesh(Primitives.Sphere((float)(EarthRadius - 1), 256, 128)),
-                    Material = resources.CreateMaterial(new MaterialDesc(Vector4.One, SpecularIntensity: 0.1f, Albedo: resources.CreateTexture(EarthGrid()))),
-                    BoundingRadius = (float)EarthRadius,
-                    Flags = RenderFlags.Visible | RenderFlags.Celestial,
-                },
-            }));
+            // The demo's light is the renderer's exposure that every film was judged with: the world's own sunlight and
+            // ambient light, not the brighter sun and the dim space of the orbit scene, which SunAndEarth sets.
+            (float sunIntensity, AmbientLight ambient) = (world.SunIntensity, world.Ambient);
+            FrameHandle earth = SunAndEarth(world, resources, scene, Date);
+            (world.SunIntensity, world.Ambient) = (sunIntensity, ambient);
+            FrameHandle surface = world.GetOwnedFrame(scene["earth-surface"]);
+            Floor(world, resources, scene, surface, new Vector3(70, 0.5f, 50));
             scene.Add("ramp", LaunchRamp.Spawn(world, surface, Drawn(resources, LaunchRamp.Mesh(), new Vector4(0.6f, 0.6f, 0.58f, 1), boundingRadius: LaunchRamp.Length + 6)));
 
             MeshId lampMesh = resources.CreateMesh(Primitives.Box(new Vector3(0.6f, 0.05f, 0.6f)));
@@ -321,9 +374,9 @@ public static partial class DemoScenes
             }));
 
             // The station spawns before the shuttle, whose rendezvous autopilot takes the station's entity.
-            Entity station = DemoStation.Spawn(world, surface, scene, resources);
+            Entity station = DemoStation.Spawn(world, earth, scene, resources);
             Entity shuttle = Shuttle.Park(world, surface, ShuttleParked, Shuttle.DrawnHull(resources),
-                Shuttle.FlightControls(LaunchRamp.Height + ClimbClearance, LaunchPlaneNormal, station));
+                Shuttle.FlightControls(LaunchRamp.Height + ClimbClearance, new LaunchPlane(earth, LaunchPlaneNormal), station));
             scene.Add("shuttle", shuttle);
             FrameHandle cabin = world.GetOwnedFrame(shuttle);
             Vector3 seatHalf = Shuttle.Seat.Extents;
@@ -463,10 +516,10 @@ public static partial class DemoScenes
                 Render = new RenderData(),
             }));
 
-            // The sun stands at the distance of the real one, so its light falls the same way everywhere on the flight.
-            SunAt(world, scene, surface, new Double3(0, EarthRadius, 0) + new Double3(60, 80, 40).Normalized() * AstronomicalUnit);
+            scene.Add("sky-camera", world.Spawn(new SpawnDesc { Frame = surface, Pose = SkyCamera(world), Render = new RenderData() }));
 
             scene.AddView("overview");
+            scene.AddView("sky-camera");
             scene.AddView("terminal-camera");
             scene.AddView("apron-camera");
             scene.AddView("cabin-camera");

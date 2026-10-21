@@ -20,7 +20,7 @@ public static class ReadoutText
     public static string Speed(double speed) => string.Format(Invariant, "{0:N1} m/s", speed);
 
     /// <summary>
-    /// The altitude of <paramref name="position"/>, a place in <c>earth-surface</c>: its distance from Earth's center
+    /// The altitude of <paramref name="position"/>, a place in <c>earth</c>, in meters from Earth's center: its distance from Earth's center
     /// less <see cref="DemoScenes.EarthRadius"/>. In meters with one decimal below 10 km, and in kilometers with two above.
     /// </summary>
     public static string Altitude(Double3 position)

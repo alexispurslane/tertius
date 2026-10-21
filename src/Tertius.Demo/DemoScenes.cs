@@ -18,10 +18,18 @@ public static partial class DemoScenes
 
     /// <summary>
     /// The top of Earth's air, in meters above <see cref="EarthRadius"/>: 100 km, the Kármán line. The engine has no air,
-    /// so nothing drags a ship below it. The demo keeps the periapsis of every orbit above it, and the bubble of the orbit
-    /// scene's earth-surface ends there.
+    /// so nothing drags a ship below it. The demo keeps the periapsis of every orbit above it.
     /// </summary>
     public const double AtmosphereTop = 100e3;
+
+    /// <summary>
+    /// The top of the turning ground's bubble, in meters above <see cref="EarthRadius"/>: 50 km, the stratopause. The
+    /// bubble of earth-surface ends there. A body leaves that bubble only when its center lies outside it by its bounding
+    /// sphere plus the exit margin, 2 percent of the bubble's radius (ARCHITECTURE.md, "Hand-off", rule 2), so a shuttle
+    /// that climbs out of it leaves 178.4 km up, below the demo's parking orbit at 200 km
+    /// (docs/plans/blue-danube-demo.md, "The hand-off").
+    /// </summary>
+    public const double GroundBubbleTop = 50e3;
 
     /// <summary>Earth's G·M, in m³/s².</summary>
     public const double EarthMu = 3.986004418e14;
@@ -254,19 +262,33 @@ public static partial class DemoScenes
     }
 
     /// <summary>
-    /// Where Earth stands on its orbit at the world's time 0: its longitude, the angle in radians about the Sun's +Y from the
-    /// Sun's +X, Earth's place at the September equinox, the way Earth moves, from +X toward -Z.
+    /// Where Earth stands on its orbit and how far the ground is turned, at the world's time 0. The longitude gives the
+    /// season, and the ground's turn the time of day.
     /// </summary>
-    public readonly record struct EarthDate(double Longitude)
+    /// <param name="Longitude">
+    /// Earth's longitude, the angle in radians about the Sun's +Y from the Sun's +X, Earth's place at the September equinox,
+    /// the way Earth moves, from +X toward -Z.
+    /// </param>
+    /// <param name="GroundTurn">
+    /// The ground's turn, the angle in radians about earth's +Y, the north pole, from earth's axes to the axes of
+    /// <c>earth-surface</c>.
+    /// </param>
+    public readonly record struct EarthDate(double Longitude, double GroundTurn)
     {
+        /// <summary>
+        /// The spin of <c>earth-surface</c> in <c>earth</c>: the turn <see cref="GroundTurn"/> about +Y at the world's time 0,
+        /// and from there the sidereal turn, <see cref="SiderealRate"/>, about +Y.
+        /// </summary>
+        public FrameSpin Ground => new(DQuaternion.Identity, SiderealRate, PhaseAtEpoch: GroundTurn);
+
         /// <summary>The March equinox: Earth at longitude 180 degrees, on the Sun's -X, so the Sun stands toward +X from Earth, over the equator.</summary>
-        public static EarthDate MarchEquinox => new(Math.PI);
+        public static EarthDate MarchEquinox => new(Math.PI, 0);
 
         /// <summary>
         /// The June solstice: Earth at longitude 270 degrees, on the Sun's +Z, so the Sun stands toward -Z from Earth, the
         /// way the north pole leans, 23.44 degrees north of the equator. At the north pole it stands that high all day.
         /// </summary>
-        public static EarthDate JuneSolstice => new(3 * Math.PI / 2);
+        public static EarthDate JuneSolstice => new(3 * Math.PI / 2, 0);
     }
 
     /// <summary>
@@ -287,8 +309,9 @@ public static partial class DemoScenes
     /// <summary>
     /// The Earth system of every scene that has the Sun: the sun, earth, earth-surface and the moon of the orbit scene (see
     /// <see cref="Orbit"/>), added to <paramref name="scene"/>,
-    /// with the sunlight and the dim light of space, with Earth at <paramref name="date"/> at the world's time 0. Returns
-    /// earth's frame.
+    /// with the sunlight and the dim light of space, with Earth at <paramref name="date"/> at the world's time 0: Earth on
+    /// its orbit at the date's longitude, and earth-surface on the date's <see cref="EarthDate.Ground"/>. Returns earth's
+    /// frame.
     /// </summary>
     private static FrameHandle SunAndEarth(World world, IRenderResources resources, SceneInstance scene, EarthDate date)
     {
@@ -329,16 +352,16 @@ public static partial class DemoScenes
         scene.Add("earth", earthOwner);
         FrameHandle earth = world.GetOwnedFrame(earthOwner);
 
-        // The ground turns with the sidereal day, from its turn at the world's time on, and from its first step, as every
+        // The ground turns with the sidereal day, from the date's ground turn at time 0, and from its first step, as every
         // frame on rails in these scenes moves from its first step.
-        var turning = new FrameSpin(DQuaternion.Identity, SiderealRate);
+        FrameSpin turning = date.Ground;
         scene.Add("earth-surface", world.Spawn(new SpawnDesc
         {
             Frame = earth,
             Pose = new DPose(Double3.Zero, turning.RotationAt(world.Time)),
             FirstMove = new MotionIntent(turning.Sample(Double3.Zero, firstStepEnd, world.DeltaTime)),
-            // The bubble holds the air, 100 km up, and ends below the ship's orbit.
-            AsFrame = new FrameSpec(FrameBounds.Sphere((float)(EarthRadius + AtmosphereTop)), GravityField.Point(EarthMu)),
+            // The bubble ends at the stratopause, so that a shuttle that climbs out of it leaves it below its parking orbit.
+            AsFrame = new FrameSpec(FrameBounds.Sphere((float)(EarthRadius + GroundBubbleTop)), GravityField.Point(EarthMu)),
             Components = [new SpinMotion { Spin = turning }],
             Render = new RenderData
             {

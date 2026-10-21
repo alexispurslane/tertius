@@ -53,7 +53,7 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
     internal static World NewWorld() =>
         new(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = false, DisposePhysics = true }, new JoltPhysicsBackend());
 
-    /// <summary>A root frame with Earth's point gravity, which does not turn: the analogue of <c>earth-surface</c>.</summary>
+    /// <summary>A root frame with Earth's point gravity, which does not turn: the analogue of <c>earth</c>, which holds the station and the shuttle in orbit.</summary>
     internal static FrameHandle Earth(World world) =>
         world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e8f), GravityField.Point(Mu)));
 
