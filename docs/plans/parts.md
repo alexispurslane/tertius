@@ -335,6 +335,7 @@ Physics, in `tests/Tertius.Physics.Tests/PartPushTests.cs`:
 - `APartPushesFromTheOffsetThatItWroteInTheSameTick`
 - `APartsPushActsInTheStepAfterTheTickThatWritesIt`
 - `ThePushOfAPartOnARootThatIsNotDynamicMovesNothing`, for a kinematic and a static root
+- `APartsPushInTheTickThatItsKinematicRootTurnsDynamicMovesTheRootInTheNextStepAsTheRootsOwnForceDoes`, for the row of "Deaths and changes of frame in the same tick" in which the root writes a change of motion
 - `ThePushOfAPartOnACharacterChangesItsVelocityAsTheCharactersOwnForceDoesInBothForms`, walking and rigid
 - `APartWhoseRootHasNoBodyCannotPush`
 - `APartCannotSetAVelocityTeleportOrWriteAMotionIntent`
@@ -357,6 +358,9 @@ The backend, in `tests/Tertius.Physics.Tests/ShapeCenterOfMassTests.cs`:
 
 - `TheCenterOfMassOfABoxASphereAndACapsuleIsTheirOrigin`
 - `TheCenterOfMassOfAShapeIsWhereJoltPutsTheCenterOfMassOfABodyAtRestAtTheOrigin`, for a convex hull and a compound
+- `AFirstQuestionWaitsForTheNativeGateAndThenGetsTheAnswerOfAQuietBackend`: the test thread holds the gate, as a step holds it, so the test needs no race with a step
+- `AKeptAnswerNeedsNoNativeGate`
+- `AKeptAnswerAllocatesNothing`, for `ShapeCenterOfMass` and `ShapeProblem`
 
 The demo, in `tests/Tertius.Host.Tests/ShuttleTests.cs`, because only that project references `Tertius.Demo`. The test `TheCenterOfMassStaysStillWhileTheFreeHullSpins` (line 242) already holds the demo's value within 1 mm of where Jolt puts the center. The new test asks the backend's value directly:
 
@@ -393,7 +397,7 @@ The body facts, in `tests/Tertius.Simulation.Tests/BodyFactsTests.cs`, on the re
 Tests that lock in the decisions:
 
 - `TheLeverTurnsWithTheRotationThatTheWriterRead`: a root that spins fast, with one jet off its center of mass that pushes along its own axis. The torque in the root's intent equals the cross product of the jet's lever and its force, with the lever turned by the root's rotation in the front row, and not by its rotation where the step starts.
-- `APartsPushNamesTheFrontFrameOfItsChainAtTheFlow`: the invariant that the flow relies on, after a hand-off and after a rehome in the same tick. In that tick the hand-off moves the root's row into the bay and the rehome moves it back, so the root's intent names its frame at both ends, and a flow after the rehomes would give the same sum. The test pins the invariant, and `APartsPushInTheTickThatItsRootsFrameDiesConvertsIntoTheSurvivingAncestor` pins the place of the flow before the rehomes.
+- `APartsPushNamesTheFrontFrameOfItsChainAtTheFlow`: the invariant that the flow relies on, after a hand-off and after a rehome in the same tick. In that tick the hand-off moves the root's row into the bay and the rehome moves it back, so the root's intent names its frame at both ends, and a flow after the rehomes would give the same sum. The test checks its premise from the records of `FaultInjectingBackend`: the output of the step of tick 5 hands the root into the bay, and the bay dies at the sync point that applies that output. The test pins the invariant, and `APartsPushInTheTickThatItsRootsFrameDiesConvertsIntoTheSurvivingAncestor` pins the place of the flow before the rehomes.
 - `ThePushOfADyingPartIsSkippedBecauseTheDestroyBatchIsKnownFirst`: the place of the flow after the growth of the batch.
 - `APartOfAHullInANumericFramePushesItsHullAsTheHullsOwnForceDoes`, above, locks in that a part stays out of the intent list: a part in the list breaks the assertion of `World.FollowFramelessEntities` in Debug.
 
@@ -421,6 +425,7 @@ Costs:
 - Commands from a root's components reach its parts by message, one tick later than today. A hull's autopilot sends each jet its throttle in tick k, the jet pushes in tick k + 1, and physics applies the push in step k + 2. The attitude autopilot reads the hull's state two steps late today, and three steps late after the change, against a `RateTime` of 20 steps.
 - The flow visits only the parts that pushed. For each one it reads one link, composes the offsets of its chain, turns one vector and takes two cross products, and it looks up its root's sum.
 - Each slot's cold record grows by 12 bytes, the center of mass.
+- Each slot's link grows by 8 bytes, from 56 to 64, measured with `Unsafe.SizeOf`. The column of links holds a link for every slot, not only for the attached entities. The link gains `Link.Root`, an `Entity` of 8 bytes, and `Link.SumSlot`, an `int` of 4 bytes, and the old padding of the link takes 4 of those 12 bytes.
 - A main engine that a part pushes gives the hull a torque when its line of thrust misses the center of mass that Jolt computes. Today `MainEngine` pushes at the center of mass, whatever the nozzle's place.
 
 The build must measure:

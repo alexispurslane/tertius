@@ -196,10 +196,10 @@ internal sealed class Attachments
     /// </summary>
     public void CarryPushes(ReadOnlySpan<bool> dying, List<Entity> skipped)
     {
+        Contract.Requires(!entities.GameplayRunning && sums.Count == 0);
         ReadOnlySpan<Entity> parts = entities.FrontPushers;
         if (parts.IsEmpty)
             return;
-        Contract.Requires(sums.Count == 0);
         ReadOnlySpan<PhysicsIntent> intents = entities.FrontIntents.Span;
         foreach (Entity part in parts)
         {
@@ -238,6 +238,16 @@ internal sealed class Attachments
             links[root].SumSlot = 0;
         }
         sums.Clear();
+        Contract.Ensures(sums.Count == 0 && AllLivePushesCleared(parts));
+    }
+
+    /// <summary>True if the front intent of every live entity of <paramref name="parts"/> is empty. For the postcondition of <see cref="CarryPushes"/>.</summary>
+    private bool AllLivePushesCleared(ReadOnlySpan<Entity> parts)
+    {
+        foreach (Entity part in parts)
+            if (entities.IsAlive(part) && !entities.HasEmptyFrontIntent(part))
+                return false;
+        return true;
     }
 
     // The scratch of CarryPushes: the sum of each root in doubles, in the order of its first part. Each root's link holds
