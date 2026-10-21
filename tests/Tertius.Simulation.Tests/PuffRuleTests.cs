@@ -211,6 +211,37 @@ public class PuffRuleTests
         ages.Should().Equal(Enumerable.Range(7, 4).Select(j => (float)PuffBirths.AgeAt(j, 0, 615, Dt)));
         puffs.Looks.UsersOf(puffs.View.Rows[0].Look).Should().Be(4);
         puffs.AssertInvariants();
+
+        // In the next step the newborns alone pass the capacity, so every survivor dies and the last 4 of 10 newborns live.
+        double phase = puffs.BirthPhase(emitter);
+        puffs.Step(tick: 1, Dt);
+        puffs.AddNewborns(tick: 1, Dt);
+
+        puffs.View.Rows.ToArray().Select(row => row.Age).Should().Equal(Enumerable.Range(7, 4).Select(j => (float)PuffBirths.AgeAt(j, phase, 615, Dt)));
+        puffs.Looks.UsersOf(puffs.View.Rows[0].Look).Should().Be(4);
+        puffs.AssertInvariants();
+    }
+
+    [Fact]
+    public void ANewbornThatWouldOutliveItsLookInsideItsStepIsNotMade()
+    {
+        // 10 puffs per step, of a look that lives 4 ms, a quarter of a step: only the newborns born in its last 4 ms live.
+        EntityTable table = TableSupport.NewTable();
+        var frames = new FrameTree();
+        Entity owner = table.SpawnLive();
+        FrameHandle space = frames.Create(owner, FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f));
+        Entity emitter = table.Reserve();
+        var render = new RenderData { Emitter = new PuffEmitter(600, 10, 0, Hot with { Life = 0.004f }) };
+        table.Activate(emitter, new TransformRow { Frame = space, PhysicsHome = space, Pose = DPose.Identity }, render, [], [], null, FrameHandle.Null);
+        table.CopyDirtyRows();
+        var puffs = new PuffTable(table, frames, capacity: 100, reportError: _ => { });
+
+        puffs.Step(tick: 0, Dt);
+        puffs.AddNewborns(tick: 0, Dt);
+
+        puffs.View.Rows.ToArray().Select(row => row.Age).Should().HaveCount(3).And.AllSatisfy(age => age.Should().BeLessThan(0.004f));
+        puffs.Looks.UsersOf(puffs.View.Rows[0].Look).Should().Be(3);
+        puffs.AssertInvariants();
     }
 
     [Fact]

@@ -114,6 +114,47 @@ public class PuffTableTests
     }
 
     [Fact]
+    public void PuffsThatAFramesDeathMovesInJoinTheHeirsRangeInTheOrderOfTheRanges()
+    {
+        foreach (bool heirFirst in new[] { true, false })
+        {
+            using var test = TestWorld.OnJolt(out _);
+            FrameHandle dying = test.SpawnStaticFrame(TestWorld.At(100), radius: 50);
+            if (heirFirst)
+                SpawnEmitter(test.World, test.Root, Double3.Zero, Jet(Hot));
+            SpawnEmitter(test.World, dying, Double3.Zero, Jet(Cold));
+            test.Run(2);
+            if (!heirFirst)
+                SpawnEmitter(test.World, test.Root, Double3.Zero, Jet(Hot));
+            test.Run(2);
+            int cold = Rows(test.World, dying)[0].Look;
+
+            test.World.Destroy(dying.Entity);
+
+            Ranges(test.World).Select(range => range.Frame).Should().Equal([test.Root], "heir first: {0}", heirFirst);
+            bool[] fromDying = Rows(test.World, test.Root).Select(row => row.Look == cold).ToArray();
+            fromDying.Should().HaveCount(heirFirst ? 8 : 6);
+            fromDying.Should().Equal(heirFirst ? [false, false, false, false, true, true, true, true] : [true, true, true, true, false, false],
+                "the moved puffs follow the heir's own when the heir's range came first, and come before them otherwise");
+        }
+    }
+
+    [Fact]
+    public void AnEmitterThatGathersLessThanOnePuffPerStepMakesItsPuffsAtItsRate()
+    {
+        using var test = TestWorld.OnJolt(out _);
+        // 45 puffs per second gather 0.75 of a puff in each step, so most steps make none.
+        Entity emitter = SpawnEmitter(test.World, test.Root, Double3.Zero, Jet(Hot, rate: 45));
+
+        test.Run(1);
+        test.World.Puffs.Count.Should().Be(0);
+        test.World.Puffs.BirthPhase(emitter).Should().BeApproximately(0.75, 1e-6, "a step that makes no puff still gathers the phase");
+        test.Run(7);
+
+        test.World.Puffs.Count.Should().Be(6, "8 steps of 0.75 make 6 puffs");
+    }
+
+    [Fact]
     public void EmittersWithEqualLooksShareOneLook()
     {
         using var test = TestWorld.OnJolt(out _);

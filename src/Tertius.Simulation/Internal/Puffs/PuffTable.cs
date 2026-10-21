@@ -240,8 +240,6 @@ internal sealed class PuffTable
         long total = 0;
         foreach (Entity emitter in entities.EmitterEntities)
             total += PuffBirths.Count(phases[emitter], entities.FrontRender(emitter).Emitter.Rate, dt, out _);
-        if (total == 0)
-            return;
         long skip = Math.Max(0, total - capacity);
         EnsureNewborns((int)Math.Min(total, capacity));
 
@@ -259,6 +257,9 @@ internal sealed class PuffTable
                 continue;
             AddNewbornsOf(entity, in emitter, start, first, made, tick, dt);
         }
+        // A step without newborns changes no row: the count was within the capacity already.
+        if (newbornCount == 0)
+            return;
 
         int excess = count + newbornCount - capacity;
         Rebuild(drop: Math.Max(0, excess));

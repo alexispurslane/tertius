@@ -108,6 +108,20 @@ public class PuffLifeTests
         PuffTesting.Rows(world, space)[0].Place.Should().NotBe(before, "and they move on");
     }
 
+    [Fact]
+    public void AnEmitterOnTheOwnerOfARootFrameMakesItsPuffsInThatFrameAtItsOrigin()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)),
+            new RenderData { Emitter = PuffTesting.Jet(PuffTesting.Hot, speed: 4) });
+
+        Tick(world, 3);
+
+        PuffTesting.RangeFrames(world).Should().Equal([root], "the owner of a root frame is in no frame, so its puffs are born in the frame that it owns");
+        Puff newest = PuffTesting.Rows(world, root)[^1];
+        newest.Place.Length.Should().BeLessThan(4 * world.DeltaTime, "it is born at the frame's origin, and its age is under a step");
+    }
+
     // ---- A puff's frame hands off, is reparented or dies ----------------------------------------------------------
 
     /// <summary>A ship whose hull Jolt hands into the bubble of a carrier in the step of tick 20, with an emitter at rest in the ship.</summary>
