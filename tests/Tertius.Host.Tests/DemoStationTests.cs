@@ -193,6 +193,67 @@ public sealed class DemoStationTests : IDisposable
     }
 
     /// <summary>
+    /// The parked shuttle's docking autopilot docks in the scene's station: after a <see cref="Dock"/> order, it leaves its
+    /// standby and waits for the hold, and does not halt, so it has a live station that owns a frame.
+    /// </summary>
+    [Fact]
+    public void TheShuttlesDockingAutopilotDocksInTheStation()
+    {
+        world.Post(Event.Create(scene["shuttle"], Entity.Null, new Dock()));
+
+        Tick(world, 2);
+
+        world.GetComponent<DockingAutopilot>(scene["shuttle"])!.State.Value.Should().BeOfType<Waiting>();
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// <c>bay-camera</c>, a still view in the station's frame near the bay's far wall, sees the whole docking: the corners of
+    /// the slot on both faces of its wall, the corners of the parked shuttle's box and the corners of the spoke's mouth in
+    /// the deck all lie in its picture.
+    /// </summary>
+    [Fact]
+    public void TheBayCameraSeesTheSlotTheParkedHullAndTheSpokeMouth()
+    {
+        DPose view = world.PoseIn(scene["bay-camera"], frame);
+        BoundingBox slot = DemoStation.Slot, parked = DemoStation.ParkedBounds, mouth = DemoStation.SpokeMouth;
+        IEnumerable<Double3> Corners(BoundingBox box) => Enumerable.Range(0, 8).Select(corner => new Double3(
+            (corner & 1) == 0 ? box.Min.X : box.Max.X, (corner & 2) == 0 ? box.Min.Y : box.Max.Y, (corner & 4) == 0 ? box.Min.Z : box.Max.Z));
+        Double3[] seen = [.. Corners(slot), .. Corners(parked), .. Corners(mouth with { Min = mouth.Min with { X = DemoStation.Deck } })];
+
+        foreach (Double3 corner in seen)
+            Picture.Contains(Picture.Project(view, corner, world.VerticalFov)).Should().BeTrue($"the corner {corner} lies in the picture");
+    }
+
+    /// <summary>
+    /// The camera of the long script's film <c>spin-match</c>, a still view in the station's frame, frames both the hub and
+    /// the shuttle at the hold point, where the spin-up ends: every corner of the hub's box and of the shuttle's box lies in
+    /// the picture, at least a tenth of the half picture from its edges, and the shuttle's box covers at least 1 percent of
+    /// the picture, in any roll about the axis. A view from the wheel's rim shows the shuttle 171 m away, a small speck
+    /// far to the right, and the hub at the left edge.
+    /// </summary>
+    [Fact]
+    public void TheSpinMatchCameraFramesTheHubAndTheShuttleAtTheHold()
+    {
+        string camera = BlueDanube.Sections.Single(section => section.Name == "spin-match").Camera;
+        DPose view = world.PoseIn(scene[camera], frame);
+        Vector3 hub = DemoStation.HubHalf;
+        IEnumerable<Double3> Corners(DPose pose, Vector3 half) => Enumerable.Range(0, 8).Select(corner => pose.TransformPoint(new Double3(
+            (corner & 1) == 0 ? -half.X : half.X, (corner & 2) == 0 ? -half.Y : half.Y, (corner & 4) == 0 ? -half.Z : half.Z)));
+
+        foreach (double roll in Enumerable.Range(0, 8).Select(step => step * Math.PI / 4))
+        {
+            var shuttle = new DPose(DemoStation.HoldPoint, DQuaternion.FromAxisAngle(Double3.UnitY, roll) * DemoStation.DockedRotation);
+            foreach (Double3 corner in Corners(DPose.Identity, hub).Concat(Corners(shuttle, Shuttle.Hull)))
+            {
+                Double3 at = Picture.Project(view, corner, world.VerticalFov);
+                (at.Z > 0.05 && Math.Abs(at.X) <= 0.9 && Math.Abs(at.Y) <= 0.9).Should().BeTrue($"the corner {corner} lies well inside the picture at a roll of {roll:F2} rad, at {at}");
+            }
+            Picture.Cover(view, shuttle, (Double3)Shuttle.Hull, world.VerticalFov).Should().BeGreaterThan(0.01, $"the shuttle is no speck at a roll of {roll:F2} rad");
+        }
+    }
+
+    /// <summary>
     /// A free shuttle at <see cref="DemoStation.HoldPoint"/>, 150 m out on the axis, with the station's velocity and its nose
     /// at the slot, drifts less than a meter in 60 s and stays in <c>earth-surface</c> all the while: its bounding sphere of
     /// 8.8 m lies 21 m outside the station's bubble.

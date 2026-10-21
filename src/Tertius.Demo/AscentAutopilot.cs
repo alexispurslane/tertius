@@ -109,7 +109,9 @@ public readonly struct AscentState : IEquatable<AscentState>
 /// <item><see cref="Climb"/>: the guidance gives the acceleration, at most that of full throttle. The nose turns toward
 /// it, and the throttle is its length divided by full throttle's acceleration. When the guidance finds the circle reached,
 /// the engine stops and the orbit starts.</item>
-/// <item><see cref="Orbit"/>: no throttle, so the engine stays off, and the nose follows the velocity.</item>
+/// <item><see cref="Orbit"/>: no throttle, so the engine stays off, and the nose follows the velocity, while the hull is in
+/// a frame with point gravity. In a frame without it, such as the turning frame of a station that the shuttle docks in,
+/// the autopilot adds nothing.</item>
 /// </list>
 /// In every case that steers, the roof turns away from the planet across the nose.
 /// </summary>
@@ -178,7 +180,10 @@ public sealed class AscentAutopilot(double maxThrust, double orbitRadius, double
                 events.Add(new Throttle { Value = (float)Math.Min(1, acceleration.Length / guidance.MaxAcceleration) });
                 events.Add(new AttitudeTarget { Rotation = AttitudeAutopilot.Facing(acceleration, pose), MaxTurnRate = AttitudeAutopilot.MaxTurnRate });
                 break;
-            case Orbit:
+            // The law of the nose along the velocity and the roof away from the planet means something only in a frame with
+            // point gravity, the frame that the autopilot flew by. In the docking station's frame, which has no field, the
+            // velocity is near zero, and exactly zero once the hull is parked.
+            case Orbit when KeplerOrbit.MuFrom(self.Snapshot.Frames.Gravity(self.Frame)) > 0:
                 events.Add(new AttitudeTarget { Rotation = AttitudeAutopilot.Facing(velocity, pose), MaxTurnRate = AttitudeAutopilot.MaxTurnRate });
                 break;
         }

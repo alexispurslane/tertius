@@ -5,6 +5,7 @@ using static Tertius.Host.Tests.HostTesting;
 using static Tertius.Testing.WorldTesting;
 using DemoSurface = Tertius.Demo.DemoScenes.DemoSurface;
 using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
+using SpinUp = Tertius.Testing.SpinUp;
 
 namespace Tertius.Host.Tests;
 

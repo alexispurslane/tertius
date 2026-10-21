@@ -26,8 +26,8 @@ public struct LeaveShip : IEventPayload;
 /// <summary>A report of <see cref="Disembark"/>'s walk: the person is off its feet over the chute's top.</summary>
 public readonly record struct Dropped;
 
-/// <summary>A report of <see cref="Disembark"/>'s slide: the person stands on the wheel's floor.</summary>
-public readonly record struct Landed;
+// The report of Disembark's slide that the person stands on the wheel's floor is Landed, which the docking's machine
+// reports too. It is defined beside DockingAutopilot.
 
 /// <summary>A report of <see cref="Disembark"/>'s stroll: the walker reached its last waypoint.</summary>
 public readonly record struct WalkDone;

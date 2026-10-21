@@ -148,7 +148,7 @@ public sealed class FlightControlTests : IDisposable
     public void TheAttitudeAutopilotTurnsNoFasterThanTheTurnRateOfTheTarget()
     {
         DQuaternion target = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
-        Launch(new TargetFor(ticks: int.MaxValue, target, maxTurnRate: 0.01), new AttitudeAutopilot(Shuttle.Inertia));
+        Launch(new TargetFor(ticks: int.MaxValue, target, maxTurnRate: 0.01f), new AttitudeAutopilot(Shuttle.Inertia));
 
         Tick(world, 600);
 
@@ -161,9 +161,9 @@ public sealed class FlightControlTests : IDisposable
     /// error that the world logs, as a bad throttle is for the main engine, and the hull gets no torque.
     /// </summary>
     [Theory]
-    [InlineData(double.NaN)]
-    [InlineData(-0.01)]
-    public void ATurnRateThatIsNaNOrBelowZeroIsAnErrorAndGivesNoTorque(double maxTurnRate)
+    [InlineData(float.NaN)]
+    [InlineData(-0.01f)]
+    public void ATurnRateThatIsNaNOrBelowZeroIsAnErrorAndGivesNoTorque(float maxTurnRate)
     {
         DQuaternion target = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
         Launch(new TargetFor(ticks: int.MaxValue, target, maxTurnRate), new AttitudeAutopilot(Shuttle.Inertia));
@@ -172,6 +172,70 @@ public sealed class FlightControlTests : IDisposable
 
         world.AngularVelocityIn(shuttle, space).Length().Should().BeLessThan(1e-6f);
         world.Errors.Should().Contain(error => error.Contains(nameof(AttitudeAutopilot)) && error.Contains("A turn rate lies from 0 up"));
+    }
+
+    /// <summary>
+    /// An attitude target is an event payload, so it fits the registry's 48 bytes: the rotation in 32, the feed-forward
+    /// angular velocity in 12 and the turn rate in 4.
+    /// </summary>
+    [Fact]
+    public void TheAttitudeTargetFitsAnEventPayload()
+    {
+        System.Runtime.CompilerServices.Unsafe.SizeOf<AttitudeTarget>().Should().Be(EventTypeRegistry.MaxPayloadSize);
+
+        EventTypeRegistry.Register<AttitudeTarget>().Should().BeGreaterThanOrEqualTo(0);
+    }
+
+    /// <summary>
+    /// The target turns about the roof's axis at the demo station's rate, 0.31321 rad/s, twice the autopilot's
+    /// <see cref="AttitudeAutopilot.MaxTurnRate"/>, and carries that turn as its feed-forward. The autopilot adds the
+    /// feed-forward to the rate that it asks for, so after 5 s the hull follows the target within 0.5 degrees.
+    /// </summary>
+    [Fact]
+    public void AFeedForwardTurnsTheHullWithATargetFasterThanTheMaxTurnRate()
+    {
+        const double rate = DemoScenes.SpinStation.Rate;
+        var turning = new TurningTarget(rate, lead: 0);
+        Launch(turning, new AttitudeAutopilot(Shuttle.Inertia));
+
+        Tick(world, 300);
+
+        (turning.AngleLeft(world, shuttle, space) * 180 / Math.PI).Should().BeLessThan(0.5);
+        world.AngularVelocityIn(shuttle, space).Y.Should().BeApproximately((float)rate, 0.005f);
+    }
+
+    /// <summary>
+    /// The target turns at the station's rate with that feed-forward, but leads the hull by a quarter turn. The cap of
+    /// <see cref="AttitudeAutopilot.MaxTurnRate"/> takes only the correction toward the target, so the hull turns at the
+    /// feed-forward plus the cap, 0.463 rad/s, while it closes the quarter turn.
+    /// </summary>
+    [Fact]
+    public void TheMaxTurnRateCapsOnlyTheCorrection()
+    {
+        const double rate = DemoScenes.SpinStation.Rate;
+        Launch(new TurningTarget(rate, lead: Math.PI / 2), new AttitudeAutopilot(Shuttle.Inertia));
+
+        Tick(world, 120);
+
+        world.AngularVelocityIn(shuttle, space).Y.Should().BeApproximately((float)(rate + AttitudeAutopilot.MaxTurnRate), 0.005f);
+    }
+
+    /// <summary>
+    /// A feed-forward that is not finite would turn the hull without a bound. It is an error that the world logs, as a bad
+    /// turn rate is, and the hull gets no torque.
+    /// </summary>
+    [Theory]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    public void ANonFiniteFeedForwardIsAnErrorAndGivesNoTorque(float feedForward)
+    {
+        DQuaternion target = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
+        Launch(new TargetFor(ticks: int.MaxValue, target, feedForward: new System.Numerics.Vector3(0, feedForward, 0)), new AttitudeAutopilot(Shuttle.Inertia));
+
+        Tick(world, 30);
+
+        world.AngularVelocityIn(shuttle, space).Length().Should().BeLessThan(1e-6f);
+        world.Errors.Should().Contain(error => error.Contains(nameof(AttitudeAutopilot)) && error.Contains("A feed-forward is finite"));
     }
 
     /// <summary>The target stops after 60 ticks, while the hull turns, so the autopilot gives no more torque and the hull turns on at the rate it had.</summary>
@@ -205,6 +269,44 @@ public sealed class FlightControlTests : IDisposable
         world.Frames.HullMotion(world.GetOwnedFrame(shuttle)).Should().Be(BodyMotion.Static);
     }
 
+    /// <summary>
+    /// The ascent autopilot reaches its orbit case 130 m out on the demo station's axis, at the station's speed, which is
+    /// its circle's, and closes on the station at 1 m/s. In the earth frame it adds its target, the nose along the velocity,
+    /// in every tick. Then the shuttle enters the station's frame, which has no point gravity, so its law of the nose along
+    /// the velocity means nothing there, and it adds no target in any tick of the next second.
+    /// </summary>
+    [Fact]
+    public void InOrbitTheAscentAutopilotAddsNoTargetInAFrameWithoutPointGravity()
+    {
+        using World orbit = RendezvousAutopilotTests.NewWorld();
+        FrameHandle earth = RendezvousAutopilotTests.Earth(orbit);
+        Entity station = DemoScenes.DemoStation.Spawn(orbit, earth, new SceneInstance(), RenderResources.None);
+        (Double3 center, Double3 velocity, Double3 axis) = RendezvousAutopilotTests.StationNow(orbit, station, earth);
+        var recorder = new RendezvousAutopilotTests.Recorder();
+        Double3 position = center + axis * 130;
+        Entity hull = orbit.Spawn(new SpawnDesc
+        {
+            Frame = earth,
+            Pose = new DPose(position, AttitudeAutopilot.Facing(-axis, position)),
+            LinearVelocity = velocity - axis,
+            Body = Shuttle.Body(BodyMotion.Dynamic),
+            AsFrame = new FrameSpec(new FrameBounds(Shuttle.Bubble)),
+            Components = [new AscentAutopilot(Shuttle.Mass * Shuttle.ThrustAcceleration, DemoScenes.OrbitRadius, climbHeight: -1, planeNormal: -Double3.UnitX), recorder],
+        });
+        orbit.Post(Event.Create(hull, Entity.Null, new Ignition()));
+        Tick(orbit, 3);
+        orbit.GetComponent<AscentAutopilot>(hull)!.State.Value.Should().BeOfType<Orbit>("the shuttle flies its circle from the ignition");
+        recorder.TicksWithEvents.Should().BeGreaterThan(0, "in the earth frame the orbit case adds its target");
+
+        TickUntil(orbit, () => orbit.GetFrame(hull) == orbit.GetOwnedFrame(station), limit: 60 * 5);
+        int before = recorder.TicksWithEvents;
+        Tick(orbit, 60);
+
+        orbit.GetFrame(hull).Should().Be(orbit.GetOwnedFrame(station));
+        recorder.TicksWithEvents.Should().Be(before, "the orbit case adds nothing in a frame without point gravity");
+        orbit.Errors.Should().BeEmpty();
+    }
+
     /// <summary>A test component that adds a <see cref="Throttle"/> of <paramref name="value"/> to its entity's events on each of its first <paramref name="ticks"/> ticks.</summary>
     private sealed class ThrottleFor(int ticks, float value, int priority = 0) : IComponent
     {
@@ -225,7 +327,8 @@ public sealed class FlightControlTests : IDisposable
     /// A test component that adds an <see cref="AttitudeTarget"/> of <paramref name="target"/>, with the turn rate
     /// <paramref name="maxTurnRate"/>, to its entity's events on each of its first <paramref name="ticks"/> ticks.
     /// </summary>
-    private sealed class TargetFor(int ticks, DQuaternion target, double maxTurnRate = AttitudeAutopilot.MaxTurnRate) : IComponent
+    private sealed class TargetFor(int ticks, DQuaternion target, float maxTurnRate = AttitudeAutopilot.MaxTurnRate,
+        System.Numerics.Vector3 feedForward = default) : IComponent
     {
         private int handled;
 
@@ -236,8 +339,29 @@ public sealed class FlightControlTests : IDisposable
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
             if (handled++ < ticks)
-                events.Add(new AttitudeTarget { Rotation = target, MaxTurnRate = maxTurnRate });
+                events.Add(new AttitudeTarget { Rotation = target, FeedForward = feedForward, MaxTurnRate = maxTurnRate });
         }
+    }
+
+    /// <summary>
+    /// A test component that adds, in every tick, an <see cref="AttitudeTarget"/> that turns about the frame's +Y at
+    /// <paramref name="rate"/>, in rad/s, from <paramref name="lead"/> radians at time 0, with that turn as its feed-forward.
+    /// </summary>
+    private sealed class TurningTarget(double rate, double lead) : IComponent
+    {
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        /// <summary>The target's rotation at <paramref name="time"/>, in seconds.</summary>
+        public DQuaternion At(double time) => DQuaternion.FromAxisAngle(Double3.UnitY, lead + rate * time);
+
+        /// <summary>The angle from the hull's rotation to the target of the world's time now, in radians.</summary>
+        public double AngleLeft(World world, Entity hull, FrameHandle frame) =>
+            world.PoseIn(hull, frame).Rotation.AngularVelocityTo(At(world.Time), 1).Length;
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
+            events.Add(new AttitudeTarget { Rotation = At(self.Time), FeedForward = new System.Numerics.Vector3(0, (float)rate, 0), MaxTurnRate = AttitudeAutopilot.MaxTurnRate });
     }
 }
 

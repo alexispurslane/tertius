@@ -14,7 +14,8 @@ public static class Program
     /// <item><c>--script scripts/drop-box.json --out captures/drop-box --speed 0.5</c> plays it in a window.</item>
     /// <item><c>--scene drop-box</c> runs the scene live in a window until you close it.</item>
     /// <item><c>--scene orbit --record sessions/today.json</c> does the same and writes your session as a script that replays it.</item>
-    /// <item><c>--generate scripts/blue-danube.json</c> writes the Blue Danube demo's long script (see <see cref="Generate"/>).</item>
+    /// <item><c>--generate scripts/blue-danube.json</c> writes the Blue Danube demo's long script, and its cuts beside it,
+    /// such as <c>scripts/demo-docking.json</c> (see <see cref="Generate"/>).</item>
     /// <item><c>--generate scripts/demo-exit.json demo-exit</c> writes the exit's short script.</item>
     /// </list>
     /// </summary>
@@ -32,13 +33,14 @@ public static class Program
 
     /// <summary>
     /// <c>--generate &lt;file&gt;</c> writes the Blue Danube demo's long script (see <see cref="BlueDanube"/>) to the file,
-    /// as the checked-in <c>scripts/blue-danube.json</c>. It rehearses the whole run first, which takes a while. A scene
-    /// after the file names another of <see cref="BlueDanube.Scenes"/>: <c>--generate &lt;file&gt; demo-exit</c> writes the
-    /// exit's short script, as the checked-in <c>scripts/demo-exit.json</c>. Returns
-    /// the exit code of <see cref="ScriptCommand"/>: 0, 1 for a wrong command line, 2 for a file that cannot be written, 3
-    /// for a section that a run cannot take, and 4 for a cue that never holds. Writes the file's path to
+    /// as the checked-in <c>scripts/blue-danube.json</c>, and each of its <see cref="BlueDanube.Cuts"/> into the same
+    /// folder, as the checked-in <c>scripts/demo-docking.json</c>. It rehearses the whole run first, which takes a while. A
+    /// scene after the file names another of <see cref="BlueDanube.Scenes"/>: <c>--generate &lt;file&gt; demo-exit</c>
+    /// writes the exit's short script, as the checked-in <c>scripts/demo-exit.json</c>, and no cuts. Returns the exit code
+    /// of <see cref="ScriptCommand"/>: 0, 1 for a wrong command line, 2 for a file that cannot be written, 3 for a section
+    /// that a run cannot take, and 4 for a cue that never holds. Writes the file's path to
     /// <paramref name="output"/>, then one line for each film: its name, its frames, the ticks before each frame and the
-    /// second of the run at which it starts.
+    /// second of the run at which it starts. Then it writes the path of each cut.
     /// </summary>
     public static int Generate(string[] args, TextWriter output, TextWriter error)
     {
@@ -70,15 +72,8 @@ public static class Program
             error.WriteLine($"The Blue Danube script cannot be generated: {ex.Message}");
             return ScriptCommand.InternalError;
         }
-        try
-        {
-            File.WriteAllText(path, script.ToJson());
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            error.WriteLine($"Cannot write the script {path}: {ex.Message}");
+        if (!Write(path, script, error))
             return ScriptCommand.FileError;
-        }
         output.WriteLine(path);
         long tick = 0;
         foreach (ScriptStep step in script.Steps)
@@ -88,6 +83,29 @@ public static class Program
             output.WriteLine(FormattableString.Invariant($"{film.Name}: {film.Frames} frames, every {film.Every} ticks, from {tick / 60.0:F1} s"));
             tick += (long)film.Frames * film.Every;
         }
+        // The cuts film a part of the long script, so only the long script has them.
+        foreach ((string file, string firstSection, string lastSection) in scene == BlueDanube.SceneName ? BlueDanube.Cuts : [])
+        {
+            string cut = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path))!, file);
+            if (!Write(cut, BlueDanube.FilmedBetween(script, firstSection, lastSection), error))
+                return ScriptCommand.FileError;
+            output.WriteLine(cut);
+        }
         return ScriptCommand.Ok;
+    }
+
+    /// <summary>Writes <paramref name="script"/> to <paramref name="path"/>, or the reason that it cannot to <paramref name="error"/>. Returns true when it wrote it.</summary>
+    private static bool Write(string path, Script script, TextWriter error)
+    {
+        try
+        {
+            File.WriteAllText(path, script.ToJson());
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            error.WriteLine($"Cannot write the script {path}: {ex.Message}");
+            return false;
+        }
     }
 }

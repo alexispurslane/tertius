@@ -265,7 +265,7 @@ public sealed class RendezvousAutopilot(Entity station, RendezvousPlan plan, dou
     /// <summary>What the autopilot does now. It starts in <see cref="Standby"/>.</summary>
     public RendezvousState State { get; private set; } = new Standby();
 
-    // The second layer of the flight program, after the ascent autopilot and before the docking autopilot of step 5, and
+    // The second layer of the flight program, after the ascent autopilot and before the docking autopilot, and
     // before the actuators, which read what the layers add.
     public int Priority => 1;
 
@@ -311,15 +311,19 @@ public sealed class RendezvousAutopilot(Entity station, RendezvousPlan plan, dou
         Double3 relative = velocity - stationVelocity;
         Double3 arrivalPoint = center + axis * plan.ArrivalDistance, holdPoint = center + axis * plan.HoldDistance;
         double time = self.Time, mass = body.Mass;
+        // The approach law cancels the difference of the planet's gravity between the shuttle and the station's center, so
+        // the shuttle moves relative to the station as a free mass in empty space does.
+        double planetMu = KeplerOrbit.MuFrom(self.Snapshot.Frames.Gravity(self.Frame));
+        Double3 gravityDifference = KeplerOrbit.Acceleration(position, planetMu) - KeplerOrbit.Acceleration(center, planetMu);
 
         if (State is Phasing phasing && InWindow(phasing.Guidance, position, center, stationVelocity, axis))
             State = new Transfer(phasing.Guidance, time + plan.TransferTime);
         bool coasts = State is Transfer current
             && current.Guidance.Coasts(position, center, stationVelocity, axis, plan.ArrivalDistance, current.ArrivalTime - time);
         if (State is Transfer transfer && BrakeStarts(transfer, time, coasts, (position - arrivalPoint).Length, relative.Length))
-            State = new Brake(ApproachGuidance.ForBrake(transfer.Guidance.Mu));
-        if (State is Brake brake && (position - arrivalPoint).Length < BrakeEndDistance && relative.Length < BrakeEndSpeed)
-            State = new Glide(ApproachGuidance.ForGlide(brake.Guidance.Mu));
+            State = new Brake(ApproachGuidance.ForBrake());
+        if (State is Brake && (position - arrivalPoint).Length < BrakeEndDistance && relative.Length < BrakeEndSpeed)
+            State = new Glide(ApproachGuidance.ForGlide());
         if (State is Glide glide && (position - holdPoint).Length < HoldDistanceTolerance && relative.Length < HoldSpeedTolerance
             && Math.Acos(Math.Clamp(Double3.Dot(nose, -axis), -1, 1)) < HoldNoseTolerance)
             State = new Hold(glide.Guidance);
@@ -345,17 +349,17 @@ public sealed class RendezvousAutopilot(Entity station, RendezvousPlan plan, dou
                 }
                 break;
             case Brake { Guidance: var guidance }:
-                Double3 push = guidance.Push(position, velocity, arrivalPoint, center, stationVelocity);
+                Double3 push = guidance.Push(position, relative, arrivalPoint, gravityDifference);
                 Face(ref events, push, pose, AttitudeAutopilot.MaxTurnRate);
                 Burn(ref events, push, nose, mass);
                 break;
             case Glide { Guidance: var guidance }:
                 Face(ref events, -axis, pose, AttitudeAutopilot.MaxTurnRate);
-                events.Add(new Translation { Force = guidance.Push(position, velocity, holdPoint, center, stationVelocity) * mass });
+                events.Add(new Translation { Force = guidance.Push(position, relative, holdPoint, gravityDifference) * mass });
                 break;
             case Hold { Guidance: var guidance }:
                 Face(ref events, -axis, pose, AttitudeAutopilot.MaxTurnRate);
-                events.Add(new Translation { Force = guidance.Push(position, velocity, holdPoint, center, stationVelocity) * mass });
+                events.Add(new Translation { Force = guidance.Push(position, relative, holdPoint, gravityDifference) * mass });
                 break;
         }
     }
@@ -380,7 +384,7 @@ public sealed class RendezvousAutopilot(Entity station, RendezvousPlan plan, dou
     /// </summary>
     private static bool BrakeStarts(Transfer transfer, double time, bool coasts, double distance, double speed) =>
         transfer.ArrivalTime - time <= 0
-            || coasts && Math.Sqrt(2 * ApproachGuidance.ForBrake(transfer.Guidance.Mu).BrakeAcceleration * distance) <= speed;
+            || coasts && Math.Sqrt(2 * ApproachGuidance.ForBrake().BrakeAcceleration * distance) <= speed;
 
     /// <summary>
     /// Adds the attitude target that points the nose along <paramref name="nose"/>, with the roof away from the planet, or
@@ -388,7 +392,7 @@ public sealed class RendezvousAutopilot(Entity station, RendezvousPlan plan, dou
     /// <paramref name="maxTurnRate"/>, in radians per second.
     /// </summary>
     private static void Face(scoped ref EventList events, Double3 nose, in DPose pose, double maxTurnRate) =>
-        events.Add(new AttitudeTarget { Rotation = nose.Length > 1e-9 ? AttitudeAutopilot.Facing(nose, pose) : pose.Rotation, MaxTurnRate = maxTurnRate });
+        events.Add(new AttitudeTarget { Rotation = nose.Length > 1e-9 ? AttitudeAutopilot.Facing(nose, pose) : pose.Rotation, MaxTurnRate = (float)maxTurnRate });
 
     /// <summary>
     /// Adds the throttle and the translation that give the hull of <paramref name="mass"/> kilograms the acceleration
