@@ -108,7 +108,7 @@ public static class BlueDanube
         new("dock", "chase-camera", Every: 2, (world, scene) => DockingOf(world, scene).Value is SpinUp,
             Posts: [new PostStep(new ToEntity("shuttle"), nameof(Dock))]),
         new("spin-up", "chase-camera", Every: 2, (world, scene) => DockingOf(world, scene).Value is SpinUp { StartTime: var start } && world.Time - start >= SpinUpFilmed),
-        new("spin-match", "rim-camera", Every: 2, (world, scene) => DockingOf(world, scene).Value is Entry),
+        new("spin-match", "hold-camera", Every: 2, (world, scene) => DockingOf(world, scene).Value is Entry),
         // The window camera films the slot ahead until the nose is 10 m from the slot's outer face.
         new("entry", "window-camera", Every: 4, (world, scene) => InStation(world, scene).Position.Y < DemoStation.HubHalf.Y + Shuttle.Hull.Z + NoseToSlot),
         new("slot", "bay-camera", Every: 2, (world, scene) => DockingOf(world, scene).Value is MoveOut),
@@ -134,6 +134,36 @@ public static class BlueDanube
 
     /// <summary>The script of the run, which the generator rehearses in a new world (see <see cref="FilmScript.Generate"/>).</summary>
     public static Script Generate() => FilmScript.Generate(DemoScenes.All.Single(scene => scene.Name == SceneName), Window, Sections);
+
+    /// <summary>
+    /// The short scripts that the generator writes beside the long script, for a quick look at one part of the run: each
+    /// file films the long script from its first section on (see <see cref="FilmedFrom"/>). <c>demo-docking.json</c> films
+    /// the docking alone, from the section <c>dock</c>.
+    /// </summary>
+    public static IReadOnlyList<(string File, string FirstSection)> Cuts { get; } = [("demo-docking.json", "dock")];
+
+    /// <summary>
+    /// The long script <paramref name="full"/>, filmed only from the section <paramref name="firstSection"/> on: every film
+    /// before that section runs as plain ticks, and the camera steps before it are left out. So the cut posts the same
+    /// orders at the same ticks as the long script, reaches the section at the same tick, and films the rest as the long
+    /// script does. Throws <see cref="ArgumentException"/> when the script has no film of that name.
+    /// </summary>
+    public static Script FilmedFrom(Script full, string firstSection)
+    {
+        ArgumentNullException.ThrowIfNull(full);
+        int film = full.Steps.ToList().FindIndex(step => step.Value is FilmStep { Name: var name } && name == firstSection);
+        if (film < 0)
+            throw new ArgumentException($"The script has no film '{firstSection}'.", nameof(firstSection));
+        // The section starts at its camera step, the last before its film.
+        int start = full.Steps.Take(film).ToList().FindLastIndex(step => step.Value is CameraStep);
+        IEnumerable<ScriptStep> before = full.Steps.Take(start).SelectMany(step => step.Value switch
+        {
+            FilmStep each => [new RunStep(each.Frames * each.Every)],
+            PostStep => [step],
+            _ => Array.Empty<ScriptStep>(),
+        });
+        return full with { Steps = [.. before, .. full.Steps.Skip(start)] };
+    }
 
     /// <summary>
     /// True when <paramref name="position"/>, in the shuttle's frame, lies inside the cabin, 0.1 m from its walls, floor

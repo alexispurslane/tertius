@@ -72,7 +72,7 @@ Terms used in this section:
 - The needed velocity: the velocity that puts the shuttle on the two-body path that reaches the arrival point at the arrival time.
 - The velocity to gain: the needed velocity less the shuttle's velocity, both in `earth-surface`.
 - A target point's relative state: the shuttle's position less the target point's, and the shuttle's velocity less the station's. Both are in `earth-surface`. The axis does not turn there, so a point on the axis moves with the station's center.
-- A layer: an autopilot of the flight program. In its tick it adds `Throttle`, `AttitudeTarget` and `Translation` events to the shuttle's events. The ascent autopilot is the first layer and the rendezvous autopilot is the second. Step 5's docking autopilot will be the third.
+- A layer: an autopilot of the flight program. In its tick it adds `Throttle`, `AttitudeTarget` and `Translation` events to the shuttle's events. The ascent autopilot is the first layer and the rendezvous autopilot is the second. The docking autopilot is the third (see "The docking").
 
 ### The station
 
@@ -232,7 +232,7 @@ The flight program is a stack of layers on the shuttle. The actuators follow the
 
 | Component | Priority | What it adds |
 |---|---|---|
-| `AscentAutopilot` | 0 | In its `Orbit` case, an `AttitudeTarget` with the nose along the velocity, in every tick |
+| `AscentAutopilot` | 0 | In its `Orbit` case, an `AttitudeTarget` with the nose along the velocity, in every tick while the shuttle's frame has point gravity |
 | `RendezvousAutopilot` | 1 | Nothing in `Standby` and `Phasing`. From the window on, an `AttitudeTarget` in every tick. It adds a `Throttle` in the ticks of a burn, and a `Translation` in the ticks that its translation thrusters push. |
 | `DockingAutopilot` | 2 | From the spin-up to the landing, an `AttitudeTarget` and a `Translation` in every tick (see "The docking"). |
 | `AttitudeAutopilot`, `MainEngine`, `TranslationThrusters` | 10 (today 1) | They read what the layers added. |
@@ -701,7 +701,7 @@ Only engine changes go to the user (the user's rule of 2026-10-18). So this desi
 | The window | At φ = 120 degrees, set by `OverPadAt` = 38 s | The arrival at φ = 290 degrees falls in daylight, with Earth's limb lit below the station. |
 | The arrival point | 1.5 km out on the axis | The station is 7.7 degrees wide there, 84 px in the 720-line picture. It grows through the glide, and the brake's 740 m fit. |
 | The burns | 3 m/s² on the main engine, a throttle of about 0.10 | About 32 s for the departure burn, long enough to film, and far below the climb's force on the belt |
-| The glide | Translation thrusters at 0.2 m/s² per axis, at most 5 m/s, about 350 s | The nose stays on the station all the way. |
+| The glide | Translation thrusters with a correction of at most 0.2 m/s², at most 5 m/s, about 350 s | The nose stays on the station all the way. |
 | Translation thrusters | A new demo component, `TranslationThrusters` | The brake and the glide push across the nose while the nose looks at the station. |
 | The approach law | One law for the brake, the glide and the hold, with Earth's difference of gravity cancelled | The relative motion becomes that of a free mass, so the law is exact at every distance. |
 | The flight program | Layers by priority, with the actuators at 10 | The actuators already take the last target and throttle. The ascent autopilot stays as it is. |
@@ -838,41 +838,61 @@ The station turns at 0.31321 rad/s, faster than the autopilot's 0.15 rad/s. With
 
 #### The phases
 
-`DockingState` is a custom C# 15 union, like `RendezvousState`, with one record per case. It reuses the payload-less cases `Standby` and `Halted` of the rendezvous's union. The default value is `Standby`.
+The docking is one flat state machine, as every staged component is (the user's rule of 2026-10-20). `DockingState` is a custom C# 15 union, like `RendezvousState`, with one record per case. It reuses the payload-less cases `Standby` and `Halted` of the rendezvous's union. The default value is `Standby`. Its events are a second custom union, `DockingEvent`: the script's order `Dock`, and the reports of the case that flies the tick. One pure function, `DockingAutopilot.Next(state, event)`, is the only change of the case. Unit tests pin each of its rows with no World.
 
-| Case | Data | What the autopilot does | Next case |
+| Case | Data | What the case does in a tick | Its report |
 |---|---|---|---|
-| `Standby` | None | It adds nothing. | A `Dock` order arrives: `Waiting` |
-| `Waiting` | None | It adds nothing, so the rendezvous's hold flies on. | The shuttle is within the hold's tolerances, and the roll angle ρ lies from -ω·dt/2 to ω·dt/2: `SpinUp`, with the time of this tick |
-| `SpinUp(StartTime)` | The world time at which the spin-up started, in seconds | It holds the hold point. Its attitude target trails the docked rotation by the lag λ, which falls to zero in `SpinUpTime`. | The spin-up's time is over, and the spin-up's tolerances hold: `Entry` |
-| `Entry` | None | It flies the shuttle along the axis to the entry's end, (0, 3, 0) m, with the docked rotation. | The shuttle's center is at y = 3.5 m or less, within 0.5 m of the axis: `MoveOut` |
-| `MoveOut` | None | It flies the shuttle on a straight path in the station's axes to the landing point, with the docked rotation. | The shuttle rests at the parked pose within the landing's tolerances: `Docked`. The autopilot makes the hull static in that tick. |
+| `Standby` | None | It adds nothing. | None |
+| `Waiting` | None | It adds nothing, so the rendezvous's hold flies on. | `AtRollWindow(Time)`, when the shuttle is within the hold's tolerances and the roll angle ρ lies from -ω·dt/2 to ω·dt/2. `Time` is the world time of the tick. |
+| `SpinUp(StartTime)` | The world time at which the spin-up started, in seconds | It holds the hold point. Its attitude target trails the docked rotation by the lag λ, which falls to zero in `SpinUpTime`. After that time the target is the docked rotation at rest. | `SpunUp`, when the spin-up's time is over and the spin-up's tolerances hold |
+| `Entry` | None | It flies the shuttle along the axis to the entry's end, (0, 3, 0) m, with the docked rotation. | `EntryEnded`, when the shuttle's center is at y = 3.5 m or less, within 0.5 m of the axis |
+| `MoveOut` | None | It flies the shuttle on a straight path in the station's axes to the landing point, with the docked rotation. | `Landed`, when the shuttle rests at the parked pose within the landing's tolerances. In that tick the case adds nothing. |
 | `Docked` | None | It adds nothing. | None |
 | `Halted` | None | It adds nothing more. | None |
 
-In these cases the autopilot goes to `Halted` and logs the reason once:
+Each case that flies, from `Waiting` to `MoveOut`, first reports `Lost(Reason)` instead, in these cases:
 
 - Its station is gone or owns no frame. One lookup of the station's frame covers both, because a destroyed owner's frame is gone with it.
 - Its hull has no mass.
 - The shuttle is in neither the station's frame nor the frame that holds the station.
 
- Each case holds the data that it needs. Only `SpinUp` needs data: the profile of the spin-up is a pure function of the time since its start.
+`Next` holds these rows. Every other pair leaves the case as it is.
+
+| Case | Event | Next case |
+|---|---|---|
+| `Standby` | `Dock` | `Waiting` |
+| `Waiting` | `AtRollWindow(Time)` | `SpinUp(Time)` |
+| `SpinUp` | `SpunUp` | `Entry` |
+| `Entry` | `EntryEnded` | `MoveOut` |
+| `MoveOut` | `Landed` | `Docked` |
+| `Waiting`, `SpinUp`, `Entry` or `MoveOut` | `Lost` | `Halted` |
+
+So a report changes only the case that makes it, a second `Dock` changes nothing, and `Docked` and `Halted` are final.
+
+The order of a tick: the order `Dock` goes to `Next` first, because it arrived before the tick. So the case that it starts, `Waiting`, flies the same tick. Then the case flies the tick and returns at most one report, which goes to `Next` after it. So the new case flies from the next tick on. The reports read the state at the end of the last finished step, as the flight does, so a report one tick after its moment costs nothing that the tolerances see.
+
+The side effects come from the old and the new case, never from a column of actions:
+
+- From `MoveOut` to `Docked`: `self.Body.SetMotion(BodyMotion.Static)`.
+- Into `Halted`: the log line of the loss's reason, once.
+
+Each case holds the data that it needs. Only `SpinUp` needs data: the profile of the spin-up is a pure function of the time since its start.
 
 ```mermaid
 stateDiagram-v2
   [*] --> Standby
-  Standby --> Waiting: the order Dock
-  Waiting --> SpinUp: hold tolerances, and the roll angle within half a tick of the station's turn
-  SpinUp --> Entry: 30 s passed, and the spin-up's tolerances hold
-  Entry --> MoveOut: the tail 1 m inside the slot's wall
-  MoveOut --> Docked: at rest at the parked pose, and the hull made static
-  Waiting --> Halted: station gone, no mass, or another frame
-  SpinUp --> Halted
-  Entry --> Halted
-  MoveOut --> Halted
+  Standby --> Waiting: Dock
+  Waiting --> SpinUp: AtRollWindow
+  SpinUp --> Entry: SpunUp
+  Entry --> MoveOut: EntryEnded
+  MoveOut --> Docked: Landed, and the hull made static
+  Waiting --> Halted: Lost
+  SpinUp --> Halted: Lost
+  Entry --> Halted: Lost
+  MoveOut --> Halted: Lost
 ```
 
-`Dock` is an event with no payload, which the script posts, as it posts `Rendezvous`. A `Dock` in any case but `Standby` changes nothing.
+`Dock` is an event with no payload, which the script posts, as it posts `Rendezvous`.
 
 #### Reads and writes, and their frames
 
@@ -891,7 +911,7 @@ Every write is relative to `self.Frame`, in its axes. The autopilot turns what i
 - `AttitudeTarget.FeedForward` = the target's angular velocity relative to the station, turned into `self.Frame`'s axes, plus the station frame's angular velocity relative to `self.Frame`. That second term is `FrameTree.AngularVelocityRelative(stationFrame, self.Frame)`, in `self.Frame`'s axes. Outside the bubble the second term is ω about the axis. Inside it is zero. One rule covers both frames, with no case per frame.
 - `AttitudeTarget.MaxTurnRate` = `AttitudeAutopilot.MaxTurnRate`.
 - `Translation.Force` = the mass times the push of the law, turned into `self.Frame`'s axes.
-- In the tick that ends `MoveOut`: `self.Body.SetMotion(BodyMotion.Static)`.
+- In the tick of the report `Landed`: `self.Body.SetMotion(BodyMotion.Static)`, the side effect of the change from `MoveOut` to `Docked`.
 
 The tick reads the state at the end of the last finished step. Its pushes act in the step of the next tick, two steps late, as for the rendezvous. Every time constant below is 1 s or longer, so the lag costs little.
 
@@ -949,7 +969,7 @@ where
 
 At τ = 0, `feedForward` is -ω about the axis: the target does not turn relative to the stars, as the hull does not. At τ = `SpinUpTime`, λ and `feedForward` are zero: the target is the docked rotation, at rest in the station. In between, the hull's rate relative to the stars, ω τ / `SpinUpTime`, grows steadily. So the spin-up is a constant angular acceleration of 0.0104 rad/s² about the axis, with no jolt at either end of the turn's rate.
 
-The roll is folded into the start. The hull trails the docked rotation by λ(0) = ω · `SpinUpTime` / 2, 269.2 degrees, at the start. The station turns once in 20.1 s, so within one turn the roll angle ρ to the spin-up's first target, `R_Y(λ(0)) · DockedRotation`, passes zero. `Waiting` starts the spin-up in the one tick of each pass in which ρ lies from -ω·dt/2 to ω·dt/2. The station turns 0.3 degrees in a tick, so the roll is then right within 0.15 degrees. The roll needs no phase of its own and no turn beyond the spin-up. A separate roll after the spin-up turns the hull by up to 180 degrees relative to the station. At the cap's 0.15 rad/s that takes up to 21 s, with an Euler term at the seat as it starts and stops.
+The roll is folded into the start. The hull trails the docked rotation by λ(0) = ω · `SpinUpTime` / 2, 269.2 degrees, at the start. The station turns once in 20.1 s, so within one turn the roll angle ρ to the spin-up's first target, `R_Y(λ(0)) · DockedRotation`, passes zero. `Waiting` reports the roll window in the one tick of each pass in which ρ lies from -ω·dt/2 to ω·dt/2, and the spin-up starts from that tick's time. The station turns 0.3 degrees in a tick, so the roll is then right within 0.15 degrees. The roll needs no phase of its own and no turn beyond the spin-up. A separate roll after the spin-up turns the hull by up to 180 degrees relative to the station. At the cap's 0.15 rad/s that takes up to 21 s, with an Euler term at the seat as it starts and stops.
 
 The spin-up ends at the end of `SpinUpTime`, once these tolerances hold in the station's axes. Until they hold, the target stays the docked rotation at rest:
 
@@ -995,7 +1015,7 @@ The move out ends at rest in the corner. In the station's axes, these hold:
 | Attitude | Within 0.5 degrees of `DockedRotation` |
 | Rest | Slower than 0.01 m/s, and turning slower than 0.002 rad/s, relative to the station |
 
-In that tick the autopilot makes the hull static with `Self.Body.SetMotion(BodyMotion.Static)`, goes to `Docked`, and adds nothing more. The hull stays where the corner put it.
+In that tick the case adds nothing and reports `Landed`. `Next` takes it to `Docked`, and the change makes the hull static with `Self.Body.SetMotion(BodyMotion.Static)`. Then the autopilot adds nothing more. The hull stays where the corner put it.
 
 #### Tolerances
 
@@ -1036,11 +1056,12 @@ At the start of the move out, the push away from the axis lifts the felt gravity
 
 ### The cameras
 
-One camera is new:
+Two cameras are new:
 
 | Camera | Frame | Pose | What it sees |
 |---|---|---|---|
 | `bay-camera` | The station's | At (6.5, -11.5, 5.5) m, 1 m from the bay's far wall, looking at (-3, 3, -1.5) m, with its roof toward +X | The slot, the shuttle's nose as it comes through, the move out and the landing in the corner, and the spoke's mouth in the deck. It is still in the bay, which is still in the station's axes. |
+| `hold-camera` | The station's | At (30, 170, 10) m, 20 m beyond the hold point along the axis and 32 m from the axis, looking at (0, 114, 0) m, with its roof toward +Z | The end of the spin-up: the shuttle at the hold, 37 m away, with the hub 173 m away beyond it. It turns with the station, so the shuttle first turns backward in the picture, then slows and stops, belly toward the deck, while the stars wheel behind. |
 
 A check on paper used the picture's fields, 92 degrees across and 60 degrees up and down. It put the slot's corners, the parked hull's corners and the spoke's mouth inside the picture. The nearest to the edge is the parked hull's corner at (-8, -5, -2) m. It lies 0.517 of the half height below the middle, against a limit of 0.582. The builder checks the corners with `Picture.Project` in a test. If a corner leaves the picture, the builder moves the camera.
 
@@ -1049,12 +1070,13 @@ The cameras that exist and what they see in the docking:
 | Camera | Frame | In the docking |
 |---|---|---|
 | `chase-camera` | The shuttle's | The spin-up from the starboard quarter. Before it, the station turns in the picture. As the shuttle matches it, the station's turn slows to a stop, and Earth and the stars start to wheel behind it. |
-| `rim-camera` | The station's | The end of the spin-up. It turns with the station, so the shuttle first turns backward in the picture, then slows and stops, belly toward the deck. |
 | `window-camera` | The shuttle's | The entry from the nose: the slot grows ahead through `pane-nose`, still in the picture, while the stars turn round it. |
 | `cockpit-camera` | The shuttle's | The person in the move out: its weight returns, the belt lets go, and it stands. |
 | `cabin-camera` | The shuttle's | The docked cabin: the person standing at its seat, and the hatch through which step 6 starts. |
 
 `chase-camera` lies 40 m out in the shuttle's frame, outside the hub once the shuttle is in the bay. So it films only the spin-up.
+
+The first build filmed the end of the spin-up from `rim-camera`, near the wheel's rim beside the hub. From there the shuttle at the hold lies 171 m away, and its box covers 0.24 percent of the picture: a speck at the right edge, with the hub at the left. The hub and the shuttle lie 150 m apart, so no camera beside the hub frames both with the shuttle larger than that. `hold-camera` stands beyond the shuttle instead, so the shuttle is near and the hub lies beyond it, 47 degrees to one side. A camera with no body takes no hand-off, so it stays in the station's frame outside its bubble, as `chase-camera` stays in the shuttle's. `DemoStationTests.TheSpinMatchCameraFramesTheHubAndTheShuttleAtTheHold` checks the hub's and the shuttle's corners with `Picture.Project`, in eight rolls of the shuttle, and that the shuttle's box covers more than 1 percent of the picture.
 
 ### Sections of the long script
 
@@ -1064,16 +1086,16 @@ The docking's sections follow `hold-chase`. Their cues read the docking autopilo
 |---|---|---|---|---|---|---|
 | `dock` | `chase-camera` | 2 | `Dock` to `shuttle` | The docking autopilot is in `SpinUp` | Up to 20 s, up to 600 frames | From 4,874.6 s: 17.7 s, 532 frames |
 | `spin-up` | `chase-camera` | 2 | | 20 s into the spin-up | 20 s, 600 frames | 20 s, 599 frames |
-| `spin-match` | `rim-camera` | 2 | | The docking autopilot is in `Entry` | About 10 s, 300 frames | 10 s, 301 frames |
+| `spin-match` | `hold-camera` | 2 | | The docking autopilot is in `Entry` | About 10 s, 300 frames | 10 s, 301 frames |
 | `entry` | `window-camera` | 4 | | The nose is within 10 m of the slot's outer face: the shuttle's center within 31 m of the station's center, along the axis | About 62 s, 930 frames | 62.9 s, 944 frames |
 | `slot` | `bay-camera` | 2 | | The docking autopilot is in `MoveOut` | About 28 s, 840 frames | 22.1 s, 663 frames |
-| `move-out` | `cockpit-camera` | 2 | | The shuttle's center is within 1 m of the parked point | About 20 s, 600 frames | 15.3 s, 459 frames |
+| `move-out` | `cockpit-camera` | 2 | | The shuttle's center is within 1 m of the parked point | About 20 s, 600 frames | 15.3 s, 460 frames |
 | `landing` | `bay-camera` | 1 | | 2 s after the docking autopilot is in `Docked` | About 10 s, 600 frames | 10.4 s, 622 frames |
 | `docked` | `cabin-camera` | 1 | | After 3 s | 3 s, 180 frames | From 5,033.1 s: 3 s, 180 frames |
 
 So the docking films 4,300 frames in 161.5 s of the simulation, 72 s of video. The model gave about 4,650 frames in about 175 s. The entry ended 5 s sooner than the model, because the cue of the entry's end lies 0.5 m before its target. Every section stays within the default limit of 10 minutes.
 
-`scripts/demo-docking.json` films the docking alone, for a quick look at it: it is the long script, with every film before `dock` run as plain ticks and the camera steps before it left out. So it posts the same orders at the same ticks and reaches the hold at the same tick (`BlueDanubeDockingTests`). The script is written by hand from the long script after each change of it.
+`scripts/demo-docking.json` films the docking alone, for a quick look at it: it is the long script, with every film before `dock` run as plain ticks and the camera steps before it left out. So it posts the same orders at the same ticks and reaches the hold at the same tick (`BlueDanubeDockingTests`). The generator writes it beside the long script, from `BlueDanube.Cuts` and `BlueDanube.FilmedFrom`, so it changes with the long script and cannot drift from it (`BlueDanubeScriptTests`). The first build wrote it by hand with a script of its own after each change of the long script.
 
 ### Analogues
 
@@ -1081,6 +1103,7 @@ So the docking films 4,300 frames in 161.5 s of the simulation, 72 s of video. T
 |---|---|---|
 | `DockingAutopilot` | `RendezvousAutopilot` | A layer that adds events for the actuators in every tick that it steers. It reads the station through the snapshot, halts with one log line, and takes its order from the script. |
 | `DockingState` | `RendezvousState` | A custom union with one record per phase, each with the data that it needs. It reuses `Standby` and `Halted`. |
+| `DockingEvent` and `DockingAutopilot.Next` | None that I found | The first staged component of the demo built as one flat machine: a custom union of the events and one pure change of the case. The rendezvous changes its case in its tick. |
 | `Dock` | `Rendezvous`, `Ignition` | An order with no payload that the script posts |
 | `Waiting` | `Phasing` | A case that adds nothing while a layer before it flies on, and waits for a moment that the world gives |
 | `SpinUp`'s profile | `TransferGuidance`'s window and the passenger's float | A pure function of the state and the time, with no memory beyond the start |
@@ -1088,7 +1111,7 @@ So the docking films 4,300 frames in 161.5 s of the simulation, 72 s of video. T
 | `ApproachGuidance.ForEntry`, `ForMoveOut` | `ApproachGuidance.ForBrake`, `ForGlide` | Named parameters of the one law |
 | `AttitudeTarget.FeedForward` | `AttitudeTarget.MaxTurnRate` | A field of the target that a layer sets in every tick, which the autopilot reads with the rotation |
 | The docked hull made static | `Shuttle.Park` and the ascent's unpark | A parked hull is static, and `SetMotion` changes it |
-| `bay-camera` | `rim-camera` | A still view in the station's frame |
+| `bay-camera`, `hold-camera` | `rim-camera` | A still view in the station's frame |
 | `DemoStation.ParkedPose`, `DockedRotation`, `SpokeMouth` | `DemoStation.HoldPoint`, `Shuttle.SeatStand` | A named place in the axes of the thing that it belongs to |
 | The docking's sections | The rendezvous's sections | Cues that read the run, and time-lapses by the film interval |
 
@@ -1148,6 +1171,10 @@ Pure math, with no World:
   - `OutsideTheBubbleThePushAlsoCancelsTheDifferenceOfGravity`.
   - `TheCapTakesOnlyTheCorrection`: far from the axis the push exceeds `MaxAcceleration` by the cancelled terms.
   - The existing tests, with the free acceleration as a parameter.
+- `DockingMachineTests`, of `DockingAutopilot.Next`, one test for each row of the machine:
+  - `TheOrderStartsTheWaitFromStandby`, `TheRollWindowStartsTheSpinUpAtTheTimeOfTheReport`, `TheEndOfTheSpinUpStartsTheEntry`, `TheEndOfTheEntryStartsTheMoveOut` and `TheLandingDocks`.
+  - `ALossHaltsEveryCaseThatFlies` and `ALossInStandbyChangesNothing`.
+  - `ASecondOrderChangesNothing`, `DockedAndHaltedAreFinal` and `AReportChangesOnlyTheCaseThatMakesIt`.
 - `DockingProfileTests`, of `SpinUpProfile`:
   - `TheLagFallsFromHalfTheStationsTurnInTheSpinUpTimeToZero`.
   - `TheFeedForwardRisesSteadilyFromStillAmongTheStarsToTheStationsRate`.
@@ -1184,11 +1211,12 @@ The run of the checked-in script:
   - `TheStrappedPassengerStaysAtItsSeatThroughTheDocking`: within 0.4 m of the seat stand, and standing in `docked`. The design asked for 0.15 m. The run showed that the person stands 0.31 m to port of the seat stand once the belt lets go (see "Measured").
   - `ThePenStaysInThePassengersHandThroughTheDocking`.
   - `TheBayCameraSeesTheSlotAndTheParkedHull`, with `Picture.Project`, in every frame of `slot` and `landing`.
+  - `TheHoldCameraFramesTheHubAndTheShuttleInTheSpinMatch`, with `Picture.Project` and `Picture.Cover`, in every frame of `spin-match`.
   - `TheWindowCameraSeesTheSlotThroughThePaneOfTheNose`, in every frame of `entry`.
   - `TheOnlyLogLineOfTheDockingIsTheRendezvousHaltAtTheHandOff`, and `TheWorldLogsNoErrors`.
   - `TheDockingScriptIsTheLongScriptWithOnlyTheDockingFilmed`, for `scripts/demo-docking.json`.
-- `DemoStationTests`: `TheShuttlesDockingAutopilotDocksInTheStation`, and `TheBayCameraSeesTheSlotTheParkedHullAndTheSpokeMouth` with `Picture.Project`.
-- `BlueDanubeScriptTests` stays as it is, so `scripts/blue-danube.json` is written again.
+- `DemoStationTests`: `TheShuttlesDockingAutopilotDocksInTheStation`, `TheBayCameraSeesTheSlotTheParkedHullAndTheSpokeMouth` with `Picture.Project`, and `TheSpinMatchCameraFramesTheHubAndTheShuttleAtTheHold`.
+- `BlueDanubeScriptTests` also checks that the generator writes the checked-in `scripts/demo-docking.json` beside the long script. `scripts/blue-danube.json` is written again.
 
 The screenshots that end the ticket come from one headless run of `scripts/demo-docking.json` with `--video` and the real renderer, which films the docking's sections of the long script. `ffmpeg-headless` takes frames out of the video, and they are looked at before they are sent:
 
@@ -1199,7 +1227,7 @@ The screenshots that end the ticket come from one headless run of `scripts/demo-
 
 ### Measured
 
-Measured on 2026-10-20 in the shared flight of `DockingAutopilotTests`, from the hold with no rendezvous:
+Measured on 2026-10-20 in the shared flight of `DockingAutopilotTests`, from the hold with no rendezvous. The review then made the autopilot one flat machine, in which a report changes the case for the next tick. That moves each change of the case one tick, 1/60 s, later, and the long script's film `move-out` one frame longer. The tests of the flight and of the run pass unchanged, and the times below stay as measured.
 
 - The spin-up starts 15.2 s after the order, at the roll window. It takes its 30 s. The Euler term of the turn at the seat stand reaches 0.015 m/s² at most, below half the weightless threshold.
 - At the end of the spin-up the shuttle lies 6 cm from the hold point. The glide's law flies the hull's origin, while the hull turns about its center of mass, 9 cm from the origin.
@@ -1275,7 +1303,8 @@ Only engine changes go to the user (the user's rule of 2026-10-18). So this desi
 | The rendezvous at the hand-off | It halts with its one log line, unchanged | Its design names that halt. The docking already overrides it. |
 | The ascent autopilot in the station | Its orbit case adds nothing in a frame without point gravity | Its law means nothing there. Without the rule, a zero velocity makes it throw in every tick of the parked shuttle. |
 | The passenger | Strapped, with no change to `Passenger` | The belt holds it while the gravity leans past 45 degrees, and the floor holds it after. The user accepted the engine's up rule for the belted person. |
-| The new camera | `bay-camera`, a still view in the station's frame | The entry through the slot and the landing need a view from inside the bay. `chase-camera` lies outside the hub there. |
+| The new cameras | `bay-camera` and `hold-camera`, still views in the station's frame | The entry through the slot and the landing need a view from inside the bay. `chase-camera` lies outside the hub there. The end of the spin-up needs the shuttle and the hub in one picture, and no place beside the hub shows the shuttle as more than a speck. |
+| The shape of the autopilot | One flat state machine: the union of the cases, a union of the events, one pure `Next`, and a case that flies each tick and returns at most one report | The user's rule for every staged component (2026-10-20). The whole docking reads in one table, and its rows are tested with no World. |
 
 ### Engine changes
 
@@ -1892,7 +1921,7 @@ dotnet run --project src/Tertius.Demo -- --generate scripts/blue-danube.json
 dotnet run -c Release --project src/Tertius.Demo -- --script scripts/blue-danube.json --headless --out runs/danube --video runs/danube/blue-danube.mkv --fps 60
 ```
 
-The first command rehearses the run and writes the script. It prints each film with its frames, its film interval and the second of the run at which it starts. With the rendezvous, the rehearsal took 107 s on 2026-10-20, against about 10 s before. The second makes the video: on 2026-10-20 it took 110 s, at a load average from 3.7 to 6.5, for the 15,806 frames and 292,242 ticks, 4,871 s of the simulation and 263 s of video. Before the rendezvous, in the last two runs of 2026-10-19, it took 22 s and 24 s for 4,210 frames and 23,101 ticks. With the glass canopy of ter-4xkz, it took 117 s on 2026-10-20, at a load average from 4 to 5, for 15,782 frames. With the docking of ter-ftnj, the script films 20,084 frames in 302,163 ticks, 5,036 s of the simulation and 335 s of video. Its rehearsal took about 4.5 minutes on 2026-10-20, in Release, while other test runs loaded the machine. The test `BlueDanubeScriptTests` runs the first command and checks that its output equals the checked-in `scripts/blue-danube.json`, so the two cannot drift. A change of the scene, of the engine's timing or of the sections fails the test until the script is written again.
+The first command rehearses the run and writes the script. Beside it, in the same folder, it writes each cut of `BlueDanube.Cuts`, such as `scripts/demo-docking.json`, which films the long script only from one section on. It prints each film with its frames, its film interval and the second of the run at which it starts. With the rendezvous, the rehearsal took 107 s on 2026-10-20, against about 10 s before. The second makes the video: on 2026-10-20 it took 110 s, at a load average from 3.7 to 6.5, for the 15,806 frames and 292,242 ticks, 4,871 s of the simulation and 263 s of video. Before the rendezvous, in the last two runs of 2026-10-19, it took 22 s and 24 s for 4,210 frames and 23,101 ticks. With the glass canopy of ter-4xkz, it took 117 s on 2026-10-20, at a load average from 4 to 5, for 15,782 frames. With the docking of ter-ftnj, the script films 20,084 frames in 302,163 ticks, 5,036 s of the simulation and 335 s of video. Its rehearsal took about 4.5 minutes on 2026-10-20, in Release, while other test runs loaded the machine. The test `BlueDanubeScriptTests` runs the first command and checks that its output equals the checked-in `scripts/blue-danube.json`, and each cut the checked-in cut, so they cannot drift. A change of the scene, of the engine's timing or of the sections fails the test until the script is written again.
 
 The sections today, as `BlueDanube.Sections` lists them. The frames of each film and the second at which it starts come from the run, so the generator prints them, and this table does not copy them:
 
@@ -1936,7 +1965,7 @@ The sections today, as `BlueDanube.Sections` lists them. The frames of each film
 | `hold-chase` | `chase-camera` | 1 | After 2 s. The person through the starboard glass, with the station ahead |
 | `dock` | `chase-camera` | 2 | It posts `Dock` to the shuttle. The docking autopilot is in `SpinUp` |
 | `spin-up` | `chase-camera` | 2 | 20 s into the spin-up |
-| `spin-match` | `rim-camera` | 2 | The docking autopilot is in `Entry` |
+| `spin-match` | `hold-camera` | 2 | The docking autopilot is in `Entry` |
 | `entry` | `window-camera` | 4 | The nose is within 10 m of the slot's outer face |
 | `slot` | `bay-camera` | 2 | The docking autopilot is in `MoveOut` |
 | `move-out` | `cockpit-camera` | 2 | The shuttle's center is within 1 m of the parked point |
@@ -1951,7 +1980,7 @@ The demo is one unbroken run in one scene, so a later part, such as the station 
 
 1. Add the part's entities and its cameras to the scene. A camera is an entity with a scene id. A camera that follows the person is a `ChaseCamera` on an entity attached to the person, as `follow-camera` is.
 2. Add the part's sections to the end of `BlueDanube.Sections`, in the order of the sequence. Give each one a camera, a film interval, and a cue that reads the run or the scene's constants, never a tick number. A section that starts the part, such as a burn, posts its event. Replace the hold of `coast` with the cue at which the part starts, or keep the coast and add the part after it. A section that waits longer than 10 minutes of the simulation, such as a long coast, names a larger `Limit`.
-3. Write the script again with `--generate scripts/blue-danube.json`, and commit it with the change, so that `BlueDanubeScriptTests` passes.
+3. Write the script again with `--generate scripts/blue-danube.json`, which writes the cuts beside it, and commit them with the change, so that `BlueDanubeScriptTests` passes.
 4. Make the video headless with `--video`, and have its frames judged.
 
 ### The chase camera

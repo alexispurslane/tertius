@@ -103,6 +103,29 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run) : IClass
     }
 
     /// <summary>
+    /// In every frame of the film <c>spin-match</c>, from <c>hold-camera</c>, the corners of the hub's box and of the
+    /// shuttle's box lie in the picture, and the shuttle's box covers at least 1 percent of it, so the end of the spin-up
+    /// shows both the shuttle and the hub that it turns with.
+    /// </summary>
+    [Fact]
+    public void TheHoldCameraFramesTheHubAndTheShuttleInTheSpinMatch()
+    {
+        RendezvousFrame[] frames = [.. run.Frames.Where(frame => frame.Of("spin-match"))];
+        System.Numerics.Vector3 hub = DemoStation.HubHalf;
+        Double3[] hubCorners = [.. Corners(new BoundingBox(-hub, hub))];
+
+        frames.Should().NotBeEmpty();
+        foreach (RendezvousFrame frame in frames)
+        {
+            Double3[] shuttle = [.. Enumerable.Range(0, 8).Select(corner => frame.ShuttleInStation.TransformPoint(new Double3(
+                (corner & 1) == 0 ? -Shuttle.Hull.X : Shuttle.Hull.X, (corner & 2) == 0 ? -Shuttle.Hull.Y : Shuttle.Hull.Y, (corner & 4) == 0 ? -Shuttle.Hull.Z : Shuttle.Hull.Z)))];
+            foreach (Double3 corner in hubCorners.Concat(shuttle))
+                Picture.Contains(Picture.Project(frame.ViewInStation, corner, frame.VerticalFov)).Should().BeTrue($"the corner {corner} lies in the picture of {frame.Name}");
+            Picture.Cover(frame.ViewInStation, frame.ShuttleInStation, (Double3)Shuttle.Hull, frame.VerticalFov).Should().BeGreaterThan(0.01, $"the shuttle is no speck in {frame.Name}");
+        }
+    }
+
+    /// <summary>
     /// In every frame of the film <c>entry</c>, from <c>window-camera</c>, the middle of the slot's outer face lies in the
     /// picture, and the line from the camera to it crosses both skins inside the holes of <c>pane-nose</c>.
     /// </summary>

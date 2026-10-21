@@ -127,34 +127,143 @@ public readonly struct DockingState : IEquatable<DockingState>
 }
 
 /// <summary>
+/// A <see cref="DockingAutopilot"/>'s report: the shuttle is within the hold's tolerances and the roll angle lies in its
+/// window, at <paramref name="Time"/>, the world time of the tick, in seconds.
+/// </summary>
+public readonly record struct AtRollWindow(double Time);
+
+/// <summary>A <see cref="DockingAutopilot"/>'s report: the spin-up's time is over, and its tolerances hold.</summary>
+public readonly record struct SpunUp;
+
+/// <summary>A <see cref="DockingAutopilot"/>'s report: the shuttle's center is near the entry's end, along the axis and across it.</summary>
+public readonly record struct EntryEnded;
+
+/// <summary>A <see cref="DockingAutopilot"/>'s report: the hull rests at the parked pose within the landing's tolerances.</summary>
+public readonly record struct Landed;
+
+/// <summary>
+/// A <see cref="DockingAutopilot"/>'s report: it cannot fly the docking, for <paramref name="Reason"/>. Its station is gone or
+/// owns no frame, its hull has no mass, or the shuttle is in neither the station's frame nor the frame that holds the
+/// station.
+/// </summary>
+public readonly record struct Lost(string Reason);
+
+/// <summary>
+/// An event of a <see cref="DockingAutopilot"/>'s machine (see <see cref="DockingAutopilot.Next"/>): the script's order
+/// <see cref="Dock"/>, or a report of the case that flew the tick, <see cref="AtRollWindow"/>, <see cref="SpunUp"/>,
+/// <see cref="EntryEnded"/>, <see cref="Landed"/> or <see cref="Lost"/>. This is a custom C# 15 union, like
+/// <see cref="DockingState"/>. The default value is <see cref="Dock"/>.
+/// </summary>
+[Union]
+public readonly struct DockingEvent : IEquatable<DockingEvent>
+{
+    private const byte KindDock = 0, KindAtRollWindow = 1, KindSpunUp = 2, KindEntryEnded = 3, KindLanded = 4, KindLost = 5;
+
+    // Only the roll window fills its time, and only a loss its reason. Every other field is zero or null, so equality
+    // compares every field.
+    private readonly double time;
+    private readonly string? reason;
+    private readonly byte kind;
+
+    public DockingEvent(Dock dock) { kind = KindDock; }
+    public DockingEvent(AtRollWindow atRollWindow) { kind = KindAtRollWindow; time = atRollWindow.Time; }
+    public DockingEvent(SpunUp spunUp) { kind = KindSpunUp; }
+    public DockingEvent(EntryEnded entryEnded) { kind = KindEntryEnded; }
+    public DockingEvent(Landed landed) { kind = KindLanded; }
+    public DockingEvent(Lost lost) { kind = KindLost; reason = lost.Reason; }
+
+    /// <summary>Always true: every value is an event, and the default value is <see cref="Dock"/>.</summary>
+    public bool HasValue => true;
+
+    public bool TryGetValue(out Dock value)
+    {
+        value = default;
+        return kind == KindDock;
+    }
+
+    public bool TryGetValue(out AtRollWindow value)
+    {
+        value = new AtRollWindow(time);
+        return kind == KindAtRollWindow;
+    }
+
+    public bool TryGetValue(out SpunUp value)
+    {
+        value = default;
+        return kind == KindSpunUp;
+    }
+
+    public bool TryGetValue(out EntryEnded value)
+    {
+        value = default;
+        return kind == KindEntryEnded;
+    }
+
+    public bool TryGetValue(out Landed value)
+    {
+        value = default;
+        return kind == KindLanded;
+    }
+
+    public bool TryGetValue(out Lost value)
+    {
+        value = new Lost(reason ?? "");
+        return kind == KindLost;
+    }
+
+    public object Value => kind switch
+    {
+        KindAtRollWindow => new AtRollWindow(time),
+        KindSpunUp => new SpunUp(),
+        KindEntryEnded => new EntryEnded(),
+        KindLanded => new Landed(),
+        KindLost => new Lost(reason ?? ""),
+        _ => new Dock(),
+    };
+
+    public bool Equals(DockingEvent other) => kind == other.kind && time.Equals(other.time) && reason == other.reason;
+    public override bool Equals(object? obj) => obj is DockingEvent other && Equals(other);
+    public override int GetHashCode() => HashCode.Combine(kind, time, reason);
+    public static bool operator ==(DockingEvent a, DockingEvent b) => a.Equals(b);
+    public static bool operator !=(DockingEvent a, DockingEvent b) => !a.Equals(b);
+
+    public override string ToString() => $"DockingEvent({Value})";
+}
+
+/// <summary>
 /// The third layer of the shuttle's flight program: it docks the shuttle in its <paramref name="station"/> from the hold
 /// point (docs/plans/blue-danube-demo.md, "The docking"). From the spin-up to the landing, it adds an
 /// <see cref="AttitudeTarget"/> for the <see cref="AttitudeAutopilot"/> and a <see cref="Translation"/> for the
 /// <see cref="TranslationThrusters"/> in every tick, so the targets and the translations of the layers before it never reach
-/// the actuators. It adds no <see cref="Throttle"/>, so the main engine stays off. The docking goes through the cases of
-/// <see cref="DockingState"/>:
-/// <list type="bullet">
-/// <item><see cref="Standby"/>: it adds nothing. A <see cref="Dock"/> order starts the wait in the same tick.</item>
-/// <item><see cref="Waiting"/>: it adds nothing, so the rendezvous's hold flies on. When the shuttle is within the hold's
-/// tolerances and the roll angle lies in its window (<see cref="SpinUpProfile.InRollWindow"/>), the spin-up starts, at most
-/// one turn of the station after the order.</item>
-/// <item><see cref="SpinUp"/>: the attitude target follows the <see cref="SpinUpProfile"/> for <see cref="SpinUpTime"/>,
-/// from still among the stars to rest in the station with the belly toward the deck, and the glide's law holds the hold
-/// point. Once the time is over and the spin-up's tolerances hold, the entry starts. Until they hold, the target is the
-/// docked rotation at rest.</item>
-/// <item><see cref="Entry"/>: the entry's law flies the shuttle along the axis to <see cref="EntryEnd"/>, with the docked
-/// rotation. On the way it enters the station's frame at its bubble. Within <see cref="EntryEndDistance"/> of the entry's
-/// end along the axis and across it, the move out starts.</item>
-/// <item><see cref="MoveOut"/>: the move out's law flies the shuttle on a straight path in the station's axes to
-/// <see cref="LandingPoint"/>, with the docked rotation. When the hull rests at the parked pose within the landing's
-/// tolerances, the autopilot makes the hull static with <c>Self.Body.SetMotion</c>, and docks in the same tick.</item>
-/// <item><see cref="Docked"/>: it adds nothing.</item>
-/// </list>
-/// The autopilot halts, logs the reason once and adds nothing more (<see cref="Halted"/>) when its station is gone or owns
-/// no frame, when its hull has no mass, or when the shuttle is in neither the station's frame nor the frame that holds the
-/// station.
+/// the actuators. It adds no <see cref="Throttle"/>, so the main engine stays off.
 /// </summary>
 /// <remarks>
+/// <para>The docking is one flat state machine. <see cref="DockingState"/> holds every case, and the pure
+/// <see cref="Next"/> is the only change of the case. Its events are the script's order <see cref="Dock"/> and the reports
+/// of the case that flies the tick. In a tick, the order goes to <see cref="Next"/> first, because it arrived before the
+/// tick. Then the case flies the tick and returns at most one report, which goes to <see cref="Next"/> after it, so the new
+/// case flies from the next tick on. What each case does:
+/// <list type="bullet">
+/// <item><see cref="Standby"/>, <see cref="Docked"/> and <see cref="Halted"/>: nothing.</item>
+/// <item><see cref="Waiting"/>: nothing, so the rendezvous's hold flies on. It reports <see cref="AtRollWindow"/> when the
+/// shuttle is within the hold's tolerances and the roll angle lies in its window (<see cref="SpinUpProfile.InRollWindow"/>),
+/// at most one turn of the station after the order.</item>
+/// <item><see cref="SpinUp"/>: the attitude target follows the <see cref="SpinUpProfile"/> for <see cref="SpinUpTime"/>,
+/// from still among the stars to rest in the station with the belly toward the deck, and the glide's law holds the hold
+/// point. Once the time is over, the target is the docked rotation at rest, and the case reports <see cref="SpunUp"/> when
+/// the spin-up's tolerances hold.</item>
+/// <item><see cref="Entry"/>: the entry's law flies the shuttle along the axis to <see cref="EntryEnd"/>, with the docked
+/// rotation. On the way it enters the station's frame at its bubble. It reports <see cref="EntryEnded"/> within
+/// <see cref="EntryEndDistance"/> of the entry's end along the axis and across it.</item>
+/// <item><see cref="MoveOut"/>: the move out's law flies the shuttle on a straight path in the station's axes to
+/// <see cref="LandingPoint"/>, with the docked rotation. When the hull rests at the parked pose within the landing's
+/// tolerances, the case adds nothing and reports <see cref="Landed"/>.</item>
+/// </list>
+/// Every flying case first reports <see cref="Lost"/> when its station is gone or owns no frame, when its hull has no mass,
+/// or when the shuttle is in neither the station's frame nor the frame that holds the station.</para>
+/// <para>The side effects come from the old and the new case: from <see cref="MoveOut"/> to <see cref="Docked"/>, the
+/// autopilot makes the hull static with <c>Self.Body.SetMotion</c>. Into <see cref="Halted"/>, it logs the reason of the
+/// loss once.</para>
 /// <para>Every read is in the station's frame, whichever frame holds the shuttle: the shuttle's pose, velocity and angular
 /// velocity, and the station's rate relative to the virtual root above the roots, in the station's axes. Outside the
 /// bubble the engine converts the reads from the frame that holds the station, with the station's turn, and the autopilot
@@ -228,34 +337,72 @@ public sealed class DockingAutopilot(Entity station, Vector3 centerOfMass) : ICo
 
     public EventMask Wants => EventMask.Of<Dock>().And<Tick>();
 
+    /// <summary>
+    /// The docking's one change of case: the case after <paramref name="state"/> when <paramref name="report"/> comes. A
+    /// pure function of the two.
+    /// <list type="table">
+    /// <item><see cref="Standby"/> and the order <see cref="Dock"/>: <see cref="Waiting"/>.</item>
+    /// <item><see cref="Waiting"/> and <see cref="AtRollWindow"/>: <see cref="SpinUp"/>, from the report's time.</item>
+    /// <item><see cref="SpinUp"/> and <see cref="SpunUp"/>: <see cref="Entry"/>.</item>
+    /// <item><see cref="Entry"/> and <see cref="EntryEnded"/>: <see cref="MoveOut"/>.</item>
+    /// <item><see cref="MoveOut"/> and <see cref="Landed"/>: <see cref="Docked"/>.</item>
+    /// <item><see cref="Waiting"/>, <see cref="SpinUp"/>, <see cref="Entry"/> or <see cref="MoveOut"/>, and <see cref="Lost"/>:
+    /// <see cref="Halted"/>.</item>
+    /// <item>Every other pair: <paramref name="state"/>, unchanged. So a <see cref="Dock"/> after the first changes
+    /// nothing, and <see cref="Docked"/> and <see cref="Halted"/> are final.</item>
+    /// </list>
+    /// </summary>
+    public static DockingState Next(DockingState state, DockingEvent report) => (state, report) switch
+    {
+        (Standby, Dock) => new Waiting(),
+        (Waiting, AtRollWindow { Time: var time }) => new SpinUp(time),
+        (SpinUp, SpunUp) => new Entry(),
+        (Entry, EntryEnded) => new MoveOut(),
+        (MoveOut, Landed) => new Docked(),
+        (Waiting or SpinUp or Entry or MoveOut, Lost) => new Halted(),
+        _ => state,
+    };
+
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
-        if (State is Halted or Docked)
-            return;
-        if (State is Standby)
-        {
-            if (!events.Of<Dock>().Any())
-                return;
-            State = new Waiting();
-        }
+        // The order arrived before the tick, so it goes to the machine first, and the case that it starts flies this tick.
+        if (events.Of<Dock>().Any())
+            Apply(self, new Dock());
+        if (Fly(self, ref events) is { } report)
+            Apply(self, report);
+    }
+
+    /// <summary>
+    /// Changes the case by <see cref="Next"/>, and does the side effects of the change: from <see cref="MoveOut"/> to
+    /// <see cref="Docked"/> the hull becomes static, and into <see cref="Halted"/> the reason of the loss is logged once.
+    /// </summary>
+    private void Apply(Self self, DockingEvent report)
+    {
+        DockingState old = State;
+        State = Next(old, report);
+        if (old is MoveOut && State is Docked)
+            self.Body.SetMotion(BodyMotion.Static);
+        if (old is not Halted && State is Halted && report is Lost { Reason: var reason })
+            self.Log($"{nameof(DockingAutopilot)} halts: {reason}.");
+    }
+
+    /// <summary>
+    /// Flies one tick in the case that the autopilot is in, and returns its report, or null. The cases that do nothing
+    /// return null at once. Every other case first returns <see cref="Lost"/> when it cannot fly.
+    /// </summary>
+    private DockingEvent? Fly(Self self, scoped ref EventList events)
+    {
+        if (State is not (Waiting or SpinUp or Entry or MoveOut))
+            return null;
         FrameTree frames = self.Snapshot.Frames;
         // A destroyed station's frame is gone with it, so the lookup of its frame covers a station that is gone.
         if (!frames.TryGetFrame(station, out FrameHandle stationFrame))
-        {
-            Halt(self, "its station is gone or owns no frame");
-            return;
-        }
+            return new Lost("its station is gone or owns no frame");
         if (!self.Snapshot.TryGetBody(self.Entity, out BodyFacts body) || body.Mass <= 0)
-        {
-            Halt(self, "its hull has no mass");
-            return;
-        }
+            return new Lost("its hull has no mass");
         bool inside = self.Frame == stationFrame;
         if (!inside && self.Frame != self.Snapshot.FrameOf(station))
-        {
-            Halt(self, "the shuttle is in neither the station's frame nor the frame that holds the station");
-            return;
-        }
+            return new Lost("the shuttle is in neither the station's frame nor the frame that holds the station");
 
         // Every read is in the station's frame, whichever frame holds the shuttle. Outside the bubble the engine converts
         // them from the frame that holds the station, with the station's turn.
@@ -266,31 +413,39 @@ public sealed class DockingAutopilot(Entity station, Vector3 centerOfMass) : ICo
         var profile = new SpinUpProfile(rate.Y, SpinUpTime, DemoStation.DockedRotation);
         double time = self.Time;
 
-        if (State is Waiting && AtTheHold(pose, velocity) && profile.InRollWindow(profile.RollAngle(pose.Rotation), self.DeltaTime))
-            State = new SpinUp(time);
-        if (State is SpinUp spinUp && time - spinUp.StartTime >= SpinUpTime && SpinUpDone(pose, turn))
-            State = new Entry();
-        if (State is Entry && pose.Position.Y <= EntryEnd.Y + EntryEndDistance && FromTheAxis(pose.Position) <= EntryEndDistance)
-            State = new MoveOut();
-        if (State is MoveOut && Landed(pose, velocity, turn))
+        switch (State)
         {
-            self.Body.SetMotion(BodyMotion.Static);
-            State = new Docked();
-            return;
+            case Waiting:
+                return AtTheHold(pose, velocity) && profile.InRollWindow(profile.RollAngle(pose.Rotation), self.DeltaTime)
+                    ? new AtRollWindow(time)
+                    : null;
+            case SpinUp { StartTime: var start }:
+                // The profile ends at the docked rotation at rest, and holds it there until the tolerances hold.
+                Steer(self, ref events, frames, stationFrame, inside, body.Mass, pose, velocity, rate,
+                    profile.Target(time - start), profile.TurnRate(time - start), DemoStation.HoldPoint, ApproachGuidance.ForGlide());
+                return time - start >= SpinUpTime && SpinUpDone(pose, turn) ? new SpunUp() : null;
+            case Entry:
+                Steer(self, ref events, frames, stationFrame, inside, body.Mass, pose, velocity, rate,
+                    DemoStation.DockedRotation, 0, EntryEnd, ApproachGuidance.ForEntry());
+                return pose.Position.Y <= EntryEnd.Y + EntryEndDistance && FromTheAxis(pose.Position) <= EntryEndDistance ? new EntryEnded() : null;
+            default:
+                if (RestsAtTheParkedPose(pose, velocity, turn))
+                    return new Landed();
+                Steer(self, ref events, frames, stationFrame, inside, body.Mass, pose, velocity, rate,
+                    DemoStation.DockedRotation, 0, LandingPoint, ApproachGuidance.ForMoveOut());
+                return null;
         }
+    }
 
-        (DQuaternion target, double targetTurn, Double3 point, ApproachGuidance guidance) = State.Value switch
-        {
-            SpinUp { StartTime: var start } => SpinUpDone(pose, turn) && time - start >= SpinUpTime
-                ? (DemoStation.DockedRotation, 0.0, DemoStation.HoldPoint, ApproachGuidance.ForGlide())
-                : (profile.Target(time - start), profile.TurnRate(time - start), DemoStation.HoldPoint, ApproachGuidance.ForGlide()),
-            Entry => (DemoStation.DockedRotation, 0.0, EntryEnd, ApproachGuidance.ForEntry()),
-            MoveOut => (DemoStation.DockedRotation, 0.0, LandingPoint, ApproachGuidance.ForMoveOut()),
-            _ => (DQuaternion.Identity, 0.0, Double3.Zero, default(ApproachGuidance)),
-        };
-        if (State.Value is not (SpinUp or Entry or MoveOut))
-            return;
-
+    /// <summary>
+    /// Adds the attitude target and the translation that fly the hull toward <paramref name="target"/>, turning about the
+    /// station's +Y at <paramref name="targetTurn"/> rad/s relative to the station, and its origin toward
+    /// <paramref name="point"/> by <paramref name="guidance"/>, all in the station's axes. The writes are relative to the
+    /// shuttle's frame, in its axes.
+    /// </summary>
+    private void Steer(Self self, scoped ref EventList events, FrameTree frames, FrameHandle stationFrame, bool inside, double mass,
+        in DPose pose, Double3 velocity, Double3 rate, DQuaternion target, double targetTurn, Double3 point, ApproachGuidance guidance)
+    {
         // The station frame's pose in the shuttle's frame turns what the autopilot computed in the station's axes into the
         // axes of the shuttle's frame, in which every write is. Inside the bubble it is the identity.
         DPose stationAxes = frames.Relative(stationFrame, self.Frame);
@@ -307,7 +462,7 @@ public sealed class DockingAutopilot(Entity station, Vector3 centerOfMass) : ICo
         Double3 push = guidance.Push(pose.Position, velocity, point, free);
         Double3 feedForward = stationAxes.Rotation.Rotate(Double3.UnitY * targetTurn) + frames.AngularVelocityRelative(stationFrame, self.Frame);
         events.Add(new AttitudeTarget { Rotation = stationAxes.Rotation * target, FeedForward = feedForward.ToVector3(), MaxTurnRate = AttitudeAutopilot.MaxTurnRate });
-        events.Add(new Translation { Force = stationAxes.Rotation.Rotate(push) * body.Mass });
+        events.Add(new Translation { Force = stationAxes.Rotation.Rotate(push) * mass });
     }
 
     /// <summary>
@@ -336,7 +491,7 @@ public sealed class DockingAutopilot(Entity station, Vector3 centerOfMass) : ICo
     /// of the parked point, y within <see cref="LandedAlong"/>, the rotation within <see cref="LandedAttitude"/> of the
     /// docked rotation, slower than <see cref="LandedSpeed"/> and turning slower than <see cref="LandedTurn"/>.
     /// </summary>
-    private static bool Landed(in DPose pose, Double3 velocity, Double3 turn)
+    private static bool RestsAtTheParkedPose(in DPose pose, Double3 velocity, Double3 turn)
     {
         Double3 off = pose.Position - DemoStation.ParkedPose.Position;
         return Math.Abs(off.X) < LandedAcross && Math.Abs(off.Z) < LandedAcross && Math.Abs(off.Y) < LandedAlong
@@ -349,10 +504,4 @@ public sealed class DockingAutopilot(Entity station, Vector3 centerOfMass) : ICo
 
     /// <summary>The angle between two directions, in radians.</summary>
     private static double AngleBetween(Double3 a, Double3 b) => Math.Acos(Math.Clamp(Double3.Dot(a.Normalized(), b.Normalized()), -1, 1));
-
-    private void Halt(Self self, string reason)
-    {
-        State = new Halted();
-        self.Log($"{nameof(DockingAutopilot)} halts: {reason}.");
-    }
 }

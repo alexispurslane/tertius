@@ -32,6 +32,9 @@ public static partial class DemoScenes
     /// <item>The view <c>bay-camera</c>, in the station's frame, at <see cref="BayCamera"/> near the bay's far wall, looks
     /// at <see cref="BayCameraAim"/>, with its roof away from the deck. It sees the slot, the docking and the parked shuttle
     /// beside the spoke's mouth.</item>
+    /// <item>The view <c>hold-camera</c>, in the station's frame, at <see cref="HoldCamera"/> beyond the hold point and off
+    /// the axis, looks back at <see cref="HoldCameraAim"/>, with the axis across the picture. It frames the shuttle at the
+    /// hold in front and the hub behind it, and turns with the station.</item>
     /// </list>
     /// Every part is drawn with <see cref="RenderFlags.NoImpostor"/>: the spin turns the station 18 degrees a second, so an
     /// impostor's capture would go stale within a few ticks.
@@ -169,6 +172,20 @@ public static partial class DemoScenes
         /// <summary>The point that <c>bay-camera</c> looks at, in the station's axes: (-3, 3, -1.5) m, between the slot and the parked shuttle.</summary>
         public static Double3 BayCameraAim { get; } = new(-3, 3, -1.5);
 
+        /// <summary>
+        /// Where <c>hold-camera</c> stands, in the station's axes: (30, 170, 10) m, 20 m beyond the hold point along the axis
+        /// and 32 m from the axis. A view from beside the hub cannot frame both the hub and the shuttle at the hold with the
+        /// shuttle larger than a speck, because the two lie 150 m apart. From here the shuttle lies 37 m away, and the hub
+        /// 173 m away beyond it, 47 degrees to one side.
+        /// </summary>
+        public static Double3 HoldCamera { get; } = new(30, 170, 10);
+
+        /// <summary>
+        /// The point that <c>hold-camera</c> looks at, in the station's axes: (0, 114, 0) m, on the axis a quarter of the way
+        /// from the hold point to the hub's center.
+        /// </summary>
+        public static Double3 HoldCameraAim { get; } = new(0, 114, 0);
+
         /// <summary>The axis-aligned box that holds the box of half extents <paramref name="half"/> at <paramref name="pose"/>.</summary>
         private static BoundingBox BoxAt(DPose pose, Vector3 half)
         {
@@ -298,7 +315,7 @@ public static partial class DemoScenes
         /// <summary>
         /// Spawns the station in <paramref name="parent"/>, a frame that does not turn and holds Earth's point gravity
         /// (<c>earth-surface</c> of demo-surface, <c>earth</c> of earth-system), on <see cref="Orbit"/> at the world's
-        /// time, with its parts, its bay lamps, its <c>rim-camera</c> and its <c>bay-camera</c>, and adds them to
+        /// time, with its parts, its bay lamps, its <c>rim-camera</c>, its <c>bay-camera</c> and its <c>hold-camera</c>, and adds them to
         /// <paramref name="scene"/>: the
         /// owner <c>station</c>, <c>station-ceiling</c>, <c>station-wall-slot</c> and <c>station-wall-far</c>, the side walls
         /// on the slot's side and the other, <c>station-spokes</c> and <c>station-hub</c>. Returns the station.
@@ -431,6 +448,15 @@ public static partial class DemoScenes
             {
                 Frame = frame,
                 Pose = new DPose(BayCamera, AttitudeAutopilot.Facing(BayCameraAim - BayCamera, Double3.UnitX)),
+                Render = new RenderData(),
+            }));
+
+            // The hold camera: beyond the hold point and off the axis, looking back past the shuttle at the hold toward the
+            // hub. Its roof lies along +Z, across the plane of the axis and the camera, so the axis runs across the picture.
+            scene.Add("hold-camera", world.Spawn(new SpawnDesc
+            {
+                Frame = frame,
+                Pose = new DPose(HoldCamera, AttitudeAutopilot.Facing(HoldCameraAim - HoldCamera, Double3.UnitZ)),
                 Render = new RenderData(),
             }));
             return station;

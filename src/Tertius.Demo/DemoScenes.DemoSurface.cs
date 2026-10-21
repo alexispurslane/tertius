@@ -484,6 +484,7 @@ public static partial class DemoScenes
             scene.AddView("cockpit-camera");
             scene.AddView("rim-camera");
             scene.AddView("bay-camera");
+            scene.AddView("hold-camera");
             world.Camera = overview;
             return scene;
         }
