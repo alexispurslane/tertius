@@ -18,6 +18,7 @@ ARCHITECTURE.md stays the binding design. When a feature is done, its decisions 
 | [Host and scripted runs](host-and-scripted-runs.md) | `ter-dtw2` |
 | [Live world](live-world.md) | `ter-xr2b` |
 | [Numeric frames](numeric-frames.md) | `ter-s02r` |
+| [Particles: puffs](particles.md) | `ter-4zt6` |
 | [Point and spot light shadows](local-light-shadows.md) | `ter-s9cv` |
 | [Queries and sensors](queries-and-sensors.md) | `ter-1yed` |
 | [Rails components](rails-components.md) | `ter-ozm8` |
