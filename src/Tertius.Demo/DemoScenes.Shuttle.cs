@@ -260,15 +260,25 @@ public static partial class DemoScenes
         }
 
         /// <summary>
+        /// The specular intensity of the canopy's glass: that of glass with an anti-reflection coating, which reflects about
+        /// 0.5 % of the light that meets it head-on (F0 = 0.16 times its square, ARCHITECTURE.md, "Shading"), where the orbit
+        /// scene's glass reflects 16 %. The window films look head-on through the glass, and the cabin's lamps lie in front
+        /// of it. With 16 %, each lamp's highlight in the glass is a white blob beside the station. At a grazing angle, glass
+        /// reflects much more, whatever its coating, so the highlights on the side and roof glass in the cabin views stay.
+        /// </summary>
+        private const float AntiReflective = 0.18f;
+
+        /// <summary>
         /// Spawns each pane of <see cref="Glass"/> in <paramref name="cabin"/>, the shuttle's frame, at its center, with its
         /// scene id after <paramref name="prefix"/> and a hyphen when the prefix is not empty, so that each shuttle of a
-        /// scene has its own: the orbit scene's glass, mostly clear with a slight blue tint. A pane has no body, because the
-        /// interior shape is solid at the glass, and it casts no shadow, so sunlight comes in through the holes of the drawn
-        /// hull. Each pane is its own instance round its own center, so the renderer sorts it at its real place.
+        /// scene has its own: the color of the orbit scene's glass, mostly clear with a slight blue tint, with an
+        /// anti-reflection coating (see <see cref="AntiReflective"/>). A pane has no body, because the interior shape is
+        /// solid at the glass, and it casts no shadow, so sunlight comes in through the holes of the drawn hull. Each pane is
+        /// its own instance round its own center, so the renderer sorts it at its real place.
         /// </summary>
         public static void Panes(World world, FrameHandle cabin, SceneInstance scene, IRenderResources resources, string prefix = "")
         {
-            MaterialId glass = resources.CreateMaterial(new MaterialDesc(new Vector4(0.45f, 0.65f, 1, 0.2f), SpecularIntensity: 1, Gloss: 0.9f));
+            MaterialId glass = resources.CreateMaterial(new MaterialDesc(new Vector4(0.45f, 0.65f, 1, 0.2f), SpecularIntensity: AntiReflective, Gloss: 0.9f));
             foreach (HullPane pane in Glass)
             {
                 Entity entity = world.Spawn(new SpawnDesc

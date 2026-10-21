@@ -1,6 +1,6 @@
 ---
 id: ter-y0e5
-status: open
+status: in_progress
 deps: [ter-s9m0, ter-ftnj]
 links: []
 created: 2026-10-18T14:08:43Z
@@ -20,3 +20,7 @@ Step 6 of docs/plans/blue-danube-demo.md. The character leaves the shuttle and s
 **2026-10-20T18:46:20Z**
 
 The live world design (docs/plans/live-world.md, part 10) runs a lift in a second spoke at theta = 0. The openings that this ticket builds in the ceiling and the hub must also serve that spoke. The chute stays in the spoke at 180 degrees.
+
+**2026-10-20T23:19:28Z**
+
+The user postponed the live world on 2026-10-20: build no openings for the live world's lift now. The live world adds them later.

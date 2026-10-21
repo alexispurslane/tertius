@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 
 namespace Tertius.Demo;
 
@@ -95,14 +96,51 @@ public sealed class LoftedHull
     /// </summary>
     private sealed record SurroundWidths(float Rib, float Fold, float Solid);
 
-    /// <summary>A pane, by its scene id: in one cell, or in the front.</summary>
-    private abstract record PaneCut(string Id);
+    /// <summary>A pane with the scene id <see cref="Id"/> in the cell of <see cref="Edge"/> in <see cref="Bay"/>.</summary>
+    private readonly record struct CellPane(string Id, int Edge, int Bay);
 
-    /// <summary>A pane in the cell of <see cref="Edge"/> in <see cref="Bay"/>.</summary>
-    private sealed record CellPane(string Id, int Edge, int Bay) : PaneCut(Id);
+    /// <summary>A pane with the scene id <see cref="Id"/> in the front, in the part from <see cref="FromCorner"/> counterclockwise to <see cref="ToCorner"/>.</summary>
+    private readonly record struct FrontPane(string Id, int FromCorner, int ToCorner);
 
-    /// <summary>A pane in the front, in the part from <see cref="FromCorner"/> counterclockwise to <see cref="ToCorner"/>.</summary>
-    private sealed record FrontPane(string Id, int FromCorner, int ToCorner) : PaneCut(Id);
+    /// <summary>
+    /// A pane: a <see cref="CellPane"/> or a <see cref="FrontPane"/>. This is a custom C# 15 union, like
+    /// <see cref="ClipState"/>. The two cases keep their scene id in one place and their two numbers in two more.
+    /// </summary>
+    [Union]
+    private readonly struct PaneCut
+    {
+        private readonly bool front;
+        private readonly string id;
+        // The edge and the bay of a cell pane, or the two corners of a front pane.
+        private readonly int first, second;
+
+        public PaneCut(CellPane pane) => (id, first, second) = (pane.Id, pane.Edge, pane.Bay);
+
+        public PaneCut(FrontPane pane) => (front, id, first, second) = (true, pane.Id, pane.FromCorner, pane.ToCorner);
+
+        public static implicit operator PaneCut(CellPane pane) => new(pane);
+        public static implicit operator PaneCut(FrontPane pane) => new(pane);
+
+        /// <summary>Always true: every value is a pane.</summary>
+        public bool HasValue => true;
+
+        /// <summary>The pane's scene id, in either case.</summary>
+        public string Id => id;
+
+        public bool TryGetValue(out CellPane value)
+        {
+            value = new CellPane(id, first, second);
+            return !front;
+        }
+
+        public bool TryGetValue(out FrontPane value)
+        {
+            value = new FrontPane(id, first, second);
+            return front;
+        }
+
+        public object Value => front ? new FrontPane(id, first, second) : new CellPane(id, first, second);
+    }
 
     /// <summary>The doorway through a panel across <see cref="Axis"/>, 0 for X or 1 for Y.</summary>
     private sealed record DoorCut(BoundingBox Box, int Bay, int FromCorner, int ToCorner, int Axis);
@@ -342,7 +380,7 @@ public sealed class LoftedHull
         ArgumentOutOfRangeException.ThrowIfGreaterThan(bay, Bays);
         if (door != null && door.Bay == bay && PanelCorners(door.FromCorner, door.ToCorner).SkipLast(1).Contains(edge))
             throw new ArgumentException($"The cell of edge {edge} in bay {bay} is part of the door's panel, which stays solid round the doorway.", nameof(edge));
-        if (panes.OfType<CellPane>().Any(cell => cell.Edge == edge && cell.Bay == bay))
+        if (Cells().Any(cell => cell.Edge == edge && cell.Bay == bay))
             throw new ArgumentException($"The cell of edge {edge} in bay {bay} holds a pane already.", nameof(edge));
         return WithPane(new CellPane(pane, edge, bay));
     }
@@ -362,7 +400,7 @@ public sealed class LoftedHull
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(fromCorner, Corners);
         ArgumentOutOfRangeException.ThrowIfNegative(toCorner);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(toCorner, Corners);
-        if (panes.OfType<FrontPane>().Any())
+        if (Fronts().Any())
             throw new InvalidOperationException("The front holds a pane already.");
         int count = PanelCorners(fromCorner, toCorner).Count();
         if (count < 3 || count > Corners - 1)
@@ -469,7 +507,27 @@ public sealed class LoftedHull
     }
 
     /// <summary>True when the cell of <paramref name="edge"/> in <paramref name="bay"/> holds a pane.</summary>
-    private bool HasGlass(int edge, int bay) => panes.OfType<CellPane>().Any(cell => cell.Edge == edge && cell.Bay == bay);
+    private bool HasGlass(int edge, int bay) => Cells().Any(cell => cell.Edge == edge && cell.Bay == bay);
+
+    /// <summary>The panes in cells, in the order of the calls that made them.</summary>
+    private IEnumerable<CellPane> Cells()
+    {
+        foreach (PaneCut pane in panes)
+        {
+            if (pane is CellPane cell)
+                yield return cell;
+        }
+    }
+
+    /// <summary>The pane in the front, if the hull has one.</summary>
+    private IEnumerable<FrontPane> Fronts()
+    {
+        foreach (PaneCut pane in panes)
+        {
+            if (pane is FrontPane front)
+                yield return front;
+        }
+    }
 
     /// <summary>
     /// The flat, convex <paramref name="polygon"/>, whose plane has the unit <paramref name="normal"/>, with each side i,
@@ -527,23 +585,23 @@ public sealed class LoftedHull
                 Vector3 normal = CellNormal(outer[bay - 1][e], outer[bay - 1][next], outer[bay][e], e);
                 Vector3[] outerCell = [outer[bay - 1][e], outer[bay - 1][next], outer[bay][next], outer[bay][e]];
                 Vector3[] innerCell = [inner[bay - 1][e], inner[bay - 1][next], inner[bay][next], inner[bay][e]];
-                CellPane? glass = panes.OfType<CellPane>().FirstOrDefault(cell => cell.Edge == e && cell.Bay == bay);
-                if (glass == null)
+                CellPane[] glass = [.. Cells().Where(cell => cell.Edge == e && cell.Bay == bay)];
+                if (glass.Length == 0)
                 {
                     mesh.Polygon(normal, outerCell);
                     mesh.Polygon(-normal, innerCell);
                 }
                 else
                 {
-                    HoleThrough(mesh, glass, normal, outerCell, innerCell);
+                    HoleThrough(mesh, glass[0], normal, outerCell, innerCell);
                 }
             }
         }
         if (door != null)
             DoorPanels(mesh, outer, inner);
 
-        FrontPane? nose = panes.OfType<FrontPane>().FirstOrDefault();
-        if (nose == null)
+        FrontPane[] fronts = [.. Fronts()];
+        if (fronts.Length == 0)
         {
             mesh.Polygon(-Vector3.UnitZ, outer[0]);
             mesh.Polygon(Vector3.UnitZ, inner[0]);
@@ -552,6 +610,7 @@ public sealed class LoftedHull
         {
             // The front is two panels, below and above the line between the pane's two corners, and the upper one holds
             // the hole.
+            FrontPane nose = fronts[0];
             int[] lower = [.. PanelCorners(nose.ToCorner, nose.FromCorner)], upper = [.. PanelCorners(nose.FromCorner, nose.ToCorner)];
             mesh.Polygon(-Vector3.UnitZ, [.. lower.Select(k => outer[0][k])]);
             mesh.Polygon(Vector3.UnitZ, [.. lower.Select(k => inner[0][k])]);
