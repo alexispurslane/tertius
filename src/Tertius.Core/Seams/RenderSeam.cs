@@ -209,6 +209,9 @@ public sealed class RenderSnapshot
         Instances.Clear();
         Lights.Clear();
         Outlines.Clear();
+        Puffs.Clear();
+        PuffLooks.Clear();
+        PuffAgeStep = 0;
     }
 }
 

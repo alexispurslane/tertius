@@ -47,25 +47,49 @@ public readonly struct PuffShading : IEquatable<PuffShading>
     /// <summary>False for the default value, which holds no case.</summary>
     public bool HasValue => kind != KindNone;
 
-    public bool TryGetValue(out GlowPuffs value) => throw new NotImplementedException();
+    public bool TryGetValue(out GlowPuffs value)
+    {
+        value = kind == KindGlow ? new GlowPuffs(color) : default;
+        return kind == KindGlow;
+    }
 
-    public bool TryGetValue(out LitPuffs value) => throw new NotImplementedException();
+    public bool TryGetValue(out LitPuffs value)
+    {
+        value = kind == KindLit ? new LitPuffs(color) : default;
+        return kind == KindLit;
+    }
 
-    public object? Value => throw new NotImplementedException();
+    public object? Value => kind switch
+    {
+        KindGlow => new GlowPuffs(color),
+        KindLit => new LitPuffs(color),
+        _ => null,
+    };
 
     /// <summary>
     /// Whether the shading holds a case, and every channel of its color is finite and 0 or more. An emitter whose look has
     /// a shading that is not valid makes no puffs.
     /// </summary>
-    public bool IsValid => throw new NotImplementedException();
+    public bool IsValid => kind != KindNone && IsChannel(color.X) && IsChannel(color.Y) && IsChannel(color.Z);
 
-    public bool Equals(PuffShading other) => throw new NotImplementedException();
+    /// <summary>Whether a channel is finite and 0 or more. A NaN fails the comparison, and the finite check leaves out an infinity.</summary>
+    private static bool IsChannel(float channel) => channel >= 0 && float.IsFinite(channel);
+
+    // Vector3.Equals, not the operator ==. The operator follows IEEE 754, so it calls a NaN unequal to itself, and a shading
+    // that holds a NaN would not equal itself. Equals treats a NaN as equal to a NaN, which agrees with GetHashCode.
+    public bool Equals(PuffShading other) => kind == other.kind && color.Equals(other.color);
     public override bool Equals(object? obj) => obj is PuffShading other && Equals(other);
-    public override int GetHashCode() => throw new NotImplementedException();
+    public override int GetHashCode() => HashCode.Combine(kind, color);
     public static bool operator ==(PuffShading a, PuffShading b) => a.Equals(b);
     public static bool operator !=(PuffShading a, PuffShading b) => !a.Equals(b);
 
-    public override string ToString() => throw new NotImplementedException();
+    // A null arm and no discard arm: the compiler checks that every case has an arm, so a new case without one fails the build.
+    public override string ToString() => this switch
+    {
+        GlowPuffs glow => $"PuffShading({glow})",
+        LitPuffs lit => $"PuffShading({lit})",
+        null => "PuffShading(none)",
+    };
 }
 
 /// <summary>
@@ -95,7 +119,11 @@ public readonly record struct PuffLook(
     /// more, and <see cref="Shading"/> is valid. An emitter whose look is not valid makes no puffs, without an error, as a
     /// light whose range or intensity is zero or less is left out.
     /// </summary>
-    public bool IsValid => throw new NotImplementedException();
+    public bool IsValid => IsPositive(Life) && IsPositive(TemperatureRatio) && IsRadius(StartRadius) && IsRadius(EndRadius) && Shading.IsValid;
+
+    // A NaN fails each comparison, and the finite check leaves out an infinity.
+    private static bool IsPositive(float value) => value > 0 && float.IsFinite(value);
+    private static bool IsRadius(float value) => value >= 0 && float.IsFinite(value);
 }
 
 /// <summary>
