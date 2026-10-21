@@ -226,8 +226,8 @@ internal sealed class PuffTable
     /// Step 7c of the sync point of tick <paramref name="tick"/>: every emitter of the step that just ended makes its newborns,
     /// in slot order. An emitter of the step is one whose entity was in the step and is still live: its emitter bit is set
     /// (see <see cref="EntityTable.EmitterEntities"/>). Its place and velocity at the end of the step come from its back
-    /// transform row, which holds the end of the step from step 7 on. Of all the newborns of the step, only the last ones up
-    /// to the capacity are made, but every phase gathers its whole rate. When the survivors and the newborns pass the
+    /// transform row, which holds the end of the step from step 7 on. Of all the newborns of the step that live at its end,
+    /// only the last ones up to the capacity are made, but every phase gathers its whole rate. When the survivors and the newborns pass the
     /// capacity, the oldest survivors die first. The rebuild then puts each frame's newborns at the end of its range.
     /// </summary>
     /// <param name="tick">The tick of the sync point, whose <see cref="Step"/> ran before.</param>
@@ -237,9 +237,11 @@ internal sealed class PuffTable
         Contract.Requires(lastStepTick == tick);
         if (capacity == 0)
             return;
+        // Only the newborns that live count toward the capacity, so the skip never removes one that would live in favor of
+        // one that is already dead.
         long total = 0;
-        foreach (Entity emitter in entities.EmitterEntities)
-            total += PuffBirths.Count(phases[emitter], entities.FrontRender(emitter).Emitter.Rate, dt, out _);
+        foreach (Entity entity in entities.EmitterEntities)
+            total += Living(in entities.FrontRender(entity).Emitter, phases[entity], dt, out _, out _);
         long skip = Math.Max(0, total - capacity);
         EnsureNewborns((int)Math.Min(total, capacity));
 
@@ -249,13 +251,14 @@ internal sealed class PuffTable
             ref readonly PuffEmitter emitter = ref entities.FrontRender(entity).Emitter;
             ref double phase = ref phases[entity];
             double start = phase;
-            long made = PuffBirths.Count(start, emitter.Rate, dt, out phase);
-            // The newborns from the first one past the skipped ones on, numbered from 1 in the emitter's step.
-            long first = Math.Max(1, skip - seen + 1);
-            seen += made;
-            if (first > made)
+            long living = Living(in emitter, start, dt, out long firstLiving, out phase);
+            // The newborns from the first living one past the skipped ones on, numbered from 1 in the emitter's step.
+            long first = firstLiving + Math.Max(0, skip - seen);
+            long last = firstLiving + living - 1;
+            seen += living;
+            if (first > last)
                 continue;
-            AddNewbornsOf(entity, in emitter, start, first, made, tick, dt);
+            AddNewbornsOf(entity, in emitter, start, first, last, tick, dt);
         }
         // A step without newborns changes no row: the count was within the capacity already.
         if (newbornCount == 0)
@@ -268,7 +271,19 @@ internal sealed class PuffTable
         Contract.Ensures(HoldsRows() && looks.IsCoherent(rows.AsSpan(0, count)) && newbornRuns.Count == 0);
     }
 
-    /// <summary>The newborns <paramref name="first"/> to <paramref name="last"/> of one emitter's step, as one run.</summary>
+    /// <summary>
+    /// How many of the newborns of one emitter's step live at the end of the step, and <paramref name="first"/>, the index
+    /// of the first of them (see <see cref="PuffBirths.FirstLiving"/>). <paramref name="next"/> is the birth phase where the
+    /// next step starts.
+    /// </summary>
+    private static long Living(in PuffEmitter emitter, double phase, float dt, out long first, out double next)
+    {
+        long made = PuffBirths.Count(phase, emitter.Rate, dt, out next);
+        first = PuffBirths.FirstLiving(made, phase, emitter.Rate, dt, emitter.Look.Life);
+        return made - first + 1;
+    }
+
+    /// <summary>The newborns <paramref name="first"/> to <paramref name="last"/> of one emitter's step, all of which live, as one run.</summary>
     private void AddNewbornsOf(Entity entity, in PuffEmitter emitter, double phase, long first, long last, long tick, float dt)
     {
         ref readonly TransformRow row = ref entities.BackRow(entity);
@@ -281,16 +296,11 @@ internal sealed class PuffTable
         for (long j = first; j <= last; j++)
         {
             double age = PuffBirths.AgeAt(j, phase, emitter.Rate, dt);
-            // A look that lives less than a step can make a newborn that would already be dead.
-            if ((float)age >= emitter.Look.Life)
-                continue;
             (double r1, double r2) = PuffBirths.Seed(entity, tick, j);
             Double3 direction = PuffBirths.Direction(emitter.Spread, r1, r2);
             newborns[newbornCount++] = PuffBirths.Newborn(in loose, in pose, velocity, in emitter, direction, age, look: -1, dt);
         }
         int born = newbornCount - runStart;
-        if (born == 0)
-            return;
         int look = looks.Use(emitter.Look, born);
         foreach (ref Puff newborn in newborns.AsSpan(runStart, born))
             newborn.Look = look;

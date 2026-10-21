@@ -34,6 +34,33 @@ internal static class PuffBirths
     public static double AgeAt(long index, double phase, float rate, double dt) => Math.Max(0, (1 - (index - phase) / (rate * dt)) * dt);
 
     /// <summary>
+    /// The index of the oldest of the <paramref name="count"/> newborns of a step that lives at the end of the step, from 1,
+    /// or <paramref name="count"/> + 1 when none does. A newborn lives when its age (see <see cref="AgeAt"/>), as a float,
+    /// is below <paramref name="life"/>. A look that lives less than a step makes newborns that would already be dead. The
+    /// age falls as the index grows, so the newborns that live are the last ones of the step, and a search by halves
+    /// finds the first of them.
+    /// </summary>
+    /// <param name="count">How many puffs the emitter makes in the step (see <see cref="Count"/>).</param>
+    /// <param name="phase">The emitter's birth phase where the step starts, in [0, 1).</param>
+    /// <param name="rate">The emitter's rate, in puffs per s, above 0.</param>
+    /// <param name="dt">The length of the step, in s.</param>
+    /// <param name="life">The life of the emitter's look, in s.</param>
+    public static long FirstLiving(long count, double phase, float rate, double dt, float life)
+    {
+        long low = 1;
+        long high = count + 1;
+        while (low < high)
+        {
+            long middle = low + (high - low) / 2;
+            if ((float)AgeAt(middle, phase, rate, dt) < life)
+                high = middle;
+            else
+                low = middle + 1;
+        }
+        return low;
+    }
+
+    /// <summary>
     /// The two random numbers of a puff, each in [0, 1): a counter-based hash of the emitter's entity handle, the tick number
     /// of the sync point and the puff's index in the step, folded by SplitMix64's finalizer. The high 32 bits give the first
     /// number and the low 32 bits the second. No generator state persists, so the same puff gets the same numbers in any

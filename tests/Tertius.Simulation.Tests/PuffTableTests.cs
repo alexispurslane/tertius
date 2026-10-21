@@ -263,9 +263,10 @@ public class PuffTableTests
 
         long before = GC.GetAllocatedBytesForCurrentThread();
         test.Run(200);
-        long perTick = (GC.GetAllocatedBytesForCurrentThread() - before) / 200;
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
-        perTick.Should().Be(0, "a sync point allocates nothing for the puffs once their arrays have grown");
+        // The total, not a mean per tick: one small object in 200 ticks would vanish in an integer mean.
+        allocated.Should().Be(0, "a sync point allocates nothing for the puffs once their arrays have grown");
         test.World.Errors.Should().BeEmpty();
     }
 

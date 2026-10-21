@@ -245,6 +245,46 @@ public class PuffRuleTests
     }
 
     [Fact]
+    public void TheFirstNewbornThatLivesIsTheOldestOneYoungerThanItsLook()
+    {
+        // 10 puffs per step from the phase 0: puff j of the step is (10 - j) tenths of a step old at its end.
+        PuffBirths.FirstLiving(10, 0, 600, Dt, life: 2).Should().Be(1, "a look that lives longer than the step keeps every newborn");
+        PuffBirths.FirstLiving(10, 0, 600, Dt, life: 0.004f).Should().Be(8, "a look of a quarter of a step keeps the newborns of its last quarter");
+        PuffBirths.FirstLiving(10, 0, 600, Dt, life: (float)PuffBirths.AgeAt(8, 0, 600, Dt)).Should().Be(9, "a newborn exactly as old as its look's life does not live");
+        PuffBirths.FirstLiving(0, 0, 600, Dt, life: 2).Should().Be(1, "a step without newborns has none that live");
+    }
+
+    [Fact]
+    public void TheCapSkipsOnlyNewbornsThatWouldLive()
+    {
+        // Capacity 4. Emitter b, first in slot order, makes 2 newborns of a long look. Emitter a, second, makes 10 newborns
+        // of a look that lives a quarter of a step, so only its last 3 live. Of the 5 newborns that live, the cap keeps the
+        // last 4: one of b's and the 3 of a's.
+        EntityTable table = TableSupport.NewTable();
+        var frames = new FrameTree();
+        Entity owner = table.SpawnLive();
+        FrameHandle space = frames.Create(owner, FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f));
+        PuffLook brief = Hot with { Life = 0.004f };
+        Entity b = table.Reserve();
+        table.Activate(b, new TransformRow { Frame = space, PhysicsHome = space, Pose = DPose.Identity },
+            new RenderData { Emitter = new PuffEmitter(120, 10, 0, Hot) }, [], [], null, FrameHandle.Null);
+        Entity a = table.Reserve();
+        table.Activate(a, new TransformRow { Frame = space, PhysicsHome = space, Pose = DPose.Identity },
+            new RenderData { Emitter = new PuffEmitter(600, 10, 0, brief) }, [], [], null, FrameHandle.Null);
+        table.CopyDirtyRows();
+        var puffs = new PuffTable(table, frames, capacity: 4, reportError: _ => { });
+
+        puffs.Step(tick: 0, Dt);
+        puffs.AddNewborns(tick: 0, Dt);
+
+        puffs.Count.Should().Be(4, "the cap skips only newborns that would live, so it fills the capacity");
+        float[] ages = puffs.View.Rows.ToArray().Select(row => row.Age).ToArray();
+        ages.Should().Equal(new[] { PuffBirths.AgeAt(2, 0, 120, Dt), PuffBirths.AgeAt(8, 0, 600, Dt), PuffBirths.AgeAt(9, 0, 600, Dt),
+            PuffBirths.AgeAt(10, 0, 600, Dt) }.Select(age => (float)age));
+        puffs.AssertInvariants();
+    }
+
+    [Fact]
     public void ANewbornInVacuumLiesAheadOfItsEmitterByItsEjectionVelocityTimesItsAge()
     {
         LooseBodyStep step = StepOf(GravityField.Uniform(Down));

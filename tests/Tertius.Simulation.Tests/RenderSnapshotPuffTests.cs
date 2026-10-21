@@ -9,8 +9,7 @@ namespace Tertius.Simulation.Tests;
 /// its frame relative to the camera's physics home, less the render origin, as it places an instance. A puff's previous
 /// position is its place one chord back, placed through the frame's pose of the previous build, and only when that build
 /// was of the tick before. The tests make a builder over an entity table and a frame tree, as
-/// <see cref="RenderSnapshotParallelBuildTests"/> does, and hand it views of rows that the test writes. The World does not
-/// call the builder for puffs yet: task 6 wires it.
+/// <see cref="RenderSnapshotParallelBuildTests"/> does, and hand it views of rows that the test writes.
 /// </summary>
 public class RenderSnapshotPuffTests
 {
