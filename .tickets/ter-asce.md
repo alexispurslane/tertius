@@ -1,6 +1,6 @@
 ---
 id: ter-asce
-status: open
+status: in_progress
 deps: [ter-yhu8, ter-ftnj, ter-y0e5]
 links: []
 created: 2026-10-21T01:51:49Z
