@@ -71,7 +71,7 @@ public class RenderSnapshotPuffTests
             Frames.Update();
         }
 
-        /// <summary>Builds a snapshot of tick <paramref name="tick"/> from <paramref name="camera"/>, then places the puffs of <paramref name="puffs"/> in it.</summary>
+        /// <summary>Builds a snapshot of tick <paramref name="tick"/> from <paramref name="camera"/>, with the puffs of <paramref name="puffs"/> in it.</summary>
         public RenderSnapshot Build(long tick, Entity camera, in PuffView puffs)
         {
             var snapshot = new RenderSnapshot();
@@ -82,8 +82,7 @@ public class RenderSnapshotPuffTests
         public void Build(RenderSnapshot snapshot, long tick, Entity camera, in PuffView puffs)
         {
             Builder.Build(snapshot, new RenderView(tick, tick * Step, camera, VerticalFov: 1, FrameHandle.Null, Vector3.One, SunIntensity: 0,
-                new AmbientLight(), ShowFrameOutlines: false));
-            Builder.BuildPuffs(snapshot, puffs);
+                new AmbientLight(), ShowFrameOutlines: false), puffs);
         }
     }
 
@@ -311,7 +310,7 @@ public class RenderSnapshotPuffTests
         PuffLook[] looks = [HotLook, ColdLook];
         var snapshot = new RenderSnapshot();
         h.Build(snapshot, 1, camera, View(rows, ranges, looks));
-        h.Builder.Build(snapshot, new RenderView(2, 2 * Step, camera, 1, FrameHandle.Null, Vector3.One, 0, new AmbientLight(), false));
+        h.Build(snapshot, 2, camera, View(rows, ranges, looks));
 
         long before = GC.GetAllocatedBytesForCurrentThread();
         h.Builder.BuildPuffs(snapshot, View(rows, ranges, looks));

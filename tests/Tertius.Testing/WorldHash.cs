@@ -43,6 +43,34 @@ public static class WorldHash
         return Mix(hash, (ulong)world.Errors.Count);
     }
 
+    /// <summary>
+    /// A hash of the puffs of <paramref name="snapshot"/>: each puff's position, previous position, age and look index, in
+    /// the order of the snapshot, the age step, and each field of each look of its look table. <see cref="Of"/> leaves the
+    /// puffs out, so that a test can compare a world with puffs and one without through it.
+    /// </summary>
+    public static ulong OfPuffs(RenderSnapshot snapshot)
+    {
+        ulong hash = 0;
+        foreach (RenderPuff puff in snapshot.Puffs)
+            hash = Mix(Mix(Mix(Mix(hash, puff.Position), puff.PreviousPosition), Bits(puff.Age)), (ulong)puff.Look);
+        hash = Mix(hash, Bits(snapshot.PuffAgeStep));
+        // Each field of each look, because the hash code of a union mixes with a seed that changes from process to process.
+        foreach (PuffLook look in snapshot.PuffLooks)
+        {
+            hash = Mix(Mix(Mix(Mix(hash, Bits(look.Life)), Bits(look.StartRadius)), Bits(look.EndRadius)), Bits(look.TemperatureRatio));
+            if (look.Shading.TryGetValue(out GlowPuffs glow))
+                hash = Mix(Mix(hash, 1UL), glow.Radiance);
+            else if (look.Shading.TryGetValue(out LitPuffs lit))
+                hash = Mix(Mix(hash, 2UL), lit.Albedo);
+            else
+                hash = Mix(hash, 0UL);
+        }
+        return hash;
+    }
+
+    /// <summary>The bits of a float, so that a hash tells apart values that differ in their last bit.</summary>
+    public static ulong Bits(float value) => BitConverter.SingleToUInt32Bits(value);
+
     public static ulong Bits(double value) => (ulong)BitConverter.DoubleToInt64Bits(value);
 
     public static ulong Mix(ulong hash, ulong value)

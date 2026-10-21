@@ -404,11 +404,11 @@ public sealed partial class World : IDisposable
 
     // ---- Helpers --------------------------------------------------------------------------------------------------
 
-    /// <summary>Builds the render snapshot of the current front state into the write buffer and publishes it.</summary>
+    /// <summary>Builds the render snapshot of the current front state and of the puff table into the write buffer and publishes it.</summary>
     private void BuildRenderSnapshot()
     {
         RenderSnapshot snapshot = RenderSnapshots.WriteBuffer;
-        renderBuilder.Build(snapshot, new RenderView(TickNumber, Time, Camera, VerticalFov, SunFrame, SunColor, SunIntensity, Ambient, ShowFrameOutlines));
+        renderBuilder.Build(snapshot, new RenderView(TickNumber, Time, Camera, VerticalFov, SunFrame, SunColor, SunIntensity, Ambient, ShowFrameOutlines), puffs.View);
         snapshot.PublishedAt = Stopwatch.GetTimestamp();
         RenderSnapshots.Publish();
     }

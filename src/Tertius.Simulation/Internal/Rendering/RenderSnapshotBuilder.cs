@@ -172,10 +172,11 @@ internal sealed partial class RenderSnapshotBuilder
     private int parallelThreshold = DefaultParallelThreshold;
 
     /// <summary>
-    /// Fills <paramref name="snapshot"/> with the current state. Without a live camera, the snapshot has the view
-    /// settings but nothing in it, and the next build does not interpolate.
+    /// Fills <paramref name="snapshot"/> with the current state: the instances, the sun, the frame outlines when the view
+    /// shows them, and the puffs of <paramref name="puffs"/>, placed after the instances through the same frame poses.
+    /// Without a live camera, the snapshot has the view settings but nothing in it, and the next build does not interpolate.
     /// </summary>
-    public void Build(RenderSnapshot snapshot, in RenderView view)
+    public void Build(RenderSnapshot snapshot, in RenderView view, in PuffView puffs)
     {
         long stamp = ++buildStamp;
         snapshot.Clear();
@@ -230,6 +231,7 @@ internal sealed partial class RenderSnapshotBuilder
         BuildSun(snapshot, view);
         if (view.ShowFrameOutlines)
             BuildOutlines(snapshot);
+        BuildPuffs(snapshot, puffs);
 
         lastCamera = view.Camera;
         lastCameraFrame = cameraFrame;
