@@ -3654,11 +3654,11 @@ ffprobe in the dev shell measures the recording at 549.06 s, 9 minutes 9 s. The 
 
 Why a fade and no cut of the music: the waltz is twice as long as the run, and the run is one unbroken take, so the picture cannot follow the music's sections. A cut inside the music, to end on its last chord, needs an edit of the music by ear. A fade over the closing card ends the music where the picture ends, and it stays right when the docking and the exit make the video longer: the recording is long enough for a video of up to 9 minutes. In the cut of round 2, 276.0 s long, the fade ended 0.2 s before a short pause of the waltz: from 276.25 s to 276.75 s of the recording, its level falls to about 45 dB below full scale. The film `sky` of the Earth system made the video 1.9 s longer, so the fade passed through that pause and ended about 1.2 s after it. With the docking and the exit, the video lasts 396.1 s, and the fade runs from 391.1 to 396.1 s of the recording. The waltz plays on there, at about 15 to 26 dB below full scale, with no pause. So the music fades out under the closing card in the middle of a phrase.
 
-This recording is a placeholder. Ticket ter-zd4t replaces it with a score of the video's length, which places the waltz on the closing approach and its cadence at the landing, from the cue sheet below.
+The user chose this recording for the whole video on 2026-10-21, after a comparison of the first 65 s with a synth score and with the recording. So the rule above is the final one, and no score replaces the recording. Ticket ter-zd4t closed without a merge, and its branch keeps the score's tools.
 
 ### The cue sheet
 
-Who reads it: the score of ter-zd4t. A score that follows the picture needs the times of the films in the final video, exact to the frame. The edit owns the cut, the cards and the trims, so it writes the times: `--edit <out.mp4>` writes `<out.mp4>.cues.json` beside the video, from `CueSheet.Of`, once ffmpeg has made the video. A score that derived the times from the script would copy the rules of the edit, and it could drift from them.
+Who reads it: no code in the repository reads it now. It was made for the score of ter-zd4t, which the user left out on 2026-10-21 (see "The music"). A score or a cut of the music that follows the picture needs the times of the films in the final video, exact to the frame. The edit owns the cut, the cards and the trims, so it writes the times: `--edit <out.mp4>` writes `<out.mp4>.cues.json` beside the video, from `CueSheet.Of`, once ffmpeg has made the video. A score that derived the times from the script would copy the rules of the edit, and it could drift from them.
 
 The file holds:
 
