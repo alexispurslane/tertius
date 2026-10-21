@@ -793,12 +793,12 @@ The renderer is a deferred Vulkan renderer. It gets a flat list of instances, ea
 The renderer records each rendered frame in this order. `FrameGraph.Stage` fixes the order of the passes.
 
 1. Uploads of new meshes, textures and materials.
-2. Batching on the CPU (`SceneBatcher`): interpolation by alpha, frustum culling, depth ranges, sorting and indirect commands. The impostor manager takes its impostors out of the batch and chooses the captures of the rendered frame.
+2. Batching on the CPU (`SceneBatcher`): interpolation by alpha, frustum culling, depth ranges, sorting and indirect commands. The impostor manager takes its impostors out of the batch and chooses the captures of the rendered frame. The batcher also collects the puffs of the snapshot at the render age and sorts them with the transparent instances (see "Puffs in the renderer" below).
 3. The shadow maps of the sun.
 4. Impostor captures.
 5. The G-buffer pass: the far, middle and near ranges. Each range draws the impostor billboards in it after its geometry.
 6. The lighting pass, into the HDR target.
-7. The transparent forward pass.
+7. The transparent forward pass: the transparent instances, alpha-blended, and the puffs, added, in one order from back to front.
 8. Tone mapping: an exposure scale, then the ACES curve in Stephen Hill's fit.
 9. The overlay: the frame outlines of the snapshot, blended over the tone-mapped image (see "The overlay pass" below).
 10. The readback of a requested capture. After the GPU finishes the frame, `Render` hands the pixels to the capture's sink. The readback comes after the overlay, so a capture includes the outlines.
@@ -902,11 +902,13 @@ Each kind of frame has one fixed color, from the frame bubble colors of the edit
 
 ### Instances and draws
 
-All instances of a rendered frame go into one instance array, shadow casters and impostor billboards included. The array goes into one storage buffer for each frame in flight. Textures live in one bindless array. The batcher sorts the opaque instances by depth range and mesh. It writes one indirect command for each run of instances with the same range and mesh. It sorts the transparent instances by range and then back to front, so a transparent command usually holds one object. Each depth range, each shadow cascade and the transparent pass issue one `vkCmdDrawIndexedIndirect` over their part of the commands. MoltenVK does not support `drawIndirectCount`, so the CPU sets the draw count.
+All instances of a rendered frame go into one instance array, shadow casters and impostor billboards included. The array goes into one storage buffer for each frame in flight. Textures live in one bindless array. The batcher sorts the opaque instances by depth range and mesh. It writes one indirect command for each run of instances with the same range and mesh. It sorts the transparent instances and the puffs together by range and then back to front, so a transparent command usually holds one object. At equal keys an instance comes first, and puffs keep the order of the snapshot, so the order is fixed. Each depth range, each shadow cascade and the transparent pass issue one `vkCmdDrawIndexedIndirect` over their part of the commands. MoltenVK does not support `drawIndirectCount`, so the CPU sets the draw count.
+
+The batcher cuts the sorted transparent list of each range into runs. A run is a `TransparentRun`, a custom union of two cases: `MeshCommands(Commands)`, a stretch of transparent instances, with one indirect command per stretch of equal mesh, and `PuffSprites(First, Count)`, a stretch of puffs. `PreparedScene.Transparent` holds the ordered list of runs of each range. The transparent pass pushes the matrix of each range once, then draws its runs in order: a `MeshCommands` run with the transparent pipeline and one indirect draw, and a `PuffSprites` run with the puff pipeline and one `vkCmdDraw` of 6 vertices for each puff. Both pipelines have the scene layout, so the sets and the push constants stay bound between runs. Puffs between two panes of the same mesh split the panes into two commands.
 
 ### Depth ranges
 
-There are three depth ranges, drawn from far to near into the same G-buffer. Each range is a slab of view depth that reaches 1% past its nominal boundaries in the table below, so neighbor slabs overlap. The batcher puts an opaque instance in each slab that its bounding sphere overlaps, from near to far. It stops at the first slab that holds the far side of the sphere. So an object that straddles a boundary draws twice, and an object that fits in one slab draws once. A transparent instance draws once, in the range that holds its center, with depth clamping on.
+There are three depth ranges, drawn from far to near into the same G-buffer. Each range is a slab of view depth that reaches 1% past its nominal boundaries in the table below, so neighbor slabs overlap. The batcher puts an opaque instance in each slab that its bounding sphere overlaps, from near to far. It stops at the first slab that holds the far side of the sphere. So an object that straddles a boundary draws twice, and an object that fits in one slab draws once. A transparent instance or a puff draws once, in the range that holds its center, with depth clamping on.
 
 | Range | Nominal view depth |
 |---|---|
@@ -955,6 +957,36 @@ The hemisphere ambient light needs an up, and each instance takes it from the gr
 The snapshot gives each instance its up as a `HemisphereUp`. It is a custom C# 15 union, as `GravityField` is. (User) Its cases are `UpAlong(Direction)`, a direction in the axes of the camera's frame, and `UpAwayFrom(Center)`, a point given relative to the instance, so that a planet's own center moves with it exactly. The empty union is the even mix. It takes 16 bytes, one vector and a tag, because a value holds one case. `GpuInstance` still packs it into one `Vector4` for the shaders: the direction with `w` 1, the point with `w` 2, and zero for the even mix. The G-buffer pass stores the sky's share in the alpha of the emissive target. The up is not interpolated between ticks. The impostor manager keeps each capture's up in object space in its record of the light, so an object that turns against its up is captured again.
 
 The up costs about 5 ns per instance in the snapshot build. On one thread, `RenderSnapshotBenchmarks` builds a snapshot of 20,000 visible entities in 784 µs, against 675 µs without the up. Each GPU instance grows from 64 to 80 bytes. The renderer has no GPU timer to measure that yet (ticket `ter-yiii`).
+
+#### Puffs in the renderer
+
+The renderer draws each puff of the snapshot (see "Puffs in the snapshot") as a camera-facing sprite. It keeps no puff state, so a snapshot that the window draws twice, or one that it skips, changes nothing. For each `RenderPuff`, with the alpha of the frame and its look L = `PuffLooks[Look]`, `SceneBatcher` computes:
+
+- The render age: `Age − (1 − alpha) · PuffAgeStep`. A puff whose render age is below 0, or at L's life or more, is not drawn. So a newborn appears at the moment of its birth in the step, and a headless capture, at alpha 1, draws each puff at its age.
+- With t the render age over the life, the radius lerp(L.StartRadius, L.EndRadius, t), and the own share 1 − t. The light of a puff falls linearly to nothing at the end of its life.
+- The position: lerp(`PreviousPosition`, `Position`, alpha) less the interpolated eye, as for an instance.
+- The color: the own share times the radiance of a `GlowPuffs` or the albedo of a `LitPuffs`.
+
+The batcher leaves out a puff whose look index is outside `PuffLooks`, whose look holds no shading (a free entry of the look table holds none), whose position or radius is not finite, whose radius is 0 or less, or whose sphere is outside the frustum. It writes one `GpuPuff` of 32 bytes for each puff that it keeps, in the order of the runs: `positionRadius`, and `colorKind`, whose `w` holds the case, 0 for glow and 1 for lit, as `GpuInstance` packs the case of `HemisphereUp`. The records go into a storage buffer of the frame set, binding 7, which grows by doubling as the instance buffer does. `RenderStats.Puffs` counts the drawn puffs.
+
+The puff pipeline is `puff.vert` and `puff.frag`, with no vertex input, no face culling, depth clamping on, and `BlendMode.Additive`. `GraphicsPipelineDesc.Blend` is an enum, `BlendMode`, with the cases `None`, `Alpha` and `Additive`, because no case carries a field. `Additive` adds the source color to the HDR target, with the factors One and One, and keeps the target's alpha. The vertex shader builds a square from the vertex index, centered on the puff, across the line of sight from the eye, with the radius as half its side. The fragment shader adds
+
+color × (1 − ρ²)² × clamp((D − d) / r, 0, 1) × clamp(d / r, 0, 1)
+
+where ρ is the distance of the fragment's point from the puff's center over the radius r, d is the distance of the point from the eye, and D is the G-buffer distance at the pixel. Sky, with D = 0, counts as no surface, so its factor is 1. So a puff fades within one radius of anything opaque, and the eye counts as an opaque point at distance 0. A puff behind a wall draws nothing, a puff that cuts into a wall or a floor shows no hard line, and a puff around the eye fades. The fade is one radius along the line of sight, so on a floor seen at a low angle it is shorter on the screen: a floor seen at 17° fades a puff of 1.2 m over 5 to 8 px at 10 m. Additive blending commutes up to the rounding of the target, so the puffs of one run need no order among themselves, and glass dims only the puffs behind it.
+
+A glow puff emits its color and takes no light. The lit case of `puff.vert`, `litPuffRadiance`, is a stub that returns no light, so a lit puff draws nothing until task 7 of ticket `ter-4zt6` lights it at its center (`docs/plans/particles.md`, "Lit puffs"). Puffs cast no shadow, never become impostors, and get no bloom: glow puffs saturate through the ACES curve until the bloom ticket (`ter-63wr`).
+
+`PuffRenderBenchmarks` measures one headless `Render` at 1280 × 720, as `OutlineRenderBenchmarks` does (ter-4zt6, Release, validation off), with the ground and the 100 boxes of that scene. Small puffs have radii from 0.2 m to 1 m, from 5 m to 100 m ahead. Puffs that fill the screen have a radius of 8 m, 3 m to 4 m ahead, so each one covers every pixel. The 1-minute load of the machine was 7.7 when the run began and 6.0 when it ended.
+
+| Puffs | Small | Filling the screen |
+|---|---|---|
+| 0 | 1.28 ms | 1.29 ms |
+| 100 | 1.33 ms | 3.5 ms |
+| 1,000 | 1.46 ms | 20.0 ms |
+| 4,096 | 1.99 ms | 79 ms |
+
+Before the renderer drew puffs, the same scene took 1.28 to 1.38 ms, at a load of 8.6. So a frame with no puff costs what it cost before. Small puffs cost about 0.17 µs each. A puff that fills the screen costs about 19 µs, the fill of 0.9 million pixels, so the cost of puffs is the pixels that they cover. No frame allocates. The GPU time of the pass alone waits for the GPU timer of ticket `ter-yiii`.
 
 ### Shadows
 
@@ -1014,7 +1046,16 @@ A snapshot test renders a scene headlessly and compares the image with its appro
 - With the environment variable `TERTIUS_APPROVE_SNAPSHOTS` set to 1, the check makes the image the reference and passes. A snapshot proves only that nothing changed. So the first approval of each reference image is a real review against the description of its scene.
 - The references come from one machine with MoltenVK. On that machine, two headless renders of one scene give the same bytes. Tolerance across GPUs is out of scope.
 
-The first reference image is `frame-outlines.png`, of the overlay pass (`OutlineRenderTests`). It shows a turned box in its semantic bubble, a falling frame's sphere partly behind a wall, and one sphere of each other kind of numeric frame, over a gray ground. More scenes come with ticket `ter-rtxu`, which also adds the switch for deterministic rendering.
+The first reference image is `frame-outlines.png`, of the overlay pass (`OutlineRenderTests`). It shows a turned box in its semantic bubble, a falling frame's sphere partly behind a wall, and one sphere of each other kind of numeric frame, over a gray ground. Four reference images of glow puffs come from `PuffRenderTests` (ter-4zt6). Each test also renders its scene without its puffs and measures what the puffs add.
+
+| Image | Scene |
+|---|---|
+| `puffs-glow.png` | A trail of nine glow puffs that rises from a dark ground into the sky, young and small at one end, old, large and faint at the other. No pixel gets darker. |
+| `puffs-glass.png` | Puffs behind and in front of a pane of alpha 0.2. The puff behind the pane is dimmed, and the one in front of it is not. |
+| `puffs-soft.png` | A puff that cuts into a wall and a floor, and a puff around the eye. No hard line, and the part of a puff behind the floor draws nothing. |
+| `puffs-far.png` | A trail 2.5 km away, in the middle range, at its true size: its first puff of 20 m covers 2.5 px, and nothing shows beyond its radius. |
+
+More scenes come with ticket `ter-rtxu`, which also adds the switch for deterministic rendering.
 
 ## Blueprints
 
