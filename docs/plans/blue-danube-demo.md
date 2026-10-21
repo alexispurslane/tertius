@@ -1589,7 +1589,7 @@ Step k is the physics step that runs beside tick k. A tick reads the state at th
 | The turn of the ascent's target into the axes of `self.Frame` | `TranslationThrusters`, which turns a force into the hull's axes and back | A direction that changes axes by a rotation that the component reads |
 | The slab in `earth-surface` | The slab of `EarthSurface` | The same static slab, now in a frame that a builder gives it |
 | `sky-camera` | The pad view of the earth-system scene | A still view on the ground, aimed by directions in the ground's axes at the world's time |
-| `TurningGroundHandOffTests` | `Scenes.ApproachToBubble` and `DemoStationTests.AShuttleAtTheHoldPointStaysInEarthSurface` | A real hull in a real scene, flown across a bubble, with the real Jolt backend |
+| `TurningGroundHandOffTests` | `Scenes.ApproachToBubble` and `DemoStationTests.AShuttleAtTheHoldPointStaysInEarth` | A real hull in a real scene, flown across a bubble, with the real Jolt backend |
 | The station's orbit in `earth` | The station of the earth-system scene | The demo's station on its rails in `earth` |
 
 ### Built from scratch, compared
@@ -2478,12 +2478,12 @@ Each row holds raw quantities from the engine, and the edit derives the rest:
 |---|---|
 | `frame` | The capture's name, such as `climb-low-000012` |
 | `tick` | `World.TickNumber` at the capture |
-| `x`, `y`, `z` | The person's position in `earth-surface`, in meters. `earth-surface` is the root frame at Earth's center, and it does not turn. |
-| `speed` | The length of the person's velocity in `earth-surface`, in m/s |
+| `x`, `y`, `z` | The person's position in `earth`, in meters from Earth's center. `earth` has its origin at Earth's center, and it does not turn. |
+| `speed` | The length of the person's velocity in `earth`, in m/s |
 | `station` | The distance from the person to the station's center, in meters |
 | `felt` | The length of the felt gravity at the person's place, `FrameTree.FeltGravity` of the person's frame at its position there, in m/s² |
 
-Every readout is about the person, in the one frame `earth-surface`. The camera follows the person, and from the boarding on the person rides in the shuttle, so the readouts tell the shuttle's flight too. The log writes each number in the round-trip format, so a read of the log gives back the same doubles.
+Every readout is about the person, in the one frame `earth`, as the guidance reads (see "The demo in the Earth system"). The ground's frame `earth-surface` turns once per sidereal day. A speed in it misses the ground's turn: by up to 480 m/s in the parking orbit, which passes over the pole. So the speed and the textbook check of the parking orbit read in `earth`. The altitude, the distance to the station and the felt gravity are the same in both frames. On the ground the person walks at most 40 m from the axis of the turn, where the ground moves at 3 mm/s in `earth`. The camera follows the person, and from the boarding on the person rides in the shuttle, so the readouts tell the shuttle's flight too. The log writes each number in the round-trip format, so a read of the log gives back the same doubles.
 
 ### The readouts on the frame
 

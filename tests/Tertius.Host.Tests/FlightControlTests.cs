@@ -205,7 +205,6 @@ public sealed class FlightControlTests : IDisposable
         world.Frames.HullMotion(world.GetOwnedFrame(shuttle)).Should().Be(BodyMotion.Static);
     }
 
-    /// <summary>A test component that adds a <see cref="Throttle"/> of <paramref name="value"/> to its entity's events on each of its first <paramref name="ticks"/> ticks.</summary>
     /// <summary>
     /// A hull in a frame that turns in the frame of its <see cref="LaunchPlane"/>, as earth-surface turns in earth: the
     /// plane's frame is a root with Earth's point gravity, and the hull's frame sits at its center, turned 90 degrees about
@@ -336,6 +335,7 @@ public sealed class FlightControlTests : IDisposable
         }
     }
 
+    /// <summary>A test component that adds a <see cref="Throttle"/> of <paramref name="value"/> to its entity's events on each of its first <paramref name="ticks"/> ticks.</summary>
     private sealed class ThrottleFor(int ticks, float value, int priority = 0) : IComponent
     {
         private int handled;

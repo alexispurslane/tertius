@@ -32,7 +32,7 @@ public sealed class LaunchRampTests : IDisposable
     /// <summary>How far the hull's tail lies along -Z past the ramp's foot, in meters, in earth-surface.</summary>
     private double TailPastTheFoot()
     {
-        DPose pose = world.PoseIn(shuttle, world.GetFrame(shuttle));
+        DPose pose = world.PoseIn(shuttle, world.GetOwnedFrame(scene["earth-surface"]));
         return LaunchRamp.Foot.Z - pose.TransformPoint(new Double3(0, -Shuttle.Hull.Y, Shuttle.Hull.Z)).Z;
     }
 
