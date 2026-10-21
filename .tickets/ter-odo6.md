@@ -35,3 +35,7 @@ Every allocation test measures per call or per tick, or warms up past the runtim
 **2026-10-21T17:33:43Z**
 
 2026-10-21: RefusedRailsAllocationTests.ARailsComponentThatTheGuardRefusesAllocatesNothingInTheTicksAfterItsLog also fails under tools/coverage/run.sh in Debug, beside the two ContactAllocationTests, on the branch of ter-h74c, which changes no engine code. It passes without coverage.
+
+**2026-10-21T20:42:26Z**
+
+2026-10-21: under tools/coverage/run.sh on the branch of ter-6u2m, ScriptUnionTests.ReadingAStepOrATargetAllocatesNothingBeyondTheReadOfItsCaseRecord (Host Debug) and PuffTableTests.AStepAndABirthAllocateNothingAfterWarmUp (Simulation Release) also failed once. Both pass without coverage in Debug and Release.

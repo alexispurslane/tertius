@@ -1,6 +1,6 @@
 ---
 id: ter-6u2m
-status: in_progress
+status: closed
 deps: [ter-4zt6, ter-ftk4, ter-diu0]
 links: []
 created: 2026-10-21T14:13:35Z
@@ -28,3 +28,7 @@ Changed on 2026-10-21: no 'largest force of the frame' rule for time-lapse frame
 **2026-10-21T15:12:59Z**
 
 Split on 2026-10-21: moving the jets onto parts is now its own ticket, ter-diu0. This ticket adds the emitters to those parts once the particles land.
+
+**2026-10-21T20:42:26Z**
+
+Merged into main on 2026-10-21. One Opus builder, the orchestrator's look at the frames, and one Sonnet review-and-fix agent at medium effort (the user's choice on 2026-10-21, with 3 percent of the week's limit left): no defect in the production code, 7 new tests for gaps, each with a hand mutation. Coverage of the changed lines: 56 of 58 lines and 22 of 24 branches (the two uncovered lines are guards in Plume.cs). Every suite passes under coverage except allocation tests that the instrumentation breaks; PuffTableTests and ScriptUnionTests pass without coverage in Debug and Release. Measured: the plumes cost 3.9 s of a 150 s master, 0.16 ms a frame, with at most 1,516 live puffs.
