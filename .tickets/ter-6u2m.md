@@ -20,3 +20,7 @@ The user said on 2026-10-21 that the shuttle and the person look like they move 
 **2026-10-21T14:17:10Z**
 
 The user objected on 2026-10-21 to the design in which each actuator sends its force to a specific plume entity: that hard-codes a visual entity into the code that applies the force. My chat also called MainEngine 'the engine', which read as the game engine's AddForce. The model instead: the exhaust is part of the look of the entity that thrusts, as a lamp's light is part of the lamp's render row. The component that applies the force sets the emitter on its own entity (Self.Render), in the same tick, with no message and no second entity. So the particle epic ter-4zt6 must let an entity's render data hold its emitters, and it decides how one entity holds several (the main engine, the side jets and the turning jets of one hull).
+
+**2026-10-21T14:36:37Z**
+
+Changed on 2026-10-21: no 'largest force of the frame' rule for time-lapse frames. A frame shows the puffs alive at its tick, because only the script knows the film interval. Each jet is its own attached entity (ter-ftk4) with one emitter, which its own component sets from its own throttle.
