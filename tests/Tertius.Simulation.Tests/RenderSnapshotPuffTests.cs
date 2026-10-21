@@ -44,7 +44,7 @@ public class RenderSnapshotPuffTests
         {
             Entity owner = entities.Reserve();
             FrameHandle frame = Frames.Create(owner, parent, local, FrameBounds.Sphere(1e9f));
-            entities.Activate(owner, new TransformRow { Frame = parent, PhysicsHome = parent, Pose = local }, new RenderData(), [], [], null, frame);
+            entities.Activate(owner, new TransformRow { Frame = parent, PhysicsHome = parent, Pose = local }, new RenderData(), [], [], null, Vector3.Zero, frame);
             Frames.Update();
             return frame;
         }
@@ -60,7 +60,7 @@ public class RenderSnapshotPuffTests
         {
             Entity camera = entities.Reserve();
             entities.Activate(camera, new TransformRow { Frame = frame, PhysicsHome = home, Pose = pose, HomePosition = homePosition },
-                new RenderData(), [], [], null, FrameHandle.Null);
+                new RenderData(), [], [], null, Vector3.Zero, FrameHandle.Null);
             return camera;
         }
 

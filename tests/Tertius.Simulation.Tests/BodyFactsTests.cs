@@ -176,6 +176,57 @@ public class BodyFactsTests
     }
 
     [Fact]
+    public void ABodyHasTheCenterOfMassThatPhysicsComputesForItsShape()
+    {
+        World world = WorldTesting.NewWorld(out JoltPhysicsBackend backend);
+        using (world)
+        {
+            FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
+            // A compound of one box whose center is 1.5 m along +X and 2 m along -Z from the body's origin.
+            var offsetBox = new CompoundShapeDesc([new CompoundChild(new BoxShapeDesc(new Vector3(0.5f)), new Pose(new Vector3(1.5f, 0, -2), Quaternion.Identity))]);
+            Entity crate = Spawn(world, space, new BodyDesc(offsetBox, Mass: 5));
+            Entity ball = Spawn(world, space, new BodyDesc(new SphereShapeDesc(0.5f)), x: 10);
+
+            Vector3 center = FactsOf(world, crate).CenterOfMass;
+
+            center.Should().Be(backend.ShapeCenterOfMass(offsetBox));
+            Vector3.Distance(center, new Vector3(1.5f, 0, -2)).Should().BeLessThan(1e-5f, "the box's center is its center of mass");
+            FactsOf(world, ball).CenterOfMass.Should().Be(Vector3.Zero);
+        }
+    }
+
+    [Fact]
+    public void TheCenterOfMassOfAFrameOwnerIsThatOfItsHullAndNotOfItsInterior()
+    {
+        World world = WorldTesting.NewWorld(out JoltPhysicsBackend backend);
+        using (world)
+        {
+            FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
+            var hull = new CompoundShapeDesc([new CompoundChild(new BoxShapeDesc(new Vector3(2)), new Pose(new Vector3(0, 3, 0), Quaternion.Identity))]);
+            Entity ship = world.Spawn(new SpawnDesc
+            {
+                Frame = space,
+                Pose = WorldTesting.At(5000),
+                Body = new BodyDesc(hull, BodyMotion.Dynamic, Mass: 1000, InteriorShape: new SphereShapeDesc(8)),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
+            });
+
+            FactsOf(world, ship).CenterOfMass.Should().Be(backend.ShapeCenterOfMass(hull));
+            FactsOf(world, ship).CenterOfMass.Y.Should().BeApproximately(3, 1e-5f);
+        }
+    }
+
+    [Fact]
+    public void ABodyInAWorldWithoutAPhysicsBackendHasItsCenterOfMassAtZero()
+    {
+        using var test = new TestWorld();
+        var offsetBox = new CompoundShapeDesc([new CompoundChild(new BoxShapeDesc(new Vector3(0.5f)), new Pose(new Vector3(1.5f, 0, -2), Quaternion.Identity))]);
+        Entity crate = Spawn(test.World, test.Root, new BodyDesc(offsetBox, Mass: 5));
+
+        FactsOf(test.World, crate).CenterOfMass.Should().Be(Vector3.Zero);
+    }
+
+    [Fact]
     public void TheShapeFactsOfAFrameOwnerAreThoseOfItsHullAndNotOfItsInterior()
     {
         using World world = NewWorld(out FrameHandle space);

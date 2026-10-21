@@ -1,6 +1,6 @@
 ---
 id: ter-h74c
-status: in_progress
+status: closed
 deps: [ter-asce]
 links: []
 created: 2026-10-21T14:13:35Z
@@ -20,3 +20,7 @@ The user asked on 2026-10-21 for a coda with loose boxes in the station, where t
 **2026-10-21T14:18:38Z**
 
 First step, before the coda: remove the cue sheet (CueSheet.cs, CueSheetTests, the writer in EditCommand and its two tests, the plan's section 'The cue sheet'). It was made for the score of ter-zd4t, which the user left out on 2026-10-21, so nothing reads it, and the user prefers to leave out what nothing needs. Keep TitleCard.Frames, the one count of a card's frames, with a test that pins it against the video.
+
+**2026-10-21T17:33:43Z**
+
+Merged into main on 2026-10-21. Coverage of the changed lines: 447 of 473 lines and 182 of 199 branches. The uncovered lines are guards for a person or box that is gone, the union members HasValue and GetHashCode, the log line for an event that BoxPlay ignores, the guards of FlightRecorder for a history shorter than two steps, and the exception of ThrowRelease for a line that never comes down. The only failures under coverage are allocation tests that the coverage instrumentation breaks (ter-odo6).

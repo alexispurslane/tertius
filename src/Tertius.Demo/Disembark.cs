@@ -74,7 +74,7 @@ public sealed class Disembark(FrameHandle station, Chute chute, IReadOnlyList<Wa
 
     /// <summary>
     /// Walks the way out, and reports <see cref="Dropped"/> once the person is off its feet where the chute holds it, as
-    /// it sinks into the chute's top. A walking case keeps the index of its next waypoint, which this delegate updates.
+    /// it sinks into the chute's top. A walking case keeps its walk, which this delegate updates.
     /// </summary>
     private DisembarkEvent? WalkOut(Self self, ref Walking walking)
     {
@@ -82,13 +82,14 @@ public sealed class Disembark(FrameHandle station, Chute chute, IReadOnlyList<Wa
             return Gone(self);
         if (!self.Body.Standing && chute.Holds(self.PoseIn(station).Position))
             return new Dropped();
-        int next = Walker.Step(self, wayOut, walking.Next, SpeedToward(walking.Next));
+        WalkProgress before = walking.Walk;
+        WalkProgress walk = Walker.Step(self, wayOut, before, SpeedToward(before.Next));
         // A walker that reaches a waypoint walks toward the next one in the same tick, at the speed that it was given. So
-        // when that tick starts the last leg, the walk is asked again at the last leg's speed. The second walk replaces the
-        // first, and the waypoints that it skips are the same.
-        if (next != walking.Next && next < wayOut.Length && SpeedToward(next) != SpeedToward(walking.Next))
-            next = Walker.Step(self, wayOut, next, SpeedToward(next));
-        walking = new Walking(next);
+        // when that tick starts the last leg, the walk is asked again at the last leg's speed, from the pace before the
+        // first. The second walk replaces the first, and the waypoints that it skips are the same.
+        if (walk.Next != before.Next && walk.Next < wayOut.Length && SpeedToward(walk.Next) != SpeedToward(before.Next))
+            walk = Walker.Step(self, wayOut, before with { Next = walk.Next }, SpeedToward(walk.Next));
+        walking = new Walking(walk);
         return null;
     }
 
@@ -121,14 +122,14 @@ public sealed class Disembark(FrameHandle station, Chute chute, IReadOnlyList<Wa
 
     /// <summary>
     /// Walks the stroll at the walk speed, and reports <see cref="WalkDone"/> once the walker stops at its last waypoint.
-    /// A strolling case keeps the index of its next waypoint, which this delegate updates.
+    /// A strolling case keeps its walk, which this delegate updates.
     /// </summary>
     private DisembarkEvent? Stroll(Self self, ref Strolling strolling)
     {
         if (!self.Snapshot.Frames.IsAlive(station))
             return Gone(self);
-        strolling = new Strolling(Walker.Step(self, stroll, strolling.Next, walkSpeed));
-        return strolling.Next >= stroll.Length ? new WalkDone() : null;
+        strolling = new Strolling(Walker.Step(self, stroll, strolling.Walk, walkSpeed));
+        return strolling.Walk.Next >= stroll.Length ? new WalkDone() : null;
     }
 
     private static DisembarkEvent Gone(Self self)

@@ -197,7 +197,7 @@ public class PuffRuleTests
         FrameHandle space = frames.Create(owner, FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f));
         Entity emitter = table.Reserve();
         var render = new RenderData { Emitter = new PuffEmitter(615, 10, 0, Hot) };
-        table.Activate(emitter, new TransformRow { Frame = space, PhysicsHome = space, Pose = DPose.Identity }, render, [], [], null, FrameHandle.Null);
+        table.Activate(emitter, new TransformRow { Frame = space, PhysicsHome = space, Pose = DPose.Identity }, render, [], [], null, Vector3.Zero, FrameHandle.Null);
         table.CopyDirtyRows();
         var puffs = new PuffTable(table, frames, capacity: 4, reportError: _ => { });
 
@@ -232,7 +232,7 @@ public class PuffRuleTests
         FrameHandle space = frames.Create(owner, FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f));
         Entity emitter = table.Reserve();
         var render = new RenderData { Emitter = new PuffEmitter(600, 10, 0, Hot with { Life = 0.004f }) };
-        table.Activate(emitter, new TransformRow { Frame = space, PhysicsHome = space, Pose = DPose.Identity }, render, [], [], null, FrameHandle.Null);
+        table.Activate(emitter, new TransformRow { Frame = space, PhysicsHome = space, Pose = DPose.Identity }, render, [], [], null, Vector3.Zero, FrameHandle.Null);
         table.CopyDirtyRows();
         var puffs = new PuffTable(table, frames, capacity: 100, reportError: _ => { });
 
@@ -267,10 +267,10 @@ public class PuffRuleTests
         PuffLook brief = Hot with { Life = 0.004f };
         Entity b = table.Reserve();
         table.Activate(b, new TransformRow { Frame = space, PhysicsHome = space, Pose = DPose.Identity },
-            new RenderData { Emitter = new PuffEmitter(120, 10, 0, Hot) }, [], [], null, FrameHandle.Null);
+            new RenderData { Emitter = new PuffEmitter(120, 10, 0, Hot) }, [], [], null, Vector3.Zero, FrameHandle.Null);
         Entity a = table.Reserve();
         table.Activate(a, new TransformRow { Frame = space, PhysicsHome = space, Pose = DPose.Identity },
-            new RenderData { Emitter = new PuffEmitter(600, 10, 0, brief) }, [], [], null, FrameHandle.Null);
+            new RenderData { Emitter = new PuffEmitter(600, 10, 0, brief) }, [], [], null, Vector3.Zero, FrameHandle.Null);
         table.CopyDirtyRows();
         var puffs = new PuffTable(table, frames, capacity: 4, reportError: _ => { });
 

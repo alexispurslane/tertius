@@ -814,4 +814,12 @@ public interface IPhysicsBackend : IDisposable
     /// completes a sentence that names the shape. Thread-safe, so that a spawn during a tick can ask.
     /// </summary>
     string? ShapeProblem(ShapeDesc shape);
+
+    /// <summary>
+    /// The center of mass of <paramref name="shape"/>, in meters, in the axes of the body that the shape describes, with
+    /// the body's origin at zero. A body's own components push at this place, and the lever of a part is measured from it.
+    /// It is a pure answer: the same description gives the same vector bit for bit. Thread-safe, so that a spawn during a
+    /// tick can ask. Throws <see cref="ArgumentException"/> when <see cref="ShapeProblem"/> refuses the shape.
+    /// </summary>
+    Vector3 ShapeCenterOfMass(ShapeDesc shape);
 }

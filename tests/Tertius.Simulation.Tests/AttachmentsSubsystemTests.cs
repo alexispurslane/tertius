@@ -531,6 +531,60 @@ public class AttachmentsSubsystemTests
         entities.BackRow(child).AngularVelocity.Should().Be(Vector3.Zero);
     }
 
+    // ---- Carrying the pushes -------------------------------------------------------------------------------------
+
+    /// <summary>A live entity with a dynamic ball in <paramref name="frame"/>, as a chain root is.</summary>
+    private static Entity BodyRoot(EntityTable entities, FrameHandle frame)
+    {
+        Entity entity = entities.Reserve();
+        entities.Activate(entity, new TransformRow { Frame = frame, PhysicsHome = frame }, new RenderData(), [], [], TestWorld.Ball,
+            Vector3.Zero, FrameHandle.Null);
+        return entity;
+    }
+
+    [Fact]
+    public void TheFlowEmptiesTheFrontIntentOfEveryPartThatItVisitsAndGivesTheRootOnlyTheLivingPartsPush()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        FrameHandle space = FakeFrame(1);
+        Entity root = BodyRoot(entities, space);
+        Entity living = entities.SpawnLive(space);
+        Entity dying = entities.SpawnLive(space);
+        attachments.Attach(living, root, Offset(0, 0));
+        attachments.Attach(dying, root, Offset(0, 0));
+        entities.BeginTick(spawnPoolSize: 0);
+        entities.WritablePush(living).Force += new Vector3(1, 0, 0);
+        entities.WritablePush(dying).Force += new Vector3(0, 2, 0);
+        entities.EndGameplay();
+        entities.SwapIntents(keep: true);
+        var marks = new bool[entities.Capacity];
+        marks[dying.Index] = true;
+
+        attachments.CarryPushes(marks, []);
+
+        entities.FrontIntents.Span[(int)root.Index].Force.Should().Be(new Vector3(1, 0, 0));
+        entities.HasEmptyFrontIntent(living).Should().BeTrue("the living part's push moved to its root");
+        entities.HasEmptyFrontIntent(dying).Should().BeTrue("the dying part's push does not act and leaves its intent too");
+        entities.EndTick();
+        entities.AssertInvariants();
+        attachments.AssertInvariants();
+    }
+
+#if TERTIUS_CONTRACTS
+    [Fact]
+    public void CarryingThePushesWhileGameplayRunsBreaksAContract()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        entities.BeginTick(spawnPoolSize: 0);
+
+        Action carry = () => attachments.CarryPushes(new bool[entities.Capacity], []);
+
+        carry.Should().Throw<ContractException>("the flow reads the front intents, which only the sync point may change");
+    }
+#endif
+
     // ---- Helpers --------------------------------------------------------------------------------------------------
 
     /// <summary>A frame handle for a test that needs only distinct frames: the subsystem compares frames and does not look them up.</summary>

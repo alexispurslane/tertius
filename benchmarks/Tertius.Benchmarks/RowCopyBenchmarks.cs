@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Diagnostics;
 using Tertius.Simulation;
 
@@ -36,7 +37,7 @@ internal static class RowCopyBenchmarks
             for (int i = 0; i < rows; i++)
             {
                 Live[i] = Entities.Reserve();
-                Entities.Activate(Live[i], new TransformRow(), new RenderData(), [], [], null, FrameHandle.Null);
+                Entities.Activate(Live[i], new TransformRow(), new RenderData(), [], [], null, Vector3.Zero, FrameHandle.Null);
             }
             Entities.TakeMoved();
         }

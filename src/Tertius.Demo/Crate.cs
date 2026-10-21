@@ -5,14 +5,18 @@ namespace Tertius.Demo;
 
 /// <summary>
 /// What a crate is: its size, its mass, and the mesh and material that draw it. A crate offers it to the person that
-/// uses it, so that the person can draw the crate in its hands and throw it again as a new crate. It is 24 bytes, so a
+/// uses it, so that the person can draw the crate in its hands and throw it again as a new crate. It is 28 bytes, so a
 /// message can hold it.
 /// </summary>
 /// <param name="HalfExtents">Half the crate's size along each of its own axes, in meters.</param>
 /// <param name="Mass">The crate's mass, in kilograms.</param>
 /// <param name="Mesh">The mesh that draws the crate.</param>
 /// <param name="Material">The material of the mesh.</param>
-public readonly record struct CrateSpec(Vector3 HalfExtents, float Mass, MeshId Mesh, MaterialId Material)
+/// <param name="NoImpostor">
+/// True for a crate that is never drawn as an impostor, as every part of a spinning station is: in a frame that turns 18
+/// degrees a second, an impostor's capture goes stale within a few ticks (<see cref="DemoScenes.DemoStation"/>).
+/// </param>
+public readonly record struct CrateSpec(Vector3 HalfExtents, float Mass, MeshId Mesh, MaterialId Material, bool NoImpostor = false)
 {
     /// <summary>The radius of the crate's bounding sphere, in meters.</summary>
     public float BoundingRadius => HalfExtents.Length();
@@ -23,7 +27,7 @@ public readonly record struct CrateSpec(Vector3 HalfExtents, float Mass, MeshId 
         Mesh = Mesh,
         Material = Material,
         BoundingRadius = BoundingRadius,
-        Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
+        Flags = RenderFlags.Visible | RenderFlags.CastsShadow | (NoImpostor ? RenderFlags.NoImpostor : RenderFlags.None),
     };
 
     /// <summary>

@@ -31,7 +31,7 @@ internal sealed class SyncProfile
         "2d route step contacts (+ MoveMembership)",
         "3 debug invariants",
         "4 collision intents, motion changes, swap intents",
-        "5 subscriptions, destroys",
+        "5a subscriptions, mark and grow the destroy batch",
         "6 spawns live",
         "6c numeric update, flush physics changes",
         "7a MirrorFrameOwners",
@@ -50,6 +50,8 @@ internal sealed class SyncProfile
         "2c FollowFramelessEntities",
         "2 (end) puffs: PuffTable.Step",
         "7 (end) puffs: PuffTable.AddNewborns",
+        "5b carry the pushes of the parts",
+        "5c rehomes, intents of dying frames, frees",
     ];
 
     internal readonly long[] Totals = new long[Names.Length];

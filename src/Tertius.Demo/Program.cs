@@ -19,7 +19,7 @@ public static class Program
     /// <item><c>--generate scripts/demo-exit.json demo-exit</c> writes the exit's short script.</item>
     /// <item><c>--readouts scripts/blue-danube.json runs/danube/readouts.csv</c> writes the readout log of a script (see <see cref="Readouts"/>).</item>
     /// <item><c>--edit runs/danube/blue-danube.mp4 --script scripts/blue-danube.json --master runs/danube/blue-danube.mkv --readouts runs/danube/readouts.csv</c>
-    /// cuts the master video of the script into the final video, and writes its cue sheet beside it (see <see cref="EditCommand"/>).</item>
+    /// cuts the master video of the script into the final video (see <see cref="EditCommand"/>).</item>
     /// </list>
     /// </summary>
     public static int Main(string[] args) => Run(args, Console.Out, Console.Error);
