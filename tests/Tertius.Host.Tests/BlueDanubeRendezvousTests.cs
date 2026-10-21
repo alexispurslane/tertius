@@ -14,7 +14,7 @@ namespace Tertius.Host.Tests;
 /// World and the real Jolt backend with no renderer (docs/plans/blue-danube-demo.md, "The station and the rendezvous", "The
 /// docking", "The exit" and "The demo in the Earth system"): from the terminal at the north pole, in the turning
 /// earth-surface, through the hand-off of the climb into earth, the rendezvous in earth and the docking to the person on
-/// the wheel's floor. The run keeps a log of every tick from the first tick of the parking orbit, and at each frame it records
+/// the wheel's floor and the coda's throws. The run keeps a log of every tick from the first tick of the parking orbit, and at each frame it records
 /// what the frame's camera sees of the station and of the person. It runs without the world's invariant checks: with the
 /// station, they cost 6.6 ms a tick, and the run takes about 300,000 ticks.
 /// </summary>
@@ -22,12 +22,15 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
 {
     /// <summary>
     /// The name of the test collection whose classes share this one run: <see cref="BlueDanubeRendezvousTests"/>,
-    /// <see cref="BlueDanubeDockingTests"/> and <see cref="BlueDanubeExitTests"/>.
+    /// <see cref="BlueDanubeDockingTests"/>, <see cref="BlueDanubeExitTests"/> and <see cref="BlueDanubeCodaTests"/>.
     /// </summary>
     public const string Collection = "Blue Danube long run";
 
-    /// <summary>The last film of the run, the exit's last.</summary>
-    public const string LastFilm = "floor";
+    /// <summary>The last film of the run, the coda's last, which ends the script.</summary>
+    public const string LastFilm = "antispinward";
+
+    /// <summary>The exit's last film, after which the coda's sections start.</summary>
+    public const string FloorFilm = "floor";
 
     /// <summary>The docking's last film, after which the exit's sections start.</summary>
     public const string DockedFilm = "docked";
@@ -61,8 +64,20 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
     /// <summary>The state at the end of the film <see cref="DockedFilm"/>, the docking's end state.</summary>
     public RendezvousTick DockedEnd => Ticks.Last(tick => tick.Tick == DockedTick);
 
-    /// <summary>The ticks after the film <see cref="DockedFilm"/>: the exit, from the order to the end of the run.</summary>
+    /// <summary>The ticks after the film <see cref="DockedFilm"/>: the exit and the coda, from the order to the end of the run.</summary>
     public IEnumerable<RendezvousTick> AfterDocked => Ticks.SkipWhile(tick => tick.Tick <= DockedTick);
+
+    /// <summary>The number of completed ticks at the last frame of the film <see cref="FloorFilm"/>.</summary>
+    public long FloorTick { get; private set; } = -1;
+
+    /// <summary>The ticks after the film <see cref="FloorFilm"/>: the coda, from the order to play to the end of the run.</summary>
+    public IEnumerable<RendezvousTick> AfterFloor => Ticks.SkipWhile(tick => tick.Tick <= FloorTick);
+
+    /// <summary>
+    /// The center of each box of the coda's stack, in the order of <see cref="DemoScenes.WheelCoda.Stack"/>, in the
+    /// station's frame, at the last frame of the film <see cref="FloorFilm"/>, before the order to play.
+    /// </summary>
+    public Double3[] StackAtFloor { get; private set; } = [];
 
     /// <summary>
     /// The frame earth, which does not turn, in which the station flies, and the shuttle from the hand-off of the climb
@@ -106,7 +121,7 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
             World.PoseIn(Scene["sun"], Earth).Position.Normalized(), World.GetComponent<DockingAutopilot>(shuttle)!.State,
             World.PoseIn(shuttle, StationFrame), personPose.Position, World.IsStanding(person), World.Frames.Parent(cabin), World.Frames.HullMotion(cabin),
             World.GetComponent<Disembark>(person)!.State, World.GetFrame(person), inStation, World.VelocityIn(person, StationFrame),
-            World.Frames.FeltGravity(StationFrame, inStation).Length));
+            World.Frames.FeltGravity(StationFrame, inStation).Length, World.GetComponent<BoxPlay>(person)!.State));
     }
 
     /// <summary>
@@ -160,6 +175,11 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
             run.Frames.Add(run.RecordFrame(name));
             if (name.StartsWith(DockedFilm + "-", StringComparison.Ordinal))
                 run.DockedTick = world.TickNumber;
+            if (name.StartsWith(FloorFilm + "-", StringComparison.Ordinal))
+            {
+                run.FloorTick = world.TickNumber;
+                run.StackAtFloor = [.. DemoScenes.WheelCoda.Stack().Select(box => world.PoseIn(run.Scene[box.Id], run.StationFrame).Position)];
+            }
             return true;
         }
     }
@@ -200,11 +220,12 @@ public sealed class BlueDanubeLongRunCollection : ICollectionFixture<BlueDanubeR
 /// <param name="PersonInStation">The person's center in the station's frame, in meters.</param>
 /// <param name="PersonVelocityInStation">The person's velocity in the station's frame, in m/s.</param>
 /// <param name="PersonFeltGravity">The gravity that the person feels at its center, in the station's frame, in m/s².</param>
+/// <param name="Play">What the person's <see cref="BoxPlay"/> of the coda does.</param>
 public sealed record RendezvousTick(long Tick, double Time, Double3 Position, Double3 Velocity, Double3 Nose, Double3 StationCenter,
     Double3 StationVelocity, Double3 Axis, RendezvousState Rendezvous, PassengerState Passenger, System.Numerics.Vector3 CabinAcceleration,
     FrameHandle ShuttleFrame, double? PenFromHand, Double3 PersonUp, bool InShadow, Double3 ToSun, DockingState Docking, DPose InStation,
     Double3 PersonInCabin, bool PersonStanding, FrameHandle CabinParent, BodyMotion? HullMotion, DisembarkState Exit, FrameHandle PersonFrame,
-    Double3 PersonInStation, Double3 PersonVelocityInStation, double PersonFeltGravity)
+    Double3 PersonInStation, Double3 PersonVelocityInStation, double PersonFeltGravity, BoxPlayState Play)
 {
     /// <summary>The shuttle's place relative to the station's center, in meters, in earth's axes.</summary>
     public Double3 FromStation => Position - StationCenter;

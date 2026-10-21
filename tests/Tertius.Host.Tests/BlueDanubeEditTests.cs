@@ -86,8 +86,30 @@ public sealed class BlueDanubeEditTests
     {
         PanelSpan panel = BlueDanubeEdit.Cuts.Panels.Single(span => span.Panel == (CheckPanel)CheckPanels.SpinGravity);
 
-        // The slide ends with the film chute, 10 m above the wheel's ceiling, and the brake run and the landing follow.
+        // The slide ends with the film chute, 10 m above the wheel's ceiling, and the brake run and the landing follow. The
+        // panel ends with the person on the floor, before the coda's own panel.
         IndexOf(panel.FirstFilm).Should().Be(IndexOf("chute") + 1);
+        panel.LastFilm.Should().Be("floor");
+    }
+
+    [Fact]
+    public void TheCodaPartStartsWithTheFirstFilmAfterTheFloor()
+    {
+        // The film floor ends the wheel, and the coda's first film orders the person to play with the boxes.
+        EditPart coda = BlueDanubeEdit.Cuts.Parts.Single(part => part.Title == "Loose boxes");
+
+        IndexOf(coda.FirstFilm).Should().Be(IndexOf("floor") + 1);
+        coda.FirstFilm.Should().Be("stack");
+        coda.Subtitle.Should().NotContain(". ", "a part's subtitle is one line");
+    }
+
+    [Fact]
+    public void TheThrowsPanelSpansTheTwoThrowsToTheEndOfTheRun()
+    {
+        PanelSpan panel = BlueDanubeEdit.Cuts.Panels.Single(span => span.Panel == (CheckPanel)CheckPanels.Throws);
+
+        // The film spinward follows the stack, and the film antispinward holds the second throw and the end of the play.
+        IndexOf(panel.FirstFilm).Should().Be(IndexOf("stack") + 1);
         panel.LastFilm.Should().Be(Films[^1].Name);
     }
 

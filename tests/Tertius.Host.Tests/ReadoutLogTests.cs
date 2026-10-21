@@ -171,7 +171,9 @@ public sealed class ReadoutLogTests
     {
         string[] lines = ReadoutLog.ToCsv(Rows).TrimEnd('\n').Split('\n');
 
-        lines[0].Should().Be("frame,tick,x,y,z,speed,station,axis,felt");
+        lines[0].Should().Be("frame,tick,x,y,z,speed,station,axis,felt," +
+            "throw1_x,throw1_y,throw1_z,throw1_vx,throw1_vy,throw1_vz,throw1_time,throw1_land_x,throw1_land_y,throw1_land_z," +
+            "throw2_x,throw2_y,throw2_z,throw2_vx,throw2_vy,throw2_vz,throw2_time,throw2_land_x,throw2_land_y,throw2_land_z");
         lines.Should().HaveCount(6);
         lines[1].Should().StartWith("a-000000,2,0,");
     }
@@ -194,7 +196,58 @@ public sealed class ReadoutLogTests
 
         Action read = () => ReadoutLog.FromCsv(string.Join('\n', lines));
 
-        read.Should().Throw<FormatException>().WithMessage("Line 3 of the readout log has 8 cells, not 9.");
+        read.Should().Throw<FormatException>().WithMessage("Line 3 of the readout log has 28 cells, not 29.");
+    }
+
+    /// <summary>
+    /// A row before a throw leaves the throw's cells empty, a row after the release fills its release and leaves its
+    /// landing empty, and a row after the landing fills both. Each reads back to the same row.
+    /// </summary>
+    [Fact]
+    public void TheCsvHoldsEachThrowFromItsReleaseAndItsLandingFromTheLandingOn()
+    {
+        var release = new ThrowRelease(new Double3(-98, -2, 3.5), new Double3(4, 0, 6.9));
+        ReadoutRow before = Rows[0];
+        ReadoutRow flying = before with { FirstThrow = new ThrowReadout(release, null) };
+        ReadoutRow landed = before with
+        {
+            FirstThrow = new ThrowReadout(release, new ThrowLanding(0.83, new Double3(-99.5, -2, 9.4))),
+            SecondThrow = new ThrowReadout(release with { Velocity = -release.Velocity }, null),
+        };
+
+        string csv = ReadoutLog.ToCsv([before, flying, landed]);
+
+        csv.Split('\n')[1].Should().EndWith(new string(',', 20));
+        ReadoutLog.FromCsv(csv).Should().Equal(before, flying, landed);
+    }
+
+    /// <summary>
+    /// The log of the exit's short script, which films the coda, holds each throw of the person's <see cref="BoxPlay"/>
+    /// from the frame after its release on, in the station's axes, as its box's <see cref="FlightRecorder"/> records it:
+    /// the release from the first frame after the throw and the landing from the first frame after the landing. At the
+    /// last frame, both throws have landed where the straight lines of their releases say.
+    /// </summary>
+    [Fact]
+    public void TheLogOfTheExitsScriptHoldsEachThrowFromItsBoxsFlightRecorder()
+    {
+        Script script = Script.Parse(File.ReadAllText(Path.Combine(HostTesting.RepositoryRoot(), "scripts", "demo-exit.json")));
+
+        IReadOnlyList<ReadoutRow> rows = ReadoutLog.Record(script, DemoScenes.All);
+
+        rows.TakeWhile(row => !row.Frame.StartsWith("spinward", StringComparison.Ordinal)).Should().OnlyContain(row => row.FirstThrow == null && row.SecondThrow == null);
+        ReadoutRow last = rows[^1];
+        foreach (ThrowReadout? readout in new[] { last.FirstThrow, last.SecondThrow })
+        {
+            ThrowReadout thrown = readout!.Value;
+            ThrowLanding line = thrown.Release.Landing(DemoScenes.SpinStation.Rate, DemoScenes.DemoStation.WheelFloor, DemoScenes.WheelCoda.BoxHalf);
+            Double3.Distance(thrown.Landing!.Value.Place, line.Place).Should().BeLessThan(1e-3);
+        }
+        Double3 Spinward(ThrowReadout? thrown) => WheelFloor.SpinwardAt(thrown!.Value.Release.Place);
+        Double3.Dot(last.FirstThrow!.Value.Release.Velocity, Spinward(last.FirstThrow)).Should().BePositive("the first throw goes spinward");
+        Double3.Dot(last.SecondThrow!.Value.Release.Velocity, Spinward(last.SecondThrow)).Should().BeNegative("the second throw goes antispinward");
+        int firstLanded = rows.ToList().FindIndex(row => row.FirstThrow?.Landing != null);
+        rows[firstLanded - 1].FirstThrow.Should().NotBeNull("the release comes before the landing");
+        rows[firstLanded].Frame.Should().StartWith("spinward");
     }
 
     [Fact]

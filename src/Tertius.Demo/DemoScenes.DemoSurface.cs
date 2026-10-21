@@ -411,7 +411,11 @@ public static partial class DemoScenes
                 Pose = new DPose(PersonStart, DQuaternion.Identity),
                 Body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: YardPersonMass),
                 Render = personRender,
-                Components = [new Walker(Path(surface, cabin)), new Passenger(new Waypoint(cabin, Shuttle.SeatStand), pen), StationExit.Disembark(cabin, world.GetOwnedFrame(station))],
+                Components =
+                [
+                    new Walker(Path(surface, cabin)), new Passenger(new Waypoint(cabin, Shuttle.SeatStand), pen), StationExit.Disembark(cabin, world.GetOwnedFrame(station)),
+                    WheelCoda.Play(scene, world.GetOwnedFrame(station)),
+                ],
             });
             scene.Add("person", person);
             // The person starts its walk along -X, toward the entrance, so the camera starts behind it along +X.

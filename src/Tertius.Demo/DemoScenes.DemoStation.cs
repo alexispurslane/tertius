@@ -53,6 +53,9 @@ public static partial class DemoScenes
         /// <summary>The wheel's segments, and so the facets of its floor: 2.45 m long each.</summary>
         public const int Segments = 256;
 
+        /// <summary>The wheel's floor, the ring's inner face of <see cref="Segments"/> flat facets at <see cref="FloorRadius"/>.</summary>
+        public static WheelFloor WheelFloor { get; } = new(FloorRadius, Segments);
+
         /// <summary>
         /// The radius of the ceiling's face toward the axis, in meters: it runs from 94.5 to 95 m, 5 m above the floor. The
         /// ceiling is three bands with an opening under the spoke at θ = 180 degrees (see <see cref="StationExit.CeilingBands"/>).
@@ -431,6 +434,7 @@ public static partial class DemoScenes
             }));
 
             StationExit.Spawn(world, frame, scene, resources);
+            WheelCoda.Spawn(world, frame, scene, resources);
 
             // The bay lamps: glowing panels flat on the bay's walls, each with its light 0.3 m out from the wall, in the
             // station's axes. Three stand near the slot, 8 m in from it, and one in the middle of the far end wall.

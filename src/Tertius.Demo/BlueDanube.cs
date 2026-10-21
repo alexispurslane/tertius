@@ -64,6 +64,25 @@ public static class BlueDanube
         new("floor", "follow-camera", Every: 1, (world, scene) => ExitOf(world, scene).Value is Arrived, Hold: Second * 2),
     ];
 
+    /// <summary>
+    /// The sections of the coda (docs/plans/blue-danube-demo.md, "The coda", "Sections of the long script"): the person puts
+    /// the pen away and walks into the stack of loose boxes, which falls, then walks to the stand and throws one box
+    /// spinward and one antispinward. Each cue reads the person's <see cref="BoxPlay"/> or the flight recorder of a thrown
+    /// box. They follow the exit's sections, in the long script and in <c>scripts/demo-exit.json</c>, and come before
+    /// <see cref="Sections"/> in this file for the same reason as <see cref="ExitSections"/>.
+    /// </summary>
+    public static IReadOnlyList<FilmSection> CodaSections { get; } =
+    [
+        // The order, the walk into the stack, its fall, and the boxes as they settle.
+        new("stack", "stack-camera", Every: 1, (world, scene) => PlayOf(world, scene).Value is not (Idle or Shoving), Hold: Second * 2,
+            Posts: [new PostStep(new ToEntity("person"), nameof(PlayWithBoxes))]),
+        // The walk to the stand, the take and the spinward throw, which lands short of its flat field's mark, until the
+        // person takes the second box.
+        new("spinward", "spinward-camera", Every: 1, (world, scene) => PlayOf(world, scene).Value is Taking { Throw: 1 }),
+        // The second take and the antispinward throw, which lands long of its mark, and the play's end.
+        new("antispinward", "antispinward-camera", Every: 1, (world, scene) => PlayOf(world, scene).Value is Played, Hold: Second * 2),
+    ];
+
     /// <summary>The sections of the run, in their order.</summary>
     public static IReadOnlyList<FilmSection> Sections { get; } =
     [
@@ -160,6 +179,7 @@ public static class BlueDanube
 
         // The exit: the person leaves the docked shuttle, slides down the spoke and stands on the wheel's floor.
         .. ExitSections,
+        .. CodaSections,
     ];
 
     /// <summary>How long the film <c>spin-up</c> films the spin-up from outside, in seconds, before the rim camera takes over.</summary>
@@ -183,7 +203,7 @@ public static class BlueDanube
     /// <summary>
     /// The script of the run of <paramref name="sceneName"/>, the long run unless it names another of
     /// <see cref="Scenes"/>, which the generator rehearses in a new world (see <see cref="FilmScript.Generate"/>). The long
-    /// run films <see cref="Sections"/>, and the exit's scene films <see cref="ExitSections"/>. Throws
+    /// run films <see cref="Sections"/>, and the exit's scene films <see cref="ExitSections"/> and <see cref="CodaSections"/>. Throws
     /// <see cref="ArgumentException"/> for a scene that is not one of <see cref="Scenes"/>.
     /// </summary>
     public static Script Generate(string sceneName = SceneName)
@@ -191,7 +211,7 @@ public static class BlueDanube
         IReadOnlyList<FilmSection> sections = sceneName switch
         {
             SceneName => Sections,
-            ExitSceneName => ExitSections,
+            ExitSceneName => [.. ExitSections, .. CodaSections],
             _ => throw new ArgumentException($"The Blue Danube demo has no sections for the scene {sceneName}.", nameof(sceneName)),
         };
         return FilmScript.Generate(DemoScenes.All.Single(scene => scene.Name == sceneName), Window, sections);
@@ -256,6 +276,8 @@ public static class BlueDanube
     private static PassengerState PassengerOf(World world, SceneInstance scene) => world.GetComponent<Passenger>(scene["person"])!.State;
 
     private static DisembarkState ExitOf(World world, SceneInstance scene) => world.GetComponent<Disembark>(scene["person"])!.State;
+
+    private static BoxPlayState PlayOf(World world, SceneInstance scene) => world.GetComponent<BoxPlay>(scene["person"])!.State;
 
     /// <summary>The person's position in the station's frame.</summary>
     private static Double3 PersonInStation(World world, SceneInstance scene) => world.PoseIn(scene["person"], world.GetOwnedFrame(scene["station"])).Position;

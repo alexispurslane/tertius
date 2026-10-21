@@ -166,4 +166,96 @@ public sealed class ReadoutTextTests
         panel.Should().HaveCount(3);
         panel.Select(line => line.Length).Distinct().Should().ContainSingle();
     }
+    private static WheelFloor Floor => DemoScenes.DemoStation.WheelFloor;
+
+    /// <summary>
+    /// A release a micrometer over a box's half size above the middle of facet 128, at 8 m/s and 30° up, spinward or
+    /// antispinward. Over a flat floor in ω² R = 9.810 m/s², it is back down after 2 · 4 / 9.810 = 0.8155 s, 6.928 · 0.8155
+    /// = 5.65 m along. The micrometer keeps the release off the floor, so that its landing is the one after its flight.
+    /// </summary>
+    private static ThrowRelease Release(int direction)
+    {
+        Double3 place = Floor.OnFacet(128, DemoScenes.WheelCoda.BoxHalf + 1e-6, -2);
+        return new ThrowRelease(place, WheelFloor.UpAt(place) * 4 + WheelFloor.SpinwardAt(place) * (direction * 8 * Math.Cos(Math.PI / 6)));
+    }
+
+    /// <summary>How far along the floor, in the throw's direction, the straight line of <paramref name="release"/> lands, in two decimals.</summary>
+    private static string LineLanding(ThrowRelease release)
+    {
+        ThrowLanding line = release.Landing(DemoScenes.SpinStation.Rate, Floor, DemoScenes.WheelCoda.BoxHalf);
+        return Math.Abs(Floor.Spinward(release.Place, line.Place)).ToString("F2", System.Globalization.CultureInfo.InvariantCulture) + " m";
+    }
+
+    private static ReadoutRow Coda(ThrowReadout? first = null, ThrowReadout? second = null) => At(400e3, axis: 99.1, felt: 9.72) with { FirstThrow = first, SecondThrow = second };
+
+    [Fact]
+    public void TheThrowsPanelShowsEachThrowAsWaitingBeforeItsRelease()
+    {
+        string[] panel = CheckPanels.Throws(Coda(), Coda());
+
+        panel[0].TrimEnd().Should().Contain("TEXTBOOK CHECK").And.Contain("thrown in the wheel");
+        panel[2].TrimEnd().Should().StartWith("spinward").And.EndWith("waiting");
+        panel[3].TrimEnd().Should().StartWith("antispinward").And.EndWith("waiting");
+    }
+
+    [Fact]
+    public void TheThrowsPanelSetsTheStraightLinesLandingBesideTheFlatFieldsFromTheRelease()
+    {
+        ThrowRelease spinward = Release(1), antispinward = Release(-1);
+
+        string[] panel = CheckPanels.Throws(Coda(), Coda(new ThrowReadout(spinward, null), new ThrowReadout(antispinward, null)));
+
+        panel[1].Should().Contain("straight line").And.Contain("run").And.Contain("uniform 1 g");
+        panel[2].TrimEnd().Should().Contain(LineLanding(spinward)).And.Contain("in the air").And.EndWith("5.65 m");
+        panel[3].TrimEnd().Should().Contain(LineLanding(antispinward)).And.Contain("in the air").And.EndWith("5.65 m");
+        LineLanding(spinward).Should().NotBe(LineLanding(antispinward), "the wheel's turn bends the two throws apart");
+    }
+
+    [Fact]
+    public void TheThrowsPanelSetsTheRunsLandingAlongTheFloorInTheThrowsDirection()
+    {
+        ThrowRelease spinward = Release(1), antispinward = Release(-1);
+        double theta = WheelFloor.Theta(spinward.Place);
+        var ahead = new ThrowLanding(0.8, Floor.Above(theta + 0.0612, 0.25, -2));
+        var behind = new ThrowLanding(1.7, Floor.Above(theta - 0.1154, 0.25, -2));
+
+        string[] panel = CheckPanels.Throws(Coda(), Coda(new ThrowReadout(spinward, ahead), new ThrowReadout(antispinward, behind)));
+
+        panel[2].TrimEnd().Should().Contain(" 6.12 m ").And.NotContain("in the air");
+        panel[3].TrimEnd().Should().Contain(" 11.54 m ").And.NotContain("in the air");
+    }
+
+    [Fact]
+    public void TheThrowsPanelNamesEachReleasesSpeedAndAngleAboveTheFloorInTheStationsAxes()
+    {
+        string[] panel = CheckPanels.Throws(Coda(), Coda(new ThrowReadout(Release(1), null)));
+
+        panel[2].Should().Contain("8.00 m/s 30.0°");
+    }
+
+    /// <summary>
+    /// The throws panel writes no "fi" and no "fl". libass draws each pair as one glyph of Menlo's, a ligature, so a line
+    /// that holds one draws narrower than its count of characters, and the panel's right-aligned lines fall out of line.
+    /// The first render of 2026-10-21 showed it, with "flat" and "in flight".
+    /// </summary>
+    [Fact]
+    public void TheThrowsPanelWritesNoPairThatMenloDrawsAsOneGlyph()
+    {
+        ReadoutRow landed = Coda(new ThrowReadout(Release(1), new ThrowLanding(0.8, Release(1).Place)), new ThrowReadout(Release(-1), null));
+
+        foreach (ReadoutRow row in new[] { Coda(), landed })
+            CheckPanels.Throws(Coda(), row).Should().OnlyContain(line => !line.Contains("fi", StringComparison.Ordinal) && !line.Contains("fl", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void TheLinesOfTheThrowsPanelAreOfOneWidth()
+    {
+        foreach (ReadoutRow row in new[] { Coda(), Coda(new ThrowReadout(Release(1), null)), Coda(new ThrowReadout(Release(1), new ThrowLanding(0.8, Release(1).Place)), new ThrowReadout(Release(-1), null)) })
+        {
+            string[] panel = CheckPanels.Throws(Coda(), row);
+
+            panel.Should().HaveCount(4);
+            panel.Select(line => line.Length).Distinct().Should().ContainSingle();
+        }
+    }
 }
