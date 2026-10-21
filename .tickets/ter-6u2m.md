@@ -1,6 +1,6 @@
 ---
 id: ter-6u2m
-status: open
+status: in_progress
 deps: [ter-4zt6, ter-ftk4, ter-diu0]
 links: []
 created: 2026-10-21T14:13:35Z
