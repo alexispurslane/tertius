@@ -970,6 +970,21 @@ The sync profile has a lap for each of the two steps, "2 (end) puffs: PuffTable.
 
 `earth` is a root frame with Earth's point field and no medium. `earth-surface` turns with Earth and holds its planet medium. So the step costs about 20 ns per puff in a frame that does not turn, and 43 to 55 ns in a turning frame. 64 births and the rebuild of 4,096 live puffs add about 8.5 µs in `earth`: about 45 ns per birth and 1.4 ns per live puff for the rebuild. No step and no birth allocates after warm-up, by test. `rows`, `spare` and the newborns' array grow by doubling up to the capacity. At 4,096 live puffs, `rows` and `spare` take 448 KiB together, and the newborns' array at most 224 KiB more. The render row's 44 bytes of emitter changed the time of `RenderSnapshotBenchmarks` by less than 1 percent in every scene.
 
+#### From the table to the screen
+
+A puff passes through four stages on its way to the screen. Each stage reads what the one before it wrote, and none writes back:
+
+1. Step 2b of the sync point steps the old puffs in the table, by the loose-body step of each range's frame. The destroy path of step 5 moves the puffs of each dying frame into its heir. Step 7c adds the newborns of the step that just ended and applies the cap.
+2. Step 11 builds the render snapshot. `World.BuildRenderSnapshot` passes the table's view, `PuffTable.View`, to `RenderSnapshotBuilder.Build(snapshot, view, puffs)`. After the instances, the sun and the frame outlines, `Build` places the puffs with the frame poses of the same build (see "Puffs in the snapshot"). So the snapshot shows the puffs of the same step as its instances. A build without a camera returns before it places anything, so its snapshot has no puffs.
+3. The triple buffer publishes the snapshot to the render thread, as for every other part of it.
+4. The batcher interpolates each puff by the frame's alpha, culls it and writes its `GpuPuff`, and the transparent pass draws it (see "Puffs in the renderer").
+
+The table holds doubles in the frame of each puff. The snapshot holds floats relative to the render origin, in the axes of the camera's frame. The renderer knows no frames. So a time-lapse film, a skipped snapshot or a snapshot that the window draws twice changes no puff, because the simulation stepped every puff in every step before any of them.
+
+`WorldHash.OfPuffs(snapshot)` (`tests/Tertius.Testing/WorldHash.cs`) hashes the puffs of a snapshot: each puff's position, previous position, age and look index in order, the age step, and each field of each look. `WorldHash.Of` leaves the puffs out, so a test compares a World with puffs and one without through it. `PuffSnapshotTests` checks that the snapshot of a World shows each row of the table where the frame tree places it relative to the camera, within 0.1 mm, with a jet in a hull's frame and the camera in space. It also pins a hash of the snapshot's puffs after 300 ticks of a busy scene whose cap binds, and `tools/test-all.sh` runs it in Debug and in Release.
+
+The demo's scene `puff-yard` (`src/Tertius.Demo/DemoScenes.Puffs.cs`) and its script `scripts/puff-yard.json` show glow puffs through the real renderer. In air under gravity, an orange flame rises in a column, a blue jet bends up from its slant, faint green gas that is colder than the air stops about a meter up and spreads into a low dome, and a tossed box leaves an arc of puffs that marks its path. `PuffScriptCostMeasurement` (`tests/Tertius.Host.Tests`, explicit) runs that script headless at 1280 × 720 with its four captures, with the default capacity and with a capacity of 0 (ter-4zt6, Release, on an Apple M1 Max, at a 1-minute load of 3.6). The median of 7 runs was 347.3 ms with puffs, about 760 of them alive at once, and 337.3 ms without. So the puffs of that scene cost about 33 µs per tick of 300, from the table to the screen.
+
 ### The overlay pass
 
 The overlay pass, `OutlinePass`, draws the frame outlines of the snapshot. It is the one pass of the stage `Overlay` of the `FrameGraph`, after tone mapping and before the readback. The renderer always builds it. With no outline in the snapshot, it writes no record and records no command.
