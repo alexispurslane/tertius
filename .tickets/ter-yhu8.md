@@ -1,6 +1,6 @@
 ---
 id: ter-yhu8
-status: in_progress
+status: closed
 deps: [ter-rlks, ter-4xkz]
 links: []
 created: 2026-10-20T22:46:02Z
