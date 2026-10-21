@@ -32,6 +32,10 @@ internal readonly record struct RenderView(
 /// <see cref="ParallelThreshold"/> slots runs on the workers, one chunk of the entity table for each work item, and the
 /// chunks join in slot order.
 /// <para>
+/// <see cref="BuildPuffs"/> (RenderSnapshotBuilder.Puffs.cs) places the puffs of the puff table after a build, through
+/// the frame poses of that build. A puff keeps no memory here: its previous place is its place one chord back.
+/// </para>
+/// <para>
 /// Invariants, checked by <see cref="AssertInvariants"/>:
 /// <list type="bullet">
 /// <item>An entity's remembered pose comes from a build that has happened, and names the frame it was relative
@@ -41,7 +45,7 @@ internal readonly record struct RenderView(
 /// </list>
 /// </para>
 /// </remarks>
-internal sealed class RenderSnapshotBuilder
+internal sealed partial class RenderSnapshotBuilder
 {
     private const int RenderChunkSlots = 1024;
     private static readonly Double3 LightForward = new(0, 0, -1);
@@ -106,6 +110,8 @@ internal sealed class RenderSnapshotBuilder
     // The camera's eye pose in its semantic frame at the previous build, for when its physics home is gone since.
     private DPose lastCameraInFrame;
     private long lastCameraStamp;
+    // The tick of the last build with a camera.
+    private long lastCameraTick;
 
     // Inputs of the per-chunk workers for the build that is running.
     private Double3 renderOrigin;
@@ -113,6 +119,11 @@ internal sealed class RenderSnapshotBuilder
     private int renderSlotCount;
     private RefList<RenderInstance>[] instanceChunks = [];
     private RefList<RenderLight>[] lightChunks = [];
+
+    // What the placement of the puffs knows of the build that is running: whether the build placed a camera, and whether
+    // it interpolates from a build of the tick before, so that a puff's place one chord back is its previous place.
+    private bool renderHasCamera;
+    private bool renderFollowsTick;
 
     // What the outline build knows of each frame, by dense index, during one build with outlines.
     private OutlineFrame[] outlineFrames = [];
@@ -176,6 +187,7 @@ internal sealed class RenderSnapshotBuilder
         snapshot.RootRotation = snapshot.PreviousRootRotation = Quaternion.Identity;
         snapshot.OriginInFrame = Double3.Zero;
         snapshot.OriginFrameId = 0;
+        renderHasCamera = renderFollowsTick = false;
 
         if (!TryGetCameraPose(view.Camera, out FrameHandle cameraFrame, out FrameHandle cameraHome, out DPose eyeInFrame, out DPose cameraPose))
         {
@@ -190,6 +202,8 @@ internal sealed class RenderSnapshotBuilder
         PrepareFramePoses(cameraHome, stamp, interpolate);
         renderInterpolate = interpolate;
         renderOrigin = cameraPose.Position;
+        renderHasCamera = true;
+        renderFollowsTick = interpolate && view.Tick == lastCameraTick + 1;
 
         // The previous pose from the previous home, which stays exact near the camera. When a numeric update collected
         // that home, the camera's semantic frame, which is the same, places it, rounded only far from that frame's origin.
@@ -223,6 +237,7 @@ internal sealed class RenderSnapshotBuilder
         lastCameraPose = cameraPose;
         lastCameraInFrame = eyeInFrame;
         lastCameraStamp = stamp;
+        lastCameraTick = view.Tick;
     }
 
     /// <summary>
