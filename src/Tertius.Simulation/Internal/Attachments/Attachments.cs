@@ -21,8 +21,13 @@ namespace Tertius.Simulation;
 /// <item><see cref="Attached"/> holds exactly the attached entities.</item>
 /// <item>Releasing an entity detaches it. Its attached children must be released in the same batch, which
 /// <c>World</c> guarantees by destroying them with it.</item>
+/// <item>The root of every link is the chain root that a walk up the parents finds, and it is live.</item>
+/// <item>Each live entity among the entity table's front pushers and the pushers of the tick is attached, and its
+/// chain root has a body.</item>
+/// <item>The scratch of <see cref="CarryPushes"/> is empty.</item>
 /// </list>
-/// The gameplay workers call only <see cref="ParentOf"/> and <see cref="WritableOffset"/>, for their own entity.
+/// The gameplay workers call only <see cref="ParentOf"/>, <see cref="RootOf"/> and <see cref="WritableOffset"/>, for their
+/// own entity.
 /// </para>
 /// </remarks>
 internal sealed class Attachments
@@ -31,6 +36,16 @@ internal sealed class Attachments
     private struct Link
     {
         public Entity Parent;
+        /// <summary>
+        /// The chain root: the one entity of the chain that is not attached, or null for an entity that is not attached. It
+        /// never changes, because an entity is attached only at its spawn and dies with its parent.
+        /// </summary>
+        public Entity Root;
+        /// <summary>
+        /// For a chain root while <see cref="CarryPushes"/> runs: one more than the index of its sum in the scratch of the
+        /// flow, or 0 when it has none yet. 0 outside the call.
+        /// </summary>
+        public int SumSlot;
         /// <summary>The offset from the parent. The entity itself may change it during its run.</summary>
         public Pose Offset;
         /// <summary>This entity's node in the tree, if it is attached or has attached children.</summary>
@@ -115,6 +130,7 @@ internal sealed class Attachments
         children.Insert(at < 0 ? ~at : at, child);
 
         link.Parent = parent;
+        link.Root = ChainRoot(parent);
         link.Offset = offset;
         link.Node = tree.Add(parentLink.Node, Poses.Safe(offset).ToDPose());
         attached.Queue(child, true);
@@ -156,6 +172,93 @@ internal sealed class Attachments
                 AngularVelocity = rootRow.AngularVelocity,
             });
         }
+    }
+
+    /// <summary>
+    /// The chain root of an attached entity: the one entity of its chain that is not attached. Null for an entity that is
+    /// not attached. Throws <see cref="StaleEntityException"/> for a stale handle. Worker-safe.
+    /// </summary>
+    public Entity RootOf(Entity entity) => links[entity].Root;
+
+    /// <summary>
+    /// Carries the push of every part that pushed in the tick to its chain root, the one choke-point method of the flow
+    /// (docs/plans/parts.md, "Where the push flows up"). Step 5 of the sync point calls it once, after the swap and after the
+    /// destroy batch has grown, before any entity of the batch moves to another frame or dies. For each live part of the
+    /// table's front pushers, in their order, it reads the part's push from its front intent and empties that intent. A part
+    /// that <paramref name="dying"/> marks (indexed by slot) is skipped: it is not live in the next step, and its chain root
+    /// dies with it or survives without its push. Each other part's push moves to the center of mass of its root's body at
+    /// the part's place (see <see cref="Push.At"/>), with the lever of the offsets of its chain, and joins the root's sum in
+    /// doubles, which starts from the root's own push. Each sum then narrows once into its root's front intent (see
+    /// <see cref="EntityTable.AddPush"/>), roots in the order of their first part. The intents of the part and of its root
+    /// name the front frame of the chain here, so the sum needs no relation between frames. A part whose intent names
+    /// another frame than its root's front row comes only from a bug: it fails a contract in a build with contracts, and
+    /// in any other build it is skipped and added to <paramref name="skipped"/> for the World to report.
+    /// </summary>
+    public void CarryPushes(ReadOnlySpan<bool> dying, List<Entity> skipped)
+    {
+        ReadOnlySpan<Entity> parts = entities.FrontPushers;
+        if (parts.IsEmpty)
+            return;
+        Contract.Requires(sums.Count == 0);
+        ReadOnlySpan<PhysicsIntent> intents = entities.FrontIntents.Span;
+        foreach (Entity part in parts)
+        {
+            if (!entities.IsAlive(part))
+                continue;
+            ref readonly PhysicsIntent pushed = ref intents[(int)part.Index];
+            if (dying[(int)part.Index])
+            {
+                entities.ClearPush(part);
+                continue;
+            }
+            Entity root = links[part].Root;
+            ref readonly TransformRow rootRow = ref entities.FrontRow(root);
+            Contract.Requires(pushed.Frame == rootRow.Frame);
+            if (pushed.Frame != rootRow.Frame)
+            {
+                skipped.Add(part);
+                entities.ClearPush(part);
+                continue;
+            }
+            Double3 lever = Push.Lever(rootRow.Pose.Rotation, PlaceInBody(part), entities.BodyCenterOfMass(root));
+            Push contribution = Push.Of(in pushed).At(lever);
+            ref int slot = ref links[root].SumSlot;
+            if (slot == 0)
+            {
+                sums.Add((root, Push.Of(in intents[(int)root.Index])));
+                slot = sums.Count;
+            }
+            ref (Entity Root, Push Sum) sum = ref CollectionsMarshal.AsSpan(sums)[slot - 1];
+            sum.Sum = sum.Sum.Plus(in contribution);
+            entities.ClearPush(part);
+        }
+        foreach ((Entity root, Push sum) in sums)
+        {
+            entities.AddPush(root, in sum);
+            links[root].SumSlot = 0;
+        }
+        sums.Clear();
+    }
+
+    // The scratch of CarryPushes: the sum of each root in doubles, in the order of its first part. Each root's link holds
+    // the place of its sum here (see Link.SumSlot). Empty outside the call.
+    private readonly List<(Entity Root, Push Sum)> sums = new();
+
+    /// <summary>
+    /// The place of <paramref name="part"/> in the body of its chain root, in meters in the root body's own axes: the
+    /// offsets of the chain from the root down to the part, composed in doubles, with the writes of this tick. Each offset
+    /// widens as <see cref="Derive"/> widens it, so the place is where step 7 puts the part in the root's axes.
+    /// </summary>
+    private Double3 PlaceInBody(Entity part)
+    {
+        ref readonly Link link = ref links[part];
+        // A child of the root is at its offset's position, which widens exactly, with no rotation to compose.
+        if (link.Parent == link.Root)
+            return link.Offset.Position;
+        DPose place = Poses.Safe(link.Offset).ToDPose();
+        for (Entity parent = link.Parent; parent != link.Root; parent = links[parent].Parent)
+            place = DPose.Compose(Poses.Safe(links[parent].Offset).ToDPose(), place);
+        return place.Position;
     }
 
     /// <summary>
@@ -210,6 +313,22 @@ internal sealed class Attachments
             }
         }
         Contract.Invariant(attachedEntities.Length == attachedCount && tree.Count == nodes);
+
+        foreach (Entity entity in attachedEntities)
+        {
+            Entity root = links[entity].Root;
+            Contract.Invariant(root == ChainRoot(entity) && entities.IsAlive(root));
+        }
+        var pushers = new List<Entity>();
+        entities.CollectPushers(pushers);
+        foreach (Entity pusher in entities.FrontPushers)
+            if (entities.IsAlive(pusher))
+                pushers.Add(pusher);
+        foreach (Entity pusher in pushers)
+            Contract.Invariant(!links[pusher].Parent.IsNull && entities.Body(links[pusher].Root) != null);
+        Contract.Invariant(sums.Count == 0);
+        foreach (Entity entity in entities.LiveEntities)
+            Contract.Invariant(links[entity].SumSlot == 0);
     }
 
     /// <summary>

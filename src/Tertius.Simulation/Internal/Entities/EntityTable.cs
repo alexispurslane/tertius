@@ -38,13 +38,18 @@ namespace Tertius.Simulation;
 /// <see cref="CopyDirtyRows"/> never misses a change. Gameplay never writes the transform of a slot with a body.</item>
 /// <item>A live slot's back component flags are the types of its components. Its collision rows are the default for an
 /// entity without a body. Its kept bounding radii are the <see cref="ShapeDesc.BoundingRadius"/> of its body's shape and
-/// of the shape inside it (<see cref="BodyDesc.InteriorShape"/>, or the shape when it has none), or 0 without a body.</item>
+/// of the shape inside it (<see cref="BodyDesc.InteriorShape"/>, or the shape when it has none), or 0 without a body. Its
+/// kept center of mass is zero without a body, and finite with one.</item>
 /// <item>A slot is in the set of <see cref="BodyEntities"/> exactly when it is live and has a body.</item>
 /// <item>The component index lists exactly the live entities whose front flags hold each type. Nothing changes it
 /// during the gameplay part of a tick, which starts with it settled, so the workers read it without a race.</item>
-/// <item>A back intent is set only for a live entity in its chunk's list of intent writers, and a front intent only
-/// for an entity in <see cref="IntentEntities"/>. A writer that died since it wrote stays in the list until the swap,
-/// which skips it: releasing it cleared its slot.</item>
+/// <item>A back intent is set only for a live entity in its chunk's list of intent writers or in its list of pushers, and
+/// a front intent only for an entity in <see cref="IntentEntities"/>. A writer that died since it wrote stays in the list
+/// until the swap, which skips it: releasing it cleared its slot.</item>
+/// <item>Each live entity in a chunk's list of pushers is listed there once, has no body, has a written intent, and is not
+/// among the chunk's intent writers. Each live entity among the <see cref="FrontPushers"/> is listed once, has no body,
+/// is not in <see cref="IntentEntities"/>, and holds an empty front intent: the flow of the sync point carried its push
+/// (docs/plans/parts.md).</item>
 /// <item>A live entity is in its chunk's list of motion changers, once, exactly when its back intent has
 /// <see cref="IntentFlags.SetMotion"/>. Each motion changer is also an intent writer. A changer that died stays in the
 /// list until the swap, as a dead intent writer does. A live entity is in the list of front motion changers, once, exactly
@@ -112,6 +117,12 @@ internal sealed partial class EntityTable
         /// Kept from the spawn, as <see cref="BodyBoundingRadius"/> is.
         /// </summary>
         public float InteriorBoundingRadius;
+        /// <summary>
+        /// The center of mass of the body's shape, in meters, in the body's own axes, as the physics backend computes it
+        /// (see <see cref="IPhysicsBackend.ShapeCenterOfMass"/>). Zero without a body or without a backend. Kept from the
+        /// spawn, as <see cref="BodyBoundingRadius"/> is.
+        /// </summary>
+        public Vector3 BodyCenterOfMass;
         /// <summary>The frame this entity is, if any.</summary>
         public FrameHandle OwnedFrame;
     }
@@ -130,6 +141,12 @@ internal sealed partial class EntityTable
         /// that step 4 visits only them (see <see cref="CollectMotionChanges"/>). Handles, as in <see cref="IntentWriters"/>.
         /// </summary>
         public readonly List<Entity> MotionChangers = new();
+        /// <summary>
+        /// The parts that pushed this tick, in the order they first pushed (see <see cref="WritablePush"/>). A part is never
+        /// among the <see cref="IntentWriters"/>: it writes only a push, which the sync point carries to its chain root, so
+        /// its intent is no input of physics. Handles, as in <see cref="IntentWriters"/>.
+        /// </summary>
+        public readonly List<Entity> Pushers = new();
         /// <summary>Free slots reserved for this chunk's spawns, in a deterministic order.</summary>
         public readonly Queue<uint> SpawnPool = new();
         /// <summary>
@@ -298,6 +315,10 @@ internal sealed partial class EntityTable
     // The entities whose front intent holds a change of their hull's motion, in the order of the swap: the motion changers
     // of the tick before. Step 4 stores their changes after the step that applied them (see CollectFrontMotionChanges).
     private readonly List<Entity> frontMotionChangers = new();
+    // The parts whose pushes are in the front intents, in the order of the swap: the pushers of the tick before, chunk by
+    // chunk. The flow of step 5 carries their pushes to their chain roots and empties their front intents (see
+    // Attachments.CarryPushes). They are never in the intent list.
+    private readonly List<Entity> frontPushers = new();
     // Set when a live slot is released after the intent swap: the intent list may name it until the list is next read.
     private bool intentEntitiesMayHoldDead;
     // Back rows that the sync point changed. The chunk books hold the rows that gameplay changed.
@@ -470,7 +491,7 @@ internal sealed partial class EntityTable
         {
             chunks[c].EndTick();
             ChunkBook book = books[c];
-            Contract.Requires(book.IntentWriters.Count == 0 && book.MotionChangers.Count == 0);
+            Contract.Requires(book.IntentWriters.Count == 0 && book.MotionChangers.Count == 0 && book.Pushers.Count == 0);
             book.DirtySlots.Clear();
             book.LastSpawnCount = book.SpawnsThisTick;
             book.SpawnsThisTick = 0;
@@ -533,7 +554,8 @@ internal sealed partial class EntityTable
     /// and <see cref="StaleEntityException"/> for any other handle that does not name its slot's current reservation. A
     /// component type that has no id throws as <see cref="ComponentTypes.IdOf"/> does, before anything changes.
     /// </summary>
-    public void Activate(Entity entity, in TransformRow row, in RenderData render, IComponent[] components, EventMask[] wants, BodyDesc? body, FrameHandle ownedFrame)
+    public void Activate(Entity entity, in TransformRow row, in RenderData render, IComponent[] components, EventMask[] wants, BodyDesc? body,
+        Vector3 bodyCenterOfMass, FrameHandle ownedFrame)
     {
         Contract.Requires(!gameplayRunning);
         if (!IsCurrentReservation(entity))
@@ -544,13 +566,15 @@ internal sealed partial class EntityTable
         }
         uint slot = entity.Index;
         Contract.Requires(components.Length == wants.Length);
+        Contract.Requires(body is null ? bodyCenterOfMass == Vector3.Zero : IsFinite(bodyCenterOfMass));
         ComponentFlags types = ComponentFlags.Of(components);
         BodyCollision collision = body is null ? default : new BodyCollision(body.CollisionGroups, body.CollisionMask);
         float radius = body?.Shape.BoundingRadius() ?? 0;
         records[slot] = new Record
         {
             Components = components, Wants = wants, Body = body, BodyBoundingRadius = radius,
-            InteriorBoundingRadius = body?.InteriorShape is { } interior ? interior.BoundingRadius() : radius, OwnedFrame = ownedFrame,
+            InteriorBoundingRadius = body?.InteriorShape is { } interior ? interior.BoundingRadius() : radius,
+            BodyCenterOfMass = bodyCenterOfMass, OwnedFrame = ownedFrame,
         };
         if (body != null)
             bodySlots.Add(slot);
@@ -671,6 +695,12 @@ internal sealed partial class EntityTable
     /// body. Throws <see cref="StaleEntityException"/> for a stale handle. Worker-safe.
     /// </summary>
     public float BodyInteriorBoundingRadius(Entity entity) => records[LiveSlot(entity)].InteriorBoundingRadius;
+
+    /// <summary>
+    /// The center of mass of the body's shape, in meters, in the body's own axes, kept from the spawn, or zero for an entity
+    /// without a body. Throws <see cref="StaleEntityException"/> for a stale handle. Worker-safe.
+    /// </summary>
+    public Vector3 BodyCenterOfMass(Entity entity) => records[LiveSlot(entity)].BodyCenterOfMass;
 
     /// <summary>The frame this entity is, or null. Throws <see cref="StaleEntityException"/> for a stale handle. Worker-safe.</summary>
     public FrameHandle OwnedFrame(Entity entity) => records[LiveSlot(entity)].OwnedFrame;
@@ -942,6 +972,93 @@ internal sealed partial class EntityTable
     }
 
     /// <summary>
+    /// The running part's back intent, for writing a push: a force, a torque, an impulse or an angular impulse, in the axes
+    /// of the frame that the part is in during the tick (docs/plans/parts.md, "The public API"). The part has no body. Its
+    /// first push of the tick lists it among its chunk's pushers, not among the intent writers, and names the part's frame
+    /// in the intent. The swap hands the pushers on (see <see cref="FrontPushers"/>), and the flow of the sync point carries
+    /// each push to the part's chain root. The caller checks that the part's chain root has a body. Throws
+    /// <see cref="StaleEntityException"/> for a stale handle. Worker-safe for the running entity.
+    /// </summary>
+    public ref PhysicsIntent WritablePush(Entity part)
+    {
+        uint slot = LiveSlot(part);
+        Contract.Requires(gameplayRunning && records[slot].Body == null);
+        ref SlotFlags f = ref flags[slot];
+        List<Entity> pushers = books[slot / chunkSize].Pushers;
+        if ((f & SlotFlags.IntentRegistered) == 0)
+        {
+            f |= SlotFlags.IntentRegistered;
+            pushers.Add(part);
+            backIntent[slot].Frame = frontTransform[slot].Frame;
+        }
+        Contract.Ensures(pushers.IndexOf(part) >= 0 && pushers.IndexOf(part) == pushers.LastIndexOf(part) &&
+            !books[slot / chunkSize].IntentWriters.Contains(part) && backIntent[slot].Frame == frontTransform[slot].Frame);
+        return ref backIntent[slot];
+    }
+
+    /// <summary>
+    /// The parts whose pushes the swap made front intents, chunk by chunk, each in the order of its first push in the tick.
+    /// None is in <see cref="IntentEntities"/>. A part that died since the swap stays listed until the next swap, which
+    /// skips it: releasing it cleared its slot. Without a backend the swap lists none.
+    /// </summary>
+    public ReadOnlySpan<Entity> FrontPushers => CollectionsMarshal.AsSpan(frontPushers);
+
+    /// <summary>
+    /// Empties the front intent of <paramref name="part"/>, after the flow carried its push to its chain root or skipped it.
+    /// Outside the gameplay part of a tick. Throws <see cref="StaleEntityException"/> for a stale handle.
+    /// </summary>
+    public void ClearPush(Entity part)
+    {
+        uint slot = LiveSlot(part);
+        Contract.Requires(!gameplayRunning && records[slot].Body == null && frontIntentEntities.AsSpan().IndexOf(part) < 0);
+        frontIntent[slot] = default;
+    }
+
+    /// <summary>
+    /// Writes <paramref name="sum"/>, the push of the chain root <paramref name="root"/> with the pushes of its parts, into
+    /// the four additive fields of the root's front intent, narrowed once (see <see cref="Push.WriteInto"/>). Every other
+    /// field stays. A root that wrote nothing in the tick has an empty front intent and is not in
+    /// <see cref="IntentEntities"/>: its intent then names the frame of its front row, and the root joins the list at its end,
+    /// as <see cref="SetFirstMove"/> lists a spawn's first motion intent. A chain root is always in a frame, and every listed
+    /// intent names one, so the frame of the intent tells the two apart. Outside the gameplay part of a tick, after
+    /// <see cref="SwapIntents"/>. Throws <see cref="StaleEntityException"/> for a stale handle.
+    /// </summary>
+    public void AddPush(Entity root, in Push sum)
+    {
+        uint slot = LiveSlot(root);
+        ref PhysicsIntent intent = ref frontIntent[slot];
+        FrameHandle frame = frontTransform[slot].Frame;
+        Contract.Requires(!gameplayRunning && records[slot].Body != null && !frame.IsNull);
+        Contract.Requires(intent.Frame == frame || IsDefault(in intent));
+        if (intent.Frame.IsNull)
+        {
+            intent.Frame = frame;
+            frontIntentEntities.Add(root);
+        }
+        sum.WriteInto(ref intent);
+        Contract.Ensures(intent.Frame == frame && frontIntentEntities.AsSpan().IndexOf(root) == frontIntentEntities.AsSpan().LastIndexOf(root));
+    }
+
+    /// <summary>
+    /// True when the front intent of <paramref name="entity"/> is empty, every byte zero, as it is for every entity outside
+    /// <see cref="IntentEntities"/>. For the invariants of the World. Throws <see cref="StaleEntityException"/> for a stale handle.
+    /// </summary>
+    internal bool HasEmptyFrontIntent(Entity entity) => IsDefault(in frontIntent[LiveSlot(entity)]);
+
+    /// <summary>
+    /// Adds to <paramref name="pushers"/> each live entity that pushed in this tick, chunk by chunk, in the order of its
+    /// first push. For the invariants of the attachments, before <see cref="SwapIntents"/>.
+    /// </summary>
+    internal void CollectPushers(List<Entity> pushers)
+    {
+        int count = ChunkCountFor(slotCount);
+        for (int c = 0; c < count; c++)
+            foreach (Entity pusher in books[c].Pushers)
+                if (IsAlive(pusher))
+                    pushers.Add(pusher);
+    }
+
+    /// <summary>
     /// The intent written so far during this tick. Throws <see cref="StaleEntityException"/> for a stale handle.
     /// Worker-safe for the running entity.
     /// </summary>
@@ -1047,6 +1164,7 @@ internal sealed partial class EntityTable
         (frontIntent, backIntent) = (backIntent, frontIntent);
         frontIntentEntities.Clear();
         frontMotionChangers.Clear();
+        frontPushers.Clear();
         intentEntitiesMayHoldDead = false;
 
         int count = ChunkCountFor(slotCount);
@@ -1076,8 +1194,22 @@ internal sealed partial class EntityTable
             foreach (Entity changer in books[c].MotionChangers)
                 if (IsAlive(changer))
                     frontMotionChangers.Add(changer);
+            // A part's push is no input of physics, so the part stays out of the intent list. Without a backend nothing
+            // carries the push, so it goes.
+            foreach (Entity pusher in books[c].Pushers)
+            {
+                if (!IsAlive(pusher))
+                    continue;
+                uint slot = pusher.Index;
+                flags[slot] &= ~SlotFlags.IntentRegistered;
+                if (keep)
+                    frontPushers.Add(pusher);
+                else
+                    frontIntent[slot] = default;
+            }
             books[c].IntentWriters.Clear();
             books[c].MotionChangers.Clear();
+            books[c].Pushers.Clear();
         }
     }
 
@@ -1235,6 +1367,7 @@ internal sealed partial class EntityTable
 
         var dirtyListed = new bool[capacity];
         var intentWriterListed = new bool[capacity];
+        var pusherListed = new bool[capacity];
         var motionChangerListed = new bool[capacity];
         var pooled = new bool[capacity];
         int pooledCount = 0;
@@ -1254,6 +1387,15 @@ internal sealed partial class EntityTable
                     continue;
                 Contract.Invariant((flags[writer.Index] & SlotFlags.IntentRegistered) != 0 && !intentWriterListed[writer.Index]);
                 intentWriterListed[writer.Index] = true;
+            }
+            foreach (Entity pusher in book.Pushers)
+            {
+                Contract.Invariant((int)pusher.Index / chunkSize == c);
+                if (!IsAlive(pusher))
+                    continue;
+                uint p = pusher.Index;
+                Contract.Invariant((flags[p] & SlotFlags.IntentRegistered) != 0 && !pusherListed[p] && !intentWriterListed[p] && records[p].Body == null);
+                pusherListed[p] = true;
             }
             foreach (Entity changer in book.MotionChangers)
             {
@@ -1277,6 +1419,15 @@ internal sealed partial class EntityTable
         }
         foreach (uint slot in syncDirty)
             dirtyListed[slot] = true;
+        var frontPusherListed = new bool[capacity];
+        foreach (Entity pusher in frontPushers)
+        {
+            if (!IsAlive(pusher))
+                continue;
+            uint p = pusher.Index;
+            Contract.Invariant(!frontPusherListed[p] && records[p].Body == null && !inIntentList[p] && IsDefault(in frontIntent[p]));
+            frontPusherListed[p] = true;
+        }
         var movedListed = new bool[capacity];
         foreach (Entity entity in moved)
             if (IsAlive(entity))
@@ -1322,6 +1473,7 @@ internal sealed partial class EntityTable
                 Contract.Invariant(frontCollision[slot] == default && backCollision[slot] == default);
             Contract.Invariant(rec.BodyBoundingRadius == (rec.Body?.Shape.BoundingRadius() ?? 0));
             Contract.Invariant(rec.InteriorBoundingRadius == (rec.Body?.InteriorShape is { } inside ? inside.BoundingRadius() : rec.BodyBoundingRadius));
+            Contract.Invariant(rec.Body == null ? rec.BodyCenterOfMass == Vector3.Zero : IsFinite(rec.BodyCenterOfMass));
             var live = new Entity((uint)slot, generation[slot]);
             foreach (int id in frontComponents[slot])
             {
@@ -1333,7 +1485,7 @@ internal sealed partial class EntityTable
             if ((f & SlotFlags.IntentRegistered) == 0)
                 Contract.Invariant(IsDefault(in backIntent[slot]));
             else
-                Contract.Invariant(intentWriterListed[slot]);
+                Contract.Invariant(intentWriterListed[slot] || pusherListed[slot]);
             Contract.Invariant(((backIntent[slot].Flags & IntentFlags.SetMotion) != 0) == motionChangerListed[slot]);
             if (!inIntentList[slot])
                 Contract.Invariant(IsDefault(in frontIntent[slot]));
@@ -1496,6 +1648,8 @@ internal sealed partial class EntityTable
     private static bool BitEquals<T>(in T a, in T b) => BytesOf(in a).SequenceEqual(BytesOf(in b));
 
     /// <summary>True if every byte of <paramref name="value"/> is zero, as in <c>default</c>. References count as bytes.</summary>
+    private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
+
     private static bool IsDefault<T>(in T value) => !BytesOf(in value).ContainsAnyExcept((byte)0);
 
     private static ReadOnlySpan<byte> BytesOf<T>(in T value) =>

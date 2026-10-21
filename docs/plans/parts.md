@@ -88,7 +88,7 @@ So step 5 becomes:
 3. Carry the pushes (`Attachments.CarryPushes`), with the marks of the batch.
 4. Rehome the survivors, convert the intents that name a dying frame, and free the dead, as today.
 
-Today `World.DestroyRequestedEntities` (`src/Tertius.Simulation/World.Sync.cs`, line 570) marks the batch and calls `DestroyDying`, which grows the batch and then rehomes, converts and frees. The build splits `DestroyDying` (`src/Tertius.Simulation/World.Entities.cs`, line 462) after the growth, so that the World calls the three pieces in that order, also in a sync point without destroys. `World.Destroy` outside a tick calls the growth and the rest with no flow between them, as today, because outside a tick no part's push waits (see "Deaths and changes of frame in the same tick").
+Before the build, `World.DestroyRequestedEntities` marked the batch and called `DestroyDying`, which grew the batch and then rehomed, converted and freed. The build split them into `World.MarkRequestedDestroys`, `World.GrowDestroyBatch` and `World.FinishDestroyBatch`, and step 5 calls `World.CarryPushes` between the growth and the rest, also in a sync point without destroys. `World.Destroy` outside a tick calls the growth and the rest with no flow between them, because outside a tick no part's push waits (see "Deaths and changes of frame in the same tick"). `SyncProfile` times the three pieces of step 5 as three laps: "5a subscriptions, mark and grow the destroy batch", "5b carry the pushes of the parts" and "5c rehomes, intents of dying frames, frees".
 
 ## How a part's push converts into the root's push
 
@@ -217,8 +217,10 @@ The engine needs no member for a force at a place. A part is that member: a forc
 | `ChunkBook.Pushers`, a list per chunk of the parts that pushed in the tick, in the order of their first push | `EntityTable` | `EntityTable.WritablePush` at a part's first push of the tick. It sets the part's `SlotFlags.IntentRegistered` and names the part's front frame in its back intent, as `RegisteredIntent` does for an intent writer, but it lists the part here and not among the chunk's `IntentWriters`. A part can write only a push, so it is never an intent writer. `SwapIntents` hands the list on and clears it. | `SwapIntents` |
 | `frontPushers`, the list of the parts whose pushes are in the front intents, in chunk order | `EntityTable` | `SwapIntents`, which clears the old list and fills it from the chunk lists. It clears each part's `IntentRegistered` and leaves the part out of the intent list. Without a backend, it clears each part's front intent to the default instead and lists no part, so the World skips the flow. | `Attachments.CarryPushes`, through `EntityTable.FrontPushers` |
 | `Link.Root`, the chain root of each attached entity | `Attachments` | `Attachments.Attach`. It never changes, because an entity is attached only at its spawn and dies with its parent. | `World.WritablePush`, for the guard, and `Attachments.CarryPushes` |
-| The sum of each root in doubles, a scratch list and a map from root to its index | `Attachments` | `Attachments.CarryPushes`, which empties both before it returns | `Attachments.CarryPushes` |
+| The sum of each root in doubles, a scratch list, and `Link.SumSlot`, the place of each root's sum in that list, plus one | `Attachments` | `Attachments.CarryPushes`, which empties the list and sets each slot back to 0 before it returns | `Attachments.CarryPushes` |
 | `IPhysicsBackend.ShapeCenterOfMass(ShapeDesc)` | The physics seam. `JoltPhysicsBackend` reads it from the native shape that it builds and keeps for the description, as `ShapeProblem` does, and keeps the answer. The backend already reads that value for a new hull's velocity (`shapes.Get(record.Desc.Shape).CenterOfMass` in `HullVelocityFromTree`, `src/Tertius.Physics/JoltPhysicsBackend.Bodies.cs`, line 231). It is thread-safe, so a spawn during a tick can ask. `FaultInjectingBackend` forwards it. | None: it is a pure answer | `World` at the spawn |
+
+The first build kept the place of each root's sum in a dictionary from root to index. The lap of the flow with 10,000 parts was then about 845 µs, on a machine under other load. A slot in the root's own link, which the column of links already holds for every entity, needs no hash, and a child of the root takes its offset's position without composing a pose. The lap was then about 360 µs (see "Costs and measurements").
 
 The pure part of the flow is one value type, `Push` (internal, in `src/Tertius.Simulation/Internal/Attachments/Push.cs`): the four vectors in doubles, with the methods that belong to it. `Push.Of(in PhysicsIntent intent)` widens an intent's four fields. `Push.Lever(DQuaternion rotation, Double3 placeInBody, Double3 centerOfMass)` is static, because it takes no push. `push.At(Double3 lever)` gives the push of the root about its center of mass. `sum.Plus(in Push other)` adds. `push.WriteInto(ref PhysicsIntent intent)` narrows once. Unit tests pin each one without a World. `Attachments.CarryPushes` is the one choke-point method: the World calls it once per sync point, it calls the pure methods, and it acts on the intents through the entity table directly. There is no plan object.
 
@@ -332,8 +334,7 @@ Physics, in `tests/Tertius.Physics.Tests/PartPushTests.cs`:
 - `AGrandchildPushesTheChainRootAtTheGrandchildsPlace`
 - `APartPushesFromTheOffsetThatItWroteInTheSameTick`
 - `APartsPushActsInTheStepAfterTheTickThatWritesIt`
-- `ThePushOfAPartOnAKinematicRootMovesNothing`
-- `ThePushOfAPartOnAStaticRootMovesNothing`
+- `ThePushOfAPartOnARootThatIsNotDynamicMovesNothing`, for a kinematic and a static root
 - `ThePushOfAPartOnACharacterChangesItsVelocityAsTheCharactersOwnForceDoesInBothForms`, walking and rigid
 - `APartWhoseRootHasNoBodyCannotPush`
 - `APartCannotSetAVelocityTeleportOrWriteAMotionIntent`
@@ -365,23 +366,34 @@ The pure value, in `tests/Tertius.Simulation.Tests/PushTests.cs`, with no World:
 
 - `AForceAtTheCenterOfMassGivesNoTorque`
 - `TheLeverIsThePlaceInTheBodyLessTheCenterOfMassTurnedByTheRootsRotation`
+- `AForceAtALeverGivesItsCrossProductAsTorque`
 - `AnImpulseAtALeverGivesItsCrossProductAsAngularImpulse`
 - `ATorqueAndAnAngularImpulseIgnoreTheLever`
 - `TwoOppositeForcesAtOppositePlacesSumToExactlyZeroForce`
 - `TheRootsOwnForceSurvivesAPairOfOppositeJetsExactly`
 - `TheSumNarrowsToFloatsOnceAndNotOncePerPart`
+- `TheImpulsesOfASumNarrowOnceToo`
 
 The entity table, in `tests/Tertius.Simulation.Tests/EntityTablePushTests.cs`:
 
 - `TheFirstPushOfAPartInATickListsItOnce`
 - `TheSwapHandsThePartsThatPushedOnAndLeavesThemOutOfTheIntentList`
+- `WithoutKeepTheSwapClearsThePushesAndListsNoPart`
+- `ClearingAPushEmptiesThePartsFrontIntent`
 - `ARootThatWroteNothingGetsAnIntentThatNamesItsFrontFrame`
+- `ARootThatWroteItsOwnIntentTakesTheSumInPlaceAndIsListedOnce`
 - `TheCenterOfMassOfABodyIsKeptFromItsSpawn`
+
+The body facts, in `tests/Tertius.Simulation.Tests/BodyFactsTests.cs`, on the real Jolt backend, for the settled fork:
+
+- `ABodyHasTheCenterOfMassThatPhysicsComputesForItsShape`
+- `TheCenterOfMassOfAFrameOwnerIsThatOfItsHullAndNotOfItsInterior`
+- `ABodyInAWorldWithoutAPhysicsBackendHasItsCenterOfMassAtZero`
 
 Tests that lock in the decisions:
 
 - `TheLeverTurnsWithTheRotationThatTheWriterRead`: a root that spins fast, with one jet off its center of mass that pushes along its own axis. The torque in the root's intent equals the cross product of the jet's lever and its force, with the lever turned by the root's rotation in the front row, and not by its rotation where the step starts.
-- `APartsPushNamesTheFrontFrameOfItsChainAtTheFlow`: the invariant that the flow relies on, after a hand-off and after a rehome in the same tick.
+- `APartsPushNamesTheFrontFrameOfItsChainAtTheFlow`: the invariant that the flow relies on, after a hand-off and after a rehome in the same tick. In that tick the hand-off moves the root's row into the bay and the rehome moves it back, so the root's intent names its frame at both ends, and a flow after the rehomes would give the same sum. The test pins the invariant, and `APartsPushInTheTickThatItsRootsFrameDiesConvertsIntoTheSurvivingAncestor` pins the place of the flow before the rehomes.
 - `ThePushOfADyingPartIsSkippedBecauseTheDestroyBatchIsKnownFirst`: the place of the flow after the growth of the batch.
 - `APartOfAHullInANumericFramePushesItsHullAsTheHullsOwnForceDoes`, above, locks in that a part stays out of the intent list: a part in the list breaks the assertion of `World.FollowFramelessEntities` in Debug.
 
@@ -415,6 +427,17 @@ The build must measure:
 
 - The lap of the flow in `SyncProfile`, with 10,000 parts that push in every tick, on 1 worker and on all workers, and with no part. With no part, the lap reads nothing measurable.
 - The allocations of a sync point with parts that push in every tick, after warm-up: none.
+
+The build measured, in a Release build with `-p:SyncProfile=true`, in the benchmark scenes `parts10k` and `parts0` (`benchmarks/Tertius.Benchmarks/PartPushBenchmarks.cs`: 2,500 dynamic crates on the Jolt backend, with 4 parts each or none), 10 s after 3 s of warm-up:
+
+| Scene | Lap "5b carry the pushes of the parts" | Whole sync point |
+|---|---|---|
+| 10,000 parts, 1 worker | 364 µs, about 36 ns a part | 1,788 µs |
+| 10,000 parts, all workers | 360 µs | 1,773 µs |
+| No part, 1 worker | 0.08 µs | 405 µs |
+| No part, all workers | 0.15 µs | 412 µs |
+
+The flow runs on the sync thread, so the workers change nothing in its lap. The rest of the growth of the sync point with parts is the 10,000 attached entities themselves: step 7 derives their rows, and step 8 and the render snapshot copy them. `CarryingThePushesAllocatesNothingAfterWarmUp` holds the allocations of a whole tick with 300 parts that push at zero.
 - In the demo, after its own ticket moves the jets onto parts: the miss of the docking and the settle time of the attitude loop with the extra tick, beside today's.
 
 ## The demo's use

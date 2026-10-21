@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace Tertius.Simulation;
 
 /// <summary>
@@ -21,6 +23,12 @@ namespace Tertius.Simulation;
 /// The radius, in m, of the smallest sphere about the entity's origin that holds the body's shape (see
 /// <see cref="ShapeDesc.BoundingRadius"/>). For a frame owner, that is the radius of its hull.
 /// </param>
+/// <param name="CenterOfMass">
+/// The center of mass of the body's shape, in m, in the body's own axes, relative to the entity's origin, as physics
+/// computes it for the shape (see <see cref="IPhysicsBackend.ShapeCenterOfMass"/>). The body's own forces act there, and
+/// the lever of a part's push is measured from it (see <see cref="BodyHandle"/>). For a frame owner, that is the center of
+/// mass of its hull. Zero in a World without a physics backend.
+/// </param>
 /// <param name="CollisionGroups">The collision groups that physics had the body in during the step of the previous tick.</param>
 /// <param name="CollisionMask">
 /// The collision mask that physics gave the body during the step of the previous tick. It holds only an any-of set. A
@@ -33,6 +41,7 @@ public readonly record struct BodyFacts(
     float Mass,
     ShapeKind ShapeKind,
     float BoundingRadius,
+    Vector3 CenterOfMass,
     CollisionGroups CollisionGroups,
     CollisionMask CollisionMask,
     bool IsSensor);

@@ -15,8 +15,8 @@ namespace Tertius.Benchmarks;
 internal static class SyncSampler
 {
     /// <summary>
-    /// Builds a scene by name: kepler, keplerEntities1k or keplerEntities100k (each also with Jolt at the end), mixed, tick10k
-    /// or tick100k, then the gameplay parallelism, 1 or -1, such as "kepler1".
+    /// Builds a scene by name: kepler, keplerEntities1k or keplerEntities100k (each also with Jolt at the end), mixed, tick10k,
+    /// tick100k, parts10k or parts0, then the gameplay parallelism, 1 or -1, such as "kepler1".
     /// </summary>
     private static (Action Tick, Action Cleanup) Scene(string scene)
     {
@@ -47,6 +47,13 @@ internal static class SyncSampler
             case "mixed":
             {
                 var b = new MixedBodiesTickBenchmarks { MaxDegreeOfParallelism = dop };
+                b.Setup();
+                return (b.Tick, b.Cleanup);
+            }
+            case "parts10k":
+            case "parts0":
+            {
+                var b = new PartPushTickBenchmarks { MaxDegreeOfParallelism = dop, PartsPerCrate = name == "parts10k" ? 4 : 0 };
                 b.Setup();
                 return (b.Tick, b.Cleanup);
             }

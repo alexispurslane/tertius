@@ -189,8 +189,13 @@ public readonly ref struct Self
 /// A proxy over the running entity's physics intent. All vectors are in frame axes. Forces, torques and impulses add
 /// up during the tick. Velocity changes, the motion intent (an end pose or a steer target), teleports, character moves
 /// and jumps keep the last value written. Physics applies the intent in the next step. Every method throws <see cref="InvalidOperationException"/>
-/// when the entity has no body. The properties work for every entity: <see cref="Pending"/> is the empty intent for an
-/// entity without a body.
+/// when the entity has no body, except the four that push: <see cref="AddForce"/>, <see cref="AddTorque"/>,
+/// <see cref="AddImpulse"/> and <see cref="AddAngularImpulse"/>. Those also work on a part, an attached entity whose chain
+/// root has a body (docs/plans/parts.md): the part writes its own push, and the sync point after the tick carries it to
+/// the root's body, where a force and an impulse act at the part's place, with the torque of their lever about the body's
+/// center of mass (see <see cref="BodyFacts.CenterOfMass"/>). The root's components do not see a part's push, as they do
+/// not see a contact. The properties work for every entity: <see cref="Pending"/> is the empty intent for an entity
+/// without a body that does not push, and a part's own push for a part.
 /// </summary>
 public readonly ref struct BodyHandle
 {
@@ -227,17 +232,27 @@ public readonly ref struct BodyHandle
     /// <summary>The intent written so far during this tick.</summary>
     public PhysicsIntent Pending => world.Entities.PendingIntent(entity);
 
-    /// <summary>Adds a force for the next step, in newtons.</summary>
-    public void AddForce(Vector3 force) => Intent.Force += force;
+    /// <summary>
+    /// Adds a force for the next step, in newtons. On a part, the force acts on the body of the part's chain root at the
+    /// part's place (see <see cref="BodyHandle"/>).
+    /// </summary>
+    public void AddForce(Vector3 force) => PushIntent.Force += force;
 
-    /// <summary>Adds a torque for the next step, in newton-meters.</summary>
-    public void AddTorque(Vector3 torque) => Intent.Torque += torque;
+    /// <summary>
+    /// Adds a torque for the next step, in newton-meters. On a part, the torque acts on the body of the part's chain root.
+    /// </summary>
+    public void AddTorque(Vector3 torque) => PushIntent.Torque += torque;
 
-    /// <summary>Adds a linear impulse, in newton-seconds.</summary>
-    public void AddImpulse(Vector3 impulse) => Intent.Impulse += impulse;
+    /// <summary>
+    /// Adds a linear impulse, in newton-seconds. On a part, the impulse acts on the body of the part's chain root at the
+    /// part's place.
+    /// </summary>
+    public void AddImpulse(Vector3 impulse) => PushIntent.Impulse += impulse;
 
-    /// <summary>Adds an angular impulse.</summary>
-    public void AddAngularImpulse(Vector3 impulse) => Intent.AngularImpulse += impulse;
+    /// <summary>
+    /// Adds an angular impulse, in newton-meter-seconds. On a part, it acts on the body of the part's chain root.
+    /// </summary>
+    public void AddAngularImpulse(Vector3 impulse) => PushIntent.AngularImpulse += impulse;
 
     /// <summary>
     /// Sets the linear velocity before the next step, relative to the entity's frame, in its axes. Physics converts it
@@ -349,4 +364,6 @@ public readonly ref struct BodyHandle
     public void SetMotion(BodyMotion motion) => world.WriteHullMotion(entity, motion);
 
     private ref PhysicsIntent Intent => ref world.WritableIntent(entity);
+
+    private ref PhysicsIntent PushIntent => ref world.WritablePush(entity);
 }

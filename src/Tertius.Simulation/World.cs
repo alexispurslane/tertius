@@ -330,6 +330,11 @@ public sealed partial class World : IDisposable
     /// <see cref="PhysicsIntent.Frame"/>).</item>
     /// <item>Every live entity among the entities that took a step record at the last step 2 without body or frame has
     /// neither (see <see cref="FollowFramelessEntities"/>).</item>
+    /// <item>No live attached entity is in the intent list, and its front intent is empty: the flow of step 5 carried its
+    /// push to its chain root (docs/plans/parts.md).</item>
+    /// <item>The front row of every live attached entity names the frame of its chain root's front row. Step 7 keeps it,
+    /// and the flow of step 5 relies on it.</item>
+    /// <item>With a physics backend, the kept center of mass of every body is the one that the backend gives its shape.</item>
     /// </list>
     /// </summary>
     internal void AssertInvariants()
@@ -347,6 +352,16 @@ public sealed partial class World : IDisposable
         foreach (Entity entity in framelessMovers)
             if (entities.IsAlive(entity))
                 Contract.Invariant(entities.Body(entity) == null && entities.OwnedFrame(entity).IsNull);
+        foreach (Entity entity in entities.IntentEntities.Span)
+            Contract.Invariant(attachments.ParentOf(entity).IsNull);
+        foreach (Entity entity in attachments.Attached)
+        {
+            Contract.Invariant(entities.HasEmptyFrontIntent(entity));
+            Contract.Invariant(entities.FrontRow(entity).Frame == entities.FrontRow(attachments.RootOf(entity)).Frame);
+        }
+        if (physics != null)
+            foreach (Entity entity in entities.BodyEntities)
+                Contract.Invariant(entities.BodyCenterOfMass(entity) == physics.ShapeCenterOfMass(entities.Body(entity)!.Shape));
         foreach (Entity entity in entities.LiveEntities)
         {
             ref readonly TransformRow row = ref entities.BackRow(entity);

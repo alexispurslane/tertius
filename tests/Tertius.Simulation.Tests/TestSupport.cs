@@ -178,7 +178,7 @@ internal static class TableSupport
     public static Entity SpawnLive(this EntityTable table, FrameHandle frame = default, double x = 0)
     {
         Entity entity = table.Reserve();
-        table.Activate(entity, new TransformRow { Frame = frame, PhysicsHome = frame, Pose = TestWorld.At(x) }, new RenderData(), [], [], null, FrameHandle.Null);
+        table.Activate(entity, new TransformRow { Frame = frame, PhysicsHome = frame, Pose = TestWorld.At(x) }, new RenderData(), [], [], null, Vector3.Zero, FrameHandle.Null);
         return entity;
     }
 }
