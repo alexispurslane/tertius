@@ -1,7 +1,7 @@
 ---
 id: ter-6u2m
 status: open
-deps: [ter-4zt6, ter-ftk4]
+deps: [ter-4zt6, ter-ftk4, ter-diu0]
 links: []
 created: 2026-10-21T14:13:35Z
 type: feature
@@ -24,3 +24,7 @@ The user objected on 2026-10-21 to the design in which each actuator sends its f
 **2026-10-21T14:36:37Z**
 
 Changed on 2026-10-21: no 'largest force of the frame' rule for time-lapse frames. A frame shows the puffs alive at its tick, because only the script knows the film interval. Each jet is its own attached entity (ter-ftk4) with one emitter, which its own component sets from its own throttle.
+
+**2026-10-21T15:12:59Z**
+
+Split on 2026-10-21: moving the jets onto parts is now its own ticket, ter-diu0. This ticket adds the emitters to those parts once the particles land.
