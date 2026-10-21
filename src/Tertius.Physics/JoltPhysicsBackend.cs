@@ -341,6 +341,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         return shapeProblems.GetOrAdd(shape, BuildShape);
     }
 
+    /// <inheritdoc/>
+    public Vector3 ShapeCenterOfMass(ShapeDesc shape) => throw new NotImplementedException();
+
     /// <summary>Builds the native shape of <paramref name="shape"/>, or returns why Jolt cannot build it.</summary>
     private string? BuildShape(ShapeDesc shape)
     {

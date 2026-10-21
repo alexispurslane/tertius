@@ -1,3 +1,4 @@
+using System.Numerics;
 using Tertius.Frames.Rails;
 using Tertius.Physics;
 
@@ -182,6 +183,8 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
         Jolt.Overlap(frame, shape, pose, filter, entities);
 
     public string? ShapeProblem(ShapeDesc shape) => Jolt.ShapeProblem(shape);
+
+    public Vector3 ShapeCenterOfMass(ShapeDesc shape) => Jolt.ShapeCenterOfMass(shape);
 
     public void Dispose() => Jolt.Dispose();
 
