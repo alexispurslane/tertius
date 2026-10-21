@@ -608,7 +608,7 @@ The birth phase gathers the rate over the step. With p the emitter's birth phase
 - Puff j, for j = 1 to n, is born at the share s_j = (j − p) / (r · dt) of the step, in (0, 1]. Its age at the end of the step is τ_j = (1 − s_j) · dt.
 - The new birth phase is p + r · dt − n.
 
-So the births lie evenly in time at the emitter's rate, across tick boundaries. An emitter at 60 puffs per second makes one puff per step, born at the end of the step to within a few millionths of a step over the first minute, because the step is the float 1/60 widened to a double (0.01666666753590107 s). A step makes at most the capacity of puffs, because the cap would drop the rest: of the newborns of all emitters in slot order, only the last ones up to the capacity are made, and the others are skipped without being computed. The phase still gathers the whole rate, so the count of the next step does not change. An emitter that is switched off keeps its phase. The phase is engine state per entity, which no gameplay writes, so it lives in a column that the entity table keeps and clears, as the render builder's `PoseMemory` does.
+So the births lie evenly in time at the emitter's rate, across tick boundaries. An emitter at 60 puffs per second makes one puff per step, born at the end of the step to within a few millionths of a step over the first second, because the step is the float 1/60 widened to a double (0.01666666753590107 s). The rate times the step is 1 + 5.2e-8, so the phase gains 5.2e-8 in each step, and after a minute the births lie about 1.9e-4 of a step before the end of their step. (Task 3 corrected this sentence. It first said "a few millionths of a step over the first minute". The arithmetic of the step gives the drift above.) A step makes at most the capacity of puffs, because the cap would drop the rest: of the newborns of all emitters in slot order, only the last ones up to the capacity are made, and the others are skipped without being computed. The phase still gathers the whole rate, so the count of the next step does not change. An emitter that is switched off keeps its phase. The phase is engine state per entity, which no gameplay writes, so it lives in a column that the entity table keeps and clears, as the render builder's `PoseMemory` does.
 
 ### The newborn's state
 
@@ -1144,6 +1144,10 @@ The store, in `tests/Tertius.Simulation.Tests/PuffTableTests.cs`, through emitte
 - `EmittersWithEqualLooksShareOneLook`
 - `APuffKeepsTheLookOfItsBirthWhenItsEmitterChangesItsLook`
 - `ALookIsFreedWithItsLastPuffAndItsIndexIsReused`
+- `AStepAndABirthAllocateNothingAfterWarmUp`, in a World without physics, so that the count of allocated bytes holds only the puffs
+- `ThePuffTableKeepsItsInvariantsInEverySyncPoint`: `ChaoticWorkload` (`tests/Tertius.Simulation.Tests/InvariantWorkload.cs`) with emitters, frame deaths, media and the cap, with `DebugChecks` on
+
+Task 3 moved the last two tests here from the list of the World with real Jolt. `ChaoticWorkload` lives in `tests/Tertius.Simulation.Tests`, which the physics tests do not reference, and the count of allocations needs a World in which Jolt allocates nothing.
 
 The World with real Jolt, in `tests/Tertius.Physics.Tests/PuffPhysicsTests.cs` and `PuffLifeTests.cs`:
 
@@ -1174,8 +1178,6 @@ The World with real Jolt, in `tests/Tertius.Physics.Tests/PuffPhysicsTests.cs` a
 - `ACapacityOfZeroMakesNoPuffs`
 - `PuffsChangeNothingThatGameplayOrPhysicsReads`: one scene with capacity 0 and with 4,096 gives the same `WorldHash.Of`, which hashes the entities and the instances, bit for bit
 - `TheSameRunGivesTheSamePuffsBitForBit`: twice in one process. A test pins a hash of the rows, the ranges and the looks after 300 ticks of a fixed scene, and `tools/test-all.sh` runs it in Debug and in Release, so both builds must give that hash.
-- `AStepAndABirthAllocateNothingAfterWarmUp`
-- `ThePuffTableKeepsItsInvariantsInEverySyncPoint`: `ChaoticWorkload` (`tests/Tertius.Simulation.Tests/InvariantWorkload.cs`) with emitters, frame deaths, media and the cap, with `DebugChecks` on
 - `ARangeInAFrameThatIsNotLiveFailsAContract`: the state that only a bug makes, through an internal edit of the table. In Release the range is dropped and recorded in `World.Errors`.
 
 Measurements, on the reference machine, an Apple M1 Max, in Release:
@@ -1185,6 +1187,20 @@ Measurements, on the reference machine, an Apple M1 Max, in Release:
 - The render row's growth of 44 bytes: `RowCopyBenchmarks` and `RenderSnapshotBenchmarks` before and after.
 - The memory of the table at the default capacity, against the figures of "Memory".
 - Allocation after warm-up: none, by test.
+
+What task 3 measured, with `benchmarks/Tertius.Benchmarks/PuffTableBenchmarks.cs`, `RowCopyBenchmarks` and `RenderSnapshotBenchmarks`, on the reference machine in Release. The 1-minute load of the machine was between 9.8 and 15.9 during the runs, above 10 for most of them, so every number is an upper bound.
+
+| Puffs | Step in `earth` | Step in `earth-surface` | Step in the station | Step and births in `earth` | Step and births in `earth-surface` | Step and births in the station |
+|---|---|---|---|---|---|---|
+| 100 | 2.0 us | 5.4 us | 4.4 us | 5.6 us | 11.6 us | 9.8 us |
+| 1,024 | 20.1 us | 55.4 us | 44.3 us | 24.4 us | 62.6 us | 50.7 us |
+| 4,096 | 80.4 us | 224.0 us | 177.5 us | 88.8 us | 234.7 us | 188.3 us |
+
+- The step costs about 20 ns per puff in `earth`, 55 ns in `earth-surface` and 43 ns in the station. At 4,096 puffs in `earth-surface`, the step takes 0.22 ms of a tick of 16.7 ms, close to the guess above.
+- "Step and births" makes and ends 64 puffs per step and rebuilds the ranges. Its time less that of the step is about 8.5 us in `earth` at 4,096 live puffs and 4.3 us at 1,024. That is about 1.4 ns per live puff for the rebuild and about 45 ns per birth.
+- No benchmark allocates.
+- At 4,096 live puffs, `rows` and `spare` hold 448 KiB together, as "Memory" says. `newborns` held 4,096 rows (224 KiB) in the benchmark of the step, because its first fill made 4,096 newborns in one step. That is the bound that "Memory" gives.
+- The render row grew by 44 bytes. `RenderSnapshotBenchmarks` gave the same times before and after, within 1 percent in every scene (for example `flat` without outlines, 908 us before and 910 us after). `RowCopyBenchmarks --rowcopy 4096 9` gave 40.8 us before and 40.3 us after on the sync thread. That benchmark writes only transforms, so it does not copy render rows, and it shows only that the change costs nothing there.
 
 ARCHITECTURE.md: "Threads and the tick" (step 2b, the move of step 5, step 7c), "Entities" (the render row gains the emitter), "Destroying a frame" (the puffs in a dying frame move with its contents), "Switches" (the capacity, and why it is not a renderer switch), and a new section "Puffs" after "Rendering"'s "The render snapshot": the model, the store and its order, the looks, the rule of motion with the medium, births, the flows, the cap, determinism and the measured costs.
 
