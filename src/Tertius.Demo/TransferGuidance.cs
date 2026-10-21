@@ -14,7 +14,8 @@ namespace Tertius.Demo;
 /// the arrival point at the arrival time, turning about the station's orbit normal. The shuttle gains the difference in
 /// <see cref="TrimTime"/>, at most at <see cref="BurnAcceleration"/>, so the thrust of the burn falls in its last seconds.</para>
 /// <para>The autopilot burns while the velocity to gain is longer than <see cref="SpeedTolerance"/>, and trims it below
-/// that with the translation thrusters alone. In the last <see cref="CoastTime"/> it solves nothing more.</para>
+/// that with the translation thrusters alone. In the last <see cref="CoastTime"/>, or within <see cref="CoastAngle"/> of
+/// the arrival point, it solves nothing more (see <see cref="Coasts"/>).</para>
 /// </remarks>
 /// <param name="Mu">The planet's G·M, in m³/s².</param>
 public readonly record struct TransferGuidance(double Mu)
@@ -45,6 +46,14 @@ public readonly record struct TransferGuidance(double Mu)
     /// small miss into a large velocity to gain, and the transfer angle nears the angle that Lambert's problem refuses.
     /// </summary>
     public const double CoastTime = 60;
+
+    /// <summary>
+    /// The transfer angle left to the arrival point within which of 0 the autopilot solves nothing more, in radians: 2
+    /// degrees, twice <see cref="KeplerOrbit.LambertRefusedAngle"/>, so a degree of margin keeps every solve clear of the
+    /// refusal. In the demo's orbits the shuttle turns about 4 degrees in the last <see cref="CoastTime"/>, so there the
+    /// coast starts by the time, and this angle decides only in a slower orbit (see <see cref="Coasts"/>).
+    /// </summary>
+    public const double CoastAngle = 2 * KeplerOrbit.LambertRefusedAngle;
 
     /// <summary>
     /// The angle from <paramref name="from"/> to <paramref name="to"/> about <paramref name="normal"/>, counterclockwise seen
@@ -79,13 +88,30 @@ public readonly record struct TransferGuidance(double Mu)
     }
 
     /// <summary>
+    /// True when the autopilot coasts and solves nothing more: when <paramref name="timeLeft"/> is <see cref="CoastTime"/>
+    /// or less, or when the transfer angle from <paramref name="shuttlePosition"/> to the arrival point (see
+    /// <see cref="Arrival"/>) lies within <see cref="CoastAngle"/> of 0, measured either way about the station's orbit
+    /// normal. The arguments are those of <see cref="Steer"/>. Lambert's problem refuses an angle within a degree of 0, and
+    /// in a slow orbit the angle falls there before the last <see cref="CoastTime"/>. The angle left never nears 180
+    /// degrees, because the transfer starts inside a window below 179 degrees and the angle only falls.
+    /// </summary>
+    public bool Coasts(Double3 shuttlePosition, Double3 stationPosition, Double3 stationVelocity, Double3 axis, double arrivalDistance, double timeLeft)
+    {
+        if (timeLeft <= CoastTime)
+            return true;
+        Double3 arrival = Arrival(stationPosition, stationVelocity, axis, arrivalDistance, timeLeft).Point;
+        double angle = TransferAngle(shuttlePosition, arrival, OrbitNormal(stationPosition, stationVelocity));
+        return angle < CoastAngle || angle > 2 * Math.PI - CoastAngle;
+    }
+
+    /// <summary>
     /// The steering of a tick of the transfer, for a shuttle at <paramref name="shuttlePosition"/> that moves at
     /// <paramref name="shuttleVelocity"/>, to the arrival point <paramref name="arrivalDistance"/> meters along the unit
     /// axis <paramref name="axis"/> from the station, which is at <paramref name="stationPosition"/> and moves at
     /// <paramref name="stationVelocity"/> now, when <paramref name="timeLeft"/> seconds are left to the arrival time. The
     /// path turns about the station's orbit normal (see <see cref="OrbitNormal"/>). Lambert's problem refuses a time left
-    /// of 0 or below and a transfer angle within a degree of 0 or 180 degrees, so the autopilot coasts in the last
-    /// <see cref="CoastTime"/>.
+    /// of 0 or below and a transfer angle within a degree of 0 or 180 degrees, so the autopilot steers only while it does
+    /// not coast (see <see cref="Coasts"/>).
     /// </summary>
     public TransferSteering Steer(Double3 shuttlePosition, Double3 shuttleVelocity, Double3 stationPosition, Double3 stationVelocity,
         Double3 axis, double arrivalDistance, double timeLeft)
