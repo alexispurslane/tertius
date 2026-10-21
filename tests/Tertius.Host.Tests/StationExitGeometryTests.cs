@@ -145,6 +145,27 @@ public sealed class StationExitGeometryTests : IDisposable
     }
 
     /// <summary>
+    /// The person's first waypoint outside lies in front of the hatch, 0.9 m above the deck, and it and the walk along the
+    /// deck from it keep the person's capsule clear of the parked hull, by more than 2 m, and of the chute's top, by
+    /// 0.5 m.
+    /// </summary>
+    [Fact]
+    public void ThePersonsFirstWaypointOutsideIsClearOfTheHullAndTheHole()
+    {
+        Waypoint[] way = StationExit.WayOut(FrameHandle.Null, frame);
+        Double3 hatch = DemoStation.ParkedPose.TransformPoint((Double3)DemoScenes.Shuttle.Hatch.Center);
+        way[1].Position.Y.Should().BeApproximately(hatch.Y, 1e-6, "the first waypoint outside lies in front of the hatch");
+        BoundingBox hull = DemoStation.ParkedBounds, hole = StationExit.DeckHole;
+        foreach (Waypoint point in way[1..3])
+        {
+            point.Frame.Should().Be(frame);
+            point.Position.X.Should().BeApproximately(DemoStation.Deck + 0.9, 1e-6, "the person stands on the deck");
+            (point.Position.Z - StationExit.PersonRadius - hull.Max.Z).Should().BeGreaterThan(2, $"{point.Position} is clear of the hull");
+            (point.Position.Z - StationExit.PersonRadius - hole.Max.Z).Should().BeApproximately(0.5, 1e-6, $"{point.Position} is clear of the chute's top");
+        }
+    }
+
+    /// <summary>
     /// Each still camera of the exit holds its places inside its picture. <c>deck-camera</c> sees the corners of the
     /// hatch's doorway, the corners of the chute's top and a person 1.8 m tall at both ends of the walk along the deck.
     /// <c>spoke-camera</c> sees the corners of the trough's top under the deck. <c>wheel-camera</c> sees the corners of the

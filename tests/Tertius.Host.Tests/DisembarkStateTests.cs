@@ -60,6 +60,27 @@ public sealed class DisembarkStateTests
         rows.Should().Be(11, "the eight states hold eleven pairs with a row");
     }
 
+    /// <summary>
+    /// The table matches the cases of the two custom unions without boxing them, so a tick of the exit allocates nothing
+    /// for it: a thousand rounds over every pair allocate no byte.
+    /// </summary>
+    [Fact]
+    public void TheTableAllocatesNothing()
+    {
+        int rows = 0;
+        foreach (DisembarkState state in States)
+            foreach (DisembarkEvent change in Events)
+                rows += DisembarkState.Next(state, change).HasValue ? 1 : 0;
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int round = 0; round < 1000; round++)
+            foreach (DisembarkState state in States)
+                foreach (DisembarkEvent change in Events)
+                    rows += DisembarkState.Next(state, change).HasValue ? 1 : 0;
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        allocated.Should().Be(0);
+        rows.Should().Be(11 * 1001);
+    }
+
     /// <summary>The default state is <see cref="Aboard"/>, and states with the same case and data are equal.</summary>
     [Fact]
     public void TheDefaultStateIsAboardAndEqualStatesHaveTheSameCaseAndData()

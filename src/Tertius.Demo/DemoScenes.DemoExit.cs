@@ -16,15 +16,51 @@ public static partial class DemoScenes
     /// openings, its lamps and its cameras.</item>
     /// <item>The <c>shuttle</c> parked static at <see cref="DemoStation.ParkedPose"/> in the station's frame, with its
     /// seat, panes, lamps and nozzle, and no flight controls: in the end state every flight control adds nothing.</item>
-    /// <item>The <c>person</c> at <see cref="Shuttle.SeatStand"/> in the cabin, <see cref="Strapped"/>, with the drawn copy
+    /// <item>The <c>person</c> at <see cref="Shuttle.SeatStand"/> in the cabin, at <see cref="StandAtSeat"/>, <see cref="Strapped"/>, with the drawn copy
     /// of the pen in its hand, and its <see cref="Disembark"/> <see cref="Aboard"/>. The <c>follow-camera</c> is attached to
-    /// it, behind it toward the nose, and <c>cabin-camera</c> stands where <c>demo-surface</c> puts it.</item>
+    /// it, behind it toward the nose, and so is <c>slide-camera</c> (see <see cref="StationExit.SpawnSlideCamera"/>).
+    /// <c>cabin-camera</c> stands where <c>demo-surface</c> puts it.</item>
     /// </list>
     /// </summary>
     public static class DemoExit
     {
         /// <summary>Where the pen's copy lies in the person's view: at <see cref="Passenger.PenHold"/>, pointing ahead.</summary>
         public static Pose PenGrip { get; } = new(Passenger.PenHold, Quaternion.Identity);
+
+        /// <summary>Half the length of the straight part of the person's capsule, in meters: the capsule is 1.8 m long.</summary>
+        public const float CapsuleHalfHeight = 0.6f;
+
+        /// <summary>
+        /// The gravity that the person feels at <see cref="Shuttle.SeatStand"/> in the parked cabin, in the cabin's axes, in
+        /// m/s²: the spin gravity of the station's steady spin, ω² times the stand's distance from the station's axis, away
+        /// from the axis. It is 0.78 m/s² and leans 30 degrees from the cabin floor's down toward port. The scene computes it
+        /// from the parked pose, because the frame tree knows the station's spin only from the first tick.
+        /// </summary>
+        public static Double3 FeltAtSeat
+        {
+            get
+            {
+                Double3 at = DemoStation.ParkedPose.TransformPoint(Shuttle.SeatStand);
+                return DemoStation.ParkedPose.Rotation.Conjugate().Rotate(new Double3(at.X, 0, at.Z) * (SpinStation.Rate * SpinStation.Rate));
+            }
+        }
+
+        /// <summary>
+        /// The person's pose at the docked seat, in the cabin's axes, as the docking leaves it: its up against
+        /// <see cref="FeltAtSeat"/>, and its center above the stand's place on the floor, where its capsule, tipped that way,
+        /// stands on the floor with its lower end. So the person stands from the first steps, and the walk starts at once.
+        /// </summary>
+        public static DPose StandAtSeat
+        {
+            get
+            {
+                Double3 up = -FeltAtSeat.Normalized();
+                double floor = Shuttle.SeatStand.Y - (CapsuleHalfHeight + StationExit.PersonRadius);
+                var center = new Double3(Shuttle.SeatStand.X, floor + StationExit.PersonRadius + CapsuleHalfHeight * up.Y, Shuttle.SeatStand.Z);
+                Double3 ahead = -Double3.UnitZ - up * Double3.Dot(-Double3.UnitZ, up);
+                return new DPose(center, AttitudeAutopilot.Facing(ahead, up));
+            }
+        }
 
         public static SceneInstance Build(World world, IRenderResources resources)
         {
@@ -66,8 +102,8 @@ public static partial class DemoScenes
             Entity person = world.Spawn(new SpawnDesc
             {
                 Frame = cabin,
-                Pose = new DPose(Shuttle.SeatStand, DQuaternion.Identity),
-                Body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: YardPersonMass),
+                Pose = StandAtSeat,
+                Body = new BodyDesc(new CapsuleShapeDesc(CapsuleHalfHeight, (float)StationExit.PersonRadius), BodyMotion.Character, Mass: YardPersonMass),
                 Render = personRender,
             });
             scene.Add("person", person);
@@ -85,12 +121,13 @@ public static partial class DemoScenes
                 Render = new RenderData(),
                 Components = [new ChaseCamera(DemoSurface.FollowBehind, DemoSurface.FollowAbove, DemoSurface.FollowAhead, personHalf, world.VerticalFov)],
             }));
+            scene.Add("slide-camera", StationExit.SpawnSlideCamera(world, person, frame));
             Entity cabinCamera = world.Spawn(new SpawnDesc { Frame = cabin, Pose = DemoSurface.CabinCamera, Render = new RenderData() });
             scene.Add("cabin-camera", cabinCamera);
 
             SunAt(world, scene, earth, new Double3(0, EarthRadius, 0) + new Double3(60, 80, 40).Normalized() * AstronomicalUnit);
 
-            foreach (string view in new[] { "cabin-camera", "follow-camera", "deck-camera", "spoke-camera", "wheel-camera", "rim-camera" })
+            foreach (string view in new[] { "cabin-camera", "follow-camera", "deck-camera", "spoke-camera", "slide-camera", "wheel-camera", "rim-camera" })
                 scene.AddView(view);
             world.Camera = cabinCamera;
             return scene;

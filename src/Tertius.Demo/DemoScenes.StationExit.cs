@@ -172,6 +172,35 @@ public static partial class DemoScenes
         private static DPose Camera(Double3 at, Double3 target, Double3 roof) => new(at, AttitudeAutopilot.Facing(target - at, roof));
 
         /// <summary>
+        /// Where <c>slide-camera</c> stands relative to the person's center, in the station's axes: 3 m up the spoke, behind
+        /// the person, which slides feet first, and 1 m toward the spoke's middle. So it stands in the open side of the
+        /// trough, 0.7 m above the rails' edges, and 1.4 m from the spoke's spinward wall.
+        /// </summary>
+        public static Double3 SlideCameraOffset { get; } = new(3.0, 0, 1.0);
+
+        /// <summary>
+        /// The way that <c>slide-camera</c> looks, in the station's axes: from <see cref="SlideCameraOffset"/> at a point
+        /// 1.5 m down the spoke from the person's center and 0.1 m nearer the back plate. So it looks down the trough past the
+        /// person, with the top of the picture toward +Z, the spoke's spinward wall and its lamps.
+        /// </summary>
+        public static Double3 SlideCameraLook { get; } = new Double3(-1.5, 0, -0.1) - SlideCameraOffset;
+
+        /// <summary>
+        /// Spawns <c>slide-camera</c>, attached to <paramref name="person"/>: a <see cref="FrameFollowCamera"/> that keeps
+        /// <see cref="SlideCameraOffset"/> and <see cref="SlideCameraLook"/> in the axes of <paramref name="station"/>, the
+        /// station's frame, with the top of the picture toward +Z. It films the slide down the spoke from behind and above the
+        /// person. The <c>follow-camera</c> cannot: its heading follows the person's way across its up, and in the slide that
+        /// way lies along the up, so the heading rests where the deck left it, along the axis, and the arm ends in the rail.
+        /// </summary>
+        public static Entity SpawnSlideCamera(World world, Entity person, FrameHandle station) => world.Spawn(new SpawnDesc
+        {
+            AttachTo = person,
+            AttachOffset = new Pose(SlideCameraOffset.ToVector3(), Quaternion.Identity),
+            Render = new RenderData(),
+            Components = [new FrameFollowCamera(station, SlideCameraOffset, SlideCameraLook, Double3.UnitZ)],
+        });
+
+        /// <summary>
         /// Spawns the exit's parts in <paramref name="station"/>, the station's frame: the chute's body and its brake run,
         /// the lamps and the three still cameras, with their scene ids in <paramref name="scene"/>.
         /// </summary>

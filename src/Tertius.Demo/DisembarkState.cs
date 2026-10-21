@@ -89,7 +89,7 @@ public readonly struct DisembarkState : IEquatable<DisembarkState>
     /// The state that <paramref name="change"/> leads to from <paramref name="state"/>, or null when the pair has no row.
     /// It reads nothing but its two arguments.
     /// </summary>
-    public static DisembarkState? Next(DisembarkState state, DisembarkEvent change) => (state.Value, change.Value) switch
+    public static DisembarkState? Next(DisembarkState state, DisembarkEvent change) => (state, change) switch
     {
         (Aboard, LeaveShip) => new Walking(0),
         (Walking, Dropped) => new Sliding(),

@@ -55,7 +55,7 @@ public sealed class Disembark(FrameHandle station, Chute chute, IReadOnlyList<Wa
             if (events[i].Is<LeaveShip>())
                 Apply(self, new LeaveShip());
         DisembarkEvent? report = null;
-        switch (State.Value)
+        switch (State)
         {
             case Walking walking:
                 report = WalkOut(self, ref walking);
@@ -82,10 +82,18 @@ public sealed class Disembark(FrameHandle station, Chute chute, IReadOnlyList<Wa
             return Gone(self);
         if (!self.Body.Standing && chute.Holds(self.PoseIn(station).Position))
             return new Dropped();
-        double speed = walking.Next == wayOut.Length - 1 ? stepInSpeed : walkSpeed;
-        walking = new Walking(Walker.Step(self, wayOut, walking.Next, speed));
+        int next = Walker.Step(self, wayOut, walking.Next, SpeedToward(walking.Next));
+        // A walker that reaches a waypoint walks toward the next one in the same tick, at the speed that it was given. So
+        // when that tick starts the last leg, the walk is asked again at the last leg's speed. The second walk replaces the
+        // first, and the waypoints that it skips are the same.
+        if (next != walking.Next && next < wayOut.Length && SpeedToward(next) != SpeedToward(walking.Next))
+            next = Walker.Step(self, wayOut, next, SpeedToward(next));
+        walking = new Walking(next);
         return null;
     }
+
+    /// <summary>The speed of the walk toward the way out's waypoint at <paramref name="index"/>: the step-in speed on the last leg, the walk speed before it.</summary>
+    private double SpeedToward(int index) => index == wayOut.Length - 1 ? stepInSpeed : walkSpeed;
 
     /// <summary>
     /// Asks for no walk, so that physics keeps no walk for the landing, and adds the chute's friction as a force on the

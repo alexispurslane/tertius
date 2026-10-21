@@ -66,7 +66,8 @@ public static partial class DemoScenes
     /// <item>The <c>follow-camera</c> is a <see cref="ChaseCamera"/> attached to the person: it keeps 3.5 m behind the
     /// person's eye along the way the person walks, 0.8 m above it, and looks toward the point 2 m ahead of it, tilted down as
     /// far as the person's whole box needs to stay in the picture. It goes with the person into the shuttle's frame, and
-    /// stops short of the terminal's walls and the cabin's.</item>
+    /// stops short of the terminal's walls and the cabin's. The <c>slide-camera</c> is attached to the person too, for the
+    /// slide of the exit (see <see cref="StationExit.SpawnSlideCamera"/>).</item>
     /// <item>The shuttle has a glass canopy (see <see cref="Shuttle.Glass"/>): a band of glass along both sides from 0.7 m
     /// above the cabin floor, over the roof's bevels and the roof, and the front above the sill. It has 40 panes, each with
     /// its scene id, such as <c>pane-nose</c>, <c>pane-port-7</c> and <c>pane-roof-4</c>, named by their edge and their
@@ -368,6 +369,7 @@ public static partial class DemoScenes
                 Render = new RenderData(),
                 Components = [new ChaseCamera(FollowBehind, FollowAbove, FollowAhead, PersonHalf, world.VerticalFov)],
             }));
+            scene.Add("slide-camera", StationExit.SpawnSlideCamera(world, person, world.GetOwnedFrame(station)));
 
             Entity overview = world.Spawn(new SpawnDesc
             {

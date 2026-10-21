@@ -261,7 +261,7 @@ public sealed class ChaseCamera(double behind, double above, double ahead, Vecto
     }
 
     /// <summary>The turn of a view that looks along the unit vector <paramref name="forward"/>, with its up toward <paramref name="up"/>: a view with no turn looks along -Z, with +Y up.</summary>
-    private static Quaternion View(Double3 forward, Double3 up)
+    internal static Quaternion View(Double3 forward, Double3 up)
     {
         Double3 z = -forward;
         Double3 x = Double3.Cross(up, z).Normalized();

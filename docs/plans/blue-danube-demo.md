@@ -1275,7 +1275,7 @@ Ticket ter-y0e5 designs step 6 of "Order of the work", which is item 5 of "The s
 - The chute is a trough on the spoke's antispinward wall. It runs from a hole in the deck down the whole spoke. It passes through an opening in the wheel's ceiling and ends 5 cm above the wheel's floor. The Coriolis force presses the sliding person onto the trough's back plate, and the plate's friction brakes the slide. The person slides feet first, and reaches 8.9 m/s at most.
 - The chute's last 5.5 m, from the ceiling down, is a brake run with more friction. It slows the person to about 2.6 m/s before its feet reach the floor.
 - On the floor the person stands in a full gravity, 9.72 m/s² at its center. It walks 5 m spinward out of the trough and stops. The demo ends there.
-- New lamps light the spoke and the part of the wheel where the person lands. Three new still cameras film the deck, the chute's top and the landing. The `follow-camera` films the slide and the last steps.
+- New lamps light the spoke and the part of the wheel where the person lands. Three new still cameras film the deck, the chute's top and the landing. A new camera that follows the person in the station's axes, `slide-camera`, films the slide, and the `follow-camera` films the last steps.
 
 Terms used in this section:
 
@@ -1299,7 +1299,7 @@ The person's waypoints and every place below are in the station's axes, unless t
 
 The release and the rise:
 
-- At the parked seat, the cabin's gravity leans 30 degrees from the floor's down. The belt holds only past 45 degrees. So the belt pushes nothing, and opening it changes no force. The person already stands at `Shuttle.SeatStand`, on the floor of the cabin, with its up against the felt gravity.
+- At the parked seat, the cabin's gravity leans 30 degrees from the floor's down. The belt holds only past 45 degrees. So the belt pushes nothing, and opening it changes no force. The person already stands at `Shuttle.SeatStand`, on the floor of the cabin, with its up against the felt gravity. The scene `demo-exit` starts it so, `DemoExit.StandAtSeat`: its up against the spin gravity at the stand, and its center 0.82 m above the floor, where its capsule, tipped 30 degrees, stands on its lower end. A person that started upright stood only after 0.5 s, as its capsule tipped over and dropped 8 cm, and that showed.
 - A character has no sitting pose, so the person does not rise. Its first step is the start of leg 1. A belt has no mesh, so the release does not show.
 - `Passenger` gets the order `LeaveShip` and goes from `Strapped` to a new case, `Unstrapped(Copy)`, which adds nothing. Without that case, a strapped person who left the seat gets the belt's pull back toward the seat. The pull comes wherever the gravity at its place leans past 45 degrees from the cabin's down. That never happens on this way, but a belt that stays shut after the person left the seat is a belt that lies.
 
@@ -1309,7 +1309,7 @@ The walk:
 - Leg 1 crosses a floor that feels tilted 30 degrees toward port, as "The docking" says. The walk goes 0.6 m to starboard over 5.8 m, a little uphill. The engine turns a walk into the ground plane, so the person walks along the floor.
 - Leg 2 climbs the hatch's sill, 0.1 m above the cabin floor, as a stair, and passes the doorway. A capsule whose up leans 15 to 26 degrees toward port in the doorway keeps its top 0.47 m below the lintel. Outside, the deck lies 0.3 m below the sill. The person walks off the sill and drops onto the deck in about 0.9 s.
 - Leg 3 runs parallel to the axis, so it has no Coriolis force. It passes 0.8 m spinward of the chute's top.
-- Leg 4 runs antispinward, toward the chute's back plate, at 0.4 m/s, `StationExit.StepInSpeed`. The Coriolis force of an antispinward walk points toward the axis. At 1 m/s it takes 0.63 m/s² of the 0.70 m/s² of spin gravity at the person's center. A person who walked into the hole at 1 m/s did not sink. It stood on the hole's far edge, then on the deck beyond the hole, and walked on. At 0.4 m/s the Coriolis force takes 0.25 m/s².
+- Leg 4 runs antispinward, toward the chute's back plate, at 0.4 m/s, `StationExit.StepInSpeed`. The Coriolis force of an antispinward walk points toward the axis. At 1 m/s it takes 0.63 m/s² of the 0.70 m/s² of spin gravity at the person's center. A person who walked into the hole at 1 m/s did not sink. It stood on the hole's far edge, then on the deck beyond the hole, and walked on. At 0.4 m/s the Coriolis force takes 0.25 m/s². The walker turns toward the next waypoint in the tick that reaches the one before it, at the speed that it was given. So in the tick that starts leg 4, the exit asks for the walk again at the step-in speed. Without that, the person stepped toward the hole at 1 m/s for one step.
 - On the run, the capsule loses its footing 0.2 m past the hole's spinward edge. The Coriolis term of its fall points antispinward and carries it on. Its back meets the hole's antispinward face 0.7 s later, and it sinks along that face into the trough.
 
 The person stays in the cabin's frame for the whole walk. The shuttle's bubble reaches 6.9 m from the shuttle's middle across the deck and 17.3 m along the axis. It enters the station's frame in the spoke, where its center leaves the bubble, on paper 3.5 m below the deck. On the run it entered 5.75 m below the deck, at x = -13.75 m. The deck, the spoke and the chute are static bodies in the station's frame, and each has a ghost in the shuttle's bubble (ARCHITECTURE.md, "Ghosts"). So the person walks and slides on the same surfaces in either frame.
@@ -1383,7 +1383,7 @@ A scratch model of this design integrated the person's speed along the spoke at 
 - The brake run decelerates the person by up to 24 m/s² as it enters at 8.9 m/s, for about 0.4 s. The person lands at 2.6 m/s, about the speed of a jump down 0.35 m on Earth.
 - The engine stands a character that lands on walkable ground at once, with the ground's velocity. So the landing speed decides only how the landing looks.
 
-On the real World the slide matches the model. It took 30.1 s from the drop to the landing. Its top speed was 8.87 m/s, at x = -94.7 m, as the person entered the brake run. In the last 0.6 m above the floor the person moved at 2.55 m/s at most. The person arrived at the stroll's end 53.2 s after the order.
+On the real World the slide matches the model. It took 30.1 s from the drop to the landing. Its top speed was 8.87 m/s, at x = -94.7 m, as the person entered the brake run. In the last 0.6 m above the floor the person moved at 2.56 m/s at most. The person arrived at the stroll's end 53.0 s after the order.
 
 A group with a body that thrusts gets a numeric frame from 50 m/s, and keeps it down to 20 m/s (ARCHITECTURE.md, "Numeric frames"). The top speed, 8.9 m/s, is far below both. Every character thrusts, so the person counts. A frictionless slide reaches 31 m/s, still below 50. So the person stays in the station's own system for the whole slide.
 
@@ -1415,17 +1415,20 @@ The person's up: it touches the back plate, so its up turns at once against the 
 | `deck-camera` | The station's | At (-6.3, -4.5, 4.5) m, 1.7 m above the deck, looking at (-7.2, 2.5, -1.0) m, roof along +X | The hatch, the step down onto the deck, the walk along the deck and the step into the chute's top |
 | `spoke-camera` | The station's | In the spoke at (-24, 1.2, 1.3) m, looking up the spoke at (-8.5, 0, -0.6) m, roof along +Z | The chute's top lit through the hole, and the person sliding down toward the camera |
 | `wheel-camera` | The station's | On the floor 9 m spinward of the chute's end, at y = 2.5 m and 1.7 m above the floor. It looks at (-97, 0, -0.7) m, with its roof toward the axis. | The chute's end under the opening, the brake run, the landing and the stroll toward the camera |
+| `slide-camera` | The person's, by its attachment. A `FrameFollowCamera` keeps its offset and its look in the station's axes. | 3 m up the spoke from the person's center and 1 m toward the spoke's middle, `StationExit.SlideCameraOffset`. It looks at the point 1.5 m down the spoke from the person's center, with its roof along +Z. | The person sliding feet first down the open trough, seen from behind and above, with the spoke's lamps passing overhead and the spoke's end ahead |
 
 The cameras that exist:
 
 | Camera | In the exit |
 |---|---|
 | `cabin-camera` | The order, the person's first steps and the walk aft toward the hatch |
-| `follow-camera` | The slide and the last steps. In the slide, the person's velocity lies along its up, so the camera's heading rests where the walk into the chute left it, antispinward. Its arm runs spinward across the spoke and stops short of the spoke's spinward wall, about 2.3 m from the person. It looks into the open trough at the person, with the spoke's walls and lamps streaming past. On the floor its heading swings round behind the person, which walks the other way. |
+| `follow-camera` | The last steps. On the floor its heading swings round behind the person, which walks spinward. |
 
-The `follow-camera` does not film the walk out of the hatch or the drop through the deck. In both, its arm meets a surface at once. The hatch's lintel, 2.4 m above the deck, lies below the arm's end. The hole's spinward face lies 0.5 m from the eye as the eye sinks through the deck. So the arm shortens at once, and the camera jumps. Still cameras film those moments.
+The `follow-camera` does not film the slide. Its heading swings only toward a velocity across the person's up faster than 0.5 m/s, `ChaseCamera.TurnSpeed`. The step into the chute's top goes at 0.4 m/s, so the heading rests where the walk along the deck left it, along -Y. In the slide the velocity lies along the up, so the heading stays there. Its arm then runs along +Y into the rail and the spoke's wall, it shortens to about 1 m, and the camera looks at the rail past the top of the person's box. The first round of frames showed a dark picture with a strip of trough at its top. So `slide-camera` films the slide, from the same place relative to the person in every tick of it.
 
-A test projects points with `Picture.Project`. Through `deck-camera` it projects the corners of the doorway and of the chute's top. Through `spoke-camera` it projects the trough's top. Through `wheel-camera` it projects the chute's end and the stroll's end. Each must lie inside its picture. If a point leaves the picture, the builder moves the camera.
+The `follow-camera` also does not film the walk out of the hatch or the drop through the deck. In both, its arm meets a surface at once. The hatch's lintel, 2.4 m above the deck, lies below the arm's end. The hole's spinward face lies 0.5 m from the eye as the eye sinks through the deck. So the arm shortens at once, and the camera jumps. Still cameras film those moments.
+
+A test projects points with `Picture.Project`. Through `deck-camera` it projects the corners of the doorway and of the chute's top. Through `spoke-camera` it projects the trough's top. Through `wheel-camera` it projects the chute's end and the stroll's end. Each must lie inside its picture. If a point leaves the picture, the builder moves the camera. A test of the run, `TheChuteFilmSeesThePersonSlideDownTheOpenTrough`, holds the camera of the section `chute` in the spoke's inside, above the trough's open side and 1.5 to 4 m from the person, with the person's whole box in its picture and no body between them.
 
 ### Sections of the long script
 
@@ -1436,13 +1439,13 @@ The exit's sections follow the docking's `docked`. They are `BlueDanube.ExitSect
 | `unbelt` | `cabin-camera` | 1 | `LeaveShip` to `person` | The person's center is within 0.5 m of the doorway's inner face | About 7 s, 420 frames |
 | `deck` | `deck-camera` | 1 | | 1.5 s after the exit component is in `Sliding` | About 12 s, 720 frames |
 | `chute-top` | `spoke-camera` | 1 | | The person's center is 10 m below the deck | About 6 s, 360 frames |
-| `chute` | `follow-camera` | 2 | | The person's center is 10 m above the ceiling: its radius is above 84.5 m | About 20 s, 600 frames |
+| `chute` | `slide-camera` | 2 | | The person's center is 10 m above the ceiling: its radius is above 84.5 m | About 20 s, 600 frames |
 | `brake` | `wheel-camera` | 1 | | 1 s after the exit component is in `Strolling` | About 4 s, 240 frames |
 | `floor` | `follow-camera` | 1 | | 2 s after the exit component is in `Arrived` | About 7 s, 420 frames |
 
 So the exit films about 2,760 frames in about 56 s of the simulation, about 46 s of video.
 
-The generated `scripts/demo-exit.json` films 416, 730, 561, 504, 207 and 388 frames: 2,806 frames in 3,310 ticks, 55.2 s of the simulation and 46.8 s of video.
+The generated `scripts/demo-exit.json` films 397, 738, 560, 504, 207 and 388 frames: 2,794 frames in 3,298 ticks, 55.0 s of the simulation and 46.6 s of video.
 
 The docking is built at the same time on its own branch, and the exit starts from its end state. So until the two merge, the long script cannot reach the exit: without the docking, the shuttle holds 150 m out, and the person is weightless at its seat. So the exit's sections also run in a short script of their own, `scripts/demo-exit.json`. Its scene, `demo-exit`, starts at the end state. The generator takes the scene as an argument: `--generate scripts/demo-exit.json demo-exit`. The merge of the docking and the exit appends `ExitSections` to `BlueDanube.Sections` after `docked`, and writes `scripts/blue-danube.json` again. One list of sections serves both scripts.
 
@@ -1450,7 +1453,7 @@ The scene `demo-exit`:
 
 - A root frame with Earth's point gravity, which does not turn, as in the station's tests. It has the drawn Earth and the sun of `demo-surface`. The station flies its orbit in it. The station never assumes that its parent is a root, so this scene and the long one run the same station.
 - The shuttle parked static at `DemoStation.ParkedPose` in the station's frame, with its seat, panes, lamps and nozzle, and no flight controls. In the end state, every flight control adds nothing.
-- The person at `Shuttle.SeatStand` in the cabin, `Strapped`, with the drawn copy of the pen in its hand. Its exit component is in `Aboard`. The `follow-camera` is attached to it, and `cabin-camera` stands where `demo-surface` puts it.
+- The person at `Shuttle.SeatStand` in the cabin, at `DemoExit.StandAtSeat`, `Strapped`, with the drawn copy of the pen in its hand. Its exit component is in `Aboard`. The `follow-camera` and `slide-camera` are attached to it, and `cabin-camera` stands where `demo-surface` puts it. The long scene attaches `slide-camera` to its person too.
 - The station's cameras, its lamps, its chute and its openings come from `DemoStation.Spawn`, so the long scene has them too.
 
 ### The exit component
@@ -1510,6 +1513,7 @@ The exit reads and writes the station's frame, whichever frame holds the person.
 | `StationExit.DeckHole` | `DemoStation.Slot` | An opening through a hub wall, built in the hub's own axes |
 | The ceiling's opening | `RevolvedSolid`'s segments | A ring of segments, with one left out and its cut ends capped |
 | `station-chute` | `station-spokes` | A static compound of boxes in the station's frame |
+| `FrameFollowCamera`, `slide-camera` | `ChaseCamera`, `follow-camera` | A camera entity attached to the person, whose component writes only its own offset from the person, turned into the person's axes in every tick |
 | The spoke and wheel lamps | The bay lamps | Glowing panels with point lights in the station's frame |
 | `deck-camera`, `spoke-camera`, `wheel-camera` | `rim-camera` | Still views in the station's frame |
 | `demo-exit` and `scripts/demo-exit.json` | `scripts/demo-launch.json` | A short script of one part of the demo |
@@ -1541,6 +1545,7 @@ Step k is the physics step that runs beside tick k. A tick reads the state at th
 | The station's static parts: the hub with the deck's hole, the ceiling's bands, the chute | Nothing | None | The station's, with ghosts in the shuttle's bubble | Nothing |
 | The lamps and the still cameras | Nothing | None | The station's or the cabin's | Nothing |
 | The `follow-camera` | Its attachment to the person, and its own offset | `ChaseCamera` | The person's | The person's pose and velocity, and its ray |
+| The `slide-camera` | Its attachment to the person, and its own offset | `FrameFollowCamera` | The person's | The person's rotation in the station's axes |
 | The script | It posts `LeaveShip` between ticks. | | | |
 
 ### Built from scratch, compared
@@ -1553,7 +1558,7 @@ Every test of physics runs the real World on the real Jolt backend, in `tests/Te
 
 Pure, with no World:
 
-- `DisembarkStateTests`: one test for each row of `Next`, and `EveryOtherPairHasNoRow`.
+- `DisembarkStateTests`: one test for each row of `Next`, `EveryOtherPairHasNoRow`, `TheTableAllocatesNothing` and `TheDefaultStateIsAboardAndEqualStatesHaveTheSameCaseAndData`.
 - `ChuteFrictionTests`:
   - `TheFrictionOpposesTheSlideByTheCoefficientTimesTheCoriolisPress`.
   - `InTheBrakeRunTheBrakesCoefficientActs`.
@@ -1562,26 +1567,30 @@ Pure, with no World:
   - `AFreeAccelerationAwayFromThePlateGivesNoPress`.
   - `TheFrictionNeverTurnsTheSlideAroundInOneStep`.
 - `ChuteHoldsTests`: `TheChuteHoldsACenterOverItsTopAndInTheTrough`.
-- `RevolvedSolidTests`: `ARingWithASegmentLeftOutHasNoHullThere`, `ItsMeshLeavesTheSegmentOpenAndCapsItsCutEnds`.
+- `RevolvedSolidGapTests`: `ARingWithASegmentLeftOutHasNoHullThere`, `ItsMeshLeavesTheSegmentOpenAndCapsItsCutEnds`, `ItsMeshFacesOutOfTheRingWithTheGap` and `LeavingOutASegmentThatIsNotThereIsAnError`.
 - `StationExitGeometryTests`:
   - `TheChutesTopLiesInsideTheSpokeMouthAndItsFacesRunOnIntoTheTrough`.
-  - `TheDeckIsSolidAroundTheHoleAndOpenOverIt`: the hub's wall boxes leave the hole free and cover the rest of the deck's wall.
-  - `TheCeilingsOpeningLiesInsideTheSpokeAndHoldsTheChute`.
+  - `ARayDownTheTroughPassesTheDeckAndTheCeilingAndMeetsTheFloor` and `TheDeckIsSolidBesideTheHole`: rays find the hole open and the rest of the deck's wall solid.
+  - `TheCeilingIsOpenOnlyUnderTheSpokesMiddle`: rays find the ceiling's opening inside the spoke.
+  - `TheTroughHasABackPlateAndTwoRails`.
   - `TheChuteEndsJustAboveTheWheelsFloor`.
-  - `TheCamerasSeeTheirPlaces`, with `Picture.Project`.
   - `ThePersonsFirstWaypointOutsideIsClearOfTheHullAndTheHole`.
+  - `TheCamerasSeeTheirPlaces`, with `Picture.Project`.
 
-On the real World, in the scene `demo-exit`, `DisembarkTests`. One shared run, `ExitRun`, takes about 3,400 ticks, without the world's invariant checks. On the run it took 3,250. It records the person's place, velocity, frame, standing and case in every tick:
+On the real World, in the scene `demo-exit`, `DisembarkTests`. One shared run, `ExitRun`, takes about 3,400 ticks, without the world's invariant checks. On the run it took 3,238. It records the person's place, rotation, velocity, frame, standing and case in every tick, and the pose of the camera of the section `chute`:
 
-- `TheSceneStartsAtTheDockingsEndState`: the hull is static at `ParkedPose`. The person is `Strapped` and stands at its seat. The felt gravity there is 0.783 m/s², leaning 30 degrees toward port.
+- `TheSceneStartsAtTheDockingsEndState`: the hull is static at `ParkedPose`. The person is `Strapped` and stands at its seat, at `DemoExit.StandAtSeat`, with its up against the felt gravity. The felt gravity there is 0.783 m/s², leaning 30 degrees toward port.
 - `WithoutTheOrderThePersonStaysAtItsSeat`, in its own short world.
 - `TheOrderOpensTheBeltAndStartsTheWalk`.
+- `ThePersonWalksAftOnTheCabinsLeaningFloor`: on leg 1 the felt gravity leans 22 to 33 degrees toward port. After its capsule settles by a few millimeters in the first quarter second, the person stands in every tick, keeps within 0.25 m of the leg's line and within 3 cm of the height of its tipped capsule.
 - `ThePersonLeavesThroughTheHatch`: its center crosses the hull's starboard face within the doorway.
 - `ThePersonWalksAlongTheDeckToTheChutesTop`: on legs 3 and 4 it stands, and its center stays within 0.25 m of the leg's line.
+- `TheStepIntoTheChutesTopGoesAtTheStepInSpeedFromItsFirstTick`: on the deck, the speed toward -Z stays within 0.05 m/s of 0.4 m/s.
 - `ThePersonDropsIntoTheChute`: it is `Sliding`, its center over the chute's top.
 - `ThePersonEntersTheStationsFrameInTheSpoke`.
 - `TheCoriolisForceHoldsThePersonOnTheBackPlate`: from 3 m below the deck to the ceiling, its center lies from 0.3 to 0.4 m off the plate's face, where the law counts it as touching.
-- `TheSlideStaysBelowTheSpeedOfANumericFrame`: the top speed lies from 8 to 10 m/s, and the person's frame is the cabin's or the station's in every tick.
+- `TheSlideStaysBelowTheSpeedOfANumericFrame`: the top speed lies from 8 to 10 m/s. `ThePersonEntersTheStationsFrameInTheSpoke` also checks that the person's frame is the cabin's or the station's in every tick.
+- `TheChuteFilmSeesThePersonSlideDownTheOpenTrough`: see "The cameras".
 - `TheBrakeRunSlowsThePersonBeforeTheFloor`: below 3.5 m/s as its feet reach the floor.
 - `ThePersonLandsOnItsFeetOnTheWheelsFloor`: the stroll starts in the tick after a step in which the person stood on the floor between the rails.
 - `ThePersonStandsOnTheWheelsFloorInAFullGravity`: the felt gravity at its center is 9.72 m/s², within 1 %.
@@ -1635,7 +1644,7 @@ Only engine changes go to the user (the user's rule of 2026-10-18). So this desi
 | The ceiling's opening | One segment of a middle band left out, with the ceiling turned by half a segment | The opening is symmetric about the spoke's middle and lies inside the spoke, so nothing opens to space. The lift in the spoke at θ = 0 of the live world finds a segment centered on its spoke too. |
 | The chute's end | 5 cm above the wheel's floor, on the floor's facet | The person's feet land on the floor between the rails, and it walks out of the open side. |
 | The lamps | Seven in the spoke and six round the landing | The spoke and the wheel are closed and dark. Lamps only where cameras look. |
-| The cameras | Three still cameras for the deck, the chute's top and the landing, and the `follow-camera` for the slide and the last steps | The follow camera jumps at the hatch's lintel and the deck's hole, and rides well in the open trough |
+| The cameras | Three still cameras for the deck, the chute's top and the landing, `slide-camera` for the slide, and the `follow-camera` for the last steps | The follow camera jumps at the hatch's lintel and the deck's hole. In the slide its heading rests along the axis, and its arm ends in the rail. A camera that keeps its place in the station's axes, behind and above the person, sees the person and the trough ahead in every tick of the slide. |
 | The long script | `ExitSections` after the docking's `docked`, appended at the merge, and a short script `demo-exit` until then | The exit starts at the docking's end state, which only the docking's branch reaches |
 
 ### Engine changes

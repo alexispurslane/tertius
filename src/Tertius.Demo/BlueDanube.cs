@@ -120,8 +120,9 @@ public static class BlueDanube
         new("deck", "deck-camera", Every: 1, (world, scene) => ExitOf(world, scene).Value is Sliding, Hold: Second * 3 / 2),
         // The drop through the hole, seen from below in the spoke.
         new("chute-top", "spoke-camera", Every: 1, (world, scene) => PersonInStation(world, scene).X < DemoStation.Deck - 10),
-        // The slide down the open trough, filmed every second tick, so it plays at twice the speed of the simulation.
-        new("chute", "follow-camera", Every: 2, (world, scene) => Radius(PersonInStation(world, scene)) > DemoStation.CeilingRadius - 10),
+        // The slide down the open trough from behind and above the person, filmed every second tick, so it plays at twice
+        // the speed of the simulation.
+        new("chute", "slide-camera", Every: 2, (world, scene) => Radius(PersonInStation(world, scene)) > DemoStation.CeilingRadius - 10),
         // The brake run, the landing and the first steps on the floor.
         new("brake", "wheel-camera", Every: 1, (world, scene) => ExitOf(world, scene).Value is Strolling, Hold: Second),
         // The last steps spinward, and the person standing still in a full gravity.
