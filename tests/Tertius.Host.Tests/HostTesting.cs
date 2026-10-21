@@ -203,6 +203,21 @@ public static class HostTesting
 {
     public static DPose At(double x, double y = 0, double z = 0) => new(new Double3(x, y, z), DQuaternion.Identity);
 
+    /// <summary>
+    /// The center of mass of the demo shuttle's hull, in meters, in the hull's own axes, as the engine computes it and
+    /// publishes it in <see cref="BodyFacts.CenterOfMass"/>: the value that the demo reads (docs/plans/parts.md, "Settled
+    /// forks"). It comes from a parked hull in a world of its own.
+    /// </summary>
+    public static Vector3 ShuttleCenterOfMass => shuttleCenterOfMass.Value;
+
+    private static readonly Lazy<Vector3> shuttleCenterOfMass = new(() =>
+    {
+        using World world = NewJoltWorld();
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f)));
+        Entity hull = Tertius.Demo.DemoScenes.Shuttle.Park(world, space, DPose.Identity);
+        return world.Snapshot.TryGetBody(hull, out BodyFacts facts) ? facts.CenterOfMass : throw new InvalidOperationException("The shuttle's hull has a body.");
+    });
+
     /// <summary>A world with no physics, one gameplay thread and the invariant checks of every tick.</summary>
     public static World NewWorld() => new(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = true });
 

@@ -35,8 +35,10 @@ public struct AttitudeTarget : IEventPayload
 }
 
 /// <summary>
-/// Turns its entity's body toward the <see cref="AttitudeTarget"/> of each tick that brings one, with a torque, as the
-/// attitude thrusters of a ship do. It asks for the target's <see cref="AttitudeTarget.FeedForward"/>, the target's own
+/// Turns its entity's body toward the <see cref="AttitudeTarget"/> of each tick that brings one: it asks the hull's turning
+/// jets for a torque, as the attitude control of a ship does, and adds it to its entity's events as a <see cref="Torque"/>
+/// for the <see cref="ShuttleJetControl"/>, which runs after it and fires the jets' couples. It pushes no body itself. It
+/// asks for the target's <see cref="AttitudeTarget.FeedForward"/>, the target's own
 /// turn, plus a correction along the shortest turn to the target, <see cref="Gain"/> per radian of the turn that is left,
 /// and at most the target's <see cref="AttitudeTarget.MaxTurnRate"/> and <see cref="MaxTurnRate"/>. The cap takes only
 /// the correction, so a target that turns faster than the cap is followed. Then it gives the torque that brings the body's
@@ -49,9 +51,10 @@ public struct AttitudeTarget : IEventPayload
 /// entity needs a dynamic body whose principal axes are <see cref="PrincipalInertia.Axes"/> of its inertia, in its own axes.
 /// </summary>
 /// <remarks>
-/// The autopilot reads the body's rotation and angular velocity at the end of the last finished step, and its torque
-/// acts in the step of the next tick. So it acts on what it read two steps late. <see cref="RateTime"/> is 20 steps, so
-/// that lag costs the loop little.
+/// The autopilot reads the body's rotation and angular velocity at the end of the last finished step. The jets get their
+/// throttles by message, so they push in the next tick, and physics applies the push in the step of the tick after that.
+/// So the autopilot acts on what it read three steps late. <see cref="RateTime"/> is 20 steps, so that lag costs the loop
+/// little (docs/plans/blue-danube-demo.md, "The jets as parts").
 /// </remarks>
 /// <param name="inertia">The moments of inertia of the body about its principal axes, in kg·m², and those axes in its own axes.</param>
 public sealed class AttitudeAutopilot(PrincipalInertia inertia) : IComponent
@@ -149,7 +152,7 @@ public sealed class AttitudeAutopilot(PrincipalInertia inertia) : IComponent
         // The principal axes in the frame's axes: the torque about each is its moment times the acceleration about it.
         DQuaternion principal = pose.Rotation * axes;
         Double3 inPrincipal = principal.Conjugate().Rotate(angularAcceleration);
-        self.Body.AddTorque(principal.Rotate(inPrincipal * moments).ToVector3());
+        events.Add(new Torque { Value = principal.Rotate(inPrincipal * moments) });
     }
 
     /// <summary>The rotation that turns the unit axes X, Y and Z into the orthonormal, right-handed <paramref name="x"/>, <paramref name="y"/> and <paramref name="z"/>.</summary>

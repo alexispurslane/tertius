@@ -438,7 +438,7 @@ The build measured, in a Release build with `-p:SyncProfile=true`, in the benchm
 | No part, all workers | 0.15 µs | 412 µs |
 
 The flow runs on the sync thread, so the workers change nothing in its lap. The rest of the growth of the sync point with parts is the 10,000 attached entities themselves: step 7 derives their rows, and step 8 and the render snapshot copy them. `CarryingThePushesAllocatesNothingAfterWarmUp` holds the allocations of a whole tick with 300 parts that push at zero.
-- In the demo, after its own ticket moves the jets onto parts: the miss of the docking and the settle time of the attitude loop with the extra tick, beside today's.
+- In the demo, measured by ticket ter-diu0 in the run of the long script (docs/plans/blue-danube-demo.md, "The jets as parts", "Measured"): the extra tick changes no settle time of the attitude loop by more than one tick. The spin-up settles in 3.25 s with and without the parts, and the transfer burn in 3.98 s against 3.97 s. The landing misses its parked pose by 16.0 mm against 18.4 mm, and the docked hull by 6.0 mm against 5.9 mm.
 
 ## The demo's use
 
@@ -451,7 +451,7 @@ The demo work is in `ter-6u2m`, not in this ticket. Each actuator becomes a part
 
 ## Settled forks
 
-The user settled the one open fork on 2026-10-21: side A. `BodyFacts` gains `CenterOfMass`, and the demo takes the value from the engine and drops its own.
+The user settled the one open fork on 2026-10-21: side A. `BodyFacts` gains `CenterOfMass`, and the demo takes the value from the engine and drops its own. Ticket ter-diu0 dropped `Shuttle.CenterOfMass`.
 
 ### Fork 1: the center of mass in the body facts
 

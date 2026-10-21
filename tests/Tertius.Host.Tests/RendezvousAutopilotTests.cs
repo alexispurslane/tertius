@@ -12,8 +12,8 @@ namespace Tertius.Host.Tests;
 /// <summary>
 /// The shuttle's <see cref="RendezvousAutopilot"/>, on the World and the real Jolt backend (docs/plans/blue-danube-demo.md,
 /// "The rendezvous autopilot"). The demo's station flies its orbit, 400 km up, in a root frame with Earth's point gravity,
-/// and the shuttle flies near it with its flight controls: the autopilot, then the attitude autopilot, the main engine
-/// and the translation thrusters of the demo. Between the autopilot and the actuators, a <see cref="Recorder"/> sees what
+/// and the shuttle flies near it with its flight controls: the autopilot, then the actuators of the demo, the attitude
+/// autopilot and the control of the main engine and the jets (see <see cref="Shuttle.Actuators"/>). Between the autopilot and the actuators, a <see cref="Recorder"/> sees what
 /// the autopilot adds in each tick. Some tests fly the demo's plan, which waits in the parking orbit, 200 km up, for a
 /// transfer of 170 degrees. The others fly <see cref="ShortPlanRun.Plan"/>, a transfer of 300 s from 5 km behind the
 /// station, because the demo's plan takes an hour.
@@ -22,8 +22,8 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
 {
     internal const double Mu = DemoScenes.EarthMu;
 
-    /// <summary>The main engine's thrust at full throttle, in newtons, as <see cref="Shuttle.FlightControls"/> gives it.</summary>
-    internal const float Thrust = Shuttle.Mass * Shuttle.ThrustAcceleration;
+    /// <summary>The main engine's thrust at full throttle, in newtons, as the shuttle's actuators give it.</summary>
+    internal const float Thrust = Shuttle.MainEngineThrust;
 
     private readonly ShortPlanRun run;
     private readonly World world = NewWorld();
@@ -63,17 +63,20 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
     /// <paramref name="station"/> on <paramref name="plan"/>. The <paramref name="recorder"/> runs between the autopilot and
     /// the actuators.
     /// </summary>
-    internal static Entity Fly(World world, FrameHandle frame, Entity station, RendezvousPlan plan, Double3 position, Double3 velocity, Recorder recorder) =>
-        world.Spawn(new SpawnDesc
+    internal static Entity Fly(World world, FrameHandle frame, Entity station, RendezvousPlan plan, Double3 position, Double3 velocity, Recorder recorder)
+    {
+        Entity shuttle = world.Spawn(new SpawnDesc
         {
             Frame = frame,
             Pose = new DPose(position, AttitudeAutopilot.Facing(velocity, position)),
             LinearVelocity = velocity,
             Body = Shuttle.Body(BodyMotion.Dynamic),
             AsFrame = new FrameSpec(new FrameBounds(Shuttle.Bubble)),
-            Components = [new RendezvousAutopilot(station, plan, Thrust), recorder, new AttitudeAutopilot(Shuttle.Inertia), new MainEngine(Thrust),
-                new TranslationThrusters(Shuttle.TranslationThrust)],
+            Components = [new RendezvousAutopilot(station, plan, Thrust), recorder],
         });
+        Shuttle.FitActuators(world, shuttle);
+        return shuttle;
+    }
 
     /// <summary>The station's center, velocity and axis in <paramref name="frame"/>, as the world reads them now.</summary>
     internal static (Double3 Position, Double3 Velocity, Double3 Axis) StationNow(World world, Entity station, FrameHandle frame)

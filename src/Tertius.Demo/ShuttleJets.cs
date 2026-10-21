@@ -38,7 +38,7 @@ public readonly record struct JetPair(string Name, Jet First, Jet Second);
 /// with one thrust at two places, so it gives a torque about its axis and no net force, whatever the center of mass. At
 /// full throttle each gives the most torque that the attitude autopilot asks for about its axis,
 /// <see cref="AttitudeAutopilot.MostTorque"/> of <paramref name="inertia"/>.</item>
-/// <item>Six translation pairs push the hull, one for each direction of the <see cref="TranslationThrusters"/>. Each is
+/// <item>Six translation pairs push the hull, one for each direction along the hull's three axes. Each is
 /// two jets that push in one direction from two places, with thrusts in the shares that put the line of their sum through
 /// the center of mass. So each gives no torque about the center of mass, and at full throttle the two together give
 /// <paramref name="translationThrust"/>.</item>
@@ -89,7 +89,7 @@ public sealed class ShuttleJets
         CenterOfMass = centerOfMass;
         this.translationThrust = translationThrust;
         coupleTorque = AttitudeAutopilot.MostTorque(inertia);
-        MainEnginePlace = new Double3(centerOfMass.X, centerOfMass.Y, Shuttle.NozzlePose.Position.Z);
+        MainEnginePlace = new Double3(centerOfMass.X, centerOfMass.Y, Shuttle.NozzleZ);
 
         Double3 c = centerOfMass;
         double side = Shuttle.Hull.X, roof = Shuttle.Hull.Y, tail = Shuttle.Hull.Z;
@@ -144,7 +144,7 @@ public sealed class ShuttleJets
     /// hull <paramref name="torque"/> about its center of mass, in N·m, and <paramref name="force"/>, in newtons, both in the
     /// hull's axes. Each axis takes one couple and one translation pair, in the sense that it asks for, and the other two
     /// stay off. An axis that asks for more than its jets give takes full throttle on that axis, and the other axes keep
-    /// theirs, as the <see cref="TranslationThrusters"/> limit each axis. The couples give no force and the translation
+    /// theirs, so each axis is limited on its own. The couples give no force and the translation
     /// pairs no torque, so the torque and the force do not mix. It allocates nothing. Throws
     /// <see cref="ArgumentOutOfRangeException"/> for a torque or a force that is not finite, and
     /// <see cref="ArgumentException"/> for a span whose length is not <see cref="PairCount"/>.

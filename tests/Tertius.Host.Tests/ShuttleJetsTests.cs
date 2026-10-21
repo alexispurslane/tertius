@@ -15,7 +15,7 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class ShuttleJetsTests
 {
-    private static readonly Double3 DemoCenter = Shuttle.CenterOfMass;
+    private static readonly Double3 DemoCenter = HostTesting.ShuttleCenterOfMass;
 
     /// <summary>A center of mass off the hull's middle on every axis, within the jets' reach.</summary>
     private static readonly Double3 OffCenter = new(0.3, 0.5, -1.2);
@@ -303,7 +303,7 @@ public sealed class ShuttleJetsTests
     public void TheMainEngineSitsOnTheLineOfThrustThroughTheCenterOfMassInTheTailPocket()
     {
         foreach (Double3 center in new[] { DemoCenter, OffCenter })
-            Jets(center).MainEnginePlace.Should().Be(new Double3(center.X, center.Y, Shuttle.NozzlePose.Position.Z));
+            Jets(center).MainEnginePlace.Should().Be(new Double3(center.X, center.Y, Shuttle.NozzleZ));
     }
 
     /// <summary>The full cross-section of the outer skin, from the hull's convex shape: its corners at the tail face.</summary>

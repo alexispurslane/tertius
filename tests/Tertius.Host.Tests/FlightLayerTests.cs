@@ -10,11 +10,11 @@ namespace Tertius.Host.Tests;
 /// The shuttle's flight program as a stack of layers (docs/plans/blue-danube-demo.md, "Layers"), on the World and the
 /// real Jolt backend. A layer is a component that adds a <see cref="Throttle"/> and an <see cref="AttitudeTarget"/> to
 /// its entity's events in its tick. The layers run in the order of the flight, by their priorities: the ascent
-/// autopilot at 0, the rendezvous autopilot at 1 and the docking autopilot at 2. The actuators, the
-/// <see cref="MainEngine"/>, the <see cref="AttitudeAutopilot"/> and the <see cref="TranslationThrusters"/>, run after
-/// every layer and follow the last one that speaks. Each test lists the actuators before the layers, so that only the
-/// priorities put them after the layers. The shuttle starts unturned in a root frame without gravity, and unparks on
-/// its first tick.
+/// autopilot at 0, the rendezvous autopilot at 1 and the docking autopilot at 2. The actuators of
+/// <see cref="Shuttle.FitActuators"/>, the <see cref="AttitudeAutopilot"/> and the <see cref="ShuttleJetControl"/>, run
+/// after every layer and follow the last one that speaks: the control sends the main engine and the jets their
+/// throttles. Each test adds the actuators before the layers, so that only the priorities put them after the layers. The
+/// shuttle starts unturned in a root frame without gravity, and unparks on its first tick.
 /// </summary>
 public sealed class FlightLayerTests : IDisposable
 {
@@ -29,8 +29,17 @@ public sealed class FlightLayerTests : IDisposable
 
     public void Dispose() => world.Dispose();
 
-    private void Launch(params IComponent[] components) =>
-        shuttle = Shuttle.Park(world, space, DPose.Identity, components: [new Unpark(), .. components]);
+    /// <summary>
+    /// Parks the shuttle, gives it the shuttle's actuators (see <see cref="Shuttle.FitActuators"/>), and then adds the
+    /// <paramref name="layers"/>, so that only the priorities put the layers before the actuators.
+    /// </summary>
+    private void Launch(params IComponent[] layers)
+    {
+        shuttle = Shuttle.Park(world, space, DPose.Identity, components: [new Unpark()]);
+        Shuttle.FitActuators(world, shuttle);
+        foreach (IComponent layer in layers)
+            world.AddComponent(shuttle, layer);
+    }
 
     /// <summary>The angle between the shuttle's nose and <paramref name="nose"/>, in degrees.</summary>
     private double DegreesFrom(Double3 nose)
@@ -46,8 +55,7 @@ public sealed class FlightLayerTests : IDisposable
     [Fact]
     public void ALaterLayersTargetOverridesAnEarlierLayersTarget()
     {
-        Launch(new AttitudeAutopilot(Shuttle.Inertia), new Layer(priority: 0, target: DQuaternion.Identity),
-            new Layer(priority: 1, target: QuarterTurn));
+        Launch(new Layer(priority: 0, target: DQuaternion.Identity), new Layer(priority: 1, target: QuarterTurn));
 
         Tick(world, 1200);
 
@@ -56,14 +64,13 @@ public sealed class FlightLayerTests : IDisposable
 
     /// <summary>
     /// The docking layer, at 2, the last layer of the flight, asks for half throttle, a quarter turn and a translation of
-    /// 30,000 N up, the thrusters' most on one axis. Every actuator reads what it added: the engine pushes, the nose turns
-    /// onto -X, and the translation thrusters push the shuttle up at 1.5 m/s², 30 m/s in 20 s.
+    /// 30,000 N up, the jets' most on one axis. Every actuator reads what it added: the engine pushes, the nose turns
+    /// onto -X, and the translation pairs push the shuttle up at 1.5 m/s², 30 m/s in 20 s.
     /// </summary>
     [Fact]
     public void TheActuatorsRunAfterEveryLayer()
     {
-        Launch(new MainEngine(Shuttle.Mass * Shuttle.ThrustAcceleration), new AttitudeAutopilot(Shuttle.Inertia),
-            new TranslationThrusters(Shuttle.TranslationThrust),
+        Launch(
             new Layer(priority: 2, target: QuarterTurn, throttle: 0.5f, translation: new Double3(0, Shuttle.TranslationThrust, 0)));
 
         Tick(world, 1200);
