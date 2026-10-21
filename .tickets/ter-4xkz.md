@@ -1,6 +1,6 @@
 ---
 id: ter-4xkz
-status: open
+status: in_progress
 deps: [ter-tzf6]
 links: []
 created: 2026-10-20T17:00:58Z
@@ -36,3 +36,7 @@ The ticket writes its design as a section of docs/plans/blue-danube-demo.md firs
 **2026-10-20T18:46:20Z**
 
 The live world design (docs/plans/live-world.md, part 3) needs the hull to stand on its tail on a flat pad. So the tail is a flat face across the whole cross-section of the hull, or it has landing feet at its corners. The engine's nozzle is recessed into that face, and the center of mass stays on the long axis.
+
+**2026-10-20T21:34:21Z**
+
+The user decided on 2026-10-20: the hull has one density, with no engine change for mass properties apart from the collision shape. The design found that a hull of one density with the chosen look puts the center of mass about 9 cm low and 36 cm aft of the hull's middle, with the long principal axis tilted 1.03 degrees, nose down. The attitude autopilot takes the principal axes, and the nozzle pushes through the center of mass.

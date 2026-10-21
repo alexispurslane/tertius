@@ -1,6 +1,6 @@
 ---
 id: ter-iq0w
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-20T14:50:37Z
@@ -13,3 +13,9 @@ tags: [docs]
 
 The review of ter-n44b found stale text in GUIDE.md near lines 70, 168 and 169: 'Today this enum chooses the motion of a frame' about MotionDriver, and pointers to SetFrameDriver and SetFrameSpin. The rails epic removed them: every frame follows its owner, and the owner's components move it (CLAUDE.md, the row on MotionDriver). Rewrite those items against the code on main, with links that point at code that exists.
 
+
+## Notes
+
+**2026-10-21T00:07:00Z**
+
+Fixed by the rewrite of GUIDE.md in ter-sb5w, merged on 2026-10-20.

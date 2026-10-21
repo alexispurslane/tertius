@@ -9,7 +9,7 @@ public static partial class DemoScenes
 {
     /// <summary>
     /// The scene <c>station</c>: a station whose KeplerMotion carries it round Earth on the orbit scene's circle, 400 km
-    /// up, at 7.67 km/s, with the orbit scene's sun and Earth (see <see cref="Orbit"/>). It shows the two cases of
+    /// up, at 7.67 km/s, with the orbit scene's sun, Earth and Moon (see <see cref="Orbit"/>). It shows the two cases of
     /// ter-dhkf (docs/plans/numeric-frames.md, "Anchors"). A fast hull on rails lives in a following frame of its own, a
     /// numeric frame that follows its orbit, so cargo that drifts out of the station's bubble joins that frame, where
     /// both the cargo and the hull are slow and float velocities stay small. And a crate thrown at 1,200 m/s inside the
@@ -194,7 +194,7 @@ public static partial class DemoScenes
         public static SceneInstance Build(World world, IRenderResources resources)
         {
             var scene = new SceneInstance();
-            FrameHandle earth = SunAndEarth(world, resources, scene);
+            FrameHandle earth = SunAndEarth(world, resources, scene, EarthDate.MarchEquinox);
 
             // The station starts on its orbit at the world's time. Its first motion intent moves it along the orbit in the
             // step of the next tick, and its KeplerMotion from the second step on, so its contents float from the start.
