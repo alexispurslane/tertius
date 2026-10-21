@@ -25,7 +25,7 @@ public readonly record struct WorldStats(int LiveEntities, int Capacity, int Fra
 /// The world is the orchestrator. The state lives in internal subsystems, each of which keeps its own invariants:
 /// <see cref="EntityTable"/> (slots, every per-slot table, the double-buffered rows), <see cref="Router"/> (outboxes
 /// to inboxes), <see cref="TopicSets"/> (who hears each topic), <see cref="Attachments"/>, <see cref="SpatialIndex"/>,
-/// <see cref="PhysicsQueryRunner"/> and <see cref="RenderSnapshotBuilder"/>. The world owns the public API, the tick, the order in which the sync point
+/// <see cref="PhysicsQueryRunner"/>, <see cref="RenderSnapshotBuilder"/> and <see cref="PuffTable"/>. The world owns the public API, the tick, the order in which the sync point
 /// calls the subsystems, and the invariants that span them, which <see cref="AssertInvariants"/> lists.
 /// </para>
 /// <para>
@@ -57,6 +57,9 @@ public sealed partial class World : IDisposable
     private readonly SpatialIndex spatial;
     private readonly RenderSnapshotBuilder renderBuilder;
     private readonly PhysicsQueryRunner queryRunner;
+    private readonly PuffTable puffs;
+    // The heir of each frame of the destroy batch, for the puffs (see HeirOf), kept so that a destroy allocates no delegate.
+    private readonly Func<FrameHandle, FrameHandle> heirOf;
 
     /// <summary>
     /// Creates an empty world. With no physics backend, bodies do not move and their intents are dropped. The first world
@@ -89,6 +92,8 @@ public sealed partial class World : IDisposable
         queryRunner = new PhysicsQueryRunner(this, physics, router, message => Report(message, isError: true));
         dyingMarks = entities.AddColumn<bool>();
         characterStanding = entities.AddColumn<bool>();
+        puffs = new PuffTable(entities, Frames, this.options.PuffCapacity, message => Report(message, isError: true));
+        heirOf = HeirOf;
         Frames.NumericOptions = this.options.NumericFrames;
         if (physics != null)
             physicsWorker = new PhysicsWorker(physics, stepOutput);
@@ -285,6 +290,9 @@ public sealed partial class World : IDisposable
         return topics.MembersOf(frame);
     }
 
+    /// <summary>The puffs (docs/plans/particles.md): the rows, their ranges by frame and the look table.</summary>
+    internal PuffTable Puffs => puffs;
+
     /// <summary>The spatial grids, for the entity queries with a Near.</summary>
     internal SpatialIndex Spatial => spatial;
 
@@ -340,6 +348,7 @@ public sealed partial class World : IDisposable
         attachments.AssertInvariants();
         spatial.AssertInvariants();
         renderBuilder.AssertInvariants();
+        puffs.AssertInvariants();
 
         Contract.Invariant(dying.Count == 0);
         foreach (Entity entity in entities.IntentEntities.Span)
@@ -403,6 +412,12 @@ public sealed partial class World : IDisposable
         snapshot.PublishedAt = Stopwatch.GetTimestamp();
         RenderSnapshots.Publish();
     }
+
+    /// <summary>
+    /// The heir of a frame for its puffs during a destroy batch: the frame itself when its owner is not in the batch, or else
+    /// its nearest surviving ancestor, or null when none survives.
+    /// </summary>
+    private FrameHandle HeirOf(FrameHandle frame) => dyingMarks[frame.Entity] ? SurvivingAncestor(frame) : frame;
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(disposed, this);
 

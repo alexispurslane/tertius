@@ -20,6 +20,29 @@ internal struct Puff
     public float Age;
     /// <summary>The index of the puff's look in the look table.</summary>
     public int Look;
+
+    /// <summary>
+    /// The puff after one more step by the rule of motion (docs/plans/particles.md, "The rule of motion"): a loose body in
+    /// its frame, lifted and slowed by the frame's medium. Where the medium fills the puff's place, the lift share is the
+    /// puff's temperature ratio, which moves from the look's temperature ratio at its birth to 1 at the end of its life by
+    /// its own share, and the drag is the medium's drag times the lift share. Elsewhere both are 0, so the puff moves as a
+    /// free body. The age grows by the step, as a float.
+    /// </summary>
+    /// <param name="step">What the last finished step of the puff's frame does to a loose body in it.</param>
+    /// <param name="look">The puff's look.</param>
+    /// <param name="dt">The length of the step, in s: the World's float step.</param>
+    public readonly Puff Stepped(in LooseBodyStep step, in PuffLook look, float dt)
+    {
+        double lift = 0;
+        if (step.Medium.Fills(Place))
+        {
+            // The own share at the start of the step, in (0, 1] for a live puff, and the temperature ratio of the mix.
+            double own = 1 - Age / (double)look.Life;
+            lift = 1 + own * (look.TemperatureRatio - 1);
+        }
+        Double3 chord = step.ChordAhead(Place, Chord, lift, step.Medium.Drag * lift, dt);
+        return new Puff { Place = Place + chord * dt, Chord = chord, Age = Age + dt, Look = Look };
+    }
 }
 
 /// <summary>The rows of one frame in the puff table: they lie together, from <see cref="Start"/> for <see cref="Count"/> rows.</summary>

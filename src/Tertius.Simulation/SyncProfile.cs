@@ -48,6 +48,8 @@ internal sealed class SyncProfile
         "  (part of 6c) gather numeric bodies",
         "  (part of 6c) FrameTree.UpdateNumericFrames",
         "2c FollowFramelessEntities",
+        "2 (end) puffs: PuffTable.Step",
+        "7 (end) puffs: PuffTable.AddNewborns",
     ];
 
     internal readonly long[] Totals = new long[Names.Length];

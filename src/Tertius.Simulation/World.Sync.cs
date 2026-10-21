@@ -113,6 +113,13 @@ public sealed partial class World
             RouteStepContacts();
         Profile.Lap(6);
 
+        // 2b. Every puff takes the end of the step in its frame, by the turns, the linear gravity and the medium of the step
+        //     that every frame now holds, and the puffs whose age reached their life die. This comes after every frame took
+        //     its step record and before step 5, which converts the contents of each dying frame with the frame's pose at
+        //     the end of the step. It reads only the frame tree, so it runs also after a failed step and without physics.
+        puffs.Step(TickNumber, DeltaTime);
+        Profile.Lap(26);
+
         // 3. Physics owns the transform of every entity with a body. The entity table refuses such writes, and checks
         //    that none got through among its invariants.
         if (options.DebugChecks)
@@ -131,7 +138,8 @@ public sealed partial class World
         entities.SwapIntents(keep: physics != null);
         Profile.Lap(8);
 
-        // 5. Subscriptions first, while every entity that asked is still live, then the destroy batch.
+        // 5. Subscriptions first, while every entity that asked is still live, then the destroy batch, which moves the
+        //    contents of each dying frame into its heir, its puffs among them, before the frame dies.
         ApplySubscriptionChanges();
         DestroyRequestedEntities();
         Profile.Lap(9);
@@ -168,6 +176,13 @@ public sealed partial class World
         if (entities.RowFrameChanges != convertedAtRowFrameChanges)
             ConvertMovedIntents();
         Profile.Lap(14);
+
+        // 7c. The emitters of the step make its puffs: after step 7, so that an attached jet's back row holds the end of the
+        //     step, and before step 8, which replaces the front render rows, whose emitters are those of the step. The
+        //     emitter bits are those of the last step 8, so an entity that step 6 made live makes none: it was not in the
+        //     step. Then the cap, and the rebuild of the ranges.
+        puffs.AddNewborns(TickNumber, DeltaTime);
+        Profile.Lap(27);
 
         // 8. The back tables become the front tables.
         SwapSnapshot();

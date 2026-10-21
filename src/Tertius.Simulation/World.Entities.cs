@@ -521,6 +521,7 @@ public sealed partial class World
             }
         }
         ConvertIntentsOfDyingFrames();
+        puffs.MoveOutOfDyingFrames(heirOf);
 
         foreach (Entity entity in dying)
             FreeEntity(entity);

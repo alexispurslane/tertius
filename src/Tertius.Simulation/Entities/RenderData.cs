@@ -24,8 +24,13 @@ public struct RenderData
     public Pose ViewOffset;
     /// <summary>The light that the entity carries: a point light, a spot light, or none, which is the default.</summary>
     public LightData Light;
+    /// <summary>
+    /// The puffs that the entity leaves behind it, or the default, which makes none (see <see cref="PuffEmitter"/>). The
+    /// emitter of the front row is the emitter of the step that the next sync point closes.
+    /// </summary>
+    public PuffEmitter Emitter;
 
-    /// <summary>No mesh, no material, unit scale, identity view offset and no light.</summary>
+    /// <summary>No mesh, no material, unit scale, identity view offset, no light and no puffs.</summary>
     public RenderData()
     {
         Scale = Vector3.One;
