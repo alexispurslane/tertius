@@ -15,3 +15,9 @@ On 2026-10-11, during ter-uucg, one full run of tests/Tertius.Simulation.Tests f
 
 Likely cause, not confirmed: a one-time cost on the test thread during the measured loop, for example a tiered-JIT transition (on-stack replacement of the loop), a type load or a static constructor that the single warm-up call did not reach. Next step: reproduce it under load (the full suite, or several runs in parallel), then find what allocates, for example with DOTNET_TieredCompilation=0 or more warm-up calls, and fix the test or the code. Per the testing rules, a flaky test is triaged, not retried.
 
+
+## Notes
+
+**2026-10-21T01:27:11Z**
+
+It failed again on 2026-10-20 in the docking builder's Simulation run, while the machine ran three workflows at a load near 14 on 10 cores. It passed 3 of 3 runs alone.

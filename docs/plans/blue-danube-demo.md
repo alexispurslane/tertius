@@ -1903,10 +1903,11 @@ The video shows numbers from the engine next to numbers that a viewer can check 
 
 | Proof | What the viewer sees | Engine change |
 |---|---|---|
-| Live readouts | Speed, altitude, distance to the station and a g-meter for the character, drawn on each frame from a per-tick log that a demo component writes | No |
-| The frames made visible | A cut-in that outlines each frame's bubble, with a label when the engine makes one | Maybe: the renderer needs debug outlines |
-| Frames on and off, side by side | One part of the script shown twice in a split view, with the automatic frames on in one half and off in the other: a gentle thruster does nothing, and a thrusting person drifts about 10 m in a minute | Probably no: make sure that the option of the tests reaches the demo |
-| Textbook checks | The sim clock shows that things take the time that physics predicts, for example about 92 minutes for one orbit at 400 km | No |
+| Live readouts | Speed, altitude, distance to the station and a g-meter for the character, drawn on each frame from a log with one row for each frame, which a playback of the Demo writes (see "The readout log") | No |
+| The frames made visible | A cut-in that outlines each frame's bubble, with a legend of the kinds of frames | No more: the outlines came with E6 to E8 (see "Change 3: frame outlines") |
+| Textbook checks | The sim clock shows that things take the time that physics predicts: a panel sets the speed and the period of the parking orbit, 88.4 minutes at 200 km, beside the values of the run (see "The textbook checks") | No |
+
+The user chose a fourth proof on 2026-10-18 and left it out on 2026-10-20: one part of the script shown twice in a split view, with the automatic frames on in one half and off in the other. It needs an engine change, an option of the headless run that turns numeric frames off.
 
 The strongest proof is outside the video: a guide in the README that tells a reader which code and tests to read to make sure that each claim is real. Ticket `ter-sb5w` holds that work.
 
@@ -2409,7 +2410,7 @@ The user settled the six forks of this design on 2026-10-18:
 
 ### Not in these changes
 
-- Frames on and off side by side. `WorldOptions.NumericFrames` is internal, and both hosts make their `WorldOptions` in code. So neither a script nor the Demo can turn numeric frames off. That is a separate engine question for the user.
+- Frames on and off side by side. `WorldOptions.NumericFrames` is internal, and both hosts make their `WorldOptions` in code. So neither a script nor the Demo can turn numeric frames off. The user left this proof out of the video on 2026-10-20.
 - The star field. It is always on (`lighting.frag`), though this plan says that the demo adds no sky. A switch for it is another engine question.
 - Progress output, a start tick and a resume for long headless runs. A headless run prints its outputs only at its end.
 - The window's freeze at a capture (ticket ter-viyi).
@@ -2431,6 +2432,226 @@ The spin gravity epic (`ter-s9m0`) answered the two questions that stayed with i
 - Ticket ter-viyi: a note that the capture sink of E3 answers its open question.
 - Ticket ter-rtxu: if fork 5 goes to A, its steps 2 and 3 move to E5.
 - If fork 4 goes to A, decision 19 of docs/plans/editor.md and its row "Frame bubble" point to the snapshot's outlines.
+
+## The edit
+
+Step 7 of "Order of the work", ticket ter-2zrs. The run is one unbroken script, and the master video holds one frame for each of its captures (see "The long script"). The edit turns that master into the final video. It keeps or trims each film, and it draws the readouts and the textbook checks on each frame. It adds the title cards, the transitions and the music, and it encodes the result. Nothing in the engine changes for the edit. Two parts needed engine changes, and the user left both out on 2026-10-20 (see "Engine questions of the edit").
+
+Terms used below:
+
+- The master is the lossless video that `--video` writes, at 60 frames per second. Its frame k is capture k of the script, counted from 0 over all the films in their order.
+- A stretch is the part of the final video that one film becomes.
+- The readout log is a file with one row for each frame of the master.
+- A check panel is a box on the frame that sets a value from the run beside the value that a textbook formula predicts.
+
+### The flow
+
+```mermaid
+graph LR
+  S[scripts/blue-danube.json] --> V[--script ... --video: the master]
+  S --> L[--readouts: the readout log]
+  S --> E[--edit]
+  V --> E
+  L --> E
+  C[BlueDanubeEdit: the cut list] --> E
+  M[the music file] --> E
+  E --> F[the final MP4]
+```
+
+The three commands read the same script. The engine is deterministic. So the run of `--readouts` reaches every frame at the same tick and in the same state as the run that made the master. `FilmScriptTests` and the generator rely on this too. Row k of the log describes frame k of the master, and the edit joins them by that index alone.
+
+### The readout log
+
+Who writes it: `ReadoutLog`, a playback of the Demo (`IPlayback`) that draws nothing. At each capture it reads the world and adds one row. The command `--readouts <script> <log.csv>` builds the scene in a new world, as the headless command does, and runs the script with this playback. It then writes the rows as CSV.
+
+Why a playback, and not a component or the Host:
+
+- A component lives in the world and changes only its own entity. A log of the person, the station and the clock watches the whole world from outside. That is not the job of a component. A component also runs in the parallel update of every tick, so it writes to a file from there.
+- The playback is the seam that the runner already calls at exactly the moments that the video shows, with the frame's name. `BlueDanubeFilmTests` reads the long script through a playback in the same way.
+- The Host is engine code. A log beside the video sink in the same run needs a Host change. A second run takes about as long as the rehearsal, under two minutes today, and it changes nothing in the engine.
+
+Why one row for each frame and not for each tick: the video shows only the captured ticks. A row for each frame needs no join by tick. The log is also 18 times smaller than a log with a row for each tick: 15,782 frames against 292,467 ticks today.
+
+Each row holds raw quantities from the engine, and the edit derives the rest:
+
+| Column | Meaning |
+|---|---|
+| `frame` | The capture's name, such as `climb-low-000012` |
+| `tick` | `World.TickNumber` at the capture |
+| `x`, `y`, `z` | The person's position in `earth-surface`, in meters. `earth-surface` is the root frame at Earth's center, and it does not turn. |
+| `speed` | The length of the person's velocity in `earth-surface`, in m/s |
+| `station` | The distance from the person to the station's center, in meters |
+| `felt` | The length of the felt gravity at the person's place, `FrameTree.FeltGravity` of the person's frame at its position there, in m/s² |
+
+Every readout is about the person, in the one frame `earth-surface`. The camera follows the person, and from the boarding on the person rides in the shuttle, so the readouts tell the shuttle's flight too. The log writes each number in the round-trip format, so a read of the log gives back the same doubles.
+
+### The readouts on the frame
+
+The edit draws the text of each frame with libass, from one subtitle file in the ASS format that it writes. libass is in the dev shell's ffmpeg. Each frame of the master that the cut list keeps gets its own events, which start at the frame's time and end at the next frame's time. ASS times have a resolution of 1/100 s and the frames come every 1/60 s, so the edit rounds both ends down to the hundredth: frame k shows from floor(100 k / 60) to floor(100 (k + 1) / 60) hundredths. Before the subtitles, the edit sets the time stamp of frame k to exactly k / 60. So every frame shows its own row. A test pattern showed this on 2026-10-20.
+
+The layout, at 1280 × 720:
+
+| Place | Text | Look |
+|---|---|---|
+| Top left | `SPEED 7,788.1 m/s`, `ALTITUDE 199.98 km`, `TO STATION 1,523.4 km`, `FELT GRAVITY 0.00 g`, one per line | Menlo 22 px, white on a black box at 60 % |
+| Top right | `SIM CLOCK T+ 0:05:40.5`, and below it the rate of the film | Menlo 22 px. The rate is gray `REAL TIME` for a film of every tick, and amber `TIME-LAPSE ×240` for one of every 240th tick. |
+| Bottom right | The check panel, while one shows | Menlo 18 px, white on a black box at 60 % |
+| Bottom left | The part's title, for the first 4 s of the part | Avenir Next 44 px, with a gray subtitle of 24 px, fading in and out over 0.6 s |
+
+The rules of the numbers:
+
+- Speed in m/s with one decimal.
+- Altitude is the distance from Earth's center less `EarthRadius`. Below 10 km it shows in meters with one decimal, and above in kilometers with two.
+- The distance to the station shows in meters with one decimal below 10 km, and in kilometers with one decimal above.
+- Felt gravity is `felt` / 9.80665, in g, with two decimals.
+- The sim clock is `tick` / 60, in hours, minutes and seconds with one decimal. It starts at tick 0 of the run.
+- The rate is the film's `every`. The video plays at 60 frames per second, so a film of every Nth tick plays N times faster than the simulation.
+
+### The textbook checks
+
+The check must read a value that the engine computes by physics, not one that it sets by formula. The station flies on Kepler rails (`KeplerMotion`), so its period is Kepler's by construction, and a check of it proves nothing. The shuttle is a dynamic body, and Jolt integrates it in Earth's point gravity, so the checks read the person, who rides in it.
+
+One panel today, the parking orbit. It shows from the film `orbit` through the film `night`, while the shuttle coasts in the parking orbit before the transfer burn:
+
+```
+TEXTBOOK CHECK   parking orbit, 200.0 km up
+circular speed √(GM/r)   7,788.5 m/s   run 7,788.4 m/s
+one orbit 2π√(r³/GM)       88.4 min   run measuring
+```
+
+- r is the distance from Earth's center in the frame's row, and GM is `EarthMu`.
+- The run's speed is the row's `speed`.
+- Take t, the sim time since the first frame of `orbit`. Take θ, the angle round Earth's center that the person moved through in t. The run's orbit is 360 degrees × t / θ. The coast turns about 109 degrees, less than half a turn. So the angle is the arc cosine of the two unit positions. For the first 10 s of the span, where the arc is short, the panel shows `measuring` in place of the run's orbit.
+
+The first example of the plan, about 92 minutes for one orbit at 400 km, is the station's orbit, and so it is not a check. The parking orbit at 200 km takes 88.4 minutes.
+
+A second panel waits for the docking and the exit: spin gravity in the wheel. While the person stands on the wheel's floor, the panel sets ω² r / g beside the g-meter. ω is `SpinStation.Rate`, and r is `SpinStation.FloorRadius`. That is 0.31321² × 100 / 9.80665 = 1.00 g. The ticket that adds the wheel's sections adds this panel, with its first and last film.
+
+### The cut list
+
+`BlueDanubeEdit` holds the cut list in the Demo, beside `BlueDanube.Sections`. It names films of the script, never frame numbers of the master, and the edit reads the frames of each film from the script: the film's first frame in the master is the sum of the frames of the films before it. A test checks that every name in the cut list is a film of the checked-in script.
+
+The rules:
+
+- Every film of the script becomes one stretch, in the script's order. The edit drops no film and changes no rate. A time-lapse comes from the script, as the rules of the plan say.
+- Between two stretches there is a hard cut. A camera step of the run is a hard cut already. A fade there shows two moments of the run at once.
+- A trim drops frames from the head or the tail of a film. A trim counts frames from the film's edges. The film's edges come from its cues. So when the scene changes, a trim follows it. The edit refuses a trim that leaves less than one second of the film.
+- A part's title shows over the first 4 s of the first stretch of the part. The run goes on under it, so the title does not interrupt the one unbroken run.
+
+The parts:
+
+| Part | First film | Title | Subtitle |
+|---|---|---|---|
+| 1 | `overview` | Earth's surface | The person walks through the terminal and boards the shuttle. |
+| 2 | `ignition` | The launch | Up the ramp and into an orbit 200 km up. |
+| 3 | `orbit` | Weightless | The ship's frame falls freely, so the cabin is weightless by itself. |
+| 4 | `belt` | The rendezvous | A transfer of 170 degrees to the station, 400 km up. |
+| 5 | The docking's first film | The docking | The shuttle matches the station's spin and lands in the barrel. |
+| 6 | The exit's first film | The wheel | Down a spoke to full spin gravity. |
+
+When the sections of the docking and the exit exist, those tickets add parts 5 and 6.
+
+#### The dark frames
+
+A ticket note of 2026-10-20 found the gray-box hull nearly black in Earth's shadow, in the first frame of `transfer` and in the last frame of `hold`. Round 1 of the edit cut the first 360 frames of `transfer` for that. The user then decided on 2026-10-20: no fill light, and "If it is at all visible, leave it. Sounds dramatic". So the rule of the edit is:
+
+- It keeps every frame where any part of the shuttle or the station shows, however dark.
+- It cuts a stretch only where the picture shows nothing of the shuttle or the station at all, and then only if the design needs the time.
+
+The measure, on the master of the checked-in script of 2026-10-20, with the shuttle's tram shape and its glass canopy: the `signalstats` filter of ffmpeg reads the luma, from 0 to 255, of fixed regions of each frame of the 1280 × 720 master, which has no text on it.
+
+| Films | Camera | Region | Darkest frame of the films |
+|---|---|---|---|
+| `climb-high`, `orbit`, `phasing`, `transfer`, `glide`, `hold-chase` | `chase-camera` | The shuttle's box, x 500 to 740 and y 300 to 445. The camera rides fixed in the shuttle's frame, so the shuttle covers the same pixels in each of its frames. | The 90th percentile of the box is 151 or more. It lies at least 82 above the mean of the brightest of four strips round the box, the sky or Earth behind the shuttle. In `transfer`, the darkest film, the box is 151 and the strips 25. |
+| `night`, `burn`, `transfer-night`, `arrival` | `cockpit-camera` | The whole picture: the cabin fills it | The mean is 168 or more. The cabin is lit in Earth's shadow too. |
+| `closing` | `bow-camera` | The shuttle's nose, x 200 to 360 and y 405 to 535 | The 90th percentile is 220 or more. |
+| `glide-rim`, `hold` | `rim-camera` | The station's spoke at the left of the picture, x 80 to 330 | The 90th percentile is 28 or more, on a black sky: the mean of the whole picture is 3.8 in the darkest frame. Dark, but it shows. |
+
+The other films are on the ground, in the cabin, at the pen and at the windows, in daylight or in the lit cabin. So every frame of the master shows the shuttle or the station, and the cut list trims nothing. The face of the hull that looks at the chase camera is still dark in Earth's shadow. But the panes of the glass canopy show the lit cabin, so the shuttle stands out against the night side of Earth. At the end of `transfer`, the station is too small to see, and the shuttle shows.
+
+The trims stay in the rules of the cut list. The docking and the exit can have frames that show nothing, and the rule above decides them.
+
+The stretches of today hold all 15,782 frames of the master, 263.0 s at 60 frames per second. With the cards, the final video lasts 276.0 s, 4 minutes 36 s. The docking and the exit add their own stretches.
+
+### The title cards and the transitions
+
+Two cards on a black background, centered, in Avenir Next:
+
+- The opening card, 5 s. `Tertius` at 96 px, `The Blue Danube` at 40 px below it, and in gray at 24 px: "One unbroken run of the engine at 60 ticks per second, recorded headless with its real renderer."
+- The closing card, 8 s. In white at 32 px: "Gray-box meshes. No textures, no sky, no anti-aliasing." and "The engine is unfinished. The physics is the point." In gray at 24 px, one line: "Music: " and the credit that the edit's command gets with `--music-credit`. With no music, the line is left out. The credit of the recording fits on one line at 1280 × 720 (`EditCommandTests`): "Music: The Blue Danube (Johann Strauss II). United States Marine Band, Albert F. Schoepper, conductor. Public domain."
+
+The transitions: the opening card fades in from black over 0.5 s and out to black over 0.5 s. The video fades in from black over 0.5 s at its start and out to black over 1 s at its end. Then the closing card fades in and out the same way. So the only transitions are two dips to black, between a card and the run.
+
+The frames made visible add a legend while outlines show (see below). The decision of 2026-10-18 says a legend on a title card: the legend is a card that the edit draws on the frame at the top left, below the readouts, while the run goes on. It has one line for each kind of frame, with a dot of the color from ARCHITECTURE.md, "The overlay pass". Blue is a frame's bubble, and pink is a falling frame. Gold is a following frame, teal a resting frame and purple a nesting frame.
+
+### The frames made visible
+
+The outlines exist (E6 to E8): the `outlines` step turns `World.ShowFrameOutlines` on and off between ticks, and the first capture after the step shows the change. So the cut-in needs no engine change. It is a stretch of the long script itself with the outlines on.
+
+- `FilmSection` gains `Outlines`, false by default. The generator writes an `outlines` step before the camera step of a section whose `Outlines` differs from the section before it, starting from off. With no section that sets it, the script stays the same to the byte, so `BlueDanubeScriptTests` stays green.
+- The edit finds the outlines steps in the script, and draws the legend over the films that the outlines show in.
+- The sections that show the outlines:
+  - `boarding`: the person walks into the shuttle's bubble (blue) on the ground.
+  - `ramp`: the shuttle passes 50 m/s while it thrusts, and the engine gives it a falling frame (pink).
+  - `climb-high`: the sphere of the falling frame holds the bubble.
+  - `glide-rim`: the station's bubble, the following frame round the station, and the shuttle's frames.
+  - The docking adds its own.
+- The frames that each of these sections shows come from the rules of numeric frames in ARCHITECTURE.md. When the sections get `Outlines`, a look at the frames checks them.
+- Why the same run and not a second run with outlines: the frames come from one run. So no frame of the cut-in has to match a frame of another video. The final render also needs only one run of the script.
+- Other tickets write `scripts/blue-danube.json` now. So the sections set `Outlines` after the docking and the exit merge. The script is written again then anyway.
+
+### Engine questions of the edit
+
+One proof and one fix of the light needed engine changes. The user settled both on 2026-10-20, and the edit makes neither:
+
+- No split view. The proof with the automatic frames on in one half of the picture and off in the other needed an option of the headless run that reaches `WorldOptions.NumericFrames`. The user left the proof out, so the edit has no second run and no `--numeric-frames` option.
+- No fill light. The renderer has a sun and an ambient light, and no light that follows the camera, so a fill light for the frames in Earth's shadow is a renderer change. The user said: "If it is at all visible, leave it. Sounds dramatic". So the edit keeps every stretch where any part of the shuttle or the station shows, however dark (see "The dark frames" above).
+
+### The music
+
+The recording: "The Blue Danube" by Johann Strauss II, played by the United States Marine Band and conducted by Albert F. Schoepper. It is a work of the US government, and so it is in the public domain. It comes from Wikimedia Commons, the file "An der schönen, blauen Donau" performed by the U.S. Marine Band.mp3: 13,183,232 bytes, MP3 at 192 kbit/s, 44.1 kHz, stereo. The user said yes to its download on 2026-10-20. The file stays outside the repository, and the edit takes its path with `--music`.
+
+ffprobe in the dev shell measures the recording at 549.06 s, 9 minutes 9 s. The last 2.8 s are silence. The video lasts 276.0 s today, about half of the recording. The edit fits the music to the cut with one rule:
+
+- The music starts at second 0 of the recording (`--music-start 0`), with the first frame of the opening card. The waltz opens with its quiet introduction, at about 47 dB below full scale in its first second, so it starts under the black card with no jump.
+- It fades in over 2 s and out over the last 5 s of the video, which lie in the closing card. So the music ends with the picture.
+- It is encoded as AAC at 192 kbit/s, the rate of the source.
+
+Why a fade and no cut of the music: the waltz is twice as long as the run, and the run is one unbroken take, so the picture cannot follow the music's sections. A cut inside the music, to end on its last chord, needs an edit of the music by ear. A fade over the closing card ends the music where the picture ends, and it stays right when the docking and the exit make the video longer: the recording is long enough for a video of up to 9 minutes. In the cut of today, the fade ends 0.2 s before a short pause of the waltz: from 276.25 s to 276.75 s of the recording, its level falls to about 45 dB below full scale.
+
+### The final render
+
+```
+dotnet run -c Release --project src/Tertius.Demo -- --script scripts/blue-danube.json --headless --out runs/danube --video runs/danube/blue-danube.mkv --fps 60
+dotnet run -c Release --project src/Tertius.Demo -- --readouts scripts/blue-danube.json runs/danube/readouts.csv
+dotnet run -c Release --project src/Tertius.Demo -- --edit runs/danube/blue-danube.mp4 --script scripts/blue-danube.json --master runs/danube/blue-danube.mkv --readouts runs/danube/readouts.csv --music <blue-danube-us-marine-band.mp3> --music-start 0 --music-credit "The Blue Danube (Johann Strauss II). United States Marine Band, Albert F. Schoepper, conductor. Public domain."
+```
+
+- `--edit` writes its subtitle files into the folder `<out>.parts` beside the output, and it runs one ffmpeg command.
+- The output is an MP4 with H.264 at quality 18 (`-crf 18`), 1280 × 720 at 60 frames per second. Its pixel format is yuv420p, which every player reads. Its index is at the front of the file (`-movflags +faststart`).
+- `--music`, `--music-start` and `--music-credit` are optional, and the video has no sound without them.
+- The command refuses a log whose rows do not match the frames of the script by count and by name. It also refuses a master whose count of frames does not match. So a log or a master from another script cannot reach the edit.
+- The length today: 276.0 s, 4 minutes 36 s. The docking and the exit add theirs.
+
+Measured in round 1, on 2026-10-20, on an Apple M1 Max, with the script of that day and no music: the master took 2 minutes 53 seconds, 15,806 frames and 410 MB. The edit took 55 s. Its frames showed the readouts, the clock, the rate and the check panel as designed, and also the titles, the cards and the dips to black.
+
+Measured in round 2, the final render, on 2026-10-20, on the same machine, with the checked-in script after the shuttle's tram shape merged, and with the music:
+
+- The master took 2 minutes 58 seconds from the command line: 15,782 frames, 541 MB.
+- The readout log took 1 minute 44 seconds.
+- The edit took 51 s, with libx264 on all cores. The final video has 16,562 frames, 276.0 s at 60 frames per second, and an AAC track of 276.0 s. It is 42.6 MB.
+- Its frames show the closing card with the line of the music, and the shuttle in the darkest frame of `transfer`.
+
+### Order of the work
+
+1. This design, committed alone.
+2. The readout log and `--readouts`, with tests on the real World and the real Jolt backend.
+3. The edit's pure parts, with tests: the films of a script, the cut list, the text of the readouts, the clock, the rate, the check panel, the timing of the events.
+4. `--edit`: the subtitle files, the ffmpeg command and the run, with a test on a small video from the dev shell's ffmpeg.
+5. `FilmSection.Outlines` in the generator, with a test, and no section that sets it yet.
+6. A test edit of the master of today, with no music, and a look at its frames.
+7. After the user's yes for a recording and its download: the final render with the music (done on 2026-10-20).
+8. After the docking and the exit merge: their parts and the wheel's panel go into the cut list, and the sections above get `Outlines`. The script is written again, the dark frames are measured again as in "The dark frames", and the video is rendered again.
 
 ## Order of the work
 
