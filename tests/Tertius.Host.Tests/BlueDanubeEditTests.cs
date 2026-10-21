@@ -92,10 +92,10 @@ public sealed class BlueDanubeEditTests
     [Fact]
     public void TheOutlinesShowWhereTheFramesMatter()
     {
-        // The walk into the parked shuttle's bubble, the falling frame on the ramp, the hand-off out of the turning ground
-        // in the climb, the shuttle's own frame in orbit, the station's bubble and its following frame at the rim, and the
-        // entry into the station's turning bubble (docs/plans/blue-danube-demo.md, "The frames made visible").
-        Films.Where(film => film.Outlines).Select(film => film.Name).Should().Equal("boarding", "ramp", "climb-high", "orbit", "glide-rim", "entry");
+        // The walk into the parked shuttle's bubble, the falling frame that forms round the shuttle early in the climb, the
+        // hand-off out of the turning ground later in the climb, the shuttle's own frame in orbit, the station's bubble at
+        // the rim, and the entry into the station's turning bubble (docs/plans/blue-danube-demo.md, "The frames made visible").
+        Films.Where(film => film.Outlines).Select(film => film.Name).Should().Equal("boarding", "climb-low", "climb-high", "orbit", "glide-rim", "entry");
     }
 
     [Fact]

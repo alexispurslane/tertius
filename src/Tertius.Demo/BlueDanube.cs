@@ -76,7 +76,8 @@ public static class BlueDanube
         new("terminal", "terminal-camera", Every: 1, (world, scene) => PersonOnTheGround(world, scene).X < DemoSurface.TerminalCenter.X - DemoSurface.TerminalHalf.X - 1),
         new("pad", "follow-camera", Every: 1, (world, scene) => Double3.Distance(PersonInCabin(world, scene), Shuttle.OutsideHatch) < 1.5),
         // The follow camera, which looks through the hatch after the person, meets the hull's side and jumps into the
-        // cabin, so the apron camera films the boarding until the follow camera is in the cabin.
+        // cabin, so the apron camera films the boarding until the follow camera is in the cabin. The outlines show the
+        // parked shuttle's bubble, which the person walks into.
         new("boarding", "apron-camera", Every: 1, (world, scene) => InsideTheCabin(world.PoseIn(scene["follow-camera"], world.GetOwnedFrame(scene["shuttle"])).Position),
             Outlines: true),
         new("cabin", "follow-camera", Every: 1, (world, scene) => PassengerOf(world, scene).Value is not Boarding, Hold: Second),
@@ -89,17 +90,20 @@ public static class BlueDanube
         // The launch: the ignition, the ramp, and the flight past its top.
         new("ignition", "pad-camera", Every: 1, (world, scene) => Rise(world, scene) > LaunchRamp.Height / 8,
             Posts: [new PostStep(new ToEntity("shuttle"), nameof(Ignition))]),
-        new("ramp", "ramp-camera", Every: 1, (world, scene) => Rise(world, scene) > LaunchRamp.Height * 3 / 4, Outlines: true),
+        new("ramp", "ramp-camera", Every: 1, (world, scene) => Rise(world, scene) > LaunchRamp.Height * 3 / 4),
         new("ramp-top", "ramp-top-camera", Every: 1, (world, scene) => AscentOf(world, scene).Value is Climb or Orbit, Hold: Second),
 
         // The climb to orbit, as a time-lapse: the ground falls away, the belted person and the pen in the cabin, and the
-        // long climb to the circle 200 km up.
-        new("climb-low", "climb-camera", Every: 4, (world, scene) => Altitude(world, scene) > 15e3),
+        // long climb to the circle 200 km up. The outlines of climb-low show the falling frame that forms round the
+        // shuttle's bubble in the film's first 10 s, and those of climb-high the hand-off out of the turning ground's
+        // bubble, 178.4 km up.
+        new("climb-low", "climb-camera", Every: 4, (world, scene) => Altitude(world, scene) > 15e3, Outlines: true),
         new("climb-cabin", "follow-camera", Every: 4, FilmSection.Now, Hold: Second * 10),
         new("climb-pen", "pen-camera", Every: 4, FilmSection.Now, Hold: Second * 4),
         new("climb-high", "chase-camera", Every: 20, (world, scene) => AscentOf(world, scene).Value is Orbit, Outlines: true),
 
-        // Orbit: the clip lets the pen go, and the person floats to it and takes it.
+        // Orbit: the clip lets the pen go, and the person floats to it and takes it. The outlines of orbit show the shuttle's
+        // own frame and its falling frame on the circle.
         new("orbit", "chase-camera", Every: 1, FilmSection.Now, Hold: Second, Outlines: true),
         new("pen-release", "pen-camera", Every: 1, (world, scene) => PenReleased(world, scene), Hold: Second * 2),
         // The person floats toward the pen camera on its way to the pen, so the hand camera takes over before the person
@@ -129,6 +133,7 @@ public static class BlueDanube
         new("turn", "window-camera", Every: 1, (world, scene) => NoseFromStation(world, scene) < NoseOnStation),
         new("glide", "chase-camera", Every: 6, (world, scene) => ToStation(world, scene) < 700),
         new("glide-window", "window-camera", Every: 4, (world, scene) => ToStation(world, scene) < 400),
+        // The outlines show the station's bubble ahead of the shuttle and the shuttle's frames.
         new("glide-rim", "rim-camera", Every: 4, (world, scene) => ToStation(world, scene) < 200, Outlines: true),
         new("arrival", "cockpit-camera", Every: 4, (world, scene) => RendezvousOf(world, scene).Value is Hold, Hold: Second * 3),
         // The hold, from the station's rim, and then the person through the starboard glass with the station ahead. The
@@ -144,7 +149,8 @@ public static class BlueDanube
             Posts: [new PostStep(new ToEntity("shuttle"), nameof(Dock))]),
         new("spin-up", "chase-camera", Every: 2, (world, scene) => DockingOf(world, scene).Value is SpinUp { StartTime: var start } && world.Time - start >= SpinUpFilmed),
         new("spin-match", "hold-camera", Every: 2, (world, scene) => DockingOf(world, scene).Value is Entry),
-        // The window camera films the slot ahead until the nose is 10 m from the slot's outer face.
+        // The window camera films the slot ahead until the nose is 10 m from the slot's outer face. The outlines show the
+        // shuttle's entry into the station's turning bubble, 120 m from its center.
         new("entry", "window-camera", Every: 4, (world, scene) => InStation(world, scene).Position.Y < DemoStation.HubHalf.Y + Shuttle.Hull.Z + NoseToSlot,
             Outlines: true),
         new("slot", "bay-camera", Every: 2, (world, scene) => DockingOf(world, scene).Value is MoveOut),
