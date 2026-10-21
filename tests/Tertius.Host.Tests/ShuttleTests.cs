@@ -238,6 +238,24 @@ public sealed class ShuttleTests : IDisposable
     /// <see cref="Shuttle.CenterOfMass"/> is where it started, within 1 mm. A center of mass off by d moves that point by
     /// about d in that time, from the turn and from the drift that the spawn velocity gives the true center.
     /// </summary>
+    /// <summary>
+    /// The engine keeps the center of mass that Jolt computes for the hull's shape, and publishes it in the body facts
+    /// (docs/plans/parts.md, "Settled forks"). The demo's own value comes from the integral of the loft. The two agree
+    /// within 1 mm, so the demo can take the engine's value for the places of its parts and drop its own.
+    /// </summary>
+    [Fact]
+    public void TheShuttlesHullHasItsCenterOfMassWithinAMillimeterOfTheLoftsIntegral()
+    {
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f)));
+        Entity hull = FreeHull(space, Vector3.Zero);
+
+        world.Snapshot.TryGetBody(hull, out BodyFacts facts).Should().BeTrue();
+
+        Vector3.Distance(facts.CenterOfMass, Shuttle.CenterOfMass).Should().BeLessThan(1e-3f,
+            $"the engine's center of mass {facts.CenterOfMass} is the loft's {Shuttle.CenterOfMass}");
+        facts.CenterOfMass.Length().Should().BeGreaterThan(0.1f, "the hull's center of mass is low and aft of its origin");
+    }
+
     [Fact]
     public void TheCenterOfMassStaysStillWhileTheFreeHullSpins()
     {
