@@ -4461,10 +4461,11 @@ The master with the plumes took 2 minutes 32 seconds from the command line on 20
 - A part with no push in a tick makes no puffs: after a burn of 20 ticks, the count of the puffs stays the same.
 - Each part's puffs leave against its push, on a turned hull.
 - The back jet's emitter follows the size of its force, and its puffs leave against the force. A force of zero makes no puffs.
+- A part that had pushed clears its emitter in the first tick without a command, and in a tick with a throttle outside 0 to 1, a NaN throttle or a force that is not finite. The world logs the error.
 - A burn's puffs fall behind the hull in its frame, in vacuum and in air: every puff lies aft of the nozzle, in the hull's axes.
 - The frames of the long script's scene carry their air. The density of earth-surface's air is 1.225 kg/m³ at the surface and 1/e of that 8.5 km up. Earth and the sun have none. The cabin and the bay have air, and the space outside the hull and the hold point have none.
 
-For each test a hand mutation broke the line that it protects, and the test failed. The 15 mutations:
+For each test a hand mutation broke the line that it protects, and the test failed. The 20 mutations:
 
 - The rate without the throttle.
 - An emitter of rate 0 at throttle 0, in place of the default emitter.
@@ -4474,7 +4475,9 @@ For each test a hand mutation broke the line that it protects, and the test fail
 - The main engine's exhaust forward, and a jet's exhaust along its push.
 - The back jet aimed along its force, its throttle halved, and its full rate in every tick.
 - No air in earth-surface, no air in the cabin, and air in the whole station frame.
- `ShuttleJetControlTests.TheJetsArePartsOfTheHullAtTheirPlaces` no longer checks that a part keeps the hull's rotation. `BlueDanubeEditTests` checks that the panel of the parking orbit ends before `burn-chase`.
+- The main engine and the jet that keep their emitter on a bad throttle, the jet without `Tick`, and the back jet that keeps its emitter on a force that is not finite, and without `Tick`.
+
+`ShuttleJetControlTests.TheJetsArePartsOfTheHullAtTheirPlaces` no longer checks that a part keeps the hull's rotation. `BlueDanubeEditTests` checks that the panel of the parking orbit ends before `burn-chase`.
 
 ### Decisions
 

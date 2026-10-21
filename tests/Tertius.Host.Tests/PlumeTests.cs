@@ -306,6 +306,87 @@ public sealed class PlumeTests : IDisposable
         station.Drag.Should().Be(ground.Drag);
     }
 
+    /// <summary>
+    /// A part that has pushed and then gets a throttle that is no throttle, above 1, below 0 or NaN, clears its emitter and
+    /// pushes nothing, and the world logs the error. A bad command shows no puffs.
+    /// </summary>
+    [Theory]
+    [InlineData(false, 1.5f)]
+    [InlineData(false, -0.1f)]
+    [InlineData(false, float.NaN)]
+    [InlineData(true, 1.5f)]
+    [InlineData(true, float.NaN)]
+    public void ABadThrottleClearsTheEmitterOfAPartThatHadPushed(bool jet, float bad)
+    {
+        Launch(space, DQuaternion.Identity);
+        IComponent part = jet ? new JetThruster(Control.Layout.Pairs[0].First) : new MainEngine(Shuttle.MainEngineThrust);
+        var driver = new ThrottleBy(tick => tick < 6 ? 0.5f : bad);
+        Entity engine = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = DPose.Identity,
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1, 1, 1)), Mass: 100),
+            Components = [driver, part],
+        });
+
+        Tick(world, 5);
+        EmitterOf(engine).Should().Be(jet ? JetThruster.Plume.At(0.5f) : MainEngine.Plume.At(0.5f), "the part pushed");
+        world.Errors.Should().BeEmpty();
+
+        Tick(world, 4);
+
+        EmitterOf(engine).CanMakePuffs.Should().BeFalse("the bad throttle cleared the emitter");
+        world.Errors.Should().NotBeEmpty("the bad throttle is an error");
+    }
+
+    /// <summary>A main engine or a jet that pushed and then gets no throttle in a tick shows no puffs in that tick.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void APartThatHadPushedClearsItsEmitterInTheFirstTickWithoutAThrottle(bool jet)
+    {
+        Launch(space, DQuaternion.Identity);
+        IComponent part = jet ? new JetThruster(Control.Layout.Pairs[0].First) : new MainEngine(Shuttle.MainEngineThrust);
+        Entity engine = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = DPose.Identity,
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1, 1, 1)), Mass: 100),
+            Components = [new ThrottleBy(tick => tick < 6 ? 0.5f : null), part],
+        });
+
+        Tick(world, 6);
+        EmitterOf(engine).CanMakePuffs.Should().BeTrue("the part pushed");
+
+        Tick(world, 2);
+
+        EmitterOf(engine).CanMakePuffs.Should().BeFalse("the throttle stopped");
+    }
+
+    /// <summary>The back jet that had pushed shows no puffs in the first tick without a force, and none after a force that is not finite.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ABackJetThatHadPushedClearsItsEmitterWhenTheForceStopsOrIsNotFinite(bool notFinite)
+    {
+        var person = new JetForceBy(tick => tick < 6 ? new Vector3(0, 0, -50) : notFinite ? new Vector3(float.NaN, 0, 0) : Vector3.Zero, silentAfter: notFinite ? int.MaxValue : 6);
+        world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = DPose.Identity,
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.3f, 0.9f, 0.3f)), Mass: 70),
+            Components = [person],
+        });
+
+        Tick(world, 6);
+        EmitterOf(person.Jet).CanMakePuffs.Should().BeTrue("the jet pushed");
+
+        Tick(world, 4);
+
+        EmitterOf(person.Jet).CanMakePuffs.Should().BeFalse("the force stopped");
+        world.Errors.Any().Should().Be(notFinite, "only a force that is not finite is an error");
+    }
+
     /// <summary>A test component that adds a <see cref="Throttle"/> of <paramref name="value"/> to its entity's events in each of its first <paramref name="ticks"/> ticks.</summary>
     private sealed class ThrottleFor(int ticks, float value) : IComponent
     {
@@ -350,6 +431,46 @@ public sealed class PlumeTests : IDisposable
                 Jet = BackJet.Spawn(self);
             else
                 outbox.Send(Jet, new JetForce { Force = force });
+        }
+    }
+
+    /// <summary>A test component that adds a <see cref="Throttle"/> of <c>value(tick)</c> to its entity's events in each tick, by the number of the tick from 0, and none in a tick whose value is null.</summary>
+    private sealed class ThrottleBy(Func<int, float?> value) : IComponent
+    {
+        private int tick;
+
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            if (value(tick++) is float each)
+                events.Add(new Throttle { Value = each });
+        }
+    }
+
+    /// <summary>
+    /// A test component that spawns a back jet on its entity in its first tick and sends it <c>force(tick)</c> in each later
+    /// tick, except from tick <paramref name="silentAfter"/> on, when it sends nothing.
+    /// </summary>
+    private sealed class JetForceBy(Func<int, Vector3> force, int silentAfter) : IComponent
+    {
+        private int tick;
+
+        public Entity Jet { get; private set; }
+
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            if (Jet.IsNull)
+                Jet = BackJet.Spawn(self);
+            else if (tick < silentAfter)
+                outbox.Send(Jet, new JetForce { Force = force(tick) });
+            tick++;
         }
     }
 }
