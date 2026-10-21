@@ -1,6 +1,6 @@
 # Particles: puffs
 
-Epic: `ter-4zt6`. Its first user is the demo's plumes (`ter-6u2m`). It builds on parts (`ter-ftk4`), which make each jet of a hull its own attached entity, and on the move of the demo's jets onto parts (`ter-diu0`). The design settled with the user on 2026-10-21, and the user revised the first draft (3da92c5) on the same day. This doc writes out the revised design, and it settles what the user's rules decide.
+Epic: `ter-4zt6`. Its first user is the demo's plumes (`ter-6u2m`). It builds on parts (`ter-ftk4`), which make each jet of a hull its own attached entity, and on the move of the demo's jets onto parts (`ter-diu0`). The design settled with the user on 2026-10-21, and the user revised the first draft (3da92c5) on the same day. This doc writes out the revised design, and it settles what the user's rules decide. The user settled the draft's two forks on the same day (see "Settled forks").
 
 ## Goal
 
@@ -12,8 +12,8 @@ A puff is a loose body without a shape. This sentence says how a puff moves, not
 
 - A puff is born in the frame of its emitter's entity, and it lives in that frame for its whole life.
 - It moves as a loose body in that frame moves: by the frame's linear gravity (its field less its proper acceleration), and in a turning frame by the two-turn update, which holds the Coriolis, the centrifugal and the Euler terms.
-- A frame can hold a medium: the gas that fills it, at rest in the frame's axes. The medium pushes on a puff by Archimedes' law. It lifts the puff by a share of the effective gravity, the lift share, which is the medium's density at the puff over the puff's own density. It also drags the puff toward rest in the frame, at the medium's drag times the same lift share. So in vacuum a puff falls with the ship as a loose body does. In air, hot exhaust that is lighter than the air rises, and cold gas that is heavier sinks.
-- A puff mixes into the medium as it ages. The share of its own gas falls from 1 at its birth to 0 at the end of its life, and its density moves from its own gas's density toward the medium's by the same share. Its light fades by the same share.
+- A frame can hold a medium: the gas that fills it, at rest in the frame's axes. The medium pushes on a puff by Archimedes' law. It lifts the puff by a share of the effective gravity, the lift share, which is the medium's density at the puff over the puff's density. The puff is at the medium's pressure, so by the ideal gas law the lift share is the puff's temperature over the medium's, the same at every height. It also drags the puff toward rest in the frame, at the medium's drag times the same lift share. So in vacuum a puff falls with the ship as a loose body does. In air, hot exhaust that is lighter than the air rises, and cold gas that is heavier sinks.
+- A puff mixes into the medium as it ages. The share of its own gas falls from 1 at its birth to 0 at the end of its life. Its temperature cools from that of its own gas toward the medium's by the same share. Its light fades by the same share.
 - It touches nothing. No collision, no contact, no force on any body.
 - It dies at the end of its life.
 - When its frame dies, it moves into the nearest surviving ancestor, as every content of a dying frame does. When no ancestor survives, it dies.
@@ -33,7 +33,7 @@ Why the simulation owns the puffs. The renderer knows no frames. A time-lapse fi
 | Puff | One particle: a loose body without a shape, in one semantic frame. |
 | Emitter | The `PuffEmitter` in an entity's render row, `RenderData.Emitter`. An entity holds one, as it holds one light. |
 | Emitter's entity | The entity whose render row holds the emitter. With parts, a jet. |
-| Look | What the puffs of an emitter share: their life, their two radii, their gas density and their shading. A `PuffLook`, a field of the emitter. |
+| Look | What the puffs of an emitter share: their life, their two radii, their temperature ratio and their shading. A `PuffLook`, a field of the emitter. |
 | Look table | The store of the looks that live puffs use, each look once, with the count of the puffs that use it. Each row holds the index of its look there. |
 | Row | One puff in the store: a `Puff`, with a place, a chord, an age and a look index. |
 | Range | The rows of one frame: a `PuffRange` with the frame, the index of its first row and the count of its rows. |
@@ -47,11 +47,12 @@ Why the simulation owns the puffs. The renderer knows no frames. A time-lapse fi
 | Turns | V1 and V2 of a frame (`FrameTurns`): the turn of its axes over the step in flight and over the step that ended. |
 | Medium | The gas that fills a frame, at rest in the frame's axes: the frame's `MediumField`. |
 | Medium's density | The density of the medium at a place, ρ_m, in kg/m³. 0 in vacuum. |
-| Medium's drag | κ, in 1/s: how fast the medium brings a puff of its own density to rest in the frame. |
-| Gas density | ρ_g, in kg/m³: the density of a puff's own gas, a field of its look. |
-| Own share | w = 1 − age / life: the share of its own gas that a puff still holds. It is also the weight of the puff's light in the renderer. |
-| Puff's density | ρ_p = w ρ_g + (1 − w) ρ_m, in kg/m³: the density of the mix of its own gas and the medium. |
-| Lift share | β = ρ_m / ρ_p, a pure number. 0 in vacuum, above 1 for a puff that is lighter than the medium, below 1 for one that is heavier. |
+| Medium's drag | κ, in 1/s: how fast the medium brings a puff at the medium's temperature to rest in the frame. |
+| Temperature ratio | θ, a pure number above 0: the temperature of a puff's own gas over the medium's temperature. A field of its look. |
+| Own share | w = 1 − age / life: the share of its own gas, by mass, that a puff still holds. It is also the weight of the puff's light in the renderer. |
+| Puff's temperature ratio | r = 1 + w (θ − 1): the temperature of the mix of the puff's own gas and the medium over the medium's temperature. |
+| Puff's density | ρ_p = ρ_m / r, in kg/m³: the density of the puff at the medium's pressure, by the ideal gas law. Nothing stores it or computes it. |
+| Lift share | β = ρ_m / ρ_p, a pure number: r where the medium fills the puff's place, and 0 elsewhere. Above 1 for a puff that is hotter than the medium, below 1 for one that is colder. |
 | Push | The acceleration that a step gives a puff apart from the two-turn update, in m/s²: the linear gravity less the lift share times the effective gravity. In a frame that does not turn it is g (1 − β). |
 | Puff's drag | κ β, in 1/s: the rate at which the medium slows the puff's velocity relative to the frame. |
 | Loose-body step | What the last finished step of a frame does to a loose body in it: the frame's field, its proper acceleration as the step found it, its turns, the length of the step of the turns, and its medium. A `LooseBodyStep`. |
@@ -69,8 +70,8 @@ The user settled these on 2026-10-21, in the notes of `.tickets/ter-4zt6.md` and
 1. A puff is a loose body without a shape, born in its emitter's frame, living there for its whole life. It fades as it ages.
 2. The simulation owns the puffs and steps them every tick, in doubles. The snapshot carries each puff with a current and a previous position.
 3. Puffs are efficient and minimal, and they are not entities. The user's words: "Since they are a general particle system I would want to make them more efficient and minimal." The rows are grouped by frame, born only by emitters at the sync point into a pool allocated up to the cap, and stepped in bulk, one loop per frame over a contiguous span, with that frame's turns, field and medium of the step.
-4. Pure gravity: the emitter has no lift number. The lift comes from the frame's medium. The user's words: "I was hoping that the frame's knowledge about the medium could then impart lift to the puffs based on that, since the puffs are already grouped by frame." For a puff of density ρ_p in a medium of density ρ_m(x) under the frame's gravity g, the net acceleration from gravity and lift is g (1 − ρ_m(x) / ρ_p).
-5. The frame holds the medium beside its gravity field, as a custom `[Union]`, set by the World's API for frames and read at each step. The emitter carries no drag number. Whether the medium acts on bodies too is open (see "Open forks").
+4. Pure gravity: the emitter has no lift number. The lift comes from the frame's medium. The user's words: "I was hoping that the frame's knowledge about the medium could then impart lift to the puffs based on that, since the puffs are already grouped by frame." For a puff of density ρ_p in a medium of density ρ_m(x) under the frame's gravity g, the net acceleration from gravity and lift is g (1 − ρ_m(x) / ρ_p). By decision 17, ρ_m(x) / ρ_p is the puff's temperature ratio.
+5. The frame holds the medium beside its gravity field, as a custom `[Union]`, set by the World's API for frames and read at each step. The emitter carries no drag number. The medium acts only on puffs, for now, and bodies keep their own damping (see "Settled forks").
 6. One emitter per entity, in its render row, like its light. Parts make each jet its own entity (`ter-ftk4`).
 7. One look with a shading union: glow or lit. Glow for hot exhaust, lit puffs for cold gas.
 8. Lit puffs are lit once per puff, at the center.
@@ -82,6 +83,7 @@ The user settled these on 2026-10-21, in the notes of `.tickets/ter-4zt6.md` and
 14. A cap on live puffs, oldest first, with a switch.
 15. A jet's puffs start in the physics step in which its force acts.
 16. Slow tracer puffs at tens of m/s that hang behind and mark the path, not real exhaust speed. No collisions with surfaces. Bloom (`ter-63wr`) later, after the plumes.
+17. A look holds the temperature ratio of the puff's own gas, not its density. So a puff's lift share and its drag are the same at every height, and they stop at once where the frame's medium ends (see "Settled forks").
 
 This doc settles the rest by the user's rules. Each choice names its reason where it is made:
 
@@ -90,7 +92,7 @@ This doc settles the rest by the user's rules. Each choice names its reason wher
 - Equal looks share one entry of the look table, and a puff keeps the entry of its birth (see "The look table").
 - The step of the old puffs runs at a new step 2b, the births at a new step 7c, and the destroy path of step 5 moves the puffs of each dying frame (see "The sync point"). The first draft stepped the old puffs at step 7c, after step 5, which put the puffs of a dying frame one step of the frame's motion off.
 - The medium is a custom `[Union]` with two cases, beside the gravity field, and it matches the gravity field in who sets it, when, which step it describes and where it is stored (see "The frame's medium").
-- Lift and drag both follow from the lift share, and the puff's density follows its own share (see "How a puff's lift and drag follow").
+- Lift and drag both follow from the lift share, which is the puff's temperature ratio where the medium fills its place. The puff cools toward the medium by its own share (see "How a puff's lift and drag follow").
 - The drag acts as the factor 1 / (1 + drag · dt) per step.
 - The emitter has no offset: a part places the nozzle.
 - The capacity is the one switch.
@@ -111,10 +113,18 @@ This doc settles the rest by the user's rules. Each choice names its reason wher
 | | `ScaleHeight`, `float` | m, above 0 | The height over which the density falls by the factor e |
 | | `Drag`, `float` | 1/s, 0 or more | The medium's drag |
 
-The factories are `MediumField.None`, `MediumField.Uniform(density, drag, region)` and `MediumField.Planet(radius, surfaceDensity, scaleHeight, drag)`. Two members read a medium:
+The factories are `MediumField.None`, `MediumField.Uniform(density, drag, region)` and `MediumField.Planet(radius, surfaceDensity, scaleHeight, drag)`. Three members read a medium:
 
 ```csharp
 // src/Tertius.Core/Frames/MediumField.cs (new code, a sketch)
+public bool Fills(Double3 place) => this switch
+{
+    UniformMedium { Density: var density, Region: var region } =>
+        density > 0 && (region is not { } box || box.Contains(place.ToVector3())),
+    PlanetMedium { SurfaceDensity: var surface } => surface > 0,
+    _ => false,
+};
+
 public double DensityAt(Double3 place) => this switch
 {
     UniformMedium { Density: var density, Region: var region } =>
@@ -138,11 +148,14 @@ where
 - `density`, `surface` = the case's density and surface density, in kg/m³.
 - `radius`, `scale` = the planet's radius and the scale height, in m.
 - `region`, `box` = the box that a uniform medium fills.
+- The result of `Fills` = whether the medium has gas at `place`. A uniform medium fills its region, or the whole frame when it has none, and a planet medium fills the whole frame. Each does so only when its density, or its surface density, is above 0.
 - The result of `DensityAt` = the medium's density at `place`, in kg/m³. The result of `Drag` = the medium's drag, in 1/s.
+
+Puffs read `Fills` and `Drag` only, so the step of a puff never calls `Math.Exp`. `DensityAt` serves game code now, and bodies when a later ticket lets them read the medium (see "Settled forks"). The store holds the densities for that reason, so it stays the same when bodies join.
 
 `IsValid` holds when every number is finite, the densities, the drags and the radius are 0 or more, the scale height is above 0, and a region has finite corners. The World refuses a medium that is not valid, as it refuses a gravity field that is not valid.
 
-Why these two cases. Each matches a case of the gravity field. `UniformMedium` matches `UniformGravity`, with the same optional box: the air of a cabin in a ship's frame, whose bubble also holds the vacuum outside the hull. `PlanetMedium` matches `PointGravity`, centred on the frame's origin: the air of `earth-surface` thins with height above Earth's radius, with a surface density of 1.225 kg/m³ and a scale height of 8.5 km. A medium that thins along a fixed axis above a flat ground is left out. No scene needs it, and near the ground a uniform medium serves a flat ground, because the air thins by 1 % over the first 85 m. Below the radius the density stays at the surface density, so a puff that sinks into the ground meets no denser medium there.
+Why these two cases. Each matches a case of the gravity field. `UniformMedium` matches `UniformGravity`, with the same optional box: the air of a cabin in a ship's frame, whose bubble also holds the vacuum outside the hull. `PlanetMedium` matches `PointGravity`, centred on the frame's origin: the air of `earth-surface` thins with height above Earth's radius, with a surface density of 1.225 kg/m³ and a scale height of 8.5 km. A medium that thins along a fixed axis above a flat ground is left out. No scene needs it, and near the ground a uniform medium serves a flat ground, because the air thins by 1 % over the first 85 m. Below the radius the density stays at the surface density.
 
 ### Where it lives, who sets it, and who reads it
 
@@ -156,7 +169,7 @@ Why these two cases. Each matches a case of the gravity field. `UniformMedium` m
 | Who changes it | The game, between ticks, with `World.SetFrameGravity` (`World.Entities.cs:141`) | The game, between ticks, with `World.SetFrameMedium` |
 | When it can change | Outside a tick only. The call throws `InvalidOperationException` during a tick. | The same |
 | Which step it describes | The value stored when a step starts is the value of that step. No tick changes it, so the sync point of tick k reads the value of step k. A change between tick k and tick k + 1 acts from step k + 1 on. | The same |
-| Who reads it | Physics during the step (`LinearGravity`, `EffectiveGravity`), step 2 for the proper acceleration (`FieldTheStepFound`), game code (`FrameTree.Gravity`, `FeltGravity`), `KeplerMotion`, and the render snapshot builder for the hemisphere up | The step of the puffs at step 2b and the births at step 7c, through `FrameTree.LastLooseBodyStep`, and game code (`FrameTree.Medium`). Whether physics reads it is the first open fork. |
+| Who reads it | Physics during the step (`LinearGravity`, `EffectiveGravity`), step 2 for the proper acceleration (`FieldTheStepFound`), game code (`FrameTree.Gravity`, `FeltGravity`), `KeplerMotion`, and the render snapshot builder for the hemisphere up | The step of the puffs at step 2b and the births at step 7c, through `FrameTree.LastLooseBodyStep`, and game code (`FrameTree.Medium`). Physics reads no medium, by the user's choice (see "Settled forks"). |
 | The internal writer | `FrameTree.SetGravity` (line 574) | `FrameTree.SetMedium` |
 | A numeric frame | Has none, by an invariant (line 636) | Has none, by the same invariant |
 | A frame's death | Its contents feel the heir's field from the next step on | Its puffs feel the heir's medium from the next step on |
@@ -170,29 +183,34 @@ The medium moves with its frame. A frame that hands off or that the game reparen
 
 The medium is at rest in its frame. So its pressure rises against the effective gravity, and by Archimedes' law it pushes on a puff with the weight of the medium that the puff displaces. Over the puff's mass, that is the lift share times the effective gravity, upward. The drag is a push of the medium on the puff's volume too, so over the puff's mass it scales with the same ratio. One ratio gives both:
 
-- β = ρ_m(x) / ρ_p, with ρ_p = w ρ_g + (1 − w) ρ_m(x) and w = 1 − age / life.
+- r = 1 + w (θ − 1), with w = 1 − age / life.
+- β = r where the medium fills the puff's place x, and 0 elsewhere.
 - push = g_lin − β g_eff, with g_lin the linear gravity and g_eff the effective gravity at the puff's place.
 - drag = κ β.
 
-In a frame that does not turn, g_eff is g_lin, so the push is g (1 − β), the user's formula. In vacuum, β is 0: the push is the linear gravity and the drag is 0, so the puff moves exactly as a free body. A puff of the medium's own density has β 1: its push is minus the rotation terms, which with the two-turn update leaves only the Coriolis term, so a neutral puff at rest in the frame stays at rest, and the drag κ brings a moving one to rest.
+In a frame that does not turn, g_eff is g_lin, so the push is g (1 − β), the user's formula. In vacuum, β is 0: the push is the linear gravity and the drag is 0, so the puff moves exactly as a free body. A puff at the medium's temperature has β 1: its push is minus the rotation terms, which with the two-turn update leaves only the Coriolis term, so a neutral puff at rest in the frame stays at rest, and the drag κ brings a moving one to rest.
+
+Why the lift share is the temperature ratio. A puff is a small parcel of gas at the pressure of the medium around it. By the ideal gas law, two gases of the same molar mass at one pressure have densities in the inverse ratio of their temperatures. So the puff's density is ρ_p = ρ_m / r, and the lift share ρ_m / ρ_p is r. The medium's density cancels, so the lift share is the same at every height, and the step reads only whether the medium fills the puff's place. The medium has one temperature in its whole frame. That fits a planet medium, because a density that falls by the factor e per scale height is the profile of air at one temperature. For a gas of another molar mass, θ is the medium's density over the gas's density at its birth, at the same pressure.
 
 Why the lift acts against the effective gravity, not the linear gravity. The medium is held at rest in the frame by the effective gravity, centrifugal and Euler terms included. A spinning station full of air has its pressure rise outward, so hot gas there rises toward the axis. A cabin full of air under thrust has its pressure rise toward the stern, so hot gas there drifts toward the bow. A lift against the linear gravity alone would let hot gas in the station fall outward like a stone.
 
-Why the drag scales with the lift share. Both are forces of the medium on the puff's volume, divided by the puff's mass. A light puff is slowed more than a heavy one of the same size. In a medium that thins to nothing, both fall to nothing together, so a puff high in the medium moves more and more as in vacuum, and the top of the medium needs no seam.
+Why the drag scales with the lift share. Both are forces of the medium on the puff's volume, divided by the puff's mass. A hot puff is lighter than the medium around it, so it is slowed more than a cold puff of the same size. Both are the same at every height, because the lift share is.
 
-Why the puff's density follows its own share. The fade already says that a puff of age a holds the share 1 − a / life of its own gas. A puff that mixes into the medium becomes the medium: at the end of its life it neither rises nor sinks, and the drag brings it to rest. With a fixed density, the drag would bring a hot puff to its terminal speed, and it would keep rising at that speed until it vanished, so the top of a cloud would move up as it fades instead of spreading and stopping. The rule adds one multiply and one add per puff per step, and no number.
+Why the puff cools toward the medium with its own share. The fade already says that a puff of age a holds the share 1 − a / life of its own gas, by mass. When both gases hold the same heat per kg per kelvin, the temperature of the mix is the mean of the two temperatures, weighted by those shares. So r moves linearly from θ to 1. A puff that mixes into the medium becomes the medium: at the end of its life it neither rises nor sinks, and the drag brings it to rest. With a fixed temperature, the drag would bring a hot puff to its terminal speed, and it would keep rising at that speed until it vanished, so the top of a cloud would move up as it fades instead of spreading and stopping. The rule costs one division, one multiplication and three additions per puff per step, and it adds no number.
 
-Numbers for the demo's air on the pad, 1.225 kg/m³, with a medium's drag of 2 per second:
+The cost of the same lift at every height, which the user accepted. Lift and drag stop at once where the frame's medium ends. A puff stays in the frame of its birth, so the change comes when the emitter moves into a frame without the medium. In the demo, the bubble of `earth-surface` and its air end at 50 km. The puffs that the main engine makes below that height are in `earth-surface`. They hang in the sky for their whole life, also when they drift above 50 km. The puffs that it makes after the hull hands off into `earth` have no medium, so they fall with the hull.
 
-| Puff | Gas density | Lift share at birth | Push at birth | Drag at birth | Terminal speed at birth | At half its life |
+Numbers for the demo's air, with a medium's drag of 2 per second, under 9.81 m/s². They are the same at every height of the medium:
+
+| Puff | Temperature ratio | Lift share at birth | Push at birth | Drag at birth | Terminal speed at birth | At half its life |
 |---|---|---|---|---|---|---|
-| Hot exhaust | 0.4 kg/m³ | 3.06 | 20.2 m/s² up | 6.1 per s | 3.3 m/s up | 1.7 m/s up |
-| Cold gas | 1.6 kg/m³ | 0.77 | 2.3 m/s² down | 1.5 per s | 1.5 m/s down | 0.75 m/s down |
+| Hot exhaust | 3 | 3 | 19.6 m/s² up | 6 per s | 3.27 m/s up | 2.45 m/s up |
+| Cold gas | 0.75 | 0.75 | 2.45 m/s² down | 1.5 per s | 1.64 m/s down | 0.70 m/s down |
 | Either, in vacuum | | 0 | the linear gravity | 0 | none | |
 
-A tracer puff that leaves at tens of m/s loses most of its speed in the first half second, so it hangs behind and marks the path. The demo's plumes choose the gas densities and the media.
+A tracer puff that leaves at tens of m/s loses most of its speed in the first half second, so it hangs behind and marks the path. The demo's plumes choose the temperature ratios and the media.
 
-The drag acts as the factor 1 / (1 + drag · dt) on the chord of each step, after the push. That is the implicit step of the drag: it lies in (0, 1] at any drag and any step, so it is stable, and a division rounds the same on every platform. At the hot exhaust's drag of 6.1 per s it keeps 0.907 of the chord per step, where e^(−drag · dt) keeps 0.903. The first draft stored e^(−drag · dt) per puff at its birth, which a drag that changes with the puff's place and age cannot do.
+The drag acts as the factor 1 / (1 + drag · dt) on the chord of each step, after the push. That is the implicit step of the drag: it lies in (0, 1] at any drag and any step, so it is stable, and a division rounds the same on every platform. At the hot exhaust's drag of 6 per s it keeps 0.909 of the chord per step, where e^(−drag · dt) keeps 0.905. The first draft stored e^(−drag · dt) per puff at its birth, which a drag that changes with the puff's place and age cannot do.
 
 ## The emitter and the look
 
@@ -214,10 +232,8 @@ The emitter has no offset. Puffs leave the origin of the emitter's entity along 
 | `Life` | `float` | s, above 0 | How long each puff lives |
 | `StartRadius` | `float` | m, 0 or more | A puff's radius at its birth |
 | `EndRadius` | `float` | m, 0 or more | A puff's radius at the end of its life. The radius grows linearly between the two. |
-| `GasDensity` | `float` | kg/m³, above 0 | The density of the puff's own gas. 0.4 for hot exhaust, 1.6 for cold gas, in the examples above. |
+| `TemperatureRatio` | `float` | a pure number, above 0 | The temperature of the puff's own gas over the medium's. 3 for hot exhaust, 0.75 for cold gas, in the examples above. A puff where no medium fills its place does not read it. |
 | `Shading` | `PuffShading` | | How the puffs look |
-
-The gas density is side A of the second open fork. The rest of this doc writes side A. Side B changes only this field and the puff's density in the rule of motion.
 
 `PuffShading` is a custom C# 15 `[Union]` in the same file, as `HemisphereUp` is (`src/Tertius.Core/Seams/HemisphereUp.cs`):
 
@@ -228,7 +244,7 @@ The gas density is side A of the second open fork. The rest of this doc writes s
 
 The empty union holds no case. `LightData` and `RenderLight` have their own case types because a light's fields change between the two (an offset becomes a position). A look does not change between the simulation and the snapshot, so one type serves both.
 
-An emitter makes puffs only when its numbers are valid: `Rate` finite and above 0, `Speed` finite and 0 or more, `Spread` from 0 to π, and a valid look. A look is valid when every number is finite, `Life` and `GasDensity` are above 0, both radii are 0 or more, and the shading is valid: it holds a case, and each channel of its color is finite and 0 or more. A light whose range or intensity is zero or less is left out without an error (ARCHITECTURE.md, "Shading"), and an emitter that is not valid is left out the same way. So the default emitter, with rate 0 and an empty look, makes none. A component that switches its jet off and on keeps the emitter value and writes the default over it, as it does for a light.
+An emitter makes puffs only when its numbers are valid: `Rate` finite and above 0, `Speed` finite and 0 or more, `Spread` from 0 to π, and a valid look. A look is valid when every number is finite, `Life` and `TemperatureRatio` are above 0, both radii are 0 or more, and the shading is valid: it holds a case, and each channel of its color is finite and 0 or more. A light whose range or intensity is zero or less is left out without an error (ARCHITECTURE.md, "Shading"), and an emitter that is not valid is left out the same way. So the default emitter, with rate 0 and an empty look, makes none. A component that switches its jet off and on keeps the emitter value and writes the default over it, as it does for a light.
 
 A component writes the emitter of its own entity only, as every write of the render row goes (`Self.Render`, `src/Tertius.Simulation/Entities/Self.cs:131`). A blueprint carries it in its `RenderData`. The JSON form comes with the light's, in the content formats epic.
 
@@ -266,7 +282,7 @@ The row needs nothing more. Each use of a puff reads only these fields, its rang
 
 | Use | What it reads |
 |---|---|
-| The rule of motion | The place and the chord, which are the last two places in another form. The age and the look's life give the own share, and the look's gas density gives the puff's density. The range gives the frame, its turns, its field and its medium. |
+| The rule of motion | The place and the chord, which are the last two places in another form. The age and the look's life give the own share, and with the look's temperature ratio they give the puff's temperature ratio. The range gives the frame, its turns, its field and its medium. |
 | The death at the end of its life | The age and the look's life |
 | The cap | The age |
 | A frame's death | The place and the chord |
@@ -539,12 +555,11 @@ The puff's half lives in `Puff`:
 // src/Tertius.Simulation/Internal/Puffs/Puff.cs (new code, a sketch)
 public readonly Puff Stepped(in LooseBodyStep step, in PuffLook look, float dt)
 {
-    double medium = step.Medium.DensityAt(Place);
     double lift = 0;
-    if (medium > 0)
+    if (step.Medium.Fills(Place))
     {
         double own = 1 - Age / (double)look.Life;
-        lift = medium / (own * look.GasDensity + (1 - own) * medium);
+        lift = 1 + own * (look.TemperatureRatio - 1);
     }
     Double3 chord = step.ChordAhead(Place, Chord, lift, step.Medium.Drag * lift, dt);
     return new Puff { Place = Place + chord * dt, Chord = chord, Age = Age + dt, Look = Look };
@@ -553,9 +568,10 @@ public readonly Puff Stepped(in LooseBodyStep step, in PuffLook look, float dt)
 
 where
 
-- `medium` = the medium's density at the puff's place, ρ_m, in kg/m³.
-- `own` = the own share w at the start of step k.
-- `lift` = the lift share β. A division happens only where the medium has a density, and the denominator is then at least the smaller of the gas density and the medium's density, so it is above 0.
+- `step.Medium.Fills(Place)` = whether the frame's medium has gas at the puff's place.
+- `own` = the own share w at the start of step k, in (0, 1], because a live puff's age is below its life.
+- `look.TemperatureRatio` = the look's temperature ratio θ.
+- `lift` = the lift share β: the puff's temperature ratio r where the medium fills its place, and 0 elsewhere. In a medium it lies between 1 and θ, so it is above 0.
 - `dt` = the step, the World's float `DeltaTime` (0.01666666753590107 s). The age adds it as a float.
 
 The range loop reads the loose-body step once, then calls `Stepped` for each row of the range, keeps the rows whose new age is below their look's life, and writes them down toward row 0.
@@ -637,7 +653,7 @@ So the jets of a hull put their puffs in the hull's parent frame: on the pad in 
 With x_e the emitter's place at the end of the step (the entity's pose), R_e its rotation there, v_e its velocity, d the ejection direction (a unit vector in the cone about −Z), and for newborn j its age τ:
 
 - Its ejection velocity is u = `Speed` · R_e d.
-- Its lift share at birth is β_b = ρ_m(x_e) / ρ_g, because its own share is 1 then, and its drag is k = κ β_b. In vacuum both are 0.
+- Its lift share at birth is β_b = θ where the medium fills x_e, because its own share is 1 then, and 0 elsewhere. Its drag is k = κ β_b. In vacuum both are 0.
 - Its instant velocity at the end of the step is (v_e + u) / (1 + k τ), one implicit step of the drag over its age.
 - Its place is x_e − v_e τ + τ (v_e + u) / (1 + k τ). In vacuum that is x_e + u τ.
 - Its chord is the chord behind that instant velocity, by the chord rule of ARCHITECTURE.md, "Instant velocities and chords": the instant velocity less half a step of the puff's acceleration (its push and its drag), turned back by the turn of step k in a turning frame, and there also the turn's part with V1 of step k (`FrameTurn.ChordBehind` and `FrameTurn.ChangeBehind`). Physics converts the velocity that a hand-off carries at the end of a step the same way, with V1 of the step that just ended (`HandedOffVelocities`, `src/Tertius.Physics/JoltPhysicsBackend.Chords.cs:327`).
@@ -650,7 +666,7 @@ What the rule leaves out. In the age τ since its birth, a newborn moves with it
 | What acts differently | Demo case | At most, in velocity | At most, in place |
 |---|---|---|---|
 | The emitter's thrust | The main engine at 3 g | 0.49 m/s | 4.1 mm |
-| The lift of hot gas | Exhaust of 0.4 kg/m³ on the pad, a push of 20.2 m/s² up | 0.34 m/s | 2.8 mm |
+| The lift of hot gas | Exhaust at the temperature ratio 3 on the pad, a push of 19.6 m/s² up | 0.33 m/s | 2.7 mm |
 | The Coriolis term on the ejection velocity | A side jet at 30 m/s in the station | 0.31 m/s | 2.6 mm |
 | The centrifugal term at an emitter at rest in a turning frame | 8 m from the station's axis | 0.013 m/s | 0.11 mm |
 | The turn of the ejection direction | A hull that turns at 0.15 rad/s | 0.0025 rad of direction | |
@@ -729,7 +745,7 @@ The same run gives the same puffs, bit for bit, in Debug and in Release, on one 
 - The seeds depend only on the entity handle, the tick and the index of the birth.
 - The look indices depend only on the order of births and deaths.
 - Every value is a double or a float that the same operations make in every build. Contracts compile out, but they change no value.
-- The drag is a division, which rounds the same on every platform. `Math.Exp` runs only for the density of a planet medium, once per puff per step. It is the same library function in Debug and in Release on one machine, so the runs on one machine agree.
+- The drag is a division, which rounds the same on every platform. The lift share is a multiply and an add, and the step reads no density of the medium, so it calls no `Math.Exp`.
 - The renderer adds no randomness and keeps no puff state. So the planned switch for deterministic rendering (`ter-rtxu`) has nothing to do for puffs.
 
 A film step is defined as its expansion, so its images stay byte-identical to those of its expansion: the puffs come from the ticks, not from the captures.
@@ -976,7 +992,7 @@ public readonly record struct PuffLook(
     float Life,          // s, above 0
     float StartRadius,   // m, 0 or more
     float EndRadius,     // m, 0 or more
-    float GasDensity,    // kg/m³, above 0
+    float TemperatureRatio, // a pure number, above 0: the puff's own gas over the medium's
     PuffShading Shading)
 {
     public bool IsValid { get; }
@@ -1026,7 +1042,8 @@ public readonly struct MediumField : IEquatable<MediumField>
     public bool TryGetValue(out PlanetMedium value);
     public object? Value { get; }
     public bool IsValid { get; }
-    public double DensityAt(Double3 place);                   // kg/m³, 0 in vacuum
+    public bool Fills(Double3 place);                         // whether the medium has gas at place
+    public double DensityAt(Double3 place);                   // kg/m³, 0 in vacuum: for game code, and for bodies later
     public float Drag { get; }                                // 1/s, 0 in vacuum
 }
 
@@ -1074,7 +1091,7 @@ Red-green, in BDD names. Every test of puffs in motion runs the real World on th
 Tests, in `tests/Tertius.Core.Tests/PuffSeamTests.cs` and `tests/Tertius.Simulation.Tests/PuffRowTests.cs`:
 
 - `ThePuffShadingUnionHoldsOneCaseAndMatchesWithoutBoxing`, as `LightDataUnionTests` does
-- `ALookIsValidOnlyWithAPositiveLifeAndGasDensityFiniteRadiiAndAShading`
+- `ALookIsValidOnlyWithAPositiveLifeAndTemperatureRatioFiniteRadiiAndAShading`
 - `ClearEmptiesThePuffsAndTheirLooksAndTheAgeStep`
 - `APuffRowIs56Bytes` and `ARenderPuffIs32Bytes`
 
@@ -1086,13 +1103,13 @@ No ARCHITECTURE.md lines: task 4 describes the snapshot's puffs.
 
 Tests:
 
-- In `tests/Tertius.Core.Tests/MediumFieldTests.cs`: `NoMediumHasNoDensityAndNoDrag`, `AUniformMediumHasItsDensityEverywhereOrOnlyInsideItsRegion`, `APlanetMediumThinsByTheFactorEPerScaleHeightAboveItsRadius`, `APlanetMediumKeepsItsSurfaceDensityBelowItsRadius`, `AMediumWithANumberThatIsNotFiniteOrIsNegativeIsNotValid`, `TheMediumFieldUnionHoldsOneCaseAndMatchesWithoutBoxing`.
+- In `tests/Tertius.Core.Tests/MediumFieldTests.cs`: `NoMediumHasNoDensityAndNoDrag`, `AUniformMediumHasItsDensityEverywhereOrOnlyInsideItsRegion`, `AMediumFillsItsRegionOrItsWholeFrameOnlyWhenItsDensityIsAboveZero`, `APlanetMediumThinsByTheFactorEPerScaleHeightAboveItsRadius`, `APlanetMediumKeepsItsSurfaceDensityBelowItsRadius`, `AMediumWithANumberThatIsNotFiniteOrIsNegativeIsNotValid`, `TheMediumFieldUnionHoldsOneCaseAndMatchesWithoutBoxing`.
 - In `tests/Tertius.Core.Tests/LooseBodyStepTests.cs`: `TheEffectiveGravityOfTheLastStepEqualsTheFrameTreesToTheBit`, `InVacuumTheChordAheadIsTheFreeBodyUpdateOfPhysicsToTheBit` (against the expression of `ApplyTurningUpdate`, `src/Tertius.Physics/JoltPhysicsBackend.Step.cs:715-717`, with no home), `AFrameThatDoesNotTurnSkipsTheTwoTurnUpdateToTheBit`, `ANeutralBodyAtRestInATurningMediumStaysAtRest`, `ALightBodyRisesAgainstTheEffectiveGravityAndAHeavyOneSinks`, `TheDragKeepsOneOverOnePlusTheDragTimesTheStepOfTheChord`.
 - In `tests/Tertius.Physics.Tests/LooseBodyStepPhysicsTests.cs`, with the real World: `TheLinearGravityOfTheLastStepIsTheGravityThatPhysicsReadInThatStep`, in a frame that holds still in a field and in a hull's frame under thrust, where step 2 changes the proper acceleration.
 - In `tests/Tertius.Simulation.Tests/FrameMediumTests.cs`: `AFrameSpawnsWithTheMediumOfItsSpec`, `SetFrameMediumGivesAFrameANewMediumBetweenTicks`, `SetFrameMediumThrowsDuringATick`, `SetFrameMediumRefusesAGoneFrameOrAMediumThatIsNotValidAndKeepsTheOldOne`, `ASpawnWithAMediumThatIsNotValidThrows`, `AFrameKeepsItsMediumWhenItHandsOffOrIsReparented`, and the frame tree's invariant that a numeric frame has no medium.
-- The tests of whichever side of the first open fork the user takes.
+- In `tests/Tertius.Physics.Tests/FrameMediumPhysicsTests.cs`, with the real World: `ABodyMovesTheSameWithAndWithoutAMediumInItsFrame`, bit for bit, a dynamic body and a character. It locks in the first settled fork: physics reads no medium.
 
-ARCHITECTURE.md: "Projects and dependency rules" (Core holds media beside gravity fields), and a new section "Media" after "Gravity", with the analogue table in prose.
+ARCHITECTURE.md: "Projects and dependency rules" (Core holds media beside gravity fields), and a new section "Media" after "Gravity", with the analogue table in prose and the rule that only puffs read a medium.
 
 ### Task 3: puffs in the simulation
 
@@ -1103,9 +1120,10 @@ Pure rules, with no World, in `tests/Tertius.Simulation.Tests/PuffRuleTests.cs`:
 - `APuffInVacuumInAFrameThatDoesNotTurnGainsItsLinearGravityTimesTheStep`
 - `APuffInVacuumInATurningFrameTakesTheFreeBodyUpdateOfPhysics`
 - `AHotPuffInAMediumRisesAndAColdPuffSinks`
-- `APuffOfTheMediumsDensityFloatsAndComesToRest`
-- `APuffsLiftShareMovesTowardOneAsItMixesIntoTheMedium`
-- `APuffHigherInAPlanetMediumFeelsLessLiftAndLessDrag`
+- `APuffAtTheMediumsTemperatureFloatsAndComesToRest`
+- `APuffCoolsTowardTheMediumAndItsLiftShareMovesTowardOne`
+- `APuffFeelsTheSameLiftAndDragAtEveryHeightOfAPlanetMedium`
+- `APuffOutsideTheRegionOfItsFramesMediumFeelsNoLiftAndNoDrag`
 - `AnEmitterAtSixtyPuffsPerSecondMakesOnePuffPerStepAtTheEndOfTheStep`
 - `TheBirthPhaseCarriesTheShareOfAPuffIntoTheNextStep`
 - `AStepMakesAtMostTheCapacityOfPuffsAndThePhaseGathersTheWholeRate`
@@ -1144,6 +1162,7 @@ The World with real Jolt, in `tests/Tertius.Physics.Tests/PuffPhysicsTests.cs` a
 - `AnEmitterThatDiesMakesNoPuffsForItsLastStepAndItsPuffsLiveOn`
 - `APuffKeepsItsPlaceInItsFrameWhenTheFrameHandsOff`: the person's jet in a ship that climbs out of `earth-surface` into `earth`
 - `APuffKeepsItsPlaceInItsFrameWhenTheGameReparentsTheFrame`
+- `AJetsPuffsKeepTheirAirAfterTheHullLeavesTheFrameOfTheAirAndItsLaterPuffsHaveNone`: a hull with a jet that climbs out of a frame with a planet medium into the parent frame, which has none. The puffs born before the hand-off keep their lift share. The puffs born after it fall with the hull. It locks in the cost of the second settled fork.
 - `APuffInADyingFrameMovesIntoTheNearestSurvivingAncestor`: against an entity without a body at the same place and velocity, which the World rehomes
 - `APuffOfAFastFrameThatDiesLandsWhereItWasAtTheEndOfTheStep`: a frame at 7.5 km/s in its heir dies in a tick. The puff lies where the entity beside it lies, within 1e-6 m. A puff converted with its place of the step before would be 125 m off.
 - `APuffInADyingRootFrameDiesWithIt`
@@ -1161,7 +1180,7 @@ The World with real Jolt, in `tests/Tertius.Physics.Tests/PuffPhysicsTests.cs` a
 
 Measurements, on the reference machine, an Apple M1 Max, in Release:
 
-- The step of 2b per puff per step, on one thread, from 100 to 4,096 puffs, in three frames: `earth` (a point field, no turn, no medium), `earth-surface` (a point field, a turn, a planet medium) and the station (no field, a turn, no medium). The step reads 56 bytes and a look, evaluates the field (one square root and one division for a point mass) and the medium (one square root and one `Math.Exp` for a planet), divides twice for the lift and the drag, turns two vectors by quaternions in a turning frame, and writes 56 bytes. This doc expects tens of nanoseconds per puff, so of the order of 0.1 ms for 4,096 puffs in a tick of 16.7 ms. The measurement replaces this guess.
+- The step of 2b per puff per step, on one thread, from 100 to 4,096 puffs, in three frames: `earth` (a point field, no turn, no medium), `earth-surface` (a point field, a turn, a planet medium) and the station (no field, a turn, no medium). The step reads 56 bytes and a look. It evaluates the field (one square root and one division for a point mass) and whether the medium fills the place (a compare, and a box test for a uniform medium with a region). It divides once for the own share and once for the drag, and it computes the lift share with one multiplication and two additions. In a turning frame it turns two vectors by quaternions. It writes 56 bytes. This doc expects tens of nanoseconds per puff, so of the order of 0.1 ms for 4,096 puffs in a tick of 16.7 ms. The measurement replaces this guess.
 - A birth per puff, and the rebuild per live puff.
 - The render row's growth of 44 bytes: `RowCopyBenchmarks` and `RenderSnapshotBenchmarks` before and after.
 - The memory of the table at the default capacity, against the figures of "Memory".
@@ -1257,6 +1276,8 @@ These follow from the model or from the settled choices, and the design accepts 
 - An emitter makes no puffs for the last step of its life.
 - A newborn leaves out what acts differently on it and on its emitter in its age, at most one step (see "The newborn's state").
 - A puff of a plain dynamic body or a character in a field is off by half a step of its emitter's acceleration.
+- A medium acts only on puffs. Each body keeps its own damping, so the engine has two descriptions of the gas around a body, and they can disagree. The user chose this on 2026-10-21.
+- A puff feels the same lift and drag at every height of its frame's medium, and none where that medium does not fill its place. Its temperature does not fall as it rises. In the demo the trail stops hanging in the sky at 50 km, where `earth-surface` and its air end. The user accepted this on 2026-10-21.
 - A medium is at rest in its frame. No wind moves it.
 - A medium is uniform, uniform in a box, or the medium of a planet at the frame's origin. Nothing else.
 - At true size, a puff smaller than a pixel can miss every pixel center and draw nothing, and a far trail can shimmer. The demo has no anti-aliasing.
@@ -1265,14 +1286,10 @@ These follow from the model or from the settled choices, and the design accepts 
 - A lit puff has one color for its whole sprite: a big puff near the eye or a lamp shows no shadow edge and no fall-off across it. The user chose this on 2026-10-21.
 - A component that writes a new look in every tick makes one look per tick while its puffs live.
 
-## Open forks
+## Settled forks
 
-These change what the user gets, and neither the ticket's notes, ARCHITECTURE.md nor the user's rules decide them.
+The user settled both forks of the draft on 2026-10-21. No fork is open.
 
-1. Does a frame's medium act on bodies too, or only on puffs? Today no body feels a medium. Each body has its own damping, `BodyDesc.LinearDamping` and `AngularDamping`, 0.05 per second by default (`src/Tertius.Core/Seams/PhysicsSeam.cs:321-322`), which Jolt applies relative to the body's frame.
-   - Side A: only puffs feel the medium. Physics reads no medium, and each body keeps its own damping. Cost: the engine has two descriptions of the gas around a body, and they can disagree. A crate in a frame with no medium still slows at its own damping, a hull that climbs from the medium of the pad into vacuum keeps the same damping, and the medium lifts no balloon and no floating crate. A game that wants air drag on a body sets that body's damping itself.
-   - Side B: bodies feel the medium too, by the same model. Physics reads the frame's medium at each awake body's place in every step, with the body's density as its mass over the volume of its shape, and gives the body the lift and the drag of its lift share. Cost: the drag of a solid depends on its size and its shape, so each body needs a drag number or a rule from its shape, beside its damping or in place of it. Physics gets a new input per frame and a read of the density per body per step, and the chord rule and the instant reads of every body add the medium's acceleration. Every body in a medium changes its motion, the shuttle on the pad and the ramp among them, so physics tests and the demo's recorded runs change.
+1. A frame's medium acts only on puffs, for now. Physics reads no medium, and each body keeps its own damping, `BodyDesc.LinearDamping` and `AngularDamping`, 0.05 per second by default (`src/Tertius.Core/Seams/PhysicsSeam.cs:321-322`), which Jolt applies relative to the body's frame. The reason: no body in the demo needs air yet. The store of the medium stays the same when bodies join, so a later ticket can let bodies read it with no change to the store. The cost: the engine has two descriptions of the gas around a body, and they can disagree. A game that wants air drag on a body sets that body's damping itself. The other side was that bodies feel the medium by the same model. It needed a drag number or a rule from the shape for each body. It also changed the motion of every body in a medium, the shuttle on the pad and the ramp among them.
 
-2. What does a look hold for the puff's own gas: a density, or a temperature?
-   - Side A (recommended, because it is the user's formula as written, with the medium's density at the puff's place): a gas density in kg/m³, the same at every height. Near the ground hot exhaust rises. In a planet medium of 1.225 kg/m³ at the surface and a scale height of 8.5 km, exhaust of 0.4 kg/m³ turns neutral at 9.5 km and sinks a little above. Higher, its lift share falls with the medium's density, to 0.29 at 20 km and 0.09 at 30 km, and its drag falls with it, so the puffs move more and more as in vacuum. Nothing changes at once where the medium ends. Cost: high in the climb, the trail stretches out with the hull instead of hanging in the sky, and hot exhaust sinks above 9.5 km, which real exhaust does not.
-   - Side B: the puff's temperature over the medium's, a ratio, so that its density is the medium's density at its place over that ratio, as for gas at the same pressure. Then the lift share is the same at every height, and hot exhaust rises and drags the same on the pad and at 40 km. Cost: the trail hangs in the sky up to the top of the medium and then changes at once. In the demo the bubble of `earth-surface` ends at 50 km, so puffs born just below it hang in the sky, and puffs born just above it, in `earth`, fly on with the hull. In a medium that thins toward nothing, a hot puff keeps its full lift and its full drag.
+2. A look holds a temperature ratio, not a density of the puff's own gas. A puff at the medium's pressure has a density that follows the medium's, by the ideal gas law. So its lift share and its drag are the same at every height, and the trail hangs in the sky (see "How a puff's lift and drag follow"). The cost, which the user accepted: lift and drag stop at once where the frame's medium ends. In the demo that is at 50 km, where the bubble of `earth-surface` and its air end. The other side, a density in the look, gave a lift share that fell with the medium's density. High in the climb, the trail stretched out with the hull, and hot exhaust sank above 9.5 km, which real exhaust does not.
