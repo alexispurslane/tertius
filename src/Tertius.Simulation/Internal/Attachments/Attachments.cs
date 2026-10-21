@@ -41,6 +41,11 @@ internal sealed class Attachments
         /// never changes, because an entity is attached only at its spawn and dies with its parent.
         /// </summary>
         public Entity Root;
+        /// <summary>
+        /// For a chain root while <see cref="CarryPushes"/> runs: one more than the index of its sum in the scratch of the
+        /// flow, or 0 when it has none yet. 0 outside the call.
+        /// </summary>
+        public int SumSlot;
         /// <summary>The offset from the parent. The entity itself may change it during its run.</summary>
         public Pose Offset;
         /// <summary>This entity's node in the tree, if it is attached or has attached children.</summary>
@@ -194,12 +199,13 @@ internal sealed class Attachments
         ReadOnlySpan<Entity> parts = entities.FrontPushers;
         if (parts.IsEmpty)
             return;
-        Contract.Requires(sums.Count == 0 && sumIndex.Count == 0);
+        Contract.Requires(sums.Count == 0);
+        ReadOnlySpan<PhysicsIntent> intents = entities.FrontIntents.Span;
         foreach (Entity part in parts)
         {
             if (!entities.IsAlive(part))
                 continue;
-            ref readonly PhysicsIntent pushed = ref entities.FrontIntents.Span[(int)part.Index];
+            ref readonly PhysicsIntent pushed = ref intents[(int)part.Index];
             if (dying[(int)part.Index])
             {
                 entities.ClearPush(part);
@@ -216,25 +222,27 @@ internal sealed class Attachments
             }
             Double3 lever = Push.Lever(rootRow.Pose.Rotation, PlaceInBody(part), entities.BodyCenterOfMass(root));
             Push contribution = Push.Of(in pushed).At(lever);
-            if (!sumIndex.TryGetValue(root, out int at))
+            ref int slot = ref links[root].SumSlot;
+            if (slot == 0)
             {
-                at = sums.Count;
-                sumIndex.Add(root, at);
-                sums.Add((root, Push.Of(in entities.FrontIntents.Span[(int)root.Index])));
+                sums.Add((root, Push.Of(in intents[(int)root.Index])));
+                slot = sums.Count;
             }
-            sums[at] = (root, sums[at].Sum.Plus(in contribution));
+            ref (Entity Root, Push Sum) sum = ref CollectionsMarshal.AsSpan(sums)[slot - 1];
+            sum.Sum = sum.Sum.Plus(in contribution);
             entities.ClearPush(part);
         }
         foreach ((Entity root, Push sum) in sums)
+        {
             entities.AddPush(root, in sum);
+            links[root].SumSlot = 0;
+        }
         sums.Clear();
-        sumIndex.Clear();
     }
 
-    // The scratch of CarryPushes: the sum of each root in doubles, in the order of its first part, and each root's index in
-    // that list. Both are empty outside the call.
+    // The scratch of CarryPushes: the sum of each root in doubles, in the order of its first part. Each root's link holds
+    // the place of its sum here (see Link.SumSlot). Empty outside the call.
     private readonly List<(Entity Root, Push Sum)> sums = new();
-    private readonly Dictionary<Entity, int> sumIndex = new();
 
     /// <summary>
     /// The place of <paramref name="part"/> in the body of its chain root, in meters in the root body's own axes: the
@@ -244,6 +252,9 @@ internal sealed class Attachments
     private Double3 PlaceInBody(Entity part)
     {
         ref readonly Link link = ref links[part];
+        // A child of the root is at its offset's position, which widens exactly, with no rotation to compose.
+        if (link.Parent == link.Root)
+            return link.Offset.Position;
         DPose place = Poses.Safe(link.Offset).ToDPose();
         for (Entity parent = link.Parent; parent != link.Root; parent = links[parent].Parent)
             place = DPose.Compose(Poses.Safe(links[parent].Offset).ToDPose(), place);
@@ -315,7 +326,9 @@ internal sealed class Attachments
                 pushers.Add(pusher);
         foreach (Entity pusher in pushers)
             Contract.Invariant(!links[pusher].Parent.IsNull && entities.Body(links[pusher].Root) != null);
-        Contract.Invariant(sums.Count == 0 && sumIndex.Count == 0);
+        Contract.Invariant(sums.Count == 0);
+        foreach (Entity entity in entities.LiveEntities)
+            Contract.Invariant(links[entity].SumSlot == 0);
     }
 
     /// <summary>
