@@ -1,6 +1,6 @@
 ---
 id: ter-diu0
-status: open
+status: in_progress
 deps: [ter-ftk4]
 links: []
 created: 2026-10-21T15:12:58Z
