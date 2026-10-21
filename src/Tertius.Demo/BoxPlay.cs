@@ -97,11 +97,11 @@ public sealed class BoxPlay(FrameHandle station, IReadOnlyList<Waypoint> shove, 
         switch (State)
         {
             case Shoving shoving:
-                (report, int next) = Walk(self, shove, shoving.Next);
-                State = new Shoving(next);
+                (report, WalkProgress through) = Walk(self, shove, shoving.Walk);
+                State = new Shoving(through);
                 break;
             case ToStand walking:
-                (report, int toward) = Walk(self, toStand, walking.Next);
+                (report, WalkProgress toward) = Walk(self, toStand, walking.Walk);
                 State = new ToStand(toward);
                 break;
             case Taking { Throw: var index }:
@@ -119,13 +119,16 @@ public sealed class BoxPlay(FrameHandle station, IReadOnlyList<Waypoint> shove, 
         Apply(self, report);
     }
 
-    /// <summary>Walks <paramref name="path"/> from the waypoint at <paramref name="next"/>, and reports <see cref="WalkDone"/> at its last waypoint.</summary>
-    private (BoxPlayEvent? Report, int Next) Walk(Self self, Waypoint[] path, int next)
+    /// <summary>
+    /// Walks <paramref name="path"/> one tick from <paramref name="walk"/>, and reports <see cref="WalkDone"/> at its last
+    /// waypoint. Each walk starts from rest, so the walker's start limit lets the person set off in about a second.
+    /// </summary>
+    private (BoxPlayEvent? Report, WalkProgress Walk) Walk(Self self, Waypoint[] path, WalkProgress walk)
     {
         if (!self.Snapshot.Frames.IsAlive(station))
-            return (Gone(self), next);
-        next = Walker.Step(self, path, next, walkSpeed);
-        return (next >= path.Length ? new WalkDone() : null, next);
+            return (Gone(self), walk);
+        walk = Walker.Step(self, path, walk, walkSpeed);
+        return (walk.Next >= path.Length ? new WalkDone() : null, walk);
     }
 
     /// <summary>Uses the box of throw <paramref name="index"/>, or reports <see cref="BoxGone"/> for a box that is gone.</summary>

@@ -247,6 +247,31 @@ public sealed class ReadoutTextTests
             CheckPanels.Throws(Coda(), row).Should().OnlyContain(line => !line.Contains("fi", StringComparison.Ordinal) && !line.Contains("fl", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Each header of the throws panel stands at least three spaces from the next, so that a viewer reads five headers and
+    /// not "run uniform 1 g" as one. Each landing of a throw in the air or landed ends where its header ends, since the
+    /// columns of the landings are right-aligned.
+    /// </summary>
+    [Fact]
+    public void TheThrowsPanelsHeadersStandApartAndOverTheirColumns()
+    {
+        ThrowRelease spinward = Release(1);
+        var landed = new ThrowLanding(0.8, Floor.Above(WheelFloor.Theta(spinward.Place) + 0.0612, 0.25, -2));
+
+        string[] panel = CheckPanels.Throws(Coda(), Coda(new ThrowReadout(spinward, landed), new ThrowReadout(Release(-1), null)));
+
+        string header = panel[1].TrimEnd();
+        System.Text.RegularExpressions.Regex.Split(header, " {3,}").Should().Equal("lands", "release", "straight line", "run", "uniform 1 g");
+        foreach (string column in new[] { "straight line", "run", "uniform 1 g" })
+        {
+            int end = header.IndexOf(column, StringComparison.Ordinal) + column.Length;
+            foreach (string line in panel[2..])
+                line[end - 1].Should().NotBe(' ', $"a landing ends under \"{column}\" in \"{line}\"");
+            foreach (string line in panel[2..])
+                (end == line.Length || line[end] == ' ').Should().BeTrue($"a landing ends under \"{column}\" in \"{line}\"");
+        }
+    }
+
     [Fact]
     public void TheLinesOfTheThrowsPanelAreOfOneWidth()
     {

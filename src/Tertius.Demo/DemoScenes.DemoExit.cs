@@ -17,7 +17,11 @@ public static partial class DemoScenes
     /// <item>The <c>shuttle</c> parked static at <see cref="DemoStation.ParkedPose"/> in the station's frame, with its
     /// seat, panes, lamps and nozzle, and no flight controls: in the end state every flight control adds nothing.</item>
     /// <item>The <c>person</c> at <see cref="Shuttle.SeatStand"/> in the cabin, at <see cref="StandAtSeat"/>, <see cref="Strapped"/>, with the drawn copy
-    /// of the pen in its hand, and its <see cref="Disembark"/> <see cref="Aboard"/>. The <c>follow-camera</c> is attached to
+    /// of the pen in its hand, and its <see cref="Disembark"/> <see cref="Aboard"/>. It faces the nose, as the long run's
+    /// person faces it after the walk to the seat, and its <see cref="WalkHeading"/> turns it toward the walk. It is drawn
+    /// as in <c>demo-surface</c>, by <c>person-body</c> and <c>person-visor</c> (see <see cref="DemoSurface.SpawnDrawnBody"/>).
+    /// Its <see cref="BoxPlay"/> of the coda waits <see cref="Idle"/> for <see cref="PlayWithBoxes"/> (see <see cref="WheelCoda"/>).
+    /// The <c>follow-camera</c> is attached to
     /// it, behind it toward the nose, and so is <c>slide-camera</c> (see <see cref="StationExit.SpawnSlideCamera"/>).
     /// <c>cabin-camera</c> stands where <c>demo-surface</c> puts it.</item>
     /// </list>
@@ -97,8 +101,7 @@ public static partial class DemoScenes
             Shuttle.SpawnNozzle(world, cabin, scene, resources);
 
             Vector3 personHalf = DemoSurface.PersonHalf;
-            RenderData personRender = Drawn(resources, Primitives.Box(personHalf), new Vector4(0.2f, 0.45f, 0.8f, 1), boundingRadius: 1);
-            personRender.ViewOffset = new Pose(DemoSurface.Eye, Quaternion.Identity);
+            var personRender = new RenderData { ViewOffset = new Pose(DemoSurface.Eye, Quaternion.Identity) };
             Entity person = world.Spawn(new SpawnDesc
             {
                 Frame = cabin,
@@ -107,6 +110,7 @@ public static partial class DemoScenes
                 Render = personRender,
             });
             scene.Add("person", person);
+            DemoSurface.SpawnDrawnBody(world, scene, person, resources);
             var penSpec = new CrateSpec(DemoSurface.PenHalf, DemoSurface.PenMass, resources.CreateMesh(Primitives.Box(DemoSurface.PenHalf)),
                 resources.CreateMaterial(MaterialDesc.Color(new Vector4(0.85f, 0.1f, 0.08f, 1))));
             Entity copy = world.Spawn(penSpec.HeldCopy(cabin, person, personRender.ViewOffset, PenGrip));
@@ -114,6 +118,7 @@ public static partial class DemoScenes
             world.AddComponent(person, new Passenger(new Waypoint(cabin, Shuttle.SeatStand), Entity.Null, new Strapped(copy)));
             world.AddComponent(person, StationExit.Disembark(cabin, frame));
             world.AddComponent(person, WheelCoda.Play(scene, frame));
+            world.AddComponent(person, new WalkHeading());
             // The person walks aft first, so the camera starts behind it, toward the nose.
             scene.Add("follow-camera", world.Spawn(new SpawnDesc
             {

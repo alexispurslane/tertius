@@ -121,7 +121,8 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
             World.PoseIn(Scene["sun"], Earth).Position.Normalized(), World.GetComponent<DockingAutopilot>(shuttle)!.State,
             World.PoseIn(shuttle, StationFrame), personPose.Position, World.IsStanding(person), World.Frames.Parent(cabin), World.Frames.HullMotion(cabin),
             World.GetComponent<Disembark>(person)!.State, World.GetFrame(person), inStation, World.VelocityIn(person, StationFrame),
-            World.Frames.FeltGravity(StationFrame, inStation).Length, World.GetComponent<BoxPlay>(person)!.State));
+            World.Frames.FeltGravity(StationFrame, inStation).Length, WalkHeading.Yaw(World.GetRender(person).ViewOffset.Rotation),
+            World.GetComponent<BoxPlay>(person)!.State));
     }
 
     /// <summary>
@@ -220,12 +221,13 @@ public sealed class BlueDanubeLongRunCollection : ICollectionFixture<BlueDanubeR
 /// <param name="PersonInStation">The person's center in the station's frame, in meters.</param>
 /// <param name="PersonVelocityInStation">The person's velocity in the station's frame, in m/s.</param>
 /// <param name="PersonFeltGravity">The gravity that the person feels at its center, in the station's frame, in m/s².</param>
+/// <param name="PersonHeading">The person's heading: the turn of its view about its up, in radians, as <see cref="WalkHeading.Yaw"/> gives it.</param>
 /// <param name="Play">What the person's <see cref="BoxPlay"/> of the coda does.</param>
 public sealed record RendezvousTick(long Tick, double Time, Double3 Position, Double3 Velocity, Double3 Nose, Double3 StationCenter,
     Double3 StationVelocity, Double3 Axis, RendezvousState Rendezvous, PassengerState Passenger, System.Numerics.Vector3 CabinAcceleration,
     FrameHandle ShuttleFrame, double? PenFromHand, Double3 PersonUp, bool InShadow, Double3 ToSun, DockingState Docking, DPose InStation,
     Double3 PersonInCabin, bool PersonStanding, FrameHandle CabinParent, BodyMotion? HullMotion, DisembarkState Exit, FrameHandle PersonFrame,
-    Double3 PersonInStation, Double3 PersonVelocityInStation, double PersonFeltGravity, BoxPlayState Play)
+    Double3 PersonInStation, Double3 PersonVelocityInStation, double PersonFeltGravity, double PersonHeading, BoxPlayState Play)
 {
     /// <summary>The shuttle's place relative to the station's center, in meters, in earth's axes.</summary>
     public Double3 FromStation => Position - StationCenter;

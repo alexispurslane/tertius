@@ -90,6 +90,20 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run)
     }
 
     /// <summary>
+    /// The person sits at its seat from the parking orbit through the docking, so its heading holds (docs/plans/blue-danube-demo.md,
+    /// "The person's walk"): in every tick to the end of the film <c>docked</c>, it lies within 0.01 radians of its heading in
+    /// the first tick of the orbit. This covers the fetch of the pen in orbit, where the person floats, and the move out,
+    /// where the belt lets go and the person's feet settle on the floor to port.
+    /// </summary>
+    [Fact]
+    public void ThePersonsHeadingHoldsFromTheOrbitThroughTheDocking()
+    {
+        double first = run.Ticks[0].PersonHeading;
+
+        run.ThroughDocked.Max(tick => Math.Abs(Math.IEEERemainder(tick.PersonHeading - first, 2 * Math.PI))).Should().BeLessThan(0.01);
+    }
+
+    /// <summary>
     /// In every frame of the films <c>slot</c> and <c>landing</c>, from <c>bay-camera</c>, the corners of the slot on both
     /// faces of its wall and the corners of the parked shuttle's box lie in the picture.
     /// </summary>

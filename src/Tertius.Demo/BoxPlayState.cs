@@ -7,12 +7,12 @@ namespace Tertius.Demo;
 public readonly record struct Idle;
 
 /// <summary>A <see cref="BoxPlay"/> walks into the stack of boxes and through it, so that the stack falls.</summary>
-/// <param name="Next">The index of the next waypoint of the walk through the stack.</param>
-public readonly record struct Shoving(int Next);
+/// <param name="Walk">How far the walk has come along the walk through the stack, and how fast it walks.</param>
+public readonly record struct Shoving(WalkProgress Walk);
 
 /// <summary>A <see cref="BoxPlay"/> walks to the stand from which it throws.</summary>
-/// <param name="Next">The index of the next waypoint of the walk to the stand.</param>
-public readonly record struct ToStand(int Next);
+/// <param name="Walk">How far the walk has come along the walk to the stand, and how fast it walks.</param>
+public readonly record struct ToStand(WalkProgress Walk);
 
 /// <summary>A <see cref="BoxPlay"/> uses the box of a throw at the stand, and waits for the box's offer.</summary>
 /// <param name="Throw">The index of the throw, 0 for the first and 1 for the second.</param>
@@ -63,15 +63,16 @@ public readonly struct BoxPlayState : IEquatable<BoxPlayState>
 
     private const byte KindIdle = 0, KindShoving = 1, KindToStand = 2, KindTaking = 3, KindAiming = 4, KindWatching = 5, KindPlayed = 6, KindHalted = 7;
 
-    // A walking state fills the index of its next waypoint, a taking state the index of its throw, an aiming state its
-    // throw, its copy and its ticks, and a watching state its throw and its ticks. Every other field is zero, so equality compares every field.
+    // A walking state fills its walk, a taking state the index of its throw, an aiming state its throw, its copy and its
+    // ticks, and a watching state its throw and its ticks. Every other field is zero, so equality compares every field.
+    private readonly WalkProgress walk;
     private readonly Entity copy;
     private readonly int number, ticks;
     private readonly byte kind;
 
     public BoxPlayState(Idle idle) { kind = KindIdle; }
-    public BoxPlayState(Shoving shoving) { kind = KindShoving; number = shoving.Next; }
-    public BoxPlayState(ToStand toStand) { kind = KindToStand; number = toStand.Next; }
+    public BoxPlayState(Shoving shoving) { kind = KindShoving; walk = shoving.Walk; }
+    public BoxPlayState(ToStand toStand) { kind = KindToStand; walk = toStand.Walk; }
     public BoxPlayState(Taking taking) { kind = KindTaking; number = taking.Throw; }
     public BoxPlayState(Aiming aiming) { kind = KindAiming; number = aiming.Throw; copy = aiming.Copy; ticks = aiming.Ticks; }
     public BoxPlayState(Watching watching) { kind = KindWatching; number = watching.Throw; ticks = watching.Ticks; }
@@ -91,8 +92,8 @@ public readonly struct BoxPlayState : IEquatable<BoxPlayState>
     public bool HasValue => true;
 
     public bool TryGetValue(out Idle value) { value = default; return kind == KindIdle; }
-    public bool TryGetValue(out Shoving value) { value = new Shoving(number); return kind == KindShoving; }
-    public bool TryGetValue(out ToStand value) { value = new ToStand(number); return kind == KindToStand; }
+    public bool TryGetValue(out Shoving value) { value = new Shoving(walk); return kind == KindShoving; }
+    public bool TryGetValue(out ToStand value) { value = new ToStand(walk); return kind == KindToStand; }
     public bool TryGetValue(out Taking value) { value = new Taking(number); return kind == KindTaking; }
     public bool TryGetValue(out Aiming value) { value = new Aiming(number, copy, ticks); return kind == KindAiming; }
     public bool TryGetValue(out Watching value) { value = new Watching(number, ticks); return kind == KindWatching; }
@@ -101,8 +102,8 @@ public readonly struct BoxPlayState : IEquatable<BoxPlayState>
 
     public object Value => kind switch
     {
-        KindShoving => new Shoving(number),
-        KindToStand => new ToStand(number),
+        KindShoving => new Shoving(walk),
+        KindToStand => new ToStand(walk),
         KindTaking => new Taking(number),
         KindAiming => new Aiming(number, copy, ticks),
         KindWatching => new Watching(number, ticks),
@@ -117,8 +118,8 @@ public readonly struct BoxPlayState : IEquatable<BoxPlayState>
     /// </summary>
     public static BoxPlayState? Next(BoxPlayState state, BoxPlayEvent change) => (state, change) switch
     {
-        (Idle, PlayWithBoxes) => new Shoving(0),
-        (Shoving, WalkDone) => new ToStand(0),
+        (Idle, PlayWithBoxes) => new Shoving(WalkProgress.Start),
+        (Shoving, WalkDone) => new ToStand(WalkProgress.Start),
         (ToStand, WalkDone) => new Taking(0),
         (Taking { Throw: var index }, Took { Copy: var held }) => new Aiming(index, held, 0),
         (Aiming { Throw: var index }, Thrown) => new Watching(index, 0),
@@ -129,9 +130,9 @@ public readonly struct BoxPlayState : IEquatable<BoxPlayState>
         _ => null,
     };
 
-    public bool Equals(BoxPlayState other) => kind == other.kind && number == other.number && ticks == other.ticks && copy == other.copy;
+    public bool Equals(BoxPlayState other) => kind == other.kind && walk == other.walk && number == other.number && ticks == other.ticks && copy == other.copy;
     public override bool Equals(object? obj) => obj is BoxPlayState other && Equals(other);
-    public override int GetHashCode() => HashCode.Combine(kind, number, ticks, copy);
+    public override int GetHashCode() => HashCode.Combine(kind, walk, number, ticks, copy);
     public static bool operator ==(BoxPlayState a, BoxPlayState b) => a.Equals(b);
     public static bool operator !=(BoxPlayState a, BoxPlayState b) => !a.Equals(b);
 

@@ -146,7 +146,9 @@ public sealed class WheelCodaTests(CodaRun run) : IClassFixture<CodaRun>
         CodaSample order = First(s => s.Play.Value is not Idle);
         order.Tick.Should().BeLessThanOrEqualTo(2, "the order arrives with the next tick's messages");
         order.Pen.Value.Should().Be(new PenAway(), "the pen goes in the tick of the order");
-        order.Play.Value.Should().Be(new Shoving(0));
+        order.Play.TryGetValue(out Shoving shoving).Should().BeTrue();
+        shoving.Walk.Next.Should().Be(0);
+        shoving.Walk.Pace.Should().BeApproximately(Walker.StartAcceleration / 60, 1e-6, "the walk starts from rest in the tick of the order, one tick at the start limit");
         run.World.IsAlive(run.PenCopy).Should().BeFalse("the pen's copy goes");
     }
 

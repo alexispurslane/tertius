@@ -174,9 +174,13 @@ public static class CheckPanels
         return ThrowColumns(name, string.Format(Invariant, "{0:F2} m/s {1:F1}°", speed, angle), line, run, flat);
     }
 
-    /// <summary>One line of the throws panel's columns: the name, the release, and the three landings, each right-aligned.</summary>
+    /// <summary>
+    /// One line of the throws panel's columns: the name, the release, and the three landings, each right-aligned. Each
+    /// column is wide enough that its header stands at least three spaces from the header before it, also "uniform 1 g"
+    /// after "run".
+    /// </summary>
     private static string ThrowColumns(string name, string release, string line, string run, string flat) =>
-        string.Format(Invariant, "{0,-12} {1,-14} {2,14} {3,10} {4,11}", name, release, line, run, flat);
+        string.Format(Invariant, "{0,-12} {1,-14} {2,14} {3,10} {4,14}", name, release, line, run, flat);
 
     private static string Meters(double meters) => string.Format(Invariant, "{0:F2} m", meters);
 

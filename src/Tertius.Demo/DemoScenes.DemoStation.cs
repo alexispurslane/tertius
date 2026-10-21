@@ -35,6 +35,8 @@ public static partial class DemoScenes
     /// <item>The view <c>hold-camera</c>, in the station's frame, at <see cref="HoldCamera"/> beyond the hold point and off
     /// the axis, looks back at <see cref="HoldCameraAim"/>, with the axis across the picture. It frames the shuttle at the
     /// hold in front and the hub behind it, and turns with the station.</item>
+    /// <item>The exit's chute, openings, lamps and cameras (see <see cref="StationExit.Spawn"/>), and the coda's loose boxes,
+    /// floor marks and cameras on the wheel's floor (see <see cref="WheelCoda.Spawn"/>).</item>
     /// </list>
     /// Every part is drawn with <see cref="RenderFlags.NoImpostor"/>: the spin turns the station 18 degrees a second, so an
     /// impostor's capture would go stale within a few ticks.

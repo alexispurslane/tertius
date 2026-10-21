@@ -7,15 +7,15 @@ namespace Tertius.Demo;
 public readonly record struct Aboard;
 
 /// <summary>A <see cref="Disembark"/> walks the way out of the ship to the chute's top.</summary>
-/// <param name="Next">The index of the next waypoint of the way out.</param>
-public readonly record struct Walking(int Next);
+/// <param name="Walk">How far the walk has come along the way out, and how fast it walks.</param>
+public readonly record struct Walking(WalkProgress Walk);
 
 /// <summary>A <see cref="Disembark"/> slides down the chute, and the chute's friction brakes it.</summary>
 public readonly record struct Sliding;
 
 /// <summary>A <see cref="Disembark"/> walks a few steps on the wheel's floor.</summary>
-/// <param name="Next">The index of the next waypoint of the stroll.</param>
-public readonly record struct Strolling(int Next);
+/// <param name="Walk">How far the walk has come along the stroll, and how fast it walks.</param>
+public readonly record struct Strolling(WalkProgress Walk);
 
 /// <summary>A <see cref="Disembark"/> has walked its stroll, and the exit is over.</summary>
 public readonly record struct Arrived;
@@ -46,15 +46,15 @@ public readonly struct DisembarkState : IEquatable<DisembarkState>
 {
     private const byte KindAboard = 0, KindWalking = 1, KindSliding = 2, KindStrolling = 3, KindArrived = 4, KindHalted = 5;
 
-    // A walking or strolling state fills the index of its next waypoint. Every other state leaves it zero, so equality
-    // compares every field.
-    private readonly int next;
+    // A walking or strolling state fills its walk. Every other state leaves it at the default, so equality compares every
+    // field.
+    private readonly WalkProgress walk;
     private readonly byte kind;
 
     public DisembarkState(Aboard aboard) { kind = KindAboard; }
-    public DisembarkState(Walking walking) { kind = KindWalking; next = walking.Next; }
+    public DisembarkState(Walking walking) { kind = KindWalking; walk = walking.Walk; }
     public DisembarkState(Sliding sliding) { kind = KindSliding; }
-    public DisembarkState(Strolling strolling) { kind = KindStrolling; next = strolling.Next; }
+    public DisembarkState(Strolling strolling) { kind = KindStrolling; walk = strolling.Walk; }
     public DisembarkState(Arrived arrived) { kind = KindArrived; }
     public DisembarkState(Halted halted) { kind = KindHalted; }
 
@@ -69,17 +69,17 @@ public readonly struct DisembarkState : IEquatable<DisembarkState>
     public bool HasValue => true;
 
     public bool TryGetValue(out Aboard value) { value = default; return kind == KindAboard; }
-    public bool TryGetValue(out Walking value) { value = new Walking(next); return kind == KindWalking; }
+    public bool TryGetValue(out Walking value) { value = new Walking(walk); return kind == KindWalking; }
     public bool TryGetValue(out Sliding value) { value = default; return kind == KindSliding; }
-    public bool TryGetValue(out Strolling value) { value = new Strolling(next); return kind == KindStrolling; }
+    public bool TryGetValue(out Strolling value) { value = new Strolling(walk); return kind == KindStrolling; }
     public bool TryGetValue(out Arrived value) { value = default; return kind == KindArrived; }
     public bool TryGetValue(out Halted value) { value = default; return kind == KindHalted; }
 
     public object Value => kind switch
     {
-        KindWalking => new Walking(next),
+        KindWalking => new Walking(walk),
         KindSliding => new Sliding(),
-        KindStrolling => new Strolling(next),
+        KindStrolling => new Strolling(walk),
         KindArrived => new Arrived(),
         KindHalted => new Halted(),
         _ => new Aboard(),
@@ -91,17 +91,17 @@ public readonly struct DisembarkState : IEquatable<DisembarkState>
     /// </summary>
     public static DisembarkState? Next(DisembarkState state, DisembarkEvent change) => (state, change) switch
     {
-        (Aboard, LeaveShip) => new Walking(0),
+        (Aboard, LeaveShip) => new Walking(WalkProgress.Start),
         (Walking, Dropped) => new Sliding(),
-        (Sliding, Landed) => new Strolling(0),
+        (Sliding, Landed) => new Strolling(WalkProgress.Start),
         (Strolling, WalkDone) => new Arrived(),
         (Walking or Sliding or Strolling, StationGone) => new Halted(),
         _ => null,
     };
 
-    public bool Equals(DisembarkState other) => kind == other.kind && next == other.next;
+    public bool Equals(DisembarkState other) => kind == other.kind && walk == other.walk;
     public override bool Equals(object? obj) => obj is DisembarkState other && Equals(other);
-    public override int GetHashCode() => HashCode.Combine(kind, next);
+    public override int GetHashCode() => HashCode.Combine(kind, walk);
     public static bool operator ==(DisembarkState a, DisembarkState b) => a.Equals(b);
     public static bool operator !=(DisembarkState a, DisembarkState b) => !a.Equals(b);
 

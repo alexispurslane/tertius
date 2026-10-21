@@ -12,7 +12,7 @@ public sealed class BoxPlayStateTests
 
     private static readonly BoxPlayState[] States =
     [
-        new Idle(), new Shoving(0), new Shoving(2), new ToStand(0), new ToStand(1), new Taking(0), new Taking(1),
+        new Idle(), new Shoving(WalkProgress.Start), new Shoving(new WalkProgress(1, 3)), new ToStand(WalkProgress.Start), new ToStand(new WalkProgress(0, 2.5)), new Taking(0), new Taking(1),
         new Aiming(0, Copy, 0), new Aiming(0, Copy, 12), new Aiming(1, Copy, 3), new Watching(0, 0), new Watching(0, 40), new Watching(1, 7),
         new Played(), new Halted(),
     ];
@@ -21,15 +21,15 @@ public sealed class BoxPlayStateTests
 
     [Fact]
     public void AnOrderToPlayStartsTheWalkIntoTheStackAtItsFirstWaypoint() =>
-        BoxPlayState.Next(new Idle(), new PlayWithBoxes()).Should().Be((BoxPlayState)new Shoving(0));
+        BoxPlayState.Next(new Idle(), new PlayWithBoxes()).Should().Be((BoxPlayState)new Shoving(WalkProgress.Start));
 
     [Fact]
     public void TheEndOfTheWalkThroughTheStackStartsTheWalkToTheStand() =>
-        BoxPlayState.Next(new Shoving(2), new WalkDone()).Should().Be((BoxPlayState)new ToStand(0));
+        BoxPlayState.Next(new Shoving(new WalkProgress(2, 1)), new WalkDone()).Should().Be((BoxPlayState)new ToStand(WalkProgress.Start), "the walk to the stand starts from rest at its first waypoint");
 
     [Fact]
     public void AtTheStandThePersonTakesTheFirstBox() =>
-        BoxPlayState.Next(new ToStand(1), new WalkDone()).Should().Be((BoxPlayState)new Taking(0));
+        BoxPlayState.Next(new ToStand(new WalkProgress(1, 0)), new WalkDone()).Should().Be((BoxPlayState)new Taking(0));
 
     [Fact]
     public void ATakenBoxIsAimedWithItsCopyInHandFromTheFirstTick()
@@ -56,7 +56,7 @@ public sealed class BoxPlayStateTests
     [Fact]
     public void AStationThatIsGoneHaltsEveryCaseOfThePlay()
     {
-        foreach (BoxPlayState state in new BoxPlayState[] { new Shoving(0), new ToStand(1), new Taking(0), new Aiming(1, Copy, 3), new Watching(0, 2) })
+        foreach (BoxPlayState state in new BoxPlayState[] { new Shoving(WalkProgress.Start), new ToStand(new WalkProgress(1, 0)), new Taking(0), new Aiming(1, Copy, 3), new Watching(0, 2) })
             BoxPlayState.Next(state, new StationGone()).Should().Be((BoxPlayState)new Halted(), $"{state} halts");
     }
 
@@ -114,7 +114,9 @@ public sealed class BoxPlayStateTests
         ((BoxPlayState)new Aiming(1, Copy, 3)).Should().NotBe((BoxPlayState)new Aiming(1, Copy, 4));
         ((BoxPlayState)new Aiming(1, Copy, 3)).Should().NotBe((BoxPlayState)new Aiming(0, Copy, 3));
         ((BoxPlayState)new Aiming(1, Copy, 3)).Should().NotBe((BoxPlayState)new Aiming(1, new Entity(8, 2), 3));
-        ((BoxPlayState)new Shoving(1)).Should().NotBe((BoxPlayState)new ToStand(1));
+        ((BoxPlayState)new Shoving(new WalkProgress(1, 3))).Should().NotBe((BoxPlayState)new ToStand(new WalkProgress(1, 3)));
+        ((BoxPlayState)new Shoving(new WalkProgress(1, 3))).Should().NotBe((BoxPlayState)new Shoving(new WalkProgress(1, 2.5)));
+        ((BoxPlayState)new ToStand(new WalkProgress(0, 2))).Should().NotBe((BoxPlayState)new ToStand(new WalkProgress(1, 2)));
         ((BoxPlayState)new Taking(1)).Should().NotBe((BoxPlayState)new Taking(0));
         ((BoxPlayState)new Watching(1, 3)).Should().NotBe((BoxPlayState)new Watching(1, 4));
         ((BoxPlayState)new Watching(1, 3)).Should().NotBe((BoxPlayState)new Watching(0, 3));
