@@ -2814,7 +2814,7 @@ dotnet run --project src/Tertius.Demo -- --generate scripts/blue-danube.json
 dotnet run -c Release --project src/Tertius.Demo -- --script scripts/blue-danube.json --headless --out runs/danube --video runs/danube/blue-danube.mkv --fps 60
 ```
 
-The first command rehearses the run and writes the script. Beside it, in the same folder, it writes each cut of `BlueDanube.Cuts`, such as `scripts/demo-docking.json`, which films the long script only from one section through another. It prints each film with its frames, its film interval and the second of the run at which it starts. With the rendezvous, the rehearsal took 107 s on 2026-10-20, against about 10 s before. The second makes the video: on 2026-10-20 it took 110 s, at a load average from 3.7 to 6.5, for the 15,806 frames and 292,242 ticks, 4,871 s of the simulation and 263 s of video. Before the rendezvous, in the last two runs of 2026-10-19, it took 22 s and 24 s for 4,210 frames and 23,101 ticks. With the glass canopy of ter-4xkz, it took 117 s on 2026-10-20, at a load average from 4 to 5, for 15,782 frames. With the docking of ter-ftnj, the script films 20,084 frames in 302,163 ticks, 5,036 s of the simulation and 335 s of video. Its rehearsal took about 4.5 minutes on 2026-10-20, in Release, while other test runs loaded the machine. With the exit of ter-y0e5, the script films 22,884 frames in 305,468 ticks, 5,091 s of the simulation and 381 s of video. Its rehearsal took 59 s on 2026-10-20, in Release. The video took 203 s on 2026-10-20, for 22,884 frames and 381.4 s of video. The first second of the film `floor` shows the person's box large in the picture, because the `follow-camera`'s arm, which the slide left short, grows back with its time constant of 0.5 s. `scripts/demo-exit.json` shows the same. In the Earth system of ter-yhu8, before its merge with the docking and the exit, the rehearsal took from 97 to 123 s and the video 114 s on 2026-10-20, at a load average from 9 to 13, for 15,895 frames. After that merge, on 2026-10-21, the script films 22,988 frames in 305,459 ticks, 5,091 s of the simulation and 383.1 s of video. Its rehearsal took 113 s in Release, with the build, and the video took 145 s, at a load average from 5 to 7. With the person's walk of ter-cdgt, on 2026-10-21, the script films 22,771 frames in 305,469 ticks, 5,091 s of the simulation and 379.5 s of video. Its rehearsal took 99 s in Release, with the build, and the video took 144 s, at a load average from 4 to 8. The test `BlueDanubeScriptTests` runs the first command and checks that its output equals the checked-in `scripts/blue-danube.json`, and each cut the checked-in cut, so they cannot drift. A change of the scene, of the engine's timing or of the sections fails the test until the script is written again.
+The first command rehearses the run and writes the script. Beside it, in the same folder, it writes each cut of `BlueDanube.Cuts`, such as `scripts/demo-docking.json`, which films the long script only from one section through another. It prints each film with its frames, its film interval and the second of the run at which it starts. With the rendezvous, the rehearsal took 107 s on 2026-10-20, against about 10 s before. The second makes the video: on 2026-10-20 it took 110 s, at a load average from 3.7 to 6.5, for the 15,806 frames and 292,242 ticks, 4,871 s of the simulation and 263 s of video. Before the rendezvous, in the last two runs of 2026-10-19, it took 22 s and 24 s for 4,210 frames and 23,101 ticks. With the glass canopy of ter-4xkz, it took 117 s on 2026-10-20, at a load average from 4 to 5, for 15,782 frames. With the docking of ter-ftnj, the script films 20,084 frames in 302,163 ticks, 5,036 s of the simulation and 335 s of video. Its rehearsal took about 4.5 minutes on 2026-10-20, in Release, while other test runs loaded the machine. With the exit of ter-y0e5, the script films 22,884 frames in 305,468 ticks, 5,091 s of the simulation and 381 s of video. Its rehearsal took 59 s on 2026-10-20, in Release. The video took 203 s on 2026-10-20, for 22,884 frames and 381.4 s of video. The first second of the film `floor` shows the person's box large in the picture, because the `follow-camera`'s arm, which the slide left short, grows back with its time constant of 0.5 s. `scripts/demo-exit.json` shows the same. In the Earth system of ter-yhu8, before its merge with the docking and the exit, the rehearsal took from 97 to 123 s and the video 114 s on 2026-10-20, at a load average from 9 to 13, for 15,895 frames. After that merge, on 2026-10-21, the script films 22,988 frames in 305,459 ticks, 5,091 s of the simulation and 383.1 s of video. Its rehearsal took 113 s in Release, with the build, and the video took 145 s, at a load average from 5 to 7. Step 8 (ter-asce) set the outlines of six sections and wrote the script again on 2026-10-21. The outlines change no tick, so every film kept its frames. The rehearsal took 72 s in Release, and the video 142 s. With the person's walk of ter-cdgt, on 2026-10-21, the script films 22,771 frames in 305,469 ticks, 5,091 s of the simulation and 379.5 s of video. Its rehearsal took 99 s in Release, with the build, and the video took 144 s, at a load average from 4 to 8. The test `BlueDanubeScriptTests` runs the first command and checks that its output equals the checked-in `scripts/blue-danube.json`, and each cut the checked-in cut, so they cannot drift. A change of the scene, of the engine's timing or of the sections fails the test until the script is written again.
 
 The sections today, as `BlueDanube.Sections` lists them. The frames of each film and the second at which it starts come from the run, so the generator prints them, and this table does not copy them:
 
@@ -3154,7 +3154,7 @@ The video shows numbers from the engine next to numbers that a viewer can check 
 |---|---|---|
 | Live readouts | Speed, altitude, distance to the station and a g-meter for the character, drawn on each frame from a log with one row for each frame, which a playback of the Demo writes (see "The readout log") | No |
 | The frames made visible | A cut-in that outlines each frame's bubble, with a legend of the kinds of frames | No more: the outlines came with E6 to E8 (see "Change 3: frame outlines") |
-| Textbook checks | The sim clock shows that things take the time that physics predicts: a panel sets the speed and the period of the parking orbit, 88.4 minutes at 200 km, beside the values of the run (see "The textbook checks") | No |
+| Textbook checks | The sim clock shows that things take the time that physics predicts: a panel sets the speed and the period of the parking orbit, 88.4 minutes at 200 km, beside the values of the run. A second panel sets the spin gravity ω² r on the wheel's floor beside the run's felt gravity (see "The textbook checks") | No |
 
 The user chose a fourth proof on 2026-10-18 and left it out on 2026-10-20: one part of the script shown twice in a split view, with the automatic frames on in one half and off in the other. It needs an engine change, an option of the headless run that turns numeric frames off.
 
@@ -3719,7 +3719,7 @@ Why a playback, and not a component or the Host:
 - The playback is the seam that the runner already calls at exactly the moments that the video shows, with the frame's name. `BlueDanubeFilmTests` reads the long script through a playback in the same way.
 - The Host is engine code. A log beside the video sink in the same run needs a Host change. A second run takes about as long as the rehearsal, under two minutes today, and it changes nothing in the engine.
 
-Why one row for each frame and not for each tick: the video shows only the captured ticks. A row for each frame needs no join by tick. The log is also 18 times smaller than a log with a row for each tick: 15,895 frames against 292,467 ticks in the Earth system of ter-yhu8.
+Why one row for each frame and not for each tick: the video shows only the captured ticks. A row for each frame needs no join by tick. The log is also 13 times smaller than a log with a row for each tick: 22,988 frames against 305,459 ticks in the long script of 2026-10-21.
 
 Each row holds raw quantities from the engine, and the edit derives the rest:
 
@@ -3730,9 +3730,10 @@ Each row holds raw quantities from the engine, and the edit derives the rest:
 | `x`, `y`, `z` | The person's position in `earth`, in meters from Earth's center. `earth` has its origin at Earth's center, and it does not turn. |
 | `speed` | The length of the person's velocity in `earth`, in m/s |
 | `station` | The distance from the person to the station's center, in meters |
+| `axis` | The distance from the person to the station's axis, in meters: to the line through the station's center along the +Y of the station's own frame `station`, the axis of its turn |
 | `felt` | The length of the felt gravity at the person's place, `FrameTree.FeltGravity` of the person's frame at its position there, in m/s² |
 
-Every readout is about the person, in the one frame `earth`, as the guidance reads (see "The demo in the Earth system"). The ground's frame `earth-surface` turns once per sidereal day. A speed in it misses the ground's turn: by up to 480 m/s in the parking orbit, which passes over the pole. So the speed and the textbook check of the parking orbit read in `earth`. The altitude, the distance to the station and the felt gravity are the same in both frames. On the ground the person walks at most 40 m from the axis of the turn, where the ground moves at 3 mm/s in `earth`. The camera follows the person, and from the boarding on the person rides in the shuttle, so the readouts tell the shuttle's flight too. The log writes each number in the round-trip format, so a read of the log gives back the same doubles.
+Every readout is about the person, in the one frame `earth`, as the guidance reads (see "The demo in the Earth system"). The ground's frame `earth-surface` turns once per sidereal day. A speed in it misses the ground's turn: by up to 480 m/s in the parking orbit, which passes over the pole. So the speed and the textbook check of the parking orbit read in `earth`. The altitude, the distance to the station and the felt gravity are the same in both frames. The distance from the station's axis is the r of the spin gravity's check (see "The textbook checks"). A distance from a line is the same in every frame, so the log reads it in `earth` too: it takes the station's pose in `earth`, and the part of the person's offset from the station's center across the station's +Y. Step 8 (ter-asce) added the column, because the check needs the person's own distance from the axis and not the floor's radius. On the ground the person walks at most 40 m from the axis of the turn, where the ground moves at 3 mm/s in `earth`. The camera follows the person, and from the boarding on the person rides in the shuttle, so the readouts tell the shuttle's flight too. The log writes each number in the round-trip format, so a read of the log gives back the same doubles.
 
 ### The readouts on the frame
 
@@ -3760,7 +3761,7 @@ The rules of the numbers:
 
 The check must read a value that the engine computes by physics, not one that it sets by formula. The station flies on Kepler rails (`KeplerMotion`), so its period is Kepler's by construction, and a check of it proves nothing. The shuttle is a dynamic body, and Jolt integrates it in Earth's point gravity, so the checks read the person, who rides in it.
 
-One panel today, the parking orbit. It shows from the film `orbit` through the film `night`, while the shuttle coasts in the parking orbit before the transfer burn:
+Two panels. The first is the parking orbit. It shows from the film `orbit` through the film `night`, while the shuttle coasts in the parking orbit before the transfer burn:
 
 ```
 TEXTBOOK CHECK   parking orbit, 200.0 km up
@@ -3774,7 +3775,21 @@ one orbit 2π√(r³/GM)       88.4 min   run measuring
 
 The first example of the plan, about 92 minutes for one orbit at 400 km, is the station's orbit, and so it is not a check. The parking orbit at 200 km takes 88.4 minutes.
 
-A second panel waits for the docking and the exit: spin gravity in the wheel. While the person stands on the wheel's floor, the panel sets ω² r / g beside the g-meter. ω is `SpinStation.Rate`, and r is `SpinStation.FloorRadius`. That is 0.31321² × 100 / 9.80665 = 1.00 g. The ticket that adds the wheel's sections adds this panel, with its first and last film.
+The second panel is spin gravity in the wheel, `CheckPanels.SpinGravity`. It shows from the film `brake-run` through the film `floor`, the last film of the run: the brake run at the chute's end, the landing, and the person on the wheel's floor:
+
+```
+TEXTBOOK CHECK   spin gravity in the wheel
+ω 0.31321 rad/s, r 99.10 m from the axis
+felt gravity ω²r   9.72 m/s²   run 9.72 m/s²
+```
+
+- ω is the station's spin rate, `SpinStation.Rate`. It is a constant of the scene, as G·M is for the orbit.
+- r is the row's `axis`, the person's distance from the station's axis. So the panel holds at every frame, also in the brake run, where r grows from 84.8 m to 99.1 m.
+- The run's value is the row's `felt`, the felt gravity at the person's place.
+
+Why from the brake run and not only on the floor: the film `floor` lasts 6.5 s, and a panel needs time to read. The brake run adds 3.4 s, in which the person slides the last 15 m to the floor and its felt gravity grows from 0.85 g to 0.99 g. The panel takes r from each row, so it is right at these frames too. The part's title shows over the first 4 s of `unbelt`, long before the panel.
+
+This check is weaker than the orbit's. The engine computes the felt gravity by a rule: the frame's field, minus its proper acceleration, minus ω × (ω × r), with ω the frame's angular velocity from the tree rows. So the panel shows that the station's frame turns at the station's rate and falls freely, so that its field and its proper acceleration cancel. It does not show an integration, as the orbit's period does. In the long script of 2026-10-21, the two values agree to 8e-8 m/s² in every frame of `brake-run` and `floor`. On the floor the person stands 99.10 m from the axis at 9.721 m/s², 0.99 g, as `BlueDanubeExitTests` measures.
 
 ### The cut list
 
@@ -3795,10 +3810,10 @@ The parts:
 | 2 | `ignition` | The launch | Up the ramp and into an orbit 200 km up. |
 | 3 | `orbit` | Weightless | The ship's frame falls freely, so the cabin is weightless by itself. |
 | 4 | `belt` | The rendezvous | A transfer of 170 degrees to the station, 400 km up. |
-| 5 | The docking's first film | The docking | The shuttle matches the station's spin and lands in the barrel. |
-| 6 | The exit's first film | The wheel | Down a spoke to full spin gravity. |
+| 5 | `dock` | The docking | The shuttle matches the station's spin and lands on its deck. |
+| 6 | `unbelt` | The wheel | Down a spoke to the wheel's floor, in full spin gravity. |
 
-When the sections of the docking and the exit exist, those tickets add parts 5 and 6.
+Step 8 (ter-asce) added parts 5 and 6. The docking starts with `dock`, the first film after the hold, whose posts order the docking. The wheel starts with the exit's first film, `BlueDanube.ExitSections[0]`, `unbelt`, where the person opens its belt. Each subtitle says what the part shows in one line, as the others do. "Matches the station's spin" names the spin-up, without which the shuttle cannot enter the turning slot, and "lands on its deck" names the docking's end. The shuttle lands on the bay's deck inside the hub, so the subtitle says the deck and not the barrel. "Full spin gravity" names the point of the wheel, which the second panel checks. It says "full" and not "one g", because the person feels 0.99 g.
 
 #### The dark frames
 
@@ -3807,20 +3822,23 @@ A ticket note of 2026-10-20 found the gray-box hull nearly black in Earth's shad
 - It keeps every frame where any part of the shuttle or the station shows, however dark.
 - It cuts a stretch only where the picture shows nothing of the shuttle or the station at all, and then only if the design needs the time.
 
-The measure, on the master of the checked-in script of 2026-10-20, with the shuttle's tram shape and its glass canopy: the `signalstats` filter of ffmpeg reads the luma, from 0 to 255, of fixed regions of each frame of the 1280 × 720 master, which has no text on it.
+The measure, on the master of the checked-in script of 2026-10-21, with the docking, the exit and the outlines (step 8, ter-asce): the `signalstats` filter of ffmpeg reads the luma, from 0 to 255, of fixed regions of each frame of the 1280 × 720 master, which has no text on it. The films with outlines are measured with their lines, as the video shows them.
 
 | Films | Camera | Region | Darkest frame of the films |
 |---|---|---|---|
-| `climb-high`, `orbit`, `phasing`, `transfer`, `glide`, `hold-chase` | `chase-camera` | The shuttle's box, x 500 to 740 and y 300 to 445. The camera rides fixed in the shuttle's frame, so the shuttle covers the same pixels in each of its frames. | The 90th percentile of the box is 151 or more. It lies at least 82 above the mean of the brightest of four strips round the box, the sky or Earth behind the shuttle. In `transfer`, the darkest film, the box is 151 and the strips 25. |
-| `night`, `burn`, `transfer-night`, `arrival` | `cockpit-camera` | The whole picture: the cabin fills it | The mean is 168 or more. The cabin is lit in Earth's shadow too. |
-| `closing` | `bow-camera` | The shuttle's nose, x 200 to 360 and y 405 to 535 | The 90th percentile is 220 or more. |
-| `glide-rim`, `hold` | `rim-camera` | The station's spoke at the left of the picture, x 80 to 330 | The 90th percentile is 28 or more, on a black sky: the mean of the whole picture is 3.8 in the darkest frame. Dark, but it shows. |
+| `climb-high`, `orbit`, `phasing`, `transfer`, `glide`, `hold-chase`, `dock`, `spin-up` | `chase-camera` | The shuttle's box, x 500 to 740 and y 300 to 445. The camera rides fixed in the shuttle's frame, so the shuttle covers the same pixels in each of its frames. | The 90th percentile of the box is 146 or more. In every frame it lies at least 66 above the mean of the brightest of four strips 20 pixels wide round the box, the sky or Earth behind the shuttle. In `transfer`, the darkest film, the box is 146 and the strips 16. |
+| `night`, `burn`, `transfer-night`, `arrival` | `cockpit-camera` | The whole picture: the cabin fills it | The mean is 160 or more. The cabin is lit in Earth's shadow too. |
+| `closing` | `bow-camera` | The shuttle's nose, x 200 to 360 and y 405 to 535 | The 90th percentile is 204 or more. |
+| `glide-rim`, `hold` | `rim-camera` | The station's spoke at the left of the picture, x 80 to 330 | The 90th percentile is 40 or more, on a black sky: the mean of the whole picture is 20.1 in the darkest frame. Dark, but it shows. |
+| `spin-match` | `hold-camera` | The whole picture | The 90th percentile is 57 or more, and the mean 26.8 or more: the shuttle 37 m away and the hub beyond it, on a black sky. A look at the darkest frame, frame 272 of the film, shows the lit cabin through the glass and the whole wheel. |
+| `entry`, `slot`, `move-out`, `landing`, `docked` | `window-camera`, `bay-camera`, `cockpit-camera`, `cabin-camera` | The whole picture | The mean is 77 or more: the slot ahead through the nose's pane, the lit bay, and the lit cabin. |
+| `unbelt`, `deck`, `chute-top`, `chute`, `brake-run`, `floor` | `cabin-camera`, `deck-camera`, `spoke-camera`, `slide-camera`, `wheel-camera`, `follow-camera` | The whole picture | The mean is 95 or more: the lamps of the deck, the spoke and the wheel light every picture. |
 
-The other films are on the ground, in the cabin, at the pen and at the windows, in daylight or in the lit cabin. So every frame of the master shows the shuttle or the station, and the cut list trims nothing. The face of the hull that looks at the chase camera is still dark in Earth's shadow. But the panes of the glass canopy show the lit cabin, so the shuttle stands out against the night side of Earth. At the end of `transfer`, the station is too small to see, and the shuttle shows.
+The other films are on the ground, in the cabin, at the pen and at the windows, in daylight or in the lit cabin, and the mean of each of their pictures is 28 or more. So every frame of the master shows the shuttle or the station, and the cut list trims nothing. The face of the hull that looks at the chase camera is still dark in Earth's shadow. But the panes of the glass canopy show the lit cabin, so the shuttle stands out against the night side of Earth. At the end of `transfer`, the station is too small to see, and the shuttle shows.
 
-The trims stay in the rules of the cut list. The docking and the exit can have frames that show nothing, and the rule above decides them.
+The docking and the exit have no frame that shows nothing of the shuttle or the station either, so the cut list trims none of their frames. The trims stay in the rules of the cut list for a later change of the script.
 
-The stretches of today hold all 15,895 frames of the master, 264.9 s at 60 frames per second, with the film `sky` of the Earth system (ter-yhu8). With the cards, the final video lasts 277.9 s, 4 minutes 38 s. The docking and the exit add their own stretches.
+The stretches hold all 22,988 frames of the master, 383.1 s at 60 frames per second. With the cards, the final video lasts 396.1 s, 6 minutes 36 s.
 
 ### The title cards and the transitions
 
@@ -3840,14 +3858,17 @@ The outlines exist (E6 to E8): the `outlines` step turns `World.ShowFrameOutline
 - `FilmSection` gains `Outlines`, false by default. The generator writes an `outlines` step before the camera step of a section whose `Outlines` differs from the section before it, starting from off. With no section that sets it, the script stays the same to the byte, so `BlueDanubeScriptTests` stays green.
 - The edit finds the outlines steps in the script, and draws the legend over the films that the outlines show in.
 - The sections that show the outlines:
-  - `boarding`: the person walks into the shuttle's bubble (blue) on the ground.
-  - `ramp`: the shuttle passes 50 m/s while it thrusts, and the engine gives it a falling frame (pink).
-  - `climb-high`: the sphere of the falling frame holds the bubble.
-  - `glide-rim`: the station's bubble, the following frame round the station, and the shuttle's frames.
-  - The docking adds its own.
-- The frames that each of these sections shows come from the rules of numeric frames in ARCHITECTURE.md. When the sections get `Outlines`, a look at the frames checks them.
+  - `boarding`: the person walks into the parked shuttle's bubble (blue) on the ground.
+  - `climb-low`: a falling frame (pink) forms round the shuttle's bubble in the film's first 10 s, between 0.3 and 1.6 km up, and its sphere grows as the shuttle climbs.
+  - `climb-high`: the hand-off out of the turning ground's bubble, 178.4 km up. The sphere of the falling frame holds the shuttle's bubble, and the rings of the ground's bubble lie behind them.
+  - `orbit`: the shuttle's own frame and its falling frame on the circle, 200 km up, under the title of the part "Weightless".
+  - `glide-rim`: the station's bubble beside the hub, and the shuttle's bubble and falling frame far out.
+  - `entry`: the shuttle crosses the station's bubble, 120 m from the station's center, about 15 s into the film, and enters the station's turning frame. The window camera looks through the rings of the bubble at the slot.
+- The frames that each of these sections shows come from the rules of numeric frames in ARCHITECTURE.md. A look at one frame of each section checked them on 2026-10-21.
+- Why not the ramp: the first list named `ramp`, where the shuttle passes 50 m/s while it thrusts. A look at the frames found no falling frame on the ramp or past its top, in `ramp-top`. The falling frame forms in `climb-low`, so that section shows the outlines in place of `ramp`. The outlines go off for `climb-cabin` and `climb-pen`, which film the inside of the cabin, and come on again for `climb-high`.
+- Why these sections: "Proof in the video" asks for the moments where the frames matter. These are the shuttle's bubble on the ground, the falling frame that the engine gives a fast ship, the hand-off out of the turning ground, the ship's own frame in orbit, and the entry into the station's turning bubble. Each section is a stretch of the outside of the shuttle or of the station, where the outlines lie in the picture. `BlueDanubeEditTests` checks the films of the checked-in script that show them.
 - Why the same run and not a second run with outlines: the frames come from one run. So no frame of the cut-in has to match a frame of another video. The final render also needs only one run of the script.
-- Other tickets write `scripts/blue-danube.json` now. So the sections set `Outlines` after the docking and the exit merge. The script is written again then anyway.
+- Step 8 (ter-asce) set `Outlines` on these sections after the docking and the exit merged, and wrote the script again. The outlines change no tick, so every film kept its frames.
 
 ### Engine questions of the edit
 
@@ -3860,13 +3881,38 @@ One proof and one fix of the light needed engine changes. The user settled both 
 
 The recording: "The Blue Danube" by Johann Strauss II, played by the United States Marine Band and conducted by Albert F. Schoepper. It is a work of the US government, and so it is in the public domain. It comes from Wikimedia Commons, the file "An der schönen, blauen Donau" performed by the U.S. Marine Band.mp3: 13,183,232 bytes, MP3 at 192 kbit/s, 44.1 kHz, stereo. The user said yes to its download on 2026-10-20. The file stays outside the repository, and the edit takes its path with `--music`.
 
-ffprobe in the dev shell measures the recording at 549.06 s, 9 minutes 9 s. The last 2.8 s are silence. The video lasts 277.9 s today, about half of the recording. The edit fits the music to the cut with one rule:
+ffprobe in the dev shell measures the recording at 549.06 s, 9 minutes 9 s. The last 2.8 s are silence. The video lasts 396.1 s, 72 percent of the recording. The edit fits the music to the cut with one rule:
 
 - The music starts at second 0 of the recording (`--music-start 0`), with the first frame of the opening card. The waltz opens with its quiet introduction, at about 47 dB below full scale in its first second, so it starts under the black card with no jump.
 - It fades in over 2 s and out over the last 5 s of the video, which lie in the closing card. So the music ends with the picture.
 - It is encoded as AAC at 192 kbit/s, the rate of the source.
 
-Why a fade and no cut of the music: the waltz is twice as long as the run, and the run is one unbroken take, so the picture cannot follow the music's sections. A cut inside the music, to end on its last chord, needs an edit of the music by ear. A fade over the closing card ends the music where the picture ends, and it stays right when the docking and the exit make the video longer: the recording is long enough for a video of up to 9 minutes. In the cut of round 2, 276.0 s long, the fade ended 0.2 s before a short pause of the waltz: from 276.25 s to 276.75 s of the recording, its level falls to about 45 dB below full scale. The film `sky` of the Earth system made the video 1.9 s longer, so the fade of today passes through that pause and ends about 1.2 s after it.
+Why a fade and no cut of the music: the waltz is twice as long as the run, and the run is one unbroken take, so the picture cannot follow the music's sections. A cut inside the music, to end on its last chord, needs an edit of the music by ear. A fade over the closing card ends the music where the picture ends, and it stays right when the docking and the exit make the video longer: the recording is long enough for a video of up to 9 minutes. In the cut of round 2, 276.0 s long, the fade ended 0.2 s before a short pause of the waltz: from 276.25 s to 276.75 s of the recording, its level falls to about 45 dB below full scale. The film `sky` of the Earth system made the video 1.9 s longer, so the fade passed through that pause and ended about 1.2 s after it. With the docking and the exit, the video lasts 396.1 s, and the fade runs from 391.1 to 396.1 s of the recording. The waltz plays on there, at about 15 to 26 dB below full scale, with no pause. So the music fades out under the closing card in the middle of a phrase.
+
+The user chose this recording for the whole video on 2026-10-21, after a comparison of the first 65 s with a synth score and with the recording. So the rule above is the final one, and no score replaces the recording. Ticket ter-zd4t closed without a merge, and its branch keeps the score's tools.
+
+### The cue sheet
+
+Who reads it: no code in the repository reads it now. It was made for the score of ter-zd4t, which the user left out on 2026-10-21 (see "The music"). A score or a cut of the music that follows the picture needs the times of the films in the final video, exact to the frame. The edit owns the cut, the cards and the trims, so it writes the times: `--edit <out.mp4>` writes `<out.mp4>.cues.json` beside the video, from `CueSheet.Of`, once ffmpeg has made the video. A score that derived the times from the script would copy the rules of the edit, and it could drift from them.
+
+The file holds:
+
+| Field | Meaning |
+|---|---|
+| `framesPerSecond` | 60, the frames per second of the video |
+| `length` | The length of the video in seconds, the end of the closing card |
+| `opening`, `closing` | The `start` and the `end` of each card, in seconds |
+| `films` | Each film of the script, in its order: its `name`, its `firstFrame` and `lastFrame`, the first and the last frame of the master that the cut list keeps, and its `start` and `end` in seconds of the final video |
+| `parts` | Each part: its `title`, its first `film`, and the `start` of its title in seconds, which is the start of that film |
+
+Every time is a frame of the final video. Frame n starts at n / 60 s, so 60 times each time is a whole number, to the rounding of a double. A card lasts its seconds rounded to whole frames, `TitleCard.Frames`. Its subtitles, its black frames and the sheet all take that count, so the first film starts at frame 300. The edit gives ffmpeg the card's whole frames and not its seconds: for a time between two frames, ffmpeg makes one frame more than the rounding. A film ends where the next film starts, and the last film ends where the closing card starts. `CueSheetTests` checks the sheet. `EditCommandTests` checks on a real ffmpeg video that the frame at a film's start is that film's first kept frame, that the closing card's frames end the video, and that a card whose seconds fall between two frames lasts the frames of its cue.
+
+In the final video of 2026-10-21, the film `closing` starts at 140.23 s, `landing` at 328.27 s and `docked` at 338.63 s. The title "The docking" starts at 269.95 s, "The wheel" at 341.63 s, and the closing card at 388.13 s.
+
+The review of step 8 measured the sheet on the MP4:
+
+- ffprobe counts 23,768 frames in the video, 396.13 s. That is the sheet's length to the frame: the 300 frames of the opening card, the 22,988 frames of the master and the 480 frames of the closing card.
+- For each film, the review set the frame of the MP4 at the film's start in the sheet beside the frames of the master from 2 before the film's first frame to 2 after it, as gray pictures of the middle of the frame, which has no text. For the first film it took the frames 31 frames in, past the fade from black. In every film the best match is the film's first frame, to within 0.6 of 255 levels on average. At each film that starts with a cut to another picture, the frame before it differs by 16 levels or more. Where a film holds a still picture, its neighbors match as well, and the cuts round it fix the place.
 
 ### The final render
 
@@ -3876,11 +3922,11 @@ dotnet run -c Release --project src/Tertius.Demo -- --readouts scripts/blue-danu
 dotnet run -c Release --project src/Tertius.Demo -- --edit runs/danube/blue-danube.mp4 --script scripts/blue-danube.json --master runs/danube/blue-danube.mkv --readouts runs/danube/readouts.csv --music <blue-danube-us-marine-band.mp3> --music-start 0 --music-credit "The Blue Danube (Johann Strauss II). United States Marine Band, Albert F. Schoepper, conductor. Public domain."
 ```
 
-- `--edit` writes its subtitle files into the folder `<out>.parts` beside the output, and it runs one ffmpeg command.
+- `--edit` writes its subtitle files into the folder `<out>.parts` beside the output, and it runs one ffmpeg command. Then it writes the cue sheet `<out>.cues.json` beside the output (see "The cue sheet").
 - The output is an MP4 with H.264 at quality 18 (`-crf 18`), 1280 × 720 at 60 frames per second. Its pixel format is yuv420p, which every player reads. Its index is at the front of the file (`-movflags +faststart`).
 - `--music`, `--music-start` and `--music-credit` are optional, and the video has no sound without them.
 - The command refuses a log whose rows do not match the frames of the script by count and by name. It also refuses a master whose count of frames does not match. So a log or a master from another script cannot reach the edit.
-- The length today: 277.9 s, 4 minutes 38 s. The docking and the exit add theirs.
+- The length: 396.1 s, 6 minutes 36 s, with the docking and the exit.
 
 Measured in round 1, on 2026-10-20, on an Apple M1 Max, with the script of that day and no music: the master took 2 minutes 53 seconds, 15,806 frames and 410 MB. The edit took 55 s. Its frames showed the readouts, the clock, the rate and the check panel as designed, and also the titles, the cards and the dips to black.
 
@@ -3898,6 +3944,14 @@ Measured in the review of the Earth system (ter-yhu8), on 2026-10-20, on the sam
 - The edit took 41 s. The final video has 16,675 frames, 277.9 s at 60 frames per second. It is 35.3 MB.
 - Its frames of `phasing` and `night` show the readouts and the check panel, with the run's numbers beside the textbook's.
 
+Measured in step 8 (ter-asce), the final render with the docking, the exit and the outlines, on 2026-10-21, on the same machine, with the checked-in script and the music:
+
+- The master took 2 minutes 22 seconds from the command line: 22,988 frames, 958 MB.
+- The readout log took 60 s.
+- The edit took 64 s. The final video has 23,768 frames, 396.1 s at 60 frames per second, and an AAC track of 396.1 s. It is 79.4 MB.
+- Its frames show the six titles of the parts, both check panels, the legend over the films with outlines, and the closing card with the line of the music.
+- The run prints one line of the demo: at tick 296,183, in the film `entry`, the rendezvous autopilot halts, because the shuttle has entered the station's frame. The rendezvous autopilot stays in its hold after the docking takes over, and its guard for another frame halts it there. It adds nothing in its hold, so the halt changes nothing in the run.
+
 ### Order of the work
 
 1. This design, committed alone.
@@ -3907,7 +3961,7 @@ Measured in the review of the Earth system (ter-yhu8), on 2026-10-20, on the sam
 5. `FilmSection.Outlines` in the generator, with a test, and no section that sets it yet.
 6. A test edit of the master of today, with no music, and a look at its frames.
 7. After the user's yes for a recording and its download: the final render with the music (done on 2026-10-20).
-8. After the docking and the exit merge: their parts and the wheel's panel go into the cut list, and the sections above get `Outlines`. The script is written again, the dark frames are measured again as in "The dark frames", and the video is rendered again.
+8. After the docking and the exit merge: their parts and the wheel's panel go into the cut list, and the sections above get `Outlines`. The readout log gains the distance from the station's axis, and the edit writes the cue sheet. The script is written again, the dark frames are measured again as in "The dark frames", and the video is rendered again (done on 2026-10-21, ter-asce).
 
 ## Order of the work
 

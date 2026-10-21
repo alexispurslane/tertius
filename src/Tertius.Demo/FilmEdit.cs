@@ -142,7 +142,14 @@ public sealed record PanelSpan(string FirstFilm, string LastFilm, CheckPanel Pan
 public sealed record CardLine(string Text, int Size, bool Gray = false);
 
 /// <summary>A title card: black, with its lines centered, for <paramref name="Seconds"/> seconds.</summary>
-public sealed record TitleCard(double Seconds, IReadOnlyList<CardLine> Lines);
+public sealed record TitleCard(double Seconds, IReadOnlyList<CardLine> Lines)
+{
+    /// <summary>
+    /// The frames that the card lasts in the video: its seconds at 60 frames per second, rounded to the nearest frame. The
+    /// card's subtitles, its black frames and the cue sheet all take this count.
+    /// </summary>
+    public int Frames => (int)Math.Round(Seconds * Stretch.FramesPerSecond);
+}
 
 /// <summary>
 /// The cut list of an edit (docs/plans/blue-danube-demo.md, "The cut list"): every film of the script becomes one stretch
