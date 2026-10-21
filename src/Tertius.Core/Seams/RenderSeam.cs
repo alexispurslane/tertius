@@ -189,7 +189,21 @@ public sealed class RenderSnapshot
     public readonly List<RenderInstance> Instances = new();
     public readonly List<RenderLight> Lights = new();
     public readonly List<FrameOutline> Outlines = new();
+    /// <summary>The live puffs, in the order of the rows of the simulation's puff table.</summary>
+    public readonly List<RenderPuff> Puffs = new();
+    /// <summary>
+    /// The look table at the build, by index, with its free entries. <see cref="RenderPuff.Look"/> indexes it. A free
+    /// entry is one that no live puff uses.
+    /// </summary>
+    public readonly List<PuffLook> PuffLooks = new();
+    /// <summary>
+    /// The age, in s, that every puff gained since the previous build: the step when this build interpolates and the
+    /// previous build was of the tick before, and 0 otherwise. A puff's age at the previous build is its
+    /// <see cref="RenderPuff.Age"/> less this step.
+    /// </summary>
+    public float PuffAgeStep;
 
+    /// <summary>Empties the lists of the snapshot and sets <see cref="PuffAgeStep"/> to 0, so that a builder can fill it again.</summary>
     public void Clear()
     {
         Instances.Clear();
