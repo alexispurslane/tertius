@@ -29,21 +29,29 @@ public readonly record struct Returning(Entity Copy);
 /// <param name="Copy">The drawn copy of the pen in its hand.</param>
 public readonly record struct Strapped(Entity Copy);
 
+/// <summary>
+/// A <see cref="Passenger"/> has opened its belt to leave the docked ship, with the pen in its hand. It adds nothing: the
+/// person's <see cref="Disembark"/> walks it out.
+/// </summary>
+/// <param name="Copy">The drawn copy of the pen in its hand.</param>
+public readonly record struct Unstrapped(Entity Copy);
+
 /// <summary>The pen went before a <see cref="Passenger"/> took it, so the passenger stops where it is, with empty hands.</summary>
 public readonly record struct Stopped;
 
 /// <summary>
 /// What a <see cref="Passenger"/> does, in the order of a flight: <see cref="Boarding"/>, <see cref="Seated"/>,
 /// <see cref="Fetching"/>, and then <see cref="Holding"/> or <see cref="Stopped"/>. From <see cref="Holding"/>, a
-/// <see cref="FastenBelt"/> leads to <see cref="Returning"/> and then <see cref="Strapped"/>. The default value is
+/// <see cref="FastenBelt"/> leads to <see cref="Returning"/> and then <see cref="Strapped"/>, and from there a
+/// <see cref="LeaveShip"/> leads to <see cref="Unstrapped"/>. The default value is
 /// <see cref="Boarding"/>. This is a custom C# 15 union, like <see cref="AscentState"/>.
 /// </summary>
 [Union]
 public readonly struct PassengerState : IEquatable<PassengerState>
 {
-    private const byte KindBoarding = 0, KindSeated = 1, KindFetching = 2, KindHolding = 3, KindStopped = 4, KindReturning = 5, KindStrapped = 6;
+    private const byte KindBoarding = 0, KindSeated = 1, KindFetching = 2, KindHolding = 3, KindStopped = 4, KindReturning = 5, KindStrapped = 6, KindUnstrapped = 7;
 
-    // A seated state fills the weightless ticks, and a holding, returning or strapped one the copy. Every other field is zero, so equality
+    // A seated state fills the weightless ticks, and a holding, returning, strapped or unstrapped one the copy. Every other field is zero, so equality
     // compares every field.
     private readonly Entity copy;
     private readonly int weightlessTicks;
@@ -56,6 +64,7 @@ public readonly struct PassengerState : IEquatable<PassengerState>
     public PassengerState(Stopped stopped) { kind = KindStopped; }
     public PassengerState(Returning returning) { kind = KindReturning; copy = returning.Copy; }
     public PassengerState(Strapped strapped) { kind = KindStrapped; copy = strapped.Copy; }
+    public PassengerState(Unstrapped unstrapped) { kind = KindUnstrapped; copy = unstrapped.Copy; }
 
     /// <summary>Always true: every value is a state, and the default value is <see cref="Boarding"/>.</summary>
     public bool HasValue => true;
@@ -102,6 +111,12 @@ public readonly struct PassengerState : IEquatable<PassengerState>
         return kind == KindStrapped;
     }
 
+    public bool TryGetValue(out Unstrapped value)
+    {
+        value = new Unstrapped(copy);
+        return kind == KindUnstrapped;
+    }
+
     public object Value => kind switch
     {
         KindSeated => new Seated(weightlessTicks),
@@ -110,6 +125,7 @@ public readonly struct PassengerState : IEquatable<PassengerState>
         KindStopped => new Stopped(),
         KindReturning => new Returning(copy),
         KindStrapped => new Strapped(copy),
+        KindUnstrapped => new Unstrapped(copy),
         _ => new Boarding(),
     };
 
@@ -152,7 +168,9 @@ public readonly struct PassengerState : IEquatable<PassengerState>
 /// The drawn copy of the pen stays in its hand. Once its center is within <see cref="BuckleRadius"/> of the seat, it
 /// shuts its belt.</item>
 /// <item><see cref="Strapped"/>: the belt holds it at its seat as in <see cref="Seated"/>, with the copy of the pen in
-/// its hand, but it never opens the belt.</item>
+/// its hand, but it does not open the belt when it is weightless. A <see cref="LeaveShip"/> opens it, in the same tick.</item>
+/// <item><see cref="Unstrapped"/>: the belt is open, and the passenger adds nothing, with the copy of the pen in its hand.
+/// The person's <see cref="Disembark"/> walks it out of the docked ship.</item>
 /// <item><see cref="Stopped"/>: its thrusters stop it relative to its frame.</item>
 /// </list>
 /// </summary>
@@ -230,12 +248,18 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     private readonly Waypoint seat = seat;
     private readonly Entity pen = pen;
 
-    /// <summary>What the passenger does now. It starts <see cref="Boarding"/>.</summary>
+    /// <summary>
+    /// A passenger that starts in <paramref name="start"/>, as a scene that starts in the middle of the flight builds it,
+    /// such as the exit's scene, which starts <see cref="Strapped"/> at the docked seat.
+    /// </summary>
+    public Passenger(Waypoint seat, Entity pen, PassengerState start) : this(seat, pen) => State = start;
+
+    /// <summary>What the passenger does now. It starts <see cref="Boarding"/>, unless a constructor names another state.</summary>
     public PassengerState State { get; private set; } = new Boarding();
 
     public int Priority => 0;
 
-    public EventMask Wants => EventMask.Of<Tick>().And<CrateOffer>().And<FastenBelt>();
+    public EventMask Wants => EventMask.Of<Tick>().And<CrateOffer>().And<FastenBelt>().And<LeaveShip>();
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
@@ -275,9 +299,16 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
             case Returning { Copy: Entity held }:
                 Return(self, held, mass);
                 return;
-            case Strapped:
+            case Strapped { Copy: Entity held }:
+                if (events.Of<LeaveShip>().Any())
+                {
+                    State = new Unstrapped(held);
+                    return;
+                }
                 if (self.Frame == seat.Frame)
                     HoldAtSeat(self, mass);
+                return;
+            case Unstrapped:
                 return;
             default:
                 Steer(self, Double3.Zero, mass);

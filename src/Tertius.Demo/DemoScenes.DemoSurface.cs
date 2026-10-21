@@ -159,6 +159,12 @@ public static partial class DemoScenes
         /// </summary>
         public static DPose ShuttleParked { get; } = new(new Double3(0, LaunchRamp.BedTop + Shuttle.Hull.Y, 0), DQuaternion.Identity);
 
+        /// <summary>
+        /// The pose of <c>cabin-camera</c> in the shuttle's frame: in the cabin's aft port corner, looking at the seat and the
+        /// hatch.
+        /// </summary>
+        public static DPose CabinCamera { get; } = LookingAt(new Double3(-2.3, 1.2, 6.8), new Double3(1, -1.3, -4.5));
+
         /// <summary>The eye of the person, relative to its center, in its axes: 1.65 m above its feet.</summary>
         public static Vector3 Eye { get; } = new(0, 0.75f, 0);
 
@@ -351,7 +357,7 @@ public static partial class DemoScenes
                 Pose = new DPose(PersonStart, DQuaternion.Identity),
                 Body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: YardPersonMass),
                 Render = personRender,
-                Components = [new Walker(Path(surface, cabin)), new Passenger(new Waypoint(cabin, Shuttle.SeatStand), pen)],
+                Components = [new Walker(Path(surface, cabin)), new Passenger(new Waypoint(cabin, Shuttle.SeatStand), pen), StationExit.Disembark(cabin, world.GetOwnedFrame(station))],
             });
             scene.Add("person", person);
             // The person starts its walk along -X, toward the entrance, so the camera starts behind it along +X.
@@ -382,12 +388,7 @@ public static partial class DemoScenes
                 Pose = LookingAt(new Double3(13, EarthRadius + 3, 10), new Double3(5, EarthRadius + 1.2, 0.5)),
                 Render = new RenderData(),
             }));
-            scene.Add("cabin-camera", world.Spawn(new SpawnDesc
-            {
-                Frame = cabin,
-                Pose = LookingAt(new Double3(-2.3, 1.2, 6.8), new Double3(1, -1.3, -4.5)),
-                Render = new RenderData(),
-            }));
+            scene.Add("cabin-camera", world.Spawn(new SpawnDesc { Frame = cabin, Pose = CabinCamera, Render = new RenderData() }));
 
             scene.Add("pad-camera", world.Spawn(new SpawnDesc
             {

@@ -35,9 +35,9 @@ public sealed class Walker(IReadOnlyList<Waypoint> path) : IComponent
     /// <summary>How near the character's center comes to the last waypoint across its up, in meters, before the walker stops.</summary>
     public const double StopRadius = 0.05;
 
-    // Within the last WalkSpeed / StopRate = 1 m before the last waypoint, the speed of the walk is this rate times the
-    // distance, in 1/s, so the distance falls by e every 1/3 s, and the step of lag moves the character only 1/20 of the
-    // distance.
+    // Within the last speed / StopRate before the last waypoint, 1 m at PersonControl.WalkSpeed, the speed of the walk is
+    // this rate times the distance, in 1/s, so the distance falls by e every 1/3 s, and the step of lag moves the
+    // character only 1/20 of the distance.
     private const double StopRate = 3;
 
     private readonly Waypoint[] path = [.. path];
@@ -48,10 +48,21 @@ public sealed class Walker(IReadOnlyList<Waypoint> path) : IComponent
 
     public EventMask Wants => EventMask.Of<Tick>();
 
-    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
+        next = Step(self, path, next, PersonControl.WalkSpeed);
+
+    /// <summary>
+    /// Walks the character of <paramref name="self"/> one tick along <paramref name="path"/>, toward the waypoint at index
+    /// <paramref name="next"/>, at <paramref name="speed"/> in m/s, and returns the index of the waypoint that it walks
+    /// toward now. It skips each waypoint that the character has reached, slows within the last meter before the last
+    /// waypoint, and once the character is within <see cref="StopRadius"/> of it asks for no walk and returns the path's
+    /// length. When the frame of the next waypoint is gone, it logs that, asks for no walk and returns the path's length.
+    /// For an index of the path's length it writes nothing, so a walker that stopped asks for no walk only once.
+    /// </summary>
+    public static int Step(Self self, ReadOnlySpan<Waypoint> path, int next, double speed)
     {
-        if (next == path.Length)
-            return;
+        if (next >= path.Length)
+            return path.Length;
         for (; next < path.Length; next++)
         {
             Waypoint target = path[next];
@@ -71,12 +82,13 @@ public sealed class Walker(IReadOnlyList<Waypoint> path) : IComponent
             bool last = next == path.Length - 1;
             if (distance > (last ? StopRadius : ArrivalRadius))
             {
-                double speed = last ? Math.Min(PersonControl.WalkSpeed, StopRate * distance) : PersonControl.WalkSpeed;
-                self.Body.MoveCharacter((across * (speed / distance)).ToVector3());
-                return;
+                double pace = last ? Math.Min(speed, StopRate * distance) : speed;
+                self.Body.MoveCharacter((across * (pace / distance)).ToVector3());
+                return next;
             }
         }
         // The path is done, or the way to its next waypoint is gone.
         self.Body.MoveCharacter(default);
+        return path.Length;
     }
 }

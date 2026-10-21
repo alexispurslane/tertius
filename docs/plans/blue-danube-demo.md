@@ -1296,13 +1296,14 @@ The release and the rise:
 
 The walk:
 
-- The walk speed is 1 m/s, `StationExit.WalkSpeed`, on every leg. The Coriolis force of a walk across the axis is 2 ω v. At 1 m/s it is 0.63 m/s², below the deck's 0.785 m/s². At the boarding's 3 m/s, a walk across the axis has a Coriolis force of 1.88 m/s², more than twice the deck's gravity. The engine holds a standing character on its floor anyway, but a slow walk reads as a careful walk in a weak gravity.
+- The walk speed is 1 m/s, `StationExit.WalkSpeed`, on legs 1 to 3 and on the stroll. The Coriolis force of a walk across the axis is 2 ω v. At 1 m/s it is 0.63 m/s², below the deck's 0.785 m/s². At the boarding's 3 m/s, a walk across the axis has a Coriolis force of 1.88 m/s², more than twice the deck's gravity. The engine holds a standing character on its floor anyway, but a slow walk reads as a careful walk in a weak gravity.
 - Leg 1 crosses a floor that feels tilted 30 degrees toward port, as "The docking" says. The walk goes 0.6 m to starboard over 5.8 m, a little uphill. The engine turns a walk into the ground plane, so the person walks along the floor.
 - Leg 2 climbs the hatch's sill, 0.1 m above the cabin floor, as a stair, and passes the doorway. A capsule whose up leans 15 to 26 degrees toward port in the doorway keeps its top 0.47 m below the lintel. Outside, the deck lies 0.3 m below the sill. The person walks off the sill and drops onto the deck in about 0.9 s.
 - Leg 3 runs parallel to the axis, so it has no Coriolis force. It passes 0.8 m spinward of the chute's top.
-- Leg 4 runs antispinward, toward the chute's back plate. The walker slows within 1 m of its last waypoint, at 3 m/s per meter of the way that is left. About 0.23 m past the hole's spinward edge, the capsule loses its footing. It then moves at about 0.8 m/s. It moves 0.27 m on in the air, touches the hole's antispinward face, and sinks along it into the trough.
+- Leg 4 runs antispinward, toward the chute's back plate, at 0.4 m/s, `StationExit.StepInSpeed`. The Coriolis force of an antispinward walk points toward the axis. At 1 m/s it takes 0.63 m/s² of the 0.70 m/s² of spin gravity at the person's center. A person who walked into the hole at 1 m/s did not sink. It stood on the hole's far edge, then on the deck beyond the hole, and walked on. At 0.4 m/s the Coriolis force takes 0.25 m/s².
+- On the run, the capsule loses its footing 0.2 m past the hole's spinward edge. The Coriolis term of its fall points antispinward and carries it on. Its back meets the hole's antispinward face 0.7 s later, and it sinks along that face into the trough.
 
-The person stays in the cabin's frame for the whole walk. The shuttle's bubble reaches 6.9 m from the shuttle's middle across the deck and 17.3 m along the axis. It enters the station's frame in the spoke, where its center leaves the bubble, on paper 3.5 m below the deck. The deck, the spoke and the chute are static bodies in the station's frame, and each has a ghost in the shuttle's bubble (ARCHITECTURE.md, "Ghosts"). So the person walks and slides on the same surfaces in either frame.
+The person stays in the cabin's frame for the whole walk. The shuttle's bubble reaches 6.9 m from the shuttle's middle across the deck and 17.3 m along the axis. It enters the station's frame in the spoke, where its center leaves the bubble, on paper 3.5 m below the deck. On the run it entered 5.75 m below the deck, at x = -13.75 m. The deck, the spoke and the chute are static bodies in the station's frame, and each has a ghost in the shuttle's bubble (ARCHITECTURE.md, "Ghosts"). So the person walks and slides on the same surfaces in either frame.
 
 ### The chute
 
@@ -1341,7 +1342,7 @@ press = max(0, -(free · n))
 free = -ω × (ω × r) - 2 ω × u
 slide = u - n (u · n)
 friction = -μ press slide / |slide|,   at most |slide| / dt long
-μ = BrakeFriction (6) where r.x < BrakeFrom, otherwise Friction (1.5)
+μ = BrakeCoefficient (6) where r.x < BrakeFrom, otherwise Coefficient (1.5)
 ```
 
 where
@@ -1352,7 +1353,8 @@ where
 - `slide` = the person's velocity along the back plate.
 - `friction` = the acceleration that the chute's friction gives the person, in m/s², in the station's axes. The cap keeps a step of friction from turning the slide around.
 - `BrakeFrom` = -94.5 m, the ceiling's face toward the axis.
-- The law acts only while the person touches the back plate. Its center then lies within 0.35 m of the plate's face: the person's radius, 0.3 m, plus 5 cm. It also lies between the rails, and between the chute's end and the deck. Otherwise the friction is zero.
+- The law acts only while the person touches the back plate. Its center then lies within 0.4 m of the plate's face: the person's radius, 0.3 m, plus `Chute.ContactMargin`, 0.1 m. It also lies between the rails, and between the chute's end and the deck. Otherwise the friction is zero.
+- The margin covers two offsets. A character keeps 2 cm of padding from a wall. Its up also leans toward the felt gravity, which points away from the plane z = 0 by ω² z. So the capsule touches the plate with its lower end, and its center lies 0.6 m × sin(lean) farther off. At the top of the spoke the lean is 4.4 degrees, and the center lies 0.37 m off the face. On the run it lay from 0.32 to 0.36 m off.
 
 `Chute` is a record struct that holds the chute's geometry and its two coefficients, and `Chute.Friction` is the law, an instance method of it. `StationExit.Chute` is the demo's chute.
 
@@ -1371,6 +1373,8 @@ A scratch model of this design integrated the person's speed along the spoke at 
 - One coefficient for the whole chute gives either a slide of 9 m/s that lands at 9 m/s, or a landing at 3 m/s after a minute of slow slide. A brake run, like the run-out of a water slide, gives a lively slide and a soft landing.
 - The brake run decelerates the person by up to 24 m/s² as it enters at 8.9 m/s, for about 0.4 s. The person lands at 2.6 m/s, about the speed of a jump down 0.35 m on Earth.
 - The engine stands a character that lands on walkable ground at once, with the ground's velocity. So the landing speed decides only how the landing looks.
+
+On the real World the slide matches the model. It took 30.1 s from the drop to the landing. Its top speed was 8.87 m/s, at x = -94.7 m, as the person entered the brake run. In the last 0.6 m above the floor the person moved at 2.55 m/s at most. The person arrived at the stroll's end 53.2 s after the order.
 
 A group with a body that thrusts gets a numeric frame from 50 m/s, and keeps it down to 20 m/s (ARCHITECTURE.md, "Numeric frames"). The top speed, 8.9 m/s, is far below both. Every character thrusts, so the person counts. A frictionless slide reaches 31 m/s, still below 50. So the person stays in the station's own system for the whole slide.
 
@@ -1445,8 +1449,8 @@ The scene `demo-exit`:
 | Case | Data | Delegate | Report | Next case |
 |---|---|---|---|---|
 | `Aboard` | None | None | | `LeaveShip`: `Walking(0)` |
-| `Walking(Next)` | The index of the next waypoint of the way out | It walks the way out with the walker's law at `WalkSpeed`. | `Dropped`: the person does not stand, and its center lies over the chute's top | `Dropped`: `Sliding` |
-| `Sliding` | None | It asks for no walk, and adds the chute's friction. | `Landed`: the person stands, and its radius is beyond 95 m, the ceiling's face toward the floor | `Landed`: `Strolling(0)` |
+| `Walking(Next)` | The index of the next waypoint of the way out | It walks the way out with the walker's law at `WalkSpeed`, and its last leg at `StepInSpeed`. | `Dropped`: the person does not stand, and its center lies over the chute's top | `Dropped`: `Sliding` |
+| `Sliding` | None | It asks for no walk, and adds the chute's friction. | `Landed`: the person stands, and its radius is beyond 94.5 m, the ceiling's face toward the axis, where the brake run starts | `Landed`: `Strolling(0)` |
 | `Strolling(Next)` | The index of the next waypoint of the stroll | It walks the stroll with the walker's law at `WalkSpeed`. | `WalkDone`: the walker reached the stroll's last waypoint | `WalkDone`: `Arrived` |
 | `Arrived` | None | None | | None |
 | `Halted` | None | None | | None |
@@ -1454,7 +1458,8 @@ The scene `demo-exit`:
 - In `Walking`, `Sliding` and `Strolling`, a dead station's frame makes the delegate report `StationGone`, with one log line. `StationGone` leads to `Halted`.
 - `DisembarkState` is a custom C# 15 union of the six cases, and `DisembarkEvent` a custom union of the five events: `LeaveShip`, the message case, and the reports `Dropped`, `Landed`, `WalkDone` and `StationGone`. `DisembarkState.Next(state, event)` is the pure table. It returns null for a pair without a row, and the component logs that pair. The nominal run logs nothing.
 - A tick applies the messages to `Next` first, then flies the delegate of the state after them, then applies its report to `Next`. So the walk starts in the tick of the order, and the new case's delegate flies from the next tick. The two walking delegates keep the index of their next waypoint across ticks. So each takes a copy of its case by `ref`. The component stores it back before it applies the report.
-- The walker's law becomes one static method, `Walker.Step(self, path, next, speed)`. It returns the index of the next waypoint, or the path's length once the path is done. `Walker` calls it with `PersonControl.WalkSpeed` for the boarding, and `Disembark` with `StationExit.WalkSpeed`.
+- The walker's law becomes one static method, `Walker.Step(self, path, next, speed)`. It returns the index of the next waypoint, or the path's length once the path is done. `Walker` calls it with `PersonControl.WalkSpeed` for the boarding, and `Disembark` with `StationExit.WalkSpeed` and `StationExit.StepInSpeed`.
+- The constructor is `Disembark(station, chute, wayOut, stroll, walkSpeed, stepInSpeed, radius)`. The radius is the person's, which the friction law takes. `StationExit.Disembark(cabin, station)` builds the demo's.
 - `Passenger` and `Disembark` both take `LeaveShip`. Each decides what it means for the person: the passenger opens its belt, and the exit starts the walk. The order between them does not matter, because the open belt adds nothing and the belt it replaces added nothing at the parked seat either.
 
 ```mermaid
@@ -1475,7 +1480,7 @@ The exit reads and writes the station's frame, whichever frame holds the person.
 
 - The station's frame: a constructor argument, the frame that `DemoStation.Spawn` gives the station.
 - The person's center and velocity in the station's frame: `self.PoseIn(station)` and `self.VelocityIn(station)`. In the cabin's frame the engine converts them through the static hull's frame.
-- The station's rate ω: `FrameTree.AngularVelocityRelative(station, FrameHandle.Null)`, turned into the station's axes with the station frame's pose in its root, as `FrameTree.FeltGravity` turns it.
+- The station's rate ω: the opposite of `FrameTree.AngularVelocityRelative(FrameHandle.Null, station)`, the virtual root's angular velocity relative to the station, in the station's axes. The virtual root does not turn, so this is the station's whole rate, whatever the frame that holds it does.
 - Whether the person stands: `self.Body.Standing`, from the last finished step.
 - The person's mass: `self.Snapshot.TryGetBody`.
 - The walk: `self.Body.MoveCharacter`, in the axes of `self.Frame`, which `Walker.Step` writes. Each waypoint names its frame, so the way runs on across the hand-off from the cabin's frame to the station's.
@@ -1541,9 +1546,11 @@ Pure, with no World:
 - `ChuteFrictionTests`:
   - `TheFrictionOpposesTheSlideByTheCoefficientTimesTheCoriolisPress`.
   - `InTheBrakeRunTheBrakesCoefficientActs`.
-  - `APersonOffTheBackPlateGetsNoFriction`, and `APersonBeyondTheRailsGetsNoFriction`.
+  - `TheFrictionOpposesTheSlideAlongThePlateAndNotTheMotionIntoIt`.
+  - `APersonOffTheBackPlateGetsNoFriction`, `APersonBeyondTheRailsGetsNoFriction`, and `APersonAboveTheDeckOrBelowTheTroughsEndGetsNoFriction`.
   - `AFreeAccelerationAwayFromThePlateGivesNoPress`.
   - `TheFrictionNeverTurnsTheSlideAroundInOneStep`.
+- `ChuteHoldsTests`: `TheChuteHoldsACenterOverItsTopAndInTheTrough`.
 - `RevolvedSolidTests`: `ARingWithASegmentLeftOutHasNoHullThere`, `ItsMeshLeavesTheSegmentOpenAndCapsItsCutEnds`.
 - `StationExitGeometryTests`:
   - `TheChutesTopLiesInsideTheSpokeMouthAndItsFacesRunOnIntoTheTrough`.
@@ -1562,9 +1569,10 @@ On the real World, in the scene `demo-exit`, `DisembarkTests`. One shared run, `
 - `ThePersonWalksAlongTheDeckToTheChutesTop`: on legs 3 and 4 it stands, and its center stays within 0.25 m of the leg's line.
 - `ThePersonDropsIntoTheChute`: it is `Sliding`, its center over the chute's top.
 - `ThePersonEntersTheStationsFrameInTheSpoke`.
-- `TheCoriolisForceHoldsThePersonOnTheBackPlate`: from 3 m below the deck to the ceiling, its center lies within 5 cm of 0.3 m from the plate's face.
+- `TheCoriolisForceHoldsThePersonOnTheBackPlate`: from 3 m below the deck to the ceiling, its center lies from 0.3 to 0.4 m off the plate's face, where the law counts it as touching.
 - `TheSlideStaysBelowTheSpeedOfANumericFrame`: the top speed lies from 8 to 10 m/s, and the person's frame is the cabin's or the station's in every tick.
 - `TheBrakeRunSlowsThePersonBeforeTheFloor`: below 3.5 m/s as its feet reach the floor.
+- `ThePersonLandsOnItsFeetOnTheWheelsFloor`: the stroll starts in the tick after a step in which the person stood on the floor between the rails.
 - `ThePersonStandsOnTheWheelsFloorInAFullGravity`: the felt gravity at its center is 9.72 m/s², within 1 %.
 - `ThePersonWalksAFewStepsSpinwardAndStops`.
 - `ThePenStaysInThePersonsHand`.
@@ -1606,7 +1614,7 @@ Only engine changes go to the user (the user's rule of 2026-10-18). So this desi
 | The release | `LeaveShip` opens the belt: `Passenger` goes to `Unstrapped` | The belt adds nothing at the parked seat. A belt that stays shut after the person left pulls it back wherever the gravity leans past 45 degrees. |
 | The rise | None: the person stands at its seat, and its walk starts at once | A character has no sitting pose |
 | Who walks the person out | A new component, `Disembark`, with a flat machine | The exit is a staged part with its own cases. `Passenger` is the flight's. Small classes, and one table of the exit's cases. |
-| The walk | The walker's law, shared as `Walker.Step`, at 1 m/s | One law of the walk. At 1 m/s the Coriolis force of a walk across the axis stays below the deck's gravity. |
+| The walk | The walker's law, shared as `Walker.Step`, at 1 m/s, and the step into the chute's top at 0.4 m/s | One law of the walk. At 1 m/s the Coriolis force of a walk across the axis stays below the deck's gravity. At 0.4 m/s an antispinward step keeps enough weight to sink through the hole. |
 | The way on the deck | Out of the hatch, along the axis, then antispinward into the chute's top | A walk along the axis has no Coriolis force. Into the chute's top antispinward, the person's back meets the face that runs on into the trough's back plate. |
 | The chute's shape | A straight trough on a back plate 0.75 m off the spoke's antispinward wall, 1.2 m wide, open toward the spoke's middle | The Coriolis force presses the person antispinward, onto the plate. The rails keep it in line. The open side lets cameras see in. The plate fits through the ceiling's opening. |
 | The chute's friction | Written by the person's exit component from the chute's law, μ 1.5 in the spoke and 6 in the brake run | Physics gives a character in the air no friction. A brake run gives a slide of 8.9 m/s and a landing of 2.6 m/s. |

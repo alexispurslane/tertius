@@ -35,12 +35,20 @@ public static partial class DemoScenes
         public const double WalkSpeed = 1;
 
         /// <summary>
+        /// The speed of the last leg of the way out, antispinward into the chute's top, in m/s. The Coriolis force of an
+        /// antispinward walk points toward the axis, 2 ω v. At 1 m/s it takes 0.63 m/s² of the 0.70 m/s² of spin gravity at
+        /// the person's center, and a person who walks off the edge at 1 m/s sinks too slowly to pass below the hole's far
+        /// edge. At 0.4 m/s it takes 0.25 m/s², and the person sinks into the trough.
+        /// </summary>
+        public const double StepInSpeed = 0.4;
+
+        /// <summary>
         /// The demo's chute: the back plate's face at z = -1 m, the rails' inner faces at y = ±0.6 m, from the deck down to
         /// 5 cm above the wheel's floor. The friction is 1.5 down to the ceiling's face toward the axis and 6 in the brake
         /// run below it, which gives a slide of 8.9 m/s at most and a landing at about 2.6 m/s.
         /// </summary>
-        public static Chute Chute { get; } = new(BackFace: -1.0, HalfWidth: 0.6, Top: DemoStation.Deck, BrakeFrom: -DemoStation.CeilingRadius, End: -99.95,
-            Friction: 1.5, BrakeFriction: 6);
+        public static Chute Chute { get; } = new(BackFace: -1.0, HalfWidth: 0.6, Depth: 0.8, Top: DemoStation.Deck, BrakeFrom: -DemoStation.CeilingRadius, End: -99.95,
+            Coefficient: 1.5, BrakeCoefficient: 6);
 
         /// <summary>The thickness of the chute's back plate and of each rail, in meters.</summary>
         public const float PlateThickness = 0.1f;
@@ -55,7 +63,7 @@ public static partial class DemoScenes
         /// that a person who walks into it antispinward loses its footing before its back meets the far face.
         /// </summary>
         public static BoundingBox DeckHole { get; } = new(new Vector3(-DemoStation.HubHalf.X, -(float)Chute.HalfWidth, (float)Chute.BackFace),
-            new Vector3(DemoStation.Deck, (float)Chute.HalfWidth, -0.2f));
+            new Vector3(DemoStation.Deck, (float)Chute.HalfWidth, (float)(Chute.BackFace + Chute.Depth)));
 
         /// <summary>
         /// The turn of the ceiling's bands about +Y: half a segment, 0.703 degrees, so that the middle of a segment lies under
@@ -100,6 +108,47 @@ public static partial class DemoScenes
             yield return new BoundingBox(new Vector3(low, half, back), new Vector3(high, half + PlateThickness, back + RailDepth));
             yield return new BoundingBox(new Vector3(low, -half - PlateThickness, back), new Vector3(high, -half, back + RailDepth));
         }
+
+        /// <summary>The radius of a person's capsule, in meters.</summary>
+        public const double PersonRadius = 0.3;
+
+        /// <summary>
+        /// The person's way out, from <see cref="Shuttle.SeatStand"/> to the chute's top: aft through the cabin to
+        /// <see cref="Shuttle.InsideHatch"/>, in <paramref name="cabin"/>, the shuttle's frame; then in
+        /// <paramref name="station"/>, the station's frame, out of the hatch to 0.6 m spinward of the deck's middle, along the
+        /// axis to beside the chute's top, and antispinward into it, to where the person's back meets the back plate's
+        /// plane. A person who stands has its center 0.9 m above the deck.
+        /// </summary>
+        public static Waypoint[] WayOut(FrameHandle cabin, FrameHandle station)
+        {
+            double x = DemoStation.Deck + 0.9, lane = 0.6;
+            return
+            [
+                new(cabin, Shuttle.InsideHatch),
+                new(station, new Double3(x, Shuttle.Hatch.Center.Z + DemoStation.ParkedPose.Position.Y, lane)),
+                new(station, new Double3(x, 0, lane)),
+                new(station, new Double3(x, 0, Chute.BackFace + PersonRadius)),
+            ];
+        }
+
+        /// <summary>
+        /// The person's stroll on the wheel's floor, in <paramref name="station"/>, the station's frame: from where it lands
+        /// in the trough, spinward out of the trough's open side to 4.5 m spinward of the spoke's middle, with its center
+        /// 0.9 m above the floor, 99.1 m from the axis.
+        /// </summary>
+        public static Waypoint[] Stroll(FrameHandle station)
+        {
+            const double z = 4.5, radius = DemoStation.FloorRadius - 0.9;
+            return [new(station, new Double3(-Math.Sqrt(radius * radius - z * z), 0, z))];
+        }
+
+        /// <summary>
+        /// The exit component of the person whose seat is in <paramref name="cabin"/>, the docked shuttle's frame, in the
+        /// station whose frame is <paramref name="station"/>: the demo's chute, <see cref="WayOut"/>, <see cref="Stroll"/>
+        /// <see cref="WalkSpeed"/>, <see cref="StepInSpeed"/> and <see cref="PersonRadius"/>.
+        /// </summary>
+        public static Disembark Disembark(FrameHandle cabin, FrameHandle station) =>
+            new(station, Chute, WayOut(cabin, station), Stroll(station), WalkSpeed, StepInSpeed, PersonRadius);
 
         /// <summary>The pose of <c>deck-camera</c>: 1.7 m above the deck, forward of the spoke's mouth, looking at the hatch and the chute's top.</summary>
         public static DPose DeckCamera { get; } = Camera(new Double3(-6.3, -4.5, 4.5), new Double3(-7.2, 2.5, -1.0), Double3.UnitX);
