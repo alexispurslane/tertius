@@ -35,16 +35,17 @@ passthrough=("$@")
 IFS=, read -r -a configurations <<< "$configurations"
 IFS=, read -r -a modules <<< "$modules"
 root=$(git rev-parse --show-toplevel)
-cd "$root"
 for module in "${modules[@]}"; do
-  if [[ ! -d "tests/Tertius.$module.Tests" ]]; then
+  if [[ ! -d "$root/tests/Tertius.$module.Tests" ]]; then
     echo "No test project tests/Tertius.$module.Tests. $usage" >&2
     exit 2
   fi
 done
+# Resolve the log folder before the move to the root, so that a relative -o is relative to the caller's folder.
 out=${out:-$(mktemp -d "${TMPDIR:-/tmp}/tertius-tests.XXXXXX")}
 mkdir -p "$out"
 out=$(cd "$out" && pwd)
+cd "$root"
 echo "Logs: $out"
 status=0
 for configuration in "${configurations[@]}"; do
