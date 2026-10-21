@@ -1433,6 +1433,8 @@ The exit's sections follow the docking's `docked`. They are `BlueDanube.ExitSect
 
 So the exit films about 2,760 frames in about 56 s of the simulation, about 46 s of video.
 
+The generated `scripts/demo-exit.json` films 416, 730, 561, 504, 207 and 388 frames: 2,806 frames in 3,310 ticks, 55.2 s of the simulation and 46.8 s of video.
+
 The docking is built at the same time on its own branch, and the exit starts from its end state. So until the two merge, the long script cannot reach the exit: without the docking, the shuttle holds 150 m out, and the person is weightless at its seat. So the exit's sections also run in a short script of their own, `scripts/demo-exit.json`. Its scene, `demo-exit`, starts at the end state. The generator takes the scene as an argument: `--generate scripts/demo-exit.json demo-exit`. The merge of the docking and the exit appends `ExitSections` to `BlueDanube.Sections` after `docked`, and writes `scripts/blue-danube.json` again. One list of sections serves both scripts.
 
 The scene `demo-exit`:
@@ -1560,7 +1562,7 @@ Pure, with no World:
   - `TheCamerasSeeTheirPlaces`, with `Picture.Project`.
   - `ThePersonsFirstWaypointOutsideIsClearOfTheHullAndTheHole`.
 
-On the real World, in the scene `demo-exit`, `DisembarkTests`. One shared run, `ExitRun`, takes about 3,400 ticks, without the world's invariant checks. It records the person's place, velocity, frame, standing and case in every tick:
+On the real World, in the scene `demo-exit`, `DisembarkTests`. One shared run, `ExitRun`, takes about 3,400 ticks, without the world's invariant checks. On the run it took 3,250. It records the person's place, velocity, frame, standing and case in every tick:
 
 - `TheSceneStartsAtTheDockingsEndState`: the hull is static at `ParkedPose`. The person is `Strapped` and stands at its seat. The felt gravity there is 0.783 m/s², leaning 30 degrees toward port.
 - `WithoutTheOrderThePersonStaysAtItsSeat`, in its own short world.
@@ -1578,10 +1580,11 @@ On the real World, in the scene `demo-exit`, `DisembarkTests`. One shared run, `
 - `ThePenStaysInThePersonsHand`.
 - `TheExitLogsNothingAndTheWorldHasNoErrors`.
 - `TheExitHaltsWhenTheStationIsGone`, in its own short world.
+- `StandingAboveTheCeilingIsNoLandingAndTheSlideAsksForNoWalk`, in its own short world: a test component puts the sliding person back on the deck. It stands there, the exit stays in `Sliding`, and the person holds still.
 
 The scripts:
 
-- `DemoExitScriptTests`: the generator's output for `demo-exit` equals the checked-in `scripts/demo-exit.json`, as `BlueDanubeScriptTests` checks the long script.
+- `DemoExitScriptTests`: the generator's output for `demo-exit` equals the checked-in `scripts/demo-exit.json`, as `BlueDanubeScriptTests` checks the long script. The script films the exit's sections in their order and passes the checks of a run. The generator refuses a scene without sections, and more than one scene, with its usage, `--generate <file> [<scene>]`.
 - `BlueDanubeScriptTests` stays as it is. If the new static bodies change the long run, `scripts/blue-danube.json` is written again.
 
 The frames that end the ticket come from one headless run of `scripts/demo-exit.json` with `--video` and the real renderer. `ffmpeg-headless` takes frames out of the video. They show the person leaving the seat, at the hatch, on the deck, at the chute's top, in the chute, at its end, and on the wheel's floor.

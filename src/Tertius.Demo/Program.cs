@@ -15,6 +15,7 @@ public static class Program
     /// <item><c>--scene drop-box</c> runs the scene live in a window until you close it.</item>
     /// <item><c>--scene orbit --record sessions/today.json</c> does the same and writes your session as a script that replays it.</item>
     /// <item><c>--generate scripts/blue-danube.json</c> writes the Blue Danube demo's long script (see <see cref="Generate"/>).</item>
+    /// <item><c>--generate scripts/demo-exit.json demo-exit</c> writes the exit's short script.</item>
     /// </list>
     /// </summary>
     public static int Main(string[] args) => Run(args, Console.Out, Console.Error);
@@ -27,11 +28,13 @@ public static class Program
     public static int Run(string[] args, TextWriter output, TextWriter error) =>
         args is ["--generate", ..] ? Generate(args, output, error) : ScriptCommand.Run(args, DemoScenes.All, output, error);
 
-    private const string GenerateUsage = "Usage: --generate <file>";
+    private const string GenerateUsage = "Usage: --generate <file> [<scene>]";
 
     /// <summary>
     /// <c>--generate &lt;file&gt;</c> writes the Blue Danube demo's long script (see <see cref="BlueDanube"/>) to the file,
-    /// as the checked-in <c>scripts/blue-danube.json</c>. It rehearses the whole run first, which takes a while. Returns
+    /// as the checked-in <c>scripts/blue-danube.json</c>. It rehearses the whole run first, which takes a while. A scene
+    /// after the file names another of <see cref="BlueDanube.Scenes"/>: <c>--generate &lt;file&gt; demo-exit</c> writes the
+    /// exit's short script, as the checked-in <c>scripts/demo-exit.json</c>. Returns
     /// the exit code of <see cref="ScriptCommand"/>: 0, 1 for a wrong command line, 2 for a file that cannot be written, 3
     /// for a section that a run cannot take, and 4 for a cue that never holds. Writes the file's path to
     /// <paramref name="output"/>, then one line for each film: its name, its frames, the ticks before each frame and the
@@ -39,16 +42,23 @@ public static class Program
     /// </summary>
     public static int Generate(string[] args, TextWriter output, TextWriter error)
     {
-        if (args is not ["--generate", string path])
+        if (args is not ["--generate", string path, .. string[] rest] || rest.Length > 1)
         {
-            error.WriteLine("--generate needs exactly one file, the script to write.");
+            error.WriteLine("--generate needs exactly one file, the script to write, and at most one scene.");
+            error.WriteLine(GenerateUsage);
+            return ScriptCommand.CommandLineError;
+        }
+        string scene = rest is [string named] ? named : BlueDanube.SceneName;
+        if (!BlueDanube.Scenes.Contains(scene))
+        {
+            error.WriteLine($"--generate knows the sections of the scenes {string.Join(" and ", BlueDanube.Scenes)}, not of {scene}.");
             error.WriteLine(GenerateUsage);
             return ScriptCommand.CommandLineError;
         }
         Script script;
         try
         {
-            script = BlueDanube.Generate();
+            script = BlueDanube.Generate(scene);
         }
         catch (ScriptException ex)
         {

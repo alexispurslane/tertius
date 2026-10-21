@@ -1,0 +1,22 @@
+{
+  "scene": "demo-exit",
+  "window": {
+    "width": 1280,
+    "height": 720
+  },
+  "steps": [
+    {"do":"camera","entity":"cabin-camera"},
+    {"do":"post","to":{"kind":"entity","id":"person"},"event":"LeaveShip","payload":null},
+    {"do":"film","name":"unbelt","frames":416,"every":1},
+    {"do":"camera","entity":"deck-camera"},
+    {"do":"film","name":"deck","frames":730,"every":1},
+    {"do":"camera","entity":"spoke-camera"},
+    {"do":"film","name":"chute-top","frames":561,"every":1},
+    {"do":"camera","entity":"follow-camera"},
+    {"do":"film","name":"chute","frames":504,"every":2},
+    {"do":"camera","entity":"wheel-camera"},
+    {"do":"film","name":"brake","frames":207,"every":1},
+    {"do":"camera","entity":"follow-camera"},
+    {"do":"film","name":"floor","frames":388,"every":1}
+  ]
+}
