@@ -117,6 +117,61 @@ public static partial class DemoScenes
         public static DQuaternion HubTurn { get; } = DQuaternion.FromAxisAngle(Double3.UnitX, -Math.PI / 2);
 
         /// <summary>
+        /// The shuttle's rotation in the station's axes once it is docked (docs/plans/blue-danube-demo.md, "The docking"):
+        /// its nose, -Z, along the station's -Y, into the bay, and its roof, +Y, along +X, away from the <see cref="Deck"/>.
+        /// So its belly faces the deck, and its starboard side, +X, with the hatch, faces +Z, toward the middle of the deck.
+        /// </summary>
+        public static DQuaternion DockedRotation { get; } = AttitudeAutopilot.Facing(-Double3.UnitY, Double3.UnitX);
+
+        /// <summary>
+        /// How far the parked shuttle's tail lies inside the inner face of the slot's wall, in meters. The entry stops the
+        /// shuttle there on the axis, so its tail clears the slot's wall before the hull moves away from the axis.
+        /// </summary>
+        public const float ParkedTailGap = 1.5f;
+
+        /// <summary>
+        /// Where the docked shuttle stands parked, in the station's axes, with <see cref="DockedRotation"/>: belly on the
+        /// <see cref="Deck"/> at x = -8 m, port side on the bay's -Z wall at z = -8 m, and tail <see cref="ParkedTailGap"/>
+        /// inside the slot's wall. Its center is at (-6, 3, -5) m. It is the only place on the deck where the hull leaves
+        /// <see cref="SpokeMouth"/> free: its hull fills z from -8 to -2 m, 0.25 m clear of the mouth. The spin gravity at
+        /// its center of mass points away from the axis, into the deck and into the -Z wall, so the corner holds the hull
+        /// with no push and no friction. The hatch opens toward +Z, onto the deck beside the mouth.
+        /// </summary>
+        public static DPose ParkedPose { get; } = new(
+            new Double3(Deck + Shuttle.Hull.Y, HubHalf.Y - HubWall - ParkedTailGap - Shuttle.Hull.Z, -(HubHalf.Z - HubWall) + Shuttle.Hull.X),
+            DockedRotation);
+
+        /// <summary>
+        /// The box of the parked shuttle in the station's axes: the hull's box, <see cref="Shuttle.Hull"/>, at
+        /// <see cref="ParkedPose"/>. It runs from x = -8 to -4 m, y = -5 to 11 m and z = -8 to -2 m. The tram's hull fits
+        /// it and touches each of its faces.
+        /// </summary>
+        public static BoundingBox ParkedBounds { get; } = BoxAt(ParkedPose, Shuttle.Hull);
+
+        /// <summary>
+        /// The mouth of the spoke at θ = 180 degrees in the deck, in the station's axes: the square of the spoke's inside,
+        /// 3.5 m on a side, from y = -1.75 to 1.75 m and z = -1.75 to 1.75 m, through the deck's wall, from the hub's outer
+        /// face at x = -8.5 m to the deck at x = -8 m. The exit's chute starts inside it, so a parked shuttle leaves it free.
+        /// </summary>
+        public static BoundingBox SpokeMouth { get; } = new(
+            new Vector3(-HubHalf.X, -(SpokeHalfWidth - SpokeWall), -(SpokeHalfWidth - SpokeWall)),
+            new Vector3(Deck, SpokeHalfWidth - SpokeWall, SpokeHalfWidth - SpokeWall));
+
+        /// <summary>The axis-aligned box that holds the box of half extents <paramref name="half"/> at <paramref name="pose"/>.</summary>
+        private static BoundingBox BoxAt(DPose pose, Vector3 half)
+        {
+            Vector3 min = new(float.MaxValue), max = new(float.MinValue);
+            foreach (int corner in Enumerable.Range(0, 8))
+            {
+                var local = new Double3((corner & 1) == 0 ? -half.X : half.X, (corner & 2) == 0 ? -half.Y : half.Y, (corner & 4) == 0 ? -half.Z : half.Z);
+                Vector3 at = pose.TransformPoint(local).ToVector3();
+                min = Vector3.Min(min, at);
+                max = Vector3.Max(max, at);
+            }
+            return new BoundingBox(min, max);
+        }
+
+        /// <summary>
         /// The station's orbit in <c>earth-surface</c>: a circle of <see cref="OrbitRadius"/> whose normal is -X, the launch
         /// plane's normal. At mean anomaly 0 the station is at +Z and moves toward +Y. It passes over the pad, at mean
         /// anomaly 90 degrees, at <see cref="OverPadAt"/>, and moves toward -Z there, as the shuttle does. The axial tilt
