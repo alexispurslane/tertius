@@ -15,7 +15,7 @@ public static partial class DemoScenes
     /// The Sun stands 23.44 degrees above the horizon of the north pole all day, and goes round it once a day.</item>
     /// <item>The demo's <c>station</c> (see <see cref="DemoStation"/>) on the elements of <see cref="DemoStation.Orbit"/>,
     /// but in <c>earth</c>, which does not turn: a polar circle 400 km up, over the north pole at
-    /// <see cref="DemoStation.OverPadAt"/>. Its bubble lies outside earth-surface's, which ends 100 km up.</item>
+    /// <see cref="DemoStation.OverPadAt"/>. Its bubble lies outside earth-surface's, which ends 50 km up.</item>
     /// <item>The <c>pad</c>, a static box 12 by 1 by 12 m, lies on the ground at the north pole in earth-surface, with its
     /// top at <see cref="PadTop"/>, and the red <c>mast</c>, 10 m tall, stands on its corner at x = 5, z = -5. Both turn
     /// with the ground.</item>

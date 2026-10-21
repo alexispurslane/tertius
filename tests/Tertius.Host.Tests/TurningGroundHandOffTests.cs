@@ -20,7 +20,7 @@ internal sealed record HandOffTick(long Tick, FrameHandle Frame, Double3 Positio
 /// <summary>
 /// One run of the scene <c>earth-system</c> with the real shuttle's hull, dynamic, spawned in the turning
 /// <c>earth-surface</c> 1 km below the radius at which it leaves the bubble, <see cref="ExitRadius"/>, and 200 km from the
-/// axis of its turn (docs/plans/blue-danube-demo.md, "The hand-off at 100 km"), in a world that starts with the ground
+/// axis of its turn (docs/plans/blue-danube-demo.md, "The hand-off"), in a world that starts with the ground
 /// turned by <see cref="StartTurn"/>. It moves at 1 km/s out from Earth's center and 1 km/s across, along -Z of earth-surface,
 /// with its nose along that velocity and its roof away from Earth. A <see cref="ThirdThrottle"/> gives its
 /// <see cref="MainEngine"/> a throttle of 1/3 in every tick, about 9.81 m/s² along the nose. A crate of 0.4 m rests on the
@@ -51,14 +51,14 @@ public sealed class TurningGroundHandOffRun : IDisposable
     /// <summary>
     /// How far from Earth's center the shuttle's center lies when it leaves earth-surface, by the engine's rule of the
     /// hand-off (ARCHITECTURE.md, "Hand-off", rule 2): the bubble's radius, plus the shuttle's bounding sphere, plus the exit
-    /// margin, the larger of 2 percent of the bubble's radius and the bounding sphere. For Earth's bubble the margin is
-    /// 129.4 km, so the shuttle leaves 229.4 km up, not 100 km up.
+    /// margin, the larger of 2 percent of the bubble's radius and the bounding sphere. The bubble ends at
+    /// <see cref="DemoScenes.GroundBubbleTop"/>, 50 km up, so the margin is 128.4 km, and the shuttle leaves 178.4 km up.
     /// </summary>
     public static double ExitRadius
     {
         get
         {
-            double bubble = DemoScenes.EarthRadius + DemoScenes.AtmosphereTop, radius = DemoScenes.Shuttle.Hull.Length();
+            double bubble = DemoScenes.EarthRadius + DemoScenes.GroundBubbleTop, radius = DemoScenes.Shuttle.Hull.Length();
             return bubble + Math.Max(0.02 * bubble, radius) + radius;
         }
     }
@@ -128,7 +128,7 @@ public sealed class TurningGroundHandOffRun : IDisposable
 
 /// <summary>
 /// The first hand-off of a dynamic hull that owns a cabin frame out of a turning frame (docs/plans/blue-danube-demo.md,
-/// "The hand-off at 100 km"): the thrusting shuttle of <see cref="TurningGroundHandOffRun"/> leaves the turning
+/// "The hand-off"): the thrusting shuttle of <see cref="TurningGroundHandOffRun"/> leaves the turning
 /// <c>earth-surface</c> through the top of its bubble, past the exit margin, into <c>earth</c>, which does not turn. Across the hand-off its
 /// motion in <c>earth</c> stays that of gravity and thrust, its cabin's proper acceleration stays that of the thrust, and
 /// the crate on the cabin's aft wall stays in its place. Each check holds in the 10 ticks before the hand-off and the 10

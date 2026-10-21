@@ -18,10 +18,18 @@ public static partial class DemoScenes
 
     /// <summary>
     /// The top of Earth's air, in meters above <see cref="EarthRadius"/>: 100 km, the Kármán line. The engine has no air,
-    /// so nothing drags a ship below it. The demo keeps the periapsis of every orbit above it, and the bubble of the orbit
-    /// scene's earth-surface ends there.
+    /// so nothing drags a ship below it. The demo keeps the periapsis of every orbit above it.
     /// </summary>
     public const double AtmosphereTop = 100e3;
+
+    /// <summary>
+    /// The top of the turning ground's bubble, in meters above <see cref="EarthRadius"/>: 50 km, the stratopause. The
+    /// bubble of earth-surface ends there. A body leaves that bubble only when its center lies outside it by its bounding
+    /// sphere plus the exit margin, 2 percent of the bubble's radius (ARCHITECTURE.md, "Hand-off", rule 2), so a shuttle
+    /// that climbs out of it leaves 178.4 km up, below the demo's parking orbit at 200 km
+    /// (docs/plans/blue-danube-demo.md, "The hand-off").
+    /// </summary>
+    public const double GroundBubbleTop = 50e3;
 
     /// <summary>Earth's G·M, in m³/s².</summary>
     public const double EarthMu = 3.986004418e14;
@@ -352,8 +360,8 @@ public static partial class DemoScenes
             Frame = earth,
             Pose = new DPose(Double3.Zero, turning.RotationAt(world.Time)),
             FirstMove = new MotionIntent(turning.Sample(Double3.Zero, firstStepEnd, world.DeltaTime)),
-            // The bubble holds the air, 100 km up, and ends below the ship's orbit.
-            AsFrame = new FrameSpec(FrameBounds.Sphere((float)(EarthRadius + AtmosphereTop)), GravityField.Point(EarthMu)),
+            // The bubble ends at the stratopause, so that a shuttle that climbs out of it leaves it below its parking orbit.
+            AsFrame = new FrameSpec(FrameBounds.Sphere((float)(EarthRadius + GroundBubbleTop)), GravityField.Point(EarthMu)),
             Components = [new SpinMotion { Spin = turning }],
             Render = new RenderData
             {
