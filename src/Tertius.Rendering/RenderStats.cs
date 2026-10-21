@@ -48,6 +48,11 @@ public readonly record struct RenderStats
     /// not outside the view frustum.
     /// </summary>
     public int Outlines { get; init; }
+    /// <summary>
+    /// Puffs that the transparent pass drew: those of the snapshot that are alive at the render age, have a look in the
+    /// snapshot's list with a shading, have a finite place and a radius above 0, and are not outside the view frustum.
+    /// </summary>
+    public int Puffs { get; init; }
     /// <summary>False when the frame was skipped, for example because the swapchain was out of date.</summary>
     public bool Rendered { get; init; }
 

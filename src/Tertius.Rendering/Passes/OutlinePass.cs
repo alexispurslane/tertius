@@ -75,7 +75,7 @@ internal sealed class OutlinePass : RenderPass
             CullMode = CullModeFlags.None,
             // The vertex shader cuts each segment at the near plane, so no clipping is wanted there. No depth buffer is bound.
             DepthClamp = true,
-            AlphaBlend = true,
+            Blend = BlendMode.Alpha,
         }.Create(device, shaders);
     }
 

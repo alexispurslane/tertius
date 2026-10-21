@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering;
@@ -74,6 +75,70 @@ internal readonly record struct CommandRange(int First, int Count);
 /// <summary>A run of GPU instances for one instanced draw.</summary>
 internal readonly record struct InstanceRange(int First, int Count);
 
+/// <summary>A run of the transparent pass that draws transparent meshes: indirect commands, in order.</summary>
+internal readonly record struct MeshCommands(CommandRange Commands);
+
+/// <summary>A run of the transparent pass that draws puffs: <see cref="PreparedScene.Puffs"/> from First, Count of them.</summary>
+internal readonly record struct PuffSprites(int First, int Count);
+
+/// <summary>
+/// One stretch of the transparent pass's sorted list of one depth range that one draw covers: <see cref="MeshCommands"/>
+/// or <see cref="PuffSprites"/>. The empty value is the all-zero default, and it holds no case.
+/// </summary>
+/// <remarks>
+/// This is a custom C# 15 union. <see cref="HasValue"/> and the <c>TryGetValue</c> methods let the compiler pattern-match
+/// it without boxing. <see cref="Value"/> boxes, so use it only for debugging. Both cases keep their first index and their
+/// count in the same place, because a value holds only one case.
+/// </remarks>
+[Union]
+internal readonly struct TransparentRun : IEquatable<TransparentRun>
+{
+    private const byte KindNone = 0, KindMeshes = 1, KindPuffs = 2;
+
+    private readonly int first;
+    private readonly int count;
+    private readonly byte kind;
+
+    public TransparentRun(MeshCommands meshes) { kind = KindMeshes; first = meshes.Commands.First; count = meshes.Commands.Count; }
+    public TransparentRun(PuffSprites puffs) { kind = KindPuffs; first = puffs.First; count = puffs.Count; }
+
+    /// <summary>False for the default value, which holds no case.</summary>
+    public bool HasValue => kind != KindNone;
+
+    public bool TryGetValue(out MeshCommands value)
+    {
+        value = kind == KindMeshes ? new MeshCommands(new CommandRange(first, count)) : default;
+        return kind == KindMeshes;
+    }
+
+    public bool TryGetValue(out PuffSprites value)
+    {
+        value = kind == KindPuffs ? new PuffSprites(first, count) : default;
+        return kind == KindPuffs;
+    }
+
+    public object? Value => kind switch
+    {
+        KindMeshes => new MeshCommands(new CommandRange(first, count)),
+        KindPuffs => new PuffSprites(first, count),
+        _ => null,
+    };
+
+    public bool Equals(TransparentRun other) => kind == other.kind && first == other.first && count == other.count;
+    public override bool Equals(object? obj) => obj is TransparentRun other && Equals(other);
+    public override int GetHashCode() => HashCode.Combine(kind, first, count);
+    public static bool operator ==(TransparentRun a, TransparentRun b) => a.Equals(b);
+    public static bool operator !=(TransparentRun a, TransparentRun b) => !a.Equals(b);
+
+    // A null arm and no discard arm: the compiler checks that every case has an arm, so a new case without one fails the build.
+    public override string ToString() => this switch
+    {
+        MeshCommands meshes => $"TransparentRun({meshes})",
+        PuffSprites puffs => $"TransparentRun({puffs})",
+        null => "TransparentRun(none)",
+    };
+}
+
 /// <summary>
 /// Everything the CPU prepares for one frame: camera, visible instances, the sorted GPU instance array, indirect
 /// commands per depth range and per shadow cascade, lights, occluders and the frame constants. Arrays are reused
@@ -102,8 +167,16 @@ internal sealed class PreparedScene
 
     /// <summary>Opaque commands per depth range, indexed by <see cref="DepthRanges"/>.</summary>
     public readonly CommandRange[] Opaque = new CommandRange[DepthRanges.Count];
-    /// <summary>Transparent commands per depth range, sorted back to front across all ranges.</summary>
-    public readonly CommandRange[] Transparent = new CommandRange[DepthRanges.Count];
+    /// <summary>
+    /// The runs of the transparent pass per depth range, indexed by <see cref="DepthRanges"/>, each list in draw order. The
+    /// transparent instances and the puffs of a range are sorted together back to front, and each stretch of one kind is one
+    /// run. The pass draws the far range first.
+    /// </summary>
+    public readonly List<TransparentRun>[] Transparent = [new(), new(), new()];
+
+    /// <summary>The puffs to draw, in the order of the runs of <see cref="Transparent"/>.</summary>
+    public GpuPuff[] Puffs = new GpuPuff[64];
+    public int PuffCount;
 
     public GpuLight[] Lights = new GpuLight[16];
     public int LightCount;
@@ -125,6 +198,24 @@ internal sealed class PreparedScene
 
     /// <summary>Instances in the snapshot, before any filtering.</summary>
     public int SubmittedInstances;
+
+    /// <summary>The transparent indirect commands over all ranges: the commands of every <see cref="MeshCommands"/> run.</summary>
+    public int TransparentCommandCount
+    {
+        get
+        {
+            int count = 0;
+            foreach (List<TransparentRun> runs in Transparent)
+            {
+                foreach (TransparentRun run in runs)
+                {
+                    if (run is MeshCommands meshes)
+                        count += meshes.Commands.Count;
+                }
+            }
+            return count;
+        }
+    }
 
     /// <summary>The sun shadow cascades of this frame. Valid when <see cref="ShadowCascadeCount"/> is not 0.</summary>
     public ShadowCascadeArray Cascades;
@@ -197,7 +288,9 @@ internal sealed class PreparedScene
         MappedOccluderCount = 0;
         SubmittedInstances = 0;
         Array.Clear(Opaque);
-        Array.Clear(Transparent);
+        foreach (List<TransparentRun> runs in Transparent)
+            runs.Clear();
+        PuffCount = 0;
         ShadowCascadeCount = 0;
         Array.Clear(ShadowCommands);
         ShadowCasters = 0;

@@ -29,6 +29,8 @@ internal enum ImageUse
     DepthAttachment,
     /// <summary>Sampled or fetched in a fragment shader.</summary>
     SampledFragment,
+    /// <summary>Sampled or fetched in the vertex and the fragment shaders, as the lit puffs sample the shadow cascades.</summary>
+    SampledVertexFragment,
     TransferSource,
     TransferDestination,
     Present,
@@ -62,6 +64,8 @@ internal static class ResourceUses
             PipelineStageFlags2.EarlyFragmentTestsBit | PipelineStageFlags2.LateFragmentTestsBit,
             AccessFlags2.DepthStencilAttachmentReadBit | AccessFlags2.DepthStencilAttachmentWriteBit),
         ImageUse.SampledFragment => new(ImageLayout.ShaderReadOnlyOptimal, PipelineStageFlags2.FragmentShaderBit, AccessFlags2.ShaderSampledReadBit),
+        ImageUse.SampledVertexFragment => new(ImageLayout.ShaderReadOnlyOptimal, PipelineStageFlags2.VertexShaderBit | PipelineStageFlags2.FragmentShaderBit,
+            AccessFlags2.ShaderSampledReadBit),
         ImageUse.TransferSource => new(ImageLayout.TransferSrcOptimal, PipelineStageFlags2.AllTransferBit, AccessFlags2.TransferReadBit),
         ImageUse.TransferDestination => new(ImageLayout.TransferDstOptimal, PipelineStageFlags2.AllTransferBit, AccessFlags2.TransferWriteBit),
         // The present engine waits on a semaphore, so the barrier has no second scope of its own.

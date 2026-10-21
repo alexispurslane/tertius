@@ -46,13 +46,44 @@ internal sealed class ChaoticWorkload : IDisposable
     private readonly FrameHandle star;
     private readonly Random sampler;
 
-    public ChaoticWorkload(int seed, int chunkSize = 8, bool debugChecks = true, int initialEntities = 40, int maxDegreeOfParallelism = 1)
+    /// <summary>
+    /// The emitters that entities carry when the workload makes puffs: a glow, a lit look, and a glow that lives 0.3 s, so that
+    /// puffs die at the end of their lives.
+    /// </summary>
+    private static readonly PuffEmitter[] Jets =
+    [
+        new(90, 4, 0.5f, new PuffLook(2, 0.1f, 0.5f, 3, PuffShading.Glow(new Vector3(4, 3, 2)))),
+        new(45, 2, 1.2f, new PuffLook(1.5f, 0.2f, 1, 0.75f, PuffShading.Lit(new Vector3(0.6f)))),
+        new(120, 9, 0.1f, new PuffLook(0.3f, 0.1f, 0.2f, 2, PuffShading.Glow(new Vector3(1, 2, 3)))),
+    ];
+
+    private static readonly MediumField[] Media =
+    [
+        MediumField.Uniform(1.225f, 2, new BoundingBox(new Vector3(-10), new Vector3(10))),
+        MediumField.Planet(5, 1.225f, 8500, 1),
+        MediumField.Uniform(0.5f, 0.5f),
+        MediumField.None,
+    ];
+
+    /// <param name="puffCapacity">
+    /// With a capacity, the workload also makes puffs (docs/plans/particles.md): its spawns and churning entities carry and change
+    /// emitters, two frames hold media, a medium changes between ticks, and the capacity is the World's cap. Without one, the
+    /// run is the same as before puffs existed.
+    /// </param>
+    public ChaoticWorkload(int seed, int chunkSize = 8, bool debugChecks = true, int initialEntities = 40, int maxDegreeOfParallelism = 1,
+        int? puffCapacity = null)
     {
         Seed = seed;
+        Puffs = puffCapacity is not null;
         random = new Random(seed);
         sampler = new Random(seed ^ 0x5EED);
         faults = new FaultInjectingBackend(new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 }));
-        World = TestWorld.Create(out FrameHandle root, maxDegreeOfParallelism, faults, chunkSize, debugChecks, options => options.DisposePhysics = true);
+        World = TestWorld.Create(out FrameHandle root, maxDegreeOfParallelism, faults, chunkSize, debugChecks, options =>
+        {
+            options.DisposePhysics = true;
+            if (puffCapacity is { } capacity)
+                options.PuffCapacity = capacity;
+        });
         Root = root;
         // A frame that loses its parent moves to the next frame up, and a Kepler frame takes its G·M from the point gravity of
         // its parent, so the root has one too. It is so weak that it moves nothing: 1e-3 m³/s² pulls a body at 15 m with 4e-6 m/s².
@@ -82,6 +113,13 @@ internal sealed class ChaoticWorkload : IDisposable
         FrameHandle shuttle = World.GetOwnedFrame(shuttleOwner);
         World.Camera = shuttleOwner;
 
+        if (Puffs)
+        {
+            World.SetFrameMedium(West, Media[0]);
+            World.SetFrameMedium(East, Media[1]);
+            World.SetFrameMedium(orbit, Media[2]);
+        }
+
         FrameHandle[] startFrames = [root, West, East, bay, orbit, shuttle];
         for (int i = 0; i < initialEntities; i++)
             SpawnIntoRandomFrame(startFrames);
@@ -89,6 +127,8 @@ internal sealed class ChaoticWorkload : IDisposable
     }
 
     public int Seed { get; }
+    /// <summary>True when the workload makes puffs (see the constructor).</summary>
+    public bool Puffs { get; }
     public World World { get; }
     public FrameHandle Root { get; }
     public FrameHandle West { get; }
@@ -217,6 +257,15 @@ internal sealed class ChaoticWorkload : IDisposable
                 Tally.OutsideDestroys++;
             }
         }
+        if (Puffs && tick % 25 == 0)
+        {
+            // A new medium for a frame: its puffs feel it from the next step on.
+            frameScratch.Clear();
+            World.Frames.GetAll(frameScratch);
+            FrameHandle frame = frameScratch[(int)(tick / 25 % frameScratch.Count)];
+            if (!World.Frames.IsNumeric(frame))
+                World.SetFrameMedium(frame, Media[(int)(tick / 25 % Media.Length)]);
+        }
         if (tick % 7 == 0)
         {
             liveScratch.Clear();
@@ -249,7 +298,7 @@ internal sealed class ChaoticWorkload : IDisposable
             Pose = pose,
             Body = withBody ? TestWorld.Ball : null,
             LinearVelocity = withBody ? drift : Vector3.Zero,
-            Render = random.Next(2) == 0 ? new RenderData { Mesh = new MeshId(1 + random.Next(3)), Flags = RenderFlags.Visible } : null,
+            Render = WithEmitter(random.Next(2) == 0 ? new RenderData { Mesh = new MeshId(1 + random.Next(3)), Flags = RenderFlags.Visible } : null, pose),
             Components = [NewChurn()],
             Subscriptions = random.Next(3) == 0 ? [Chatter] : [],
         });
@@ -268,6 +317,22 @@ internal sealed class ChaoticWorkload : IDisposable
     }
 
     private Churn NewChurn() => new((ulong)random.NextInt64(), this);
+
+    /// <summary>
+    /// When the workload makes puffs, the render row with an emitter that the place picks, with no draw from the generator,
+    /// so that the run's sequence stays the same. Otherwise the row as it is.
+    /// </summary>
+    private RenderData? WithEmitter(RenderData? render, in DPose pose)
+    {
+        if (!Puffs)
+            return render;
+        RenderData row = render ?? new RenderData();
+        row.Emitter = Jets[(int)Math.Abs(pose.Position.X + 2 * pose.Position.Z) % Jets.Length];
+        return row;
+    }
+
+    /// <summary>The emitter that a churning entity writes, picked by bits of its generator's state, or the default to switch it off.</summary>
+    private static PuffEmitter ChurnEmitter(ulong rng) => (rng & 4) == 0 ? default : Jets[(int)((rng >> 3) % (ulong)Jets.Length)];
 
     // ---- The entity that does the churning ---------------------------------------------------------------------------
 
@@ -392,6 +457,8 @@ internal sealed class ChaoticWorkload : IDisposable
                 // Any entity without a body writes its transform, also the owner of a frame on rails.
                 self.SetTransform(here);
                 self.Render.Scale = new Vector3(1 + Next(3));
+                if (workload.Puffs)
+                    self.Render.Emitter = ChurnEmitter(rng);
                 tally.Moves++;
             }
             else if (roll < 60 && !self.AttachedTo.IsNull)
@@ -402,6 +469,8 @@ internal sealed class ChaoticWorkload : IDisposable
             else if (self.Body.Exists)
             {
                 self.Body.AddForce(new Vector3(Next(3) - 1, 0, 0));
+                if (workload.Puffs)
+                    self.Render.Emitter = ChurnEmitter(rng);
             }
         }
     }

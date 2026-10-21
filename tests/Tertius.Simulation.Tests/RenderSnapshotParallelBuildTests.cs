@@ -121,7 +121,7 @@ public class RenderSnapshotParallelBuildTests
         public RenderSnapshot Build()
         {
             var snapshot = new RenderSnapshot();
-            Builder.Build(snapshot, new RenderView(Tick: 0, Time: 0, camera, VerticalFov: 1, FrameHandle.Null, Vector3.One, SunIntensity: 0, new AmbientLight(), ShowFrameOutlines: false));
+            Builder.Build(snapshot, new RenderView(Tick: 0, Time: 0, camera, VerticalFov: 1, FrameHandle.Null, Vector3.One, SunIntensity: 0, new AmbientLight(), ShowFrameOutlines: false), puffs: default);
             return snapshot;
         }
 

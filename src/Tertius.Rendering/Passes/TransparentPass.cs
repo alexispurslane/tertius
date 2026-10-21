@@ -3,14 +3,18 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// Forward-shades transparent objects over the lit HDR image with the same lighting function, alpha-blended and
-/// sorted back to front across all ranges (far range first). There is no depth buffer here: occlusion by opaque
-/// surfaces in any range uses the G-buffer distance, and depth clamping keeps each object whole inside its range.
+/// Forward-shades transparent objects over the lit HDR image with the same lighting function, alpha-blended, and adds the
+/// puffs to it, sorted together back to front across all ranges (far range first). Each range draws its runs in order:
+/// a <see cref="MeshCommands"/> run with the transparent pipeline, and a <see cref="PuffSprites"/> run with the puff
+/// pipeline, one instanced draw of 6 vertices per puff. So glass dims a puff behind it and leaves one in front of it as
+/// it is. There is no depth buffer here: occlusion by opaque surfaces in any range uses the G-buffer distance, and depth
+/// clamping keeps each object and each puff whole inside its range.
 /// </summary>
 internal sealed unsafe class TransparentPass : RenderPass
 {
     private readonly VulkanDevice device;
     private readonly Pipeline pipeline;
+    private readonly Pipeline puffPipeline;
 
     public TransparentPass(VulkanDevice device, ShaderLibrary shaders, DescriptorLayouts layouts)
     {
@@ -24,7 +28,20 @@ internal sealed unsafe class TransparentPass : RenderPass
             ColorFormats = [RenderTargets.HdrFormat],
             VertexInput = VertexInput.Mesh,
             DepthClamp = true,
-            AlphaBlend = true,
+            Blend = BlendMode.Alpha,
+        }.Create(device, shaders);
+        puffPipeline = new GraphicsPipelineDesc
+        {
+            Name = "puffs",
+            VertexShader = "puff.vert",
+            FragmentShader = "puff.frag",
+            Layout = layouts.SceneLayout,
+            ColorFormats = [RenderTargets.HdrFormat],
+            VertexInput = VertexInput.None,
+            // The square faces the eye, and its winding does not matter.
+            CullMode = CullModeFlags.None,
+            DepthClamp = true,
+            Blend = BlendMode.Additive,
         }.Create(device, shaders);
     }
 
@@ -34,8 +51,8 @@ internal sealed unsafe class TransparentPass : RenderPass
     {
         PreparedScene scene = context.Scene;
         bool any = false;
-        foreach (CommandRange range in scene.Transparent)
-            any |= range.Count > 0;
+        foreach (List<TransparentRun> runs in scene.Transparent)
+            any |= runs.Count > 0;
         if (!any)
             return;
 
@@ -47,7 +64,8 @@ internal sealed unsafe class TransparentPass : RenderPass
         barriers.Buffer(context.Geometry.IndexBuffer, BufferUse.VertexInput);
         barriers.Buffer(context.Materials.Buffer, BufferUse.ShaderRead);
         barriers.Image(targets.Distance, ImageUse.SampledFragment);
-        barriers.Image(context.Shadows.Image, ImageUse.SampledFragment);
+        // The vertex shader of the lit puffs samples the cascades at each puff's center.
+        barriers.Image(context.Shadows.Image, ImageUse.SampledVertexFragment);
         barriers.Image(targets.Hdr, ImageUse.ColorAttachment);
         barriers.Flush(vk, commandBuffer);
 
@@ -68,20 +86,47 @@ internal sealed unsafe class TransparentPass : RenderPass
             PColorAttachments = &color,
         };
         vk.CmdBeginRendering(commandBuffer, &rendering);
-        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, pipeline);
+        // Both pipelines have the scene layout, so the sets and the push constants stay bound when the pipeline changes.
+        Pipeline bound = pipeline;
+        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, bound);
         context.BindSceneSets();
         context.SetFullViewport();
         GeometryPass.BindGeometry(context);
         for (int range = DepthRanges.Far; range <= DepthRanges.Near; range++)
         {
-            CommandRange commands = scene.Transparent[range];
-            if (commands.Count == 0)
+            List<TransparentRun> runs = scene.Transparent[range];
+            if (runs.Count == 0)
                 continue;
             GeometryPass.PushDraw(context, scene.RangeViewProjection[range]);
-            GeometryPass.DrawIndirect(context, commands);
+            foreach (TransparentRun run in runs)
+            {
+                switch (run)
+                {
+                    case MeshCommands(var commands):
+                        Bind(vk, commandBuffer, ref bound, pipeline);
+                        GeometryPass.DrawIndirect(context, commands);
+                        break;
+                    case PuffSprites(var first, var count):
+                        Bind(vk, commandBuffer, ref bound, puffPipeline);
+                        vk.CmdDraw(commandBuffer, 6, (uint)count, 0, (uint)first);
+                        break;
+                }
+            }
         }
         vk.CmdEndRendering(commandBuffer);
     }
 
-    public override void Dispose() => device.Vk.DestroyPipeline(device.Device, pipeline, null);
+    private static void Bind(Vk vk, CommandBuffer commandBuffer, ref Pipeline bound, Pipeline wanted)
+    {
+        if (bound.Handle == wanted.Handle)
+            return;
+        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, wanted);
+        bound = wanted;
+    }
+
+    public override void Dispose()
+    {
+        device.Vk.DestroyPipeline(device.Device, pipeline, null);
+        device.Vk.DestroyPipeline(device.Device, puffPipeline, null);
+    }
 }

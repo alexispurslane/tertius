@@ -19,7 +19,7 @@ namespace Tertius;
 /// caller gives it, and physics normalizes the rotation that leaves Jolt. The poses that the tree composes itself, when it
 /// moves or destroys a frame, are unit length.</item>
 /// <item>A numeric frame (see <see cref="CreateNumeric"/>) has no owner, a parent, no bubble, the identity rotation, no
-/// spin, no gravity and no hull motion, and it keeps no turns of its own, no angular acceleration and no place in the list
+/// spin, no gravity, no medium and no hull motion, and it keeps no turns of its own, no angular acceleration and no place in the list
 /// of frames without a last turn: it reads its semantic frame's turns (see <see cref="Turns"/>). A resting or nesting one
 /// has no velocity, no step acceleration and no step plan (see <see cref="HomeInstantVelocityOverChord"/>). The chain of
 /// tree parents of a numeric frame ends at a semantic frame: a falling or resting frame lies in a semantic frame or a
@@ -60,6 +60,8 @@ public sealed partial class FrameTree
     // (see HullMotion).
     private BodyMotion?[] hullMotion = new BodyMotion?[64];
     private GravityField[] gravity = new GravityField[64];
+    // The medium of each frame, beside its gravity field (see Medium). A numeric frame has none.
+    private MediumField[] medium = new MediumField[64];
     private Double3[] linearVelocity = new Double3[64];
     private Vector3[] angularVelocity = new Vector3[64];
     private Vector3[] properAcceleration = new Vector3[64];
@@ -130,7 +132,8 @@ public sealed partial class FrameTree
         FrameHandle parent,
         in DPose localPose,
         FrameBounds frameBounds,
-        GravityField field = default)
+        GravityField field = default,
+        MediumField medium = default)
     {
         if (frameOwner.IsNull)
             throw new ArgumentException("A frame needs an owner entity.", nameof(frameOwner));
@@ -138,13 +141,13 @@ public sealed partial class FrameTree
             throw new InvalidOperationException($"{frameOwner} already owns a frame.");
         Contract.Requires(localPose.Rotation.IsUnit);
 
-        FrameHandle handle = AddFrame(frameOwner, parent, localPose, frameBounds, field, NumericMode.None);
+        FrameHandle handle = AddFrame(frameOwner, parent, localPose, frameBounds, field, NumericMode.None, medium);
         byOwner.Add(frameOwner, handle);
         return handle;
     }
 
     private FrameHandle AddFrame(Entity frameOwner, FrameHandle parent, in DPose localPose, FrameBounds frameBounds,
-        GravityField field, NumericMode mode)
+        GravityField field, NumericMode mode, MediumField frameMedium = default)
     {
         PoseNode node = AddNode(parent.IsNull ? PoseNode.Null : Node(parent), localPose);
         Grow(node.Id + 1);
@@ -153,6 +156,7 @@ public sealed partial class FrameTree
         bounds[node.Id] = frameBounds;
         hullMotion[node.Id] = null;
         gravity[node.Id] = field;
+        medium[node.Id] = frameMedium;
         linearVelocity[node.Id] = Double3.Zero;
         angularVelocity[node.Id] = Vector3.Zero;
         properAcceleration[node.Id] = Vector3.Zero;
@@ -561,6 +565,24 @@ public sealed partial class FrameTree
             LeaveFollowingFrame(TreeParent(frame));
     }
 
+    /// <summary>
+    /// The medium of the frame, the gas that fills it, at rest in its axes (see <see cref="MediumField"/>).
+    /// <see cref="SetMedium"/> changes it. Like the gravity field, it changes only between ticks, so the value stored when a
+    /// step starts is the value of that step, and the sync point of tick k reads the value of step k. A frame keeps it when
+    /// it hands off or is reparented. A numeric frame has none. Only puffs read it: physics reads no medium. Throws
+    /// <see cref="InvalidOperationException"/> for a stale frame.
+    /// </summary>
+    public MediumField Medium(FrameHandle frame) => medium[Node(frame).Id];
+
+    /// <summary>
+    /// Gives a frame a new medium (see <see cref="Medium"/>). The frame's puffs feel it from the next step on. Throws
+    /// <see cref="InvalidOperationException"/> for a stale frame.
+    /// </summary>
+    /// <remarks>
+    /// Only the simulation calls it, through <c>World.SetFrameMedium</c>, which refuses a medium that is not valid.
+    /// </remarks>
+    internal void SetMedium(FrameHandle frame, in MediumField value) => medium[Node(frame).Id] = value;
+
     /// <summary>The gravity field of the frame. <see cref="SetGravity"/> changes it.</summary>
     public GravityField Gravity(FrameHandle frame) => gravity[Node(frame).Id];
 
@@ -633,7 +655,7 @@ public sealed partial class FrameTree
             numericFrames++;
             Contract.Invariant(owner[id].IsNull && !parent.IsNull && bounds[id] == default);
             Contract.Invariant(locals[i].Rotation == DQuaternion.Identity && angularVelocity[id] == Vector3.Zero);
-            Contract.Invariant(!gravity[id].HasValue && !hullMotion[id].HasValue);
+            Contract.Invariant(!gravity[id].HasValue && !medium[id].HasValue && !hullMotion[id].HasValue);
             // A numeric frame never turns: it reads its semantic frame's turns, and keeps none of its own.
             Contract.Invariant(turns[id] == NoTurns && angularAcceleration[id] == Double3.Zero && !withoutLastTurn[id]);
             if (numeric[id] is NumericMode.Resting or NumericMode.Nesting)
@@ -1297,6 +1319,7 @@ public sealed partial class FrameTree
         Array.Resize(ref bounds, size);
         Array.Resize(ref hullMotion, size);
         Array.Resize(ref gravity, size);
+        Array.Resize(ref medium, size);
         Array.Resize(ref linearVelocity, size);
         Array.Resize(ref angularVelocity, size);
         Array.Resize(ref properAcceleration, size);

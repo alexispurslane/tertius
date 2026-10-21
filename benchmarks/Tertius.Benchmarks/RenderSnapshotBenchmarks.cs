@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using BenchmarkDotNet.Attributes;
 using Tertius.Frames.Rails;
@@ -22,6 +23,12 @@ namespace Tertius.Benchmarks;
 /// Jolt.</item>
 /// </list>
 /// The cleanup prints the frames, the outlines and the bytes of the outlines in one snapshot.
+/// <para>
+/// <see cref="PlacePuffs"/> times the placement of the puffs alone (ter-4zt6, task 4), per puff: 4,096 puffs, the default
+/// capacity, half in the root frame and half in the last semantic frame, placed into a snapshot after a build that follows
+/// the build of the tick before, so that each puff also takes its previous place one chord back. The outlines do not
+/// change it. Its cleanup prints the puffs, the age step and the looks of the snapshot.
+/// </para>
 /// </summary>
 [MemoryDiagnoser]
 public class RenderSnapshotBenchmarks
@@ -30,7 +37,19 @@ public class RenderSnapshotBenchmarks
 
     private static readonly RenderData Visible = new() { Mesh = new MeshId(1), Material = new MaterialId(1), BoundingRadius = 1, Flags = RenderFlags.Visible };
 
+    private const int PuffCount = 4_096;
+
     private World world = null!;
+
+    private RenderSnapshotBuilder puffBuilder = null!;
+    private readonly RenderSnapshot puffSnapshot = new();
+    private Puff[] puffRows = [];
+    private PuffRange[] puffRanges = [];
+    private readonly PuffLook[] puffLooks =
+    [
+        new(Life: 2, StartRadius: 0.5f, EndRadius: 2, TemperatureRatio: 3, PuffShading.Glow(new Vector3(4, 2, 1))),
+        new(Life: 5, StartRadius: 1, EndRadius: 4, TemperatureRatio: 0.5f, PuffShading.Lit(new Vector3(0.5f))),
+    ];
 
     [Params("flat", "orbit", "frames1000")]
     public string Scene = "flat";
@@ -69,6 +88,43 @@ public class RenderSnapshotBenchmarks
         world.PublishRenderSnapshot();
         world.RenderSnapshots.TryAcquireLatest(out _);
     }
+
+    [GlobalSetup(Target = nameof(PlacePuffs))]
+    public void SetupPuffs()
+    {
+        Setup();
+        // The tick's build follows the build of the setup, which was of the tick before.
+        world.Tick();
+        puffBuilder = (RenderSnapshotBuilder)typeof(World).GetField("renderBuilder", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(world)!;
+        FrameTree frames = world.Frames;
+        FrameHandle root = frames.AtDense(0), last = root;
+        for (int i = frames.Count - 1; i > 0 && last == root; i--)
+            if (!frames.IsNumeric(frames.AtDense(i)))
+                last = frames.AtDense(i);
+        puffRows = new Puff[PuffCount];
+        for (int i = 0; i < PuffCount; i++)
+            puffRows[i] = new Puff
+            {
+                Place = new Double3(i % 64 * 0.5, i / 64 % 64 * 0.5, -i * 0.01),
+                Chord = new Double3(20, 3, -5),
+                Age = i % 120 / 60f,
+                Look = i & 1,
+            };
+        puffRanges = [new PuffRange(root, 0, PuffCount / 2), new PuffRange(last, PuffCount / 2, PuffCount - PuffCount / 2)];
+        PlacePuffs();
+    }
+
+    [GlobalCleanup(Target = nameof(PlacePuffs))]
+    public void CleanupPuffs()
+    {
+        Console.WriteLine($"RenderSnapshot {Scene} puffs: {puffSnapshot.Puffs.Count} puffs, age step {puffSnapshot.PuffAgeStep} s, " +
+            $"{puffSnapshot.PuffLooks.Count} looks, {puffRanges.Length} ranges");
+        world.Dispose();
+    }
+
+    /// <summary>The placement of the puffs into a snapshot, per puff.</summary>
+    [Benchmark(OperationsPerInvoke = PuffCount)]
+    public void PlacePuffs() => puffBuilder.BuildPuffs(puffSnapshot, new PuffView(puffRows, puffRanges, puffLooks, world.DeltaTime));
 
     private static World Flat()
     {

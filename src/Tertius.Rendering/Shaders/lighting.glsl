@@ -1,4 +1,4 @@
-// The lighting model, shared by the deferred lighting pass and the transparent forward pass.
+// The lighting model, shared by the deferred lighting pass, the transparent forward pass and the lit puffs.
 //
 // Energy-normalized Blinn-Phong (ARCHITECTURE.md, Shading):
 //   f = albedo / π · (1 − F) + F · (n + 8) / (8π) · (N·H)^n
@@ -116,6 +116,36 @@ float distanceAttenuation(float distanceSq, float range)
     return window * window / max(distanceSq, 1e-4);
 }
 
+// The share of the sun that reaches a position: the far shadows, and the cascades when shadowMaps is set.
+// geometricNormal is the surface that the shadow map sees, and geometricNdotL its cosine with the sun direction, which
+// must be positive.
+float sunReaches(vec3 position, vec3 geometricNormal, float geometricNdotL, bool shadowMaps)
+{
+    float visibility = sunVisibility(position, shadowMaps ? beyondShadowMaps(position) : 1.0);
+    if (shadowMaps && visibility > 0.0)
+        visibility *= sunShadow(position, geometricNormal, geometricNdotL);
+    return visibility;
+}
+
+// The share of a point or spot light's radiance that reaches a position: the distance attenuation times the cone of a
+// spot light. 0 beyond its range. lightDirection is the unit direction from the position toward the light.
+float lightReaches(GpuLight light, vec3 position, out vec3 lightDirection)
+{
+    vec3 toLight = light.positionRange.xyz - position;
+    float distanceSq = dot(toLight, toLight);
+    float range = light.positionRange.w;
+    lightDirection = toLight * inversesqrt(max(distanceSq, 1e-8));
+    if (distanceSq >= range * range)
+        return 0.0;
+    float attenuation = distanceAttenuation(distanceSq, range);
+    if (light.radianceKind.w > 0.5)
+    {
+        float cosAngle = dot(-lightDirection, light.directionCosOuter.xyz);
+        attenuation *= smoothstep(light.directionCosOuter.w, light.spot.x, cosAngle);
+    }
+    return attenuation;
+}
+
 // Hemisphere ambient light reflected by a surface.
 vec3 ambientLight(ShadingInput s)
 {
@@ -132,9 +162,7 @@ vec3 sunLight(ShadingInput s, vec3 position, vec3 V, bool shadowMaps)
     float geometricNdotL = dot(s.geometricNormal, L);
     if (dot(s.normal, L) <= 0.0 || geometricNdotL <= 0.0)
         return vec3(0.0);
-    float visibility = sunVisibility(position, shadowMaps ? beyondShadowMaps(position) : 1.0);
-    if (shadowMaps && visibility > 0.0)
-        visibility *= sunShadow(position, s.geometricNormal, geometricNdotL);
+    float visibility = sunReaches(position, s.geometricNormal, geometricNdotL, shadowMaps);
     return visibility > 0.0 ? blinnPhong(s, V, L) * frame.sunRadiance.rgb * visibility : vec3(0.0);
 }
 
@@ -145,18 +173,8 @@ vec3 localLights(ShadingInput s, vec3 position, vec3 V)
     for (uint i = 0u; i < frame.counts.x; i++)
     {
         GpuLight light = lights[i];
-        vec3 toLight = light.positionRange.xyz - position;
-        float distanceSq = dot(toLight, toLight);
-        float range = light.positionRange.w;
-        if (distanceSq >= range * range)
-            continue;
-        vec3 lightDirection = toLight * inversesqrt(max(distanceSq, 1e-8));
-        float attenuation = distanceAttenuation(distanceSq, range);
-        if (light.radianceKind.w > 0.5)
-        {
-            float cosAngle = dot(-lightDirection, light.directionCosOuter.xyz);
-            attenuation *= smoothstep(light.directionCosOuter.w, light.spot.x, cosAngle);
-        }
+        vec3 lightDirection;
+        float attenuation = lightReaches(light, position, lightDirection);
         if (attenuation > 0.0)
             color += blinnPhong(s, V, lightDirection) * light.radianceKind.rgb * attenuation;
     }
@@ -167,6 +185,25 @@ vec3 localLights(ShadingInput s, vec3 position, vec3 V)
 vec3 shadeSurface(ShadingInput s, vec3 position, vec3 V)
 {
     return ambientLight(s) + sunLight(s, position, V, true) + localLights(s, position, V);
+}
+
+// The light that a lit puff at `position` sends toward the eye (docs/plans/particles.md, "Lit puffs"). A puff has no
+// surface and no normal: it scatters the light that reaches its center equally in every direction, which is the mean over
+// every facing of a matte surface lit by the same lights. The mean of the cosine over every facing is 1/4, so the sun and
+// each point and spot light give albedo / (4π) times their irradiance. The mean of the sky's share is one half, so the
+// ambient light gives the albedo times the mean of the sky and the ground color. The sun's visibility samples the
+// cascades with the sun's direction as the normal, which needs no normal offset and no receiver-plane slope.
+vec3 scatteredLight(vec3 albedo, vec3 position)
+{
+    vec3 meanAmbient = 0.5 * (frame.ambientSky.rgb + frame.ambientGround.rgb);
+    vec3 irradiance = frame.sunRadiance.rgb * sunReaches(position, frame.sunDirection.xyz, 1.0, true);
+    for (uint i = 0u; i < frame.counts.x; i++)
+    {
+        GpuLight light = lights[i];
+        vec3 lightDirection;
+        irradiance += light.radianceKind.rgb * lightReaches(light, position, lightDirection);
+    }
+    return albedo * (meanAmbient + irradiance * (1.0 / (4.0 * PI)));
 }
 
 #endif

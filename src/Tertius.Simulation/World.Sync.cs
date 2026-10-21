@@ -113,6 +113,13 @@ public sealed partial class World
             RouteStepContacts();
         Profile.Lap(6);
 
+        // 2b. Every puff takes the end of the step in its frame, by the turns, the linear gravity and the medium of the step
+        //     that every frame now holds, and the puffs whose age reached their life die. This comes after every frame took
+        //     its step record and before step 5, which converts the contents of each dying frame with the frame's pose at
+        //     the end of the step. It reads only the frame tree, so it runs also after a failed step and without physics.
+        puffs.Step(TickNumber, DeltaTime);
+        Profile.Lap(26);
+
         // 3. Physics owns the transform of every entity with a body. The entity table refuses such writes, and checks
         //    that none got through among its invariants.
         if (options.DebugChecks)
@@ -137,7 +144,8 @@ public sealed partial class World
         //    they write, and after the growth, so that a part that dies here gives no push. Before the rehomes and the
         //    conversions of the batch and of step 7b, so that the intents of each part and of its root still name the front
         //    frame of the chain, and before the numeric update of step 6c, whose thrust clock reads the sums. Then the
-        //    survivors in the dying frames move, the intents that name a dying frame convert, and the dead go.
+        //    survivors in the dying frames move, the intents that name a dying frame convert, the puffs of each dying frame
+        //    move into its heir, and the dead go.
         ApplySubscriptionChanges();
         MarkRequestedDestroys();
         if (dying.Count > 0)
@@ -145,10 +153,10 @@ public sealed partial class World
         Profile.Lap(9);
         if (physics != null)
             CarryPushes();
-        Profile.Lap(26);
+        Profile.Lap(28);
         if (dying.Count > 0)
             FinishDestroyBatch();
-        Profile.Lap(27);
+        Profile.Lap(29);
 
         // 6. New entities, after the destroy batch, so that a spawn into a frame that just died is dropped.
         MakeSpawnsLive();
@@ -182,6 +190,13 @@ public sealed partial class World
         if (entities.RowFrameChanges != convertedAtRowFrameChanges)
             ConvertMovedIntents();
         Profile.Lap(14);
+
+        // 7c. The emitters of the step make its puffs: after step 7, so that an attached jet's back row holds the end of the
+        //     step, and before step 8, which replaces the front render rows, whose emitters are those of the step. The
+        //     emitter bits are those of the last step 8, so an entity that step 6 made live makes none: it was not in the
+        //     step. Then the cap, and the rebuild of the ranges.
+        puffs.AddNewborns(TickNumber, DeltaTime);
+        Profile.Lap(27);
 
         // 8. The back tables become the front tables.
         SwapSnapshot();

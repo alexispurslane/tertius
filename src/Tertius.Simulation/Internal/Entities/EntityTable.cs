@@ -41,6 +41,9 @@ namespace Tertius.Simulation;
 /// of the shape inside it (<see cref="BodyDesc.InteriorShape"/>, or the shape when it has none), or 0 without a body. Its
 /// kept center of mass is zero without a body, and finite with one.</item>
 /// <item>A slot is in the set of <see cref="BodyEntities"/> exactly when it is live and has a body.</item>
+/// <item>A slot is in the set of <see cref="EmitterEntities"/> exactly when it is live and its front render row holds an
+/// emitter that can make puffs, except a spawn since the last <see cref="CopyDirtyRows"/>, whose slot waits for that copy
+/// and is not in the set. So outside the sync point, the set holds exactly the emitters of the front render rows.</item>
 /// <item>The component index lists exactly the live entities whose front flags hold each type. Nothing changes it
 /// during the gameplay part of a tick, which starts with it settled, so the workers read it without a race.</item>
 /// <item>A back intent is set only for a live entity in its chunk's list of intent writers or in its list of pushers, and
@@ -582,6 +585,8 @@ internal sealed partial class EntityTable
         backTransform[slot] = row;
         frontRender[slot] = render;
         backRender[slot] = render;
+        if (render.Emitter.CanMakePuffs)
+            newEmitters.Add(entity);
         frontComponents[slot] = types;
         backComponents[slot] = types;
         frontCollision[slot] = collision;
@@ -614,6 +619,7 @@ internal sealed partial class EntityTable
                 release(entity);
             componentIndex.Remove(entity, frontComponents[slot]);
             bodySlots.Remove(slot);
+            emitterSlots.Set(slot, false);
             foreach (IColumn column in columns)
                 column.Clear(slot);
             liveCount--;
@@ -1255,6 +1261,7 @@ internal sealed partial class EntityTable
         foreach (uint slot in syncDirty)
             CopyRow(slot, moved, componentCopies);
         syncDirty.Clear();
+        SetNewEmitterSlots();
         foreach (uint slot in componentCopies)
         {
             componentIndex.Change(new Entity(slot, generation[slot]), frontComponents[slot], backComponents[slot]);
@@ -1503,6 +1510,7 @@ internal sealed partial class EntityTable
         for (int id = 0; id < ComponentTypes.Capacity; id++)
             listed += componentIndex.With(id).Length;
         Contract.Invariant(listed == indexed);
+        AssertEmitterInvariants();
     }
 
     // ---- Private --------------------------------------------------------------------------------------------------
@@ -1571,6 +1579,7 @@ internal sealed partial class EntityTable
         Array.Resize(ref generation, size);
         Array.Resize(ref state, size);
         bodySlots.Grow(size);
+        emitterSlots.Grow(size);
         foreach (IColumn column in columns)
             column.Grow(size);
         capacity = size;
@@ -1624,7 +1633,8 @@ internal sealed partial class EntityTable
     /// <summary>
     /// Copies the dirty rows of one slot forward and clears its dirty bits. Its entity joins <paramref name="movedTo"/>
     /// when the copy changed its front transform, and its slot joins <paramref name="componentCopiesTo"/> when its component
-    /// flags must still be copied, which only the sync thread does. It touches only this slot's rows and flags, so the
+    /// flags must still be copied, which only the sync thread does. A copy of the render row sets the slot's emitter bit
+    /// from the new front row. It touches only this slot's rows, flags and emitter bit, which changes atomically, so the
     /// workers of a parallel copy run it on disjoint slots, each with its chunk's lists.
     /// </summary>
     private void CopyRow(uint slot, List<Entity> movedTo, List<uint> componentCopiesTo)
@@ -1640,7 +1650,10 @@ internal sealed partial class EntityTable
             MarkMoved(slot, movedTo);
         }
         if ((dirty & SlotFlags.RenderDirty) != 0)
+        {
             frontRender[slot] = backRender[slot];
+            emitterSlots.Set(slot, frontRender[slot].Emitter.CanMakePuffs);
+        }
         if ((dirty & SlotFlags.ComponentsDirty) != 0)
             componentCopiesTo.Add(slot);
         if ((dirty & SlotFlags.CollisionDirty) != 0)

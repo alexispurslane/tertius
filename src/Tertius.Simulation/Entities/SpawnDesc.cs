@@ -75,6 +75,10 @@ public sealed class SpawnDesc
 /// <summary>Makes a spawned entity a reference frame.</summary>
 /// <param name="Bounds">The bubble that decides which objects belong to the frame.</param>
 /// <param name="Gravity">The gravity field that objects inside feel.</param>
+/// <param name="Medium">
+/// The gas that fills the frame, at rest in its axes, or none for vacuum (see <see cref="MediumField"/>). Only puffs read
+/// it: it lifts and drags them, and physics reads no medium.
+/// </param>
 /// <remarks>
 /// The frame moves as its owner's body moves, not as this description says. For a frame with a parent, the owner's body
 /// is the frame's hull, and the hull's motion is the motion of its description (see <see cref="BodyDesc.Motion"/>): a
@@ -83,4 +87,4 @@ public sealed class SpawnDesc
 /// still. The owner changes the motion later with <see cref="BodyHandle.SetMotion"/>. A frame without a body follows the
 /// samples of its rails component, or its owner's transform write, or holds still (docs/plans/rails-components.md).
 /// </remarks>
-public sealed record FrameSpec(FrameBounds Bounds, GravityField Gravity = default);
+public sealed record FrameSpec(FrameBounds Bounds, GravityField Gravity = default, MediumField Medium = default);

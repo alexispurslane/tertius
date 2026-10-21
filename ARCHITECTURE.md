@@ -36,7 +36,7 @@ The dev shell builds the double-precision Jolt library with Nix from `native/jol
 ```
 src/Tertius.Core        math, handles, messages, contracts, TripleBuffer, PoseTree, FrameTree with the numeric
                         frame rules, the rails library (Kepler and spin math), the motion intent union,
-                        gravity fields, physics and render seams
+                        gravity fields and media beside them, the loose-body step, physics and render seams
 src/Tertius.Simulation  World, entities, components, rails components, chunked gameplay runs, router, sync point,
                         snapshots, spatial index, render snapshot builder, blueprints
 src/Tertius.Physics     Jolt backend: one PhysicsSystem per frame, intents, gravity, hand-off, ghosts
@@ -97,17 +97,19 @@ The sync point does these steps in this order:
 
 1. Wait for all gameplay chunks and for the physics step. Grow the tables over the slots that spawns took after the pool of their chunk ran dry. Such a spawn takes a slot with an atomic increment. Its slot then depends on thread timing, so the world logs a note that the run is no longer deterministic.
 2. Move the falling numeric frames over the step, with the acceleration that physics used. Then check the physics output before any of it lands. If an output can only come from a bug in the backend, skip the physics update of each entity that it names. "Output that only a bug produces" under "Physics" gives the checks. Then move each handed-off frame under its new parent in the frame tree, and put each following frame on its anchor's step plan when its anchor ended the step at the frame's origin: a hull, whose frame's record says so, or a plain kinematic body, whose front intent did not teleport it. Copy body poses, velocities and hand-offs into the back transform table. A body state of a hull writes no row. Keep whether physics stood each character. Then every frame takes its step record, in one pass of the frame tree (`FrameTree.TakeStepRecords`, called from `FollowOwners`, see "Rails components and motion intents"). The pass decides where each frame's record comes from, writes the frame's row and derives its proper acceleration from the record (see "How a frame moves"). It asks the World, through a struct (`IFrameOwnerFacts`), only what the tree does not know: the record that physics released for a hull, whether the output check skipped the owner's update, and a write of the owner's transform. Before it writes, it copies every frame's proper acceleration, and the rule reads the copy (`FieldTheStepFound`). So each frame reads its parent's value as the step found it, in any order of the visits. Then the float view of each frame entity, its transform row, is filled from its exact table, its row in the frame tree. The frame entity also moves to the member set of its frame's parent there. So the owner of a frame that a hand-off or the game moved under another parent changes topic and hears one `FrameChanged`. Each of the two passes is one walk over the frame tree's own storage, in dense order (`FrameTree.TakeStepRecords` and `FrameTree.VisitOwnerViews`), with no handle check. In a Debug build, a contract checks after each frame that the World's struct moved no frame, or changed nothing that an owner view reads. A record from physics is relative to the frame's parent after its hand-off. So it must come after the hand-offs, and before step 5 destroys any frame. A frame without a body takes its owner's write of its transform here too, so a write in the tick in which the frame's parent dies converts with the frame. Then each entity without body or frame takes the step record of its motion intent on its transform row (`FollowFramelessEntities`). This comes before step 5 converts the rows out of dying frames, and before step 7 derives the attached children from their roots. Then each plain body that a hand-off moved changes topic and hears one `FrameChanged`. Send the contacts that started as `Collision` events last, and then the contacts that ended as `CollisionEnded` events. So a contact that starts and ends in one step reaches each entity in that order.
+   - 2b. Step every puff over the step that ended (`PuffTable.Step`, see "Puffs"), by the rule of motion of its frame, and remove the puffs whose age reached their life. Every frame took its step record in step 2, so the frame tree describes the end of the step, and the frame's loose-body step still holds the gravity that physics read. It must come before step 5 converts the contents of dying frames, because a puff that still held its place of the step before would land off by its frame's move over the step. It reads nothing of the physics output, so it also runs when the sync point drops that output, and in a World without a physics backend.
 3. Make sure that no entity with a body wrote its own transform. In every build, such a write throws `InvalidOperationException`, so none gets through. When `WorldOptions.DebugChecks` is on, this step checks every invariant of the entity table, this one included. That check costs time in proportion to the capacity of the table.
 4. The step applied the intents of the last tick. So their collision groups and masks become the back collision rows of the bodies, which step 8 publishes, and their changes of motion become the stored motions of the hulls in the frame tree (`FrameTree.HullMotion`), also without a physics backend. Both describe the step that ended, as all the state that the next tick reads does. Then each owner that wrote a change of motion in this tick gets its frame planned for the next step, which applies the change: the frame and the intent drop what the new motion refuses (see "Changes of motion"). The entity table lists the owners that wrote a change in each chunk, and the swap hands that list on with the intents, so step 4 visits only them, not every body that wrote a force or a velocity. Then swap the physics intent buffers. The entity table also lists the parts that pushed in each chunk, apart from the intent writers (see "Parts"). The swap hands that list on as the front pushers, as it hands on the owners that wrote a change of motion, and it keeps the parts out of the intent list, because a part's push is no input of physics: step 5 carries it to the part's chain root. The swap clears the old front entries and exchanges the two buffers, so physics gets this tick's forces and motion intents in the next step. With no physics backend, the swap keeps only the changes of motion and the motion intents, and clears the other fields of each intent in place (`PhysicsIntent.KeepOnlyMotion`). It also clears the push of each part and lists no part, so step 5 carries nothing. The sync point moves an entity without a body by its motion intents, with or without a backend.
-5. Apply the subscribe and unsubscribe requests of the chunks, in chunk order, while every entity that asked is still live. Then the destroy batch grows to the attached children of each dying entity. It also grows to the members of each dying frame that has no surviving ancestor. Then carry the push of each part to the body of its chain root, in one choke-point method (`Attachments.CarryPushes`, see "Parts"). The flow writes the front intents, so it comes after the swap of step 4. It comes after the growth of the batch, so that a part that dies here gives no push: a part that is not live in the next step does not act in it, as the intent of a body that dies goes with the body. It comes before the batch moves or frees anything, and before step 7b, so that the intents of each part and of its root still name the front frame of the chain, and the sum needs no relation between frames. The sum then converts once, as part of the root's intent, by the rule that converts every force. It comes before step 6c, whose thrust clock reads the force and the impulse of each body's front intent, so the clock counts the pushes of the parts. Then free dead entities. The survivors in a dying frame move into the nearest ancestor frame that survives. Increment the generation of each freed slot and return the slot to the free list. Queue the destroys of their bodies for physics, which gets the batch in step 6c. Before the dying frames go, convert each intent of the next step that names one of them into its entity's new frame. "Ownership of transforms" tells how. Step 7b cannot relate a frame that is gone. The motion intent converts with the rest of the intent, by its case.
+5. Apply the subscribe and unsubscribe requests of the chunks, in chunk order, while every entity that asked is still live. Then the destroy batch grows to the attached children of each dying entity. It also grows to the members of each dying frame that has no surviving ancestor. Then carry the push of each part to the body of its chain root, in one choke-point method (`Attachments.CarryPushes`, see "Parts"). The flow writes the front intents, so it comes after the swap of step 4. It comes after the growth of the batch, so that a part that dies here gives no push: a part that is not live in the next step does not act in it, as the intent of a body that dies goes with the body. It comes before the batch moves or frees anything, and before step 7b, so that the intents of each part and of its root still name the front frame of the chain, and the sum needs no relation between frames. The sum then converts once, as part of the root's intent, by the rule that converts every force. It comes before step 6c, whose thrust clock reads the force and the impulse of each body's front intent, so the clock counts the pushes of the parts. Then free dead entities. The survivors in a dying frame move into the nearest ancestor frame that survives. Increment the generation of each freed slot and return the slot to the free list. Queue the destroys of their bodies for physics, which gets the batch in step 6c. Before the dying frames go, convert each intent of the next step that names one of them into its entity's new frame. "Ownership of transforms" tells how. Step 7b cannot relate a frame that is gone. The motion intent converts with the rest of the intent, by its case. Then the puffs of each dying frame move into its heir, or die with it when no ancestor survives (`PuffTable.MoveOutOfDyingFrames`, see "Destroying a frame"). This comes before the frames die, because the frame tree refuses a dead frame.
 6. Make new entities live, in chunk order. Each spawn reserved its slot during the tick, so no table grows here. The world drops a spawn into a frame that step 5 destroyed, and it records an error. Queue the new bodies for physics. An attached entity becomes live in the frame of its parent at this moment, after steps 2 and 5 moved the parent. A spawn's first motion intent goes into the new entity's front intent here, after the swap of step 4 (`EntityTable.SetFirstMove`). So the next step applies it (see "Creation and destruction"). A new frame stands at the pose of its spawn description. Without a first motion intent, it holds still there for its first step.
    - 6c. Run the numeric update (`FrameTree.UpdateNumericFrames`, see "Numeric frames"), after the physics output, the destroys and the spawns, so that it clusters every live body where it is at the end of the tick. Every frame took its step record in step 2, so the rows of the bodies and the frames both hold the end of the step, and the update tests the bodies against bubbles of the same moment. (Before the review of ter-2gg0, the frames on rails moved after the update, and the update placed the bubble of a station that orbits at 7.5 km/s 126 m behind the bodies beside it.) A new following frame starts at its anchor's place, with the chord of its anchor's motion over the step that ended, which it derives from the anchor's frame tree row for a hull, and from the anchor's transform row for a plain body (see "Numeric frames"). First the update lets go each following frame whose anchor is no body in it. Then hand this sync point's changes to physics. The update before this one can name a home for the ghost of an anchor. Then physics gets the changes even when there are none, so that it drops the ghosts whose home this update stops naming. The update gathers the bodies in slot order from a bit per slot, which the entity table sets while the slot holds a live entity with a body. It takes each body's bounding radii as the table kept them at the spawn.
 7. The float view of each frame entity is filled from its exact table again, after the numeric update, which can move a frame among numeric frames. A nesting frame that jumps moves no frame and writes no row, but it changes the sum that gives the place of each frame below it in its semantic frame, which can round to another double. This pass runs only when something wrote the frame tree since the pass of step 2. The tree keeps a stamp, `FrameTree.OwnerViewStamp`, that every write of a frame's local pose, velocities or parent changes, and the world compares it with the stamp at the end of the pass of step 2. A change of a hull's motion at step 4 writes none of these: a hull that leaves its following frame leaves it falling, and a falling frame is still a numeric frame, so no owner view changes. With frames on rails and nothing else, nothing writes the tree between the two passes, and the second pass found every row equal. When `WorldOptions.DebugChecks` is on, the world checks at the end of every sync point that the float view of every frame entity, its transform row, equals what its exact table gives, bit for bit. So a write of the frame tree that does not change the stamp fails a test. Then every attached entity takes its frame, pose and velocities from the root of its chain.
    - 7b. Each intent that the next step applies and that names another frame than its entity's converts into the entity's frame (see "Ownership of transforms"). This comes after steps 2 and 5, which move entities between frames, and after step 7, so that every entity is in its frame for the next tick. It comes after step 2, so that every frame stands where the next step starts, the moment at which a velocity of the intent applies. The motion intent converts with the rest of the intent. A plain kinematic body can hand off in a step, so its next motion intent converts here. The entity table counts the writes of a back row that move it to another frame (`EntityTable.RowFrameChanges`). While the count is the one of the last pass of 7b, no entity is in another frame than its intent names, because each intent names the frame of its entity's front row, which step 8 copied after that pass. Then 7b skips its visit of every intent writer, as in a scene of frames on rails that write a motion intent in every tick.
+   - 7c. The emitters of the step that ended make their newborns (`PuffTable.AddNewborns`, see "Puffs"). Then the cap drops the oldest puffs, and the rebuild puts each frame's newborns at the end of its range. Only here does every input of a birth describe the step that ended: the front render row still holds the emitter of that step, which step 8 replaces, and the back transform row holds the emitter's place and velocity at the end of the step, which step 7 derives for an attached jet.
 8. Swap the snapshot. The back tables become the front tables. Copy only dirty slots forward: first the rows that gameplay wrote, in chunk order, then the rows that the sync point wrote. With 8,192 or more rows that gameplay wrote, the workers copy them, one chunk per work item. A chunk's dirty list holds only its own slots, so the items write disjoint rows. Each chunk keeps its moved entities and its changed component flags in its own lists, and the sync thread joins those lists in chunk order after the workers finish. Then it copies the rows that the sync point wrote, and the component index takes the changed flags, on the sync thread, in the order of the copy on one thread. Then the frame tree and the spatial grids catch up with the new front rows (see "Snapshots").
 9. Run the physics queries that components asked for during the tick, the ray casts, shape casts and overlap queries, in entity order. Jolt is at the end of the step, with the destroys and spawns of steps 5 and 6, and the new front snapshot describes the same moment: its component flags, collision groups, poses and frames. Queue each answer as an engine event.
 10. Route the outboxes, and the answers of step 9, into inboxes (see "Outboxes, routing and order"). A routing of 6,000 messages or more runs on the workers.
-11. Build the render snapshot and publish it to the render thread through a triple buffer. A build of 8,192 slots or more runs on the workers (see "The render snapshot").
+11. Build the render snapshot and publish it to the render thread through a triple buffer. A build of 8,192 slots or more runs on the workers. After the instances, the builder places the puffs of the puff table, on the calling thread (see "The render snapshot").
 12. Start the next tick.
 
 Gameplay intents written during tick N reach physics in step N+1. That is one tick of latency, and it is acceptable.
@@ -120,7 +122,7 @@ Each live entity has a row in three parallel tables, indexed by the slot index:
 
 - Transform: the frame that the entity is in, a frame-local `DPose`, and linear and angular velocity. Positions are double, because Jolt gives double positions and a planet frame is millions of meters across.
 - Physics: an optional body description and the double-buffered `PhysicsIntent`. The cold record of a body also keeps, from the spawn, the bounding radii of its shapes and the center of mass of its shape, which the backend computes (see "Physics"). The lever of a part is measured from that center (see "Parts"). The intent also holds the entity's motion intent for the next step (`PhysicsIntent.Move`). An entity without a body writes one too (see "Rails components and motion intents"). Every slot holds the field, so an intent is about 380 bytes. With 100,000 entities that each write a motion intent in every tick, step 4 takes 1.8 ms of a sync point of 16 ms, so the field has no sparse store (docs/plans/rails-components.md, "The measured cost").
-- Render: mesh, material, scale, bounding radius, render flags and an optional light (a `LightData`: a point light, a spot light or none).
+- Render: mesh, material, scale, bounding radius, render flags, an optional light (a `LightData`: a point light, a spot light or none) and an optional puff emitter (a `PuffEmitter`, see "Puffs"). The emitter adds 44 bytes to the row.
 
 Each entity also has a list of components, which are classes that implement `IComponent`. The list is sorted by `Priority`. Components with the same priority keep the order in which they were added.
 
@@ -453,6 +455,16 @@ The linear gravity on a body inside a frame is the frame's own field minus the f
 
 A game gives a frame a new gravity field between ticks with `World.SetFrameGravity`. The sleeping bodies of the frame wake at the next step. The world refuses a field that is not valid, at this call and at spawn. Such a field has a value that is not finite. A negative G·M is not valid either. `FrameTree.SetGravity` is internal to the simulation. The `KeplerMotion` of a child frame reads the G·M of the new field in its next tick. So a new G·M moves the child from its next sample on. A field without a G·M holds the child still.
 
+### Media
+
+A frame can hold a medium: the gas that fills it, at rest in the frame's axes (docs/plans/particles.md, "The frame's medium"). `MediumField` is a custom C# 15 union, built as `GravityField` is. (User) Its cases are `UniformMedium(Density, Drag, Region)`, one density in kg/m³ everywhere in the frame or only inside an optional box, such as the air of a cabin, and `PlanetMedium(Radius, SurfaceDensity, ScaleHeight, Drag)`, the air of a planet at the frame's origin, whose density falls by the factor e per scale height above the radius and stays at the surface density below it. The drag is in 1/s. The empty union is no medium, which is vacuum, and it is the default. The factories `MediumField.None`, `MediumField.Uniform` and `MediumField.Planet` make a medium. Three members read one: `Fills(place)` says whether the medium has gas at a place, `DensityAt(place)` gives its density there, and `Drag` gives its drag. Each case matches a case of the gravity field: the uniform medium has the same optional box as the uniform field, and the planet medium is centred where the point mass is.
+
+The medium matches the gravity field point by point. The frame tree keeps one per frame in an array beside the fields, and a numeric frame has none, by the same invariant. The spawn gives it from `FrameSpec.Medium`. The game changes it between ticks with `World.SetFrameMedium`, which throws `InvalidOperationException` during a tick. The World refuses a frame that is gone and a medium that is not valid, at this call and at spawn, with an `ArgumentException`, and the frame keeps its old medium. A medium that is not valid has a number that is not finite, a negative density, drag or radius, or a scale height that is not above 0. `FrameTree.SetMedium` is internal to the simulation. Game code reads `FrameTree.Medium(frame)`. No tick changes a medium, so the value stored when a step starts is the value of that step, as for the field, and it needs no derived read for a step in flight. A frame keeps its medium when it hands off or when the game reparents it, so the air of a cabin goes with the ship. When a frame dies, its contents feel the heir's medium from the next step on.
+
+Only puffs read a medium. (User) Physics reads none, and each body keeps its own damping, so a body moves bit for bit the same with and without a medium in its frame (`FrameMediumPhysicsTests`). A game that wants air drag on a body sets that body's damping itself. The store stays the same when a later ticket lets bodies read the medium.
+
+`FrameTree.LastLooseBodyStep(frame)` gives a `LooseBodyStep`: what the last finished step of a semantic frame does to a loose body in it. It holds the frame's field, its proper acceleration as the step found it, its turns, the length of the step of the turns and its medium. It is valid from step 2 of a sync point to the `BeginStep` of the next tick. Its `LinearGravity(place)` is the linear gravity that physics read during the step, to the bit, because step 2 writes a new proper acceleration but the loose-body step keeps the one that the step found. Its `EffectiveGravity(place, linear)` adds the centrifugal and the Euler term and equals the frame tree's effective gravity of the frame, to the bit. Its `ChordAhead(place, chord, lift, drag, dt)` is the rule of a loose body. The push is the linear gravity less the lift share times the effective gravity. In a turning frame the two-turn update carries the chord and the turn of the step carries the push, and in a frame that does not turn the push adds to the chord. The drag then keeps 1 / (1 + drag · dt) of the chord, the implicit step, which is stable at any drag. With a lift share of 0, which is vacuum, the push is the linear gravity itself, so the rule is the expression of physics for a free body with no numeric home, to the bit. With a lift share of 1, a body at rest in a turning medium stays at rest. The medium lifts by Archimedes' law against the effective gravity, not the linear gravity, because the effective gravity holds the medium at rest in the frame: hot gas in a spinning station rises toward the axis.
+
 ### Bubbles and nesting
 
 A frame's bounds are an ellipsoid or a sphere. No other shape is allowed. The bubble decides ownership: which frame an object belongs to. The physical shape of a frame in its parent frame is its real hull. This lets a ship land on a planet with its real hull.
@@ -463,7 +475,7 @@ Docking two frames of similar size merges them explicitly into one frame, and un
 
 ### Destroying a frame
 
-When a frame dies, its contents move to the nearest ancestor frame that survives. Pose and velocity convert through the tree, each moved entity gets `FrameChanged`, and its body moves to the new frame's physics system. Child frames move up the same way. If no ancestor survives, as with a root frame, the contents die with it. The motion intents of the moved entities convert into their new frames with them. The `KeplerMotion` of a child frame orbits the point gravity of the new parent from its next tick on. If the new parent has none, the component has no G·M to orbit, so it holds the frame still and logs once. The game caused it by destroying the parent, so it is not an error.
+When a frame dies, its contents move to the nearest ancestor frame that survives. Pose and velocity convert through the tree, each moved entity gets `FrameChanged`, and its body moves to the new frame's physics system. Child frames move up the same way. If no ancestor survives, as with a root frame, the contents die with it. The motion intents of the moved entities convert into their new frames with them. The puffs of the frame move too, in the same destroy path (`PuffTable.MoveOutOfDyingFrames`). A place converts by the pose of the dying frame in the heir, and a chord as a velocity, with the frame's velocity and its ω × r term, as an entity's row converts. From the next step on, the puffs move by the heir's field, turns and medium. When no ancestor survives, they die with the frame. The `KeplerMotion` of a child frame orbits the point gravity of the new parent from its next tick on. If the new parent has none, the component has no G·M to orbit, so it holds the frame still and logs once. The game caused it by destroying the parent, so it is not an error.
 
 ### Hand-off
 
@@ -814,12 +826,12 @@ The renderer is a deferred Vulkan renderer. It gets a flat list of instances, ea
 The renderer records each rendered frame in this order. `FrameGraph.Stage` fixes the order of the passes.
 
 1. Uploads of new meshes, textures and materials.
-2. Batching on the CPU (`SceneBatcher`): interpolation by alpha, frustum culling, depth ranges, sorting and indirect commands. The impostor manager takes its impostors out of the batch and chooses the captures of the rendered frame.
+2. Batching on the CPU (`SceneBatcher`): interpolation by alpha, frustum culling, depth ranges, sorting and indirect commands. The impostor manager takes its impostors out of the batch and chooses the captures of the rendered frame. The batcher also collects the puffs of the snapshot at the render age and sorts them with the transparent instances (see "Puffs in the renderer" below).
 3. The shadow maps of the sun.
 4. Impostor captures.
 5. The G-buffer pass: the far, middle and near ranges. Each range draws the impostor billboards in it after its geometry.
 6. The lighting pass, into the HDR target.
-7. The transparent forward pass.
+7. The transparent forward pass: the transparent instances, alpha-blended, and the puffs, added, in one order from back to front.
 8. Tone mapping: an exposure scale, then the ACES curve in Stephen Hill's fit.
 9. The overlay: the frame outlines of the snapshot, blended over the tone-mapped image (see "The overlay pass" below).
 10. The readback of a requested capture. After the GPU finishes the frame, `Render` hands the pixels to the capture's sink. The readback comes after the overlay, so a capture includes the outlines.
@@ -846,8 +858,30 @@ The snapshot also carries:
 - `OriginInFrame` and `OriginFrameId`: the render origin in the camera's frame, and an id of that frame. The shadow texel grid uses them.
 - `RootRotation` and `PreviousRootRotation`, for the star field (see "Shading").
 - `Outlines`: with `World.ShowFrameOutlines` on, one `FrameOutline` for each frame that has a parent (see "Frame outlines" below).
+- `Puffs`, `PuffLooks` and `PuffAgeStep`: the live puffs, their looks and the age that every puff gained since the previous build (see "Puffs in the snapshot" below).
 
 A build of 8,192 or more slots runs on the gameplay workers when the world has more than one, in chunks of 1,024 slots. The chunks join in slot order, so the order of the instances does not depend on threads.
+
+#### Puffs in the snapshot
+
+After the instances, the builder places the puffs of the puff table (see "Puffs"), in `RenderSnapshotBuilder.BuildPuffs`. It reads a `PuffView` of the table: the live rows, packed from row 0, one range of rows per frame, the look table, and the length of the step that the rows describe. A puff is not an entity, so it has no `PoseMemory`. The snapshot gets three members, which `Clear` empties:
+
+| Member | Type | Meaning |
+|---|---|---|
+| `Puffs` | `List<RenderPuff>` | The live puffs, in the order of the rows of the puff table |
+| `PuffLooks` | `List<PuffLook>` | The look table at the build, by index, with its free entries |
+| `PuffAgeStep` | `float` | The age, in s, that every puff gained since the previous build: the step when this build interpolates and the previous build was of the tick before, and 0 otherwise |
+
+A `RenderPuff` is 32 bytes. `Position` and `PreviousPosition` are relative to the render origin, in the axes of the camera's frame, in m. `Age` is the age at the snapshot's tick, in s. `Look` is the index of its look in `PuffLooks`. The previous age of a puff is `Age − PuffAgeStep`, which is below 0 for a newborn.
+
+For each range, the builder reads the pose of the range's frame relative to the camera's physics home once, at this build and at the previous one. These are the poses that place the instances. Then, for each row:
+
+- `Position` is the current pose of the frame applied to the row's place, less the render origin.
+- `PreviousPosition` is the previous pose of the frame applied to the place one chord back, `Place − Chord · step`, less the render origin. That is the puff's place at the end of the step before, in the same frame. This holds only when the build interpolates and the previous build was of the tick before. Otherwise `PreviousPosition` is `Position`: in the first build, after a camera cut, in a second build at the same tick, such as a headless capture, and after a build that skipped ticks. The builder keeps the tick of its last build with a camera for that check.
+
+The rows are doubles, and the poses compose in doubles from the camera's home. So a puff near the camera is exact however far it is from its frame's origin. A snapshot without a camera has no puffs and no looks. A range in a frame that the build did not place adds no puffs. After a sync point every range is in a live frame, so this only guards against a broken table, as for an entity. The placement runs on the calling thread, after the chunks of the instances join, and it keeps the order of the rows. Placing the same view twice in one build gives the same snapshot.
+
+`RenderSnapshotBenchmarks.PlacePuffs` measures the placement alone (ter-4zt6, Release, one thread). It places 4,096 puffs, the default capacity, in two ranges, after a build that follows the build of the tick before, so each puff also takes its previous place. It takes 7.7 to 8.0 ns per puff in the three scenes, so about 33 µs for 4,096 puffs. The 1-minute load of the machine was 13 when the run began and 6.4 when it ended, so these numbers are an upper bound. The placement allocates nothing.
 
 #### Frame outlines
 
@@ -869,6 +903,118 @@ So the sphere of a falling frame holds the bubble of the ship that falls in it, 
 With the setting on, the builder adds the outlines after the instances and the sun, on the calling thread, after the chunks join. It first makes one pass over the live bodies in slot order. Each numeric physics home keeps the largest value of |`HomePosition`| + the bounding radius. Then it walks the frames from the last dense index to the first, so that it reaches each child before its parent, and grows each numeric parent to |the child's local position| + the child's outline sphere. A semantic frame's outline sphere is its bubble, so a body or a frame that reaches out of a bubble grows nothing. It computes in doubles and narrows each radius to a float at the end. Then it adds one outline for each frame that has a parent, in the dense order of the tree. The list keeps that order, so it is the same in every run and on any number of threads. The center and the rotation of an outline are its frame's pose relative to the camera's physics home, which also places the instances, less the render origin, in the axes of the camera's frame. A frame of another tree gets an outline too, placed through the shared root, as its instances are. An outline is not interpolated: in a capture, at alpha 1, an outline and the instances of its frame agree exactly. In the window, an outline can lag the objects of its frame by one tick of their motion relative to the camera.
 
 `RenderSnapshotBenchmarks` measures the build with the outlines off and on (ter-84iw, Release, one thread). With them off, a build takes the time that it took before the outlines, within the noise. With them on, a world of 1,000 frames and 20,000 bodies in 100 resting frames builds in about 1,165 µs instead of 950 µs, and its 1,000 outlines take 48,000 bytes. The orbit scene, with 15 frames, builds in 1.95 µs instead of 1.5 µs. No build allocates.
+
+### Puffs
+
+A puff is a loose body without a shape (docs/plans/particles.md). It is born in the frame of its emitter's entity and lives in that frame for its whole life. It moves as a loose body in that frame moves, and the frame's medium lifts it and drags it (see "Media"). It touches nothing, and gameplay and physics read nothing of it. It dies at the end of its life, or with its frame when no ancestor of the frame survives. The simulation owns the puffs and steps them in every tick, in doubles, so a headless run and the window see the same puffs. (User) The snapshot carries them to the renderer (see "Puffs in the snapshot" and "Puffs in the renderer").
+
+#### The emitter and the look
+
+A component writes the emitter of its own entity into its render row, `self.Render.Emitter`, as it writes its light. `PuffEmitter` (`src/Tertius.Simulation/Entities/PuffEmitter.cs`) holds four values:
+
+| Field | Unit and range | Meaning |
+|---|---|---|
+| `Rate` | puffs per s, above 0 | How many puffs the emitter makes in each second |
+| `Speed` | m/s, 0 or more | A newborn's ejection speed relative to the emitter |
+| `Spread` | rad, 0 to π | The half-angle of the cone of ejection directions about the entity's local −Z |
+| `Look` | | A `PuffLook`: what the emitter's puffs share |
+
+The emitter has no offset. Puffs leave the origin of the entity along its local −Z, as a spot light points. An entity that needs a nozzle away from its origin attaches a part there. `PuffEmitter.CanMakePuffs` is true when the rate is finite and above 0, the speed is finite and 0 or more, the spread is from 0 to π, and the look is valid. The default emitter makes no puffs. An emitter that is not valid is left out without an error, as a light is.
+
+`PuffLook` is a record struct in Core (`src/Tertius.Core/Seams/PuffSeam.cs`), because the look table and the render snapshot hold it with the same fields. It holds the `Life` in s, the `StartRadius` and `EndRadius` in m, the `TemperatureRatio`, which is the temperature of the puff's own gas over the medium's, and the `Shading`. `PuffShading` is a custom union, as `HemisphereUp` is, with the cases `GlowPuffs(Radiance)` and `LitPuffs(Albedo)`. A look is valid when every number is finite, the life and the temperature ratio are above 0, both radii are 0 or more, and the shading holds a case whose color channels are finite and 0 or more.
+
+#### The store
+
+`PuffTable` (`src/Tertius.Simulation/Internal/Puffs/PuffTable.cs`) is internal to the simulation, and the World owns it. Puffs are not entities: they have no handle, no components, no messages, no render row and no body. Only the sync point and the destroy path write the table, each through one method that the World calls once: `Step` at step 2b, `MoveOutOfDyingFrames` in the destroy path, and `AddNewborns` at step 7c (see "Threads and the tick").
+
+A row, `Puff`, is 56 bytes:
+
+| Field | Meaning |
+|---|---|
+| `Place` | The puff's place at the end of the last step, in m, in its frame's axes |
+| `Chord` | Its move over the last step divided by the step, in m/s, in its frame's axes |
+| `Age` | Its age at the end of the last step, in s, from 0 up to its life |
+| `Look` | The index of its look in the look table |
+
+The chord stands for the place of the step before. The two-turn update needs the last two places, and the place and the chord hold the same information. But far from a frame's origin, the chord keeps the small change that gravity adds in one step, which a second place would round away. In the sun's frame at 1 AU, the two-place form drifts 0.30 m in 10 s, and the chord form drifts 4.2e-5 m.
+
+The rows of one frame lie together in one range, `PuffRange(Frame, Start, Count)`, so no row holds a frame. A range names a semantic frame, never a numeric one, because a puff takes its emitter's row frame. `PuffTable.View` gives a `PuffView` of the live rows, the ranges, the look table and the length of the step, for the render snapshot.
+
+The order of the rows is the order of the step, of the snapshot and of the draws, so it is the same in every run:
+
+- Each frame keeps the place of its first range in the list of ranges. A frame that gets its first puffs takes a new range at the end, in the order of its first newborn.
+- Inside a range, the survivors keep their order, and the newborns come last, in slot order and in each emitter's order of birth. The puffs that a frame's death moves in follow the heir's own puffs when the heir's range came first in the list, and come before them otherwise.
+- A death removes rows, and the rest keep their order. A range that empties leaves the list.
+
+The step only removes rows, so it compacts the survivors toward row 0 in place. Births and a frame's death add rows, so the table rebuilds. It writes the rows into a second array, `spare`, in the new order, and swaps the two. Then each frame has one range again. The newborns of a step wait in a third array until the rebuild at the end of the same step 7c.
+
+#### The looks
+
+`PuffLooks` (`src/Tertius.Simulation/Internal/Puffs/PuffLooks.cs`) holds each look that live puffs use once. It keeps a count of the rows that name each entry, a dictionary from each look in use to its index, and a stack of free indices. Emitters with equal looks share one entry. A puff keeps the look of its birth when its emitter changes its look, and the newborns take the entry of the new look. An entry is freed with its last puff, and the next new look takes the index that was freed last. The order of births and deaths alone gives the indices, so they are the same in every run. The dictionary's hash codes change from process to process, but they only find entries. A component that writes a new look in every tick makes one entry per tick while its puffs live.
+
+#### The rule of motion
+
+`Puff.Stepped` moves a puff over the step by its frame's `LooseBodyStep` (see "Media"), which the step reads once per range:
+
+- The lift share β is 1 + w (θ − 1) where the frame's medium fills the puff's place, and 0 elsewhere. Here w = 1 − age / life is the share of the puff's own gas, by mass, and θ is the look's temperature ratio. So the puff cools from θ toward the medium's temperature as it mixes. At the end of its life it neither rises nor sinks.
+- The drag is the medium's drag times β.
+- The new chord is `LooseBodyStep.ChordAhead(place, chord, β, drag, dt)`. The place moves by the new chord times the step, and the age grows by the World's float step.
+- A puff whose new age reaches its look's life dies.
+
+In vacuum β is 0, so the rule is the expression of physics for a free body, to the bit. A puff beside a coasting ship stays beside it, and a puff in a spinning station curves as an inertial line does in the turning axes. In air, hot exhaust rises and cold gas sinks, and both come to rest in the frame. The lift share is a temperature ratio, not a density of the puff's own gas. (User) So a puff's lift and drag are the same at every height of a planet medium. The cost is that they stop at once where the frame's medium ends. In the demo, that is at the bubble of `earth-surface`, at 50 km.
+
+#### Births
+
+The emitters of a step are the live entities whose emitter bit is set. The entity table keeps one bit per slot, which is set exactly when the slot is live and its front render row holds an emitter that can make puffs. The copy of a render row at step 8 sets or clears it, and the release of a slot clears it. A spawn writes its front render row itself, so its slot waits in a list until the next copy sets its bit. So an entity that step 6 made live makes no puffs at step 7c of the same sync point, because it was not in the step. An entity that dies in a tick makes no puffs for the last step of its life.
+
+Each entity has a birth phase in [0, 1), a column of the entity table that the release of a slot clears. In a step of length dt, an emitter at rate r with phase p makes n = floor(p + r · dt) puffs, and keeps p + r · dt − n as its new phase. Puff j, from 1 to n, is born at the share s = (j − p) / (r · dt) of the step, so its age at the end of the step is (1 − s) · dt. So the births lie evenly in time at the emitter's rate, across tick boundaries.
+
+A newborn starts from its emitter's place x and velocity v at the end of the step, from the back transform row. Its ejection velocity u has the emitter's speed, along a direction in the cone of the spread. The direction comes from a seed that folds the entity handle, the tick and j through a SplitMix64 finalizer, so it depends on nothing else. With τ the newborn's age and k its drag at its birth, its instant velocity is (v + u) / (1 + k τ). Its place is x − v τ, where the emitter was at the birth, plus τ times the instant velocity. Its chord is that velocity less half a step of its push and its drag. In a turning frame, the frame's turn of the step then makes it a chord (`ChordBehind`). So in a medium the puffs of a moving emitter lie along its path instead of in beads at each step. A newborn whose age would reach its look's life is not made.
+
+#### The cap
+
+When the survivors and the newborns pass the capacity, step 7c drops the oldest puffs first. If the newborns alone reach the capacity, it keeps only the last newborns up to the capacity, in slot order, and drops every survivor. Only the newborns that live at the end of the step count: a look that lives less than a step makes newborns that are already dead, and those never take the place of one that lives. It skips the other newborns without computing them, but every phase still gathers the whole rate. Otherwise it drops as many of the oldest survivors as the excess, and among equal ages the first in the rows. Every step adds the same float step to every age, so the order of the ages is the order of the births. The cap finds the age at the edge by a sort of the ages in a scratch array, only when it binds. `WorldOptions.PuffCapacity` is the capacity (see "Switches").
+
+#### Invariants and determinism
+
+`PuffTable.AssertInvariants`, which the World's own check calls, holds these:
+
+- The live puffs number at most the capacity.
+- Every range names a live semantic frame, no two ranges name the same frame, the ranges lie packed from row 0, and no range is empty.
+- Every row's place and chord are finite, its age is 0 or more and below its look's life, and its look index names an entry in use.
+- Each look's count equals the number of rows that name it. The dictionary holds exactly the entries in use, and the free stack holds exactly the other indices.
+- Every look in use is valid, no newborn waits outside step 7c, and every birth phase is in [0, 1).
+
+The entity table's own check holds the emitter bit of each slot to its front render row. A range in a frame that is not live comes only from a bug, because the destroy path moves every puff of a dying frame. A Debug build fails a contract. A Release build drops the range and records the error in `World.Errors`.
+
+The same run gives the same puffs, bit for bit, in Debug and in Release. The table runs at fixed places in the sync point, in a fixed order. The seeds depend only on the entity, the tick and the index of the birth, and the look indices depend only on the order of births and deaths. The drag is a division and the lift share a multiply and an add, so the step calls no `Math.Exp`. A test pins a hash of the rows, the ranges and the looks after 300 ticks, and `tools/test-all.sh` runs it in both builds. A World with puffs off reaches the same state of every entity as a World with puffs on, bit for bit.
+
+#### Costs
+
+The sync profile has a lap for each of the two steps, "2 (end) puffs: PuffTable.Step" and "7 (end) puffs: PuffTable.AddNewborns". `PuffTableBenchmarks` measures the table on one thread (ter-4zt6, Release, on an Apple M1 Max). The 1-minute load of the machine was between 12.7 and 14.6, so these numbers are an upper bound.
+
+| Puffs | Step in `earth` | Step in `earth-surface` | Step in a spinning station |
+|---|---|---|---|
+| 100 | 2.0 µs | 5.4 µs | 4.4 µs |
+| 1,024 | 20.1 µs | 55.4 µs | 44.3 µs |
+| 4,096 | 80.4 µs | 224 µs | 178 µs |
+
+`earth` is a root frame with Earth's point field and no medium. `earth-surface` turns with Earth and holds its planet medium. So the step costs about 20 ns per puff in a frame that does not turn, and 43 to 55 ns in a turning frame. 64 births and the rebuild of 4,096 live puffs add about 8.5 µs in `earth`: about 45 ns per birth and 1.4 ns per live puff for the rebuild. No step and no birth allocates after warm-up, by test. `rows`, `spare` and the newborns' array grow by doubling up to the capacity. At 4,096 live puffs, `rows` and `spare` take 448 KiB together, and the newborns' array at most 224 KiB more. The render row's 44 bytes of emitter changed the time of `RenderSnapshotBenchmarks` by less than 1 percent in every scene.
+
+#### From the table to the screen
+
+A puff passes through four stages on its way to the screen. Each stage reads what the one before it wrote, and none writes back:
+
+1. Step 2b of the sync point steps the old puffs in the table, by the loose-body step of each range's frame. The destroy path of step 5 moves the puffs of each dying frame into its heir. Step 7c adds the newborns of the step that just ended and applies the cap.
+2. Step 11 builds the render snapshot. `World.BuildRenderSnapshot` passes the table's view, `PuffTable.View`, to `RenderSnapshotBuilder.Build(snapshot, view, puffs)`. After the instances, the sun and the frame outlines, `Build` places the puffs with the frame poses of the same build (see "Puffs in the snapshot"). So the snapshot shows the puffs of the same step as its instances. A build without a camera returns before it places anything, so its snapshot has no puffs.
+3. The triple buffer publishes the snapshot to the render thread, as for every other part of it.
+4. The batcher interpolates each puff by the frame's alpha, culls it and writes its `GpuPuff`, and the transparent pass draws it (see "Puffs in the renderer").
+
+The table holds doubles in the frame of each puff. The snapshot holds floats relative to the render origin, in the axes of the camera's frame. The renderer knows no frames. So a time-lapse film, a skipped snapshot or a snapshot that the window draws twice changes no puff, because the simulation stepped every puff in every step before any of them.
+
+`WorldHash.OfPuffs(snapshot)` (`tests/Tertius.Testing/WorldHash.cs`) hashes the puffs of a snapshot: each puff's position, previous position, age and look index in order, the age step, and each field of each look. `WorldHash.Of` leaves the puffs out, so a test compares a World with puffs and one without through it. `PuffSnapshotTests` checks that the snapshot of a World shows each row of the table where the frame tree places it relative to the camera, within 0.1 mm, with a jet in a hull's frame and the camera in space. It also pins a hash of the snapshot's puffs after 300 ticks of a busy scene whose cap binds, and `tools/test-all.sh` runs it in Debug and in Release.
+
+The demo's scene `puff-yard` (`src/Tertius.Demo/DemoScenes.Puffs.cs`) and its script `scripts/puff-yard.json` show glow puffs through the real renderer. In air under gravity, an orange flame rises in a column, a blue jet bends up from its slant, faint green gas that is colder than the air stops about a meter up and spreads into a low dome, and a tossed box leaves an arc of puffs that marks its path. `PuffScriptCostMeasurement` (`tests/Tertius.Host.Tests`, explicit) runs that script headless at 1280 × 720 with its four captures, with the default capacity and with a capacity of 0 (ter-4zt6, Release, on an Apple M1 Max, at a 1-minute load of 3.6). The median of 7 runs was 347.3 ms with puffs, about 760 of them alive at once, and 337.3 ms without. So the puffs of that scene cost about 33 µs per tick of 300, from the table to the screen.
 
 ### The overlay pass
 
@@ -901,11 +1047,13 @@ Each kind of frame has one fixed color, from the frame bubble colors of the edit
 
 ### Instances and draws
 
-All instances of a rendered frame go into one instance array, shadow casters and impostor billboards included. The array goes into one storage buffer for each frame in flight. Textures live in one bindless array. The batcher sorts the opaque instances by depth range and mesh. It writes one indirect command for each run of instances with the same range and mesh. It sorts the transparent instances by range and then back to front, so a transparent command usually holds one object. Each depth range, each shadow cascade and the transparent pass issue one `vkCmdDrawIndexedIndirect` over their part of the commands. MoltenVK does not support `drawIndirectCount`, so the CPU sets the draw count.
+All instances of a rendered frame go into one instance array, shadow casters and impostor billboards included. The array goes into one storage buffer for each frame in flight. Textures live in one bindless array. The batcher sorts the opaque instances by depth range and mesh. It writes one indirect command for each run of instances with the same range and mesh. It sorts the transparent instances and the puffs together by range and then back to front, so a transparent command usually holds one object. At equal keys an instance comes first, and puffs keep the order of the snapshot, so the order is fixed. Each depth range and each shadow cascade issue one `vkCmdDrawIndexedIndirect` over their part of the commands. The transparent pass draws each range run by run, as the next paragraph says. MoltenVK does not support `drawIndirectCount`, so the CPU sets the draw count.
+
+The batcher cuts the sorted transparent list of each range into runs. A run is a `TransparentRun`, a custom union of two cases: `MeshCommands(Commands)`, a stretch of transparent instances, with one indirect command per stretch of equal mesh, and `PuffSprites(First, Count)`, a stretch of puffs. `PreparedScene.Transparent` holds the ordered list of runs of each range. The transparent pass pushes the matrix of each range once, then draws its runs in order: a `MeshCommands` run with the transparent pipeline and one `vkCmdDrawIndexedIndirect` over its commands, and a `PuffSprites` run with the puff pipeline and one `vkCmdDraw` over its puffs, with 6 vertices and one instance for each puff. Both pipelines have the scene layout, so the sets and the push constants stay bound between runs. Puffs between two panes of the same mesh split the panes into two commands.
 
 ### Depth ranges
 
-There are three depth ranges, drawn from far to near into the same G-buffer. Each range is a slab of view depth that reaches 1% past its nominal boundaries in the table below, so neighbor slabs overlap. The batcher puts an opaque instance in each slab that its bounding sphere overlaps, from near to far. It stops at the first slab that holds the far side of the sphere. So an object that straddles a boundary draws twice, and an object that fits in one slab draws once. A transparent instance draws once, in the range that holds its center, with depth clamping on.
+There are three depth ranges, drawn from far to near into the same G-buffer. Each range is a slab of view depth that reaches 1% past its nominal boundaries in the table below, so neighbor slabs overlap. The batcher puts an opaque instance in each slab that its bounding sphere overlaps, from near to far. It stops at the first slab that holds the far side of the sphere. So an object that straddles a boundary draws twice, and an object that fits in one slab draws once. A transparent instance or a puff draws once, in the range that holds its center, with depth clamping on.
 
 | Range | Nominal view depth |
 |---|---|
@@ -955,6 +1103,51 @@ The snapshot gives each instance its up as a `HemisphereUp`. It is a custom C# 1
 
 The up costs about 5 ns per instance in the snapshot build. On one thread, `RenderSnapshotBenchmarks` builds a snapshot of 20,000 visible entities in 784 µs, against 675 µs without the up. Each GPU instance grows from 64 to 80 bytes. The renderer has no GPU timer to measure that yet (ticket `ter-yiii`).
 
+#### Puffs in the renderer
+
+The renderer draws each puff of the snapshot (see "Puffs in the snapshot") as a camera-facing sprite. It keeps no puff state, so a snapshot that the window draws twice, or one that it skips, changes nothing. For each `RenderPuff`, with the alpha of the frame and its look L = `PuffLooks[Look]`, `SceneBatcher` computes:
+
+- The render age: `Age − (1 − alpha) · PuffAgeStep`. A puff whose render age is below 0, or at L's life or more, is not drawn. So a newborn appears at the moment of its birth in the step, and a headless capture, at alpha 1, draws each puff at its age.
+- With t the render age over the life, the radius lerp(L.StartRadius, L.EndRadius, t), and the own share 1 − t. The light of a puff falls linearly to nothing at the end of its life.
+- The position: lerp(`PreviousPosition`, `Position`, alpha) less the interpolated eye, as for an instance.
+- The color: the own share times the radiance of a `GlowPuffs` or the albedo of a `LitPuffs`.
+
+The batcher leaves out a puff whose look index is outside `PuffLooks`, whose look holds no shading (a free entry of the look table holds none), whose position or radius is not finite, whose radius is 0 or less, or whose sphere is outside the frustum. It writes one `GpuPuff` of 32 bytes for each puff that it keeps, in the order of the runs: `positionRadius`, and `colorKind`, whose `w` holds the case, 0 for glow and 1 for lit, as `GpuInstance` packs the case of `HemisphereUp`. The records go into a storage buffer of the frame set, binding 7, which grows by doubling as the instance buffer does. `RenderStats.Puffs` counts the drawn puffs.
+
+The puff pipeline is `puff.vert` and `puff.frag`, with no vertex input, no face culling, depth clamping on, and `BlendMode.Additive`. `GraphicsPipelineDesc.Blend` is an enum, `BlendMode`, with the cases `None`, `Alpha` and `Additive`, because no case carries a field. `Additive` adds the source color to the HDR target, with the factors One and One, and keeps the target's alpha. The vertex shader builds a square from the vertex index, centered on the puff, across the line of sight from the eye, with the radius as half its side. The fragment shader adds
+
+color × (1 − ρ²)² × clamp((D − d) / r, 0, 1) × clamp(d / r, 0, 1)
+
+where ρ is the distance of the fragment's point from the puff's center over the radius r, d is the distance of the point from the eye, and D is the G-buffer distance at the pixel. Sky, with D = 0, counts as no surface, so its factor is 1. So a puff fades within one radius of anything opaque, and the eye counts as an opaque point at distance 0. A puff behind a wall draws nothing, a puff that cuts into a wall or a floor shows no hard line, and a puff around the eye fades. The fade is one radius along the line of sight, so on a floor seen at a low angle it is shorter on the screen: a floor seen at 17° fades a puff of 1.2 m over 5 to 8 px at 10 m. Additive blending commutes up to the rounding of the target, so the puffs of one run need no order among themselves, and glass dims only the puffs behind it.
+
+A glow puff emits its color and takes no light. A lit puff is lit once, at its center, in the vertex shader (`docs/plans/particles.md`, "Lit puffs"). It has no surface and no normal. It scatters the light that reaches its center equally in every direction, which is the mean over every facing of a matte surface lit by the same lights. The mean of the cosine over every facing is 1/4, and the mean of the sky's share of the ambient light is one half. So `scatteredLight` in `lighting.glsl` gives
+
+L = color × (mean ambient + (E_sun · V_sun + Σ E_light) / (4π))
+
+where color is the own share times the albedo, mean ambient is the mean of the sky and the ground color, E_sun is the sun's radiance, V_sun is the sun's visibility at the center, and E_light is the radiance of a point or spot light times its distance attenuation and its cone at the center. V_sun is the far shadows times the cascades, as for a surface, with the sun's direction as the normal, which needs no normal offset and no receiver-plane slope. The surfaces and the puffs share the two functions that say how much of a light reaches a point: `sunReaches` for the sun and `lightReaches` for a point or spot light. The cascades sample with zero gradients, which works in a vertex shader. So the G-buffer set lets the vertex stage read the cascades and their sampler (bindings 5 and 6), and the transparent pass prepares the cascades with the image use `SampledVertexFragment`, which makes the shadow pass's writes visible to the vertex shader too. Each of the six vertices of a lit puff computes the same light. `LitPuffRenderTests` checks the model: each lit puff must look exactly as a glow puff whose radiance is the light that the formula gives it, for the ambient light, the sun, a point light, a spot light inside and outside its cone, the shadow of a box in the cascades, a far shadow and a puff halfway through its life. Puffs cast no shadow, never become impostors, and get no bloom: glow puffs saturate through the ACES curve until the bloom ticket (`ter-63wr`).
+
+`PuffRenderBenchmarks` measures one headless `Render` at 1280 × 720, as `OutlineRenderBenchmarks` does (ter-4zt6, Release, validation off), with the ground and the 100 boxes of that scene. Small puffs have radii from 0.2 m to 1 m, from 5 m to 100 m ahead. Puffs that fill the screen have a radius of 8 m, 3 m to 4 m ahead, so each one covers every pixel. The 1-minute load of the machine was 7.7 when the run began and 6.0 when it ended.
+
+| Puffs | Small | Filling the screen |
+|---|---|---|
+| 0 | 1.28 ms | 1.29 ms |
+| 100 | 1.33 ms | 3.5 ms |
+| 1,000 | 1.46 ms | 20.0 ms |
+| 4,096 | 1.99 ms | 79 ms |
+
+Before the renderer drew puffs, the same scene took 1.28 to 1.38 ms, at a load of 8.6. So a frame with no puff costs what it cost before. Small puffs cost about 0.17 µs each. A puff that fills the screen costs about 19 µs, the fill of 0.9 million pixels, so the cost of puffs is the pixels that they cover. No frame allocates. The GPU time of the pass alone waits for the GPU timer of ticket `ter-yiii`.
+
+`LitPuffRenderBenchmarks` measures the same frame with the small puffs and eight point and spot lights of range 30 m among the near puffs, with lit puffs against glow puffs (ter-4zt6, Release, validation off, 20 iterations). The 1-minute load of the machine was 2.9 when the run began and 7.7 when it ended.
+
+| Puffs | Glow | Lit |
+|---|---|---|
+| 0 | 1.72 ms | 1.80 ms |
+| 100 | 1.67 ms | 1.74 ms |
+| 1,000 | 1.79 ms | 2.07 ms |
+| 4,096 | 2.16 ms | 2.30 ms |
+
+With no puff, the two cases are the same frame, and they differ by 0.08 ms, about the noise of the run. At 1,000 puffs the lighting adds 0.28 ms, about 0.3 µs per lit puff for its six vertices. At 4,096 the lit run's spread was 0.34 ms, so its difference of 0.15 ms is within the noise. No frame allocates.
+
 ### Shadows
 
 Shadow casters are selected by distance from the camera, not by frame, so an object shadows objects in any frame. Every caster has the `CastsShadow` flag, and the sun has none. The renderer lets an instance cast a shadow without the `Visible` flag. But the snapshot builder emits only visible instances, so today an entity without `Visible` casts no shadow. A caster casts two kinds of shadow:
@@ -1000,6 +1193,8 @@ The texel grid of each cascade snaps to a world-fixed anchor: the origin of the 
 
 The frame outlines are a view setting, `World.ShowFrameOutlines`, not a renderer switch, because a run turns them on and off between captures, and the snapshot builder cannot see the options of the renderer. The renderer always builds the overlay pass, and with no outline in the snapshot the pass records nothing.
 
+The puffs have one switch, `WorldOptions.PuffCapacity`: the most puffs that live at once, 4,096 by default. A capacity of 0 turns puffs off. No emitter makes a puff, the snapshot holds none, and the renderer draws none. It is a world option, not a renderer switch, because the simulation owns the puffs and steps them in every tick, also in a headless rehearsal without a renderer. A second switch beside it could disagree with it. A negative capacity throws `ArgumentOutOfRangeException` when the World is made.
+
 A switch that makes rendering deterministic for snapshot tests is planned, not built (ticket `ter-rtxu`, `docs/plans/renderer-snapshot-tests.md`).
 
 ### Snapshot tests
@@ -1013,7 +1208,17 @@ A snapshot test renders a scene headlessly and compares the image with its appro
 - With the environment variable `TERTIUS_APPROVE_SNAPSHOTS` set to 1, the check makes the image the reference and passes. A snapshot proves only that nothing changed. So the first approval of each reference image is a real review against the description of its scene.
 - The references come from one machine with MoltenVK. On that machine, two headless renders of one scene give the same bytes. Tolerance across GPUs is out of scope.
 
-The first reference image is `frame-outlines.png`, of the overlay pass (`OutlineRenderTests`). It shows a turned box in its semantic bubble, a falling frame's sphere partly behind a wall, and one sphere of each other kind of numeric frame, over a gray ground. More scenes come with ticket `ter-rtxu`, which also adds the switch for deterministic rendering.
+The first reference image is `frame-outlines.png`, of the overlay pass (`OutlineRenderTests`). It shows a turned box in its semantic bubble, a falling frame's sphere partly behind a wall, and one sphere of each other kind of numeric frame, over a gray ground. Four reference images of glow puffs come from `PuffRenderTests`, and one of lit puffs from `LitPuffRenderTests` (ter-4zt6). Each test also renders its scene without its puffs and measures what the puffs add.
+
+| Image | Scene |
+|---|---|
+| `puffs-glow.png` | A trail of nine glow puffs that rises from a dark ground into the sky, young and small at one end, old, large and faint at the other. No pixel gets darker. |
+| `puffs-glass.png` | Puffs behind and in front of a pane of alpha 0.2. The puff behind the pane is dimmed, and the one in front of it is not. |
+| `puffs-soft.png` | A puff that cuts into a wall and a floor, and a puff around the eye. No hard line, and the part of a puff behind the floor draws nothing. |
+| `puffs-far.png` | A trail 2.5 km away, in the middle range, at its true size: its first puff of 20 m covers 2.5 px, and nothing shows beyond its radius. |
+| `puffs-lit.png` | Three pale lit puffs over a gray ground, below and beside a roof. The puff in the sun is pale gray, the puff in the roof's shadow takes only the faint ambient light, and the puff under a warm lamp below the roof is warm. |
+
+More scenes come with ticket `ter-rtxu`, which also adds the switch for deterministic rendering.
 
 ## Blueprints
 
