@@ -10,5 +10,17 @@ public sealed partial class FrameTree
     /// their births read it once per frame. It requires a semantic frame, because a puff never lives in a numeric frame.
     /// Throws <see cref="InvalidOperationException"/> for a stale frame.
     /// </summary>
-    internal LooseBodyStep LastLooseBodyStep(FrameHandle frame) => throw new NotImplementedException();
+    internal LooseBodyStep LastLooseBodyStep(FrameHandle frame)
+    {
+        int id = Node(frame).Id;
+        Contract.Requires(numeric[id] == NumericMode.None);
+        return new LooseBodyStep
+        {
+            Field = gravity[id],
+            ProperAcceleration = properAccelerationTheStepFound[id],
+            Turns = turns[id],
+            TurnsStep = turnsStep,
+            Medium = medium[id],
+        };
+    }
 }

@@ -31,14 +31,15 @@ internal readonly struct LooseBodyStep
     /// The linear gravity that the step applied at <paramref name="place"/>, a place in the frame, in m, in the frame's
     /// axes: the field there less the proper acceleration, in m/s². It equals what physics read during the step, to the bit.
     /// </summary>
-    public Double3 LinearGravity(Double3 place) => throw new NotImplementedException();
+    public Double3 LinearGravity(Double3 place) => Field.AtPrecise(place) - ProperAcceleration;
 
     /// <summary>
     /// The effective gravity at <paramref name="place"/>, in m/s²: <paramref name="linear"/>, the linear gravity there,
     /// plus the centrifugal and the Euler term of the turns. In a frame that does not turn it is <paramref name="linear"/>
     /// itself. It equals the frame tree's effective gravity of a semantic frame, to the bit. It holds no Coriolis term.
     /// </summary>
-    public Double3 EffectiveGravity(Double3 place, Double3 linear) => throw new NotImplementedException();
+    public Double3 EffectiveGravity(Double3 place, Double3 linear) =>
+        Turns.Turns ? linear + Turns.Centrifugal(place) + Turns.Euler(place, TurnsStep) : linear;
 
     /// <summary>
     /// The chord of a loose body over the step, in m/s, in the frame's axes, from its <paramref name="place"/> at the start
@@ -52,6 +53,14 @@ internal readonly struct LooseBodyStep
     /// <param name="lift">The lift share, a pure number, 0 in vacuum.</param>
     /// <param name="drag">The body's drag, in 1/s, 0 in vacuum.</param>
     /// <param name="dt">The length of the step, in s.</param>
-    public Double3 ChordAhead(Double3 place, Double3 chord, double lift, double drag, double dt) =>
-        throw new NotImplementedException();
+    public Double3 ChordAhead(Double3 place, Double3 chord, double lift, double drag, double dt)
+    {
+        Double3 linear = LinearGravity(place);
+        // In vacuum the push is the linear gravity itself, so the body takes the expression of physics to the bit.
+        Double3 push = lift == 0 ? linear : linear - EffectiveGravity(place, linear) * lift;
+        Double3 ahead = Turns.Turns
+            ? chord + Turns.FreeChange(place, chord, dt) + Turns.Step.Turn.Rotate(push) * dt
+            : chord + push * dt;
+        return ahead / (1 + drag * dt);
+    }
 }

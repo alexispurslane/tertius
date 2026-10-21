@@ -34,7 +34,7 @@ public sealed partial class World
     /// before anything changes, for a description that the world cannot make live: a pose that is not valid (see
     /// <see cref="DPose.IsValid"/>), a velocity that is not finite, a body that physics cannot create (see
     /// <see cref="BodyDesc.Problem"/> and <see cref="IPhysicsBackend.ShapeProblem"/>, which checks a frame's hull as a body
-    /// with the motion of its description), a gravity field that is not valid, or an attachment
+    /// with the motion of its description), a gravity field or a medium that is not valid, or an attachment
     /// parent that is not live or that owns a root frame, or a first motion intent that the entity would refuse (see
     /// <see cref="SpawnDesc.FirstMove"/>). The World checks nothing else about rails motion: a rails component checks its own
     /// rules (see <see cref="KeplerMotion"/> and <see cref="SpinMotion"/>). An attached entity is live in
@@ -157,7 +157,16 @@ public sealed partial class World
     /// <exception cref="ArgumentException">
     /// A frame that is gone, or a medium that is not valid (see <see cref="MediumField.IsValid"/>). The frame keeps its medium.
     /// </exception>
-    public void SetFrameMedium(FrameHandle frame, in MediumField medium) => throw new NotImplementedException();
+    public void SetFrameMedium(FrameHandle frame, in MediumField medium)
+    {
+        ThrowIfInTick(nameof(SetFrameMedium));
+        if (!Frames.IsAlive(frame))
+            throw new ArgumentException($"Cannot set the medium of {frame}: the frame is gone.", nameof(frame));
+        if (!medium.IsValid)
+            throw new ArgumentException($"Cannot give {frame} this medium: the medium is not valid (see MediumField.IsValid).", nameof(medium));
+
+        Frames.SetMedium(frame, medium);
+    }
 
     // ---- Spawning -------------------------------------------------------------------------------------------------
 
@@ -212,6 +221,8 @@ public sealed partial class World
                 throw new ArgumentException("A frame needs a bubble with positive radii.", nameof(desc));
             if (!spec.Gravity.IsValid)
                 throw new ArgumentException("A frame needs a gravity field that physics can apply: this gravity field is not valid (see GravityField.IsValid).", nameof(desc));
+            if (!spec.Medium.IsValid)
+                throw new ArgumentException("A frame needs a medium with numbers in their ranges: this medium is not valid (see MediumField.IsValid).", nameof(desc));
         }
         if (SpawnVelocityProblem(desc) is { } velocityProblem)
             throw new ArgumentException(velocityProblem, nameof(desc));
@@ -331,7 +342,7 @@ public sealed partial class World
         FrameHandle own = FrameHandle.Null;
         if (desc.AsFrame is { } spec)
         {
-            own = Frames.Create(entity, frame, pose, spec.Bounds, spec.Gravity);
+            own = Frames.Create(entity, frame, pose, spec.Bounds, spec.Gravity, spec.Medium);
             // A frame with a parent whose owner has a body has a hull, with the motion of the body's description. A root frame
             // has no hull, and neither has a frame without a body: the tree gives a new frame no hull motion.
             if (!frame.IsNull && desc.Body is { } hullBody)

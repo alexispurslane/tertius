@@ -56,7 +56,7 @@ public readonly struct MediumField : IEquatable<MediumField>
     /// <param name="drag">The drag, in 1/s.</param>
     /// <param name="region">The box in frame coordinates that the medium fills, or null for the whole frame.</param>
     public static MediumField Uniform(float density, float drag, BoundingBox? region = null) =>
-        throw new NotImplementedException();
+        new(new UniformMedium(density, drag, region));
 
     /// <summary>The air of a planet at the frame's origin.</summary>
     /// <param name="radius">The planet's radius, in m.</param>
@@ -64,22 +64,46 @@ public readonly struct MediumField : IEquatable<MediumField>
     /// <param name="scaleHeight">The height over which the density falls by the factor e, in m.</param>
     /// <param name="drag">The drag, in 1/s.</param>
     public static MediumField Planet(double radius, float surfaceDensity, float scaleHeight, float drag) =>
-        throw new NotImplementedException();
+        new(new PlanetMedium(radius, surfaceDensity, scaleHeight, drag));
 
     /// <summary>False for the empty medium, which is vacuum.</summary>
     public bool HasValue => kind != KindNone;
 
-    public bool TryGetValue(out UniformMedium value) => throw new NotImplementedException();
+    public bool TryGetValue(out UniformMedium value)
+    {
+        value = uniform;
+        return kind == KindUniform;
+    }
 
-    public bool TryGetValue(out PlanetMedium value) => throw new NotImplementedException();
+    public bool TryGetValue(out PlanetMedium value)
+    {
+        value = planet;
+        return kind == KindPlanet;
+    }
 
-    public object? Value => throw new NotImplementedException();
+    public object? Value => kind switch
+    {
+        KindUniform => uniform,
+        KindPlanet => planet,
+        _ => null,
+    };
 
     /// <summary>
     /// True for a medium that the World accepts: every number is finite, the densities, the drags and the radius are 0 or
     /// more, the scale height is above 0, and a region has finite corners. No medium is valid.
     /// </summary>
-    public bool IsValid => throw new NotImplementedException();
+    public bool IsValid => this switch
+    {
+        UniformMedium { Density: var density, Drag: var drag, Region: var region } =>
+            NotNegative(density) && NotNegative(drag) && (region is not { } box || (IsFinite(box.Min) && IsFinite(box.Max))),
+        PlanetMedium { Radius: var radius, SurfaceDensity: var surface, ScaleHeight: var scale, Drag: var drag } =>
+            double.IsFinite(radius) && radius >= 0 && NotNegative(surface) && float.IsFinite(scale) && scale > 0 && NotNegative(drag),
+        _ => true,
+    };
+
+    private static bool NotNegative(float value) => float.IsFinite(value) && value >= 0;
+
+    private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
 
     /// <summary>
     /// Whether the medium has gas at <paramref name="place"/>, a place in the frame, in m, in the frame's axes. A uniform
@@ -87,7 +111,13 @@ public readonly struct MediumField : IEquatable<MediumField>
     /// so only when its density, or its surface density, is above 0. It never calls <see cref="Math.Exp"/>, so the step of a
     /// puff reads it at no cost beyond a box test.
     /// </summary>
-    public bool Fills(Double3 place) => throw new NotImplementedException();
+    public bool Fills(Double3 place) => this switch
+    {
+        UniformMedium { Density: var density, Region: var region } =>
+            density > 0 && (region is not { } box || box.Contains(place.ToVector3())),
+        PlanetMedium { SurfaceDensity: var surface } => surface > 0,
+        _ => false,
+    };
 
     /// <summary>
     /// The medium's density at <paramref name="place"/>, a place in the frame, in m, in the frame's axes, in kg/m³, and 0 in
@@ -95,19 +125,46 @@ public readonly struct MediumField : IEquatable<MediumField>
     /// e^(−height / scale height). It serves game code now, and bodies when a later ticket lets them read the medium. Puffs
     /// read only <see cref="Fills"/> and <see cref="Drag"/>.
     /// </summary>
-    public double DensityAt(Double3 place) => throw new NotImplementedException();
+    public double DensityAt(Double3 place) => this switch
+    {
+        UniformMedium { Density: var density, Region: var region } =>
+            region is { } box && !box.Contains(place.ToVector3()) ? 0 : density,
+        PlanetMedium { Radius: var radius, SurfaceDensity: var surface, ScaleHeight: var scale } =>
+            surface * Math.Exp(-Math.Max(0, place.Length - radius) / scale),
+        _ => 0,
+    };
 
     /// <summary>The medium's drag, in 1/s, and 0 in vacuum.</summary>
-    public float Drag => throw new NotImplementedException();
+    public float Drag => this switch
+    {
+        UniformMedium { Drag: var drag } => drag,
+        PlanetMedium { Drag: var drag } => drag,
+        _ => 0,
+    };
 
-    public bool Equals(MediumField other) => throw new NotImplementedException();
+    public bool Equals(MediumField other) => kind == other.kind && kind switch
+    {
+        KindUniform => uniform == other.uniform,
+        KindPlanet => planet == other.planet,
+        _ => true,
+    };
 
     public override bool Equals(object? obj) => obj is MediumField other && Equals(other);
 
-    public override int GetHashCode() => throw new NotImplementedException();
+    public override int GetHashCode() => kind switch
+    {
+        KindUniform => HashCode.Combine(kind, uniform),
+        KindPlanet => HashCode.Combine(kind, planet),
+        _ => 0,
+    };
 
     public static bool operator ==(MediumField a, MediumField b) => a.Equals(b);
     public static bool operator !=(MediumField a, MediumField b) => !a.Equals(b);
 
-    public override string ToString() => throw new NotImplementedException();
+    public override string ToString() => this switch
+    {
+        UniformMedium u => $"MediumField({u})",
+        PlanetMedium p => $"MediumField({p})",
+        _ => "MediumField(none)",
+    };
 }
