@@ -35,6 +35,8 @@ public static partial class DemoScenes
     /// <item>The view <c>hold-camera</c>, in the station's frame, at <see cref="HoldCamera"/> beyond the hold point and off
     /// the axis, looks back at <see cref="HoldCameraAim"/>, with the axis across the picture. It frames the shuttle at the
     /// hold in front and the hub behind it, and turns with the station.</item>
+    /// <item>The exit's chute, openings, lamps and cameras (see <see cref="StationExit.Spawn"/>), and the coda's loose boxes,
+    /// floor marks and cameras on the wheel's floor (see <see cref="WheelCoda.Spawn"/>).</item>
     /// </list>
     /// Every part is drawn with <see cref="RenderFlags.NoImpostor"/>: the spin turns the station 18 degrees a second, so an
     /// impostor's capture would go stale within a few ticks.
@@ -52,6 +54,9 @@ public static partial class DemoScenes
 
         /// <summary>The wheel's segments, and so the facets of its floor: 2.45 m long each.</summary>
         public const int Segments = 256;
+
+        /// <summary>The wheel's floor, the ring's inner face of <see cref="Segments"/> flat facets at <see cref="FloorRadius"/>.</summary>
+        public static WheelFloor WheelFloor { get; } = new(FloorRadius, Segments);
 
         /// <summary>
         /// The radius of the ceiling's face toward the axis, in meters: it runs from 94.5 to 95 m, 5 m above the floor. The
@@ -431,6 +436,7 @@ public static partial class DemoScenes
             }));
 
             StationExit.Spawn(world, frame, scene, resources);
+            WheelCoda.Spawn(world, frame, scene, resources);
 
             // The bay lamps: glowing panels flat on the bay's walls, each with its light 0.3 m out from the wall, in the
             // station's axes. Three stand near the slot, 8 m in from it, and one in the middle of the far end wall.

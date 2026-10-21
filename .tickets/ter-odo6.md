@@ -31,3 +31,7 @@ Every allocation test measures per call or per tick, or warms up past the runtim
 **2026-10-20T20:43:46Z**
 
 2026-10-20, coverage of ter-tzf6: Host's CaptureMailboxTests.ARequestStopsWaitingWhenTheWindowCloses (a 5 s timing test) failed once under tools/coverage/run.sh in Release, and passed 3 of 3 alone in Release without coverage. The branch does not touch it. A timing test that fails under the load of the coverage run, like the two ContactAllocationTests.
+
+**2026-10-21T17:33:43Z**
+
+2026-10-21: RefusedRailsAllocationTests.ARailsComponentThatTheGuardRefusesAllocatesNothingInTheTicksAfterItsLog also fails under tools/coverage/run.sh in Debug, beside the two ContactAllocationTests, on the branch of ter-h74c, which changes no engine code. It passes without coverage.

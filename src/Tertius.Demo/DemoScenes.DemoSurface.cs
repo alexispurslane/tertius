@@ -57,7 +57,8 @@ public static partial class DemoScenes
     /// <see cref="ClippedPen"/>). The clip holds it through the climb, and lets it go with a small push and a slow spin a
     /// second after the cabin becomes weightless in orbit, so that the pen drifts into the middle of the cabin. The person
     /// is a <see cref="Passenger"/>: its belt holds it at <see cref="Shuttle.SeatStand"/> through the climb, and in the
-    /// weightless cabin it floats to the drifting pen and takes it in its hand, where and as the pen floats.</item>
+    /// weightless cabin it floats to the drifting pen and takes it in its hand, where and as the pen floats. Its
+    /// <see cref="Disembark"/> and its <see cref="BoxPlay"/> wait for the orders of the exit and of the coda.</item>
     /// <item>More views: <c>pad-camera</c>, 6 m up, 32 m to starboard of the shuttle and 30 m aft of it, sees the whole
     /// parked shuttle, with the tower behind it and the ramp rising beyond it; <c>ramp-camera</c> hovers 25 m above the
     /// ground, 140 m to starboard of the ramp, and sees all of it; <c>ramp-top-camera</c> hovers 105 m above the ground,
@@ -475,7 +476,7 @@ public static partial class DemoScenes
                 Components =
                 [
                     new Walker(Path(surface, cabin)), new Passenger(new Waypoint(cabin, Shuttle.SeatStand), pen),
-                    StationExit.Disembark(cabin, world.GetOwnedFrame(station)), new WalkHeading(),
+                    StationExit.Disembark(cabin, world.GetOwnedFrame(station)), WheelCoda.Play(scene, world.GetOwnedFrame(station)), new WalkHeading(),
                 ],
             });
             scene.Add("person", person);

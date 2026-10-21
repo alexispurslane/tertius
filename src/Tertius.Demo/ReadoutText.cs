@@ -128,5 +128,62 @@ public static class CheckPanels
         return [.. lines.Select(line => line.PadRight(width))];
     }
 
+    /// <summary>
+    /// The coda's throws in the wheel: for each throw, its release's speed and angle above the floor, and where it lands,
+    /// along the floor from under its release, in the direction of the throw: the first throw spinward, the second
+    /// antispinward. The straight line is the landing of the release's straight line in inertial space
+    /// (<see cref="ThrowRelease.Landing"/>), the run is the landing that the box's <see cref="FlightRecorder"/> measured,
+    /// and the flat field is the parabola over a flat floor in ω² R, the floor's 1 g (<see cref="ThrowRelease.FlatLanding"/>),
+    /// with ω <see cref="DemoScenes.SpinStation.Rate"/> and R the floor's radius. A throw before its release shows
+    /// <c>waiting</c>, and a throw in the air shows <c>in the air</c> for its run. The panel reads no first row: every
+    /// number comes from the row's own record of the throws, in the station's axes. The panel calls the flat field
+    /// <c>uniform 1 g</c>, and writes no "fi" and no "fl": libass draws each such pair as one ligature of Menlo's, which
+    /// would draw the line narrower than its count of characters and push it out of line with the others.
+    /// </summary>
+    public static string[] Throws(ReadoutRow first, ReadoutRow row)
+    {
+        double omega = DemoScenes.SpinStation.Rate;
+        string[] lines =
+        [
+            string.Format(Invariant, "TEXTBOOK CHECK   a box thrown in the wheel, ω {0:F5} rad/s", omega),
+            ThrowColumns("lands", "release", "straight line", "run", "uniform 1 g"),
+            ThrowLine("spinward", 1, row.FirstThrow),
+            ThrowLine("antispinward", -1, row.SecondThrow),
+        ];
+        int width = lines.Max(line => line.Length);
+        return [.. lines.Select(line => line.PadRight(width))];
+    }
+
+    /// <summary>
+    /// The line of one throw, named <paramref name="name"/>, with each landing measured along the floor in the throw's
+    /// direction: spinward for a <paramref name="direction"/> of 1 and antispinward for -1.
+    /// </summary>
+    private static string ThrowLine(string name, int direction, ThrowReadout? readout)
+    {
+        if (readout is not { } thrown)
+            return string.Format(Invariant, "{0,-12} waiting", name);
+        WheelFloor floor = DemoScenes.DemoStation.WheelFloor;
+        double omega = DemoScenes.SpinStation.Rate, half = DemoScenes.WheelCoda.BoxHalf;
+        ThrowRelease release = thrown.Release;
+        double speed = release.Velocity.Length;
+        double angle = Math.Asin(Double3.Dot(release.Velocity, floor.Normal(release.Place)) / -speed) * 180 / Math.PI;
+        double Along(Double3 place) => direction * floor.Spinward(release.Place, place);
+        string line = Meters(Along(release.Landing(omega, floor, half).Place));
+        string run = thrown.Landing is { } landing ? Meters(Along(landing.Place)) : "in the air";
+        string flat = Meters(direction * release.FlatLanding(omega * omega * floor.Radius, floor, half).Spinward);
+        return ThrowColumns(name, string.Format(Invariant, "{0:F2} m/s {1:F1}°", speed, angle), line, run, flat);
+    }
+
+    /// <summary>
+    /// One line of the throws panel's columns: the name, the release, and the three landings, each right-aligned. Each
+    /// column is wide enough that its header stands at least three spaces from the header before it, also "uniform 1 g"
+    /// after "run".
+    /// </summary>
+    private static string ThrowColumns(string name, string release, string line, string run, string flat) =>
+        string.Format(Invariant, "{0,-12} {1,-14} {2,14} {3,10} {4,14}", name, release, line, run, flat);
+
+    private static string Meters(double meters) => string.Format(Invariant, "{0:F2} m", meters);
+
+
     private static string Acceleration(double acceleration) => string.Format(Invariant, "{0:F2} m/s²", acceleration);
 }

@@ -10,40 +10,43 @@ namespace Tertius.Host.Tests;
 /// <summary>
 /// The exit in the checked-in long script, scripts/blue-danube.json (docs/plans/blue-danube-demo.md, "The exit", "Sections
 /// of the long script"): the run of <see cref="BlueDanubeRendezvousRun"/> goes on after the docking's film <c>docked</c>
-/// through the exit's films to <c>floor</c>. So one run goes from the terminal on the ground through the launch, the
-/// rendezvous and the docking to the person on the wheel's floor. The exit's own run of the scene <c>demo-exit</c>, in
+/// through the exit's films to <c>floor</c>, and the coda follows. So one run goes from the terminal on the ground through
+/// the launch, the rendezvous and the docking to the person on the wheel's floor. The exit's own run of the scene <c>demo-exit</c>, in
 /// <see cref="DisembarkTests"/>, checks the exit in detail. These tests check that the long run reaches the same end.
 /// Every place is in the station's axes.
 /// </summary>
 [Collection(BlueDanubeRendezvousRun.Collection)]
 public sealed class BlueDanubeExitTests(BlueDanubeRendezvousRun run)
 {
-    /// <summary>The ticks after the film <c>docked</c>, from the order <see cref="LeaveShip"/> to the end of the run.</summary>
-    private IReadOnlyList<RendezvousTick> Exit { get; } = [.. run.AfterDocked];
+    /// <summary>The ticks after the film <c>docked</c>, from the order <see cref="LeaveShip"/> to the end of the film <c>floor</c>.</summary>
+    private IReadOnlyList<RendezvousTick> Exit { get; } = [.. run.AfterDocked.TakeWhile(tick => tick.Tick <= run.FloorTick)];
 
     /// <summary>
     /// The long script films the exit's sections right after the docking's <c>docked</c>, in their order, and ends with
-    /// them.
+    /// the coda's sections, in their order.
     /// </summary>
     [Fact]
-    public void TheLongScriptFilmsTheExitsSectionsAfterTheDocking()
+    public void TheLongScriptFilmsTheExitsSectionsAfterTheDockingAndTheCodasAfterThem()
     {
         string[] films = [.. Script.Load(Path.Combine(RepositoryRoot(), "scripts", "blue-danube.json")).Steps
             .Select(step => step.Value).OfType<FilmStep>().Select(film => film.Name)];
         string[] exit = [.. BlueDanube.ExitSections.Select(section => section.Name)];
+        string[] coda = [.. BlueDanube.CodaSections.Select(section => section.Name)];
 
-        films.Should().EndWith([BlueDanubeRendezvousRun.DockedFilm, .. exit]);
+        films.Should().EndWith([BlueDanubeRendezvousRun.DockedFilm, .. exit, .. coda]);
+        exit[^1].Should().Be(BlueDanubeRendezvousRun.FloorFilm);
+        coda[^1].Should().Be(BlueDanubeRendezvousRun.LastFilm);
     }
 
     /// <summary>
     /// One run of the long script takes the person from its seat in the docked shuttle to the wheel's floor. The run
-    /// reaches the film <c>docked</c> and goes on past it. At the end, the person's exit component is in
+    /// reaches the film <c>docked</c> and goes on past it. At the end of the film <c>floor</c>, the person's exit component is in
     /// <see cref="Arrived"/>, and the person stands in the station's frame on the wheel's floor and feels a full gravity
     /// there: ω² × 99.1 m = 9.72 m/s², within 1 percent. It stops within 0.1 m of the stroll's end, still for the last half
-    /// second. The world records no error. Measured on 2026-10-21, after the person's walk of ter-cdgt, whose walks start
-    /// from rest: the run is 305,469 ticks. The script posts the order after tick 302,165, at 5,036.08 s, and the person
-    /// arrives at tick 305,349, at 5,089.15 s, 53.07 s after the order. It stands 99.10 m from the axis and feels
-    /// 9.721 m/s².
+    /// second of the film <c>floor</c>. The world records no error. Measured on 2026-10-21, after the person's walk of
+    /// ter-cdgt, whose walks start from rest, and with the coda: the film floor ends at tick 305,461, and the run, with the
+    /// coda, is 306,539 ticks. The script posts the order after tick 302,165, at 5,036.08 s, and the person arrives at tick
+    /// 305,341, at 5,089.02 s, 52.93 s after the order. It stands 99.10 m from the axis and feels 9.721 m/s².
     /// </summary>
     [Fact]
     public void TheLongRunTakesThePersonFromTheDockedSeatToTheWheelsFloor()
@@ -69,6 +72,9 @@ public sealed class BlueDanubeExitTests(BlueDanubeRendezvousRun run)
     /// the person arrives between 50 and 56 s after the order, and the slide tops out between 8 and 10 m/s. Measured on
     /// 2026-10-21, after the person's walk of ter-cdgt: the person arrives 53.07 s after the order, against 53.10 s in its
     /// own scene. The slide starts 17.35 s after the order, takes 30.1 s and tops out at 8.87 m/s, as in its own scene.
+    /// With the coda, whose loose boxes rest on the wheel's floor through the whole long run, the person drops into the
+    /// chute 7 ticks sooner in the long run, and its own scene does not change: the person arrives 52.93 s after the
+    /// order, and the slide starts 17.23 s after it and takes 30.1 s.
     /// </summary>
     [Fact]
     public void TheExitInTheLongRunTakesAsLongAsInItsOwnScene()

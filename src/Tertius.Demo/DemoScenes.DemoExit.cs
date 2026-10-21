@@ -20,6 +20,7 @@ public static partial class DemoScenes
     /// of the pen in its hand, and its <see cref="Disembark"/> <see cref="Aboard"/>. It faces the nose, as the long run's
     /// person faces it after the walk to the seat, and its <see cref="WalkHeading"/> turns it toward the walk. It is drawn
     /// as in <c>demo-surface</c>, by <c>person-body</c> and <c>person-visor</c> (see <see cref="DemoSurface.SpawnDrawnBody"/>).
+    /// Its <see cref="BoxPlay"/> of the coda waits <see cref="Idle"/> for <see cref="PlayWithBoxes"/> (see <see cref="WheelCoda"/>).
     /// The <c>follow-camera</c> is attached to
     /// it, behind it toward the nose, and so is <c>slide-camera</c> (see <see cref="StationExit.SpawnSlideCamera"/>).
     /// <c>cabin-camera</c> stands where <c>demo-surface</c> puts it.</item>
@@ -69,8 +70,8 @@ public static partial class DemoScenes
         {
             var scene = new SceneInstance();
             FrameHandle earth = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e8f), GravityField.Point(EarthMu)));
-            scene.Add("earth-orbit", earth.Entity);
-            scene.Add("earth", world.Spawn(new SpawnDesc
+            scene.Add("earth", earth.Entity);
+            scene.Add("earth-globe", world.Spawn(new SpawnDesc
             {
                 Frame = earth,
                 Pose = DPose.Identity,
@@ -116,6 +117,7 @@ public static partial class DemoScenes
             scene.Add("pen-copy", copy);
             world.AddComponent(person, new Passenger(new Waypoint(cabin, Shuttle.SeatStand), Entity.Null, new Strapped(copy)));
             world.AddComponent(person, StationExit.Disembark(cabin, frame));
+            world.AddComponent(person, WheelCoda.Play(scene, frame));
             world.AddComponent(person, new WalkHeading());
             // The person walks aft first, so the camera starts behind it, toward the nose.
             scene.Add("follow-camera", world.Spawn(new SpawnDesc
@@ -131,7 +133,7 @@ public static partial class DemoScenes
 
             SunAt(world, scene, earth, new Double3(0, EarthRadius, 0) + new Double3(60, 80, 40).Normalized() * AstronomicalUnit);
 
-            foreach (string view in new[] { "cabin-camera", "follow-camera", "deck-camera", "spoke-camera", "slide-camera", "wheel-camera", "rim-camera" })
+            foreach (string view in new[] { "cabin-camera", "follow-camera", "deck-camera", "spoke-camera", "slide-camera", "wheel-camera", "stack-camera", "spinward-camera", "antispinward-camera", "rim-camera" })
                 scene.AddView(view);
             world.Camera = cabinCamera;
             return scene;

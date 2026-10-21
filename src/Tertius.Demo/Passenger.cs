@@ -36,6 +36,12 @@ public readonly record struct Strapped(Entity Copy);
 /// <param name="Copy">The drawn copy of the pen in its hand.</param>
 public readonly record struct Unstrapped(Entity Copy);
 
+/// <summary>
+/// A <see cref="Passenger"/> on the wheel's floor has put the pen away to play with the loose boxes: the drawn copy is gone,
+/// and the passenger adds nothing. The person's <see cref="BoxPlay"/> plays.
+/// </summary>
+public readonly record struct PenAway;
+
 /// <summary>The pen went before a <see cref="Passenger"/> took it, so the passenger stops where it is, with empty hands.</summary>
 public readonly record struct Stopped;
 
@@ -43,13 +49,14 @@ public readonly record struct Stopped;
 /// What a <see cref="Passenger"/> does, in the order of a flight: <see cref="Boarding"/>, <see cref="Seated"/>,
 /// <see cref="Fetching"/>, and then <see cref="Holding"/> or <see cref="Stopped"/>. From <see cref="Holding"/>, a
 /// <see cref="FastenBelt"/> leads to <see cref="Returning"/> and then <see cref="Strapped"/>, and from there a
-/// <see cref="LeaveShip"/> leads to <see cref="Unstrapped"/>. The default value is
+/// <see cref="LeaveShip"/> leads to <see cref="Unstrapped"/>, and on the wheel's floor a <see cref="PlayWithBoxes"/> to
+/// <see cref="PenAway"/>. The default value is
 /// <see cref="Boarding"/>. This is a custom C# 15 union, like <see cref="AscentState"/>.
 /// </summary>
 [Union]
 public readonly struct PassengerState : IEquatable<PassengerState>
 {
-    private const byte KindBoarding = 0, KindSeated = 1, KindFetching = 2, KindHolding = 3, KindStopped = 4, KindReturning = 5, KindStrapped = 6, KindUnstrapped = 7;
+    private const byte KindBoarding = 0, KindSeated = 1, KindFetching = 2, KindHolding = 3, KindStopped = 4, KindReturning = 5, KindStrapped = 6, KindUnstrapped = 7, KindPenAway = 8;
 
     // A seated state fills the weightless ticks, and a holding, returning, strapped or unstrapped one the copy. Every other field is zero, so equality
     // compares every field.
@@ -65,6 +72,7 @@ public readonly struct PassengerState : IEquatable<PassengerState>
     public PassengerState(Returning returning) { kind = KindReturning; copy = returning.Copy; }
     public PassengerState(Strapped strapped) { kind = KindStrapped; copy = strapped.Copy; }
     public PassengerState(Unstrapped unstrapped) { kind = KindUnstrapped; copy = unstrapped.Copy; }
+    public PassengerState(PenAway away) { kind = KindPenAway; }
 
     /// <summary>Always true: every value is a state, and the default value is <see cref="Boarding"/>.</summary>
     public bool HasValue => true;
@@ -117,6 +125,12 @@ public readonly struct PassengerState : IEquatable<PassengerState>
         return kind == KindUnstrapped;
     }
 
+    public bool TryGetValue(out PenAway value)
+    {
+        value = default;
+        return kind == KindPenAway;
+    }
+
     public object Value => kind switch
     {
         KindSeated => new Seated(weightlessTicks),
@@ -126,6 +140,7 @@ public readonly struct PassengerState : IEquatable<PassengerState>
         KindReturning => new Returning(copy),
         KindStrapped => new Strapped(copy),
         KindUnstrapped => new Unstrapped(copy),
+        KindPenAway => new PenAway(),
         _ => new Boarding(),
     };
 
@@ -170,7 +185,10 @@ public readonly struct PassengerState : IEquatable<PassengerState>
 /// <item><see cref="Strapped"/>: the belt holds it at its seat as in <see cref="Seated"/>, with the copy of the pen in
 /// its hand, but it does not open the belt when it is weightless. A <see cref="LeaveShip"/> opens it, in the same tick.</item>
 /// <item><see cref="Unstrapped"/>: the belt is open, and the passenger adds nothing, with the copy of the pen in its hand.
-/// The person's <see cref="Disembark"/> walks it out of the docked ship.</item>
+/// The person's <see cref="Disembark"/> walks it out of the docked ship. A <see cref="PlayWithBoxes"/> puts the pen away,
+/// in the same tick: the passenger tells the copy to go.</item>
+/// <item><see cref="PenAway"/>: the passenger adds nothing, and its hands are free for the person's
+/// <see cref="BoxPlay"/>.</item>
 /// <item><see cref="Stopped"/>: its thrusters stop it relative to its frame.</item>
 /// </list>
 /// </summary>
@@ -262,7 +280,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
 
     public int Priority => 0;
 
-    public EventMask Wants => EventMask.Of<Tick>().And<CrateOffer>().And<FastenBelt>().And<LeaveShip>();
+    public EventMask Wants => EventMask.Of<Tick>().And<CrateOffer>().And<FastenBelt>().And<LeaveShip>().And<PlayWithBoxes>();
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
@@ -313,7 +331,14 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
                 if (self.Frame == seat.Frame)
                     HoldAtSeat(self, mass);
                 return;
-            case Unstrapped:
+            case Unstrapped { Copy: Entity held }:
+                if (events.Of<PlayWithBoxes>().Any())
+                {
+                    outbox.Send(held, new Destroy());
+                    State = new PenAway();
+                }
+                return;
+            case PenAway:
                 return;
             default:
                 Steer(self, outbox, Double3.Zero, mass);

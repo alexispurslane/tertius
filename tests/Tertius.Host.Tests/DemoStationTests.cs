@@ -348,6 +348,94 @@ public sealed class DemoStationTests : IDisposable
         distance.Should().BeApproximately(DemoStation.HoldPoint.Length, 1, "the shuttle drifts little from the hold point");
     }
 
+    /// <summary>
+    /// An undamped box 0.4 m on a side, released at rest in the station's axes with its lowest face <paramref name="height"/>
+    /// above the middle of a facet of the wheel's floor, lands where the straight line of its release in inertial space says.
+    /// The station orbits Earth on Kepler rails with a spin attitude and lives in a following frame in <c>earth</c>, and its
+    /// frame falls freely, so a free box in it moves on the straight line through its place at the velocity of the
+    /// station's point there, ω × r, relative to the station's center in axes that do not turn. The line comes from the
+    /// box's place at the release, the scene's rate and the station's rotations in <c>earth</c> after each tick, never from
+    /// the turns that the engine derives. The landing is where the straight line through the box's last two free places in
+    /// those axes brings its lowest face to the facet's plane, while the station turns on at its rate. It lies antispinward
+    /// of the release point by about 95 mm from 1.0 m and about 176 mm from 1.5 m (docs/plans/blue-danube-demo.md, "The
+    /// coda").
+    /// </summary>
+    [Theory]
+    [InlineData(1.0, 0.095)]
+    [InlineData(1.5, 0.176)]
+    public void ABoxReleasedAtRestAboveTheWheelsFloorLandsWhereItsInertialLineSays(double height, double antispinward)
+    {
+        const double half = 0.2;
+        double rate = DemoScenes.SpinStation.Rate, facet = Math.Tau / DemoStation.Segments;
+        double plane = DemoStation.FloorRadius * Math.Cos(facet / 2), theta = 120.5 * facet;
+        var normal = new Double3(Math.Cos(theta), 0, -Math.Sin(theta));
+        Tick(world, 3);
+        Entity box = world.Spawn(new SpawnDesc
+        {
+            Frame = frame,
+            Pose = new DPose(normal * (plane - half - height), DQuaternion.FromAxisAngle(Double3.UnitY, theta)),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3((float)half)), Mass: 5, LinearDamping: 0, AngularDamping: 0),
+        });
+
+        // The box's place relative to the station's center in earth's axes, which do not turn, and the station's rotation
+        // in earth, now and after each tick.
+        var places = new List<Double3>();
+        var turns = new List<DQuaternion>();
+        for (int tick = 0; tick <= 60; tick++)
+        {
+            if (tick > 0)
+                world.Tick();
+            DQuaternion turn = world.PoseIn(station, earth).Rotation;
+            turns.Add(turn);
+            places.Add(turn.Rotate(world.PoseIn(box, frame).Position));
+        }
+        double dt = world.DeltaTime;
+        Double3 velocity = turns[0].Rotate(Double3.Cross(new Double3(0, rate, 0), turns[0].Conjugate().Rotate(places[0])));
+        Double3 Line(int n) => places[0] + velocity * (n * dt);
+        int touch = Enumerable.Range(1, 60).First(n => Double3.Distance(places[n], Line(n)) > 1e-4);
+        double worst = Enumerable.Range(0, touch).Max(n => Double3.Distance(places[n], Line(n)));
+
+        // The landing: from the last free place above the floor's plane, on the straight line through it and the free place
+        // before it, while the station turns on about its own +Y at its rate. A box whose step starts more than Jolt's
+        // speculative contact distance of 0.02 m above the floor and moves less than its linear cast's threshold sinks up to
+        // a few centimeters into the floor in that step, and the solver pushes it out in the steps after. So the last free
+        // place can lie below the plane, and the landing comes from the places above it.
+        double GapAt(int n) => plane - half - Double3.Dot(turns[n].Conjugate().Rotate(places[n]), normal);
+        int above = Enumerable.Range(0, touch).Last(n => GapAt(n) > 0);
+        Double3 last = places[above], step = (last - places[above - 1]) / dt;
+        Double3 InStation(double s) => (turns[above] * DQuaternion.FromAxisAngle(Double3.UnitY, rate * s)).Conjugate().Rotate(last + step * s);
+        double Gap(double s) => plane - half - Double3.Dot(InStation(s), normal);
+        double lo = 0, hi = 2 * dt;
+        Gap(hi).Should().BeLessThan(0, "the line meets the floor within two steps of the last place above it");
+        for (int i = 0; i < 60; i++)
+            (lo, hi) = Gap((lo + hi) / 2) > 0 ? ((lo + hi) / 2, hi) : (lo, (lo + hi) / 2);
+        Double3 landing = InStation(lo);
+        double time = above * dt + lo;
+
+        // The same line, worked out from the release alone: in the station's axes, the place at time t is the release
+        // place plus ω × r t, turned back by the station's turn ω t.
+        Double3 release = turns[0].Conjugate().Rotate(places[0]);
+        Double3 Expected(double t) => DQuaternion.FromAxisAngle(Double3.UnitY, -rate * t).Rotate(release + Double3.Cross(new Double3(0, rate, 0), release) * t);
+        double lo2 = 0.1, hi2 = 1;
+        for (int i = 0; i < 60; i++)
+            (lo2, hi2) = plane - half - Double3.Dot(Expected((lo2 + hi2) / 2), normal) > 0 ? ((lo2 + hi2) / 2, hi2) : (lo2, (lo2 + hi2) / 2);
+        Double3 expected = Expected(lo2);
+        // The place of the landing along the floor, antispinward of the point under the release: spinward is the way of
+        // growing θ, the angle from +X toward -Z.
+        double Along(Double3 place) => Math.Atan2(-place.Z, place.X);
+        double measured = (Along(release) - Along(landing)) * plane;
+        TestContext.Current.TestOutputHelper?.WriteLine(
+            $"drop from {height} m: worst {worst:E2} m off the line before the touch in step {touch}; lands {time:F7} s after the release, {measured:F6} m antispinward; the line from the release says {lo2:F7} s, {(Along(release) - Along(expected)) * plane:F6} m");
+
+        world.GetFrame(box).Should().Be(frame);
+        touch.Should().BeGreaterThan(20, "the box falls for a while");
+        worst.Should().BeLessThan(1e-5, "the box flies on the straight line of its release until it lands");
+        time.Should().BeApproximately(lo2, 1e-5, "the box lands when the line of its release meets the floor");
+        Double3.Distance(landing, expected).Should().BeLessThan(1e-5, "the box lands where the line of its release meets the floor");
+        measured.Should().BeApproximately(antispinward, 0.002, "the floor turns on under the falling box");
+        world.Errors.Should().BeEmpty();
+    }
+
     /// <summary>A test component that counts the contacts that start on its entity.</summary>
     private sealed class Touches : IComponent
     {

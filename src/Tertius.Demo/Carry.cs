@@ -114,18 +114,42 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
         float speed = MathF.Min(MaxThrowSpeed, MaxThrowSpeed * (self.Tick - chargeStart) * self.DeltaTime / ChargeSeconds);
         // The view and its direction, in the person's axes.
         Pose view = self.Render.ViewOffset;
-        Vector3 aim = Vector3.Transform(-Vector3.UnitZ, view.Rotation);
-        float clearance = Clearance(view.Position, aim, body.HalfHeight, body.Radius + carried.BoundingRadius + ThrowGap);
-        // The person's pose at the end of this tick's step, as far as its velocity tells.
+        Release(self, outbox, carried, copy, body, view.Position, Vector3.Transform(-Vector3.UnitZ, view.Rotation), view.Rotation, speed);
+        copy = Entity.Null;
+    }
+
+    /// <summary>
+    /// Where a thrown crate of <paramref name="carried"/> starts, in the thrower's axes: on the line from
+    /// <paramref name="eye"/> along the unit vector <paramref name="aim"/>, as near to the eye as it can without its
+    /// bounding sphere touching <paramref name="body"/>, the thrower's capsule, with a gap of <see cref="ThrowGap"/>.
+    /// </summary>
+    public static Vector3 ThrowStart(CapsuleShapeDesc body, CrateSpec carried, Vector3 eye, Vector3 aim) =>
+        eye + aim * Clearance(eye, aim, body.HalfHeight, body.Radius + carried.BoundingRadius + ThrowGap);
+
+    /// <summary>
+    /// Throws <paramref name="carried"/> from the hands of the thrower of <paramref name="self"/>, whose capsule is
+    /// <paramref name="body"/>, along the unit vector <paramref name="aim"/> from <paramref name="eye"/>, at
+    /// <paramref name="speed"/> m/s relative to the thrower, turned by <paramref name="turn"/>: all in the thrower's axes.
+    /// It spawns a new crate in the thrower's frame at <see cref="ThrowStart"/>, with the components
+    /// <paramref name="more"/>, which moves at the thrower's velocity plus the throw. The thrower feels the recoil, an
+    /// impulse of minus the crate's mass times the throw's velocity, and the drawn copy <paramref name="copy"/> goes. The
+    /// thrower's pose and velocity come from the snapshot of the previous tick, and physics moves the thrower on in this
+    /// tick's step, before the new crate becomes live at the end of the tick. So the crate starts from where the
+    /// thrower's velocity takes it in one tick. Returns the new crate.
+    /// </summary>
+    public static Entity Release(Self self, Outbox outbox, CrateSpec carried, Entity copy, CapsuleShapeDesc body, Vector3 eye, Vector3 aim, Quaternion turn,
+        float speed, params IComponent[] more)
+    {
+        // The thrower's pose at the end of this tick's step, as far as its velocity tells.
         DPose pose = self.PoseIn(self.Frame);
         Double3 velocity = self.VelocityIn(self.Frame);
-        DPose person = pose with { Position = pose.Position + velocity * self.DeltaTime };
-        Vector3 throwVelocity = person.Rotation.Rotate(aim) * speed;
-        DPose start = DPose.Compose(person, new Pose(view.Position + aim * clearance, view.Rotation).ToDPose());
-        self.Spawn(carried.Spawn(self.Frame, start, velocity + throwVelocity));
+        DPose thrower = pose with { Position = pose.Position + velocity * self.DeltaTime };
+        Vector3 throwVelocity = thrower.Rotation.Rotate(aim) * speed;
+        DPose start = DPose.Compose(thrower, new Pose(ThrowStart(body, carried, eye, aim), turn).ToDPose());
+        Entity crate = self.Spawn(carried.Spawn(self.Frame, start, velocity + throwVelocity, more));
         self.Body.AddImpulse(-carried.Mass * throwVelocity);
         outbox.Send(copy, new Destroy());
-        copy = Entity.Null;
+        return crate;
     }
 
     /// <summary>

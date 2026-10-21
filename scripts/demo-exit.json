@@ -17,6 +17,13 @@
     {"do":"camera","entity":"wheel-camera"},
     {"do":"film","name":"brake-run","frames":207,"every":1},
     {"do":"camera","entity":"follow-camera"},
-    {"do":"film","name":"floor","frames":398,"every":1}
+    {"do":"film","name":"floor","frames":398,"every":1},
+    {"do":"camera","entity":"stack-camera"},
+    {"do":"post","to":{"kind":"entity","id":"person"},"event":"PlayWithBoxes","payload":null},
+    {"do":"film","name":"stack","frames":365,"every":1},
+    {"do":"camera","entity":"spinward-camera"},
+    {"do":"film","name":"spinward","frames":410,"every":1},
+    {"do":"camera","entity":"antispinward-camera"},
+    {"do":"film","name":"antispinward","frames":302,"every":1}
   ]
 }

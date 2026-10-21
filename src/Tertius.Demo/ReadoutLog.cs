@@ -23,7 +23,18 @@ namespace Tertius.Demo;
 /// the station's own frame, the axis of its turn. It is the radius of the spin gravity's textbook check, ω² r.
 /// </param>
 /// <param name="Felt">The length of the felt gravity at the person's place (see <see cref="FrameTree.FeltGravity"/>), in m/s².</param>
-public readonly record struct ReadoutRow(string Frame, long Tick, Double3 Position, double Speed, double ToStation, double Axis, double Felt);
+/// <param name="FirstThrow">The coda's first throw, from the first capture after its release on, or null.</param>
+/// <param name="SecondThrow">The coda's second throw, from the first capture after its release on, or null.</param>
+public readonly record struct ReadoutRow(string Frame, long Tick, Double3 Position, double Speed, double ToStation, double Axis, double Felt,
+    ThrowReadout? FirstThrow = null, ThrowReadout? SecondThrow = null);
+
+/// <summary>
+/// One throw of the coda, as the <see cref="FlightRecorder"/> of its box records it, in the station's own frame: its origin
+/// at the station's center, its axes those of the station, which turn with it (docs/plans/blue-danube-demo.md, "The coda").
+/// </summary>
+/// <param name="Release">The box's place and instant velocity in its first tick after the throw.</param>
+/// <param name="Landing">Where and when the box came down to the floor, or null before the landing.</param>
+public readonly record struct ThrowReadout(ThrowRelease Release, ThrowLanding? Landing);
 
 /// <summary>
 /// The readout log of a script: one <see cref="ReadoutRow"/> for each capture, in the order of the captures, so row k
@@ -33,7 +44,13 @@ public readonly record struct ReadoutRow(string Frame, long Tick, Double3 Positi
 public sealed class ReadoutLog : IPlayback
 {
     /// <summary>The header line of the log's CSV.</summary>
-    public const string Header = "frame,tick,x,y,z,speed,station,axis,felt";
+    public const string Header = "frame,tick,x,y,z,speed,station,axis,felt," + ThrowColumns1 + "," + ThrowColumns2;
+
+    private const string ThrowColumns1 = "throw1_x,throw1_y,throw1_z,throw1_vx,throw1_vy,throw1_vz,throw1_time,throw1_land_x,throw1_land_y,throw1_land_z";
+    private const string ThrowColumns2 = "throw2_x,throw2_y,throw2_z,throw2_vx,throw2_vy,throw2_vz,throw2_time,throw2_land_x,throw2_land_y,throw2_land_z";
+
+    // The cells of a row: nine for the person, then ten for each of the two throws.
+    private const int Cells = 29;
 
     private readonly Entity person, station;
     private readonly FrameHandle earth;
@@ -64,8 +81,20 @@ public sealed class ReadoutLog : IPlayback
         DPose stationPose = world.PoseIn(station, earth);
         Double3 offset = position - stationPose.Position, axis = stationPose.Rotation.Rotate(Double3.UnitY);
         rows.Add(new ReadoutRow(name, world.TickNumber, position, world.VelocityIn(person, earth).Length,
-            offset.Length, (offset - axis * Double3.Dot(offset, axis)).Length, felt.Length));
+            offset.Length, (offset - axis * Double3.Dot(offset, axis)).Length, felt.Length, ThrowOf(world, 0), ThrowOf(world, 1)));
         return true;
+    }
+
+    /// <summary>
+    /// The throw <paramref name="index"/> of the person's <see cref="BoxPlay"/>, from its box's <see cref="FlightRecorder"/>,
+    /// or null when the person has no play, has not thrown it, or its box did not tick since the throw.
+    /// </summary>
+    private ThrowReadout? ThrowOf(World world, int index)
+    {
+        if (world.GetComponent<BoxPlay>(person) is not { } play || index >= play.Thrown.Count)
+            return null;
+        FlightRecorder? recorder = world.GetComponent<FlightRecorder>(play.Thrown[index]);
+        return recorder?.Release is { } release ? new ThrowReadout(release, recorder.Landing) : null;
     }
 
     /// <summary>
@@ -91,8 +120,26 @@ public sealed class ReadoutLog : IPlayback
         ArgumentNullException.ThrowIfNull(rows);
         var text = new StringBuilder(Header).Append('\n');
         foreach (ReadoutRow row in rows)
-            text.Append(CultureInfo.InvariantCulture, $"{row.Frame},{row.Tick},{row.Position.X:R},{row.Position.Y:R},{row.Position.Z:R},{row.Speed:R},{row.ToStation:R},{row.Axis:R},{row.Felt:R}\n");
+        {
+            text.Append(CultureInfo.InvariantCulture, $"{row.Frame},{row.Tick},{row.Position.X:R},{row.Position.Y:R},{row.Position.Z:R},{row.Speed:R},{row.ToStation:R},{row.Axis:R},{row.Felt:R}");
+            AppendThrow(text, row.FirstThrow);
+            AppendThrow(text, row.SecondThrow);
+            text.Append('\n');
+        }
         return text.ToString();
+    }
+
+    /// <summary>The ten cells of a throw, each empty when it has no value yet.</summary>
+    private static void AppendThrow(StringBuilder text, ThrowReadout? readout)
+    {
+        ThrowRelease? release = readout?.Release;
+        ThrowLanding? landing = readout?.Landing;
+        foreach (double? value in new[]
+                 {
+                     release?.Place.X, release?.Place.Y, release?.Place.Z, release?.Velocity.X, release?.Velocity.Y, release?.Velocity.Z,
+                     landing?.Time, landing?.Place.X, landing?.Place.Y, landing?.Place.Z,
+                 })
+            text.Append(CultureInfo.InvariantCulture, $",{value:R}");
     }
 
     /// <summary>The rows of a CSV that <see cref="ToCsv"/> wrote. Throws <see cref="FormatException"/> for any other text.</summary>
@@ -106,11 +153,23 @@ public sealed class ReadoutLog : IPlayback
         for (int i = 1; i < lines.Length; i++)
         {
             string[] cells = lines[i].Split(',');
-            if (cells.Length != 9)
-                throw new FormatException($"Line {i + 1} of the readout log has {cells.Length} cells, not 9.");
+            if (cells.Length != Cells)
+                throw new FormatException($"Line {i + 1} of the readout log has {cells.Length} cells, not {Cells}.");
             double Number(int cell) => double.Parse(cells[cell], NumberStyles.Float, CultureInfo.InvariantCulture);
-            rows.Add(new ReadoutRow(cells[0], long.Parse(cells[1], CultureInfo.InvariantCulture), new Double3(Number(2), Number(3), Number(4)), Number(5), Number(6), Number(7), Number(8)));
+            rows.Add(new ReadoutRow(cells[0], long.Parse(cells[1], CultureInfo.InvariantCulture), new Double3(Number(2), Number(3), Number(4)), Number(5), Number(6), Number(7), Number(8),
+                ReadThrow(cells, 9), ReadThrow(cells, 19)));
         }
         return rows;
+    }
+
+    /// <summary>The throw in the ten cells from <paramref name="start"/>: null when its release is empty, and no landing when its landing is empty.</summary>
+    private static ThrowReadout? ReadThrow(string[] cells, int start)
+    {
+        double Number(int cell) => double.Parse(cells[start + cell], NumberStyles.Float, CultureInfo.InvariantCulture);
+        if (cells[start] == "")
+            return null;
+        var release = new ThrowRelease(new Double3(Number(0), Number(1), Number(2)), new Double3(Number(3), Number(4), Number(5)));
+        ThrowLanding? landing = cells[start + 6] == "" ? null : new ThrowLanding(Number(6), new Double3(Number(7), Number(8), Number(9)));
+        return new ThrowReadout(release, landing);
     }
 }

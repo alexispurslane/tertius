@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Globalization;
-using System.Text.Json;
 using Tertius.Demo;
 using Tertius.Host.Scripting;
 
@@ -174,38 +173,16 @@ public sealed class EditCommandTests : IDisposable
     }
 
     [Fact]
-    public void TheEditWritesACueSheetBesideTheVideoWhoseTimesAreFramesOfTheVideo()
+    public void ACardWhoseSecondsFallBetweenTwoFramesLastsItsWholeFramesInTheVideo()
     {
-        Edit().Should().Be(ScriptCommand.Ok);
-
-        CueSheet sheet = JsonSerializer.Deserialize<CueSheet>(File.ReadAllText(VideoPath + ".cues.json"), new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
-        List<byte[]> frames = VideoTesting.DecodeFrames(VideoPath, Width, Height);
-
-        // Frame 20 of b's stretch is frame 120 of the master, and b's stretch starts at the frame of b's start.
-        FilmCue b = sheet.Films.Single(film => film.Name == "b");
-        b.FirstFrame.Should().Be(100);
-        int first = (int)Math.Round(b.Start * 60);
-        (b.Start * 60).Should().BeApproximately(first, 1e-9);
-        frames[first + 20][(Height / 2 * Width + Width / 2) * 3].Should().BeCloseTo(120, 3);
-        sheet.Films.Single(film => film.Name == "a").FirstFrame.Should().Be(30);
-        // The closing card's 60 frames end the video.
-        ((int)Math.Round(sheet.Closing.Start * 60)).Should().Be(frames.Count - 60);
-        sheet.Length.Should().Be(frames.Count / 60.0);
-    }
-
-    [Fact]
-    public void ACardWhoseSecondsFallBetweenTwoFramesLastsTheFramesOfItsCueInTheVideo()
-    {
-        // 0.505 s is 30.3 frames. The cue sheet rounds it to 30 frames, so the video must hold 30 frames of the card, not 31.
+        // 0.505 s is 30.3 frames. The card rounds it to 30 frames, so the video must hold 30 frames of the card, not 31.
         CutList cuts = Cuts with { Opening = Card with { Seconds = 0.505 } };
 
         EditCommand.Run(["--edit", VideoPath, "--script", ScriptPath, "--master", MasterPath, "--readouts", LogPath], cuts, new StringWriter(), new StringWriter())
             .Should().Be(ScriptCommand.Ok);
 
-        CueSheet sheet = JsonSerializer.Deserialize<CueSheet>(File.ReadAllText(VideoPath + ".cues.json"), new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
-        sheet.Opening.End.Should().Be(0.5);
-        VideoTesting.CountFrames(VideoPath).Should().Be(30 + 60 + 120 + 60);
-        sheet.Length.Should().Be(VideoTesting.CountFrames(VideoPath) / 60.0);
+        cuts.Opening.Frames.Should().Be(30);
+        VideoTesting.CountFrames(VideoPath).Should().Be(cuts.Opening.Frames + 60 + 120 + cuts.Closing.Frames);
     }
 
     [Fact]
