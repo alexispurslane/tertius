@@ -48,7 +48,7 @@ namespace Tertius.Demo;
 /// <param name="behind">How far behind the subject's eye the camera keeps, along the heading, in meters.</param>
 /// <param name="above">How far above the subject's eye the camera keeps, along the camera's up, in meters.</param>
 /// <param name="ahead">How far ahead of the subject's eye the camera looks, along the heading, in meters.</param>
-/// <param name="subjectHalf">The half extents of the box that draws the subject, around its center, in its axes, in meters.</param>
+/// <param name="subjectHalf">The half extents of a box round the drawn subject, around its center, in its axes, in meters.</param>
 /// <param name="verticalFov">The vertical angle of the view through the camera, in radians: the world's <see cref="World.VerticalFov"/>.</param>
 public sealed class ChaseCamera(double behind, double above, double ahead, Vector3 subjectHalf, double verticalFov) : IComponent
 {

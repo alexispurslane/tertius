@@ -131,6 +131,43 @@ public sealed class WalkerTests : IDisposable
     }
 
     /// <summary>
+    /// The walk starts from rest: the first walk that the walker asks for is one tick of
+    /// <see cref="Walker.StartAcceleration"/>, 3 m/s² for 1/60 s, so 0.05 m/s. Each later walk is at most that much faster
+    /// than the one before it, so the walk reaches the 3 m/s of the path only after a second, and not before 0.95 s.
+    /// </summary>
+    [Fact]
+    public void TheWalkSpeedsUpFromRestOverASecondInsteadOfAtOnce()
+    {
+        (Entity person, _, _) = OnTheGround();
+
+        Tick(world, 90);
+
+        List<double> speeds = [.. Walks(person).Select(walk => (double)walk.Length())];
+        speeds[0].Should().BeApproximately(0.05, 1e-4, "the walk starts from rest");
+        for (int i = 1; i < speeds.Count; i++)
+            (speeds[i] - speeds[i - 1]).Should().BeLessThanOrEqualTo(0.05 + 1e-4, $"walk {i} speeds up by one tick of the start's acceleration at most");
+        speeds.FindIndex(speed => speed >= PersonControl.WalkSpeed - 1e-4).Should().BeInRange(56, 61, "the walk reaches its full speed after about a second");
+    }
+
+    /// <summary>
+    /// The start's acceleration limits only a rise of the speed. The slowdown before the last waypoint applies at once: it
+    /// takes 5 percent of the speed in each tick, more than 0.25 m/s in 4 ticks, where the start's acceleration would take
+    /// 0.2 m/s. So the person still stops on it, and the speed of the walk never rises again before the stop.
+    /// </summary>
+    [Fact]
+    public void TheWalkSlowsDownAtOnceBeforeTheLastWaypoint()
+    {
+        (Entity person, _, _) = OnTheGround();
+
+        Tick(world, 660);
+
+        List<double> speeds = [.. Walks(person).Select(walk => (double)walk.Length())];
+        int top = speeds.FindLastIndex(speed => speed >= PersonControl.WalkSpeed - 1e-4);
+        speeds.Skip(top + 1).Should().BeInDescendingOrder("past the last tick at full speed, the walk only slows");
+        speeds.Skip(top + 1).Take(4).Should().Contain(speed => speed < PersonControl.WalkSpeed - 0.25, "the slowdown is faster than the start");
+    }
+
+    /// <summary>
     /// The person walks on a floor 30 m from the axis of a turntable, a frame that turns at 0.1 rad/s in place in a root
     /// frame with 9.81 m/s² of gravity. The turntable holds its place, so the engine gives it that gravity, reversed, as
     /// its proper acceleration, and its contents feel their weight (ARCHITECTURE.md, "How a frame moves"). The floor moves
