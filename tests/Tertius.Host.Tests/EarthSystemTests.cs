@@ -11,7 +11,7 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// The scene <c>earth-system</c>, built without a script, on the World and the real Jolt backend: the Sun at its true size,
-/// Earth on its Kepler orbit round the Sun at the June solstice, the frame <c>earth</c> that does not turn, the frame
+/// Earth on its Kepler orbit round the Sun at the demo's date, the June solstice with the demo's ground turn, the frame <c>earth</c> that does not turn, the frame
 /// <c>earth-surface</c> that turns once per sidereal day and whose bubble ends 50 km up, the Moon on its Kepler orbit in <c>earth</c>,
 /// the demo's station on its orbit in <c>earth</c>, and a pad at the north pole in <c>earth-surface</c>.
 /// </summary>
@@ -57,7 +57,8 @@ public sealed class EarthSystemTests : IDisposable
     }
 
     /// <summary>
-    /// earth-surface sits at earth's center, turns about earth's +Y, the north pole, at the sidereal rate, and its bubble
+    /// earth-surface sits at earth's center, turns about earth's +Y, the north pole, at the sidereal rate, from the ground's
+    /// turn of the demo's date (<see cref="DemoScenes.DemoSurface.Date"/>), and its bubble
     /// is a sphere that ends at the stratopause, 50 km above Earth's mean radius. So the exit of a shuttle that climbs
     /// out of it lies below the parking orbit (docs/plans/blue-danube-demo.md, "The hand-off").
     /// </summary>
@@ -68,8 +69,8 @@ public sealed class EarthSystemTests : IDisposable
 
         DPose pose = world.PoseIn(scene["earth-surface"], earth);
         pose.Position.Length.Should().BeLessThan(1e-6, "earth-surface sits at earth's center");
-        DQuaternion turned = DQuaternion.FromAxisAngle(Double3.UnitY, DemoScenes.SiderealRate * world.Time);
-        Math.Abs(Dot(pose.Rotation, turned)).Should().BeApproximately(1, 1e-12, $"earth-surface has turned by the sidereal rate times {world.Time} s");
+        DQuaternion turned = DQuaternion.FromAxisAngle(Double3.UnitY, DemoScenes.DemoSurface.Date.GroundTurn + DemoScenes.SiderealRate * world.Time);
+        Math.Abs(Dot(pose.Rotation, turned)).Should().BeApproximately(1, 1e-12, $"earth-surface has turned from the demo's ground turn by the sidereal rate times {world.Time} s");
         ((Double3)world.AngularVelocityIn(scene["earth-surface"], earth) - Double3.UnitY * DemoScenes.SiderealRate).Length
             .Should().BeLessThan(1e-9, "earth-surface turns about the pole at the sidereal rate");
         world.Frames.Bounds(surface).Should().Be(FrameBounds.Sphere((float)(DemoScenes.EarthRadius + 50e3)), "the bubble ends 50 km up");

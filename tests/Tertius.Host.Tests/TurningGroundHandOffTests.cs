@@ -20,8 +20,8 @@ internal sealed record HandOffTick(long Tick, FrameHandle Frame, Double3 Positio
 /// <summary>
 /// One run of the scene <c>earth-system</c> with the real shuttle's hull, dynamic, spawned in the turning
 /// <c>earth-surface</c> 1 km below the radius at which it leaves the bubble, <see cref="ExitRadius"/>, and 200 km from the
-/// axis of its turn (docs/plans/blue-danube-demo.md, "The hand-off"), in a world that starts with the ground
-/// turned by <see cref="StartTurn"/>. It moves at 1 km/s out from Earth's center and 1 km/s across, along -Z of earth-surface,
+/// axis of its turn (docs/plans/blue-danube-demo.md, "The hand-off"), in a world that starts at
+/// <see cref="StartTime"/>, with the ground turned as at the demo's departure. It moves at 1 km/s out from Earth's center and 1 km/s across, along -Z of earth-surface,
 /// with its nose along that velocity and its roof away from Earth. A <see cref="ThirdThrottle"/> gives its
 /// <see cref="MainEngine"/> a throttle of 1/3 in every tick, about 9.81 m/s² along the nose. A crate of 0.4 m rests on the
 /// cabin's aft wall, beside the engine's housing, where the thrust gives it weight. The run takes 120 ticks, and records
@@ -42,11 +42,12 @@ public sealed class TurningGroundHandOffRun : IDisposable
     public const double Thrust = Shuttle.ThrustAcceleration / 3.0;
 
     /// <summary>
-    /// The ground's turn at the world's start, in radians: 143 degrees, the turn of the demo's ground at its departure. So
-    /// the axes of earth-surface and of earth differ by that much at the hand-off, and a thrust or a velocity that the
-    /// hand-off leaves in the wrong axes misses by more than its own length.
+    /// The world's start, in seconds: the demo's departure. The scene earth-system takes the demo's date, so the ground
+    /// then stands turned by <see cref="DemoScenes.DemoSurface.GroundTurnAtDeparture"/>, 142.6 degrees. So the axes of
+    /// earth-surface and of earth differ by that much at the hand-off, and a thrust or a velocity that the hand-off leaves
+    /// in the wrong axes misses by more than its own length.
     /// </summary>
-    public const double StartTurn = 143 * Math.PI / 180;
+    public const double StartTime = DemoScenes.DemoSurface.DepartureAt;
 
     /// <summary>
     /// How far from Earth's center the shuttle's center lies when it leaves earth-surface, by the engine's rule of the
@@ -65,7 +66,7 @@ public sealed class TurningGroundHandOffRun : IDisposable
 
     public TurningGroundHandOffRun()
     {
-        World = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true, StartTime = StartTurn / DemoScenes.SiderealRate },
+        World = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true, StartTime = StartTime },
             new Tertius.Physics.JoltPhysicsBackend());
         Scene = DemoScenes.All.Single(s => s.Name == "earth-system").Build(World, RenderResources.None);
         Earth = World.GetOwnedFrame(Scene["earth"]);

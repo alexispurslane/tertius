@@ -219,7 +219,7 @@ public readonly record struct RendezvousPlan(double TransferTime, double Arrival
 /// </summary>
 /// <remarks>
 /// <para>Every read is in the shuttle's frame, <c>self.Frame</c>, which must not turn and must have its origin at the
-/// planet's center, as <c>earth-surface</c> does: the shuttle's pose and velocity, and the station's pose and velocity
+/// planet's center, as <c>earth</c> does, which holds the station and the shuttle after the hand-off of the climb: the shuttle's pose and velocity, and the station's pose and velocity
 /// through the snapshot. The station's axis is its rotation applied to +Y. Every write is relative to the same frame.
 /// Both the shuttle and the station own frames, so both velocities are the instant velocities of their frames' last step
 /// records, and their difference has no bias.</para>

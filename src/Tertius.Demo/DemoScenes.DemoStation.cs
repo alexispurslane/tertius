@@ -84,10 +84,17 @@ public static partial class DemoScenes
         public const float Mass = 1e7f;
 
         /// <summary>
-        /// The world time at which the station passes over the pad, in seconds: 38 s, 18 s after the ignition. It sets the
-        /// launch window (docs/plans/blue-danube-demo.md, "The orbits, the window and the times").
+        /// The world time at which the station passes over the pad, in seconds: 38 s, <see cref="DepartureLead"/> after the
+        /// departure. It sets the launch window (docs/plans/blue-danube-demo.md, "The orbits, the window and the times").
         /// </summary>
         public const double OverPadAt = 38;
+
+        /// <summary>
+        /// How long before the station's pass over the pad the shuttle departs, in seconds: 18 s, the lead of the live
+        /// world's ground departure before the station's pass (docs/plans/live-world.md, "Departures"). It sets the
+        /// departure, <see cref="DemoSurface.DepartureAt"/>.
+        /// </summary>
+        public const double DepartureLead = 18;
 
         /// <summary>
         /// The hold point, in the station's axes: on the axis, 150 m from the station's center, on the slot's side, outside
@@ -117,21 +124,25 @@ public static partial class DemoScenes
         public static DQuaternion HubTurn { get; } = DQuaternion.FromAxisAngle(Double3.UnitX, -Math.PI / 2);
 
         /// <summary>
-        /// The station's orbit in a frame that does not turn and holds Earth's point gravity (<c>earth-surface</c> of
-        /// demo-surface, <c>earth</c> of earth-system): a circle of <see cref="OrbitRadius"/> whose normal is -X, the launch
-        /// plane's normal. At mean anomaly 0 the station is at +Z and moves toward +Y. It passes over the pad, at mean
-        /// anomaly 90 degrees, at <see cref="OverPadAt"/>, and moves toward -Z there, as the shuttle does. The axial tilt
-        /// takes the station's +Y to +X of that frame, the slot's side, and the station spins about that axis at
-        /// <see cref="SpinStation.Rate"/>, so the axis stays fixed.
+        /// The station's orbit in <c>earth</c>, which does not turn and holds Earth's point gravity
+        /// (docs/plans/blue-danube-demo.md, "The station's plane"): a polar circle of <see cref="OrbitRadius"/> in the launch
+        /// plane, whose normal is <see cref="DemoSurface.LaunchPlaneNormal"/>. In the departure axes, the ground's axes at
+        /// <see cref="DemoSurface.DepartureAt"/>, the orbit is the circle whose normal is -X: at mean anomaly 0 the station
+        /// is at +Z and moves toward +Y, and it passes over the pad, at mean anomaly 90 degrees, at <see cref="OverPadAt"/>,
+        /// moving toward -Z there, the way the ramp points at the departure. The departure axes are earth's turned by
+        /// <see cref="DemoSurface.GroundTurnAtDeparture"/> about the pole, so the node turns by that angle, and the axial
+        /// tilt turns the station's +Y first to +X and then by that angle about the pole: to the departure axes' +X, the
+        /// slot's side. The station spins about that axis at <see cref="SpinStation.Rate"/>, so the axis stays fixed in
+        /// earth.
         /// </summary>
-        public static KeplerOrbit Orbit { get; } = new(SemiMajorAxis: OrbitRadius, Eccentricity: 0, Inclination: Math.PI / 2, LongitudeOfAscendingNode: -Math.PI / 2,
+        public static KeplerOrbit Orbit { get; } = new(SemiMajorAxis: OrbitRadius, Eccentricity: 0, Inclination: Math.PI / 2,
+            LongitudeOfAscendingNode: -Math.PI / 2 + DemoSurface.GroundTurnAtDeparture,
             ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: Math.PI / 2 - Math.Sqrt(EarthMu / (OrbitRadius * OrbitRadius * OrbitRadius)) * OverPadAt, Epoch: 0,
-            AxialTilt: DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2), SpinRate: SpinStation.Rate, SpinPhaseAtEpoch: 0,
-            Attitude: KeplerAttitude.Spin);
+            AxialTilt: DQuaternion.FromAxisAngle(Double3.UnitY, DemoSurface.GroundTurnAtDeparture) * DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2),
+            SpinRate: SpinStation.Rate, SpinPhaseAtEpoch: 0, Attitude: KeplerAttitude.Spin);
 
         /// <summary>
-        /// The station's hull in a frame that does not turn and holds Earth's point gravity (<c>earth-surface</c> of
-        /// demo-surface, <c>earth</c> of earth-system), in the station's axes: a compound of three solids. The wheel is a
+        /// The station's hull, in the station's axes: a compound of three solids. The wheel is a
         /// solid ring from the ceiling, 94.5 m from the axis, to the floor's outer face, 101 m from it, in 256 segment hulls.
         /// The spokes and the hub are solid boxes. Its farthest point, a corner of the wheel's rim, lies 101.5 m from the
         /// center.
@@ -229,8 +240,8 @@ public static partial class DemoScenes
             Drawn(resources, mesh, color, boundingRadius) with { Flags = RenderFlags.Visible | RenderFlags.CastsShadow | RenderFlags.NoImpostor };
 
         /// <summary>
-        /// Spawns the station in <paramref name="parent"/>, a frame that does not turn and holds Earth's point gravity
-        /// (<c>earth-surface</c> of demo-surface, <c>earth</c> of earth-system), on <see cref="Orbit"/> at the world's
+        /// Spawns the station in <paramref name="parent"/>, <c>earth</c> of demo-surface and of earth-system, which does not
+        /// turn and holds Earth's point gravity, on <see cref="Orbit"/> at the world's
         /// time, with its parts, its bay lamps and its <c>rim-camera</c>, and adds them to <paramref name="scene"/>: the
         /// owner <c>station</c>, <c>station-ceiling</c>, <c>station-wall-slot</c> and <c>station-wall-far</c>, the side walls
         /// on the slot's side and the other, <c>station-spokes</c> and <c>station-hub</c>. Returns the station.

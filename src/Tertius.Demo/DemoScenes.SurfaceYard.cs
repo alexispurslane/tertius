@@ -119,16 +119,27 @@ public static partial class DemoScenes
     }
 
     /// <summary>
-    /// The ground at Earth's north pole, which the surface scenes share. The root frame <c>earth-surface</c> has its
-    /// origin at Earth's center and Earth's point gravity, μ = <see cref="EarthMu"/>, and it does not turn, so +Y is up at
-    /// the pole. The planet has no ground (ticket ter-7u6t), so a static gray slab, the <c>floor</c>, with the half extents
-    /// <paramref name="floorHalfExtents"/>, lies centered on the Y axis with its top at y = <see cref="EarthRadius"/>.
+    /// The ground at Earth's north pole of the surface yard: the root frame <c>earth-surface</c>, which has its origin at
+    /// Earth's center and Earth's point gravity, μ = <see cref="EarthMu"/>, and does not turn, so +Y is up at the pole, with
+    /// the slab of <see cref="Floor"/> on it.
     /// </summary>
     private static FrameHandle EarthSurface(World world, IRenderResources resources, SceneInstance scene, Vector3 floorHalfExtents)
     {
         // The frame's bounds do not matter for a root frame, which nothing leaves.
         FrameHandle surface = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e8f), GravityField.Point(EarthMu)));
         scene.Add("earth-surface", surface.Entity);
+        Floor(world, resources, scene, surface, floorHalfExtents);
+        return surface;
+    }
+
+    /// <summary>
+    /// The ground at Earth's north pole, which the surface scenes share: in <paramref name="surface"/>, a frame with its
+    /// origin at Earth's center and its +Y at the north pole, a static gray slab, the <c>floor</c>, with the half extents
+    /// <paramref name="floorHalfExtents"/>, centered on the Y axis with its top at y = <see cref="EarthRadius"/>. The
+    /// planet has no ground of its own (ticket ter-7u6t).
+    /// </summary>
+    private static void Floor(World world, IRenderResources resources, SceneInstance scene, FrameHandle surface, Vector3 floorHalfExtents)
+    {
         scene.Add("floor", world.Spawn(new SpawnDesc
         {
             Frame = surface,
@@ -136,7 +147,6 @@ public static partial class DemoScenes
             Body = new BodyDesc(new BoxShapeDesc(floorHalfExtents), BodyMotion.Static),
             Render = Drawn(resources, Primitives.Box(floorHalfExtents), new Vector4(0.4f, 0.4f, 0.38f, 1), boundingRadius: MathF.Ceiling(floorHalfExtents.Length())),
         }));
-        return surface;
     }
 
     /// <summary>The frame <c>sun</c> in <paramref name="frame"/>, whose origin at <paramref name="position"/> is where the world's light comes from.</summary>

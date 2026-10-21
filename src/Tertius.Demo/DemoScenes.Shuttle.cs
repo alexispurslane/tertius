@@ -62,7 +62,7 @@ public static partial class DemoScenes
         public const float TranslationThrust = 4000;
 
         /// <summary>
-        /// The radius of the circle that the ascent autopilot flies the shuttle to, in meters, in <c>earth-surface</c>:
+        /// The radius of the circle that the ascent autopilot flies the shuttle to, in meters, in <c>earth</c>, the frame that does not turn:
         /// <see cref="ParkingOrbitAltitude"/> above Earth's mean radius.
         /// </summary>
         public const double ParkingOrbitRadius = EarthRadius + ParkingOrbitAltitude;

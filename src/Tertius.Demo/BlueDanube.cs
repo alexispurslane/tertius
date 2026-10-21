@@ -119,8 +119,15 @@ public static class BlueDanube
     public static bool InsideTheCabin(Double3 position) =>
         Math.Abs(position.X) < Shuttle.Cabin.X - 0.1 && Math.Abs(position.Y) < Shuttle.Cabin.Y - 0.1 && Math.Abs(position.Z) < Shuttle.Cabin.Z - 0.1;
 
-    /// <summary>The person's position in the frame of the ground, earth-surface, in which the shuttle stands.</summary>
-    private static Double3 PersonOnTheGround(World world, SceneInstance scene) => world.PoseIn(scene["person"], world.GetFrame(scene["shuttle"])).Position;
+    /// <summary>The person's position in the frame of the ground, earth-surface, in which the terminal's walls lie.</summary>
+    private static Double3 PersonOnTheGround(World world, SceneInstance scene) => world.PoseIn(scene["person"], world.GetOwnedFrame(scene["earth-surface"])).Position;
+
+    /// <summary>
+    /// The frame <c>earth</c>, which does not turn and holds Earth's point gravity: the cues of the flight read in it. Each
+    /// reads a distance from Earth's center, or a state of the two-body orbit, which a velocity in the turning earth-surface
+    /// would miss by the ground's turn.
+    /// </summary>
+    private static FrameHandle Earth(World world, SceneInstance scene) => world.GetOwnedFrame(scene["earth"]);
 
     /// <summary>The person's position in the shuttle's frame.</summary>
     private static Double3 PersonInCabin(World world, SceneInstance scene) => world.PoseIn(scene["person"], world.GetOwnedFrame(scene["shuttle"])).Position;
@@ -137,29 +144,29 @@ public static class BlueDanube
 
     /// <summary>How far the shuttle's center is from Earth's center, less where it stood parked, in meters.</summary>
     private static double Rise(World world, SceneInstance scene) =>
-        world.PoseIn(scene["shuttle"], world.GetFrame(scene["shuttle"])).Position.Length - DemoSurface.ShuttleParked.Position.Length;
+        world.PoseIn(scene["shuttle"], Earth(world, scene)).Position.Length - DemoSurface.ShuttleParked.Position.Length;
 
     /// <summary>How high the shuttle's center is above Earth's mean radius, in meters.</summary>
     private static double Altitude(World world, SceneInstance scene) =>
-        world.PoseIn(scene["shuttle"], world.GetFrame(scene["shuttle"])).Position.Length - DemoScenes.EarthRadius;
+        world.PoseIn(scene["shuttle"], Earth(world, scene)).Position.Length - DemoScenes.EarthRadius;
 
     /// <summary>
-    /// True while the shuttle is in Earth's shadow: its center, in earth-surface, lies on the far side of Earth's center from
-    /// the frame <c>sun</c>, less than <see cref="DemoScenes.EarthRadius"/> from the line through Earth's center toward it.
+    /// True while the shuttle is in Earth's shadow: its center, in earth, lies on the far side of Earth's center from the
+    /// Sun's center, less than <see cref="DemoScenes.EarthRadius"/> from the line through Earth's center toward it.
     /// </summary>
-    private static bool InEarthsShadow(World world, SceneInstance scene)
+    public static bool InEarthsShadow(World world, SceneInstance scene)
     {
-        FrameHandle surface = world.GetFrame(scene["shuttle"]);
-        Double3 position = world.PoseIn(scene["shuttle"], surface).Position, sun = world.PoseIn(scene["sun"], surface).Position.Normalized();
+        FrameHandle earth = Earth(world, scene);
+        Double3 position = world.PoseIn(scene["shuttle"], earth).Position, sun = world.PoseIn(scene["sun"], earth).Position.Normalized();
         double towardTheSun = Double3.Dot(position, sun);
         return towardTheSun < 0 && (position - sun * towardTheSun).Length < DemoScenes.EarthRadius;
     }
 
-    /// <summary>The apoapsis of the two-body orbit of the shuttle's state in earth-surface, in meters above Earth's mean radius.</summary>
+    /// <summary>The apoapsis of the two-body orbit of the shuttle's state in earth, in meters above Earth's mean radius.</summary>
     private static double Apoapsis(World world, SceneInstance scene)
     {
-        FrameHandle surface = world.GetFrame(scene["shuttle"]);
-        Double3 position = world.PoseIn(scene["shuttle"], surface).Position, velocity = world.VelocityIn(scene["shuttle"], surface);
+        FrameHandle earth = Earth(world, scene);
+        Double3 position = world.PoseIn(scene["shuttle"], earth).Position, velocity = world.VelocityIn(scene["shuttle"], earth);
         double r = position.Length, energy = velocity.LengthSquared / 2 - DemoScenes.EarthMu / r, a = -DemoScenes.EarthMu / (2 * energy);
         double h = Double3.Cross(position, velocity).Length;
         double e = Math.Sqrt(Math.Max(0, 1 + 2 * energy * h * h / (DemoScenes.EarthMu * DemoScenes.EarthMu)));
@@ -176,25 +183,25 @@ public static class BlueDanube
     /// </summary>
     private static double ToArrivalPoint(World world, SceneInstance scene)
     {
-        FrameHandle surface = world.GetFrame(scene["shuttle"]);
-        DPose station = world.PoseIn(scene["station"], surface);
+        FrameHandle earth = Earth(world, scene);
+        DPose station = world.PoseIn(scene["station"], earth);
         Double3 arrival = station.Position + station.Rotation.Rotate(Double3.UnitY) * RendezvousPlan.Demo.ArrivalDistance;
-        return Double3.Distance(world.PoseIn(scene["shuttle"], surface).Position, arrival);
+        return Double3.Distance(world.PoseIn(scene["shuttle"], earth).Position, arrival);
     }
 
     /// <summary>How far the shuttle's center is from the station's measured center, in meters.</summary>
     private static double ToStation(World world, SceneInstance scene)
     {
-        FrameHandle surface = world.GetFrame(scene["shuttle"]);
-        return Double3.Distance(world.PoseIn(scene["shuttle"], surface).Position, world.PoseIn(scene["station"], surface).Position);
+        FrameHandle earth = Earth(world, scene);
+        return Double3.Distance(world.PoseIn(scene["shuttle"], earth).Position, world.PoseIn(scene["station"], earth).Position);
     }
 
     /// <summary>The angle between the shuttle's nose, its -Z, and the direction from its center to the station's, in radians.</summary>
     private static double NoseFromStation(World world, SceneInstance scene)
     {
-        FrameHandle surface = world.GetFrame(scene["shuttle"]);
-        DPose shuttle = world.PoseIn(scene["shuttle"], surface);
-        Double3 nose = shuttle.Rotation.Rotate(-Double3.UnitZ), toStation = (world.PoseIn(scene["station"], surface).Position - shuttle.Position).Normalized();
+        FrameHandle earth = Earth(world, scene);
+        DPose shuttle = world.PoseIn(scene["shuttle"], earth);
+        Double3 nose = shuttle.Rotation.Rotate(-Double3.UnitZ), toStation = (world.PoseIn(scene["station"], earth).Position - shuttle.Position).Normalized();
         return Math.Acos(Math.Clamp(Double3.Dot(nose, toStation), -1, 1));
     }
 

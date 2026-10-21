@@ -8,13 +8,14 @@ namespace Tertius.Demo;
 public static partial class DemoScenes
 {
     /// <summary>
-    /// The Earth system at its true sizes, at the June solstice, with the demo's station and a pad at the north pole, and
+    /// The Earth system at its true sizes, at the demo's date, with the demo's station and a pad at the north pole, and
     /// views that show each part.
     /// <list type="bullet">
-    /// <item>The Sun, earth, earth-surface and the Moon of <see cref="SunAndEarth"/>, at <see cref="EarthDate.JuneSolstice"/>.
-    /// The Sun stands 23.44 degrees above the horizon of the north pole all day, and goes round it once a day.</item>
+    /// <item>The Sun, earth, earth-surface and the Moon of <see cref="SunAndEarth"/>, at <see cref="DemoSurface.Date"/>: the
+    /// June solstice, with the ground turned as the demo's. The Sun stands 23.44 degrees above the horizon of the north pole
+    /// all day, and goes round it once a day.</item>
     /// <item>The demo's <c>station</c> (see <see cref="DemoStation"/>) on the elements of <see cref="DemoStation.Orbit"/>,
-    /// but in <c>earth</c>, which does not turn: a polar circle 400 km up, over the north pole at
+    /// in <c>earth</c>, which does not turn: a polar circle 400 km up in the launch plane, over the north pole at
     /// <see cref="DemoStation.OverPadAt"/>. Its bubble lies outside earth-surface's, which ends 50 km up.</item>
     /// <item>The <c>pad</c>, a static box 12 by 1 by 12 m, lies on the ground at the north pole in earth-surface, with its
     /// top at <see cref="PadTop"/>, and the red <c>mast</c>, 10 m tall, stands on its corner at x = 5, z = -5. Both turn
@@ -40,7 +41,7 @@ public static partial class DemoScenes
         public static SceneInstance Build(World world, IRenderResources resources)
         {
             var scene = new SceneInstance();
-            EarthDate date = EarthDate.JuneSolstice;
+            EarthDate date = DemoSurface.Date;
             FrameHandle earth = SunAndEarth(world, resources, scene, date);
             FrameHandle sun = world.GetOwnedFrame(scene["sun"]);
             FrameHandle surface = world.GetOwnedFrame(scene["earth-surface"]);
