@@ -22,14 +22,14 @@ public sealed record CueSheet(int FramesPerSecond, double Length, CardCue Openin
 
     /// <summary>
     /// The cue sheet of the video that the edit makes of <paramref name="stretches"/> with <paramref name="cuts"/>. Each card
-    /// lasts its seconds rounded to whole frames, as its subtitles do. Throws <see cref="ArgumentException"/> for a part that
+    /// lasts <see cref="TitleCard.Frames"/>, as its subtitles and its black frames do. Throws <see cref="ArgumentException"/> for a part that
     /// names a film that <paramref name="stretches"/> does not have.
     /// </summary>
     public static CueSheet Of(IReadOnlyList<Stretch> stretches, CutList cuts)
     {
         ArgumentNullException.ThrowIfNull(stretches);
         ArgumentNullException.ThrowIfNull(cuts);
-        int opening = Frames(cuts.Opening);
+        int opening = cuts.Opening.Frames;
         var films = new List<FilmCue>(stretches.Count);
         int frame = opening;
         foreach (Stretch stretch in stretches)
@@ -42,15 +42,12 @@ public sealed record CueSheet(int FramesPerSecond, double Length, CardCue Openin
             .. cuts.Parts.Select(part => new PartCue(part.Title, part.FirstFilm,
                 (films.FirstOrDefault(film => film.Name == part.FirstFilm) ?? throw new ArgumentException($"A part of the cut list names the film '{part.FirstFilm}', which the script does not have.", nameof(cuts))).Start)),
         ];
-        int end = frame + Frames(cuts.Closing);
+        int end = frame + cuts.Closing.Frames;
         return new CueSheet(Stretch.FramesPerSecond, Time(end), new CardCue(0, Time(opening)), films, parts, new CardCue(Time(frame), Time(end)));
     }
 
     /// <summary>The sheet as indented JSON, with its names in camel case.</summary>
     public string ToJson() => JsonSerializer.Serialize(this, Json) + "\n";
-
-    /// <summary>The frames of <paramref name="card"/>: its seconds at 60 frames per second, rounded as its subtitles round them.</summary>
-    private static int Frames(TitleCard card) => (int)Math.Round(card.Seconds * Stretch.FramesPerSecond);
 
     /// <summary>The time of frame <paramref name="frame"/> of the video, in seconds.</summary>
     private static double Time(int frame) => frame / (double)Stretch.FramesPerSecond;

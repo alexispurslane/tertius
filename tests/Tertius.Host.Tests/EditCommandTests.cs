@@ -194,6 +194,21 @@ public sealed class EditCommandTests : IDisposable
     }
 
     [Fact]
+    public void ACardWhoseSecondsFallBetweenTwoFramesLastsTheFramesOfItsCueInTheVideo()
+    {
+        // 0.505 s is 30.3 frames. The cue sheet rounds it to 30 frames, so the video must hold 30 frames of the card, not 31.
+        CutList cuts = Cuts with { Opening = Card with { Seconds = 0.505 } };
+
+        EditCommand.Run(["--edit", VideoPath, "--script", ScriptPath, "--master", MasterPath, "--readouts", LogPath], cuts, new StringWriter(), new StringWriter())
+            .Should().Be(ScriptCommand.Ok);
+
+        CueSheet sheet = JsonSerializer.Deserialize<CueSheet>(File.ReadAllText(VideoPath + ".cues.json"), new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        sheet.Opening.End.Should().Be(0.5);
+        VideoTesting.CountFrames(VideoPath).Should().Be(30 + 60 + 120 + 60);
+        sheet.Length.Should().Be(VideoTesting.CountFrames(VideoPath) / 60.0);
+    }
+
+    [Fact]
     public void TheEditRefusesALogOfAnotherScript()
     {
         File.WriteAllText(LogPath, ReadoutLog.ToCsv(RowsOf(Films)[..^1]));

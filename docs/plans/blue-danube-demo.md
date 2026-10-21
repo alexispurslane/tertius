@@ -3670,9 +3670,14 @@ The file holds:
 | `films` | Each film of the script, in its order: its `name`, its `firstFrame` and `lastFrame`, the first and the last frame of the master that the cut list keeps, and its `start` and `end` in seconds of the final video |
 | `parts` | Each part: its `title`, its first `film`, and the `start` of its title in seconds, which is the start of that film |
 
-Every time is a frame of the final video. Frame n starts at n / 60 s, so 60 times each time is a whole number, to the rounding of a double. A card lasts its seconds in whole frames, as its subtitles do, so the first film starts at frame 300. A film ends where the next film starts, and the last film ends where the closing card starts. `CueSheetTests` checks the sheet. `EditCommandTests` checks on a real ffmpeg video that the frame at a film's start is that film's first kept frame, and that the closing card's frames end the video.
+Every time is a frame of the final video. Frame n starts at n / 60 s, so 60 times each time is a whole number, to the rounding of a double. A card lasts its seconds rounded to whole frames, `TitleCard.Frames`. Its subtitles, its black frames and the sheet all take that count, so the first film starts at frame 300. The edit gives ffmpeg the card's whole frames and not its seconds: for a time between two frames, ffmpeg makes one frame more than the rounding. A film ends where the next film starts, and the last film ends where the closing card starts. `CueSheetTests` checks the sheet. `EditCommandTests` checks on a real ffmpeg video that the frame at a film's start is that film's first kept frame, that the closing card's frames end the video, and that a card whose seconds fall between two frames lasts the frames of its cue.
 
 In the final video of 2026-10-21, the film `closing` starts at 140.23 s, `landing` at 328.27 s and `docked` at 338.63 s. The title "The docking" starts at 269.95 s, "The wheel" at 341.63 s, and the closing card at 388.13 s.
+
+The review of step 8 measured the sheet on the MP4:
+
+- ffprobe counts 23,768 frames in the video, 396.13 s. That is the sheet's length to the frame: the 300 frames of the opening card, the 22,988 frames of the master and the 480 frames of the closing card.
+- For each film, the review set the frame of the MP4 at the film's start in the sheet beside the frames of the master from 2 before the film's first frame to 2 after it, as gray pictures of the middle of the frame, which has no text. For the first film it took the frames 31 frames in, past the fade from black. In every film the best match is the film's first frame, to within 0.6 of 255 levels on average. At each film that starts with a cut to another picture, the frame before it differs by 16 levels or more. Where a film holds a still picture, its neighbors match as well, and the cuts round it fix the place.
 
 ### The final render
 

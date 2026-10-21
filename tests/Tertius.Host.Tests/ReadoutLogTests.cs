@@ -11,8 +11,7 @@ namespace Tertius.Host.Tests;
 /// adds one row at each capture of a script, on the real World and the real Jolt backend. The log reads in the frame
 /// <c>earth</c>, which does not turn. The first scene of these tests drops a ball, the <c>person</c>, from 5 m in the root
 /// frame <c>earth</c>, whose uniform gravity is 9.81 m/s². The <c>station</c> is a static box 30 m to the side at the
-/// ball's first height, turned a quarter turn about earth's -Z, so that its axis, its +Y, lies along earth's +X at the
-/// ball's first height. The second scene, <see cref="Turning"/>, holds a turning ground in earth.
+/// ball's first height, turned a quarter turn about earth's -Z, so that its axis, its +Y, lies along earth's +X. The second scene, <see cref="Turning"/>, holds a turning ground in earth.
 /// </summary>
 public sealed class ReadoutLogTests
 {

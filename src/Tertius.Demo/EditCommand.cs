@@ -210,7 +210,10 @@ public static class EditCommand
     public static List<string> Arguments(IReadOnlyList<Stretch> stretches, CutList cuts, string master, string? music, double musicStart, string output, int width, int height)
     {
         double film = stretches.Sum(s => s.Count) / (double)Stretch.FramesPerSecond;
-        double length = cuts.Opening.Seconds + film + cuts.Closing.Seconds;
+        // Each card lasts its whole frames, as its subtitles and the cue sheet count them, so the video ends where the
+        // sheet's length says.
+        double opening = cuts.Opening.Frames / (double)Stretch.FramesPerSecond, closing = cuts.Closing.Frames / (double)Stretch.FramesPerSecond;
+        double length = opening + film + closing;
         string select = string.Join("+", stretches.Select(s => $"between(n,{s.From},{s.From + s.Count - 1})"));
         var invariant = CultureInfo.InvariantCulture;
         string Card(string name, double seconds) => string.Format(invariant,
@@ -219,8 +222,8 @@ public static class EditCommand
         string graph = string.Join(";",
             string.Format(invariant, "[0:v]settb=1/60,setpts=N,ass=film.ass:fontsdir=fonts,select='{0}',settb=1/60,setpts=N,fade=t=in:st=0:d={1},fade=t=out:st={2}:d={3},format=yuv420p,setsar=1[film]",
                 select, Fade, film - FilmFadeOut, FilmFadeOut),
-            Card("opening", cuts.Opening.Seconds),
-            Card("closing", cuts.Closing.Seconds),
+            Card("opening", opening),
+            Card("closing", closing),
             "[opening][film][closing]concat=n=3:v=1:a=0[v]");
         List<string> arguments = ["-hide_banner", "-loglevel", "error", "-nostats", "-i", master];
         if (music != null)

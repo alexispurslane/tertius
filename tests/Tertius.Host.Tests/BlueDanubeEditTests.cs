@@ -74,9 +74,11 @@ public sealed class BlueDanubeEditTests
     [Fact]
     public void TheWheelPartStartsWithTheFirstFilmOfTheExit()
     {
+        // The docking ends with the film docked, and the exit opens the belt in the next film.
         EditPart wheel = BlueDanubeEdit.Cuts.Parts.Single(part => part.Title == "The wheel");
 
-        wheel.FirstFilm.Should().Be(BlueDanube.ExitSections[0].Name);
+        IndexOf(wheel.FirstFilm).Should().Be(IndexOf("docked") + 1);
+        wheel.FirstFilm.Should().Be("unbelt");
     }
 
     [Fact]
