@@ -11,7 +11,7 @@ namespace Tertius.Demo;
 /// </summary>
 public static partial class DemoScenes
 {
-    public static IReadOnlyList<Scene> All { get; } = [new Scene("drop-box", DropBox), new Scene("orbit", Orbit), new Scene("orbit-cluster", OrbitCluster), new Scene("surface-yard", SurfaceYard), new Scene("deep-yard", DeepYard.Build), new Scene("doorway", Doorway), new Scene("station", Station.Build), new Scene("weightless-push", WeightlessPush), new Scene("demo-meshes", DemoMeshes), new Scene("demo-surface", DemoSurface.Build), new Scene("spin-station", SpinStation.Build)];
+    public static IReadOnlyList<Scene> All { get; } = [new Scene("drop-box", DropBox), new Scene("orbit", Orbit), new Scene("orbit-cluster", OrbitCluster), new Scene("surface-yard", SurfaceYard), new Scene("deep-yard", DeepYard.Build), new Scene("doorway", Doorway), new Scene("station", Station.Build), new Scene("weightless-push", WeightlessPush), new Scene("demo-meshes", DemoMeshes), new Scene("demo-shuttle", DemoShuttle), new Scene("demo-surface", DemoSurface.Build), new Scene("spin-station", SpinStation.Build), new Scene("earth-system", EarthSystem.Build)];
 
     /// <summary>Earth's mean radius, in meters.</summary>
     public const double EarthRadius = 6.371e6;
@@ -54,6 +54,26 @@ public static partial class DemoScenes
     /// <summary>The tilt of Earth's axis from the pole of its orbit: 23.4392811 degrees, in radians.</summary>
     public const double Obliquity = 23.4392811 * Math.PI / 180;
 
+    /// <summary>The Moon's mean radius, in meters.</summary>
+    public const double MoonRadius = 1.7374e6;
+
+    /// <summary>The tilt of the Moon's orbit to the ecliptic, the plane of Earth's orbit: 5.145 degrees, in radians.</summary>
+    public const double MoonInclination = 5.145 * Math.PI / 180;
+
+    /// <summary>
+    /// The Moon's mean orbit round Earth, in earth's axes: semi-major axis 384,400 km, eccentricity 0.0549, tilted
+    /// <see cref="MoonInclination"/> to the ecliptic. Its ascending node on the ecliptic lies on the March equinox direction,
+    /// earth's +X, as at the major lunar standstill of 2024 and 2025. Earth's axes lean from the ecliptic by
+    /// <see cref="Obliquity"/> about that same line, so the two tilts add: the orbit leans 28.58 degrees from Earth's
+    /// equator, with its node on +X. Its perigee lies on the node. At time 0 the Moon stands 45 degrees past it, toward
+    /// -Z and north, which at the June solstice is 45 degrees from the Sun as seen from Earth: a waning crescent, three or
+    /// four days before new Moon, so that from beside the Moon, Earth shows mostly its day side. Its attitude does not
+    /// turn. The Moon has no gravity of its own: only Earth's pulls in earth, so the orbit takes earth's G·M,
+    /// <see cref="EarthMu"/>.
+    /// </summary>
+    public static KeplerOrbit MoonOrbit { get; } = new(SemiMajorAxis: 3.844e8, Eccentricity: 0.0549, Inclination: Obliquity + MoonInclination,
+        LongitudeOfAscendingNode: 0, ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: MeanAnomaly(Math.PI / 4, 0.0549), Epoch: 0, AxialTilt: DQuaternion.Identity, SpinRate: 0, SpinPhaseAtEpoch: 0);
+
     /// <summary>
     /// The vertical slice's first scene: a ship falls freely round an Earth that goes round the sun, at the March equinox.
     /// <list type="bullet">
@@ -67,6 +87,8 @@ public static partial class DemoScenes
     /// <item>The frame <c>earth-surface</c> sits at Earth's center and turns about Earth's pole once per sidereal day. It
     /// draws the planet: Earth's radius, with a grid of 10-degree lines, so its turn shows. It casts Earth's shadow, and
     /// it has Earth's gravity for objects on the ground.</item>
+    /// <item>The <c>moon</c> goes round Earth in <c>earth</c> on <see cref="MoonOrbit"/>, at its true size, with no gravity
+    /// of its own.</item>
     /// <item>The frame <c>ship</c>, a 20 by 8 by 60 m hull, falls freely in Earth's gravity: Jolt integrates it, with no
     /// damping. Its bubble is an ellipsoid with radii of about 20.8, 10.4 and 55.4 m along its axes: the smallest that holds
     /// the hull grown by 2 m on every side, so its surface is at least 2 m from the hull everywhere. It starts on a circle 400 km up, crossing the equator northward at +X, tilted 51.64
@@ -112,7 +134,7 @@ public static partial class DemoScenes
     private static SceneInstance Orbit(World world, IRenderResources resources)
     {
         var scene = new SceneInstance();
-        FrameHandle earth = SunAndEarth(world, resources, scene);
+        FrameHandle earth = SunAndEarth(world, resources, scene, EarthDate.MarchEquinox);
 
         // The circle that the ship starts on gives its state at the world's time. From there, gravity alone moves it. The
         // circle takes the G·M of earth's own field, which is the G·M that pulls the ship.
@@ -232,10 +254,43 @@ public static partial class DemoScenes
     }
 
     /// <summary>
-    /// The sun, earth and earth-surface of the orbit scene (see <see cref="Orbit"/>), added to <paramref name="scene"/>,
-    /// with the sunlight and the dim light of space, at the March equinox. Returns earth's frame.
+    /// Where Earth stands on its orbit at the world's time 0: its longitude, the angle in radians about the Sun's +Y from the
+    /// Sun's +X, Earth's place at the September equinox, the way Earth moves, from +X toward -Z.
     /// </summary>
-    private static FrameHandle SunAndEarth(World world, IRenderResources resources, SceneInstance scene)
+    public readonly record struct EarthDate(double Longitude)
+    {
+        /// <summary>The March equinox: Earth at longitude 180 degrees, on the Sun's -X, so the Sun stands toward +X from Earth, over the equator.</summary>
+        public static EarthDate MarchEquinox => new(Math.PI);
+
+        /// <summary>
+        /// The June solstice: Earth at longitude 270 degrees, on the Sun's +Z, so the Sun stands toward -Z from Earth, the
+        /// way the north pole leans, 23.44 degrees north of the equator. At the north pole it stands that high all day.
+        /// </summary>
+        public static EarthDate JuneSolstice => new(3 * Math.PI / 2);
+    }
+
+    /// <summary>
+    /// Earth's orbit round the Sun, in the Sun's axes, with Earth at <paramref name="date"/> at time 0: Earth's real orbit
+    /// (1.00000261 AU, eccentricity 0.01671123, perihelion at longitude 102.94 degrees), with an attitude that does not
+    /// turn and leans by <see cref="Obliquity"/>, so that earth's +Y is Earth's north pole and its +X is the March equinox
+    /// direction.
+    /// </summary>
+    public static KeplerOrbit EarthOrbit(EarthDate date)
+    {
+        // The pole leans from the sun's +Y toward -Z, the direction of the sun from Earth at the June solstice.
+        DQuaternion obliquity = DQuaternion.FromAxisAngle(Double3.UnitX, -Obliquity);
+        const double eccentricity = 0.01671123, perihelion = 102.93768193 * Math.PI / 180;
+        double meanAnomaly = MeanAnomaly(date.Longitude - perihelion, eccentricity);
+        return new KeplerOrbit(1.00000261 * AstronomicalUnit, eccentricity, 0, 0, perihelion, meanAnomaly, 0, obliquity, 0, 0);
+    }
+
+    /// <summary>
+    /// The Earth system of every scene that has the Sun: the sun, earth, earth-surface and the moon of the orbit scene (see
+    /// <see cref="Orbit"/>), added to <paramref name="scene"/>,
+    /// with the sunlight and the dim light of space, with Earth at <paramref name="date"/> at the world's time 0. Returns
+    /// earth's frame.
+    /// </summary>
+    private static FrameHandle SunAndEarth(World world, IRenderResources resources, SceneInstance scene, EarthDate date)
     {
         FrameHandle sun = world.CreateRootFrame(
             new FrameSpec(FrameBounds.Sphere(1e13f), GravityField.Point(SunMu)),
@@ -255,12 +310,7 @@ public static partial class DemoScenes
         world.SunIntensity = 2.5f;
         world.Ambient = new AmbientLight { SkyColor = new Vector3(0.03f), GroundColor = new Vector3(0.03f), Intensity = 1 };
 
-        // The pole leans from the sun's +Y toward -Z, the direction of the sun from Earth at the June solstice.
-        DQuaternion obliquity = DQuaternion.FromAxisAngle(Double3.UnitX, -Obliquity);
-        const double eccentricity = 0.01671123, perihelion = 102.93768193 * Math.PI / 180;
-        // At the March equinox, Earth is at longitude 180 degrees from the sun.
-        double meanAnomaly = MeanAnomaly(Math.PI - perihelion, eccentricity);
-        var earthOrbit = new KeplerOrbit(1.00000261 * AstronomicalUnit, eccentricity, 0, 0, perihelion, meanAnomaly, 0, obliquity, 0, 0);
+        KeplerOrbit earthOrbit = EarthOrbit(date);
         // Earth starts on its orbit at the world's time. Its first motion intent moves it along the orbit in the step of the
         // next tick, and its KeplerMotion from the second step on. So earth falls freely from its first step, and the
         // station of the station scene, which reads earth's proper acceleration, feels none of the sun's gravity. Earth has
@@ -296,6 +346,25 @@ public static partial class DemoScenes
                 Material = resources.CreateMaterial(new MaterialDesc(Vector4.One, SpecularIntensity: 0.1f, Albedo: resources.CreateTexture(EarthGrid()))),
                 BoundingRadius = (float)EarthRadius,
                 Flags = RenderFlags.Visible | RenderFlags.Celestial | RenderFlags.CastsShadow,
+            },
+        }));
+
+        // The Moon goes round Earth from its place at the world's time, and from its first step, as earth does. It has no
+        // body and no frame, the least that a KeplerMotion moves, so only its motion intents move it, and it spawns with no
+        // velocity, as earth does.
+        Double3 moonPlace = MoonOrbit.StateAt(world.Time, EarthMu).Position;
+        scene.Add("moon", world.Spawn(new SpawnDesc
+        {
+            Frame = earth,
+            Pose = new DPose(moonPlace, MoonOrbit.RotationAt(world.Time, EarthMu)),
+            FirstMove = new MotionIntent(MoonOrbit.Sample(EarthMu, firstStepEnd, world.DeltaTime)),
+            Components = [new KeplerMotion { Orbit = MoonOrbit }],
+            Render = new RenderData
+            {
+                Mesh = resources.CreateMesh(Primitives.Sphere((float)MoonRadius, 128, 64)),
+                Material = resources.CreateMaterial(new MaterialDesc(new Vector4(0.55f, 0.55f, 0.53f, 1), SpecularIntensity: 0.05f)),
+                BoundingRadius = (float)MoonRadius,
+                Flags = RenderFlags.Visible | RenderFlags.Celestial,
             },
         }));
         return earth;

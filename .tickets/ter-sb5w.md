@@ -1,6 +1,6 @@
 ---
 id: ter-sb5w
-status: open
+status: closed
 deps: [ter-ozm8]
 links: []
 created: 2026-10-18T15:20:44Z
@@ -23,3 +23,7 @@ Published on 2026-10-18: README.md and LICENSE (0BSD) merged into main at 1e7e1b
 **2026-10-18T21:23:39Z**
 
 ter-ru5u removed MotionDriver and World.SetFrameDriver. GUIDE.md still names them, and the rewrite must fix these lines: 70 (read MotionDriver in FrameTypes.cs), 168 (MotionDriver in FrameTypes.cs), 169 (World.SetFrameDriver in World.Entities.cs) and 192 (ApplySpin in World.Sync.cs, gone since the rails components). A hull's motion is now its body's BodyMotion, kept in FrameTree.HullMotion, and the intent Self.Body.SetMotion changes it at step 4 of the sync point (ARCHITECTURE.md, "Changes of motion").
+
+**2026-10-21T00:07:00Z**
+
+GUIDE.md was rewritten against the code at 1be71d9 and merged on 2026-10-20, with no separate check or fix stage, at the user's request (no check and fix cycles for documentation). The orchestrator found no removed names in it, and all 360 local links point at files and lines that exist. Its web links pin 1be71d9, which the remote gets with the next push of main.

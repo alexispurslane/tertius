@@ -28,17 +28,21 @@ public struct AttitudeTarget : IEventPayload
 /// attitude thrusters of a ship do. It asks for a turn rate along the shortest turn to the target, <see cref="Gain"/> per
 /// radian of the turn that is left, and at most the target's <see cref="AttitudeTarget.MaxTurnRate"/> and
 /// <see cref="MaxTurnRate"/>. Then it gives the torque that brings the body's
-/// angular velocity to that rate in <see cref="RateTime"/>, from the body's moments of inertia. A tick without a target
+/// angular velocity to that rate in <see cref="RateTime"/>, from the body's moments of inertia about its principal axes: it
+/// turns the angular acceleration that it asks for into the principal axes, multiplies it by the moments there, and turns
+/// the torque back. A body whose principal axes tilt from its own couples a turn about one of its axes with a turn about
+/// another, so only the moments in its own axes would turn it about an axis that it did not ask for. A tick without a target
 /// gives no torque, so the autopilot keeps nothing from an earlier tick. When a tick brings several targets, the last one
-/// counts. It runs at priority 10, after every layer of the flight program, so it follows the last layer that speaks. Its entity needs a dynamic body, whose principal axes are its own axes.
+/// counts. It runs at priority 10, after every layer of the flight program, so it follows the last layer that speaks. Its
+/// entity needs a dynamic body whose principal axes are <see cref="PrincipalInertia.Axes"/> of its inertia, in its own axes.
 /// </summary>
 /// <remarks>
 /// The autopilot reads the body's rotation and angular velocity at the end of the last finished step, and its torque
 /// acts in the step of the next tick. So it acts on what it read two steps late. <see cref="RateTime"/> is 20 steps, so
 /// that lag costs the loop little.
 /// </remarks>
-/// <param name="inertia">The moments of inertia of the body about its own X, Y and Z axes, in kg·m².</param>
-public sealed class AttitudeAutopilot(Vector3 inertia) : IComponent
+/// <param name="inertia">The moments of inertia of the body about its principal axes, in kg·m², and those axes in its own axes.</param>
+public sealed class AttitudeAutopilot(PrincipalInertia inertia) : IComponent
 {
     /// <summary>The turn rate that the autopilot asks for per radian of the turn that is left, in 1/s.</summary>
     public const double Gain = 0.8;
@@ -49,7 +53,10 @@ public sealed class AttitudeAutopilot(Vector3 inertia) : IComponent
     /// <summary>The time in which the torque brings the body's angular velocity to the rate asked for, in seconds.</summary>
     public const double RateTime = 1.0 / 3;
 
-    private readonly Vector3 inertia = inertia;
+    private readonly Double3 moments = inertia.Moments;
+
+    /// <summary>The rotation that turns the body's own axes into its principal axes.</summary>
+    private readonly DQuaternion axes = DQuaternion.FromQuaternion(inertia.Axes).Normalized();
 
     // After every layer of the flight program, priorities 0 to 2, which add the target in the same tick.
     public int Priority => 10;
@@ -103,8 +110,10 @@ public sealed class AttitudeAutopilot(Vector3 inertia) : IComponent
         if (rate.Length > maxRate)
             rate *= maxRate / rate.Length;
         Double3 angularAcceleration = (rate - (Double3)self.AngularVelocityIn(self.Frame)) / RateTime;
-        Double3 inBody = pose.Rotation.Conjugate().Rotate(angularAcceleration);
-        self.Body.AddTorque(pose.Rotation.Rotate(inBody * (Double3)inertia).ToVector3());
+        // The principal axes in the frame's axes: the torque about each is its moment times the acceleration about it.
+        DQuaternion principal = pose.Rotation * axes;
+        Double3 inPrincipal = principal.Conjugate().Rotate(angularAcceleration);
+        self.Body.AddTorque(principal.Rotate(inPrincipal * moments).ToVector3());
     }
 
     /// <summary>The rotation that turns the unit axes X, Y and Z into the orthonormal, right-handed <paramref name="x"/>, <paramref name="y"/> and <paramref name="z"/>.</summary>

@@ -43,7 +43,7 @@ Step 3 of the sequence, as ticket ter-m13s built it in the Demo, in the scene `d
 - A script posts `Ignition` to the shuttle. Its `AscentAutopilot` unparks the hull with `Self.Body.SetMotion(BodyMotion.Dynamic)` and runs the `MainEngine` at full throttle, 3 g along the nose, with the nose toward the velocity, until the shuttle is 30 m above the ramp's top. Then `AscentGuidance` steers a closed loop to a circle 200 km up: it splits the thrust between the climb and the speed along the track, so that the shuttle reaches the circle's height with no vertical speed when it reaches the circle's speed. It also steers into the launch plane, `DemoSurface.LaunchPlaneNormal`, the plane of the station's orbit, as a real launch flies into the plane of its target (ter-tzf6): it pushes back toward the plane a ship that drifts across it or lies beside it, and never takes thrust from the climb to do so. So the parking orbit lies in that plane (`DemoLaunchTests`, `BlueDanubeRendezvousTests`). The thrust pitches up from the ramp's 30 degrees to about 60, then over, and a little below the horizon at the end. The engine stops when the trim's thrust would fall below the weightless threshold. The autopilot talks to the engine and to the `AttitudeAutopilot` only through its entity's events: in each tick it adds a `Throttle` and an `AttitudeTarget`, which those two components read after it, and a tick without them gives no thrust and no torque (`FlightControlTests`). Its state is the custom union `AscentState`: `Parked`, `Ramp` with the guidance and the launch radius, `Climb` with the guidance, and `Orbit`. In the run of the script, the climb takes 321 s, and the periapsis and the apoapsis lie within 5 km of 200 km (`DemoLaunchTests`), well above the top of the air at 100 km (`DemoScenes.AtmosphereTop`).
 - The cabin's weight comes from the frame's derived proper acceleration alone: the weight of the ground on the pad, the ramp's push and the engine's thrust in the climb, and nothing in orbit.
 - The person's `Passenger` belt holds it at its seat while the cabin's gravity leans more than 45 degrees from the floor's down or the cabin is weightless: it pushes the person with its mass times the opposite of that gravity, plus a spring and a damper. The foot of the ramp jolts the person by about 0.17 m. Nothing holds the person's up to the seat: it follows the felt gravity in the air at most at the air rate of 1 rad/s, as for every character (`ter-1b21`, [Spin gravity](spin-gravity.md), "Characters"). At the end of the climb the engine throttles down to about 0.2 m/s², the felt gravity leans 14 degrees from the cabin's aft axis toward its ceiling, and the person's head, toward the nose, dips onto the seat, which lifts the person by 67 mm. The belt reads the gravity that the person feels, with the rotation terms of the cabin's turn (`FrameTree.FeltGravity`), which physics applies to a character too. In orbit, after 2 s weightless by that read, the person opens the belt, in the demo launch 5.2 s after the engines stop, once the change of the cabin's turn that the attitude autopilot makes has settled, and floats with thrusters as weak as `PersonControl`'s, so that its hand, in front of its chest (`Passenger.PenHold`), comes onto the drifting pen. The hand first lines up 0.5 m behind the pen, on the line ahead of the person's view, and then closes in along that line, so that the pen comes to the hand from in front and never touches the body. Once the hand is within 2 cm of the pen, the person uses it and takes it as `Carry` takes a crate, and the drawn copy in its hand keeps the place and the turn that the loose pen had relative to the view, so the pen does not jump into the hand. The hand is nearer than `Carry` holds a crate, so that the pen's near end lies just in front of the body: a pen held as far out as a crate read as a pen that floats free. A character does not turn, so the passenger does not plan a way round the pen: in the demo it floats face-down below the pen and well to the side of it, so its straight way from the seat passes clear of the pen, and nothing touches the pen until the take (`DemoLaunchTests`). The passenger's state is the custom union `PassengerState`: `Boarding`, `Seated` with its weightless ticks, `Fetching`, `Holding` with the copy, and `Stopped`, for a pen that goes before the take.
-- A `Clip` on the pen holds it on the cabin's port wall, at head height, aft of the seat (user, 2026-10-19). While the cabin has weight, the clip steers the pen to its place in every tick (`Self.Body.SteerTo`), so that physics carries it back each step: the weight of a step moves it about 8 mm at three gravities, and the jolt at the ramp's foot drops it about 0.1 m for one step. Once the cabin has been weightless at the clip for 1 s, by the gravity felt there with the rotation terms of the cabin's turn (`FrameTree.FeltGravity`), the clip lets go with a push of 0.2 m/s away from the wall and a slow spin, end over end, at 0.5 rad/s. In the demo launch the clip lets go 2.9 s after the engines stop, once the change of the cabin's turn that the attitude autopilot makes has settled. The pen drifts into the cabin, and nothing touches it until the person takes it 10.6 s later, about 2.1 m from the wall and 2.0 m above the floor (`PenClipTests`, `DemoLaunchTests`). The clip's state is the custom union `ClipState`: `Clipped` with its weightless ticks, or `Released`.
+- A `Clip` on the pen holds it on the cabin's port wall, at head height, aft of the seat (user, 2026-10-19). Since ter-4xkz the port wall is glass above the sill, and the clip holds the pen on the wall's pillar at z = -1 m, so the pen never hangs in front of glass. The cabin's four lamps hang on the pillars of the walls, because the roof is glass. While the cabin has weight, the clip steers the pen to its place in every tick (`Self.Body.SteerTo`), so that physics carries it back each step: the weight of a step moves it about 8 mm at three gravities, and the jolt at the ramp's foot drops it about 0.1 m for one step. Once the cabin has been weightless at the clip for 1 s, by the gravity felt there with the rotation terms of the cabin's turn (`FrameTree.FeltGravity`), the clip lets go with a push of 0.2 m/s away from the wall and a slow spin, end over end, at 0.5 rad/s. In the demo launch the clip lets go 2.9 s after the engines stop, once the change of the cabin's turn that the attitude autopilot makes has settled. The pen drifts into the cabin, and nothing touches it until the person takes it 10.6 s later, about 2.1 m from the wall and 2.0 m above the floor (`PenClipTests`, `DemoLaunchTests`). The clip's state is the custom union `ClipState`: `Clipped` with its weightless ticks, or `Released`.
 - The script films the launch from cameras that the scene places for each part: `pad-camera` for the parked shuttle and the start up the ramp, `ramp-camera` for the ramp, `ramp-top-camera` for the flight past the ramp's top, `climb-camera` high behind the shuttle for the climb with the ground below, `chase-camera` for the high climb and the orbit, `pen-camera` within 2 m of the pen's way for the pen on the wall, its drift and the person's start from the seat, and `hand-camera` for the hand that closes on the pen and the pen in it. A 14 cm pen seen from the cabin's corners, 6 to 8 m away, shows only a few pixels.
 - Under the climb's thrust, the engine turns a character's up against the cabin's gravity, so the belted person tips toward the nose, face toward the floor, and it floats that way in orbit, because a weightless character keeps its last up. Engine ticket ter-yrfa will let a weightless character turn its own up, which will right the person. Until then, the demo leaves the person as the engine's rule puts it (user, 2026-10-19).
 
@@ -258,7 +258,7 @@ The shuttle has only its main engine, along the nose. The brake must push along 
 |---|---|---|---|
 | `Standby` | None | It adds nothing. | A `Rendezvous` order arrives: `Phasing`. The autopilot builds its guidance then, as the ascent autopilot does at the ignition. |
 | `Phasing(Transfer)` | The transfer guidance | It adds nothing, so the orbit attitude of the ascent autopilot flies on. | The transfer angle lies between 150 and 170 degrees: `Transfer`, with the arrival time 2,560 s from now |
-| `Transfer(Transfer, ArrivalTime)` | The transfer guidance, and the arrival time in the world's seconds | It burns and trims onto the Lambert path that reaches the arrival point at the arrival time. | In the coast, the braking curve reaches the shuttle, or the arrival time comes: `Brake` |
+| `Transfer(Transfer, ArrivalTime)` | The transfer guidance, and the arrival time in the world's seconds | It burns and trims onto the Lambert path that reaches the arrival point at the arrival time. In the coast at its end, it solves nothing more. | In the coast, the braking curve reaches the shuttle, or the arrival time comes: `Brake` |
 | `Brake(Approach)` | The approach guidance of the brake | It stops the shuttle at the arrival point with the main engine. | The shuttle is within 10 m of the arrival point and slower than 0.1 m/s relative to the station: `Glide` |
 | `Glide(Approach)` | The approach guidance of the glide | It turns the nose to the slot. It flies the shuttle along the axis to the hold point on the translation thrusters. | Distance, speed and nose are within the hold's tolerances (see "Tolerances and the end state"): `Hold` |
 | `Hold(Approach)` | The approach guidance of the glide | It holds the shuttle at the hold point, with its nose at the slot. | None. The layer of step 5 overrides it. |
@@ -351,7 +351,9 @@ The transfer runs in three modes:
 - The trim: `toGain` is 0.1 m/s or shorter. Only the translation thrusters trim it, with `toGain / TrimTime`. The nose turns toward the brake's direction at the plan's weightless turn rate, so the brake starts after only a small turn.
 - In the trim and the coast, the nose turns at most at the plan's `RendezvousPlan.WeightlessTurnRate`: 0.002 rad/s in the demo's plan, and the full 0.15 rad/s in the short test plan, whose shuttle carries no crew and must turn within its 300 s. Each `AttitudeTarget` carries the fastest turn that its layer allows, `MaxTurnRate`, and the attitude autopilot asks for at most that and its own 0.15 rad/s. A turn of the hull gives the crew a felt gravity: the centrifugal term ω² r, and the Euler term while the attitude autopilot brings the hull to its rate in a third of a second, 3 ω r. At the seat, 4 m from the hull's center, the Euler term of 0.002 rad/s is 0.024 m/s², less than half the threshold. At 0.15 rad/s, the turn of 160 degrees from the burn's nose to the brake's direction gave about 0.1 m/s² there. That put the strapped person into the walking form, and its up turned at the air rate to about 155 degrees from the nose: on its side, with its body over the pen. At 0.002 rad/s the turn takes about 1,400 s of the trim's 2,450 s, and the person keeps the up of the burn, with its head toward the nose (`BlueDanubeRendezvousTests`).
 - The brake's direction is the opposite of the shuttle's velocity relative to the station at the arrival point: `atArrival` less the station's propagated velocity.
-- The coast: in the last 60 s before the arrival time, the autopilot solves nothing more. A short transfer turns a small miss into a large velocity to gain. The nose turns against `u`, the velocity relative to the station, at `RendezvousPlan.WeightlessTurnRate`.
+- The coast: the autopilot solves nothing more in the last 60 s before the arrival time, `TransferGuidance.CoastTime`, or where the transfer angle from the shuttle to the arrival point lies within 2 degrees of 0, `TransferGuidance.CoastAngle`, whichever comes first. `TransferGuidance.Coasts` decides it in each tick, from the same arrival point that `Steer` solves for. A short transfer turns a small miss into a large velocity to gain. The nose turns against `u`, the velocity relative to the station, at `RendezvousPlan.WeightlessTurnRate`.
+- Why the coast has an angle too: the transfer angle left falls as the transfer goes on, and Lambert's problem refuses an angle within 1 degree of 0. In the demo's orbits, the shuttle turns about 4 degrees in the last 60 s, so the coast by the time comes first. In a slower orbit, the angle falls below 1 degree earlier. A geostationary station turns only 0.25 degrees a minute. There the steering threw and logged an error in every tick from about 240 s before the arrival to the coast (ter-lz8u, 2026-10-20). 2 degrees, twice the refused angle, keeps a degree of margin, so the rounding of the two angles never reaches the refusal.
+- Why not a guard on the plan: the angle at which the coast starts depends on the orbits, not on the plan alone. A plan holds no G·M and no orbit, so a guard in `RendezvousPlan` cannot see the case. The coast by the angle covers every plan with one rule: the guidance solves nothing more where Lambert's problem is close to its refusal, in time or in angle. The transfer's angle only falls, from a window below 179 degrees, so the coast never needs the refusal near 180 degrees.
 - With the trim, the shuttle reaches the arrival point within about 12 m. The trim lasts about 2,450 s, and it holds the velocity to gain below 5 mm/s.
 
 The transfer ends in the coast at the braking curve, where `sqrt(2 × 2.4 m/s² × d)` is no more than `|u|`. Here `d` is the distance to the arrival point and `u` the velocity relative to the station. It also ends at the arrival time. The test holds only in the coast: earlier, the shuttle is thousands of kilometers from the arrival point, where `|u|` (about 15 km/s at the window) exceeds the curve's speed (about 8 km/s), and the relative motion is not that of a free mass. The brake starts about 12 s before the arrival time, well inside the coast of 60 s. In the coast, the nose turns against `u`, which differs from the brake's direction of the last solution by 0.15 degrees. At about 3,300 s the brake's direction passes 9 degrees from straight down, and the roof, away from Earth across the nose, swings about the nose there. At the slow turn rate the nose catches up only slowly afterward: it lies 2.9 degrees off the brake's direction when the coast starts, and 2.1 degrees off `-u` when the brake starts.
@@ -396,6 +398,7 @@ In every phase that steers, the roof turns away from Earth across the nose, as t
 |---|---|
 | Window | The transfer angle lies from 150 to 170 degrees. |
 | End of the burn | The velocity to gain is below 0.1 m/s. The trim then holds it below 5 mm/s. |
+| Start of the coast | 60 s before the arrival time, or where the transfer angle left falls within 2 degrees of 0, whichever comes first. The demo's plan and the short test plan reach 60 s first, at about 4 degrees. |
 | Miss at the arrival time | Within 100 m of the arrival point (about 12 m expected) |
 | End of the brake | Within 10 m of the arrival point, and slower than 0.1 m/s relative to the station. At 0.5 m/s, the glide inherits up to 0.5 m/s across the axis: its push is capped at 0.2 m/s² as a whole, and the speed of 5 m/s that it wants along the axis takes nearly all of it, so the drift across the axis reached 5.6 m on the short test plan. At 0.1 m/s it stays within 1.7 m. |
 | Glide | Within 5 m of the axis all the way |
@@ -427,23 +430,16 @@ The person takes the pen near z = -1 m, about 2.1 m from the port wall and 2.0 m
 
 ### The shuttle's windows and the cameras
 
-The shuttle gets windows, as the ship of the orbit scene has them (`DemoScenes.Windows` and its panes):
-
-- A nose window through the front wall, 4 m wide and 1.4 m tall, centered at eye height, 1.65 m above the cabin floor.
-- Three windows in each side wall, 1.2 m wide and 0.8 m tall, at eye height, at z = -5.5, -3 and 4.5 m.
-- The side windows miss the hatch, from z = 1.4 to 2.6 m on the starboard wall. They also miss the pen's clip, at z = -1 m on the port wall.
-- Each window has a pane of glass with no body, as the ship's windows do. The interior shape stays solid at the windows, as in the ship.
-
-The windows change the look of the cabin in the earlier films, but none of their cues.
+This step gave the shuttle's box hull small windows: one in the nose wall and three in each side wall, each with a pane of glass. Ticket ter-4xkz replaces them with the glass canopy of a new hull. "The shuttle's tram shape and glass canopy" describes the shuttle's glass, and the place of every camera in the shuttle. The table below gives what each camera of the rendezvous sees.
 
 New cameras, each a still view in its frame, as the pen camera and the spin station's views are:
 
 | Camera | Frame | Place | What it sees |
 |---|---|---|---|
-| `window-camera` | The shuttle's | 1.2 m behind the nose window at eye height, looking out along -Z | The station ahead through the nose window, with Earth's limb at the bottom |
+| `window-camera` | The shuttle's | 1.2 m behind the nose's front at eye height, looking out along -Z | The station ahead through `pane-nose`, with Earth's limb at the bottom |
 | `bow-camera` | The shuttle's | 30 m ahead of the nose and 5 m above it, looking aft along the hull, 30 degrees to port of astern | The shuttle in front and the station behind it, through the closing. The station lies 9 to 57 degrees to port of astern there. |
-| `port-window-camera` | The shuttle's | 0.6 m inside the aft port window and 0.3 m forward of its middle, at z = 4.2 m and eye height, looking out 20 degrees aft of abeam, through the window's middle | The station through the window during the brake. The station lies to port, from 33 to 9 degrees aft of abeam, and 1.5 degrees below the horizontal. At first the camera was 1 m inside the window, at z = 4.5 m: the window's outer edge then cut the view at 27 degrees aft of abeam, so the station lay outside it for the first 4 s of the brake. |
-| `cockpit-camera` | The shuttle's | Aft of the seat and to starboard of it, above the person's head, at (1.9, 0.9, -1.4) m, looking down at (0.7, -1.3, -5.2) m | The strapped person at its seat with the pen, and the nose window beyond it. The person floats upside down from the take, and the burn tips it with its head toward the nose, by the up rule of every character. The pen is in its right hand, so a camera to port, as first placed, saw the pen behind the person's body in the burn. The trim's push and its slow turn leave the cabin weightless, so the person keeps that up through `transfer-night`. The glide's turn to the slot swings the person's up by up to 105 degrees, and the glide's push along the nose turns it back before `arrival`. |
+| `port-window-camera` | The shuttle's | 0.6 m inside the port wall, at z = 4.2 m and eye height, looking out 20 degrees aft of abeam | The station through `pane-port-7` during the brake. The station lies to port, from 33 to 9 degrees aft of abeam, and 1.5 degrees below the horizontal. With this step's small aft port window, a camera 1 m inside, at z = 4.5 m, lost the station. The window's outer edge hid it for the first 4 s of the brake. |
+| `cockpit-camera` | The shuttle's | Aft of the seat and to starboard of it, above the person's head, at (1.9, 0.9, -1.4) m, looking down at (0.7, -1.3, -5.2) m | The strapped person at its seat with the pen, and `pane-nose` beyond it. The person floats upside down from the take, and the burn tips it with its head toward the nose, by the up rule of every character. The pen is in its right hand, so a camera to port, as first placed, saw the pen behind the person's body in the burn. The trim's push and its slow turn leave the cabin weightless, so the person keeps that up through `transfer-night`. The glide's turn to the slot swings the person's up by up to 105 degrees, and the glide's push along the nose turns it back before `arrival`. |
 | `rim-camera` | The station's | 2 m off the slot's face of the wheel, near its rim, looking across the axis | The hub and the shuttle on the axis together. It turns with the station, so Earth and the stars sweep behind them. That previews the spin match of step 5. |
 
 The builder of `rim-camera` aims it at a point on the axis between the hub and the hold point, with the axis across the picture. The picture's horizontal field is 92 degrees, so both fit.
@@ -467,9 +463,10 @@ The step's sections replace the section `coast`. A section that waits longer tha
 | `glide-window` | `window-camera` | 4 | | Within 400 m | 60 s, 900 frames |
 | `glide-rim` | `rim-camera` | 4 | | Within 200 m | 54 s, 806 frames |
 | `arrival` | `cockpit-camera` | 4 | | 3 s after the autopilot is in `Hold` | 58 s, 864 frames |
-| `hold` | `rim-camera` | 1 | | After 5 s | From 4,865.7 s: 5 s, 300 frames |
+| `hold` | `rim-camera` | 1 | | After 3 s | From 4,869.4 s: 3 s, 180 frames |
+| `hold-chase` | `chase-camera` | 1 | | After 2 s | From 4,872.4 s: 2 s, 120 frames |
 
-The step films 11,658 frames in 4,514 s of the simulation, 194 s of video at 60 frames per second.
+The step films 11,658 frames in 4,514 s of the simulation, 194 s of video at 60 frames per second. Ticket ter-4xkz split the 5 s of `hold` into `hold` and `hold-chase`, and its new hull moved the hold's start, so the last two rows are its generator's values of 2026-10-20.
 
 Every cue reads the run or the scene's constants:
 
@@ -555,6 +552,7 @@ Pure math, with no World:
 - `TransferGuidanceTests`:
   - `TheTransferAngleRunsTheWayOfTheOrbit`.
   - `TheTrimPushesAtMostHalfTheWeightlessThreshold`: at the speed tolerance, the trim's push is at most 0.025 m/s².
+  - `TheAutopilotCoastsInTheLastMinuteOrWithinTwoDegreesOfTheArrivalPoint`: 1.9 degrees ahead or behind coasts, 2.1 degrees does not, and 60 s left coasts at any angle.
 - `ApproachGuidanceTests`:
   - `AtTheTargetAndAtRestThePushOnlyCancelsTheDifferenceOfGravity`.
   - `TheWantedSpeedNeverExceedsTheCap`.
@@ -591,13 +589,16 @@ Components on the real World, in scenes that the tests build from the demo's spa
   - `TheGlideFliesTheShuttleAlongTheAxisToTheHoldPoint`, with the same short plan.
   - `TheShuttleHoldsAtTheHoldPointWithItsNoseAtTheSlot`: 60 s within the tolerances.
   - `TheAutopilotStopsWhenTheStationIsGone`.
+- `RendezvousCoastTests` flies a station in a geostationary orbit, 42,164 km from Earth's center, and the shuttle 5 km behind it, on a transfer of 1,000 s. The transfer angle starts at 4.2 degrees and falls below 1 degree about 240 s before the arrival.
+  - `ATransferWhoseAngleFallsBelowLambertsRefusalBeforeTheLastMinuteFliesWithoutAnError`: the world logs no error, and the brake starts.
+  - `TheCoastStartsADegreeBeforeTheAngleThatLambertRefuses`: the autopilot steers above 2 degrees and coasts below, about 478 s before the arrival.
 - `PassengerTests`:
   - `AFastenedBeltBringsTheHoldingPassengerBackToItsSeatWithThePen`.
   - `AStrappedPassengerStaysAtItsSeatThroughABurn`: 3 m/s² for 20 s, within 0.1 m.
   - `AStrappedPassengerNeverOpensItsBelt`: 60 s weightless.
   - `AFastenBeltBeforeTheTakeChangesNothing`.
 - `ShuttleTests`:
-  - `TheWindowsAreHolesInTheDrawnHullAndTheInteriorStaysSolid`, as in `ShipWindowTests`.
+  - `TheWindowsAreHolesInTheDrawnHullAndTheInteriorStaysSolid`, as in `ShipWindowTests`. Ticket ter-4xkz replaced it with `TheInteriorStaysSolidAtTheGlass` and the tests of the glass in `LoftedHullTests`.
 - `DemoStationTests` builds the scene `demo-surface` without a script:
   - `TheStationOrbitsInTheLaunchPlane400KmUp`.
   - `TheStationTurnsAboutItsAxisAtTheRateThatGivesOneGravityOnTheFloor`: `FrameTree.FeltGravity` on the floor gives 9.81 m/s².
@@ -610,7 +611,7 @@ Components on the real World, in scenes that the tests build from the demo's spa
 The run of the checked-in script:
 
 - `BlueDanubeScriptTests` stays as it is. So `scripts/blue-danube.json` is written again with the new sections.
-- `BlueDanubeRendezvousRun` is a fixture like `BlueDanubeFilmRun`. It runs the checked-in script through the film `hold`, on the real World with no renderer, and without the world's invariant checks, which cost 6.6 ms a tick with the station. It keeps a log of every tick from the first of the parking orbit, like `LaunchLog`, and records what the camera of each frame sees.
+- `BlueDanubeRendezvousRun` is a fixture like `BlueDanubeFilmRun`. It runs the checked-in script through the film `hold-chase`, on the real World with no renderer, and without the world's invariant checks, which cost 6.6 ms a tick with the station. It keeps a log of every tick from the first of the parking orbit, like `LaunchLog`, and records what the camera of each frame sees.
 - Its tests:
   - `TheParkingOrbitLiesInTheLaunchPlane`.
   - `ThePassengerIsStrappedBeforeTheFirstBurn`.
@@ -622,17 +623,17 @@ The run of the checked-in script:
   - `TheShuttleStaysInEarthSurfaceThroughTheWholeStep`.
   - `TheGlideStaysWithin5MOfTheAxis`.
   - `TheShuttleHoldsAtTheHoldPointWithItsNoseAtTheSlot`.
-  - `TheStationLiesInsideTheWindowInEveryFrameOfTheWindowFilms`: with `Picture.Project`, the station's center lies in the picture, and the line from the camera to it crosses both faces of the wall inside the hole: the aft port window in `brake` and the nose window in `glide-window`.
+  - `TheStationLiesInsideTheWindowInEveryFrameOfTheWindowFilms`: with `Picture.Project`, the station's center lies in the picture, and the line from the camera to it crosses both skins inside the holes of a pane of `Shuttle.Glass`: `pane-port-7` in `brake` and `pane-nose` in `glide-window`. Ticket ter-4xkz changed it on purpose from the small windows.
   - `TheStationIsInThePictureOfEveryFrameOfClosing`.
   - `ThePenStaysInThePassengersHandThroughTheBurns`.
-  - `TheCockpitCameraShowsTheStrappedPersonWithThePenAndTheNoseWindow`: in every frame of the films from `cockpit-camera`, the person's eye, the pen and the middle of the nose window lie in the picture, and the person covers at most half of it. In every frame of `night`, `burn`, `transfer-night` and `arrival`, the line from the camera to the pen passes outside the person's box.
+  - `TheCockpitCameraShowsTheStrappedPersonWithThePenAndTheNoseWindow`: in every frame of the films from `cockpit-camera`, the person's eye, the pen and the middle of `pane-nose` lie in the picture, and the person covers at most half of it. In every frame of `night`, `burn`, `transfer-night` and `arrival`, the line from the camera to the pen passes outside the person's box.
   - `TheWorldLogsNoErrors`.
 
 The screenshots that end the ticket come from one headless run of the long script with `--video` and the real renderer. `ffmpeg-headless` takes four frames out of the video, and the agent looks at each first:
 
 - The strapped person with the pen, at the end of `belt`.
-- The station through the port window during the brake.
-- The station in the nose window with Earth's limb below, at the end of `glide-window`.
+- The station through `pane-port-7` during the brake.
+- The station through `pane-nose` with Earth's limb below, at the end of `glide-window`.
 - The shuttle holding on the axis by the hub, from `rim-camera` in `hold`.
 
 A run that writes PNG files takes 80 ms for each of about 12,000 frames, so the video is the faster way.
@@ -642,13 +643,14 @@ A run that writes PNG files takes 80 ms for each of about 12,000 frames, so the 
 - Ticks: the step adds about 270,000 ticks. It runs from the end of `take`, about 357 s into the run, to the end of `hold`, about 4,876 s. The whole long script runs about 292,000 ticks, against 23,200 today.
 - A tick of the orbital coast took 0.133 ms headless on 2026-10-20. That is 60,000 ticks in 8.0 s, at a load average of 3 to 4.
 - The station adds a kinematic hull on rails in a following frame, its `KeplerMotion`, and static bodies in a frame with no moving body.
-- The autopilot adds one propagation in each tick of `Phasing`. In each tick of `Transfer` it adds one propagation and one Lambert solution, about 100 steps of bisection, a few microseconds.
+- The autopilot adds one propagation in each tick of `Phasing`. In each tick of `Transfer` before the coast, it adds two propagations, one for the coast's angle and one for the steering, and one Lambert solution, about 100 steps of bisection, a few microseconds. In the coast by the time, it adds none.
 - So a tick takes about 0.15 to 0.17 ms, about 45 s for the ticks of the step.
 - Frames: about 12,100 more, 200 s of video, at 3.5 ms each into the video. That adds about 43 s.
 - The generator's rehearsal takes about 55 s, from 10 s. The headless video of the whole script takes about 110 to 115 s, from 22 to 24 s.
 - `BlueDanubeScriptTests` and `BlueDanubeRendezvousRun` each take about a minute. So the host tests take about 2 minutes longer.
 - Measured on 2026-10-20: the step's sections run 270,823 ticks and 11,658 frames, and the whole script runs 292,242 ticks and 15,806 frames. The rehearsal took 107 s, and the headless video 110 s, at a load average from 3.7 to 6.5. `BlueDanubeRendezvousTests` ran in about 112 s in Debug, without the world's invariant checks.
 - The component tests fly short plans of a few thousand ticks each. One flight of the short plan, shared by the tests of the brake, the glide and the hold, runs about 29,000 ticks: 300 s of transfer, 120 s of glide and 60 s of hold. Measured on 2026-10-20: with the station, the world's invariant checks (`WorldOptions.DebugChecks`) cost 6.6 ms a tick, against 0.125 ms without them. So `RendezvousAutopilotTests` runs without them, in about 10 s. With them, its 40,000 ticks would take about 4.5 minutes.
+- `RendezvousCoastTests` flies one transfer of about 60,000 ticks, without the invariant checks. It ran in about 17 s in Debug on 2026-10-20.
 
 ### Order of the work
 
@@ -694,6 +696,7 @@ Only engine changes go to the user (the user's rule of 2026-10-18). So this desi
 | The station's orbit | A circle 400 km up in the launch plane, as the comment of the parking orbit already says | A transfer of half an orbit, about 43 minutes, which the video's viewer can check |
 | The planes | The climb steers into the launch plane. | A real launch flies into the plane of its target. A copy of the measured tilt of 0.17 degrees in the station breaks at the next change of the climb. |
 | The transfer | Lambert to the arrival point, 170 degrees in 2,560 s, from the window | One law that corrects every error from the state. At 180 degrees, an arrival point to the side has no plane. The cost is 3 percent above Hohmann's. |
+| The end of the steering | A coast from 60 s before the arrival, or from a transfer angle of 2 degrees, whichever comes first | Lambert's problem refuses an angle within 1 degree of 0. The angle at the coast depends on the orbits, so a guard on the plan cannot see it. |
 | The window | At φ = 120 degrees, set by `OverPadAt` = 38 s | The arrival at φ = 290 degrees falls in daylight, with Earth's limb lit below the station. |
 | The arrival point | 1.5 km out on the axis | The station is 7.7 degrees wide there, 84 px in the 720-line picture. It grows through the glide, and the brake's 740 m fit. |
 | The burns | 3 m/s² on the main engine, a throttle of about 0.10 | About 32 s for the departure burn, long enough to film, and far below the climb's force on the belt |
@@ -722,6 +725,570 @@ One, which the user chose on 2026-10-20: `KeplerOrbit.Propagate` and `KeplerOrbi
 - Earth's shadow. The demo's drawn Earth has no `CastsShadow`. To turn it on is a demo change, not an engine change. The orbit scene turns it on. But nobody measured what a caster of Earth's size does to the shadows of the pad. So the design films the night from the cabin. A later demo ticket can try it, with screenshots of the pad.
 - Readouts of speed, distance and the g-meter (see "Proof in the video"). The edit adds them.
 - The spin match, the entry, the landing on the deck, the exit, the chute and the openings in the ceiling: steps 5 and 6.
+
+## The shuttle's tram shape and glass canopy
+
+Ticket ter-4xkz designs the shuttle's new shape and its glass (2026-10-20). The user asked for huge panoramic windows all around the shuttle. A viewer then sees what goes on outside, and sees that the shuttle moves while things move inside it. The user also asked for a nicer shape than a box. From two designs, the user chose the tram shape and the glass canopy. The live world design adds one need: the hull stands on its tail, nose up, on a flat landing pad ([Live world](live-world.md), part 3, and "What this design asks of other tickets"). Nothing in the renderer changes. The engine gets no change for mass properties: the user decided on 2026-10-20 that the hull has one density (see "Engine changes").
+
+### What the step does
+
+- The hull keeps its outer size, 6 by 4 by 16 m. The station's slot, the ramp, the pad and the boarding are built around it. Its long edges get bevels. Its nose narrows and slopes over its last 3 m like a train's cab. Its belly stays flat to the front, so it rides the ramp and lands on the deck as before.
+- The tail is a flat face across the whole cross-section. The main engine's nozzle is recessed into it, on the line of thrust through the center of mass. So the hull stands on its tail.
+- A band of glass runs along both sides and around the nose, from 0.6 m above the cabin floor. It goes on over the roof's bevels and the roof. Thin pillars and ribs cross it about every 2 m. The glass breaks around the hatch.
+- The pen's clip stays where it is, now on a pillar of the port wall. The cabin's lamps move from the roof to the pillars.
+- The outer collision shape is the convex hull of the new outer skin. The interior shape is the drawn hull's solid, so the cabin is what a viewer sees. The mass stays 20 t. `Shuttle.Inertia` becomes what physics derives for the new hull, with its principal axes.
+- A demo mesh generator, `LoftedHull`, lofts the cross-sections along the length. It gives the mesh, the panes, the collision shapes and the mass properties from one description.
+- The chase camera moves to the shuttle's starboard quarter, so that it sees the person through the glass. Two short films, `seated-outside` and `hold-chase`, show the person inside from outside on the ground and at the station.
+
+Terms used in this section:
+
+- The shuttle's axes, as before: +Y is up, -Z is the nose, +X is starboard. The origin is the center of the 6 by 4 by 16 m box.
+- A cross-section: the outline of the outer skin in the plane across the length at one z. It is a convex polygon in (x, y).
+- A corner and an edge: the corners of a cross-section are numbered 0 to 9. Edge i runs from corner i to corner i + 1, and edge 9 runs back to corner 0.
+- A rib place: a z at which a rib crosses the hull. The rib places cut the length into bays, numbered from the nose.
+- A cell: the flat four-sided piece of the outer skin over one edge in one bay.
+- A panel: a flat piece of skin that holds at most one hole. It is a cell, the run of cells in one plane round the hatch, or a part of an end face.
+- The front: the flat face of the nose, at z = -8.
+- A face: a run of edges that lie on one line in every cross-section. The sill splits each side into two edges, and the two make one face.
+- The outer skin and the inner skin: the hull's surface outside and the cabin's surface inside. The wall is the solid between them.
+- A surround: the strip of solid skin between the edge of a cell and its glass.
+- A rib: the solid strip across the glass at a rib place, 0.2 m wide. A pillar is a rib's part on a side.
+- A mullion: the solid strip along a fold between two cells of glass, 0.12 m wide.
+- The sill: the line along each side at y = -1.2 m, 0.6 m above the cabin floor, where the glass band starts.
+- The hull's middle: the origin. The hull's middle line: the line x = 0, y = 0, along Z.
+- The long axis: the hull's principal axis of least inertia, through its center of mass.
+
+### The cross-sections
+
+The hull is lofted through two cross-sections: the full one, from z = -5 to the tail at z = 8, and the nose's front, at z = -8. Between z = -8 and -5, each corner moves on a straight line. It runs from its place in the front to its place in the full cross-section. The corners run counterclockwise seen from aft, from +Z.
+
+| Corner | Where | Full, z = -5 to 8 | Nose front, z = -8 |
+|---|---|---|---|
+| 0 | Port end of the belly | (-2.8, -2) | (-2.2, -2) |
+| 1 | Starboard end of the belly | (2.8, -2) | (2.2, -2) |
+| 2 | Top of the starboard belly bevel | (3, -1.8) | (2.4, -1.8) |
+| 3 | Starboard sill | (3, -1.2) | (2.4, -1.2) |
+| 4 | Foot of the starboard roof bevel | (3, 1.2) | (2.4, -0.2) |
+| 5 | Starboard edge of the roof | (2.2, 2) | (1.6, 0.6) |
+| 6 | Port edge of the roof | (-2.2, 2) | (-1.6, 0.6) |
+| 7 | Foot of the port roof bevel | (-3, 1.2) | (-2.4, -0.2) |
+| 8 | Port sill | (-3, -1.2) | (-2.4, -1.2) |
+| 9 | Top of the port belly bevel | (-3, -1.8) | (-2.4, -1.8) |
+
+| Edge | Name | Glass, and the panes' name |
+|---|---|---|
+| 0 | Belly | Solid |
+| 1 | Starboard belly bevel | Solid |
+| 2 | Starboard lower side | Solid |
+| 3 | Starboard upper side | Glass, `starboard` |
+| 4 | Starboard roof bevel | Glass, `starboard-bevel` |
+| 5 | Roof | Glass, `roof` |
+| 6 | Port roof bevel | Glass, `port-bevel` |
+| 7 | Port upper side | Glass, `port` |
+| 8 | Port lower side | Solid |
+| 9 | Port belly bevel | Solid |
+
+The shape:
+
+- The roof bevels have legs of 0.8 m at 45 degrees. They carry the glass from the sides onto the roof, so the canopy wraps the cabin's upper edges.
+- The belly bevels have legs of 0.2 m at 45 degrees. A larger one reaches above the hatch's sill, 0.3 m above the belly. The flat belly between them is 5.6 m wide, wider than the ramp's 4 m.
+- Over the nose's last 3 m, the roof falls from y = 2 to 0.6 m, a slope of 25 degrees. The sides close in from x = ±3 to ±2.4 m, 11.3 degrees each. The belly stays flat to the front. The front is a flat face 4.8 m wide and 2.6 m tall. Like a train's cab, it is a raked windscreen above a flat front.
+- The tail is short: the hull keeps the full cross-section to its aft end, and the aft end is a flat face across all of it, the tail face.
+- The sill corners, 3 and 8, lie on the straight sides. They only split each side into the solid lower edge and the glass upper edge.
+
+Every edge of the front is parallel to the same edge of the full cross-section. Every cross-section but the tail face lies at a rib place, at z = -8 and -5, so no bay holds a bend. So every cell is flat, and the cross-section at each z between them is the blend of the two, which is also their Minkowski blend. So the loft between two cross-sections is exactly their convex hull, and the whole outer skin is convex.
+
+The inner skin is each cross-section moved in by the wall, 0.2 m, along each edge's normal in the plane of the cross-section. Its inner end faces lie at z = -7.8 and 7.8. In the full cross-section, the inner skin has:
+
+- The floor at y = -1.8, from x = -2.717 to 2.717. A chamfer with legs of 8 cm rises from its edges to the side walls at y = -1.717.
+- The side walls at x = ±2.8, up to y = 1.117.
+- The inner roof bevels from (±2.8, 1.117) to (±2.117, 1.8), and the roof at y = 1.8.
+
+So the cabin is the box of `Shuttle.Cabin`, 5.6 by 3.6 by 15.6 m. The bevels along its four long edges and the nose cut it. Where the walk, the seat, the pen and the float happen, from z = -5 aft and away from the bevels, it is the box. A sloped wall of the nose is 0.18 m thick across, because the wall is measured in the plane of the cross-section.
+
+### The glass canopy
+
+The rib places are z = -8, -6.5, -5, -3, -1, 1, 3, 5 and 7 m. The one at -8 is the rim of the nose.
+
+| Bay | From z | To z | What lies there |
+|---|---|---|---|
+| 1 | -8 | -6.5 | The front half of the windscreen |
+| 2 | -6.5 | -5 | The aft half of the windscreen |
+| 3 | -5 | -3 | The seat, from z = -4.8 to -4.2, and `Shuttle.SeatStand` at -3.75 |
+| 4 | -3 | -1 | The lamps at its forward rib |
+| 5 | -1 | 1 | The pen's pillar at its forward rib |
+| 6 | 1 | 3 | The hatch, from z = 1.4 to 2.6, on starboard |
+| 7 | 3 | 5 | The view of `port-window-camera` |
+| 8 | 5 | 7 | The aft end of the band |
+| 9 | 7 | 8 | The tail band, solid |
+
+The glass:
+
+- Each of the five glass edges holds a pane in each of bays 1 to 8. The one exception is the starboard upper side in bay 6, where the hatch is. That makes 39 panes. The nose's front holds one more above the sill, `pane-nose`. So the canopy has 40 panes.
+- A pane's scene id is `pane-` with its edge's name and its bay, such as `pane-port-7` and `pane-roof-4`.
+- A cell's hole is the cell moved in from each of its four sides. At a rib place the side moves in by 0.1 m, half of a rib. At a fold whose neighbor cell holds glass too, it moves in by 0.06 m, half of a mullion. Where the neighbor cell is solid, as at the sill and above the hatch's panel, it moves in by 0.1 m.
+- The front's glass part is the front above the line between its sill corners. Its hole is that part moved in by 0.1 m on every side.
+- So the side glass runs from y = -1.1, 0.7 m above the floor, to 1.14 m. The pillars are 0.2 m wide, and each bay of the body holds panes 1.8 m long.
+- The inner skin's holes are the same moves in the inner cells. Each inner cell is parallel to its outer cell, and the moved sides stay parallel. So each side of a hole, its reveal, is a flat face from the outer hole to the inner one. At a fold the reveal slants a little, because the inner cell is narrower.
+
+The holes of the panes that tests and cameras read, in the shuttle's axes, at the outer skin:
+
+| Pane | The outer skin | Hole |
+|---|---|---|
+| `pane-nose` | z = -8 | The hexagon (2.3, -1.1), (2.3, -0.241), (1.559, 0.5), (-1.559, 0.5), (-2.3, -0.241), (-2.3, -1.1). Its middle lies near (0, -0.3). |
+| `pane-starboard-4` | x = 3 | y from -1.1 to 1.14, z from -2.9 to -1.1 |
+| `pane-starboard-5` | x = 3 | y from -1.1 to 1.14, z from -0.9 to 0.9 |
+| `pane-port-7` | x = -3 | y from -1.1 to 1.14, z from 3.1 to 4.9 |
+| `pane-roof-4` | y = 2 | x from -2.14 to 2.14, z from -2.9 to -1.1 |
+
+The hatch's cut:
+
+- In bay 6, the starboard lower and upper side cells make one flat panel. It runs from y = -1.8 to 1.2 and from z = 1 to 3. The doorway `Shuttle.Hatch` goes through it, unchanged: z from 1.4 to 2.6, y from -1.7 to 0.4, through the wall from x = 2.8 to 3.
+- The rest of the panel is solid. So the glass band on starboard breaks for bay 6. The wall stays solid for 0.4 m on each side of the doorway and for 0.8 m above it. The glass of the bevel and the roof runs on above it.
+- The inner panel runs from y = -1.717, the top of the inner chamfer, to 1.117. So the doorway's sill lies 1.7 cm above the chamfer, on the flat wall.
+
+The pen's clip:
+
+- The clip keeps its place, `DemoSurface.PenClip`: 1.5 m above the floor, at z = -1, 1 cm from the port wall's inner face.
+- The rib place at z = -1 puts a pillar there, from z = -1.1 to -0.9. The pen is 0.14 m long along Z, from z = -1.07 to -0.93. So it lies on the pillar with 3 cm to spare at each end, and it never hangs in front of glass.
+- The place does not move, so the pen's drift, the take, the hand camera, `PenClipTests` and `DemoLaunchTests` keep their numbers.
+
+The lamps:
+
+- Four lamps hang on the inner faces of the pillars at z = -3 and 3, on both walls. They hang 2.4 m above the floor, at y = 0.6.
+- Each is a glowing panel 0.05 m thick, 0.5 m tall and 0.15 m wide. Its point light lies 0.3 m in front of it, toward the cabin's middle. The light has a range of 10 m and an intensity of 50. Four lamps give the light of today's two roof lamps at 100.
+- A pillar is 0.2 m wide, so it hides its lamp from outside.
+- The lamp at z = 3 on starboard hangs where the hatch's panel meets bay 7's pillar.
+- A point light casts no shadow yet. So the lamps also light faces that the hull hides from them, as the roof lamps do today.
+
+### The tail face and the nozzle
+
+- The tail face is the full cross-section at z = 8, flat. The outer collision shape fills the pocket below, so the hull stands on the whole face.
+- The pocket is a square hole in the tail face, 1.4 m on a side and 0.6 m deep, from z = 8 to 7.4. Its middle lies on the line of thrust through the center of mass, at (0, -0.090).
+- The housing closes the pocket inside the cabin: a box 1.8 m on a side around the pocket, from the cabin's aft wall at z = 7.8 forward to 7.2. Its walls and its front are 0.2 m thick, as the hull's wall is. `cabin-camera`, at z = 6.8, lies 0.4 m forward of it, and nothing walks aft of the hatch. So `Shuttle.Cabin` keeps its size.
+- The nozzle is its own entity, `nozzle`, in the cabin's frame, drawn only, in dark gray. It is a `RevolvedSolid.Ring` from 0.5 to 0.6 m in radius and 0.5 m long, in 32 segments. Its axis lies along Z, and it runs from z = 7.45 to 7.95. Its aft rim lies 5 cm inside the tail face, and its outside lies 0.1 m from the pocket's walls.
+
+Why the nozzle sits on the line through the center of mass: the main engine pushes at the center of mass (`MainEngine`, `Self.Body.AddForce`), so the nozzle's place changes no force. But a nozzle drawn off that line shows a thrust that turns the ship, and the ship does not turn.
+
+### The mass, the collision shape and the inertia
+
+The outer collision shape is a `ConvexHullShapeDesc` of the 24 true corners of the three cross-sections at z = -8, -5 and 8, eight each. The sill corners lie on straight edges and add nothing. Jolt drops such points from a hull. The hull keeps the default convex radius, as the box has today, so its edges meet the ramp's foot with the same rounding. The mass stays `Shuttle.Mass`, 20 t.
+
+For a body with a mass, physics takes the mass properties of its shape at one density (`JoltPhysicsBackend`, `OverrideMassProperties.CalculateInertia`). The center of mass lies at the shape's centroid, and the inertia is the shape's. A scratch script of this design computed them for the hull on 2026-10-20:
+
+| Value | The new hull | The box of today |
+|---|---|---|
+| Volume | 355.0 m³ | 384 m³ |
+| Center of mass | (0, -0.090, 0.356) m | (0, 0, 0) |
+| Moment about X | 420,614 kg·m² | 453,333 kg·m² |
+| Moments about the two principal axes in the YZ plane | 451,666 and 80,645 kg·m² | 486,667 and 86,667 kg·m² |
+| The long axis | 1.03 degrees from Z, with its nose end down | Along Z |
+
+- X is a principal axis, because the hull is mirror symmetric across x = 0.
+- The center of mass lies low and aft, and the long axis tilts, for one reason: the roof bevels are larger than the belly bevels, and the nose's roof falls while its belly stays flat. Both take volume from above, and the nose takes it from the front.
+- The live world asks for a center of mass on the long axis. Its long axis is the hull's middle line, because it measures the seat's distance from x = 0, y = 0. A hull of one density with the look that the user chose puts the center of mass 9 cm below that line, with principal axes that tilt from the hull's own.
+- The user decided on 2026-10-20 that the hull keeps one density, with no engine change for mass properties apart from the collision shape (see "Engine changes"). So the center of mass sits where physics derives it, the attitude autopilot takes the principal axes, and the nozzle pushes through the center of mass. The reason: these two demo changes cover every effect of the offset that the demo shows, so the engine change would add a field of `BodyDesc` that the demo does not need.
+
+How the demo derives the values: `LoftedHull.MassOf(mass)` integrates the outer loft exactly. Between two cross-sections, the cross-section at each z has corners that move linearly in z. So the area is a polynomial in z of degree 2, the first moments of degree 3, and the second moments of degree 4. Each integrand, with its factor of z or z², has a degree of at most 4. A Gauss rule of three points over each loft piece is exact to degree 5. The method integrates in doubles and rounds its result to floats once. It returns a `HullMass(Vector3 CenterOfMass, PrincipalInertia Inertia)`, where `PrincipalInertia(Vector3 Moments, Quaternion Axes)` holds the moments about the principal axes and the rotation from the body's axes to them.
+
+- `Shuttle.CenterOfMass` and `Shuttle.Inertia`, now a `PrincipalInertia`, come from `Loft.MassOf(Mass)`. `BoxInertia` goes.
+- `AttitudeAutopilot` takes a `PrincipalInertia`. It turns the angular acceleration that it asks for into the principal axes, multiplies it by the moments there, and turns the torque back. The torque about a tilted tensor matters: a torque about the hull's Y, on this tensor, turns the hull about an axis 4.7 degrees from Y. With only the moments in the body's own axes, as today, the autopilot asks for one turn and gets another.
+- The autopilot's precondition becomes: its body's principal axes are `Axes` in its own axes.
+
+The tests that tie the values to physics read only what physics does, in a root frame with no gravity and no damping:
+
+- The point at `Shuttle.CenterOfMass` stays still while the free hull spins: about X at 0.5 rad/s, and about the long axis at 0.3 rad/s, each for 2 s, within 1 mm.
+- A torque of 10,000 N·m along each principal axis acts on the hull at rest for 30 ticks. The angular velocity along that axis is then the torque times the time over the moment, within 0.1 %. Across the axis, it is less than 0.1 % of that.
+
+### The interior shape
+
+The interior shape is the drawn hull's solid, in convex pieces. The glass is solid there, as in the orbit scene's ship, so the glass stops a body as a wall does. The hatch is open.
+
+| Pieces | How many | Each piece |
+|---|---|---|
+| A wall piece for each face, in the nose from z = -7.8 to -5 and in the body from -5 to 7.8 | 8 faces, twice, 16 | The convex hull of the face's outer and inner edges at both ends, 8 points |
+| The starboard side of the body, around the hatch | It replaces one of the 16 by 4 | The side's wall piece, cut by `Door` round `Shuttle.Hatch` into four convex hulls: aft of the doorway, forward of it, above it and below it |
+| The nose wall | 1 | The convex hull of the outer cross-sections at z = -8 and -7.8 |
+| The tail wall | 1 | The full cross-section from z = 7.8 to 8 |
+| The housing | 1 | A box 1.8 m on a side, from z = 7.2 to 7.8 |
+| The seat | 1 | `Shuttle.Seat`, as before |
+
+The wall pieces meet in mitres: two neighbor pieces share the plane through the outer and the inner corner between their faces. So the starboard side's piece runs from y = -1.8 to 1.2 at x = 3, and from -1.717 to 1.117 at x = 2.8. Boxes cannot fill that shape. The four boxes of `AroundDoorway` would overlap the bevels' pieces or leave wedges between them. So `Door` cuts the mitred piece itself:
+
+- Aft of the doorway and forward of it: the whole side's piece, from z = -5 to 1.4 and from 2.6 to 7.8.
+- Above the doorway: the side's piece from y = 0.4 up to its mitre, from z = 1.4 to 2.6.
+- Below the doorway: the side's piece from its mitre up to y = -1.7, from z = 1.4 to 2.6. It is 1.7 cm tall at the inner skin.
+
+That makes 23 pieces. Every piece has the convex radius 0, as the hulls of `RevolvedSolid` have. So the pieces meet the drawn skins exactly, and physics gives the body edge removal, because its shape is made of sharp pieces.
+
+Why not the solid box of today: at the nose's front, the cabin box's ceiling lies 1.2 m above the drawn nose. Along the roof bevels, the cabin box reaches 0.28 m past the drawn hull. So with the box, a body inside moves where the drawn hull is not. The box's outer edges stand 0.57 m outside the bevels. So a body outside, in the cabin's frame, meets walls that nobody sees. The ticket asked for the box so that the walk, the seat, the pen and the float do not change. They do not: where they happen, the new cabin is the box. The floor is one piece from z = -5 to 7.8, so the walk crosses no joint.
+
+### The mesh generator
+
+`LoftedHull`, in `src/Tertius.Demo/LoftedHull.cs`, builds a hull from one description, as `RevolvedSolid` and `BoxMesh` build theirs. Part A builds its shape, and part B adds the glass.
+
+| Member | What it gives | Part |
+|---|---|---|
+| `LoftedHull(HullSection[] crossSections, float wall, float[] ribs)` | A hull through the cross-sections, each a `HullSection(float Z, Vector2[] Corners)`, in order of Z. The first is the nose's front and the last the tail face. `wall` is the wall's thickness in the plane of a cross-section. `ribs` are the rib places, from the first cross-section's Z to before the last. | A |
+| `Door(BoundingBox door, int bay, int fromCorner, int toCorner)` | A doorway through the flat panel of the edges from `fromCorner` to `toCorner` in `bay`. The box spans the wall, as `Opening.ThroughX` does. `Interior()` cuts the wall piece of that face into four convex hulls round it. | A |
+| `TailPocket(float half, float depth, float housing)` | A square pocket in the tail face, on the line along Z through the center of mass. It reaches `half` from its middle to each side and is `depth` deep. The walls of its housing are `housing` thick. | A |
+| `Mesh()` | The drawn hull | A |
+| `Shape()` | The outer collision shape | A |
+| `Interior()` | The wall pieces, the end walls and the housing, as `CompoundChild` values. The caller adds its furniture, such as the seat. | A |
+| `MassOf(float mass)` | The `HullMass` of the outer loft at one density | A |
+| `Glass(string pane, int edge, int bay)` | A pane in one cell | B |
+| `NoseGlass(string pane, int fromCorner, int toCorner)` | A pane in the front above the line between the two corners | B |
+| `Surrounds(float rib, float fold, float solid)` | The surround widths: at a rib place, at a fold between two cells of glass, and next to a solid cell | B |
+| `Panes()` | A `HullPane(string Id, Vector3 Center, Vector3[] Outer, Vector3[] Inner, MeshData Mesh)` for each pane: its hole at both skins, and its mesh relative to its center | B |
+
+`Shuttle.Loft` holds the shuttle's hull. As part B leaves it:
+
+```csharp
+new LoftedHull([new HullSection(-Hull.Z, NoseFront), new HullSection(NoseStart, Full), new HullSection(Hull.Z, Full)], Wall, Ribs)
+    .Door(Hatch, bay: 6, fromCorner: 2, toCorner: 4)
+    .TailPocket(half: 0.7f, depth: 0.6f, housing: Wall)
+    .Surrounds(rib: 0.1f, fold: 0.06f, solid: 0.1f)
+    .NoseGlass("pane-nose", fromCorner: 3, toCorner: 8)
+    .Glass("pane-port-7", edge: 7, bay: 7)
+```
+
+where
+
+- `NoseFront`, `Full` = the corners of the table "The cross-sections", in order.
+- `NoseStart` = -5, where the nose's loft ends.
+- `Hull.Z` = 8, so the front lies at z = -8 and the tail face at 8.
+- `Wall` = 0.2 m. `Ribs` = the rib places of "The glass canopy".
+- `Glass("pane-port-7", edge: 7, bay: 7)` = one of the 39 calls of `Glass`, one for each pane of "The glass canopy". The shuttle makes them in a loop over the bays and the five glass edges.
+
+What `Mesh()` holds:
+
+- The outer skin: every cell, with its hole where it has glass or the door. The inner skin: every inner cell, facing into the cabin.
+- The reveals: four flat faces around each hole, from the outer hole to the inner one, facing into the hole.
+- The nose wall: the outer front at z = -8 and the inner one at -7.8. Each is two panels, below and above the line between the sill corners. The upper panels hold the glass's hole.
+- The tail wall: the tail face round the pocket's mouth, and the pocket's four walls and its floor. Inside, the aft face at z = 7.8 round the housing, and the housing's four walls and its front.
+
+How the generator keeps the mesh closed:
+
+- The skin is a grid of places: each corner at each rib place, and at each end of the loft, is one place that the cells around it share. A panel adds places only inside itself, as `BoxMesh` does. So the mesh has no T-junction.
+- A panel whose hole has as many corners as the panel is drawn as one four-sided strip per side. Each strip runs between the panel's edge and the hole's edge.
+- A panel whose hole has fewer corners is drawn as a fan between two convex polygons. The generator walks both outlines in angle round the hole's middle. The tail faces and the hatch's panel are such panels.
+- Each panel has its own vertices at those places, with its own flat normal, as the sharp corners of `RevolvedSolid` have. The tangent runs along the face's first edge. The vertices have no texture coordinates.
+- Front faces wind counterclockwise, as in `Primitives`.
+
+A pane's mesh is a slab 2 cm thick in the middle of its wall, as `PaneIn` makes a pane. Its outline is the hole's outline at the middle of the wall, grown by 1 cm on each side. So its edges hide in the surround. Its vertices are relative to its `Center`.
+
+The generator refuses, with an `ArgumentException` that names the problem, as `BoxMesh` does:
+
+- Cross-sections with different counts of corners.
+- A cross-section that is not convex, or not counterclockwise.
+- An edge that is not parallel to the same edge of every other cross-section.
+- Rib places that are not in order, or that lie outside the loft.
+- A cross-section, other than the last, whose Z is not a rib place. A cell is flat only when no cross-section lies inside its bay.
+- A door that reaches the edge of its panel, or a panel whose edges do not lie in one plane.
+- A pane in a cell narrower than its surrounds, or a pocket whose housing reaches the hull's wall.
+
+### How the panes are drawn
+
+The panes use what the renderer has today. Each pane is its own entity in the cabin's frame, with no body. It has `RenderFlags.Transparent` and not `CastsShadow`. Its material has the color of today's glass: mostly clear, with a slight blue tint. It has an alpha of 0.2 and a gloss of 0.9. Its specular intensity is 0.18, that of glass with an anti-reflection coating, which reflects about 0.5 % of the light that meets it head-on. The orbit scene's glass has a specular intensity of 1 and reflects 16 % head-on. The window films look head-on through the glass, and the cabin's lamps lie in front of it. With 16 %, each lamp's highlight in `pane-nose` and `pane-port-7` was a white blob beside the station. At a grazing angle, glass reflects much more, whatever its coating, so the lamps' highlights on the side and roof glass in the cabin views stay.
+
+The renderer draws transparent instances in one forward pass after the lighting, blended, and sorted back to front by each instance's center (ARCHITECTURE.md, "Transparent objects"). It culls back faces, writes no depth, and tests occlusion against the G-buffer's distance. What that means for the canopy:
+
+- One flat pane per cell, and one cell per instance, so no instance can cover itself. A culled slab shows one face to the camera.
+- From outside, the near panes show their outer faces and the far panes their inner faces. The canopy is convex, so the near panes never cover each other, and neither do the far ones. The sort draws the far panes first.
+- When the sort puts two panes in the wrong order, the look hardly changes. Both have the same color and alpha, and two equal colors blend to the same color in either order. Only their highlights differ.
+- A pane's mesh lies round its own center, so the sort and the culling read the pane's real place. A mesh at the cabin's origin gives every pane the same distance.
+- The person behind the glass is opaque in the G-buffer, so the near pane draws over it. Through two panes, 64 % of the light behind comes through.
+- The panes cast no shadow, so the sunlight falls into the cabin through the holes of the drawn hull, which casts the shadows.
+- The hull's drawn entity gets `RenderFlags.NoImpostor`. An impostor is a flat picture of the hull alone, which cannot hold the person inside at its depth. The hull has about 1,500 triangles, so its geometry costs little. The person and the seat still become impostors at a small size on the screen, as everything does. An impostor writes its distance, so the glass in front of it still draws over it.
+
+So the look needs no change to the renderer.
+
+### The cameras
+
+| Camera | Frame | Pose | Kept or new | Why, and what it sees |
+|---|---|---|---|---|
+| `cabin-camera` | The shuttle's | At (-2.3, 1.2, 6.8), looking at (1, -1.3, -4.5) | Kept | It lies 0.29 m inside the port roof bevel's inner face. It sees the seat and the hatch, as before, and through the starboard glass the pad and the terminal. |
+| `pen-camera` | The shuttle's | At (-1.5, 1.2, -0.45), looking at (-1.5, -0.3, -1.6) | Kept | It sees the pen on its pillar and the glass beside it, and the person's start from the seat. |
+| `hand-camera` | The shuttle's | At (0.5, -0.9, -0.7), looking at (-0.7, 0.05, -0.95) | Kept | It looks up at the hand that takes the pen, with the port glass and the roof's glass behind it. |
+| `window-camera` | The shuttle's | At (0, -0.15, -6.6), looking along -Z | Kept | It lies 1.2 m behind the front's inner face. Its middle looks through `pane-nose`, 0.95 m above the hole's bottom and 0.65 m below its top. The rib at z = -6.5 lies 0.1 m behind it. |
+| `port-window-camera` | The shuttle's | At (-2.2, -0.15, 4.2), looking out 20 degrees aft of abeam | Kept | In the brake, the station lies from 33 to 9 degrees aft of abeam. Its line meets the port wall's outer face from z = 4.72 to 4.33, inside `pane-port-7`, from 3.1 to 4.9. The pillar at z = 5 frames the view's aft side. |
+| `cockpit-camera` | The shuttle's | At (1.9, 0.9, -1.4), looking at (0.7, -1.3, -5.2) | Kept | It lies 0.79 m inside the starboard roof bevel's inner face. It sees the strapped person, the pen, and `pane-nose` beyond them. |
+| `chase-camera` | The shuttle's | At (19.5, 8.5, 34), looking at the origin | New | It lies 40.1 m from the hull's middle, 30 degrees to starboard of astern and 12 degrees up. The line to the seated person's eye passes through `pane-starboard-5` at (3, 0.79, 0.33). The far side's glass shows Earth or space behind the person. From the old place, 45 m astern and 10 m up, the tail band hid the person's body. Only its head showed, through the roof's glass at 12 degrees. At the hold, the station lies 25 degrees from the picture's middle. |
+| `climb-camera` | The shuttle's | At (0, 41, 29), looking at the origin | Kept | The line to the seated person's eye passes through `pane-roof-4` at (0.95, 2, -2.04). |
+| `bow-camera` | The shuttle's | 30 m ahead of the nose and 5 m above it, looking aft 30 degrees to port of astern | Kept | Its job is the station behind the shuttle in `closing`. It also looks at the windscreen. |
+| `apron-camera` | `earth-surface` | At (13, R + 3, 10), looking at (5, R + 1.2, 0.5) | Kept, and films `seated-outside` | The line to the seated person's eye passes through `pane-starboard-4` at (3, 0.04, -1.46) in the shuttle's axes, 18 m away. |
+| `follow-camera` | It follows the person | As before | Kept | The glass is solid in the interior shape, so its arm stops at the glass as at a wall. |
+
+A scratch script of this design checked each line through the glass on 2026-10-20, with the holes of "The glass canopy". The tests check them in the run.
+
+### Sections of the long script
+
+Two films are new, and two existing films give them their time:
+
+| Film | Camera | Ticks per frame | Ends | Change |
+|---|---|---|---|---|
+| `seated` | `cabin-camera` | 1 | After 0.75 s | It lasted 1.5 s |
+| `seated-outside` | `apron-camera` | 1 | After 0.75 s | New, after `seated`: the person at its seat through the starboard glass, on the ground |
+| `hold` | `rim-camera` | 1 | After 3 s | It lasted 5 s |
+| `hold-chase` | `chase-camera` | 1 | After 2 s | New, after `hold`: the person through the starboard glass, with the station ahead |
+
+Why the time is split: the ignition keeps its tick, so `DemoStation.OverPadAt` and the window keep their measured values. The run ends at the same tick, so the films `arrival` and `hold` still go on 8 s after the hold starts, as `BlueDanubeRendezvousTests` asks. Every other film keeps its camera. The films from `chase-camera` now show the person through the starboard glass. They are `climb-high`, `orbit`, `phasing`, `transfer`, `glide` and `hold-chase`.
+
+The script is written again in part A, because the hull's mass changes the run, and in part B.
+
+### Analogues
+
+| New value | Its analogue | What the new value takes from it |
+|---|---|---|
+| `LoftedHull` | `RevolvedSolid` and `BoxMesh` | One description gives the mesh and the collision shapes that match it. The mesh is closed with no T-junction, and an opening has its sides. Errors are `ArgumentException`s. |
+| `HullSection` | `RevolvedSolid`'s profile | A convex polygon whose sweep is the solid |
+| The cells and the rib places | `RevolvedSolid`'s segments | Flat pieces between fixed places |
+| `Door` | `Opening.ThroughX` and `AroundDoorway` | A hole through a wall with its sides, and four wall pieces round it. Here the pieces are cut from the mitred wall piece, not boxes. |
+| The panes | `PaneIn` | Glass with no body, 2 cm thick in the middle of its wall, 1 cm larger than its hole, transparent, with no shadow |
+| `LoftedHull.Shape` | The hull of `RevolvedSolid.Cylinder` | The convex hull of the corners |
+| `LoftedHull.Interior` | `RevolvedSolid.Shape`'s compound | Exactly the drawn solid, in convex pieces with the convex radius 0 |
+| `HullMass`, `MassOf` | `Shuttle.BoxInertia` | The mass properties that physics derives for the shape, computed in the demo |
+| `PrincipalInertia` | The moments that `AttitudeAutopilot` takes today | The same moments, with their axes. Today's value is its case with the body's own axes. |
+| The wall lamps | The spin station's wall lamps | A glowing panel on a wall, with its light just in front of it |
+| The nozzle | The station's ring meshes | A drawn `RevolvedSolid.Ring` |
+| The scene `demo-shuttle` and `scripts/demo-shuttle.json` | The scene `demo-meshes` and its script | A small scene that shows the demo's new solids, with a script of still captures |
+| `seated-outside`, `hold-chase` | `seated`, `hold` | A short film from a still camera, with a hold |
+| The checks of the glass in the run | `ThroughTheOpening` of `BlueDanubeRendezvousTests` | The line from a camera to a target crosses the hole at both skins |
+
+### Readers and writers
+
+The hull's values are fixed at the scene's build. Only the pen, the person and the hull move.
+
+| Value | Writer, and when | Readers, and when |
+|---|---|---|
+| The cross-sections, the rib places, the wall and the surrounds | Code, in `Shuttle` | `Shuttle.Loft`, at the first use of `Shuttle`'s statics |
+| The drawn hull | `Loft.Mesh()`, at the scene's build | The renderer, in every frame. The tests. |
+| `Shuttle.HullShape`, `Shuttle.InteriorShape` | `Loft.Shape()` and `Loft.Interior()` with the seat, at the first use | `Shuttle.Body`, at each spawn of a shuttle. Physics. |
+| `Shuttle.CenterOfMass`, `Shuttle.Inertia` | `Loft.MassOf(Mass)`, at the first use | `AttitudeAutopilot`, through `FlightControls`, at the spawn. The nozzle's place, at the scene's build. The tests. |
+| The body's mass properties | Physics, at the spawn, from the hull's shape and `Mass` | Physics, in every step. The tests, through spins and torques. |
+| `Shuttle.Glass`, the panes' holes and meshes | `Loft.Panes()`, at the first use | `Shuttle.Panes`, at the scene's build. The tests of the glass and the cameras, between ticks. |
+| The pane, lamp and nozzle entities | The scene's build | The renderer |
+| The cameras' poses | The scene's build | The renderer. The run's frames, which the run tests read between ticks. |
+| The pen's place, `DemoSurface.PenClip` | Code | The `Clip`, in its ticks. The tests. |
+
+### The flow per kind of entity
+
+| Entity | What moves it | Its components | Its frame | What it reads |
+|---|---|---|---|---|
+| Shuttle: the hull that owns the cabin's frame | Physics, as before, with the mass properties of its new shape | As before. The attitude autopilot takes its principal axes. | As before | As before |
+| Panes, lamps, the nozzle and the seat | Nothing. They are still in the cabin's frame. | None | The cabin's | Nothing |
+| Pen | The `Clip`, then physics, as before. It hangs on a pillar. | `Clip` | The cabin's | As before |
+| Person | As before. The cabin is the box where it walks, sits and floats. | `Walker`, `Passenger` | As before | As before |
+| Cameras | Nothing, except `follow-camera`, which `ChaseCamera` moves as before | None, or `ChaseCamera` | The cabin's, the station's or `earth-surface` | Nothing |
+
+### Built from scratch, compared
+
+A design from scratch, with the canopy known from the start, lofts the hull from its first ticket. It has the glass, the lamps and the clip on pillars, and the cameras placed for the glass. This design ends there, with two differences:
+
+- From scratch, a body's mass is a description of its own, apart from its collision shape, as a real hull's ballast is. Then the center of mass sits on the hull's middle line. Here the hull has one density, as the user decided on 2026-10-20 (see "Engine changes").
+- From scratch, the rib places follow only the look. Here a rib place sits at z = -1 because the clip was there first. The bays still come out about 2 m long, so the look does not suffer.
+
+### Tests
+
+Every test of physics runs the real World on the real Jolt backend, in `tests/Tertius.Host.Tests`. Each implementation brief asks for hand mutations: for each new test, the agent breaks the line that the test protects, watches the test fail, and restores the line.
+
+The generator, with no World, in `LoftedHullTests`, with the checks of `MeshChecks`. Each test builds the shuttle's hull and, where it needs one, a small hull of two cross-sections with one door, one pane and a pocket. The tests take the expected geometry from the tables of this section, not from the generator.
+
+- `TheHullsMeshIsClosed`: `MeshChecks.ExpectClosed`.
+- `TheHullsMeshFacesOutOfItsSolid`: `MeshChecks.ExpectFacingOut`, with a test of the solid that the test writes from the tables: inside the outer loft, and outside the cabin, the holes and the pocket.
+- `EachPaneIsAHoleThroughBothSkinsWhereTheDesignSays`: the test lists the 40 panes from the tables of bays and edges. For each:
+  - The segment from the middle of the outer hole to the middle of the inner hole, extended 0.5 m past each skin, crosses no triangle.
+  - For each corner of the hole, the segment from the outer hole's corner to the matching inner hole's corner crosses no triangle. Both ends are moved 5 cm in from the two sides that meet at the corner. The segment runs along the reveal, which slants at a fold, so it stays in the hole.
+  - A point 5 cm outside the middle of each side of the hole, halfway between the skins, lies in the mesh's solid: a ray from it crosses the closed mesh an odd number of times. At a fold the mullion is 12 cm wide, so the point lies in it.
+- `TheGlassBandStartsAtTheSillAndRunsOverTheRoof`: no pane reaches below y = -1.1. The five glass edges hold panes in every bay from 1 to 8, and the solid edges hold none.
+- `TheHatchIsAHoleThroughTheStarboardWallAndTheGlassBreaksAroundIt`: the doorway is open through both skins, and bay 6 holds no starboard pane. Part A has no glass, so it tests only the doorway, as `TheHatchIsAHoleThroughTheStarboardWall`. Part B adds the glass and gives the test its full name.
+- `EachPaneIsASlab2CmThickInTheMiddleOfItsWall`: each pane's mesh is closed and faces out. Its two large faces are parallel to its cell, 2 cm apart and halfway between the skins. Its outline is 1 cm larger than its hole.
+- `TheTailPocketIsARecessClosedAtItsDepth`: a line along -Z through the pocket's middle first meets the pocket's floor, at z = 7.4. A line 5 cm outside the pocket meets the tail face at z = 8.
+- `TheShapeIsTheConvexHullOfTheCrossSectionsCorners`: its points are the 24 corners, and every vertex of the outer skin lies within 1 mm of the hull.
+- `TheInteriorFillsTheWallsAndLeavesTheCabinAndTheDoorwayOpen`: the test takes a grid of points 5 cm apart. A point in the wall, in a pane's hole or in the tail pocket lies in exactly one piece. A point in the cabin or the doorway lies in none. Points within 1 mm of a skin are left out.
+- `TheMassOfAPrismIsTheBoxsMass` and `TheMassOfAFrustumIsTheFrustumsMass`: `MassOf` against the closed formulas, within a relative 1e-6 of each value. `MassOf` rounds to floats once, so its error is float's rounding, about 6e-8.
+- The refusals: `CrossSectionsWithDifferentCountsOfCornersAreAnError`, `ACrossSectionThatIsNotConvexIsAnError`, `AnEdgeThatIsNotParallelAcrossTheCrossSectionsIsAnError`, `ARibPlaceOutsideTheLoftIsAnError`, `ACrossSectionBetweenRibPlacesIsAnError`, `ADoorThatReachesTheEdgeOfItsPanelIsAnError` and `APaneNarrowerThanItsSurroundsIsAnError`. Part A adds four more, one for each refusal that the list above does not name: `ACrossSectionThatRunsClockwiseIsAnError`, `RibPlacesThatAreNotInOrderAreAnError`, `ADoorInAPanelWhoseEdgesDoNotLieInOnePlaneIsAnError` and `APocketWhoseHousingReachesTheWallIsAnError`. The test of the door's panel has two cases: two edges that meet at a right angle, and two edges that meet at a point while their ends lie on one line across X.
+
+The shuttle, on the World, in `ShuttleTests`:
+
+- `TheCenterOfMassStaysStillWhileTheFreeHullSpins` and `ATorqueAlongEachPrincipalAxisTurnsTheHullAboutThatAxisAtItsMoment` (see "The mass, the collision shape and the inertia").
+- `TheHullStandsOnItsTailOnAFlatPad`: a dynamic hull under 1 g, on its tail on a static box, stays upright within 1 degree for 60 s. The live world asks for it.
+- `TheTailFaceIsFlatAcrossTheCrossSection`: every vertex of the tail face lies at z = 8, and the face's outline is the full cross-section. The outer shape's points at z = 8 are its eight corners. The live world asks for it.
+- `TheNozzleIsRecessedOnTheLineOfThrust`: the nozzle's axis passes through the x and y of the center of mass. Its aft rim lies 5 cm inside the tail face, and its outside lies 0.1 m from the pocket's walls.
+- `TheInteriorStaysSolidAtTheGlass`: a crate thrown at 5 m/s from 1 m inside each pane's middle toward it stays in the cabin. It replaces `TheWindowsAreHolesInTheDrawnHullAndTheInteriorStaysSolid`.
+- `EachPaneIsGlassThatCastsNoShadow`: in the scene `demo-surface`, each of the 40 panes is in the cabin's frame, transparent, without `CastsShadow`, and with no body. It replaces `EachWindowHoldsAPaneOfGlassInTheMiddleOfItsWallThatCastsNoShadow`.
+- `ThePenHangsOnThePortPillar`: the pen's ends lie within the pillar at z = -1, and the line from the pen to the port wall crosses no pane's hole.
+- `TheLampsHangOnPillarsClearOfTheGlass`: each lamp's panel lies within its pillar's width.
+- `EachCameraInTheShuttleLiesInsideTheCabin`: each still camera inside lies at least 0.2 m inside the inner skin.
+- `TheOutsideCamerasSeeTheSeatedPersonThroughTheGlass`: a person stands at `Shuttle.SeatStand`. The lines to its eye from `chase-camera`, `climb-camera` and `apron-camera` cross the holes of the panes that "The cameras" names.
+- `ABallInTheParkedCabinFallsWithThePlanetsGravity` stays.
+
+The glass in the window films, on the real renderer, in `ShuttleGlareTests`:
+
+- `ALampsHighlightInTheGlassThatAWindowFilmLooksThroughStaysFaint`: in `demo-surface`, the test renders the view of `window-camera` and of `port-window-camera` with the cabin's lamps and without them. At the pixel of a lamp's mirror image in the inner face of `pane-nose` or `pane-port-7`, the highlight stands less than a quarter of full white above the glass 80 px above and below it. The review added it on 2026-10-20 (see "Found in the review").
+
+Components, on the World:
+
+- `FlightControlTests`:
+  - `TheAutopilotTurnsAHullWithTiltedPrincipalAxesAboutTheAxisThatItAsksFor`: a target a quarter turn about Y turns the shuttle with its angular velocity within 0.5 degrees of Y. With the moments in the body's own axes, the angle is 4.7 degrees.
+  - The existing tests stay, with `Shuttle.Inertia`.
+- `DemoStationTests.AShuttleAtTheHoldPointStaysInEarthSurface` and the shuttle of `RendezvousAutopilotTests` spawn `Shuttle.Body(BodyMotion.Dynamic)`, the real hull, in place of a box with the old interior. A stand-in drifts from the code that it copies. `ABoxOfTheShuttlesSizeFliesThroughTheSlotAlongTheAxisWithoutAContact` keeps its box, which holds the new hull.
+
+The runs of the checked-in scripts:
+
+- `BlueDanubeScriptTests` stays as it is. So `scripts/blue-danube.json` is written again, in part A and in part B.
+- The launch, the boarding and the run tests stay green: `DemoLaunchTests`, `LaunchRampTests`, `PenClipTests`, `PassengerTests`, `DemoSurfaceTests`, `WalkerTests`, `DemoFollowCameraTests`, `BlueDanubeFilmTests` and `BlueDanubeRendezvousTests`. The new mass properties change the climb a little. If a measured value leaves its test's range, the agent reports it and does not widen the range.
+- They change on purpose, in part B:
+  - `BlueDanubeRendezvousTests.TheStationLiesInsideTheWindowInEveryFrameOfTheWindowFilms` reads `Shuttle.Glass`: the line from the camera to the station crosses both skins inside the holes of `pane-port-7` in `brake` and of `pane-nose` in `glide-window`.
+  - `BlueDanubeRendezvousTests.TheCockpitCameraShowsTheStrappedPersonWithThePenAndTheNoseWindow` takes the middle of `pane-nose`.
+- New, in part B:
+  - `BlueDanubeFilmTests.TheApronCameraSeesThePersonThroughTheGlassInSeatedOutside`: in every frame of `seated-outside`, the person's eye lies in the picture, and the line to it crosses a pane's hole at both skins.
+  - `BlueDanubeRendezvousTests.TheChaseCameraSeesThePersonThroughTheGlassInHoldChase`: the same, in every frame of `hold-chase` and of the first 60 frames of `phasing`. The fixture runs through `hold-chase`.
+
+The screenshots: part A takes two from a headless run of `scripts/demo-shuttle.json`. Part B takes six frames from one headless run of the long script with `--video`, through `ffmpeg-headless`. The agent looks at each first.
+
+| Screenshot | Camera | Scene or script | Tick or cue | Part |
+|---|---|---|---|---|
+| The new hull upright on a pad, beside a parked one, from the side | `side-camera` | `scripts/demo-shuttle.json` | The capture after 120 ticks | A |
+| The tail face with its recessed nozzle | `tail-camera` | `scripts/demo-shuttle.json` | The capture after 120 ticks | A |
+| On the ground, the outside from inside: the seat, the person and the pad through the starboard glass | `cabin-camera` | The long script | The last frame of `seated` | B |
+| On the ground, the person inside from outside, through `pane-starboard-4` | `apron-camera` | The long script | The last frame of `seated-outside` | B |
+| In orbit, the outside from inside: the pen in the hand, with the port glass and Earth behind | `hand-camera` | The long script | The last frame of `take` | B |
+| In orbit, the person inside from outside, with Earth below | `chase-camera` | The long script | The first frame of `phasing` | B |
+| At the station, the outside from inside: the station in the nose glass | `window-camera` | The long script | The last frame of `glide-window` | B |
+| At the station, the person inside from outside, with the station ahead | `chase-camera` | The long script | The last frame of `hold-chase` | B |
+
+The scene `demo-shuttle`, for part A, has a root frame `ground` with 1 g along -Y and a static floor. A static pad, 16 by 16 m and 1.2 m tall, stands on the floor, as the live world's landing pad does. A dynamic shuttle, `standing`, stands on its tail on the pad. It is turned a quarter turn about +X, so its nose points up and its roof faces +Z. A parked shuttle, `lying`, rests on the floor beside the pad. Both carry their nozzles, and in part B their panes. A scene id belongs to one entity, and `SceneInstance.Add` refuses an id that is taken. So each shuttle's nozzle and panes take the shuttle's id as a prefix, such as `standing-nozzle` and `lying-pane-roof-4`. `Shuttle.Panes` and the nozzle's spawn take the prefix. `demo-surface` passes an empty prefix, so its ids stay `nozzle` and `pane-port-7`. `side-camera` sees both from the side. `tail-camera` looks at the tail face of `lying` from behind and a little below. `nose-camera` looks at its front from ahead and above. The script runs 120 ticks and captures from each view, as `scripts/demo-meshes.json` does.
+
+### Cost
+
+- The drawn hull: about 1,500 triangles, which part B counts. The 40 panes add 40 transparent commands, where the old windows had 7. Part B measures `RenderStats.TransparentCommands` and the time of the long script's video against today's 110 s.
+- Physics: the hull is a convex hull of 24 points in place of a box, and the interior has 23 pieces in place of 10. Part A measures the rehearsal's time against today's 107 s.
+- The run keeps its ticks and its frames, because the new films take their time from `seated` and `hold`.
+
+Measured in part A, on 2026-10-20:
+
+- The drawn hull of the loft, without the glass, has 448 triangles.
+- Physics agrees with `MassOf`. The center of mass is (0, -0.0902, 0.3561) m. The moments are 420,614, 451,666 and 80,645 kg·m², and the long axis lies 1.026 degrees from Z, with its nose end down. The tests of the spin and of the torques hold within 1 mm and 0.1 %.
+- With the moments in the hull's own axes, the autopilot's turn about Y starts 4.70 degrees off Y, as the design says. On the principal axes it stays within 0.5 degrees.
+- The rehearsal took 108.6 s, against 107 s before, with the build of the Demo. The new hull changed the frames of 11 films of the long script by a few frames each. `boarding` has 10 frames more, and `pen-release` 34 fewer.
+- One measured value leaves its test's range. At the end of the climb, 311 s in, the seat lifts the belted person by 72.9 mm, against 66.9 mm with the box, and `DemoLaunchTests.ThePassengerStaysAtItsSeatThroughTheClimb` allows 7 cm. The seat's convex radius does not cause it: with the seat's rounded edges of today the lift is 73.3 mm. Part A left the range as it was, as this design asks, and reported it. The orchestrator then widened the bound to 8 cm on 2026-10-20. The old bound sat 3 mm above the box hull's 66.9 mm. The tram hull's mass properties give 72.9 mm, and 8 cm still fails for a person who leaves the seat.
+
+Measured in part B, on 2026-10-20:
+
+- The drawn hull with the holes of the glass has 1,256 triangles. The 40 panes have 492 more, in 40 meshes.
+- `RenderStats.TransparentCommands` is at most 40 in a frame, where the old windows gave 7. From outside, every pane is drawn. From inside, the culling leaves 13 for `pen-camera`, 15 for `hand-camera`, 17 to 28 for `follow-camera` in the cabin and 38 for `cabin-camera`.
+- The video of the long script took 117 s, against 110 s before, at a load average from 4 to 5, for 15,782 frames. The rehearsal took 129 s with the build of the Demo.
+- The panes have no body, so the run does not change. The script changed only in the films `seated`, `seated-outside`, `hold` and `hold-chase`.
+- Part B adds tests that the list in "Tests" does not name. `TheDrawnHullIsNeverAnImpostor` checks the hull's flags in `demo-surface`. One refusal test for each guard of the glass: `APaneInTheDoorsPanelIsAnError`, `TwoPanesInOneCellAreAnError`, `APaneBeforeTheSurroundsIsAnError`, `ASecondPaneInTheFrontIsAnError`, `APaneInTheFrontNeedsAPartWithThreeCorners`, `ADoorAfterTheGlassIsAnError` and `SurroundsTwiceAreAnError`.
+- The lamps are `Shuttle.Lamps`, each with its scene id, such as `lamp-port-fore`, and `Shuttle.SpawnLamps` spawns them. `Shuttle.DrawnHull` gives the drawn hull with `NoImpostor` to both scenes.
+
+Found in the review, on 2026-10-20:
+
+- In the window films, the cabin's lamps showed in the glass as large white blobs beside the station. In `turn`, `glide-window` and `brake`, the blobs were brighter than the station. A lamp's highlight in a pane lies at the lamp's mirror image in the pane's inner face. The fore lamps lie 4.9 m behind `pane-nose`, and the starboard aft lamp lies across the cabin from `pane-port-7`, so their mirror images lie in the middle of those views. A camera's place moves an image only a little, because the image lies behind the glass by the lamp's distance from it. A lamp lights the glass out to its range of 10 m, and the seat and the cockpit lie less than 10 m from the front. So the glass got the specular intensity of glass with an anti-reflection coating (see "How the panes are drawn"). The highlight in `pane-nose` fell from 192 of 255 above the glass beside it to 40. The test `ALampsHighlightInTheGlassThatAWindowFilmLooksThroughStaysFaint` checks it.
+- The two kinds of pane of `LoftedHull`, in a cell and in the front, were an abstract record with two subclasses. They are now a custom `[Union]`, `PaneCut`, with the cases `CellPane` and `FrontPane`, as every closed set of the demo is.
+
+### Order of the work
+
+Each part commits on its own, with its tests green. A part that changes the run writes `scripts/blue-danube.json` again.
+
+Part A, the shape. In part A, the scene `demo-surface` still draws the old box with its small windows, over the new body. The window films and their run tests need those windows until part B gives the canopy. The new drawn hull shows in the scene `demo-shuttle`.
+
+| Step | Work | Depends on |
+|---|---|---|
+| A1. The generator | `LoftedHull` with `HullSection`, the cells, the two skins and the end walls. `Door`, `TailPocket`, `Mesh`, `Shape` and `Interior`. `MassOf` with `HullMass` and `PrincipalInertia`. Its refusals, and the tests of `LoftedHullTests` for these. | None |
+| A2. The hull and its body | `Shuttle`'s cross-sections, rib places and `Loft`. `HullShape`, `InteriorShape`, `Body(BodyMotion)`, and `Park` on it. `CenterOfMass` and `Inertia`, with `BoxInertia` and the box `Interior()` gone. The spawns of `DemoStationTests` and `RendezvousAutopilotTests`. The tests of the mass, the stand and the tail face in `ShuttleTests`. | A1 |
+| A3. The attitude autopilot | `AttitudeAutopilot` on a `PrincipalInertia`, `FlightControls`, and the new test in `FlightControlTests` | A2 |
+| A4. The nozzle and the scene | The `nozzle`, the scene `demo-shuttle`, `scripts/demo-shuttle.json`, `TheNozzleIsRecessedOnTheLineOfThrust`, and the screenshots of part A | A2 |
+| A5. The run | The long script written again, the launch, boarding and run tests green, and the rehearsal's time | A2, A3 |
+
+Part B, the glass.
+
+| Step | Work | Depends on |
+|---|---|---|
+| B1. Glass in the generator | `Glass`, `NoseGlass`, `Surrounds`, `Panes` and `HullPane`, and the tests of `LoftedHullTests` for these | A1 |
+| B2. The canopy on the shuttle | The 40 panes and `Shuttle.Glass`. The drawn hull from the loft in `demo-surface`, with `NoImpostor`. The nozzle in `demo-surface`, and the panes in `demo-shuttle`. The old `Windows`, the old `HullMesh` of `BoxMesh` and the old `Panes` go. The tests of the glass in `ShuttleTests`. | B1, A2 |
+| B3. The lamps and the clip | The four wall lamps in place of the two roof lamps, `ThePenHangsOnThePortPillar` and `TheLampsHangOnPillarsClearOfTheGlass` | B2 |
+| B4. The cameras | `chase-camera`'s new pose, `EachCameraInTheShuttleLiesInsideTheCabin` and `TheOutsideCamerasSeeTheSeatedPersonThroughTheGlass` | B2 |
+| B5. The long script and the frames | `seated-outside` and `hold-chase`, with the shorter `seated` and `hold`. The script written again. The run tests that change, and the new ones. The video, the frame time and the six screenshots. The lines below. | B2, B3, B4, A5 |
+
+```mermaid
+graph LR
+  A1[A1 generator] --> A2[A2 hull and body]
+  A2 --> A3[A3 attitude autopilot]
+  A2 --> A4[A4 nozzle and scene]
+  A2 --> A5[A5 run]
+  A3 --> A5
+  A1 --> B1[B1 glass in the generator]
+  B1 --> B2[B2 canopy]
+  A2 --> B2
+  B2 --> B3[B3 lamps and clip]
+  B2 --> B4[B4 cameras]
+  B3 --> B5[B5 long script and frames]
+  B4 --> B5
+  A5 --> B5
+```
+
+Lines elsewhere that change, in step B5:
+
+- This plan, "The launch": the clip holds the pen on the port pillar at z = -1. The cabin's lamps hang on the walls.
+- This plan, "The long script": the rows of `seated`, `seated-outside`, `hold` and `hold-chase`, and the measured times.
+- This plan, "The station and the rendezvous", "Tests": the lines on `TheWindowsAreHolesInTheDrawnHullAndTheInteriorStaysSolid`, `TheStationLiesInsideTheWindowInEveryFrameOfTheWindowFilms` and `TheCockpitCameraShowsTheStrappedPersonWithThePenAndTheNoseWindow`, and the screenshots "through the port window" and "in the nose window".
+- The doc comments of `DemoSurface` and `Shuttle` that describe the windows, the roof lamps and the box hull.
+- ARCHITECTURE.md does not change, because nothing in the engine changes.
+
+The live world (live-world.md, "What a person inside feels") puts the seat 1.35 m from the hull's middle line, which it calls the hull's long axis. Measured from the long axis of this hull, it lies 1.24 m from it. Which line the hull turns about in the station is the docking's choice (`ter-ftnj`).
+
+### Decisions
+
+Only engine changes go to the user (the user's rule of 2026-10-18). So this design settles every demo choice:
+
+| Question | Decision | Reason |
+|---|---|---|
+| The bevels | 0.8 m on the roof's edges, 0.2 m on the belly's, at 45 degrees | The roof bevels carry the glass onto the roof. A larger belly bevel reaches above the hatch's sill. |
+| The nose | The roof falls 1.4 m and the sides close in 0.6 m each over the last 3 m. The belly stays flat. The front is flat, 4.8 by 2.6 m. | The user chose a nose like a train's cab. The flat belly meets the ramp's foot as the box does. The flat front gives `window-camera` upright glass at eye height. |
+| The tail | The full cross-section to a flat tail face, with a pocket for the nozzle and a housing inside the cabin | The live world's stance on a pad. The housing keeps `Shuttle.Cabin`'s size, because a thicker aft wall moves the cabin's end. |
+| The nozzle | On the line along Z through the center of mass, recessed 5 cm | Physics pushes at the center of mass, and the drawn nozzle shows where the thrust acts. |
+| The rib places | Every 2 m in the body and every 1.5 m in the nose. One lies at z = -1, and the hatch's bay runs from 1 to 3. | About every 2 m, as the user asked. The pen's clip and the hatch stay where they are. |
+| The surrounds | Ribs and pillars 0.2 m, mullions 0.12 m, 0.1 m next to solid skin | Thin, as the user asked, and wide enough for the pen and the lamps |
+| The panes | One flat pane per cell, with its mesh round its own center | The renderer sorts and culls per instance. A flat pane cannot cover itself. |
+| The glass's material | The orbit scene's color and alpha, for every pane, with the specular intensity of glass with an anti-reflection coating, 0.18 | When the sort swaps two panes, two equal colors blend the same in either order. With the orbit scene's specular intensity of 1, each cabin lamp's highlight in the glass that a window film looks through was a white blob beside the station. |
+| The hull's impostor | `NoImpostor` | A flat picture cannot hold the person inside at its depth. |
+| The outer collision shape | The convex hull of the 24 corners, with the default convex radius | The ticket's rule, and the same rounding at the ramp's foot as the box |
+| The interior shape | The drawn solid in 23 convex pieces of convex radius 0, solid at the glass | The box reaches outside the new hull. Where the walk, the seat, the pen and the float happen, the pieces are the box. |
+| The mass | One density over the convex hull, as physics derives it, with `MassOf` computing the same exactly. The user decided this on 2026-10-20. | No engine change. The autopilot on the principal axes and the nozzle through the center of mass cover the offset, and the demo's value and physics agree by a test. |
+| The autopilot's inertia | `PrincipalInertia`, the moments with their axes | The tilted tensor turns the hull 4.7 degrees off a turn about Y that the diagonal asks for. |
+| The clip | It stays at its place, on the pillar at z = -1 | Its drift, the take and their tests keep their numbers. |
+| The lamps | Four, on pillars at z = -3 and 3, 2.4 m above the floor | The roof is glass. A pillar hides its lamp from outside. Together they give today's light. |
+| The cameras in the shuttle | All kept, each checked against the new cabin and its glass | Each still sees what its films need, through glass where they look out. |
+| The chase camera | The starboard quarter, 40 m out and 12 degrees up | From astern, the tail band hides the person. |
+| The new films | `seated-outside` and `hold-chase`, with their time taken from `seated` and `hold` | The video shows the person through the glass on the ground and at the station, and the ignition and the run's end keep their ticks. |
+| How part A stays green | `demo-surface` keeps drawing the old box until part B, and part A shows the new hull in `demo-shuttle` | The window films need their windows until the canopy exists. |
+
+### Engine changes
+
+None. The user decided on 2026-10-20 that the hull has one density. Physics derives the hull's mass properties from its collision shape, as it does for every body. The engine gets no change for mass properties apart from the shuttle's new collision shape. So:
+
+- The center of mass sits where physics derives it, 9 cm below and 36 cm aft of the hull's middle. The long axis tilts 1.03 degrees from Z, nose end down.
+- The attitude autopilot takes the principal axes.
+- The nozzle pushes through the center of mass.
+
+The reason: the two demo changes cover every effect of the offset that the demo shows.
+
+- The main engine pushes at the center of mass, and the drawn nozzle sits on that line. So the thrust turns nothing, and it looks so.
+- The autopilot on the principal axes turns the hull about the axis that it asks for. With the moments in the body's own axes, a torque about Y turns the hull 4.7 degrees off.
+- Jolt applies no gyroscopic torque (ARCHITECTURE.md). So a hull that spins about its own Z keeps that spin with no torque, though Z lies 1.03 degrees from the long axis.
+- The hull still stands on its tail with a wide margin. The center of mass lies 9 cm from the middle line, and the tail face's edge lies at least 1.9 m from the center of mass on every side.
+
+The change that the design weighed and the user did not take: `BodyDesc` gets an optional center of mass, and principal moments with their axes. Physics uses them in place of those of the shape at one density. In Jolt, that is a shape with an offset center of mass and a provided inertia. The shuttle would then set its center of mass on the hull's middle line, and its principal axes along its own, as ballast does. The cost: a new field of `BodyDesc`, its checks, the backend's mapping and its tests, and its lines in ARCHITECTURE.md.
+
+### Not in this step
+
+- A door in the hatch.
+- Landing feet. The flat tail face is enough to stand on.
+- Glass that bends light or mirrors the scene. The glass has the highlights of Blinn-Phong only.
+- The cradle's arms of the tow, which the live world's part 6 builds.
+- A fill light in the cabin. If the frames show the cabin too dark, that is a renderer change and goes to the user.
 
 ## The long script
 
@@ -763,7 +1330,7 @@ dotnet run --project src/Tertius.Demo -- --generate scripts/blue-danube.json
 dotnet run -c Release --project src/Tertius.Demo -- --script scripts/blue-danube.json --headless --out runs/danube --video runs/danube/blue-danube.mkv --fps 60
 ```
 
-The first command rehearses the run and writes the script. It prints each film with its frames, its film interval and the second of the run at which it starts. With the rendezvous, the rehearsal took 107 s on 2026-10-20, against about 10 s before. The second makes the video: on 2026-10-20 it took 110 s, at a load average from 3.7 to 6.5, for the 15,806 frames and 292,242 ticks, 4,871 s of the simulation and 263 s of video. Before the rendezvous, in the last two runs of 2026-10-19, it took 22 s and 24 s for 4,210 frames and 23,101 ticks. The test `BlueDanubeScriptTests` runs the first command and checks that its output equals the checked-in `scripts/blue-danube.json`, so the two cannot drift. A change of the scene, of the engine's timing or of the sections fails the test until the script is written again.
+The first command rehearses the run and writes the script. It prints each film with its frames, its film interval and the second of the run at which it starts. With the rendezvous, the rehearsal took 107 s on 2026-10-20, against about 10 s before. The second makes the video: on 2026-10-20 it took 110 s, at a load average from 3.7 to 6.5, for the 15,806 frames and 292,242 ticks, 4,871 s of the simulation and 263 s of video. Before the rendezvous, in the last two runs of 2026-10-19, it took 22 s and 24 s for 4,210 frames and 23,101 ticks. With the glass canopy of ter-4xkz, it took 117 s on 2026-10-20, at a load average from 4 to 5, for 15,782 frames. The test `BlueDanubeScriptTests` runs the first command and checks that its output equals the checked-in `scripts/blue-danube.json`, so the two cannot drift. A change of the scene, of the engine's timing or of the sections fails the test until the script is written again.
 
 The sections today, as `BlueDanube.Sections` lists them. The frames of each film and the second at which it starts come from the run, so the generator prints them, and this table does not copy them:
 
@@ -775,7 +1342,8 @@ The sections today, as `BlueDanube.Sections` lists them. The frames of each film
 | `pad` | `follow-camera` | 1 | The person is within 1.5 m of `Shuttle.OutsideHatch` |
 | `boarding` | `apron-camera` | 1 | The `follow-camera` is inside the cabin, 0.1 m from its walls |
 | `cabin` | `follow-camera` | 1 | 1 s after the person shuts its belt |
-| `seated` | `cabin-camera` | 1 | After 1.5 s |
+| `seated` | `cabin-camera` | 1 | After 0.75 s |
+| `seated-outside` | `apron-camera` | 1 | After 0.75 s. The person at its seat through the starboard glass |
 | `pen-on-the-pad` | `pen-camera` | 1 | After 1 s |
 | `on-the-pad` | `pad-camera` | 1 | After 1 s |
 | `ignition` | `pad-camera` | 1 | It posts `Ignition`. The shuttle has risen an eighth of the ramp's height |
@@ -802,9 +1370,10 @@ The sections today, as `BlueDanube.Sections` lists them. The frames of each film
 | `glide-window` | `window-camera` | 4 | Within 400 m |
 | `glide-rim` | `rim-camera` | 4 | Within 200 m |
 | `arrival` | `cockpit-camera` | 4 | 3 s after the autopilot is in `Hold` |
-| `hold` | `rim-camera` | 1 | After 5 s |
+| `hold` | `rim-camera` | 1 | After 3 s |
+| `hold-chase` | `chase-camera` | 1 | After 2 s. The person through the starboard glass, with the station ahead |
 
-The sections from `belt` to `hold` are the rendezvous (see "The station and the rendezvous", "Sections of the long script"). They replaced the section `coast`, which filmed 30 s of the parking orbit.
+The sections from `belt` to `hold-chase` are the rendezvous (see "The station and the rendezvous", "Sections of the long script"). They replaced the section `coast`, which filmed 30 s of the parking orbit.
 
 ### How a later ticket adds a section
 

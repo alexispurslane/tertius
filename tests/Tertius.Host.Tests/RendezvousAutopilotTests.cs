@@ -69,8 +69,7 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
             Frame = frame,
             Pose = new DPose(position, AttitudeAutopilot.Facing(velocity, position)),
             LinearVelocity = velocity,
-            Body = new BodyDesc(new BoxShapeDesc(Shuttle.Hull), Mass: Shuttle.Mass, LinearDamping: 0, AngularDamping: 0,
-                InteriorShape: new CompoundShapeDesc([.. Shuttle.Interior().Select(box => new CompoundChild(new BoxShapeDesc(box.Extents), new Pose(box.Center, Quaternion.Identity)))])),
+            Body = Shuttle.Body(BodyMotion.Dynamic),
             AsFrame = new FrameSpec(new FrameBounds(Shuttle.Bubble)),
             Components = [new RendezvousAutopilot(station, plan, Thrust), recorder, new AttitudeAutopilot(Shuttle.Inertia), new MainEngine(Thrust),
                 new TranslationThrusters(Shuttle.TranslationThrust)],
@@ -381,13 +380,16 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
     /// <summary>
     /// A test component that runs between the rendezvous autopilot, at priority 1, and the actuators, at 10. It counts the
     /// ticks in which the events hold a <see cref="Throttle"/>, an <see cref="AttitudeTarget"/> or a
-    /// <see cref="Translation"/>, and keeps the last throttle of the last tick, or null when that tick had none.
+    /// <see cref="Translation"/>, and keeps the last throttle of the last tick, or null when that tick had none, and whether
+    /// that tick had a translation.
     /// </summary>
     internal sealed class Recorder : IComponent
     {
         public int TicksWithEvents { get; private set; }
 
         public float? Throttle { get; private set; }
+
+        public bool Translates { get; private set; }
 
         public int Priority => 5;
 
@@ -398,7 +400,8 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
             Throttle = null;
             foreach (ref Throttle each in events.Of<Throttle>())
                 Throttle = each.Value;
-            if (Throttle is not null || events.Of<AttitudeTarget>().Any() || events.Of<Translation>().Any())
+            Translates = events.Of<Translation>().Any();
+            if (Throttle is not null || events.Of<AttitudeTarget>().Any() || Translates)
                 TicksWithEvents++;
         }
     }

@@ -19,7 +19,7 @@ namespace Tertius.Host.Tests;
 public sealed class BlueDanubeRendezvousRun : IDisposable
 {
     /// <summary>The last film of the run.</summary>
-    public const string LastFilm = "hold";
+    public const string LastFilm = "hold-chase";
 
     public BlueDanubeRendezvousRun()
     {
@@ -351,44 +351,42 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run) : ICl
 
     /// <summary>
     /// In every frame of the film <c>brake</c>, from <c>port-window-camera</c>, the station's center lies in the picture,
-    /// and the line from the camera to it passes through the aft port window, at both faces of the wall. So does the line
-    /// from <c>window-camera</c> through the nose window in every frame of <c>glide-window</c>.
+    /// and the line from the camera to it crosses both skins inside the holes of <c>pane-port-7</c>, the aft port pane. So
+    /// does the line from <c>window-camera</c> through <c>pane-nose</c> in every frame of <c>glide-window</c>. Changed on
+    /// purpose by ter-4xkz: the panes of the glass canopy replace the small windows.
     /// </summary>
     [Theory]
-    [InlineData("brake", "pane-port-3")]
+    [InlineData("brake", "pane-port-7")]
     [InlineData("glide-window", "pane-nose")]
     public void TheStationLiesInsideTheWindowInEveryFrameOfTheWindowFilms(string film, string pane)
     {
-        Opening window = Shuttle.Windows.Single(w => w.Pane == pane).Window;
+        HullPane glass = Shuttle.Glass.Single(p => p.Id == pane);
         RendezvousFrame[] frames = [.. run.Frames.Where(frame => frame.Of(film))];
 
         frames.Should().NotBeEmpty();
         foreach (RendezvousFrame frame in frames)
         {
             Picture.Contains(Picture.Project(frame.View, frame.Station, frame.VerticalFov)).Should().BeTrue($"the station is in the picture of {frame.Name}");
-            ThroughTheOpening(window, frame.View.Position, frame.Station).Should().BeTrue($"the station lies inside the window in {frame.Name}");
+            PaneChecks.Through(glass, frame.View.Position, frame.Station).Should().BeTrue($"the station lies inside {pane} in {frame.Name}");
         }
     }
 
     /// <summary>
-    /// True when the line from <paramref name="eye"/> to <paramref name="target"/>, in the shuttle's frame, crosses both
-    /// faces of the wall that holds <paramref name="window"/> inside the window's hole.
+    /// The film <c>hold-chase</c>, from <c>chase-camera</c> on the shuttle's starboard quarter, shows the person through the
+    /// glass with the station ahead: in every frame of it, and of the first 60 frames of <c>phasing</c>, the person's eye
+    /// lies in the picture, and the line from the camera to it crosses both skins inside the holes of one pane.
     /// </summary>
-    private static bool ThroughTheOpening(Opening window, Double3 eye, Double3 target)
+    [Fact]
+    public void TheChaseCameraSeesThePersonThroughTheGlassInHoldChase()
     {
-        int through = window.Through.X != 0 ? 0 : 2;
-        Double3 min = (Double3)window.Bounds.Min, max = (Double3)window.Bounds.Max, line = target - eye;
-        foreach (double face in (double[])[Along(min, through), Along(max, through)])
+        RendezvousFrame[] frames = [.. run.Frames.Where(frame => frame.Of("hold-chase")), .. run.Frames.Where(frame => frame.Of("phasing")).Take(60)];
+
+        frames.Should().HaveCountGreaterThan(60);
+        foreach (RendezvousFrame frame in frames)
         {
-            double t = (face - Along(eye, through)) / Along(line, through);
-            if (!(t > 0 && t < 1))
-                return false;
-            Double3 hit = eye + line * t;
-            for (int axis = 0; axis < 3; axis++)
-                if (axis != through && (Along(hit, axis) < Along(min, axis) || Along(hit, axis) > Along(max, axis)))
-                    return false;
+            Picture.Contains(Picture.Project(frame.View, frame.Eye, frame.VerticalFov)).Should().BeTrue($"the person's eye is in the picture of {frame.Name}");
+            Shuttle.Glass.Should().Contain(pane => PaneChecks.Through(pane, frame.View.Position, frame.Eye), $"the camera sees the person's eye through the glass in {frame.Name}");
         }
-        return true;
     }
 
     /// <summary>The component of <paramref name="v"/> along the axis X, Y or Z, numbered 0, 1 or 2.</summary>
@@ -424,8 +422,8 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run) : ICl
 
     /// <summary>
     /// <c>cockpit-camera</c>, aft of the seat and above it, films the strapped person at its seat with the pen, and the nose
-    /// window beyond it: in every frame of its films, the person's eye, the pen in its hand and the middle of the nose window
-    /// lie in the picture, and the person's box covers at most half of it. The person floats upside down from the take, and
+    /// window beyond it: in every frame of its films, the person's eye, the pen in its hand and the middle of
+    /// <c>pane-nose</c> lie in the picture, and the person's box covers at most half of it. The person floats upside down from the take, and
     /// the burn tips it with its head toward the nose, by the up rule of every character. The trim keeps that up, and so
     /// does the glide, whose push along the nose turns it back after the turn to the slot. So the camera frames both: in
     /// every frame, the line from the camera to the pen passes outside the person's box.
@@ -433,7 +431,7 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run) : ICl
     [Fact]
     public void TheCockpitCameraShowsTheStrappedPersonWithThePenAndTheNoseWindow()
     {
-        Double3 noseWindow = (Double3)Shuttle.Windows.Single(w => w.Pane == "pane-nose").Window.Bounds.Center, half = (Double3)DemoSurface.PersonHalf;
+        Double3 noseWindow = Shuttle.Glass.Single(pane => pane.Id == "pane-nose").Center, half = (Double3)DemoSurface.PersonHalf;
         RendezvousFrame[] cockpit = [.. run.Frames.Where(frame => frame.Of("night") || frame.Of("burn") || frame.Of("transfer-night") || frame.Of("arrival"))];
 
         cockpit.Should().NotBeEmpty();
