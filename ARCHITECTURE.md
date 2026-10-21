@@ -107,7 +107,7 @@ The sync point does these steps in this order:
 8. Swap the snapshot. The back tables become the front tables. Copy only dirty slots forward: first the rows that gameplay wrote, in chunk order, then the rows that the sync point wrote. With 8,192 or more rows that gameplay wrote, the workers copy them, one chunk per work item. A chunk's dirty list holds only its own slots, so the items write disjoint rows. Each chunk keeps its moved entities and its changed component flags in its own lists, and the sync thread joins those lists in chunk order after the workers finish. Then it copies the rows that the sync point wrote, and the component index takes the changed flags, on the sync thread, in the order of the copy on one thread. Then the frame tree and the spatial grids catch up with the new front rows (see "Snapshots").
 9. Run the physics queries that components asked for during the tick, the ray casts, shape casts and overlap queries, in entity order. Jolt is at the end of the step, with the destroys and spawns of steps 5 and 6, and the new front snapshot describes the same moment: its component flags, collision groups, poses and frames. Queue each answer as an engine event.
 10. Route the outboxes, and the answers of step 9, into inboxes (see "Outboxes, routing and order"). A routing of 6,000 messages or more runs on the workers.
-11. Build the render snapshot and publish it to the render thread through a triple buffer. A build of 8,192 slots or more runs on the workers (see "The render snapshot").
+11. Build the render snapshot and publish it to the render thread through a triple buffer. A build of 8,192 slots or more runs on the workers. After the instances, the builder places the puffs of the puff table, on the calling thread (see "The render snapshot").
 12. Start the next tick.
 
 Gameplay intents written during tick N reach physics in step N+1. That is one tick of latency, and it is acceptable.
@@ -825,8 +825,30 @@ The snapshot also carries:
 - `OriginInFrame` and `OriginFrameId`: the render origin in the camera's frame, and an id of that frame. The shadow texel grid uses them.
 - `RootRotation` and `PreviousRootRotation`, for the star field (see "Shading").
 - `Outlines`: with `World.ShowFrameOutlines` on, one `FrameOutline` for each frame that has a parent (see "Frame outlines" below).
+- `Puffs`, `PuffLooks` and `PuffAgeStep`: the live puffs, their looks and the age that every puff gained since the previous build (see "Puffs in the snapshot" below).
 
 A build of 8,192 or more slots runs on the gameplay workers when the world has more than one, in chunks of 1,024 slots. The chunks join in slot order, so the order of the instances does not depend on threads.
+
+#### Puffs in the snapshot
+
+After the instances, the builder places the puffs of the puff table (see "Puffs"), in `RenderSnapshotBuilder.BuildPuffs`. It reads a `PuffView` of the table: the live rows, packed from row 0, one range of rows per frame, the look table, and the length of the step that the rows describe. A puff is not an entity, so it has no `PoseMemory`. The snapshot gets three members, which `Clear` empties:
+
+| Member | Type | Meaning |
+|---|---|---|
+| `Puffs` | `List<RenderPuff>` | The live puffs, in the order of the rows of the puff table |
+| `PuffLooks` | `List<PuffLook>` | The look table at the build, by index, with its free entries |
+| `PuffAgeStep` | `float` | The age, in s, that every puff gained since the previous build: the step when this build interpolates and the previous build was of the tick before, and 0 otherwise |
+
+A `RenderPuff` is 32 bytes. `Position` and `PreviousPosition` are relative to the render origin, in the axes of the camera's frame, in m. `Age` is the age at the snapshot's tick, in s. `Look` is the index of its look in `PuffLooks`. The previous age of a puff is `Age − PuffAgeStep`, which is below 0 for a newborn.
+
+For each range, the builder reads the pose of the range's frame relative to the camera's physics home once, at this build and at the previous one. These are the poses that place the instances. Then, for each row:
+
+- `Position` is the current pose of the frame applied to the row's place, less the render origin.
+- `PreviousPosition` is the previous pose of the frame applied to the place one chord back, `Place − Chord · step`, less the render origin. That is the puff's place at the end of the step before, in the same frame. This holds only when the build interpolates and the previous build was of the tick before. Otherwise `PreviousPosition` is `Position`: in the first build, after a camera cut, in a second build at the same tick, such as a headless capture, and after a build that skipped ticks. The builder keeps the tick of its last build with a camera for that check.
+
+The rows are doubles, and the poses compose in doubles from the camera's home. So a puff near the camera is exact however far it is from its frame's origin. A snapshot without a camera has no puffs and no looks. A range in a frame that the build did not place adds no puffs. After a sync point every range is in a live frame, so this only guards against a broken table, as for an entity. The placement runs on the calling thread, after the chunks of the instances join, and it keeps the order of the rows. Placing the same view twice in one build gives the same snapshot.
+
+`RenderSnapshotBenchmarks.PlacePuffs` measures the placement alone (ter-4zt6, Release, one thread). It places 4,096 puffs, the default capacity, in two ranges, after a build that follows the build of the tick before, so each puff also takes its previous place. It takes 7.7 to 8.0 ns per puff in the three scenes, so about 33 µs for 4,096 puffs. The 1-minute load of the machine was 13 when the run began and 6.4 when it ended, so these numbers are an upper bound. The placement allocates nothing.
 
 #### Frame outlines
 
