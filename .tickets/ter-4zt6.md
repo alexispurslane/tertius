@@ -1,6 +1,6 @@
 ---
 id: ter-4zt6
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-21T14:13:35Z
@@ -47,3 +47,7 @@ The revised design is docs/plans/particles.md at 1951a75 (branch ter-4zt6-partic
 **2026-10-21T16:10:46Z**
 
 The build of 2026-10-21: tasks 1 to 7 of docs/plans/particles.md run in one workflow on the epic's branch ter-4zt6-particles, in its one worktree, with parallel builders on separate files (1 and 2 at once, then 4 and 5 after 1, 3 after 1 and 2, 6 after 3 and 4, 7 after 5), then one reviewer and one fixer. The doc's sentence that each task is its own ticket and branch gives way to this, because the tasks share one design and one review. Task 8 (ter-fwsy) and task 9 (ter-gk9o) are their own tickets after the epic, because the plumes wait for neither.
+
+**2026-10-21T19:29:22Z**
+
+Merged into main on 2026-10-21. Tasks 1 to 7 by parallel builders on one branch, one reviewer (5 low findings) and one fixer (all 5 fixed, with a failing test first or a doc correction). The orchestrator merged main (parts, the demo's jets, the walk and the coda) into the branch by hand: the sync profile's laps of parts moved from 26 and 27 to 28 and 29, because both epics had taken those numbers, and six test calls gained the center of mass that parts added to EntityTable.Activate. Coverage of the changed lines: 899 of 999 lines and 425 of 488 branches. The uncovered lines are the demo scene puff-yard (66 lines, which only its script runs), the members HasValue, Value, Equals, GetHashCode, the operators and ToString of the union TransparentRun, the failure branches of the invariant checks of PuffLooks and PuffTable, and a few guards. Every suite passes under coverage except the allocation tests of ter-odo6; the puffs' own allocation test passes under coverage. Measured: a glow puff costs almost nothing when small (1,000 small puffs 1.46 ms a frame against 1.28 ms with none), but 1,000 screen-filling puffs cost 20 ms a frame; lit puffs cost about 0.28 us more per puff; the puff-yard script costs 33 us per tick from the table to the screen. Tasks 8 and 9 are ter-fwsy and ter-gk9o.
