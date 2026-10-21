@@ -233,12 +233,6 @@ public sealed class ShuttleTests : IDisposable
     });
 
     /// <summary>
-    /// The free hull spins in a root frame with no gravity, about X at 0.5 rad/s and, in another root frame, about its long
-    /// axis at 0.3 rad/s. Physics turns a free body about its center of mass, so after 2 s the point at
-    /// <see cref="HostTesting.ShuttleCenterOfMass"/> is where it started, within 1 mm. A center of mass off by d moves that point by
-    /// about d in that time, from the turn and from the drift that the spawn velocity gives the true center.
-    /// </summary>
-    /// <summary>
     /// The engine keeps the center of mass that Jolt computes for the hull's shape, and publishes it in the body facts
     /// (docs/plans/parts.md, "Settled forks"). The demo's own value comes from the integral of the loft. The two agree
     /// within 1 mm, so the demo can take the engine's value for the places of its parts and drop its own.
@@ -257,6 +251,12 @@ public sealed class ShuttleTests : IDisposable
         facts.CenterOfMass.Length().Should().BeGreaterThan(0.1f, "the hull's center of mass is low and aft of its origin");
     }
 
+    /// <summary>
+    /// The free hull spins in a root frame with no gravity, about X at 0.5 rad/s and, in another root frame, about its long
+    /// axis at 0.3 rad/s. Physics turns a free body about its center of mass, so after 2 s the point at
+    /// <see cref="HostTesting.ShuttleCenterOfMass"/> is where it started, within 1 mm. A center of mass off by d moves that point by
+    /// about d in that time, from the turn and from the drift that the spawn velocity gives the true center.
+    /// </summary>
     [Fact]
     public void TheCenterOfMassStaysStillWhileTheFreeHullSpins()
     {

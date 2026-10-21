@@ -90,53 +90,70 @@ public class ShapeCenterOfMassTests
     }
 
     [Fact]
-    public async Task AQuestionFromAnotherThreadDuringAStepGetsTheSameAnswer()
+    public void AFirstQuestionWaitsForTheNativeGateAndThenGetsTheAnswerOfAQuietBackend()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
-        ShapeDesc built = TwoChildren();
+        using World world = NewWorld(out JoltPhysicsBackend backend);
         ShapeDesc unbuilt = LopsidedHull();
-        world.Spawn(new SpawnDesc { Frame = space, Pose = DPose.Identity, Body = new BodyDesc(built, Mass: 3) });
-        Tick(world, 1);
-        Vector3 builtAnswer = faults.ShapeCenterOfMass(built);
+        Vector3? answer = null;
+        var asker = new Thread(() => answer = backend.ShapeCenterOfMass(unbuilt));
 
-        // The edit runs inside the step, before Jolt steps. It starts a question on another thread that waits until it
-        // finds the native gate taken, which the step holds while Jolt steps, and only then asks. A question that misses
-        // the step gives up, and the next step tries again.
-        (Vector3 Built, Vector3 Unbuilt)? during = null;
-        for (int attempt = 0; attempt < 20 && during is null; attempt++)
+        // The test thread holds the gate, as a step holds it while Jolt steps, so the question on the other thread must wait.
+        JoltRuntime.NativeGate.Enter();
+        try
         {
-            Task<(Vector3 Built, Vector3 Unbuilt)?>? asked = null;
-            faults.EditNextIntents = _ => asked = Task.Run(() => AskWhileTheGateIsTaken(faults, built, unbuilt));
-            Tick(world, 1);
-            asked.Should().NotBeNull("the step ran the edit");
-            during = await asked!;
+            asker.Start();
+            asker.Join(TimeSpan.FromMilliseconds(200)).Should().BeFalse("the first question about a shape builds it, which takes the native gate");
         }
-
-        during.Should().NotBeNull("one of the questions asked while a step held the native gate");
-        (Vector3 duringBuilt, Vector3 duringUnbuilt) = during!.Value;
-        ShouldBeBitForBit(duringBuilt, builtAnswer, "a shape that a body already uses gives the same answer during a step");
-        using World other = NewWorld(out JoltPhysicsBackend fresh);
-        ShouldBeBitForBit(duringUnbuilt, fresh.ShapeCenterOfMass(unbuilt), "a shape first built during a step gives the answer of a quiet backend");
-        world.Errors.Should().BeEmpty();
-    }
-
-    /// <summary>
-    /// Waits up to 1 s for the native gate to be taken, then asks for the center of mass of both shapes. Null when the
-    /// gate stayed free.
-    /// </summary>
-    private static (Vector3 Built, Vector3 Unbuilt)? AskWhileTheGateIsTaken(IPhysicsBackend backend, ShapeDesc built, ShapeDesc unbuilt)
-    {
-        var clock = System.Diagnostics.Stopwatch.StartNew();
-        while (JoltRuntime.NativeGate.TryEnter())
+        finally
         {
             JoltRuntime.NativeGate.Exit();
-            if (clock.ElapsedMilliseconds > 1000)
-                return null;
         }
-        // The unbuilt shape goes first, so that its question needs the gate while the step still holds it.
-        Vector3 unbuiltAnswer = backend.ShapeCenterOfMass(unbuilt);
-        return (backend.ShapeCenterOfMass(built), unbuiltAnswer);
+        asker.Join(TimeSpan.FromSeconds(10)).Should().BeTrue("the question goes on once the gate is free");
+
+        using World other = NewWorld(out JoltPhysicsBackend quiet);
+        ShouldBeBitForBit(answer!.Value, quiet.ShapeCenterOfMass(unbuilt), "a question that waited for the gate gets the answer of a quiet backend");
+    }
+
+    [Fact]
+    public void AKeptAnswerNeedsNoNativeGate()
+    {
+        using World world = NewWorld(out JoltPhysicsBackend backend);
+        ShapeDesc shape = TwoChildren();
+        Vector3 first = backend.ShapeCenterOfMass(shape);
+        Vector3? again = null;
+        var asker = new Thread(() => again = backend.ShapeCenterOfMass(shape));
+
+        JoltRuntime.NativeGate.Enter();
+        try
+        {
+            asker.Start();
+            asker.Join(TimeSpan.FromSeconds(10)).Should().BeTrue("the backend keeps the answer, so a later question takes no lock");
+        }
+        finally
+        {
+            JoltRuntime.NativeGate.Exit();
+        }
+
+        ShouldBeBitForBit(again!.Value, first, "the kept answer is the first answer");
+    }
+
+    [Fact]
+    public void AKeptAnswerAllocatesNothing()
+    {
+        using World world = NewWorld(out JoltPhysicsBackend backend);
+        ShapeDesc shape = TwoChildren();
+        backend.ShapeCenterOfMass(shape);
+        backend.ShapeProblem(shape);
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 100; i++)
+        {
+            backend.ShapeCenterOfMass(shape);
+            backend.ShapeProblem(shape);
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        allocated.Should().Be(0, "the World asks both at every spawn, and the center of mass in every sync point with debug checks once per body");
     }
 
     [Fact]

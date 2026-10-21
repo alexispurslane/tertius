@@ -341,7 +341,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         ArgumentNullException.ThrowIfNull(shape);
-        return shapeProblems.GetOrAdd(shape, BuildShape);
+        return shapeProblems.GetOrAdd(shape, static (desc, self) => self.BuildShape(desc), this);
     }
 
     /// <inheritdoc/>
@@ -355,7 +355,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         ArgumentNullException.ThrowIfNull(shape);
-        return centersOfMass.GetOrAdd(shape, ReadCenterOfMass);
+        return centersOfMass.GetOrAdd(shape, static (desc, self) => self.ReadCenterOfMass(desc), this);
     }
 
     /// <summary>

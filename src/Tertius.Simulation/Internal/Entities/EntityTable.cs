@@ -999,7 +999,8 @@ internal sealed partial class EntityTable
     /// <summary>
     /// The parts whose pushes the swap made front intents, chunk by chunk, each in the order of its first push in the tick.
     /// None is in <see cref="IntentEntities"/>. A part that died since the swap stays listed until the next swap, which
-    /// skips it: releasing it cleared its slot. Without a backend the swap lists none.
+    /// clears the list: releasing the part cleared its slot, so a reader skips an entity that is not live. Without a backend
+    /// the swap lists none.
     /// </summary>
     public ReadOnlySpan<Entity> FrontPushers => CollectionsMarshal.AsSpan(frontPushers);
 
@@ -1119,9 +1120,11 @@ internal sealed partial class EntityTable
 
     /// <summary>
     /// The intents that the next physics step reads, indexed by slot (<see cref="Entity.Index"/>), the layout that the
-    /// physics seam in Core defines. The entries of the entities in <see cref="IntentEntities"/> hold what they wrote, and
-    /// the entry of every other live entity is empty (see the invariants), so the change of motion of any owner can be read
-    /// from its entry (see <see cref="FrameTree.HullMotionInStep"/>).
+    /// physics seam in Core defines. The entries of the entities in <see cref="IntentEntities"/> hold what they wrote. The
+    /// entry of each part in <see cref="FrontPushers"/> holds its push from the swap until the flow of step 5 of the sync
+    /// point moves it to the part's chain root and empties the entry. The entry of every other live entity is empty (see
+    /// the invariants), so the change of motion of any owner can be read from its entry (see
+    /// <see cref="FrameTree.HullMotionInStep"/>).
     /// </summary>
     public ReadOnlyMemory<PhysicsIntent> FrontIntents => frontIntent.AsReadOnlyMemory();
 
@@ -1647,9 +1650,10 @@ internal sealed partial class EntityTable
     /// <summary>True if two values are equal bit for bit. Unlike <c>==</c>, it tells 0 from -0 and treats NaN as equal to itself.</summary>
     private static bool BitEquals<T>(in T a, in T b) => BytesOf(in a).SequenceEqual(BytesOf(in b));
 
-    /// <summary>True if every byte of <paramref name="value"/> is zero, as in <c>default</c>. References count as bytes.</summary>
+    /// <summary>True if every component of <paramref name="v"/> is finite: no NaN and no infinity.</summary>
     private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
 
+    /// <summary>True if every byte of <paramref name="value"/> is zero, as in <c>default</c>. References count as bytes.</summary>
     private static bool IsDefault<T>(in T value) => !BytesOf(in value).ContainsAnyExcept((byte)0);
 
     private static ReadOnlySpan<byte> BytesOf<T>(in T value) =>

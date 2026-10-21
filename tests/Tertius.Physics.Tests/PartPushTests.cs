@@ -150,10 +150,15 @@ public class PartPushTests
     /// <summary>A scene: it spawns into a new world, and the flag says whether a part pushes (true) or the root does (false).</summary>
     private delegate void Scene(World world, bool partPushes);
 
-    /// <summary>Builds <paramref name="scene"/> in a new world and ticks it <paramref name="ticks"/> times, with the rows after every tick.</summary>
-    private static List<Row> Run(Scene scene, bool partPushes, int ticks, Action<WorldOptions>? configure = null)
+    /// <summary>
+    /// Builds <paramref name="scene"/> in a new world and ticks it <paramref name="ticks"/> times, with the rows after every
+    /// tick. The world runs on the fault wrapper of the real backend, which only records here, and
+    /// <paramref name="inspect"/> reads its records after the last tick.
+    /// </summary>
+    private static List<Row> Run(Scene scene, bool partPushes, int ticks, Action<WorldOptions>? configure = null,
+        Action<FaultInjectingBackend>? inspect = null)
     {
-        using World world = NewWorld(out _, configure: configure);
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, configure: configure);
         scene(world, partPushes);
         var rows = new List<Row>();
         var live = new List<Entity>();
@@ -171,13 +176,18 @@ public class PartPushTests
             }
         }
         world.Errors.Should().BeEmpty();
+        inspect?.Invoke(faults);
         return rows;
     }
 
-    /// <summary>Runs <paramref name="scene"/> with the part's push and with the root's own, and checks that the rows are equal bit for bit.</summary>
-    private static List<Row> ShouldMatchBitForBit(Scene scene, int ticks, Action<WorldOptions>? configure = null)
+    /// <summary>
+    /// Runs <paramref name="scene"/> with the part's push and with the root's own, and checks that the rows are equal bit for
+    /// bit. <paramref name="inspect"/> reads the records of the physics steps of the part's run.
+    /// </summary>
+    private static List<Row> ShouldMatchBitForBit(Scene scene, int ticks, Action<WorldOptions>? configure = null,
+        Action<FaultInjectingBackend>? inspect = null)
     {
-        List<Row> withPart = Run(scene, partPushes: true, ticks, configure);
+        List<Row> withPart = Run(scene, partPushes: true, ticks, configure, inspect);
         List<Row> withOwn = Run(scene, partPushes: false, ticks, configure);
         withPart.Count.Should().Be(withOwn.Count);
         int differs = Enumerable.Range(0, withPart.Count).FirstOrDefault(i => withPart[i] != withOwn[i], -1);
@@ -400,6 +410,49 @@ public class PartPushTests
         faults.Intents.Should().Contain(record => record.Entity == crate && record.Intent.Force == new Vector3(0, 0, 40),
             "the sum stays in the root's intent, and physics ignores it");
         world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>Changes the motion of its hull in tick <paramref name="at"/>.</summary>
+    private sealed class MotionAt(long at, BodyMotion motion) : IComponent
+    {
+        public int Priority => 1;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            if (self.Tick == at)
+                self.Body.SetMotion(motion);
+        }
+    }
+
+    [Fact]
+    public void APartsPushInTheTickThatItsKinematicRootTurnsDynamicMovesTheRootInTheNextStepAsTheRootsOwnForceDoes()
+    {
+        // Step 4 of the sync point of tick 3 plans the hull's change of motion, and step 5 adds the part's push to the
+        // hull's intent after it. The push still acts in step 4, in which the hull is dynamic.
+        var jet = new Jet { Force = new Vector3(40, 0, 300), From = 3 };
+        Entity hull = default;
+        FrameHandle space = default;
+        List<Row> rows = ShouldMatchBitForBit((world, part) =>
+        {
+            space = Space(world);
+            IComponent own = part ? new Jet() : new OwnJet(Vector3.Zero) { PlaceAt = _ => new Double3(1, 0, -3), Force = jet.Force, From = 3 };
+            hull = world.Spawn(new SpawnDesc
+            {
+                Frame = space,
+                Pose = new DPose(Double3.Zero, Tilted),
+                Body = new BodyDesc(new BoxShapeDesc(new Vector3(2, 1, 3)), BodyMotion.Kinematic, Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
+                Components = [own, new MotionAt(3, BodyMotion.Dynamic)],
+            });
+            Attach(world, hull, Offset(1, 0, -3), part ? [jet] : []);
+        }, 8);
+
+        rows.Where(row => row.Entity == hull && row.Tick <= 3).Should().OnlyContain(row => row.Velocity == Double3.Zero,
+            "the hull is kinematic until step 4");
+        Last(rows, hull).Velocity.Length.Should().BeGreaterThan(0.01, "a push of about 300 N on 1,000 kg moves the hull from step 4 on");
+        Last(rows, hull).AngularVelocity.Length().Should().BeGreaterThan(1e-3f, "the part's lever turns the hull");
     }
 
     [Theory]
@@ -638,17 +691,28 @@ public class PartPushTests
         // rehomes it into space. The part's push still names the front frame of the chain at the flow, so it sums with
         // the root's own push in that frame and converts with it.
         var jet = new Jet { Force = new Vector3(0, 3, 0), Torque = new Vector3(0.1f, 0, 0) };
-        Entity ball = default;
-        FrameHandle space = default;
+        Entity ball = default, bayOwner = default;
+        FrameHandle space = default, bay = default;
+        List<HandOff> handOffsInTick5 = [];
         List<Row> rows = ShouldMatchBitForBit((world, part) =>
         {
             space = Space(world);
-            FrameHandle bay = world.GetOwnedFrame(Bay(world, space, new DestroyAt(5)));
+            bayOwner = Bay(world, space, new DestroyAt(5));
+            bay = world.GetOwnedFrame(bayOwner);
             Scenes.Approach approach = Scenes.ApproachToBubble(world, bay, tick: 5);
             ball = CrateWithPart(world, part, DQuaternion.Identity, new Double3(0.3, 0, 0), jet, body: Ball(), frame: space,
                 position: approach.Pose.Position, velocity: approach.Velocity);
-        }, 10);
+        }, 10, inspect: faults =>
+        {
+            int step = faults.Steps.FindIndex(record => record.Tick == 5);
+            handOffsInTick5.AddRange(faults.Outputs[step].HandOffs);
+        });
 
+        // The premise: the output of the step of tick 5, which the sync point of tick 5 applies, hands the ball into the bay,
+        // and the bay dies at that same sync point.
+        handOffsInTick5.Should().ContainSingle(handOff => handOff.Entity == ball && handOff.From == space && handOff.To == bay,
+            "Jolt hands the ball into the bay in the step of tick 5");
+        rows.Last(row => row.Entity == bayOwner).Tick.Should().Be(4, "the bay destroys itself in tick 5");
         rows.Where(row => row.Entity == ball).Should().OnlyContain(row => row.Frame == space);
     }
 
