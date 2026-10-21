@@ -1,6 +1,6 @@
 ---
 id: ter-ftk4
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-21T14:27:09Z
@@ -19,3 +19,7 @@ The user proposed this on 2026-10-21 for the demo's plumes: the main engine and 
 **2026-10-21T15:08:51Z**
 
 Design doc docs/plans/parts.md on branch ter-ftk4-parts (1b7bc66, reviewed in 8417e64 with 16 defects fixed). The user settled its one fork on 2026-10-21: BodyFacts publishes CenterOfMass, beside BoundingRadius, and the demo drops Shuttle.CenterOfMass.
+
+**2026-10-21T18:42:20Z**
+
+Merged into main on 2026-10-21, after one reviewer and one fixer (10 low findings, 9 fixed with a failing test first; the tenth, the demo's read of BodyFacts.CenterOfMass, is done on the branch of ter-diu0). Coverage of the changed lines: 216 of 227 lines and 117 of 144 branches. The uncovered lines are the guards for a part that is no longer alive in a pusher list (creation and destruction wait for the sync point, so no test reaches them), the Release path that drops a push whose frame differs from its root's front row, which only a bug makes (Attachments.CarryPushes and World.CarryPushes; the Debug contract fires first), and the failure branches of the invariant helpers CollectPushers and AllLivePushesCleared. No Stryker run: the builders' hand mutations covered each new test, and the run waits for the test-hardening epic. The only failures under coverage are the allocation tests of ter-odo6.
