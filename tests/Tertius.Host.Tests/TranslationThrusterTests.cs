@@ -56,14 +56,14 @@ public sealed class TranslationThrusterTests : IDisposable
     }
 
     /// <summary>
-    /// The hull is turned 45 degrees about its roof, and the force of 10,000 N points along the frame's +X. In the hull's
-    /// axes it is 7,071 N along both +X and +Z, and each is limited to the 4,000 N of <see cref="Shuttle.TranslationThrust"/>.
-    /// So the hull gets 5,657 N along the frame's +X, not the 4,000 N of a limit in the frame's axes.
+    /// The hull is turned 45 degrees about its roof, and the force of 75,000 N points along the frame's +X. In the hull's
+    /// axes it is 53,033 N along both +X and +Z, and each is limited to the 30,000 N of <see cref="Shuttle.TranslationThrust"/>.
+    /// So the hull gets 42,426 N along the frame's +X, not the 30,000 N of a limit in the frame's axes.
     /// </summary>
     [Fact]
     public void EachAxisOfTheHullIsLimitedToTheThrustersMaximum()
     {
-        Launch(DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 4), new TranslationFor(int.MaxValue, new Double3(10000, 0, 0)), Thrusters());
+        Launch(DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 4), new TranslationFor(int.MaxValue, new Double3(75000, 0, 0)), Thrusters());
         Tick(world, 3);
 
         double limited = Shuttle.TranslationThrust * Math.Sqrt(2);
@@ -116,17 +116,17 @@ public sealed class TranslationThrusterTests : IDisposable
     }
 
     /// <summary>
-    /// The shuttle's flight controls carry translation thrusters of 4,000 N per axis: a layer asks for 8,000 N along the
-    /// nose and gets 4,000 N, 0.2 m/s² for the shuttle's 20 t.
+    /// The shuttle's flight controls carry translation thrusters of 30,000 N per axis: a layer asks for 60,000 N along the
+    /// nose and gets 30,000 N, 1.5 m/s² for the shuttle's 20 t.
     /// </summary>
     [Fact]
-    public void TheShuttlesFlightControlsPushWith4000NPerAxis()
+    public void TheShuttlesFlightControlsPushWith30000NPerAxis()
     {
         shuttle = Shuttle.Park(world, space, DPose.Identity,
-            components: [new Unpark(), new TranslationFor(int.MaxValue, new Double3(0, 0, -8000), priority: 1), .. Shuttle.FlightControls(climbHeight: 30, planeNormal: -Double3.UnitX, station: Entity.Null)]);
+            components: [new Unpark(), new TranslationFor(int.MaxValue, new Double3(0, 0, -60000), priority: 1), .. Shuttle.FlightControls(climbHeight: 30, planeNormal: -Double3.UnitX, station: Entity.Null)]);
         Tick(world, 3);
 
-        ShouldBeNear(AccelerationOver(30), new Double3(0, 0, -0.2), 1e-4);
+        ShouldBeNear(AccelerationOver(30), new Double3(0, 0, -1.5), 1e-4);
     }
 
     /// <summary>A test component that adds a <see cref="Translation"/> of <paramref name="force"/> to its entity's events on each of its first <paramref name="ticks"/> ticks.</summary>

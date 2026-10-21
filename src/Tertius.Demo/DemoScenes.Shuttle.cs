@@ -56,10 +56,12 @@ public static partial class DemoScenes
         public const float ThrustAcceleration = 3 * 9.81f;
 
         /// <summary>
-        /// The most force of the <see cref="TranslationThrusters"/> along each of the hull's axes, in newtons: 4,000 N, which
-        /// gives the shuttle's <see cref="Mass"/> 0.2 m/s².
+        /// The most force of the <see cref="TranslationThrusters"/> along each of the hull's axes, in newtons: 30,000 N, which
+        /// gives the shuttle's <see cref="Mass"/> 1.5 m/s². The docking's move out needs up to 1.2 m/s² on one of the hull's
+        /// axes, to hold the hull on its path against the station's spin. The thrusters are one piece of hardware, so every
+        /// law of the flight gets this limit (docs/plans/blue-danube-demo.md, "The translation thrusters' force").
         /// </summary>
-        public const float TranslationThrust = 4000;
+        public const float TranslationThrust = 30000;
 
         /// <summary>
         /// The radius of the circle that the ascent autopilot flies the shuttle to, in meters, in <c>earth-surface</c>:
@@ -75,7 +77,8 @@ public static partial class DemoScenes
 
         /// <summary>
         /// The shuttle's flight controls, in the order in which they run in a tick: the layers of the flight program, the
-        /// <see cref="AscentAutopilot"/> at priority 0 and the <see cref="RendezvousAutopilot"/> at 1, which add the
+        /// <see cref="AscentAutopilot"/> at priority 0, the <see cref="RendezvousAutopilot"/> at 1 and the
+        /// <see cref="DockingAutopilot"/> at 2, which add the
         /// <see cref="Throttle"/>, the <see cref="AttitudeTarget"/> and the <see cref="Translation"/> of each tick to the
         /// shuttle's events, then the actuators at 10, the <see cref="AttitudeAutopilot"/>, the <see cref="MainEngine"/>
         /// and the <see cref="TranslationThrusters"/>, which read them and follow the last layer that speaks. The engine
@@ -83,14 +86,14 @@ public static partial class DemoScenes
         /// that thrust. The ascent autopilot steers only once the shuttle is <paramref name="climbHeight"/> meters higher
         /// than where it launched, clear of its ramp, and it steers into the plane whose prograde normal is
         /// <paramref name="planeNormal"/>, in the axes of the shuttle's frame. The rendezvous autopilot flies
-        /// <see cref="RendezvousPlan.Demo"/> to <paramref name="station"/>. The thrusters have
-        /// <see cref="TranslationThrust"/> on each axis.
+        /// <see cref="RendezvousPlan.Demo"/> to <paramref name="station"/>, and the docking autopilot docks in it, with the
+        /// hull's <see cref="CenterOfMass"/>. The thrusters have <see cref="TranslationThrust"/> on each axis.
         /// </summary>
         public static IComponent[] FlightControls(double climbHeight, Double3 planeNormal, Entity station)
         {
             const float thrust = Mass * ThrustAcceleration;
             return [new AscentAutopilot(thrust, ParkingOrbitRadius, climbHeight, planeNormal), new RendezvousAutopilot(station, RendezvousPlan.Demo, thrust),
-                new AttitudeAutopilot(Inertia), new MainEngine(thrust), new TranslationThrusters(TranslationThrust)];
+                new DockingAutopilot(station, CenterOfMass), new AttitudeAutopilot(Inertia), new MainEngine(thrust), new TranslationThrusters(TranslationThrust)];
         }
 
         /// <summary>
