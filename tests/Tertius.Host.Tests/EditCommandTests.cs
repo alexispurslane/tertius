@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Text.Json;
 using Tertius.Demo;
 using Tertius.Host.Scripting;
 
@@ -40,7 +41,7 @@ public sealed class EditCommandTests : IDisposable
     private static List<ReadoutRow> RowsOf(Script script) =>
     [
         .. ScriptFilm.Of(script).SelectMany(film => Enumerable.Range(0, film.Frames)
-            .Select(k => new ReadoutRow($"{film.Name}-{k:000000}", film.FirstTick + (k + 1L) * film.Every, new Double3(DemoScenes.EarthRadius, 0, 0), 0, 1e6, 9.8))),
+            .Select(k => new ReadoutRow($"{film.Name}-{k:000000}", film.FirstTick + (k + 1L) * film.Every, new Double3(DemoScenes.EarthRadius, 0, 0), 0, 1e6, 0, 9.8))),
     ];
 
     /// <summary>A lossless video of <paramref name="frames"/> frames at 60 frames per second, whose frame k is gray level k.</summary>
@@ -170,6 +171,41 @@ public sealed class EditCommandTests : IDisposable
         string film = File.ReadAllText(Path.Combine(VideoPath + ".parts", "film.ass"));
         film.Split('\n').Count(line => line.StartsWith("Dialogue: 0,", StringComparison.Ordinal) && line.Contains(",Readout,", StringComparison.Ordinal)).Should().Be(180);
         File.Exists(Path.Combine(VideoPath + ".parts", "opening.ass")).Should().BeTrue();
+    }
+
+    [Fact]
+    public void TheEditWritesACueSheetBesideTheVideoWhoseTimesAreFramesOfTheVideo()
+    {
+        Edit().Should().Be(ScriptCommand.Ok);
+
+        CueSheet sheet = JsonSerializer.Deserialize<CueSheet>(File.ReadAllText(VideoPath + ".cues.json"), new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        List<byte[]> frames = VideoTesting.DecodeFrames(VideoPath, Width, Height);
+
+        // Frame 20 of b's stretch is frame 120 of the master, and b's stretch starts at the frame of b's start.
+        FilmCue b = sheet.Films.Single(film => film.Name == "b");
+        b.FirstFrame.Should().Be(100);
+        int first = (int)Math.Round(b.Start * 60);
+        (b.Start * 60).Should().BeApproximately(first, 1e-9);
+        frames[first + 20][(Height / 2 * Width + Width / 2) * 3].Should().BeCloseTo(120, 3);
+        sheet.Films.Single(film => film.Name == "a").FirstFrame.Should().Be(30);
+        // The closing card's 60 frames end the video.
+        ((int)Math.Round(sheet.Closing.Start * 60)).Should().Be(frames.Count - 60);
+        sheet.Length.Should().Be(frames.Count / 60.0);
+    }
+
+    [Fact]
+    public void ACardWhoseSecondsFallBetweenTwoFramesLastsTheFramesOfItsCueInTheVideo()
+    {
+        // 0.505 s is 30.3 frames. The cue sheet rounds it to 30 frames, so the video must hold 30 frames of the card, not 31.
+        CutList cuts = Cuts with { Opening = Card with { Seconds = 0.505 } };
+
+        EditCommand.Run(["--edit", VideoPath, "--script", ScriptPath, "--master", MasterPath, "--readouts", LogPath], cuts, new StringWriter(), new StringWriter())
+            .Should().Be(ScriptCommand.Ok);
+
+        CueSheet sheet = JsonSerializer.Deserialize<CueSheet>(File.ReadAllText(VideoPath + ".cues.json"), new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        sheet.Opening.End.Should().Be(0.5);
+        VideoTesting.CountFrames(VideoPath).Should().Be(30 + 60 + 120 + 60);
+        sheet.Length.Should().Be(VideoTesting.CountFrames(VideoPath) / 60.0);
     }
 
     [Fact]

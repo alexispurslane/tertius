@@ -1,6 +1,6 @@
 ---
 id: ter-4zt6
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-21T14:13:35Z
@@ -23,3 +23,11 @@ From the user's objection of 2026-10-21 (see ter-6u2m): emitters belong to the r
 **2026-10-21T14:27:09Z**
 
 Superseded on 2026-10-21: the user proposed parts (see the new parts ticket), so each jet is its own attached entity with one emitter. An entity's render data holds one emitter, as it holds one light, and the question of several emitters per entity is gone.
+
+**2026-10-21T14:36:37Z**
+
+The design settled with the user on 2026-10-21. A puff is a loose body without a shape: born in its emitter's frame, it lives there for its whole life and moves as a loose body there would (the frame's gravity, its proper acceleration, its rotation terms through the same two-turn update as bodies), with a drag toward rest in its frame (zero in vacuum), and it fades as it ages. The simulation owns the puffs and steps them every tick, in doubles, because the renderer knows no frames, a time-lapse film draws one tick in 4 to 240, and the window skips or repeats snapshots. The snapshot carries each puff with a current and a previous position, like an instance. Settled by the rules: one emitter per entity in its render row, like its light (parts make each jet its own entity); one emitter struct with a shading union (glow or lit); glow for hot exhaust, lit puffs for cold gas (the sun with its shadows, the lamps); camera-facing sprites in one draw, additive, sorted together with the transparent instances so that the cabin glass dims only the puffs behind it; a soft fade near opaque surfaces and near the eye; births spread through the step; a time-lapse frame shows the puffs alive at its tick; true size far away; a cap on live puffs, oldest first, with a switch; a jet's puffs start in the physics step of its force. The user's choices: slow tracer puffs at tens of m/s that hang behind and mark the path (not real exhaust speed); no collisions with surfaces; bloom (ter-63wr) later, after the plumes.
+
+**2026-10-21T14:39:35Z**
+
+The user asked on 2026-10-21 that the particle system be efficient and minimal. Puffs are not entities: no handle, no generation, no components, no messages, no render row, no body, no spawn description. 'A loose body without a shape' describes how a puff moves, not how it is stored. Puffs are rows of one compact store that the simulation owns, grouped by frame, born only by emitters at the sync point into a pool allocated up to the cap, and stepped in bulk, one loop per frame over a contiguous span, with that frame's turn and field of the step. A likely minimal row: the two-turn update keeps x_n and x_(n-1), which are also the current and previous positions that the renderer interpolates, so a puff may need two positions, an age and a look index, and no velocity. The design doc settles the layout and measures it.

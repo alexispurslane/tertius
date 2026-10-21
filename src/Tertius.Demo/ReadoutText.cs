@@ -108,4 +108,25 @@ public static class CheckPanels
         int width = lines.Max(line => line.Length);
         return [.. lines.Select(line => line.PadRight(width))];
     }
+
+    /// <summary>
+    /// Spin gravity in the wheel: at r, the row's distance from the station's axis, the felt gravity ω² r of a place at rest
+    /// in the station's turning axes, beside the row's felt gravity. ω is the station's spin rate,
+    /// <see cref="DemoScenes.SpinStation.Rate"/>, a constant of the scene as G·M is for the orbit. The panel reads no first
+    /// row: it holds at each frame.
+    /// </summary>
+    public static string[] SpinGravity(ReadoutRow first, ReadoutRow row)
+    {
+        double omega = DemoScenes.SpinStation.Rate, r = row.Axis;
+        string[] lines =
+        [
+            "TEXTBOOK CHECK   spin gravity in the wheel",
+            string.Format(Invariant, "ω {0:F5} rad/s, r {1:F2} m from the axis", omega, r),
+            string.Format(Invariant, "felt gravity ω²r   {0}   run {1}", Acceleration(omega * omega * r), Acceleration(row.Felt)),
+        ];
+        int width = lines.Max(line => line.Length);
+        return [.. lines.Select(line => line.PadRight(width))];
+    }
+
+    private static string Acceleration(double acceleration) => string.Format(Invariant, "{0:F2} m/s²", acceleration);
 }
