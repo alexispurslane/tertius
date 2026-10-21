@@ -980,7 +980,7 @@ The generator refuses, with an `ArgumentException` that names the problem, as `B
 
 ### How the panes are drawn
 
-The panes use what the renderer has today. Each pane is its own entity in the cabin's frame, with no body. It has `RenderFlags.Transparent` and not `CastsShadow`. Its material is the glass of today: mostly clear, with a slight blue tint. It has an alpha of 0.2, a specular intensity of 1 and a gloss of 0.9.
+The panes use what the renderer has today. Each pane is its own entity in the cabin's frame, with no body. It has `RenderFlags.Transparent` and not `CastsShadow`. Its material has the color of today's glass: mostly clear, with a slight blue tint. It has an alpha of 0.2 and a gloss of 0.9. Its specular intensity is 0.18, that of glass with an anti-reflection coating, which reflects about 0.5 % of the light that meets it head-on. The orbit scene's glass has a specular intensity of 1 and reflects 16 % head-on. The window films look head-on through the glass, and the cabin's lamps lie in front of it. With 16 %, each lamp's highlight in `pane-nose` and `pane-port-7` was a white blob beside the station. At a grazing angle, glass reflects much more, whatever its coating, so the lamps' highlights on the side and roof glass in the cabin views stay.
 
 The renderer draws transparent instances in one forward pass after the lighting, blended, and sorted back to front by each instance's center (ARCHITECTURE.md, "Transparent objects"). It culls back faces, writes no depth, and tests occlusion against the G-buffer's distance. What that means for the canopy:
 
@@ -1114,6 +1114,10 @@ The shuttle, on the World, in `ShuttleTests`:
 - `TheOutsideCamerasSeeTheSeatedPersonThroughTheGlass`: a person stands at `Shuttle.SeatStand`. The lines to its eye from `chase-camera`, `climb-camera` and `apron-camera` cross the holes of the panes that "The cameras" names.
 - `ABallInTheParkedCabinFallsWithThePlanetsGravity` stays.
 
+The glass in the window films, on the real renderer, in `ShuttleGlareTests`:
+
+- `ALampsHighlightInTheGlassThatAWindowFilmLooksThroughStaysFaint`: in `demo-surface`, the test renders the view of `window-camera` and of `port-window-camera` with the cabin's lamps and without them. At the pixel of a lamp's mirror image in the inner face of `pane-nose` or `pane-port-7`, the highlight stands less than a quarter of full white above the glass 80 px above and below it. The review added it on 2026-10-20 (see "Found in the review").
+
 Components, on the World:
 
 - `FlightControlTests`:
@@ -1169,6 +1173,11 @@ Measured in part B, on 2026-10-20:
 - The panes have no body, so the run does not change. The script changed only in the films `seated`, `seated-outside`, `hold` and `hold-chase`.
 - Part B adds tests that the list in "Tests" does not name. `TheDrawnHullIsNeverAnImpostor` checks the hull's flags in `demo-surface`. One refusal test for each guard of the glass: `APaneInTheDoorsPanelIsAnError`, `TwoPanesInOneCellAreAnError`, `APaneBeforeTheSurroundsIsAnError`, `ASecondPaneInTheFrontIsAnError`, `APaneInTheFrontNeedsAPartWithThreeCorners`, `ADoorAfterTheGlassIsAnError` and `SurroundsTwiceAreAnError`.
 - The lamps are `Shuttle.Lamps`, each with its scene id, such as `lamp-port-fore`, and `Shuttle.SpawnLamps` spawns them. `Shuttle.DrawnHull` gives the drawn hull with `NoImpostor` to both scenes.
+
+Found in the review, on 2026-10-20:
+
+- In the window films, the cabin's lamps showed in the glass as large white blobs beside the station. In `turn`, `glide-window` and `brake`, the blobs were brighter than the station. A lamp's highlight in a pane lies at the lamp's mirror image in the pane's inner face. The fore lamps lie 4.9 m behind `pane-nose`, and the starboard aft lamp lies across the cabin from `pane-port-7`, so their mirror images lie in the middle of those views. A camera's place moves an image only a little, because the image lies behind the glass by the lamp's distance from it. A lamp lights the glass out to its range of 10 m, and the seat and the cockpit lie less than 10 m from the front. So the glass got the specular intensity of glass with an anti-reflection coating (see "How the panes are drawn"). The highlight in `pane-nose` fell from 192 of 255 above the glass beside it to 40. The test `ALampsHighlightInTheGlassThatAWindowFilmLooksThroughStaysFaint` checks it.
+- The two kinds of pane of `LoftedHull`, in a cell and in the front, were an abstract record with two subclasses. They are now a custom `[Union]`, `PaneCut`, with the cases `CellPane` and `FrontPane`, as every closed set of the demo is.
 
 ### Order of the work
 
@@ -1234,7 +1243,7 @@ Only engine changes go to the user (the user's rule of 2026-10-18). So this desi
 | The rib places | Every 2 m in the body and every 1.5 m in the nose. One lies at z = -1, and the hatch's bay runs from 1 to 3. | About every 2 m, as the user asked. The pen's clip and the hatch stay where they are. |
 | The surrounds | Ribs and pillars 0.2 m, mullions 0.12 m, 0.1 m next to solid skin | Thin, as the user asked, and wide enough for the pen and the lamps |
 | The panes | One flat pane per cell, with its mesh round its own center | The renderer sorts and culls per instance. A flat pane cannot cover itself. |
-| The glass's material | The orbit scene's glass, for every pane | When the sort swaps two panes, two equal colors blend the same in either order. |
+| The glass's material | The orbit scene's color and alpha, for every pane, with the specular intensity of glass with an anti-reflection coating, 0.18 | When the sort swaps two panes, two equal colors blend the same in either order. With the orbit scene's specular intensity of 1, each cabin lamp's highlight in the glass that a window film looks through was a white blob beside the station. |
 | The hull's impostor | `NoImpostor` | A flat picture cannot hold the person inside at its depth. |
 | The outer collision shape | The convex hull of the 24 corners, with the default convex radius | The ticket's rule, and the same rounding at the ramp's foot as the box |
 | The interior shape | The drawn solid in 23 convex pieces of convex radius 0, solid at the glass | The box reaches outside the new hull. Where the walk, the seat, the pen and the float happen, the pieces are the box. |
