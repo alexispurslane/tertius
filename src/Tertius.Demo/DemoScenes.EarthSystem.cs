@@ -99,9 +99,9 @@ public static partial class DemoScenes
             View("station-view", earth, new DPose(station + axis * 300, AttitudeAutopilot.Facing(-axis * Math.Cos(down) - up * Math.Sin(down), up)));
 
             // The pad from the ground, looking past it toward the Sun, which stands 23.44 degrees up: the eye stands 22 m
-            // from the pole on the side away from the Sun. earth-surface has turned from earth's axes by the sidereal spin at
-            // the world's time, so the Sun's direction turns back by that spin into earth-surface's axes.
-            Double3 toSunInSurface = new FrameSpin(DQuaternion.Identity, SiderealRate).RotationAt(world.Time).Conjugate().Rotate(toSun);
+            // from the pole on the side away from the Sun. At the world's time, earth-surface has turned from earth's axes by
+            // the date's ground, so the Sun's direction turns back by that spin into earth-surface's axes.
+            Double3 toSunInSurface = date.Ground.RotationAt(world.Time).Conjugate().Rotate(toSun);
             Double3 sunAcross = new Double3(toSunInSurface.X, 0, toSunInSurface.Z).Normalized();
             Double3 padEye = -sunAcross * 22 + new Double3(0, EarthRadius + 6, 0);
             View("pad-view", surface, LookingAt(padEye, new Double3(0, EarthRadius + 8, 0)));
