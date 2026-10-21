@@ -426,7 +426,9 @@ The demo work is in `ter-6u2m`, not in this ticket. Each actuator becomes a part
 - The turning jets: pairs of opposite jets at opposite places, so that each pair gives a couple about one of the hull's axes. `AttitudeAutopilot` keeps its law, and it ends in an allocation of the throttles of the pairs, which gives the torque that it asks for within each jet's thrust. Each jet gets its throttle by message. The two jets of a pair compute their forces as exact negatives, for example from the same axis of the hull, so that the pair gives the hull no net force at all. Forces that only nearly cancel leave a force of the order of 1e-7 of the thrust.
 - The person's back jet: one part on the person, which `Passenger.Steer` and `PersonControl` send the float force as a message. A character reads no torque, so the jet's place off the person's center of mass turns nothing. The jet can turn its own `AttachOffset` toward the force, so that its plume points against the push.
 
-## Open forks
+## Settled forks
+
+The user settled the one open fork on 2026-10-21: side A. `BodyFacts` gains `CenterOfMass`, and the demo takes the value from the engine and drops its own.
 
 ### Fork 1: the center of mass in the body facts
 
