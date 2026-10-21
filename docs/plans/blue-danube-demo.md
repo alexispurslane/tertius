@@ -11,6 +11,7 @@ A long demo video of the engine, recorded from one unbroken scripted run with th
 3. The shuttle burns again and approaches a large spinning station, seen through its windows. The station has a docking slot on its axis.
 4. The shuttle spins up to match the station's rotation, enters the slot, and lands on one side of the docking barrel. Weak spin gravity returns as it moves out to the barrel wall.
 5. The character leaves the ship and takes a chute down a spoke to the outer wheel, where it feels full gravity.
+6. The coda: on the wheel's floor, the character knocks over a stack of loose boxes. Then it throws one box spinward and one antispinward. Each lands where its straight line in inertial space says, not where a flat field of 1 g lands it.
 
 ## Rules
 
@@ -1328,7 +1329,7 @@ Ticket ter-y0e5 designs step 6 of "Order of the work", which is item 5 of "The s
 - The person walks aft through the cabin, out of the hatch, and steps down 0.3 m onto the deck. It walks along the deck, parallel to the station's axis, to a point beside the chute's top. Then it turns toward the chute's top and steps into it.
 - The chute is a trough on the spoke's antispinward wall. It runs from a hole in the deck down the whole spoke. It passes through an opening in the wheel's ceiling and ends 5 cm above the wheel's floor. The Coriolis force presses the sliding person onto the trough's back plate, and the plate's friction brakes the slide. The person slides feet first, and reaches 8.9 m/s at most.
 - The chute's last 5.5 m, from the ceiling down, is a brake run with more friction. It slows the person to about 2.6 m/s before its feet reach the floor.
-- On the floor the person stands in a full gravity, 9.72 m/s² at its center. It walks 5 m spinward out of the trough and stops. The demo ends there.
+- On the floor the person stands in a full gravity, 9.72 m/s² at its center. It walks 5 m spinward out of the trough and stops. The coda follows (see "The coda").
 - New lamps light the spoke and the part of the wheel where the person lands. Three new still cameras film the deck, the chute's top and the landing. A new camera that follows the person in the station's axes, `slide-camera`, films the slide, and the `follow-camera` films the last steps.
 
 Terms used in this section:
@@ -1503,7 +1504,7 @@ The film of the brake run is `brake-run`, not `brake`. The rendezvous films `bra
 
 The generated `scripts/demo-exit.json` films 399, 734, 560, 504, 207 and 398 frames: 2,802 frames in 3,306 ticks, 55.1 s of the simulation and 46.7 s of video. Before the person's walk of ter-cdgt, it filmed 2,794 frames in 3,298 ticks.
 
-In the long script, from 5,036.1 s of the run, the exit films 398, 733, 561, 504, 206 and 398 frames: 2,800 frames in 3,304 ticks, 55.1 s of the simulation and 46.7 s of video. These are the numbers after the person's walk of ter-cdgt on 2026-10-21, whose walks start from rest. After the merge with the Earth system (ter-yhu8), the exit filmed 2,790 frames in 3,294 ticks, and before it 2,799 frames in 3,303 ticks. The person stands at its seat about 0.3 m to port of the stand at the docking's end, a little apart from `DemoExit.StandAtSeat`, so the first films differ by a few frames. In the run of the long script, the person arrives 53.07 s after the order, against 53.10 s in `demo-exit`. Its slide starts 17.35 s after the order, takes 30.1 s and tops out at 8.87 m/s, and it stands 99.10 m from the axis at 9.721 m/s² (`BlueDanubeExitTests`). Before the person's walk of ter-cdgt it arrived 52.90 s after the order, and the slide started 17.3 s after it: the start from rest adds about 0.3 s to each of the two walks.
+In the long script, from 5,036.1 s of the run, the exit films 398, 726, 561, 504, 205 and 398 frames: 2,792 frames in 3,296 ticks, 54.9 s of the simulation and 46.5 s of video. These are the numbers after the person's walk of ter-cdgt and the coda of ter-h74c, on 2026-10-21. The person's walk alone gave 398, 733, 561, 504, 206 and 398 frames: 2,800 frames in 3,304 ticks. The coda's loose boxes rest on the wheel's floor through the whole long run, and with them the person drops into the chute 7 ticks sooner in the long run. `scripts/demo-exit.json` does not change with them. After the merge with the Earth system (ter-yhu8), the exit filmed 2,790 frames in 3,294 ticks, and before it 2,799 frames in 3,303 ticks. The person stands at its seat about 0.3 m to port of the stand at the docking's end, a little apart from `DemoExit.StandAtSeat`, so the first films differ by a few frames. In the run of the long script, the person arrives 52.93 s after the order, against 53.10 s in `demo-exit`. Its slide starts 17.23 s after the order and takes 30.1 s. Before the coda, the person arrived 53.07 s after the order, and the slide started 17.35 s after it and topped out at 8.87 m/s. The person stands 99.10 m from the axis at 9.721 m/s² (`BlueDanubeExitTests`). Before the person's walk of ter-cdgt it arrived 52.90 s after the order, and the slide started 17.3 s after it: the start from rest adds about 0.3 s to each of the two walks.
 
 The docking was built at the same time on its own branch, and the exit starts from its end state. So the exit's sections also run in a short script of their own, `scripts/demo-exit.json`, for a quick look at the exit. Its scene, `demo-exit`, starts at the end state. The generator takes the scene as an argument: `--generate scripts/demo-exit.json demo-exit`. It writes no cut for that scene, because the cuts film parts of the long script. The merge of the docking and the exit appended `ExitSections` to `BlueDanube.Sections` after `docked`, and wrote `scripts/blue-danube.json`, `scripts/demo-docking.json` and `scripts/demo-exit.json` again. So the long script runs from the terminal on the ground through the docking and the exit to the person on the wheel's floor. One list of sections serves both scripts. `ExitSections` comes before `Sections` in `BlueDanube.cs`, because a static property's initializer runs in the order of the file, and `Sections` reads `ExitSections`.
 
@@ -2774,6 +2775,185 @@ The docking (ter-ftnj) and the exit (ter-y0e5) run on other branches. After this
 - The Moon's gravity and the Sun's tide. The engine applies no tidal gravity in a semantic frame.
 - A sky. The demo adds none (user, 2026-10-18).
 
+## The coda
+
+Ticket ter-h74c builds the coda, item 6 of "The sequence" (2026-10-21). After the exit, the person stands on the wheel's floor. It puts the pen away, walks into a stack of loose boxes and knocks it over. Then it throws two loose boxes the same way from one place, one spinward and one antispinward. A plate on the floor marks the landing of each throw in a flat field of 1 g. A check panel sets the landing of the straight line in inertial space beside the run's landing and the flat field's. The coda needs no engine change.
+
+Terms used in this section:
+
+- The station's axes, spinward and antispinward: as in "The exit". The station turns about +Y at ω = `SpinStation.Rate` = 0.31321 rad/s. The angle θ of a place runs about +Y from +X toward -Z, and spinward is the way of growing θ.
+- The floor: the wheel's inner face, 256 flat facets, 100 m from the axis at their joints, as `RevolvedSolid.Ring` builds it. `WheelFloor` reads it in the station's axes: the facet under a place, its normal, and a place's height above the facet's plane.
+- The release: a thrown box's place and instant velocity relative to the station, in the station's axes. The box's first tick reads them, from the state of its spawn.
+- The straight line: the path of a free box in inertial space. The station's frame falls freely, so in it a free box moves at a steady velocity in axes that do not turn. Its place in the station's turning axes, t seconds after the release, is p(t) = R(-ω t) (p₀ + (u₀ + ω × p₀) t). Here p₀ is the release's place, u₀ its velocity, and R(-ω t) the turn about +Y by -ω t.
+- The landing: the first moment at which the box's center comes down to its half size, 0.25 m, above the plane of the facet under it. A box whose face lies flat on that facet touches it then.
+- The flat field: the textbook's answer for a throw over a flat floor, in a field of one strength and one direction that does not turn. The coda takes ω² R = 9.810 m/s², the spin gravity at the floor's radius R = 100 m, 1.000 g. The floor is the plane of the facet under the release.
+
+### What the step does
+
+- The script posts `PlayWithBoxes` to the person after the exit's film `floor`. The person's `Passenger` destroys the pen's drawn copy and goes to `PenAway`, and its new `BoxPlay` component starts.
+- The person walks 1 m to the stack's line across the floor, then along +Y into the stack and 1.15 m past its near face. The stack's middle column falls, and the person walks on through it.
+- The person walks back to the stand in the lane at y = -2 m. It uses the green box in front of it and takes its offer, as `Carry` takes a crate. It holds the box's drawn copy where the throw starts.
+- The person is drawn as in "The person's walk": `person-body` with its visor, which its `WalkHeading` turns toward each walk and its `Gait` bobs with each step. Each walk starts from rest. So the person faces +Y as it walks into the stack, and -Y, toward the side wall and the throws' cameras, at the stand. It throws each box to its side, along the turn, and its heading holds while it stands, as the heading's rule says.
+- After 0.5 s it throws the box spinward at 8 m/s relative to itself, 30 degrees above the floor. It feels the recoil. It watches for 2.5 s, and then takes and throws the orange box antispinward in the same way.
+- The spinward box lands 5.88 m from the point under its release, short of its mark at 7.86 m. The antispinward box lands 11.54 m away, long of its mark at 7.86 m. Each lands within 4.5e-7 m of its straight line's landing.
+- Three new still cameras film the coda: one beside the stack and one for each throw, low on the floor near the side wall. The demo ends 2 s after the play is over.
+
+Why the throws differ: in the station's axes, a free box feels the spin gravity and the Coriolis term -2 ω × u. A spinward velocity adds a Coriolis term toward the floor, and an antispinward velocity one away from it. So the spinward box comes down sooner and the antispinward box flies longer, while the flat field lands both at the same distance. In inertial terms, the spinward box moves faster along the turn than the floor, and the straight line meets the rim sooner.
+
+### The drop test
+
+Before the scene, a test pinned that the engine moves a free box in the demo's own station on the straight line (`DemoStationTests.ABoxReleasedAtRestAboveTheWheelsFloorLandsWhereItsInertialLineSays`). It releases a box of 0.2 m half size and 5 kg at rest above the middle of facet 120, with no damping. It records the box's center in every tick:
+
+| Height of the release | Landing, measured | Antispinward of the release | Worst distance from the line |
+|---|---|---|---|
+| 1.0 m | 0.4554 s | 0.0956 m | 3.5e-9 m |
+| 1.5 m | 0.5599 s | 0.1765 m | 7.0e-9 m |
+
+The box falls on its line to 1e-8 m, and the time and the place of its landing match the line's to 1e-5. A box at rest in the station moves spinward at ω r in inertial space, and the floor under it turns faster at ω R. So the box lands antispinward of the point under its release.
+
+Jolt finds contacts in discrete steps. Jolt's speculative contact distance is 0.02 m. A box that starts a step higher than that above the floor sinks up to about 5 cm into the floor in that step. The next step pushes it out. So no recorded place in the contact step is the landing. The test and the flight recorder measure the landing on the line of the last free flight (see "The measure of a landing").
+
+### The places
+
+Every place is in the station's axes, in the lit stretch of the floor round the chute's end, at θ = 180 degrees.
+
+| Thing | Scene id | Place | Look |
+|---|---|---|---|
+| The stack | `stack-0` to `stack-5` | On facet 129, the facet where the stroll ends, at y = 2.5 m: three boxes on the floor, 0.62 m apart along the facet, two on them and one on top, 2 mm apart | Tan boxes of 0.5 m, 5 kg each |
+| The stand | | Over the middle of facet 129, at y = -2 m, across the chute's trough from the stack | None |
+| The boxes to throw | `throw-box-0`, `throw-box-1` | On the floor 0.8 m in front of the stand, toward -Y, 0.45 m spinward and 0.45 m antispinward | Green for the spinward throw, orange for the antispinward one |
+| The marks | `flat-mark-0`, `flat-mark-1` | Where the flat field lands the design's release of each throw, on the floor in the lane | Plates 1.5 m by 0.2 m by 8 mm, in the colors of their boxes |
+| `stack-camera` | | 3.5 m spinward of the stack's facet, 1.5 m up, at y = -1 m, looking at the stack's middle | Still |
+| `spinward-camera` | | 11 m spinward of the stand, 2 m up, at y = -9 m, looking at a point 4 m spinward of the stand | Still |
+| `antispinward-camera` | | 14 m antispinward of the stand, 2 m up, at y = -9 m, looking at a point 5.5 m antispinward of the stand | Still |
+
+The boxes are `CrateSpec` dynamic bodies with a `Crate` component, as the shuttle's crates are. `CrateSpec` gained `NoImpostor`, and every box and mark is drawn with `RenderFlags.NoImpostor`, as every part of the station is. The marks have no body. `DemoScenes.WheelCoda` holds the places and spawns them from `DemoStation.Spawn`, so the long scene and `demo-exit` have them both. `DemoScenes.DemoStation.WheelFloor` is the floor that every reader of the coda takes.
+
+A mark lies where the flat field lands the design's release: the place where `Carry.ThrowStart` puts a box for a person who stands upright at the stand, at 8 m/s along the throw's aim. The person can stop up to 5 cm off the stand, so the run's release lies a few centimeters from the design's. The panel computes the flat field from the run's own release. So the mark and the panel's flat field differ by up to 6 cm (`WheelCodaTests`).
+
+### The box play component
+
+`BoxPlay` is a component of the person, a flat state machine in the shape of the exit component. `BoxPlayState` is a custom `[Union]` with every phase of the coda. `BoxPlayEvent` is a custom `[Union]` with every event. `BoxPlayState.Next(state, event)` is the whole table of its changes. A `switch` from each state to its delegate does the work.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Idle
+  Idle --> Shoving: PlayWithBoxes
+  Shoving --> ToStand: WalkDone
+  ToStand --> Taking0: WalkDone
+  Taking0 --> Aiming0: Took
+  Aiming0 --> Watching0: Thrown
+  Watching0 --> Taking1: Watched
+  Taking1 --> Aiming1: Took
+  Aiming1 --> Watching1: Thrown
+  Watching1 --> Played: Watched
+  Shoving --> Halted: StationGone
+  ToStand --> Halted: StationGone
+  Taking0 --> Halted: BoxGone
+  Taking1 --> Halted: BoxGone
+```
+
+The diagram writes the throw's index into each case's name, as the case's field `Throw` holds it. `StationGone` also halts the cases `Taking`, `Aiming` and `Watching`, which the diagram leaves out.
+
+| State | Event | Next |
+|---|---|---|
+| `Idle` | `PlayWithBoxes` | `Shoving(start)` |
+| `Shoving` | `WalkDone` | `ToStand(start)` |
+| `ToStand` | `WalkDone` | `Taking(0)` |
+| `Taking(i)` | `Took(copy)` | `Aiming(i, copy, 0)` |
+| `Aiming(i)` | `Thrown` | `Watching(i, 0)` |
+| `Watching(i)` | `Watched`, with i + 1 below `Throws` | `Taking(i + 1)` |
+| `Watching` | `Watched` | `Played` |
+| `Shoving`, `ToStand`, `Taking`, `Aiming`, `Watching` | `StationGone` | `Halted` |
+| `Taking` | `BoxGone` | `Halted` |
+
+The delegates:
+
+- `Shoving` and `ToStand` walk their waypoints with `Walker.Step`, at `StationExit.WalkSpeed`, 1 m/s, and report `WalkDone` at the last one. Each case holds its walk's progress, a `WalkProgress`, as the walking cases of `Disembark` do. `start` in the table is `WalkProgress.Start`: each walk starts from rest at its first waypoint, and the walker's start limit brings it to 1 m/s in a third of a second (see "The walk's start").
+- `Taking` sends `Use` to the throw's box in every tick. The `CrateOffer` of that box arrives among the messages. `BoxPlay` then tells the box `CrateTaken`, so that the box goes, spawns a drawn copy at the throw's start, and reports `Took`. A box that is gone reports `BoxGone`. The use, the offer and the take each take one tick.
+- `Aiming` holds still with the copy for `AimTicks`, 30 ticks. Then `Carry.Release` spawns the thrown box at the start, at the person's velocity plus 8 m/s along the aim. It gives the person the recoil, 40 N·s, and destroys the copy. `Aiming` reports `Thrown`.
+- `Watching` stands still for `WatchTicks`, 150 ticks, and reports `Watched`. 2.5 s is longer than the antispinward box's flight of 1.69 s, so each box lands before the next take.
+
+`Carry` gained two static methods for this: `Carry.ThrowStart`, the start of a throw in the person's axes, and `Carry.Release`, the spawn of the thrown crate with its recoil. `Carry.Throw` calls both, so the person's own throws and the coda's start from one rule. A tick applies the messages first, then the delegate, then the delegate's report, as `Disembark` does. A pair with no row changes nothing, and the component logs it. Every read names the station's frame.
+
+The thrown box gets a `FlightRecorder` and a turn about +Y that lays its faces flat on the facet where its straight line lands it. So it lands on a face and lies flat, not on an edge.
+
+The pen: `Passenger` gained the case `PenAway`. In `Unstrapped`, a `PlayWithBoxes` makes it destroy the drawn copy of the pen and go to `PenAway`, where it adds nothing. The person's hands are then empty for the boxes.
+
+### The measure of a landing
+
+`FlightRecorder` is a component of each thrown box. It reads only its own entity, in the station's frame, in every tick:
+
+- The release is the box's place and velocity in its first tick.
+- Take the straight line through the two places before a place. If the place lies within 1e-4 m of that line's place at its moment, it is free. The two first places are free.
+- If a place is not free, or lies at or below the half size above the floor, the record ends. The landing is where the line through the last two free places above the floor comes down to the half size. A bisection within two steps finds it. Its time counts from the release.
+- A line that does not come down within two steps means that something else stopped the box first. Then the box has no landing.
+
+`ThrowRelease` holds the two predictions, as pure functions of the release. `ThrowRelease.Landing` is the straight line's landing: a search in steps of 1 ms finds it, and a bisection to 1e-12 s. `ThrowRelease.FlatLanding` is the flat field's time and distance along the floor.
+
+### Sections of the long script
+
+The coda's sections follow the exit's `floor`. They are `BlueDanube.CodaSections`, and `BlueDanube.Sections` ends with them.
+
+| Film | Camera | Ticks per frame | Posts | Ends |
+|---|---|---|---|---|
+| `stack` | `stack-camera` | 1 | `PlayWithBoxes` to `person` | 2 s after the play leaves `Shoving` |
+| `spinward` | `spinward-camera` | 1 | | The play takes the second box: it is in `Taking` with `Throw` 1 |
+| `antispinward` | `antispinward-camera` | 1 | | 2 s after the play is in `Played` |
+
+In the long script, from 5,091.0 s of the run, the coda films 366, 410 and 302 frames: 1,078 frames in 1,078 ticks, 18.0 s of the simulation and of video. The run ends at tick 306,539. The first box leaves the hands at tick 306,088, at 5,101.5 s, and the second at tick 306,270, at 5,104.5 s. `scripts/demo-exit.json` films the coda too, with 365, 410 and 302 frames. Before the merge with the person's walk, whose walks start from rest, the coda filmed 356, 400 and 302 frames in the long script: each of the two walks of the play now takes 10 ticks more.
+
+The scene `demo-exit` now names its root frame's owner `earth`, as the long scene names the owner of Earth's frame. Its drawn Earth is `earth-globe`. So the readout log reads both scenes.
+
+### Readers and writers
+
+| Value | Writer | Readers |
+|---|---|---|
+| `BoxPlay.State` | `BoxPlay`, through `Next` only | The cues of `CodaSections`, the tests |
+| `BoxPlay.Thrown` | `BoxPlay`, at each throw | `ReadoutLog`, the tests |
+| `FlightRecorder.Release`, `FlightRecorder.Landing` | `FlightRecorder` of the box | `ReadoutLog`, the tests |
+| The loose boxes' bodies | Physics, the person's walk, `BoxPlay` by `CrateTaken` | The renderer, the tests |
+| `PassengerState` `PenAway` | `Passenger` | The tests |
+| The readout columns `throw1_*`, `throw2_*` | `ReadoutLog` | `CheckPanels.Throws` |
+
+### Tests
+
+On the real World and the real Jolt backend, `WheelCodaTests` runs `demo-exit` through the exit and the coda once, without the world's invariant checks:
+
+- When the coda starts, the loose boxes rest still, within 1 cm of their spawn places.
+- The order puts the pen away and starts the walk into the stack.
+- The person knocks the stack's middle column over, and every box is still at the first take.
+- The person walks to the stand and takes each box by `Use` and `CrateOffer`, within `Crate.AnswerTicks` + 1 ticks.
+- Each throw leaves at 8 m/s, 30 degrees above the floor, along its aim.
+- Each box lands within 1e-3 m of its straight line's landing, short of its mark spinward and long of it antispinward.
+- Each landing lies in the view of its camera, and the play ends played, with no error and no log line.
+
+`BlueDanubeCodaTests` checks the long run of `BlueDanubeRendezvousRun`, which now runs to the script's end. The stack rests where it spawned until the coda, and the play goes through both throws to `Played`. Each landing lies within 1e-3 m of its line, and the world records no error. `BlueDanubeExitTests` reads the long run only through `floor`. `WheelFloorTests`, `ThrowReleaseTests` and `WheelCodaGeometryTests` pin the floor, the two predictions and the places, and `BoxPlayStateTests` pins every row of the table. `ReadoutLogTests`, `ReadoutTextTests` and `BlueDanubeEditTests` pin the log's columns, the panel and the cut list.
+
+### Decisions
+
+- The boxes spawn with the scene, at its first tick, at rest on the floor. A spawn at the coda's start needs a cue in the scene, and a box that rests asleep for 5,090 s costs nothing. `BlueDanubeCodaTests` checks that the stack still stands where it spawned.
+- The boxes are 0.5 m on a side and 5 kg. A box smaller than the 0.4 m step that a character climbs lets the person climb the stack instead of knocking it over. 5 kg keeps the recoil, 40 N·s on a person of 70 kg, a small step back.
+- The stack and the stand lie in the lit stretch of the floor round the chute's end. They lie on both sides of the trough's line, 4.5 m apart along the axis. So the fallen stack does not reach the throws' lane.
+- The throws' lane runs along the turn, at y = -2 m. On a throw along the turn, the Coriolis term acts on the throw's height. A throw across the turn, along ±Y, feels no Coriolis term from that part of its velocity.
+- 8 m/s at 30 degrees puts the landings 5.9 and 11.5 m from the stand, 2 m apart from the flat field's 7.9 m. A slower throw brings them so near to the marks that the cameras do not show the gap.
+- The person watches each throw for 2.5 s before the next take, so both boxes land in the films and before the next take.
+- The cameras stand still. A camera that follows the box keeps the box still in the picture and moves the floor. The point of the coda is a curved flight over a still floor.
+- The measure of a landing extends the line of the last free flight. The contact step sinks the box into the floor (see "The drop test"), so a place of that step is up to 5 cm off.
+- The thrown box lies flat on the facet of its predicted landing, so that it lands on a face and lies flat, with no tumble on an edge. The measure of a landing does not need it. A hand mutation laid each box flat to the stand's facet, and every landing stayed within 1e-3 m of its line, because the measure extends the free flight.
+- The lamps of the wheel cast no shadow of a box. The renderer's shadows come from the sun only, and the station's inside is dark to the sun. A lamp's shadow is a renderer change, and the coda does without it.
+- The panel shows the release's speed and angle from the run, not the design's 8 m/s and 30 degrees. So the viewer sees that the throw the run made is the throw the textbook takes.
+
+### Engine changes
+
+None. The coda is a Demo component, a Demo scene and Demo sections. Jolt's discrete contacts, which sink a falling box into the floor in the contact step, are measured around, not changed (see "The drop test").
+
+### Not in this step
+
+- Shadows of the lamps.
+- A throw across the turn, along ±Y.
+- A camera that follows a thrown box.
+
 ## The long script
 
 Step 1 of "Order of the work", as ticket ter-2n31 built it in the Demo: the generator of the long script, the chase camera, and the frame time of the demo scene (see change 1, "Measured for the demo scene"). Nothing in the engine changed.
@@ -2814,7 +2994,7 @@ dotnet run --project src/Tertius.Demo -- --generate scripts/blue-danube.json
 dotnet run -c Release --project src/Tertius.Demo -- --script scripts/blue-danube.json --headless --out runs/danube --video runs/danube/blue-danube.mkv --fps 60
 ```
 
-The first command rehearses the run and writes the script. Beside it, in the same folder, it writes each cut of `BlueDanube.Cuts`, such as `scripts/demo-docking.json`, which films the long script only from one section through another. It prints each film with its frames, its film interval and the second of the run at which it starts. With the rendezvous, the rehearsal took 107 s on 2026-10-20, against about 10 s before. The second makes the video: on 2026-10-20 it took 110 s, at a load average from 3.7 to 6.5, for the 15,806 frames and 292,242 ticks, 4,871 s of the simulation and 263 s of video. Before the rendezvous, in the last two runs of 2026-10-19, it took 22 s and 24 s for 4,210 frames and 23,101 ticks. With the glass canopy of ter-4xkz, it took 117 s on 2026-10-20, at a load average from 4 to 5, for 15,782 frames. With the docking of ter-ftnj, the script films 20,084 frames in 302,163 ticks, 5,036 s of the simulation and 335 s of video. Its rehearsal took about 4.5 minutes on 2026-10-20, in Release, while other test runs loaded the machine. With the exit of ter-y0e5, the script films 22,884 frames in 305,468 ticks, 5,091 s of the simulation and 381 s of video. Its rehearsal took 59 s on 2026-10-20, in Release. The video took 203 s on 2026-10-20, for 22,884 frames and 381.4 s of video. The first second of the film `floor` shows the person's box large in the picture, because the `follow-camera`'s arm, which the slide left short, grows back with its time constant of 0.5 s. `scripts/demo-exit.json` shows the same. In the Earth system of ter-yhu8, before its merge with the docking and the exit, the rehearsal took from 97 to 123 s and the video 114 s on 2026-10-20, at a load average from 9 to 13, for 15,895 frames. After that merge, on 2026-10-21, the script films 22,988 frames in 305,459 ticks, 5,091 s of the simulation and 383.1 s of video. Its rehearsal took 113 s in Release, with the build, and the video took 145 s, at a load average from 5 to 7. Step 8 (ter-asce) set the outlines of six sections and wrote the script again on 2026-10-21. The outlines change no tick, so every film kept its frames. The rehearsal took 72 s in Release, and the video 142 s. With the person's walk of ter-cdgt, on 2026-10-21, the script films 22,771 frames in 305,469 ticks, 5,091 s of the simulation and 379.5 s of video. Its rehearsal took 99 s in Release, with the build, and the video took 144 s, at a load average from 4 to 8. After the merge with the final assembly and the review's fix of the heading, the script filmed the same frames, and the video took 203 s, with the build, while other runs loaded the machine. The test `BlueDanubeScriptTests` runs the first command and checks that its output equals the checked-in `scripts/blue-danube.json`, and each cut the checked-in cut, so they cannot drift. A change of the scene, of the engine's timing or of the sections fails the test until the script is written again.
+The first command rehearses the run and writes the script. Beside it, in the same folder, it writes each cut of `BlueDanube.Cuts`, such as `scripts/demo-docking.json`, which films the long script only from one section through another. It prints each film with its frames, its film interval and the second of the run at which it starts. With the rendezvous, the rehearsal took 107 s on 2026-10-20, against about 10 s before. The second makes the video: on 2026-10-20 it took 110 s, at a load average from 3.7 to 6.5, for the 15,806 frames and 292,242 ticks, 4,871 s of the simulation and 263 s of video. Before the rendezvous, in the last two runs of 2026-10-19, it took 22 s and 24 s for 4,210 frames and 23,101 ticks. With the glass canopy of ter-4xkz, it took 117 s on 2026-10-20, at a load average from 4 to 5, for 15,782 frames. With the docking of ter-ftnj, the script films 20,084 frames in 302,163 ticks, 5,036 s of the simulation and 335 s of video. Its rehearsal took about 4.5 minutes on 2026-10-20, in Release, while other test runs loaded the machine. With the exit of ter-y0e5, the script films 22,884 frames in 305,468 ticks, 5,091 s of the simulation and 381 s of video. Its rehearsal took 59 s on 2026-10-20, in Release. The video took 203 s on 2026-10-20, for 22,884 frames and 381.4 s of video. The first second of the film `floor` shows the person's box large in the picture, because the `follow-camera`'s arm, which the slide left short, grows back with its time constant of 0.5 s. `scripts/demo-exit.json` shows the same. In the Earth system of ter-yhu8, before its merge with the docking and the exit, the rehearsal took from 97 to 123 s and the video 114 s on 2026-10-20, at a load average from 9 to 13, for 15,895 frames. After that merge, on 2026-10-21, the script films 22,988 frames in 305,459 ticks, 5,091 s of the simulation and 383.1 s of video. Its rehearsal took 113 s in Release, with the build, and the video took 145 s, at a load average from 5 to 7. Step 8 (ter-asce) set the outlines of six sections and wrote the script again on 2026-10-21. The outlines change no tick, so every film kept its frames. The rehearsal took 72 s in Release, and the video 142 s. With the person's walk of ter-cdgt, on 2026-10-21, the script films 22,771 frames in 305,469 ticks, 5,091 s of the simulation and 379.5 s of video. Its rehearsal took 99 s in Release, with the build, and the video took 144 s, at a load average from 4 to 8. After the merge with the final assembly and the review's fix of the heading, the script filmed the same frames, and the video took 203 s, with the build, while other runs loaded the machine. With the coda of ter-h74c, before its merge with the person's walk, on 2026-10-21, the script filmed 24,046 frames in 306,517 ticks, and its rehearsal took 113 s in Release, with the build, and the video 209 s, at a load average from 11 to 14. After that merge, the script films 23,841 frames in 306,539 ticks, 5,109.0 s of the simulation and 397.4 s of video. After the merge, on 2026-10-21, the rehearsal took about 70 s in Release, the master 2 minutes 39 seconds, the readout log 67 s and the edit 72 s. The test `BlueDanubeScriptTests` runs the first command and checks that its output equals the checked-in `scripts/blue-danube.json`, and each cut the checked-in cut, so they cannot drift. A change of the scene, of the engine's timing or of the sections fails the test until the script is written again.
 
 The sections today, as `BlueDanube.Sections` lists them. The frames of each film and the second at which it starts come from the run, so the generator prints them, and this table does not copy them:
 
@@ -2871,8 +3051,11 @@ The sections today, as `BlueDanube.Sections` lists them. The frames of each film
 | `chute` | `slide-camera` | 2 | The person's center is 10 m above the ceiling |
 | `brake-run` | `wheel-camera` | 1 | 1 s after the exit component is in `Strolling` |
 | `floor` | `follow-camera` | 1 | 2 s after the exit component is in `Arrived` |
+| `stack` | `stack-camera` | 1 | It posts `PlayWithBoxes` to the person. 2 s after the play leaves `Shoving` |
+| `spinward` | `spinward-camera` | 1 | The play takes the second box |
+| `antispinward` | `antispinward-camera` | 1 | 2 s after the play is in `Played` |
 
-The sections from `belt` to `hold-chase` are the rendezvous (see "The station and the rendezvous", "Sections of the long script"). They replaced the section `coast`, which filmed 30 s of the parking orbit. The sections from `dock` to `docked` are the docking (see "The docking", "Sections of the long script"). The sections from `unbelt` to `floor` are the exit, `BlueDanube.ExitSections` (see "The exit", "Sections of the long script").
+The sections from `belt` to `hold-chase` are the rendezvous (see "The station and the rendezvous", "Sections of the long script"). They replaced the section `coast`, which filmed 30 s of the parking orbit. The sections from `dock` to `docked` are the docking (see "The docking", "Sections of the long script"). The sections from `unbelt` to `floor` are the exit, `BlueDanube.ExitSections` (see "The exit", "Sections of the long script"). The sections from `stack` to `antispinward` are the coda, `BlueDanube.CodaSections` (see "The coda", "Sections of the long script").
 
 ### How a later ticket adds a section
 
@@ -2920,7 +3103,7 @@ Terms used in this section:
 - The person: the entity `person`, a character body with a view offset. Its own row draws nothing now.
 - The drawn body: the entity `person-body`, attached to the person, a box that carries the look. The visor: the entity `person-visor`, attached to the drawn body.
 - The heading: the way that the person faces, the view's -Z, turned about the person's up, +Y in the person's axes.
-- The asked walk: the walk that a component of the person asks for in this tick with `MoveCharacter`, the character walk of the person's pending intent, in m/s, in the axes of the person's frame. `Walker.Step` asks for it, for `Walker` and for `Disembark`.
+- The asked walk: the walk that a component of the person asks for in this tick with `MoveCharacter`, the character walk of the person's pending intent, in m/s, in the axes of the person's frame. `Walker.Step` asks for it, for `Walker`, for `Disembark` and for the coda's `BoxPlay`.
 - The speed across the up: the length of the part of a velocity, in the person's axes, that lies across the person's up, in m/s.
 - The lift: how far the drawn body's center lies above its place at rest, along the person's up, in meters.
 - The pace: the speed of the walk that a walker asked for in its last tick, in m/s.
@@ -2939,7 +3122,7 @@ Who causes each change, and where its result is stored:
 |---|---|---|
 | The heading | The person's `WalkHeading`, from the asked walk of this tick and the standing in the last finished step | The person's view offset, its render row |
 | The body's turn and lift | The drawn body's `Gait`, from the person's view, pose, velocity and standing in the last tick | The drawn body's attach offset. The distance walked and the bob's weight in the component. |
-| The pace of the walk | `Walker.Step`, from the pace of its last tick | `WalkProgress`, in `Walker` or in the cases `Walking` and `Strolling` of `Disembark` |
+| The pace of the walk | `Walker.Step`, from the pace of its last tick | `WalkProgress`, in `Walker`, in the cases `Walking` and `Strolling` of `Disembark`, or in the cases `Shoving` and `ToStand` of `BoxPlay` |
 | The visor's place | Nobody: a fixed attach offset | The visor's attach offset |
 
 ```mermaid
@@ -3164,7 +3347,7 @@ The video shows numbers from the engine next to numbers that a viewer can check 
 |---|---|---|
 | Live readouts | Speed, altitude, distance to the station and a g-meter for the character, drawn on each frame from a log with one row for each frame, which a playback of the Demo writes (see "The readout log") | No |
 | The frames made visible | A cut-in that outlines each frame's bubble, with a legend of the kinds of frames | No more: the outlines came with E6 to E8 (see "Change 3: frame outlines") |
-| Textbook checks | The sim clock shows that things take the time that physics predicts: a panel sets the speed and the period of the parking orbit, 88.4 minutes at 200 km, beside the values of the run. A second panel sets the spin gravity ω² r on the wheel's floor beside the run's felt gravity (see "The textbook checks") | No |
+| Textbook checks | The sim clock shows that things take the time that physics predicts: a panel sets the speed and the period of the parking orbit, 88.4 minutes at 200 km, beside the values of the run. A second panel sets the spin gravity ω² r on the wheel's floor beside the run's felt gravity. A third panel sets the landing of each of the coda's throws on its straight line in inertial space beside the run's landing. A flat field's landing stands beside them (see "The textbook checks") | No |
 
 The user chose a fourth proof on 2026-10-18 and left it out on 2026-10-20: one part of the script shown twice in a split view, with the automatic frames on in one half and off in the other. It needs an engine change, an option of the headless run that turns numeric frames off.
 
@@ -3729,7 +3912,7 @@ Why a playback, and not a component or the Host:
 - The playback is the seam that the runner already calls at exactly the moments that the video shows, with the frame's name. `BlueDanubeFilmTests` reads the long script through a playback in the same way.
 - The Host is engine code. A log beside the video sink in the same run needs a Host change. A second run takes about as long as the rehearsal, under two minutes today, and it changes nothing in the engine.
 
-Why one row for each frame and not for each tick: the video shows only the captured ticks. A row for each frame needs no join by tick. The log is also 13 times smaller than a log with a row for each tick: 22,988 frames against 305,459 ticks in the long script of 2026-10-21.
+Why one row for each frame and not for each tick: the video shows only the captured ticks. A row for each frame needs no join by tick. The log is also 13 times smaller than a log with a row for each tick: 23,841 frames against 306,539 ticks in the long script of 2026-10-21, with the coda and the person's walk.
 
 Each row holds raw quantities from the engine, and the edit derives the rest:
 
@@ -3742,8 +3925,15 @@ Each row holds raw quantities from the engine, and the edit derives the rest:
 | `station` | The distance from the person to the station's center, in meters |
 | `axis` | The distance from the person to the station's axis, in meters: to the line through the station's center along the +Y of the station's own frame `station`, the axis of its turn |
 | `felt` | The length of the felt gravity at the person's place, `FrameTree.FeltGravity` of the person's frame at its position there, in m/s² |
+| `throw1_x`, `throw1_y`, `throw1_z` | The release's place of the coda's first throw, in the station's frame, in meters from its center. Empty before the release. |
+| `throw1_vx`, `throw1_vy`, `throw1_vz` | The release's velocity of the first throw relative to the station, in its axes, in m/s. Empty before the release. |
+| `throw1_time` | The first throw's landing time, in seconds after its release. Empty before the landing. |
+| `throw1_land_x`, `throw1_land_y`, `throw1_land_z` | The first throw's landing place, in the station's frame, in meters. Empty before the landing. |
+| `throw2_x` to `throw2_land_z` | The same ten columns for the second throw |
 
 Every readout is about the person, in the one frame `earth`, as the guidance reads (see "The demo in the Earth system"). The ground's frame `earth-surface` turns once per sidereal day. A speed in it misses the ground's turn: by up to 480 m/s in the parking orbit, which passes over the pole. So the speed and the textbook check of the parking orbit read in `earth`. The altitude, the distance to the station and the felt gravity are the same in both frames. The distance from the station's axis is the r of the spin gravity's check (see "The textbook checks"). A distance from a line is the same in every frame, so the log reads it in `earth` too: it takes the station's pose in `earth`, and the part of the person's offset from the station's center across the station's +Y. Step 8 (ter-asce) added the column, because the check needs the person's own distance from the axis and not the floor's radius. On the ground the person walks at most 40 m from the axis of the turn, where the ground moves at 3 mm/s in `earth`. The camera follows the person, and from the boarding on the person rides in the shuttle, so the readouts tell the shuttle's flight too. The log writes each number in the round-trip format, so a read of the log gives back the same doubles.
+
+The twenty columns of the throws are about the coda's boxes, not the person. They read in the station's frame, the frame of the throws, because a landing is a place on the turning floor. The log reads the person's `BoxPlay.Thrown` and the `FlightRecorder` of each thrown box. So a row holds a throw from the first frame after its box's first tick. The ticket ter-h74c added them, for the third panel. A row of a scene with no `BoxPlay` leaves them empty.
 
 ### The readouts on the frame
 
@@ -3771,7 +3961,7 @@ The rules of the numbers:
 
 The check must read a value that the engine computes by physics, not one that it sets by formula. The station flies on Kepler rails (`KeplerMotion`), so its period is Kepler's by construction, and a check of it proves nothing. The shuttle is a dynamic body, and Jolt integrates it in Earth's point gravity, so the checks read the person, who rides in it.
 
-Two panels. The first is the parking orbit. It shows from the film `orbit` through the film `night`, while the shuttle coasts in the parking orbit before the transfer burn:
+Three panels. The first is the parking orbit. It shows from the film `orbit` through the film `night`, while the shuttle coasts in the parking orbit before the transfer burn:
 
 ```
 TEXTBOOK CHECK   parking orbit, 200.0 km up
@@ -3785,7 +3975,7 @@ one orbit 2π√(r³/GM)       88.4 min   run measuring
 
 The first example of the plan, about 92 minutes for one orbit at 400 km, is the station's orbit, and so it is not a check. The parking orbit at 200 km takes 88.4 minutes.
 
-The second panel is spin gravity in the wheel, `CheckPanels.SpinGravity`. It shows from the film `brake-run` through the film `floor`, the last film of the run: the brake run at the chute's end, the landing, and the person on the wheel's floor:
+The second panel is spin gravity in the wheel, `CheckPanels.SpinGravity`. It shows from the film `brake-run` through the film `floor`, the exit's last film: the brake run at the chute's end, the landing, and the person on the wheel's floor:
 
 ```
 TEXTBOOK CHECK   spin gravity in the wheel
@@ -3800,6 +3990,25 @@ felt gravity ω²r   9.72 m/s²   run 9.72 m/s²
 Why from the brake run and not only on the floor: the film `floor` lasts 6.5 s, and a panel needs time to read. The brake run adds 3.4 s, in which the person slides the last 15 m to the floor and its felt gravity grows from 0.85 g to 0.99 g. The panel takes r from each row, so it is right at these frames too. The part's title shows over the first 4 s of `unbelt`, long before the panel.
 
 This check is weaker than the orbit's. The engine computes the felt gravity by a rule: the frame's field, minus its proper acceleration, minus ω × (ω × r), with ω the frame's angular velocity from the tree rows. So the panel shows that the station's frame turns at the station's rate and falls freely, so that its field and its proper acceleration cancel. It does not show an integration, as the orbit's period does. In the long script of 2026-10-21, the two values agree to 8e-8 m/s² in every frame of `brake-run` and `floor`. On the floor the person stands 99.10 m from the axis at 9.721 m/s², 0.99 g, as `BlueDanubeExitTests` measures.
+
+The third panel is the coda's throws, `CheckPanels.Throws` (ticket ter-h74c). It shows from the film `spinward` through the film `antispinward`, the last film of the run: the walk to the stand, both throws, and the end of the play:
+
+```
+TEXTBOOK CHECK   a box thrown in the wheel, ω 0.31321 rad/s
+lands        release         straight line        run    uniform 1 g
+spinward     8.00 m/s 30.0°         5.88 m     5.88 m         7.86 m
+antispinward 8.00 m/s 30.0°        11.54 m    11.54 m         7.86 m
+```
+
+- Each row is one throw, from the row's `throw1_*` or `throw2_*` columns. The first throw is spinward and the second antispinward, in the coda's order.
+- The release is the length of the release's velocity and its angle above the facet under it, in the station's axes.
+- Each landing is a distance along the floor from the point under the release, in the throw's direction: the angle about the axis between the two places, times the floor's radius. A landing behind the release is negative.
+- The straight line is `ThrowRelease.Landing` of the row's release, and the run is the row's landing from the box's `FlightRecorder`. The uniform 1 g is the flat field, `ThrowRelease.FlatLanding` in ω² R = 9.810 m/s². The panel calls it "uniform 1 g", because the label "flat 1 g" holds the pair "fl".
+- A throw before its release shows `waiting` and no columns. A throw in the air shows `in the air` for the run.
+- Each header stands at least three spaces from the one before it. In the first render of the coda, "run" and "uniform 1 g" stood one space apart and read as one header. `ReadoutTextTests` checks the gap, and that each landing ends under the end of its header.
+- The panel writes no "fi" and no "fl". libass draws each such pair as one ligature of Menlo, so a line that holds one draws narrower than its count of characters. The panel's lines are right-aligned, so that line falls out of line with the others. The first render of 2026-10-21 showed it.
+
+This check is as strong as the orbit's. The flight recorder reads the box that Jolt integrates, and the straight line is a formula of the release alone. In the long script of 2026-10-21, after the merge with the person's walk, the run's landings lie 9.8e-8 m and 4.4e-7 m from their straight lines' landings: 5.8801 m spinward and 11.5426 m antispinward, against 7.8618 m and 7.8622 m for the flat field. The landings come 0.83 s and 1.69 s after their releases, against 1.13 s for the flat field.
 
 ### The cut list
 
@@ -3822,8 +4031,11 @@ The parts:
 | 4 | `belt` | The rendezvous | A transfer of 170 degrees to the station, 400 km up. |
 | 5 | `dock` | The docking | The shuttle matches the station's spin and lands on its deck. |
 | 6 | `unbelt` | The wheel | Down a spoke to the wheel's floor, in full spin gravity. |
+| 7 | `stack` | Loose boxes | In a turning wheel, a thrown box flies straight and the floor turns under it. |
 
 Step 8 (ter-asce) added parts 5 and 6. The docking starts with `dock`, the first film after the hold, whose posts order the docking. The wheel starts with the exit's first film, `BlueDanube.ExitSections[0]`, `unbelt`, where the person opens its belt. Each subtitle says what the part shows in one line, as the others do. "Matches the station's spin" names the spin-up, without which the shuttle cannot enter the turning slot, and "lands on its deck" names the docking's end. The shuttle lands on the bay's deck inside the hub, so the subtitle says the deck and not the barrel. "Full spin gravity" names the point of the wheel, which the second panel checks. It says "full" and not "one g", because the person feels 0.99 g.
+
+The coda (ter-h74c) added part 7. It starts with the coda's first film, `BlueDanube.CodaSections[0]`, `stack`, whose posts order the play. The subtitle names the point of the throws in one line: the box flies on a straight line in inertial space, and the turning floor makes that line a curve.
 
 #### The dark frames
 
@@ -3843,12 +4055,13 @@ The measure, on the master of the checked-in script of 2026-10-21, with the dock
 | `spin-match` | `hold-camera` | The whole picture | The 90th percentile is 57 or more, and the mean 26.8 or more: the shuttle 37 m away and the hub beyond it, on a black sky. A look at the darkest frame, frame 272 of the film, shows the lit cabin through the glass and the whole wheel. |
 | `entry`, `slot`, `move-out`, `landing`, `docked` | `window-camera`, `bay-camera`, `cockpit-camera`, `cabin-camera` | The whole picture | The mean is 77 or more: the slot ahead through the nose's pane, the lit bay, and the lit cabin. |
 | `unbelt`, `deck`, `chute-top`, `chute`, `brake-run`, `floor` | `cabin-camera`, `deck-camera`, `spoke-camera`, `slide-camera`, `wheel-camera`, `follow-camera` | The whole picture | The mean is 95 or more: the lamps of the deck, the spoke and the wheel light every picture. |
+| `stack`, `spinward`, `antispinward` | `stack-camera`, `spinward-camera`, `antispinward-camera` | The whole picture | The mean is 139 or more: the wheel's lamps light the floor of the coda. The coda (ter-h74c) measured it on its master of 2026-10-21. |
 
 The other films are on the ground, in the cabin, at the pen and at the windows, in daylight or in the lit cabin, and the mean of each of their pictures is 28 or more. So every frame of the master shows the shuttle or the station, and the cut list trims nothing. The face of the hull that looks at the chase camera is still dark in Earth's shadow. But the panes of the glass canopy show the lit cabin, so the shuttle stands out against the night side of Earth. At the end of `transfer`, the station is too small to see, and the shuttle shows.
 
 The docking and the exit have no frame that shows nothing of the shuttle or the station either, so the cut list trims none of their frames. The trims stay in the rules of the cut list for a later change of the script.
 
-The stretches hold all 22,988 frames of the master, 383.1 s at 60 frames per second. With the cards, the final video lasts 396.1 s, 6 minutes 36 s. After the person's walk of ter-cdgt, the master holds 22,771 frames, 379.5 s, and the video lasts 392.5 s. The measure of the dark frames above was made on the master before that change, whose rendezvous comes about 8 s later along the orbit.
+The stretches hold all 22,988 frames of the master, 383.1 s at 60 frames per second. With the cards, the final video lasts 396.1 s, 6 minutes 36 s. After the person's walk of ter-cdgt, the master holds 22,771 frames, 379.5 s, and the video lasts 392.5 s. With the coda, the master holds 23,841 frames, 397.4 s, and the video lasts 410.4 s, 6 minutes 50 s. The measure of the dark frames above was made on the master before the person's walk, whose rendezvous comes about 8 s later along the orbit.
 
 ### The title cards and the transitions
 
@@ -3891,38 +4104,15 @@ One proof and one fix of the light needed engine changes. The user settled both 
 
 The recording: "The Blue Danube" by Johann Strauss II, played by the United States Marine Band and conducted by Albert F. Schoepper. It is a work of the US government, and so it is in the public domain. It comes from Wikimedia Commons, the file "An der schönen, blauen Donau" performed by the U.S. Marine Band.mp3: 13,183,232 bytes, MP3 at 192 kbit/s, 44.1 kHz, stereo. The user said yes to its download on 2026-10-20. The file stays outside the repository, and the edit takes its path with `--music`.
 
-ffprobe in the dev shell measures the recording at 549.06 s, 9 minutes 9 s. The last 2.8 s are silence. The video lasts 396.1 s, 72 percent of the recording. The edit fits the music to the cut with one rule:
+ffprobe in the dev shell measures the recording at 549.06 s, 9 minutes 9 s. The last 2.8 s are silence. The video lasts 410.4 s, 75 percent of the recording. The edit fits the music to the cut with one rule:
 
 - The music starts at second 0 of the recording (`--music-start 0`), with the first frame of the opening card. The waltz opens with its quiet introduction, at about 47 dB below full scale in its first second, so it starts under the black card with no jump.
 - It fades in over 2 s and out over the last 5 s of the video, which lie in the closing card. So the music ends with the picture.
 - It is encoded as AAC at 192 kbit/s, the rate of the source.
 
-Why a fade and no cut of the music: the waltz is twice as long as the run, and the run is one unbroken take, so the picture cannot follow the music's sections. A cut inside the music, to end on its last chord, needs an edit of the music by ear. A fade over the closing card ends the music where the picture ends, and it stays right when the docking and the exit make the video longer: the recording is long enough for a video of up to 9 minutes. In the cut of round 2, 276.0 s long, the fade ended 0.2 s before a short pause of the waltz: from 276.25 s to 276.75 s of the recording, its level falls to about 45 dB below full scale. The film `sky` of the Earth system made the video 1.9 s longer, so the fade passed through that pause and ended about 1.2 s after it. With the docking and the exit, the video lasts 396.1 s, and the fade runs from 391.1 to 396.1 s of the recording. The waltz plays on there, at about 15 to 26 dB below full scale, with no pause. So the music fades out under the closing card in the middle of a phrase. After the person's walk of ter-cdgt, the video lasts 392.5 s, 71 percent of the recording, and the fade runs from 387.5 to 392.5 s. The next final render checks the music there.
+Why a fade and no cut of the music: the waltz is twice as long as the run, and the run is one unbroken take, so the picture cannot follow the music's sections. A cut inside the music, to end on its last chord, needs an edit of the music by ear. A fade over the closing card ends the music where the picture ends, and it stays right when the docking and the exit make the video longer: the recording is long enough for a video of up to 9 minutes. In the cut of round 2, 276.0 s long, the fade ended 0.2 s before a short pause of the waltz: from 276.25 s to 276.75 s of the recording, its level falls to about 45 dB below full scale. The film `sky` of the Earth system made the video 1.9 s longer, so the fade passed through that pause and ended about 1.2 s after it. With the docking and the exit, the video lasts 396.1 s, and the fade runs from 391.1 to 396.1 s of the recording. The waltz plays on there, at about 15 to 26 dB below full scale, with no pause. So the music fades out under the closing card in the middle of a phrase. After the person's walk of ter-cdgt, the video lasts 392.5 s, 71 percent of the recording, and the fade runs from 387.5 to 392.5 s. With the coda and the person's walk, the video lasts 410.4 s, and the fade runs from 405.4 to 410.4 s of the recording. The waltz plays on there, at about 24 to 32 dB below full scale in each second, with no pause.
 
 The user chose this recording for the whole video on 2026-10-21, after a comparison of the first 65 s with a synth score and with the recording. So the rule above is the final one, and no score replaces the recording. Ticket ter-zd4t closed without a merge, and its branch keeps the score's tools.
-
-### The cue sheet
-
-Who reads it: no code in the repository reads it now. It was made for the score of ter-zd4t, which the user left out on 2026-10-21 (see "The music"). A score or a cut of the music that follows the picture needs the times of the films in the final video, exact to the frame. The edit owns the cut, the cards and the trims, so it writes the times: `--edit <out.mp4>` writes `<out.mp4>.cues.json` beside the video, from `CueSheet.Of`, once ffmpeg has made the video. A score that derived the times from the script would copy the rules of the edit, and it could drift from them.
-
-The file holds:
-
-| Field | Meaning |
-|---|---|
-| `framesPerSecond` | 60, the frames per second of the video |
-| `length` | The length of the video in seconds, the end of the closing card |
-| `opening`, `closing` | The `start` and the `end` of each card, in seconds |
-| `films` | Each film of the script, in its order: its `name`, its `firstFrame` and `lastFrame`, the first and the last frame of the master that the cut list keeps, and its `start` and `end` in seconds of the final video |
-| `parts` | Each part: its `title`, its first `film`, and the `start` of its title in seconds, which is the start of that film |
-
-Every time is a frame of the final video. Frame n starts at n / 60 s, so 60 times each time is a whole number, to the rounding of a double. A card lasts its seconds rounded to whole frames, `TitleCard.Frames`. Its subtitles, its black frames and the sheet all take that count, so the first film starts at frame 300. The edit gives ffmpeg the card's whole frames and not its seconds: for a time between two frames, ffmpeg makes one frame more than the rounding. A film ends where the next film starts, and the last film ends where the closing card starts. `CueSheetTests` checks the sheet. `EditCommandTests` checks on a real ffmpeg video that the frame at a film's start is that film's first kept frame, that the closing card's frames end the video, and that a card whose seconds fall between two frames lasts the frames of its cue.
-
-In the final video of 2026-10-21, the film `closing` starts at 140.23 s, `landing` at 328.27 s and `docked` at 338.63 s. The title "The docking" starts at 269.95 s, "The wheel" at 341.63 s, and the closing card at 388.13 s. The person's walk of ter-cdgt changed the frames of 17 films, so these times move by the frames that it added or removed before each film: 23 frames more before `closing` and "The docking", 226 fewer before `landing`, 227 fewer before `docked` and "The wheel", and 217 fewer before the closing card. So `closing` starts at 140.62 s, "The docking" at 270.33 s, `landing` at 324.50 s, `docked` at 334.85 s, "The wheel" at 337.85 s and the closing card at 384.52 s.
-
-The review of step 8 measured the sheet on the MP4:
-
-- ffprobe counts 23,768 frames in the video, 396.13 s. That is the sheet's length to the frame: the 300 frames of the opening card, the 22,988 frames of the master and the 480 frames of the closing card.
-- For each film, the review set the frame of the MP4 at the film's start in the sheet beside the frames of the master from 2 before the film's first frame to 2 after it, as gray pictures of the middle of the frame, which has no text. For the first film it took the frames 31 frames in, past the fade from black. In every film the best match is the film's first frame, to within 0.6 of 255 levels on average. At each film that starts with a cut to another picture, the frame before it differs by 16 levels or more. Where a film holds a still picture, its neighbors match as well, and the cuts round it fix the place.
 
 ### The final render
 
@@ -3932,11 +4122,11 @@ dotnet run -c Release --project src/Tertius.Demo -- --readouts scripts/blue-danu
 dotnet run -c Release --project src/Tertius.Demo -- --edit runs/danube/blue-danube.mp4 --script scripts/blue-danube.json --master runs/danube/blue-danube.mkv --readouts runs/danube/readouts.csv --music <blue-danube-us-marine-band.mp3> --music-start 0 --music-credit "The Blue Danube (Johann Strauss II). United States Marine Band, Albert F. Schoepper, conductor. Public domain."
 ```
 
-- `--edit` writes its subtitle files into the folder `<out>.parts` beside the output, and it runs one ffmpeg command. Then it writes the cue sheet `<out>.cues.json` beside the output (see "The cue sheet").
+- `--edit` writes its subtitle files into the folder `<out>.parts` beside the output, and it runs one ffmpeg command. A card lasts its seconds rounded to whole frames, `TitleCard.Frames`. Its subtitles and its black frames both take that count, and the edit gives ffmpeg the card's whole frames and not its seconds: for a time between two frames, ffmpeg makes one frame more than the rounding. `EditCommandTests` checks this on a real ffmpeg video.
 - The output is an MP4 with H.264 at quality 18 (`-crf 18`), 1280 × 720 at 60 frames per second. Its pixel format is yuv420p, which every player reads. Its index is at the front of the file (`-movflags +faststart`).
 - `--music`, `--music-start` and `--music-credit` are optional, and the video has no sound without them.
 - The command refuses a log whose rows do not match the frames of the script by count and by name. It also refuses a master whose count of frames does not match. So a log or a master from another script cannot reach the edit.
-- The length: 396.1 s, 6 minutes 36 s, with the docking and the exit. After the person's walk of ter-cdgt, 392.5 s: 23,551 frames, the 22,771 of the master and the 780 of the two cards.
+- The length: 410.4 s, 6 minutes 50 s, with the docking, the exit and the coda: 24,621 frames, the 23,841 of the master and the 780 of the two cards.
 
 Measured in round 1, on 2026-10-20, on an Apple M1 Max, with the script of that day and no music: the master took 2 minutes 53 seconds, 15,806 frames and 410 MB. The edit took 55 s. Its frames showed the readouts, the clock, the rate and the check panel as designed, and also the titles, the cards and the dips to black.
 
@@ -3962,6 +4152,22 @@ Measured in step 8 (ter-asce), the final render with the docking, the exit and t
 - Its frames show the six titles of the parts, both check panels, the legend over the films with outlines, and the closing card with the line of the music.
 - The run prints one line of the demo: at tick 296,183, in the film `entry`, the rendezvous autopilot halts, because the shuttle has entered the station's frame. The rendezvous autopilot stays in its hold after the docking takes over, and its guard for another frame halts it there. It adds nothing in its hold, so the halt changes nothing in the run.
 
+Measured in the coda (ter-h74c), the final render with the coda, on 2026-10-21, on the same machine, with the checked-in script and the music. Other test runs loaded the machine to a load average from 11 to 29:
+
+- The rehearsal took 113 s in Release, with the build. The master took 3 minutes 29 seconds from the command line: 24,046 frames in 306,517 ticks, 965 MB.
+- The readout log took 1 minute 42 seconds.
+- The edit took 70 to 88 s. The final video has 24,826 frames, 413.8 s at 60 frames per second, and an AAC track of 413.8 s. It is 80.7 MB.
+- Its frames show the coda's title and the stack before and after it falls. They show each throw at its launch, in flight and at its landing beside its mark, and the third panel.
+- The run prints the same one line of the rendezvous autopilot, and no line of the coda.
+
+Measured after the merge of the coda with the person's walk (ter-cdgt), on 2026-10-21, on the same machine, with the checked-in script and the music:
+
+- The master took 2 minutes 39 seconds from the command line: 23,841 frames in 306,539 ticks, 952 MB.
+- The readout log took 67 s.
+- The edit took 72 s. The final video has 24,621 frames, 410.35 s at 60 frames per second, and an AAC track of 410.35 s. It is 79.7 MB.
+- Its frames show the person's drawn body and its visor at the stack and at the stand, and the panel's five headers apart from each other.
+- The run prints the same one line of the rendezvous autopilot, and no line of the coda.
+
 ### Order of the work
 
 1. This design, committed alone.
@@ -3971,7 +4177,8 @@ Measured in step 8 (ter-asce), the final render with the docking, the exit and t
 5. `FilmSection.Outlines` in the generator, with a test, and no section that sets it yet.
 6. A test edit of the master of today, with no music, and a look at its frames.
 7. After the user's yes for a recording and its download: the final render with the music (done on 2026-10-20).
-8. After the docking and the exit merge: their parts and the wheel's panel go into the cut list, and the sections above get `Outlines`. The readout log gains the distance from the station's axis, and the edit writes the cue sheet. The script is written again, the dark frames are measured again as in "The dark frames", and the video is rendered again (done on 2026-10-21, ter-asce).
+8. After the docking and the exit merge: their parts and the wheel's panel go into the cut list, and the sections above get `Outlines`. The readout log gains the distance from the station's axis. The script is written again, the dark frames are measured again as in "The dark frames", and the video is rendered again (done on 2026-10-21, ter-asce).
+9. With the coda: its part and the throws panel go into the cut list, and the readout log gains the columns of the throws. The script is written again, the coda's films are measured as in "The dark frames", and the video is rendered again (done on 2026-10-21, ter-h74c).
 
 ## Order of the work
 
@@ -3982,6 +4189,7 @@ Measured in step 8 (ter-asce), the final render with the docking, the exit and t
 5. The spin match and the docking.
 6. The exit and the chute.
 7. The edit: the time-lapse cuts, the title cards, the music and the final render.
+8. The coda: the loose boxes, the two throws and their panel (ter-h74c, see "The coda").
 
 Steps 1 and 2 need the rails epic (`ter-ozm8`), and step 3 does not: it flies a dynamic shuttle, which falling numeric frames carry, so the following frames of the rails epic's last ticket (`ter-zg77`) do not matter to it (ticket note, 2026-10-19). Steps 4 to 6 needed the spin gravity epic (`ter-s9m0`), which is built.
 

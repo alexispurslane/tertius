@@ -20,7 +20,7 @@ namespace Tertius.Demo;
 /// and writes nothing while the heading holds.</para>
 /// <para>The heading follows the walk that the person asks for, the character walk of its pending intent, and not its
 /// velocity. A belted passenger whom the cabin's jolt pushes across the floor at 0.4 m/s asks for no walk, so it does not
-/// turn. The person's walkers, <see cref="Walker"/> and <see cref="Disembark"/>, ask for the walk in every tick of a walk,
+/// turn. The person's walkers, <see cref="Walker"/>, <see cref="Disembark"/> and <see cref="BoxPlay"/>, ask for the walk in every tick of a walk,
 /// and this component runs after them, at <see cref="Priority"/> 10. The standing comes from the last finished step.</para>
 /// <para>A floating person does not turn by itself: nothing that it can push on turns it. So the heading holds in the air,
 /// and the fetch of the pen in orbit, which places the hand in the view, sees the heading that the person had at its

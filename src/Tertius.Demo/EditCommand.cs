@@ -9,9 +9,7 @@ namespace Tertius.Demo;
 /// <summary>
 /// <c>--edit</c>: turns the master video of a script into the final video (docs/plans/blue-danube-demo.md, "The edit"). It
 /// keeps the stretches of the cut list, draws the readouts of the readout log on each frame, puts the title cards before and
-/// after, adds the music, and encodes one MP4 with ffmpeg from the dev shell. Beside the video it writes the cue sheet, the
-/// file <c>&lt;out.mp4&gt;.cues.json</c>, which says where each film, each part's title and each card lie in the video (see
-/// <see cref="CueSheet"/>).
+/// after, adds the music, and encodes one MP4 with ffmpeg from the dev shell.
 /// </summary>
 public static class EditCommand
 {
@@ -106,7 +104,6 @@ public static class EditCommand
             return ScriptCommand.FileError;
         }
 
-        CueSheet cues = CueSheet.Of(stretches, cuts);
         List<string> arguments = Arguments(stretches, cuts, options.Master, options.Music, options.MusicStart, options.Output, width, height);
         try
         {
@@ -122,17 +119,8 @@ public static class EditCommand
             error.WriteLine($"ffmpeg cannot start: {ex.Message}");
             return ScriptCommand.ToolError;
         }
-        string cueSheet = options.Output + ".cues.json";
-        try
-        {
-            File.WriteAllText(cueSheet, cues.ToJson());
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            error.WriteLine($"The edit cannot write the cue sheet {cueSheet}: {ex.Message}");
-            return ScriptCommand.FileError;
-        }
-        output.WriteLine(string.Format(CultureInfo.InvariantCulture, "{0}: {1:F1} s", options.Output, cues.Length));
+        int videoFrames = cuts.Opening.Frames + stretches.Sum(s => s.Count) + cuts.Closing.Frames;
+        output.WriteLine(string.Format(CultureInfo.InvariantCulture, "{0}: {1:F1} s", options.Output, videoFrames / (double)Stretch.FramesPerSecond));
         return ScriptCommand.Ok;
     }
 
@@ -210,8 +198,8 @@ public static class EditCommand
     public static List<string> Arguments(IReadOnlyList<Stretch> stretches, CutList cuts, string master, string? music, double musicStart, string output, int width, int height)
     {
         double film = stretches.Sum(s => s.Count) / (double)Stretch.FramesPerSecond;
-        // Each card lasts its whole frames, as its subtitles and the cue sheet count them, so the video ends where the
-        // sheet's length says.
+        // Each card lasts its whole frames, as its subtitles count them. For a time between two frames, ffmpeg would make
+        // one frame more than the rounding.
         double opening = cuts.Opening.Frames / (double)Stretch.FramesPerSecond, closing = cuts.Closing.Frames / (double)Stretch.FramesPerSecond;
         double length = opening + film + closing;
         string select = string.Join("+", stretches.Select(s => $"between(n,{s.From},{s.From + s.Count - 1})"));
