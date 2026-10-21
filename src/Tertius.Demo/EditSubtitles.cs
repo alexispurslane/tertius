@@ -79,7 +79,7 @@ public static class EditSubtitles
         ArgumentNullException.ThrowIfNull(card);
         var text = new StringBuilder(Header());
         string lines = string.Join("\\N", card.Lines.Select(line => $"{{\\fs{line.Size}\\c{(line.Gray ? Gray : White)}}}{Plain(line.Text)}"));
-        Event(text, 0, (int)Math.Round(card.Seconds * Stretch.FramesPerSecond), "Card", lines);
+        Event(text, 0, card.Frames, "Card", lines);
         return text.ToString();
     }
 
