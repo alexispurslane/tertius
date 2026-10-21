@@ -1,7 +1,7 @@
 ---
 id: ter-6u2m
 status: open
-deps: [ter-4zt6]
+deps: [ter-4zt6, ter-ftk4]
 links: []
 created: 2026-10-21T14:13:35Z
 type: feature

@@ -19,3 +19,7 @@ Design doc: docs/plans/particles.md (to write first). The user chose real partic
 **2026-10-21T14:17:10Z**
 
 From the user's objection of 2026-10-21 (see ter-6u2m): emitters belong to the render data of the entity whose component causes them, like RenderData.Light, and the component sets them on its own entity. The design must settle how one entity holds several emitters, one per jet of a hull, written by more than one component of that entity.
+
+**2026-10-21T14:27:09Z**
+
+Superseded on 2026-10-21: the user proposed parts (see the new parts ticket), so each jet is its own attached entity with one emitter. An entity's render data holds one emitter, as it holds one light, and the question of several emitters per entity is gone.
