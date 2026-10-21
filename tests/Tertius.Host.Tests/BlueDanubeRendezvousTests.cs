@@ -11,15 +11,15 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// The checked-in long script, scripts/blue-danube.json, through its film <see cref="LastFilm"/>, in one run on the real
-/// World and the real Jolt backend with no renderer (docs/plans/blue-danube-demo.md, "The station and the rendezvous"). The
-/// run keeps a log of every tick from the first tick of the parking orbit, and at each frame it records what the frame's
-/// camera sees of the station and of the person. It runs without the world's invariant checks: with the station, they cost
-/// 6.6 ms a tick, and the run takes about 290,000 ticks.
+/// World and the real Jolt backend with no renderer (docs/plans/blue-danube-demo.md, "The station and the rendezvous" and
+/// "The docking"). The run keeps a log of every tick from the first tick of the parking orbit, and at each frame it records
+/// what the frame's camera sees of the station and of the person. It runs without the world's invariant checks: with the
+/// station, they cost 6.6 ms a tick, and the run takes about 300,000 ticks.
 /// </summary>
 public sealed class BlueDanubeRendezvousRun : IDisposable
 {
     /// <summary>The last film of the run.</summary>
-    public const string LastFilm = "hold-chase";
+    public const string LastFilm = "docked";
 
     public BlueDanubeRendezvousRun()
     {
@@ -43,6 +43,9 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
 
     /// <summary>The frame earth-surface, in which the shuttle and the station fly.</summary>
     public FrameHandle Surface { get; }
+
+    /// <summary>The station's frame, which the shuttle enters in the docking.</summary>
+    public FrameHandle StationFrame => World.GetOwnedFrame(Scene["station"]);
 
     /// <summary>Earth's G·M in earth-surface, from its point gravity, in m³/s².</summary>
     public double Mu { get; }
@@ -68,11 +71,12 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
         FrameHandle cabin = World.GetOwnedFrame(shuttle);
         DPose pose = World.PoseIn(shuttle, Surface), stationPose = World.PoseIn(station, Surface);
         PassengerState passenger = World.GetComponent<Passenger>(person)!.State;
-        Double3 personUp = World.PoseIn(person, cabin).Rotation.Rotate(Double3.UnitY);
+        DPose personPose = World.PoseIn(person, cabin);
         Ticks.Add(new RendezvousTick(World.TickNumber, World.Time, pose.Position, World.VelocityIn(shuttle, Surface), pose.Rotation.Rotate(-Double3.UnitZ),
             stationPose.Position, World.VelocityIn(station, Surface), stationPose.Rotation.Rotate(Double3.UnitY),
             World.GetComponent<RendezvousAutopilot>(shuttle)!.State, passenger, World.Frames.ProperAcceleration(cabin), World.GetFrame(shuttle),
-            PenFromHand(passenger, cabin), personUp));
+            PenFromHand(passenger, cabin), personPose.Rotation.Rotate(Double3.UnitY), World.GetComponent<DockingAutopilot>(shuttle)!.State,
+            World.PoseIn(shuttle, StationFrame), personPose.Position, World.IsStanding(person), World.Frames.Parent(cabin), World.Frames.HullMotion(cabin)));
     }
 
     /// <summary>
@@ -106,7 +110,8 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
         Entity copy = CopyOf(World.GetComponent<Passenger>(person)!.State);
         return new RendezvousFrame(name, World.PoseIn(World.Camera, cabin), World.PoseIn(Scene["station"], cabin).Position, personPose,
             personPose.TransformPoint((Double3)World.GetRender(person).ViewOffset.Position),
-            !copy.IsNull && World.IsAlive(copy) ? World.PoseIn(copy, cabin).Position : null, World.VerticalFov);
+            !copy.IsNull && World.IsAlive(copy) ? World.PoseIn(copy, cabin).Position : null, World.VerticalFov,
+            World.PoseIn(World.Camera, StationFrame), World.PoseIn(Scene["shuttle"], StationFrame));
     }
 
     /// <summary>A playback that records the state before each tick and what each frame's camera sees, and draws nothing.</summary>
@@ -141,9 +146,16 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
 /// <param name="ShuttleFrame">The shuttle's frame.</param>
 /// <param name="PenFromHand">How far the drawn copy of the pen is from the person's hand, in meters, while the person holds it, or null.</param>
 /// <param name="PersonUp">The person's up, the +Y of its pose, in the axes of the shuttle's frame.</param>
+/// <param name="Docking">What the docking autopilot does.</param>
+/// <param name="InStation">The shuttle's pose in the station's frame.</param>
+/// <param name="PersonInCabin">The person's center in the shuttle's frame, in meters.</param>
+/// <param name="PersonStanding">True when physics stood the person in the last finished step.</param>
+/// <param name="CabinParent">The parent of the shuttle's own frame, the cabin's.</param>
+/// <param name="HullMotion">The hull's motion in the last finished step.</param>
 public sealed record RendezvousTick(long Tick, double Time, Double3 Position, Double3 Velocity, Double3 Nose, Double3 StationCenter,
     Double3 StationVelocity, Double3 Axis, RendezvousState Rendezvous, PassengerState Passenger, System.Numerics.Vector3 CabinAcceleration,
-    FrameHandle ShuttleFrame, double? PenFromHand, Double3 PersonUp)
+    FrameHandle ShuttleFrame, double? PenFromHand, Double3 PersonUp, DockingState Docking, DPose InStation, Double3 PersonInCabin, bool PersonStanding,
+    FrameHandle CabinParent, BodyMotion? HullMotion)
 {
     /// <summary>The shuttle's place relative to the station's center, in meters, in earth-surface's axes.</summary>
     public Double3 FromStation => Position - StationCenter;
@@ -160,7 +172,10 @@ public sealed record RendezvousTick(long Tick, double Time, Double3 Position, Do
 /// <param name="Eye">The person's eye in the shuttle's frame, in meters.</param>
 /// <param name="Pen">The center of the drawn copy of the pen in the person's hand, in the shuttle's frame, while the person holds it, or null.</param>
 /// <param name="VerticalFov">The world's vertical view angle, in radians.</param>
-public sealed record RendezvousFrame(string Name, DPose View, Double3 Station, DPose Person, Double3 Eye, Double3? Pen, double VerticalFov)
+/// <param name="ViewInStation">The camera's pose in the station's frame.</param>
+/// <param name="ShuttleInStation">The shuttle's pose in the station's frame.</param>
+public sealed record RendezvousFrame(string Name, DPose View, Double3 Station, DPose Person, Double3 Eye, Double3? Pen, double VerticalFov,
+    DPose ViewInStation, DPose ShuttleInStation)
 {
     /// <summary>True when the frame belongs to the film <paramref name="film"/>.</summary>
     public bool Of(string film) => Name.StartsWith(film + "-", StringComparison.Ordinal) && Name.Length == film.Length + 7;
@@ -168,7 +183,8 @@ public sealed record RendezvousFrame(string Name, DPose View, Double3 Station, D
 
 public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run) : IClassFixture<BlueDanubeRendezvousRun>
 {
-    private IReadOnlyList<RendezvousTick> Log => run.Ticks;
+    /// <summary>The ticks of the rendezvous: from the first of the parking orbit until the docking autopilot starts its spin-up.</summary>
+    private IReadOnlyList<RendezvousTick> Log { get; } = [.. run.Ticks.TakeWhile(tick => tick.Docking.Value is Standby or Waiting)];
 
     private static double Degrees(Double3 a, Double3 b) => Math.Acos(Math.Clamp(Double3.Dot(a.Normalized(), b.Normalized()), -1, 1)) * 180 / Math.PI;
 
@@ -470,11 +486,17 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run) : ICl
         return enter <= leave;
     }
 
+    /// <summary>
+    /// The world records no error, and the rendezvous autopilot logs only its halt at the hand-off into the station's
+    /// frame in the docking (see <see cref="BlueDanubeDockingTests"/>).
+    /// </summary>
     [Fact]
     public void TheWorldLogsNoErrors()
     {
         run.World.Errors.Should().BeEmpty();
-        run.Logged.Should().NotContain(line => line.Contains(nameof(RendezvousAutopilot)));
+        run.Logged.Where(line => line.Contains(nameof(RendezvousAutopilot))).Should().ContainSingle()
+            .Which.Should().EndWith($"{nameof(RendezvousAutopilot)} halts: the shuttle is not in the frame that holds its station.");
+        Log[^1].Rendezvous.Value.Should().BeOfType<Hold>("the rendezvous holds until the docking takes over");
     }
 
 }

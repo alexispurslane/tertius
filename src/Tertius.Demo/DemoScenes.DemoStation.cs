@@ -29,6 +29,9 @@ public static partial class DemoScenes
     /// <item>The view <c>rim-camera</c>, in the station's frame, 2 m off the slot's face of the wheel near its rim, looks
     /// across the axis at a point between the hub and <see cref="HoldPoint"/>, with the axis across the picture. It turns
     /// with the station.</item>
+    /// <item>The view <c>bay-camera</c>, in the station's frame, at <see cref="BayCamera"/> near the bay's far wall, looks
+    /// at <see cref="BayCameraAim"/>, with its roof away from the deck. It sees the slot, the docking and the parked shuttle
+    /// beside the spoke's mouth.</item>
     /// </list>
     /// Every part is drawn with <see cref="RenderFlags.NoImpostor"/>: the spin turns the station 18 degrees a second, so an
     /// impostor's capture would go stale within a few ticks.
@@ -157,6 +160,15 @@ public static partial class DemoScenes
             new Vector3(-HubHalf.X, -(SpokeHalfWidth - SpokeWall), -(SpokeHalfWidth - SpokeWall)),
             new Vector3(Deck, SpokeHalfWidth - SpokeWall, SpokeHalfWidth - SpokeWall));
 
+        /// <summary>
+        /// Where <c>bay-camera</c> stands, in the station's axes: (6.5, -11.5, 5.5) m, 1 m from the bay's far wall, in the
+        /// corner across from the parked place.
+        /// </summary>
+        public static Double3 BayCamera { get; } = new(6.5, -11.5, 5.5);
+
+        /// <summary>The point that <c>bay-camera</c> looks at, in the station's axes: (-3, 3, -1.5) m, between the slot and the parked shuttle.</summary>
+        public static Double3 BayCameraAim { get; } = new(-3, 3, -1.5);
+
         /// <summary>The axis-aligned box that holds the box of half extents <paramref name="half"/> at <paramref name="pose"/>.</summary>
         private static BoundingBox BoxAt(DPose pose, Vector3 half)
         {
@@ -283,7 +295,7 @@ public static partial class DemoScenes
 
         /// <summary>
         /// Spawns the station in <paramref name="surface"/>, <c>earth-surface</c>, on <see cref="Orbit"/> at the world's
-        /// time, with its parts, its bay lamps and its <c>rim-camera</c>, and adds them to <paramref name="scene"/>: the
+        /// time, with its parts, its bay lamps, its <c>rim-camera</c> and its <c>bay-camera</c>, and adds them to <paramref name="scene"/>: the
         /// owner <c>station</c>, <c>station-ceiling</c>, <c>station-wall-slot</c> and <c>station-wall-far</c>, the side walls
         /// on the slot's side and the other, <c>station-spokes</c> and <c>station-hub</c>. Returns the station.
         /// </summary>
@@ -405,6 +417,16 @@ public static partial class DemoScenes
             {
                 Frame = frame,
                 Pose = new DPose(rim, AttitudeAutopilot.Facing(aim - rim, Double3.Cross(across, Double3.UnitY))),
+                Render = new RenderData(),
+            }));
+
+            // The bay camera: still in the bay, 1 m from its far wall, in the corner across from the parked place. It looks
+            // at a point between the slot and the parked shuttle, with its roof away from the deck, so it sees the slot, the
+            // nose as it comes through, the move out, the landing in the corner and the spoke's mouth in the deck.
+            scene.Add("bay-camera", world.Spawn(new SpawnDesc
+            {
+                Frame = frame,
+                Pose = new DPose(BayCamera, AttitudeAutopilot.Facing(BayCameraAim - BayCamera, Double3.UnitX)),
                 Render = new RenderData(),
             }));
             return station;

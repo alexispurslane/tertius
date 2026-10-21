@@ -192,6 +192,39 @@ public sealed class DemoStationTests : IDisposable
     }
 
     /// <summary>
+    /// The parked shuttle's docking autopilot docks in the scene's station: after a <see cref="Dock"/> order, it leaves its
+    /// standby and waits for the hold, and does not halt, so it has a live station that owns a frame.
+    /// </summary>
+    [Fact]
+    public void TheShuttlesDockingAutopilotDocksInTheStation()
+    {
+        world.Post(Event.Create(scene["shuttle"], Entity.Null, new Dock()));
+
+        Tick(world, 2);
+
+        world.GetComponent<DockingAutopilot>(scene["shuttle"])!.State.Value.Should().BeOfType<Waiting>();
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// <c>bay-camera</c>, a still view in the station's frame near the bay's far wall, sees the whole docking: the corners of
+    /// the slot on both faces of its wall, the corners of the parked shuttle's box and the corners of the spoke's mouth in
+    /// the deck all lie in its picture.
+    /// </summary>
+    [Fact]
+    public void TheBayCameraSeesTheSlotTheParkedHullAndTheSpokeMouth()
+    {
+        DPose view = world.PoseIn(scene["bay-camera"], frame);
+        BoundingBox slot = DemoStation.Slot, parked = DemoStation.ParkedBounds, mouth = DemoStation.SpokeMouth;
+        IEnumerable<Double3> Corners(BoundingBox box) => Enumerable.Range(0, 8).Select(corner => new Double3(
+            (corner & 1) == 0 ? box.Min.X : box.Max.X, (corner & 2) == 0 ? box.Min.Y : box.Max.Y, (corner & 4) == 0 ? box.Min.Z : box.Max.Z));
+        Double3[] seen = [.. Corners(slot), .. Corners(parked), .. Corners(mouth with { Min = mouth.Min with { X = DemoStation.Deck } })];
+
+        foreach (Double3 corner in seen)
+            Picture.Contains(Picture.Project(view, corner, world.VerticalFov)).Should().BeTrue($"the corner {corner} lies in the picture");
+    }
+
+    /// <summary>
     /// A free shuttle at <see cref="DemoStation.HoldPoint"/>, 150 m out on the axis, with the station's velocity and its nose
     /// at the slot, drifts less than a meter in 60 s and stays in <c>earth-surface</c> all the while: its bounding sphere of
     /// 8.8 m lies 21 m outside the station's bubble.

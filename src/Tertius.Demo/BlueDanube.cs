@@ -1,6 +1,7 @@
 using Tertius.Host;
 using Tertius.Host.Scripting;
 using Tertius.Simulation;
+using DemoStation = Tertius.Demo.DemoScenes.DemoStation;
 using DemoSurface = Tertius.Demo.DemoScenes.DemoSurface;
 using LaunchRamp = Tertius.Demo.DemoScenes.LaunchRamp;
 using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
@@ -11,7 +12,8 @@ namespace Tertius.Demo;
 /// The Blue Danube demo's one unbroken run, as a script of film steps (docs/plans/blue-danube-demo.md, "The long script"):
 /// one <see cref="FilmSection"/> for each part of the sequence, in its order, in the scene <c>demo-surface</c>. Today the
 /// sections cover the parts that exist: the walk through the terminal into the shuttle, the launch to orbit with the pen,
-/// and the rendezvous with the station, to the hold point on its axis. Each later part of the demo adds its sections at the end of <see cref="Sections"/>.
+/// the rendezvous with the station, to the hold point on its axis, and the docking in the station's bay. Each later part of
+/// the demo adds its sections at the end of <see cref="Sections"/>.
 /// </summary>
 /// <remarks>
 /// A section films every tick where the action is fast, and every Nth tick for the long climb and the long waits and
@@ -98,7 +100,28 @@ public static class BlueDanube
         // two films take the 5 s that the hold had alone, so the run ends at the same tick.
         new("hold", "rim-camera", Every: 1, FilmSection.Now, Hold: Second * 3),
         new("hold-chase", "chase-camera", Every: 1, FilmSection.Now, Hold: Second * 2),
+
+        // The docking (docs/plans/blue-danube-demo.md, "The docking", "Sections of the long script"): the shuttle waits at
+        // the hold for the station's turn to bring its deck to the right roll, spins up to the station's rate, enters the
+        // slot along the axis, moves out to the corner of the deck and lands there. The cues read the docking autopilot's
+        // case and places in the station's frame, because the shuttle's frame changes at the hand-off.
+        new("dock", "chase-camera", Every: 2, (world, scene) => DockingOf(world, scene).Value is SpinUp,
+            Posts: [new PostStep(new ToEntity("shuttle"), nameof(Dock))]),
+        new("spin-up", "chase-camera", Every: 2, (world, scene) => DockingOf(world, scene).Value is SpinUp { StartTime: var start } && world.Time - start >= SpinUpFilmed),
+        new("spin-match", "rim-camera", Every: 2, (world, scene) => DockingOf(world, scene).Value is Entry),
+        // The window camera films the slot ahead until the nose is 10 m from the slot's outer face.
+        new("entry", "window-camera", Every: 4, (world, scene) => InStation(world, scene).Position.Y < DemoStation.HubHalf.Y + Shuttle.Hull.Z + NoseToSlot),
+        new("slot", "bay-camera", Every: 2, (world, scene) => DockingOf(world, scene).Value is MoveOut),
+        new("move-out", "cockpit-camera", Every: 2, (world, scene) => Double3.Distance(InStation(world, scene).Position, DemoStation.ParkedPose.Position) < 1),
+        new("landing", "bay-camera", Every: 1, (world, scene) => DockingOf(world, scene).Value is Docked, Hold: Second * 2),
+        new("docked", "cabin-camera", Every: 1, FilmSection.Now, Hold: Second * 3),
     ];
+
+    /// <summary>How long the film <c>spin-up</c> films the spin-up from outside, in seconds, before the rim camera takes over.</summary>
+    private const double SpinUpFilmed = 20;
+
+    /// <summary>How near the slot's outer face the nose comes before the bay camera takes over from the window camera, in meters.</summary>
+    private const double NoseToSlot = 10;
 
     /// <summary>
     /// The apoapsis above Earth's mean radius at which the burn of the transfer has nearly ended, in meters: 399 km, below
@@ -130,6 +153,11 @@ public static class BlueDanube
     private static RendezvousState RendezvousOf(World world, SceneInstance scene) => world.GetComponent<RendezvousAutopilot>(scene["shuttle"])!.State;
 
     private static AscentState AscentOf(World world, SceneInstance scene) => world.GetComponent<AscentAutopilot>(scene["shuttle"])!.State;
+
+    private static DockingState DockingOf(World world, SceneInstance scene) => world.GetComponent<DockingAutopilot>(scene["shuttle"])!.State;
+
+    /// <summary>The shuttle's pose in the station's frame.</summary>
+    private static DPose InStation(World world, SceneInstance scene) => world.PoseIn(scene["shuttle"], world.GetOwnedFrame(scene["station"]));
 
     /// <summary>True once the pen's clip has let the pen go, or the loose pen is gone.</summary>
     private static bool PenReleased(World world, SceneInstance scene) =>
