@@ -2,6 +2,10 @@
 
 Tertius is a game engine in C# for space-scale scenes and dense immersive-sim interactions at once. It runs on Jolt Physics in double precision and draws with a deferred Vulkan renderer. It is an engine, not a game. It is unfinished, and it changes fast.
 
+<video src="docs/media/blue-danube-demo.mp4" controls width="100%"></video>
+
+The demo video, 6 minutes 50 seconds at 960 × 540: [docs/media/blue-danube-demo.mp4](docs/media/blue-danube-demo.mp4). It is one unbroken run of the engine. A person boards a shuttle at the North Pole of a turning Earth. The shuttle launches up a ramp, docks with a spinning station in orbit, and the person walks out onto the floor of the station's wheel and throws boxes in its spin gravity. The readouts on screen come from the run, and the check panels set them beside the textbook's numbers.
+
 The two tables below say what is different about its physics and its entity-component system. They also say which other engines do something similar.
 
 ## Physics
