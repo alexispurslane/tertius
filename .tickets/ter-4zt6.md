@@ -43,3 +43,7 @@ Correction, 2026-10-21: the user's 'pure gravity' means no lift number on the em
 **2026-10-21T15:58:07Z**
 
 The revised design is docs/plans/particles.md at 1951a75 (branch ter-4zt6-particles): a 56-byte Puff (place, chord, age, look index), ranges per frame, a shared look table, the medium as a [Union] beside the gravity field (UniformMedium, PlanetMedium), lift and drag from it, old puffs stepped at a new step 2b, and nine tasks of which 3, 4 and 5 run in parallel. The user settled its two forks on 2026-10-21: the medium acts only on puffs for now, and a look holds a temperature ratio (the ideal gas law), so lift and drag are the same at every height and stop at once at 50 km, where earth-surface's air ends.
+
+**2026-10-21T16:10:46Z**
+
+The build of 2026-10-21: tasks 1 to 7 of docs/plans/particles.md run in one workflow on the epic's branch ter-4zt6-particles, in its one worktree, with parallel builders on separate files (1 and 2 at once, then 4 and 5 after 1, 3 after 1 and 2, 6 after 3 and 4, 7 after 5), then one reviewer and one fixer. The doc's sentence that each task is its own ticket and branch gives way to this, because the tasks share one design and one review. Task 8 (ter-fwsy) and task 9 (ter-gk9o) are their own tickets after the epic, because the plumes wait for neither.
