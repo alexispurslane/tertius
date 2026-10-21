@@ -186,8 +186,8 @@ public readonly record struct RendezvousPlan(double TransferTime, double Arrival
 /// The second layer of the shuttle's flight program: it flies the shuttle from its parking orbit to the hold point of its
 /// <paramref name="station"/>, on the <paramref name="plan"/> (docs/plans/blue-danube-demo.md, "The rendezvous autopilot").
 /// In the ticks that it steers, it adds an <see cref="AttitudeTarget"/> for the <see cref="AttitudeAutopilot"/>, and a
-/// <see cref="Throttle"/> for the <see cref="MainEngine"/> and a <see cref="Translation"/> for the
-/// <see cref="TranslationThrusters"/> when they push. Those actuators read them after it (see <see cref="Priority"/>). Its
+/// <see cref="Throttle"/> for the <see cref="MainEngine"/> and a <see cref="Translation"/> for the translation pairs of
+/// the <see cref="ShuttleJetControl"/> when they push. Those actuators read them after it (see <see cref="Priority"/>). Its
 /// target overrides the orbit attitude of the <see cref="AscentAutopilot"/>, which runs before it. It plans with
 /// <paramref name="maxThrust"/>, the main engine's thrust at full throttle. The flight goes through the cases of
 /// <see cref="RendezvousState"/>:

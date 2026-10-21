@@ -239,7 +239,7 @@ public readonly struct DockingEvent : IEquatable<DockingEvent>
 /// The third layer of the shuttle's flight program: it docks the shuttle in its <paramref name="station"/> from the hold
 /// point (docs/plans/blue-danube-demo.md, "The docking"). From the spin-up to the landing, it adds an
 /// <see cref="AttitudeTarget"/> for the <see cref="AttitudeAutopilot"/> and a <see cref="Translation"/> for the
-/// <see cref="TranslationThrusters"/> in every tick, so the targets and the translations of the layers before it never reach
+/// <see cref="ShuttleJetControl"/> in every tick, so the targets and the translations of the layers before it never reach
 /// the actuators. It adds no <see cref="Throttle"/>, so the main engine stays off.
 /// </summary>
 /// <remarks>
@@ -276,7 +276,8 @@ public readonly struct DockingEvent : IEquatable<DockingEvent>
 /// rendezvous assumes of that frame: it does not turn, its origin is the planet's center, and it has the planet's point
 /// gravity. It never names that frame.</para>
 /// <para>One law flies every phase in the station's axes: <see cref="ApproachGuidance"/>, with the free acceleration of
-/// <see cref="ApproachGuidance.FreeAcceleration"/> at the hull's center of mass. Every write is relative to the shuttle's
+/// <see cref="ApproachGuidance.FreeAcceleration"/> at the hull's center of mass, which it reads in each tick from the engine's
+/// <see cref="BodyFacts.CenterOfMass"/>. Every write is relative to the shuttle's
 /// frame, in its axes, turned with the station frame's pose there. The feed-forward of the attitude target is the target's
 /// turn relative to the station plus the station frame's turn relative to the shuttle's frame, so one rule covers both
 /// sides of the hand-off.</para>
@@ -284,8 +285,7 @@ public readonly struct DockingEvent : IEquatable<DockingEvent>
 /// Every time constant of the law is 1 s or longer, so the lag costs little.</para>
 /// </remarks>
 /// <param name="station">The station to dock in. A null or stale handle halts the autopilot at the order.</param>
-/// <param name="centerOfMass">The hull's center of mass in its own axes, in meters, where the spin's terms act.</param>
-public sealed class DockingAutopilot(Entity station, Vector3 centerOfMass) : IComponent
+public sealed class DockingAutopilot(Entity station) : IComponent
 {
     /// <summary>How long the spin-up takes, in seconds.</summary>
     public const double SpinUpTime = 30;
@@ -331,7 +331,6 @@ public sealed class DockingAutopilot(Entity station, Vector3 centerOfMass) : ICo
     public const double LandedTurn = 0.002;
 
     private readonly Entity station = station;
-    private readonly Double3 centerOfMass = (Double3)centerOfMass;
 
     /// <summary>What the autopilot does now. It starts in <see cref="Standby"/>.</summary>
     public DockingState State { get; private set; } = new Standby();
@@ -426,17 +425,17 @@ public sealed class DockingAutopilot(Entity station, Vector3 centerOfMass) : ICo
                     : null;
             case SpinUp { StartTime: var start }:
                 // The profile ends at the docked rotation at rest, and holds it there until the tolerances hold.
-                Steer(self, ref events, frames, stationFrame, inside, body.Mass, pose, velocity, rate,
+                Steer(self, ref events, frames, stationFrame, inside, body, pose, velocity, rate,
                     profile.Target(time - start), profile.TurnRate(time - start), DemoStation.HoldPoint, ApproachGuidance.ForGlide());
                 return time - start >= SpinUpTime && SpinUpDone(pose, turn) ? new SpunUp() : null;
             case Entry:
-                Steer(self, ref events, frames, stationFrame, inside, body.Mass, pose, velocity, rate,
+                Steer(self, ref events, frames, stationFrame, inside, body, pose, velocity, rate,
                     DemoStation.DockedRotation, 0, EntryEnd, ApproachGuidance.ForEntry());
                 return pose.Position.Y <= EntryEnd.Y + EntryEndDistance && FromTheAxis(pose.Position) <= EntryEndDistance ? new EntryEnded() : null;
             default:
                 if (RestsAtTheParkedPose(pose, velocity, turn))
                     return new Landed();
-                Steer(self, ref events, frames, stationFrame, inside, body.Mass, pose, velocity, rate,
+                Steer(self, ref events, frames, stationFrame, inside, body, pose, velocity, rate,
                     DemoStation.DockedRotation, 0, LandingPoint, ApproachGuidance.ForMoveOut());
                 return null;
         }
@@ -448,7 +447,7 @@ public sealed class DockingAutopilot(Entity station, Vector3 centerOfMass) : ICo
     /// <paramref name="point"/> by <paramref name="guidance"/>, all in the station's axes. The writes are relative to the
     /// shuttle's frame, in its axes.
     /// </summary>
-    private void Steer(Self self, scoped ref EventList events, FrameTree frames, FrameHandle stationFrame, bool inside, double mass,
+    private void Steer(Self self, scoped ref EventList events, FrameTree frames, FrameHandle stationFrame, bool inside, in BodyFacts body,
         in DPose pose, Double3 velocity, Double3 rate, DQuaternion target, double targetTurn, Double3 point, ApproachGuidance guidance)
     {
         // The station frame's pose in the shuttle's frame turns what the autopilot computed in the station's axes into the
@@ -463,11 +462,12 @@ public sealed class DockingAutopilot(Entity station, Vector3 centerOfMass) : ICo
             Double3 shuttle = self.PoseIn(self.Frame).Position;
             gravityDifference = stationAxes.Rotation.Conjugate().Rotate(KeplerOrbit.Acceleration(shuttle, mu) - KeplerOrbit.Acceleration(stationAxes.Position, mu));
         }
-        Double3 free = ApproachGuidance.FreeAcceleration(rate, pose.TransformPoint(centerOfMass), velocity, gravityDifference);
+        // The spin's terms act at the hull's center of mass, which the engine computes for the hull's shape.
+        Double3 free = ApproachGuidance.FreeAcceleration(rate, pose.TransformPoint((Double3)body.CenterOfMass), velocity, gravityDifference);
         Double3 push = guidance.Push(pose.Position, velocity, point, free);
         Double3 feedForward = stationAxes.Rotation.Rotate(Double3.UnitY * targetTurn) + frames.AngularVelocityRelative(stationFrame, self.Frame);
         events.Add(new AttitudeTarget { Rotation = stationAxes.Rotation * target, FeedForward = feedForward.ToVector3(), MaxTurnRate = AttitudeAutopilot.MaxTurnRate });
-        events.Add(new Translation { Force = stationAxes.Rotation.Rotate(push) * mass });
+        events.Add(new Translation { Force = stationAxes.Rotation.Rotate(push) * body.Mass });
     }
 
     /// <summary>

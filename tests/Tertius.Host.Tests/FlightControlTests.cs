@@ -25,7 +25,12 @@ public sealed class FlightControlTests : IDisposable
     private void Launch(params IComponent[] components) =>
         shuttle = Shuttle.Park(world, space, DPose.Identity, components: [new Unpark(), .. components]);
 
-    private static MainEngine Engine() => new(Shuttle.Mass * Shuttle.ThrustAcceleration);
+    /// <summary>Launches the shuttle with <paramref name="components"/> and gives it the shuttle's actuators (see <see cref="Shuttle.FitActuators"/>).</summary>
+    private void Fly(params IComponent[] components)
+    {
+        Launch(components);
+        Shuttle.FitActuators(world, shuttle);
+    }
 
     /// <summary>The shuttle's acceleration over <paramref name="ticks"/> ticks, in m/s², in the axes of its frame.</summary>
     private Double3 AccelerationOver(int ticks)
@@ -38,8 +43,8 @@ public sealed class FlightControlTests : IDisposable
     [Fact]
     public void TheEnginePushesTheHullAlongItsNoseWithTheThrottleOfTheTick()
     {
-        Launch(new ThrottleFor(ticks: int.MaxValue, value: 0.5f), Engine());
-        Tick(world, 3);
+        Fly(new ThrottleFor(ticks: int.MaxValue, value: 0.5f));
+        Tick(world, 4);
 
         Double3 acceleration = AccelerationOver(30);
 
@@ -52,7 +57,7 @@ public sealed class FlightControlTests : IDisposable
     [Fact]
     public void ATickWithoutAThrottleGivesNoThrust()
     {
-        Launch(new ThrottleFor(ticks: 30, value: 1), Engine());
+        Fly(new ThrottleFor(ticks: 30, value: 1));
         Tick(world, 40);
 
         world.VelocityIn(shuttle, space).Length.Should().BeGreaterThan(10, "the engine pushed while the throttle came");
@@ -60,13 +65,13 @@ public sealed class FlightControlTests : IDisposable
     }
 
     /// <summary>
-    /// A throttle that a component adds after the engine has run, at priority 11, comes too late for it, so the engine gives no thrust,
-    /// rather than the throttle of the tick before.
+    /// A throttle that a component adds after the jets' control has run, at priority 21, comes too late for it, so the
+    /// engine gives no thrust, rather than the throttle of the tick before.
     /// </summary>
     [Fact]
-    public void AnEngineThatRunsBeforeTheComponentThatAddsItsThrottleGivesNoThrust()
+    public void AThrottleAddedAfterTheJetsControlHasRunGivesNoThrust()
     {
-        Launch(new ThrottleFor(ticks: int.MaxValue, value: 1, priority: 11), Engine());
+        Fly(new ThrottleFor(ticks: int.MaxValue, value: 1, priority: 21));
 
         Tick(world, 30);
 
@@ -77,8 +82,8 @@ public sealed class FlightControlTests : IDisposable
     [Fact]
     public void TheLastThrottleOfATickCounts()
     {
-        Launch(new ThrottleFor(ticks: int.MaxValue, value: 1), new ThrottleFor(ticks: int.MaxValue, value: 0.25f), Engine());
-        Tick(world, 3);
+        Fly(new ThrottleFor(ticks: int.MaxValue, value: 1), new ThrottleFor(ticks: int.MaxValue, value: 0.25f));
+        Tick(world, 4);
 
         AccelerationOver(30).Z.Should().BeApproximately(-0.25 * Shuttle.ThrustAcceleration, 0.01);
     }
@@ -86,7 +91,7 @@ public sealed class FlightControlTests : IDisposable
     [Fact]
     public void AThrottleAboveFullIsAnErrorAndGivesNoThrust()
     {
-        Launch(new ThrottleFor(ticks: int.MaxValue, value: 1.5f), Engine());
+        Fly(new ThrottleFor(ticks: int.MaxValue, value: 1.5f));
 
         Tick(world, 30);
 
@@ -102,13 +107,35 @@ public sealed class FlightControlTests : IDisposable
     public void TheAttitudeAutopilotTurnsTheHullToTheTargetOfEachTick()
     {
         DQuaternion target = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
-        Launch(new TargetFor(ticks: int.MaxValue, target), new AttitudeAutopilot(Shuttle.Inertia));
+        Fly(new TargetFor(ticks: int.MaxValue, target));
 
         Tick(world, 1200);
 
         double left = world.PoseIn(shuttle, space).Rotation.AngularVelocityTo(target, 1).Length;
         (left * 180 / Math.PI).Should().BeLessThan(1);
         world.AngularVelocityIn(shuttle, space).Length().Should().BeLessThan(0.01f);
+    }
+
+    /// <summary>
+    /// The attitude autopilot ends in a <see cref="Torque"/> for the jets, and gives its own body nothing: a hull with the
+    /// autopilot and no jets does not turn, and in each tick a component after the autopilot sees the torque that it asks
+    /// for. From rest, toward a quarter turn about the roof's axis, that is the turn at the autopilot's cap,
+    /// <see cref="AttitudeAutopilot.MaxTurnRate"/>, over <see cref="AttitudeAutopilot.RateTime"/>, mostly about the hull's Y.
+    /// </summary>
+    [Fact]
+    public void TheAttitudeAutopilotAsksTheJetsForATorqueAndDoesNotPushItsOwnBody()
+    {
+        var torques = new TorqueRecorder();
+        Launch(new TargetFor(ticks: int.MaxValue, DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2)), new AttitudeAutopilot(Shuttle.Inertia), torques);
+
+        Tick(world, 30);
+
+        world.AngularVelocityIn(shuttle, space).Length().Should().Be(0, "the autopilot pushes no body itself");
+        torques.Count.Should().Be(30, "the autopilot asks for a torque in every tick that brings a target");
+        Double3 first = torques.First!.Value;
+        double expected = AttitudeAutopilot.MaxTurnRate / AttitudeAutopilot.RateTime * Shuttle.Inertia.Moments.Y;
+        first.Y.Should().BeApproximately(expected, 0.02 * expected, "the autopilot asks for the turn at its cap about the roof's axis");
+        Math.Abs(first.X).Should().BeLessThan(1e-3 * expected, "the hull's principal axes tilt about its X, which couples Y with Z only");
     }
 
     /// <summary>
@@ -121,7 +148,7 @@ public sealed class FlightControlTests : IDisposable
     [Fact]
     public void TheAutopilotTurnsAHullWithTiltedPrincipalAxesAboutTheAxisThatItAsksFor()
     {
-        Launch(new TargetFor(ticks: int.MaxValue, DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2)), new AttitudeAutopilot(Shuttle.Inertia));
+        Fly(new TargetFor(ticks: int.MaxValue, DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2)));
 
         double worst = 0;
         int turning = 0;
@@ -148,7 +175,7 @@ public sealed class FlightControlTests : IDisposable
     public void TheAttitudeAutopilotTurnsNoFasterThanTheTurnRateOfTheTarget()
     {
         DQuaternion target = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
-        Launch(new TargetFor(ticks: int.MaxValue, target, maxTurnRate: 0.01f), new AttitudeAutopilot(Shuttle.Inertia));
+        Fly(new TargetFor(ticks: int.MaxValue, target, maxTurnRate: 0.01f));
 
         Tick(world, 600);
 
@@ -166,7 +193,7 @@ public sealed class FlightControlTests : IDisposable
     public void ATurnRateThatIsNaNOrBelowZeroIsAnErrorAndGivesNoTorque(float maxTurnRate)
     {
         DQuaternion target = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
-        Launch(new TargetFor(ticks: int.MaxValue, target, maxTurnRate), new AttitudeAutopilot(Shuttle.Inertia));
+        Fly(new TargetFor(ticks: int.MaxValue, target, maxTurnRate));
 
         Tick(world, 30);
 
@@ -196,7 +223,7 @@ public sealed class FlightControlTests : IDisposable
     {
         const double rate = DemoScenes.SpinStation.Rate;
         var turning = new TurningTarget(rate, lead: 0);
-        Launch(turning, new AttitudeAutopilot(Shuttle.Inertia));
+        Fly(turning);
 
         Tick(world, 300);
 
@@ -213,7 +240,7 @@ public sealed class FlightControlTests : IDisposable
     public void TheMaxTurnRateCapsOnlyTheCorrection()
     {
         const double rate = DemoScenes.SpinStation.Rate;
-        Launch(new TurningTarget(rate, lead: Math.PI / 2), new AttitudeAutopilot(Shuttle.Inertia));
+        Fly(new TurningTarget(rate, lead: Math.PI / 2));
 
         Tick(world, 120);
 
@@ -230,7 +257,7 @@ public sealed class FlightControlTests : IDisposable
     public void ANonFiniteFeedForwardIsAnErrorAndGivesNoTorque(float feedForward)
     {
         DQuaternion target = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
-        Launch(new TargetFor(ticks: int.MaxValue, target, feedForward: new System.Numerics.Vector3(0, feedForward, 0)), new AttitudeAutopilot(Shuttle.Inertia));
+        Fly(new TargetFor(ticks: int.MaxValue, target, feedForward: new System.Numerics.Vector3(0, feedForward, 0)));
 
         Tick(world, 30);
 
@@ -242,7 +269,7 @@ public sealed class FlightControlTests : IDisposable
     [Fact]
     public void ATickWithoutAnAttitudeTargetGivesNoTorque()
     {
-        Launch(new TargetFor(ticks: 60, DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2)), new AttitudeAutopilot(Shuttle.Inertia));
+        Fly(new TargetFor(ticks: 60, DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2)));
         Tick(world, 70);
         System.Numerics.Vector3 turning = world.AngularVelocityIn(shuttle, space);
 
@@ -404,6 +431,24 @@ public sealed class FlightControlTests : IDisposable
         recorder.Throttle.Should().BeLessThan(1, "the guidance asks for less than full throttle near the circle");
         recorder.Throttle.Should().BeApproximately((float)Math.Min(1, acceleration.Length / guidance.MaxAcceleration), 1e-6f);
         Angle(NoseInPlaneAxes(recorder), acceleration).Should().BeLessThan(1e-6);
+    }
+
+    /// <summary>A test component at priority 15, after the attitude autopilot, that keeps the count of the ticks with a <see cref="Torque"/> and the first one.</summary>
+    private sealed class TorqueRecorder : IComponent
+    {
+        public int Count { get; private set; }
+        public Double3? First { get; private set; }
+
+        public int Priority => 15;
+
+        public EventMask Wants => EventMask.Of<Torque>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            Count++;
+            foreach (ref Torque each in events.Of<Torque>())
+                First ??= each.Value;
+        }
     }
 
     /// <summary>

@@ -7,8 +7,10 @@ namespace Tertius.Demo;
 /// <summary>
 /// Lets the keyboard and the mouse on the <c>input</c> topic steer a person and turn its view, while the person's view
 /// is on. While physics stands the person on walkable ground, W, A, S and D walk forward, left, back and right, and
-/// Space jumps. At any other time the person is weightless, in any frame and any gravity, and thrusters push it
-/// instead: W, A, S and D along the view, Space up and C down along the person's own up. So a jump is a short use of the
+/// Space jumps. At any other time the person is weightless, in any frame and any gravity, and its thrusters push it
+/// instead: W, A, S and D along the view, Space up and C down along the person's own up. The thrusters are a
+/// <see cref="BackJet"/>, a part of the person that the component spawns in its first tick and sends the force of each
+/// tick by message. So a jump is a short use of the
 /// thrusters too: in the air W, A, S and D thrust along the view, and Space held after the jump thrusts the person up.
 /// The mouse turns the view, and with it the direction of the walk and of the thrust. E uses every entity within
 /// <see cref="Reach"/>. Its entity needs a character body and a subscription to <see cref="Topics.Input"/>. The component
@@ -27,7 +29,7 @@ namespace Tertius.Demo;
 /// the gravity is weaker than the zero-gravity threshold it keeps its last up. There the person drifts or falls until a
 /// thrust changes its velocity. The person reads
 /// <see cref="BodyHandle.Standing"/>, which physics reports for the step of the previous tick. So its thrusters start
-/// and stop a tick late. The walk and the jump do not wait for the report: the person asks for the walk on every tick
+/// and stop a tick late, and the back jet pushes one tick after the tick that sends it the force. The walk and the jump do not wait for the report: the person asks for the walk on every tick
 /// and for a jump on each press, and physics applies them only in the steps in which it stands the person.</para>
 /// </remarks>
 /// <param name="eye">The eye's position relative to the entity, in meters, in the entity's axes.</param>
@@ -60,6 +62,9 @@ public sealed class PersonControl(Vector3 eye) : IComponent
     private float yaw, pitch;
     private readonly List<Entity> nearby = new();
 
+    /// <summary>The person's back jet, which the component spawns in its first tick. Null before it.</summary>
+    public Entity BackJetPart { get; private set; }
+
     public int Priority => 0;
 
     // Tick runs it on every tick, so the walk follows the entity's axes when physics turns them to a new up.
@@ -67,6 +72,8 @@ public sealed class PersonControl(Vector3 eye) : IComponent
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
+        if (BackJetPart.IsNull)
+            BackJetPart = BackJet.Spawn(self);
         if (self.Snapshot.Camera == self.Entity)
         {
             for (int i = 0; i < events.Count; i++)
@@ -100,8 +107,9 @@ public sealed class PersonControl(Vector3 eye) : IComponent
             // Two keys together thrust no harder than one. Keys that nearly cancel each other thrust only a little.
             if (thrust.LengthSquared() > 1)
                 thrust = Vector3.Normalize(thrust);
+            // The thrust lies in the person's own axes, which its back jet keeps.
             if (thrust != Vector3.Zero)
-                self.Body.AddForce(Vector3.Transform(thrust, body) * ThrustForce);
+                outbox.Send(BackJetPart, new JetForce { Force = thrust * ThrustForce });
         }
 
         if (use)
