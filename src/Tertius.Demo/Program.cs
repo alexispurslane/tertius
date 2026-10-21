@@ -16,6 +16,8 @@ public static class Program
     /// <item><c>--scene orbit --record sessions/today.json</c> does the same and writes your session as a script that replays it.</item>
     /// <item><c>--generate scripts/blue-danube.json</c> writes the Blue Danube demo's long script (see <see cref="Generate"/>).</item>
     /// <item><c>--readouts scripts/blue-danube.json runs/danube/readouts.csv</c> writes the readout log of a script (see <see cref="Readouts"/>).</item>
+    /// <item><c>--edit runs/danube/blue-danube.mp4 --script scripts/blue-danube.json --master runs/danube/blue-danube.mkv --readouts runs/danube/readouts.csv</c>
+    /// cuts the master video of the script into the final video (see <see cref="EditCommand"/>).</item>
     /// </list>
     /// </summary>
     public static int Main(string[] args) => Run(args, Console.Out, Console.Error);
@@ -23,7 +25,8 @@ public static class Program
     /// <summary>
     /// Runs the demo's command line <paramref name="args"/>, with its output and its errors in the writers: a command line
     /// that starts with <c>--generate</c> goes to <see cref="Generate"/>, one that starts with <c>--readouts</c> to
-    /// <see cref="Readouts"/>, and every other one to <see cref="ScriptCommand"/>.
+    /// <see cref="Readouts"/>, one that starts with <c>--edit</c> to <see cref="EditCommand"/> with the cut list of
+    /// <see cref="BlueDanubeEdit"/>, and every other one to <see cref="ScriptCommand"/>.
     /// Returns the exit code.
     /// </summary>
     public static int Run(string[] args, TextWriter output, TextWriter error) =>
@@ -31,6 +34,7 @@ public static class Program
         {
             ["--generate", ..] => Generate(args, output, error),
             ["--readouts", ..] => Readouts(args, DemoScenes.All, output, error),
+            ["--edit", ..] => EditCommand.Run(args, BlueDanubeEdit.Cuts, output, error),
             _ => ScriptCommand.Run(args, DemoScenes.All, output, error),
         };
 

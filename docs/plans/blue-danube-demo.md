@@ -1432,7 +1432,7 @@ Every readout is about the person, in the one frame `earth-surface`. The camera 
 
 ### The readouts on the frame
 
-The edit draws the text of each frame with libass, from one subtitle file in the ASS format that it writes. libass is in the dev shell's ffmpeg. Each frame of the master gets its own events, which start at the frame's time and end at the next frame's time. ASS times have a resolution of 1/100 s and the frames come every 1/60 s, so the edit rounds both ends down to the hundredth: frame k shows from floor(100 k / 60) to floor(100 (k + 1) / 60) hundredths. Before the subtitles, the edit sets the time stamp of frame k to exactly k / 60. So every frame shows its own row. A test pattern showed this on 2026-10-20.
+The edit draws the text of each frame with libass, from one subtitle file in the ASS format that it writes. libass is in the dev shell's ffmpeg. Each frame of the master that the cut list keeps gets its own events, which start at the frame's time and end at the next frame's time. ASS times have a resolution of 1/100 s and the frames come every 1/60 s, so the edit rounds both ends down to the hundredth: frame k shows from floor(100 k / 60) to floor(100 (k + 1) / 60) hundredths. Before the subtitles, the edit sets the time stamp of frame k to exactly k / 60. So every frame shows its own row. A test pattern showed this on 2026-10-20.
 
 The layout, at 1280 × 720:
 
@@ -1460,8 +1460,8 @@ One panel today, the parking orbit. It shows from the film `orbit` through the f
 
 ```
 TEXTBOOK CHECK   parking orbit, 200.0 km up
-circular speed √(GM/r)     7,788.4 m/s   run 7,788.1 m/s
-one orbit 2π√(r³/GM)         88.4 min    run 88.4 min
+circular speed √(GM/r)   7,788.5 m/s   run 7,788.4 m/s
+one orbit 2π√(r³/GM)       88.4 min   run measuring
 ```
 
 - r is the distance from Earth's center in the frame's row, and GM is `EarthMu`.
@@ -1500,11 +1500,13 @@ The dark frames (ticket note of 2026-10-20). The edit cuts away from them with t
 
 | Film | Trim | What the dropped frames show |
 |---|---|---|
-| `transfer` | The first 180 frames, 3 s of video and 180 s of the run | The chase camera sees the shuttle over the night side of Earth. The hull is dark gray, and only the thin lit limb of Earth shows. From frame 180 of the film on, the sun lights the top of the hull. |
+| `transfer` | The first 360 frames, 6 s of video and 6 minutes of the run | The chase camera sees the shuttle over the night side of Earth. The hull is dark gray, and only the thin lit limb of Earth shows. From frame 175 of the film on, the sun lights the top of the hull more and more. The mean brightness of the top face is 41 of 255 in the dark, 78 at frame 375 and 100 at frame 600. |
+
+After the trim, the top of the hull is lit. But the face that looks at the chase camera stays dark through the whole of `transfer`. The sun lights the hull from above, and the trim cannot change that. Only a fill light can (see "Engine questions of the edit").
 
 The last frames of `transfer` and of `hold` stay. In the round-1 master, the hull in them is lit. The station is too small to see at the end of `transfer`. But the cut to `closing` follows at once, and there the station shows.
 
-The stretches of today hold the 15,806 frames of the master, 263 s at 60 frames per second, less the trims. That is 15,626 frames, 260.4 s. With the cards, the final video lasts about 4 minutes 33 seconds. The docking and the exit add their own stretches.
+The stretches of today hold the 15,806 frames of the master, 263 s at 60 frames per second, less the trims. That is 15,446 frames, 257.4 s. With the cards, the final video lasts about 4 minutes 30 seconds. The docking and the exit add their own stretches.
 
 ### The title cards and the transitions
 
@@ -1529,7 +1531,7 @@ The outlines exist (E6 to E8): the `outlines` step turns `World.ShowFrameOutline
   - `climb-high`: the sphere of the falling frame holds the bubble.
   - `glide-rim`: the station's bubble, the following frame round the station, and the shuttle's frames.
   - The docking adds its own.
-- The frames that each of these sections shows come from the rules of numeric frames in ARCHITECTURE.md. A look at the frames checks them when the sections get `Outlines`.
+- The frames that each of these sections shows come from the rules of numeric frames in ARCHITECTURE.md. When the sections get `Outlines`, a look at the frames checks them.
 - Why the same run and not a second run with outlines: the frames come from one run. So no frame of the cut-in has to match a frame of another video. The final render also needs only one run of the script.
 - Other tickets write `scripts/blue-danube.json` now. So the sections set `Outlines` after the docking and the exit merge. The script is written again then anyway.
 
@@ -1566,7 +1568,14 @@ dotnet run -c Release --project src/Tertius.Demo -- --edit runs/danube/blue-danu
 - The output is an MP4 with H.264 at quality 18 (`-crf 18`), 1280 × 720 at 60 frames per second. Its pixel format is yuv420p, which every player reads. Its index is at the front of the file (`-movflags +faststart`).
 - `--music`, `--music-start` and `--music-credit` are optional, and the video has no sound without them.
 - The command refuses a log whose rows do not match the frames of the script by count and by name. It also refuses a master whose count of frames does not match. So a log or a master from another script cannot reach the edit.
-- The length today: about 4 minutes 33 seconds. The docking and the exit add theirs.
+- The length today: about 4 minutes 30 seconds. The docking and the exit add theirs.
+
+Measured in round 1, on 2026-10-20, on an Apple M1 Max, with the script of today and no music:
+
+- The master took 2 minutes 53 seconds from the command line: 15,806 frames, 410 MB.
+- The readout log took a few minutes. This round did not time it.
+- The edit took 55 s, with libx264 on all cores. The final video has 16,226 frames, 270.4 s at 60 frames per second, and 29.1 MB.
+- The frames that the round took out show the readouts, the clock, the rate and the check panel as designed. They also show the titles, the cards and the dips to black.
 
 ### Order of the work
 

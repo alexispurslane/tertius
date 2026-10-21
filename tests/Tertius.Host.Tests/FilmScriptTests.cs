@@ -45,6 +45,22 @@ public sealed class FilmScriptTests
     }
 
     [Fact]
+    public void ASectionWithOutlinesTurnsThemOnBeforeItsCameraStepAndTheNextSectionWithoutThemTurnsThemOff()
+    {
+        Script script = Generate(
+            new FilmSection("plain", "camera", Every: 1, FilmSection.Now),
+            new FilmSection("outlined", "camera", Every: 1, FilmSection.Now, Outlines: true),
+            new FilmSection("still-outlined", "camera", Every: 1, FilmSection.Now, Outlines: true),
+            new FilmSection("plain-again", "camera", Every: 1, FilmSection.Now));
+
+        script.Steps.Should().Equal(
+            new CameraStep("camera"), new FilmStep("plain", 1, 1),
+            new OutlinesStep(true), new CameraStep("camera"), new FilmStep("outlined", 1, 1),
+            new CameraStep("camera"), new FilmStep("still-outlined", 1, 1),
+            new OutlinesStep(false), new CameraStep("camera"), new FilmStep("plain-again", 1, 1));
+    }
+
+    [Fact]
     public void ASectionGoesOnForItsHoldAfterItsCue()
     {
         Script script = Generate(new FilmSection("drop", "camera", Every: 4, Until: AfterTick(101), Hold: 10));
