@@ -3656,29 +3656,6 @@ Why a fade and no cut of the music: the waltz is twice as long as the run, and t
 
 The user chose this recording for the whole video on 2026-10-21, after a comparison of the first 65 s with a synth score and with the recording. So the rule above is the final one, and no score replaces the recording. Ticket ter-zd4t closed without a merge, and its branch keeps the score's tools.
 
-### The cue sheet
-
-Who reads it: no code in the repository reads it now. It was made for the score of ter-zd4t, which the user left out on 2026-10-21 (see "The music"). A score or a cut of the music that follows the picture needs the times of the films in the final video, exact to the frame. The edit owns the cut, the cards and the trims, so it writes the times: `--edit <out.mp4>` writes `<out.mp4>.cues.json` beside the video, from `CueSheet.Of`, once ffmpeg has made the video. A score that derived the times from the script would copy the rules of the edit, and it could drift from them.
-
-The file holds:
-
-| Field | Meaning |
-|---|---|
-| `framesPerSecond` | 60, the frames per second of the video |
-| `length` | The length of the video in seconds, the end of the closing card |
-| `opening`, `closing` | The `start` and the `end` of each card, in seconds |
-| `films` | Each film of the script, in its order: its `name`, its `firstFrame` and `lastFrame`, the first and the last frame of the master that the cut list keeps, and its `start` and `end` in seconds of the final video |
-| `parts` | Each part: its `title`, its first `film`, and the `start` of its title in seconds, which is the start of that film |
-
-Every time is a frame of the final video. Frame n starts at n / 60 s, so 60 times each time is a whole number, to the rounding of a double. A card lasts its seconds rounded to whole frames, `TitleCard.Frames`. Its subtitles, its black frames and the sheet all take that count, so the first film starts at frame 300. The edit gives ffmpeg the card's whole frames and not its seconds: for a time between two frames, ffmpeg makes one frame more than the rounding. A film ends where the next film starts, and the last film ends where the closing card starts. `CueSheetTests` checks the sheet. `EditCommandTests` checks on a real ffmpeg video that the frame at a film's start is that film's first kept frame, that the closing card's frames end the video, and that a card whose seconds fall between two frames lasts the frames of its cue.
-
-In the final video of 2026-10-21, the film `closing` starts at 140.23 s, `landing` at 328.27 s and `docked` at 338.63 s. The title "The docking" starts at 269.95 s, "The wheel" at 341.63 s, and the closing card at 388.13 s.
-
-The review of step 8 measured the sheet on the MP4:
-
-- ffprobe counts 23,768 frames in the video, 396.13 s. That is the sheet's length to the frame: the 300 frames of the opening card, the 22,988 frames of the master and the 480 frames of the closing card.
-- For each film, the review set the frame of the MP4 at the film's start in the sheet beside the frames of the master from 2 before the film's first frame to 2 after it, as gray pictures of the middle of the frame, which has no text. For the first film it took the frames 31 frames in, past the fade from black. In every film the best match is the film's first frame, to within 0.6 of 255 levels on average. At each film that starts with a cut to another picture, the frame before it differs by 16 levels or more. Where a film holds a still picture, its neighbors match as well, and the cuts round it fix the place.
-
 ### The final render
 
 ```
@@ -3687,7 +3664,7 @@ dotnet run -c Release --project src/Tertius.Demo -- --readouts scripts/blue-danu
 dotnet run -c Release --project src/Tertius.Demo -- --edit runs/danube/blue-danube.mp4 --script scripts/blue-danube.json --master runs/danube/blue-danube.mkv --readouts runs/danube/readouts.csv --music <blue-danube-us-marine-band.mp3> --music-start 0 --music-credit "The Blue Danube (Johann Strauss II). United States Marine Band, Albert F. Schoepper, conductor. Public domain."
 ```
 
-- `--edit` writes its subtitle files into the folder `<out>.parts` beside the output, and it runs one ffmpeg command. Then it writes the cue sheet `<out>.cues.json` beside the output (see "The cue sheet").
+- `--edit` writes its subtitle files into the folder `<out>.parts` beside the output, and it runs one ffmpeg command. A card lasts its seconds rounded to whole frames, `TitleCard.Frames`. Its subtitles and its black frames both take that count, and the edit gives ffmpeg the card's whole frames and not its seconds: for a time between two frames, ffmpeg makes one frame more than the rounding. `EditCommandTests` checks this on a real ffmpeg video.
 - The output is an MP4 with H.264 at quality 18 (`-crf 18`), 1280 × 720 at 60 frames per second. Its pixel format is yuv420p, which every player reads. Its index is at the front of the file (`-movflags +faststart`).
 - `--music`, `--music-start` and `--music-credit` are optional, and the video has no sound without them.
 - The command refuses a log whose rows do not match the frames of the script by count and by name. It also refuses a master whose count of frames does not match. So a log or a master from another script cannot reach the edit.
@@ -3726,7 +3703,7 @@ Measured in step 8 (ter-asce), the final render with the docking, the exit and t
 5. `FilmSection.Outlines` in the generator, with a test, and no section that sets it yet.
 6. A test edit of the master of today, with no music, and a look at its frames.
 7. After the user's yes for a recording and its download: the final render with the music (done on 2026-10-20).
-8. After the docking and the exit merge: their parts and the wheel's panel go into the cut list, and the sections above get `Outlines`. The readout log gains the distance from the station's axis, and the edit writes the cue sheet. The script is written again, the dark frames are measured again as in "The dark frames", and the video is rendered again (done on 2026-10-21, ter-asce).
+8. After the docking and the exit merge: their parts and the wheel's panel go into the cut list, and the sections above get `Outlines`. The readout log gains the distance from the station's axis. The script is written again, the dark frames are measured again as in "The dark frames", and the video is rendered again (done on 2026-10-21, ter-asce).
 
 ## Order of the work
 
