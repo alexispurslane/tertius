@@ -39,3 +39,7 @@ The user's choices on the draft 3da92c5 (docs/plans/particles.md on ter-4zt6-par
 **2026-10-21T15:18:25Z**
 
 Correction, 2026-10-21: the user's 'pure gravity' means no lift number on the emitter. Lift comes from the frame's medium, by Archimedes: at a puff's place the medium gives the drag toward its rest and a buoyancy from its density against the puff's own gas, so the net acceleration from gravity and buoyancy is g (1 - rho_medium(x) / rho_puff). In vacuum a puff feels the full gravity. In air, hot exhaust rises and cold gas heavier than air sinks. The look holds the puff's gas density. The user's words: 'I was hoping that the frame's knowledge about the medium could then impart lift to the puffs based on that, since the puffs are already grouped by frame.'
+
+**2026-10-21T15:58:07Z**
+
+The revised design is docs/plans/particles.md at 1951a75 (branch ter-4zt6-particles): a 56-byte Puff (place, chord, age, look index), ranges per frame, a shared look table, the medium as a [Union] beside the gravity field (UniformMedium, PlanetMedium), lift and drag from it, old puffs stepped at a new step 2b, and nine tasks of which 3, 4 and 5 run in parallel. The user settled its two forks on 2026-10-21: the medium acts only on puffs for now, and a look holds a temperature ratio (the ideal gas law), so lift and drag are the same at every height and stop at once at 50 km, where earth-surface's air ends.
