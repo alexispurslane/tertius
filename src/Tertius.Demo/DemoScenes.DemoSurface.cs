@@ -22,8 +22,9 @@ public static partial class DemoScenes
     /// <item>The <c>shuttle</c> (see <see cref="Shuttle"/>) stands parked at <see cref="ShuttleParked"/>, over the
     /// origin, unturned: its nose points along -Z and its hatch faces +X, toward the terminal. It rests on the launch
     /// ramp's bed, 2 cm above the slab. A dark gray <c>pad</c>, only drawn, as thick as that rise, marks the ground round
-    /// it, and a service <c>tower</c> stands on its port side. The <c>seat</c> is drawn in blue, and two lamps light
-    /// the cabin.</item>
+    /// it, and a service <c>tower</c> stands on its port side. The <c>seat</c> is drawn in blue, and four lamps on the
+    /// pillars of the walls light the cabin (see <see cref="Shuttle.Lamps"/>). The main engine's <c>nozzle</c> sits in the
+    /// tail pocket.</item>
     /// <item>The <c>person</c>, the capsule character of the other scenes, 1.8 m tall and of 70 kg, starts 9 m outside the
     /// entrance, at x = 36 m. Its <see cref="Walker"/> walks it through the entrance, round to the gate, out across the pad
     /// to <see cref="Shuttle.OutsideHatch"/>, through the hatch, and along the cabin to <see cref="Shuttle.SeatStand"/>,
@@ -40,7 +41,7 @@ public static partial class DemoScenes
     /// <see cref="LaunchRamp"/>) starts under the parked shuttle and rises at 30 degrees along -Z. The shuttle carries its
     /// <see cref="Shuttle.FlightControls"/>, which wait for an <see cref="Ignition"/> that a script posts to it. Then the
     /// shuttle unparks, slides up the ramp at three gravities, and flies to a circle 200 km up. A red <c>pen</c>, 14 cm
-    /// long, hangs in a <see cref="Clip"/> on the cabin's port wall, at head height, aft of the seat (see
+    /// long, hangs in a <see cref="Clip"/> on the pillar of the cabin's port wall at z = -1 m, at head height, aft of the seat (see
     /// <see cref="ClippedPen"/>). The clip holds it through the climb, and lets it go with a small push and a slow spin a
     /// second after the cabin becomes weightless in orbit, so that the pen drifts into the middle of the cabin. The person
     /// is a <see cref="Passenger"/>: its belt holds it at <see cref="Shuttle.SeatStand"/> through the climb, and in the
@@ -51,7 +52,9 @@ public static partial class DemoScenes
     /// parked shuttle, with the tower behind it and the ramp rising beyond it; <c>ramp-camera</c> hovers 25 m above the
     /// ground, 140 m to starboard of the ramp, and sees all of it; <c>ramp-top-camera</c> hovers 105 m above the ground,
     /// 90 m to starboard of the ramp's upper end, and sees that end and the first 150 m of the flight past it;
-    /// <c>chase-camera</c> rides in the shuttle's frame, 45 m behind it and 8 m above its roof, and looks at it;
+    /// <c>chase-camera</c> rides in the shuttle's frame, 40 m from its middle on its starboard quarter, 30 degrees to
+    /// starboard of astern and 12 degrees up, and looks at it, so that it sees the seated person through the starboard
+    /// glass;
     /// <c>climb-camera</c> rides in the shuttle's frame, 50 m from it, high above and behind its roof, and looks down at it
     /// 55 degrees below its nose line, so that the ground stays in the view while the shuttle climbs steeply.</item>
     /// <item>Views of the pen, in the shuttle's frame: <c>pen-camera</c>, near the roof, 1.5 m to port of the cabin's
@@ -64,16 +67,16 @@ public static partial class DemoScenes
     /// person's eye along the way the person walks, 0.8 m above it, and looks toward the point 2 m ahead of it, tilted down as
     /// far as the person's whole box needs to stay in the picture. It goes with the person into the shuttle's frame, and
     /// stops short of the terminal's walls and the cabin's.</item>
-    /// <item>The shuttle has windows (see <see cref="Shuttle.Windows"/>): one in the nose wall and three in each side wall,
-    /// at eye height, each with a pane of glass, <c>pane-nose</c>, <c>pane-port-1</c> to <c>pane-port-3</c> and
-    /// <c>pane-starboard-1</c> to <c>pane-starboard-3</c>, numbered from the nose. Its flight controls also carry
-    /// <see cref="TranslationThrusters"/>.</item>
-    /// <item>Views of the rendezvous, still in the shuttle's frame: <c>window-camera</c>, 1.2 m behind the nose window at eye
-    /// height, looks out along the nose; <c>bow-camera</c>, 30 m ahead of the nose and 5 m above it, looks aft, 30 degrees to
-    /// port of astern, at the shuttle and past it; <c>port-window-camera</c>, 0.6 m inside the aft port window and 0.3 m
-    /// forward of its middle, at eye height, looks out through its middle, 20 degrees aft of abeam, where the station passes
+    /// <item>The shuttle has a glass canopy (see <see cref="Shuttle.Glass"/>): a band of glass along both sides from 0.7 m
+    /// above the cabin floor, over the roof's bevels and the roof, and the front above the sill. It has 40 panes, each with
+    /// its scene id, such as <c>pane-nose</c>, <c>pane-port-7</c> and <c>pane-roof-4</c>, named by their edge and their
+    /// bay from the nose. Its flight controls also carry <see cref="TranslationThrusters"/>.</item>
+    /// <item>Views of the rendezvous, still in the shuttle's frame: <c>window-camera</c>, 1.2 m behind the front's inner face
+    /// at eye height, looks out along the nose through <c>pane-nose</c>; <c>bow-camera</c>, 30 m ahead of the nose and 5 m above it, looks aft, 30 degrees to
+    /// port of astern, at the shuttle and past it; <c>port-window-camera</c>, 0.6 m inside the port wall at z = 4.2 m, at eye
+    /// height, looks out through <c>pane-port-7</c>, 20 degrees aft of abeam, where the station passes
     /// from 33 to 9 degrees aft of abeam in the brake; <c>cockpit-camera</c>, aft of the seat, to starboard of it and above the
-    /// head of a person at the seat, looks down past the seat at the nose window. From starboard it sees the pen in the
+    /// head of a person at the seat, looks down past the seat at <c>pane-nose</c>. From starboard it sees the pen in the
     /// person's right hand both when the person floats upside down and when a burn has tipped it with its head toward the
     /// nose.</item>
     /// <item>The <c>station</c> (see <see cref="DemoStation"/>), a wheel 202 m across that turns about its axis, flies on a
@@ -122,8 +125,9 @@ public static partial class DemoScenes
         public const float PenMass = 0.02f;
 
         /// <summary>
-        /// Where the clip holds the pen, in the shuttle's axes: on the port wall, 1.5 m above the cabin floor, 2.75 m aft of
-        /// <see cref="Shuttle.SeatStand"/>, with 1 cm between the pen and the wall. Its length lies along the cabin.
+        /// Where the clip holds the pen, in the shuttle's axes: on the port wall's pillar at z = -1 m, 1.5 m above the cabin
+        /// floor, 2.75 m aft of <see cref="Shuttle.SeatStand"/>, with 1 cm between the pen and the wall. Its length lies along
+        /// the cabin, within the pillar's 0.2 m, so the pen never hangs in front of glass.
         /// </summary>
         public static DPose PenClip { get; } = new(new Double3(-Shuttle.Cabin.X + PenHalf.X + 0.01, -Shuttle.Cabin.Y + 1.5, -1), DQuaternion.Identity);
 
@@ -318,8 +322,7 @@ public static partial class DemoScenes
 
             // The station spawns before the shuttle, whose rendezvous autopilot takes the station's entity.
             Entity station = DemoStation.Spawn(world, surface, scene, resources);
-            Entity shuttle = Shuttle.Park(world, surface, ShuttleParked,
-                Drawn(resources, Shuttle.HullMesh(), new Vector4(0.85f, 0.85f, 0.88f, 1), boundingRadius: MathF.Ceiling(Shuttle.Hull.Length())),
+            Entity shuttle = Shuttle.Park(world, surface, ShuttleParked, Shuttle.DrawnHull(resources),
                 Shuttle.FlightControls(LaunchRamp.Height + ClimbClearance, LaunchPlaneNormal, station));
             scene.Add("shuttle", shuttle);
             FrameHandle cabin = world.GetOwnedFrame(shuttle);
@@ -331,8 +334,8 @@ public static partial class DemoScenes
                 Render = Drawn(resources, Primitives.Box(seatHalf), new Vector4(0.15f, 0.25f, 0.6f, 1), boundingRadius: seatHalf.Length()),
             }));
             Shuttle.Panes(world, cabin, scene, resources);
-            world.Spawn(Lamp(cabin, new Double3(0, Shuttle.Cabin.Y - 0.05, 2), range: 10));
-            world.Spawn(Lamp(cabin, new Double3(0, Shuttle.Cabin.Y - 0.05, -4.5), range: 10));
+            Shuttle.SpawnLamps(world, cabin, scene, resources);
+            Shuttle.SpawnNozzle(world, cabin, scene, resources);
 
             // The capsule is 1.8 m tall, and its center rests 0.9 m above the slab. Its eye is a view, which the pen in its
             // hand follows.
@@ -407,7 +410,7 @@ public static partial class DemoScenes
             scene.Add("chase-camera", world.Spawn(new SpawnDesc
             {
                 Frame = cabin,
-                Pose = LookingAt(new Double3(0, 10, 45), Double3.Zero),
+                Pose = LookingAt(new Double3(19.5, 8.5, 34), Double3.Zero),
                 Render = new RenderData(),
             }));
             scene.Add("climb-camera", world.Spawn(new SpawnDesc

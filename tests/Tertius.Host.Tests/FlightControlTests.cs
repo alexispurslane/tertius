@@ -112,6 +112,35 @@ public sealed class FlightControlTests : IDisposable
     }
 
     /// <summary>
+    /// The hull's principal axes tilt about 1 degree about X from its own (<see cref="Shuttle.Inertia"/>), so its inertia
+    /// couples a turn about its Y with one about its Z. A target a quarter turn about the roof's axis: the autopilot turns
+    /// the torque that it gives into the principal axes, so in each of the first 60 ticks that the hull turns, its angular
+    /// velocity lies within 0.5 degrees of Y. With only the moments in the hull's own axes, the angle starts at 4.7
+    /// degrees.
+    /// </summary>
+    [Fact]
+    public void TheAutopilotTurnsAHullWithTiltedPrincipalAxesAboutTheAxisThatItAsksFor()
+    {
+        Launch(new TargetFor(ticks: int.MaxValue, DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2)), new AttitudeAutopilot(Shuttle.Inertia));
+
+        double worst = 0;
+        int turning = 0;
+        for (int tick = 0; tick < 60; tick++)
+        {
+            world.Tick();
+            System.Numerics.Vector3 angular = world.AngularVelocityIn(shuttle, space);
+            if (angular.Length() < 1e-4f)
+                continue;
+            turning++;
+            Double3 body = world.PoseIn(shuttle, space).Rotation.Conjugate().Rotate((Double3)angular);
+            worst = Math.Max(worst, Math.Acos(Math.Clamp(body.Y / body.Length, -1, 1)) * 180 / Math.PI);
+        }
+
+        turning.Should().BeGreaterThan(50, "the hull turns from its first ticks");
+        worst.Should().BeLessThan(0.5, "the hull turns about the axis that the autopilot asks for");
+    }
+
+    /// <summary>
     /// A target a quarter turn about the roof's axis, with a turn rate of 0.01 rad/s: after 10 s the hull turns at that rate,
     /// and has turned about 0.1 radians, not the 1.5 radians of <see cref="AttitudeAutopilot.MaxTurnRate"/>.
     /// </summary>

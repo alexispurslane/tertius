@@ -44,7 +44,9 @@ public static class BlueDanube
         // cabin, so the apron camera films the boarding until the follow camera is in the cabin.
         new("boarding", "apron-camera", Every: 1, (world, scene) => InsideTheCabin(world.PoseIn(scene["follow-camera"], world.GetOwnedFrame(scene["shuttle"])).Position)),
         new("cabin", "follow-camera", Every: 1, (world, scene) => PassengerOf(world, scene).Value is not Boarding, Hold: Second),
-        new("seated", "cabin-camera", Every: 1, FilmSection.Now, Hold: Second * 3 / 2),
+        // The person at its seat, seen from inside, and then from outside through the starboard glass.
+        new("seated", "cabin-camera", Every: 1, FilmSection.Now, Hold: Second * 3 / 4),
+        new("seated-outside", "apron-camera", Every: 1, FilmSection.Now, Hold: Second * 3 / 4),
         new("pen-on-the-pad", "pen-camera", Every: 1, FilmSection.Now, Hold: Second),
         new("on-the-pad", "pad-camera", Every: 1, FilmSection.Now, Hold: Second),
 
@@ -92,7 +94,10 @@ public static class BlueDanube
         new("glide-window", "window-camera", Every: 4, (world, scene) => ToStation(world, scene) < 400),
         new("glide-rim", "rim-camera", Every: 4, (world, scene) => ToStation(world, scene) < 200),
         new("arrival", "cockpit-camera", Every: 4, (world, scene) => RendezvousOf(world, scene).Value is Hold, Hold: Second * 3),
-        new("hold", "rim-camera", Every: 1, FilmSection.Now, Hold: Second * 5),
+        // The hold, from the station's rim, and then the person through the starboard glass with the station ahead. The
+        // two films take the 5 s that the hold had alone, so the run ends at the same tick.
+        new("hold", "rim-camera", Every: 1, FilmSection.Now, Hold: Second * 3),
+        new("hold-chase", "chase-camera", Every: 1, FilmSection.Now, Hold: Second * 2),
     ];
 
     /// <summary>

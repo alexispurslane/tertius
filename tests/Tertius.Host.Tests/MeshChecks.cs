@@ -49,4 +49,41 @@ public static class MeshChecks
             inside(center - probe * face).Should().BeTrue($"the triangle at {center} has the solid behind it");
         }
     }
+
+    /// <summary>How many triangles of <paramref name="mesh"/> the segment from <paramref name="from"/> to <paramref name="to"/> crosses.</summary>
+    public static int Crossings(MeshData mesh, Vector3 from, Vector3 to) => CrossingsAlong(mesh, from, to).Count();
+
+    /// <summary>
+    /// The point where the segment from <paramref name="from"/> to <paramref name="to"/> first crosses a triangle of
+    /// <paramref name="mesh"/>, or null when it crosses none.
+    /// </summary>
+    public static Vector3? FirstCrossing(MeshData mesh, Vector3 from, Vector3 to)
+    {
+        float[] crossings = [.. CrossingsAlong(mesh, from, to)];
+        return crossings.Length == 0 ? null : from + crossings.Min() * (to - from);
+    }
+
+    /// <summary>
+    /// The parameter t, from 0 at <paramref name="from"/> to 1 at <paramref name="to"/>, of each crossing of the segment
+    /// with a triangle of <paramref name="mesh"/>.
+    /// </summary>
+    private static IEnumerable<float> CrossingsAlong(MeshData mesh, Vector3 from, Vector3 to)
+    {
+        Vector3 along = to - from;
+        for (int i = 0; i < mesh.Indices.Length; i += 3)
+        {
+            Vector3 a = mesh.Vertices[mesh.Indices[i]].Position, b = mesh.Vertices[mesh.Indices[i + 1]].Position, c = mesh.Vertices[mesh.Indices[i + 2]].Position;
+            // Möller and Trumbore: the segment's parameter t and the triangle's barycentric u and v of the crossing.
+            Vector3 ab = b - a, ac = c - a, p = Vector3.Cross(along, ac);
+            float det = Vector3.Dot(ab, p);
+            if (MathF.Abs(det) < 1e-9f)
+                continue;
+            Vector3 s = from - a;
+            float u = Vector3.Dot(s, p) / det;
+            Vector3 q = Vector3.Cross(s, ab);
+            float v = Vector3.Dot(along, q) / det, t = Vector3.Dot(ac, q) / det;
+            if (u >= 0 && v >= 0 && u + v <= 1 && t >= 0 && t <= 1)
+                yield return t;
+        }
+    }
 }
