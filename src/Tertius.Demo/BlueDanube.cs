@@ -37,6 +37,9 @@ public static class BlueDanube
     [
         // The surface: the person walks through the terminal, across the pad and into the shuttle, to its seat.
         new("overview", "overview", Every: 1, FilmSection.Now, Hold: Second * 3 / 2),
+        // The low Sun and the crescent Moon over the parked shuttle. The film takes its second from the walk, whose cue reads
+        // the person's place, so every later tick keeps its tick.
+        new("sky", "sky-camera", Every: 1, FilmSection.Now, Hold: Second),
         new("approach", "follow-camera", Every: 1, (world, scene) => PersonOnTheGround(world, scene).X < DemoSurface.TerminalCenter.X + DemoSurface.TerminalHalf.X - 1),
         new("terminal", "terminal-camera", Every: 1, (world, scene) => PersonOnTheGround(world, scene).X < DemoSurface.TerminalCenter.X - DemoSurface.TerminalHalf.X - 1),
         new("pad", "follow-camera", Every: 1, (world, scene) => Double3.Distance(PersonInCabin(world, scene), Shuttle.OutsideHatch) < 1.5),
@@ -75,18 +78,19 @@ public static class BlueDanube
         // The rendezvous (docs/plans/blue-danube-demo.md, "Sections of the long script"): the person floats back to its
         // seat with the pen and straps in. Then the shuttle waits in the parking orbit for its window, burns onto the
         // transfer in Earth's night, flies half an orbit to the arrival point, brakes there, and glides along the station's
-        // axis to the hold point. The parts in Earth's night are filmed from the cabin, because the demo's Earth casts no
-        // shadow. A section that waits longer than 10 minutes names a limit of twice its length.
+        // axis to the hold point. Earth casts its shadow, and the parts in Earth's night are filmed from the cabin, where the
+        // lamps light the strapped person. A section that waits longer than 10 minutes names a limit of twice its measured
+        // length, rounded up to 100 s.
         new("belt", "cabin-camera", Every: 1, (world, scene) => PassengerOf(world, scene).Value is Strapped, Hold: Second,
             Posts: [new PostStep(new ToEntity("person"), nameof(FastenBelt))]),
-        new("phasing", "chase-camera", Every: 60, InEarthsShadow, Limit: Second * 2100,
+        new("phasing", "chase-camera", Every: 60, InEarthsShadow, Limit: Second * 1000,
             Posts: [new PostStep(new ToEntity("shuttle"), nameof(Rendezvous))]),
-        new("night", "cockpit-camera", Every: 120, (world, scene) => RendezvousOf(world, scene).Value is Transfer, Limit: Second * 1200),
+        new("night", "cockpit-camera", Every: 120, (world, scene) => RendezvousOf(world, scene).Value is Transfer, Limit: Second * 2300),
         // The cabin is also weightless in the tick before the burn starts, so the end of the burn needs the transfer's
         // apoapsis too.
         new("burn", "cockpit-camera", Every: 2, (world, scene) => Apoapsis(world, scene) > TransferApoapsis && CabinWeightless(world, scene), Hold: Second * 2),
-        new("transfer-night", "cockpit-camera", Every: 240, (world, scene) => !InEarthsShadow(world, scene), Limit: Second * 3000),
-        new("transfer", "chase-camera", Every: 60, (world, scene) => ToArrivalPoint(world, scene) < 10e3, Limit: Second * 1800),
+        new("transfer-night", "cockpit-camera", Every: 240, (world, scene) => !InEarthsShadow(world, scene), Limit: Second * 2000),
+        new("transfer", "chase-camera", Every: 60, (world, scene) => ToArrivalPoint(world, scene) < 10e3, Limit: Second * 2800),
         new("closing", "bow-camera", Every: 8, (world, scene) => RendezvousOf(world, scene).Value is Brake),
         new("brake", "port-window-camera", Every: 1, (world, scene) => RendezvousOf(world, scene).Value is Glide),
         new("turn", "window-camera", Every: 1, (world, scene) => NoseFromStation(world, scene) < NoseOnStation),

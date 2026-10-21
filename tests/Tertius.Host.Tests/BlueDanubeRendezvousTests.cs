@@ -72,7 +72,7 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
         Ticks.Add(new RendezvousTick(World.TickNumber, World.Time, pose.Position, World.VelocityIn(shuttle, Earth), pose.Rotation.Rotate(-Double3.UnitZ),
             stationPose.Position, World.VelocityIn(station, Earth), stationPose.Rotation.Rotate(Double3.UnitY),
             World.GetComponent<RendezvousAutopilot>(shuttle)!.State, passenger, World.Frames.ProperAcceleration(cabin), World.GetFrame(shuttle),
-            PenFromHand(passenger, cabin), personUp));
+            PenFromHand(passenger, cabin), personUp, BlueDanube.InEarthsShadow(World, Scene), World.PoseIn(Scene["sun"], Earth).Position.Normalized()));
     }
 
     /// <summary>
@@ -106,7 +106,8 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
         Entity copy = CopyOf(World.GetComponent<Passenger>(person)!.State);
         return new RendezvousFrame(name, World.PoseIn(World.Camera, cabin), World.PoseIn(Scene["station"], cabin).Position, personPose,
             personPose.TransformPoint((Double3)World.GetRender(person).ViewOffset.Position),
-            !copy.IsNull && World.IsAlive(copy) ? World.PoseIn(copy, cabin).Position : null, World.VerticalFov);
+            !copy.IsNull && World.IsAlive(copy) ? World.PoseIn(copy, cabin).Position : null, World.VerticalFov,
+            World.PoseIn(Scene["sun"], cabin).Position, World.PoseIn(Scene["moon"], cabin).Position, World.PoseIn(Scene["earth"], cabin).Position);
     }
 
     /// <summary>A playback that records the state before each tick and what each frame's camera sees, and draws nothing.</summary>
@@ -141,9 +142,11 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
 /// <param name="ShuttleFrame">The shuttle's frame.</param>
 /// <param name="PenFromHand">How far the drawn copy of the pen is from the person's hand, in meters, while the person holds it, or null.</param>
 /// <param name="PersonUp">The person's up, the +Y of its pose, in the axes of the shuttle's frame.</param>
+/// <param name="InShadow">True while the cue <see cref="BlueDanube.InEarthsShadow"/> holds: the shuttle is in Earth's shadow.</param>
+/// <param name="ToSun">The direction from Earth's center to the Sun's, a unit vector in earth's axes.</param>
 public sealed record RendezvousTick(long Tick, double Time, Double3 Position, Double3 Velocity, Double3 Nose, Double3 StationCenter,
     Double3 StationVelocity, Double3 Axis, RendezvousState Rendezvous, PassengerState Passenger, System.Numerics.Vector3 CabinAcceleration,
-    FrameHandle ShuttleFrame, double? PenFromHand, Double3 PersonUp)
+    FrameHandle ShuttleFrame, double? PenFromHand, Double3 PersonUp, bool InShadow, Double3 ToSun)
 {
     /// <summary>The shuttle's place relative to the station's center, in meters, in earth's axes.</summary>
     public Double3 FromStation => Position - StationCenter;
@@ -160,7 +163,11 @@ public sealed record RendezvousTick(long Tick, double Time, Double3 Position, Do
 /// <param name="Eye">The person's eye in the shuttle's frame, in meters.</param>
 /// <param name="Pen">The center of the drawn copy of the pen in the person's hand, in the shuttle's frame, while the person holds it, or null.</param>
 /// <param name="VerticalFov">The world's vertical view angle, in radians.</param>
-public sealed record RendezvousFrame(string Name, DPose View, Double3 Station, DPose Person, Double3 Eye, Double3? Pen, double VerticalFov)
+/// <param name="Sun">The Sun's center in the shuttle's frame, in meters.</param>
+/// <param name="Moon">The Moon's center in the shuttle's frame, in meters.</param>
+/// <param name="EarthCenter">Earth's center in the shuttle's frame, in meters.</param>
+public sealed record RendezvousFrame(string Name, DPose View, Double3 Station, DPose Person, Double3 Eye, Double3? Pen, double VerticalFov,
+    Double3 Sun, Double3 Moon, Double3 EarthCenter)
 {
     /// <summary>True when the frame belongs to the film <paramref name="film"/>.</summary>
     public bool Of(string film) => Name.StartsWith(film + "-", StringComparison.Ordinal) && Name.Length == film.Length + 7;
@@ -469,6 +476,64 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run) : ICl
             (enter, leave) = (Math.Max(enter, Math.Min(a, b)), Math.Min(leave, Math.Max(a, b)));
         }
         return enter <= leave;
+    }
+
+    /// <summary>
+    /// The transfer's burn falls in Earth's night (docs/plans/blue-danube-demo.md, "The station's plane"): in every tick of
+    /// the burn, from the first push after the order to the first weightless tick after it, the shuttle is in Earth's
+    /// shadow.
+    /// </summary>
+    [Fact]
+    public void TheBurnFallsInEarthsShadow()
+    {
+        RendezvousTick[] burn = [.. AfterTheOrder.SkipWhile(tick => tick.CabinAcceleration.Length() < FrameTree.ZeroGravityThreshold)
+            .TakeWhile(tick => tick.CabinAcceleration.Length() >= FrameTree.ZeroGravityThreshold)];
+
+        burn.Should().HaveCountGreaterThan(60, "the burn lasts more than a second");
+        burn.Should().OnlyContain(tick => tick.InShadow);
+    }
+
+    /// <summary>
+    /// The arrival falls in the day: at the first tick of the brake, the station lies outside Earth's shadow, and the Sun
+    /// stands at least 30 degrees above the station's horizon. The model of the design gives 55 degrees.
+    /// </summary>
+    [Fact]
+    public void TheArrivalFallsInSunlight()
+    {
+        RendezvousTick brake = FirstOf<Brake>();
+        double towardTheSun = Double3.Dot(brake.StationCenter, brake.ToSun);
+        bool shadowed = towardTheSun < 0 && (brake.StationCenter - brake.ToSun * towardTheSun).Length < DemoScenes.EarthRadius;
+
+        shadowed.Should().BeFalse("the station is in sunlight at the arrival");
+        (90 - Degrees(brake.StationCenter, brake.ToSun)).Should().BeGreaterThan(30, "the Sun stands high over the station's horizon");
+    }
+
+    /// <summary>
+    /// The rim camera turns with the station and sweeps a cone round its axis, which passes near the Sun and the Moon: the
+    /// Moon's center lies in the picture of some frame of <c>glide-rim</c>, and the Sun's in some frame. In those frames,
+    /// the line from the camera to each misses Earth's sphere.
+    /// </summary>
+    [Fact]
+    public void TheMoonAndTheSunPassThroughTheRimCameraInGlideRim()
+    {
+        RendezvousFrame[] rim = [.. run.Frames.Where(frame => frame.Of("glide-rim"))];
+
+        rim.Should().NotBeEmpty();
+        rim.Should().Contain(frame => Shows(frame, frame.Moon), "the Moon passes through the rim camera's picture");
+        rim.Should().Contain(frame => Shows(frame, frame.Sun), "the Sun passes through the rim camera's picture");
+    }
+
+    /// <summary>
+    /// True when <paramref name="body"/>, in the shuttle's frame, lies in the picture of <paramref name="frame"/>, and the
+    /// line from the camera to it passes outside Earth's sphere.
+    /// </summary>
+    private static bool Shows(RendezvousFrame frame, Double3 body)
+    {
+        if (!Picture.Contains(Picture.Project(frame.View, body, frame.VerticalFov)))
+            return false;
+        Double3 from = frame.View.Position, line = body - from;
+        double along = Math.Clamp(Double3.Dot(frame.EarthCenter - from, line) / line.LengthSquared, 0, 1);
+        return (from + line * along - frame.EarthCenter).Length > DemoScenes.EarthRadius;
     }
 
     [Fact]
