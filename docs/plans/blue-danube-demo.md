@@ -2470,7 +2470,7 @@ Why a playback, and not a component or the Host:
 - The playback is the seam that the runner already calls at exactly the moments that the video shows, with the frame's name. `BlueDanubeFilmTests` reads the long script through a playback in the same way.
 - The Host is engine code. A log beside the video sink in the same run needs a Host change. A second run takes about as long as the rehearsal, under two minutes today, and it changes nothing in the engine.
 
-Why one row for each frame and not for each tick: the video shows only the captured ticks. A row for each frame needs no join by tick. The log is also 18 times smaller than a log with a row for each tick: 15,782 frames against 292,467 ticks today.
+Why one row for each frame and not for each tick: the video shows only the captured ticks. A row for each frame needs no join by tick. The log is also 18 times smaller than a log with a row for each tick: 15,895 frames against 292,467 ticks in the Earth system of ter-yhu8.
 
 Each row holds raw quantities from the engine, and the edit derives the rest:
 
@@ -2571,7 +2571,7 @@ The other films are on the ground, in the cabin, at the pen and at the windows, 
 
 The trims stay in the rules of the cut list. The docking and the exit can have frames that show nothing, and the rule above decides them.
 
-The stretches of today hold all 15,782 frames of the master, 263.0 s at 60 frames per second. With the cards, the final video lasts 276.0 s, 4 minutes 36 s. The docking and the exit add their own stretches.
+The stretches of today hold all 15,895 frames of the master, 264.9 s at 60 frames per second, with the film `sky` of the Earth system (ter-yhu8). With the cards, the final video lasts 277.9 s, 4 minutes 38 s. The docking and the exit add their own stretches.
 
 ### The title cards and the transitions
 
@@ -2611,13 +2611,13 @@ One proof and one fix of the light needed engine changes. The user settled both 
 
 The recording: "The Blue Danube" by Johann Strauss II, played by the United States Marine Band and conducted by Albert F. Schoepper. It is a work of the US government, and so it is in the public domain. It comes from Wikimedia Commons, the file "An der schönen, blauen Donau" performed by the U.S. Marine Band.mp3: 13,183,232 bytes, MP3 at 192 kbit/s, 44.1 kHz, stereo. The user said yes to its download on 2026-10-20. The file stays outside the repository, and the edit takes its path with `--music`.
 
-ffprobe in the dev shell measures the recording at 549.06 s, 9 minutes 9 s. The last 2.8 s are silence. The video lasts 276.0 s today, about half of the recording. The edit fits the music to the cut with one rule:
+ffprobe in the dev shell measures the recording at 549.06 s, 9 minutes 9 s. The last 2.8 s are silence. The video lasts 277.9 s today, about half of the recording. The edit fits the music to the cut with one rule:
 
 - The music starts at second 0 of the recording (`--music-start 0`), with the first frame of the opening card. The waltz opens with its quiet introduction, at about 47 dB below full scale in its first second, so it starts under the black card with no jump.
 - It fades in over 2 s and out over the last 5 s of the video, which lie in the closing card. So the music ends with the picture.
 - It is encoded as AAC at 192 kbit/s, the rate of the source.
 
-Why a fade and no cut of the music: the waltz is twice as long as the run, and the run is one unbroken take, so the picture cannot follow the music's sections. A cut inside the music, to end on its last chord, needs an edit of the music by ear. A fade over the closing card ends the music where the picture ends, and it stays right when the docking and the exit make the video longer: the recording is long enough for a video of up to 9 minutes. In the cut of today, the fade ends 0.2 s before a short pause of the waltz: from 276.25 s to 276.75 s of the recording, its level falls to about 45 dB below full scale.
+Why a fade and no cut of the music: the waltz is twice as long as the run, and the run is one unbroken take, so the picture cannot follow the music's sections. A cut inside the music, to end on its last chord, needs an edit of the music by ear. A fade over the closing card ends the music where the picture ends, and it stays right when the docking and the exit make the video longer: the recording is long enough for a video of up to 9 minutes. In the cut of round 2, 276.0 s long, the fade ended 0.2 s before a short pause of the waltz: from 276.25 s to 276.75 s of the recording, its level falls to about 45 dB below full scale. The film `sky` of the Earth system made the video 1.9 s longer, so the fade of today passes through that pause and ends about 1.2 s after it.
 
 ### The final render
 
@@ -2631,7 +2631,7 @@ dotnet run -c Release --project src/Tertius.Demo -- --edit runs/danube/blue-danu
 - The output is an MP4 with H.264 at quality 18 (`-crf 18`), 1280 × 720 at 60 frames per second. Its pixel format is yuv420p, which every player reads. Its index is at the front of the file (`-movflags +faststart`).
 - `--music`, `--music-start` and `--music-credit` are optional, and the video has no sound without them.
 - The command refuses a log whose rows do not match the frames of the script by count and by name. It also refuses a master whose count of frames does not match. So a log or a master from another script cannot reach the edit.
-- The length today: 276.0 s, 4 minutes 36 s. The docking and the exit add theirs.
+- The length today: 277.9 s, 4 minutes 38 s. The docking and the exit add theirs.
 
 Measured in round 1, on 2026-10-20, on an Apple M1 Max, with the script of that day and no music: the master took 2 minutes 53 seconds, 15,806 frames and 410 MB. The edit took 55 s. Its frames showed the readouts, the clock, the rate and the check panel as designed, and also the titles, the cards and the dips to black.
 
@@ -2641,6 +2641,13 @@ Measured in round 2, the final render, on 2026-10-20, on the same machine, with 
 - The readout log took 1 minute 44 seconds.
 - The edit took 51 s, with libx264 on all cores. The final video has 16,562 frames, 276.0 s at 60 frames per second, and an AAC track of 276.0 s. It is 42.6 MB.
 - Its frames show the closing card with the line of the music, and the shuttle in the darkest frame of `transfer`.
+
+Measured in the review of the Earth system (ter-yhu8), on 2026-10-20, on the same machine, at a load average from 7 to 10, with the checked-in script and no music:
+
+- The master took 1 minute 55 seconds from the command line: 15,895 frames, 524 MB.
+- The readout log took 58 s. It reads in `earth`. In the coast of the parking orbit, the run's speed lies within 1.3 m/s of the circular speed at its radius, and the run's orbit within 0.01 minutes of the circle's 88.3 minutes.
+- The edit took 41 s. The final video has 16,675 frames, 277.9 s at 60 frames per second. It is 35.3 MB.
+- Its frames of `phasing` and `night` show the readouts and the check panel, with the run's numbers beside the textbook's.
 
 ### Order of the work
 
