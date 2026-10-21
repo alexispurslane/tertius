@@ -1,3 +1,4 @@
+using System.Numerics;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
@@ -17,7 +18,7 @@ internal static class EntityTableSupport
     public static Entity SpawnLiveAt(this EntityTable table, double x, BodyDesc? body = null, params IComponent[] components)
     {
         Entity entity = table.Reserve();
-        table.Activate(entity, RowAt(x), new RenderData(), components, [.. components.Select(c => c.Wants)], body, FrameHandle.Null);
+        table.Activate(entity, RowAt(x), new RenderData(), components, [.. components.Select(c => c.Wants)], body, Vector3.Zero, FrameHandle.Null);
         return entity;
     }
 

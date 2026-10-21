@@ -1,3 +1,4 @@
+using System.Numerics;
 using BenchmarkDotNet.Attributes;
 using Tertius.Simulation;
 
@@ -56,7 +57,7 @@ public class SpatialUpdateBenchmarks
         {
             movers[i] = entities.Reserve();
             var row = new TransformRow { Frame = root, Pose = new DPose(new Double3(i % 300 * spacing, i / 300 * spacing, 0), DQuaternion.Identity) };
-            entities.Activate(movers[i], row, new RenderData(), [], [], null, FrameHandle.Null);
+            entities.Activate(movers[i], row, new RenderData(), [], [], null, Vector3.Zero, FrameHandle.Null);
         }
         entities.CopyDirtyRows();
         spatial.Update();

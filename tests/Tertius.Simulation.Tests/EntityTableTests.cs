@@ -30,7 +30,7 @@ public class EntityTableTests
         EntityTable table = TableSupport.NewTable();
         Entity entity = table.Reserve();
 
-        table.Activate(entity, RowAt(2), new RenderData(), [new Recorder()], [EventMask.Of<Ping>()], null, FrameHandle.Null);
+        table.Activate(entity, RowAt(2), new RenderData(), [new Recorder()], [EventMask.Of<Ping>()], null, Vector3.Zero, FrameHandle.Null);
 
         table.IsAlive(entity).Should().BeTrue();
         table.LiveCount.Should().Be(1);

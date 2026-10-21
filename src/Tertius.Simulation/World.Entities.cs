@@ -340,7 +340,7 @@ public sealed partial class World
 
         foreach (IComponent component in plan.Components)
             InitializeComponentType(component.GetType());
-        entities.Activate(entity, row, desc.Render ?? new RenderData(), plan.Components, plan.Wants, desc.Body, own);
+        entities.Activate(entity, row, desc.Render ?? new RenderData(), plan.Components, plan.Wants, desc.Body, Vector3.Zero, own);
         // The first motion intent, relative to the spawn's frame, goes into the new entity's front intent, which the next step
         // applies as an intent that the entity wrote in the spawn's tick (docs/plans/rails-components.md, "The first motion
         // intent of a spawn"). Step 6 runs after the swap of step 4, and a spawn outside a tick goes live at the call, so either

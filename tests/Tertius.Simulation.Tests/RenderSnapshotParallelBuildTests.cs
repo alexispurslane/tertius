@@ -104,7 +104,7 @@ public class RenderSnapshotParallelBuildTests
             var frames = new FrameTree();
             Entity owner = entities.Reserve();
             FrameHandle root = frames.Create(owner, FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
-            entities.Activate(owner, new TransformRow { Pose = DPose.Identity }, new RenderData(), [], [], null, root);
+            entities.Activate(owner, new TransformRow { Pose = DPose.Identity }, new RenderData(), [], [], null, Vector3.Zero, root);
             camera = Spawn(root, new RenderData(), 0);
             for (int i = 0; i < visible; i++)
                 Spawn(root, Visible(), i + 1);
@@ -128,7 +128,7 @@ public class RenderSnapshotParallelBuildTests
         private Entity Spawn(FrameHandle frame, in RenderData render, double x)
         {
             Entity entity = entities.Reserve();
-            entities.Activate(entity, new TransformRow { Frame = frame, PhysicsHome = frame, Pose = TestWorld.At(x) }, render, [], [], null, FrameHandle.Null);
+            entities.Activate(entity, new TransformRow { Frame = frame, PhysicsHome = frame, Pose = TestWorld.At(x) }, render, [], [], null, Vector3.Zero, FrameHandle.Null);
             return entity;
         }
     }

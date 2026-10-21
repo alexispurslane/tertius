@@ -1,3 +1,4 @@
+using System.Numerics;
 using AwesomeAssertions;
 
 namespace Tertius.Simulation.Tests;
@@ -51,7 +52,7 @@ internal sealed class RouterHarness
     public Entity Spawn(EventMask wants, FrameHandle frame = default)
     {
         Entity entity = Entities.Reserve();
-        Entities.Activate(entity, new TransformRow { Frame = frame, PhysicsHome = frame }, new RenderData(), [new Recorder(wants)], [wants], null, FrameHandle.Null);
+        Entities.Activate(entity, new TransformRow { Frame = frame, PhysicsHome = frame }, new RenderData(), [new Recorder(wants)], [wants], null, Vector3.Zero, FrameHandle.Null);
         Topics.MoveMember(entity, frame, out _);
         return entity;
     }
