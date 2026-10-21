@@ -139,6 +139,30 @@ public sealed class EditCommandTests : IDisposable
     }
 
     [Fact]
+    public void TheClosingCardShowsTheCreditOfTheRecordingInsideItsMargins()
+    {
+        string music = Path.Combine(folder, "music.wav");
+        Tool("ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=20", "-y", music);
+        // The credit of the demo's recording, the longest line of any card.
+        const string credit = "The Blue Danube (Johann Strauss II). United States Marine Band, Albert F. Schoepper, conductor. Public domain.";
+        Edit("--music", music, "--music-credit", credit).Should().Be(ScriptCommand.Ok);
+        string parts = VideoPath + ".parts", picture = Path.Combine(folder, "closing.rgb");
+
+        // The closing card drawn by libass at 640 by 360, half the size of its drawing, at the middle of its 1 s.
+        Tool("ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=black:s=640x360:r=60:d=1",
+            "-vf", $"ass=filename={Path.Combine(parts, "closing.ass")}:fontsdir={Path.Combine(parts, "fonts")},select=eq(n\\,30)",
+            "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-y", picture);
+        byte[] rgb = File.ReadAllBytes(picture);
+
+        // A card keeps 80 of the 1,280 pixels of its drawing on each side free: 40 of 640 here.
+        int Brightest(int fromColumn, int toColumn) =>
+            Enumerable.Range(0, 360).SelectMany(y => Enumerable.Range(fromColumn, toColumn - fromColumn).Select(x => (int)rgb[(y * 640 + x) * 3])).Max();
+        Brightest(0, 40).Should().BeLessThan(16);
+        Brightest(600, 640).Should().BeLessThan(16);
+        Brightest(40, 600).Should().BeGreaterThan(128);
+    }
+
+    [Fact]
     public void TheEditWritesTheSubtitlesOfTheKeptFramesIntoAFolderBesideTheVideo()
     {
         Edit().Should().Be(ScriptCommand.Ok);

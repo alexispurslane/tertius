@@ -85,6 +85,16 @@ public sealed class EditSubtitlesTests
     }
 
     [Fact]
+    public void TheRateOfAFilmOfEveryTickIsGrayAndOfATimeLapseAmber()
+    {
+        List<(string Start, string End, string Text)> clocks = Events(Subtitles(Cuts()), "Clock");
+
+        // Frame 0 is in a, of every tick, and frame 150 in b, of every 4th tick.
+        clocks[0].Text.Should().Contain("{\\c&HA0A0A0&}REAL\\hTIME");
+        clocks[150].Text.Should().Contain("{\\c&H00B0FF&}TIME-LAPSE\\h×4");
+    }
+
+    [Fact]
     public void APartsTitleShowsForFourSecondsFromTheFirstKeptFrameOfItsFirstFilm()
     {
         string ass = Subtitles(Cuts(trims: [new EditTrim("b", 10, 0)], parts: [new EditPart("b", "The launch", "Up the ramp.")]));

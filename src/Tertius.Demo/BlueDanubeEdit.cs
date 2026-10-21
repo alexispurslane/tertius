@@ -1,9 +1,9 @@
 namespace Tertius.Demo;
 
 /// <summary>
-/// The cut list of the Blue Danube demo (docs/plans/blue-danube-demo.md, "The cut list"): the parts of the sequence, the
-/// trims that cut away from the dark frames, the check panel of the parking orbit, and the two title cards. It names films
-/// of <see cref="BlueDanube.Sections"/>, never frame numbers, so it follows the script when the sections change.
+/// The cut list of the Blue Danube demo (docs/plans/blue-danube-demo.md, "The cut list"): the parts of the sequence, its
+/// trims, the check panel of the parking orbit, and the two title cards. It names films of
+/// <see cref="BlueDanube.Sections"/>, never frame numbers, so it follows the script when the sections change.
 /// </summary>
 public static class BlueDanubeEdit
 {
@@ -16,10 +16,10 @@ public static class BlueDanubeEdit
             new("orbit", "Weightless", "The ship's frame falls freely, so the cabin is weightless by itself."),
             new("belt", "The rendezvous", "A transfer of 170 degrees to the station, 400 km up."),
         ],
-        // The chase camera first sees the shuttle over the night side of Earth, with a dark hull. From frame 175 of the
-        // film on, the sun lights the top of the hull more and more: its mean brightness is 41 of 255 in the dark, 78 at
-        // frame 375 and 100 at frame 600 (the round-1 master of 2026-10-20).
-        Trims: [new("transfer", Head: 360, Tail: 0)],
+        // No trims: the user keeps every frame where any part of the shuttle or the station shows, however dark
+        // (2026-10-20), and a measure of the master found one of them in every frame (docs/plans/blue-danube-demo.md,
+        // "The dark frames").
+        Trims: [],
         // The coast in the parking orbit, from the insertion to the transfer burn.
         Panels: [new("orbit", "night", CheckPanels.ParkingOrbit)],
         Opening: new TitleCard(5,

@@ -34,6 +34,17 @@ public sealed class BlueDanubeEditTests
     }
 
     [Fact]
+    public void TheEditKeepsEveryFrameOfTheCheckedInScript()
+    {
+        // The user's decision of 2026-10-20: keep every frame where any part of the shuttle or the station shows, however
+        // dark. A measure of the round-2 master found one of them in every frame (docs/plans/blue-danube-demo.md, "The
+        // dark frames").
+        IReadOnlyList<Stretch> stretches = Stretch.Of(Films, BlueDanubeEdit.Cuts.Trims);
+
+        stretches.Sum(stretch => stretch.Count).Should().Be(Films.Sum(film => film.Frames));
+    }
+
+    [Fact]
     public void ThePartsStartWithTheFirstFilmAndFollowTheOrderOfTheScript()
     {
         int[] starts = [.. BlueDanubeEdit.Cuts.Parts.Select(part => IndexOf(part.FirstFilm))];
