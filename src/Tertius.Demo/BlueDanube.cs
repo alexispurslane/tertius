@@ -142,6 +142,9 @@ public static class BlueDanube
         new("phasing", "chase-camera", Every: 60, InEarthsShadow, Limit: Second * 1000,
             Posts: [new PostStep(new ToEntity("shuttle"), nameof(Rendezvous))]),
         new("night", "cockpit-camera", Every: 120, (world, scene) => RendezvousOf(world, scene).Value is Transfer, Limit: Second * 2300),
+        // The first seconds of the transfer burn from outside, in Earth's night, where the main engine's plume glows behind
+        // the dark hull (docs/plans/blue-danube-demo.md, "The plumes").
+        new("burn-chase", "chase-camera", Every: 2, FilmSection.Now, Hold: Second * 6),
         // The cabin is also weightless in the tick before the burn starts, so the end of the burn needs the transfer's
         // apoapsis too.
         new("burn", "cockpit-camera", Every: 2, (world, scene) => Apoapsis(world, scene) > TransferApoapsis && CabinWeightless(world, scene), Hold: Second * 2),

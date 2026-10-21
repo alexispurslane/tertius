@@ -457,7 +457,8 @@ The step's sections replace the section `coast`. A section that waits longer tha
 | `belt` | `cabin-camera` | 1 | `FastenBelt` to `person` | 1 s after the passenger is `Strapped` | From 357.0 s: 4.8 s, 290 frames |
 | `phasing` | `chase-camera` | 60 | `Rendezvous` to `shuttle` | The shuttle is in Earth's shadow. | 491 s, 491 frames |
 | `night` | `cockpit-camera` | 120 | | The autopilot is in `Transfer`. | 1,112 s, 556 frames |
-| `burn` | `cockpit-camera` | 2 | | 2 s after the shuttle's orbit reaches 399 km and the cabin is weightless | From 1,964.8 s: 32.6 s, 977 frames |
+| `burn-chase` | `chase-camera` | 2 | | After 6 s | From 1,964.8 s: 6 s, 180 frames |
+| `burn` | `cockpit-camera` | 2 | | 2 s after the shuttle's orbit reaches 399 km and the cabin is weightless | From 1,970.8 s: 26.6 s, 797 frames |
 | `transfer-night` | `cockpit-camera` | 240 | | The shuttle is out of Earth's shadow. | 964 s, 241 frames |
 | `transfer` | `chase-camera` | 60 | | The shuttle is within 10 km of the arrival point. | 1,394 s, 1,394 frames |
 | `closing` | `bow-camera` | 8 | | The autopilot is in `Brake`. | 155 s, 1,165 frames |
@@ -470,7 +471,7 @@ The step's sections replace the section `coast`. A section that waits longer tha
 | `hold` | `rim-camera` | 1 | | After 3 s | From 4,878.2 s: 3 s, 180 frames |
 | `hold-chase` | `chase-camera` | 1 | | After 2 s | From 4,881.2 s: 2 s, 120 frames |
 
-The step films 11,734 frames in 4,526 s of the simulation, 196 s of video at 60 frames per second. With the parts, the transfer starts 0.25 s later. `night` films every 120 ticks, so its cue holds at its next frame, and `burn` starts 1.8 s later. The burn still ends at the same apoapsis, so `burn` grew 47 frames shorter. Ticket ter-4xkz split the 5 s of `hold` into `hold` and `hold-chase`.
+The step films 11,734 frames in 4,526 s of the simulation, 196 s of video at 60 frames per second. With the parts, the transfer starts 0.25 s later. `night` films every 120 ticks, so its cue holds at its next frame, and `burn` starts 1.8 s later. The burn still ends at the same apoapsis, so `burn` grew 47 frames shorter. Ticket ter-4xkz split the 5 s of `hold` into `hold` and `hold-chase`. The plumes of ter-6u2m split the first 6 s of the burn off `burn` into `burn-chase`, which changes no tick, so the step films the same frames.
 
 Every cue reads the run or the scene's constants:
 
@@ -2996,7 +2997,7 @@ dotnet run --project src/Tertius.Demo -- --generate scripts/blue-danube.json
 dotnet run -c Release --project src/Tertius.Demo -- --script scripts/blue-danube.json --headless --out runs/danube --video runs/danube/blue-danube.mkv --fps 60
 ```
 
-The first command rehearses the run and writes the script. Beside it, in the same folder, it writes each cut of `BlueDanube.Cuts`, such as `scripts/demo-docking.json`, which films the long script only from one section through another. It prints each film with its frames, its film interval and the second of the run at which it starts. With the rendezvous, the rehearsal took 107 s on 2026-10-20, against about 10 s before. The second makes the video: on 2026-10-20 it took 110 s, at a load average from 3.7 to 6.5, for the 15,806 frames and 292,242 ticks, 4,871 s of the simulation and 263 s of video. Before the rendezvous, in the last two runs of 2026-10-19, it took 22 s and 24 s for 4,210 frames and 23,101 ticks. With the glass canopy of ter-4xkz, it took 117 s on 2026-10-20, at a load average from 4 to 5, for 15,782 frames. With the docking of ter-ftnj, the script films 20,084 frames in 302,163 ticks, 5,036 s of the simulation and 335 s of video. Its rehearsal took about 4.5 minutes on 2026-10-20, in Release, while other test runs loaded the machine. With the exit of ter-y0e5, the script films 22,884 frames in 305,468 ticks, 5,091 s of the simulation and 381 s of video. Its rehearsal took 59 s on 2026-10-20, in Release. The video took 203 s on 2026-10-20, for 22,884 frames and 381.4 s of video. The first second of the film `floor` shows the person's box large in the picture, because the `follow-camera`'s arm, which the slide left short, grows back with its time constant of 0.5 s. `scripts/demo-exit.json` shows the same. In the Earth system of ter-yhu8, before its merge with the docking and the exit, the rehearsal took from 97 to 123 s and the video 114 s on 2026-10-20, at a load average from 9 to 13, for 15,895 frames. After that merge, on 2026-10-21, the script films 22,988 frames in 305,459 ticks, 5,091 s of the simulation and 383.1 s of video. Its rehearsal took 113 s in Release, with the build, and the video took 145 s, at a load average from 5 to 7. Step 8 (ter-asce) set the outlines of six sections and wrote the script again on 2026-10-21. The outlines change no tick, so every film kept its frames. The rehearsal took 72 s in Release, and the video 142 s. With the person's walk of ter-cdgt, on 2026-10-21, the script films 22,771 frames in 305,469 ticks, 5,091 s of the simulation and 379.5 s of video. Its rehearsal took 99 s in Release, with the build, and the video took 144 s, at a load average from 4 to 8. After the merge with the final assembly and the review's fix of the heading, the script filmed the same frames, and the video took 203 s, with the build, while other runs loaded the machine. With the coda of ter-h74c, before its merge with the person's walk, on 2026-10-21, the script filmed 24,046 frames in 306,517 ticks, and its rehearsal took 113 s in Release, with the build, and the video 209 s, at a load average from 11 to 14. After that merge, the script films 23,841 frames in 306,539 ticks, 5,109.0 s of the simulation and 397.4 s of video. After the merge, on 2026-10-21, the rehearsal took about 70 s in Release, the master 2 minutes 39 seconds, the readout log 67 s and the edit 72 s. With the jets as parts of ter-diu0, after its merge with the coda, on 2026-10-21, the script films 23,814 frames in 306,558 ticks, 5,109.3 s of the simulation and 396.9 s of video. Its rehearsal took 77 s in Release, with the build. The test `BlueDanubeScriptTests` runs the first command and checks that its output equals the checked-in `scripts/blue-danube.json`, and each cut the checked-in cut, so they cannot drift. A change of the scene, of the engine's timing or of the sections fails the test until the script is written again.
+The first command rehearses the run and writes the script. Beside it, in the same folder, it writes each cut of `BlueDanube.Cuts`, such as `scripts/demo-docking.json`, which films the long script only from one section through another. It prints each film with its frames, its film interval and the second of the run at which it starts. With the rendezvous, the rehearsal took 107 s on 2026-10-20, against about 10 s before. The second makes the video: on 2026-10-20 it took 110 s, at a load average from 3.7 to 6.5, for the 15,806 frames and 292,242 ticks, 4,871 s of the simulation and 263 s of video. Before the rendezvous, in the last two runs of 2026-10-19, it took 22 s and 24 s for 4,210 frames and 23,101 ticks. With the glass canopy of ter-4xkz, it took 117 s on 2026-10-20, at a load average from 4 to 5, for 15,782 frames. With the docking of ter-ftnj, the script films 20,084 frames in 302,163 ticks, 5,036 s of the simulation and 335 s of video. Its rehearsal took about 4.5 minutes on 2026-10-20, in Release, while other test runs loaded the machine. With the exit of ter-y0e5, the script films 22,884 frames in 305,468 ticks, 5,091 s of the simulation and 381 s of video. Its rehearsal took 59 s on 2026-10-20, in Release. The video took 203 s on 2026-10-20, for 22,884 frames and 381.4 s of video. The first second of the film `floor` shows the person's box large in the picture, because the `follow-camera`'s arm, which the slide left short, grows back with its time constant of 0.5 s. `scripts/demo-exit.json` shows the same. In the Earth system of ter-yhu8, before its merge with the docking and the exit, the rehearsal took from 97 to 123 s and the video 114 s on 2026-10-20, at a load average from 9 to 13, for 15,895 frames. After that merge, on 2026-10-21, the script films 22,988 frames in 305,459 ticks, 5,091 s of the simulation and 383.1 s of video. Its rehearsal took 113 s in Release, with the build, and the video took 145 s, at a load average from 5 to 7. Step 8 (ter-asce) set the outlines of six sections and wrote the script again on 2026-10-21. The outlines change no tick, so every film kept its frames. The rehearsal took 72 s in Release, and the video 142 s. With the person's walk of ter-cdgt, on 2026-10-21, the script films 22,771 frames in 305,469 ticks, 5,091 s of the simulation and 379.5 s of video. Its rehearsal took 99 s in Release, with the build, and the video took 144 s, at a load average from 4 to 8. After the merge with the final assembly and the review's fix of the heading, the script filmed the same frames, and the video took 203 s, with the build, while other runs loaded the machine. With the coda of ter-h74c, before its merge with the person's walk, on 2026-10-21, the script filmed 24,046 frames in 306,517 ticks, and its rehearsal took 113 s in Release, with the build, and the video 209 s, at a load average from 11 to 14. After that merge, the script films 23,841 frames in 306,539 ticks, 5,109.0 s of the simulation and 397.4 s of video. After the merge, on 2026-10-21, the rehearsal took about 70 s in Release, the master 2 minutes 39 seconds, the readout log 67 s and the edit 72 s. With the jets as parts of ter-diu0, after its merge with the coda, on 2026-10-21, the script films 23,814 frames in 306,558 ticks, 5,109.3 s of the simulation and 396.9 s of video. Its rehearsal took 77 s in Release, with the build. The plumes of ter-6u2m change no tick and split the film `burn` into `burn-chase` and `burn`, so the script films the same frames in the same ticks. Its rehearsal took 111 s in Release, with the build, and the master 152 s (see "The plumes", "Costs"). The test `BlueDanubeScriptTests` runs the first command and checks that its output equals the checked-in `scripts/blue-danube.json`, and each cut the checked-in cut, so they cannot drift. A change of the scene, of the engine's timing or of the sections fails the test until the script is written again.
 
 The sections today, as `BlueDanube.Sections` lists them. The frames of each film and the second at which it starts come from the run, so the generator prints them, and this table does not copy them:
 
@@ -3027,6 +3028,7 @@ The sections today, as `BlueDanube.Sections` lists them. The frames of each film
 | `belt` | `cabin-camera` | 1 | It posts `FastenBelt` to the person. 1 s after the person straps in at its seat |
 | `phasing` | `chase-camera` | 60 | It posts `Rendezvous` to the shuttle. The shuttle is in Earth's shadow |
 | `night` | `cockpit-camera` | 120 | The rendezvous autopilot is in `Transfer` |
+| `burn-chase` | `chase-camera` | 2 | After 6 s. The main engine's plume behind the dark hull, in Earth's night (see "The plumes") |
 | `burn` | `cockpit-camera` | 2 | 2 s after the transfer's apoapsis reaches 399 km and the cabin is weightless |
 | `transfer-night` | `cockpit-camera` | 240 | The shuttle is out of Earth's shadow |
 | `transfer` | `chase-camera` | 60 | The shuttle is within 10 km of the arrival point |
@@ -4128,7 +4130,7 @@ dotnet run -c Release --project src/Tertius.Demo -- --edit runs/danube/blue-danu
 - The output is an MP4 with H.264 at quality 18 (`-crf 18`), 1280 × 720 at 60 frames per second. Its pixel format is yuv420p, which every player reads. Its index is at the front of the file (`-movflags +faststart`).
 - `--music`, `--music-start` and `--music-credit` are optional, and the video has no sound without them.
 - The command refuses a log whose rows do not match the frames of the script by count and by name. It also refuses a master whose count of frames does not match. So a log or a master from another script cannot reach the edit.
-- The length: 410.4 s, 6 minutes 50 s, with the docking, the exit and the coda: 24,621 frames, the 23,841 of the master and the 780 of the two cards.
+- The length: 409.9 s, 6 minutes 50 s, with the docking, the exit, the coda and the plumes: 24,594 frames, the 23,814 of the master and the 780 of the two cards.
 
 Measured in round 1, on 2026-10-20, on an Apple M1 Max, with the script of that day and no music: the master took 2 minutes 53 seconds, 15,806 frames and 410 MB. The edit took 55 s. Its frames showed the readouts, the clock, the rate and the check panel as designed, and also the titles, the cards and the dips to black.
 
@@ -4169,6 +4171,14 @@ Measured after the merge of the coda with the person's walk (ter-cdgt), on 2026-
 - The edit took 72 s. The final video has 24,621 frames, 410.35 s at 60 frames per second, and an AAC track of 410.35 s. It is 79.7 MB.
 - Its frames show the person's drawn body and its visor at the stack and at the stand, and the panel's five headers apart from each other.
 - The run prints the same one line of the rendezvous autopilot, and no line of the coda.
+
+Measured with the plumes (ter-6u2m), on 2026-10-21, on the same machine, with the checked-in script and no music, at a 1-minute load from 4.0 to 14.3:
+
+- The master took 2 minutes 32 seconds from the command line: 23,814 frames in 306,558 ticks, 1,172 MB.
+- The readout log took 62 s.
+- The edit took 66 s. The final video has 24,594 frames, 409.9 s at 60 frames per second. It is 75.7 MB.
+- Its frames show the plumes of the ignition, the climb, the transfer burn and the docking (see "The plumes", "The films").
+- The run prints the same one line of the rendezvous autopilot at tick 296,184, and no other line.
 
 ### Order of the work
 
@@ -4241,7 +4251,7 @@ The row of Z is a little longer than its moment, because the long axis tilts 1.0
 
 The couples give no force and the translation pairs give no torque about the center of mass. So the torque and the force do not mix, and the allocation needs no solver. The tests pin that the jets give the torque and the force asked for, within 1e-6 of the most, for random torques and forces within the jets' thrust, and for a center of mass off the middle on every axis.
 
-The two jets of a couple give exact negatives of one force. `Jet.Force(rotation, throttle)` turns the jet's push by `rotation` and scales it by the throttle times the thrust. The two jets of a couple push along exact negatives of one hull axis with one thrust, and the rotation of a vector is odd in the vector. So at one throttle and one rotation the two forces are exact negatives, and the couple gives the hull no net force at all. Forces that only nearly cancel leave a force of the order of 1e-7 of the thrust (docs/plans/parts.md, "The demo's use"). For this, each jet's part keeps the hull's rotation, as the main engine's part does, and passes its own rotation in its frame.
+The two jets of a couple give exact negatives of one force. `Jet.Force(rotation, throttle)` turns the jet's push by `rotation` and scales it by the throttle times the thrust. The two jets of a couple push along exact negatives of one hull axis with one thrust, and the rotation of a vector is odd in the vector. So at one throttle and one rotation the two forces are exact negatives, and the couple gives the hull no net force at all. Forces that only nearly cancel leave a force of the order of 1e-7 of the thrust (docs/plans/parts.md, "The demo's use"). For this, each jet passes the hull's rotation in its frame, which it reads from its part's parent (`Plume.PushedBodyRotation`). The plumes of ter-6u2m turn each part so that its puffs leave against its push, so a part's own rotation is no longer the hull's (see "The plumes").
 
 The allocation allocates nothing, so the hull's components may call it in every tick.
 
@@ -4255,7 +4265,7 @@ The allocation allocates nothing, so the hull's components may call it in every 
 
 ### The wiring
 
-`Shuttle.FitActuators(world, hull)` fits the actuators of a shuttle that flies, outside a tick. It adds `AttitudeAutopilot` to the hull and calls `Shuttle.FitJets`, which calls `ShuttleJetControl.Fit` with `Shuttle.MainEngineThrust`, `Shuttle.Inertia` and `Shuttle.TranslationThrust`. `Fit` reads the center of mass from `BodyFacts.CenterOfMass` and builds `ShuttleJets` with it. It spawns 25 attached entities of the hull and adds the `ShuttleJetControl` to the hull. Each part's offset has the part's place and the hull's rotation. The main engine's part carries `MainEngine`, at `ShuttleJets.MainEnginePlace`. Each jet's part carries a `JetThruster` of its jet, at the jet's place. `Shuttle.FlightControls` now gives the layers of the flight program only.
+`Shuttle.FitActuators(world, hull)` fits the actuators of a shuttle that flies, outside a tick. It adds `AttitudeAutopilot` to the hull and calls `Shuttle.FitJets`, which calls `ShuttleJetControl.Fit` with `Shuttle.MainEngineThrust`, `Shuttle.Inertia` and `Shuttle.TranslationThrust`. `Fit` reads the center of mass from `BodyFacts.CenterOfMass` and builds `ShuttleJets` with it. It spawns 25 attached entities of the hull and adds the `ShuttleJetControl` to the hull. Each part's offset has the part's place, and a rotation that turns the part's -Z, along which its puffs leave, against its push (see "The plumes"). Before the plumes, it had the hull's rotation. The main engine's part carries `MainEngine`, at `ShuttleJets.MainEnginePlace`. Each jet's part carries a `JetThruster` of its jet, at the jet's place. `Shuttle.FlightControls` now gives the layers of the flight program only.
 
 In each tick, the components of the hull run in this order:
 
@@ -4263,9 +4273,9 @@ In each tick, the components of the hull run in this order:
 2. `AttitudeAutopilot`, at 10, keeps its law and adds a `Torque` event. It pushes no body itself.
 3. `ShuttleJetControl`, at 20, reads the last `Throttle`, the last `Torque` and the last `Translation`. It turns the torque and the force into the hull's axes with the hull's rotation and calls `ShuttleJets.Allocate`. It sends the main engine's part the throttle, and each jet of a pair that fires its pair's throttle, by message.
 
-The messages route at step 10 of the sync point, so each part handles its command in the next tick. There it pushes with `self.Body.AddForce`, in the axes of its frame, from its own rotation, and the engine carries the push to the hull at step 5. So every actuator of the shuttle acts one tick later than a push of the hull's own body. The attitude autopilot now acts three steps after the pose that it reads.
+The messages route at step 10 of the sync point, so each part handles its command in the next tick. There it pushes with `self.Body.AddForce`, in the axes of its frame, from the hull's rotation, and the engine carries the push to the hull at step 5. So every actuator of the shuttle acts one tick later than a push of the hull's own body. The attitude autopilot now acts three steps after the pose that it reads.
 
-The person's thrusters are one back jet. `PersonControl` and `Passenger` spawn it in their first tick, with `BackJet.Spawn`, at `BackJet.Place`: (0, 0.3, 0.3) m in the person's axes, on its back at the height of its chest, with the person's rotation. In each tick that they thrust, they send it a `JetForce` in the person's own axes. The jet turns the force into the axes of its frame with its own rotation and pushes. A character reads no torque, so the jet's place turns nothing. The passenger's belt still pushes the person's own body, because the belt is not a jet. The parts have no emitters yet. The plumes come with ter-6u2m.
+The person's thrusters are one back jet. `PersonControl` and `Passenger` spawn it in their first tick, with `BackJet.Spawn`, at `BackJet.Place`: (0, 0.3, 0.3) m in the person's axes, on its back at the height of its chest, with the person's rotation. In each tick that they thrust, they send it a `JetForce` in the person's own axes. The jet turns the force into the axes of its frame with the person's rotation and pushes. A character reads no torque, so the jet's place turns nothing. The passenger's belt still pushes the person's own body, because the belt is not a jet. Each part sets its own emitter in the tick of its push (see "The plumes").
 
 ### Decisions of the wiring
 
@@ -4279,7 +4289,7 @@ Every choice here is a demo choice, so this design settles it (the user's rule o
 - The back jet takes its force in the person's own axes, not in those of its frame. So a force that the person sends in the tick before a hand-off still points the same way in the person after it.
 - The nozzle's mesh stays a separate entity in the shuttle's frame, with no component. Parked shuttles with no flight program draw the nozzle too, so the main engine's part can carry it only if every shuttle gets parts. The mesh is also turned a quarter turn about X from the hull's axes, which the main engine's part keeps. `ShuttleJets.MainEnginePlace` and `Shuttle.NozzlePose` both read `Shuttle.NozzleZ`, so they keep one place.
 - `Shuttle.CenterOfMass` goes, as the user's choice of 2026-10-21 asks. `DockingAutopilot` reads `BodyFacts.CenterOfMass` in each tick and takes only the station in its constructor. `Shuttle.SpawnNozzle` reads it at the spawn. The tests read the engine's value through `HostTesting.ShuttleCenterOfMass`.
-- No jet turns its own offset toward its force. The plumes can choose that when they come.
+- No jet turns its own offset toward its force. The plumes of ter-6u2m chose otherwise: the back jet turns its offset against its force in each tick that it pushes (see "The plumes").
 
 ### The slice scripts
 
@@ -4304,6 +4314,177 @@ Measured on 2026-10-21 in one run of the checked-in long script, before the part
 The extra tick of the attitude loop changes no settle time by more than one tick, and the miss of the docking by less than 3 mm. The spin-up's end error, 0.243 degrees, is the steady lag of the loop behind a target that turns, with or without the parts. The rehearsal of the generator took 78 s, at a load average of about 7.
 
 After the merge with the person's walk of ter-cdgt and the coda of ter-h74c, the generator wrote `scripts/blue-danube.json`, `scripts/demo-docking.json` and `scripts/demo-exit.json` again. Against main, the long script films 23,814 frames in 306,558 ticks, against 23,841 frames in 306,539 ticks. These films change by more than 2 frames: `pen-release` 211 frames, against 201, `burn` 977 against 1,024, `dock` 274 against 282, `landing` 616 against 621, and `deck` 749 against 726. `scripts/demo-exit.json` does not change. The coda's films keep their frames, and the throws land as on main: the spinward box 5.88 m from the point under its release after 0.832 s, and the antispinward box 11.54 m away after 1.691 s (the readout log of the long run).
+
+## The plumes
+
+Ticket ter-6u2m. The user said on 2026-10-21 that the shuttle and the person look like they move on rails, and asked for plumes whenever they thrust. Neither is on rails: forces push the shuttle and the person, but nothing on screen showed them. Now every force of a jet shows as puffs of the engine's particles (ARCHITECTURE.md, "Puffs"), and no other force shows any. The user chose real particles in the renderer: slow tracer puffs at tens of m/s that hang behind and mark the path. The puffs touch nothing, and bloom comes later. Only demo code changed: `src/Tertius.Demo`, the scripts that the generator writes and `tests/Tertius.Host.Tests`.
+
+Terms used below:
+
+- A plume is what one kind of jet blows: a `Plume`, its `PuffLook`, its rate at full throttle, and the speed and the spread of its puffs.
+- The throttle of a jet is the share of its full thrust that it gives in a tick, from 0 to 1. For the person's back jet, it is the size of its force over `PersonControl.ThrustForce`, 105 N.
+
+### Who sets each emitter
+
+Three components push with a jet, and each sets the emitter of its own part in the tick of its push, from its own throttle. No message and no second entity carries the plume. The exhaust is part of the look of the part that thrusts, as a lamp's light is part of the lamp's render row.
+
+```csharp
+// src/Tertius.Demo/MainEngine.cs
+public EventMask Wants => EventMask.Of<Throttle>().And<Tick>();
+
+public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+{
+    float throttle = 0;
+    foreach (ref Throttle each in events.Of<Throttle>())
+        throttle = each.Value;
+    bool valid = throttle is >= 0 and <= 1;
+    self.Render.Emitter = valid ? Plume.At(throttle) : default;
+    ...
+    if (throttle > 0)
+        self.Body.AddForce((Plume.PushedBodyRotation(self).Rotate(-Double3.UnitZ) * (throttle * MaxThrust)).ToVector3());
+}
+```
+
+where
+
+- `Wants` = the events that bring the component into a tick. `Tick` brings it into every tick, so a tick without a `Throttle` sets the default emitter, which makes no puffs.
+- `throttle` = the last throttle of the tick, from 0 to 1. A tick that brings none gives 0.
+- `valid` = whether the throttle lies from 0 to 1. A throttle outside that range throws after the emitter is cleared, so a bad command shows no puffs and pushes nothing.
+- `self.Render.Emitter` = the emitter of the part's own render row (see `PuffEmitter`).
+- `Plume.At(throttle)` = the plume's emitter at the throttle (see "The rate"). At 0 it is the default emitter.
+- `Plume.PushedBodyRotation(self)` = the rotation of the hull, which is the part's attachment parent. It is in the axes of the part's frame, at the end of the last finished step (see "The aim").
+- `MaxThrust` = the main engine's force at full throttle, in newtons.
+
+`JetThruster` and `BackJet` take the same shape. The jet's push comes from `Jet.Force(Plume.PushedBodyRotation(self), throttle)`, and the back jet's from the person's rotation and its `JetForce`. A tick without a command clears the emitter in the same way.
+
+Why this gives one step to the push and to its puffs. The emitter that a component writes in tick k reaches the front render row at step 8 of the sync point of tick k. The births of step 7c of tick k + 1 read it (ARCHITECTURE.md, "Puffs", "Births"). The force of tick k acts in the physics step of tick k + 1. So the puffs of a push are born in the step that the push acts in.
+
+A belt, a floor, the ramp and free fall set no emitter, because only the three jets write one. A frame of a time-lapse film shows the puffs alive at its tick, because only the script knows the film interval.
+
+### The aim
+
+Puffs leave a part's origin along its local -Z. So `ShuttleJetControl.Fit` spawns each part with an offset whose rotation turns its -Z against its push, `Plume.AimedOffset(place, exhaust)`. The main engine's exhaust leaves along the hull's +Z, aft, and each jet's along minus its `Jet.Push`. In each tick that it pushes, the back jet turns its own offset against its force. So its plume points away from the way the person goes.
+
+So a part's own rotation is no longer the hull's. A jet's push is fixed in the axes of the body that it pushes, so each jet reads that body's rotation with `Plume.PushedBodyRotation`. That is the rotation of its attachment parent. An entity that is not attached reads its own. The two jets of a couple read one rotation, so their forces stay exact negatives (see "The allocation"). docs/plans/parts.md, "How a part's push converts into the root's push", gives the same rule for a part that turns its own offset: it reads the direction from the root's front rotation.
+
+The hull's rotation and the part's old rotation, the hull's rotation composed with the identity and normalized, gave the same forces in this run. The generator wrote the same tick for every cue as on main.
+
+Three tests put a `MainEngine` on an entity with a body of its own: `PassengerTests`, `PenClipTests` and `TurningGroundHandOffTests`. That engine has no part, so its puffs leave along its own -Z, the nose. No film shows those scenes, and a hull that shows its plume carries the engine on a part.
+
+### The rate
+
+`Plume.At(throttle)` makes the square root of the throttle times the full rate, and keeps the look, the speed and the spread. So the puffs of one jet share one look however its throttle moves. A rate in proportion to the throttle made almost no puffs in the docking. The couples are sized for the attitude autopilot's largest torque (see "The thrust of the couples"). So the jets mostly work at a few thousandths to a few hundredths of their thrust. A probe of the long run read, every 30 ticks, the throttles of the 12 pairs that `ShuttleJetControl` allocates:
+
+| Films | The largest throttle of a pair | The mean sum of the 12 throttles |
+|---|---|---|
+| `hold`, `hold-chase`, `dock` | 0.001 | 0.001 |
+| `spin-up`, `spin-match` | 0.014 | 0.017 |
+| `entry` | 0.20 | 0.028 |
+| `slot` | 0.12 | 0.063 |
+| `move-out`, `landing` | 0.43 | 0.40 to 0.73 |
+| `turn` | 0.34 | 0.20 |
+
+At a hundredth of the thrust, the square root makes a tenth of the full rate, 5 puffs per second for a jet. The rate still grows with the throttle and is 0 at 0. The main engine burns the transfer and the brake at a throttle of 0.1, so it makes 0.32 of its full rate there.
+
+### The looks
+
+| Plume | Shading | Temperature ratio | Life | Radius at birth and at the end | Full rate | Speed | Spread |
+|---|---|---|---|---|---|---|---|
+| `MainEngine.Plume` | Glow, radiance (1.2, 0.6, 0.22) | 3 | 6 s | 1 m, 24 m | 240 per s | 30 m/s | 0.1 rad |
+| `JetThruster.Plume` | Lit, albedo (0.9, 0.92, 0.95) | 0.75 | 3 s | 0.3 m, 3 m | 50 per s | 20 m/s | 0.2 rad |
+| `BackJet.Plume` | Lit, albedo (0.85, 0.87, 0.9) | 0.75 | 1.5 s | 0.04 m, 0.3 m | 30 per s | 3 m/s | 0.2 rad |
+
+Why these numbers:
+
+- The main engine's exhaust is hot and glows. A temperature ratio of 3 lifts it in air, so the puffs at the pad rise into a glowing cloud behind the ramp's foot. Its radiance is half the first try's, because a few hundred puffs overlap there and their light adds. The ACES curve saturates the cloud to white, as a launch's glare does, until the bloom ticket.
+- In air the puffs stop where they are born, and the shuttle flies on. So the puffs lie at the shuttle's speed over the rate apart: 4 m at 1 km/s. A rate of 240 and a radius of 1 m at birth make one line in `climb-low`, from the nozzle down toward the ground. In `climb-high`, at about 3 km/s, the puffs lie 12 m apart, and the trail shows as a line of glowing beads. A faster rate keeps more puffs alive than the cap holds with the jets' puffs.
+- In vacuum the puffs keep the hull's velocity less their 30 m/s, and the hull speeds away from them. So in `burn-chase` they draw a cone from the nozzle that widens to the radius of 24 m behind the hull.
+- The jets blow cold gas. A temperature ratio of 0.75 makes it sink a little in air. Lit puffs take only the light that reaches them. In sunlight a puff gives about a fifth of the radiance of a hull face that the sun lights square on. A puff of 3 m across at 50 m reads as a pale cloud. Smaller puffs did not show in `spin-up` and `spin-match`.
+- The back jet's puffs are small and slow, 3 m/s, so that in the cabin's air they stop within about 2 m of the person.
+- The speeds are tens of m/s or less, not real exhaust speeds of km/s. So the puffs hang behind and mark the path, as the user chose.
+
+### The media
+
+`DemoScenes.Air` holds the demo's air. Only puffs feel it (ARCHITECTURE.md, "Media").
+
+| Frame | Medium | Why |
+|---|---|---|
+| `earth-surface` | `Air.Earth`: `PlanetMedium(EarthRadius, 1.225 kg/m³, 8,500 m, 2 per s)` | The standard atmosphere's density at sea level and a scale height of 8.5 km, near the 8.4 km of air at 288 K |
+| The shuttle's frame | `Air.Filling(Shuttle.CabinAir)`: 1.225 kg/m³ and 2 per s in the box of the cabin | The back jet blows in the cabin. Outside the hull, the frame's bubble holds vacuum. |
+| The station's frame | `Air.Filling(DemoStation.BayAir)`: 1.225 kg/m³ and 2 per s in the bay, 16 by 25 by 16 m | The jets fire in the bay as the shuttle enters and lands. Outside the hub, at the hold point and on the approach, the frame holds vacuum. |
+| `earth`, the sun | None | Space |
+
+The drag of 2 per s is the example of docs/plans/particles.md. A puff's drag is the medium's drag times its lift share. So a hot puff slows at 6 per s at its birth, and it stops within a sixth of its speed in meters: 170 m at 1 km/s. A cold puff slows at 1.5 per s. That keeps each puff near the place of its birth, so the trail marks the path. Real air drags a puff more where it is dense. But the engine's lift share is the same at every height, and so is the drag (docs/plans/particles.md, "How a puff's lift and drag follow"). One drag in every air makes a puff of one look slow the same in all of them.
+
+The bubble of `earth-surface` ends at 50 km, but the shuttle leaves it 178.4 km up, because of the exit margin (see "The hand-off"). So the main engine's puffs keep their air up to 178.4 km, also where real air is far too thin. After the hand-off into `earth`, the new puffs have no air. The puffs born before the hand-off stay in `earth-surface` and keep its air for their life, as the particle design accepts.
+
+A frame's medium fills one box. The wheel's ring holds the person's coda, but no box holds the ring without the space inside it, so the ring has no air. No jet fires there, so no puff shows the difference. The bay's slot is open to space, and the bay still holds air. The engine is a creation of Orbis Tertius, so such oddities are acceptable.
+
+The scene `puff-yard` keeps its own air, 1.225 kg/m³ with a drag of 1.5 per s.
+
+### The films
+
+The burn of the transfer happens in Earth's night, and `burn` films it from the cockpit, which sees forward. So a new section, `burn-chase`, films the first 6 s of the burn from `chase-camera` before `burn`, every 2 ticks. The glowing plume shows behind the dark hull. The section's cue is `FilmSection.Now` with a hold of 6 s, and the burn's cue does not change. So no tick changes, and `burn` films 797 frames instead of 977.
+
+These films of the edit show the plumes best:
+
+- `ignition`: the exhaust piles into a glowing cloud at the ramp's foot while the shuttle slides up the ramp.
+- `climb-low`: one glowing trail runs from the nozzle down toward the ground.
+- `burn-chase`: the plume widens behind the dark hull over Earth's night side.
+- `spin-up` and `slot`: the pale puffs of the turning jets and the side jets drift away from the hull in space, and hang in the bay's air.
+
+In `take`, the back jet's small puffs show beside the person against the dark glass. In `fetch`, the pen camera looks down at a white floor, where the back jet's pale puffs barely show.
+
+Against main, the generator wrote the same ticks for every cue. `scripts/blue-danube.json` gains the camera step and the film of `burn-chase`, and `scripts/demo-docking.json` splits the run of the burn's 1,954 ticks into 360 and 1,594. `scripts/demo-exit.json` does not change. The long script still films 23,814 frames in 306,558 ticks, 5,109.3 s of the simulation and 396.9 s of video.
+
+### Costs
+
+`BlueDanubePlumeCostMeasurement` (`tests/Tertius.Host.Tests`, explicit) makes the master of the long script as the command does: headless, at 1280 × 720, into a video at 60 frames per second. It runs once with the default capacity of 4,096 and once with a capacity of 0. The run was ter-6u2m's, in Release, on an Apple M1 Max, at a 1-minute load from 5.3 to 7.3:
+
+| Capacity | Wall time | Live puffs: peak after a tick, peak at a capture, mean at a capture |
+|---|---|---|
+| 4,096 | 150.3 s | 1,516 in `climb-low`, 1,516, 183 |
+| 0 | 146.3 s | 0 |
+
+So the plumes cost 3.9 s of the 150 s, 0.16 ms per frame of 23,814. The cap never bound. The peak is the climb at full throttle: 240 puffs per second for 6 s, 1,440, and the jets' puffs.
+
+The master with the plumes took 2 minutes 32 seconds from the command line on 2026-10-21, at a 1-minute load from 4.0 to 5.3. It holds 23,814 frames in 1,172 MB. The last master measured without them, after the merge of the coda with the person's walk, had 23,841 frames and 952 MB. The puffs change the pixels of the frames that show them, so the lossless video grows by about 23 percent. The readout log took 62 s, and the edit 66 s, with no music. The final video has 24,594 frames, 409.9 s at 60 frames per second, and it is 75.7 MB. Its frames show the plumes of the ignition, the climb, the transfer burn and the docking (see "The films").
+
+### Tests
+
+`PlumeTests` (`tests/Tertius.Host.Tests`) runs the real World on the real Jolt backend:
+
+- A plume's rate grows with the square root of the throttle and keeps its look. At throttle 0 it is the default emitter.
+- The main engine's exhaust is hot and glows. The jets and the back jet blow cold lit gas. Every look is valid.
+- The main engine's part sets its emitter from its throttle. At throttle 0 it makes no puffs.
+- Each jet's emitter follows its pair's throttle, and the jets that get none show none.
+- A part with no push in a tick makes no puffs: after a burn of 20 ticks, the count of the puffs stays the same.
+- Each part's puffs leave against its push, on a turned hull.
+- The back jet's emitter follows the size of its force, and its puffs leave against the force. A force of zero makes no puffs.
+- A burn's puffs fall behind the hull in its frame, in vacuum and in air: every puff lies aft of the nozzle, in the hull's axes.
+- The frames of the long script's scene carry their air. The density of earth-surface's air is 1.225 kg/m³ at the surface and 1/e of that 8.5 km up. Earth and the sun have none. The cabin and the bay have air, and the space outside the hull and the hold point have none.
+
+For each test a hand mutation broke the line that it protects, and the test failed. The 15 mutations:
+
+- The rate without the throttle.
+- An emitter of rate 0 at throttle 0, in place of the default emitter.
+- A cold main engine, and glowing jets.
+- The main engine at full rate in every tick, and a floor of 0.1 on the jets' throttle.
+- No `Tick` in the main engine's `Wants`.
+- The main engine's exhaust forward, and a jet's exhaust along its push.
+- The back jet aimed along its force, its throttle halved, and its full rate in every tick.
+- No air in earth-surface, no air in the cabin, and air in the whole station frame.
+ `ShuttleJetControlTests.TheJetsArePartsOfTheHullAtTheirPlaces` no longer checks that a part keeps the hull's rotation. `BlueDanubeEditTests` checks that the panel of the parking orbit ends before `burn-chase`.
+
+### Decisions
+
+- Each jet component sets its own part's emitter, with no message and no plume entity, by the user's model of 2026-10-21: the exhaust is part of the look of the part that thrusts.
+- The components want `Tick` as well as their command, so that a tick without a command clears the emitter. They write the emitter in every tick, which marks 26 render rows of the shuttle dirty in every tick. The copy of those rows is cheap, and a check of the old value saves little.
+- The rate follows the square root of the throttle, so that the small forces of the docking show (see "The rate").
+- A jet's push stays in the axes of the body that it pushes, and the part's own rotation only aims its puffs. The other design pushes along the part's own +Z. It needs one rotation per jet, so the two jets of a couple no longer push with exact negatives.
+- One drag, 2 per s, in every air, and the surface's density in the cabin and the bay.
+- The station's air fills the bay only, because a medium fills one box (see "The media").
+- A new section, `burn-chase`, shows the transfer burn from outside. No other section changed.
 
 ## Order of the work
 
