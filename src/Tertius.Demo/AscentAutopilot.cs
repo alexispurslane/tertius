@@ -4,6 +4,15 @@ using Tertius.Simulation;
 
 namespace Tertius.Demo;
 
+/// <summary>
+/// The plane of an <see cref="AscentAutopilot"/>'s orbit: the frame in which the autopilot reads, and the plane's
+/// prograde normal, a unit vector in that frame's axes (see <see cref="AscentGuidance.PlaneNormal"/>). A normal has no
+/// meaning without the axes that it is given in, so the two go together.
+/// </summary>
+/// <param name="Frame">The frame in which the autopilot reads the hull's state: one that does not turn, with its origin at the planet's center and its point gravity.</param>
+/// <param name="Normal">The plane's prograde normal, in the axes of <paramref name="Frame"/>.</param>
+public readonly record struct LaunchPlane(FrameHandle Frame, Double3 Normal);
+
 /// <summary>Tells a parked shuttle's <see cref="AscentAutopilot"/> to launch.</summary>
 public struct Ignition : IEventPayload;
 
@@ -93,7 +102,8 @@ public readonly struct AscentState : IEquatable<AscentState>
 
 /// <summary>
 /// Flies a parked shuttle up its ramp and to a circular orbit of radius <paramref name="orbitRadius"/>, round the point
-/// gravity of the frame that the shuttle is in, in the plane whose normal is <paramref name="planeNormal"/>. In every tick it adds a <see cref="Throttle"/> for its entity's
+/// gravity of the frame of <paramref name="plane"/>, in that plane. It reads every state in the plane's frame, which does
+/// not turn, so its two-body math holds there whatever frame the shuttle is in, such as a turning ground. In every tick it adds a <see cref="Throttle"/> for its entity's
 /// <see cref="MainEngine"/> and an <see cref="AttitudeTarget"/> for its entity's <see cref="AttitudeAutopilot"/> to the
 /// entity's events, which those components read after it (see <see cref="Priority"/>). It is the first layer of the
 /// shuttle's flight program, so a layer that runs after it overrides what it adds. It plans with
@@ -111,27 +121,30 @@ public readonly struct AscentState : IEquatable<AscentState>
 /// the engine stops and the orbit starts.</item>
 /// <item><see cref="Orbit"/>: no throttle, so the engine stays off, and the nose follows the velocity.</item>
 /// </list>
-/// In every case that steers, the roof turns away from the planet across the nose.
+/// In every case that steers, the roof turns away from the planet across the nose. The autopilot finds each target in the
+/// axes of the plane's frame and writes it in the axes of the shuttle's frame, turned by the hull's two rotations, in its
+/// frame and in the plane's frame.
 /// </summary>
 /// <remarks>
 /// The autopilot reads the hull's state at the end of the last finished step, and the engine's push of a tick acts in
 /// the step of the next tick. The guidance corrects each error from the state alone, so the lag costs nothing that lasts.
-/// The autopilot takes the planet's G·M from the point gravity of its frame in the snapshot (see
-/// <see cref="KeplerOrbit.MuFrom"/>), so it flies by the gravity that pulls the hull, and the full throttle's acceleration
-/// from <paramref name="maxThrust"/> and the hull's mass in the body facts.
+/// The autopilot takes the planet's G·M from the point gravity of the plane's frame in the snapshot (see
+/// <see cref="KeplerOrbit.MuFrom"/>), and the full throttle's acceleration from <paramref name="maxThrust"/> and the hull's
+/// mass in the body facts. The ground's axes turn about 2.4e-6 rad between the read and the step in which the torque acts,
+/// which the attitude autopilot does not notice.
 /// </remarks>
 /// <param name="maxThrust">The thrust of the hull's main engine at full throttle, in newtons.</param>
 /// <param name="orbitRadius">The radius of the circle, in meters from the planet's center.</param>
 /// <param name="climbHeight">How much higher than where it launched the hull must be before the climb steers, in meters.</param>
-/// <param name="planeNormal">
-/// The prograde normal of the orbit's plane, a unit vector in the axes of the shuttle's frame (see
-/// <see cref="AscentGuidance.PlaneNormal"/>). The ramp should lead the shuttle into that plane.
+/// <param name="plane">
+/// The orbit's plane: the frame in which the autopilot reads, and the plane's prograde normal, a unit vector in that frame's
+/// axes (see <see cref="AscentGuidance.PlaneNormal"/>). The ramp should lead the shuttle into that plane.
 /// </param>
-public sealed class AscentAutopilot(double maxThrust, double orbitRadius, double climbHeight, Double3 planeNormal) : IComponent
+public sealed class AscentAutopilot(double maxThrust, double orbitRadius, double climbHeight, LaunchPlane plane) : IComponent
 {
-    private readonly Double3 planeNormal = Math.Abs(planeNormal.Length - 1) < 1e-9
-        ? planeNormal
-        : throw new ArgumentException($"The normal of the orbit's plane must be a unit vector, not {planeNormal}.", nameof(planeNormal));
+    private readonly Double3 planeNormal = Math.Abs(plane.Normal.Length - 1) < 1e-9
+        ? plane.Normal
+        : throw new ArgumentException($"The normal of the orbit's plane must be a unit vector, not {plane.Normal}.", nameof(plane));
 
     /// <summary>Below this speed, in m/s, the ramp gives no attitude target, because the velocity has no direction yet.</summary>
     public const double SteerSpeed = 1;
@@ -147,16 +160,19 @@ public sealed class AscentAutopilot(double maxThrust, double orbitRadius, double
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
-        DPose pose = self.PoseIn(self.Frame);
-        Double3 position = pose.Position, velocity = self.VelocityIn(self.Frame);
+        DPose pose = self.PoseIn(plane.Frame);
+        Double3 position = pose.Position, velocity = self.VelocityIn(plane.Frame);
+        // The turn from the plane frame's axes to those of the hull's frame, by the hull's own two rotations, which come
+        // from one record. The targets are found in the plane frame's axes and written in those of the hull's frame.
+        DQuaternion intoFrame = self.PoseIn(self.Frame).Rotation * pose.Rotation.Conjugate();
         if (State is Parked)
         {
             if (!events.Of<Ignition>().Any())
                 return;
-            double mu = KeplerOrbit.MuFrom(self.Snapshot.Frames.Gravity(self.Frame));
+            double mu = KeplerOrbit.MuFrom(self.Snapshot.Frames.Gravity(plane.Frame));
             if (mu <= 0 || !self.Snapshot.TryGetBody(self.Entity, out BodyFacts body) || body.Mass <= 0)
             {
-                self.Log("AscentAutopilot stays parked: its frame has no point gravity to climb in, or its hull has no mass.");
+                self.Log("AscentAutopilot stays parked: the frame of its plane has no point gravity to climb in, or its hull has no mass.");
                 return;
             }
             self.Body.SetMotion(BodyMotion.Dynamic);
@@ -171,15 +187,15 @@ public sealed class AscentAutopilot(double maxThrust, double orbitRadius, double
             case Ramp:
                 events.Add(new Throttle { Value = 1 });
                 if (velocity.Length > SteerSpeed)
-                    events.Add(new AttitudeTarget { Rotation = AttitudeAutopilot.Facing(velocity, pose), MaxTurnRate = AttitudeAutopilot.MaxTurnRate });
+                    events.Add(new AttitudeTarget { Rotation = intoFrame * AttitudeAutopilot.Facing(velocity, pose), MaxTurnRate = AttitudeAutopilot.MaxTurnRate });
                 break;
             case Climb { Guidance: var guidance }:
                 Double3 acceleration = guidance.Acceleration(position, velocity);
                 events.Add(new Throttle { Value = (float)Math.Min(1, acceleration.Length / guidance.MaxAcceleration) });
-                events.Add(new AttitudeTarget { Rotation = AttitudeAutopilot.Facing(acceleration, pose), MaxTurnRate = AttitudeAutopilot.MaxTurnRate });
+                events.Add(new AttitudeTarget { Rotation = intoFrame * AttitudeAutopilot.Facing(acceleration, pose), MaxTurnRate = AttitudeAutopilot.MaxTurnRate });
                 break;
             case Orbit:
-                events.Add(new AttitudeTarget { Rotation = AttitudeAutopilot.Facing(velocity, pose), MaxTurnRate = AttitudeAutopilot.MaxTurnRate });
+                events.Add(new AttitudeTarget { Rotation = intoFrame * AttitudeAutopilot.Facing(velocity, pose), MaxTurnRate = AttitudeAutopilot.MaxTurnRate });
                 break;
         }
     }

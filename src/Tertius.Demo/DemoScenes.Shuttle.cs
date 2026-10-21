@@ -81,15 +81,15 @@ public static partial class DemoScenes
         /// and the <see cref="TranslationThrusters"/>, which read them and follow the last layer that speaks. The engine
         /// pushes <see cref="Mass"/> with <see cref="ThrustAcceleration"/> at full throttle, and both autopilots plan with
         /// that thrust. The ascent autopilot steers only once the shuttle is <paramref name="climbHeight"/> meters higher
-        /// than where it launched, clear of its ramp, and it steers into the plane whose prograde normal is
-        /// <paramref name="planeNormal"/>, in the axes of the shuttle's frame. The rendezvous autopilot flies
+        /// than where it launched, clear of its ramp, and it steers into <paramref name="plane"/>, whose frame it reads in.
+        /// The rendezvous autopilot flies
         /// <see cref="RendezvousPlan.Demo"/> to <paramref name="station"/>. The thrusters have
         /// <see cref="TranslationThrust"/> on each axis.
         /// </summary>
-        public static IComponent[] FlightControls(double climbHeight, Double3 planeNormal, Entity station)
+        public static IComponent[] FlightControls(double climbHeight, LaunchPlane plane, Entity station)
         {
             const float thrust = Mass * ThrustAcceleration;
-            return [new AscentAutopilot(thrust, ParkingOrbitRadius, climbHeight, planeNormal), new RendezvousAutopilot(station, RendezvousPlan.Demo, thrust),
+            return [new AscentAutopilot(thrust, ParkingOrbitRadius, climbHeight, plane), new RendezvousAutopilot(station, RendezvousPlan.Demo, thrust),
                 new AttitudeAutopilot(Inertia), new MainEngine(thrust), new TranslationThrusters(TranslationThrust)];
         }
 

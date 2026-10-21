@@ -323,7 +323,7 @@ public static partial class DemoScenes
             // The station spawns before the shuttle, whose rendezvous autopilot takes the station's entity.
             Entity station = DemoStation.Spawn(world, surface, scene, resources);
             Entity shuttle = Shuttle.Park(world, surface, ShuttleParked, Shuttle.DrawnHull(resources),
-                Shuttle.FlightControls(LaunchRamp.Height + ClimbClearance, LaunchPlaneNormal, station));
+                Shuttle.FlightControls(LaunchRamp.Height + ClimbClearance, new LaunchPlane(surface, LaunchPlaneNormal), station));
             scene.Add("shuttle", shuttle);
             FrameHandle cabin = world.GetOwnedFrame(shuttle);
             Vector3 seatHalf = Shuttle.Seat.Extents;
