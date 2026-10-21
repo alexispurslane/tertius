@@ -17,8 +17,8 @@ public static partial class DemoScenes
     public const double EarthRadius = 6.371e6;
 
     /// <summary>
-    /// The top of Earth's air, in meters above <see cref="EarthRadius"/>: 100 km, the Kármán line. The engine has no air,
-    /// so nothing drags a ship below it. The demo keeps the periapsis of every orbit above it.
+    /// The top of Earth's air, in meters above <see cref="EarthRadius"/>: 100 km, the Kármán line. Only puffs feel the air
+    /// (see <see cref="Air"/>), so nothing drags a ship below it. The demo keeps the periapsis of every orbit above it.
     /// </summary>
     public const double AtmosphereTop = 100e3;
 
@@ -311,7 +311,7 @@ public static partial class DemoScenes
     /// <see cref="Orbit"/>), added to <paramref name="scene"/>,
     /// with the sunlight and the dim light of space, with Earth at <paramref name="date"/> at the world's time 0: Earth on
     /// its orbit at the date's longitude, and earth-surface on the date's <see cref="EarthDate.Ground"/>. Returns earth's
-    /// frame.
+    /// frame. earth-surface holds Earth's air (see <see cref="Air.Earth"/>), and earth and the sun hold none.
     /// </summary>
     private static FrameHandle SunAndEarth(World world, IRenderResources resources, SceneInstance scene, EarthDate date)
     {
@@ -361,7 +361,7 @@ public static partial class DemoScenes
             Pose = new DPose(Double3.Zero, turning.RotationAt(world.Time)),
             FirstMove = new MotionIntent(turning.Sample(Double3.Zero, firstStepEnd, world.DeltaTime)),
             // The bubble ends at the stratopause, so that a shuttle that climbs out of it leaves it below its parking orbit.
-            AsFrame = new FrameSpec(FrameBounds.Sphere((float)(EarthRadius + GroundBubbleTop)), GravityField.Point(EarthMu)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere((float)(EarthRadius + GroundBubbleTop)), GravityField.Point(EarthMu), Air.Earth),
             Components = [new SpinMotion { Spin = turning }],
             Render = new RenderData
             {

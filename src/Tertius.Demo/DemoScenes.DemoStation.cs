@@ -111,6 +111,14 @@ public static partial class DemoScenes
         public const double DepartureLead = 18;
 
         /// <summary>
+        /// The box of the bay's air, in meters, in the station's axes: the hub inside its walls, 16 by 25 by 16 m. The
+        /// shuttle's jets blow their puffs into it as it enters through the slot and lands on the deck, and they slow and stop
+        /// in that air and turn with the station. A frame's air fills one box, so the wheel's ring, which no box holds
+        /// without the space inside the ring, has none: no jet fires there.
+        /// </summary>
+        public static BoundingBox BayAir { get; } = new(-(HubHalf - new Vector3(HubWall)), HubHalf - new Vector3(HubWall));
+
+        /// <summary>
         /// The hold point, in the station's axes: on the axis, 150 m from the station's center, on the slot's side, outside
         /// the bubble. The rendezvous ends there.
         /// </summary>
@@ -376,7 +384,7 @@ public static partial class DemoScenes
                 FirstMove = new MotionIntent(orbit.Sample(EarthMu, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
                 Components = [new KeplerMotion { Orbit = orbit }],
                 Body = new BodyDesc(hull, BodyMotion.Kinematic, Mass: Mass, InteriorShape: MeshShape(floorMesh)),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(Bubble)),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(Bubble), Medium: Air.Filling(BayAir)),
                 Render = Part(resources, floorMesh, new Vector4(0.62f, 0.63f, 0.66f, 1), floor.Shape().BoundingRadius()),
             });
             scene.Add("station", station);

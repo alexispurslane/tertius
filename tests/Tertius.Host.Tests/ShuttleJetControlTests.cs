@@ -62,11 +62,12 @@ public sealed class ShuttleJetControlTests : IDisposable
 
     /// <summary>
     /// Fitting the jets places them for the engine's center of mass and spawns one part for the main engine and one for
-    /// each of the 24 jets. Each part sits at its place on the turned hull, keeps the hull's rotation, and carries its own
-    /// component: the <see cref="MainEngine"/>, or a <see cref="JetThruster"/> of its jet.
+    /// each of the 24 jets. Each part sits at its place on the turned hull and carries its own component: the
+    /// <see cref="MainEngine"/>, or a <see cref="JetThruster"/> of its jet. Each part's rotation aims its puffs against its
+    /// push (<see cref="PlumeTests.EachPartsPuffsLeaveAgainstItsPush"/>).
     /// </summary>
     [Fact]
-    public void TheJetsArePartsOfTheHullAtTheirPlacesWithTheHullsRotation()
+    public void TheJetsArePartsOfTheHullAtTheirPlaces()
     {
         DQuaternion turn = DQuaternion.FromAxisAngle(new Double3(1, 2, -0.5).Normalized(), 0.7);
         Launch(turn);
@@ -81,7 +82,6 @@ public sealed class ShuttleJetControlTests : IDisposable
             world.IsAlive(part).Should().BeTrue();
             DPose pose = world.PoseIn(part, space);
             (pose.Position - hull.TransformPoint(place)).Length.Should().BeLessThan(1e-5, $"the part sits at {place} on the hull");
-            hull.Rotation.AngularVelocityTo(pose.Rotation, 1).Length.Should().BeLessThan(1e-6, "the part keeps the hull's rotation");
         }
         ShouldSitAt(Control.MainEnginePart, layout.MainEnginePlace);
         world.GetComponent<MainEngine>(Control.MainEnginePart)!.MaxThrust.Should().Be(Shuttle.MainEngineThrust);

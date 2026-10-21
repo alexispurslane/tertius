@@ -114,6 +114,13 @@ public static partial class DemoScenes
             ShuttleJetControl.Fit(world, hull, MainEngineThrust, Inertia, TranslationThrust);
 
         /// <summary>
+        /// The box of the cabin's air, in meters, in the hull's axes: the cabin, <see cref="Cabin"/> on each side of the
+        /// middle. The person's back jet blows its puffs in it, and they slow and stop in that air. The nose's loft closes in
+        /// on the box's front corners, where no puff of the cabin reaches.
+        /// </summary>
+        public static BoundingBox CabinAir { get; } = new(-Cabin, Cabin);
+
+        /// <summary>
         /// The hatch, the doorway through the starboard wall, in the shuttle's axes: 1.2 m wide, 2.1 m tall, centered 2 m
         /// aft of the shuttle's center, with a sill 0.1 m above the cabin floor. A person on the ground below the hull
         /// steps 0.3 m up onto the sill, within the 0.4 m that a character climbs as a stair.
@@ -386,7 +393,7 @@ public static partial class DemoScenes
             Frame = frame,
             Pose = pose,
             Body = Body(BodyMotion.Static),
-            AsFrame = new FrameSpec(new FrameBounds(Bubble)),
+            AsFrame = new FrameSpec(new FrameBounds(Bubble), Medium: Air.Filling(CabinAir)),
             Render = render,
             Components = components ?? [],
         });

@@ -1,4 +1,3 @@
-using System.Numerics;
 using Tertius.Simulation;
 
 namespace Tertius.Demo;
@@ -29,11 +28,11 @@ public struct Torque : IEventPayload
 /// jets as parts"). <see cref="Fit"/> builds it outside a tick: it reads the hull's center of mass from the engine's
 /// <see cref="BodyFacts.CenterOfMass"/>, places the jets for it (<see cref="ShuttleJets"/>), spawns 25 attached entities of
 /// the hull, the main engine's part at <see cref="ShuttleJets.MainEnginePlace"/> with a <see cref="MainEngine"/> and one part
-/// for each jet at its place with a <see cref="JetThruster"/>, every one with the hull's rotation, and adds the control to
-/// the hull. In each tick it reads the last <see cref="Throttle"/>, the last <see cref="Torque"/> and the last
-/// <see cref="Translation"/> that the components before it added, sends the throttle to the main engine's part, allocates
-/// the throttles of the jets for the torque and the force (<see cref="ShuttleJets.Allocate"/>), and sends each jet whose
-/// pair fires its pair's throttle. A tick that brings none of them sends nothing, so no part pushes in the next tick. The
+/// for each jet at its place with a <see cref="JetThruster"/>, every one turned so that its -Z, along which its puffs leave,
+/// points against its push, and adds the control to the hull. In each tick it reads the last <see cref="Throttle"/>, the
+/// last <see cref="Torque"/> and the last <see cref="Translation"/> that the components before it added, sends the
+/// throttle to the main engine's part, allocates the throttles of the jets for the torque and the force
+/// (<see cref="ShuttleJets.Allocate"/>), and sends each jet whose pair fires its pair's throttle. A tick that brings none of them sends nothing, so no part pushes in the next tick. The
 /// commands go by message, so each part pushes in the tick after the one that commands it. A torque or a force that is
 /// not finite makes the control throw <see cref="ArgumentOutOfRangeException"/>, which the world logs as an error, and send
 /// nothing in that tick.
@@ -75,19 +74,20 @@ public sealed class ShuttleJetControl : IComponent
         if (!world.Snapshot.TryGetBody(hull, out BodyFacts body))
             throw new ArgumentException($"The jets need a live hull with a body, whose center of mass they are placed for, not {hull}.", nameof(hull));
         var layout = new ShuttleJets((Double3)body.CenterOfMass, inertia, translationThrust);
-        Entity Part(Double3 place, IComponent component) => world.Spawn(new SpawnDesc
+        // Each part's -Z, along which its puffs leave, points against its push.
+        Entity Part(Double3 place, Double3 exhaust, IComponent component) => world.Spawn(new SpawnDesc
         {
             AttachTo = hull,
-            AttachOffset = new Pose(place.ToVector3(), Quaternion.Identity),
+            AttachOffset = Plume.AimedOffset(place.ToVector3(), exhaust),
             Components = [component],
         });
-        Entity mainEngine = Part(layout.MainEnginePlace, new MainEngine(mainThrust));
+        Entity mainEngine = Part(layout.MainEnginePlace, Double3.UnitZ, new MainEngine(mainThrust));
         var jets = new Entity[2 * ShuttleJets.PairCount];
         for (int pair = 0; pair < ShuttleJets.PairCount; pair++)
         {
             JetPair each = layout.Pairs[pair];
-            jets[PartIndex(pair, false)] = Part(each.First.Place, new JetThruster(each.First));
-            jets[PartIndex(pair, true)] = Part(each.Second.Place, new JetThruster(each.Second));
+            jets[PartIndex(pair, false)] = Part(each.First.Place, -each.First.Push, new JetThruster(each.First));
+            jets[PartIndex(pair, true)] = Part(each.Second.Place, -each.Second.Push, new JetThruster(each.Second));
         }
         var control = new ShuttleJetControl(layout, mainEngine, jets);
         world.AddComponent(hull, control);
