@@ -85,6 +85,28 @@ public sealed class WalkHeadingTests : IDisposable
         yaws[^1].Should().BeApproximately(-Math.PI / 2, 0.02);
     }
 
+    /// <summary>
+    /// The heading reads the walk that the person asks for in the same tick, so it runs after the components that ask for
+    /// it, whatever the order in which the person's components were added.
+    /// </summary>
+    [Fact]
+    public void ThePersonTurnsTowardItsWalkWhenItsHeadingWasAddedBeforeItsWalker()
+    {
+        FrameHandle ground = OnTheGround();
+        Entity person = world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = new DPose(new Double3(0, 0.95, 0), DQuaternion.Identity),
+            Body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
+            Render = new RenderData { ViewOffset = new Pose(Eye, Quaternion.Identity) },
+            Components = [new WalkHeading(), new SteadyWalk(new Vector3(2, 0, 0), ticks: 600)],
+        });
+
+        Tick(world, 120);
+
+        Degrees(Facing(person, ground), Double3.UnitX).Should().BeLessThan(1);
+    }
+
     [Fact]
     public void ThePersonHoldsItsHeadingWhenItStopsWalking()
     {
@@ -116,14 +138,36 @@ public sealed class WalkHeadingTests : IDisposable
     }
 
     /// <summary>
-    /// With no floor under it, the person drifts at 1 m/s along +X in a frame with no gravity. Nothing turns a floating
-    /// person, so its heading holds.
+    /// A push, such as the belt's at the seat under the ramp's jolt, moves the standing person along +X at about 0.67 m/s,
+    /// faster than <see cref="WalkHeading.TurnSpeed"/>. The person asks for no walk, so it does not turn: the heading follows
+    /// the walk that the person asks for, not the way that it moves.
+    /// </summary>
+    [Fact]
+    public void ThePersonHoldsItsHeadingWhileAPushMovesItWithoutAWalk()
+    {
+        FrameHandle ground = OnTheGround();
+        Entity person = Person(ground, new Double3(0, 0.95, 0), components: new SteadyPush(new Vector3(70 * 40, 0, 0)));
+        Tick(world, 10);
+        bool standing = world.IsStanding(person);
+        double speed = world.VelocityIn(person, ground).X;
+
+        Tick(world, 50);
+
+        standing.Should().BeTrue("the push moves the person across the floor");
+        speed.Should().BeGreaterThan(2 * WalkHeading.TurnSpeed, "the push moves the person faster than the turn speed");
+        world.PoseIn(person, ground).Position.X.Should().BeGreaterThan(0.3, "the push moved the person along +X");
+        Degrees(Facing(person, ground), -Double3.UnitZ).Should().BeLessThan(0.01);
+    }
+
+    /// <summary>
+    /// With no floor under it, the person drifts at 1 m/s along +X in a frame with no gravity, and asks for a walk along +X.
+    /// Nothing turns a floating person, so its heading holds.
     /// </summary>
     [Fact]
     public void ThePersonHoldsItsHeadingWhileItFloats()
     {
         FrameHandle space = Ground(world, 0);
-        Entity person = Person(space, Double3.Zero, velocity: Double3.UnitX);
+        Entity person = Person(space, Double3.Zero, velocity: Double3.UnitX, components: new SteadyWalk(new Vector3(2, 0, 0), ticks: 600));
 
         Tick(world, 120);
 
@@ -160,4 +204,14 @@ internal sealed class SteadyWalk(Vector3 velocity, int ticks) : IComponent
         self.Body.MoveCharacter(left > 0 ? velocity : Vector3.Zero);
         left--;
     }
+}
+
+/// <summary>A test component that pushes its entity with one force, <paramref name="force"/> in newtons in its frame's axes, in every tick.</summary>
+internal sealed class SteadyPush(Vector3 force) : IComponent
+{
+    public int Priority => 0;
+
+    public EventMask Wants => EventMask.Of<Tick>();
+
+    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) => self.Body.AddForce(force);
 }

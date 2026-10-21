@@ -2814,7 +2814,7 @@ dotnet run --project src/Tertius.Demo -- --generate scripts/blue-danube.json
 dotnet run -c Release --project src/Tertius.Demo -- --script scripts/blue-danube.json --headless --out runs/danube --video runs/danube/blue-danube.mkv --fps 60
 ```
 
-The first command rehearses the run and writes the script. Beside it, in the same folder, it writes each cut of `BlueDanube.Cuts`, such as `scripts/demo-docking.json`, which films the long script only from one section through another. It prints each film with its frames, its film interval and the second of the run at which it starts. With the rendezvous, the rehearsal took 107 s on 2026-10-20, against about 10 s before. The second makes the video: on 2026-10-20 it took 110 s, at a load average from 3.7 to 6.5, for the 15,806 frames and 292,242 ticks, 4,871 s of the simulation and 263 s of video. Before the rendezvous, in the last two runs of 2026-10-19, it took 22 s and 24 s for 4,210 frames and 23,101 ticks. With the glass canopy of ter-4xkz, it took 117 s on 2026-10-20, at a load average from 4 to 5, for 15,782 frames. With the docking of ter-ftnj, the script films 20,084 frames in 302,163 ticks, 5,036 s of the simulation and 335 s of video. Its rehearsal took about 4.5 minutes on 2026-10-20, in Release, while other test runs loaded the machine. With the exit of ter-y0e5, the script films 22,884 frames in 305,468 ticks, 5,091 s of the simulation and 381 s of video. Its rehearsal took 59 s on 2026-10-20, in Release. The video took 203 s on 2026-10-20, for 22,884 frames and 381.4 s of video. The first second of the film `floor` shows the person's box large in the picture, because the `follow-camera`'s arm, which the slide left short, grows back with its time constant of 0.5 s. `scripts/demo-exit.json` shows the same. In the Earth system of ter-yhu8, before its merge with the docking and the exit, the rehearsal took from 97 to 123 s and the video 114 s on 2026-10-20, at a load average from 9 to 13, for 15,895 frames. After that merge, on 2026-10-21, the script films 22,988 frames in 305,459 ticks, 5,091 s of the simulation and 383.1 s of video. Its rehearsal took 113 s in Release, with the build, and the video took 145 s, at a load average from 5 to 7. Step 8 (ter-asce) set the outlines of six sections and wrote the script again on 2026-10-21. The outlines change no tick, so every film kept its frames. The rehearsal took 72 s in Release, and the video 142 s. With the person's walk of ter-cdgt, on 2026-10-21, the script films 22,771 frames in 305,469 ticks, 5,091 s of the simulation and 379.5 s of video. Its rehearsal took 99 s in Release, with the build, and the video took 144 s, at a load average from 4 to 8. The test `BlueDanubeScriptTests` runs the first command and checks that its output equals the checked-in `scripts/blue-danube.json`, and each cut the checked-in cut, so they cannot drift. A change of the scene, of the engine's timing or of the sections fails the test until the script is written again.
+The first command rehearses the run and writes the script. Beside it, in the same folder, it writes each cut of `BlueDanube.Cuts`, such as `scripts/demo-docking.json`, which films the long script only from one section through another. It prints each film with its frames, its film interval and the second of the run at which it starts. With the rendezvous, the rehearsal took 107 s on 2026-10-20, against about 10 s before. The second makes the video: on 2026-10-20 it took 110 s, at a load average from 3.7 to 6.5, for the 15,806 frames and 292,242 ticks, 4,871 s of the simulation and 263 s of video. Before the rendezvous, in the last two runs of 2026-10-19, it took 22 s and 24 s for 4,210 frames and 23,101 ticks. With the glass canopy of ter-4xkz, it took 117 s on 2026-10-20, at a load average from 4 to 5, for 15,782 frames. With the docking of ter-ftnj, the script films 20,084 frames in 302,163 ticks, 5,036 s of the simulation and 335 s of video. Its rehearsal took about 4.5 minutes on 2026-10-20, in Release, while other test runs loaded the machine. With the exit of ter-y0e5, the script films 22,884 frames in 305,468 ticks, 5,091 s of the simulation and 381 s of video. Its rehearsal took 59 s on 2026-10-20, in Release. The video took 203 s on 2026-10-20, for 22,884 frames and 381.4 s of video. The first second of the film `floor` shows the person's box large in the picture, because the `follow-camera`'s arm, which the slide left short, grows back with its time constant of 0.5 s. `scripts/demo-exit.json` shows the same. In the Earth system of ter-yhu8, before its merge with the docking and the exit, the rehearsal took from 97 to 123 s and the video 114 s on 2026-10-20, at a load average from 9 to 13, for 15,895 frames. After that merge, on 2026-10-21, the script films 22,988 frames in 305,459 ticks, 5,091 s of the simulation and 383.1 s of video. Its rehearsal took 113 s in Release, with the build, and the video took 145 s, at a load average from 5 to 7. Step 8 (ter-asce) set the outlines of six sections and wrote the script again on 2026-10-21. The outlines change no tick, so every film kept its frames. The rehearsal took 72 s in Release, and the video 142 s. With the person's walk of ter-cdgt, on 2026-10-21, the script films 22,771 frames in 305,469 ticks, 5,091 s of the simulation and 379.5 s of video. Its rehearsal took 99 s in Release, with the build, and the video took 144 s, at a load average from 4 to 8. After the merge with the final assembly and the review's fix of the heading, the script filmed the same frames, and the video took 203 s, with the build, while other runs loaded the machine. The test `BlueDanubeScriptTests` runs the first command and checks that its output equals the checked-in `scripts/blue-danube.json`, and each cut the checked-in cut, so they cannot drift. A change of the scene, of the engine's timing or of the sections fails the test until the script is written again.
 
 The sections today, as `BlueDanube.Sections` lists them. The frames of each film and the second at which it starts come from the run, so the generator prints them, and this table does not copy them:
 
@@ -2910,9 +2910,9 @@ Ticket ter-cdgt, in the Demo only (2026-10-21). The user watched the video and s
 
 ### What the step does
 
-- The drawn body faces its way. It turns about the person's up toward the direction of the walk, at most 4 rad/s, a quarter turn in 0.39 s. It holds its heading while the person stands still, creeps, floats, slides or sits.
+- The drawn body faces its way. It turns about the person's up toward the direction of the walk that the person asks for, at most 4 rad/s, a quarter turn in 0.39 s. It holds its heading while the person asks for no walk or a slow one, and while it floats, slides or sits, also when a push or a jolt moves it.
 - The drawn body has a front. It is 0.5 m wide and 0.28 m deep, so a quarter turn changes its outline, and a dark visor 0.34 m wide sits on its front at the eye's height.
-- The body rises and falls with each step while the person walks on a floor: up to 3.5 cm, once for each 0.75 m walked. The phase follows the distance walked, not the time. The body does not bob while the person stands, floats, slides in the chute or sits.
+- The body rises and falls with each step while the person walks on a floor: up to 3.5 cm, once for each 0.75 m walked. The phase follows the distance walked, not the time. The body does not bob while the person stands, floats, slides in the chute or sits. The bob follows the person's motion, so a push that drags the person across the floor bobs it a little.
 - The walk starts from rest. Its speed rises by at most 3 m/s², so the boarding walk reaches 3 m/s after a second, and the station's walk reaches 1 m/s after a third of a second. The path keeps every waypoint, because the waypoints thread the hatch, the doors and the step.
 
 Terms used in this section:
@@ -2920,7 +2920,8 @@ Terms used in this section:
 - The person: the entity `person`, a character body with a view offset. Its own row draws nothing now.
 - The drawn body: the entity `person-body`, attached to the person, a box that carries the look. The visor: the entity `person-visor`, attached to the drawn body.
 - The heading: the way that the person faces, the view's -Z, turned about the person's up, +Y in the person's axes.
-- The speed across the up: the length of the part of the person's velocity, in its own frame, that lies across the person's up, in m/s.
+- The asked walk: the walk that a component of the person asks for in this tick with `MoveCharacter`, the character walk of the person's pending intent, in m/s, in the axes of the person's frame. `Walker.Step` asks for it, for `Walker` and for `Disembark`.
+- The speed across the up: the length of the part of a velocity, in the person's axes, that lies across the person's up, in m/s.
 - The lift: how far the drawn body's center lies above its place at rest, along the person's up, in meters.
 - The pace: the speed of the walk that a walker asked for in its last tick, in m/s.
 
@@ -2936,7 +2937,7 @@ Who causes each change, and where its result is stored:
 
 | Change | Who causes it | Where it is stored |
 |---|---|---|
-| The heading | The person's `WalkHeading`, from the person's velocity and standing in the last finished step | The person's view offset, its render row |
+| The heading | The person's `WalkHeading`, from the asked walk of this tick and the standing in the last finished step | The person's view offset, its render row |
 | The body's turn and lift | The drawn body's `Gait`, from the person's view, pose, velocity and standing in the last tick | The drawn body's attach offset. The distance walked and the bob's weight in the component. |
 | The pace of the walk | `Walker.Step`, from the pace of its last tick | `WalkProgress`, in `Walker` or in the cases `Walking` and `Strolling` of `Disembark` |
 | The visor's place | Nobody: a fixed attach offset | The visor's attach offset |
@@ -2944,6 +2945,7 @@ Who causes each change, and where its result is stored:
 ```mermaid
 flowchart LR
   physics["Physics: the person's velocity and standing, last finished step"] --> heading["WalkHeading on the person"]
+  asked["The asked walk, the person's pending intent"] --> heading
   heading --> view["The person's view offset"]
   view --> gait["Gait on person-body"]
   physics --> gait
@@ -2953,18 +2955,20 @@ flowchart LR
   view --> camera["ChaseCamera reads the eye's place only"]
   walker["Walker.Step"] --> pace["WalkProgress: next waypoint and pace"]
   pace --> walk["MoveCharacter"]
+  walk --> asked
   walk --> physics
 ```
 
 ### The heading
 
-`WalkHeading` is a component on the person:
+`WalkHeading` is a component on the person. It runs at priority 10, after the walkers at 0:
 
 ```csharp
 if (!self.Body.Standing)
     return;
-// The velocity in the person's own axes, and its part across the person's up.
-Double3 local = self.PoseIn(self.Frame).Rotation.Conjugate().Rotate(self.VelocityIn(self.Frame));
+// The walk that the person asks for in this tick, in the axes of its frame, turned into the person's own axes, and
+// its part across the person's up. It is zero when nothing asks for a walk in this tick.
+Double3 local = self.PoseIn(self.Frame).Rotation.Conjugate().Rotate(self.Body.Pending.CharacterVelocity);
 var across = new Double3(local.X, 0, local.Z);
 if (across.Length <= TurnSpeed)
     return;
@@ -2978,9 +2982,10 @@ self.Render.ViewOffset = new Pose(view.Position, Quaternion.CreateFromAxisAngle(
 where
 
 - `self.Body.Standing` = whether physics stood the person on walkable ground in the step of the previous tick.
-- `local` = the person's velocity relative to its own frame, `self.Frame`, turned into the person's axes, in m/s.
+- `self.Body.Pending.CharacterVelocity` = the asked walk: the character walk that the person's components wrote into its intent so far in this tick, in the axes of the person's frame, `self.Frame`, in m/s. It is zero when nothing asked for a walk in this tick.
+- `local` = the asked walk turned into the person's axes, in m/s.
 - `across` = the part of `local` across the person's up, +Y in its axes.
-- `TurnSpeed` = 0.25 m/s, the speed across the up at or below which the heading holds.
+- `TurnSpeed` = 0.25 m/s, the speed of the asked walk across the up at or below which the heading holds.
 - `view` = the person's view offset in the last tick: the eye's place and the view's turn, in the person's axes.
 - `Yaw(rotation)` = the turn of a rotation about +Y, in radians, counterclockwise seen from above: the angle from -Z to the part of its -Z across +Y.
 - `error` = the turn from the heading to the walk's direction, in radians, from -π to π, so the heading turns the short way round.
@@ -2990,8 +2995,10 @@ where
 
 Why each part is so:
 
-- The heading turns only while physics stands the person. A floating person has nothing to push on, so it does not turn by itself. This also keeps the fetch in orbit as it was: the heading that the person brings to the fetch is the one that it had at the seat.
-- 0.25 m/s lies below the step into the chute, 0.4 m/s, so the person turns into the chute's top, and above the drift of a belted person that the cabin shakes.
+- The heading follows the asked walk, not the person's velocity. The person faces where it means to go. A push that is not a walk does not turn it: under the jolt at the ramp's foot, the belt drags the seated person back to its seat at about 0.4 m/s while physics stands it. A heading that followed the velocity turned the belted person 61 degrees there, in the run of `demo-launch`, and turned it again in orbit, while physics stood the person on the cabin's floor, also in the fetch. The review of ter-cdgt found this with the tests that the heading holds through the launch and the docking.
+- The asked walk is the pending intent of this tick, so the component runs after the components that ask for the walk, at priority 10. A walker asks in every tick of its walk. Once it stops, it asks for no walk, and the asked walk is zero.
+- The heading turns only while physics stands the person. A floating person has nothing to push on, so it does not turn by itself, even when a walk is asked. This also keeps the fetch in orbit as it was: the heading that the person brings to the fetch is the one that it had at the seat.
+- 0.25 m/s lies below the step into the chute, 0.4 m/s, so the person turns into the chute's top. The slowdown before the last waypoint asks for less within 8 cm of it, where the direction to it swings as the person settles, so the heading holds there.
 - 4 rad/s turns a corner of 42 degrees, as in the terminal's path, in 0.18 s, less than a step at 3 m/s, and a quarter turn in 0.39 s. A body that turned at once would show the sharp corner of the path again.
 - The component writes the view only when it turns it, so a heading that holds has no rounding drift. It keeps the eye's place, so the cameras that follow the eye do not move when the person turns.
 - The view is a turn about the person's up and nothing else. The demo's person has no `PersonControl`, so no tilt of the view is lost.
@@ -3040,6 +3047,7 @@ Why each part is so:
 - The weight is in proportion to the speed up to 1 m/s, so the bob grows with the walk's start and falls with the slowdown before the last waypoint. It eases with 0.1 s, so the bob dies away wherever in its step the person stops, leaves the floor or steps into the chute, and the body does not jump.
 - A rise and no fall below rest: the body's bottom never sinks into the floor. 3.5 cm is about the rise of a person's center in a walk, and it shows in the films of the follow camera.
 - The body takes the view's turn one tick after the view, as the pen does, so the two turn together.
+- The bob follows the person's motion, and not the asked walk that turns the heading. The drawn body is another entity, so it reads the person only through the snapshot, which holds no intent. So a push that drags the standing person across the floor, as the belt does at the ramp's jolt, lifts the body a little for a moment. The weight grows with the speed and its time constant, so a push of a quarter second lifts it by much less than a step.
 
 The shapes, in `DemoSurface`:
 
@@ -3082,7 +3090,7 @@ The walk still turns at each waypoint at once. A path that cut its corners could
 
 | Component | Reads | Frame of the read | Writes |
 |---|---|---|---|
-| `WalkHeading` | Its own pose, velocity and standing, and its own view in the last tick | `self.Frame` | Its own view offset |
+| `WalkHeading` | Its own pose and standing, its own asked walk in this tick, and its own view in the last tick | `self.Frame` | Its own view offset |
 | `Gait` | The person's pose, velocity, standing and view in the last tick | `self.Frame`, which is the person's frame | Its own attach offset |
 | `Walker.Step` | Its own pose, the waypoints' frames | Each waypoint's frame, then `self.Frame` for the walk | Its own walk |
 
@@ -3098,14 +3106,15 @@ The walk still turns at each waypoint at once. A path that cut its corners could
 ### Tests
 
 - `WalkerTests`: the walk speeds up from rest over a second, by one tick of the start's acceleration at most, and the slowdown before the last waypoint still applies at once. The tests of before stay.
-- `WalkHeadingTests`: the person turns to face its walk, the short way round at a limited rate, holds its heading when it stops, while it creeps slower than the turn speed and while it floats, and keeps the eye's place.
+- `WalkHeadingTests`: the person turns to face its walk, the short way round at a limited rate, also when its heading was added before its walker. It holds its heading when it stops, while it creeps slower than the turn speed, while a push moves it without a walk, and while it floats with a walk asked, and it keeps the eye's place.
+- `DemoLaunchTests`: the person's heading holds from the ignition to the end of the run, through the ramp's jolt, the climb and the fetch. `BlueDanubeDockingTests`: it holds from the parking orbit through the docking. `DisembarkTests`: on the walk out and the stroll, the person faces within 10 degrees of its motion in 9 ticks of 10.
 - `GaitTests`: the body faces the view's way and stays upright, rises and falls once for each step length, takes as many steps over a distance at 1 m/s as at 2 m/s, does not bob while the person stands still or floats, and its bob dies away when the person stops.
 - `DrawnPersonTests`: in both scenes the person's row draws nothing, and the body and the visor are drawn. The body is wider than deep, with the visor on its front. The body and the visor lie inside `PersonHalf` at every heading and lift. The person of `demo-surface` starts facing the terminal.
 - `DisembarkStateTests`: the cases carry the walk, and equality compares its pace.
 - The run tests stay green with the scripts written again: `BlueDanubeScriptTests`, `DemoExitScriptTests`, the long run's `BlueDanubeExitTests`, `BlueDanubeDockingTests` and `BlueDanubeRendezvousTests`, `BlueDanubeFilmTests`, `DisembarkTests`, `DemoFollowCameraTests`, `DemoLaunchTests` and `PassengerTests`.
 - `scripts/demo-surface.json` is a script of fixed ticks. Its dump `boarding` comes 24 ticks later, because the person reaches the hatch 0.4 s later, and the next run before `in-cabin` 24 ticks shorter, so the later steps keep their ticks.
 
-Every new test was checked with a hand mutation of the line that it protects: a walk with no start limit, a limit that also slows the slowdown, a heading that faces backward, turns at once, turns below the turn speed, turns in the air or moves the eye, a body that takes the view's tilt, bobs twice a step, bobs by the time, bobs in the air, keeps its bob after the stop or bobs while still, a body as deep as wide or too wide for `PersonHalf`, a person row that draws, a start that faces -Z, and an equality that ignores the pace. Each failed its test.
+Every new test was checked with a hand mutation of the line that it protects: a walk with no start limit, a limit that also slows the slowdown, a heading that faces backward, turns at once, turns below the turn speed, turns in the air or moves the eye, a body that takes the view's tilt, bobs twice a step, bobs by the time, bobs in the air, keeps its bob after the stop or bobs while still, a body as deep as wide or too wide for `PersonHalf`, a person row that draws, a start that faces -Z, and an equality that ignores the pace. Each failed its test. The review's tests were checked the same way: a heading that follows the velocity fails the push and the launch, a heading at priority 0 fails the order of the components, a heading that turns in the air fails the float with a walk asked and the docking, and a scene of `demo-exit` without its `WalkHeading` fails the walk out.
 
 ### Measured
 
@@ -3121,6 +3130,7 @@ On 2026-10-21, with the scripts written again:
 |---|---|
 | The heading lives in the person's view, and the drawn body and the pen follow the view | One store of the heading. The pen and the passenger's hand already follow the view, so they stay in front of the body with no change. A heading kept in the drawn body would leave the pen behind the body's back on the walk out. |
 | The drawn body is an attached entity, and the person's own row draws nothing | A character does not turn, and a render row has no offset of its own. An attached entity that writes its own offset is what the engine offers, with no engine change. |
+| The heading follows the asked walk, not the velocity (the review of ter-cdgt) | A push or a jolt that moves a belted person is not a walk. The heading that followed the velocity turned the seated person 61 degrees at the ramp's foot. |
 | The heading turns only while physics stands the person | A floating person cannot turn by itself. It also keeps the fetch in orbit as it was. |
 | The bob is a rise, in phase with the distance walked, with a weight that eases with the speed | No sinking into the floor. No bob while the person stands, floats, slides or sits, and no jump where the bob stops. |
 | Only the rise of the walk's speed is limited | The slowdown before the last waypoint and the slow step into the chute must keep their speed to the tick, or the person overshoots the stop or does not sink into the chute. |
@@ -3838,7 +3848,7 @@ The other films are on the ground, in the cabin, at the pen and at the windows, 
 
 The docking and the exit have no frame that shows nothing of the shuttle or the station either, so the cut list trims none of their frames. The trims stay in the rules of the cut list for a later change of the script.
 
-The stretches hold all 22,988 frames of the master, 383.1 s at 60 frames per second. With the cards, the final video lasts 396.1 s, 6 minutes 36 s.
+The stretches hold all 22,988 frames of the master, 383.1 s at 60 frames per second. With the cards, the final video lasts 396.1 s, 6 minutes 36 s. After the person's walk of ter-cdgt, the master holds 22,771 frames, 379.5 s, and the video lasts 392.5 s. The measure of the dark frames above was made on the master before that change, whose rendezvous comes about 8 s later along the orbit.
 
 ### The title cards and the transitions
 
@@ -3887,7 +3897,7 @@ ffprobe in the dev shell measures the recording at 549.06 s, 9 minutes 9 s. The 
 - It fades in over 2 s and out over the last 5 s of the video, which lie in the closing card. So the music ends with the picture.
 - It is encoded as AAC at 192 kbit/s, the rate of the source.
 
-Why a fade and no cut of the music: the waltz is twice as long as the run, and the run is one unbroken take, so the picture cannot follow the music's sections. A cut inside the music, to end on its last chord, needs an edit of the music by ear. A fade over the closing card ends the music where the picture ends, and it stays right when the docking and the exit make the video longer: the recording is long enough for a video of up to 9 minutes. In the cut of round 2, 276.0 s long, the fade ended 0.2 s before a short pause of the waltz: from 276.25 s to 276.75 s of the recording, its level falls to about 45 dB below full scale. The film `sky` of the Earth system made the video 1.9 s longer, so the fade passed through that pause and ended about 1.2 s after it. With the docking and the exit, the video lasts 396.1 s, and the fade runs from 391.1 to 396.1 s of the recording. The waltz plays on there, at about 15 to 26 dB below full scale, with no pause. So the music fades out under the closing card in the middle of a phrase.
+Why a fade and no cut of the music: the waltz is twice as long as the run, and the run is one unbroken take, so the picture cannot follow the music's sections. A cut inside the music, to end on its last chord, needs an edit of the music by ear. A fade over the closing card ends the music where the picture ends, and it stays right when the docking and the exit make the video longer: the recording is long enough for a video of up to 9 minutes. In the cut of round 2, 276.0 s long, the fade ended 0.2 s before a short pause of the waltz: from 276.25 s to 276.75 s of the recording, its level falls to about 45 dB below full scale. The film `sky` of the Earth system made the video 1.9 s longer, so the fade passed through that pause and ended about 1.2 s after it. With the docking and the exit, the video lasts 396.1 s, and the fade runs from 391.1 to 396.1 s of the recording. The waltz plays on there, at about 15 to 26 dB below full scale, with no pause. So the music fades out under the closing card in the middle of a phrase. After the person's walk of ter-cdgt, the video lasts 392.5 s, 71 percent of the recording, and the fade runs from 387.5 to 392.5 s. The next final render checks the music there.
 
 The user chose this recording for the whole video on 2026-10-21, after a comparison of the first 65 s with a synth score and with the recording. So the rule above is the final one, and no score replaces the recording. Ticket ter-zd4t closed without a merge, and its branch keeps the score's tools.
 
@@ -3907,7 +3917,7 @@ The file holds:
 
 Every time is a frame of the final video. Frame n starts at n / 60 s, so 60 times each time is a whole number, to the rounding of a double. A card lasts its seconds rounded to whole frames, `TitleCard.Frames`. Its subtitles, its black frames and the sheet all take that count, so the first film starts at frame 300. The edit gives ffmpeg the card's whole frames and not its seconds: for a time between two frames, ffmpeg makes one frame more than the rounding. A film ends where the next film starts, and the last film ends where the closing card starts. `CueSheetTests` checks the sheet. `EditCommandTests` checks on a real ffmpeg video that the frame at a film's start is that film's first kept frame, that the closing card's frames end the video, and that a card whose seconds fall between two frames lasts the frames of its cue.
 
-In the final video of 2026-10-21, the film `closing` starts at 140.23 s, `landing` at 328.27 s and `docked` at 338.63 s. The title "The docking" starts at 269.95 s, "The wheel" at 341.63 s, and the closing card at 388.13 s.
+In the final video of 2026-10-21, the film `closing` starts at 140.23 s, `landing` at 328.27 s and `docked` at 338.63 s. The title "The docking" starts at 269.95 s, "The wheel" at 341.63 s, and the closing card at 388.13 s. The person's walk of ter-cdgt changed the frames of 17 films, so these times move by the frames that it added or removed before each film: 23 frames more before `closing` and "The docking", 226 fewer before `landing`, 227 fewer before `docked` and "The wheel", and 217 fewer before the closing card. So `closing` starts at 140.62 s, "The docking" at 270.33 s, `landing` at 324.50 s, `docked` at 334.85 s, "The wheel" at 337.85 s and the closing card at 384.52 s.
 
 The review of step 8 measured the sheet on the MP4:
 
@@ -3926,7 +3936,7 @@ dotnet run -c Release --project src/Tertius.Demo -- --edit runs/danube/blue-danu
 - The output is an MP4 with H.264 at quality 18 (`-crf 18`), 1280 × 720 at 60 frames per second. Its pixel format is yuv420p, which every player reads. Its index is at the front of the file (`-movflags +faststart`).
 - `--music`, `--music-start` and `--music-credit` are optional, and the video has no sound without them.
 - The command refuses a log whose rows do not match the frames of the script by count and by name. It also refuses a master whose count of frames does not match. So a log or a master from another script cannot reach the edit.
-- The length: 396.1 s, 6 minutes 36 s, with the docking and the exit.
+- The length: 396.1 s, 6 minutes 36 s, with the docking and the exit. After the person's walk of ter-cdgt, 392.5 s: 23,551 frames, the 22,771 of the master and the 780 of the two cards.
 
 Measured in round 1, on 2026-10-20, on an Apple M1 Max, with the script of that day and no music: the master took 2 minutes 53 seconds, 15,806 frames and 410 MB. The edit took 55 s. Its frames showed the readouts, the clock, the rate and the check panel as designed, and also the titles, the cards and the dips to black.
 
