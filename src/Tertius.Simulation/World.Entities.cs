@@ -149,6 +149,16 @@ public sealed partial class World
         Frames.SetGravity(frame, gravity);
     }
 
+    /// <summary>
+    /// Gives a frame a new medium, outside a tick only (see <see cref="FrameTree.Medium"/>). The frame's puffs feel it from
+    /// the next step on. Physics reads no medium, so the frame's bodies move as they did.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">During a tick, when the sync point reads the frame tree.</exception>
+    /// <exception cref="ArgumentException">
+    /// A frame that is gone, or a medium that is not valid (see <see cref="MediumField.IsValid"/>). The frame keeps its medium.
+    /// </exception>
+    public void SetFrameMedium(FrameHandle frame, in MediumField medium) => throw new NotImplementedException();
+
     // ---- Spawning -------------------------------------------------------------------------------------------------
 
     /// <summary>

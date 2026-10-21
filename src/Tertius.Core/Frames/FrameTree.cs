@@ -60,6 +60,8 @@ public sealed partial class FrameTree
     // (see HullMotion).
     private BodyMotion?[] hullMotion = new BodyMotion?[64];
     private GravityField[] gravity = new GravityField[64];
+    // The medium of each frame, beside its gravity field (see Medium). A numeric frame has none.
+    private MediumField[] medium = new MediumField[64];
     private Double3[] linearVelocity = new Double3[64];
     private Vector3[] angularVelocity = new Vector3[64];
     private Vector3[] properAcceleration = new Vector3[64];
@@ -130,7 +132,8 @@ public sealed partial class FrameTree
         FrameHandle parent,
         in DPose localPose,
         FrameBounds frameBounds,
-        GravityField field = default)
+        GravityField field = default,
+        MediumField medium = default)
     {
         if (frameOwner.IsNull)
             throw new ArgumentException("A frame needs an owner entity.", nameof(frameOwner));
@@ -560,6 +563,24 @@ public sealed partial class FrameTree
         if (InFollowingFrame(frame))
             LeaveFollowingFrame(TreeParent(frame));
     }
+
+    /// <summary>
+    /// The medium of the frame, the gas that fills it, at rest in its axes (see <see cref="MediumField"/>).
+    /// <see cref="SetMedium"/> changes it. Like the gravity field, it changes only between ticks, so the value stored when a
+    /// step starts is the value of that step, and the sync point of tick k reads the value of step k. A frame keeps it when
+    /// it hands off or is reparented. A numeric frame has none. Only puffs read it: physics reads no medium. Throws
+    /// <see cref="InvalidOperationException"/> for a stale frame.
+    /// </summary>
+    public MediumField Medium(FrameHandle frame) => throw new NotImplementedException();
+
+    /// <summary>
+    /// Gives a frame a new medium (see <see cref="Medium"/>). The frame's puffs feel it from the next step on. Throws
+    /// <see cref="InvalidOperationException"/> for a stale frame.
+    /// </summary>
+    /// <remarks>
+    /// Only the simulation calls it, through <c>World.SetFrameMedium</c>, which refuses a medium that is not valid.
+    /// </remarks>
+    internal void SetMedium(FrameHandle frame, in MediumField value) => throw new NotImplementedException();
 
     /// <summary>The gravity field of the frame. <see cref="SetGravity"/> changes it.</summary>
     public GravityField Gravity(FrameHandle frame) => gravity[Node(frame).Id];
@@ -1297,6 +1318,7 @@ public sealed partial class FrameTree
         Array.Resize(ref bounds, size);
         Array.Resize(ref hullMotion, size);
         Array.Resize(ref gravity, size);
+        Array.Resize(ref medium, size);
         Array.Resize(ref linearVelocity, size);
         Array.Resize(ref angularVelocity, size);
         Array.Resize(ref properAcceleration, size);
