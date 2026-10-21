@@ -388,7 +388,7 @@ public sealed class RendezvousAutopilot(Entity station, RendezvousPlan plan, dou
     /// <paramref name="maxTurnRate"/>, in radians per second.
     /// </summary>
     private static void Face(scoped ref EventList events, Double3 nose, in DPose pose, double maxTurnRate) =>
-        events.Add(new AttitudeTarget { Rotation = nose.Length > 1e-9 ? AttitudeAutopilot.Facing(nose, pose) : pose.Rotation, MaxTurnRate = maxTurnRate });
+        events.Add(new AttitudeTarget { Rotation = nose.Length > 1e-9 ? AttitudeAutopilot.Facing(nose, pose) : pose.Rotation, MaxTurnRate = (float)maxTurnRate });
 
     /// <summary>
     /// Adds the throttle and the translation that give the hull of <paramref name="mass"/> kilograms the acceleration
