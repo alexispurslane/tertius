@@ -158,7 +158,8 @@ public sealed class DemoStationTests : IDisposable
     /// <summary>
     /// The deck, the bay's wall at x = -8 m, holds a box that drops onto it from 0.75 m, and pulls it with the weak spin
     /// gravity of its radius, ω² · 8 m = 0.785 m/s², about 8 percent of a gravity. The box falls in about 1.4 s and rests on
-    /// the deck after 8 s.
+    /// the deck after 8 s. It drops 1 m spinward of the middle, clear of the chute's top, the hole in the deck from z = -1
+    /// to -0.2 m, toward which the Coriolis force of its fall pushes it.
     /// </summary>
     [Fact]
     public void TheDeckHasTheWeakGravityOfItsRadius()
@@ -167,7 +168,7 @@ public sealed class DemoStationTests : IDisposable
         Entity box = world.Spawn(new SpawnDesc
         {
             Frame = frame,
-            Pose = new DPose(new Double3(-7, 0, 0), DQuaternion.Identity),
+            Pose = new DPose(new Double3(-7, 0, 1), DQuaternion.Identity),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(half)), Mass: 10),
         });
 
@@ -247,6 +248,74 @@ public sealed class DemoStationTests : IDisposable
         object state = world.GetComponent<RendezvousAutopilot>(scene["shuttle"])!.State.Value;
         state.Should().BeOfType<Halted>();
         world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The parked shuttle's docking autopilot docks in the scene's station. On the ground, after a <see cref="Dock"/> order,
+    /// it halts because of the frames alone: the shuttle is in the turning earth-surface, and the station is in earth, so
+    /// the shuttle is in neither the station's frame nor the frame that holds the station. It does not halt for a station
+    /// that is gone, so it has a live station that owns a frame. In the run the order comes at the hold, in earth, and the
+    /// autopilot docks (<see cref="BlueDanubeDockingTests"/>).
+    /// </summary>
+    [Fact]
+    public void OnTheGroundTheShuttlesDockingAutopilotHaltsOnlyBecauseTheStationIsInEarth()
+    {
+        var logged = new List<string>();
+        world.Log += logged.Add;
+        world.Post(Event.Create(scene["shuttle"], Entity.Null, new Dock()));
+
+        Tick(world, 2);
+
+        world.GetComponent<DockingAutopilot>(scene["shuttle"])!.State.Value.Should().BeOfType<Halted>();
+        logged.Should().ContainSingle().Which.Should()
+            .EndWith($"{nameof(DockingAutopilot)} halts: the shuttle is in neither the station's frame nor the frame that holds the station.");
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// <c>bay-camera</c>, a still view in the station's frame near the bay's far wall, sees the whole docking: the corners of
+    /// the slot on both faces of its wall, the corners of the parked shuttle's box and the corners of the spoke's mouth in
+    /// the deck all lie in its picture.
+    /// </summary>
+    [Fact]
+    public void TheBayCameraSeesTheSlotTheParkedHullAndTheSpokeMouth()
+    {
+        DPose view = world.PoseIn(scene["bay-camera"], frame);
+        BoundingBox slot = DemoStation.Slot, parked = DemoStation.ParkedBounds, mouth = DemoStation.SpokeMouth;
+        IEnumerable<Double3> Corners(BoundingBox box) => Enumerable.Range(0, 8).Select(corner => new Double3(
+            (corner & 1) == 0 ? box.Min.X : box.Max.X, (corner & 2) == 0 ? box.Min.Y : box.Max.Y, (corner & 4) == 0 ? box.Min.Z : box.Max.Z));
+        Double3[] seen = [.. Corners(slot), .. Corners(parked), .. Corners(mouth with { Min = mouth.Min with { X = DemoStation.Deck } })];
+
+        foreach (Double3 corner in seen)
+            Picture.Contains(Picture.Project(view, corner, world.VerticalFov)).Should().BeTrue($"the corner {corner} lies in the picture");
+    }
+
+    /// <summary>
+    /// The camera of the long script's film <c>spin-match</c>, a still view in the station's frame, frames both the hub and
+    /// the shuttle at the hold point, where the spin-up ends: every corner of the hub's box and of the shuttle's box lies in
+    /// the picture, at least a tenth of the half picture from its edges, and the shuttle's box covers at least 1 percent of
+    /// the picture, in any roll about the axis. A view from the wheel's rim shows the shuttle 171 m away, a small speck
+    /// far to the right, and the hub at the left edge.
+    /// </summary>
+    [Fact]
+    public void TheSpinMatchCameraFramesTheHubAndTheShuttleAtTheHold()
+    {
+        string camera = BlueDanube.Sections.Single(section => section.Name == "spin-match").Camera;
+        DPose view = world.PoseIn(scene[camera], frame);
+        Vector3 hub = DemoStation.HubHalf;
+        IEnumerable<Double3> Corners(DPose pose, Vector3 half) => Enumerable.Range(0, 8).Select(corner => pose.TransformPoint(new Double3(
+            (corner & 1) == 0 ? -half.X : half.X, (corner & 2) == 0 ? -half.Y : half.Y, (corner & 4) == 0 ? -half.Z : half.Z)));
+
+        foreach (double roll in Enumerable.Range(0, 8).Select(step => step * Math.PI / 4))
+        {
+            var shuttle = new DPose(DemoStation.HoldPoint, DQuaternion.FromAxisAngle(Double3.UnitY, roll) * DemoStation.DockedRotation);
+            foreach (Double3 corner in Corners(DPose.Identity, hub).Concat(Corners(shuttle, Shuttle.Hull)))
+            {
+                Double3 at = Picture.Project(view, corner, world.VerticalFov);
+                (at.Z > 0.05 && Math.Abs(at.X) <= 0.9 && Math.Abs(at.Y) <= 0.9).Should().BeTrue($"the corner {corner} lies well inside the picture at a roll of {roll:F2} rad, at {at}");
+            }
+            Picture.Cover(view, shuttle, (Double3)Shuttle.Hull, world.VerticalFov).Should().BeGreaterThan(0.01, $"the shuttle is no speck at a roll of {roll:F2} rad");
+        }
     }
 
     /// <summary>

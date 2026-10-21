@@ -119,7 +119,9 @@ public readonly struct AscentState : IEquatable<AscentState>
 /// <item><see cref="Climb"/>: the guidance gives the acceleration, at most that of full throttle. The nose turns toward
 /// it, and the throttle is its length divided by full throttle's acceleration. When the guidance finds the circle reached,
 /// the engine stops and the orbit starts.</item>
-/// <item><see cref="Orbit"/>: no throttle, so the engine stays off, and the nose follows the velocity.</item>
+/// <item><see cref="Orbit"/>: no throttle, so the engine stays off, and the nose follows the velocity, while the hull is in
+/// a frame with point gravity. In a frame without it, such as the turning frame of a station that the shuttle docks in,
+/// the autopilot adds nothing.</item>
 /// </list>
 /// In every case that steers, the roof turns away from the planet across the nose. The autopilot finds each target in the
 /// axes of the plane's frame and writes it in the axes of the shuttle's frame, turned by the hull's two rotations, in its
@@ -194,7 +196,10 @@ public sealed class AscentAutopilot(double maxThrust, double orbitRadius, double
                 events.Add(new Throttle { Value = (float)Math.Min(1, acceleration.Length / guidance.MaxAcceleration) });
                 events.Add(new AttitudeTarget { Rotation = intoFrame * AttitudeAutopilot.Facing(acceleration, pose), MaxTurnRate = AttitudeAutopilot.MaxTurnRate });
                 break;
-            case Orbit:
+            // The law of the nose along the velocity and the roof away from the planet means something only while the hull is
+            // in a frame with point gravity, such as earth, where it flew its orbit. In the docking station's frame, which
+            // has no field, the docking autopilot steers, and this layer adds nothing.
+            case Orbit when KeplerOrbit.MuFrom(self.Snapshot.Frames.Gravity(self.Frame)) > 0:
                 events.Add(new AttitudeTarget { Rotation = intoFrame * AttitudeAutopilot.Facing(velocity, pose), MaxTurnRate = AttitudeAutopilot.MaxTurnRate });
                 break;
         }

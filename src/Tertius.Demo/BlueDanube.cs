@@ -1,6 +1,7 @@
 using Tertius.Host;
 using Tertius.Host.Scripting;
 using Tertius.Simulation;
+using DemoStation = Tertius.Demo.DemoScenes.DemoStation;
 using DemoSurface = Tertius.Demo.DemoScenes.DemoSurface;
 using LaunchRamp = Tertius.Demo.DemoScenes.LaunchRamp;
 using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
@@ -11,7 +12,8 @@ namespace Tertius.Demo;
 /// The Blue Danube demo's one unbroken run, as a script of film steps (docs/plans/blue-danube-demo.md, "The long script"):
 /// one <see cref="FilmSection"/> for each part of the sequence, in its order, in the scene <c>demo-surface</c>. Today the
 /// sections cover the parts that exist: the walk through the terminal into the shuttle, the launch to orbit with the pen,
-/// and the rendezvous with the station, to the hold point on its axis. Each later part of the demo adds its sections at the end of <see cref="Sections"/>.
+/// the rendezvous with the station, to the hold point on its axis, the docking in the station's bay, and the exit down the
+/// spoke to the wheel's floor. Each later part of the demo adds its sections at the end of <see cref="Sections"/>.
 /// </summary>
 /// <remarks>
 /// A section films every tick where the action is fast, and every Nth tick for the long climb and the long waits and
@@ -31,6 +33,36 @@ public static class BlueDanube
 
     /// <summary>The ticks in one second of the simulation, the engine's fixed rate.</summary>
     private const int Second = 60;
+
+    /// <summary>The scene of the exit's short script, which starts at the docking's end state.</summary>
+    public const string ExitSceneName = "demo-exit";
+
+    /// <summary>
+    /// The sections of the exit (docs/plans/blue-danube-demo.md, "The exit", "Sections of the long script"): the person
+    /// opens its belt and walks out of the hatch, crosses the deck, steps into the chute's top, slides down the spoke,
+    /// lands on the wheel's floor and walks a few steps. Each cue reads the exit component's case or the person's place in
+    /// the station's frame, and none reads the frame that holds the station. They follow the docking's <c>docked</c> at
+    /// the end of <see cref="Sections"/>, and they also run alone in <c>scripts/demo-exit.json</c>, whose scene starts at
+    /// the docking's end state. They come before <see cref="Sections"/> in this file, because a static property's
+    /// initializer runs in the order of the file, and <see cref="Sections"/> reads them.
+    /// </summary>
+    public static IReadOnlyList<FilmSection> ExitSections { get; } =
+    [
+        // The order, the first steps and the walk aft to the doorway, filmed from inside the cabin.
+        new("unbelt", "cabin-camera", Every: 1, (world, scene) => PersonInCabin(world, scene).X > Shuttle.Cabin.X - 0.5,
+            Posts: [new PostStep(new ToEntity("person"), nameof(LeaveShip))]),
+        // The step down onto the deck, the walk along it and the step into the chute's top.
+        new("deck", "deck-camera", Every: 1, (world, scene) => ExitOf(world, scene).Value is Sliding, Hold: Second * 3 / 2),
+        // The drop through the hole, seen from below in the spoke.
+        new("chute-top", "spoke-camera", Every: 1, (world, scene) => PersonInStation(world, scene).X < DemoStation.Deck - 10),
+        // The slide down the open trough from behind and above the person, filmed every second tick, so it plays at twice
+        // the speed of the simulation.
+        new("chute", "slide-camera", Every: 2, (world, scene) => Radius(PersonInStation(world, scene)) > DemoStation.CeilingRadius - 10),
+        // The brake run, the landing and the first steps on the floor.
+        new("brake-run", "wheel-camera", Every: 1, (world, scene) => ExitOf(world, scene).Value is Strolling, Hold: Second),
+        // The last steps spinward, and the person standing still in a full gravity.
+        new("floor", "follow-camera", Every: 1, (world, scene) => ExitOf(world, scene).Value is Arrived, Hold: Second * 2),
+    ];
 
     /// <summary>The sections of the run, in their order.</summary>
     public static IReadOnlyList<FilmSection> Sections { get; } =
@@ -102,7 +134,31 @@ public static class BlueDanube
         // two films take the 5 s that the hold had alone, so the run ends at the same tick.
         new("hold", "rim-camera", Every: 1, FilmSection.Now, Hold: Second * 3),
         new("hold-chase", "chase-camera", Every: 1, FilmSection.Now, Hold: Second * 2),
+
+        // The docking (docs/plans/blue-danube-demo.md, "The docking", "Sections of the long script"): the shuttle waits at
+        // the hold for the station's turn to bring its deck to the right roll, spins up to the station's rate, enters the
+        // slot along the axis, moves out to the corner of the deck and lands there. The cues read the docking autopilot's
+        // case and places in the station's frame, because the shuttle's frame changes at the hand-off.
+        new("dock", "chase-camera", Every: 2, (world, scene) => DockingOf(world, scene).Value is SpinUp,
+            Posts: [new PostStep(new ToEntity("shuttle"), nameof(Dock))]),
+        new("spin-up", "chase-camera", Every: 2, (world, scene) => DockingOf(world, scene).Value is SpinUp { StartTime: var start } && world.Time - start >= SpinUpFilmed),
+        new("spin-match", "hold-camera", Every: 2, (world, scene) => DockingOf(world, scene).Value is Entry),
+        // The window camera films the slot ahead until the nose is 10 m from the slot's outer face.
+        new("entry", "window-camera", Every: 4, (world, scene) => InStation(world, scene).Position.Y < DemoStation.HubHalf.Y + Shuttle.Hull.Z + NoseToSlot),
+        new("slot", "bay-camera", Every: 2, (world, scene) => DockingOf(world, scene).Value is MoveOut),
+        new("move-out", "cockpit-camera", Every: 2, (world, scene) => Double3.Distance(InStation(world, scene).Position, DemoStation.ParkedPose.Position) < 1),
+        new("landing", "bay-camera", Every: 1, (world, scene) => DockingOf(world, scene).Value is Docked, Hold: Second * 2),
+        new("docked", "cabin-camera", Every: 1, FilmSection.Now, Hold: Second * 3),
+
+        // The exit: the person leaves the docked shuttle, slides down the spoke and stands on the wheel's floor.
+        .. ExitSections,
     ];
+
+    /// <summary>How long the film <c>spin-up</c> films the spin-up from outside, in seconds, before the rim camera takes over.</summary>
+    private const double SpinUpFilmed = 20;
+
+    /// <summary>How near the slot's outer face the nose comes before the bay camera takes over from the window camera, in meters.</summary>
+    private const double NoseToSlot = 10;
 
     /// <summary>
     /// The apoapsis above Earth's mean radius at which the burn of the transfer has nearly ended, in meters: 399 km, below
@@ -113,8 +169,61 @@ public static class BlueDanube
     /// <summary>How near the direction to the station the nose must point for the turn to end, in radians: 2 degrees.</summary>
     private const double NoseOnStation = 2 * Math.PI / 180;
 
-    /// <summary>The script of the run, which the generator rehearses in a new world (see <see cref="FilmScript.Generate"/>).</summary>
-    public static Script Generate() => FilmScript.Generate(DemoScenes.All.Single(scene => scene.Name == SceneName), Window, Sections);
+    /// <summary>The scenes whose sections the generator knows: <see cref="SceneName"/> and <see cref="ExitSceneName"/>.</summary>
+    public static IReadOnlyList<string> Scenes { get; } = [SceneName, ExitSceneName];
+
+    /// <summary>
+    /// The script of the run of <paramref name="sceneName"/>, the long run unless it names another of
+    /// <see cref="Scenes"/>, which the generator rehearses in a new world (see <see cref="FilmScript.Generate"/>). The long
+    /// run films <see cref="Sections"/>, and the exit's scene films <see cref="ExitSections"/>. Throws
+    /// <see cref="ArgumentException"/> for a scene that is not one of <see cref="Scenes"/>.
+    /// </summary>
+    public static Script Generate(string sceneName = SceneName)
+    {
+        IReadOnlyList<FilmSection> sections = sceneName switch
+        {
+            SceneName => Sections,
+            ExitSceneName => ExitSections,
+            _ => throw new ArgumentException($"The Blue Danube demo has no sections for the scene {sceneName}.", nameof(sceneName)),
+        };
+        return FilmScript.Generate(DemoScenes.All.Single(scene => scene.Name == sceneName), Window, sections);
+    }
+
+    /// <summary>
+    /// The short scripts that the generator writes beside the long script, for a quick look at one part of the run: each
+    /// file films the long script from its first section through its last (see <see cref="FilmedBetween"/>).
+    /// <c>demo-docking.json</c> films the docking alone, from the section <c>dock</c> through <c>docked</c>.
+    /// </summary>
+    public static IReadOnlyList<(string File, string FirstSection, string LastSection)> Cuts { get; } = [("demo-docking.json", "dock", "docked")];
+
+    /// <summary>
+    /// The long script <paramref name="full"/>, filmed only from the section <paramref name="firstSection"/> through the
+    /// section <paramref name="lastSection"/>: every film before the first section runs as plain ticks, the camera steps
+    /// before it are left out, and the cut ends with the last section's film. So the cut posts the same orders at the same
+    /// ticks as the long script, reaches the first section at the same tick, and films the sections from the first through
+    /// the last as the long script does. Throws <see cref="ArgumentException"/> when the script has no film of either name,
+    /// or when the last film comes before the first.
+    /// </summary>
+    public static Script FilmedBetween(Script full, string firstSection, string lastSection)
+    {
+        ArgumentNullException.ThrowIfNull(full);
+        List<ScriptStep> steps = [.. full.Steps];
+        int film = steps.FindIndex(step => step.Value is FilmStep { Name: var name } && name == firstSection);
+        if (film < 0)
+            throw new ArgumentException($"The script has no film '{firstSection}'.", nameof(firstSection));
+        int last = steps.FindIndex(step => step.Value is FilmStep { Name: var name } && name == lastSection);
+        if (last < film)
+            throw new ArgumentException($"The script has no film '{lastSection}' at or after '{firstSection}'.", nameof(lastSection));
+        // The section starts at its camera step, the last before its film.
+        int start = steps.Take(film).ToList().FindLastIndex(step => step.Value is CameraStep);
+        IEnumerable<ScriptStep> before = steps.Take(start).SelectMany(step => step.Value switch
+        {
+            FilmStep each => [new RunStep(each.Frames * each.Every)],
+            PostStep => [step],
+            _ => Array.Empty<ScriptStep>(),
+        });
+        return full with { Steps = [.. before, .. steps.Skip(start).Take(last + 1 - start)] };
+    }
 
     /// <summary>
     /// True when <paramref name="position"/>, in the shuttle's frame, lies inside the cabin, 0.1 m from its walls, floor
@@ -138,9 +247,22 @@ public static class BlueDanube
 
     private static PassengerState PassengerOf(World world, SceneInstance scene) => world.GetComponent<Passenger>(scene["person"])!.State;
 
+    private static DisembarkState ExitOf(World world, SceneInstance scene) => world.GetComponent<Disembark>(scene["person"])!.State;
+
+    /// <summary>The person's position in the station's frame.</summary>
+    private static Double3 PersonInStation(World world, SceneInstance scene) => world.PoseIn(scene["person"], world.GetOwnedFrame(scene["station"])).Position;
+
+    /// <summary>How far <paramref name="position"/>, in the station's axes, is from the station's axis, +Y, in meters.</summary>
+    private static double Radius(Double3 position) => Math.Sqrt(position.X * position.X + position.Z * position.Z);
+
     private static RendezvousState RendezvousOf(World world, SceneInstance scene) => world.GetComponent<RendezvousAutopilot>(scene["shuttle"])!.State;
 
     private static AscentState AscentOf(World world, SceneInstance scene) => world.GetComponent<AscentAutopilot>(scene["shuttle"])!.State;
+
+    private static DockingState DockingOf(World world, SceneInstance scene) => world.GetComponent<DockingAutopilot>(scene["shuttle"])!.State;
+
+    /// <summary>The shuttle's pose in the station's frame.</summary>
+    private static DPose InStation(World world, SceneInstance scene) => world.PoseIn(scene["shuttle"], world.GetOwnedFrame(scene["station"]));
 
     /// <summary>True once the pen's clip has let the pen go, or the loose pen is gone.</summary>
     private static bool PenReleased(World world, SceneInstance scene) =>

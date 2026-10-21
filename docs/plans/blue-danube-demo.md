@@ -32,7 +32,7 @@ From a survey of the code on 2026-10-18.
 | Seat | Exists: `Shuttle.Seat`, a static box in the shuttle's interior shape, which the demo surface draws (ter-na4f). A character has no sitting pose, so the person stands at `Shuttle.SeatStand`. The `Passenger` component's belt holds the person there while the cabin's gravity would not keep it on its feet (ter-m13s). | None |
 | Ground at the pad | Earth's sphere sags about 480 m between vertices | A large static slab under the pad, as in the surface yard, in the turning `earth-surface` over the sphere of `SunAndEarth` |
 | Cylinders, rings, tori | Exists: `RevolvedSolid` (ter-fb3w) sweeps a convex profile about an axis into a cylinder, a ring or a torus, with its mesh and a collision shape that matches it. The station's wheel uses it (ter-tzf6). The spokes and the hub are `BoxMesh` tubes and boxes. | The chute of step 6 |
-| Ship thrust and steering | Partial: the climb to orbit exists in the Demo (ter-m13s): `MainEngine`, `AttitudeAutopilot` and `AscentAutopilot`, which steers by `AscentGuidance` into the launch plane (see "The launch"). The rendezvous exists too (ter-tzf6): `TranslationThrusters` and `RendezvousAutopilot`, which steers by `TransferGuidance` and `ApproachGuidance` (see "The station and the rendezvous"). | Autopilot components: the spin match and the docking |
+| Ship thrust and steering | Partial: the climb to orbit exists in the Demo (ter-m13s): `MainEngine`, `AttitudeAutopilot` and `AscentAutopilot`, which steers by `AscentGuidance` into the launch plane (see "The launch"). The rendezvous exists too (ter-tzf6): `TranslationThrusters` and `RendezvousAutopilot`, which steers by `TransferGuidance` and `ApproachGuidance` (see "The station and the rendezvous"). So does the docking (ter-ftnj): `DockingAutopilot`, which spins the shuttle up to the station's turn, enters the slot and lands on the deck by `SpinUpProfile` and `ApproachGuidance` (see "The docking"). | None |
 | Spin gravity, Coriolis, a ship in a turning frame, characters in a turning frame | Exists (the spin gravity epic `ter-s9m0`, [Spin gravity](spin-gravity.md)): every turning frame gives its contents the centrifugal, Coriolis and Euler terms, characters stand, walk and jump in it, and the scene `spin-station` shows it. | The ship in the turning station, and the autopilots that use it |
 
 ## The launch
@@ -72,7 +72,7 @@ Terms used in this section:
 - The needed velocity: the velocity that puts the shuttle on the two-body path that reaches the arrival point at the arrival time.
 - The velocity to gain: the needed velocity less the shuttle's velocity, both in `earth`.
 - A target point's relative state: the shuttle's position less the target point's, and the shuttle's velocity less the station's. Both are in `earth`. The axis does not turn there, so a point on the axis moves with the station's center.
-- A layer: an autopilot of the flight program. In its tick it adds `Throttle`, `AttitudeTarget` and `Translation` events to the shuttle's events. The ascent autopilot is the first layer and the rendezvous autopilot is the second. Step 5's docking autopilot will be the third.
+- A layer: an autopilot of the flight program. In its tick it adds `Throttle`, `AttitudeTarget` and `Translation` events to the shuttle's events. The ascent autopilot is the first layer and the rendezvous autopilot is the second. The docking autopilot is the third (see "The docking").
 
 ### The station
 
@@ -206,12 +206,12 @@ How `OverPadAt` sets the window:
 - One second more of `OverPadAt` puts the station 0.065 degrees further back. That opens the window 22 s earlier and 1.5 degrees earlier along the orbit.
 - The builder of the station sets `OverPadAt` from the rehearsal. The aim is a window at φ between 115 and 125 degrees. The model gives 38 s, and the run test pins the range.
 
-Measured in the run of the checked-in script on 2026-10-20 (`BlueDanubeRendezvousTests`), with `OverPadAt` at the model's 38 s:
+Measured in the run of the checked-in script on 2026-10-20 (`BlueDanubeRendezvousTests`), with `OverPadAt` at the model's 38 s, after the docking's ticket (ter-ftnj) gave the attitude target a float turn rate and the translation thrusters 30,000 N per axis:
 
-- The window opens 1,950.6 s into the run, with the shuttle at φ = 120.4 degrees.
-- The two-body cost of the transfer from the shuttle's state at the window is 119.5 m/s. The burn, the trim and the brake change the shuttle's velocity by 119.5 m/s too, the integral of the cabin's proper acceleration.
-- The brake starts 4,498.2 s into the run, at φ = 289.6 degrees, with the shuttle 59.6 m/s fast relative to the station. It ends 23.8 s later.
-- The glide takes 341 s, and the hold starts 4,862.7 s into the run, at 81 minutes.
+- The window opens 1,954.5 s into the run, with the shuttle at φ = 120.6 degrees. The float turn rate changes the climb a little, so the window opens 4 s later than before.
+- The burn, the trim and the brake change the shuttle's velocity by 119.5 m/s, the integral of the cabin's proper acceleration, within 10 percent of the two-body cost of the transfer.
+- The brake starts 4,502.1 s into the run, at φ = 289.8 degrees, with the shuttle 59.6 m/s fast relative to the station. It ends 23.8 s later.
+- The glide takes 340.8 s, and the hold starts 4,866.6 s into the run, at 81 minutes.
 
 ### If the insertion changes
 
@@ -233,9 +233,9 @@ The flight program is a stack of layers on the shuttle. The actuators follow the
 
 | Component | Priority | What it adds |
 |---|---|---|
-| `AscentAutopilot` | 0 | In its `Orbit` case, an `AttitudeTarget` with the nose along the velocity, in every tick |
+| `AscentAutopilot` | 0 | In its `Orbit` case, an `AttitudeTarget` with the nose along the velocity, in every tick while the shuttle's frame has point gravity |
 | `RendezvousAutopilot` | 1 | Nothing in `Standby` and `Phasing`. From the window on, an `AttitudeTarget` in every tick. It adds a `Throttle` in the ticks of a burn, and a `Translation` in the ticks that its translation thrusters push. |
-| The docking autopilot of step 5 | 2 | Step 5 designs it. |
+| `DockingAutopilot` | 2 | From the spin-up to the landing, an `AttitudeTarget` and a `Translation` in every tick (see "The docking"). |
 | `AttitudeAutopilot`, `MainEngine`, `TranslationThrusters` | 10 (today 1) | They read what the layers added. |
 
 An active layer adds an `AttitudeTarget` in every tick. So the target of a layer before it never reaches the attitude autopilot. Before the rendezvous, only the orbit case of the ascent autopilot writes a target, and it writes no throttle. So a tick in which the rendezvous adds no throttle runs no engine. The ascent autopilot stays as it is. It holds the orbit's attitude until the window.
@@ -249,7 +249,7 @@ The shuttle has only its main engine, along the nose. The brake must push along 
 - It reads the hull's rotation in `self.Frame`, as the main engine reads its nose.
 - A tick without a translation gives no force. The last translation of a tick counts.
 - A force that is not finite makes it throw `ArgumentOutOfRangeException`, which the world logs. It then pushes nothing.
-- `Shuttle.TranslationThrust` = 4,000 N per axis, 0.2 m/s² for the shuttle's 20 t.
+- `Shuttle.TranslationThrust` = 30,000 N per axis, 1.5 m/s² for the shuttle's 20 t. This step gave them 4,000 N. The docking raised the force for every law, because its move out needs up to 1.2 m/s² on one axis (see "The translation thrusters' force").
 
 #### The phases
 
@@ -361,13 +361,14 @@ The transfer ends in the coast at the braking curve, where `sqrt(2 × 2.4 m/s² 
 
 #### The approach guidance
 
-`ApproachGuidance(Mu, BrakeAcceleration, SpeedCap, FinalRate, VelocityTime, MaxAcceleration)` is one law for the brake, the glide and the hold. It flies the shuttle to a point fixed to the station and stops it there. It cancels the difference of Earth's gravity between the shuttle and the station's center. So the shuttle moves relative to the point as a free mass in empty space does, and a simple law flies it exactly.
+`ApproachGuidance(BrakeAcceleration, SpeedCap, FinalRate, VelocityTime, MaxAcceleration)` is one law for the brake, the glide and the hold, and since the docking for the docking too. It flies the shuttle to a point fixed to the station and stops it there. It cancels a free acceleration that the caller gives it. The rendezvous gives the difference of Earth's gravity between the shuttle and the station's center, with Earth's G·M read from the point gravity of its frame in each tick. So the shuttle moves relative to the point as a free mass in empty space does, and a simple law flies it exactly. The docking's design changed the law in two ways: the free acceleration became a parameter, and the cap takes only the correction (see "The docking", "The law").
 
 ```
 x = shuttlePosition - target,   d = |x|
 u = shuttleVelocity - stationVelocity
 wanted = -(x / d) · min(SpeedCap, sqrt(2 BrakeAcceleration d), FinalRate d)
-push = (wanted - u) / VelocityTime - (g(shuttlePosition) - g(stationPosition)),   at most MaxAcceleration long
+correction = (wanted - u) / VelocityTime,   at most MaxAcceleration long
+push = correction - (g(shuttlePosition) - g(stationPosition))
 g(r) = -Mu r / |r|³
 ```
 
@@ -389,7 +390,7 @@ The difference of gravity is 1.9e-3 m/s² at 1.5 km to the side of the orbit. At
 | Phase | Target | `BrakeAcceleration` | `SpeedCap` | `FinalRate` | `VelocityTime` | `MaxAcceleration` | Thrust | Nose |
 |---|---|---|---|---|---|---|---|---|
 | `Brake` | Arrival point | 2.4 m/s², 80 percent of the burn's, so the law has room to follow its curve | None | 0.5 /s | 0.5 s | 3 m/s² | The main engine along the nose, and the translation thrusters for the rest | Along `push` |
-| `Glide`, `Hold` | Hold point | 0.05 m/s², a quarter of the thrusters' | 5 m/s | 0.1 /s | 2 s | 0.2 m/s² | The translation thrusters only | Toward the slot, along minus the axis |
+| `Glide`, `Hold` | Hold point | 0.05 m/s² | 5 m/s | 0.1 /s | 2 s | 0.2 m/s² | The translation thrusters only | Toward the slot, along minus the axis |
 
 In every phase that steers, the roof turns away from Earth across the nose, as the ascent autopilot turns it. The target comes from `AttitudeAutopilot.Facing`, with the shuttle's position as the roof. In the glide and the hold, the roof points exactly away from Earth, because the axis lies across the vertical. The turn from the brake's nose to the slot is about 100 degrees about the roof. At the attitude autopilot's 0.15 rad/s it takes about 12 s, while the thrusters already push along the axis.
 
@@ -447,7 +448,7 @@ The builder of `rim-camera` aims it at a point on the axis between the hub and t
 
 ### Sections of the long script
 
-The step's sections replace the section `coast`. A section that waits longer than 10 minutes of the simulation names a larger `Limit`, twice its measured length, rounded up to 100 s: `phasing` 1,000 s, `night` 2,300 s, `transfer-night` 2,000 s and `transfer` 2,800 s. The frames and seconds below are what the generator printed on 2026-10-20, after the demo moved into the Earth system (ter-yhu8). The nights moved 35 degrees earlier along the orbit, so `phasing` and `transfer-night` grew shorter and `night` and `transfer` longer, as the model of "The cues" in "The demo in the Earth system" gave.
+The step's sections replace the section `coast`. A section that waits longer than 10 minutes of the simulation names a larger `Limit`, twice its measured length, rounded up to 100 s: `phasing` 1,000 s, `night` 2,300 s, `transfer-night` 2,000 s and `transfer` 2,800 s. The frames and seconds below are what the generator printed on 2026-10-21, after the merge of the Earth system (ter-yhu8) with the docking (ter-ftnj) and the exit (ter-y0e5). The docking's ticket gave the translation thrusters 30,000 N and the attitude target a float turn rate, which made `glide` one frame longer. The nights moved 35 degrees earlier along the orbit, so `phasing` and `transfer-night` grew shorter and `night` and `transfer` longer, as the model of "The cues" in "The demo in the Earth system" gave.
 
 | Film | Camera | Ticks per frame | Posts | Ends | Measured |
 |---|---|---|---|---|---|
@@ -460,14 +461,14 @@ The step's sections replace the section `coast`. A section that waits longer tha
 | `closing` | `bow-camera` | 8 | | The autopilot is in `Brake`. | 155 s, 1,165 frames |
 | `brake` | `port-window-camera` | 1 | | The autopilot is in `Glide`. | From 4,502.2 s: 23.6 s, 1,418 frames |
 | `turn` | `window-camera` | 1 | | The nose is within 2 degrees of the direction to the station. | 12.1 s, 726 frames |
-| `glide` | `chase-camera` | 6 | | The shuttle is within 700 m of the station. | 160 s, 1,602 frames |
+| `glide` | `chase-camera` | 6 | | The shuttle is within 700 m of the station. | 160 s, 1,603 frames |
 | `glide-window` | `window-camera` | 4 | | Within 400 m | 60 s, 900 frames |
 | `glide-rim` | `rim-camera` | 4 | | Within 200 m | 54 s, 806 frames |
-| `arrival` | `cockpit-camera` | 4 | | 3 s after the autopilot is in `Hold` | 58 s, 864 frames |
-| `hold` | `rim-camera` | 1 | | After 3 s | From 4,869.4 s: 3 s, 180 frames |
-| `hold-chase` | `chase-camera` | 1 | | After 2 s | From 4,872.4 s: 2 s, 120 frames |
+| `arrival` | `cockpit-camera` | 4 | | 3 s after the autopilot is in `Hold` | 58 s, 865 frames |
+| `hold` | `rim-camera` | 1 | | After 3 s | From 4,869.6 s: 3 s, 180 frames |
+| `hold-chase` | `chase-camera` | 1 | | After 2 s | From 4,872.6 s: 2 s, 120 frames |
 
-The step films 11,762 frames in 4,517 s of the simulation, 196 s of video at 60 frames per second.
+The step films 11,764 frames in 4,518 s of the simulation, 196 s of video at 60 frames per second. Ticket ter-4xkz split the 5 s of `hold` into `hold` and `hold-chase`.
 
 Every cue reads the run or the scene's constants:
 
@@ -701,7 +702,7 @@ Only engine changes go to the user (the user's rule of 2026-10-18). So this desi
 | The window | At φ = 120 degrees, set by `OverPadAt` = 38 s | The arrival at φ = 290 degrees falls in daylight, with Earth's limb lit below the station. |
 | The arrival point | 1.5 km out on the axis | The station is 7.7 degrees wide there, 84 px in the 720-line picture. It grows through the glide, and the brake's 740 m fit. |
 | The burns | 3 m/s² on the main engine, a throttle of about 0.10 | About 32 s for the departure burn, long enough to film, and far below the climb's force on the belt |
-| The glide | Translation thrusters at 0.2 m/s² per axis, at most 5 m/s, about 350 s | The nose stays on the station all the way. |
+| The glide | Translation thrusters with a correction of at most 0.2 m/s², at most 5 m/s, about 350 s | The nose stays on the station all the way. |
 | Translation thrusters | A new demo component, `TranslationThrusters` | The brake and the glide push across the nose while the nose looks at the station. |
 | The approach law | One law for the brake, the glide and the hold, with Earth's difference of gravity cancelled | The relative motion becomes that of a free mass, so the law is exact at every distance. |
 | The flight program | Layers by priority, with the actuators at 10 | The actuators already take the last target and throttle. The ascent autopilot stays as it is. |
@@ -725,7 +726,1006 @@ One, which the user chose on 2026-10-20: `KeplerOrbit.Propagate` and `KeplerOrbi
 
 - A film of the night from outside. Earth casts its shadow since the demo moved into the Earth system (ter-yhu8), but the design still films the night from the cabin. A later demo ticket can try an outside view.
 - Readouts of speed, distance and the g-meter (see "Proof in the video"). The edit adds them.
-- The spin match, the entry, the landing on the deck, the exit, the chute and the openings in the ceiling: steps 5 and 6.
+- The spin match, the entry and the landing on the deck: step 5 (see "The docking"). The exit, the chute and the openings in the ceiling: step 6.
+
+## The docking
+
+Ticket ter-ftnj designs step 5 of "Order of the work", which is item 4 of "The sequence" (2026-10-20). The step is built (see "Measured" below). The live world is postponed (user, 2026-10-20). So the docking is a third layer of the flight program beside the rendezvous autopilot, as the station step built its layers. It is not a set of states of a pilot machine. The findings of the live world's design still hold. The attitude target gets a feed-forward angular velocity. The translation thrusters grow to 30,000 N for every law. The run test of the rendezvous runs again. The design needs no engine change. Step 6 (ter-y0e5) starts where this step ends, from the constants of the end state in `DemoScenes.DemoStation`.
+
+### What the step does
+
+- At the hold point, outside the station's bubble, the script orders the docking. The docking autopilot waits until the station's turn brings its deck to the right roll, at most one turn of the station, 20.1 s.
+- Then it spins the shuttle up about the station's axis in 30 s, to the station's 0.31321 rad/s. The spin-up ends with the shuttle's belly toward the deck. So no roll is left to fly after it.
+- The shuttle glides along the axis, nose first, into the station's bubble and through the slot, at 2 m/s at most. At the bubble it enters the station's frame. Inside, it is at rest in the station's turning axes.
+- Once its tail is 1 m inside the slot's wall, it moves out from the axis. Its path is straight in the station's axes, and it ends in the corner of the bay between the deck and the bay's -Z wall. The translation thrusters push it toward the axis on that path. The person in the cabin feels that push as weight, which grows with the radius.
+- The shuttle lands in the corner, belly on the deck and port side on the wall, at 3 cm/s. The docking autopilot then parks the hull: it makes it static, as it stood on the pad, and adds nothing more.
+- The parked shuttle leaves the mouth of the spoke under the deck free, and its hatch opens onto the deck toward it. Step 6 starts there.
+
+Terms used in this section:
+
+- The station's axes, the bay, the slot and the deck: as in "The station". +Y is the axis, the slot is on the +Y side, and the deck is the bay's wall at x = -8 m. The bay runs from -8 to 8 m along X and Z and from -12.5 to 12.5 m along Y.
+- The frame that holds the station: the station's parent frame. In the long run it is `earth`, which does not turn and falls freely round the Sun ("The demo in the Earth system"). In the docking's and the exit's own tests and in `demo-exit`, it is a root frame with Earth's point gravity, which does not turn. The docking never names it and never assumes that it is a root. It only assumes what the rendezvous assumes: it does not turn, its origin is the planet's center, and it has the planet's point gravity.
+- The station's rate, ω: the station's angular velocity relative to the virtual root above the roots, in the station's axes. On its rails it is 0.31321 rad/s about +Y.
+- The docked rotation, `DemoStation.DockedRotation`: the shuttle's rotation in the station's axes once it is docked. Its nose, -Z, points along the station's -Y, into the bay. Its roof, +Y, points along +X, away from the deck. So its starboard side, +X, with the hatch, points along +Z.
+- The hold rotation: the shuttle's rotation at the hold, nose toward the slot along minus the axis, roof away from the planet, as the rendezvous leaves it.
+- The lag, λ: during the spin-up, the angle about the axis by which the shuttle's target trails the docked rotation, in radians.
+- The roll angle, ρ: the angle about the station's +Y from the shuttle's roof to the roof of the spin-up's first target. Both roofs are taken across the axis. The angle runs from -π to π.
+- The free acceleration: the acceleration, in the station's axes, of a shuttle that does not thrust, relative to the station's turning axes. The docking's law cancels it, so the shuttle moves relative to the bay as a free mass in empty space does.
+- The parked point: the position of `DemoStation.ParkedPose`, (-6, 3, -5) m in the station's axes.
+- The landing point: the parked point moved 0.1 m into the deck and 0.1 m into the wall, (-6.1, 3, -5.1) m. The move out aims there, so the hull meets the deck and the wall at a set speed and presses on them lightly.
+
+### The parked pose and the end state for the exit
+
+The exit's chute starts at the deck, in the spoke at θ = 180 degrees, in the plane y = 0. The spoke's inside meets the deck in a square 3.5 m on a side. The square runs from -1.75 to 1.75 m along Y and along Z. `DemoStation.SpokeMouth` is that square, through the deck's wall, from x = -8.5 to -8 m. The exit's opening lies inside it. The deck is 25 m long along the axis and 16 m wide. The shuttle is 16 m long and 6 m wide. So:
+
+- Along the axis, the shuttle cannot clear the mouth: the bay leaves 10.75 m on each side of it.
+- Across the axis, it can. Beside the mouth, from z = -8 to -1.75 m, the deck is 6.25 m wide. The shuttle is 6 m wide.
+
+So the shuttle parks belly on the deck, against the bay's -Z wall, with its length along the axis. Its hull fills z from -8 to -2 m. That leaves the mouth free by 0.25 m. The weak gravity of the turn decides the side too:
+
+- Off the middle of the deck, the spin gravity does not point straight into the deck. It points away from the axis. The parked center of mass lies at (-6.09, 3, -5) m. There the spin gravity is ω² r = 0.773 m/s², and it leans 39 degrees from the deck's normal toward the -Z wall.
+- So a hull at z = -5 m slides toward the wall. A hull against the wall stays there, with no friction and no push. The corner holds it.
+- The Coriolis force on the move out also points toward -Z. A body that moves away from the axis falls behind the deck, which moves toward +Z there. So the corner lies on the side to which the move out drifts.
+
+The hatch is on the shuttle's starboard side. With the belly on the deck and the nose into the bay, starboard points along +Z, toward the middle of the deck and the mouth. So the parked shuttle's hatch faces the way to the chute. Parked against the +Z wall, it faces that wall.
+
+Along the axis, the parked shuttle lies with its tail 1.5 m inside the slot wall's inner face (`DemoStation.ParkedTailGap`). Its center is at y = 3 m, its nose at y = -5 m and its tail at y = 11 m. Why there:
+
+- The entry stops at that y on the axis, and the move out keeps it. So the shuttle never moves along the axis near the walls. The tail clears the slot's wall by 1.5 m before the hull moves away from the axis, which the slot's 1 m of clearance needs.
+- The hatch's middle lies at y = 5 m. Its doorway opens at z = -2 m, from y = 4.4 to 5.6 m. The mouth's nearest edge lies 2.65 m from it along the axis and 0.25 m across it. So the person who leaves the hatch takes a short walk on the deck to the chute. A walk along the axis has no Coriolis force. Step 6 plans the walk.
+- A hatch in line with the mouth has its center at y = -2 m. Then the person is over the mouth as it steps out of the doorway, with no walk.
+
+The constants in `DemoScenes.DemoStation` that the exit reads:
+
+| Constant | Value, in the station's axes | What it says |
+|---|---|---|
+| `DockedRotation` | Nose along -Y, roof along +X, starboard along +Z | The shuttle's rotation on the deck |
+| `ParkedTailGap` | 1.5 m | How far the parked tail lies inside the slot wall's inner face |
+| `ParkedPose` | (-6, 3, -5) m, with `DockedRotation` | The parked shuttle's pose: belly on the deck at x = -8 m, port side on the wall at z = -8 m |
+| `ParkedBounds` | x from -8 to -4 m, y from -5 to 11 m, z from -8 to -2 m | The box of the parked hull, `Shuttle.Hull` at `ParkedPose`. The tram's hull fits it. |
+| `SpokeMouth` | x from -8.5 to -8 m, y and z from -1.75 to 1.75 m | The inside of the spoke at θ = 180 degrees, through the deck's wall. The chute's top lies inside it. |
+
+The end state, for step 6:
+
+- The shuttle's hull is static in the station's frame, at `ParkedPose` within 3 cm across the axis, 0.1 m along it and 0.5 degrees. Its cabin frame is a child of the station's frame.
+- The docking autopilot is in `Docked` and adds nothing. The rendezvous autopilot is `Halted`. It logged once, at the hand-off, that the shuttle left the frame that holds its station. The ascent autopilot is in `Orbit` and adds nothing in the station's frame (see "Changes to the layers that exist").
+- No `Throttle`, `AttitudeTarget` or `Translation` reaches the actuators, so they give nothing. A static hull takes no force anyway.
+- The person is `Strapped`, with the pen in its hand. It stands at its seat, because the cabin's gravity, 0.783 m/s² at the seat stand, leans only 30 degrees from the floor's down, toward port. The belt holds only past 45 degrees, so it does not hold. Step 6 opens the belt.
+- The cabin's felt gravity at a point is ω² times the point's distance from the station's axis, away from the axis. On the cabin floor it runs from 0.765 m/s² at its middle line to 0.80 m/s² at the port wall. Off the middle of the deck, it leans toward port: by 33 degrees at the port wall and by 22 degrees at the starboard wall. So the floor of the parked cabin feels tilted toward port, a slope that a character walks up and down, as on a ramp.
+
+Why the parked hull is static:
+
+- The pad's parked shuttle is static too (`Shuttle.Park`), and the ascent autopilot unparks it with `Self.Body.SetMotion(BodyMotion.Dynamic)`. A later undocking does the same here.
+- A static hull stays exactly where the corner put it, with no push and no drift. The person's walk and the chute's start then read one fixed pose.
+- The corner alone also holds a dynamic hull, as the test of the end state shows. So a landing that ends with the hull at rest in the corner, but not yet static, is safe.
+
+### The docking autopilot
+
+#### Layers
+
+`DockingAutopilot` is the third layer of the flight program, at priority 2. It runs after the ascent autopilot at 0 and the rendezvous autopilot at 1, and before the actuators at 10.
+
+| Component | Priority | What it adds in the docking |
+|---|---|---|
+| `AscentAutopilot` | 0 | In its `Orbit` case, an `AttitudeTarget` with the nose along the velocity, while the shuttle is in a frame with point gravity. In the station's frame, nothing. |
+| `RendezvousAutopilot` | 1 | In `Hold`, an `AttitudeTarget` and a `Translation` in every tick, until the hand-off. Then it halts and adds nothing. |
+| `DockingAutopilot` | 2 | From the spin-up to the landing, an `AttitudeTarget` and a `Translation` in every tick. Nothing in `Standby`, `Waiting` and `Docked`. |
+| `AttitudeAutopilot`, `MainEngine`, `TranslationThrusters` | 10 | They read what the layers added and follow the last layer that speaks. |
+
+An active docking adds both an attitude target and a translation in every tick. So the targets and the translations of the rendezvous's hold never reach the actuators while the docking flies. The docking adds no `Throttle`, so the main engine stays off.
+
+#### Changes to the layers that exist
+
+- `AttitudeTarget` becomes one struct of 48 bytes, the size of an event payload: the `DQuaternion` rotation (32 bytes), a `Vector3` feed-forward angular velocity (12 bytes) and a `float` `MaxTurnRate` (4 bytes). Today `MaxTurnRate` is a `double`.
+- `FeedForward` is the target's own angular velocity relative to the entity's frame, in that frame's axes, in rad/s. Its default is zero. The ascent and the rendezvous leave it zero.
+- `AttitudeAutopilot` adds the feed-forward to the rate that it asks for. `MaxTurnRate`, the target's and the autopilot's 0.15 rad/s, caps only the correction toward the target:
+
+```
+rate = FeedForward + (Gain · turnLeft, at most min(MaxTurnRate, AttitudeAutopilot.MaxTurnRate) long)
+torque = I · (rate - angularVelocity) / RateTime, in the principal axes, as today
+```
+
+where
+
+- `turnLeft` = the rotation vector from the hull's rotation to the target's, in the frame's axes, in radians.
+- `angularVelocity` = the hull's angular velocity in the frame, in its axes.
+- `Gain`, `RateTime`, `I` = as today: 0.8 /s, 1/3 s and `Shuttle.Inertia`.
+
+The station turns at 0.31321 rad/s, faster than the autopilot's 0.15 rad/s. Without the feed-forward, the autopilot cannot follow a target that turns with the station. With it, the target's turn needs no correction, and the cap keeps its meaning: how fast a layer lets the hull close an error. A feed-forward that is not finite makes the autopilot throw `ArgumentOutOfRangeException`, as a bad `MaxTurnRate` does. A float holds the station's rate to 6e-8 of itself. Over the docking's three minutes that drifts the target by 6e-6 rad, which the correction takes out.
+
+- The ascent autopilot's `Orbit` case adds its target only while the shuttle's frame has point gravity, the rule by which it flew. Its law, nose along the velocity and roof away from the planet, means nothing in the station's frame, which has no field. The docking's branch first read the velocity in the shuttle's frame, where it is near zero, and exactly zero once the hull is static, and `AttitudeAutopilot.Facing` throws for a zero nose. Since the Earth system, the autopilot reads the velocity in `earth`, the frame of its `LaunchPlane`, where it is the orbit's velocity. So without this rule, its target would turn the docked shuttle's nose along the orbit, away from the docked rotation, once the docking autopilot stops speaking. The rule reads the point gravity of `self.Frame`, the frame that the hull is in, not of the plane's frame, which always has it.
+- `ApproachGuidance` takes the free acceleration as a parameter, and its `MaxAcceleration` caps only the correction (see "The law"). The brake and the glide pass the difference of the planet's gravity, which they cancel today. So one law serves the brake, the glide, the hold and the docking. The law no longer holds the planet's G·M, because it no longer computes a gravity: the rendezvous reads the G·M from the point gravity of its frame in each tick, as the docking does. `ApproachGuidance.FreeAcceleration` gives the free acceleration in turning axes, and the rendezvous passes its difference of gravity alone.
+- `Shuttle.TranslationThrust` grows from 4,000 N to 30,000 N per axis, 1.5 m/s² for the shuttle's 20 t (see "The translation thrusters' force").
+
+#### The phases
+
+The docking is one flat state machine, as every staged component is (the user's rule of 2026-10-20). `DockingState` is a custom C# 15 union, like `RendezvousState`, with one record per case. It reuses the payload-less cases `Standby` and `Halted` of the rendezvous's union. The default value is `Standby`. Its events are a second custom union, `DockingEvent`: the script's order `Dock`, and the reports of the case that flies the tick. One pure function, `DockingAutopilot.Next(state, event)`, is the only change of the case. Unit tests pin each of its rows with no World.
+
+| Case | Data | What the case does in a tick | Its report |
+|---|---|---|---|
+| `Standby` | None | It adds nothing. | None |
+| `Waiting` | None | It adds nothing, so the rendezvous's hold flies on. | `AtRollWindow(Time)`, when the shuttle is within the hold's tolerances and the roll angle ρ lies from -ω·dt/2 to ω·dt/2. `Time` is the world time of the tick. |
+| `SpinUp(StartTime)` | The world time at which the spin-up started, in seconds | It holds the hold point. Its attitude target trails the docked rotation by the lag λ, which falls to zero in `SpinUpTime`. After that time the target is the docked rotation at rest. | `SpunUp`, when the spin-up's time is over and the spin-up's tolerances hold |
+| `Entry` | None | It flies the shuttle along the axis to the entry's end, (0, 3, 0) m, with the docked rotation. | `EntryEnded`, when the shuttle's center is at y = 3.5 m or less, within 0.5 m of the axis |
+| `MoveOut` | None | It flies the shuttle on a straight path in the station's axes to the landing point, with the docked rotation. | `Landed`, when the shuttle rests at the parked pose within the landing's tolerances. In that tick the case adds nothing. |
+| `Docked` | None | It adds nothing. | None |
+| `Halted` | None | It adds nothing more. | None |
+
+Each case that flies, from `Waiting` to `MoveOut`, first reports `Lost(Reason)` instead, in these cases:
+
+- Its station is gone or owns no frame. One lookup of the station's frame covers both, because a destroyed owner's frame is gone with it.
+- Its hull has no mass.
+- The shuttle is in neither the station's frame nor the frame that holds the station.
+
+`Next` holds these rows. Every other pair leaves the case as it is.
+
+| Case | Event | Next case |
+|---|---|---|
+| `Standby` | `Dock` | `Waiting` |
+| `Waiting` | `AtRollWindow(Time)` | `SpinUp(Time)` |
+| `SpinUp` | `SpunUp` | `Entry` |
+| `Entry` | `EntryEnded` | `MoveOut` |
+| `MoveOut` | `Landed` | `Docked` |
+| `Waiting`, `SpinUp`, `Entry` or `MoveOut` | `Lost` | `Halted` |
+
+So a report changes only the case that makes it, a second `Dock` changes nothing, and `Docked` and `Halted` are final.
+
+The order of a tick: the order `Dock` goes to `Next` first, because it arrived before the tick. So the case that it starts, `Waiting`, flies the same tick. Then the case flies the tick and returns at most one report, which goes to `Next` after it. So the new case flies from the next tick on. The reports read the state at the end of the last finished step, as the flight does, so a report one tick after its moment costs nothing that the tolerances see.
+
+The side effects come from the old and the new case, never from a column of actions:
+
+- From `MoveOut` to `Docked`: `self.Body.SetMotion(BodyMotion.Static)`.
+- Into `Halted`: the log line of the loss's reason, once.
+
+Each case holds the data that it needs. Only `SpinUp` needs data: the profile of the spin-up is a pure function of the time since its start.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Standby
+  Standby --> Waiting: Dock
+  Waiting --> SpinUp: AtRollWindow
+  SpinUp --> Entry: SpunUp
+  Entry --> MoveOut: EntryEnded
+  MoveOut --> Docked: Landed, and the hull made static
+  Waiting --> Halted: Lost
+  SpinUp --> Halted: Lost
+  Entry --> Halted: Lost
+  MoveOut --> Halted: Lost
+```
+
+`Dock` is an event with no payload, which the script posts, as it posts `Rendezvous`.
+
+#### Reads and writes, and their frames
+
+The autopilot reads and steers in the station's frame, whichever frame holds the shuttle:
+
+- The station's frame: `self.Snapshot.Frames.TryGetFrame(station, out stationFrame)`.
+- The shuttle's pose, velocity and angular velocity in the station's frame: `self.PoseIn(stationFrame)`, `self.VelocityIn(stationFrame)` and `self.AngularVelocityIn(stationFrame)`. Outside the bubble the engine converts them from the frame that holds the station, with the station's turn (ARCHITECTURE.md, "Hand-off", rule 5). Inside they are the hull's own rows.
+- The station's rate ω: minus `FrameTree.AngularVelocityRelative(FrameHandle.Null, stationFrame)`, the angular velocity of the virtual root relative to the station, which the frame tree gives in the station's axes. So the autopilot needs no pose of the station in the root.
+- Outside the bubble only, while `self.Frame` is the frame that holds the station: the shuttle's and the station's positions in `self.Frame`. They give the difference of the planet's gravity. The G·M comes from the point gravity of `self.Frame` (`KeplerOrbit.MuFrom`), as the rendezvous takes it.
+- The hull's mass, from `self.Snapshot.TryGetBody`.
+- The hull's center of mass in its own axes, `Shuttle.CenterOfMass`. It comes through the constructor, as the attitude autopilot takes its inertia.
+
+Every write is relative to `self.Frame`, in its axes. The autopilot turns what it computed in the station's axes with the station frame's pose in `self.Frame`, `FrameTree.Relative(stationFrame, self.Frame)`. Inside the bubble that pose is the identity.
+
+- `AttitudeTarget.Rotation` = the station's rotation in `self.Frame` times the target rotation in the station's axes.
+- `AttitudeTarget.FeedForward` = the target's angular velocity relative to the station, turned into `self.Frame`'s axes, plus the station frame's angular velocity relative to `self.Frame`. That second term is `FrameTree.AngularVelocityRelative(stationFrame, self.Frame)`, in `self.Frame`'s axes. Outside the bubble the second term is ω about the axis. Inside it is zero. One rule covers both frames, with no case per frame.
+- `AttitudeTarget.MaxTurnRate` = `AttitudeAutopilot.MaxTurnRate`.
+- `Translation.Force` = the mass times the push of the law, turned into `self.Frame`'s axes.
+- In the tick of the report `Landed`: `self.Body.SetMotion(BodyMotion.Static)`, the side effect of the change from `MoveOut` to `Docked`.
+
+The tick reads the state at the end of the last finished step. Its pushes act in the step of the next tick, two steps late, as for the rendezvous. Every time constant below is 1 s or longer, so the lag costs little.
+
+#### The law
+
+The docking flies one law in the station's axes, `ApproachGuidance` with the free acceleration as a parameter:
+
+```
+x = origin - target,   d = |x|
+wanted = -(x / d) · min(SpeedCap, sqrt(2 BrakeAcceleration d), FinalRate d)
+correction = (wanted - u) / VelocityTime,   at most MaxAcceleration long
+push = correction - free
+free = -ω × (ω × c) - 2 ω × u + outside · R⁻¹ (g(shuttleInParent) - g(stationInParent))
+```
+
+where
+
+- `origin` = the hull's origin, the middle of its box, in the station's axes.
+- `target` = the phase's target point in the station's axes: the hold point (0, 150, 0) m, the entry's end (0, 3, 0) m, or the landing point.
+- `u` = the shuttle's velocity in the station's frame, in its axes.
+- `c` = the hull's center of mass in the station's axes, `pose.TransformPoint(Shuttle.CenterOfMass)`. The spin's terms act on the body as a whole, at its center of mass. The law flies the origin, so the box stays centered in the slot, and cancels the terms where they act. The center of mass lies 9 cm below the origin. A law that cancels them at the origin misses the centrifugal term on that offset, and leaves the hold 0.2 m off its target.
+- `outside` = 1 while `self.Frame` is the frame that holds the station, 0 inside the station's frame. Outside, the planet's gravity pulls the shuttle and the station's center differently. Inside, a semantic frame gives its contents no tidal gravity.
+- `g(r)` = the planet's point gravity, `KeplerOrbit.Acceleration(r, Mu)`. `R⁻¹` turns the parent's axes into the station's.
+- `push` = the acceleration that the thrusters must give, in m/s², in the station's axes.
+
+Outside the bubble, four terms make the shuttle's acceleration relative to the station's turning axes. They are its thrust, the difference of gravity, and the centrifugal and Coriolis terms of the station's turn. Inside, physics gives the shuttle exactly the centrifugal and Coriolis terms (docs/plans/spin-gravity.md). The Euler term is zero, because the station's spin is steady. So `free` is exact on both sides of the hand-off, and the law stays one law.
+
+The cap takes only the correction. The spin's terms grow with the radius, and the law must always cancel them: with a cap on the whole push, the centrifugal term wins far from the axis.
+
+| Phase | Target | `BrakeAcceleration` | `SpeedCap` | `FinalRate` | `VelocityTime` | `MaxAcceleration` |
+|---|---|---|---|---|---|---|
+| `SpinUp` | Hold point | The glide's: 0.05 m/s² | 5 m/s | 0.1 /s | 2 s | 0.2 m/s² |
+| `Entry` | Entry's end, (0, 3, 0) m | 0.1 m/s² | 2 m/s | 0.2 /s | 1 s | 0.3 m/s² |
+| `MoveOut` | Landing point, (-6.1, 3, -5.1) m | 0.05 m/s² | 0.5 m/s | 0.2 /s | 1 s | 0.3 m/s² |
+
+The spin-up holds with the glide's law, `ApproachGuidance.ForGlide`, which already holds the shuttle at the hold point. The entry and the move out get `ApproachGuidance.ForEntry` and `ApproachGuidance.ForMoveOut`. The product of `FinalRate` and `VelocityTime` is 0.2 in every phase, as in the glide. So the last approach to a target is damped a little more than critically. The loop's damping ratio is 1/(2 sqrt(0.2)), 1.12.
+
+#### The spin-up and the roll
+
+At the hold, the shuttle does not turn relative to the stars. In the station's axes it turns backward at ω. The spin-up brings it to rest in those axes, with its belly toward the deck, in one smooth turn about the axis:
+
+```
+τ = time - StartTime,   at most SpinUpTime
+λ(τ) = ω (SpinUpTime - τ)² / (2 SpinUpTime)
+target = R_Y(λ(τ)) · DockedRotation
+feedForward = -ω (SpinUpTime - τ) / SpinUpTime · Ŷ
+```
+
+where
+
+- `R_Y(λ)` = the turn by λ about the station's +Y.
+- `target` = the attitude target in the station's axes.
+- `feedForward` = the target's angular velocity relative to the station, in its axes, `dλ/dτ · Ŷ`.
+- `SpinUpTime` = 30 s.
+
+At τ = 0, `feedForward` is -ω about the axis: the target does not turn relative to the stars, as the hull does not. At τ = `SpinUpTime`, λ and `feedForward` are zero: the target is the docked rotation, at rest in the station. In between, the hull's rate relative to the stars, ω τ / `SpinUpTime`, grows steadily. So the spin-up is a constant angular acceleration of 0.0104 rad/s² about the axis, with no jolt at either end of the turn's rate.
+
+The roll is folded into the start. The hull trails the docked rotation by λ(0) = ω · `SpinUpTime` / 2, 269.2 degrees, at the start. The station turns once in 20.1 s, so within one turn the roll angle ρ to the spin-up's first target, `R_Y(λ(0)) · DockedRotation`, passes zero. `Waiting` reports the roll window in the one tick of each pass in which ρ lies from -ω·dt/2 to ω·dt/2, and the spin-up starts from that tick's time. The station turns 0.3 degrees in a tick, so the roll is then right within 0.15 degrees. The roll needs no phase of its own and no turn beyond the spin-up. A separate roll after the spin-up turns the hull by up to 180 degrees relative to the station. At the cap's 0.15 rad/s that takes up to 21 s, with an Euler term at the seat as it starts and stops.
+
+The spin-up ends at the end of `SpinUpTime`, once these tolerances hold in the station's axes. Until they hold, the target stays the docked rotation at rest:
+
+| Tolerance | Value | Why |
+|---|---|---|
+| Attitude | Within 1 degree of `DockedRotation` | A roll of 1 degree moves the farthest corner of the cross-section, 3.5 m from the middle, by 6 cm. A tilt of 1 degree moves the hull's ends by 14 cm. |
+| Turn relative to the station | Below 0.005 rad/s | 6 s of it is the attitude's 1 degree. |
+| Position | Within 0.5 m of the hold point | The hold's tolerance |
+
+Measured on paper, for the felt gravity of the turn: the hull's angular acceleration gives an Euler term of 0.014 m/s² at the seat stand, 1.35 m from the hull's long middle line. The centrifugal term there grows to ω² · 1.35 m = 0.132 m/s².
+
+#### The entry
+
+The entry flies the shuttle along the axis from the hold point, 150 m out, to the entry's end, (0, 3, 0) m. The shuttle keeps the docked rotation, at rest in the station's axes. On the axis no spin term acts on a point: the centrifugal term needs a distance from the axis, and the Coriolis term needs a velocity across it. So the law only takes out small errors there.
+
+- Speed: 2 m/s at most, from the cap. The braking curve takes over 20 m before the end, and the final rate 5 m before it. The nose reaches the slot's outer face, y = 13 m, at about 1.9 m/s, and the tail passes it at about 0.4 m/s. The entry takes about 90 s.
+- The hand-off: at 128.8 m from the station's center, the shuttle's bounding sphere of 8.8 m first touches the station's bubble of 120 m. Then the shuttle enters the station's frame (ARCHITECTURE.md, "Hand-off", rule 1). Its cabin frame moves under the station's frame with it, and the person and the pen's copy with the cabin. The hull moves at 2 m/s along the axis and turns with the station. In the station's axes it is at rest but for that 2 m/s. This is the first test of a dynamic hull with a cabin frame that enters a turning frame's bubble. The station step's test of the hull's record used a station that does not turn. If the hand-off fails, that is an engine bug for its own ticket, which goes to the user.
+- The rendezvous autopilot halts in the tick after the hand-off, because the shuttle is no longer in the frame that holds its station. It logs that once, as its design says. The docking already overrides it.
+- The end: the shuttle's center is at y = 3.5 m or less, within 0.5 m of the axis. Its tail then lies at least 1 m inside the slot wall's inner face, at y = 12.5 m. The center is then 0.5 m from the entry's end and moves at about 0.1 m/s. The move out takes over without a stop.
+
+The tram's cross-section in the slot, with the docked rotation: the hull's height of 4 m lies along X and its width of 6 m along Z. The slot is 6 m along X and 8 m along Z. So the box of the cross-section has 1 m on every side.
+
+- The bevels cut the box's corners. The farthest corner of the full cross-section from its middle is the top of each belly bevel, 3.50 m out. The old box's corner was 3.61 m out.
+- A roll of 1 degree, the entry's tolerance, moves that corner by 6 cm. A tilt of 1 degree moves the hull's cross-section in the slot's plane by at most 14 cm, at the hull's ends. The law holds the origin within 0.25 m of the axis (see "Tolerances").
+- The nose's front is narrower, 4.8 m wide and 2.6 m tall. It enters the slot first, with 1.6 m of room along Z.
+- So the cross-section keeps at least 0.5 m from the slot's edges in the worst sum of the tolerances. `DemoStation.SlotClearance` stays 1 m.
+
+#### The move out and the landing
+
+The move out flies the shuttle from the entry's end to the landing point, with the docked rotation at rest. Its path is the straight line between them in the station's axes, 7.95 m long. The line is the co-rotating path: fixed in the station's axes, it turns with the station.
+
+- Speed: 0.5 m/s at most. The braking curve takes over 2.5 m before the landing point, where the final rate takes over too. The move out takes about 27 s.
+- The push toward the axis: on the path, the law cancels the centrifugal term with a push of ω² r toward the axis. Here r is the distance of the hull's center of mass from the axis. At the parked point the push is 0.773 m/s², 15.5 kN for the shuttle. The push is the cabin's proper acceleration. So the person feels it as weight away from the axis. At the seat stand that weight grows from 0.132 m/s² on the axis to 0.783 m/s² at the parked point.
+- The Coriolis term: at 0.5 m/s it is 0.31 m/s² across the path, toward -Z while the hull moves away from the axis. The law cancels it in every tick, as a feed-forward, so the hull does not leave its path.
+- The landing: at 0.16 m from the landing point, the hull meets the bay's -Z wall. At 0.13 m it meets the deck. The final rate then asks for 3 cm/s. The landing point lies 0.1 m beyond the contact on each side. So the law keeps a correction of about 0.03 m/s², 560 N, into the corner. The contacts take it, and the spin gravity presses the hull into the corner too.
+
+The move out ends at rest in the corner. In the station's axes, these hold:
+
+| Tolerance | Value |
+|---|---|
+| Across the axis | x and z within 3 cm of the parked point |
+| Along the axis | y within 0.1 m of the parked point |
+| Attitude | Within 0.5 degrees of `DockedRotation` |
+| Rest | Slower than 0.01 m/s, and turning slower than 0.002 rad/s, relative to the station |
+
+In that tick the case adds nothing and reports `Landed`. `Next` takes it to `Docked`, and the change makes the hull static with `Self.Body.SetMotion(BodyMotion.Static)`. Then the autopilot adds nothing more. The hull stays where the corner put it.
+
+#### Tolerances
+
+| Phase | Tolerance |
+|---|---|
+| Start of the spin-up | The hold's, in the station's axes: within 0.5 m of the hold point, and slower than 0.02 m/s. The nose within 1 degree of minus the axis. The roll angle within half a tick of the station's turn. |
+| End of the spin-up | Within 1 degree of the docked rotation, turning slower than 0.005 rad/s relative to the station, within 0.5 m of the hold point |
+| Entry | While any part of the hull lies within the slot's depth: the origin within 0.25 m of the axis, and the attitude within 1 degree of the docked rotation. No contact before the move out. |
+| End of the entry | The center at y = 3.5 m or less, within 0.5 m of the axis |
+| Move out | Within 0.3 m of the straight line from where the move out starts to the landing point, until the first contact. The move out starts within 0.5 m of the entry's end, and the law flies straight from there. |
+| End of the move out | As in the table above |
+
+### The translation thrusters' force
+
+The move out needs far more than 4,000 N per axis. At the parked point the law cancels the centrifugal term. It needs 0.597 m/s² along the station's X, the hull's Y. It needs 0.49 m/s² along the station's Z, the hull's X. The Coriolis term adds up to 0.31 m/s² across the path, and the correction up to 0.3 m/s². In the worst sum that is 1.2 m/s² on one of the hull's axes, 24 kN.
+
+So `Shuttle.TranslationThrust` becomes 30,000 N per axis, 1.5 m/s². The thrusters are one piece of hardware, so every law gets the new limit:
+
+- The glide and the hold ask for at most 0.2 m/s², and the trim for at most 0.025 m/s². They do not change.
+- The burn and the brake give the thrusters the part of their push off the nose. Today the thrusters cap it at 0.2 m/s² per axis. With 30,000 N they give up to 1.5 m/s² per axis. So the push follows the law while the nose still turns toward it, as in the first seconds of the burn. The burn and the brake change a little, so the run of the rendezvous changes.
+- So the rendezvous's run test, `BlueDanubeRendezvousRun`, runs again. Its measured times in "The orbits, the window and the times" and "Sections of the long script" are written again. The script is written again anyway, with the docking's sections.
+
+A cap on the rendezvous's off-nose push at the old 4,000 N keeps its run as it is. But that cap is a second limit beside the hardware's, which can disagree with it. So the design does not take it.
+
+### The passenger through the docking
+
+The person stays `Strapped`, with the pen in its hand. The belt holds it at the seat in two cases: the felt gravity is below the weightless threshold, or it leans more than 45 degrees from the floor's down. Otherwise it stands on the floor. Nothing in `Passenger` changes. By the engine's rule for every character, its up follows the felt gravity: in the air at 1 rad/s at most, and at once while it stands (ter-1b21, [Spin gravity](spin-gravity.md), "Characters"). The demo accepts the tipping that this gives, as the user decided for the climb on 2026-10-20.
+
+| Part | Felt gravity at the seat stand | The person |
+|---|---|---|
+| Hold | Weightless, as in the rendezvous | Belted, with its head toward the nose, as the glide left it |
+| Spin-up | Grows to 0.132 m/s², away from the hull's long middle line, leaning 48 degrees from the floor's down toward starboard. The Euler term adds 0.014 m/s². | The belt holds it. From about 26 s into the spin-up, above 0.1 m/s², it is no longer weightless. Its up then turns to 48 degrees to port of the cabin's up. |
+| Entry | The same, steady | The same |
+| Move out | Grows to 0.783 m/s², away from the station's axis. Its lean swings from 48 degrees toward starboard through zero to 30 degrees toward port. The move out's own pushes add up to 0.3 m/s² for a few seconds at its start and its end. | Once the lean falls below 45 degrees, the belt lets go. The person stands at its seat, with its up against the felt gravity. |
+| Docked | 0.783 m/s², 30 degrees toward port | It stands at its seat. |
+
+At the start of the move out, the push away from the axis lifts the felt gravity off the floor for a few seconds. The lean then lies above 45 degrees, so the belt holds the person through it.
+
+### The cameras
+
+Two cameras are new:
+
+| Camera | Frame | Pose | What it sees |
+|---|---|---|---|
+| `bay-camera` | The station's | At (6.5, -11.5, 5.5) m, 1 m from the bay's far wall, looking at (-3, 3, -1.5) m, with its roof toward +X | The slot, the shuttle's nose as it comes through, the move out and the landing in the corner, and the spoke's mouth in the deck. It is still in the bay, which is still in the station's axes. |
+| `hold-camera` | The station's | At (30, 170, 10) m, 20 m beyond the hold point along the axis and 32 m from the axis, looking at (0, 114, 0) m, with its roof toward +Z | The end of the spin-up: the shuttle at the hold, 37 m away, with the hub 173 m away beyond it. It turns with the station, so the shuttle first turns backward in the picture, then slows and stops, belly toward the deck, while the stars wheel behind. |
+
+A check on paper used the picture's fields, 92 degrees across and 60 degrees up and down. It put the slot's corners, the parked hull's corners and the spoke's mouth inside the picture. The nearest to the edge is the parked hull's corner at (-8, -5, -2) m. It lies 0.517 of the half height below the middle, against a limit of 0.582. The builder checks the corners with `Picture.Project` in a test. If a corner leaves the picture, the builder moves the camera.
+
+The cameras that exist and what they see in the docking:
+
+| Camera | Frame | In the docking |
+|---|---|---|
+| `chase-camera` | The shuttle's | The spin-up from the starboard quarter. Before it, the station turns in the picture. As the shuttle matches it, the station's turn slows to a stop, and Earth and the stars start to wheel behind it. |
+| `window-camera` | The shuttle's | The entry from the nose: the slot grows ahead through `pane-nose`, still in the picture, while the stars turn round it. |
+| `cockpit-camera` | The shuttle's | The person in the move out: its weight returns, the belt lets go, and it stands. |
+| `cabin-camera` | The shuttle's | The docked cabin: the person standing at its seat, and the hatch through which step 6 starts. |
+
+`chase-camera` lies 40 m out in the shuttle's frame, outside the hub once the shuttle is in the bay. So it films only the spin-up.
+
+The first build filmed the end of the spin-up from `rim-camera`, near the wheel's rim beside the hub. From there the shuttle at the hold lies 171 m away, and its box covers 0.24 percent of the picture: a speck at the right edge, with the hub at the left. The hub and the shuttle lie 150 m apart, so no camera beside the hub frames both with the shuttle larger than that. `hold-camera` stands beyond the shuttle instead, so the shuttle is near and the hub lies beyond it, 47 degrees to one side. A camera with no body takes no hand-off, so it stays in the station's frame outside its bubble, as `chase-camera` stays in the shuttle's. `DemoStationTests.TheSpinMatchCameraFramesTheHubAndTheShuttleAtTheHold` checks the hub's and the shuttle's corners with `Picture.Project`, in eight rolls of the shuttle, and that the shuttle's box covers more than 1 percent of the picture.
+
+### Sections of the long script
+
+The docking's sections follow `hold-chase`. Their cues read the docking autopilot's case and places in the station's frame, `world.GetOwnedFrame(scene["station"])`, because the shuttle's frame changes at the hand-off. None names the frame that holds the station. The model column comes from the model above. The measured column is what the generator printed on 2026-10-20.
+
+| Film | Camera | Ticks per frame | Posts | Ends | Model | Measured |
+|---|---|---|---|---|---|---|
+| `dock` | `chase-camera` | 2 | `Dock` to `shuttle` | The docking autopilot is in `SpinUp` | Up to 20 s, up to 600 frames | From 4,874.6 s: 17.7 s, 532 frames |
+| `spin-up` | `chase-camera` | 2 | | 20 s into the spin-up | 20 s, 600 frames | 20 s, 599 frames |
+| `spin-match` | `hold-camera` | 2 | | The docking autopilot is in `Entry` | About 10 s, 300 frames | 10 s, 301 frames |
+| `entry` | `window-camera` | 4 | | The nose is within 10 m of the slot's outer face: the shuttle's center within 31 m of the station's center, along the axis | About 62 s, 930 frames | 62.9 s, 944 frames |
+| `slot` | `bay-camera` | 2 | | The docking autopilot is in `MoveOut` | About 28 s, 840 frames | 22.1 s, 663 frames |
+| `move-out` | `cockpit-camera` | 2 | | The shuttle's center is within 1 m of the parked point | About 20 s, 600 frames | 15.3 s, 460 frames |
+| `landing` | `bay-camera` | 1 | | 2 s after the docking autopilot is in `Docked` | About 10 s, 600 frames | 10.4 s, 622 frames |
+| `docked` | `cabin-camera` | 1 | | After 3 s | 3 s, 180 frames | From 5,033.1 s: 3 s, 180 frames |
+
+So the docking films 4,301 frames in 161.5 s of the simulation, 72 s of video. The merge with the Earth system (ter-yhu8) on 2026-10-21 left every film of the docking as it was. The model gave about 4,650 frames in about 175 s. The entry ended 5 s sooner than the model, because the cue of the entry's end lies 0.5 m before its target. Every section stays within the default limit of 10 minutes.
+
+`scripts/demo-docking.json` films the docking alone, for a quick look at it: it is the long script, with every film before `dock` run as plain ticks and the camera steps before it left out, and with nothing after the film `docked`. So it posts the same orders at the same ticks and reaches the hold at the same tick (`BlueDanubeDockingTests`). Each cut names its first and its last section. The last section came with the merge of the exit: without it, the cut filmed the exit too, which `scripts/demo-exit.json` films already. The generator writes it beside the long script, from `BlueDanube.Cuts` and `BlueDanube.FilmedBetween`, so it changes with the long script and cannot drift from it (`BlueDanubeScriptTests`). The first build wrote it by hand with a script of its own after each change of the long script.
+
+### Analogues
+
+| New value | Its analogue | What the new value takes from it |
+|---|---|---|
+| `DockingAutopilot` | `RendezvousAutopilot` | A layer that adds events for the actuators in every tick that it steers. It reads the station through the snapshot, halts with one log line, and takes its order from the script. |
+| `DockingState` | `RendezvousState` | A custom union with one record per phase, each with the data that it needs. It reuses `Standby` and `Halted`. |
+| `DockingEvent` and `DockingAutopilot.Next` | None that I found | The first staged component of the demo built as one flat machine: a custom union of the events and one pure change of the case. The rendezvous changes its case in its tick. |
+| `Dock` | `Rendezvous`, `Ignition` | An order with no payload that the script posts |
+| `Waiting` | `Phasing` | A case that adds nothing while a layer before it flies on, and waits for a moment that the world gives |
+| `SpinUp`'s profile | `TransferGuidance`'s window and the passenger's float | A pure function of the state and the time, with no memory beyond the start |
+| The free acceleration of the spin | The difference of gravity in `ApproachGuidance` | A term that the law cancels, so that the shuttle moves relative to its target as a free mass in empty space does |
+| `ApproachGuidance.ForEntry`, `ForMoveOut` | `ApproachGuidance.ForBrake`, `ForGlide` | Named parameters of the one law |
+| `AttitudeTarget.FeedForward` | `AttitudeTarget.MaxTurnRate` | A field of the target that a layer sets in every tick, which the autopilot reads with the rotation |
+| The docked hull made static | `Shuttle.Park` and the ascent's unpark | A parked hull is static, and `SetMotion` changes it |
+| `bay-camera`, `hold-camera` | `rim-camera` | A still view in the station's frame |
+| `DemoStation.ParkedPose`, `DockedRotation`, `SpokeMouth` | `DemoStation.HoldPoint`, `Shuttle.SeatStand` | A named place in the axes of the thing that it belongs to |
+| The docking's sections | The rendezvous's sections | Cues that read the run, and time-lapses by the film interval |
+
+### Readers and writers
+
+Step k is the physics step that runs beside tick k. A tick reads the state at the end of step k - 1. The intents that it writes act in step k + 1.
+
+| Value | Writer, and when | Readers, and when |
+|---|---|---|
+| `Dock` | The script's post, between ticks | The docking autopilot, in the next tick |
+| `DockingAutopilot.State` | The docking autopilot, in its tick | The autopilot in the next tick. The section cues and the tests, between ticks. |
+| `AttitudeTarget`, with its rotation, its feed-forward and its `MaxTurnRate` | In tick k: the ascent autopilot (0) in a frame with point gravity, and the rendezvous autopilot (1) in `Hold` before the hand-off. The docking autopilot (2) from `SpinUp` to `MoveOut`. | The attitude autopilot (10) in tick k, which takes the last. Its torque acts in step k + 1. |
+| `Translation` | The rendezvous autopilot (1) and the docking autopilot (2), in tick k | The translation thrusters (10) in tick k, which take the last. Their force acts in step k + 1. |
+| The hull's motion, static | The docking autopilot's `SetMotion`, in the tick that ends `MoveOut` | Physics, from step k + 1. The frame tree stores it at the sync point after that step (ARCHITECTURE.md, "How a hull moves"). |
+| The shuttle's pose, velocity and angular velocity, read in the station's frame | Physics in step k, through the frame's record at step 2 of the sync point after it. Outside the bubble the read converts them from the frame that holds the station. | The docking autopilot and the actuators in tick k + 1 |
+| The shuttle's frame: the frame that holds the station, then the station's | The hand-off of the step in which the bounding sphere meets the bubble, applied at step 2 | The docking autopilot's choice of the gravity term and of the turn of its writes, in the next tick. The rendezvous autopilot, which halts. |
+| The station's pose, velocity and rate | The full sample of its `KeplerMotion` for step k, recorded at step 2 after step k | The docking autopilot in tick k + 1. The cues, between ticks. |
+| The cabin's felt gravity | The frame tree at step 2, from the hull's record and the station's turn | The passenger's belt in the next tick. The tests. |
+| The constants of `DemoStation`'s end state | Code | The docking autopilot's targets and tolerances, the cues, the tests and step 6 |
+
+### The flow per kind of entity
+
+| Entity | What moves it | Its components | Its frame | What it reads |
+|---|---|---|---|---|
+| Shuttle: a dynamic hull that owns the cabin's frame | Physics, by the forces of the translation thrusters and the torques of the attitude autopilot. In the station's frame, physics adds the centrifugal and Coriolis terms of the turn. After the landing, nothing: it is static. | `AscentAutopilot`, `RendezvousAutopilot`, `DockingAutopilot`, `AttitudeAutopilot`, `MainEngine`, `TranslationThrusters` | The frame that holds the station, then the station's. In each, the engine can give it a numeric frame of its own. | Its own pose, velocity and angular velocity in the station's frame, the station's rate, and outside the bubble the planet's G·M |
+| Station: a kinematic hull on rails that owns the station's turning frame | The full samples of its `KeplerMotion` | `KeplerMotion` | The frame that holds the station | The G·M of the frame that holds it |
+| The station's static parts, the hub with the deck among them | Nothing. They rest in the station's frame. | None | The station's | Nothing |
+| Person: a character in the cabin | Physics, by its belt's forces while the belt holds, and by the cabin's felt gravity while it stands | `Walker` (done), `Passenger` | The cabin | Its own pose and velocity in the cabin, and the cabin's felt gravity |
+| Cameras | Nothing. They are still in their frames. | None | The shuttle's or the station's | Nothing |
+| The script | It posts `Dock` between ticks. | | | |
+
+### Built from scratch, compared
+
+A design from scratch, with every step known, has three things from the start. The attitude target has its feed-forward. The translation thrusters have the force of the move out. The approach law takes the free acceleration as a parameter. This design adds the three now, and the docking is the same as from scratch. Two things differ:
+
+- From scratch, the builder chooses the slot and the deck with the parked shuttle and the chute in mind. Here the deck and the spokes came first. So the parked shuttle fits beside the spoke's mouth with 0.25 m to spare. The corner beside the mouth lies 5 m off the deck's middle, so the cabin's floor feels tilted 30 degrees toward port.
+- From scratch, the rendezvous ends quietly at the bubble. Here it halts there with its one log line, as its design says.
+
+### Tests
+
+Every test of physics runs the real World on the real Jolt backend, in `tests/Tertius.Host.Tests`. Each implementation brief asks for hand mutations. For each new test, the agent breaks the line that the test protects, watches the test fail, and restores the line.
+
+The end state, in this design's commit, `DockingEndStateTests`:
+
+- `TheParkedShuttleRestsOnTheDeckWithItsPortSideOnTheBaysWall`: at `ParkedPose`, the corners of `Shuttle.HullShape` lie inside the bay. The lowest lie on the deck at x = -8 m, and the farthest to port on the wall at z = -8 m. The tail lies 1.5 m inside the slot wall's inner face.
+- `TheParkedHullFitsItsBounds`: the same corners lie in `ParkedBounds`, and touch each of its six faces.
+- `TheParkedShuttleLeavesTheSpokeMouthFree`: `ParkedBounds` and `SpokeMouth` share no point, with at least 0.2 m between them across the axis.
+- `TheParkedHatchOpensOntoTheDeckTowardTheSpokeMouth`: the hatch's outward normal is the station's +Z. Across the deck, its doorway lies from 1 to 4 m from the mouth.
+- `TheSpinPullsTheParkedShuttleIntoTheCorner`: the centrifugal term ω² r at the parked center of mass points into the deck and into the -Z wall.
+- `ADynamicShuttleAtTheParkedPoseStaysInTheCorner`: the station flies its orbit in a root frame with Earth's point gravity. A dynamic shuttle hull spawns at `ParkedPose` in the station's frame, at rest there, with no push. After 10 s it lies within 3 cm and 0.5 degrees of the pose, in the station's frame. The felt gravity at `Shuttle.SeatStand` is ω² times its distance from the station's axis, 0.783 m/s², and leans 30 degrees toward port.
+
+Pure math, with no World:
+
+- `ApproachGuidanceTests`:
+  - `AtRestOnACoRotatingPathThePushIsThePullTowardTheAxis`: at the target and at rest in the station's axes, the push is ω² times the distance from the axis, toward it.
+  - `ThePushCancelsTheCoriolisTermOfTheVelocity`.
+  - `OutsideTheBubbleThePushAlsoCancelsTheDifferenceOfGravity`.
+  - `TheCapTakesOnlyTheCorrection`: far from the axis the push exceeds `MaxAcceleration` by the cancelled terms.
+  - The existing tests, with the free acceleration as a parameter.
+- `DockingMachineTests`, of `DockingAutopilot.Next`, one test for each row of the machine:
+  - `TheOrderStartsTheWaitFromStandby`, `TheRollWindowStartsTheSpinUpAtTheTimeOfTheReport`, `TheEndOfTheSpinUpStartsTheEntry`, `TheEndOfTheEntryStartsTheMoveOut` and `TheLandingDocks`.
+  - `ALossHaltsEveryCaseThatFlies` and `ALossInStandbyChangesNothing`.
+  - `ASecondOrderChangesNothing`, `DockedAndHaltedAreFinal` and `AReportChangesOnlyTheCaseThatMakesIt`.
+- `DockingProfileTests`, of `SpinUpProfile`:
+  - `TheLagFallsFromHalfTheStationsTurnInTheSpinUpTimeToZero`.
+  - `TheFeedForwardRisesSteadilyFromStillAmongTheStarsToTheStationsRate`.
+  - `TheRollWindowCatchesExactlyOneTickInEachTurnOfTheStation`.
+  - `TheRollAngleIsTheTurnAboutTheAxisFromTheHullsRoofToTheFirstTargetsRoof`.
+- `FlightControlTests`:
+  - `TheAttitudeTargetFitsAnEventPayload`: the registry takes it at 48 bytes.
+  - `AFeedForwardTurnsTheHullWithATargetFasterThanTheMaxTurnRate`: a target that turns at 0.31321 rad/s, with that feed-forward, is followed within 0.5 degrees after 5 s.
+  - `TheMaxTurnRateCapsOnlyTheCorrection`.
+  - `ANonFiniteFeedForwardIsAnErrorAndGivesNoTorque`.
+- `DemoLaunchTests` or `AscentGuidanceTests`: `InOrbitTheAscentAutopilotAddsNoTargetInAFrameWithoutPointGravity`.
+
+The docking on the real World, `DockingAutopilotTests`. The station flies its orbit in a root frame with Earth's point gravity, as in `RendezvousAutopilotTests`. The shuttle starts at the hold point at rest relative to the station, with the hold rotation. It has the docking autopilot and the actuators, and no rendezvous. So the tests run in seconds, not from the launch. One shared flight, `DockingFlight`, of about 10,000 ticks, without the world's invariant checks, serves the tests of the flight:
+
+- `WithoutAnOrderTheDockingAddsNothing`.
+- `TheSpinUpStartsWithinOneTurnOfTheStationAtTheRollWindow`.
+- `TheSpinUpNeverGivesTheSeatAnEulerTermAboveHalfTheWeightlessThreshold`.
+- `TheSpinUpEndsTurningWithTheStationWithTheBellyTowardTheDeck`.
+- `TheShuttleEntersTheStationsFrameAtItsBubbleAndKeepsItsMotion`: across the hand-off, the shuttle's pose and velocity in the station's frame continue within 1 mm and 1 mm/s. Its cabin frame becomes a child of the station's frame. If this fails, the failure is an engine bug for its own ticket, which goes to the user.
+- `TheHullPassesTheSlotWithinHalfItsClearance`: while any part of the hull lies within the slot's depth, the origin lies within 0.25 m of the axis and the rotation within 1 degree of the docked rotation, and every corner of the hull keeps 0.5 m from the slot's edges. No contact starts before the move out.
+- `TheEntryKeepsTheOriginOnTheAxis`: within 0.1 m in every tick of the entry. It locks in the cancellation at the center of mass: a law that cancels the spin's terms at the origin lets the hull drift 0.33 m from the axis.
+- `TheMoveOutKeepsTheHullOnItsCoRotatingPath`.
+- `TheShuttleLandsAtTheParkedPoseAndIsMadeStatic`.
+- `TheDockedShuttleStaysAndTheDockingAddsNothing`: 10 s after `Docked`.
+- `TheDockedCabinFeelsTheWeakGravityOfItsRadius`.
+- `TheDockingStopsWhenTheStationIsGone`, in its own short world.
+
+The run of the checked-in script:
+
+- `BlueDanubeRendezvousRun` runs on through the film `docked`. The docking adds about 10,500 ticks to its 292,000. The rendezvous's tests read the same log, with the times that the new thrust gives. Since the merge with the exit, the run goes on through the exit's films, and the docking's tests read its ticks only through `docked` (see "The exit", "Tests").
+- `BlueDanubeDockingTests` read that run:
+  - `TheDockingStartsFromTheRendezvousHold`.
+  - `TheShuttleEntersTheStationsFrameAndDocksAtTheParkedPose`.
+  - `TheStrappedPassengerStaysAtItsSeatThroughTheDocking`: within 0.4 m of the seat stand, and standing in `docked`. The design asked for 0.15 m. The run showed that the person stands 0.31 m to port of the seat stand once the belt lets go (see "Measured").
+  - `ThePenStaysInThePassengersHandThroughTheDocking`.
+  - `TheBayCameraSeesTheSlotAndTheParkedHull`, with `Picture.Project`, in every frame of `slot` and `landing`.
+  - `TheHoldCameraFramesTheHubAndTheShuttleInTheSpinMatch`, with `Picture.Project` and `Picture.Cover`, in every frame of `spin-match`.
+  - `TheWindowCameraSeesTheSlotThroughThePaneOfTheNose`, in every frame of `entry`.
+  - `TheOnlyLogLineOfTheDockingIsTheRendezvousHaltAtTheHandOff`, and `TheWorldLogsNoErrors`.
+  - `TheDockingScriptIsTheLongScriptWithOnlyTheDockingFilmed`, for `scripts/demo-docking.json`.
+- `DemoStationTests`: `OnTheGroundTheShuttlesDockingAutopilotHaltsOnlyBecauseTheStationIsInEarth`, which was `TheShuttlesDockingAutopilotDocksInTheStation` until the merge with the Earth system: on the ground the shuttle is in `earth-surface` and the station in `earth`, so the order halts the autopilot for the frames, not for a lost station. Also `TheBayCameraSeesTheSlotTheParkedHullAndTheSpokeMouth` with `Picture.Project`, and `TheSpinMatchCameraFramesTheHubAndTheShuttleAtTheHold`.
+- `BlueDanubeScriptTests` also checks that the generator writes the checked-in `scripts/demo-docking.json` beside the long script. `scripts/blue-danube.json` is written again.
+
+The screenshots that end the ticket come from one headless run of `scripts/demo-docking.json` with `--video` and the real renderer, which films the docking's sections of the long script. `ffmpeg-headless` takes frames out of the video, and they are looked at before they are sent:
+
+- The end of `spin-up` from `chase-camera`: the station still, Earth and the stars turned.
+- The nose in the slot, from `window-camera` at the end of `entry`.
+- The shuttle in the corner beside the spoke's mouth, from `bay-camera` at the end of `landing`.
+- The person standing at its seat in the docked cabin, from `cabin-camera` in `docked`.
+
+### Measured
+
+Measured on 2026-10-20 in the shared flight of `DockingAutopilotTests`, from the hold with no rendezvous. The review then made the autopilot one flat machine, in which a report changes the case for the next tick. That moves each change of the case one tick, 1/60 s, later, and the long script's film `move-out` one frame longer. The tests of the flight and of the run pass unchanged, and the times below stay as measured.
+
+- The spin-up starts 15.2 s after the order, at the roll window. It takes its 30 s. The Euler term of the turn at the seat stand reaches 0.015 m/s² at most, below half the weightless threshold.
+- At the end of the spin-up the shuttle lies 6 cm from the hold point. The glide's law flies the hull's origin, while the hull turns about its center of mass, 9 cm from the origin.
+- The shuttle enters the station's frame 128.76 m from its center, at 2.0 m/s. Across the hand-off, its pose and velocity in the station's frame go on within 4e-8 m and 6e-5 m/s. The engine path of a dynamic hull with a cabin frame that enters a turning frame works, with no engine change.
+- In the entry, the origin keeps within 0.06 m of the axis, and the rotation within 0.25 degrees of the docked rotation. In the slot, the hull's corners reach 2.00 m from the axis along X and 3.01 m along Z, against the slot's 3 and 4 m. The entry takes 85 s.
+- The move out takes 23.7 s. It keeps within 6 mm of its straight path across the axis. The first contact is the landing, 1.1 s before the docking.
+- The hull docks within 1 cm of the parked pose, and stays there, static.
+
+Measured in the run of the long script, `BlueDanubeDockingTests`:
+
+- The order comes at 4,874.6 s. The spin-up starts at 4,892.3 s, the entry at 4,922.3 s, the hand-off at 4,936.4 s, the move out at 5,007.4 s, and the docking at 5,031.1 s.
+- The rendezvous autopilot logs its one line, its halt, in the tick after the hand-off. The run logs nothing else, and records no error.
+- The person keeps the pen within 2 cm of its hand. The belt holds it at the seat stand while the cabin is weightless. From about 20 s into the spin-up the felt gravity at the seat leans less than 45 degrees, so the person stands, its up 30 degrees to port of the cabin's up. The entry's pushes lift it off the floor for a few seconds at the entry's start and end, and the belt holds it again then. In the move out the belt holds it until the felt gravity turns toward the floor. Then it lets go under a gravity that leans 30 degrees toward port, the person's up turns to that gravity, and its feet settle about 0.6 m to port of where they hung. So in the docked cabin its center stands 0.31 m to port of the seat stand and 0.09 m lower, and stays there.
+
+### Cost
+
+- Ticks: the docking adds about 10,500 ticks to the long script, about 175 s of the simulation. A tick near the station takes about 0.15 ms headless, so they take about 2 s.
+- Frames: about 4,650, 78 s of video, at 3.5 ms each into the video. That adds about 16 s to the headless video, and about 3 s to the rehearsal.
+- `DockingAutopilotTests` flies one shared flight of about 10,000 ticks, without the world's invariant checks, about 2 s. With them, at 6.6 ms a tick with the station, it takes about 66 s.
+- `ADynamicShuttleAtTheParkedPoseStaysInTheCorner` runs 600 ticks, without the invariant checks.
+
+### Order of the work
+
+Each part commits on its own, with its tests green. A part that changes the run writes `scripts/blue-danube.json` again.
+
+| Part | Work | Depends on |
+|---|---|---|
+| 0. The end state | This section, `DemoStation.DockedRotation`, `ParkedTailGap`, `ParkedPose`, `ParkedBounds` and `SpokeMouth`, and `DockingEndStateTests`. Step 6's design starts from this commit. | None |
+| 1. The attitude target | `AttitudeTarget`'s feed-forward and its float `MaxTurnRate` in 48 bytes, the autopilot's rule, the ascent's rule in a frame without point gravity, and their tests. The script is written again, because the float turn rate rounds the weightless turn's 0.002 rad/s. | None |
+| 2. The thrusters' force | `Shuttle.TranslationThrust` at 30,000 N, the script written again, `BlueDanubeRendezvousRun` run again, and the measured times of the rendezvous written again in this plan | None |
+| 3. The law | `ApproachGuidance` with the free acceleration as a parameter and the cap on the correction. `ForEntry` and `ForMoveOut`, the spin's free acceleration, the profile of the spin-up, and their tests. The rendezvous passes its difference of gravity. | None |
+| 4. The docking autopilot | `Dock`, `DockingState`, `DockingAutopilot` in `Shuttle.FlightControls` with the station's entity and its center of mass, and `DockingAutopilotTests` | 1, 2, 3 |
+| 5. The long script | `bay-camera`, the docking's sections and cues, the script written again, `BlueDanubeRendezvousRun` through `docked`, `BlueDanubeDockingTests`, the video, the screenshots, and the lines below | 4 |
+
+```mermaid
+graph LR
+  P0[0 end state] --> P4[4 docking autopilot]
+  P1[1 attitude target] --> P4
+  P2[2 thrusters' force] --> P4
+  P3[3 the law] --> P4
+  P4 --> P5[5 long script]
+```
+
+Parts 1, 2 and 3 can run at the same time. Parts 1 and 2 each write the script, so the second to merge writes it again after the merge.
+
+Part 5 also changes lines elsewhere in this plan:
+
+- The row "Ship thrust and steering" of "What exists, and what the demo adds".
+- `Shuttle.TranslationThrust` in "The translation thrusters", and the words "a quarter of the thrusters'" in the table of "The approach guidance".
+- The list of layers in "Layers" under "The rendezvous autopilot", which leaves step 5 to this section.
+- The last item of "Not in this step" of "The station and the rendezvous".
+- The table of sections and the run times in "The long script".
+
+### Decisions
+
+Only engine changes go to the user (the user's rule of 2026-10-18). So this design settles every demo choice:
+
+| Question | Decision | Reason |
+|---|---|---|
+| Where the docking lives | A third layer, `DockingAutopilot`, at priority 2, with its own union | The live world is postponed. Layers by priority are the flight program's model, and the actuators already follow the last layer. |
+| How the docking starts | A `Dock` order from the script, then a wait for the hold's tolerances and the roll window | The script orders every phase of the flight. The docking reads the world, not the rendezvous's state, so a test can start it from the hold without a rendezvous. |
+| The spin-up | One turn about the axis with a constant angular acceleration, 30 s, through a lag that falls to zero | No jolt at either end, and an Euler term of 0.014 m/s² at the seat. At its end, the target is the docked rotation. |
+| The roll | Folded into the start of the spin-up, by the roll window | No second turn relative to the station, and no Euler term from one. The wait is at most one turn of the station, 20.1 s. |
+| Following the station's turn | A feed-forward angular velocity in `AttitudeTarget`, which fits the 48-byte payload with a float `MaxTurnRate` | The station turns at twice the autopilot's cap. The cap keeps its meaning for the correction. |
+| The frame of the reads | The station's frame, before and after the hand-off | One law in one set of axes. The engine converts the reads across the hand-off. |
+| The law | `ApproachGuidance` with a free acceleration that it cancels and a cap on the correction only | The brake, the glide and the docking are one law. The spin's terms grow with the radius and must never be capped. |
+| The point that the law flies | The hull's origin, with the spin's terms cancelled at the center of mass | The box stays centered in the slot, and the cancellation is exact for the body as a whole. |
+| The entry's speed | 2 m/s at most, about 1.9 m/s as the nose reaches the slot and 0.4 m/s as the tail passes it | The entry takes about 90 s. The slot's clearance holds the law's errors at that speed. |
+| The parked place | Belly on the deck, port side on the -Z wall, the tail 1.5 m inside the slot's wall | The only place beside the spoke's mouth. The spin gravity and the Coriolis force both lead into that corner, and the hatch faces the mouth. The entry ends at the parked y, so nothing moves along the axis near the walls. |
+| The landing | The move out aims 0.1 m beyond the corner, and meets it at 3 cm/s | A set landing speed, and a light press into the corner that holds while the autopilot checks the rest |
+| What holds the parked shuttle | Nothing: the docking makes the hull static. The corner and the weak gravity hold it until then. | As on the pad. The pose stays exact, and the undocking unparks it as the ascent does. |
+| The thrusters | 30,000 N per axis for every law | The move out needs 24 kN on one axis in the worst case. One limit for one piece of hardware. |
+| The rendezvous at the hand-off | It halts with its one log line, unchanged | Its design names that halt. The docking already overrides it. |
+| The ascent autopilot in the station | Its orbit case adds nothing in a frame without point gravity | Its law means nothing there. Without the rule, its target would turn the docked shuttle's nose along the orbit's velocity in `earth`. |
+| The passenger | Strapped, with no change to `Passenger` | The belt holds it while the gravity leans past 45 degrees, and the floor holds it after. The user accepted the engine's up rule for the belted person. |
+| The new cameras | `bay-camera` and `hold-camera`, still views in the station's frame | The entry through the slot and the landing need a view from inside the bay. `chase-camera` lies outside the hub there. The end of the spin-up needs the shuttle and the hub in one picture, and no place beside the hub shows the shuttle as more than a speck. |
+| The shape of the autopilot | One flat state machine: the union of the cases, a union of the events, one pure `Next`, and a case that flies each tick and returns at most one report | The user's rule for every staged component (2026-10-20). The whole docking reads in one table, and its rows are tested with no World. |
+
+### Engine changes
+
+None. Every part lives in `src/Tertius.Demo`, `scripts/` and the demo's tests. The step is the first to run two engine paths in the demo, and their tests are the first to exercise them: a dynamic hull with a cabin frame that enters a turning frame's bubble, and a hull made static inside a turning frame. If either fails, the failure is an engine bug for its own ticket, which goes to the user.
+
+### Not in this step
+
+- The undocking, the reverse of these laws. The live world will need it.
+- The exit, the opening in the deck, the walk to the chute and the chute: step 6.
+- A door in the slot.
+- Readouts of the spin rate and the felt gravity (see "Proof in the video"). The edit adds them.
+
+## The exit
+
+Ticket ter-y0e5 designs step 6 of "Order of the work", which is item 5 of "The sequence" (2026-10-20). The person leaves the docked shuttle and walks across the deck. Then it slides down a chute in the spoke at θ = 180 degrees to the wheel's floor, where it feels a full gravity. It starts from the end state of "The docking", from the constants of `DemoScenes.DemoStation`, and it reads nothing that the docking builds. The design needs no engine change.
+
+### What the step does
+
+- The script orders the person to leave the ship. The person opens its belt. The belt holds nothing at the parked seat, so the person already stands there, and its walk starts at once.
+- The person walks aft through the cabin, out of the hatch, and steps down 0.3 m onto the deck. It walks along the deck, parallel to the station's axis, to a point beside the chute's top. Then it turns toward the chute's top and steps into it.
+- The chute is a trough on the spoke's antispinward wall. It runs from a hole in the deck down the whole spoke. It passes through an opening in the wheel's ceiling and ends 5 cm above the wheel's floor. The Coriolis force presses the sliding person onto the trough's back plate, and the plate's friction brakes the slide. The person slides feet first, and reaches 8.9 m/s at most.
+- The chute's last 5.5 m, from the ceiling down, is a brake run with more friction. It slows the person to about 2.6 m/s before its feet reach the floor.
+- On the floor the person stands in a full gravity, 9.72 m/s² at its center. It walks 5 m spinward out of the trough and stops. The demo ends there.
+- New lamps light the spoke and the part of the wheel where the person lands. Three new still cameras film the deck, the chute's top and the landing. A new camera that follows the person in the station's axes, `slide-camera`, films the slide, and the `follow-camera` films the last steps.
+
+Terms used in this section:
+
+- The station's axes, the bay, the deck and the spoke: as in "The station" and "The docking". +Y is the axis. The deck is the bay's wall at x = -8 m. The spoke at θ = 180 degrees runs along -X. It starts at the hub's outer face, x = -8.5 m, and ends at the ceiling's face toward the axis, x = -94.5 m. Its inside spans y and z from -1.75 to 1.75 m.
+- Spinward and antispinward: the station turns about +Y at ω = 0.31321 rad/s. At θ = 180 degrees, a point of the station moves toward +Z, the spinward side. The antispinward side is -Z.
+- The radius of a point: its distance from the station's axis, `sqrt(x² + z²)`, in meters.
+- The free acceleration of the person: its acceleration relative to the station's turning axes, `-ω × (ω × r) - 2 ω × u`, with nothing in contact. Here `r` is its place and `u` its velocity in the station's axes. The first term is the spin gravity, the second the Coriolis term. The station's spin is steady, so the Euler term is zero. The free acceleration that the docking's law cancels holds the same two terms.
+- The press: the part of the free acceleration that points into the chute's back plate, in m/s². It is zero for a free acceleration that points away from the plate.
+- The chute's top: the hole in the deck over the trough. The chute's end: the trough's lower end, 5 cm above the wheel's floor.
+
+### The way out
+
+The person's waypoints and every place below are in the station's axes, unless they name the cabin. A person who stands has its center 0.9 m above the floor under it, so on the deck at x = -7.1 m.
+
+| Leg | From | To | Frame of the waypoint | Length |
+|---|---|---|---|---|
+| 1. Aft through the cabin | `Shuttle.SeatStand` | `Shuttle.InsideHatch`, (1.6, -0.9, 2) m in the cabin's axes | The cabin's | 5.8 m |
+| 2. Out of the hatch | `Shuttle.InsideHatch` | (-7.1, 5, 0.6) m | The station's | 4.0 m |
+| 3. Along the deck | (-7.1, 5, 0.6) m | (-7.1, 0, 0.6) m | The station's | 5.0 m |
+| 4. Into the chute's top | (-7.1, 0, 0.6) m | (-7.1, 0, -0.7) m | The station's | 1.3 m |
+
+The release and the rise:
+
+- At the parked seat, the cabin's gravity leans 30 degrees from the floor's down. The belt holds only past 45 degrees. So the belt pushes nothing, and opening it changes no force. The person already stands at `Shuttle.SeatStand`, on the floor of the cabin, with its up against the felt gravity. The scene `demo-exit` starts it so, `DemoExit.StandAtSeat`: its up against the spin gravity at the stand, and its center 0.82 m above the floor, where its capsule, tipped 30 degrees, stands on its lower end. A person that started upright stood only after 0.5 s, as its capsule tipped over and dropped 8 cm, and that showed.
+- A character has no sitting pose, so the person does not rise. Its first step is the start of leg 1. A belt has no mesh, so the release does not show.
+- `Passenger` gets the order `LeaveShip` and goes from `Strapped` to a new case, `Unstrapped(Copy)`, which adds nothing. Without that case, a strapped person who left the seat gets the belt's pull back toward the seat. The pull comes wherever the gravity at its place leans past 45 degrees from the cabin's down. That never happens on this way, but a belt that stays shut after the person left the seat is a belt that lies.
+
+The walk:
+
+- The walk speed is 1 m/s, `StationExit.WalkSpeed`, on legs 1 to 3 and on the stroll. The Coriolis force of a walk across the axis is 2 ω v. At 1 m/s it is 0.63 m/s², below the deck's 0.785 m/s². At the boarding's 3 m/s, a walk across the axis has a Coriolis force of 1.88 m/s², more than twice the deck's gravity. The engine holds a standing character on its floor anyway, but a slow walk reads as a careful walk in a weak gravity.
+- Leg 1 crosses a floor that feels tilted 30 degrees toward port, as "The docking" says. The walk goes 0.6 m to starboard over 5.8 m, a little uphill. The engine turns a walk into the ground plane, so the person walks along the floor.
+- Leg 2 climbs the hatch's sill, 0.1 m above the cabin floor, as a stair, and passes the doorway. A capsule whose up leans 15 to 26 degrees toward port in the doorway keeps its top 0.47 m below the lintel. Outside, the deck lies 0.3 m below the sill. The person walks off the sill and drops onto the deck in about 0.9 s.
+- Leg 3 runs parallel to the axis, so it has no Coriolis force. It passes 0.8 m spinward of the chute's top.
+- Leg 4 runs antispinward, toward the chute's back plate, at 0.4 m/s, `StationExit.StepInSpeed`. The Coriolis force of an antispinward walk points toward the axis. At 1 m/s it takes 0.63 m/s² of the 0.70 m/s² of spin gravity at the person's center. A person who walked into the hole at 1 m/s did not sink. It stood on the hole's far edge, then on the deck beyond the hole, and walked on. At 0.4 m/s the Coriolis force takes 0.25 m/s². The walker turns toward the next waypoint in the tick that reaches the one before it, at the speed that it was given. So in the tick that starts leg 4, the exit asks for the walk again at the step-in speed. Without that, the person stepped toward the hole at 1 m/s for one step.
+- On the run, the capsule loses its footing 0.2 m past the hole's spinward edge. The Coriolis term of its fall points antispinward and carries it on. Its back meets the hole's antispinward face 0.7 s later, and it sinks along that face into the trough.
+
+The person stays in the cabin's frame for the whole walk. The shuttle's bubble reaches 6.9 m from the shuttle's middle across the deck and 17.3 m along the axis. It enters the station's frame in the spoke, where its center leaves the bubble, on paper 3.5 m below the deck. On the run it entered 5.75 m below the deck, at x = -13.75 m. The deck, the spoke and the chute are static bodies in the station's frame, and each has a ghost in the shuttle's bubble (ARCHITECTURE.md, "Ghosts"). So the person walks and slides on the same surfaces in either frame.
+
+### The chute
+
+The chute is one static body in the station's frame, `station-chute`, a compound of three boxes along the spoke:
+
+| Part | x, m | y, m | z, m | Why |
+|---|---|---|---|---|
+| Back plate | -99.95 to -8.5 | -0.7 to 0.7 | -1.1 to -1.0 | The Coriolis force presses the sliding person on it. Its face toward the person is `Chute.BackFace`, z = -1.0 m. |
+| Rail toward +Y | -99.95 to -8.5 | 0.6 to 0.7 | -1.0 to -0.4 | It keeps the person in the trough across the axis. |
+| Rail toward -Y | -99.95 to -8.5 | -0.7 to -0.6 | -1.0 to -0.4 | The same |
+
+- The trough is 1.2 m wide between the rails and 0.6 m deep, open toward +Z, the spoke's middle. A capsule 0.6 m wide slides in it with 0.3 m to spare on each side. Cameras in the spoke see into it from its open side.
+- The back plate stands 0.75 m off the spoke's own antispinward wall. So the trough passes through the ceiling's opening, which spans z from -1.159 to 1.159 m (below). The plate keeps 5.9 cm from the opening's edge.
+- The chute's top: a hole through the deck's wall, `StationExit.DeckHole`. It runs from x = -8.5 to -8 m, y from -0.6 to 0.6 m and z from -1.0 to -0.2 m. It lies inside `DemoStation.SpokeMouth`. Its antispinward face is the plane of the back plate's face, and its faces across the axis are the planes of the rails' inner faces. So the hole's faces run on into the trough's, and a person who sinks along them meets no edge.
+- The chute's end: x = -99.95 m. The wheel's floor at θ = 180 degrees is a facet that lies at x = -99.99 m under the back plate. So the trough ends 3.6 cm above the floor under the plate and 5 cm above it at the rails' open ends. The person's feet land on the floor between the rails.
+- The trough is drawn yellow, so a viewer tells it from the gray spoke. Its last 5.45 m, from the ceiling's face toward the axis to its end, is drawn dark orange: the brake run.
+
+The opening in the wheel's ceiling:
+
+- The ceiling becomes three rings in the station's frame. The middle band runs from y = -1.75 to 1.75 m, the spoke's inside. A band on each side of it runs out to y = ±10 m. The middle band leaves out one segment, the one centered on θ = 180 degrees. Its two cut ends are capped.
+- The three bands are turned by half a segment, 0.703 degrees, about +Y. So the middle of a segment lies under each spoke, and the opening is symmetric about the spoke's middle. It spans θ from 179.30 to 180.70 degrees: z from -1.159 to 1.159 m at the ceiling's face toward the axis, and to ±1.166 m at its face toward the floor.
+- So the opening lies inside the spoke's inside, which spans z from -1.75 to 1.75 m. The spoke's tube closes it all round, and no hole opens to space. Inside the spoke, the ceiling leaves a ledge 0.59 m wide on each side of the opening.
+- `RevolvedSolid` gets a way to leave out segments, `LeavingOut(segment)`. Its mesh caps the cut ends, and its shape has no hull for the segment. The floor and the side walls do not change. The side walls stay unturned. Their facets meet the turned ceiling's within 7 mm. That is the largest gap between two polygons of 256 sides on a circle of 95 m, turned by half a side.
+
+The hole in the deck:
+
+- The hub's -X wall, the deck's wall, becomes four boxes round the hole, as the terminal's walls are built round their doorways (`AroundDoorway`). It is built in the hub's own axes, as the slot is. The hub's turn maps the station's y and z to the hub's z and -y. So in the hub's axes the hole lies at y from 0.2 to 1.0 m and z from -0.6 to 0.6 m.
+- The hub's mesh gets the hole as an opening through X in its outer and its inner box. It draws the hole's sides, as it draws the slot's.
+
+### The slide
+
+The person slides in the air, in the walking form of a character. The spin gravity in the spoke is at least 0.8 m/s², so it keeps that form (ARCHITECTURE.md, "Characters"). A character in the air loses the part of its velocity that goes into a static surface, and nothing else: physics gives it no friction. So the chute's friction is a force that the person's own exit component writes on its body, from the chute's law:
+
+```
+press = max(0, -(free · n))
+free = -ω × (ω × r) - 2 ω × u
+slide = u - n (u · n)
+friction = -μ press slide / |slide|,   at most |slide| / dt long
+μ = BrakeCoefficient (6) where r.x < BrakeFrom, otherwise Coefficient (1.5)
+```
+
+where
+
+- `r`, `u` = the person's center and velocity in the station's frame, in its axes.
+- `ω` = the station's angular velocity relative to the virtual root, turned into the station's axes, as the docking reads it.
+- `n` = the back plate's normal toward the person, +Z.
+- `slide` = the person's velocity along the back plate.
+- `friction` = the acceleration that the chute's friction gives the person, in m/s², in the station's axes. The cap keeps a step of friction from turning the slide around.
+- `BrakeFrom` = -94.5 m, the ceiling's face toward the axis.
+- The law acts only while the person touches the back plate. Its center then lies within 0.4 m of the plate's face: the person's radius, 0.3 m, plus `Chute.ContactMargin`, 0.1 m. It also lies between the rails, and between the chute's end and the deck. Otherwise the friction is zero.
+- The margin covers two offsets. A character keeps 2 cm of padding from a wall. Its up also leans toward the felt gravity, which points away from the plane z = 0 by ω² z. So the capsule touches the plate with its lower end, and its center lies 0.6 m × sin(lean) farther off. At the top of the spoke the lean is 4.4 degrees, and the center lies 0.37 m off the face. On the run it lay from 0.32 to 0.36 m off.
+
+`Chute` is a record struct that holds the chute's geometry and its two coefficients, and `Chute.Friction` is the law, an instance method of it. `StationExit.Chute` is the demo's chute.
+
+The press has two parts. The Coriolis term of the person's speed down the spoke, 2 ω v, points antispinward, onto the plate. The spin gravity's part across the spoke, ω² times the person's distance from the plane y = 0 along z, 0.7 m, adds 0.07 m/s². A friction of μ times 2 ω v is a drag in proportion to the speed. The spin gravity down the spoke grows with the radius. So far down the spoke the speed settles at a fixed share of ω r: `v = (sqrt(μ² + 1) - μ) ω r`.
+
+| μ in the spoke | μ in the brake run | Speed at the ceiling | Speed at the floor | Time from the deck to the floor |
+|---|---|---|---|---|
+| 0, frictionless | 0 | 29.5 m/s | 31.0 m/s | 10.6 s |
+| 1 | 1 | 12.2 m/s | 12.8 m/s | 22.3 s |
+| 1.5 | 1.5 | 8.9 m/s | 9.3 m/s | 30.3 s |
+| 2.5 | 2.5 | 5.6 m/s | 5.9 m/s | 48.7 s |
+| 1.5 | 6 | 8.9 m/s | 2.6 m/s | 30.8 s |
+
+A scratch model of this design integrated the person's speed along the spoke at 60 ticks per second, from rest on the deck. Its numbers are in the table. The chute takes 1.5 in the spoke and 6 in the brake run:
+
+- One coefficient for the whole chute gives either a slide of 9 m/s that lands at 9 m/s, or a landing at 3 m/s after a minute of slow slide. A brake run, like the run-out of a water slide, gives a lively slide and a soft landing.
+- The brake run decelerates the person by up to 24 m/s² as it enters at 8.9 m/s, for about 0.4 s. The person lands at 2.6 m/s, about the speed of a jump down 0.35 m on Earth.
+- The engine stands a character that lands on walkable ground at once, with the ground's velocity. So the landing speed decides only how the landing looks.
+
+On the real World the slide matches the model. It took 30.1 s from the drop to the landing. Its top speed was 8.87 m/s, at x = -94.7 m, as the person entered the brake run. In the last 0.6 m above the floor the person moved at 2.56 m/s at most. The person arrived at the stroll's end 53.0 s after the order.
+
+A group with a body that thrusts gets a numeric frame from 50 m/s, and keeps it down to 20 m/s (ARCHITECTURE.md, "Numeric frames"). The top speed, 8.9 m/s, is far below both. Every character thrusts, so the person counts. A frictionless slide reaches 31 m/s, still below 50. So the person stays in the station's own system for the whole slide.
+
+The friction lags by two steps, as every force of a component does. The drag's rate, 2 μ ω, is 0.94 /s in the spoke and 3.76 /s in the brake run. Its product with the lag of 1/30 s is at most 0.13, so the lag costs little.
+
+The person's up: it touches the back plate, so its up turns at once against the spin gravity, toward the axis (ARCHITECTURE.md, "Characters"). It slides feet first, with its back on the plate and its face toward the spoke's middle. The Coriolis force does not tip it, because the up follows the spin gravity, not the Coriolis term.
+
+### The arrival
+
+- The person's feet reach the floor between the rails. The floor's facet is walkable, so the person stands, and its velocity becomes the floor's.
+- The felt gravity at its center, 99.1 m from the axis, is ω² × 99.1 m = 9.72 m/s². The floor's face has 9.81 m/s².
+- It walks spinward, out of the trough's open side, 5.2 m along the floor at 1 m/s. It stops at r = 99.1 m, y = 0, z = 4.5 m. Spinward, the Coriolis force adds 0.63 m/s² of weight. Then it stops, and the demo ends.
+
+### The lamps
+
+| Lamps | Where | Panel | Light |
+|---|---|---|---|
+| Seven spoke lamps | On the spoke's spinward wall, z = 1.75 m, at y = 0. They lie at x = -14, -26, -38, -50, -62, -74 and -86 m. | 1.2 by 1.2 m, 0.1 m thick, glowing | 0.3 m in front of the panel, range 14 m, intensity 60 |
+| Six wheel lamps | Under the ceiling's face toward the floor, at y = ±5 m and z = -6, 2 and 10 m. Each is turned to lie flat on the ceiling. | The same | 0.3 m below the panel, range 20 m, intensity 100, as the bay lamps |
+
+- The spoke is a closed tube, and the bay lamps do not reach into it. Lamps 12 m apart light the trough the whole way. The light comes and goes as the person passes each lamp, which shows the speed.
+- The wheel lamps light the floor round the chute's end, the stroll and the opening above it. The wheel is 600 m round. Lamps all the way round add 150 lights that no camera sees.
+- Every lamp is drawn with `RenderFlags.NoImpostor`, as every part of the station is.
+
+### The cameras
+
+| Camera | Frame | Pose | What it sees |
+|---|---|---|---|
+| `deck-camera` | The station's | At (-6.3, -4.5, 4.5) m, 1.7 m above the deck, looking at (-7.2, 2.5, -1.0) m, roof along +X | The hatch, the step down onto the deck, the walk along the deck and the step into the chute's top |
+| `spoke-camera` | The station's | In the spoke at (-24, 1.2, 1.3) m, looking up the spoke at (-8.5, 0, -0.6) m, roof along +Z | The chute's top lit through the hole, and the person sliding down toward the camera |
+| `wheel-camera` | The station's | On the floor 9 m spinward of the chute's end, at y = 2.5 m and 1.7 m above the floor. It looks at (-97, 0, -0.7) m, with its roof toward the axis. | The chute's end under the opening, the brake run, the landing and the stroll toward the camera |
+| `slide-camera` | The person's, by its attachment. A `FrameFollowCamera` keeps its offset and its look in the station's axes. | 3 m up the spoke from the person's center and 1 m toward the spoke's middle, `StationExit.SlideCameraOffset`. It looks at the point 1.5 m down the spoke from the person's center, with its roof along +Z. | The person sliding feet first down the open trough, seen from behind and above, with the spoke's lamps passing overhead and the spoke's end ahead |
+
+The cameras that exist:
+
+| Camera | In the exit |
+|---|---|
+| `cabin-camera` | The order, the person's first steps and the walk aft toward the hatch |
+| `follow-camera` | The last steps. On the floor its heading swings round behind the person, which walks spinward. |
+
+The `follow-camera` does not film the slide. Its heading swings only toward a velocity across the person's up faster than 0.5 m/s, `ChaseCamera.TurnSpeed`. The step into the chute's top goes at 0.4 m/s, so the heading rests where the walk along the deck left it, along -Y. In the slide the velocity lies along the up, so the heading stays there. Its arm then runs along +Y into the rail and the spoke's wall, it shortens to about 1 m, and the camera looks at the rail past the top of the person's box. The first round of frames showed a dark picture with a strip of trough at its top. So `slide-camera` films the slide, from the same place relative to the person in every tick of it.
+
+The `follow-camera` also does not film the walk out of the hatch or the drop through the deck. In both, its arm meets a surface at once. The hatch's lintel, 2.4 m above the deck, lies below the arm's end. The hole's spinward face lies 0.5 m from the eye as the eye sinks through the deck. So the arm shortens at once, and the camera jumps. Still cameras film those moments.
+
+A test projects points with `Picture.Project`. Through `deck-camera` it projects the corners of the doorway and of the chute's top. Through `spoke-camera` it projects the trough's top. Through `wheel-camera` it projects the chute's end and the stroll's end. Each must lie inside its picture. If a point leaves the picture, the builder moves the camera. A test of the run, `TheChuteFilmSeesThePersonSlideDownTheOpenTrough`, holds the camera of the section `chute` in the spoke's inside, above the trough's open side and 1.5 to 4 m from the person, with the person's whole box in its picture and no body between them.
+
+### Sections of the long script
+
+The exit's sections follow the docking's `docked`. They are `BlueDanube.ExitSections`. Their cues read the exit component's case and places in the station's frame, `world.GetOwnedFrame(scene["station"])`, and none names the frame that holds the station.
+
+| Film | Camera | Ticks per frame | Posts | Ends | Model |
+|---|---|---|---|---|---|
+| `unbelt` | `cabin-camera` | 1 | `LeaveShip` to `person` | The person's center is within 0.5 m of the doorway's inner face | About 7 s, 420 frames |
+| `deck` | `deck-camera` | 1 | | 1.5 s after the exit component is in `Sliding` | About 12 s, 720 frames |
+| `chute-top` | `spoke-camera` | 1 | | The person's center is 10 m below the deck | About 6 s, 360 frames |
+| `chute` | `slide-camera` | 2 | | The person's center is 10 m above the ceiling: its radius is above 84.5 m | About 20 s, 600 frames |
+| `brake-run` | `wheel-camera` | 1 | | 1 s after the exit component is in `Strolling` | About 4 s, 240 frames |
+| `floor` | `follow-camera` | 1 | | 2 s after the exit component is in `Arrived` | About 7 s, 420 frames |
+
+So the exit films about 2,760 frames in about 56 s of the simulation, about 46 s of video.
+
+The film of the brake run is `brake-run`, not `brake`. The rendezvous films `brake` already, and two films of one script cannot share a name, because their frames would have the same names. The generator refused the long script at the merge until the exit's film took the new name.
+
+The generated `scripts/demo-exit.json` films 397, 738, 560, 504, 207 and 388 frames: 2,794 frames in 3,298 ticks, 55.0 s of the simulation and 46.6 s of video.
+
+In the long script, from 5,036.1 s of the run, the exit films 389, 741, 561, 504, 206 and 389 frames: 2,790 frames in 3,294 ticks, 54.9 s of the simulation and 46.5 s of video. These are the numbers after the merge with the Earth system (ter-yhu8) on 2026-10-21. Before it, the exit filmed 2,799 frames in 3,303 ticks. The person stands at its seat about 0.3 m to port of the stand at the docking's end, a little apart from `DemoExit.StandAtSeat`, so the first films differ by a few frames. In the run of the long script, the person arrives 52.90 s after the order, against 53.0 s in `demo-exit`. Its slide starts 17.3 s after the order, takes 30.1 s and tops out at 8.87 m/s, and it stands 99.10 m from the axis at 9.721 m/s² (`BlueDanubeExitTests`).
+
+The docking was built at the same time on its own branch, and the exit starts from its end state. So the exit's sections also run in a short script of their own, `scripts/demo-exit.json`, for a quick look at the exit. Its scene, `demo-exit`, starts at the end state. The generator takes the scene as an argument: `--generate scripts/demo-exit.json demo-exit`. It writes no cut for that scene, because the cuts film parts of the long script. The merge of the docking and the exit appended `ExitSections` to `BlueDanube.Sections` after `docked`, and wrote `scripts/blue-danube.json`, `scripts/demo-docking.json` and `scripts/demo-exit.json` again. So the long script runs from the terminal on the ground through the docking and the exit to the person on the wheel's floor. One list of sections serves both scripts. `ExitSections` comes before `Sections` in `BlueDanube.cs`, because a static property's initializer runs in the order of the file, and `Sections` reads `ExitSections`.
+
+The scene `demo-exit`:
+
+- A root frame with Earth's point gravity, which does not turn, as in the station's tests. It has the drawn Earth and the sun of `demo-surface`. The station flies its orbit in it. The station never assumes that its parent is a root, so this scene and the long one run the same station.
+- The shuttle parked static at `DemoStation.ParkedPose` in the station's frame, with its seat, panes, lamps and nozzle, and no flight controls. In the end state, every flight control adds nothing.
+- The person at `Shuttle.SeatStand` in the cabin, at `DemoExit.StandAtSeat`, `Strapped`, with the drawn copy of the pen in its hand. Its exit component is in `Aboard`. The `follow-camera` and `slide-camera` are attached to it, and `cabin-camera` stands where `demo-surface` puts it. The long scene attaches `slide-camera` to its person too.
+- The station's cameras, its lamps, its chute and its openings come from `DemoStation.Spawn`, so the long scene has them too.
+
+### The exit component
+
+`Disembark` is a component of the person, a flat state machine in the shape of the live world's staged components ([Live world](live-world.md), "Staged components").
+
+| Case | Data | Delegate | Report | Next case |
+|---|---|---|---|---|
+| `Aboard` | None | None | | `LeaveShip`: `Walking(0)` |
+| `Walking(Next)` | The index of the next waypoint of the way out | It walks the way out with the walker's law at `WalkSpeed`, and its last leg at `StepInSpeed`. | `Dropped`: the person does not stand, and its center lies over the chute's top | `Dropped`: `Sliding` |
+| `Sliding` | None | It asks for no walk, and adds the chute's friction. | `Landed`: the person stands, and its radius is beyond 94.5 m, the ceiling's face toward the axis, where the brake run starts | `Landed`: `Strolling(0)` |
+| `Strolling(Next)` | The index of the next waypoint of the stroll | It walks the stroll with the walker's law at `WalkSpeed`. | `WalkDone`: the walker reached the stroll's last waypoint | `WalkDone`: `Arrived` |
+| `Arrived` | None | None | | None |
+| `Halted` | None | None | | None |
+
+- In `Walking`, `Sliding` and `Strolling`, a dead station's frame makes the delegate report `StationGone`, with one log line. `StationGone` leads to `Halted`.
+- `DisembarkState` is a custom C# 15 union of the six cases, and `DisembarkEvent` a custom union of the five events: `LeaveShip`, the message case, and the reports `Dropped`, `Landed`, `WalkDone` and `StationGone`. `DisembarkState.Next(state, event)` is the pure table. It returns null for a pair without a row, and the component logs that pair. The nominal run logs nothing. The report `Landed` is one type, which the docking's machine reports too, when the hull rests at the parked pose. Both machines name the same thing, a mover that has landed, and both branches had defined it, so the merge kept one definition beside `DockingAutopilot`.
+- A tick applies the messages to `Next` first, then flies the delegate of the state after them, then applies its report to `Next`. So the walk starts in the tick of the order, and the new case's delegate flies from the next tick. The two walking delegates keep the index of their next waypoint across ticks. So each takes a copy of its case by `ref`. The component stores it back before it applies the report.
+- The walker's law becomes one static method, `Walker.Step(self, path, next, speed)`. It returns the index of the next waypoint, or the path's length once the path is done. `Walker` calls it with `PersonControl.WalkSpeed` for the boarding, and `Disembark` with `StationExit.WalkSpeed` and `StationExit.StepInSpeed`.
+- The constructor is `Disembark(station, chute, wayOut, stroll, walkSpeed, stepInSpeed, radius)`. The radius is the person's, which the friction law takes. `StationExit.Disembark(cabin, station)` builds the demo's.
+- `Passenger` and `Disembark` both take `LeaveShip`. Each decides what it means for the person: the passenger opens its belt, and the exit starts the walk. The order between them does not matter, because the open belt adds nothing and the belt it replaces added nothing at the parked seat either.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Aboard
+  Aboard --> Walking: LeaveShip
+  Walking --> Sliding: Dropped, off its feet over the chute's top
+  Sliding --> Strolling: Landed, standing beyond the ceiling
+  Strolling --> Arrived: WalkDone
+  Walking --> Halted: StationGone
+  Sliding --> Halted: StationGone
+  Strolling --> Halted: StationGone
+```
+
+#### Reads and writes, and their frames
+
+The exit reads and writes the station's frame, whichever frame holds the person. It never reads the frame that holds the station.
+
+- The station's frame: a constructor argument, the frame that `DemoStation.Spawn` gives the station.
+- The person's center and velocity in the station's frame: `self.PoseIn(station)` and `self.VelocityIn(station)`. In the cabin's frame the engine converts them through the static hull's frame.
+- The station's rate ω: the opposite of `FrameTree.AngularVelocityRelative(FrameHandle.Null, station)`, the virtual root's angular velocity relative to the station, in the station's axes. The virtual root does not turn, so this is the station's whole rate, whatever the frame that holds it does.
+- Whether the person stands: `self.Body.Standing`, from the last finished step.
+- The person's mass: `self.Snapshot.TryGetBody`.
+- The walk: `self.Body.MoveCharacter`, in the axes of `self.Frame`, which `Walker.Step` writes. Each waypoint names its frame, so the way runs on across the hand-off from the cabin's frame to the station's.
+- The friction: `self.Body.AddForce`, the mass times the law's acceleration, turned from the station's axes into `self.Frame`'s with `FrameTree.Relative(station, self.Frame)`.
+
+### Analogues
+
+| New value | Its analogue | What the new value takes from it |
+|---|---|---|
+| `Disembark`, `DisembarkState`, `DisembarkEvent` | The live world's staged components, and `Passenger` | One flat union of cases, one union of events, a pure `Next` and a switch to delegates. It is the person's own component, and it moves only the person. |
+| `LeaveShip` | `FastenBelt` | An order with no payload that the script posts to the person |
+| `Unstrapped` | `Holding` and `Stopped` | A case of `Passenger` that carries what it holds and adds nothing |
+| `Walker.Step` | `Walker` | The same law of the walk, now shared |
+| `Chute.Friction` | The belt of `Passenger`, and the free acceleration of `ApproachGuidance` | A force that the person's component writes on its own body from a model of the felt acceleration, and the same centrifugal and Coriolis terms |
+| `Chute` | `RendezvousPlan`, `HullPane` | A record struct of named values with the functions that belong to them |
+| `StationExit.DeckHole` | `DemoStation.Slot` | An opening through a hub wall, built in the hub's own axes |
+| The ceiling's opening | `RevolvedSolid`'s segments | A ring of segments, with one left out and its cut ends capped |
+| `station-chute` | `station-spokes` | A static compound of boxes in the station's frame |
+| `FrameFollowCamera`, `slide-camera` | `ChaseCamera`, `follow-camera` | A camera entity attached to the person, whose component writes only its own offset from the person, turned into the person's axes in every tick |
+| The spoke and wheel lamps | The bay lamps | Glowing panels with point lights in the station's frame |
+| `deck-camera`, `spoke-camera`, `wheel-camera` | `rim-camera` | Still views in the station's frame |
+| `demo-exit` and `scripts/demo-exit.json` | `scripts/demo-launch.json` | A short script of one part of the demo |
+
+### Readers and writers
+
+Step k is the physics step that runs beside tick k. A tick reads the state at the end of step k - 1. The intents that it writes act in step k + 1.
+
+| Value | Writer, and when | Readers, and when |
+|---|---|---|
+| `LeaveShip` | The script's post, between ticks | `Passenger` and `Disembark`, in the next tick |
+| `Passenger.State`, `Unstrapped` | `Passenger`, in the tick of `LeaveShip` | `Passenger` in later ticks. The tests, between ticks. |
+| `Disembark.State` | `Disembark`, in its tick | `Disembark` in the next tick. The section cues and the tests, between ticks. |
+| The walk | `Disembark`'s walking delegates, in tick k | Physics, from step k + 1, while the person stands |
+| The chute's friction | `Disembark`'s sliding delegate, in tick k | Physics, in step k + 1 |
+| The person's center, velocity and standing | Physics in step k | `Disembark` in tick k + 1 |
+| The person's frame: the cabin's, then the station's | The hand-off of the step in which the person's center leaves the shuttle's bubble, applied at step 2 of the sync point | `Disembark`'s writes in the next tick, which turn into the new frame's axes. The `follow-camera`'s attachment. |
+| The station's pose and rate | The full sample of its `KeplerMotion`, recorded at step 2 | `Disembark` in the next tick |
+| The chute, the openings, the lamps and the cameras | `DemoStation.Spawn`, at the scene's build | Physics, the renderer, the cues and the tests |
+
+### The flow per kind of entity
+
+| Entity | What moves it | Its components | Its frame | What it reads |
+|---|---|---|---|---|
+| Person: a character | Physics. It moves the person by its walk while it stands, and by the spin gravity and the Coriolis term in the air. The chute's friction is a force of its own component. | `Walker` (done), `Passenger`, `Disembark` | The cabin's, then the station's from the spoke on | Its own place, velocity and standing in the station's frame, and the station's rate |
+| The pen's copy | Its attachment to the person | `HeldInView` | The person's | The person's view |
+| Shuttle: a static hull that owns the cabin's frame | Nothing | None | The station's | Nothing |
+| Station: a kinematic hull on rails | The full samples of its `KeplerMotion` | `KeplerMotion` | The frame that holds the station | The G·M of the frame that holds it |
+| The station's static parts: the hub with the deck's hole, the ceiling's bands, the chute | Nothing | None | The station's, with ghosts in the shuttle's bubble | Nothing |
+| The lamps and the still cameras | Nothing | None | The station's or the cabin's | Nothing |
+| The `follow-camera` | Its attachment to the person, and its own offset | `ChaseCamera` | The person's | The person's pose and velocity, and its ray |
+| The `slide-camera` | Its attachment to the person, and its own offset | `FrameFollowCamera` | The person's | The person's rotation in the station's axes |
+| The script | It posts `LeaveShip` between ticks. | | | |
+
+### Built from scratch, compared
+
+A design from scratch, with every step known, puts the parked hatch in line with the spoke's mouth, and the chute's top beside it. Here the docking parked the shuttle first. So the person walks 6.3 m on the deck from the doorway to the chute's top. From scratch, the ceiling's segments are centered on the spokes from the start. Here the ceiling turns by half a segment for the opening. From scratch, the engine can give a character friction in the air. Here physics gives it none, and an engine change serves only the chute. So the person's component writes the chute's friction.
+
+### Tests
+
+Every test of physics runs the real World on the real Jolt backend, in `tests/Tertius.Host.Tests`. Each test gets a hand mutation: the builder breaks the line that the test protects, watches the test fail, and restores the line.
+
+Pure, with no World:
+
+- `DisembarkStateTests`: one test for each row of `Next`, `EveryOtherPairHasNoRow`, `TheTableAllocatesNothing` and `TheDefaultStateIsAboardAndEqualStatesHaveTheSameCaseAndData`.
+- `ChuteFrictionTests`:
+  - `TheFrictionOpposesTheSlideByTheCoefficientTimesTheCoriolisPress`.
+  - `InTheBrakeRunTheBrakesCoefficientActs`.
+  - `TheFrictionOpposesTheSlideAlongThePlateAndNotTheMotionIntoIt`.
+  - `APersonOffTheBackPlateGetsNoFriction`, `APersonBeyondTheRailsGetsNoFriction`, and `APersonAboveTheDeckOrBelowTheTroughsEndGetsNoFriction`.
+  - `AFreeAccelerationAwayFromThePlateGivesNoPress`.
+  - `TheFrictionNeverTurnsTheSlideAroundInOneStep`.
+- `ChuteHoldsTests`: `TheChuteHoldsACenterOverItsTopAndInTheTrough`.
+- `RevolvedSolidGapTests`: `ARingWithASegmentLeftOutHasNoHullThere`, `ItsMeshLeavesTheSegmentOpenAndCapsItsCutEnds`, `ItsMeshFacesOutOfTheRingWithTheGap` and `LeavingOutASegmentThatIsNotThereIsAnError`.
+- `StationExitGeometryTests`:
+  - `TheChutesTopLiesInsideTheSpokeMouthAndItsFacesRunOnIntoTheTrough`.
+  - `ARayDownTheTroughPassesTheDeckAndTheCeilingAndMeetsTheFloor` and `TheDeckIsSolidBesideTheHole`: rays find the hole open and the rest of the deck's wall solid.
+  - `TheCeilingIsOpenOnlyUnderTheSpokesMiddle`: rays find the ceiling's opening inside the spoke.
+  - `TheTroughHasABackPlateAndTwoRails`.
+  - `TheChuteEndsJustAboveTheWheelsFloor`.
+  - `ThePersonsFirstWaypointOutsideIsClearOfTheHullAndTheHole`.
+  - `TheCamerasSeeTheirPlaces`, with `Picture.Project`.
+
+On the real World, in the scene `demo-exit`, `DisembarkTests`. One shared run, `ExitRun`, takes about 3,400 ticks, without the world's invariant checks. On the run it took 3,238. It records the person's place, rotation, velocity, frame, standing and case in every tick, and the pose of the camera of the section `chute`:
+
+- `TheSceneStartsAtTheDockingsEndState`: the hull is static at `ParkedPose`. The person is `Strapped` and stands at its seat, at `DemoExit.StandAtSeat`, with its up against the felt gravity. The felt gravity there is 0.783 m/s², leaning 30 degrees toward port.
+- `WithoutTheOrderThePersonStaysAtItsSeat`, in its own short world.
+- `TheOrderOpensTheBeltAndStartsTheWalk`.
+- `ThePersonWalksAftOnTheCabinsLeaningFloor`: on leg 1 the felt gravity leans 22 to 33 degrees toward port. After its capsule settles by a few millimeters in the first quarter second, the person stands in every tick, keeps within 0.25 m of the leg's line and within 3 cm of the height of its tipped capsule.
+- `ThePersonLeavesThroughTheHatch`: its center crosses the hull's starboard face within the doorway.
+- `ThePersonWalksAlongTheDeckToTheChutesTop`: on legs 3 and 4 it stands, and its center stays within 0.25 m of the leg's line.
+- `TheStepIntoTheChutesTopGoesAtTheStepInSpeedFromItsFirstTick`: on the deck, the speed toward -Z stays within 0.05 m/s of 0.4 m/s.
+- `ThePersonDropsIntoTheChute`: it is `Sliding`, its center over the chute's top.
+- `ThePersonEntersTheStationsFrameInTheSpoke`.
+- `TheCoriolisForceHoldsThePersonOnTheBackPlate`: from 3 m below the deck to the ceiling, its center lies from 0.3 to 0.4 m off the plate's face, where the law counts it as touching.
+- `TheSlideStaysBelowTheSpeedOfANumericFrame`: the top speed lies from 8 to 10 m/s. `ThePersonEntersTheStationsFrameInTheSpoke` also checks that the person's frame is the cabin's or the station's in every tick.
+- `TheChuteFilmSeesThePersonSlideDownTheOpenTrough`: see "The cameras".
+- `TheBrakeRunSlowsThePersonBeforeTheFloor`: below 3.5 m/s as its feet reach the floor.
+- `ThePersonLandsOnItsFeetOnTheWheelsFloor`: the stroll starts in the tick after a step in which the person stood on the floor between the rails.
+- `ThePersonStandsOnTheWheelsFloorInAFullGravity`: the felt gravity at its center is 9.72 m/s², within 1 %.
+- `ThePersonWalksAFewStepsSpinwardAndStops`.
+- `ThePenStaysInThePersonsHand`.
+- `TheExitLogsNothingAndTheWorldHasNoErrors`.
+- `TheExitHaltsWhenTheStationIsGone`, in its own short world, once in each of `Walking`, `Sliding` and `Strolling`.
+- `StandingAboveTheCeilingIsNoLandingAndTheSlideAsksForNoWalk`, in its own short world: a test component puts the sliding person back on the deck. It stands there, the exit stays in `Sliding`, and the person holds still.
+
+The scripts:
+
+- `DemoExitScriptTests`: the generator's output for `demo-exit` equals the checked-in `scripts/demo-exit.json`, as `BlueDanubeScriptTests` checks the long script. The script films the exit's sections in their order and passes the checks of a run. The generator refuses a scene without sections, and more than one scene, with its usage, `--generate <file> [<scene>]`.
+- `BlueDanubeScriptTests` stays as it is. It checks the long script with the exit's sections, and the cut `scripts/demo-docking.json`.
+
+The long script, since the merge with the docking: `BlueDanubeRendezvousRun` runs the checked-in long script through the exit's last film, `floor`, in one shared run. The docking's tests read the ticks through the film `docked` (`ThroughDocked` and `DockedEnd`). `BlueDanubeExitTests` reads the ticks after it (`AfterDocked`):
+
+- `TheLongScriptFilmsTheExitsSectionsAfterTheDocking`: the long script ends with `docked` and then the exit's films, in their order.
+- `TheLongRunTakesThePersonFromTheDockedSeatToTheWheelsFloor`: the exit starts in `Aboard`. At the end the person is `Arrived` and stands in the station's frame on the wheel's floor, at 9.72 m/s² within 1 %, within 0.1 m of the stroll's end and still for the last half second. The world records no error.
+- `TheExitInTheLongRunTakesAsLongAsInItsOwnScene`: the person arrives 50 to 56 s after the order, and the slide tops out at 8 to 10 m/s.
+- `ThePersonLandsOnItsFeetOnTheWheelsFloor`: as in `DisembarkTests`, with the brake run below 3.5 m/s.
+- `ThePersonGoesFromTheCabinsFrameToTheStationsInTheSpoke`.
+- `TheShuttleStaysParkedThroughTheExit`: the hull stays static and `Docked`, and its pose in the station's frame does not move.
+- `ThePenStaysWithThePersonThroughTheExit`.
+- `BlueDanubeDockingTests.TheWorldLogsNoErrors` and `TheOnlyLogLineOfTheDockingIsTheRendezvousHaltAtTheHandOff` now cover the whole run, the exit too.
+
+The frames that end the ticket come from one headless run of `scripts/demo-exit.json` with `--video` and the real renderer. `ffmpeg-headless` takes frames out of the video. They show the person leaving the seat, at the hatch, on the deck, at the chute's top, in the chute, at its end, and on the wheel's floor.
+
+### Cost
+
+- Ticks: the exit adds about 3,400 ticks to the long script, about 56 s of the simulation, about 1 s headless. Measured at the merge with the docking: 3,303 ticks. Measured at the merge with the Earth system: 3,294 ticks.
+- Frames: about 2,760, 46 s of video, at 3.5 ms each into the video. The new lamps add 13 point lights. The renderer's deferred lighting costs each light its share of the screen, so only the lamps in the picture cost.
+- `DisembarkTests` runs one shared run of about 3,400 ticks without the invariant checks, a few seconds.
+
+### Order of the work
+
+Each part commits on its own, with its tests green.
+
+| Part | Work | Depends on |
+|---|---|---|
+| 0. The design | This section | None |
+| 1. The openings and the chute | `RevolvedSolid.LeavingOut`, the ceiling's bands, their turn and their opening, the deck's hole, `Chute` and `station-chute`, the lamps, the three cameras, and their tests. If the long run changes, `scripts/blue-danube.json` again. | 0 |
+| 2. The walk | `Walker.Step` with a speed. `LeaveShip` and `Unstrapped` in `Passenger`. `Disembark` with its unions, `Next` and the walking delegates. The scene `demo-exit`. Their tests. | 1 |
+| 3. The slide | `Chute.Friction`, the sliding delegate, and their tests | 2 |
+| 4. The arrival | `Landed`, the stroll, and their tests | 3 |
+| 5. The script | `BlueDanube.ExitSections`, the generator's scene argument, `scripts/demo-exit.json`, `DemoExitScriptTests`, the video and the frames | 4 |
+
+### Decisions
+
+Only engine changes go to the user (the user's rule of 2026-10-18). So this design settles every demo choice:
+
+| Question | Decision | Reason |
+|---|---|---|
+| The release | `LeaveShip` opens the belt: `Passenger` goes to `Unstrapped` | The belt adds nothing at the parked seat. A belt that stays shut after the person left pulls it back wherever the gravity leans past 45 degrees. |
+| The rise | None: the person stands at its seat, and its walk starts at once | A character has no sitting pose |
+| Who walks the person out | A new component, `Disembark`, with a flat machine | The exit is a staged part with its own cases. `Passenger` is the flight's. Small classes, and one table of the exit's cases. |
+| The walk | The walker's law, shared as `Walker.Step`, at 1 m/s, and the step into the chute's top at 0.4 m/s | One law of the walk. At 1 m/s the Coriolis force of a walk across the axis stays below the deck's gravity. At 0.4 m/s an antispinward step keeps enough weight to sink through the hole. |
+| The way on the deck | Out of the hatch, along the axis, then antispinward into the chute's top | A walk along the axis has no Coriolis force. Into the chute's top antispinward, the person's back meets the face that runs on into the trough's back plate. |
+| The chute's shape | A straight trough on a back plate 0.75 m off the spoke's antispinward wall, 1.2 m wide, open toward the spoke's middle | The Coriolis force presses the person antispinward, onto the plate. The rails keep it in line. The open side lets cameras see in. The plate fits through the ceiling's opening. |
+| The chute's friction | Written by the person's exit component from the chute's law, μ 1.5 in the spoke and 6 in the brake run | Physics gives a character in the air no friction. A brake run gives a slide of 8.9 m/s and a landing of 2.6 m/s. |
+| The top speed | 8.9 m/s | Far below the 50 m/s of a numeric frame for a thrusting group, and below its 20 m/s to keep one |
+| The chute's top | A hole in the deck over the trough, inside the spoke's mouth, with the rest of the mouth closed | A person drops through a hole its own size only against a face. The hole's antispinward face is that face. |
+| The ceiling's opening | One segment of a middle band left out, with the ceiling turned by half a segment | The opening is symmetric about the spoke's middle and lies inside the spoke, so nothing opens to space. The lift in the spoke at θ = 0 of the live world finds a segment centered on its spoke too. |
+| The chute's end | 5 cm above the wheel's floor, on the floor's facet | The person's feet land on the floor between the rails, and it walks out of the open side. |
+| The lamps | Seven in the spoke and six round the landing | The spoke and the wheel are closed and dark. Lamps only where cameras look. |
+| The cameras | Three still cameras for the deck, the chute's top and the landing, `slide-camera` for the slide, and the `follow-camera` for the last steps | The follow camera jumps at the hatch's lintel and the deck's hole. In the slide its heading rests along the axis, and its arm ends in the rail. A camera that keeps its place in the station's axes, behind and above the person, sees the person and the trough ahead in every tick of the slide. |
+| The long script | `ExitSections` after the docking's `docked`, appended at the merge, and a short script `demo-exit` beside it | The exit starts at the docking's end state, which only the docking's branch reached until the merge. The short script stays for a quick look at the exit. |
+
+### Engine changes
+
+None. Every part lives in `src/Tertius.Demo`, `scripts/` and the demo's tests. The step is the first to hand a character in the air from a child frame of a turning frame into the turning frame. It is also the first to slide a character along a wall under the Coriolis force. If either fails, the failure is an engine bug for its own ticket, which goes to the user.
+
+### Not in this step
+
+- The openings for the lift in the spoke at θ = 0 of the live world. The ceiling's turn already centers a segment on that spoke.
+- A sitting pose, a drawn belt and a hatch door.
+- Friction for characters in the engine.
+- Readouts of the felt gravity (see "Proof in the video"). The edit adds them.
 
 ## The shuttle's tram shape and glass canopy
 
@@ -1623,7 +2623,7 @@ On the World, in a scene that a test builds:
   - `ACrateOnTheCabinsAftWallStaysInPlaceThroughTheHandOff`.
   - `TheWorldLogsNoErrors`.
 - `FlightControlTests`:
-  - `TheAscentAutopilotAimsInTheFrameOfItsPlaneFromAHullInATurnedFrame`: a hull in a frame turned 90 degrees about +Y from the frame of the `LaunchPlane`, in the autopilot's `Orbit` case. A recording component at priority 5 keeps the last `AttitudeTarget`. Turned back into the plane frame's axes, its nose lies within 1e-6 rad of the velocity in the plane's frame.
+  - `TheAscentAutopilotAimsInTheFrameOfItsPlaneFromAHullInATurnedFrame`: a hull in a frame turned 90 degrees about +Y from the frame of the `LaunchPlane`, in the autopilot's `Orbit` case. The turned frame holds Earth's point gravity, as `earth-surface` does, because the `Orbit` case adds nothing in a frame without it ("The docking"). A recording component at priority 5 keeps the last `AttitudeTarget`. Turned back into the plane frame's axes, its nose lies within 1e-6 rad of the velocity in the plane's frame.
   - `TheAscentAutopilotReadsItsStateInTheFrameOfItsPlane`: in the `Climb` case, from the same hull, the throttle and the target's nose are those of `AscentGuidance` on the state in the plane's frame.
 - `DemoSurfaceTests`, on the scene `demo-surface` without a script:
   - `TheGroundAndTheShuttleStartInEarthSurfaceAtTheNorthPole`: the slab, the terminal, the ramp, the tower, the shuttle and the person are in `earth-surface`. `earth-surface` is in `earth`, which is in `sun`.
@@ -1765,7 +2765,7 @@ The code's docs:
 
 ARCHITECTURE.md does not change, because nothing in the engine changes.
 
-The docking (ter-ftnj) and the exit (ter-y0e5) run on other branches. After this step, the station's axis is no longer +X of `earth-surface`, and the shuttle holds in `earth`. The ticket that merges second changes the tests of the docking and the exit that read the old frames.
+The docking (ter-ftnj) and the exit (ter-y0e5) run on other branches. After this step, the station's axis is no longer +X of `earth-surface`, and the shuttle holds in `earth`. The ticket that merges second changes the tests of the docking and the exit that read the old frames. The exit's ticket merged second, on 2026-10-21. The long run's tests read the shuttle and the station in `earth`, and the docking's tests check that the shuttle docks from `earth`. The docking's and the exit's own tests, and the scene `demo-exit`, keep their own root frame with Earth's point gravity, which does not turn. The ascent autopilot keeps the docking's rule: its `Orbit` case adds nothing while the hull's frame has no point gravity. So a test of its `Orbit` case from a turned frame gives that frame Earth's point gravity, as `earth-surface` has.
 
 ### Not in this step
 
@@ -1814,7 +2814,7 @@ dotnet run --project src/Tertius.Demo -- --generate scripts/blue-danube.json
 dotnet run -c Release --project src/Tertius.Demo -- --script scripts/blue-danube.json --headless --out runs/danube --video runs/danube/blue-danube.mkv --fps 60
 ```
 
-The first command rehearses the run and writes the script. It prints each film with its frames, its film interval and the second of the run at which it starts. With the rendezvous, the rehearsal took 107 s on 2026-10-20, against about 10 s before. The second makes the video: on 2026-10-20 it took 110 s, at a load average from 3.7 to 6.5, for the 15,806 frames and 292,242 ticks, 4,871 s of the simulation and 263 s of video. Before the rendezvous, in the last two runs of 2026-10-19, it took 22 s and 24 s for 4,210 frames and 23,101 ticks. With the glass canopy of ter-4xkz, it took 117 s on 2026-10-20, at a load average from 4 to 5, for 15,782 frames. In the Earth system of ter-yhu8, the rehearsal took from 97 to 123 s and the video 114 s on 2026-10-20, at a load average from 9 to 13, for 15,895 frames. The test `BlueDanubeScriptTests` runs the first command and checks that its output equals the checked-in `scripts/blue-danube.json`, so the two cannot drift. A change of the scene, of the engine's timing or of the sections fails the test until the script is written again.
+The first command rehearses the run and writes the script. Beside it, in the same folder, it writes each cut of `BlueDanube.Cuts`, such as `scripts/demo-docking.json`, which films the long script only from one section through another. It prints each film with its frames, its film interval and the second of the run at which it starts. With the rendezvous, the rehearsal took 107 s on 2026-10-20, against about 10 s before. The second makes the video: on 2026-10-20 it took 110 s, at a load average from 3.7 to 6.5, for the 15,806 frames and 292,242 ticks, 4,871 s of the simulation and 263 s of video. Before the rendezvous, in the last two runs of 2026-10-19, it took 22 s and 24 s for 4,210 frames and 23,101 ticks. With the glass canopy of ter-4xkz, it took 117 s on 2026-10-20, at a load average from 4 to 5, for 15,782 frames. With the docking of ter-ftnj, the script films 20,084 frames in 302,163 ticks, 5,036 s of the simulation and 335 s of video. Its rehearsal took about 4.5 minutes on 2026-10-20, in Release, while other test runs loaded the machine. With the exit of ter-y0e5, the script films 22,884 frames in 305,468 ticks, 5,091 s of the simulation and 381 s of video. Its rehearsal took 59 s on 2026-10-20, in Release. The video took 203 s on 2026-10-20, for 22,884 frames and 381.4 s of video. The first second of the film `floor` shows the person's box large in the picture, because the `follow-camera`'s arm, which the slide left short, grows back with its time constant of 0.5 s. `scripts/demo-exit.json` shows the same. In the Earth system of ter-yhu8, before its merge with the docking and the exit, the rehearsal took from 97 to 123 s and the video 114 s on 2026-10-20, at a load average from 9 to 13, for 15,895 frames. After that merge, on 2026-10-21, the script films 22,988 frames in 305,459 ticks, 5,091 s of the simulation and 383.1 s of video. Its rehearsal took 113 s in Release, with the build, and the video took 145 s, at a load average from 5 to 7. The test `BlueDanubeScriptTests` runs the first command and checks that its output equals the checked-in `scripts/blue-danube.json`, and each cut the checked-in cut, so they cannot drift. A change of the scene, of the engine's timing or of the sections fails the test until the script is written again.
 
 The sections today, as `BlueDanube.Sections` lists them. The frames of each film and the second at which it starts come from the run, so the generator prints them, and this table does not copy them:
 
@@ -1857,8 +2857,22 @@ The sections today, as `BlueDanube.Sections` lists them. The frames of each film
 | `arrival` | `cockpit-camera` | 4 | 3 s after the autopilot is in `Hold` |
 | `hold` | `rim-camera` | 1 | After 3 s |
 | `hold-chase` | `chase-camera` | 1 | After 2 s. The person through the starboard glass, with the station ahead |
+| `dock` | `chase-camera` | 2 | It posts `Dock` to the shuttle. The docking autopilot is in `SpinUp` |
+| `spin-up` | `chase-camera` | 2 | 20 s into the spin-up |
+| `spin-match` | `hold-camera` | 2 | The docking autopilot is in `Entry` |
+| `entry` | `window-camera` | 4 | The nose is within 10 m of the slot's outer face |
+| `slot` | `bay-camera` | 2 | The docking autopilot is in `MoveOut` |
+| `move-out` | `cockpit-camera` | 2 | The shuttle's center is within 1 m of the parked point |
+| `landing` | `bay-camera` | 1 | 2 s after the docking autopilot is in `Docked` |
+| `docked` | `cabin-camera` | 1 | After 3 s |
+| `unbelt` | `cabin-camera` | 1 | It posts `LeaveShip` to the person. The person's center is within 0.5 m of the doorway's inner face |
+| `deck` | `deck-camera` | 1 | 1.5 s after the exit component is in `Sliding` |
+| `chute-top` | `spoke-camera` | 1 | The person's center is 10 m below the deck |
+| `chute` | `slide-camera` | 2 | The person's center is 10 m above the ceiling |
+| `brake-run` | `wheel-camera` | 1 | 1 s after the exit component is in `Strolling` |
+| `floor` | `follow-camera` | 1 | 2 s after the exit component is in `Arrived` |
 
-The sections from `belt` to `hold-chase` are the rendezvous (see "The station and the rendezvous", "Sections of the long script"). They replaced the section `coast`, which filmed 30 s of the parking orbit.
+The sections from `belt` to `hold-chase` are the rendezvous (see "The station and the rendezvous", "Sections of the long script"). They replaced the section `coast`, which filmed 30 s of the parking orbit. The sections from `dock` to `docked` are the docking (see "The docking", "Sections of the long script"). The sections from `unbelt` to `floor` are the exit, `BlueDanube.ExitSections` (see "The exit", "Sections of the long script").
 
 ### How a later ticket adds a section
 
@@ -1866,7 +2880,7 @@ The demo is one unbroken run in one scene, so a later part, such as the station 
 
 1. Add the part's entities and its cameras to the scene. A camera is an entity with a scene id. A camera that follows the person is a `ChaseCamera` on an entity attached to the person, as `follow-camera` is.
 2. Add the part's sections to the end of `BlueDanube.Sections`, in the order of the sequence. Give each one a camera, a film interval, and a cue that reads the run or the scene's constants, never a tick number. A section that starts the part, such as a burn, posts its event. Replace the hold of `coast` with the cue at which the part starts, or keep the coast and add the part after it. A section that waits longer than 10 minutes of the simulation, such as a long coast, names a larger `Limit`.
-3. Write the script again with `--generate scripts/blue-danube.json`, and commit it with the change, so that `BlueDanubeScriptTests` passes.
+3. Write the script again with `--generate scripts/blue-danube.json`, which writes the cuts beside it, and commit them with the change, so that `BlueDanubeScriptTests` passes.
 4. Make the video headless with `--video`, and have its frames judged.
 
 ### The chase camera

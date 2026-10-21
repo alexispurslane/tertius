@@ -14,20 +14,32 @@ public struct AttitudeTarget : IEventPayload
     public required DQuaternion Rotation;
 
     /// <summary>
-    /// The fastest turn that the autopilot may ask for to reach <see cref="Rotation"/>, in radians per second, at most
-    /// <see cref="AttitudeAutopilot.MaxTurnRate"/>. A layer that flies a weightless cabin with a strapped crew turns slowly,
-    /// so that the turn gives the crew no felt gravity (see <see cref="RendezvousPlan.WeightlessTurnRate"/>). A rate below
-    /// 0, or NaN, makes the autopilot throw <see cref="ArgumentOutOfRangeException"/>, which the world logs as an error, and
-    /// give no torque in that tick.
+    /// The target's own angular velocity relative to the entity's frame, in that frame's axes, in radians per second. The
+    /// autopilot adds it to the rate that it asks for, so a target that turns faster than
+    /// <see cref="AttitudeAutopilot.MaxTurnRate"/>, as one that turns with the demo station does, needs no correction for its
+    /// turn. Zero, the default, for a target that holds still in the frame. A feed-forward that is not finite makes the
+    /// autopilot throw <see cref="ArgumentOutOfRangeException"/>, which the world logs as an error, and give no torque in
+    /// that tick.
     /// </summary>
-    public required double MaxTurnRate;
+    public Vector3 FeedForward;
+
+    /// <summary>
+    /// The fastest correction toward <see cref="Rotation"/> that the autopilot may ask for, beside the
+    /// <see cref="FeedForward"/>, in radians per second, at most <see cref="AttitudeAutopilot.MaxTurnRate"/>. A layer that
+    /// flies a weightless cabin with a strapped crew turns slowly, so that the turn gives the crew no felt gravity (see
+    /// <see cref="RendezvousPlan.WeightlessTurnRate"/>). A rate below 0, or NaN, makes the autopilot throw
+    /// <see cref="ArgumentOutOfRangeException"/>, which the world logs as an error, and give no torque in that tick. It is a
+    /// float, so that the target fits the 48 bytes of an event payload.
+    /// </summary>
+    public required float MaxTurnRate;
 }
 
 /// <summary>
 /// Turns its entity's body toward the <see cref="AttitudeTarget"/> of each tick that brings one, with a torque, as the
-/// attitude thrusters of a ship do. It asks for a turn rate along the shortest turn to the target, <see cref="Gain"/> per
-/// radian of the turn that is left, and at most the target's <see cref="AttitudeTarget.MaxTurnRate"/> and
-/// <see cref="MaxTurnRate"/>. Then it gives the torque that brings the body's
+/// attitude thrusters of a ship do. It asks for the target's <see cref="AttitudeTarget.FeedForward"/>, the target's own
+/// turn, plus a correction along the shortest turn to the target, <see cref="Gain"/> per radian of the turn that is left,
+/// and at most the target's <see cref="AttitudeTarget.MaxTurnRate"/> and <see cref="MaxTurnRate"/>. The cap takes only
+/// the correction, so a target that turns faster than the cap is followed. Then it gives the torque that brings the body's
 /// angular velocity to that rate in <see cref="RateTime"/>, from the body's moments of inertia about its principal axes: it
 /// turns the angular acceleration that it asks for into the principal axes, multiplies it by the moments there, and turns
 /// the torque back. A body whose principal axes tilt from its own couples a turn about one of its axes with a turn about
@@ -48,7 +60,7 @@ public sealed class AttitudeAutopilot(PrincipalInertia inertia) : IComponent
     public const double Gain = 0.8;
 
     /// <summary>The fastest turn that the autopilot asks for, in radians per second: about 8.6 degrees per second.</summary>
-    public const double MaxTurnRate = 0.15;
+    public const float MaxTurnRate = 0.15f;
 
     /// <summary>The time in which the torque brings the body's angular velocity to the rate asked for, in seconds.</summary>
     public const double RateTime = 1.0 / 3;
@@ -103,12 +115,16 @@ public sealed class AttitudeAutopilot(PrincipalInertia inertia) : IComponent
             target = each;
         if (target.MaxTurnRate is not >= 0)
             throw new ArgumentOutOfRangeException(nameof(AttitudeTarget.MaxTurnRate), target.MaxTurnRate, "A turn rate lies from 0 up.");
+        if (!float.IsFinite(target.FeedForward.X) || !float.IsFinite(target.FeedForward.Y) || !float.IsFinite(target.FeedForward.Z))
+            throw new ArgumentOutOfRangeException(nameof(AttitudeTarget.FeedForward), target.FeedForward, "A feed-forward is finite.");
         DPose pose = self.PoseIn(self.Frame);
-        // The turn that is left, as a rotation vector in the frame's axes, and the turn rate that the autopilot asks for.
-        Double3 rate = pose.Rotation.AngularVelocityTo(target.Rotation, 1) * Gain;
+        // The turn that is left, as a rotation vector in the frame's axes, and the correction toward it that the autopilot
+        // asks for. The cap takes only the correction: the feed-forward is the target's own turn, which needs none.
+        Double3 correction = pose.Rotation.AngularVelocityTo(target.Rotation, 1) * Gain;
         double maxRate = Math.Min(MaxTurnRate, target.MaxTurnRate);
-        if (rate.Length > maxRate)
-            rate *= maxRate / rate.Length;
+        if (correction.Length > maxRate)
+            correction *= maxRate / correction.Length;
+        Double3 rate = (Double3)target.FeedForward + correction;
         Double3 angularAcceleration = (rate - (Double3)self.AngularVelocityIn(self.Frame)) / RateTime;
         // The principal axes in the frame's axes: the torque about each is its moment times the acceleration about it.
         DQuaternion principal = pose.Rotation * axes;

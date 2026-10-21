@@ -16,7 +16,8 @@ public sealed class BlueDanubeScriptTests
     /// <summary>
     /// The demo's command line writes the script with <c>--generate &lt;file&gt;</c>, exits with 0 and prints the file's
     /// path first, and the file equals the checked-in script, so the two cannot drift: a change of the scene or of the
-    /// sections fails this test until the checked-in script is written again.
+    /// sections fails this test until the checked-in script is written again. The same holds for each cut that it writes
+    /// beside the script, such as scripts/demo-docking.json.
     /// </summary>
     [Fact]
     public void TheCheckedInScriptIsWhatTheDemosCommandLineGenerates()
@@ -34,6 +35,13 @@ public sealed class BlueDanubeScriptTests
             output.ToString().Split('\n')[0].Trim().Should().Be(written);
             File.ReadAllText(written).Should().Be(File.ReadAllText(CheckedIn),
                 "scripts/blue-danube.json must be what the generator writes: run `dotnet run --project src/Tertius.Demo -- --generate scripts/blue-danube.json`");
+            BlueDanube.Cuts.Should().NotBeEmpty();
+            foreach ((string file, _, _) in BlueDanube.Cuts)
+            {
+                output.ToString().Should().Contain(Path.Combine(folder, file));
+                File.ReadAllText(Path.Combine(folder, file)).Should().Be(File.ReadAllText(Path.Combine(RepositoryRoot(), "scripts", file)),
+                    $"scripts/{file} must be what the generator writes beside the long script");
+            }
         }
         finally
         {

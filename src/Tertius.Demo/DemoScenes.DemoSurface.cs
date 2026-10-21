@@ -72,7 +72,8 @@ public static partial class DemoScenes
     /// <item>The <c>follow-camera</c> is a <see cref="ChaseCamera"/> attached to the person: it keeps 3.5 m behind the
     /// person's eye along the way the person walks, 0.8 m above it, and looks toward the point 2 m ahead of it, tilted down as
     /// far as the person's whole box needs to stay in the picture. It goes with the person into the shuttle's frame, and
-    /// stops short of the terminal's walls and the cabin's.</item>
+    /// stops short of the terminal's walls and the cabin's. The <c>slide-camera</c> is attached to the person too, for the
+    /// slide of the exit (see <see cref="StationExit.SpawnSlideCamera"/>).</item>
     /// <item>The shuttle has a glass canopy (see <see cref="Shuttle.Glass"/>): a band of glass along both sides from 0.7 m
     /// above the cabin floor, over the roof's bevels and the roof, and the front above the sill. It has 40 panes, each with
     /// its scene id, such as <c>pane-nose</c>, <c>pane-port-7</c> and <c>pane-roof-4</c>, named by their edge and their
@@ -193,6 +194,12 @@ public static partial class DemoScenes
         /// unturned, with its hull's bottom on the launch ramp's bed (<see cref="LaunchRamp.BedTop"/>).
         /// </summary>
         public static DPose ShuttleParked { get; } = new(new Double3(0, LaunchRamp.BedTop + Shuttle.Hull.Y, 0), DQuaternion.Identity);
+
+        /// <summary>
+        /// The pose of <c>cabin-camera</c> in the shuttle's frame: in the cabin's aft port corner, looking at the seat and the
+        /// hatch.
+        /// </summary>
+        public static DPose CabinCamera { get; } = LookingAt(new Double3(-2.3, 1.2, 6.8), new Double3(1, -1.3, -4.5));
 
         /// <summary>The eye of the person, relative to its center, in its axes: 1.65 m above its feet.</summary>
         public static Vector3 Eye { get; } = new(0, 0.75f, 0);
@@ -404,7 +411,7 @@ public static partial class DemoScenes
                 Pose = new DPose(PersonStart, DQuaternion.Identity),
                 Body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: YardPersonMass),
                 Render = personRender,
-                Components = [new Walker(Path(surface, cabin)), new Passenger(new Waypoint(cabin, Shuttle.SeatStand), pen)],
+                Components = [new Walker(Path(surface, cabin)), new Passenger(new Waypoint(cabin, Shuttle.SeatStand), pen), StationExit.Disembark(cabin, world.GetOwnedFrame(station))],
             });
             scene.Add("person", person);
             // The person starts its walk along -X, toward the entrance, so the camera starts behind it along +X.
@@ -415,6 +422,7 @@ public static partial class DemoScenes
                 Render = new RenderData(),
                 Components = [new ChaseCamera(FollowBehind, FollowAbove, FollowAhead, PersonHalf, world.VerticalFov)],
             }));
+            scene.Add("slide-camera", StationExit.SpawnSlideCamera(world, person, world.GetOwnedFrame(station)));
 
             Entity overview = world.Spawn(new SpawnDesc
             {
@@ -435,12 +443,7 @@ public static partial class DemoScenes
                 Pose = LookingAt(new Double3(13, EarthRadius + 3, 10), new Double3(5, EarthRadius + 1.2, 0.5)),
                 Render = new RenderData(),
             }));
-            scene.Add("cabin-camera", world.Spawn(new SpawnDesc
-            {
-                Frame = cabin,
-                Pose = LookingAt(new Double3(-2.3, 1.2, 6.8), new Double3(1, -1.3, -4.5)),
-                Render = new RenderData(),
-            }));
+            scene.Add("cabin-camera", world.Spawn(new SpawnDesc { Frame = cabin, Pose = CabinCamera, Render = new RenderData() }));
 
             scene.Add("pad-camera", world.Spawn(new SpawnDesc
             {
@@ -536,6 +539,8 @@ public static partial class DemoScenes
             scene.AddView("port-window-camera");
             scene.AddView("cockpit-camera");
             scene.AddView("rim-camera");
+            scene.AddView("bay-camera");
+            scene.AddView("hold-camera");
             world.Camera = overview;
             return scene;
         }

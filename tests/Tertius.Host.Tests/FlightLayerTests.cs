@@ -56,8 +56,8 @@ public sealed class FlightLayerTests : IDisposable
 
     /// <summary>
     /// The docking layer, at 2, the last layer of the flight, asks for half throttle, a quarter turn and a translation of
-    /// 4,000 N up. Every actuator reads what it added: the engine pushes, the nose turns onto -X, and the translation
-    /// thrusters push the shuttle up at 0.2 m/s², 4 m/s in 20 s.
+    /// 30,000 N up, the thrusters' most on one axis. Every actuator reads what it added: the engine pushes, the nose turns
+    /// onto -X, and the translation thrusters push the shuttle up at 1.5 m/s², 30 m/s in 20 s.
     /// </summary>
     [Fact]
     public void TheActuatorsRunAfterEveryLayer()
@@ -70,7 +70,7 @@ public sealed class FlightLayerTests : IDisposable
 
         world.VelocityIn(shuttle, space).Length.Should().BeGreaterThan(100, "the engine pushed at half throttle");
         DegreesFrom(-Double3.UnitX).Should().BeLessThan(1);
-        world.VelocityIn(shuttle, space).Y.Should().BeApproximately(4, 0.1, "the thrusters pushed up for 20 s");
+        world.VelocityIn(shuttle, space).Y.Should().BeApproximately(30, 0.5, "the thrusters pushed up for 20 s");
     }
 
     /// <summary>
