@@ -1,0 +1,140 @@
+using Tertius.Demo;
+
+namespace Tertius.Host.Tests;
+
+/// <summary>
+/// The text that the demo edit draws on each frame from the readout log (docs/plans/blue-danube-demo.md, "The readouts on
+/// the frame" and "The textbook checks"): the numbers, the sim clock, the rate of a film and the check panel.
+/// </summary>
+public sealed class ReadoutTextTests
+{
+    /// <summary>A row of the person at <paramref name="altitude"/> above Earth's mean radius, on the X axis.</summary>
+    private static ReadoutRow At(double altitude, long tick = 0, double speed = 0, double toStation = 0, double felt = 0) =>
+        new("f-000000", tick, new Double3(DemoScenes.EarthRadius + altitude, 0, 0), speed, toStation, felt);
+
+    [Theory]
+    [InlineData(0.0, "0.0 m/s")]
+    [InlineData(7788.149, "7,788.1 m/s")]
+    [InlineData(12.36, "12.4 m/s")]
+    public void SpeedShowsInMetersPerSecondWithOneDecimal(double speed, string text)
+    {
+        ReadoutText.Speed(speed).Should().Be(text);
+    }
+
+    [Theory]
+    [InlineData(0.93, "0.9 m")]
+    [InlineData(9_999.94, "9,999.9 m")]
+    [InlineData(10_000, "10.00 km")]
+    [InlineData(199_984.4, "199.98 km")]
+    public void AltitudeShowsInMetersBelow10KilometersAndInKilometersAbove(double altitude, string text)
+    {
+        ReadoutText.Altitude(At(altitude).Position).Should().Be(text);
+    }
+
+    [Theory]
+    [InlineData(152.34, "152.3 m")]
+    [InlineData(9_999.94, "9,999.9 m")]
+    [InlineData(10_000, "10.0 km")]
+    [InlineData(1_523_440, "1,523.4 km")]
+    public void TheDistanceToTheStationShowsInMetersBelow10KilometersAndInKilometersAbove(double distance, string text)
+    {
+        ReadoutText.Distance(distance).Should().Be(text);
+    }
+
+    [Theory]
+    [InlineData(0.0, "0.00 g")]
+    [InlineData(9.80665, "1.00 g")]
+    [InlineData(29.4, "3.00 g")]
+    [InlineData(490.3325, "50.00 g")]
+    [InlineData(0.04, "0.00 g")]
+    public void FeltGravityShowsInStandardGravitiesWithTwoDecimals(double felt, string text)
+    {
+        ReadoutText.Gravity(felt).Should().Be(text);
+    }
+
+    [Theory]
+    [InlineData(0L, "T+ 0:00:00.0")]
+    [InlineData(5L, "T+ 0:00:00.0")]
+    [InlineData(6L, "T+ 0:00:00.1")]
+    [InlineData(3_599L, "T+ 0:00:59.9")]
+    [InlineData(20_430L, "T+ 0:05:40.5")]
+    [InlineData(216_000L, "T+ 1:00:00.0")]
+    [InlineData(291_942L, "T+ 1:21:05.7")]
+    public void TheSimClockShowsTheTimeSinceTick0InHoursMinutesAndTenthsOfASecond(long tick, string text)
+    {
+        ReadoutText.Clock(tick).Should().Be(text);
+    }
+
+    [Theory]
+    [InlineData(1, "REAL TIME")]
+    [InlineData(4, "TIME-LAPSE ×4")]
+    [InlineData(240, "TIME-LAPSE ×240")]
+    public void TheRateOfAFilmOfEveryTickIsRealTimeAndOfEveryNthTickATimeLapseOfN(int every, string text)
+    {
+        ReadoutText.Rate(every).Should().Be(text);
+    }
+
+    [Fact]
+    public void TheReadoutsAreFourLabeledLinesOfOneWidth()
+    {
+        string[] lines = ReadoutText.Lines(At(199_984.4, speed: 7788.149, toStation: 1_523_440, felt: 0));
+
+        lines.Should().HaveCount(4);
+        lines.Select(line => line.Length).Distinct().Should().ContainSingle();
+        lines[0].Should().StartWith("SPEED").And.EndWith("7,788.1 m/s");
+        lines[1].Should().StartWith("ALTITUDE").And.EndWith("199.98 km");
+        lines[2].Should().StartWith("TO STATION").And.EndWith("1,523.4 km");
+        lines[3].Should().StartWith("FELT GRAVITY").And.EndWith("0.00 g");
+    }
+
+    [Fact]
+    public void TheParkingOrbitPanelNamesTheHeightOfTheRow()
+    {
+        string[] panel = CheckPanels.ParkingOrbit(At(200e3), At(199_960, tick: 600));
+
+        panel[0].TrimEnd().Should().Contain("parking orbit").And.EndWith("200.0 km up");
+    }
+
+    [Fact]
+    public void TheParkingOrbitPanelSetsTheCircularSpeedAtTheRowsRadiusBesideTheRunsSpeed()
+    {
+        // √(GM / r) at 200 km: 7,788.5 m/s.
+        string[] panel = CheckPanels.ParkingOrbit(At(200e3), At(200e3, tick: 600, speed: 7788.12));
+
+        panel[1].TrimEnd().Should().Contain("√(GM/r)").And.Contain("7,788.5 m/s").And.EndWith("run 7,788.1 m/s");
+    }
+
+    [Fact]
+    public void TheParkingOrbitPanelSetsThePeriodOfACircleAtTheRowsRadiusBesideThePeriodOfTheAngleThatTheRunSwept()
+    {
+        // A circle at 200 km takes 2π √(r³ / GM) = 5,301.0 s, 88.4 min. A quarter turn in 1,350 s is a turn in 5,400 s, 90.0 min.
+        double r = DemoScenes.EarthRadius + 200e3;
+        var start = new ReadoutRow("orbit-000000", 1000, new Double3(r, 0, 0), 0, 0, 0);
+        var row = new ReadoutRow("night-000010", 1000 + 1350 * 60, new Double3(0, 0, r), 0, 0, 0);
+
+        string[] panel = CheckPanels.ParkingOrbit(start, row);
+
+        panel[2].TrimEnd().Should().Contain("2π√(r³/GM)").And.Contain("88.4 min").And.EndWith("run 90.0 min");
+    }
+
+    [Fact]
+    public void TheParkingOrbitPanelShowsMeasuringForTheRunsPeriodInTheFirst10Seconds()
+    {
+        double r = DemoScenes.EarthRadius + 200e3;
+        var start = new ReadoutRow("orbit-000000", 1000, new Double3(r, 0, 0), 0, 0, 0);
+        var row = new ReadoutRow("orbit-000599", 1599, new Double3(r, 100, 0), 0, 0, 0);
+        var later = row with { Tick = 1600 };
+
+        CheckPanels.ParkingOrbit(start, row)[2].TrimEnd().Should().EndWith("run measuring");
+        CheckPanels.ParkingOrbit(start, later)[2].TrimEnd().Should().NotEndWith("run measuring");
+    }
+
+    [Fact]
+    public void TheLinesOfTheParkingOrbitPanelAreOfOneWidth()
+    {
+        string[] panel = CheckPanels.ParkingOrbit(At(200e3), At(200e3, tick: 6000, speed: 7788.12));
+
+        panel.Should().HaveCount(3);
+        panel.Select(line => line.Length).Distinct().Should().ContainSingle();
+    }
+}
