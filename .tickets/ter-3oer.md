@@ -1,6 +1,6 @@
 ---
 id: ter-3oer
-status: open
+status: in_progress
 deps: [ter-t0bh]
 links: []
 created: 2026-10-22T00:45:58Z
