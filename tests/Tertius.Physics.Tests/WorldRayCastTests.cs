@@ -817,25 +817,12 @@ public class WorldRayCastTests
         long allocated = Allocations.Fewest(() =>
         {
             windows++;
-            TickAndCollect(world, Ticks);
+            TickCollectingGarbage(world, Ticks);
         });
 
         allocated.Should().Be(0, "a ray request must not allocate once the world is warm");
         // One nearest answer and 17 hits of the other ray, for each asker on each tick: the measure covers real casts.
         (askers.Sum(a => a.Heard) - heardBefore).Should().Be(windows * Ticks * Askers * 18);
         world.Errors.Should().BeEmpty();
-    }
-
-    private static void TickAndCollect(World world, int ticks)
-    {
-        for (int t = 1; t <= ticks; t++)
-        {
-            world.Tick();
-            if (t % 10 == 0)
-            {
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-            }
-        }
     }
 }

@@ -878,25 +878,12 @@ public class WorldShapeQueryTests
         long allocated = Allocations.Fewest(() =>
         {
             windows++;
-            TickAndCollect(world, Ticks);
+            TickCollectingGarbage(world, Ticks);
         });
 
         allocated.Should().Be(0, "a shape request must not allocate once the world is warm");
         // One cast answer and the 7 boxes from x = 5 to x = 59 in the overlap, for each asker on each tick: real queries.
         (probes.Sum(p => p.Heard) - heardBefore).Should().Be(windows * Ticks * Askers * 8);
         world.Errors.Should().BeEmpty();
-    }
-
-    private static void TickAndCollect(World world, int ticks)
-    {
-        for (int t = 1; t <= ticks; t++)
-        {
-            world.Tick();
-            if (t % 10 == 0)
-            {
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-            }
-        }
     }
 }
