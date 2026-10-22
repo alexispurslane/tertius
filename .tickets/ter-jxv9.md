@@ -1,12 +1,13 @@
 ---
 id: ter-jxv9
 status: open
-deps: []
+deps: [ter-ptft]
 links: [ter-a24f]
 created: 2026-10-22T00:22:07Z
 type: feature
 priority: 3
 assignee: Alexis Purslane
+parent: ter-sglu
 tags: [rendering, long-term]
 ---
 # Add screen-space reflections (SSR) to glossy surfaces
@@ -23,3 +24,9 @@ Per the project rules: a RendererOptions switch, its cost measured at 1080p, and
 
 With SSR on, a glossy floor reflects the objects on screen above it, the reflection blurs as the gloss falls, and it fades out where its ray leaves the screen, with no hard edge. It is switchable, its cost is measured, and screenshots show it.
 
+
+## Notes
+
+**2026-10-22T00:25:39Z**
+
+2026-10-21: this ticket now waits for the PBR BRDF (ter-ptft). Its note on Blinn-Phong and the F0 cap of 0.16 describes the renderer before that ticket. After it, reflections weight by the Fresnel term of the PBR material and blur by its roughness, and metals reflect with their color.

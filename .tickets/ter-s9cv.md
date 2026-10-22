@@ -1,12 +1,13 @@
 ---
 id: ter-s9cv
 status: open
-deps: [ter-zzyr, ter-2t5o, ter-63wr]
+deps: [ter-zzyr, ter-2t5o, ter-63wr, ter-ptft]
 links: []
 created: 2026-10-11T13:52:12Z
 type: epic
 priority: 3
 assignee: Alexis Purslane
+parent: ter-sglu
 tags: [rendering, long-term]
 ---
 # Point and spot light shadows, and lights instead of one sun

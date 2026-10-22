@@ -1,7 +1,7 @@
 ---
 id: ter-rtxu
 status: open
-deps: [ter-tanj, ter-s9cv, ter-zzyr, ter-2t5o, ter-63wr, ter-gcm3, ter-b3h5, ter-a24f, ter-jxv9]
+deps: [ter-tanj, ter-sglu]
 links: []
 created: 2026-10-11T13:52:12Z
 type: epic
@@ -19,3 +19,7 @@ Design: docs/plans/renderer-snapshot-tests.md.
 **2026-10-19T01:22:34Z**
 
 Steps 2 and 3 (FLIP and the snapshot helper) moved to ter-721k on 2026-10-18, so that the demo's overlay pass can be tested now. This ticket keeps the deterministic rendering switch.
+
+**2026-10-22T00:25:39Z**
+
+2026-10-21: this epic now waits for the whole rendering upgrade epic (ter-sglu) instead of its members one by one.

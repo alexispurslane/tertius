@@ -1,12 +1,13 @@
 ---
 id: ter-gcm3
 status: open
-deps: []
+deps: [ter-ptft]
 links: []
 created: 2026-10-11T13:52:12Z
 type: epic
 priority: 3
 assignee: Alexis Purslane
+parent: ter-sglu
 tags: [rendering, long-term]
 ---
 # Anti-aliasing with SMAA 1x

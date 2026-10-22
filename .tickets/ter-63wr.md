@@ -1,12 +1,13 @@
 ---
 id: ter-63wr
 status: open
-deps: []
+deps: [ter-ptft]
 links: []
 created: 2026-10-11T20:44:45Z
 type: feature
 priority: 2
 assignee: Alexis Purslane
+parent: ter-sglu
 tags: [rendering, long-term]
 ---
 # Add a switchable bloom pass, so that the sun and other very bright things glow

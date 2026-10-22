@@ -1,12 +1,13 @@
 ---
 id: ter-a24f
 status: open
-deps: [ter-b3h5]
+deps: [ter-b3h5, ter-ptft]
 links: [ter-jxv9]
 created: 2026-10-11T20:51:00Z
 type: feature
 priority: 3
 assignee: Alexis Purslane
+parent: ter-sglu
 tags: [rendering, long-term]
 ---
 # Add screen-space global illumination (SSGI): one bounce of light from what is on screen

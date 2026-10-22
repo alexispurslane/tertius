@@ -1,12 +1,13 @@
 ---
 id: ter-2t5o
 status: open
-deps: []
+deps: [ter-ptft]
 links: []
 created: 2026-10-11T20:49:05Z
 type: feature
 priority: 3
 assignee: Alexis Purslane
+parent: ter-sglu
 tags: [rendering, long-term]
 ---
 # Offer John Hable's Uncharted 2 filmic tone curve beside ACES

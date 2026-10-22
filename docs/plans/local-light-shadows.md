@@ -1,6 +1,6 @@
 # Point and spot light shadows
 
-Ticket: `ter-s9cv`. The user approved this design. The part "Lights instead of one sun" has its own ticket, `ter-bpvl`, which waits for automatic exposure (`ter-zzyr`).
+Ticket: `ter-s9cv`, part of the rendering upgrade epic (`ter-sglu`). The user approved this design. The part "Lights instead of one sun" has its own ticket, `ter-bpvl`, which waits for automatic exposure (`ter-zzyr`).
 
 ## Goal
 

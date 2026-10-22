@@ -34,7 +34,7 @@ ARCHITECTURE.md is the binding design. This file records what the user prefers, 
 - No multiplayer, ever. No time warp. Mods come later.
 - A frame acts on its contents with its linear (proper) acceleration and, if it turns, with its rotation terms: the centrifugal, Coriolis and Euler forces. The user decided on 2026-10-16 that every turning frame gets them (spin gravity, `docs/plans/spin-gravity.md`). A semantic frame still applies no tidal gravity to its contents.
 - A frame's bubble is an ellipsoid or a sphere, nothing else. In-universe, the engine is a creation of Orbis Tertius, so oddities like a ship's "wake" are acceptable.
-- Rendering uses Blinn-Phong (the best version available), not PBR, to keep things simple. It uses deferred shading, multiple depth ranges and impostors captured at render time.
+- Rendering uses deferred shading, multiple depth ranges and impostors captured at render time. It used Blinn-Phong to keep things simple, until the user decided on 2026-10-21 to move to a PBR BRDF (`ter-ptft`, in the rendering upgrade epic `ter-sglu`). Until that ticket is built, the code is still Blinn-Phong.
 
 ## Where the user changed my proposals
 

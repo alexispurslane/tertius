@@ -1,7 +1,7 @@
 ---
 id: ter-cjvt
 status: open
-deps: [ter-rtxu]
+deps: []
 links: []
 created: 2026-10-11T13:52:13Z
 type: chore

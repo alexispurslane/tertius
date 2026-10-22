@@ -1,12 +1,13 @@
 ---
 id: ter-zzyr
 status: open
-deps: []
+deps: [ter-ptft]
 links: []
 created: 2026-10-11T20:46:11Z
 type: feature
 priority: 2
 assignee: Alexis Purslane
+parent: ter-sglu
 tags: [rendering, long-term]
 ---
 # Add automatic exposure that adapts over time, like an eye entering and leaving the dark

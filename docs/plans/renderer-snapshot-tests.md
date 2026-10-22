@@ -14,15 +14,7 @@ Catch visual regressions in the renderer. A snapshot test renders a scene headle
 - Some agents add or re-approve a reference image, or see a snapshot failure. Each such agent opens the reference, the actual image and the heat map with the Read tool. Its report describes what it saw.
 - The first approval of a reference image is a real review against the scene description, because a snapshot only proves that nothing changed.
 - One switch in `RendererOptions` makes rendering deterministic for tests: interpolation alpha 1, fixed seeds, impostor captures forced or off, and no temporal effects.
-- A snapshot test locks in a look, so it comes after the look is what we want. A snapshot cannot drive red-green TDD, because its reference image exists only after the feature works. So this epic waits for the rendering features that change the look:
-  - The light shadows, with lights instead of one sun (`ter-s9cv`).
-  - Automatic exposure (`ter-zzyr`).
-  - The tone curve (`ter-2t5o`).
-  - Bloom (`ter-63wr`).
-  - Anti-aliasing with SMAA (`ter-gcm3`).
-  - Screen-space ambient occlusion (`ter-b3h5`).
-  - Screen-space global illumination (`ter-a24f`).
-  - Screen-space reflections (`ter-jxv9`).
+- A snapshot test locks in a look, so it comes after the look is what we want. A snapshot cannot drive red-green TDD, because its reference image exists only after the feature works. So this epic waits for the rendering upgrade epic (`ter-sglu`, [rendering-upgrade.md](rendering-upgrade.md)), which holds every rendering feature that changes the look.
 - The user decided this order on 2026-10-21.
 - Automatic exposure comes first, so the deterministic switch also turns it off, and every other temporal effect that lands before this epic.
 
