@@ -1,0 +1,80 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dotnet/docfx/main/schemas/docfx.schema.json",
+  "metadata": [
+    {
+      "src": [
+        {
+          "src": "src",
+          "files": [
+            "Tertius.Core/bin/Release/net11.0/Tertius.Core.dll",
+            "Tertius.Simulation/bin/Release/net11.0/Tertius.Simulation.dll",
+            "Tertius.Physics/bin/Release/net11.0/Tertius.Physics.dll",
+            "Tertius.Rendering/bin/Release/net11.0/Tertius.Rendering.dll",
+            "Tertius.Host/bin/Release/net11.0/Tertius.Host.dll",
+            "Tertius.Demo/bin/Release/net11.0/Tertius.Demo.dll"
+          ]
+        }
+      ],
+      "dest": "obj/docfx/api",
+      "includePrivateMembers": true,
+      "namespaceLayout": "nested",
+      "enumSortOrder": "declaringOrder"
+    }
+  ],
+  "build": {
+    "content": [
+      {
+        "src": "docs/site",
+        "files": [
+          "index.md",
+          "toc.yml"
+        ],
+        "dest": "."
+      },
+      {
+        "src": "obj/docfx/api",
+        "files": [
+          "**.yml"
+        ],
+        "dest": "api"
+      },
+      {
+        "files": [
+          "README.md",
+          "ARCHITECTURE.md",
+          "GUIDE.md",
+          "tools/README.md",
+          "docs/plans/*.md"
+        ]
+      }
+    ],
+    "resource": [
+      {
+        "files": [
+          "docs/media/**",
+          "src/**/*.cs",
+          "tests/**/*.cs",
+          "benchmarks/**/*.cs",
+          "LICENSE",
+          "flake.nix",
+          "native/*.nix",
+          "scripts/*.json"
+        ],
+        "exclude": [
+          "**/bin/**",
+          "**/obj/**"
+        ]
+      }
+    ],
+    "output": "artifacts/docs",
+    "template": [
+      "default",
+      "modern"
+    ],
+    "globalMetadata": {
+      "_appTitle": "Tertius",
+      "_appName": "Tertius",
+      "_enableSearch": true
+    }
+  }
+}
