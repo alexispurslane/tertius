@@ -2,7 +2,7 @@
 id: ter-a24f
 status: open
 deps: [ter-b3h5]
-links: []
+links: [ter-jxv9]
 created: 2026-10-11T20:51:00Z
 type: feature
 priority: 3

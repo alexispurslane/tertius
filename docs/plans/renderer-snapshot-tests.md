@@ -19,6 +19,10 @@ Catch visual regressions in the renderer. A snapshot test renders a scene headle
   - Automatic exposure (`ter-zzyr`).
   - The tone curve (`ter-2t5o`).
   - Bloom (`ter-63wr`).
+  - Anti-aliasing with SMAA (`ter-gcm3`).
+  - Screen-space ambient occlusion (`ter-b3h5`).
+  - Screen-space global illumination (`ter-a24f`).
+  - Screen-space reflections (`ter-jxv9`).
 - The user decided this order on 2026-10-21.
 - Automatic exposure comes first, so the deterministic switch also turns it off, and every other temporal effect that lands before this epic.
 

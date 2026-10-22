@@ -23,3 +23,9 @@ Per the project rules: a RendererOptions switch, its cost measured at 1080p, fix
 
 With SSAO on, creases, inner corners and the ground under objects get darker ambient light, and open surfaces keep theirs. The effect has no halos at depth edges, it is stable from frame to frame, it is switchable, its cost is measured, and snapshot tests cover it.
 
+
+## Notes
+
+**2026-10-22T00:22:07Z**
+
+2026-10-21: the user put the snapshot tests epic (ter-rtxu) after the features that change the look. This ticket reviews its look by eye in headless screenshots, and ter-rtxu turns them into reference images later. The acceptance line about snapshot tests moves to ter-rtxu.
