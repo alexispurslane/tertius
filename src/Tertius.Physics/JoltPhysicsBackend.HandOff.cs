@@ -7,6 +7,32 @@ namespace Tertius.Physics;
 
 public sealed partial class JoltPhysicsBackend
 {
+    private readonly List<HandOffPlan> handOffPlans = [];
+    private readonly List<BubbleEntry> bubbleEntries = [];
+
+    private readonly List<BubbleEntry> ghostBubbles = [];
+
+    // The bubbles that the members of the bubble parent of a system's frame meet, for the bodies that stick out of that frame.
+    private readonly List<BubbleEntry> siblingBubbles = [];
+    private readonly BubbleSiteCache handOffSites = new();
+
+    private readonly BubbleSiteCache ghostSites = new();
+
+    // Scratch of the ghost pass (see UpdateGhosts): the content excess of each semantic frame with a parent whose systems
+    // hold a member that can move, and the body origin of each such member at the end of the step, at the index of its
+    // system's first member in ghostCenterStarts plus its own index among the members. A frame without an entry has an
+    // excess of zero.
+    private readonly Dictionary<FrameHandle, double> contentExcess = [];
+    private readonly List<Double3> ghostCenters = [];
+    private readonly List<int> ghostCenterStarts = [];
+
+    // The pairs of FrameTree.AnchorGhosts whose ghosts the backend may hold: those that the ghost pass of the last step
+    // followed, less the ones that a sync point withdrew since (see DropWithdrawnAnchorGhosts).
+    private readonly List<NumericGhost> followedAnchorGhosts = [];
+
+    // Scratch for DropWithdrawnAnchorGhosts: the ghosts of one system.
+    private readonly List<BodyID> withdrawnScratch = [];
+
     /// <summary>
     /// A hand-off decided after the step, with the body's state already converted to the target frame: its pose, the
     /// velocities that Jolt gets there, the acceleration relative to the target that turned the linear velocity into its
@@ -31,7 +57,11 @@ public sealed partial class JoltPhysicsBackend
     /// and for the ghosts its poses in that parent at both ends of the step when it turns against the parent (see
     /// <see cref="PosesInStep"/>).
     /// </summary>
-    private readonly record struct BubbleSite(FrameHandle Parent, FrameHandle Frame, FrameMotion Motion, StepPoses? Poses);
+    private readonly record struct BubbleSite(
+        FrameHandle Parent,
+        FrameHandle Frame,
+        FrameMotion Motion,
+        StepPoses? Poses);
 
     /// <summary>
     /// A bubble that the members of one system meet: the frame <see cref="Frame"/>, whose tree parent is
@@ -41,7 +71,12 @@ public sealed partial class JoltPhysicsBackend
     /// position and velocity takes a member's state from the system into the parent. The velocities are instant ones or
     /// chords, as <see cref="BubblesFor"/> says.
     /// </summary>
-    private readonly record struct BubbleEntry(FrameHandle Parent, FrameHandle Frame, FrameMotion Motion, StepPoses? Poses, Double3 Offset,
+    private readonly record struct BubbleEntry(
+        FrameHandle Parent,
+        FrameHandle Frame,
+        FrameMotion Motion,
+        StepPoses? Poses,
+        Double3 Offset,
         Double3 Velocity)
     {
         /// <summary>
@@ -57,9 +92,12 @@ public sealed partial class JoltPhysicsBackend
         /// holds no turn then (see <see cref="PosesInStep"/>). Only the entries of the ghosts hold chords.
         /// </summary>
         public Double3 ChordFromParent(Double3 pointInParent, Double3 chord, double dt) =>
-            Poses is { } poses ? poses.ChordFromParent(pointInParent, chord, dt) : Motion.VelocityFromParent(pointInParent, chord);
+            Poses is { } poses
+                ? poses.ChordFromParent(pointInParent, chord, dt)
+                : Motion.VelocityFromParent(pointInParent, chord);
 
-        /// <summary>The angular chord in <see cref="Frame"/> of a body whose angular chord in <see cref="Parent"/> is <paramref name="chord"/>, by the rule of <see cref="ChordFromParent"/>.</summary>
+        /// <summary>The angular chord in <see cref="Frame"/> of a body whose angular chord in <see cref="Parent"/> is
+        /// <paramref name="chord"/>, by the rule of <see cref="ChordFromParent"/>.</summary>
         public Double3 AngularChordFromParent(Double3 chord, double dt) =>
             Poses is { } poses ? poses.AngularChordFromParent(chord, dt) : Motion.AngularFromParent(chord);
     }
@@ -78,7 +116,7 @@ public sealed partial class JoltPhysicsBackend
         /// <see cref="MotionOf"/>), because a ghost follows the chord of its real body, and a frame that turns against its
         /// parent converts them by its poses at both ends of the step (see <see cref="PosesInStep"/>).
         /// </summary>
-        Ghosts,
+        Ghosts
     }
 
     /// <summary>
@@ -103,31 +141,18 @@ public sealed partial class JoltPhysicsBackend
                 Array.Resize(ref lists, size);
                 Array.Resize(ref steps, size);
             }
-            List<BubbleSite> sites = lists[index] ??= new List<BubbleSite>();
+
+            List<BubbleSite> sites = lists[index] ??= [];
             collect = steps[index] != step;
             if (collect)
             {
                 sites.Clear();
                 steps[index] = step;
             }
+
             return sites;
         }
     }
-
-    private readonly List<HandOffPlan> handOffPlans = new();
-    private readonly List<BubbleEntry> bubbleEntries = new();
-    private readonly List<BubbleEntry> ghostBubbles = new();
-    // The bubbles that the members of the bubble parent of a system's frame meet, for the bodies that stick out of that frame.
-    private readonly List<BubbleEntry> siblingBubbles = new();
-    private readonly BubbleSiteCache handOffSites = new();
-    private readonly BubbleSiteCache ghostSites = new();
-    // Scratch of the ghost pass (see UpdateGhosts): the content excess of each semantic frame with a parent whose systems
-    // hold a member that can move, and the body origin of each such member at the end of the step, at the index of its
-    // system's first member in ghostCenterStarts plus its own index among the members. A frame without an entry has an
-    // excess of zero.
-    private readonly Dictionary<FrameHandle, double> contentExcess = new();
-    private readonly List<Double3> ghostCenters = new();
-    private readonly List<int> ghostCenterStarts = new();
 
     // ---- Hand-off ----
 
@@ -174,14 +199,17 @@ public sealed partial class JoltPhysicsBackend
                         frameMotion = InstantMotionOf(bubble);
                         haveFrameMotion = true;
                     }
-                    DPose pose = frameMotion.PoseToParent(new DPose(s.Pose.Position + homeOffset, s.Pose.Rotation));
+
+                    DPose pose = frameMotion.PoseToParent(new(s.Pose.Position + homeOffset, s.Pose.Rotation));
                     Double3 centerInBubble = s.CenterOfMass + homeOffset;
                     Double3 angularInBubble = InstantAngularVelocity(member, s);
-                    var (linear, angular, acceleration) = HandedOffVelocities(member, parent, frameMotion.Pose.TransformPoint(centerInBubble),
+                    (Vector3 linear, Vector3 angular, Double3 acceleration) = HandedOffVelocities(member, parent,
+                        frameMotion.Pose.TransformPoint(centerInBubble),
                         frameMotion.VelocityToParent(centerInBubble, InstantVelocity(member, s) + homeVelocity),
                         frameMotion.AngularToParent(angularInBubble));
-                    handOffPlans.Add(new HandOffPlan(member, frame, parent, pose, linear, angular, acceleration,
-                        frameMotion.AngularAccelerationToParent(member.AngularAcceleration, angularInBubble).ToVector3(), frameMotion.Pose.Rotation));
+                    handOffPlans.Add(new(member, frame, parent, pose, linear, angular, acceleration,
+                        frameMotion.AngularAccelerationToParent(member.AngularAcceleration, angularInBubble)
+                            .ToVector3(), frameMotion.Pose.Rotation));
                     continue;
                 }
 
@@ -200,13 +228,15 @@ public sealed partial class JoltPhysicsBackend
                     FrameBounds entryBounds = frames.Bounds(entry.Frame);
                     if (member.IsHull && !FrameBounds.Fits(frames.Bounds(member.OwnedFrame), entryBounds))
                         continue;
-                    double distance = entryBounds.SignedDistance(entry.Motion.Pose.InverseTransformPoint(center + entry.Offset));
+                    double distance =
+                        entryBounds.SignedDistance(entry.Motion.Pose.InverseTransformPoint(center + entry.Offset));
                     if (distance <= radius && radius - distance > deepest)
                     {
                         best = i;
                         deepest = radius - distance;
                     }
                 }
+
                 if (best >= 0)
                 {
                     ref readonly BubbleEntry entry = ref entries[best];
@@ -214,11 +244,14 @@ public sealed partial class JoltPhysicsBackend
                     var poseInParent = new DPose(s.Pose.Position + entry.Offset, s.Pose.Rotation);
                     Double3 centerInParent = s.CenterOfMass + entry.Offset;
                     Double3 angularInParent = InstantAngularVelocity(member, s);
-                    var (linear, angular, acceleration) = HandedOffVelocities(member, entry.Frame, motion.Pose.InverseTransformPoint(centerInParent),
+                    (Vector3 linear, Vector3 angular, Double3 acceleration) = HandedOffVelocities(member, entry.Frame,
+                        motion.Pose.InverseTransformPoint(centerInParent),
                         motion.VelocityFromParent(centerInParent, InstantVelocity(member, s) + entry.Velocity),
                         motion.AngularFromParent(angularInParent));
-                    handOffPlans.Add(new HandOffPlan(member, frame, entry.Frame, motion.PoseFromParent(poseInParent), linear, angular, acceleration,
-                        motion.AngularAccelerationFromParent(member.AngularAcceleration, angularInParent).ToVector3(), motion.Pose.Rotation.Conjugate()));
+                    handOffPlans.Add(new(member, frame, entry.Frame, motion.PoseFromParent(poseInParent), linear,
+                        angular, acceleration,
+                        motion.AngularAccelerationFromParent(member.AngularAcceleration, angularInParent).ToVector3(),
+                        motion.Pose.Rotation.Conjugate()));
                 }
             }
         }
@@ -260,7 +293,8 @@ public sealed partial class JoltPhysicsBackend
                 offsetInParent = frames.OffsetAfter(frame, parent, stepDt);
                 velocityInParent = velocity - HomeVelocityFor(use, parent, semantic);
             }
-            entries.Add(new BubbleEntry(site.Parent, site.Frame, site.Motion, site.Poses, offsetInParent, velocityInParent));
+
+            entries.Add(new(site.Parent, site.Frame, site.Motion, site.Poses, offsetInParent, velocityInParent));
         }
     }
 
@@ -270,7 +304,9 @@ public sealed partial class JoltPhysicsBackend
     /// which is a chord, for the ghosts.
     /// </summary>
     private Double3 HomeVelocityFor(BubblesFor use, FrameHandle home, FrameHandle semantic) =>
-        use == BubblesFor.HandOff ? InstantHomeVelocity(home, semantic) : frames.HomeVelocityAfter(home, semantic, stepDt);
+        use == BubblesFor.HandOff
+            ? InstantHomeVelocity(home, semantic)
+            : frames.HomeVelocityAfter(home, semantic, stepDt);
 
     /// <summary>
     /// The semantic children of <paramref name="semantic"/>: its children in the tree that are not numeric, and those of each
@@ -281,7 +317,8 @@ public sealed partial class JoltPhysicsBackend
     /// </summary>
     private List<BubbleSite> BubbleSitesOf(FrameHandle semantic, BubblesFor use)
     {
-        List<BubbleSite> sites = (use == BubblesFor.HandOff ? handOffSites : ghostSites).For(semantic, stepIndex, out bool collect);
+        List<BubbleSite> sites =
+            (use == BubblesFor.HandOff ? handOffSites : ghostSites).For(semantic, stepIndex, out bool collect);
         if (collect)
             CollectBubbleSites(semantic, sites, use);
         return sites;
@@ -296,12 +333,14 @@ public sealed partial class JoltPhysicsBackend
                 continue;
             if (use == BubblesFor.HandOff)
             {
-                sites.Add(new BubbleSite(parent, child, InstantMotionOf(child), null));
+                sites.Add(new(parent, child, InstantMotionOf(child), null));
                 continue;
             }
+
             FrameMotion motion = MotionOf(child);
-            sites.Add(new BubbleSite(parent, child, motion, PosesInStep(child, parent, motion.Pose)));
+            sites.Add(new(parent, child, motion, PosesInStep(child, parent, motion.Pose)));
         }
+
         foreach (FrameHandle child in children)
             if (frames.IsNumeric(child))
                 CollectBubbleSites(child, sites, use);
@@ -317,6 +356,7 @@ public sealed partial class JoltPhysicsBackend
             record.DesiredVelocity = plan.Turn.Rotate(record.DesiredVelocity);
             record.PendingVelocityChange = plan.Turn.Rotate(record.PendingVelocityChange);
         }
+
         FrameWorld target = WorldFor(plan.To);
         // The real body replaces its ghost.
         RemoveGhostIn(record, target);
@@ -325,7 +365,8 @@ public sealed partial class JoltPhysicsBackend
         // up and its rotation, turned into the new frame's axes, and its next update turns its up under the new frame's
         // gravity: at once if it touches anything, and at most at the air rate if not. A character
         // keeps its form, which the next step changes if the new frame's gravity asks for the other one.
-        CreatePrimary(record, plan.To, plan.Pose, plan.LinearVelocity, plan.AngularVelocity, upFromGravity: record.Standing);
+        CreatePrimary(record, plan.To, plan.Pose, plan.LinearVelocity, plan.AngularVelocity,
+            upFromGravity: record.Standing);
         DPose pose = plan.Pose;
         if (record.Character is { } character)
         {
@@ -335,6 +376,7 @@ public sealed partial class JoltPhysicsBackend
             // The hand-off reports the rotation that the character got, which a turn to the new up can change.
             pose = ReadPrimary(record).Pose;
         }
+
         if (record.IsHull)
         {
             MoveFrame(record.OwnedFrame, plan.From, plan.To);
@@ -345,9 +387,10 @@ public sealed partial class JoltPhysicsBackend
             record.AngularAcceleration = plan.AngularAcceleration;
             record.HandOffStep = stepIndex;
         }
+
         // A contact that no system takes over can wait for the numeric update of the sync point (see ResolveLooseContacts).
         handedOff.Add(record.Entity);
-        output.HandOffs.Add(new HandOff(record.Entity, plan.From, plan.To, pose, plan.LinearVelocity, plan.AngularVelocity));
+        output.HandOffs.Add(new(record.Entity, plan.From, plan.To, pose, plan.LinearVelocity, plan.AngularVelocity));
     }
 
     /// <summary>
@@ -368,7 +411,7 @@ public sealed partial class JoltPhysicsBackend
         ChildrenOf(from).Remove(frame);
         if (to.Index >= childLists.Length)
             Array.Resize(ref childLists, Math.Max(to.Index + 1, childLists.Length * 2));
-        List<FrameHandle> list = childLists[to.Index] ??= new List<FrameHandle>();
+        List<FrameHandle> list = childLists[to.Index] ??= [];
         if (list.Count == 0)
             usedChildLists.Add(to.Index);
         list.Add(frame);
@@ -387,14 +430,12 @@ public sealed partial class JoltPhysicsBackend
     /// handed off into <paramref name="parent"/> in the step: its pose where the step started is in its old parent, which
     /// the design gives no rule for, so for that one step its ghosts keep the rule of the end of the step.
     /// </summary>
-    private StepPoses? PosesInStep(FrameHandle frame, FrameHandle parent, in DPose end)
-    {
-        if (frames.StepTurn(frame).IsIdentity && frames.StepTurn(parent).IsIdentity)
-            return null;
-        if (frames.TreeParent(frame) != parent)
-            return null;
-        return new StepPoses(StartPoseOf(frame), end);
-    }
+    private StepPoses? PosesInStep(FrameHandle frame, FrameHandle parent, in DPose end) =>
+        frames.StepTurn(frame).IsIdentity && frames.StepTurn(parent).IsIdentity
+            ? null
+            : frames.TreeParent(frame) != parent
+                ? null
+                : new StepPoses(StartPoseOf(frame), end);
 
     /// <summary>
     /// The pose of <paramref name="frame"/> in its tree parent where the step started: the pose of the teleport that its
@@ -410,7 +451,8 @@ public sealed partial class JoltPhysicsBackend
             return hull.HasPrimary && hull.TeleportStep == stepIndex ? hull.TeleportPose : frames.TreeLocalPose(frame);
         ReadOnlySpan<PhysicsIntent> intents = stepIntents.Span;
         int slot = (int)frame.Entity.Index;
-        return slot < intents.Length && (intents[slot].Flags & IntentFlags.Teleport) != 0 && intents[slot].Move.FollowKind != FollowKind.Static
+        return slot < intents.Length && (intents[slot].Flags & IntentFlags.Teleport) != 0 &&
+               intents[slot].Move.FollowKind != FollowKind.Static
             ? intents[slot].TeleportPose
             : frames.TreeLocalPose(frame);
     }
@@ -443,7 +485,8 @@ public sealed partial class JoltPhysicsBackend
     /// that the tree allows, as <see cref="GhostAllowed"/> says. No frame gets two ghosts of one body: an anchor's homes are
     /// frames of its own semantic frame, which no other ghost of it enters; the homes that keep a ghost of a frame's hull
     /// are frames of the semantic parent other than the frame's tree parent; and the bubbles that a body touches are not
-    /// numeric, and none of them is the semantic parent. Each ghost has the role of its kind (see <see cref="GhostBody.Role"/>).
+    /// numeric, and none of them is the semantic parent. Each ghost has the role of its kind (see <see cref="GhostBody.Role"/>
+    /// ).
     /// A system whose semantic frame has no child bubble skips its static members, unless one keeps a ghost to drop.
     /// </summary>
     private void UpdateGhosts()
@@ -454,6 +497,7 @@ public sealed partial class JoltPhysicsBackend
             followedAnchorGhosts.Clear();
             followedAnchorGhosts.AddRange(anchorGhosts);
         }
+
         // A new ghost can create the system of a frame that had no bodies. That world has no members, so the
         // snapshot of the count skips nothing that needs work.
         int worldCount = worldList.Count;
@@ -503,7 +547,8 @@ public sealed partial class JoltPhysicsBackend
                 // The role of a child ghost, which a ghost in a sibling of the bubble has too: neither system holds a hull of
                 // a frame that holds the body, so a ghost of a static body or of a hull there meets hulls, as its body does
                 // (see GhostBody.Role).
-                BodyLayer childRole = member.IsHull ? BodyLayer.Static : movable ? BodyLayer.Ghost : RoleFor(member.Desc);
+                BodyLayer childRole =
+                    member.IsHull ? BodyLayer.Static : movable ? BodyLayer.Ghost : RoleFor(member.Desc);
 
                 // A moving body that sticks out of the bubble (see BubbleOf) has a ghost in the bubble's tree parent, the
                 // home of the bubble's hull, and in each sibling frame whose content it reaches (it lost the tie of rule 3,
@@ -522,12 +567,13 @@ public sealed partial class JoltPhysicsBackend
                         framePoses = PosesInStep(bubble, parent, frameMotion.Pose);
                         haveFrameMotion = true;
                     }
+
                     s = ReadPrimary(member);
                     haveSnapshot = true;
                     Double3 centerInBubble = s.CenterOfMass + homeOffset;
-                    DPose parentPose = frameMotion.PoseToParent(new DPose(s.Pose.Position + homeOffset, s.Pose.Rotation));
+                    DPose parentPose = frameMotion.PoseToParent(new(s.Pose.Position + homeOffset, s.Pose.Rotation));
                     Double3 parentCenter = frameMotion.Pose.TransformPoint(centerInBubble);
-                    Double3 chordInBubble = (Double3)s.Linear + homeVelocity;
+                    Double3 chordInBubble = s.Linear + homeVelocity;
                     // A bubble that turns against its parent in the step converts the chords by its poses at both ends of the
                     // step (see PosesInStep).
                     Double3 parentLinear = framePoses is { } poses
@@ -540,24 +586,28 @@ public sealed partial class JoltPhysicsBackend
                     // The bubble's hull lives apart from its group, so the group's home holds the bodies that the merge
                     // test links to the hull, and the body has a ghost there too.
                     if (hullApart)
-                        WantGhostsBesideHull(member, bubble.Entity, anchorGhosts, parent, parentPose, parentLinear, parentAngular);
+                        WantGhostsBesideHull(member, bubble.Entity, anchorGhosts, parent, parentPose, parentLinear,
+                            parentAngular);
 
                     if (!haveSiblingBubbles)
                     {
                         PrepareBubbles(siblingBubbles, parent, BubblesFor.Ghosts);
                         haveSiblingBubbles = true;
                     }
+
                     foreach (ref readonly BubbleEntry sibling in CollectionsMarshal.AsSpan(siblingBubbles))
                     {
                         if (sibling.Frame == bubble || sibling.Frame == member.OwnedFrame)
                             continue;
                         ref readonly FrameMotion motion = ref sibling.Motion;
                         var poseInSiblingParent = new DPose(parentPose.Position + sibling.Offset, parentPose.Rotation);
-                        if (frames.Bounds(sibling.Frame).SignedDistance(motion.Pose.InverseTransformPoint(poseInSiblingParent.Position)) >
+                        if (frames.Bounds(sibling.Frame)
+                                .SignedDistance(motion.Pose.InverseTransformPoint(poseInSiblingParent.Position)) >
                             radius + ContentExcessFor(member, sibling.Frame))
                             continue;
                         WantGhost(member, sibling.Frame, motion.PoseFromParent(poseInSiblingParent),
-                            sibling.ChordFromParent(parentCenter + sibling.Offset, parentLinear + sibling.Velocity, stepDt),
+                            sibling.ChordFromParent(parentCenter + sibling.Offset, parentLinear + sibling.Velocity,
+                                stepDt),
                             sibling.AngularChordFromParent(parentAngular, stepDt), childRole);
                     }
                 }
@@ -577,17 +627,20 @@ public sealed partial class JoltPhysicsBackend
                     if (child.Frame == member.OwnedFrame)
                         continue;
                     ref readonly FrameMotion motion = ref child.Motion;
-                    if (frames.Bounds(child.Frame).SignedDistance(motion.Pose.InverseTransformPoint(center + child.Offset)) > reach + ContentExcessFor(member, child.Frame))
+                    if (frames.Bounds(child.Frame)
+                            .SignedDistance(motion.Pose.InverseTransformPoint(center + child.Offset)) >
+                        reach + ContentExcessFor(member, child.Frame))
                         continue;
                     if (!haveSnapshot)
                     {
                         s = ReadPrimary(member);
                         haveSnapshot = true;
                     }
+
                     var poseInParent = new DPose(s.Pose.Position + child.Offset, s.Pose.Rotation);
                     Double3 centerInParent = s.CenterOfMass + child.Offset;
                     WantGhost(member, child.Frame, motion.PoseFromParent(poseInParent),
-                        child.ChordFromParent(centerInParent, (Double3)s.Linear + child.Velocity, stepDt),
+                        child.ChordFromParent(centerInParent, s.Linear + child.Velocity, stepDt),
                         child.AngularChordFromParent(s.Angular, stepDt), childRole);
                 }
 
@@ -630,11 +683,13 @@ public sealed partial class JoltPhysicsBackend
                     ghostCenters.Add(default);
                     continue;
                 }
+
                 Double3 center = PrimaryPosition(member);
                 ghostCenters.Add(center);
                 if (hasParent)
                     excess = Math.Max(excess, bounds.SignedDistance(center + homeOffset) + member.Radius);
             }
+
             if (excess > 0)
             {
                 ref double stored = ref CollectionsMarshal.GetValueRefOrAddDefault(contentExcess, bubble, out _);
@@ -669,7 +724,8 @@ public sealed partial class JoltPhysicsBackend
     /// the end of the step, when the frames have moved on, as for the ghost of the hull itself (see
     /// <see cref="WantAnchorGhosts"/>).
     /// </summary>
-    private void WantGhostsBesideHull(BodyRecord record, Entity hull, ReadOnlySpan<NumericGhost> anchorGhosts, FrameHandle parent, in DPose pose,
+    private void WantGhostsBesideHull(BodyRecord record, Entity hull, ReadOnlySpan<NumericGhost> anchorGhosts,
+        FrameHandle parent, in DPose pose,
         Double3 linearVelocity, Double3 angularVelocity)
     {
         FrameHandle semantic = frames.SemanticOf(parent);
@@ -678,8 +734,10 @@ public sealed partial class JoltPhysicsBackend
             if (ghost.Anchor != hull || !frames.IsAlive(ghost.Frame))
                 continue;
             Double3 offset = frames.OffsetAfter(parent, ghost.Frame, stepDt);
-            Double3 velocity = frames.HomeVelocityAfter(parent, semantic, stepDt) - frames.HomeVelocityAfter(ghost.Frame, semantic, stepDt);
-            WantGhost(record, ghost.Frame, new DPose(pose.Position + offset, pose.Rotation), linearVelocity + velocity, angularVelocity, BodyLayer.Ghost);
+            Double3 velocity = frames.HomeVelocityAfter(parent, semantic, stepDt) -
+                               frames.HomeVelocityAfter(ghost.Frame, semantic, stepDt);
+            WantGhost(record, ghost.Frame, new(pose.Position + offset, pose.Rotation), linearVelocity + velocity,
+                angularVelocity, BodyLayer.Ghost);
         }
     }
 
@@ -702,8 +760,10 @@ public sealed partial class JoltPhysicsBackend
             if (ghost.Anchor != anchor.Entity || !frames.IsAlive(ghost.Frame))
                 continue;
             Double3 offset = frames.OffsetAfter(home, ghost.Frame, stepDt);
-            Double3 velocity = frames.HomeVelocityAfter(home, semantic, stepDt) - frames.HomeVelocityAfter(ghost.Frame, semantic, stepDt);
-            WantGhost(anchor, ghost.Frame, new DPose(s.Pose.Position + offset, s.Pose.Rotation), (Double3)s.Linear + velocity, s.Angular,
+            Double3 velocity = frames.HomeVelocityAfter(home, semantic, stepDt) -
+                               frames.HomeVelocityAfter(ghost.Frame, semantic, stepDt);
+            WantGhost(anchor, ghost.Frame, new(s.Pose.Position + offset, s.Pose.Rotation), s.Linear + velocity,
+                s.Angular,
                 anchor.IsHull ? BodyLayer.FrameHull : RoleFor(anchor.Desc));
         }
     }
@@ -720,12 +780,13 @@ public sealed partial class JoltPhysicsBackend
     /// Removing the old ghost loosens its contacts, and the carry of the end of the step keeps each one that the new ghost
     /// can make (see <see cref="ResolveLooseContacts"/>).
     /// </summary>
-    private void WantGhost(BodyRecord record, FrameHandle frame, in DPose pose, Double3 linearVelocity, Double3 angularVelocity, BodyLayer role)
+    private void WantGhost(BodyRecord record, FrameHandle frame, in DPose pose, Double3 linearVelocity,
+        Double3 angularVelocity, BodyLayer role)
     {
         FrameWorld world = WorldFor(frame);
         Vector3 linear = linearVelocity.ToVector3(), angular = angularVelocity.ToVector3();
         MotionType motion = GhostMotion(record, linear, angular);
-        List<GhostBody> ghosts = record.Ghosts ??= new List<GhostBody>(2);
+        List<GhostBody> ghosts = record.Ghosts ??= [with(2)];
         for (int i = 0; i < ghosts.Count; i++)
         {
             ref GhostBody ghost = ref CollectionsMarshal.AsSpan(ghosts)[i];
@@ -737,13 +798,16 @@ public sealed partial class JoltPhysicsBackend
                 // counts as wanted until the next pass. Only one that the pass has not wanted yet can change its role.
                 if (ghost.Wanted)
                 {
-                    ReportBug($"Physics: the ghost of {record.Entity} in {frame} has the role {ghost.Role}, and the same pass wants it in the role {role}. " +
+                    ReportBug(
+                        $"Physics: the ghost of {record.Entity} in {frame} has the role {ghost.Role}, and the same pass wants it in the role {role}. " +
                         "Only a bug wants one ghost twice, so the second want was skipped.");
                     return;
                 }
+
                 RemoveGhostAt(ghosts, i);
                 break;
             }
+
             BodyInterface bodies = world.Bodies;
             // Jolt does not simulate the move of a ghost, so the bodies around its old and new places wake.
             bool moves = !IsAt(bodies, ghost.Body, pose);
@@ -753,22 +817,31 @@ public sealed partial class JoltPhysicsBackend
             // static body changes its motion as it starts and stops moving. A change of a hull's motion made the hull's
             // ghosts again (see MakeGhostsAgain), so a ghost of a body that can move is kinematic already.
             if (bodies.GetMotionType(ghost.Body) != motion)
-                bodies.SetMotionType(ghost.Body, motion, motion == MotionType.Static ? Activation.DontActivate : Activation.Activate);
+                bodies.SetMotionType(ghost.Body, motion,
+                    motion == MotionType.Static ? Activation.DontActivate : Activation.Activate);
             if (motion == MotionType.Static)
             {
                 if (moves)
-                    bodies.SetRPositionAndRotation(ghost.Body, pose.Position.ToJolt(), pose.Rotation.ToJolt(), Activation.DontActivate);
+                    bodies.SetRPositionAndRotation(ghost.Body, pose.Position.ToJolt(), pose.Rotation.ToJolt(),
+                        Activation.DontActivate);
             }
             else
             {
-                bodies.SetRPositionRotationAndVelocity(ghost.Body, pose.Position.ToJolt(), pose.Rotation.ToJolt(), linear, angular);
+                bodies.SetRPositionRotationAndVelocity(ghost.Body, pose.Position.ToJolt(), pose.Rotation.ToJolt(),
+                    linear, angular);
             }
+
             if (moves)
                 world.WakeAround(ghost.Body);
             ghost.Wanted = true;
             return;
         }
-        ghosts.Add(new GhostBody { Frame = frame, World = world, Body = CreateGhostBody(record, world, pose, linear, angular, role), Wanted = true, Role = role });
+
+        ghosts.Add(new()
+        {
+            Frame = frame, World = world, Body = CreateGhostBody(record, world, pose, linear, angular, role),
+            Wanted = true, Role = role
+        });
     }
 
     /// <summary>
@@ -826,12 +899,6 @@ public sealed partial class JoltPhysicsBackend
         }
     }
 
-    // The pairs of FrameTree.AnchorGhosts whose ghosts the backend may hold: those that the ghost pass of the last step
-    // followed, less the ones that a sync point withdrew since (see DropWithdrawnAnchorGhosts).
-    private readonly List<NumericGhost> followedAnchorGhosts = new();
-    // Scratch for DropWithdrawnAnchorGhosts: the ghosts of one system.
-    private readonly List<BodyID> withdrawnScratch = new();
-
     /// <summary>
     /// Removes the ghosts whose place the numeric update of this sync point withdrew: for each pair of
     /// <see cref="FrameTree.AnchorGhosts"/> that the ghost pass followed and that the tree no longer names, each ghost in
@@ -856,7 +923,8 @@ public sealed partial class JoltPhysicsBackend
         }
     }
 
-    /// <summary>Removes each ghost in the system of <paramref name="frame"/> that the frame tree does not allow there (see <see cref="GhostAllowed"/>).</summary>
+    /// <summary>Removes each ghost in the system of <paramref name="frame"/> that the frame tree does not allow there (see
+    /// <see cref="GhostAllowed"/>).</summary>
     private void DropForbiddenGhostsIn(FrameHandle frame)
     {
         if (!frames.IsAlive(frame) || ExistingWorld(frame) is not { } world)
@@ -874,6 +942,7 @@ public sealed partial class JoltPhysicsBackend
                 if (ghosts[i].Body == body && ghosts[i].World == world)
                     RemoveGhostAt(ghosts, i);
         }
+
         withdrawnScratch.Clear();
     }
 
@@ -909,31 +978,31 @@ public sealed partial class JoltPhysicsBackend
             {
                 BodyID id = activeScratch[i];
                 ulong data = bodies.GetUserData(id);
-                if (BodyUserData.Kind(data) != BodyKind.Primary || RecordFor(data) is not { } record || record.Body != id || record.World != world)
+                if (BodyUserData.Kind(data) != BodyKind.Primary || RecordFor(data) is not { } record ||
+                    record.Body != id || record.World != world)
                     continue;
                 Report(world, record, output, track: true);
             }
+
             // A character reports in every step. The loop above reported a character in the rigid form while it is awake.
             if (world.CharacterCount > 0)
-            {
                 foreach (BodyRecord member in world.Members)
                 {
                     if (!member.IsCharacter)
                         continue;
                     if (member.ReportedStep != stepIndex)
                         Report(world, member, output, track: true);
-                    output.Characters.Add(new CharacterState(member.Entity, member.Standing));
+                    output.Characters.Add(new(member.Entity, member.Standing));
                 }
-            }
+
             foreach (BodyRecord record in world.ReportedLast)
-            {
                 if (record.ReportedStep != stepIndex && record.World == world && Find(record.Entity) == record)
                 {
                     Report(world, record, output, track: false);
                     // The body fell asleep in the step, and Jolt zeroed its velocity, which no update expected.
                     record.Shadow = default;
                 }
-            }
+
             // A falling numeric frame or a following frame moves, so its sleeping and static members move in its semantic frame
             // too.
             if (frames.Numeric(world.Frame) is NumericMode.Falling or NumericMode.Following)
@@ -959,11 +1028,15 @@ public sealed partial class JoltPhysicsBackend
             Double3 center = s.CenterOfMass - s.Pose.Position;
             Double3 linear = aimed.Velocity + Double3.Cross(aimed.AngularVelocity, center)
                              - frames.HomeVelocityAfter(record.Frame, frames.SemanticOf(record.Frame), stepDt);
-            output.Bodies.Add(new BodyState(record.Entity, record.Frame, new DPose(s.Pose.Position, aimed.Pose.Rotation), linear.ToVector3(),
+            output.Bodies.Add(new(record.Entity, record.Frame, new(s.Pose.Position, aimed.Pose.Rotation),
+                linear.ToVector3(),
                 aimed.AngularVelocity.ToVector3()));
         }
         else
-            output.Bodies.Add(new BodyState(record.Entity, record.Frame, s.Pose, s.Linear, s.Angular));
+        {
+            output.Bodies.Add(new(record.Entity, record.Frame, s.Pose, s.Linear, s.Angular));
+        }
+
         record.ReportedStep = stepIndex;
         if (track)
             world.ReportedNow.Add(record);
@@ -983,7 +1056,8 @@ public sealed partial class JoltPhysicsBackend
     /// <para>
     /// The tree keeps the velocity of a frame in a numeric home relative to the home's frame velocity, the chord of the
     /// step, so that a read in the semantic parent gives the frame's instant velocity, and a hull that physics places from
-    /// the tree again takes the velocity that it had (see <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3, in TurningMoment?)"/>).
+    /// the tree again takes the velocity that it had (see
+    /// <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3, in TurningMoment?)"/>).
     /// A record from <see cref="StepRecordOf"/> is relative to the home's instant velocity of every hand-off (see
     /// <see cref="InstantHomeVelocity"/>; an awake dynamic hull's record converts to it, see <see cref="TryHullRecord"/>). So
     /// each record that physics releases adds the home's instant velocity past its chord (see
@@ -1011,7 +1085,8 @@ public sealed partial class JoltPhysicsBackend
             // Physics measures the proper acceleration of a dynamic hull (see ComputeProperAccelerations). The frame tree
             // derives every other frame's from its record (see FrameTree.ProperAcceleration).
             Vector3? measured = owner.Motion == BodyMotion.Dynamic ? owner.ProperAcceleration : null;
-            output.Frames.Add(new FrameStepRecord(frame, record with { Velocity = record.Velocity + HomeInstantVelocityOverChord(owner.Frame) }, measured));
+            output.Frames.Add(new(frame,
+                record with { Velocity = record.Velocity + HomeInstantVelocityOverChord(owner.Frame) }, measured));
         }
     }
 }

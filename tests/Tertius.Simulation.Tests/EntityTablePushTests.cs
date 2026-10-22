@@ -14,7 +14,7 @@ namespace Tertius.Simulation.Tests;
 public class EntityTablePushTests
 {
     /// <summary>A frame handle that names no frame tree: the table only copies it.</summary>
-    private static readonly FrameHandle Space = new(new Entity(99, 1), 1, 1);
+    private static readonly FrameHandle Space = new(new(99, 1), 1, 1);
 
     /// <summary>A live entity without a body in <see cref="Space"/>, as a part is.</summary>
     private static Entity Part(EntityTable table) => table.SpawnLive(Space);
@@ -23,7 +23,7 @@ public class EntityTablePushTests
     private static Entity Root(EntityTable table)
     {
         Entity entity = table.Reserve();
-        table.Activate(entity, new TransformRow { Frame = Space, PhysicsHome = Space }, new RenderData(), [], [], TestWorld.Ball,
+        table.Activate(entity, new() { Frame = Space, PhysicsHome = Space }, new(), [], [], TestWorld.Ball,
             Vector3.Zero, FrameHandle.Null);
         return entity;
     }
@@ -116,7 +116,7 @@ public class EntityTablePushTests
         Entity root = Root(table);
         TickAndSwap(table, () => { });
 
-        table.AddPush(root, new Push(new Double3(1, 2, 3), new Double3(4, 5, 6), new Double3(7, 8, 9), new Double3(10, 11, 12)));
+        table.AddPush(root, new(new(1, 2, 3), new(4, 5, 6), new(7, 8, 9), new(10, 11, 12)));
 
         table.IntentEntities.ToArray().Should().Equal(root);
         PhysicsIntent intent = table.NextStepIntent(root);
@@ -140,7 +140,7 @@ public class EntityTablePushTests
             table.WritableIntent(root).Flags |= IntentFlags.SetAngularVelocity;
         });
 
-        table.AddPush(root, new Push(new Double3(5, 0, 0), Double3.Zero, Double3.Zero, Double3.Zero));
+        table.AddPush(root, new(new(5, 0, 0), Double3.Zero, Double3.Zero, Double3.Zero));
 
         table.IntentEntities.ToArray().Should().Equal(root);
         table.NextStepIntent(root).Force.Should().Be(new Vector3(5, 0, 0));
@@ -155,8 +155,8 @@ public class EntityTablePushTests
         EntityTable table = TableSupport.NewTable();
         Entity entity = table.Reserve();
 
-        table.Activate(entity, new TransformRow { Frame = Space, PhysicsHome = Space }, new RenderData(), [], [], TestWorld.Ball,
-            new Vector3(0.25f, -1, 3), FrameHandle.Null);
+        table.Activate(entity, new() { Frame = Space, PhysicsHome = Space }, new(), [], [], TestWorld.Ball,
+            new(0.25f, -1, 3), FrameHandle.Null);
 
         table.BodyCenterOfMass(entity).Should().Be(new Vector3(0.25f, -1, 3));
         table.AssertInvariants();

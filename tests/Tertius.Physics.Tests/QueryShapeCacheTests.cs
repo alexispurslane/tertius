@@ -15,9 +15,9 @@ public class QueryShapeCacheTests
         JoltRuntime.EnsureInitialized();
         using var cache = new QueryShapeCache();
 
-        var first = cache.Get(QueryShape.Box(new Vector3(1, 2, 3)));
-        var again = cache.Get(QueryShape.Box(new Vector3(1, 2, 3)));
-        var other = cache.Get(QueryShape.Capsule(2, 1));
+        Shape first = cache.Get(QueryShape.Box(new(1, 2, 3)));
+        Shape again = cache.Get(QueryShape.Box(new(1, 2, 3)));
+        Shape other = cache.Get(QueryShape.Capsule(2, 1));
 
         again.Should().BeSameAs(first);
         other.Should().NotBeSameAs(first);
@@ -55,9 +55,9 @@ public class QueryShapeCacheTests
         JoltRuntime.EnsureInitialized();
         using var cache = new QueryShapeCache();
 
-        Shape native = cache.Get(QueryShape.Box(new Vector3(1, 2, 3)));
+        Shape native = cache.Get(QueryShape.Box(new(1, 2, 3)));
 
-        var box = native.Should().BeOfType<BoxShape>().Subject;
+        BoxShape box = native.Should().BeOfType<BoxShape>().Subject;
         box.HalfExtent.Should().Be(new Vector3(1, 2, 3));
         box.ConvexRadius.Should().Be(0);
     }
@@ -70,7 +70,7 @@ public class QueryShapeCacheTests
 
         Shape native = cache.Get(QueryShape.Capsule(2, 0.5f));
 
-        var capsule = native.Should().BeOfType<CapsuleShape>().Subject;
+        CapsuleShape capsule = native.Should().BeOfType<CapsuleShape>().Subject;
         capsule.HalfHeightOfCylinder.Should().Be(2);
         capsule.Radius.Should().Be(0.5f);
     }

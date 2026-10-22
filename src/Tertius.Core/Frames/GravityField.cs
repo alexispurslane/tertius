@@ -30,43 +30,34 @@ public readonly struct GravityField : IEquatable<GravityField>
 {
     private const byte KindNone = 0, KindUniform = 1, KindPoint = 2;
 
+    /// <summary>No gravity.</summary>
+    public static GravityField None => default;
+
     // The view of a case that the field does not hold stays all zero, so equality needs to compare only the held case.
     private readonly UniformGravity uniform;
     private readonly PointGravity point;
     private readonly byte kind;
 
-    public GravityField(UniformGravity uniform) { kind = KindUniform; this.uniform = uniform; }
-    public GravityField(PointGravity point) { kind = KindPoint; this.point = point; }
+    public GravityField(UniformGravity uniform)
+    {
+        kind = KindUniform;
+        this.uniform = uniform;
+    }
 
-    /// <summary>No gravity.</summary>
-    public static GravityField None => default;
-
-    /// <summary>A uniform field. Without a <paramref name="region"/>, it holds everywhere in the frame.</summary>
-    public static GravityField Uniform(Vector3 acceleration, BoundingBox? region = null) => new(new UniformGravity(acceleration, region));
-
-    /// <param name="mu">The standard gravitational parameter G·M, in m³/s².</param>
-    public static GravityField Point(double mu) => new(new PointGravity(mu));
+    public GravityField(PointGravity point)
+    {
+        kind = KindPoint;
+        this.point = point;
+    }
 
     /// <summary>False for the empty field, which is no gravity.</summary>
     public bool HasValue => kind != KindNone;
-
-    public bool TryGetValue(out UniformGravity value)
-    {
-        value = uniform;
-        return kind == KindUniform;
-    }
-
-    public bool TryGetValue(out PointGravity value)
-    {
-        value = point;
-        return kind == KindPoint;
-    }
 
     public object? Value => kind switch
     {
         KindUniform => uniform,
         KindPoint => point,
-        _ => null,
+        _ => null
     };
 
     /// <summary>
@@ -79,7 +70,7 @@ public readonly struct GravityField : IEquatable<GravityField>
         UniformGravity { Acceleration: var acceleration, Region: var region } =>
             IsFinite(acceleration) && (region is not { } box || (IsFinite(box.Min) && IsFinite(box.Max))),
         PointGravity { Mu: var mu } => double.IsFinite(mu) && mu >= 0,
-        _ => true,
+        _ => true
     };
 
     /// <summary>
@@ -87,6 +78,25 @@ public readonly struct GravityField : IEquatable<GravityField>
     /// gives a Kepler frame in this frame a G·M to orbit, so the World refuses a Kepler frame under any other field.
     /// </summary>
     public bool CanBeOrbited => this is PointGravity { CanBeOrbited: true };
+
+    /// <summary>A uniform field. Without a <paramref name="region"/>, it holds everywhere in the frame.</summary>
+    public static GravityField Uniform(Vector3 acceleration, BoundingBox? region = null) =>
+        new(new UniformGravity(acceleration, region));
+
+    /// <param name="mu">The standard gravitational parameter G·M, in m³/s².</param>
+    public static GravityField Point(double mu) => new(new PointGravity(mu));
+
+    public bool TryGetValue(out UniformGravity value)
+    {
+        value = uniform;
+        return kind == KindUniform;
+    }
+
+    public bool TryGetValue(out PointGravity value)
+    {
+        value = point;
+        return kind == KindPoint;
+    }
 
     private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
 
@@ -117,7 +127,7 @@ public readonly struct GravityField : IEquatable<GravityField>
     {
         KindUniform => uniform == other.uniform,
         KindPoint => point == other.point,
-        _ => true,
+        _ => true
     };
 
     public override bool Equals(object? obj) => obj is GravityField other && Equals(other);
@@ -126,7 +136,7 @@ public readonly struct GravityField : IEquatable<GravityField>
     {
         KindUniform => HashCode.Combine(kind, uniform),
         KindPoint => HashCode.Combine(kind, point),
-        _ => 0,
+        _ => 0
     };
 
     public static bool operator ==(GravityField a, GravityField b) => a.Equals(b);
@@ -136,6 +146,6 @@ public readonly struct GravityField : IEquatable<GravityField>
     {
         UniformGravity u => $"GravityField({u})",
         PointGravity p => $"GravityField({p})",
-        _ => "GravityField(none)",
+        _ => "GravityField(none)"
     };
 }

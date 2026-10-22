@@ -38,27 +38,28 @@ public sealed class BackJet : IComponent
     /// the person (docs/plans/blue-danube-demo.md, "The plumes").
     /// </summary>
     public static Plume Plume { get; } = new(
-        new PuffLook(Life: 1.5f, StartRadius: 0.04f, EndRadius: 0.3f, TemperatureRatio: 0.75f, PuffShading.Lit(new Vector3(0.85f, 0.87f, 0.9f))),
+        new(Life: 1.5f, StartRadius: 0.04f, EndRadius: 0.3f, TemperatureRatio: 0.75f,
+            PuffShading.Lit(new(0.85f, 0.87f, 0.9f))),
         FullRate: 30, Speed: 3, Spread: 0.2f);
 
     /// <summary>Where the jet sits on the person, in meters, in the person's axes: on its back, at its chest's height.</summary>
     public static Vector3 Place { get; } = new(0, 0.3f, 0.3f);
 
-    /// <summary>
-    /// Spawns a back jet as a part of the running entity, at <see cref="Place"/> with the entity's rotation. It becomes live
-    /// at the sync point of the tick, so a force sent to it in the same tick reaches it in the next.
-    /// </summary>
-    public static Entity Spawn(Self self) => self.Spawn(new SpawnDesc
-    {
-        AttachTo = self.Entity,
-        AttachOffset = new Pose(Place, Quaternion.Identity),
-        Components = [new BackJet()],
-    });
-
     public int Priority => 10;
 
     // Tick brings the jet into every tick, so that a tick without a force clears its emitter.
     public EventMask Wants => EventMask.Of<JetForce>().And<Tick>();
+
+    /// <summary>
+    /// Spawns a back jet as a part of the running entity, at <see cref="Place"/> with the entity's rotation. It becomes live
+    /// at the sync point of the tick, so a force sent to it in the same tick reaches it in the next.
+    /// </summary>
+    public static Entity Spawn(Self self) => self.Spawn(new()
+    {
+        AttachTo = self.Entity,
+        AttachOffset = new(Place, Quaternion.Identity),
+        Components = [new BackJet()]
+    });
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
@@ -70,6 +71,7 @@ public sealed class BackJet : IComponent
             self.Render.Emitter = default;
             throw new ArgumentOutOfRangeException(nameof(JetForce), force, "A jet's force is finite.");
         }
+
         self.Render.Emitter = Plume.At(MathF.Min(1, force.Length() / PersonControl.ThrustForce));
         if (force == Vector3.Zero)
             return;

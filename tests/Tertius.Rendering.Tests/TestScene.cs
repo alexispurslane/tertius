@@ -1,5 +1,4 @@
 using System.Numerics;
-using Tertius.Rendering;
 
 namespace Tertius.Rendering.Tests;
 
@@ -17,17 +16,19 @@ namespace Tertius.Rendering.Tests;
 /// </summary>
 internal sealed class TestScene
 {
-    public static readonly Vector3 SunDirection = Vector3.Normalize(new Vector3(0.6f, 0.3f, -0.74f));
     public const float PlanetRadius = 6.0e6f;
-    public static readonly Vector3 PlanetCenter = Vector3.Normalize(new Vector3(-1.6f, 0.5f, -2.5f)) * 3.0e7f;
     public const float StarRadius = 7.0e8f;
     public const float StarDistance = 1.496e11f;
+    public static readonly Vector3 SunDirection = Vector3.Normalize(new(0.6f, 0.3f, -0.74f));
+    public static readonly Vector3 PlanetCenter = Vector3.Normalize(new(-1.6f, 0.5f, -2.5f)) * 3.0e7f;
     public static readonly Vector3 StarCenter = SunDirection * StarDistance;
     public static readonly Vector3 StationCenter = new(-8_000f, 3_000f, -50_000f);
     public static readonly Vector3 RedSphere = new(-1.6f, -0.7f, -6f);
     public static readonly Vector3 BlueSphere = new(1.9f, -0.9f, -5f);
     public static readonly Vector3 TexturedBox = new(0.2f, -0.6f, -9f);
     public static readonly Vector3 GreenGlass = new(0.2f, -1.0f, -4f);
+
+    public static readonly Vector3 TallBox = new(-3.6f, -0.5f, -10f);
 
     public MeshId Box;
     public MeshId Sphere;
@@ -47,30 +48,38 @@ internal sealed class TestScene
     {
         var scene = new TestScene
         {
-            Box = renderer.CreateMesh(Primitives.Box(new Vector3(0.5f))),
+            Box = renderer.CreateMesh(Primitives.Box(new(0.5f))),
             Sphere = renderer.CreateMesh(Primitives.Sphere(1f, 64, 32)),
-            Plane = renderer.CreateMesh(Primitives.Plane(1f, 10f)),
+            Plane = renderer.CreateMesh(Primitives.Plane(1f, 10f))
         };
         TextureId groundChecker = renderer.CreateTexture(TestTextures.Checker(256, 8, (200, 200, 200), (90, 90, 95)));
         TextureId boxChecker = renderer.CreateTexture(TestTextures.Checker(256, 4, (230, 180, 60), (60, 90, 170)));
         TextureId tiles = renderer.CreateTexture(TestTextures.BeveledTiles(256, 8));
         TextureId boxTiles = renderer.CreateTexture(TestTextures.BeveledTiles(256, 4));
-        scene.Ground = renderer.CreateMaterial(new MaterialDesc(Vector4.One, SpecularIntensity: 0.5f, Gloss: 0.45f,
+        scene.Ground = renderer.CreateMaterial(new(Vector4.One, SpecularIntensity: 0.5f, Gloss: 0.45f,
             Albedo: groundChecker, Normal: tiles, SpecularGloss: TextureId.None));
-        scene.Textured = renderer.CreateMaterial(new MaterialDesc(Vector4.One, SpecularIntensity: 0.6f, Gloss: 0.6f,
+        scene.Textured = renderer.CreateMaterial(new(Vector4.One, SpecularIntensity: 0.6f, Gloss: 0.6f,
             Albedo: boxChecker, Normal: boxTiles, SpecularGloss: TextureId.None));
-        scene.Red = renderer.CreateMaterial(MaterialDesc.Color(new Vector4(0.75f, 0.06f, 0.05f, 1), gloss: 0.85f) with { SpecularIntensity = 1f });
-        scene.Blue = renderer.CreateMaterial(MaterialDesc.Color(new Vector4(0.1f, 0.25f, 0.8f, 1), gloss: 0.2f));
-        scene.White = renderer.CreateMaterial(MaterialDesc.Color(new Vector4(0.8f, 0.8f, 0.8f, 1), gloss: 0.5f));
-        scene.Orange = renderer.CreateMaterial(MaterialDesc.Color(new Vector4(0.9f, 0.4f, 0.08f, 1), gloss: 0.7f));
-        scene.Glass = renderer.CreateMaterial(MaterialDesc.Color(new Vector4(0.2f, 0.9f, 0.3f, 0.45f), gloss: 0.9f) with { SpecularIntensity = 1f });
-        scene.Station = renderer.CreateMaterial(MaterialDesc.Color(new Vector4(0.7f, 0.7f, 0.75f, 1), gloss: 0.3f));
-        scene.PlanetMaterial = renderer.CreateMaterial(MaterialDesc.Color(new Vector4(0.25f, 0.4f, 0.6f, 1), gloss: 0.1f) with { SpecularIntensity = 0.2f });
-        scene.StarMaterial = renderer.CreateMaterial(MaterialDesc.Color(new Vector4(1, 1, 1, 1)) with { Emissive = new Vector3(60f, 55f, 45f) });
+        scene.Red = renderer.CreateMaterial(MaterialDesc.Color(new(0.75f, 0.06f, 0.05f, 1), gloss: 0.85f) with
+        {
+            SpecularIntensity = 1f
+        });
+        scene.Blue = renderer.CreateMaterial(MaterialDesc.Color(new(0.1f, 0.25f, 0.8f, 1), gloss: 0.2f));
+        scene.White = renderer.CreateMaterial(MaterialDesc.Color(new(0.8f, 0.8f, 0.8f, 1), gloss: 0.5f));
+        scene.Orange = renderer.CreateMaterial(MaterialDesc.Color(new(0.9f, 0.4f, 0.08f, 1), gloss: 0.7f));
+        scene.Glass = renderer.CreateMaterial(MaterialDesc.Color(new(0.2f, 0.9f, 0.3f, 0.45f), gloss: 0.9f) with
+        {
+            SpecularIntensity = 1f
+        });
+        scene.Station = renderer.CreateMaterial(MaterialDesc.Color(new(0.7f, 0.7f, 0.75f, 1), gloss: 0.3f));
+        scene.PlanetMaterial = renderer.CreateMaterial(MaterialDesc.Color(new(0.25f, 0.4f, 0.6f, 1), gloss: 0.1f) with
+        {
+            SpecularIntensity = 0.2f
+        });
+        scene.StarMaterial =
+            renderer.CreateMaterial(MaterialDesc.Color(new(1, 1, 1, 1)) with { Emissive = new(60f, 55f, 45f) });
         return scene;
     }
-
-    public static readonly Vector3 TallBox = new(-3.6f, -0.5f, -10f);
 
     public RenderSnapshot Snapshot(bool shadows = true)
     {
@@ -79,32 +88,37 @@ internal sealed class TestScene
         RenderFlags caster = shadows ? RenderFlags.CastsShadow : RenderFlags.None;
 
         // Near range.
-        instances.Add(Gpu.Instance(Plane, Ground, new Vector3(0, -1.5f, -40f), new Vector3(40f, 1f, 40f), flags: caster));
-        instances.Add(Gpu.Instance(Box, Textured, TexturedBox, new Vector3(1.8f), Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.6f), flags: caster));
-        instances.Add(Gpu.Instance(Box, White, TallBox, new Vector3(1.2f, 2f, 1.2f), Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.3f), flags: caster));
-        instances.Add(Gpu.Instance(Box, Orange, new Vector3(3.8f, -1.0f, -9f), new Vector3(1f), Quaternion.CreateFromYawPitchRoll(0.4f, 0f, 0f), flags: caster));
-        instances.Add(Gpu.Instance(Sphere, Red, RedSphere, new Vector3(0.8f), flags: caster));
-        instances.Add(Gpu.Instance(Sphere, Blue, BlueSphere, new Vector3(0.6f), flags: caster));
-        instances.Add(Gpu.Instance(Sphere, Glass, GreenGlass, new Vector3(0.5f), flags: RenderFlags.Transparent));
+        instances.Add(Gpu.Instance(Plane, Ground, new(0, -1.5f, -40f), new(40f, 1f, 40f), flags: caster));
+        instances.Add(Gpu.Instance(Box, Textured, TexturedBox, new(1.8f),
+            Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.6f), flags: caster));
+        instances.Add(Gpu.Instance(Box, White, TallBox, new(1.2f, 2f, 1.2f),
+            Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.3f), flags: caster));
+        instances.Add(Gpu.Instance(Box, Orange, new(3.8f, -1.0f, -9f), new(1f),
+            Quaternion.CreateFromYawPitchRoll(0.4f, 0f, 0f), flags: caster));
+        instances.Add(Gpu.Instance(Sphere, Red, RedSphere, new(0.8f), flags: caster));
+        instances.Add(Gpu.Instance(Sphere, Blue, BlueSphere, new(0.6f), flags: caster));
+        instances.Add(Gpu.Instance(Sphere, Glass, GreenGlass, new(0.5f), flags: RenderFlags.Transparent));
 
         // Middle range: a 1 km station turned so one face catches the sun.
-        instances.Add(Gpu.Instance(Box, Station, StationCenter, new Vector3(1_000f), Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.35f)));
+        instances.Add(Gpu.Instance(Box, Station, StationCenter, new(1_000f),
+            Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.35f)));
 
         // Far range.
         // The planet casts a far shadow: an eclipse of the sun for whatever lies behind it.
-        instances.Add(Gpu.Instance(Sphere, PlanetMaterial, PlanetCenter, new Vector3(PlanetRadius), flags: RenderFlags.Celestial | RenderFlags.CastsShadow));
-        instances.Add(Gpu.Instance(Sphere, StarMaterial, StarCenter, new Vector3(StarRadius), flags: RenderFlags.Celestial));
+        instances.Add(Gpu.Instance(Sphere, PlanetMaterial, PlanetCenter, new(PlanetRadius),
+            flags: RenderFlags.Celestial | RenderFlags.CastsShadow));
+        instances.Add(Gpu.Instance(Sphere, StarMaterial, StarCenter, new(StarRadius), flags: RenderFlags.Celestial));
 
         snapshot.Lights.Add(new PointRenderLight(
-            Position: new Vector3(-0.4f, 0.4f, -4.4f),
-            Color: new Vector3(1f, 0.7f, 0.4f),
+            Position: new(-0.4f, 0.4f, -4.4f),
+            Color: new(1f, 0.7f, 0.4f),
             Intensity: 6f,
             Range: 10f));
         Vector3 spotPosition = new(2.5f, 3.5f, -4.2f);
         snapshot.Lights.Add(new SpotRenderLight(
             Position: spotPosition,
             Direction: Vector3.Normalize(BlueSphere - spotPosition),
-            Color: new Vector3(0.6f, 0.8f, 1f),
+            Color: new(0.6f, 0.8f, 1f),
             Intensity: 40f,
             Range: 15f,
             InnerConeAngle: 0.25f,

@@ -46,7 +46,9 @@ public readonly ref struct FoundEntities
 
     /// <inheritdoc cref="EntityQuery.In"/>
     public FoundEntities In(FrameHandle frame) =>
-        query.InFrame.IsNull ? new(snapshot, query.In(frame), stack) : new(snapshot, query, stack.With(QueryFilter.In(frame)));
+        query.InFrame.IsNull
+            ? new(snapshot, query.In(frame), stack)
+            : new(snapshot, query, stack.With(QueryFilter.In(frame)));
 
     /// <inheritdoc cref="EntityQuery.Near(double)"/>
     public FoundEntities Near(double radius) => WithNear(QueryFilter.Near(radius));
@@ -55,15 +57,20 @@ public readonly ref struct FoundEntities
     public FoundEntities Near(Entity other, double radius) => WithNear(QueryFilter.Near(other, radius));
 
     /// <inheritdoc cref="EntityQuery.Near(FrameHandle, Double3, double)"/>
-    public FoundEntities Near(FrameHandle frame, Double3 point, double radius) => WithNear(QueryFilter.Near(frame, point, radius));
+    public FoundEntities Near(FrameHandle frame, Double3 point, double radius) =>
+        WithNear(QueryFilter.Near(frame, point, radius));
 
     /// <inheritdoc cref="EntityQuery.Where"/>
     public FoundEntities Where(EntityPredicate predicate) =>
-        query.WherePredicate is null ? new(snapshot, query.Where(predicate), stack) : new(snapshot, query, stack.With(QueryFilter.Where(predicate)));
+        query.WherePredicate is null
+            ? new(snapshot, query.Where(predicate), stack)
+            : new(snapshot, query, stack.With(QueryFilter.Where(predicate)));
 
     // Each chain word puts its filter inline while the query's slot for it is free, so it never builds a heap part.
     private FoundEntities WithNear(scoped in QueryFilter filter) =>
-        !query.NearFilter.HasValue ? new(snapshot, query.WithNear(filter), stack) : new(snapshot, query, stack.With(filter));
+        !query.NearFilter.HasValue
+            ? new(snapshot, query.WithNear(filter), stack)
+            : new(snapshot, query, stack.With(filter));
 
     /// <summary>Returns the enumerator that <c>foreach</c> uses. It picks the index when it starts.</summary>
     public Enumerator GetEnumerator() => new(snapshot, query, stack);
@@ -128,9 +135,11 @@ public readonly ref struct FoundEntities
     public ref struct Enumerator
     {
         private readonly Snapshot snapshot;
+
         private readonly EntityQuery query;
+
         // Not readonly: its span view needs a reference to it.
-        private StackFilters stack;
+        private readonly StackFilters stack;
         private readonly bool scanAll;
         private EntityTable.LiveEntityEnumerator all;
         private readonly ReadOnlySpan<Entity> candidates;
@@ -157,7 +166,8 @@ public readonly ref struct FoundEntities
                 case QueryIndex.Grid:
                     // The grid lists the entities of a cell in no order, so the run sorts them into entity index order.
                     buffer = QueryBuffers.Rent(plan.Count);
-                    Span<Entity> near = buffer.AsSpan(0, snapshot.World.Spatial.CollectNear(plan.Frame, plan.Point, plan.Radius, buffer));
+                    Span<Entity> near = buffer.AsSpan(0,
+                        snapshot.World.Spatial.CollectNear(plan.Frame, plan.Point, plan.Radius, buffer));
                     near.Sort();
                     candidates = near;
                     break;
@@ -189,8 +199,10 @@ public readonly ref struct FoundEntities
                         return true;
                     }
                 }
+
                 return false;
             }
+
             while (++index < candidates.Length)
             {
                 Entity entity = candidates[index];
@@ -200,6 +212,7 @@ public readonly ref struct FoundEntities
                     return true;
                 }
             }
+
             return false;
         }
 
@@ -224,12 +237,6 @@ internal struct StackFilters
     /// <summary>The most filters that a chain keeps on the stack.</summary>
     public const int Capacity = 8;
 
-    [InlineArray(Capacity)]
-    private struct Items8
-    {
-        private QueryFilter first;
-    }
-
     private Items8 items;
     private int count;
 
@@ -237,7 +244,14 @@ internal struct StackFilters
     [UnscopedRef]
     public readonly ReadOnlySpan<QueryFilter> Items => ((ReadOnlySpan<QueryFilter>)items)[..count];
 
-    /// <summary>A copy with <paramref name="filter"/> added. Throws <see cref="InvalidOperationException"/> past <see cref="Capacity"/>.</summary>
+    [InlineArray(Capacity)]
+    private struct Items8
+    {
+        private QueryFilter first;
+    }
+
+    /// <summary>A copy with <paramref name="filter"/> added. Throws <see cref="InvalidOperationException"/> past
+    /// <see cref="Capacity"/>.</summary>
     public readonly StackFilters With(in QueryFilter filter)
     {
         if (count == Capacity)

@@ -11,13 +11,13 @@ public class ShapeDescConvexRadiusTests
 {
     private static readonly Vector3[] Tetrahedron = [new(1, 0, 0), new(-1, 0, 0), new(0, 2, 0), new(0, 0, -3)];
 
-    public static TheoryData<string> Shapes() => new() { "box", "convex hull" };
+    public static TheoryData<string> Shapes() => ["box", "convex hull"];
 
     private static ShapeDesc Shape(string name, float convexRadius) => name switch
     {
-        "box" => new BoxShapeDesc(new Vector3(1), convexRadius),
+        "box" => new BoxShapeDesc(new(1), convexRadius),
         "convex hull" => new ConvexHullShapeDesc(Tetrahedron, convexRadius),
-        _ => throw new ArgumentOutOfRangeException(nameof(name)),
+        _ => throw new ArgumentOutOfRangeException(nameof(name))
     };
 
     [Theory]
@@ -45,7 +45,8 @@ public class ShapeDescConvexRadiusTests
     [MemberData(nameof(Shapes))]
     public void AShapeRefusesAConvexRadiusThatIsNotANumber(string shape)
     {
-        Shape(shape, float.NaN).Problem().Should().Be("has the convex radius NaN, which must be finite and not negative");
+        Shape(shape, float.NaN).Problem().Should()
+            .Be("has the convex radius NaN, which must be finite and not negative");
     }
 
     [Theory]
@@ -59,7 +60,7 @@ public class ShapeDescConvexRadiusTests
     [Fact]
     public void ABoxWithoutANamedConvexRadiusGetsTheDefault()
     {
-        new BoxShapeDesc(new Vector3(1)).ConvexRadius.Should().Be(ShapeDesc.DefaultConvexRadius);
+        new BoxShapeDesc(new(1)).ConvexRadius.Should().Be(ShapeDesc.DefaultConvexRadius);
     }
 
     [Fact]
@@ -71,15 +72,16 @@ public class ShapeDescConvexRadiusTests
     [Fact]
     public void ACompoundNamesTheShapeOfAChildWhoseConvexRadiusIsRefused()
     {
-        var compound = new CompoundShapeDesc([new CompoundChild(new BoxShapeDesc(new Vector3(1), -1), Pose.Identity)]);
+        var compound = new CompoundShapeDesc([new(new BoxShapeDesc(new(1), -1), Pose.Identity)]);
 
-        compound.Problem().Should().Be("has child 0, which has the convex radius -1, which must be finite and not negative");
+        compound.Problem().Should()
+            .Be("has child 0, which has the convex radius -1, which must be finite and not negative");
     }
 
     [Fact]
     public void ABoxRefusesANegativeHalfExtentBeforeItLooksAtTheConvexRadius()
     {
         // The existing rule about the half extents keeps its message, whatever the radius is.
-        new BoxShapeDesc(new Vector3(-1, 1, 1), -1).Problem().Should().StartWith("has the half extents");
+        new BoxShapeDesc(new(-1, 1, 1), -1).Problem().Should().StartWith("has the half extents");
     }
 }

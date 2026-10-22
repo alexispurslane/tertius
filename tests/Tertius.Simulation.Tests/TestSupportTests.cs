@@ -1,4 +1,3 @@
-using System.Numerics;
 using AwesomeAssertions;
 
 namespace Tertius.Simulation.Tests;
@@ -190,16 +189,16 @@ public class SharedComponentTests
     {
         using var t = new TestWorld();
         var spawner = new Spawner(() => [new Recorder(EventMask.Of<Spawned>())], count: 2, onTick: 1);
-        t.SpawnAt(new Double3(4, 0, 0), spawner);
+        t.SpawnAt(new(4, 0, 0), spawner);
 
         t.Run(4);
 
         spawner.Children.Should().HaveCount(2);
         spawner.Children.Should().OnlyContain(child => t.World.IsAlive(child));
         spawner.Children.Select(child => t.World.PoseInOwnFrame(child).Position.X).Should().Equal(4, 4);
-        spawner.Children.Select(child => t.World.GetFrame(child)).Should().OnlyContain(frame => frame == t.Root);
+        spawner.Children.Select(t.World.GetFrame).Should().OnlyContain(frame => frame == t.Root);
         // Each child has an instance of its own, and it ran once, on the tick after the spawn.
-        var recorders = spawner.Children.Select(child => t.World.GetComponent<Recorder>(child)!).ToList();
+        List<Recorder> recorders = [.. spawner.Children.Select(child => t.World.GetComponent<Recorder>(child)!)];
         recorders[0].Should().NotBeSameAs(recorders[1]);
         recorders.Select(recorder => recorder.Seen.Single().Tick).Should().Equal(2L, 2L);
     }
@@ -237,7 +236,7 @@ public class SharedComponentTests
     public void ALambdaRunsOnlyWhenItsEventsAreInTheListAndCountsItsRuns()
     {
         using var t = new TestWorld();
-        var onTick = Lambda.OnTick((self, scoped ref events, scoped ref outbox) => { });
+        Lambda onTick = Lambda.OnTick((self, scoped ref events, scoped ref outbox) => { });
         var onPing = new Lambda(EventMask.Of<Ping>(), (self, scoped ref events, scoped ref outbox) => { });
         t.SpawnWith(onTick, onPing);
 
@@ -264,7 +263,7 @@ public class TestWorldTests
     [Fact]
     public void ATestWorldKeepsTheBackendItIsGiven()
     {
-        using var t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld t = TestWorld.OnJolt(out FaultInjectingBackend faults);
 
         t.World.Physics.Should().BeSameAs(faults);
     }
@@ -272,21 +271,24 @@ public class TestWorldTests
     [Fact]
     public void ATestWorldOnJoltStepsRealPhysicsOnABackendThatTheWorldDisposes()
     {
-        using var t = TestWorld.OnJolt(out FaultInjectingBackend faults, configure: options => options.TickRate = 32);
-        Entity ball = t.World.Spawn(new SpawnDesc { Frame = t.Root, LinearVelocity = new Double3(3, 0, 0), Body = WorldTesting.Ball() });
+        using TestWorld t =
+            TestWorld.OnJolt(out FaultInjectingBackend faults, configure: options => options.TickRate = 32);
+        Entity ball = t.World.Spawn(new()
+            { Frame = t.Root, LinearVelocity = new(3, 0, 0), Body = WorldTesting.Ball() });
 
         t.Run(2);
 
         faults.Steps.Select(step => step.Time).Should().Equal(0, 1.0 / 32);
         t.World.Options.DisposePhysics.Should().BeTrue();
-        t.World.PoseInOwnFrame(ball).Position.X.Should().BeApproximately(0.1875, 1e-6, "Jolt moved the ball by 3 m/s over two steps of 1/32 s");
+        t.World.PoseInOwnFrame(ball).Position.X.Should()
+            .BeApproximately(0.1875, 1e-6, "Jolt moved the ball by 3 m/s over two steps of 1/32 s");
     }
 
     [Fact]
     public void AnEditOfOneTickTouchesTheOutputOfThatTickOnly()
     {
-        using var t = TestWorld.OnJolt(out FaultInjectingBackend faults);
-        t.World.Spawn(new SpawnDesc { Frame = t.Root, LinearVelocity = new Double3(3, 0, 0), Body = WorldTesting.Ball() });
+        using TestWorld t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        t.World.Spawn(new() { Frame = t.Root, LinearVelocity = new(3, 0, 0), Body = WorldTesting.Ball() });
         var ticksEdited = new List<long>();
         faults.EditOutputOfTick(1, output => ticksEdited.Add(faults.Steps[^1].Tick));
 
@@ -320,7 +322,7 @@ public class TestWorldTests
     {
         using var t = new TestWorld();
 
-        Entity entity = t.SpawnAt(new Double3(1, 2, 3));
+        Entity entity = t.SpawnAt(new(1, 2, 3));
 
         t.World.PoseInOwnFrame(entity).Position.Should().Be(new Double3(1, 2, 3));
     }

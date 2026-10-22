@@ -57,7 +57,8 @@ public sealed class WalkHeading : IComponent
         double yaw = Yaw(view.Rotation);
         double error = Math.IEEERemainder(Math.Atan2(-across.X, -across.Z) - yaw, 2 * Math.PI);
         double step = TurnRate * self.DeltaTime;
-        self.Render.ViewOffset = new Pose(view.Position, Quaternion.CreateFromAxisAngle(Vector3.UnitY, (float)(yaw + Math.Clamp(error, -step, step))));
+        self.Render.ViewOffset = new(view.Position,
+            Quaternion.CreateFromAxisAngle(Vector3.UnitY, (float)(yaw + Math.Clamp(error, -step, step))));
     }
 
     /// <summary>

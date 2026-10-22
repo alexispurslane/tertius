@@ -28,7 +28,8 @@ internal static class Conversions
     public static DQuaternion ToDouble(this Quaternion q) => DQuaternion.FromQuaternion(q).Normalized();
 }
 
-/// <summary>Rotation helpers for the bodies. The angular velocity that turns one rotation into another is <see cref="DQuaternion.AngularVelocityTo"/>.</summary>
+/// <summary>Rotation helpers for the bodies. The angular velocity that turns one rotation into another is
+/// <see cref="DQuaternion.AngularVelocityTo"/>.</summary>
 internal static class Rotations
 {
     /// <summary>The smallest turn of <paramref name="rotation"/> that puts its local +Y axis on <paramref name="up"/>.</summary>
@@ -48,8 +49,9 @@ internal static class Rotations
         }
         else
         {
-            turn = Quaternion.Normalize(new Quaternion(Vector3.Cross(current, up), 1 + dot));
+            turn = Quaternion.Normalize(new(Vector3.Cross(current, up), 1 + dot));
         }
+
         return Quaternion.Normalize(turn * rotation);
     }
 
@@ -77,6 +79,7 @@ internal static class Rotations
                 axis = Vector3.Cross(from, Vector3.UnitZ);
             axis = Vector3.Normalize(axis);
         }
+
         return Vector3.Normalize(from * MathF.Cos(maxAngle) + Vector3.Cross(axis, from) * MathF.Sin(maxAngle));
     }
 }

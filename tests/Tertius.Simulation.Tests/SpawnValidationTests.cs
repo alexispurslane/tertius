@@ -14,25 +14,27 @@ public class SpawnValidationTests
 
     public static TheoryData<string> Defects => new(
         "no frame", "a destroyed frame", "an attached body", "an attached frame", "a null component",
-        "the same component twice", "a frame with no bubble", "a stale attachment parent", "an attachment parent that owns a root frame");
+        "the same component twice", "a frame with no bubble", "a stale attachment parent",
+        "an attachment parent that owns a root frame");
 
     /// <summary>A description with the named defect. <paramref name="staleFrame"/> and <paramref name="staleParent"/> are handles that have been destroyed.</summary>
-    private static SpawnDesc WithDefect(string defect, FrameHandle root, FrameHandle staleFrame, Entity liveParent, Entity staleParent)
+    private static SpawnDesc WithDefect(string defect, FrameHandle root, FrameHandle staleFrame, Entity liveParent,
+        Entity staleParent)
     {
         var shared = new Recorder();
         return defect switch
         {
-            "no frame" => new SpawnDesc(),
-            "a destroyed frame" => new SpawnDesc { Frame = staleFrame },
-            "an attached body" => new SpawnDesc { Frame = root, AttachTo = liveParent, Body = TestWorld.Ball },
-            "an attached frame" => new SpawnDesc { Frame = root, AttachTo = liveParent, AsFrame = SmallFrame },
-            "a null component" => new SpawnDesc { Frame = root, Components = [null!] },
-            "the same component twice" => new SpawnDesc { Frame = root, Components = [shared, shared] },
-            "a frame with no bubble" => new SpawnDesc { Frame = root, AsFrame = new FrameSpec(default) },
-            "a stale attachment parent" => new SpawnDesc { Frame = root, AttachTo = staleParent },
+            "no frame" => new(),
+            "a destroyed frame" => new() { Frame = staleFrame },
+            "an attached body" => new() { Frame = root, AttachTo = liveParent, Body = TestWorld.Ball },
+            "an attached frame" => new() { Frame = root, AttachTo = liveParent, AsFrame = SmallFrame },
+            "a null component" => new() { Frame = root, Components = [null!] },
+            "the same component twice" => new() { Frame = root, Components = [shared, shared] },
+            "a frame with no bubble" => new() { Frame = root, AsFrame = new(default) },
+            "a stale attachment parent" => new() { Frame = root, AttachTo = staleParent },
             // The owner of a root frame is in no frame, so it has none to give a child.
-            "an attachment parent that owns a root frame" => new SpawnDesc { AttachTo = root.Entity },
-            _ => throw new ArgumentOutOfRangeException(nameof(defect), defect, null),
+            "an attachment parent that owns a root frame" => new() { AttachTo = root.Entity },
+            _ => throw new ArgumentOutOfRangeException(nameof(defect), defect, null)
         };
     }
 
@@ -94,9 +96,9 @@ public class SpawnValidationTests
     [Fact]
     public void ARefusedSpawnTellsPhysicsNothing()
     {
-        using var t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld t = TestWorld.OnJolt(out FaultInjectingBackend faults);
         List<PhysicsChanges> batches = faults.AppliedChanges;
-        Record.Exception(() => t.World.Spawn(new SpawnDesc { Frame = default, Body = TestWorld.Ball }));
+        Record.Exception(() => t.World.Spawn(new() { Frame = default, Body = TestWorld.Ball }));
 
         t.Run(1);
 
@@ -108,7 +110,7 @@ public class SpawnValidationTests
     {
         using var t = new TestWorld();
 
-        Action spawn = () => t.World.Spawn((SpawnDesc)null!);
+        Action spawn = () => t.World.Spawn(null!);
 
         spawn.Should().Throw<ArgumentNullException>();
     }
@@ -200,7 +202,7 @@ public class SpawnValidationTests
         {
             try
             {
-                self.Spawn(new SpawnDesc());
+                self.Spawn(new());
             }
             catch (ArgumentException ex)
             {
@@ -225,13 +227,14 @@ public class SpawnValidationTests
                 return;
             try
             {
-                self.Spawn(new SpawnDesc());
+                self.Spawn(new());
             }
             catch (ArgumentException)
             {
                 // Refused, as the previous test checks. This test looks only at the slot.
             }
-            child = self.Spawn(new SpawnDesc { Frame = self.Frame });
+
+            child = self.Spawn(new() { Frame = self.Frame });
         }));
 
         t.Run(1);
@@ -247,7 +250,7 @@ public class SpawnValidationTests
         t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
         {
             if (self.Tick == 0)
-                self.Spawn(new SpawnDesc());
+                self.Spawn(new());
         }));
         int before = t.World.Stats.LiveEntities;
 
@@ -280,7 +283,7 @@ public class SpawnValidationTests
             {
                 switch (operation)
                 {
-                    case "Spawn": t.World.Spawn(new SpawnDesc { Frame = t.Root }); break;
+                    case "Spawn": t.World.Spawn(new() { Frame = t.Root }); break;
                     case "Destroy": t.World.Destroy(target); break;
                     case "AddComponent": t.World.AddComponent(target, new Recorder()); break;
                     case "RemoveComponent": t.World.RemoveComponent(target, component); break;

@@ -24,7 +24,8 @@ public class PhysicsBodyStateTests
         return world;
     }
 
-    private static BodyState StateOf(PhysicsStepOutput output, Entity entity) => output.Bodies.Single(state => state.Entity == entity);
+    private static BodyState StateOf(PhysicsStepOutput output, Entity entity) =>
+        output.Bodies.Single(state => state.Entity == entity);
 
     /// <summary>The same state with its pose moved by <see cref="Shift"/>, so that a world that applied it would show.</summary>
     private static BodyState Shifted(BodyState state) =>
@@ -34,14 +35,14 @@ public class PhysicsBodyStateTests
     public void ABodyStateBecomesThePoseAndVelocitiesOfTheEntityAtTheEndOfTheTick()
     {
         using World world = NewFallingWorld(out FaultInjectingBackend faults, out FrameHandle ground);
-        var spawnPose = At(0, 10);
-        Entity ball = world.Spawn(new SpawnDesc
+        DPose spawnPose = At(0, 10);
+        Entity ball = world.Spawn(new()
         {
             Frame = ground,
             Pose = spawnPose,
-            LinearVelocity = new Double3(1, 0, -1),
-            AngularVelocity = new Vector3(0, 2, 0),
-            Body = Ball(),
+            LinearVelocity = new(1, 0, -1),
+            AngularVelocity = new(0, 2, 0),
+            Body = Ball()
         });
 
         world.Run(1);
@@ -63,7 +64,7 @@ public class PhysicsBodyStateTests
         using World world = NewFallingWorld(out FaultInjectingBackend faults, out FrameHandle ground);
         FrameHandle station = world.SpawnStaticFrame(ground, At(500), radius: 100);
         var log = new Recorder(EventMask.Of<FrameChanged>());
-        Entity ball = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 10), Body = Ball(), Components = [log] });
+        Entity ball = world.Spawn(new() { Frame = ground, Pose = At(0, 10), Body = Ball(), Components = [log] });
         faults.EditOutput = output =>
         {
             int index = output.Bodies.FindIndex(state => state.Entity == ball);
@@ -83,14 +84,15 @@ public class PhysicsBodyStateTests
     public void WhenPhysicsReportsOneBodyTwiceInAStepTheLaterStateWins()
     {
         using World world = NewFallingWorld(out FaultInjectingBackend faults, out FrameHandle ground);
-        Entity ball = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 10), Body = Ball() });
+        Entity ball = world.Spawn(new() { Frame = ground, Pose = At(0, 10), Body = Ball() });
         faults.EditNextOutput = output => output.Bodies.Add(Shifted(StateOf(output, ball)));
 
         world.Run(1);
 
         BodyState[] sent = [.. faults.Outputs.Single().Bodies.Where(state => state.Entity == ball)];
         sent.Should().HaveCount(2);
-        sent[1].Pose.Should().NotBe(sent[0].Pose, "the two states must differ, or the test cannot tell which one the world took");
+        sent[1].Pose.Should().NotBe(sent[0].Pose,
+            "the two states must differ, or the test cannot tell which one the world took");
         world.PoseInOwnFrame(ball).Should().Be(sent[1].Pose);
     }
 
@@ -102,11 +104,11 @@ public class PhysicsBodyStateTests
     public void ABodyStateForAnEntityWithoutABodyBreaksAContract()
     {
         using World world = NewFallingWorld(out FaultInjectingBackend faults, out FrameHandle ground);
-        Entity ball = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 10), Body = Ball() });
-        Entity bodiless = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(3) });
+        Entity ball = world.Spawn(new() { Frame = ground, Pose = At(0, 10), Body = Ball() });
+        Entity bodiless = world.Spawn(new() { Frame = ground, Pose = At(3) });
         faults.EditNextOutput = output => output.Bodies.Add(StateOf(output, ball) with { Entity = bodiless });
 
-        Action tick = () => world.Tick();
+        Action tick = world.Tick;
 
         tick.Should().Throw<ContractException>();
     }
@@ -115,12 +117,12 @@ public class PhysicsBodyStateTests
     public void ABodyStateForAnEntityThatNoLongerExistsBreaksAContract()
     {
         using World world = NewFallingWorld(out FaultInjectingBackend faults, out FrameHandle ground);
-        Entity gone = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 10), Body = Ball() });
-        Entity bystander = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(3, 10), Body = Ball() });
+        Entity gone = world.Spawn(new() { Frame = ground, Pose = At(0, 10), Body = Ball() });
+        Entity bystander = world.Spawn(new() { Frame = ground, Pose = At(3, 10), Body = Ball() });
         world.Destroy(gone);
         faults.EditNextOutput = output => output.Bodies.Add(StateOf(output, bystander) with { Entity = gone });
 
-        Action tick = () => world.Tick();
+        Action tick = world.Tick;
 
         tick.Should().Throw<ContractException>();
     }
@@ -129,10 +131,12 @@ public class PhysicsBodyStateTests
     public void ABodyStateThatNamesNoFrameBreaksAContract()
     {
         using World world = NewFallingWorld(out FaultInjectingBackend faults, out FrameHandle ground);
-        Entity ball = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 10), Body = Ball() });
-        faults.EditNextOutput = output => output.Bodies[output.Bodies.FindIndex(state => state.Entity == ball)] = StateOf(output, ball) with { Frame = FrameHandle.Null };
+        Entity ball = world.Spawn(new() { Frame = ground, Pose = At(0, 10), Body = Ball() });
+        faults.EditNextOutput = output =>
+            output.Bodies[output.Bodies.FindIndex(state => state.Entity == ball)] =
+                StateOf(output, ball) with { Frame = FrameHandle.Null };
 
-        Action tick = () => world.Tick();
+        Action tick = world.Tick;
 
         tick.Should().Throw<ContractException>();
     }
@@ -212,7 +216,8 @@ public class PhysicsBodyStateTests
         using World world = NewFallingWorld(out FaultInjectingBackend faults, out FrameHandle ground);
         FrameHandle station = world.SpawnStaticFrame(ground, At(500), radius: 100);
         DPose spawnPose = At(3, 10);
-        Entity ball = world.Spawn(new SpawnDesc { Frame = station, Pose = spawnPose, LinearVelocity = new Double3(0, 2, 0), Body = Ball() });
+        Entity ball = world.Spawn(new SpawnDesc { Frame = station, Pose = spawnPose, LinearVelocity =
+ new Double3(0, 2, 0), Body = Ball() });
         BodyState real = default;
         faults.EditNextOutput = output =>
         {
@@ -233,9 +238,10 @@ public class PhysicsBodyStateTests
     public void AnIntegratingBackendMovesABodyByItsVelocityAndTheResultReachesTheSnapshot()
     {
         // At 64 ticks per second a step is exactly 1/64 s, so three steps at 8 m/s move the ball 24/64 = 0.375 m. The ground has no gravity.
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, configure: options => options.TickRate = 64);
+        using World world =
+            NewWorldWithFaults(out FaultInjectingBackend faults, configure: options => options.TickRate = 64);
         FrameHandle space = Ground(world, 0);
-        Entity ball = world.Spawn(new SpawnDesc { Frame = space, Pose = At(1), LinearVelocity = new Double3(8, 0, 0), Body = Ball() });
+        Entity ball = world.Spawn(new() { Frame = space, Pose = At(1), LinearVelocity = new(8, 0, 0), Body = Ball() });
 
         world.Run(3);
 
@@ -251,12 +257,12 @@ public class PhysicsBodyStateTests
     public void WithoutAPhysicsBackendABodyStaysWhereItWasSpawnedAndNoErrorIsReported()
     {
         using var test = new TestWorld();
-        Entity ball = test.World.Spawn(new SpawnDesc
+        Entity ball = test.World.Spawn(new()
         {
             Frame = test.Root,
             Pose = TestWorld.At(2),
             LinearVelocity = new Vector3(5, 0, 0),
-            Body = TestWorld.Ball,
+            Body = TestWorld.Ball
         });
 
         test.Run(5);
@@ -270,15 +276,18 @@ public class PhysicsBodyStateTests
     {
         using var test = new TestWorld();
         var pendingAtTheStartOfEachTick = new List<float>();
-        test.World.Spawn(new SpawnDesc
+        test.World.Spawn(new()
         {
             Frame = test.Root,
             Body = TestWorld.Ball,
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            {
-                pendingAtTheStartOfEachTick.Add(self.Body.Pending.Force.Y);
-                self.Body.AddForce(Vector3.UnitY);
-            })],
+            Components =
+            [
+                Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+                {
+                    pendingAtTheStartOfEachTick.Add(self.Body.Pending.Force.Y);
+                    self.Body.AddForce(Vector3.UnitY);
+                })
+            ]
         });
 
         test.Run(3);

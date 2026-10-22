@@ -17,7 +17,7 @@ public class WorldFrameTurnTests
     private static readonly FrameSpin StationSpin = new(DQuaternion.Identity, StationRate);
     private static readonly FrameSpec Station = new(FrameBounds.Sphere(150));
 
-    private static FrameHandle Space(World world) => world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+    private static FrameHandle Space(World world) => world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
 
     [Fact]
     public void AStationSpawnedWithItsFirstSpinTurnsSteadilyFromItsFirstStep()
@@ -30,12 +30,14 @@ public class WorldFrameTurnTests
 
         FrameTurns first = world.Frames.Turns(station);
         first.Step.IsIdentity.Should().BeFalse("the station turns in its first step, by its first motion intent");
-        first.Last.Should().Be(first.Step, "a new frame has no last turn, so its first step assumes a steady turn: no spin-up");
+        first.Last.Should().Be(first.Step,
+            "a new frame has no last turn, so its first step assumes a steady turn: no spin-up");
         first.Step.AngularVelocity.Y.Should().BeApproximately(StationRate, 1e-12);
 
         world.Tick();
 
-        world.Frames.Turns(station).Last.Should().Be(first.Step, "the station left the list of frames without a last turn");
+        world.Frames.Turns(station).Last.Should()
+            .Be(first.Step, "the station left the list of frames without a last turn");
         world.Errors.Should().BeEmpty();
     }
 
@@ -66,7 +68,9 @@ public class WorldFrameTurnTests
     {
         const double spinUp = 0.01;
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle station = world.GetOwnedFrame(world.Spawn(SpinUp.Spawning(new SpawnDesc { Frame = Space(world), AsFrame = Station }, world, spinUp)));
+        FrameHandle station =
+            world.GetOwnedFrame(world.Spawn(SpinUp.Spawning(new() { Frame = Space(world), AsFrame = Station }, world,
+                spinUp)));
         Tick(world, 3);
         world.Frames.Turns(station).AngularAcceleration(world.DeltaTime).Y.Should().BeApproximately(spinUp, 1e-9);
 

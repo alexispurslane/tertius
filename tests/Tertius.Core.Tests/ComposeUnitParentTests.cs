@@ -1,4 +1,3 @@
-using System.Numerics;
 using AwesomeAssertions;
 
 namespace Tertius.Core.Tests;
@@ -14,7 +13,8 @@ namespace Tertius.Core.Tests;
 public class ComposeUnitParentTests
 {
     /// <summary>A rotation that came out of a float quaternion, as Jolt gives it: not unit length. Its square is 1.7E-7 over 1.</summary>
-    private static readonly DQuaternion Widened = DQuaternion.FromQuaternion(new Quaternion(0.18257418f, 0.36514837f, 0.5477226f, 0.73029685f));
+    private static readonly DQuaternion Widened =
+        DQuaternion.FromQuaternion(new(0.18257418f, 0.36514837f, 0.5477226f, 0.73029685f));
 
     /// <summary>The place of a ship in a low orbit round Earth, in Earth's axes, 6.77E6 m from the center.</summary>
     private static readonly Double3 InOrbit = new(4.2e6, -3.9e6, 3.6e6);
@@ -22,40 +22,13 @@ public class ComposeUnitParentTests
     /// <summary>The place of a child in its parent's axes, 5385 m from the parent's origin.</summary>
     private static readonly Double3 Offset = new(3000, 2000, -4000);
 
-    /// <summary>A rotation about +Z by a quarter turn, scaled so that its length is <paramref name="length"/>.</summary>
-    private static DQuaternion Scaled(double length) => new(0, 0, Math.Sqrt(0.5) * length, Math.Sqrt(0.5) * length);
-
     public static TheoryData<string, DQuaternion> UnitRotations => new()
     {
         { "the identity", DQuaternion.Identity },
-        { "a rotation about an axis", DQuaternion.FromAxisAngle(new Double3(1, 2, 3), 0.9) },
+        { "a rotation about an axis", DQuaternion.FromAxisAngle(new(1, 2, 3), 0.9) },
         { "a rotation by half a turn", DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI) },
-        { "a float rotation from Jolt, once normalized", Widened.Normalized() },
+        { "a float rotation from Jolt, once normalized", Widened.Normalized() }
     };
-
-    public static TheoryData<string, DQuaternion, DQuaternion> UnitParentsAndLocalRotations()
-    {
-        var data = new TheoryData<string, DQuaternion, DQuaternion>();
-        foreach ((string parentName, DQuaternion parent) in new (string, DQuaternion)[]
-                 {
-                     ("the identity", DQuaternion.Identity),
-                     ("a rotation about an axis", DQuaternion.FromAxisAngle(new Double3(1, 2, 3), 0.9)),
-                     ("a rotation by half a turn", DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI)),
-                     ("a float rotation from Jolt, once normalized", Widened.Normalized()),
-                 })
-        {
-            foreach ((string localName, DQuaternion local) in new (string, DQuaternion)[]
-                     {
-                         ("the identity", DQuaternion.Identity),
-                         ("a rotation about another axis", DQuaternion.FromAxisAngle(new Double3(-2, 1, 1), -1.3)),
-                         ("a float rotation from Jolt, not normalized", Widened),
-                     })
-            {
-                data.Add($"a parent with {parentName} and a child with {localName}", parent, local);
-            }
-        }
-        return data;
-    }
 
     public static TheoryData<string, DQuaternion> RotationsThatAreNotUnitLength => new()
     {
@@ -64,8 +37,32 @@ public class ComposeUnitParentTests
         { "a rotation half as long", Scaled(0.5) },
         { "a rotation just outside the tolerance", Scaled(1 + 5e-12) },
         { "the zero rotation", default },
-        { "a rotation that is not a number", new DQuaternion(double.NaN, 0, 0, 1) },
+        { "a rotation that is not a number", new(double.NaN, 0, 0, 1) }
     };
+
+    /// <summary>A rotation about +Z by a quarter turn, scaled so that its length is <paramref name="length"/>.</summary>
+    private static DQuaternion Scaled(double length) => new(0, 0, Math.Sqrt(0.5) * length, Math.Sqrt(0.5) * length);
+
+    public static TheoryData<string, DQuaternion, DQuaternion> UnitParentsAndLocalRotations()
+    {
+        var data = new TheoryData<string, DQuaternion, DQuaternion>();
+        foreach ((string parentName, DQuaternion parent) in new[]
+                 {
+                     ("the identity", DQuaternion.Identity),
+                     ("a rotation about an axis", DQuaternion.FromAxisAngle(new(1, 2, 3), 0.9)),
+                     ("a rotation by half a turn", DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI)),
+                     ("a float rotation from Jolt, once normalized", Widened.Normalized())
+                 })
+        foreach ((string localName, DQuaternion local) in new[]
+                 {
+                     ("the identity", DQuaternion.Identity),
+                     ("a rotation about another axis", DQuaternion.FromAxisAngle(new(-2, 1, 1), -1.3)),
+                     ("a float rotation from Jolt, not normalized", Widened)
+                 })
+            data.Add($"a parent with {parentName} and a child with {localName}", parent, local);
+
+        return data;
+    }
 
     private static void ExpectSameComponents(DQuaternion actual, DQuaternion expected, double tolerance)
     {
@@ -77,7 +74,8 @@ public class ComposeUnitParentTests
 
     [Theory]
     [MemberData(nameof(UnitParentsAndLocalRotations))]
-    public void ItGivesTheSamePoseAsComposeForAParentOfUnitLength(string why, DQuaternion parentRotation, DQuaternion localRotation)
+    public void ItGivesTheSamePoseAsComposeForAParentOfUnitLength(string why, DQuaternion parentRotation,
+        DQuaternion localRotation)
     {
         var parent = new DPose(InOrbit, parentRotation);
         var local = new DPose(Offset, localRotation);
@@ -95,7 +93,7 @@ public class ComposeUnitParentTests
     {
         var parent = new DPose(InOrbit, parentRotation);
 
-        DPose composed = DPose.ComposeUnitParent(parent, new DPose(Offset, DQuaternion.Identity));
+        DPose composed = DPose.ComposeUnitParent(parent, new(Offset, DQuaternion.Identity));
 
         Double3.Distance(composed.Position, InOrbit + parentRotation.Rotate(Offset)).Should().BeLessThan(1e-9, why);
     }
@@ -105,9 +103,9 @@ public class ComposeUnitParentTests
     {
         // The snapshot builder passes the pose of an entity, which a program wrote or Jolt gave, and its rotation is not unit.
         // The result is a pose in the frame tree's sense again, so the next composition can rely on it.
-        var parent = new DPose(InOrbit, DQuaternion.FromAxisAngle(new Double3(1, 2, 3), 0.9));
+        var parent = new DPose(InOrbit, DQuaternion.FromAxisAngle(new(1, 2, 3), 0.9));
 
-        DPose composed = DPose.ComposeUnitParent(parent, new DPose(Offset, Widened));
+        DPose composed = DPose.ComposeUnitParent(parent, new(Offset, Widened));
 
         (composed.Rotation.LengthSquared - 1).Should().BeApproximately(0, 1e-14);
     }
@@ -126,7 +124,8 @@ public class ComposeUnitParentTests
         DPose composed = DPose.ComposeUnitParent(parent, local);
 
         DPose expected = DPose.Compose(parent, local);
-        Double3.Distance(composed.Position, expected.Position).Should().BeLessThan(Offset.Length * DQuaternion.UnitTolerance);
+        Double3.Distance(composed.Position, expected.Position).Should()
+            .BeLessThan(Offset.Length * DQuaternion.UnitTolerance);
     }
 
 #if TERTIUS_CONTRACTS
@@ -136,7 +135,7 @@ public class ComposeUnitParentTests
     {
         var parent = new DPose(InOrbit, rotation);
 
-        Action compose = () => DPose.ComposeUnitParent(parent, new DPose(Offset, DQuaternion.Identity));
+        Action compose = () => DPose.ComposeUnitParent(parent, new(Offset, DQuaternion.Identity));
 
         compose.Should().Throw<ContractException>(why).WithMessage("Precondition*");
     }
@@ -147,7 +146,7 @@ public class ComposeUnitParentTests
     {
         var parent = new DPose(InOrbit, rotation);
 
-        Action compose = () => DPose.ComposeUnitParent(parent, new DPose(Offset, Widened));
+        Action compose = () => DPose.ComposeUnitParent(parent, new(Offset, Widened));
 
         compose.Should().NotThrow(why);
     }

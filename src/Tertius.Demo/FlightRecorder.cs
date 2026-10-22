@@ -29,6 +29,7 @@ public sealed class FlightRecorder(FrameHandle station, WheelFloor floor, double
     public const double FreeBound = 1e-4;
 
     private readonly List<Double3> places = [];
+
     // Whether the record is over: the box landed, or something else stopped it.
     private bool over;
 
@@ -48,7 +49,7 @@ public sealed class FlightRecorder(FrameHandle station, WheelFloor floor, double
             return;
         Double3 place = self.PoseIn(station).Position;
         double dt = self.DeltaTime;
-        Release ??= new ThrowRelease(place, self.VelocityIn(station));
+        Release ??= new(place, self.VelocityIn(station));
         int n = places.Count;
         bool free = n < 2 || Double3.Distance(place, Extend(places[n - 2], places[n - 1], dt, dt)) <= FreeBound;
         bool above = floor.Height(place) > halfSize;
@@ -72,6 +73,7 @@ public sealed class FlightRecorder(FrameHandle station, WheelFloor floor, double
             else
                 high = middle;
         }
+
         Landing = new ThrowLanding((n - 1) * dt + high, Extend(before, last, dt, high));
     }
 

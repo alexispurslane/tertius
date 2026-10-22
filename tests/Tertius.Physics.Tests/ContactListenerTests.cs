@@ -17,10 +17,25 @@ namespace Tertius.Physics.Tests;
 public class ContactListenerTests
 {
     /// <summary>A ball of radius 0.5 m that nothing slows down and that does not bounce.</summary>
-    private static readonly BodyDesc BallDesc = new(new SphereShapeDesc(0.5f), Mass: 1, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
+    private static readonly BodyDesc BallDesc = new(new SphereShapeDesc(0.5f), Mass: 1, Restitution: 0,
+        LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>A static cube with sides of 1 m that does not bounce. Jolt takes the larger restitution of two bodies.</summary>
-    private static readonly BodyDesc WallDesc = new(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Static, Restitution: 0);
+    private static readonly BodyDesc WallDesc = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static, Restitution: 0);
+
+    /// <summary>The backing fields of the binding's four contact events on <see cref="PhysicsSystem"/>.</summary>
+    private static readonly FieldInfo[] BindingContactEvents =
+    [
+        .. new[]
+        {
+            nameof(PhysicsSystem.OnContactValidate),
+            nameof(PhysicsSystem.OnContactAdded),
+            nameof(PhysicsSystem.OnContactPersisted),
+            nameof(PhysicsSystem.OnContactRemoved)
+        }.Select(name => typeof(PhysicsSystem).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)
+                         ?? throw new InvalidOperationException(
+                             $"JoltPhysicsSharp has no backing field for {name}, so the test cannot see its handlers."))
+    ];
 
     /// <summary>
     /// A frame with no gravity, whose system holds 8 bodies at first. The near ball rests 1 cm from the near wall, inside
@@ -34,14 +49,15 @@ public class ContactListenerTests
             World = WorldTestingGrowth.NewWorldWithFaultsAndSmallSystems(8, out FaultInjectingBackend faults, Warnings);
             Backend = faults.Jolt;
             Space = Ground(World, 0);
-            NearWall = World.Spawn(new SpawnDesc { Frame = Space, Pose = At(1.01), Body = WallDesc });
-            Near = World.Spawn(new SpawnDesc { Frame = Space, Body = BallDesc, Components = [NearLog, NearPilot] });
-            FarWall = World.Spawn(new SpawnDesc { Frame = Space, Pose = At(1.2, 0, 10), Body = WallDesc });
-            Far = World.Spawn(new SpawnDesc { Frame = Space, Pose = At(0, 0, 10), Body = BallDesc, Components = [FarLog, FarPilot] });
+            NearWall = World.Spawn(new() { Frame = Space, Pose = At(1.01), Body = WallDesc });
+            Near = World.Spawn(new() { Frame = Space, Body = BallDesc, Components = [NearLog, NearPilot] });
+            FarWall = World.Spawn(new() { Frame = Space, Pose = At(1.2, 0, 10), Body = WallDesc });
+            Far = World.Spawn(new()
+                { Frame = Space, Pose = At(0, 0, 10), Body = BallDesc, Components = [FarLog, FarPilot] });
             Tick(World, 10);
         }
 
-        public List<string> Warnings { get; } = new();
+        public List<string> Warnings { get; } = [];
         public World World { get; }
         public JoltPhysicsBackend Backend { get; }
         public FrameHandle Space { get; }
@@ -61,7 +77,7 @@ public class ContactListenerTests
         public void Grow()
         {
             for (int i = 0; i < 15; i++)
-                World.Spawn(new SpawnDesc { Frame = Space, Pose = At(3 * i, -100), Body = WallDesc });
+                World.Spawn(new() { Frame = Space, Pose = At(3 * i, -100), Body = WallDesc });
             Tick(World, 10);
         }
 
@@ -76,43 +92,32 @@ public class ContactListenerTests
 
         scene.Grow();
         scene.Growths.Should().Be(2);
-        scene.Backend.PendingPairCount(scene.Space).Should().Be(1, "the grown system found the pair again, still without a touch");
+        scene.Backend.PendingPairCount(scene.Space).Should()
+            .Be(1, "the grown system found the pair again, still without a touch");
 
         // The near ball closes its gap of 1 cm in two steps, which only Jolt's report of a persisting contact shows. The
         // far ball hits its wall at 2 m/s, which Jolt reports as a new contact.
-        scene.NearPilot.Once = body => body.SetVelocity(new Double3(0.5, 0, 0));
-        scene.FarPilot.Once = body => body.SetVelocity(new Double3(2, 0, 0));
+        scene.NearPilot.Once = body => body.SetVelocity(new(0.5, 0, 0));
+        scene.FarPilot.Once = body => body.SetVelocity(new(2, 0, 0));
         Tick(scene.World, 10);
         scene.NearLog.NewsOf(scene.NearWall).Should().Equal(Started);
         scene.FarLog.NewsOf(scene.FarWall).Should().Equal(Started);
         scene.Backend.PendingPairCount(scene.Space).Should().Be(0);
 
         // The near ball leaves its wall while it is awake, which Jolt reports as a removed contact.
-        scene.NearPilot.Once = body => body.SetVelocity(new Double3(-1, 0, 0));
+        scene.NearPilot.Once = body => body.SetVelocity(new(-1, 0, 0));
         Tick(scene.World, 10);
         scene.NearLog.NewsOf(scene.NearWall).Should().Equal(Started, Ended);
         scene.FarLog.NewsOf(scene.FarWall).Should().Equal([Started], "the far ball still rests against its wall");
         scene.World.Errors.Should().BeEmpty();
     }
 
-    /// <summary>The backing fields of the binding's four contact events on <see cref="PhysicsSystem"/>.</summary>
-    private static readonly FieldInfo[] BindingContactEvents =
-    [
-        .. new[]
-        {
-            nameof(PhysicsSystem.OnContactValidate),
-            nameof(PhysicsSystem.OnContactAdded),
-            nameof(PhysicsSystem.OnContactPersisted),
-            nameof(PhysicsSystem.OnContactRemoved),
-        }.Select(name => typeof(PhysicsSystem).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException($"JoltPhysicsSharp has no backing field for {name}, so the test cannot see its handlers.")),
-    ];
-
     private static void ShouldHaveNoBindingHandlers(PhysicsSystem? system, string when)
     {
         system.Should().NotBeNull();
         foreach (FieldInfo field in BindingContactEvents)
-            field.GetValue(system).Should().BeNull($"no code subscribes to {field.Name} of JoltPhysicsSharp, which never fires ({when})");
+            field.GetValue(system).Should()
+                .BeNull($"no code subscribes to {field.Name} of JoltPhysicsSharp, which never fires ({when})");
     }
 
     [Fact]
@@ -125,13 +130,14 @@ public class ContactListenerTests
         scene.Grow();
         ShouldHaveNoBindingHandlers(scene.Backend.SystemOf(scene.Space), "after two growths");
 
-        scene.NearPilot.Once = body => body.SetVelocity(new Double3(0.5, 0, 0));
+        scene.NearPilot.Once = body => body.SetVelocity(new(0.5, 0, 0));
         Tick(scene.World, 10);
-        scene.NearPilot.Once = body => body.SetVelocity(new Double3(-1, 0, 0));
+        scene.NearPilot.Once = body => body.SetVelocity(new(-1, 0, 0));
         Tick(scene.World, 10);
         ShouldHaveNoBindingHandlers(scene.Backend.SystemOf(scene.Space), "after a contact started and ended");
         scene.NearLog.NewsOf(scene.NearWall).Should().Equal([Started, Ended], "the backend did hear the contacts");
-        ContactListener.StrayReports.Should().Be(stray, "every system of the backend, also each one that a growth made, uses the backend's listener");
+        ContactListener.StrayReports.Should().Be(stray,
+            "every system of the backend, also each one that a growth made, uses the backend's listener");
         scene.World.Errors.Should().BeEmpty();
     }
 
@@ -144,34 +150,38 @@ public class ContactListenerTests
     public void TheCallbacksCountAndLeaveTheReportsOfASystemThatKeptTheListenerOfJoltPhysicsSharp()
     {
         // The backend makes joltc call its callbacks for every listener in the process.
-        using var backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 1 });
+        using var backend = new JoltPhysicsBackend(new() { WorkerThreads = 1 });
         int stray = ContactListener.StrayReports;
         lock (JoltRuntime.NativeGate)
         {
             var layers = new Layers.Tables();
-            using PhysicsSystem system = NativeOwnership.Owned(new PhysicsSystem(new PhysicsSystemSettings
+            using PhysicsSystem system = NativeOwnership.Owned(new PhysicsSystem(new()
             {
                 MaxBodies = 16,
                 MaxBodyPairs = 16,
                 MaxContactConstraints = 16,
                 ObjectLayerPairFilter = layers.Pairs,
                 BroadPhaseLayerInterface = layers.BroadPhase,
-                ObjectVsBroadPhaseLayerFilter = layers.ObjectVsBroadPhase,
+                ObjectVsBroadPhaseLayerFilter = layers.ObjectVsBroadPhase
             }));
-            using JobSystemThreadPool jobs = NativeOwnership.Owned(new JobSystemThreadPool(new JobSystemThreadPoolConfig { numThreads = 1 }));
+            using JobSystemThreadPool jobs = NativeOwnership.Owned(new JobSystemThreadPool(new() { numThreads = 1 }));
             using BoxShape cube = NativeOwnership.Owned(new BoxShape(new Vector3(0.5f)));
-            ObjectLayer moving = Layers.For(BodyLayer.Moving, CollisionGroups.Of(CollisionGroup.Solid), CollisionMask.Empty.InAny(CollisionGroup.Solid));
+            ObjectLayer moving = Layers.For(BodyLayer.Moving, CollisionGroups.Of(CollisionGroup.Solid),
+                CollisionMask.Empty.InAny(CollisionGroup.Solid));
             // Two boxes that overlap by 10 cm, so that Jolt reports their contact in every update.
             foreach (double x in new[] { 0.0, 0.9 })
             {
-                using BodyCreationSettings settings = NativeOwnership.Owned(new BodyCreationSettings(cube, new RVector3(x, 0, 0), Quaternion.Identity, MotionType.Dynamic, moving));
+                using BodyCreationSettings settings = NativeOwnership.Owned(new BodyCreationSettings(cube,
+                    new RVector3(x, 0, 0), Quaternion.Identity, MotionType.Dynamic, moving));
                 system.BodyInterface.CreateAndAddBody(settings, Activation.Activate);
             }
+
             for (int i = 0; i < 3; i++)
                 system.Update(1 / 60f, 1, jobs);
         }
 
-        ContactListener.StrayReports.Should().BeGreaterThan(stray, "Jolt reported the contact of the two boxes through the listener of JoltPhysicsSharp");
+        ContactListener.StrayReports.Should().BeGreaterThan(stray,
+            "Jolt reported the contact of the two boxes through the listener of JoltPhysicsSharp");
     }
 }
 
@@ -201,21 +211,23 @@ public class ContactAllocationTests
     {
         using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
         FrameHandle ground = Ground(world, 9.81f);
-        world.Spawn(KinematicDrift.Drifting(new SpawnDesc
+        world.Spawn(KinematicDrift.Drifting(new()
         {
             Frame = ground,
             Pose = At(0, -0.5),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(60, 0.5f, 60)), BodyMotion.Kinematic),
-        }, world, new Double3(1, 0, 0)));
+            Body = new(new BoxShapeDesc(new(60, 0.5f, 60)), BodyMotion.Kinematic)
+        }, world, new(1, 0, 0)));
         for (int i = 0; i < Columns * Rows; i++)
         {
             double x = i % Columns - Columns / 2 - (i == 0 ? 0.01 : 0);
-            world.Spawn(new SpawnDesc { Frame = ground, Pose = At(x, 0.5, (i / Columns - Rows / 2) * 1.05), Body = Cube() });
+            world.Spawn(new() { Frame = ground, Pose = At(x, 0.5, (i / Columns - Rows / 2) * 1.05), Body = Cube() });
         }
+
         // Two seconds: every box has the speed of the floor.
         Tick(world, 120);
         backend.PendingPairCount(ground).Should().Be(1);
-        backend.BodiesIn(ground).Count(body => body.Active && body.Motion == MotionType.Dynamic).Should().Be(Columns * Rows, "every box rides the floor");
+        backend.BodiesIn(ground).Count(body => body.Active && body.Motion == MotionType.Dynamic).Should()
+            .Be(Columns * Rows, "every box rides the floor");
 
         // The test counts the bytes per report, not in all. An allocation in a callback happens at every report, so it gives at
         // least 1 byte per report. The runtime can compile a hot method again during one window, which allocates once, so the
@@ -227,8 +239,10 @@ public class ContactAllocationTests
         long first = BytesPerReport(world, Ticks, ReportsPerTick);
         long second = BytesPerReport(world, Ticks, ReportsPerTick);
 
-        Math.Min(first, second).Should().Be(0, $"a report of a persisting contact must not allocate (the windows gave {first} and {second} bytes per report)");
-        backend.PendingPairCount(ground).Should().Be(1, "the pair waited the whole time, so every report went through the pending lookup");
+        Math.Min(first, second).Should().Be(0,
+            $"a report of a persisting contact must not allocate (the windows gave {first} and {second} bytes per report)");
+        backend.PendingPairCount(ground).Should().Be(1,
+            "the pair waited the whole time, so every report went through the pending lookup");
         world.Errors.Should().BeEmpty();
     }
 
@@ -243,14 +257,25 @@ public class ContactAllocationTests
     public void StepsWithContactsThroughAGhostThatStartAndEndAllocateNothingOnAnyThread()
     {
         using World world = NewWorld(out _, debugChecks: false);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
-        FrameHandle bubble = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = space, AsFrame = new FrameSpec(FrameBounds.Sphere(10)) }));
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
+        FrameHandle bubble =
+            world.GetOwnedFrame(world.Spawn(new() { Frame = space, AsFrame = new(FrameBounds.Sphere(10)) }));
         var blockContacts = new ContactCounter();
-        world.Spawn(new SpawnDesc { Frame = bubble, Pose = At(10), Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Kinematic), Components = [blockContacts] });
-        world.Spawn(new SpawnDesc { Frame = space, Pose = At(13.75), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.25f, 1, 1)), BodyMotion.Static) });
-        var bouncy = new BodyDesc(new SphereShapeDesc(0.1f), Mass: 1, Restitution: 1, LinearDamping: 0, AngularDamping: 0);
+        world.Spawn(new()
+        {
+            Frame = bubble, Pose = At(10), Body = new(new BoxShapeDesc(new(1)), BodyMotion.Kinematic),
+            Components = [blockContacts]
+        });
+        world.Spawn(new()
+            { Frame = space, Pose = At(13.75), Body = new(new BoxShapeDesc(new(0.25f, 1, 1)), BodyMotion.Static) });
+        var bouncy = new BodyDesc(new SphereShapeDesc(0.1f), Mass: 1, Restitution: 1, LinearDamping: 0,
+            AngularDamping: 0);
         for (int i = 0; i < 16; i++)
-            world.Spawn(new SpawnDesc { Frame = space, Pose = At(12, -0.6 + 0.4 * (i % 4), -0.6 + 0.4 * (i / 4)), LinearVelocity = new Vector3(3, 0, 0), Body = bouncy });
+            world.Spawn(new()
+            {
+                Frame = space, Pose = At(12, -0.6 + 0.4 * (i % 4), -0.6 + 0.4 * (i / 4)),
+                LinearVelocity = new Vector3(3, 0, 0), Body = bouncy
+            });
         // Two seconds: each ball has hit the ghost once.
         Tick(world, 120);
         blockContacts.Started.Should().Be(16, "each ball hit the block's ghost");
@@ -260,8 +285,10 @@ public class ContactAllocationTests
         long first = BytesPerTick(world, Ticks);
         long second = BytesPerTick(world, Ticks);
 
-        Math.Min(first, second).Should().Be(0, $"a step with contacts through a ghost must not allocate (the windows gave {first} and {second} bytes per tick)");
-        (blockContacts.Started - startedBefore).Should().BeGreaterThanOrEqualTo(32, "each ball hit the ghost again in the windows");
+        Math.Min(first, second).Should().Be(0,
+            $"a step with contacts through a ghost must not allocate (the windows gave {first} and {second} bytes per tick)");
+        (blockContacts.Started - startedBefore).Should()
+            .BeGreaterThanOrEqualTo(32, "each ball hit the ghost again in the windows");
         blockContacts.Ended.Should().BeGreaterThanOrEqualTo(blockContacts.Started - 16);
         world.Errors.Should().BeEmpty();
     }
@@ -287,12 +314,10 @@ public class ContactAllocationTests
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
             for (int i = 0; i < events.Count; i++)
-            {
                 if (events[i].Is<Collision>())
                     Started++;
                 else if (events[i].Is<CollisionEnded>())
                     Ended++;
-            }
         }
     }
 

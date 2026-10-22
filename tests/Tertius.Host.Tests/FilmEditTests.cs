@@ -9,22 +9,24 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class FilmEditTests
 {
-    private static Script ScriptOf(params object[] steps) =>
-        new("scene", [.. steps.Select(step => step switch
-        {
-            RunStep run => new ScriptStep(run),
-            CameraStep camera => new ScriptStep(camera),
-            FilmStep film => new ScriptStep(film),
-            PostStep post => new ScriptStep(post),
-            OutlinesStep outlines => new ScriptStep(outlines),
-            CaptureStep capture => new ScriptStep(capture),
-            _ => throw new ArgumentException("Not a step.", nameof(steps)),
-        })]);
-
     private static readonly Script ThreeFilms = ScriptOf(
         new CameraStep("one"), new FilmStep("a", 100, 1),
         new RunStep(7), new FilmStep("b", 200, 4),
         new CameraStep("two"), new PostStep(new ToEntity("ship"), "Go"), new FilmStep("c", 300, 2));
+
+    private static Script ScriptOf(params object[] steps) =>
+        new("scene", [
+            .. steps.Select(step => step switch
+            {
+                RunStep run => new(run),
+                CameraStep camera => new(camera),
+                FilmStep film => new(film),
+                PostStep post => new(post),
+                OutlinesStep outlines => new(outlines),
+                CaptureStep capture => new ScriptStep(capture),
+                _ => throw new ArgumentException("Not a step.", nameof(steps))
+            })
+        ]);
 
     [Fact]
     public void AFilmsFirstFrameIsTheCountOfTheFramesOfTheFilmsBeforeIt()
@@ -42,7 +44,8 @@ public sealed class FilmEditTests
     [Fact]
     public void AFilmKeepsItsNameItsFramesAndItsTicksPerFrame()
     {
-        ScriptFilm.Of(ThreeFilms).Select(film => (film.Name, film.Frames, film.Every)).Should().Equal(("a", 100, 1), ("b", 200, 4), ("c", 300, 2));
+        ScriptFilm.Of(ThreeFilms).Select(film => (film.Name, film.Frames, film.Every)).Should()
+            .Equal(("a", 100, 1), ("b", 200, 4), ("c", 300, 2));
     }
 
     [Fact]
@@ -54,7 +57,8 @@ public sealed class FilmEditTests
     [Fact]
     public void AFilmShowsOutlinesWhileTheLastOutlinesStepBeforeItTurnedThemOn()
     {
-        Script script = ScriptOf(new CameraStep("one"), new FilmStep("a", 1, 1), new OutlinesStep(true), new FilmStep("b", 1, 1),
+        Script script = ScriptOf(new CameraStep("one"), new FilmStep("a", 1, 1), new OutlinesStep(true),
+            new FilmStep("b", 1, 1),
             new FilmStep("c", 1, 1), new OutlinesStep(false), new FilmStep("d", 1, 1));
 
         ScriptFilm.Of(script).Select(film => film.Outlines).Should().Equal(false, true, true, false);
@@ -75,21 +79,23 @@ public sealed class FilmEditTests
     {
         IReadOnlyList<Stretch> stretches = Stretch.Of(ScriptFilm.Of(ThreeFilms), trims: []);
 
-        stretches.Select(stretch => (stretch.Film.Name, stretch.From, stretch.Count)).Should().Equal(("a", 0, 100), ("b", 100, 200), ("c", 300, 300));
+        stretches.Select(stretch => (stretch.Film.Name, stretch.From, stretch.Count)).Should()
+            .Equal(("a", 0, 100), ("b", 100, 200), ("c", 300, 300));
     }
 
     [Fact]
     public void ATrimDropsFramesFromTheHeadAndTheTailOfItsFilm()
     {
-        IReadOnlyList<Stretch> stretches = Stretch.Of(ScriptFilm.Of(ThreeFilms), [new EditTrim("b", Head: 30, Tail: 20)]);
+        IReadOnlyList<Stretch> stretches = Stretch.Of(ScriptFilm.Of(ThreeFilms), [new("b", Head: 30, Tail: 20)]);
 
-        stretches.Select(stretch => (stretch.Film.Name, stretch.From, stretch.Count)).Should().Equal(("a", 0, 100), ("b", 130, 150), ("c", 300, 300));
+        stretches.Select(stretch => (stretch.Film.Name, stretch.From, stretch.Count)).Should()
+            .Equal(("a", 0, 100), ("b", 130, 150), ("c", 300, 300));
     }
 
     [Fact]
     public void TheEditRefusesATrimThatLeavesLessThanOneSecondOfItsFilm()
     {
-        Action trim = () => Stretch.Of(ScriptFilm.Of(ThreeFilms), [new EditTrim("a", Head: 21, Tail: 20)]);
+        Action trim = () => Stretch.Of(ScriptFilm.Of(ThreeFilms), [new("a", Head: 21, Tail: 20)]);
 
         trim.Should().Throw<ArgumentException>().WithMessage("*'a'*59 frames*");
     }
@@ -97,7 +103,7 @@ public sealed class FilmEditTests
     [Fact]
     public void TheEditKeepsATrimThatLeavesExactlyOneSecondOfItsFilm()
     {
-        IReadOnlyList<Stretch> stretches = Stretch.Of(ScriptFilm.Of(ThreeFilms), [new EditTrim("a", Head: 20, Tail: 20)]);
+        IReadOnlyList<Stretch> stretches = Stretch.Of(ScriptFilm.Of(ThreeFilms), [new("a", Head: 20, Tail: 20)]);
 
         stretches[0].Count.Should().Be(60);
     }
@@ -105,7 +111,7 @@ public sealed class FilmEditTests
     [Fact]
     public void TheEditRefusesATrimOfAFilmThatTheScriptDoesNotHave()
     {
-        Action trim = () => Stretch.Of(ScriptFilm.Of(ThreeFilms), [new EditTrim("d", Head: 1, Tail: 0)]);
+        Action trim = () => Stretch.Of(ScriptFilm.Of(ThreeFilms), [new("d", Head: 1, Tail: 0)]);
 
         trim.Should().Throw<ArgumentException>().WithMessage("*'d'*");
     }
@@ -113,14 +119,18 @@ public sealed class FilmEditTests
     [Fact]
     public void TheEditRefusesATrimOfNegativeFrames()
     {
-        Action trim = () => Stretch.Of(ScriptFilm.Of(ThreeFilms), [new EditTrim("b", Head: -1, Tail: 0)]);
+        Action trim = () => Stretch.Of(ScriptFilm.Of(ThreeFilms), [new("b", Head: -1, Tail: 0)]);
 
         trim.Should().Throw<ArgumentException>();
     }
 
     /// <summary>One row for each frame of <paramref name="films"/>, named as the runner names the frames.</summary>
     private static List<ReadoutRow> RowsOf(IReadOnlyList<ScriptFilm> films) =>
-        [.. films.SelectMany(film => Enumerable.Range(0, film.Frames).Select(k => new ReadoutRow($"{film.Name}-{k:000000}", 0, default, 0, 0, 0, 0)))];
+    [
+        .. films.SelectMany(film =>
+            Enumerable.Range(0, film.Frames)
+                .Select(k => new ReadoutRow($"{film.Name}-{k:000000}", 0, default, 0, 0, 0, 0)))
+    ];
 
     [Fact]
     public void TheEditTakesALogWithOneRowForEachFrameOfTheScriptNamedAfterIt()

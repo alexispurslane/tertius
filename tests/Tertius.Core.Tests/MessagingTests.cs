@@ -1,6 +1,5 @@
-using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Tertius;
 
 namespace Tertius.Core.Tests;
 
@@ -24,12 +23,15 @@ public class MessagingTests
     public void TargetMatchesEachCaseWithoutDefaultArm()
     {
         Target[] targets = [new Entity(4, 1), new Topic(3), new Broadcast()];
-        string[] kinds = targets.Select(t => t switch
-        {
-            Entity => "entity",
-            Topic => "topic",
-            Broadcast => "broadcast",
-        }).ToArray();
+        string[] kinds =
+        [
+            .. targets.Select(t => t switch
+            {
+                Entity => "entity",
+                Topic => "topic",
+                Broadcast => "broadcast"
+            })
+        ];
         Assert.Equal(["entity", "topic", "broadcast"], kinds);
     }
 
@@ -38,10 +40,10 @@ public class MessagingTests
     {
         Target t = new Entity(123, 9);
         Assert.True(t.TryGetValue(out Entity e));
-        Assert.Equal(new Entity(123, 9), e);
+        Assert.Equal(new(123, 9), e);
         Assert.False(t.TryGetValue(out Topic _));
 
-        Target frameTopic = Topic.OfFrame(new FrameHandle(new Entity(1, 1), 42, 1));
+        Target frameTopic = Topic.OfFrame(new(new(1, 1), 42, 1));
         Assert.True(frameTopic.TryGetValue(out Topic topic));
         Assert.True(topic.IsFrameTopic);
         Assert.Equal(42, topic.FrameIndex);
@@ -50,7 +52,7 @@ public class MessagingTests
     [Fact]
     public void EventPayloadRoundTripsAndEditsInPlace()
     {
-        var e = Event.Create<Damage>(new Entity(1, 1), new Entity(2, 1), new Damage { Amount = 10, Kind = 3 });
+        var e = Event.Create(new Entity(1, 1), new(2, 1), new Damage { Amount = 10, Kind = 3 });
         Assert.True(e.Is<Damage>());
         Assert.False(e.Is<Heal>());
         e.As<Damage>().Amount -= 4;
@@ -89,7 +91,7 @@ public class MessagingTests
         Assert.False(EventMask.Of<Heal>().Overlaps(damage));
         Assert.True(EventMask.None.IsEmpty);
 
-        var high = EventMask.OfId(511);
+        EventMask high = EventMask.OfId(511);
         Assert.True(high.Contains(511));
         Assert.False(high.Contains(510));
         Assert.Equal(high | damage, damage | high);
@@ -99,7 +101,7 @@ public class MessagingTests
     public void EventFitsInOneHundredBytes()
     {
         // Target 16 + Sender 8 + Type 4 (+4 padding) + Payload 48 + Extra 8.
-        Assert.True(System.Runtime.CompilerServices.Unsafe.SizeOf<Event>() <= 96);
+        Assert.True(Unsafe.SizeOf<Event>() <= 96);
     }
 
     [Fact]
@@ -107,8 +109,8 @@ public class MessagingTests
     {
         EngineEvents.Register();
         Assert.True(EventType<Tick>.Id >= 0);
-        var c = Event.Create(Topics.Input, Entity.Null, InputEvent.MouseMove(new Vector2(3, 4)));
+        var c = Event.Create(Topics.Input, Entity.Null, InputEvent.MouseMove(new(3, 4)));
         Assert.True(c.As<InputEvent>().TryGetValue(out MouseMoved moved));
-        Assert.Equal(new Vector2(3, 4), moved.Delta);
+        Assert.Equal(new(3, 4), moved.Delta);
     }
 }

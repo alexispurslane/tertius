@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace Tertius.Simulation;
 
 /// <summary>The index that a run of an entity query starts from.</summary>
@@ -5,14 +7,18 @@ internal enum QueryIndex : byte
 {
     /// <summary>Every live entity: no filter of the query has an index.</summary>
     All,
+
     /// <summary>The entities that have one of the query's <c>With</c> types.</summary>
     Components,
+
     /// <summary>The members of a frame, from an <c>In</c> or from the frame of a <c>Near</c> center.</summary>
     Frame,
+
     /// <summary>The cells of the spatial grid that a <c>Near</c> sphere touches.</summary>
     Grid,
+
     /// <summary>No entity: a <c>Near</c> center that is not in a frame, so the filter matches nothing.</summary>
-    Nothing,
+    Nothing
 }
 
 /// <summary>
@@ -47,7 +53,8 @@ internal static class QueryPlanner
     /// The plan of a run of <paramref name="query"/> with the further filters <paramref name="more"/>. Throws
     /// <see cref="InvalidOperationException"/> for a <c>Near(radius)</c> on a snapshot that has no asker.
     /// </summary>
-    public static QueryPlan Choose(scoped in Snapshot snapshot, scoped in EntityQuery query, scoped ReadOnlySpan<QueryFilter> more)
+    public static QueryPlan Choose(scoped in Snapshot snapshot, scoped in EntityQuery query,
+        scoped ReadOnlySpan<QueryFilter> more)
     {
         EntityTable entities = snapshot.World.Entities;
         var best = new QueryPlan { Index = QueryIndex.All, Count = entities.LiveCount };
@@ -55,8 +62,9 @@ internal static class QueryPlanner
         {
             ReadOnlySpan<Entity> with = entities.WithComponent(id);
             if (with.Length < best.Count)
-                best = new QueryPlan { Index = QueryIndex.Components, Count = with.Length, Candidates = with };
+                best = new() { Index = QueryIndex.Components, Count = with.Length, Candidates = with };
         }
+
         if (!query.InFrame.IsNull)
             ConsiderFrame(ref best, snapshot.World, query.InFrame);
         Consider(ref best, snapshot, query.NearFilter);
@@ -92,25 +100,27 @@ internal static class QueryPlanner
     }
 
     /// <summary>The Near filter <paramref name="near"/>, whose radius is <paramref name="radius"/>, as an index: the frame of its center and the grid around it.</summary>
-    private static void ConsiderNear(scoped ref QueryPlan best, in Snapshot snapshot, in QueryFilter near, double radius)
+    private static void ConsiderNear(scoped ref QueryPlan best, in Snapshot snapshot, in QueryFilter near,
+        double radius)
     {
         if (!near.TryCenter(snapshot, out FrameHandle frame, out Double3 point))
         {
-            best = new QueryPlan { Index = QueryIndex.Nothing, Count = 0 };
+            best = new() { Index = QueryIndex.Nothing, Count = 0 };
             return;
         }
+
         // Everything near the center is in the center's frame, so the frame's members are an index of the filter too.
         ConsiderFrame(ref best, snapshot.World, frame);
         int inCells = snapshot.World.Spatial.CountNear(frame, point, radius);
         if (inCells >= 0 && inCells < best.Count)
-            best = new QueryPlan { Index = QueryIndex.Grid, Count = inCells, Frame = frame, Point = point, Radius = radius };
+            best = new() { Index = QueryIndex.Grid, Count = inCells, Frame = frame, Point = point, Radius = radius };
     }
 
     private static void ConsiderFrame(scoped ref QueryPlan best, World world, FrameHandle frame)
     {
         ReadOnlySpan<Entity> members = world.FrameMembers(frame);
         if (members.Length < best.Count)
-            best = new QueryPlan { Index = QueryIndex.Frame, Count = members.Length, Candidates = members };
+            best = new() { Index = QueryIndex.Frame, Count = members.Length, Candidates = members };
     }
 }
 
@@ -120,18 +130,17 @@ internal static class QueryPlanner
 /// </summary>
 internal static class QueryBuffers
 {
-    [ThreadStatic]
-    private static Stack<Entity[]>? free;
+    [ThreadStatic] private static Stack<Entity[]>? free;
 
     /// <summary>A buffer that holds at least <paramref name="size"/> handles.</summary>
     public static Entity[] Rent(int size)
     {
-        Stack<Entity[]> pool = free ??= new Stack<Entity[]>();
+        Stack<Entity[]> pool = free ??= new();
         if (pool.TryPop(out Entity[]? buffer) && buffer.Length >= size)
             return buffer;
         // A buffer that is too small is dropped, and the pool keeps the larger one when it comes back.
-        return new Entity[Math.Max(64, (int)Math.Min(Array.MaxLength, System.Numerics.BitOperations.RoundUpToPowerOf2((uint)size)))];
+        return new Entity[Math.Max(64, (int)Math.Min(Array.MaxLength, BitOperations.RoundUpToPowerOf2((uint)size)))];
     }
 
-    public static void Return(Entity[] buffer) => (free ??= new Stack<Entity[]>()).Push(buffer);
+    public static void Return(Entity[] buffer) => (free ??= new()).Push(buffer);
 }

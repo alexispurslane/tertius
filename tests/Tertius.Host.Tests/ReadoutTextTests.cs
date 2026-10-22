@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text.RegularExpressions;
 using Tertius.Demo;
 
 namespace Tertius.Host.Tests;
@@ -8,9 +10,12 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class ReadoutTextTests
 {
+    private static WheelFloor Floor => DemoScenes.DemoStation.WheelFloor;
+
     /// <summary>A row of the person at <paramref name="altitude"/> above Earth's mean radius, on the X axis.</summary>
-    private static ReadoutRow At(double altitude, long tick = 0, double speed = 0, double toStation = 0, double axis = 0, double felt = 0) =>
-        new("f-000000", tick, new Double3(DemoScenes.EarthRadius + altitude, 0, 0), speed, toStation, axis, felt);
+    private static ReadoutRow At(double altitude, long tick = 0, double speed = 0, double toStation = 0,
+        double axis = 0, double felt = 0) =>
+        new("f-000000", tick, new(DemoScenes.EarthRadius + altitude, 0, 0), speed, toStation, axis, felt);
 
     [Theory]
     [InlineData(0.0, "0.0 m/s")]
@@ -109,8 +114,8 @@ public sealed class ReadoutTextTests
     {
         // A circle at 200 km takes 2π √(r³ / GM) = 5,301.0 s, 88.4 min. A quarter turn in 1,350 s is a turn in 5,400 s, 90.0 min.
         double r = DemoScenes.EarthRadius + 200e3;
-        var start = new ReadoutRow("orbit-000000", 1000, new Double3(r, 0, 0), 0, 0, 0, 0);
-        var row = new ReadoutRow("night-000010", 1000 + 1350 * 60, new Double3(0, 0, r), 0, 0, 0, 0);
+        var start = new ReadoutRow("orbit-000000", 1000, new(r, 0, 0), 0, 0, 0, 0);
+        var row = new ReadoutRow("night-000010", 1000 + 1350 * 60, new(0, 0, r), 0, 0, 0, 0);
 
         string[] panel = CheckPanels.ParkingOrbit(start, row);
 
@@ -121,9 +126,9 @@ public sealed class ReadoutTextTests
     public void TheParkingOrbitPanelShowsMeasuringForTheRunsPeriodInTheFirst10Seconds()
     {
         double r = DemoScenes.EarthRadius + 200e3;
-        var start = new ReadoutRow("orbit-000000", 1000, new Double3(r, 0, 0), 0, 0, 0, 0);
-        var row = new ReadoutRow("orbit-000599", 1599, new Double3(r, 100, 0), 0, 0, 0, 0);
-        var later = row with { Tick = 1600 };
+        var start = new ReadoutRow("orbit-000000", 1000, new(r, 0, 0), 0, 0, 0, 0);
+        var row = new ReadoutRow("orbit-000599", 1599, new(r, 100, 0), 0, 0, 0, 0);
+        ReadoutRow later = row with { Tick = 1600 };
 
         CheckPanels.ParkingOrbit(start, row)[2].TrimEnd().Should().EndWith("run measuring");
         CheckPanels.ParkingOrbit(start, later)[2].TrimEnd().Should().NotEndWith("run measuring");
@@ -150,7 +155,8 @@ public sealed class ReadoutTextTests
     [Theory]
     [InlineData(100.0, "9.81 m/s²")]
     [InlineData(50.0, "4.91 m/s²")]
-    public void TheSpinGravityPanelSetsOmegaSquaredRAtTheRowsDistanceFromTheAxisBesideTheRunsFeltGravity(double axis, string textbook)
+    public void TheSpinGravityPanelSetsOmegaSquaredRAtTheRowsDistanceFromTheAxisBesideTheRunsFeltGravity(double axis,
+        string textbook)
     {
         // ω² r with ω = 0.31321 rad/s: 9.81 m/s² at 100 m from the axis, and half of it at 50 m.
         string[] panel = CheckPanels.SpinGravity(At(400e3), At(400e3, axis: axis, felt: 9.7213));
@@ -166,7 +172,6 @@ public sealed class ReadoutTextTests
         panel.Should().HaveCount(3);
         panel.Select(line => line.Length).Distinct().Should().ContainSingle();
     }
-    private static WheelFloor Floor => DemoScenes.DemoStation.WheelFloor;
 
     /// <summary>
     /// A release a micrometer over a box's half size above the middle of facet 128, at 8 m/s and 30° up, spinward or
@@ -176,17 +181,19 @@ public sealed class ReadoutTextTests
     private static ThrowRelease Release(int direction)
     {
         Double3 place = Floor.OnFacet(128, DemoScenes.WheelCoda.BoxHalf + 1e-6, -2);
-        return new ThrowRelease(place, WheelFloor.UpAt(place) * 4 + WheelFloor.SpinwardAt(place) * (direction * 8 * Math.Cos(Math.PI / 6)));
+        return new(place,
+            WheelFloor.UpAt(place) * 4 + WheelFloor.SpinwardAt(place) * (direction * 8 * Math.Cos(Math.PI / 6)));
     }
 
     /// <summary>How far along the floor, in the throw's direction, the straight line of <paramref name="release"/> lands, in two decimals.</summary>
     private static string LineLanding(ThrowRelease release)
     {
         ThrowLanding line = release.Landing(DemoScenes.SpinStation.Rate, Floor, DemoScenes.WheelCoda.BoxHalf);
-        return Math.Abs(Floor.Spinward(release.Place, line.Place)).ToString("F2", System.Globalization.CultureInfo.InvariantCulture) + " m";
+        return Math.Abs(Floor.Spinward(release.Place, line.Place)).ToString("F2", CultureInfo.InvariantCulture) + " m";
     }
 
-    private static ReadoutRow Coda(ThrowReadout? first = null, ThrowReadout? second = null) => At(400e3, axis: 99.1, felt: 9.72) with { FirstThrow = first, SecondThrow = second };
+    private static ReadoutRow Coda(ThrowReadout? first = null, ThrowReadout? second = null) =>
+        At(400e3, axis: 99.1, felt: 9.72) with { FirstThrow = first, SecondThrow = second };
 
     [Fact]
     public void TheThrowsPanelShowsEachThrowAsWaitingBeforeItsRelease()
@@ -203,7 +210,8 @@ public sealed class ReadoutTextTests
     {
         ThrowRelease spinward = Release(1), antispinward = Release(-1);
 
-        string[] panel = CheckPanels.Throws(Coda(), Coda(new ThrowReadout(spinward, null), new ThrowReadout(antispinward, null)));
+        string[] panel = CheckPanels.Throws(Coda(),
+            Coda(new ThrowReadout(spinward, null), new ThrowReadout(antispinward, null)));
 
         panel[1].Should().Contain("straight line").And.Contain("run").And.Contain("uniform 1 g");
         panel[2].TrimEnd().Should().Contain(LineLanding(spinward)).And.Contain("in the air").And.EndWith("5.65 m");
@@ -219,7 +227,8 @@ public sealed class ReadoutTextTests
         var ahead = new ThrowLanding(0.8, Floor.Above(theta + 0.0612, 0.25, -2));
         var behind = new ThrowLanding(1.7, Floor.Above(theta - 0.1154, 0.25, -2));
 
-        string[] panel = CheckPanels.Throws(Coda(), Coda(new ThrowReadout(spinward, ahead), new ThrowReadout(antispinward, behind)));
+        string[] panel = CheckPanels.Throws(Coda(),
+            Coda(new ThrowReadout(spinward, ahead), new ThrowReadout(antispinward, behind)));
 
         panel[2].TrimEnd().Should().Contain(" 6.12 m ").And.NotContain("in the air");
         panel[3].TrimEnd().Should().Contain(" 11.54 m ").And.NotContain("in the air");
@@ -241,10 +250,12 @@ public sealed class ReadoutTextTests
     [Fact]
     public void TheThrowsPanelWritesNoPairThatMenloDrawsAsOneGlyph()
     {
-        ReadoutRow landed = Coda(new ThrowReadout(Release(1), new ThrowLanding(0.8, Release(1).Place)), new ThrowReadout(Release(-1), null));
+        ReadoutRow landed = Coda(new ThrowReadout(Release(1), new ThrowLanding(0.8, Release(1).Place)),
+            new ThrowReadout(Release(-1), null));
 
         foreach (ReadoutRow row in new[] { Coda(), landed })
-            CheckPanels.Throws(Coda(), row).Should().OnlyContain(line => !line.Contains("fi", StringComparison.Ordinal) && !line.Contains("fl", StringComparison.Ordinal));
+            CheckPanels.Throws(Coda(), row).Should().OnlyContain(line =>
+                !line.Contains("fi", StringComparison.Ordinal) && !line.Contains("fl", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -258,24 +269,31 @@ public sealed class ReadoutTextTests
         ThrowRelease spinward = Release(1);
         var landed = new ThrowLanding(0.8, Floor.Above(WheelFloor.Theta(spinward.Place) + 0.0612, 0.25, -2));
 
-        string[] panel = CheckPanels.Throws(Coda(), Coda(new ThrowReadout(spinward, landed), new ThrowReadout(Release(-1), null)));
+        string[] panel = CheckPanels.Throws(Coda(),
+            Coda(new ThrowReadout(spinward, landed), new ThrowReadout(Release(-1), null)));
 
         string header = panel[1].TrimEnd();
-        System.Text.RegularExpressions.Regex.Split(header, " {3,}").Should().Equal("lands", "release", "straight line", "run", "uniform 1 g");
+        Regex.Split(header, " {3,}").Should().Equal("lands", "release", "straight line", "run", "uniform 1 g");
         foreach (string column in new[] { "straight line", "run", "uniform 1 g" })
         {
             int end = header.IndexOf(column, StringComparison.Ordinal) + column.Length;
             foreach (string line in panel[2..])
                 line[end - 1].Should().NotBe(' ', $"a landing ends under \"{column}\" in \"{line}\"");
             foreach (string line in panel[2..])
-                (end == line.Length || line[end] == ' ').Should().BeTrue($"a landing ends under \"{column}\" in \"{line}\"");
+                (end == line.Length || line[end] == ' ').Should()
+                    .BeTrue($"a landing ends under \"{column}\" in \"{line}\"");
         }
     }
 
     [Fact]
     public void TheLinesOfTheThrowsPanelAreOfOneWidth()
     {
-        foreach (ReadoutRow row in new[] { Coda(), Coda(new ThrowReadout(Release(1), null)), Coda(new ThrowReadout(Release(1), new ThrowLanding(0.8, Release(1).Place)), new ThrowReadout(Release(-1), null)) })
+        foreach (ReadoutRow row in new[]
+                 {
+                     Coda(), Coda(new ThrowReadout(Release(1), null)),
+                     Coda(new ThrowReadout(Release(1), new ThrowLanding(0.8, Release(1).Place)),
+                         new ThrowReadout(Release(-1), null))
+                 })
         {
             string[] panel = CheckPanels.Throws(Coda(), row);
 

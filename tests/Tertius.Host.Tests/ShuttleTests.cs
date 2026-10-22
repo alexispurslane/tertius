@@ -1,7 +1,6 @@
 using System.Numerics;
 using Tertius.Demo;
 using Tertius.Simulation;
-using Tertius.Testing;
 using static Tertius.Testing.WorldTesting;
 using DemoSurface = Tertius.Demo.DemoScenes.DemoSurface;
 using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
@@ -28,10 +27,11 @@ public sealed class ShuttleTests : IDisposable
     [Fact]
     public void ABallInTheParkedCabinFallsWithThePlanetsGravity()
     {
-        FrameHandle earth = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), GravityField.Point(DemoScenes.EarthMu)));
+        FrameHandle earth =
+            world.CreateRootFrame(new(FrameBounds.Sphere(1e7f), GravityField.Point(DemoScenes.EarthMu)));
         double r = DemoScenes.EarthRadius + Shuttle.Hull.Y;
-        FrameHandle cabin = world.GetOwnedFrame(Shuttle.Park(world, earth, new DPose(new Double3(0, r, 0), DQuaternion.Identity)));
-        Entity ball = world.Spawn(new SpawnDesc { Frame = cabin, Pose = At(0, -Shuttle.Cabin.Y + 1.5), Body = Ball(0.1f) });
+        FrameHandle cabin = world.GetOwnedFrame(Shuttle.Park(world, earth, new(new(0, r, 0), DQuaternion.Identity)));
+        Entity ball = world.Spawn(new() { Frame = cabin, Pose = At(0, -Shuttle.Cabin.Y + 1.5), Body = Ball(0.1f) });
         Tick(world, 2);
         Double3 before = world.VelocityIn(ball, cabin);
 
@@ -53,18 +53,18 @@ public sealed class ShuttleTests : IDisposable
     [Fact]
     public void TheInteriorStaysSolidAtTheGlass()
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f)));
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e4f)));
         FrameHandle cabin = world.GetOwnedFrame(Shuttle.Park(world, space, DPose.Identity));
         Shuttle.Glass.Should().HaveCount(40);
         (HullPane Pane, Entity Crate)[] crates =
         [
-            .. Shuttle.Glass.Select(pane => (pane, world.Spawn(new SpawnDesc
+            .. Shuttle.Glass.Select(pane => (pane, world.Spawn(new()
             {
                 Frame = cabin,
-                Pose = new DPose((Double3)pane.Center - PaneChecks.Normal(pane), DQuaternion.Identity),
+                Pose = new(pane.Center - PaneChecks.Normal(pane), DQuaternion.Identity),
                 LinearVelocity = PaneChecks.Normal(pane) * 5,
-                Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.15f)), Mass: 5, LinearDamping: 0, AngularDamping: 0),
-            }))),
+                Body = new(new BoxShapeDesc(new(0.15f)), Mass: 5, LinearDamping: 0, AngularDamping: 0)
+            })))
         ];
         Tick(world, 30);
 
@@ -72,7 +72,8 @@ public sealed class ShuttleTests : IDisposable
         {
             world.GetFrame(crate).Should().Be(cabin);
             Double3 place = world.PoseIn(crate, cabin).Position;
-            Double3.Dot(PaneChecks.Normal(pane), place - pane.Inner[0]).Should().BeLessThan(0, $"the glass of {pane.Id}, like the wall, keeps the crate in the cabin, but it is at {place}");
+            Double3.Dot(PaneChecks.Normal(pane), place - pane.Inner[0]).Should().BeLessThan(0,
+                $"the glass of {pane.Id}, like the wall, keeps the crate in the cabin, but it is at {place}");
         }
     }
 
@@ -93,8 +94,9 @@ public sealed class ShuttleTests : IDisposable
             Entity entity = scene[pane.Id];
             world.GetFrame(entity).Should().Be(cabin, pane.Id);
             DPose pose = world.PoseIn(entity, cabin);
-            (pose.Position - (Double3)pane.Center).Length.Should().BeLessThan(1e-4, $"{pane.Id} stands at its center");
-            Math.Abs(pose.Rotation.W).Should().BeGreaterThan(1 - 1e-9, $"{pane.Id} is unturned, so its mesh lies in its hole");
+            (pose.Position - pane.Center).Length.Should().BeLessThan(1e-4, $"{pane.Id} stands at its center");
+            Math.Abs(pose.Rotation.W).Should()
+                .BeGreaterThan(1 - 1e-9, $"{pane.Id} is unturned, so its mesh lies in its hole");
             world.GetRender(entity).Flags.Should().Be(RenderFlags.Visible | RenderFlags.Transparent, pane.Id);
             world.GetBody(entity).Should().BeNull(pane.Id);
         }
@@ -109,7 +111,8 @@ public sealed class ShuttleTests : IDisposable
     {
         SceneInstance scene = DemoScenes.All.Single(s => s.Name == "demo-surface").Build(world, RenderResources.None);
 
-        world.GetRender(scene["shuttle"]).Flags.Should().Be(RenderFlags.Visible | RenderFlags.CastsShadow | RenderFlags.NoImpostor);
+        world.GetRender(scene["shuttle"]).Flags.Should()
+            .Be(RenderFlags.Visible | RenderFlags.CastsShadow | RenderFlags.NoImpostor);
     }
 
     /// <summary>
@@ -122,15 +125,19 @@ public sealed class ShuttleTests : IDisposable
     {
         Double3 pen = DemoSurface.PenClip.Position;
         double half = DemoSurface.PenHalf.Z;
-        HullPane fore = Shuttle.Glass.Single(pane => pane.Id == "pane-port-4"), aft = Shuttle.Glass.Single(pane => pane.Id == "pane-port-5");
-        double pillarStart = fore.Outer.Concat(fore.Inner).Max(corner => corner.Z), pillarEnd = aft.Outer.Concat(aft.Inner).Min(corner => corner.Z);
+        HullPane fore = Shuttle.Glass.Single(pane => pane.Id == "pane-port-4"),
+            aft = Shuttle.Glass.Single(pane => pane.Id == "pane-port-5");
+        double pillarStart = fore.Outer.Concat(fore.Inner).Max(corner => corner.Z),
+            pillarEnd = aft.Outer.Concat(aft.Inner).Min(corner => corner.Z);
 
         (pen.Z - half).Should().BeGreaterThan(pillarStart, "the pen's forward end lies on the pillar");
         (pen.Z + half).Should().BeLessThan(pillarEnd, "the pen's aft end lies on the pillar");
         foreach (double z in new[] { pen.Z - half, pen.Z, pen.Z + half })
         {
             Double3 start = pen with { Z = z }, end = start with { X = -Shuttle.Hull.X - 0.1 };
-            Shuttle.Glass.Should().NotContain(pane => PaneChecks.CrossesTheHole(pane.Outer, start, end) || PaneChecks.CrossesTheHole(pane.Inner, start, end),
+            Shuttle.Glass.Should().NotContain(
+                pane => PaneChecks.CrossesTheHole(pane.Outer, start, end) ||
+                        PaneChecks.CrossesTheHole(pane.Inner, start, end),
                 $"the wall behind the pen at z = {z} is solid");
         }
     }
@@ -149,27 +156,33 @@ public sealed class ShuttleTests : IDisposable
         FrameHandle cabin = world.GetOwnedFrame(scene["shuttle"]);
 
         Shuttle.Lamps.Should().HaveCount(4);
-        Shuttle.Lamps.Select(lamp => (Math.Sign(lamp.Panel.Center.X), lamp.Panel.Center.Z)).Should().BeEquivalentTo(new[] { (-1, -3f), (-1, 3f), (1, -3f), (1, 3f) });
+        Shuttle.Lamps.Select(lamp => (Math.Sign(lamp.Panel.Center.X), lamp.Panel.Center.Z)).Should()
+            .BeEquivalentTo([(-1, -3f), (-1, 3f), (1, -3f), (1, 3f)]);
         foreach ((string id, BoundingBox panel) in Shuttle.Lamps)
         {
             float side = MathF.Sign(panel.Center.X), rib = panel.Center.Z;
-            (panel.Max - panel.Min - new Vector3(0.05f, 0.5f, 0.15f)).Length().Should().BeLessThan(1e-5f, $"{id} is 0.05 m thick, 0.5 m tall and 0.15 m wide");
-            (side > 0 ? panel.Max.X : -panel.Min.X).Should().BeApproximately(Shuttle.Cabin.X, 1e-5f, $"{id} hangs on the wall's inner face");
+            (panel.Max - panel.Min - new Vector3(0.05f, 0.5f, 0.15f)).Length().Should()
+                .BeLessThan(1e-5f, $"{id} is 0.05 m thick, 0.5 m tall and 0.15 m wide");
+            (side > 0 ? panel.Max.X : -panel.Min.X).Should()
+                .BeApproximately(Shuttle.Cabin.X, 1e-5f, $"{id} hangs on the wall's inner face");
             panel.Center.Y.Should().BeApproximately(0.6f, 1e-5f, $"{id} hangs 2.4 m above the floor");
             panel.Min.Z.Should().BeGreaterThanOrEqualTo(rib - 0.1f, $"{id} lies within its pillar");
             panel.Max.Z.Should().BeLessThanOrEqualTo(rib + 0.1f, $"{id} lies within its pillar");
             Double3 middle = panel.Center, outside = middle with { X = side * (Shuttle.Hull.X + 0.1) };
-            Shuttle.Glass.Should().NotContain(pane => PaneChecks.CrossesTheHole(pane.Outer, middle, outside) || PaneChecks.CrossesTheHole(pane.Inner, middle, outside),
+            Shuttle.Glass.Should().NotContain(
+                pane => PaneChecks.CrossesTheHole(pane.Outer, middle, outside) ||
+                        PaneChecks.CrossesTheHole(pane.Inner, middle, outside),
                 $"the pillar hides {id} from outside");
 
             Entity lamp = scene[id];
             world.GetFrame(lamp).Should().Be(cabin);
             DPose pose = world.PoseIn(lamp, cabin);
-            (pose.Position - (Double3)panel.Center).Length.Should().BeLessThan(1e-5, id);
+            (pose.Position - panel.Center).Length.Should().BeLessThan(1e-5, id);
             PointLightData light = world.GetRender(lamp).Light is PointLightData point ? point : default;
             light.Range.Should().Be(10, $"{id} carries a point light of range 10 m");
             light.Intensity.Should().Be(50, id);
-            ((Double3)light.Offset.Position - new Double3(-side * 0.3, 0, 0)).Length.Should().BeLessThan(1e-6, $"the light of {id} lies 0.3 m in front of it");
+            (light.Offset.Position - new Double3(-side * 0.3, 0, 0)).Length.Should()
+                .BeLessThan(1e-6, $"the light of {id} lies 0.3 m in front of it");
         }
     }
 
@@ -191,9 +204,12 @@ public sealed class ShuttleTests : IDisposable
 
         world.GetFrame(scene[camera]).Should().Be(cabin);
         Double3 p = world.PoseIn(scene[camera], cabin).Position;
-        LoftedHullTests.Inside(LoftedHullTests.OuterAt(p.Z), p.X, p.Y).Should().BeGreaterThanOrEqualTo(Shuttle.Wall + 0.2, $"{camera} at {p} lies 0.2 m inside the walls");
-        Math.Abs(p.Z).Should().BeLessThanOrEqualTo(Shuttle.Cabin.Z - 0.2, $"{camera} at {p} lies 0.2 m inside the end walls");
-        bool byTheHousing = Math.Abs(p.X) < 0.9 + 0.2 && Math.Abs(p.Y - HostTesting.ShuttleCenterOfMass.Y) < 0.9 + 0.2 && p.Z > 7.2 - 0.2;
+        LoftedHullTests.Inside(LoftedHullTests.OuterAt(p.Z), p.X, p.Y).Should()
+            .BeGreaterThanOrEqualTo(Shuttle.Wall + 0.2, $"{camera} at {p} lies 0.2 m inside the walls");
+        Math.Abs(p.Z).Should()
+            .BeLessThanOrEqualTo(Shuttle.Cabin.Z - 0.2, $"{camera} at {p} lies 0.2 m inside the end walls");
+        bool byTheHousing = Math.Abs(p.X) < 0.9 + 0.2 &&
+                            Math.Abs(p.Y - HostTesting.ShuttleCenterOfMass.Y) < 0.9 + 0.2 && p.Z > 7.2 - 0.2;
         byTheHousing.Should().BeFalse($"{camera} at {p} lies 0.2 m from the nozzle's housing");
     }
 
@@ -210,11 +226,12 @@ public sealed class ShuttleTests : IDisposable
     {
         SceneInstance scene = DemoScenes.All.Single(s => s.Name == "demo-surface").Build(world, RenderResources.None);
         FrameHandle cabin = world.GetOwnedFrame(scene["shuttle"]);
-        Double3 eye = Shuttle.SeatStand + (Double3)DemoSurface.Eye;
+        Double3 eye = Shuttle.SeatStand + DemoSurface.Eye;
 
         Double3 view = world.PoseIn(scene[camera], cabin).Position;
 
-        PaneChecks.Through(Shuttle.Glass.Single(p => p.Id == pane), view, eye).Should().BeTrue($"the line from {camera} at {view} to the eye at {eye} passes through {pane}");
+        PaneChecks.Through(Shuttle.Glass.Single(p => p.Id == pane), view, eye).Should()
+            .BeTrue($"the line from {camera} at {view} to the eye at {eye} passes through {pane}");
     }
 
     /// <summary>
@@ -222,14 +239,14 @@ public sealed class ShuttleTests : IDisposable
     /// <paramref name="angular"/>, with the linear velocity at its origin that keeps the point at
     /// <see cref="HostTesting.ShuttleCenterOfMass"/> still: the turn's velocity at the origin about that point.
     /// </summary>
-    private Entity FreeHull(FrameHandle space, Vector3 angular) => world.Spawn(new SpawnDesc
+    private Entity FreeHull(FrameHandle space, Vector3 angular) => world.Spawn(new()
     {
         Frame = space,
         Pose = DPose.Identity,
         LinearVelocity = Double3.Cross(angular, -(Double3)HostTesting.ShuttleCenterOfMass),
         AngularVelocity = angular,
         Body = Shuttle.Body(BodyMotion.Dynamic),
-        AsFrame = new FrameSpec(new FrameBounds(Shuttle.Bubble)),
+        AsFrame = new(new(Shuttle.Bubble))
     });
 
     /// <summary>
@@ -240,7 +257,7 @@ public sealed class ShuttleTests : IDisposable
     [Fact]
     public void TheShuttlesHullHasItsCenterOfMassWithinAMillimeterOfTheLoftsIntegral()
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f)));
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e4f)));
         Entity hull = FreeHull(space, Vector3.Zero);
 
         world.Snapshot.TryGetBody(hull, out BodyFacts facts).Should().BeTrue();
@@ -248,7 +265,8 @@ public sealed class ShuttleTests : IDisposable
         Vector3 loft = Shuttle.Loft.MassOf(Shuttle.Mass).CenterOfMass;
         Vector3.Distance(facts.CenterOfMass, loft).Should().BeLessThan(1e-3f,
             $"the engine's center of mass {facts.CenterOfMass} is the loft's {loft}");
-        facts.CenterOfMass.Length().Should().BeGreaterThan(0.1f, "the hull's center of mass is low and aft of its origin");
+        facts.CenterOfMass.Length().Should()
+            .BeGreaterThan(0.1f, "the hull's center of mass is low and aft of its origin");
     }
 
     /// <summary>
@@ -263,11 +281,14 @@ public sealed class ShuttleTests : IDisposable
         Vector3 longAxis = Vector3.Transform(Vector3.UnitZ, Shuttle.Inertia.Axes);
         (FrameHandle Space, Entity Hull, string Spin)[] cases =
         [
-            .. new[] { (Spin: 0.5f * Vector3.UnitX, Name: "about X"), (Spin: 0.3f * longAxis, Name: "about the long axis") }.Select(spin =>
+            .. new[]
             {
-                FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f)));
+                (Spin: 0.5f * Vector3.UnitX, Name: "about X"), (Spin: 0.3f * longAxis, Name: "about the long axis")
+            }.Select(spin =>
+            {
+                FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e4f)));
                 return (space, FreeHull(space, spin.Spin), spin.Name);
-            }),
+            })
         ];
 
         Tick(world, 120);
@@ -276,8 +297,10 @@ public sealed class ShuttleTests : IDisposable
         {
             DPose pose = world.PoseIn(hull, space);
             Double3 center = pose.Position + pose.Rotation.Rotate((Double3)HostTesting.ShuttleCenterOfMass);
-            (center - (Double3)HostTesting.ShuttleCenterOfMass).Length.Should().BeLessThan(1e-3, $"the center of mass stays still while the hull spins {spin}");
-            pose.Rotation.AngularVelocityTo(DQuaternion.Identity, 1).Length.Should().BeGreaterThan(0.5, $"the hull has turned {spin}");
+            (center - HostTesting.ShuttleCenterOfMass).Length.Should().BeLessThan(1e-3,
+                $"the center of mass stays still while the hull spins {spin}");
+            pose.Rotation.AngularVelocityTo(DQuaternion.Identity, 1).Length.Should()
+                .BeGreaterThan(0.5, $"the hull has turned {spin}");
         }
     }
 
@@ -294,25 +317,32 @@ public sealed class ShuttleTests : IDisposable
     {
         const float torque = 10_000;
         const int ticks = 30;
-        Vector3 axis = Vector3.Transform(principal switch { 0 => Vector3.UnitX, 1 => Vector3.UnitY, _ => Vector3.UnitZ }, Shuttle.Inertia.Axes);
-        float moment = principal switch { 0 => Shuttle.Inertia.Moments.X, 1 => Shuttle.Inertia.Moments.Y, _ => Shuttle.Inertia.Moments.Z };
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f)));
-        Entity hull = world.Spawn(new SpawnDesc
+        Vector3 axis =
+            Vector3.Transform(principal switch { 0 => Vector3.UnitX, 1 => Vector3.UnitY, _ => Vector3.UnitZ },
+                Shuttle.Inertia.Axes);
+        float moment = principal switch
+        {
+            0 => Shuttle.Inertia.Moments.X, 1 => Shuttle.Inertia.Moments.Y, _ => Shuttle.Inertia.Moments.Z
+        };
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e4f)));
+        Entity hull = world.Spawn(new()
         {
             Frame = space,
             Pose = DPose.Identity,
             Body = Shuttle.Body(BodyMotion.Dynamic),
-            AsFrame = new FrameSpec(new FrameBounds(Shuttle.Bubble)),
-            Components = [new TorqueFor(ticks, torque * axis)],
+            AsFrame = new(new(Shuttle.Bubble)),
+            Components = [new TorqueFor(ticks, torque * axis)]
         });
 
         Tick(world, ticks + 5);
 
         Vector3 turning = world.AngularVelocityIn(hull, space);
-        float expected = torque * ticks * (float)world.DeltaTime / moment;
+        float expected = torque * ticks * world.DeltaTime / moment;
         float along = Vector3.Dot(turning, axis);
-        along.Should().BeApproximately(expected, expected * 1e-3f, $"the moment about principal axis {principal} is {moment} kg·m²");
-        (turning - along * axis).Length().Should().BeLessThan(expected * 1e-3f, $"the hull turns about principal axis {principal} alone");
+        along.Should().BeApproximately(expected, expected * 1e-3f,
+            $"the moment about principal axis {principal} is {moment} kg·m²");
+        (turning - along * axis).Length().Should()
+            .BeLessThan(expected * 1e-3f, $"the hull turns about principal axis {principal} alone");
     }
 
     /// <summary>
@@ -323,14 +353,16 @@ public sealed class ShuttleTests : IDisposable
     [Fact]
     public void TheHullStandsOnItsTailOnAFlatPad()
     {
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f), GravityField.Uniform(new Vector3(0, -9.81f, 0))));
-        world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 0.6), Body = new BodyDesc(new BoxShapeDesc(new Vector3(8, 0.6f, 8)), BodyMotion.Static) });
-        Entity hull = world.Spawn(new SpawnDesc
+        FrameHandle ground =
+            world.CreateRootFrame(new(FrameBounds.Sphere(1e4f), GravityField.Uniform(new(0, -9.81f, 0))));
+        world.Spawn(new()
+            { Frame = ground, Pose = At(0, 0.6), Body = new(new BoxShapeDesc(new(8, 0.6f, 8)), BodyMotion.Static) });
+        Entity hull = world.Spawn(new()
         {
             Frame = ground,
-            Pose = new DPose(new Double3(0, 1.2 + Shuttle.Hull.Z + 0.01, 0), DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2)),
+            Pose = new(new(0, 1.2 + Shuttle.Hull.Z + 0.01, 0), DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2)),
             Body = Shuttle.Body(BodyMotion.Dynamic),
-            AsFrame = new FrameSpec(new FrameBounds(Shuttle.Bubble)),
+            AsFrame = new(new(Shuttle.Bubble))
         });
 
         double worst = 0;
@@ -342,7 +374,8 @@ public sealed class ShuttleTests : IDisposable
         }
 
         worst.Should().BeLessThan(1, "the hull stands on its tail");
-        world.PoseIn(hull, ground).Position.Y.Should().BeApproximately(1.2 + Shuttle.Hull.Z, 0.01, "it rests on its tail face");
+        world.PoseIn(hull, ground).Position.Y.Should()
+            .BeApproximately(1.2 + Shuttle.Hull.Z, 0.01, "it rests on its tail face");
     }
 
     /// <summary>
@@ -354,7 +387,11 @@ public sealed class ShuttleTests : IDisposable
     [Fact]
     public void TheTailFaceIsFlatAcrossTheCrossSection()
     {
-        Vector2[] full = [new(-2.8f, -2), new(2.8f, -2), new(3, -1.8f), new(3, -1.2f), new(3, 1.2f), new(2.2f, 2), new(-2.2f, 2), new(-3, 1.2f), new(-3, -1.2f), new(-3, -1.8f)];
+        Vector2[] full =
+        [
+            new(-2.8f, -2), new(2.8f, -2), new(3, -1.8f), new(3, -1.2f), new(3, 1.2f), new(2.2f, 2), new(-2.2f, 2),
+            new(-3, 1.2f), new(-3, -1.2f), new(-3, -1.8f)
+        ];
         double fullArea = 0;
         for (int i = 0; i < full.Length; i++)
             fullArea += (full[i].X * full[(i + 1) % full.Length].Y - full[(i + 1) % full.Length].X * full[i].Y) / 2.0;
@@ -364,22 +401,27 @@ public sealed class ShuttleTests : IDisposable
         var outline = new HashSet<Vector2>();
         for (int i = 0; i < mesh.Indices.Length; i += 3)
         {
-            Vector3 a = mesh.Vertices[mesh.Indices[i]].Position, b = mesh.Vertices[mesh.Indices[i + 1]].Position, c = mesh.Vertices[mesh.Indices[i + 2]].Position;
+            Vector3 a = mesh.Vertices[mesh.Indices[i]].Position,
+                b = mesh.Vertices[mesh.Indices[i + 1]].Position,
+                c = mesh.Vertices[mesh.Indices[i + 2]].Position;
             if ((a.Z + b.Z + c.Z) / 3 < 7.99f)
                 continue;
             foreach (Vector3 corner in new[] { a, b, c })
             {
                 corner.Z.Should().Be(8, "the tail face is flat");
-                outline.Add(new Vector2(corner.X, corner.Y));
+                outline.Add(new(corner.X, corner.Y));
             }
+
             Vector3 wound = Vector3.Cross(b - a, c - a);
             Vector3.Normalize(wound).Z.Should().BeApproximately(1, 1e-6f, "the tail face faces aft");
             area += wound.Length() / 2;
         }
 
-        area.Should().BeApproximately(fullArea - 1.4 * 1.4, 1e-4, "the face spans the full cross-section round the pocket");
+        area.Should().BeApproximately(fullArea - 1.4 * 1.4, 1e-4,
+            "the face spans the full cross-section round the pocket");
         outline.Should().Contain(full);
-        Shuttle.HullShape.Should().BeOfType<ConvexHullShapeDesc>().Which.Points.Where(p => p.Z == 8).Select(p => new Vector2(p.X, p.Y))
+        Shuttle.HullShape.Should().BeOfType<ConvexHullShapeDesc>().Which.Points.Where(p => p.Z == 8)
+            .Select(p => new Vector2(p.X, p.Y))
             .Should().BeEquivalentTo(new[] { 0, 1, 2, 4, 5, 6, 7, 9 }.Select(c => full[c]));
     }
 
@@ -402,18 +444,23 @@ public sealed class ShuttleTests : IDisposable
             DPose pose = world.PoseIn(nozzle, cabin);
             Double3 axis = pose.Rotation.Rotate(Double3.UnitY);
             Math.Abs(axis.Z).Should().BeApproximately(1, 1e-9, "the nozzle's axis lies along Z");
-            pose.Position.X.Should().BeApproximately(HostTesting.ShuttleCenterOfMass.X, 1e-6, "the axis passes through the center of mass");
-            pose.Position.Y.Should().BeApproximately(HostTesting.ShuttleCenterOfMass.Y, 1e-6, "the axis passes through the center of mass");
+            pose.Position.X.Should().BeApproximately(HostTesting.ShuttleCenterOfMass.X, 1e-6,
+                "the axis passes through the center of mass");
+            pose.Position.Y.Should().BeApproximately(HostTesting.ShuttleCenterOfMass.Y, 1e-6,
+                "the axis passes through the center of mass");
             pose.Position.Y.Should().BeApproximately(-0.090, 1e-3, "the axis passes through the pocket's middle");
 
-            Double3[] points = [.. mesh.Vertices.Select(vertex => pose.Position + pose.Rotation.Rotate((Double3)vertex.Position))];
+            Double3[] points =
+                [.. mesh.Vertices.Select(vertex => pose.Position + pose.Rotation.Rotate((Double3)vertex.Position))];
             points.Max(p => p.Z).Should().BeApproximately(7.95, 1e-5, "the aft rim lies 5 cm inside the tail face");
             points.Min(p => p.Z).Should().BeApproximately(7.45, 1e-5);
-            points.Min(p => 0.7 - Math.Max(Math.Abs(p.X), Math.Abs(p.Y - pose.Position.Y))).Should().BeApproximately(0.1, 1e-5, "the outside lies 0.1 m from the pocket's walls");
+            points.Min(p => 0.7 - Math.Max(Math.Abs(p.X), Math.Abs(p.Y - pose.Position.Y))).Should()
+                .BeApproximately(0.1, 1e-5, "the outside lies 0.1 m from the pocket's walls");
         }
     }
 
-    /// <summary>A test component that adds <paramref name="torque"/>, in the axes of its entity's frame, on each of its first <paramref name="ticks"/> ticks.</summary>
+    /// <summary>A test component that adds <paramref name="torque"/>, in the axes of its entity's frame, on each of its first
+    /// <paramref name="ticks"/> ticks.</summary>
     private sealed class TorqueFor(int ticks, Vector3 torque) : IComponent
     {
         private int handled;

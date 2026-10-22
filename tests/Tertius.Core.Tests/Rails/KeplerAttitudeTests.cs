@@ -31,8 +31,8 @@ public class KeplerAttitudeTests
 
         DQuaternion rotation = orbit.RotationAt(time, Mu);
 
-        ExpectNear(rotation.Rotate(new Double3(0, 0, -1)), new Double3(-Math.Sin(m), 0, -Math.Cos(m)));
-        ExpectNear(rotation.Rotate(new Double3(0, -1, 0)), new Double3(-Math.Cos(m), 0, Math.Sin(m)));
+        ExpectNear(rotation.Rotate(new Double3(0, 0, -1)), new(-Math.Sin(m), 0, -Math.Cos(m)));
+        ExpectNear(rotation.Rotate(new Double3(0, -1, 0)), new(-Math.Cos(m), 0, Math.Sin(m)));
     }
 
     [Fact]
@@ -42,16 +42,17 @@ public class KeplerAttitudeTests
 
         // The orbit runs counterclockwise seen from +Y. With the nose along the motion and the belly toward the parent, the
         // frame's +X points to -Y.
-        ExpectNear(orbit.RotationAt(1234, Mu).Rotate(Double3.UnitX), new Double3(0, -1, 0));
+        ExpectNear(orbit.RotationAt(1234, Mu).Rotate(Double3.UnitX), new(0, -1, 0));
     }
 
     [Theory]
     [InlineData(0.1)]
     [InlineData(0.37)]
     [InlineData(0.8)]
-    public void OnAnOvalOrbitTheBellyPointsExactlyAtTheParentAndTheNoseAcrossTheHorizonInTheDirectionOfMotion(double fractionOfPeriod)
+    public void OnAnOvalOrbitTheBellyPointsExactlyAtTheParentAndTheNoseAcrossTheHorizonInTheDirectionOfMotion(
+        double fractionOfPeriod)
     {
-        KeplerOrbit orbit = Facing(new KeplerOrbit(1e7, 0.3, 0.4, 1.0, 0.5, 0, 0, DQuaternion.Identity, 0, 0));
+        KeplerOrbit orbit = Facing(new(1e7, 0.3, 0.4, 1.0, 0.5, 0, 0, DQuaternion.Identity, 0, 0));
         double time = fractionOfPeriod * orbit.Period(Mu);
         (Double3 position, Double3 velocity) = orbit.StateAt(time, Mu);
 
@@ -72,14 +73,14 @@ public class KeplerAttitudeTests
 
         Double3 omega = orbit.AngularVelocityAt(500, Mu);
 
-        ExpectNear(omega, new Double3(0, n, 0), 1e-12);
+        ExpectNear(omega, new(0, n, 0), 1e-12);
     }
 
     [Fact]
     public void OnAnOvalOrbitTheFrameTurnsFasterAtPeriapsisThanAtApoapsisByTheSquareOfTheirDistances()
     {
         const double e = 0.3;
-        KeplerOrbit orbit = Facing(new KeplerOrbit(1e7, e, 0, 0, 0, 0, 0, DQuaternion.Identity, 0, 0));
+        KeplerOrbit orbit = Facing(new(1e7, e, 0, 0, 0, 0, 0, DQuaternion.Identity, 0, 0));
 
         double atPeriapsis = orbit.AngularVelocityAt(0, Mu).Length;
         double atApoapsis = orbit.AngularVelocityAt(orbit.Period(Mu) / 2, Mu).Length;
@@ -91,7 +92,7 @@ public class KeplerAttitudeTests
     [Fact]
     public void TheRotationTurnsAtItsAngularVelocity()
     {
-        KeplerOrbit orbit = Facing(new KeplerOrbit(1e7, 0.3, 0.4, 1.0, 0.5, 0, 0, DQuaternion.Identity, 0, 0));
+        KeplerOrbit orbit = Facing(new(1e7, 0.3, 0.4, 1.0, 0.5, 0, 0, DQuaternion.Identity, 0, 0));
         const double time = 1000, step = 0.01;
 
         // The change of the rotation over a short step, as an angle about an axis, is the angular velocity times the step.
@@ -108,7 +109,8 @@ public class KeplerAttitudeTests
         KeplerOrbit orbit = Facing(KeplerOrbit.Circular(LowOrbit));
 
         // The same rotation has two quaternions, q and -q. Across the wrap from π to -π, the frame keeps the one near q.
-        DQuaternion a = orbit.RotationAt(orbit.Period(Mu) / 2 - 0.01, Mu), b = orbit.RotationAt(orbit.Period(Mu) / 2 + 0.01, Mu);
+        DQuaternion a = orbit.RotationAt(orbit.Period(Mu) / 2 - 0.01, Mu),
+            b = orbit.RotationAt(orbit.Period(Mu) / 2 + 0.01, Mu);
         (a.X * b.X + a.Y * b.Y + a.Z * b.Z + a.W * b.W).Should().BeGreaterThan(0.999);
     }
 

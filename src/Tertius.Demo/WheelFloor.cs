@@ -31,7 +31,7 @@ public readonly record struct WheelFloor(double Radius, int Segments)
     public Double3 Normal(int facet)
     {
         double middle = (facet + 0.5) * Facet;
-        return new Double3(Math.Cos(middle), 0, -Math.Sin(middle));
+        return new(Math.Cos(middle), 0, -Math.Sin(middle));
     }
 
     /// <summary>The outward unit normal of the facet under <paramref name="place"/>.</summary>
@@ -52,7 +52,8 @@ public readonly record struct WheelFloor(double Radius, int Segments)
     }
 
     /// <summary>
-    /// The place <paramref name="height"/> above the floor at the angle <paramref name="theta"/>, at <paramref name="y"/> along
+    /// The place <paramref name="height"/> above the floor at the angle <paramref name="theta"/>, at <paramref name="y"/>
+    /// along
     /// the axis: on the plane of the facet under that angle, in its direction from the axis, and then along the facet's
     /// normal toward the axis.
     /// </summary>
@@ -78,7 +79,8 @@ public readonly record struct WheelFloor(double Radius, int Segments)
     }
 
     /// <summary>The unit direction of growing θ at <paramref name="place"/>, across the axis: the station's way there.</summary>
-    public static Double3 SpinwardAt(Double3 place) => Double3.Cross(Double3.UnitY, new Double3(place.X, 0, place.Z)).Normalized();
+    public static Double3 SpinwardAt(Double3 place) =>
+        Double3.Cross(Double3.UnitY, new(place.X, 0, place.Z)).Normalized();
 
     /// <summary>The unit direction toward the axis at <paramref name="place"/>, across it: up on the floor.</summary>
     public static Double3 UpAt(Double3 place) => -new Double3(place.X, 0, place.Z).Normalized();

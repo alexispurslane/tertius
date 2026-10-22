@@ -21,7 +21,8 @@ public sealed class DoorwaySliceTests(DoorwayRun run) : IClassFixture<DoorwayRun
     private Double3 PersonAt(string dump) => Dump(dump).Entity("person").Pose.Position;
 
     /// <summary>How far the door is open in <paramref name="dump"/>, from 0 (shut) to 1 (open).</summary>
-    private double Open(string dump) => (Dump(dump).Entity("door").Pose.Position.Y - DemoScenes.DoorwayDoorShutY) / DemoScenes.DoorwayDoorRise;
+    private double Open(string dump) => (Dump(dump).Entity("door").Pose.Position.Y - DemoScenes.DoorwayDoorShutY) /
+                                        DemoScenes.DoorwayDoorRise;
 
     [Fact]
     public void ThePersonStartsOutsideTheSensorAndTheDoorIsShut()
@@ -35,7 +36,8 @@ public sealed class DoorwaySliceTests(DoorwayRun run) : IClassFixture<DoorwayRun
     {
         // 70 ticks at 3 m/s are 3.5 m.
         PersonAt("inside").Z.Should().BeApproximately(DemoScenes.DoorwayPersonStartZ - 3.5, 0.02);
-        Math.Abs(PersonAt("inside").Z - DemoScenes.DoorwaySensorZ).Should().BeLessThan(DemoScenes.DoorwaySensorHalfDepth, "the person is in the sensor");
+        Math.Abs(PersonAt("inside").Z - DemoScenes.DoorwaySensorZ).Should()
+            .BeLessThan(DemoScenes.DoorwaySensorHalfDepth, "the person is in the sensor");
         Open("inside").Should().BeApproximately(1, 1e-4);
     }
 
@@ -44,7 +46,8 @@ public sealed class DoorwaySliceTests(DoorwayRun run) : IClassFixture<DoorwayRun
     {
         // The capsule's radius is 0.3 m.
         PersonAt("outside").Z.Should().BeApproximately(DemoScenes.DoorwayPersonStartZ, 0.02);
-        (PersonAt("outside").Z - DemoScenes.DoorwaySensorZ).Should().BeGreaterThan(DemoScenes.DoorwaySensorHalfDepth + 0.3, "the person left the sensor");
+        (PersonAt("outside").Z - DemoScenes.DoorwaySensorZ).Should()
+            .BeGreaterThan(DemoScenes.DoorwaySensorHalfDepth + 0.3, "the person left the sensor");
         Open("outside").Should().BeApproximately(0, 1e-4);
     }
 }

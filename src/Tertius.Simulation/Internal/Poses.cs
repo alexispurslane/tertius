@@ -14,5 +14,6 @@ internal static class Poses
     /// <summary>True if two poses are equal bit for bit. Unlike <c>==</c>, it tells 0 from -0 and treats NaN as equal to itself.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool BitEquals(in DPose a, in DPose b) =>
-        MemoryMarshal.AsBytes(new ReadOnlySpan<DPose>(in a)).SequenceEqual(MemoryMarshal.AsBytes(new ReadOnlySpan<DPose>(in b)));
+        MemoryMarshal.AsBytes(new ReadOnlySpan<DPose>(in a))
+            .SequenceEqual(MemoryMarshal.AsBytes(new ReadOnlySpan<DPose>(in b)));
 }

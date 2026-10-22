@@ -38,7 +38,7 @@ public sealed class FreePlay
         ArgumentNullException.ThrowIfNull(scene);
         this.world = world;
         this.scene = scene;
-        views = new ViewSwitch(scene);
+        views = new(scene);
         if (record is null)
             return;
         this.record = record;

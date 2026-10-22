@@ -18,4 +18,17 @@
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
     <RootNamespace>$(MSBuildProjectName)</RootNamespace>
   </PropertyGroup>
+  <!--
+    Complexity and length reports. CA1502 (cyclomatic complexity, limit in CodeMetricsConfig.txt) and Meziantou's MA0051
+    (method length) report at suggestion level, so they never fail a build. The pre-commit hook prints the ones in the
+    methods that a commit changes. MeziantouAnalysisMode=None turns off every Meziantou rule, and .editorconfig turns
+    MA0051 back on.
+  -->
+  <PropertyGroup>
+    <MeziantouAnalysisMode>None</MeziantouAnalysisMode>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Meziantou.Analyzer" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)analyzers/CodeMetricsConfig.txt" />
+  </ItemGroup>
 </Project>

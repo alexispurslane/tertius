@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using JoltPhysicsSharp;
 
@@ -12,7 +13,8 @@ namespace Tertius.Physics;
 /// <see cref="NativeObject.Dispose()"/> destroys the native object only when <see cref="NativeObject.OwnsHandle"/> is true,
 /// and JoltPhysicsSharp 2.23.0 does not set it the same way for every type. The constructors of
 /// <see cref="CharacterVirtual"/>, <see cref="PhysicsSystem"/>, <see cref="JobSystemThreadPool"/>,
-/// <see cref="BroadPhaseLayerInterfaceTable"/>, <see cref="BodyCreationSettings"/>, <see cref="ConvexHullShapeSettings"/> and
+/// <see cref="BroadPhaseLayerInterfaceTable"/>, <see cref="BodyCreationSettings"/>, <see cref="ConvexHullShapeSettings"/>
+/// and
 /// <see cref="MeshShapeSettings"/> leave it false, so a dispose of one of those frees nothing native. A character then
 /// leaves its inner body in its system. The constructors of the other types set it true, also for the filter tables that
 /// joltc's <c>JPH_PhysicsSystem_Destroy</c> deletes itself.
@@ -23,7 +25,9 @@ namespace Tertius.Physics;
 /// disposes then stays in memory. It is never freed out of order or twice.
 /// </para>
 /// </remarks>
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA1816", Justification = "These helpers turn off the finalizer of a JoltPhysicsSharp object whose native lifetime this module owns, which is the point of the class.")]
+[SuppressMessage("Usage", "CA1816",
+    Justification =
+        "These helpers turn off the finalizer of a JoltPhysicsSharp object whose native lifetime this module owns, which is the point of the class.")]
 internal static class NativeOwnership
 {
     /// <summary>Makes <see cref="NativeObject.Dispose()"/> of <paramref name="native"/> destroy the native object, and turns off its finalizer.</summary>

@@ -31,10 +31,12 @@ public class WorldNumericNestingTests
     /// <summary>The grid of a resting frame that nests, in meters: 2^20 m.</summary>
     private const double Grid = 1 << 20;
 
-    private static readonly BodyDesc PodHull = new(new BoxShapeDesc(new Vector3(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
+    private static readonly BodyDesc PodHull = new(new BoxShapeDesc(new(2)), Mass: 1000, LinearDamping: 0,
+        AngularDamping: 0,
         InteriorShape: new SphereShapeDesc(0.05f));
 
-    private static readonly BodyDesc CrateBody = new(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
+    private static readonly BodyDesc CrateBody = new(new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0,
+        AngularDamping: 0);
 
     /// <summary>A pod with its own frame and a camera in it, and a crate beside it, a light-year out in a frame without gravity.</summary>
     private sealed record Scene(World World, FrameHandle Pod, Entity Crate);
@@ -52,26 +54,27 @@ public class WorldNumericNestingTests
             if (options is not null)
                 o.NumericFrames = options;
         });
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e18f), GravityField.None));
-        Entity hull = world.Spawn(new SpawnDesc
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e18f), GravityField.None));
+        Entity hull = world.Spawn(new()
         {
             Frame = space,
             Pose = WorldTesting.At(LightYear),
-            LinearVelocity = new Double3(speed, 0, 0),
+            LinearVelocity = new(speed, 0, 0),
             Body = PodHull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
+            AsFrame = new(FrameBounds.Sphere(20))
         });
         FrameHandle pod = world.GetOwnedFrame(hull);
-        Entity crate = world.Spawn(new SpawnDesc
+        Entity crate = world.Spawn(new()
         {
             Frame = space,
             Pose = WorldTesting.At(LightYear, 50),
-            LinearVelocity = new Double3(speed + Drift, 0, 0),
+            LinearVelocity = new(speed + Drift, 0, 0),
             Body = CrateBody,
-            Render = new RenderData { Mesh = new MeshId(0), Flags = RenderFlags.Visible, BoundingRadius = 1, Scale = Vector3.One },
+            Render = new RenderData
+                { Mesh = new(0), Flags = RenderFlags.Visible, BoundingRadius = 1, Scale = Vector3.One }
         });
-        world.Camera = world.Spawn(new SpawnDesc { Frame = pod, Pose = DPose.Identity, Render = new RenderData() });
-        return new Scene(world, pod, crate);
+        world.Camera = world.Spawn(new() { Frame = pod, Pose = DPose.Identity, Render = new RenderData() });
+        return new(world, pod, crate);
     }
 
     /// <summary>The crate's X in the pod's frame, through the World, through the Snapshot, and in the render snapshot.</summary>
@@ -80,7 +83,8 @@ public class WorldNumericNestingTests
         World world = scene.World;
         world.Snapshot.TryGetPoseIn(scene.Crate, scene.Pod, out DPose inSnapshot).Should().BeTrue();
         world.RenderSnapshots.TryAcquireLatest(out RenderSnapshot render).Should().BeTrue();
-        RenderInstance instance = render.Instances.Should().ContainSingle(i => i.EntityIndex == scene.Crate.Index).Subject;
+        RenderInstance instance =
+            render.Instances.Should().ContainSingle(i => i.EntityIndex == scene.Crate.Index).Subject;
         return (world.PoseIn(scene.Crate, scene.Pod).Position.X, inSnapshot.Position.X, instance.Position.X);
     }
 
@@ -89,9 +93,12 @@ public class WorldNumericNestingTests
         (double World, double Snapshot, double Render) after, int tick)
     {
         double step = Drift / 60;
-        (after.World - before.World).Should().BeApproximately(step, 1e-4, $"the World's read steps by a millimeter at tick {tick}");
-        (after.Snapshot - before.Snapshot).Should().BeApproximately(step, 1e-4, $"the Snapshot's read steps by a millimeter at tick {tick}");
-        (after.Render - before.Render).Should().BeApproximately(step, 1e-4, $"the render snapshot steps by a millimeter at tick {tick}");
+        (after.World - before.World).Should()
+            .BeApproximately(step, 1e-4, $"the World's read steps by a millimeter at tick {tick}");
+        (after.Snapshot - before.Snapshot).Should()
+            .BeApproximately(step, 1e-4, $"the Snapshot's read steps by a millimeter at tick {tick}");
+        (after.Render - before.Render).Should()
+            .BeApproximately(step, 1e-4, $"the render snapshot steps by a millimeter at tick {tick}");
     }
 
     [Fact]
@@ -100,19 +107,20 @@ public class WorldNumericNestingTests
         Scene scene = PodAndCrate(FallingSpeed);
         using World world = scene.World;
         world.Tick();
-        var before = CrateX(scene);
+        (double World, double Snapshot, double Render) before = CrateX(scene);
 
         for (int tick = 0; tick < 60; tick++)
         {
             world.Tick();
-            var after = CrateX(scene);
+            (double World, double Snapshot, double Render) after = CrateX(scene);
             ShouldStepByAMillimeter(before, after, tick);
             before = after;
         }
 
         world.Errors.Should().BeEmpty();
         FrameHandle crateHome = world.PhysicsHomeOf(scene.Crate);
-        world.Frames.Numeric(crateHome).Should().Be(NumericMode.Falling, "the crate is fast, so it falls in a numeric frame");
+        world.Frames.Numeric(crateHome).Should()
+            .Be(NumericMode.Falling, "the crate is fast, so it falls in a numeric frame");
         world.Frames.TreeLocalPose(crateHome).Position.Length.Should().BeLessThan(1e9, "its frame nests near it");
     }
 
@@ -125,8 +133,10 @@ public class WorldNumericNestingTests
 
         FrameHandle crateHome = world.PhysicsHomeOf(scene.Crate);
         FrameHandle podHome = world.Frames.TreeParent(scene.Pod);
-        world.Frames.Numeric(crateHome).Should().Be(NumericMode.Falling, "the crate is fast, so it falls in a numeric frame");
-        world.Frames.Numeric(podHome).Should().Be(NumericMode.Falling, "the pod is fast, so it falls in a numeric frame");
+        world.Frames.Numeric(crateHome).Should()
+            .Be(NumericMode.Falling, "the crate is fast, so it falls in a numeric frame");
+        world.Frames.Numeric(podHome).Should()
+            .Be(NumericMode.Falling, "the pod is fast, so it falls in a numeric frame");
         crateHome.Should().NotBe(podHome, "the crate and the pod are too far apart to share a numeric frame");
         FrameHandle nest = world.Frames.TreeParent(crateHome);
         world.Frames.TreeParent(podHome).Should().Be(nest);
@@ -139,17 +149,17 @@ public class WorldNumericNestingTests
     public void ANestingFrameJumpsByWholeGridStepsAndTheFramesBelowItKeepMillimeterSteps()
     {
         // The frames below the nest pass 2^21 m from its origin within 5 s. The nest distance is short, so the test is too.
-        Scene scene = PodAndCrate(speed: 1 << 19, new NumericFrameOptions { NestDistance = 1 << 21 });
+        Scene scene = PodAndCrate(speed: 1 << 19, new() { NestDistance = 1 << 21 });
         using World world = scene.World;
         world.Tick();
         FrameHandle nest = world.Frames.TreeParent(world.PhysicsHomeOf(scene.Crate));
         Double3 start = world.Frames.TreeLocalPose(nest).Position;
-        var before = CrateX(scene);
+        (double World, double Snapshot, double Render) before = CrateX(scene);
 
         for (int tick = 0; tick < 330; tick++)
         {
             world.Tick();
-            var after = CrateX(scene);
+            (double World, double Snapshot, double Render) after = CrateX(scene);
             ShouldStepByAMillimeter(before, after, tick);
             before = after;
             FrameHandle crateHome = world.PhysicsHomeOf(scene.Crate);
@@ -159,7 +169,8 @@ public class WorldNumericNestingTests
         }
 
         world.Errors.Should().BeEmpty();
-        (world.Frames.TreeLocalPose(nest).Position.X - start.X).Should().BeGreaterThan(0, "the nest jumped after its frames");
+        (world.Frames.TreeLocalPose(nest).Position.X - start.X).Should()
+            .BeGreaterThan(0, "the nest jumped after its frames");
     }
 
     private static void ShouldBeOnTheGrid(Double3 position)

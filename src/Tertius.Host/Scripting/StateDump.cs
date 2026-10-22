@@ -1,6 +1,5 @@
 using System.Numerics;
 using System.Text.Json.Serialization;
-using Tertius.Simulation;
 
 namespace Tertius.Host.Scripting;
 
@@ -27,7 +26,8 @@ public sealed record StateDump(
 {
     /// <summary>The entity with the scene id. Throws <see cref="KeyNotFoundException"/> if the dump has none.</summary>
     public EntityRecord Entity(string id) =>
-        Entities.FirstOrDefault(entity => entity.Id == id) ?? throw new KeyNotFoundException($"The dump '{Name}' has no entity with the id '{id}'.");
+        Entities.FirstOrDefault(entity => entity.Id == id) ??
+        throw new KeyNotFoundException($"The dump '{Name}' has no entity with the id '{id}'.");
 }
 
 /// <summary>One live entity.</summary>
@@ -46,7 +46,8 @@ public sealed record EntityRecord(
     FramePose RootPose,
     Double3 Velocity,
     Vector3 AngularVelocity,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? Standing);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    bool? Standing);
 
 /// <summary>A pose and the frame that it is relative to.</summary>
 /// <param name="Frame">The scene id of the frame's owner, or null for no frame.</param>
@@ -58,7 +59,8 @@ public sealed record FramePose(string? Frame, Double3 Position, DQuaternion Rota
 /// <param name="Follows">
 /// How the frame followed its owner at the dump's sync point, which is what moved it in the step that ended there:
 /// <c>"rails"</c> for a frame that took a full sample that its owner wrote one tick before (see <c>Self.MoveOnRails</c>),
-/// <c>"kinematic"</c> for a frame that took an end pose that its owner wrote one tick before (see <c>Self.MoveKinematic</c>),
+/// <c>"kinematic"</c> for a frame that took an end pose that its owner wrote one tick before (see
+/// <c>Self.MoveKinematic</c>),
 /// <c>"physics"</c> for a frame whose hull was dynamic in that step, and <c>"static"</c> for every other frame. A change of
 /// a hull's motion in the tick acts from the next step, so it shows in the dump of the tick after. The motion of the hull
 /// in a step comes from the intents that the step applied, or else from the stored motion (see

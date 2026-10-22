@@ -1,6 +1,202 @@
 root = true
 
+# Formatting and code cleanup. tools/cleanup.sh (run by the pre-push hook) and Rider read these keys. The cleanup applies
+# Roslyn's modernization fixes, then ReSharper's cleanup with the Tertius profile in Tertius.slnx.DotSettings: it
+# modernizes syntax, wraps lines at 120 characters and groups members by kind.
 [*.cs]
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+max_line_length = 120
+# var where the type is evident from the right side, such as new Foo() or a cast. An explicit type everywhere else.
+csharp_style_var_for_built_in_types = false
+csharp_style_var_when_type_is_apparent = true
+csharp_style_var_elsewhere = false
+resharper_csharp_for_built_in_types = use_explicit_type
+resharper_csharp_for_simple_types = use_var_when_evident
+resharper_csharp_for_other_types = use_var_when_evident
+# Modern syntax. ReSharper's own defaults prefer block bodies and new Foo(...), so the cleanup needs these.
+resharper_csharp_object_creation_when_type_evident = target_typed
+resharper_csharp_object_creation_when_type_not_evident = target_typed
+resharper_csharp_method_or_operator_body = expression_body
+resharper_csharp_local_function_body = expression_body
+resharper_csharp_constructor_or_destructor_body = block_body
+resharper_csharp_accessor_owner_body = expression_body
+resharper_csharp_use_heuristics_for_body_style = true
+resharper_csharp_default_value_when_type_evident = default_literal
+resharper_csharp_default_value_when_type_not_evident = default_literal
+resharper_csharp_null_checking_pattern_style = not_null_pattern
+resharper_csharp_namespace_body = file_scoped
+resharper_csharp_default_private_modifier = explicit
+resharper_csharp_parentheses_redundancy_style = remove_if_not_clarifies_precedence
+resharper_csharp_accessor_declaration_body = expression_body
+# Modern syntax that ReSharper's cleanup does not write. tools/cleanup.sh applies these Roslyn fixes with dotnet format
+# style before jb cleanupcode. Builds do not report them, because EnforceCodeStyleInBuild is off. Rider shows them as
+# suggestions. tools/cleanup.sh reads its list of rules from the dotnet_diagnostic.IDE lines here.
+dotnet_style_prefer_collection_expression = when_types_loosely_match
+# collection initializers and expressions
+dotnet_diagnostic.IDE0028.severity = suggestion
+# collection expression for arrays
+dotnet_diagnostic.IDE0300.severity = suggestion
+# collection expression for empty collections
+dotnet_diagnostic.IDE0301.severity = suggestion
+# collection expression for stackalloc
+dotnet_diagnostic.IDE0302.severity = suggestion
+# collection expression for Create()
+dotnet_diagnostic.IDE0303.severity = suggestion
+# collection expression for builders
+dotnet_diagnostic.IDE0304.severity = suggestion
+# collection expression for fluent calls such as ToArray()
+dotnet_diagnostic.IDE0305.severity = suggestion
+# collection expression for new
+dotnet_diagnostic.IDE0306.severity = suggestion
+csharp_style_prefer_primary_constructors = true
+# primary constructors
+dotnet_diagnostic.IDE0290.severity = suggestion
+csharp_style_prefer_index_operator = true
+# x[^1]
+dotnet_diagnostic.IDE0056.severity = suggestion
+csharp_style_prefer_range_operator = true
+# x[a..b]
+dotnet_diagnostic.IDE0057.severity = suggestion
+csharp_style_prefer_switch_expression = true
+# switch expressions
+dotnet_diagnostic.IDE0066.severity = suggestion
+csharp_style_prefer_pattern_matching = true
+# x is 1 or 2
+dotnet_diagnostic.IDE0078.severity = suggestion
+csharp_style_prefer_not_pattern = true
+# x is not T
+dotnet_diagnostic.IDE0083.severity = suggestion
+csharp_style_pattern_matching_over_as_with_null_check = true
+# as plus a null check, to a pattern
+dotnet_diagnostic.IDE0019.severity = suggestion
+# as plus a member access, to a pattern
+dotnet_diagnostic.IDE0260.severity = suggestion
+csharp_style_pattern_matching_over_is_with_cast_check = true
+# is plus a cast, to a pattern
+dotnet_diagnostic.IDE0020.severity = suggestion
+# is plus a cast, to a pattern
+dotnet_diagnostic.IDE0038.severity = suggestion
+csharp_style_prefer_extended_property_pattern = true
+# { A.B: 1 }
+dotnet_diagnostic.IDE0170.severity = suggestion
+csharp_style_prefer_null_check_over_type_check = true
+# is not null instead of is object
+dotnet_diagnostic.IDE0150.severity = suggestion
+dotnet_style_prefer_is_null_check_over_reference_equality_method = true
+# is null instead of ReferenceEquals
+dotnet_diagnostic.IDE0041.severity = suggestion
+csharp_prefer_simple_using_statement = true
+# using declarations
+dotnet_diagnostic.IDE0063.severity = suggestion
+dotnet_style_null_propagation = true
+# ?.
+dotnet_diagnostic.IDE0031.severity = suggestion
+dotnet_style_coalesce_expression = true
+# ??
+dotnet_diagnostic.IDE0029.severity = suggestion
+# ?? on nullable values
+dotnet_diagnostic.IDE0030.severity = suggestion
+# ?? throw
+dotnet_diagnostic.IDE0270.severity = suggestion
+dotnet_style_prefer_compound_assignment = true
+# +=
+dotnet_diagnostic.IDE0054.severity = suggestion
+# ??=
+dotnet_diagnostic.IDE0074.severity = suggestion
+csharp_style_throw_expression = true
+# throw expressions
+dotnet_diagnostic.IDE0016.severity = suggestion
+csharp_style_inlined_variable_declaration = true
+# out var
+dotnet_diagnostic.IDE0018.severity = suggestion
+csharp_style_implicit_object_creation_when_type_is_apparent = true
+# new()
+dotnet_diagnostic.IDE0090.severity = suggestion
+dotnet_style_prefer_simplified_interpolation = true
+# no ToString() inside an interpolation
+dotnet_diagnostic.IDE0071.severity = suggestion
+dotnet_style_prefer_simplified_boolean_expressions = true
+# simpler conditional expressions
+dotnet_diagnostic.IDE0075.severity = suggestion
+# no == true
+dotnet_diagnostic.IDE0100.severity = suggestion
+dotnet_style_prefer_conditional_expression_over_assignment = true
+# an if that assigns, to a conditional expression
+dotnet_diagnostic.IDE0045.severity = suggestion
+dotnet_style_prefer_conditional_expression_over_return = true
+# an if that returns, to a conditional expression
+dotnet_diagnostic.IDE0046.severity = suggestion
+dotnet_style_prefer_inferred_tuple_names = true
+dotnet_style_prefer_inferred_anonymous_type_member_names = true
+# inferred member names
+dotnet_diagnostic.IDE0037.severity = suggestion
+csharp_style_prefer_tuple_swap = true
+# (a, b) = (b, a)
+dotnet_diagnostic.IDE0180.severity = suggestion
+csharp_style_prefer_readonly_struct = true
+# readonly struct
+dotnet_diagnostic.IDE0250.severity = suggestion
+csharp_style_prefer_readonly_struct_member = true
+# readonly struct members
+dotnet_diagnostic.IDE0251.severity = suggestion
+csharp_prefer_static_local_function = true
+# static local functions
+dotnet_diagnostic.IDE0062.severity = suggestion
+csharp_prefer_static_anonymous_function = true
+# static lambdas
+dotnet_diagnostic.IDE0320.severity = suggestion
+csharp_style_prefer_local_over_anonymous_function = true
+# local functions instead of lambdas in variables
+dotnet_diagnostic.IDE0039.severity = suggestion
+csharp_style_prefer_method_group_conversion = true
+# method groups instead of lambdas that only call
+dotnet_diagnostic.IDE0200.severity = suggestion
+csharp_style_prefer_implicitly_typed_lambda_expression = true
+# (x, y) => instead of (int x, int y) =>
+dotnet_diagnostic.IDE0350.severity = suggestion
+csharp_style_prefer_unbound_generic_type_in_nameof = true
+# nameof(List<>)
+dotnet_diagnostic.IDE0340.severity = suggestion
+csharp_prefer_system_threading_lock = true
+# System.Threading.Lock
+dotnet_diagnostic.IDE0330.severity = suggestion
+csharp_style_prefer_utf8_string_literals = true
+# "abc"u8
+dotnet_diagnostic.IDE0230.severity = suggestion
+# HashCode.Combine
+dotnet_diagnostic.IDE0070.severity = suggestion
+# nameof instead of typeof(T).Name
+dotnet_diagnostic.IDE0082.severity = suggestion
+# nameof for parameter names in attributes
+dotnet_diagnostic.IDE0280.severity = suggestion
+# Any(f) instead of Where(f).Any()
+dotnet_diagnostic.IDE0120.severity = suggestion
+# redundant #nullable directives
+dotnet_diagnostic.IDE0240.severity = suggestion
+# unnecessary #nullable directives
+dotnet_diagnostic.IDE0241.severity = suggestion
+# Keep arguments that equal the parameter's default value: a call that names its size, such as Headless(width, height),
+# says what it depends on.
+resharper_redundant_argument_default_value_highlighting = none
+# Doc comments keep their text as written: no wrap, no indent inside tags, no new line breaks. The doc comment rewrite
+# (ter-9yg8) shapes their text.
+resharper_xmldoc_indent_text = zero_indent
+resharper_xmldoc_indent_child_elements = zero_indent
+resharper_xmldoc_keep_user_linebreaks = true
+resharper_xmldoc_wrap_text = false
+resharper_xmldoc_wrap_tags_and_pi = false
+resharper_xmldoc_linebreaks_inside_tags_for_multiline_elements = false
+resharper_xmldoc_linebreaks_inside_tags_for_elements_with_child_elements = false
+resharper_xmldoc_linebreak_before_multiline_elements = false
+resharper_xmldoc_space_before_self_closing = false
+
+# Analyzers.
+# Complexity and length reports: suggestions only, so they never fail a build. The pre-commit hook prints the ones in
+# the methods that a commit changes. The complexity limit is in analyzers/CodeMetricsConfig.txt.
+dotnet_diagnostic.CA1502.severity = suggestion
+dotnet_diagnostic.MA0051.severity = suggestion
 # Visible instance fields: the struct-of-arrays tables and the plain data structs expose fields on purpose.
 dotnet_diagnostic.CA1051.severity = none
 # A param tag for only some parameters: a doc comment documents the parameters that need more than their name and type.

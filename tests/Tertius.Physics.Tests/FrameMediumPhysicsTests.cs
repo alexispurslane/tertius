@@ -20,23 +20,24 @@ public class FrameMediumPhysicsTests
     private static (Trace Box, Trace Person) Run(MediumField medium)
     {
         using World world = NewWorld(out _);
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), GravityField.Uniform(new Vector3(0, -9.81f, 0)), medium));
+        FrameHandle ground =
+            world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(0, -9.81f, 0)), medium));
         world.Frames.Medium(ground).Should().Be(medium);
         Floor(world, ground);
-        Entity box = world.Spawn(new SpawnDesc
+        Entity box = world.Spawn(new()
         {
             Frame = ground,
             Pose = At(0, 3),
-            LinearVelocity = new Double3(4, 0, 1),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Dynamic, Mass: 10),
+            LinearVelocity = new(4, 0, 1),
+            Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Dynamic, Mass: 10)
         });
-        var pilot = new Pilot { EveryTick = body => body.MoveCharacter(new Vector3(2, 0, -1)) };
-        Entity person = world.Spawn(new SpawnDesc
+        var pilot = new Pilot { EveryTick = body => body.MoveCharacter(new(2, 0, -1)) };
+        Entity person = world.Spawn(new()
         {
             Frame = ground,
             Pose = At(-5, 1.2, 0),
-            Body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
-            Components = [pilot],
+            Body = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
+            Components = [pilot]
         });
         var boxTrace = new Trace([], []);
         var personTrace = new Trace([], []);
@@ -48,6 +49,7 @@ public class FrameMediumPhysicsTests
             personTrace.Poses.Add(world.PoseInOwnFrame(person));
             personTrace.Velocities.Add(world.VelocityInOwnFrame(person));
         }
+
         world.Errors.Should().BeEmpty();
         return (boxTrace, personTrace);
     }

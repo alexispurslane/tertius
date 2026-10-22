@@ -9,11 +9,11 @@ namespace Tertius.Simulation.Tests;
 /// </summary>
 public class RouterDeliveryTests
 {
-    /// <summary>The harness that every test of this class routes in. A subclass runs the same tests on the workers.</summary>
-    private protected virtual RouterHarness NewHarness() => new();
-
     private static readonly Topic Squad = Topics.Get("tests.routerdelivery.squad");
     private static readonly Topic Convoy = Topics.Get("tests.routerdelivery.convoy");
+
+    /// <summary>The harness that every test of this class routes in. A subclass runs the same tests on the workers.</summary>
+    private protected virtual RouterHarness NewHarness() => new();
 
     // ---- The three ways to address a message -----------------------------------------------------------------------
 
@@ -149,7 +149,8 @@ public class RouterDeliveryTests
 
         h.Route(tick: 0);
 
-        string[] inbox = [.. h.Inbox(both).Select(e => e.Is<Ping>() ? $"ping {e.As<Ping>().Value}" : $"heal {e.As<Heal>().Amount}")];
+        string[] inbox =
+            [.. h.Inbox(both).Select(e => e.Is<Ping>() ? $"ping {e.As<Ping>().Value}" : $"heal {e.As<Heal>().Amount}")];
         inbox.Should().Equal("ping 1", "heal 2", "ping 3");
     }
 

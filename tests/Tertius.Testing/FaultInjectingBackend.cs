@@ -25,8 +25,10 @@ public readonly record struct IntentRecord(long Tick, Entity Entity, PhysicsInte
 public readonly record struct MoveRecord(long Tick, Entity Entity, FrameHandle Frame, MotionIntent Move)
 {
     /// <summary>The full sample of <see cref="Move"/>. Throws <see cref="InvalidOperationException"/> for another case.</summary>
-    public MotionSample Sample => Move.TryGetValue(out MotionSample sample) ? sample
-        : throw new InvalidOperationException($"The motion intent of {Entity} in tick {Tick} is {Move}, not a full sample.");
+    public MotionSample Sample => Move.TryGetValue(out MotionSample sample)
+        ? sample
+        : throw new InvalidOperationException(
+            $"The motion intent of {Entity} in tick {Tick} is {Move}, not a full sample.");
 }
 
 /// <summary>
@@ -89,7 +91,8 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
     /// </summary>
     public Action<List<(Entity Entity, PhysicsIntent Intent)>>? EditNextIntents { get; set; }
 
-    /// <summary>Edits the output of the next step after Jolt wrote it, once. Null edits nothing. It runs before <see cref="EditOutput"/>.</summary>
+    /// <summary>Edits the output of the next step after Jolt wrote it, once. Null edits nothing. It runs before
+    /// <see cref="EditOutput"/>.</summary>
     public Action<PhysicsStepOutput>? EditNextOutput { get; set; }
 
     /// <summary>Edits the output of every step after Jolt wrote it, until a test sets it to null. Null edits nothing.</summary>
@@ -114,11 +117,13 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
             ThrowFromApplyChanges = null;
             throw fault;
         }
+
         if (EditNextChanges is { } edit)
         {
             EditNextChanges = null;
             edit(changes);
         }
+
         PhysicsChanges applied = Copy(changes);
         AppliedChanges.Add(applied);
         Jolt.ApplyChanges(changes, frames);
@@ -127,33 +132,38 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
 
     public void Step(in PhysicsStepContext context, PhysicsStepOutput output)
     {
-        Steps.Add(new StepRecord(context.Tick, context.Time, Environment.CurrentManagedThreadId, Thread.CurrentThread.IsThreadPoolThread));
+        Steps.Add(new(context.Tick, context.Time, Environment.CurrentManagedThreadId,
+            Thread.CurrentThread.IsThreadPoolThread));
         PhysicsStepContext step = EditNextIntents is { } editIntents ? EditIntents(context, editIntents) : context;
         ReadOnlySpan<PhysicsIntent> intents = step.Intents.Span;
         foreach (Entity entity in step.IntentEntities.Span)
         {
             ref readonly PhysicsIntent intent = ref intents[(int)entity.Index];
-            Intents.Add(new IntentRecord(step.Tick, entity, intent));
+            Intents.Add(new(step.Tick, entity, intent));
             if (intent.Move.HasValue)
-                Moves.Add(new MoveRecord(step.Tick, entity, intent.Frame, intent.Move));
+                Moves.Add(new(step.Tick, entity, intent.Frame, intent.Move));
         }
+
         if (ThrowFromStep is { } fault)
         {
             ThrowFromStep = null;
             throw fault;
         }
+
         Jolt.Step(step, output);
         if (EditNextOutput is { } editNext)
         {
             EditNextOutput = null;
             editNext(output);
         }
+
         EditOutput?.Invoke(output);
         Outputs.Add(Copy(output));
     }
 
     /// <summary>The step context of <paramref name="context"/> with its intents after <paramref name="edit"/>, in tables of its own.</summary>
-    private PhysicsStepContext EditIntents(in PhysicsStepContext context, Action<List<(Entity Entity, PhysicsIntent Intent)>> edit)
+    private PhysicsStepContext EditIntents(in PhysicsStepContext context,
+        Action<List<(Entity Entity, PhysicsIntent Intent)>> edit)
     {
         EditNextIntents = null;
         ReadOnlySpan<PhysicsIntent> intents = context.Intents.Span;
@@ -168,18 +178,22 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
             table[edited[i].Entity.Index] = edited[i].Intent;
             entities[i] = edited[i].Entity;
         }
-        return new PhysicsStepContext(context.Tick, context.DeltaTime, context.Time, context.Frames, table, entities);
+
+        return new(context.Tick, context.DeltaTime, context.Time, context.Frames, table, entities);
     }
 
-    public void CastRay(FrameHandle frame, Double3 origin, Double3 direction, double start, double end, IPhysicsQueryFilter filter,
+    public void CastRay(FrameHandle frame, Double3 origin, Double3 direction, double start, double end,
+        IPhysicsQueryFilter filter,
         RayCastKind kind, List<RayCastHit> hits) =>
         Jolt.CastRay(frame, origin, direction, start, end, filter, kind, hits);
 
-    public void CastShape(FrameHandle frame, in QueryShape shape, in DPose start, Double3 direction, double startDistance, double endDistance,
+    public void CastShape(FrameHandle frame, in QueryShape shape, in DPose start, Double3 direction,
+        double startDistance, double endDistance,
         IPhysicsQueryFilter filter, List<ShapeCastHit> hits) =>
         Jolt.CastShape(frame, shape, start, direction, startDistance, endDistance, filter, hits);
 
-    public void Overlap(FrameHandle frame, in QueryShape shape, in DPose pose, IPhysicsQueryFilter filter, List<Entity> entities) =>
+    public void Overlap(FrameHandle frame, in QueryShape shape, in DPose pose, IPhysicsQueryFilter filter,
+        List<Entity> entities) =>
         Jolt.Overlap(frame, shape, pose, filter, entities);
 
     public string? ShapeProblem(ShapeDesc shape) => Jolt.ShapeProblem(shape);

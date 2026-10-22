@@ -1,5 +1,3 @@
-using Tertius;
-
 namespace Tertius.Core.Tests;
 
 public class ContractTests
@@ -16,7 +14,8 @@ public class ContractTests
     [Fact]
     public void PostconditionsAndAssertionsReportTheirKind()
     {
-        Assert.StartsWith("Postcondition failed:", Assert.Throws<ContractException>(() => Contract.Ensures(false)).Message);
+        Assert.StartsWith("Postcondition failed:",
+            Assert.Throws<ContractException>(() => Contract.Ensures(false)).Message);
         Assert.StartsWith("Assertion failed:", Assert.Throws<ContractException>(() => Contract.Assert(false)).Message);
     }
 #endif

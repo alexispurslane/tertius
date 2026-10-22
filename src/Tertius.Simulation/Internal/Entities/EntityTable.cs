@@ -70,12 +70,228 @@ internal sealed partial class EntityTable
 {
     private const int MaxSpawnPool = 1024;
 
+    /// <summary>The bits that put a slot in a dirty list: one for each double-buffered row that <see cref="CopyRow"/> copies.</summary>
+    private const SlotFlags RowsDirty = SlotFlags.TransformDirty | SlotFlags.RenderDirty | SlotFlags.ComponentsDirty |
+                                        SlotFlags.CollisionDirty;
+
+    /// <summary>
+    /// The default of the fewest rows that gameplay wrote in a tick for which <see cref="CopyDirtyRows"/> copies them on
+    /// the workers. Measured on an Apple M1 Max (see RowCopyBenchmarks in the benchmarks): the copy on one thread costs
+    /// about 9 ns a row; on the workers it runs about 1.75 times as fast, after a fixed cost of about 20 us to hand it to
+    /// them. So the workers break even at about 5,000 rows, and win by about 13 percent at 8,192. Below that, a busy
+    /// machine made the parallel copy as often slower as faster: 4,096 rows took 57 us against 40 us on one thread, and
+    /// the 8,000 rows of the Mixed tick benchmark copied faster on one thread.
+    /// </summary>
+    internal const int DefaultParallelCopyThreshold = 8192;
+
+    private readonly int chunkSize;
+    private readonly List<IColumn> columns = [];
+    private readonly List<Action<Entity>> releaseHooks = [];
+
+    // Slots ever handed out. During gameplay it grows only through the spawn fallback, atomically and past the tables;
+    // EndGameplay grows the tables over those slots.
+    private int slotCount;
+    private int slotCountAtTickStart;
+
+    // Reserved slots that were handed out and are not live yet: not in any spawn pool.
+    private int reservationsOut;
+    private uint[] generation = [];
+    private SlotState[] state = [];
+    private readonly Queue<uint> freeSlots = new();
+    private ChunkState[] chunks = [];
+
+    private ChunkBook[] books = [];
+
+    // The slots that are live with a body.
+    private readonly BodySlots bodySlots = new();
+
+    // The workers that copy the rows that gameplay wrote, or null to copy them on the sync thread, and the fewest such rows
+    // for which they do (see ParallelCopyThreshold).
+    private readonly ParallelOptions? copyParallelism;
+    private int parallelCopyThreshold = DefaultParallelCopyThreshold;
+
+    private readonly SlotColumn<SlotFlags> flags;
+    private readonly SlotColumn<Record> records;
+    private readonly SlotColumn<EventMask> masks;
+    private readonly SlotColumn<TransformRow> frontTransform;
+    private readonly SlotColumn<TransformRow> backTransform;
+    private readonly SlotColumn<RenderData> frontRender;
+
+    private readonly SlotColumn<RenderData> backRender;
+
+    // The swap exchanges the two intent buffers (see SwapIntents), so these two are not readonly.
+    private SlotColumn<PhysicsIntent> frontIntent;
+    private SlotColumn<PhysicsIntent> backIntent;
+    private readonly SlotColumn<ComponentFlags> frontComponents;
+    private readonly SlotColumn<ComponentFlags> backComponents;
+    private readonly SlotColumn<BodyCollision> frontCollision;
+
+    private readonly SlotColumn<BodyCollision> backCollision;
+
+    // The live entities by the types in their front component flags.
+    private readonly ComponentIndex componentIndex = new();
+
+    private readonly RefList<Entity> frontIntentEntities = new(64);
+
+    // The entities whose front intent holds a change of their hull's motion, in the order of the swap: the motion changers
+    // of the tick before. Step 4 stores their changes after the step that applied them (see CollectFrontMotionChanges).
+    private readonly List<Entity> frontMotionChangers = [];
+
+    // The parts whose pushes are in the front intents, in the order of the swap: the pushers of the tick before, chunk by
+    // chunk. The flow of step 5 carries their pushes to their chain roots and empties their front intents (see
+    // Attachments.CarryPushes). They are never in the intent list.
+    private readonly List<Entity> frontPushers = [];
+
+    // Set when a live slot is released after the intent swap: the intent list may name it until the list is next read.
+    private bool intentEntitiesMayHoldDead;
+
+    // Back rows that the sync point changed. The chunk books hold the rows that gameplay changed.
+    private readonly List<uint> syncDirty = [];
+
+    // The writes of a back row that moved it to another frame (see RowFrameChanges).
+
+    // Entities whose front transform changed, or that became live, since the last TakeMoved; and the list that the last
+    // TakeMoved handed out, kept until the next call. An entity that died since it was listed stays listed until then.
+    private List<Entity> moved = [];
+    private List<Entity> takenMoved = [];
+
+    // The copy of one chunk on a worker, kept so that a parallel copy allocates no delegate.
+    private Action<int>? copyChunk;
+
+    // The slots whose component flags the running CopyDirtyRows must still copy, in the order of the copy on one thread.
+    private readonly List<uint> componentCopies = [];
+
+    /// <param name="chunkSize">Entity slots per gameplay chunk.</param>
+    /// <param name="initialCapacity">Slots to allocate up front.</param>
+    /// <param name="copyParallelism">
+    /// The workers on which <see cref="CopyDirtyRows"/> copies the rows that gameplay wrote, or null to copy every row on
+    /// the calling thread.
+    /// </param>
+    public EntityTable(int chunkSize, int initialCapacity, ParallelOptions? copyParallelism = null)
+    {
+        Contract.Requires(chunkSize > 0 && initialCapacity >= 0);
+        this.chunkSize = chunkSize;
+        this.copyParallelism = copyParallelism;
+        flags = AddSlotColumn<SlotFlags>();
+        records = AddSlotColumn<Record>();
+        masks = AddSlotColumn<EventMask>();
+        frontTransform = AddSlotColumn<TransformRow>();
+        backTransform = AddSlotColumn<TransformRow>();
+        frontRender = AddSlotColumn<RenderData>();
+        backRender = AddSlotColumn<RenderData>();
+        frontIntent = AddSlotColumn<PhysicsIntent>();
+        backIntent = AddSlotColumn<PhysicsIntent>();
+        frontComponents = AddSlotColumn<ComponentFlags>();
+        backComponents = AddSlotColumn<ComponentFlags>();
+        frontCollision = AddSlotColumn<BodyCollision>();
+        backCollision = AddSlotColumn<BodyCollision>();
+        Grow(initialCapacity);
+    }
+
+    /// <summary>Entity slots allocated in every column.</summary>
+    public int Capacity { get; private set; }
+
+    /// <summary>Slots ever handed out that the tables cover. Every slot at or past it is fresh. Worker-safe.</summary>
+    public int SlotCount => Math.Min(Volatile.Read(ref slotCount), Capacity);
+
+    /// <summary>Entities that are live now.</summary>
+    public int LiveCount { get; private set; }
+
+    /// <summary>True during the gameplay part of a tick: from <see cref="BeginTick"/> to <see cref="EndGameplay"/>. Worker-safe.</summary>
+    public bool GameplayRunning { get; private set; }
+
+    /// <summary>
+    /// The chunks of the slots handed out so far, in chunk order: what each chunk's entities produced during the tick.
+    /// Worker-safe.
+    /// </summary>
+    public ReadOnlySpan<ChunkState> Chunks => chunks.AsSpan(0, ChunkCountFor(SlotCount));
+
+    // ---- Live entities ----------------------------------------------------------------------------------------------
+
+    /// <summary>Every live entity, in slot order. Worker-safe during gameplay, when no entity is released or made live.</summary>
+    public LiveEntityEnumerator LiveEntities => new(this, 0, SlotCount);
+
+    /// <summary>
+    /// The live entities with a body, in slot order. It costs a step per 64 slots and one per body, so a pass over the
+    /// bodies does not pay for the entities without one. Worker-safe during gameplay, when no entity is released or made
+    /// live.
+    /// </summary>
+    public BodyEntityEnumerator BodyEntities => new(this);
+
+    /// <summary>
+    /// The parts whose pushes the swap made front intents, chunk by chunk, each in the order of its first push in the tick.
+    /// None is in <see cref="IntentEntities"/>. A part that died since the swap stays listed until the next swap, which
+    /// clears the list: releasing the part cleared its slot, so a reader skips an entity that is not live. Without a backend
+    /// the swap lists none.
+    /// </summary>
+    public ReadOnlySpan<Entity> FrontPushers => CollectionsMarshal.AsSpan(frontPushers);
+
+    /// <summary>
+    /// How many writes of a back row moved it to another frame (see <see cref="SetBackTransform"/>) since the table was
+    /// made. Gameplay writes a row only relative to its frame (see <see cref="WritableTransform"/>), and a spawn starts its
+    /// row in its frame, so only the sync point and a change outside a tick add to it. The World compares it with its value
+    /// at the last conversion of the moved intents, to skip a pass that would find none (see
+    /// <c>World.ConvertMovedIntents</c>).
+    /// </summary>
+    public long RowFrameChanges { get; private set; }
+
+    // ---- The swap -------------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// The intents that the next physics step reads, indexed by slot (<see cref="Entity.Index"/>), the layout that the
+    /// physics seam in Core defines. The entries of the entities in <see cref="IntentEntities"/> hold what they wrote. The
+    /// entry of each part in <see cref="FrontPushers"/> holds its push from the swap until the flow of step 5 of the sync
+    /// point moves it to the part's chain root and empties the entry. The entry of every other live entity is empty (see
+    /// the invariants), so the change of motion of any owner can be read from its entry (see
+    /// <see cref="FrameTree.HullMotionInStep"/>).
+    /// </summary>
+    public ReadOnlyMemory<PhysicsIntent> FrontIntents => frontIntent.AsReadOnlyMemory();
+
+    /// <summary>
+    /// The entities whose intent the next physics step applies, in the order they wrote it. Never a dead entity: one that
+    /// died since the swap leaves the list when the list is read.
+    /// </summary>
+    public ReadOnlyMemory<Entity> IntentEntities
+    {
+        get
+        {
+            if (intentEntitiesMayHoldDead)
+            {
+                Span<Entity> entities = frontIntentEntities.AsSpan();
+                int write = 0;
+                foreach (Entity entity in entities)
+                    if (IsAlive(entity))
+                        entities[write++] = entity;
+                frontIntentEntities.Truncate(write);
+                intentEntitiesMayHoldDead = false;
+            }
+
+            return frontIntentEntities.AsMemory();
+        }
+    }
+
+    /// <summary>
+    /// The fewest rows that gameplay wrote in a tick for which <see cref="CopyDirtyRows"/> copies them on the workers. 1 or
+    /// more. Both copies end in the same state, so only tests change it: at 1, a small world takes the workers in every
+    /// tick.
+    /// </summary>
+    internal int ParallelCopyThreshold
+    {
+        get => parallelCopyThreshold;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
+            parallelCopyThreshold = value;
+        }
+    }
+
     private enum SlotState : byte
     {
         Free,
+
         /// <summary>Held in a chunk's spawn pool, or handed out for a spawn that is not live yet.</summary>
         Reserved,
-        Live,
+        Live
     }
 
     /// <summary>The table's own per-slot bits. Releasing a slot clears them.</summary>
@@ -83,49 +299,60 @@ internal sealed partial class EntityTable
     private enum SlotFlags : byte
     {
         None = 0,
+
         /// <summary>The back transform row may differ from the front row, and the slot is in a dirty list.</summary>
         TransformDirty = 1 << 0,
+
         /// <summary>The back render row may differ from the front row, and the slot is in a dirty list.</summary>
         RenderDirty = 1 << 1,
+
         /// <summary>The slot's entity is in its chunk's list of intent writers for this tick.</summary>
         IntentRegistered = 1 << 2,
+
         /// <summary>The entity became live at the last sync and has not had its first tick yet.</summary>
         FirstTick = 1 << 3,
+
         /// <summary>Gameplay wrote the transform this tick.</summary>
         GameplayWroteTransform = 1 << 4,
+
         /// <summary>The entity is in the moved list.</summary>
         FrontMoved = 1 << 5,
+
         /// <summary>The back component flags may differ from the front flags, and the slot is in a dirty list.</summary>
         ComponentsDirty = 1 << 6,
-        /// <summary>The back collision row may differ from the front row, and the slot is in a dirty list.</summary>
-        CollisionDirty = 1 << 7,
-    }
 
-    /// <summary>The bits that put a slot in a dirty list: one for each double-buffered row that <see cref="CopyRow"/> copies.</summary>
-    private const SlotFlags RowsDirty = SlotFlags.TransformDirty | SlotFlags.RenderDirty | SlotFlags.ComponentsDirty | SlotFlags.CollisionDirty;
+        /// <summary>The back collision row may differ from the front row, and the slot is in a dirty list.</summary>
+        CollisionDirty = 1 << 7
+    }
 
     /// <summary>The per-entity data that is cold, or that changes only through a component change or a spawn.</summary>
     private struct Record
     {
         /// <summary>Sorted by priority, stable for ties.</summary>
         public IComponent[]? Components;
+
         /// <summary>The cached <see cref="IComponent.Wants"/> of each component.</summary>
         public EventMask[]? Wants;
+
         public BodyDesc? Body;
+
         /// <summary>The <see cref="ShapeDesc.BoundingRadius"/> of the body's shape, or 0 without a body. Kept from the spawn, because it costs a pass over the shape.</summary>
         public float BodyBoundingRadius;
+
         /// <summary>
         /// The <see cref="ShapeDesc.BoundingRadius"/> of the shape inside the body, which a frame owner's interior body
         /// has: <see cref="BodyDesc.InteriorShape"/>, or <see cref="BodyDesc.Shape"/> when it has none. 0 without a body.
         /// Kept from the spawn, as <see cref="BodyBoundingRadius"/> is.
         /// </summary>
         public float InteriorBoundingRadius;
+
         /// <summary>
         /// The center of mass of the body's shape, in meters, in the body's own axes, as the physics backend computes it
         /// (see <see cref="IPhysicsBackend.ShapeCenterOfMass"/>). Zero without a body or without a backend. Kept from the
         /// spawn, as <see cref="BodyBoundingRadius"/> is.
         /// </summary>
         public Vector3 BodyCenterOfMass;
+
         /// <summary>The frame this entity is, if any.</summary>
         public FrameHandle OwnedFrame;
     }
@@ -133,35 +360,42 @@ internal sealed partial class EntityTable
     /// <summary>The table's bookkeeping for one chunk. During a tick, only the worker that runs the chunk writes it.</summary>
     private sealed class ChunkBook
     {
-        public readonly List<uint> DirtySlots = new();
+        public readonly List<uint> DirtySlots = [];
+
         /// <summary>
         /// The entities that wrote an intent this tick, in the order they first wrote it. Handles, not slots: a writer
         /// that dies before the swap must not hand its place to the entity that takes its slot.
         /// </summary>
-        public readonly List<Entity> IntentWriters = new();
+        public readonly List<Entity> IntentWriters = [];
+
         /// <summary>
         /// The intent writers that wrote a change of their hull's motion this tick, in the order they first wrote one, so
         /// that step 4 visits only them (see <see cref="CollectMotionChanges"/>). Handles, as in <see cref="IntentWriters"/>.
         /// </summary>
-        public readonly List<Entity> MotionChangers = new();
+        public readonly List<Entity> MotionChangers = [];
+
         /// <summary>
         /// The parts that pushed this tick, in the order they first pushed (see <see cref="WritablePush"/>). A part is never
         /// among the <see cref="IntentWriters"/>: it writes only a push, which the sync point carries to its chain root, so
         /// its intent is no input of physics. Handles, as in <see cref="IntentWriters"/>.
         /// </summary>
-        public readonly List<Entity> Pushers = new();
+        public readonly List<Entity> Pushers = [];
+
         /// <summary>Free slots reserved for this chunk's spawns, in a deterministic order.</summary>
         public readonly Queue<uint> SpawnPool = new();
+
         /// <summary>
         /// During a <see cref="CopyDirtyRows"/> on the workers: the entities of this chunk that the copy lists as moved,
         /// in the chunk's dirty order. The copy joins them to the moved list in chunk order, and empties this list.
         /// </summary>
-        public readonly List<Entity> Moved = new();
+        public readonly List<Entity> Moved = [];
+
         /// <summary>
         /// During a <see cref="CopyDirtyRows"/> on the workers: the slots of this chunk whose component flags the copy
         /// must still bring forward, in the chunk's dirty order. Joined and emptied like <see cref="Moved"/>.
         /// </summary>
-        public readonly List<uint> ComponentCopies = new();
+        public readonly List<uint> ComponentCopies = [];
+
         public int LiveCount;
         public int SpawnsThisTick;
         public int LastSpawnCount;
@@ -179,11 +413,9 @@ internal sealed partial class EntityTable
     /// The table's own per-slot storage. The type is private, so only the table indexes it by slot, after it has checked
     /// the handle.
     /// </summary>
-    private sealed class SlotColumn<T> : IColumn
+    private sealed class SlotColumn<T>(int capacity) : IColumn
     {
-        private T[] items;
-
-        public SlotColumn(int capacity) => items = new T[capacity];
+        private T[] items = new T[capacity];
 
         public ref T this[uint slot] => ref items[slot];
 
@@ -242,7 +474,6 @@ internal sealed partial class EntityTable
         private readonly EntityTable? table;
         private readonly int end;
         private int next;
-        private Entity current;
 
         /// <summary>The live entities among <paramref name="count"/> slots from <paramref name="start"/>.</summary>
         internal LiveEntityEnumerator(EntityTable table, int start, int count)
@@ -250,12 +481,12 @@ internal sealed partial class EntityTable
             this.table = table;
             next = start;
             end = start + count;
-            current = default;
+            Current = default;
         }
 
-        public readonly LiveEntityEnumerator GetEnumerator() => this;
+        public Entity Current { get; private set; }
 
-        public readonly Entity Current => current;
+        public readonly LiveEntityEnumerator GetEnumerator() => this;
 
         public bool MoveNext()
         {
@@ -264,119 +495,14 @@ internal sealed partial class EntityTable
                 int slot = next++;
                 if (table!.state[slot] == SlotState.Live)
                 {
-                    current = new Entity((uint)slot, table.generation[slot]);
+                    Current = new((uint)slot, table.generation[slot]);
                     return true;
                 }
             }
+
             return false;
         }
     }
-
-    private readonly int chunkSize;
-    private readonly List<IColumn> columns = new();
-    private readonly List<Action<Entity>> releaseHooks = new();
-
-    private int capacity;
-    // Slots ever handed out. During gameplay it grows only through the spawn fallback, atomically and past the tables;
-    // EndGameplay grows the tables over those slots.
-    private int slotCount;
-    private int slotCountAtTickStart;
-    private int liveCount;
-    // Reserved slots that were handed out and are not live yet: not in any spawn pool.
-    private int reservationsOut;
-    private bool gameplayRunning;
-    private uint[] generation = [];
-    private SlotState[] state = [];
-    private readonly Queue<uint> freeSlots = new();
-    private ChunkState[] chunks = [];
-    private ChunkBook[] books = [];
-    // The slots that are live with a body.
-    private readonly BodySlots bodySlots = new();
-    // The workers that copy the rows that gameplay wrote, or null to copy them on the sync thread, and the fewest such rows
-    // for which they do (see ParallelCopyThreshold).
-    private readonly ParallelOptions? copyParallelism;
-    private int parallelCopyThreshold = DefaultParallelCopyThreshold;
-
-    private readonly SlotColumn<SlotFlags> flags;
-    private readonly SlotColumn<Record> records;
-    private readonly SlotColumn<EventMask> masks;
-    private readonly SlotColumn<TransformRow> frontTransform;
-    private readonly SlotColumn<TransformRow> backTransform;
-    private readonly SlotColumn<RenderData> frontRender;
-    private readonly SlotColumn<RenderData> backRender;
-    // The swap exchanges the two intent buffers (see SwapIntents), so these two are not readonly.
-    private SlotColumn<PhysicsIntent> frontIntent;
-    private SlotColumn<PhysicsIntent> backIntent;
-    private readonly SlotColumn<ComponentFlags> frontComponents;
-    private readonly SlotColumn<ComponentFlags> backComponents;
-    private readonly SlotColumn<BodyCollision> frontCollision;
-    private readonly SlotColumn<BodyCollision> backCollision;
-    // The live entities by the types in their front component flags.
-    private readonly ComponentIndex componentIndex = new();
-
-    private readonly RefList<Entity> frontIntentEntities = new(64);
-    // The entities whose front intent holds a change of their hull's motion, in the order of the swap: the motion changers
-    // of the tick before. Step 4 stores their changes after the step that applied them (see CollectFrontMotionChanges).
-    private readonly List<Entity> frontMotionChangers = new();
-    // The parts whose pushes are in the front intents, in the order of the swap: the pushers of the tick before, chunk by
-    // chunk. The flow of step 5 carries their pushes to their chain roots and empties their front intents (see
-    // Attachments.CarryPushes). They are never in the intent list.
-    private readonly List<Entity> frontPushers = new();
-    // Set when a live slot is released after the intent swap: the intent list may name it until the list is next read.
-    private bool intentEntitiesMayHoldDead;
-    // Back rows that the sync point changed. The chunk books hold the rows that gameplay changed.
-    private readonly List<uint> syncDirty = new();
-    // The writes of a back row that moved it to another frame (see RowFrameChanges).
-    private long rowFrameChanges;
-    // Entities whose front transform changed, or that became live, since the last TakeMoved; and the list that the last
-    // TakeMoved handed out, kept until the next call. An entity that died since it was listed stays listed until then.
-    private List<Entity> moved = new();
-    private List<Entity> takenMoved = new();
-
-    /// <param name="chunkSize">Entity slots per gameplay chunk.</param>
-    /// <param name="initialCapacity">Slots to allocate up front.</param>
-    /// <param name="copyParallelism">
-    /// The workers on which <see cref="CopyDirtyRows"/> copies the rows that gameplay wrote, or null to copy every row on
-    /// the calling thread.
-    /// </param>
-    public EntityTable(int chunkSize, int initialCapacity, ParallelOptions? copyParallelism = null)
-    {
-        Contract.Requires(chunkSize > 0 && initialCapacity >= 0);
-        this.chunkSize = chunkSize;
-        this.copyParallelism = copyParallelism;
-        flags = AddSlotColumn<SlotFlags>();
-        records = AddSlotColumn<Record>();
-        masks = AddSlotColumn<EventMask>();
-        frontTransform = AddSlotColumn<TransformRow>();
-        backTransform = AddSlotColumn<TransformRow>();
-        frontRender = AddSlotColumn<RenderData>();
-        backRender = AddSlotColumn<RenderData>();
-        frontIntent = AddSlotColumn<PhysicsIntent>();
-        backIntent = AddSlotColumn<PhysicsIntent>();
-        frontComponents = AddSlotColumn<ComponentFlags>();
-        backComponents = AddSlotColumn<ComponentFlags>();
-        frontCollision = AddSlotColumn<BodyCollision>();
-        backCollision = AddSlotColumn<BodyCollision>();
-        Grow(initialCapacity);
-    }
-
-    /// <summary>Entity slots allocated in every column.</summary>
-    public int Capacity => capacity;
-
-    /// <summary>Slots ever handed out that the tables cover. Every slot at or past it is fresh. Worker-safe.</summary>
-    public int SlotCount => Math.Min(Volatile.Read(ref slotCount), capacity);
-
-    /// <summary>Entities that are live now.</summary>
-    public int LiveCount => liveCount;
-
-    /// <summary>True during the gameplay part of a tick: from <see cref="BeginTick"/> to <see cref="EndGameplay"/>. Worker-safe.</summary>
-    public bool GameplayRunning => gameplayRunning;
-
-    /// <summary>
-    /// The chunks of the slots handed out so far, in chunk order: what each chunk's entities produced during the tick.
-    /// Worker-safe.
-    /// </summary>
-    public ReadOnlySpan<ChunkState> Chunks => chunks.AsSpan(0, ChunkCountFor(SlotCount));
 
     /// <summary>
     /// Adds a column with one entry per entity. <paramref name="release"/>, if given, lets the owner let go of an entity
@@ -385,18 +511,13 @@ internal sealed partial class EntityTable
     /// </summary>
     public Column<T> AddColumn<T>(Action<Entity>? release = null)
     {
-        Contract.Requires(!gameplayRunning);
-        var column = new Column<T>(this, capacity);
+        Contract.Requires(!GameplayRunning);
+        var column = new Column<T>(this, Capacity);
         columns.Add(column);
         if (release != null)
             releaseHooks.Add(release);
         return column;
     }
-
-    // ---- Live entities ----------------------------------------------------------------------------------------------
-
-    /// <summary>Every live entity, in slot order. Worker-safe during gameplay, when no entity is released or made live.</summary>
-    public LiveEntityEnumerator LiveEntities => new(this, 0, SlotCount);
 
     /// <summary>
     /// The live entities whose slots are in the range from <paramref name="start"/>, <paramref name="count"/> slots long,
@@ -405,15 +526,8 @@ internal sealed partial class EntityTable
     public LiveEntityEnumerator LiveEntitiesIn(int start, int count)
     {
         Contract.Requires(start >= 0 && count >= 0);
-        return new LiveEntityEnumerator(this, start, Math.Max(0, Math.Min(count, SlotCount - start)));
+        return new(this, start, Math.Max(0, Math.Min(count, SlotCount - start)));
     }
-
-    /// <summary>
-    /// The live entities with a body, in slot order. It costs a step per 64 slots and one per body, so a pass over the
-    /// bodies does not pay for the entities without one. Worker-safe during gameplay, when no entity is released or made
-    /// live.
-    /// </summary>
-    public BodyEntityEnumerator BodyEntities => new(this);
 
     /// <summary>The live entities of one gameplay chunk, in slot order. Worker-safe during gameplay.</summary>
     public LiveEntityEnumerator LiveEntitiesOfChunk(int chunk)
@@ -421,7 +535,7 @@ internal sealed partial class EntityTable
         if (books[chunk].LiveCount == 0)
             return default;
         int start = chunk * chunkSize;
-        return new LiveEntityEnumerator(this, start, Math.Min(chunkSize, SlotCount - start));
+        return new(this, start, Math.Min(chunkSize, SlotCount - start));
     }
 
     // ---- The tick -------------------------------------------------------------------------------------------------
@@ -434,7 +548,7 @@ internal sealed partial class EntityTable
     /// <param name="spawnPoolSize">The smallest pool; a chunk that spawned more last tick gets twice that many.</param>
     public void BeginTick(int spawnPoolSize)
     {
-        Contract.Requires(!gameplayRunning);
+        Contract.Requires(!GameplayRunning);
         componentIndex.Settle();
         int count = ChunkCountFor(slotCount);
         for (int c = 0; c < count; c++)
@@ -447,14 +561,17 @@ internal sealed partial class EntityTable
                     state[slot] = SlotState.Free;
                     freeSlots.Enqueue(slot);
                 }
+
                 continue;
             }
+
             int target = Math.Min(Math.Max(spawnPoolSize, book.LastSpawnCount * 2), MaxSpawnPool);
             while (book.SpawnPool.Count < target)
                 book.SpawnPool.Enqueue(AllocateSlot());
         }
+
         slotCountAtTickStart = slotCount;
-        gameplayRunning = true;
+        GameplayRunning = true;
     }
 
     /// <summary>
@@ -463,8 +580,8 @@ internal sealed partial class EntityTable
     /// </summary>
     public int EndGameplay()
     {
-        Contract.Requires(gameplayRunning);
-        gameplayRunning = false;
+        Contract.Requires(GameplayRunning);
+        GameplayRunning = false;
         int end = slotCount;
         int fallback = end - slotCountAtTickStart;
         if (fallback > 0)
@@ -476,6 +593,7 @@ internal sealed partial class EntityTable
                 state[slot] = SlotState.Reserved;
             }
         }
+
         for (int c = 0; c < ChunkCountFor(end); c++)
             reservationsOut += books[c].SpawnsThisTick;
         return fallback;
@@ -488,13 +606,14 @@ internal sealed partial class EntityTable
     /// </summary>
     public void EndTick()
     {
-        Contract.Requires(!gameplayRunning);
+        Contract.Requires(!GameplayRunning);
         int count = ChunkCountFor(slotCount);
         for (int c = 0; c < count; c++)
         {
             chunks[c].EndTick();
             ChunkBook book = books[c];
-            Contract.Requires(book.IntentWriters.Count == 0 && book.MotionChangers.Count == 0 && book.Pushers.Count == 0);
+            Contract.Requires(
+                book.IntentWriters.Count == 0 && book.MotionChangers.Count == 0 && book.Pushers.Count == 0);
             book.DirtySlots.Clear();
             book.LastSpawnCount = book.SpawnsThisTick;
             book.SpawnsThisTick = 0;
@@ -513,16 +632,17 @@ internal sealed partial class EntityTable
         uint slot = entity.Index;
         uint[] generations = generation;
         // A live slot's generation is never 0, so the null handle fails one of the two tests.
-        return slot < (uint)generations.Length && generations[slot] == entity.Generation && state[slot] == SlotState.Live;
+        return slot < (uint)generations.Length && generations[slot] == entity.Generation &&
+               state[slot] == SlotState.Live;
     }
 
     /// <summary>Reserves a slot for a spawn outside a tick: from the free list, or a fresh one.</summary>
     public Entity Reserve()
     {
-        Contract.Requires(!gameplayRunning);
+        Contract.Requires(!GameplayRunning);
         uint slot = AllocateSlot();
         reservationsOut++;
-        return new Entity(slot, generation[slot]);
+        return new(slot, generation[slot]);
     }
 
     /// <summary>
@@ -534,10 +654,10 @@ internal sealed partial class EntityTable
     /// </summary>
     public Entity ReserveForSpawn(Entity spawner)
     {
-        Contract.Requires(gameplayRunning);
+        Contract.Requires(GameplayRunning);
         ChunkBook book = books[LiveSlot(spawner) / chunkSize];
-        uint slot, gen;
-        if (book.SpawnPool.TryDequeue(out slot))
+        uint gen;
+        if (book.SpawnPool.TryDequeue(out uint slot))
         {
             gen = generation[slot];
         }
@@ -546,8 +666,9 @@ internal sealed partial class EntityTable
             slot = (uint)(Interlocked.Increment(ref slotCount) - 1);
             gen = 1;
         }
+
         book.SpawnsThisTick++;
-        return new Entity(slot, gen);
+        return new(slot, gen);
     }
 
     /// <summary>
@@ -557,27 +678,30 @@ internal sealed partial class EntityTable
     /// and <see cref="StaleEntityException"/> for any other handle that does not name its slot's current reservation. A
     /// component type that has no id throws as <see cref="ComponentTypes.IdOf"/> does, before anything changes.
     /// </summary>
-    public void Activate(Entity entity, in TransformRow row, in RenderData render, IComponent[] components, EventMask[] wants, BodyDesc? body,
+    public void Activate(Entity entity, in TransformRow row, in RenderData render, IComponent[] components,
+        EventMask[] wants, BodyDesc? body,
         Vector3 bodyCenterOfMass, FrameHandle ownedFrame)
     {
-        Contract.Requires(!gameplayRunning);
+        Contract.Requires(!GameplayRunning);
         if (!IsCurrentReservation(entity))
         {
             if (IsAlive(entity))
-                throw new InvalidOperationException($"{entity} is live, so the handle does not name a reservation to activate.");
+                throw new InvalidOperationException(
+                    $"{entity} is live, so the handle does not name a reservation to activate.");
             StaleEntityException.Throw(entity);
         }
+
         uint slot = entity.Index;
         Contract.Requires(components.Length == wants.Length);
         Contract.Requires(body is null ? bodyCenterOfMass == Vector3.Zero : IsFinite(bodyCenterOfMass));
         ComponentFlags types = ComponentFlags.Of(components);
         BodyCollision collision = body is null ? default : new BodyCollision(body.CollisionGroups, body.CollisionMask);
         float radius = body?.Shape.BoundingRadius() ?? 0;
-        records[slot] = new Record
+        records[slot] = new()
         {
             Components = components, Wants = wants, Body = body, BodyBoundingRadius = radius,
             InteriorBoundingRadius = body?.InteriorShape is { } interior ? interior.BoundingRadius() : radius,
-            BodyCenterOfMass = bodyCenterOfMass, OwnedFrame = ownedFrame,
+            BodyCenterOfMass = bodyCenterOfMass, OwnedFrame = ownedFrame
         };
         if (body != null)
             bodySlots.Add(slot);
@@ -596,7 +720,7 @@ internal sealed partial class EntityTable
         flags[slot] = SlotFlags.FirstTick;
         state[slot] = SlotState.Live;
         reservationsOut--;
-        liveCount++;
+        LiveCount++;
         books[slot / chunkSize].LiveCount++;
         MarkMoved(slot, moved);
     }
@@ -609,7 +733,7 @@ internal sealed partial class EntityTable
     /// </summary>
     public bool Release(Entity entity)
     {
-        Contract.Requires(!gameplayRunning);
+        Contract.Requires(!GameplayRunning);
         if (!IsCurrent(entity))
             return false;
         uint slot = entity.Index;
@@ -622,7 +746,7 @@ internal sealed partial class EntityTable
             emitterSlots.Set(slot, false);
             foreach (IColumn column in columns)
                 column.Clear(slot);
-            liveCount--;
+            LiveCount--;
             books[slot / chunkSize].LiveCount--;
             intentEntitiesMayHoldDead = true;
         }
@@ -630,6 +754,7 @@ internal sealed partial class EntityTable
         {
             reservationsOut--;
         }
+
         uint next = generation[slot] + 1;
         generation[slot] = next == 0 ? 1 : next;
         state[slot] = SlotState.Free;
@@ -780,7 +905,7 @@ internal sealed partial class EntityTable
     public ReadOnlySpan<Entity> WithComponent(int typeId)
     {
         // A read of a set with queued changes merges them, which races with a read on another worker.
-        Contract.Requires(!gameplayRunning || componentIndex.IsSettled);
+        Contract.Requires(!GameplayRunning || componentIndex.IsSettled);
         return componentIndex.With(typeId);
     }
 
@@ -817,7 +942,7 @@ internal sealed partial class EntityTable
     public ref DPose WritableTransform(Entity entity)
     {
         uint slot = LiveSlot(entity);
-        Contract.Requires(gameplayRunning && records[slot].Body == null);
+        Contract.Requires(GameplayRunning && records[slot].Body == null);
         MarkDirty(slot, SlotFlags.TransformDirty | SlotFlags.GameplayWroteTransform);
         ref TransformRow row = ref backTransform[slot];
         row.LinearVelocity = Vector3.Zero;
@@ -832,7 +957,7 @@ internal sealed partial class EntityTable
     public ref RenderData WritableRender(Entity entity)
     {
         uint slot = LiveSlot(entity);
-        Contract.Requires(gameplayRunning);
+        Contract.Requires(GameplayRunning);
         MarkDirty(slot, SlotFlags.RenderDirty);
         return ref backRender[slot];
     }
@@ -845,7 +970,7 @@ internal sealed partial class EntityTable
     public ref PhysicsIntent WritableIntent(Entity entity)
     {
         uint slot = LiveSlot(entity);
-        Contract.Requires(gameplayRunning && records[slot].Body != null);
+        Contract.Requires(GameplayRunning && records[slot].Body != null);
         return ref RegisteredIntent(entity, slot);
     }
 
@@ -860,7 +985,7 @@ internal sealed partial class EntityTable
     public void WriteMotionIntent(Entity entity, in MotionIntent move)
     {
         uint slot = LiveSlot(entity);
-        Contract.Requires(gameplayRunning && move.AimPose.Rotation.IsUnit);
+        Contract.Requires(GameplayRunning && move.AimPose.Rotation.IsUnit);
         RegisteredIntent(entity, slot).Move = move;
     }
 
@@ -877,6 +1002,7 @@ internal sealed partial class EntityTable
             books[slot / chunkSize].IntentWriters.Add(entity);
             backIntent[slot].Frame = frontTransform[slot].Frame;
         }
+
         return ref backIntent[slot];
     }
 
@@ -894,6 +1020,7 @@ internal sealed partial class EntityTable
             intent.Flags |= IntentFlags.SetMotion;
             books[entity.Index / chunkSize].MotionChangers.Add(entity);
         }
+
         intent.Motion = motion;
     }
 
@@ -904,7 +1031,7 @@ internal sealed partial class EntityTable
     /// </summary>
     public void CollectMotionChanges(List<Entity> writers)
     {
-        Contract.Requires(!gameplayRunning);
+        Contract.Requires(!GameplayRunning);
         int count = ChunkCountFor(slotCount);
         for (int c = 0; c < count; c++)
             foreach (Entity changer in books[c].MotionChangers)
@@ -920,7 +1047,7 @@ internal sealed partial class EntityTable
     /// </summary>
     public void CollectFrontMotionChanges(List<Entity> changers)
     {
-        Contract.Requires(!gameplayRunning);
+        Contract.Requires(!GameplayRunning);
         foreach (Entity changer in frontMotionChangers)
             if (IsAlive(changer))
                 changers.Add(changer);
@@ -944,7 +1071,7 @@ internal sealed partial class EntityTable
     public ref PhysicsIntent WrittenIntent(Entity entity)
     {
         uint slot = LiveSlot(entity);
-        Contract.Requires(!gameplayRunning && (flags[slot] & SlotFlags.IntentRegistered) != 0);
+        Contract.Requires(!GameplayRunning && (flags[slot] & SlotFlags.IntentRegistered) != 0);
         return ref backIntent[slot];
     }
 
@@ -956,7 +1083,7 @@ internal sealed partial class EntityTable
     public ref PhysicsIntent NextStepIntent(Entity entity)
     {
         uint slot = LiveSlot(entity);
-        Contract.Requires(!gameplayRunning && (flags[slot] & SlotFlags.IntentRegistered) == 0);
+        Contract.Requires(!GameplayRunning && (flags[slot] & SlotFlags.IntentRegistered) == 0);
         return ref frontIntent[slot];
     }
 
@@ -971,9 +1098,10 @@ internal sealed partial class EntityTable
     public void SetFirstMove(Entity entity, FrameHandle frame, in MotionIntent move)
     {
         uint slot = LiveSlot(entity);
-        Contract.Requires(!gameplayRunning && IsDefault(in frontIntent[slot]) && (flags[slot] & SlotFlags.IntentRegistered) == 0);
+        Contract.Requires(!GameplayRunning && IsDefault(in frontIntent[slot]) &&
+                          (flags[slot] & SlotFlags.IntentRegistered) == 0);
         Contract.Requires(move.HasValue && move.AimPose.Rotation.IsUnit);
-        frontIntent[slot] = new PhysicsIntent { Frame = frame, Move = move };
+        frontIntent[slot] = new() { Frame = frame, Move = move };
         frontIntentEntities.Add(entity);
     }
 
@@ -988,7 +1116,7 @@ internal sealed partial class EntityTable
     public ref PhysicsIntent WritablePush(Entity part)
     {
         uint slot = LiveSlot(part);
-        Contract.Requires(gameplayRunning && records[slot].Body == null);
+        Contract.Requires(GameplayRunning && records[slot].Body == null);
         ref SlotFlags f = ref flags[slot];
         List<Entity> pushers = books[slot / chunkSize].Pushers;
         if ((f & SlotFlags.IntentRegistered) == 0)
@@ -997,18 +1125,12 @@ internal sealed partial class EntityTable
             pushers.Add(part);
             backIntent[slot].Frame = frontTransform[slot].Frame;
         }
+
         Contract.Ensures(pushers.IndexOf(part) >= 0 && pushers.IndexOf(part) == pushers.LastIndexOf(part) &&
-            !books[slot / chunkSize].IntentWriters.Contains(part) && backIntent[slot].Frame == frontTransform[slot].Frame);
+                         !books[slot / chunkSize].IntentWriters.Contains(part) &&
+                         backIntent[slot].Frame == frontTransform[slot].Frame);
         return ref backIntent[slot];
     }
-
-    /// <summary>
-    /// The parts whose pushes the swap made front intents, chunk by chunk, each in the order of its first push in the tick.
-    /// None is in <see cref="IntentEntities"/>. A part that died since the swap stays listed until the next swap, which
-    /// clears the list: releasing the part cleared its slot, so a reader skips an entity that is not live. Without a backend
-    /// the swap lists none.
-    /// </summary>
-    public ReadOnlySpan<Entity> FrontPushers => CollectionsMarshal.AsSpan(frontPushers);
 
     /// <summary>
     /// Empties the front intent of <paramref name="part"/>, after the flow carried its push to its chain root or skipped it.
@@ -1017,7 +1139,8 @@ internal sealed partial class EntityTable
     public void ClearPush(Entity part)
     {
         uint slot = LiveSlot(part);
-        Contract.Requires(!gameplayRunning && records[slot].Body == null && frontIntentEntities.AsSpan().IndexOf(part) < 0);
+        Contract.Requires(!GameplayRunning && records[slot].Body == null &&
+                          frontIntentEntities.AsSpan().IndexOf(part) < 0);
         frontIntent[slot] = default;
     }
 
@@ -1035,15 +1158,17 @@ internal sealed partial class EntityTable
         uint slot = LiveSlot(root);
         ref PhysicsIntent intent = ref frontIntent[slot];
         FrameHandle frame = frontTransform[slot].Frame;
-        Contract.Requires(!gameplayRunning && records[slot].Body != null && !frame.IsNull);
+        Contract.Requires(!GameplayRunning && records[slot].Body != null && !frame.IsNull);
         Contract.Requires(intent.Frame == frame || IsDefault(in intent));
         if (intent.Frame.IsNull)
         {
             intent.Frame = frame;
             frontIntentEntities.Add(root);
         }
+
         sum.WriteInto(ref intent);
-        Contract.Ensures(intent.Frame == frame && frontIntentEntities.AsSpan().IndexOf(root) == frontIntentEntities.AsSpan().LastIndexOf(root));
+        Contract.Ensures(intent.Frame == frame &&
+                         frontIntentEntities.AsSpan().IndexOf(root) == frontIntentEntities.AsSpan().LastIndexOf(root));
     }
 
     /// <summary>
@@ -1072,16 +1197,8 @@ internal sealed partial class EntityTable
     public PhysicsIntent PendingIntent(Entity entity) => backIntent[LiveSlot(entity)];
 
     /// <summary>True if gameplay wrote the entity's transform during this tick. Throws <see cref="StaleEntityException"/> for a stale handle.</summary>
-    public bool GameplayWroteTransform(Entity entity) => (flags[LiveSlot(entity)] & SlotFlags.GameplayWroteTransform) != 0;
-
-    /// <summary>
-    /// How many writes of a back row moved it to another frame (see <see cref="SetBackTransform"/>) since the table was
-    /// made. Gameplay writes a row only relative to its frame (see <see cref="WritableTransform"/>), and a spawn starts its
-    /// row in its frame, so only the sync point and a change outside a tick add to it. The World compares it with its value
-    /// at the last conversion of the moved intents, to skip a pass that would find none (see
-    /// <c>World.ConvertMovedIntents</c>).
-    /// </summary>
-    public long RowFrameChanges => rowFrameChanges;
+    public bool GameplayWroteTransform(Entity entity) =>
+        (flags[LiveSlot(entity)] & SlotFlags.GameplayWroteTransform) != 0;
 
     /// <summary>
     /// Writes a live entity's back transform row, outside the gameplay part of a tick. The row is copied forward at the
@@ -1091,12 +1208,12 @@ internal sealed partial class EntityTable
     public void SetBackTransform(Entity entity, in TransformRow row)
     {
         uint slot = LiveSlot(entity);
-        Contract.Requires(!gameplayRunning);
+        Contract.Requires(!GameplayRunning);
         ref TransformRow back = ref backTransform[slot];
         if (BitEquals(back, row))
             return;
         if (back.Frame != row.Frame)
-            rowFrameChanges++;
+            RowFrameChanges++;
         back = row;
         MarkDirty(slot, SlotFlags.TransformDirty);
     }
@@ -1109,7 +1226,7 @@ internal sealed partial class EntityTable
     /// </summary>
     public void ApplyCollisionIntents()
     {
-        Contract.Requires(!gameplayRunning);
+        Contract.Requires(!GameplayRunning);
         foreach (Entity entity in IntentEntities.Span)
         {
             uint slot = LiveSlot(entity);
@@ -1117,42 +1234,8 @@ internal sealed partial class EntityTable
             if ((intent.Flags & IntentFlags.SetCollision) == 0)
                 continue;
             Contract.Assert(records[slot].Body != null);
-            backCollision[slot] = new BodyCollision(intent.CollisionGroups, intent.CollisionMask);
+            backCollision[slot] = new(intent.CollisionGroups, intent.CollisionMask);
             MarkDirty(slot, SlotFlags.CollisionDirty);
-        }
-    }
-
-    // ---- The swap -------------------------------------------------------------------------------------------------
-
-    /// <summary>
-    /// The intents that the next physics step reads, indexed by slot (<see cref="Entity.Index"/>), the layout that the
-    /// physics seam in Core defines. The entries of the entities in <see cref="IntentEntities"/> hold what they wrote. The
-    /// entry of each part in <see cref="FrontPushers"/> holds its push from the swap until the flow of step 5 of the sync
-    /// point moves it to the part's chain root and empties the entry. The entry of every other live entity is empty (see
-    /// the invariants), so the change of motion of any owner can be read from its entry (see
-    /// <see cref="FrameTree.HullMotionInStep"/>).
-    /// </summary>
-    public ReadOnlyMemory<PhysicsIntent> FrontIntents => frontIntent.AsReadOnlyMemory();
-
-    /// <summary>
-    /// The entities whose intent the next physics step applies, in the order they wrote it. Never a dead entity: one that
-    /// died since the swap leaves the list when the list is read.
-    /// </summary>
-    public ReadOnlyMemory<Entity> IntentEntities
-    {
-        get
-        {
-            if (intentEntitiesMayHoldDead)
-            {
-                Span<Entity> entities = frontIntentEntities.AsSpan();
-                int write = 0;
-                foreach (Entity entity in entities)
-                    if (IsAlive(entity))
-                        entities[write++] = entity;
-                frontIntentEntities.Truncate(write);
-                intentEntitiesMayHoldDead = false;
-            }
-            return frontIntentEntities.AsMemory();
         }
     }
 
@@ -1167,7 +1250,7 @@ internal sealed partial class EntityTable
     /// </summary>
     public void SwapIntents(bool keep)
     {
-        Contract.Requires(!gameplayRunning);
+        Contract.Requires(!GameplayRunning);
         foreach (Entity entity in frontIntentEntities.AsSpan())
             frontIntent[entity.Index] = default;
         (frontIntent, backIntent) = (backIntent, frontIntent);
@@ -1197,8 +1280,10 @@ internal sealed partial class EntityTable
                         continue;
                     }
                 }
+
                 frontIntentEntities.Add(writer);
             }
+
             // Each motion changer is an intent writer, so the loop above moved its change to the front intents.
             foreach (Entity changer in books[c].MotionChangers)
                 if (IsAlive(changer))
@@ -1216,6 +1301,7 @@ internal sealed partial class EntityTable
                 else
                     frontIntent[slot] = default;
             }
+
             books[c].IntentWriters.Clear();
             books[c].MotionChangers.Clear();
             books[c].Pushers.Clear();
@@ -1238,7 +1324,7 @@ internal sealed partial class EntityTable
     /// </remarks>
     public void CopyDirtyRows()
     {
-        Contract.Requires(!gameplayRunning);
+        Contract.Requires(!GameplayRunning);
         int count = ChunkCountFor(slotCount);
         if (copyParallelism != null && GameplayDirtyCount(count) >= parallelCopyThreshold)
         {
@@ -1258,47 +1344,19 @@ internal sealed partial class EntityTable
                 foreach (uint slot in books[c].DirtySlots)
                     CopyRow(slot, moved, componentCopies);
         }
+
         foreach (uint slot in syncDirty)
             CopyRow(slot, moved, componentCopies);
         syncDirty.Clear();
         SetNewEmitterSlots();
         foreach (uint slot in componentCopies)
         {
-            componentIndex.Change(new Entity(slot, generation[slot]), frontComponents[slot], backComponents[slot]);
+            componentIndex.Change(new(slot, generation[slot]), frontComponents[slot], backComponents[slot]);
             frontComponents[slot] = backComponents[slot];
         }
+
         componentCopies.Clear();
     }
-
-    /// <summary>
-    /// The default of the fewest rows that gameplay wrote in a tick for which <see cref="CopyDirtyRows"/> copies them on
-    /// the workers. Measured on an Apple M1 Max (see RowCopyBenchmarks in the benchmarks): the copy on one thread costs
-    /// about 9 ns a row; on the workers it runs about 1.75 times as fast, after a fixed cost of about 20 us to hand it to
-    /// them. So the workers break even at about 5,000 rows, and win by about 13 percent at 8,192. Below that, a busy
-    /// machine made the parallel copy as often slower as faster: 4,096 rows took 57 us against 40 us on one thread, and
-    /// the 8,000 rows of the Mixed tick benchmark copied faster on one thread.
-    /// </summary>
-    internal const int DefaultParallelCopyThreshold = 8192;
-
-    /// <summary>
-    /// The fewest rows that gameplay wrote in a tick for which <see cref="CopyDirtyRows"/> copies them on the workers. 1 or
-    /// more. Both copies end in the same state, so only tests change it: at 1, a small world takes the workers in every
-    /// tick.
-    /// </summary>
-    internal int ParallelCopyThreshold
-    {
-        get => parallelCopyThreshold;
-        set
-        {
-            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
-            parallelCopyThreshold = value;
-        }
-    }
-
-    // The copy of one chunk on a worker, kept so that a parallel copy allocates no delegate.
-    private Action<int>? copyChunk;
-    // The slots whose component flags the running CopyDirtyRows must still copy, in the order of the copy on one thread.
-    private readonly List<uint> componentCopies = new();
 
     /// <summary>The rows that gameplay wrote in one chunk, on a worker of <see cref="CopyDirtyRows"/>, into the chunk's book.</summary>
     private void CopyChunk(int chunk)
@@ -1336,6 +1394,7 @@ internal sealed partial class EntityTable
             flags[entity.Index] &= ~SlotFlags.FrontMoved;
             taken[kept++] = entity;
         }
+
         CollectionsMarshal.SetCount(takenMoved, kept);
         return CollectionsMarshal.AsSpan(takenMoved);
     }
@@ -1345,17 +1404,20 @@ internal sealed partial class EntityTable
     /// <summary>Checks every invariant in the class comment. O(capacity). Outside the gameplay part of a tick.</summary>
     internal void AssertInvariants()
     {
-        Contract.Invariant(!gameplayRunning);
-        Contract.Invariant(slotCount <= capacity && ChunkCountFor(capacity) <= chunks.Length && books.Length == chunks.Length);
-        Contract.Invariant(generation.Length == capacity && state.Length == capacity && bodySlots.WordCount == BodySlots.WordsFor(capacity));
+        Contract.Invariant(!GameplayRunning);
+        Contract.Invariant(slotCount <= Capacity && ChunkCountFor(Capacity) <= chunks.Length &&
+                           books.Length == chunks.Length);
+        Contract.Invariant(generation.Length == Capacity && state.Length == Capacity &&
+                           bodySlots.WordCount == BodySlots.WordsFor(Capacity));
 
-        var inFreeList = new bool[capacity];
+        bool[] inFreeList = new bool[Capacity];
         foreach (uint slot in freeSlots)
         {
             Contract.Invariant(slot < (uint)slotCount && state[slot] == SlotState.Free && !inFreeList[slot]);
             inFreeList[slot] = true;
         }
-        var inIntentList = new bool[capacity];
+
+        bool[] inIntentList = new bool[Capacity];
         foreach (Entity entity in frontIntentEntities.AsSpan())
         {
             // An entity that died since the swap leaves the list when the list is next read.
@@ -1366,7 +1428,8 @@ internal sealed partial class EntityTable
                 inIntentList[entity.Index] = true;
             }
         }
-        var frontMotionChangerListed = new bool[capacity];
+
+        bool[] frontMotionChangerListed = new bool[Capacity];
         foreach (Entity changer in frontMotionChangers)
         {
             if (!IsAlive(changer))
@@ -1375,11 +1438,11 @@ internal sealed partial class EntityTable
             frontMotionChangerListed[changer.Index] = true;
         }
 
-        var dirtyListed = new bool[capacity];
-        var intentWriterListed = new bool[capacity];
-        var pusherListed = new bool[capacity];
-        var motionChangerListed = new bool[capacity];
-        var pooled = new bool[capacity];
+        bool[] dirtyListed = new bool[Capacity];
+        bool[] intentWriterListed = new bool[Capacity];
+        bool[] pusherListed = new bool[Capacity];
+        bool[] motionChangerListed = new bool[Capacity];
+        bool[] pooled = new bool[Capacity];
         int pooledCount = 0;
         // The lists of a copy on the workers are empty outside CopyDirtyRows, which joins and empties them.
         Contract.Invariant(componentCopies.Count == 0);
@@ -1395,18 +1458,22 @@ internal sealed partial class EntityTable
                 // A writer that died since it wrote is skipped by the swap.
                 if (!IsAlive(writer))
                     continue;
-                Contract.Invariant((flags[writer.Index] & SlotFlags.IntentRegistered) != 0 && !intentWriterListed[writer.Index]);
+                Contract.Invariant((flags[writer.Index] & SlotFlags.IntentRegistered) != 0 &&
+                                   !intentWriterListed[writer.Index]);
                 intentWriterListed[writer.Index] = true;
             }
+
             foreach (Entity pusher in book.Pushers)
             {
                 Contract.Invariant((int)pusher.Index / chunkSize == c);
                 if (!IsAlive(pusher))
                     continue;
                 uint p = pusher.Index;
-                Contract.Invariant((flags[p] & SlotFlags.IntentRegistered) != 0 && !pusherListed[p] && !intentWriterListed[p] && records[p].Body == null);
+                Contract.Invariant((flags[p] & SlotFlags.IntentRegistered) != 0 && !pusherListed[p] &&
+                                   !intentWriterListed[p] && records[p].Body == null);
                 pusherListed[p] = true;
             }
+
             foreach (Entity changer in book.MotionChangers)
             {
                 Contract.Invariant((int)changer.Index / chunkSize == c);
@@ -1415,36 +1482,41 @@ internal sealed partial class EntityTable
                 Contract.Invariant(intentWriterListed[changer.Index] && !motionChangerListed[changer.Index]);
                 motionChangerListed[changer.Index] = true;
             }
+
             foreach (uint slot in book.SpawnPool)
             {
                 Contract.Invariant(state[slot] == SlotState.Reserved && !pooled[slot]);
                 pooled[slot] = true;
                 pooledCount++;
             }
+
             int live = 0;
-            for (int slot = c * chunkSize, end = Math.Min(slot + chunkSize, capacity); slot < end; slot++)
+            for (int slot = c * chunkSize, end = Math.Min(slot + chunkSize, Capacity); slot < end; slot++)
                 if (state[slot] == SlotState.Live)
                     live++;
             Contract.Invariant(book.LiveCount == live);
         }
+
         foreach (uint slot in syncDirty)
             dirtyListed[slot] = true;
-        var frontPusherListed = new bool[capacity];
+        bool[] frontPusherListed = new bool[Capacity];
         foreach (Entity pusher in frontPushers)
         {
             if (!IsAlive(pusher))
                 continue;
             uint p = pusher.Index;
-            Contract.Invariant(!frontPusherListed[p] && records[p].Body == null && !inIntentList[p] && IsDefault(in frontIntent[p]));
+            Contract.Invariant(!frontPusherListed[p] && records[p].Body == null && !inIntentList[p] &&
+                               IsDefault(in frontIntent[p]));
             frontPusherListed[p] = true;
         }
-        var movedListed = new bool[capacity];
+
+        bool[] movedListed = new bool[Capacity];
         foreach (Entity entity in moved)
             if (IsAlive(entity))
                 movedListed[entity.Index] = true;
 
         int liveSlots = 0, reserved = 0, indexed = 0;
-        for (int slot = 0; slot < capacity; slot++)
+        for (int slot = 0; slot < Capacity; slot++)
         {
             SlotState s = state[slot];
             SlotFlags f = flags[slot];
@@ -1466,7 +1538,8 @@ internal sealed partial class EntityTable
 
             liveSlots++;
             ref readonly Record rec = ref records[slot];
-            Contract.Invariant(rec.Components != null && rec.Wants != null && rec.Components.Length == rec.Wants.Length);
+            Contract.Invariant(rec.Components != null && rec.Wants != null &&
+                               rec.Components.Length == rec.Wants.Length);
             Contract.Invariant(masks[slot] == MaskOf(rec.Wants!));
             if ((f & SlotFlags.TransformDirty) == 0)
                 Contract.Invariant(BitEquals(frontTransform[slot], backTransform[slot]));
@@ -1482,28 +1555,36 @@ internal sealed partial class EntityTable
             if (rec.Body == null)
                 Contract.Invariant(frontCollision[slot] == default && backCollision[slot] == default);
             Contract.Invariant(rec.BodyBoundingRadius == (rec.Body?.Shape.BoundingRadius() ?? 0));
-            Contract.Invariant(rec.InteriorBoundingRadius == (rec.Body?.InteriorShape is { } inside ? inside.BoundingRadius() : rec.BodyBoundingRadius));
-            Contract.Invariant(rec.Body == null ? rec.BodyCenterOfMass == Vector3.Zero : IsFinite(rec.BodyCenterOfMass));
+            Contract.Invariant(rec.InteriorBoundingRadius ==
+                               (rec.Body?.InteriorShape is { } inside
+                                   ? inside.BoundingRadius()
+                                   : rec.BodyBoundingRadius));
+            Contract.Invariant(rec.Body == null
+                ? rec.BodyCenterOfMass == Vector3.Zero
+                : IsFinite(rec.BodyCenterOfMass));
             var live = new Entity((uint)slot, generation[slot]);
             foreach (int id in frontComponents[slot])
             {
                 Contract.Invariant(componentIndex.With(id).BinarySearch(live) >= 0);
                 indexed++;
             }
+
             if ((f & SlotFlags.GameplayWroteTransform) != 0)
                 Contract.Invariant((f & SlotFlags.TransformDirty) != 0 && rec.Body == null);
             if ((f & SlotFlags.IntentRegistered) == 0)
                 Contract.Invariant(IsDefault(in backIntent[slot]));
             else
                 Contract.Invariant(intentWriterListed[slot] || pusherListed[slot]);
-            Contract.Invariant(((backIntent[slot].Flags & IntentFlags.SetMotion) != 0) == motionChangerListed[slot]);
+            Contract.Invariant((backIntent[slot].Flags & IntentFlags.SetMotion) != 0 == motionChangerListed[slot]);
             if (!inIntentList[slot])
                 Contract.Invariant(IsDefault(in frontIntent[slot]));
-            Contract.Invariant(((frontIntent[slot].Flags & IntentFlags.SetMotion) != 0) == frontMotionChangerListed[slot]);
+            Contract.Invariant((frontIntent[slot].Flags & IntentFlags.SetMotion) != 0 ==
+                               frontMotionChangerListed[slot]);
             if ((f & SlotFlags.FrontMoved) != 0)
                 Contract.Invariant(movedListed[slot]);
         }
-        Contract.Invariant(liveSlots == liveCount);
+
+        Contract.Invariant(liveSlots == LiveCount);
         Contract.Invariant(reserved == pooledCount + reservationsOut);
         // Each live entity is in the set of every type of its front flags, so equal totals leave no other entries.
         int listed = 0;
@@ -1547,7 +1628,7 @@ internal sealed partial class EntityTable
 
     private SlotColumn<T> AddSlotColumn<T>()
     {
-        var column = new SlotColumn<T>(capacity);
+        var column = new SlotColumn<T>(Capacity);
         columns.Add(column);
         return column;
     }
@@ -1566,6 +1647,7 @@ internal sealed partial class EntityTable
             Grow(slotCount);
             generation[slot] = 1;
         }
+
         state[slot] = SlotState.Reserved;
         return slot;
     }
@@ -1573,16 +1655,16 @@ internal sealed partial class EntityTable
     /// <summary>Grows every per-slot table and column, and the chunks over them. Outside the gameplay part of a tick.</summary>
     private void Grow(int needed)
     {
-        if (needed <= capacity)
+        if (needed <= Capacity)
             return;
-        int size = Math.Max(needed, Math.Max(capacity * 2, 64));
+        int size = Math.Max(needed, Math.Max(Capacity * 2, 64));
         Array.Resize(ref generation, size);
         Array.Resize(ref state, size);
         bodySlots.Grow(size);
         emitterSlots.Grow(size);
         foreach (IColumn column in columns)
             column.Grow(size);
-        capacity = size;
+        Capacity = size;
 
         int chunkCount = ChunkCountFor(size);
         if (chunks.Length < chunkCount)
@@ -1592,8 +1674,8 @@ internal sealed partial class EntityTable
             Array.Resize(ref books, chunkCount);
             for (int i = old; i < chunkCount; i++)
             {
-                chunks[i] = new ChunkState(i);
-                books[i] = new ChunkBook();
+                chunks[i] = new(i);
+                books[i] = new();
             }
         }
     }
@@ -1616,7 +1698,7 @@ internal sealed partial class EntityTable
     {
         ref SlotFlags f = ref flags[slot];
         if ((f & RowsDirty) == 0)
-            (gameplayRunning ? books[slot / chunkSize].DirtySlots : syncDirty).Add(slot);
+            (GameplayRunning ? books[slot / chunkSize].DirtySlots : syncDirty).Add(slot);
         f |= bits;
     }
 
@@ -1627,7 +1709,7 @@ internal sealed partial class EntityTable
         if ((f & SlotFlags.FrontMoved) != 0)
             return;
         f |= SlotFlags.FrontMoved;
-        list.Add(new Entity(slot, generation[slot]));
+        list.Add(new(slot, generation[slot]));
     }
 
     /// <summary>
@@ -1649,11 +1731,13 @@ internal sealed partial class EntityTable
             frontTransform[slot] = backTransform[slot];
             MarkMoved(slot, movedTo);
         }
+
         if ((dirty & SlotFlags.RenderDirty) != 0)
         {
             frontRender[slot] = backRender[slot];
             emitterSlots.Set(slot, frontRender[slot].Emitter.CanMakePuffs);
         }
+
         if ((dirty & SlotFlags.ComponentsDirty) != 0)
             componentCopiesTo.Add(slot);
         if ((dirty & SlotFlags.CollisionDirty) != 0)

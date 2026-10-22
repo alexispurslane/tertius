@@ -14,6 +14,12 @@ namespace Tertius.Benchmarks;
 /// </summary>
 internal static class SyncSampler
 {
+    /// <summary>Set by the benchmark class that the scene built: the hash of its world's state.</summary>
+    internal static Func<ulong>? StateHash;
+
+    /// <summary>Set by the benchmark class that the scene built, so that the quick run reports only its own ticks.</summary>
+    internal static Action? RemarkProfile;
+
     /// <summary>
     /// Builds a scene by name: kepler, keplerEntities1k or keplerEntities100k (each also with Jolt at the end), mixed, tick10k,
     /// tick100k, parts10k or parts0, then the gameplay parallelism, 1 or -1, such as "kepler1".
@@ -39,7 +45,7 @@ internal static class SyncSampler
                 {
                     MaxDegreeOfParallelism = dop,
                     Entities = name.Contains("100k") ? 100_000 : 1_000,
-                    Jolt = name.EndsWith("Jolt"),
+                    Jolt = name.EndsWith("Jolt")
                 };
                 b.Setup();
                 return (b.Tick, b.Cleanup);
@@ -53,7 +59,8 @@ internal static class SyncSampler
             case "parts10k":
             case "parts0":
             {
-                var b = new PartPushTickBenchmarks { MaxDegreeOfParallelism = dop, PartsPerCrate = name == "parts10k" ? 4 : 0 };
+                var b = new PartPushTickBenchmarks
+                    { MaxDegreeOfParallelism = dop, PartsPerCrate = name == "parts10k" ? 4 : 0 };
                 b.Setup();
                 return (b.Tick, b.Cleanup);
             }
@@ -93,11 +100,13 @@ internal static class SyncSampler
             tick();
             ticks++;
         }
+
         Console.WriteLine($"QUICK|{scene}|mean tick|{run.Elapsed.TotalMilliseconds * 1000 / ticks:F2}|{ticks}");
         cleanup();
     }
 
-    /// <summary>Ticks a scene <paramref name="ticks"/> times after its setup and prints the hash of the state (see <see cref="WorldStateHash"/>).</summary>
+    /// <summary>Ticks a scene <paramref name="ticks"/> times after its setup and prints the hash of the state (see
+    /// <see cref="WorldStateHash"/>).</summary>
     public static void Hash(string scene, int ticks)
     {
         (Action tick, Action cleanup) = Scene(scene);
@@ -106,12 +115,6 @@ internal static class SyncSampler
         Console.WriteLine($"HASH|{scene}|{ticks}|{StateHash?.Invoke():X16}");
         cleanup();
     }
-
-    /// <summary>Set by the benchmark class that the scene built: the hash of its world's state.</summary>
-    internal static Func<ulong>? StateHash;
-
-    /// <summary>Set by the benchmark class that the scene built, so that the quick run reports only its own ticks.</summary>
-    internal static Action? RemarkProfile;
 
     public static void Run(string scene, double seconds, string outDir)
     {
@@ -127,7 +130,7 @@ internal static class SyncSampler
         var providers = new List<EventPipeProvider>
         {
             new("Microsoft-DotNETCore-SampleProfiler", EventLevel.Informational),
-            new("Microsoft-Windows-DotNETRuntime", EventLevel.Informational, (long)0x10 /* JIT */ | 0x8 /* Loader */),
+            new("Microsoft-Windows-DotNETRuntime", EventLevel.Informational, (long)0x10 /* JIT */ | 0x8 /* Loader */)
         };
         using (EventPipeSession session = client.StartEventPipeSession(providers, requestRundown: true))
         {
@@ -143,10 +146,12 @@ internal static class SyncSampler
                 tick();
                 ticks++;
             }
+
             session.Stop();
             copy.Wait();
             Console.WriteLine($"SAMPLER|{scene}|ticks {ticks} in {run.Elapsed.TotalSeconds:F1} s");
         }
+
         cleanup();
 
         string etlx = TraceLog.CreateFromEventPipeDataFile(tracePath);
@@ -169,6 +174,7 @@ internal static class SyncSampler
                     sync = true;
                     break;
                 }
+
             if (!sync)
                 continue;
             inSync++;
@@ -188,6 +194,7 @@ internal static class SyncSampler
                     break;
             }
         }
+
         Console.WriteLine($"SAMPLER|{scene}|samples in World.Sync: {inSync}");
         foreach ((string name, int count) in exclusive.OrderByDescending(p => p.Value).Take(30))
             Console.WriteLine($"SAMPLER|{scene}|excl|{count}|{100.0 * count / inSync:F1}%|{name}");

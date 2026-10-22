@@ -10,15 +10,17 @@ namespace Tertius.Simulation.Tests;
 /// </summary>
 public class AllocationTests
 {
+    private const int Churners = 200;
+
     /// <summary>
     /// Moves, sends a direct message and a topic message every tick, and reads its inbox with every query word and
     /// ending. It allocates nothing.
     /// </summary>
     private sealed class Busy(Entity neighbor, Topic topic) : IComponent
     {
-        private static readonly EventQuery<Ping> Delayed = new EventQuery<Ping>().Where(static (ref Ping p) => p.Value == 3);
+        private static readonly EventQuery<Ping> Delayed = new EventQuery<Ping>().Where(static (ref p) => p.Value == 3);
 
-        public Entity Neighbor = neighbor;
+        public readonly Entity Neighbor = neighbor;
         public float Total;
         public int Priority => 0;
         public EventMask Wants => EventMask.Of<Tick>().And<Ping>();
@@ -28,13 +30,16 @@ public class AllocationTests
             foreach (ref Ping ping in events.Of<Ping>())
                 Total += ping.Value;
             Total += events.Of<Ping>().From(Neighbor).Count() + events.From(Entity.Null).Count();
-            if (events.Of<Ping>().Where(2, static (ref Ping p, int value) => p.Value == value).TryFirst(out Ping fromTopic))
+            if (events.Of<Ping>().Where(2, static (ref p, value) => p.Value == value).TryFirst(out Ping fromTopic))
                 Total += fromTopic.Value;
             if (events.Find(Delayed).Any())
                 Total += 3;
-            events.Of<Ping>().Where(static (ref Ping p) => p.Value < 0).Remove();
-            events.Where(static (ref Event e) => e.Is<Ping>() && e.As<Ping>().Value < 0).Remove();
-            self.SetTransform(self.PoseInOwnFrame() with { Position = self.PoseInOwnFrame().Position + new Double3(0.001, 0, 0) });
+            events.Of<Ping>().Where(static (ref p) => p.Value < 0).Remove();
+            events.Where(static (ref e) => e.Is<Ping>() && e.As<Ping>().Value < 0).Remove();
+            self.SetTransform(self.PoseInOwnFrame() with
+            {
+                Position = self.PoseInOwnFrame().Position + new Double3(0.001, 0, 0)
+            });
             self.Render.Scale.X = 1;
             if (self.Snapshot.IsAlive(Neighbor))
                 outbox.Send(Neighbor, new Ping { Value = 1 });
@@ -61,14 +66,12 @@ public class AllocationTests
         }
     }
 
-    private const int Churners = 200;
-
     /// <summary>A world with 200 entities that each subscribe on even ticks and unsubscribe on odd ticks.</summary>
     private static TestWorld ChurningWorld(Topic topic)
     {
         var t = new TestWorld(debugChecks: false);
         for (int i = 0; i < Churners; i++)
-            t.SpawnAt(new Double3(i, 0, 0), new Churn(topic));
+            t.SpawnAt(new(i, 0, 0), new Churn(topic));
         return t;
     }
 
@@ -109,16 +112,14 @@ public class AllocationTests
         var t = new TestWorld(debugChecks: false);
         Entity previous = default;
         for (int i = 0; i < 2000; i++)
-        {
-            previous = t.World.Spawn(new SpawnDesc
+            previous = t.World.Spawn(new()
             {
                 Frame = t.Root,
                 Pose = TestWorld.At(i % 50, i / 50, 0),
-                Render = new RenderData { Mesh = new MeshId(1), Flags = RenderFlags.Visible },
+                Render = new RenderData { Mesh = new(1), Flags = RenderFlags.Visible },
                 Components = [new Busy(previous, topic)],
-                Subscriptions = i % 10 == 0 ? [topic] : [],
+                Subscriptions = i % 10 == 0 ? [topic] : []
             });
-        }
         t.World.Camera = previous;
         return t;
     }
@@ -144,7 +145,9 @@ public class AllocationTests
     private sealed class Searcher : IComponent
     {
         private static readonly EntityQuery TypeOnly = EntityQuery.With<Flammable>().Without<Wet>();
-        private static readonly EntityQuery Inline = EntityQuery.With<Flammable>().Near(6).Where(static (s, e) => (e.Index & 1) == 0);
+
+        private static readonly EntityQuery Inline =
+            EntityQuery.With<Flammable>().Near(6).Where(static (s, e) => (e.Index & 1) == 0);
 
         public long Total;
         public int GridRuns;
@@ -187,8 +190,10 @@ public class AllocationTests
                 searchers.Add(searcher);
                 components.Add(searcher);
             }
-            t.SpawnAt(new Double3(i * 2, 0, 0), [.. components]);
+
+            t.SpawnAt(new(i * 2, 0, 0), [.. components]);
         }
+
         return (t, searchers);
     }
 

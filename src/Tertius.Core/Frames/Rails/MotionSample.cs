@@ -14,8 +14,12 @@ namespace Tertius.Frames.Rails;
 /// <param name="AngularVelocity">The frame's angular velocity at the end of the step, in rad/s.</param>
 /// <param name="AngularAcceleration">The frame's angular acceleration during the step, in rad/s².</param>
 public readonly record struct MotionSample(
-    DPose Pose, Double3 ChordVelocity, Double3 Velocity, Double3 Acceleration,
-    Double3 AngularVelocity, Double3 AngularAcceleration)
+    DPose Pose,
+    Double3 ChordVelocity,
+    Double3 Velocity,
+    Double3 Acceleration,
+    Double3 AngularVelocity,
+    Double3 AngularAcceleration)
 {
     /// <summary>
     /// This sample in another frame, which the two relations call the parent: <paramref name="start"/> and
@@ -31,7 +35,7 @@ public readonly record struct MotionSample(
     internal MotionSample Converted(in FrameMotion start, in FrameMotion end, double step)
     {
         Double3 place = Pose.Position;
-        return new MotionSample(
+        return new(
             end.PoseToParent(Pose),
             new StepPoses(start.Pose, end.Pose).ChordToParent(place, ChordVelocity, step),
             end.VelocityToParent(place, Velocity),

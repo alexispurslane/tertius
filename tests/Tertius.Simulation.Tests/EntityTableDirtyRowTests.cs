@@ -14,6 +14,13 @@ public class EntityTableDirtyRowTests
 {
     private const int ChunkSize = 4;
 
+    // ---- What counts as a change -----------------------------------------------------------------------------------
+    // A write of the sync point marks the row dirty only if the new row differs from the back row bit for bit. The
+    // comparison covers the whole row, and tells 0 from -0 and a NaN from itself, so that the front row is always exactly
+    // what the back row is.
+
+    private static readonly FrameHandle SomeFrame = new(new(5, 1), 2, 1);
+
     /// <summary>
     /// A new table with chunks of <see cref="ChunkSize"/> slots, which copies on one thread.
     /// <see cref="EntityTableParallelCopyTests"/> runs every test of this class again on a table that copies on the
@@ -55,7 +62,7 @@ public class EntityTableDirtyRowTests
     public void ARenderWriteIsCopiedForwardWithoutTouchingTheTransformRow()
     {
         (EntityTable table, Entity[] e) = Settled(1);
-        Gameplay(table, () => table.WritableRender(e[0]).Scale = new Vector3(3));
+        Gameplay(table, () => table.WritableRender(e[0]).Scale = new(3));
 
         table.CopyDirtyRows();
 
@@ -68,7 +75,7 @@ public class EntityTableDirtyRowTests
     public void ARenderWriteAloneDoesNotMakeTheEntityMoved()
     {
         (EntityTable table, Entity[] e) = Settled(1);
-        Gameplay(table, () => table.WritableRender(e[0]).Scale = new Vector3(3));
+        Gameplay(table, () => table.WritableRender(e[0]).Scale = new(3));
 
         table.CopyDirtyRows();
 
@@ -81,7 +88,7 @@ public class EntityTableDirtyRowTests
         (EntityTable table, Entity[] e) = Settled(1);
         Gameplay(table, () =>
         {
-            table.WritableRender(e[0]).Scale = new Vector3(3);
+            table.WritableRender(e[0]).Scale = new(3);
             table.WritableTransform(e[0]) = TestWorld.At(6);
         });
 
@@ -242,29 +249,25 @@ public class EntityTableDirtyRowTests
         first.Should().NotBe(second);
     }
 
-    // ---- What counts as a change -----------------------------------------------------------------------------------
-    // A write of the sync point marks the row dirty only if the new row differs from the back row bit for bit. The
-    // comparison covers the whole row, and tells 0 from -0 and a NaN from itself, so that the front row is always exactly
-    // what the back row is.
-
-    private static readonly FrameHandle SomeFrame = new(new Entity(5, 1), 2, 1);
-
     /// <summary>A transform row at x = 1, in no frame, with a unit rotation and some velocities, so that every field has a value.</summary>
     private static TransformRow BaseRow() => new()
     {
         Pose = TestWorld.At(1),
-        LinearVelocity = new Vector3(1, 2, 3),
-        AngularVelocity = new Vector3(4, 5, 6),
+        LinearVelocity = new(1, 2, 3),
+        AngularVelocity = new(4, 5, 6)
     };
 
     private static TransformRow ChangedIn(string field) => field switch
     {
         "frame" => BaseRow() with { Frame = SomeFrame },
         "position" => BaseRow() with { Pose = TestWorld.At(2) },
-        "rotation" => BaseRow() with { Pose = BaseRow().Pose with { Rotation = DQuaternion.FromAxisAngle(Double3.UnitY, 0.5) } },
-        "linear velocity" => BaseRow() with { LinearVelocity = new Vector3(1, 2, 4) },
-        "angular velocity" => BaseRow() with { AngularVelocity = new Vector3(4, 5, 7) },
-        _ => throw new ArgumentOutOfRangeException(nameof(field), field, null),
+        "rotation" => BaseRow() with
+        {
+            Pose = BaseRow().Pose with { Rotation = DQuaternion.FromAxisAngle(Double3.UnitY, 0.5) }
+        },
+        "linear velocity" => BaseRow() with { LinearVelocity = new(1, 2, 4) },
+        "angular velocity" => BaseRow() with { AngularVelocity = new(4, 5, 7) },
+        _ => throw new ArgumentOutOfRangeException(nameof(field), field, null)
     };
 
     [Theory]
@@ -315,7 +318,7 @@ public class EntityTableDirtyRowTests
         table.CopyDirtyRows();
         table.TakeMoved();
 
-        table.SetBackTransform(entity, new TransformRow { Pose = new DPose(new Double3(-0.0, 0, 0), DQuaternion.Identity) });
+        table.SetBackTransform(entity, new() { Pose = new(new(-0.0, 0, 0), DQuaternion.Identity) });
         table.CopyDirtyRows();
 
         double.IsNegative(table.FrontRow(entity).Pose.Position.X).Should().BeTrue();
@@ -327,7 +330,7 @@ public class EntityTableDirtyRowTests
     {
         EntityTable table = NewTable();
         Entity entity = table.SpawnLive();
-        var broken = new TransformRow { Pose = new DPose(new Double3(double.NaN, 0, 0), DQuaternion.Identity) };
+        var broken = new TransformRow { Pose = new(new(double.NaN, 0, 0), DQuaternion.Identity) };
         table.SetBackTransform(entity, broken);
         table.CopyDirtyRows();
         table.TakeMoved();
@@ -344,7 +347,7 @@ public class EntityTableDirtyRowTests
     public void ARenderRowWrittenByGameplayAndATransformRowWrittenBySyncAreBothCopied()
     {
         (EntityTable table, Entity[] e) = Settled(1);
-        Gameplay(table, () => table.WritableRender(e[0]).Scale = new Vector3(3));
+        Gameplay(table, () => table.WritableRender(e[0]).Scale = new(3));
         table.SetBackTransform(e[0], RowAt(8));
 
         table.CopyDirtyRows();

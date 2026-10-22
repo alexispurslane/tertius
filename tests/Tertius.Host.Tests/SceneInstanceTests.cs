@@ -6,6 +6,9 @@ public class SceneInstanceTests
     private static readonly Entity Box = new(3, 1);
     private static readonly Entity Floor = new(4, 2);
 
+    private static readonly Entity Chase = new(7, 1);
+    private static readonly Entity Far = new(8, 1);
+
     [Fact]
     public void AnEntityIsFoundByItsSceneIdAndTheIdByTheEntity()
     {
@@ -94,9 +97,6 @@ public class SceneInstanceTests
         SceneInstance.IsSceneId(id).Should().Be(valid);
     }
 
-    private static readonly Entity Chase = new(7, 1);
-    private static readonly Entity Far = new(8, 1);
-
     private static SceneInstance WithViews()
     {
         var scene = new SceneInstance();
@@ -127,7 +127,7 @@ public class SceneInstanceTests
     [Fact]
     public void ACameraWithNoSceneIdGoesToTheFirstView()
     {
-        WithViews().NextView(new Entity(99, 1)).Should().Be(Chase);
+        WithViews().NextView(new(99, 1)).Should().Be(Chase);
     }
 
     [Fact]

@@ -20,7 +20,8 @@ internal sealed unsafe class ShadowMap : IDisposable
     public const int MinimumSize = 256;
 
     private const FormatFeatureFlags RequiredFeatures =
-        FormatFeatureFlags.DepthStencilAttachmentBit | FormatFeatureFlags.SampledImageBit | FormatFeatureFlags.SampledImageFilterLinearBit;
+        FormatFeatureFlags.DepthStencilAttachmentBit | FormatFeatureFlags.SampledImageBit |
+        FormatFeatureFlags.SampledImageFilterLinearBit;
 
     private readonly VulkanDevice device;
     private readonly ImageView[] layerViews = new ImageView[ShadowCascades.Count];
@@ -29,10 +30,11 @@ internal sealed unsafe class ShadowMap : IDisposable
     {
         this.device = device;
         if (size < MinimumSize || size > device.Properties.Limits.MaxImageDimension2D)
-            throw new ArgumentOutOfRangeException(nameof(size), $"The shadow map size must be {MinimumSize} to {device.Properties.Limits.MaxImageDimension2D}.");
+            throw new ArgumentOutOfRangeException(nameof(size),
+                $"The shadow map size must be {MinimumSize} to {device.Properties.Limits.MaxImageDimension2D}.");
         Size = size;
         Format = ChooseFormat(device);
-        Image = GpuImage.Create(device, allocator, new Extent2D((uint)size, (uint)size), Format,
+        Image = GpuImage.Create(device, allocator, new((uint)size, (uint)size), Format,
             ImageUsageFlags.DepthStencilAttachmentBit | ImageUsageFlags.SampledBit | ImageUsageFlags.TransferSrcBit, 1,
             "sun shadow cascades", ShadowCascades.Count);
         try
@@ -55,7 +57,9 @@ internal sealed unsafe class ShadowMap : IDisposable
     /// precision to spare, 4 with D16, which would otherwise lose too much of it.
     /// </summary>
     public float DepthRangeScale => Format == Format.D32Sfloat ? 16f : 4f;
+
     public Format Format { get; }
+
     /// <summary>The array image. Its default view spans every cascade.</summary>
     public GpuImage Image { get; }
 
@@ -65,20 +69,16 @@ internal sealed unsafe class ShadowMap : IDisposable
     public static Format ChooseFormat(VulkanDevice device)
     {
         foreach (Format format in (ReadOnlySpan<Format>)[Format.D32Sfloat, Format.D16Unorm])
-        {
             if ((device.FormatProperties(format).OptimalTilingFeatures & RequiredFeatures) == RequiredFeatures)
                 return format;
-        }
         throw new NotSupportedException($"No depth format can be a filtered shadow map on {device.DeviceName}.");
     }
 
     public void Dispose()
     {
         foreach (ImageView view in layerViews)
-        {
             if (view.Handle != 0)
                 device.Vk.DestroyImageView(device.Device, view, null);
-        }
         Array.Clear(layerViews);
         Image.Dispose();
     }

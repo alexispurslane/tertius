@@ -18,7 +18,8 @@ public sealed class DrawnPersonTests : IDisposable
 
     public void Dispose() => world.Dispose();
 
-    private SceneInstance Build(string name) => DemoScenes.All.Single(s => s.Name == name).Build(world, RenderResources.None);
+    private SceneInstance Build(string name) =>
+        DemoScenes.All.Single(s => s.Name == name).Build(world, RenderResources.None);
 
     /// <summary>
     /// In each scene the person's row has no mesh and is not visible, and the body and its visor are visible and cast
@@ -44,10 +45,11 @@ public sealed class DrawnPersonTests : IDisposable
         DPose of = world.PoseIn(person, frame);
         DPose drawn = world.PoseIn(body, frame);
         Double3 bodyAt = of.Rotation.Conjugate().Rotate(drawn.Position - of.Position);
-        (bodyAt - (Double3)DemoSurface.BodyCenter).Length.Should().BeLessThan(1e-3);
+        (bodyAt - DemoSurface.BodyCenter).Length.Should().BeLessThan(1e-3);
         Double3 visorAt = drawn.Rotation.Conjugate().Rotate(world.PoseIn(visor, frame).Position - drawn.Position);
-        (visorAt - (Double3)DemoSurface.VisorCenter).Length.Should().BeLessThan(1e-3);
-        (DemoSurface.BodyCenter + DemoSurface.VisorCenter).Y.Should().BeApproximately(DemoSurface.Eye.Y, 0.01f, "the visor is at the eye's height");
+        (visorAt - DemoSurface.VisorCenter).Length.Should().BeLessThan(1e-3);
+        (DemoSurface.BodyCenter + DemoSurface.VisorCenter).Y.Should()
+            .BeApproximately(DemoSurface.Eye.Y, 0.01f, "the visor is at the eye's height");
         world.Errors.Should().BeEmpty();
     }
 
@@ -59,7 +61,8 @@ public sealed class DrawnPersonTests : IDisposable
     public void TheBodyIsWiderThanDeepAndTheVisorStandsOutOfItsFront()
     {
         DemoSurface.BodyHalf.X.Should().BeGreaterThan(1.5f * DemoSurface.BodyHalf.Z);
-        (DemoSurface.VisorCenter.Z + DemoSurface.VisorHalf.Z).Should().BeApproximately(-DemoSurface.BodyHalf.Z, 1e-6f, "the visor's back lies on the body's front");
+        (DemoSurface.VisorCenter.Z + DemoSurface.VisorHalf.Z).Should().BeApproximately(-DemoSurface.BodyHalf.Z, 1e-6f,
+            "the visor's back lies on the body's front");
     }
 
     /// <summary>
@@ -78,17 +81,17 @@ public sealed class DrawnPersonTests : IDisposable
             corners.Add(DemoSurface.BodyCenter + sign * DemoSurface.BodyHalf);
             corners.Add(DemoSurface.BodyCenter + DemoSurface.VisorCenter + sign * DemoSurface.VisorHalf);
         }
+
         for (int degrees = 0; degrees < 360; degrees += 5)
         {
             var turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, degrees * MathF.PI / 180);
             foreach (float lift in new[] { 0f, (float)Gait.StepRise })
+            foreach (Vector3 corner in corners)
             {
-                foreach (Vector3 corner in corners)
-                {
-                    Vector3 at = Vector3.Transform(corner, turn) + new Vector3(0, lift, 0);
-                    MathF.Sqrt(at.X * at.X + at.Z * at.Z).Should().BeLessThanOrEqualTo(half.X, $"at {degrees} degrees");
-                    at.Y.Should().BeInRange(-half.Y - 1e-6f, half.Y + 1e-6f, $"at {degrees} degrees and a lift of {lift} m");
-                }
+                Vector3 at = Vector3.Transform(corner, turn) + new Vector3(0, lift, 0);
+                MathF.Sqrt(at.X * at.X + at.Z * at.Z).Should().BeLessThanOrEqualTo(half.X, $"at {degrees} degrees");
+                at.Y.Should().BeInRange(-half.Y - 1e-6f, half.Y + 1e-6f,
+                    $"at {degrees} degrees and a lift of {lift} m");
             }
         }
     }

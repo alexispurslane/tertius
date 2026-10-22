@@ -62,16 +62,20 @@ public readonly record struct AscentGuidance(double Mu, double OrbitRadius, doub
         // The up, the track and the side, the normal across the up: three orthogonal directions, so that the three parts
         // share the thrust exactly. Beside the plane, the up leans from it by the distance over the radius.
         Double3 up = position / r, track = Double3.Cross(PlaneNormal, up).Normalized(), side = Double3.Cross(up, track);
-        double climb = Double3.Dot(velocity, up), across = Double3.Dot(position, PlaneNormal), acrossSpeed = Double3.Dot(velocity, PlaneNormal);
+        double climb = Double3.Dot(velocity, up),
+            across = Double3.Dot(position, PlaneNormal),
+            acrossSpeed = Double3.Dot(velocity, PlaneNormal);
         double alongTrack = Double3.Dot(velocity, track);
         double speedLeft = CircleSpeed - alongTrack;
         double timeToGo = Math.Max(speedLeft / MaxAcceleration, ShortestTimeToGo);
         double vertical = 6 * (OrbitRadius - r) / (timeToGo * timeToGo) - 4 * climb / timeToGo + Mu / (r * r)
-            - (alongTrack * alongTrack + acrossSpeed * acrossSpeed) / r;
+                          - (alongTrack * alongTrack + acrossSpeed * acrossSpeed) / r;
         vertical = Math.Clamp(vertical, -MaxAcceleration, MaxAcceleration);
         double acrossLeft = Math.Sqrt(MaxAcceleration * MaxAcceleration - vertical * vertical);
-        double acrossPlane = Math.Clamp(-6 * across / (timeToGo * timeToGo) - 4 * acrossSpeed / timeToGo, -acrossLeft, acrossLeft);
-        double horizontal = Math.Min(Math.Sqrt(Math.Max(0, acrossLeft * acrossLeft - acrossPlane * acrossPlane)), Math.Max(0, speedLeft / TrimTime));
+        double acrossPlane = Math.Clamp(-6 * across / (timeToGo * timeToGo) - 4 * acrossSpeed / timeToGo, -acrossLeft,
+            acrossLeft);
+        double horizontal = Math.Min(Math.Sqrt(Math.Max(0, acrossLeft * acrossLeft - acrossPlane * acrossPlane)),
+            Math.Max(0, speedLeft / TrimTime));
         return up * vertical + side * acrossPlane + track * horizontal;
     }
 

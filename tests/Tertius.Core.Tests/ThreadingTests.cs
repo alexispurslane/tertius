@@ -1,5 +1,3 @@
-using Tertius;
-
 namespace Tertius.Core.Tests;
 
 public class ThreadingTests
@@ -12,9 +10,9 @@ public class ThreadingTests
     [Fact]
     public async Task TripleBufferDeliversLatestAndNeverTears()
     {
-        var buffer = new TripleBuffer<Box>(() => new Box());
+        var buffer = new TripleBuffer<Box>(() => new());
         const long last = 200_000;
-        var writer = Task.Run(() =>
+        Task writer = Task.Run(() =>
         {
             for (long i = 1; i <= last; i++)
             {
@@ -25,13 +23,12 @@ public class ThreadingTests
 
         long seen = 0;
         while (seen < last)
-        {
             if (buffer.TryAcquireLatest(out Box box))
             {
                 Assert.True(box.Value > seen, $"went backward: {box.Value} after {seen}");
                 seen = box.Value;
             }
-        }
+
         await writer;
         Assert.Equal(last, seen);
     }
@@ -39,7 +36,7 @@ public class ThreadingTests
     [Fact]
     public void TripleBufferReportsNothingNew()
     {
-        var buffer = new TripleBuffer<Box>(() => new Box());
+        var buffer = new TripleBuffer<Box>(() => new());
         Assert.False(buffer.TryAcquireLatest(out _));
         buffer.WriteBuffer.Value = 7;
         buffer.Publish();

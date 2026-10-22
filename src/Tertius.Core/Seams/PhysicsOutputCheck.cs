@@ -31,7 +31,7 @@ public enum PhysicsOutputKind : byte
     FrameRecord,
     Contact,
     CharacterState,
-    ContactEnd,
+    ContactEnd
 }
 
 /// <summary>An output that only a bug in the backend produces: where it is, and what is wrong with it.</summary>
@@ -81,7 +81,8 @@ public readonly record struct PhysicsOutputFault(PhysicsOutputKind Kind, int Ind
 /// <para>
 /// An output that breaks a rule gets one <see cref="PhysicsOutputFault"/>, however many rules it breaks. The step skips
 /// the whole update of every entity that a broken output names (for a frame's step record, the frame's owner): its body state,
-/// its hand-off, the step record of the frame that it owns, its contacts and its character state. <see cref="IsSkipped"/> is
+/// its hand-off, the step record of the frame that it owns, its contacts and its character state. <see cref="IsSkipped"/>
+/// is
 /// true for those entities. A broken character state is the one exception: it changes nothing but whether its character
 /// stands, so the step skips only that state. <see cref="IsCharacterStateSkipped"/> is true for each broken character
 /// state, and for each character state of an entity whose whole update the step skips.
@@ -89,16 +90,22 @@ public readonly record struct PhysicsOutputFault(PhysicsOutputKind Kind, int Ind
 /// </remarks>
 public sealed class PhysicsOutputCheck
 {
-    private readonly List<PhysicsOutputFault> faults = new();
-    private readonly HashSet<Entity> skipped = new();
+    private readonly List<PhysicsOutputFault> faults = [];
+
+    private readonly HashSet<Entity> skipped = [];
+
     // Entities with a hand-off in this step, and the indices of the hand-offs that the first pass found broken.
-    private readonly HashSet<Entity> handedOff = new();
-    private readonly HashSet<int> brokenHandOffs = new();
+    private readonly HashSet<Entity> handedOff = [];
+
+    private readonly HashSet<int> brokenHandOffs = [];
+
     // Entities with a character state in this step, and the indices of the character states that the run skips.
-    private readonly HashSet<Entity> withCharacterState = new();
-    private readonly HashSet<int> skippedCharacterStates = new();
+    private readonly HashSet<Entity> withCharacterState = [];
+
+    private readonly HashSet<int> skippedCharacterStates = [];
+
     // The parent of each frame that an earlier hand-off of this step moves, as the hand-offs are applied in order.
-    private readonly Dictionary<FrameHandle, FrameHandle> parentsAfter = new();
+    private readonly Dictionary<FrameHandle, FrameHandle> parentsAfter = [];
 
     /// <summary>
     /// The broken outputs of the last run: body states first, then hand-offs, frames' step records, contacts, ended contacts, the
@@ -119,11 +126,13 @@ public sealed class PhysicsOutputCheck
     /// <summary>
     /// Checks every output of <paramref name="output"/> against <paramref name="frames"/> and <paramref name="facts"/>,
     /// as they are before any output lands, and the motion of each hull in the step against <paramref name="stepIntents"/>,
-    /// the intents that the step applied, by entity slot (see <see cref="FrameTree.HullMotionInStep(FrameHandle, ReadOnlySpan{PhysicsIntent})"/>). Sets
+    /// the intents that the step applied, by entity slot (see
+    /// <see cref="FrameTree.HullMotionInStep(FrameHandle, ReadOnlySpan{PhysicsIntent})"/>). Sets
     /// <see cref="Faults"/>, <see cref="IsSkipped"/> and <see cref="IsCharacterStateSkipped"/>. Changes nothing else.
     /// Allocates nothing for an output without faults, once warm.
     /// </summary>
-    public void Run<TFacts>(PhysicsStepOutput output, FrameTree frames, ReadOnlySpan<PhysicsIntent> stepIntents, TFacts facts)
+    public void Run<TFacts>(PhysicsStepOutput output, FrameTree frames, ReadOnlySpan<PhysicsIntent> stepIntents,
+        TFacts facts)
         where TFacts : IPhysicsOutputFacts
     {
         ArgumentNullException.ThrowIfNull(output);
@@ -141,38 +150,49 @@ public sealed class PhysicsOutputCheck
             BodyState state = output.Bodies[i];
             // The pose and velocities are relative to the reported frame, so they are useless in any other frame.
             if ((BodyFault(state.Entity, facts) ?? FrameFault(state.Frame, frames)) is { } fault)
-                Add(PhysicsOutputKind.BodyState, i, $"ignored the body state of {state.Entity}, because {fault}", state.Entity);
+                Add(PhysicsOutputKind.BodyState, i, $"ignored the body state of {state.Entity}, because {fault}",
+                    state.Entity);
         }
+
         for (int i = 0; i < output.HandOffs.Count; i++)
         {
             HandOff handOff = output.HandOffs[i];
             bool again = !handedOff.Add(handOff.Entity);
-            if ((BodyFault(handOff.Entity, facts) ?? FrameFault(handOff.To, frames) ?? MoveFault(handOff, frames, stepIntents, facts) ??
-                 (again ? $"{handOff.Entity} has another hand-off in this step" : null)) is { } fault)
+            if ((BodyFault(handOff.Entity, facts) ?? FrameFault(handOff.To, frames) ??
+                    MoveFault(handOff, frames, stepIntents, facts) ??
+                    (again ? $"{handOff.Entity} has another hand-off in this step" : null)) is { } fault)
             {
                 brokenHandOffs.Add(i);
-                Add(PhysicsOutputKind.HandOff, i, $"ignored the hand-off of {handOff.Entity}, because {fault}", handOff.Entity);
+                Add(PhysicsOutputKind.HandOff, i, $"ignored the hand-off of {handOff.Entity}, because {fault}",
+                    handOff.Entity);
             }
         }
+
         for (int i = 0; i < output.Frames.Count; i++)
         {
             FrameHandle frame = output.Frames[i].Frame;
             if (FrameRecordFault(frame, frames, facts) is { } fault)
                 Add(PhysicsOutputKind.FrameRecord, i, $"ignored the step record of {fault}", frame.Entity);
         }
+
         for (int i = 0; i < output.Contacts.Count; i++)
         {
             ContactStarted contact = output.Contacts[i];
             // The point and normal are relative to the contact's frame.
             if ((BodyFault(contact.A, facts) ?? BodyFault(contact.B, facts) ??
-                 (contact.A == contact.B ? $"{contact.A} cannot touch itself" : null) ?? FrameFault(contact.Frame, frames)) is { } fault)
-                Add(PhysicsOutputKind.Contact, i, $"ignored the contact of {contact.A} and {contact.B}, because {fault}", contact.A, contact.B);
+                    (contact.A == contact.B ? $"{contact.A} cannot touch itself" : null) ??
+                    FrameFault(contact.Frame, frames)) is { } fault)
+                Add(PhysicsOutputKind.Contact, i,
+                    $"ignored the contact of {contact.A} and {contact.B}, because {fault}", contact.A, contact.B);
         }
+
         for (int i = 0; i < output.ContactsEnded.Count; i++)
         {
             ContactEnded ended = output.ContactsEnded[i];
             if (ended.A == ended.B)
-                Add(PhysicsOutputKind.ContactEnd, i, $"ignored the end of the contact of {ended.A} and {ended.B}, because {ended.A} cannot touch itself", ended.A);
+                Add(PhysicsOutputKind.ContactEnd, i,
+                    $"ignored the end of the contact of {ended.A} and {ended.B}, because {ended.A} cannot touch itself",
+                    ended.A);
         }
 
         // Last, once every other skip is known, the hand-offs of frame owners in their order, each against the tree as
@@ -189,6 +209,7 @@ public sealed class PhysicsOutputCheck
                     handOff.Entity);
                 continue;
             }
+
             if (!skipped.Contains(handOff.Entity))
                 parentsAfter[own] = handOff.To;
         }
@@ -198,10 +219,12 @@ public sealed class PhysicsOutputCheck
         {
             Entity entity = output.Characters[i].Entity;
             bool again = !withCharacterState.Add(entity);
-            string? fault = BodyFault(entity, facts) ?? (facts.IsCharacter(entity) ? null : $"{entity} is not a character") ??
-                (again ? $"{entity} has another character state in this step" : null);
+            string? fault = BodyFault(entity, facts) ??
+                            (facts.IsCharacter(entity) ? null : $"{entity} is not a character") ??
+                            (again ? $"{entity} has another character state in this step" : null);
             if (fault != null)
-                faults.Add(new PhysicsOutputFault(PhysicsOutputKind.CharacterState, i, $"ignored the character state of {entity}, because {fault}"));
+                faults.Add(new(PhysicsOutputKind.CharacterState, i,
+                    $"ignored the character state of {entity}, because {fault}"));
             if (fault != null || skipped.Contains(entity))
                 skippedCharacterStates.Add(i);
         }
@@ -209,7 +232,7 @@ public sealed class PhysicsOutputCheck
 
     private void Add(PhysicsOutputKind kind, int index, string message, Entity entity, Entity other = default)
     {
-        faults.Add(new PhysicsOutputFault(kind, index, message));
+        faults.Add(new(kind, index, message));
         skipped.Add(entity);
         if (!other.IsNull)
             skipped.Add(other);
@@ -231,18 +254,22 @@ public sealed class PhysicsOutputCheck
     /// Why the hand-off of a live entity with a body, into a live frame, is not a move that physics makes, or null when
     /// it is.
     /// </summary>
-    private static string? MoveFault<TFacts>(in HandOff handOff, FrameTree frames, ReadOnlySpan<PhysicsIntent> stepIntents, TFacts facts)
+    private static string? MoveFault<TFacts>(in HandOff handOff, FrameTree frames,
+        ReadOnlySpan<PhysicsIntent> stepIntents, TFacts facts)
         where TFacts : IPhysicsOutputFacts
     {
         Entity entity = handOff.Entity;
         bool ownsFrame = frames.TryGetFrame(entity, out FrameHandle own);
         FrameHandle current = ownsFrame ? frames.TreeParent(own) : facts.FrameOf(entity);
-        return current.IsNull ? $"{entity} is in no frame, so it leaves none" :
-            ownsFrame && frames.HullMotionInStep(own, stepIntents) is var motion && motion != BodyMotion.Dynamic ?
-                $"the hull of {own}, the frame that {entity} owns, has the motion {motion?.ToString() ?? "none"} in the step, and only a dynamic hull hands off" :
-            handOff.From != current ? $"{entity} is in {current}, not in {handOff.From}" :
-            handOff.To == current ? $"it moves {entity} into {current}, which it is in already" :
-            null;
+        return current.IsNull
+            ? $"{entity} is in no frame, so it leaves none"
+            : ownsFrame && frames.HullMotionInStep(own, stepIntents) is var motion && motion != BodyMotion.Dynamic
+                ? $"the hull of {own}, the frame that {entity} owns, has the motion {motion?.ToString() ?? "none"} in the step, and only a dynamic hull hands off"
+                : handOff.From != current
+                    ? $"{entity} is in {current}, not in {handOff.From}"
+                    : handOff.To == current
+                        ? $"it moves {entity} into {current}, which it is in already"
+                        : null;
     }
 
     /// <summary>
@@ -251,7 +278,8 @@ public sealed class PhysicsOutputCheck
     /// kinematic one by its sample, and a static one by its owner's teleport. The fault starts with the frame, because a
     /// stale frame has no owner to blame.
     /// </summary>
-    private static string? FrameRecordFault<TFacts>(FrameHandle frame, FrameTree frames, TFacts facts) where TFacts : IPhysicsOutputFacts =>
+    private static string? FrameRecordFault<TFacts>(FrameHandle frame, FrameTree frames, TFacts facts)
+        where TFacts : IPhysicsOutputFacts =>
         !frames.IsAlive(frame) ? $"the stale frame {frame}" :
         frames.TreeParent(frame).IsNull ? $"{frame}, because it is a root frame, so its owner has no hull" :
         BodyFault(frame.Entity, facts) is { } fault ? $"{frame}, because {fault}" :

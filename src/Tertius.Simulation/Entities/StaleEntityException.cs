@@ -10,15 +10,14 @@ namespace Tertius.Simulation;
 /// <see cref="InvalidOperationException"/>, the type that the world threw for a stale handle before, so code that
 /// catches that type still works.
 /// </summary>
-public sealed class StaleEntityException : InvalidOperationException
+public sealed class StaleEntityException(Entity entity)
+    : InvalidOperationException($"{entity} is stale or null: the entity is not live.")
 {
-    public StaleEntityException(Entity entity)
-        : base($"{entity} is stale or null: the entity is not live.") => Entity = entity;
-
     /// <summary>The handle that was used.</summary>
-    public Entity Entity { get; }
+    public Entity Entity { get; } = entity;
 
     /// <summary>Throws for <paramref name="entity"/>. Out of line, so that the checks on the hot paths stay small.</summary>
-    [DoesNotReturn, StackTraceHidden]
+    [DoesNotReturn]
+    [StackTraceHidden]
     internal static void Throw(Entity entity) => throw new StaleEntityException(entity);
 }

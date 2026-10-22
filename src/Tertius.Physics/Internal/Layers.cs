@@ -56,7 +56,7 @@ internal static class Layers
             BodyLayer.Static => Encode(StaticRole | groups.Bits, anyOf | HullRole),
             BodyLayer.Moving => Encode(MovingRole | groups.Bits, anyOf),
             BodyLayer.Ghost => Encode(GhostRole | groups.Bits, anyOf),
-            _ => FrameHull,
+            _ => FrameHull
         };
     }
 
@@ -83,7 +83,7 @@ internal static class Layers
         Static,
         Moving,
         FrameHull,
-        Ghost,
+        Ghost
     }
 
     /// <summary>
@@ -109,12 +109,12 @@ internal static class Layers
             ObjectVsBroadPhase = NativeOwnership.Disowned(new ObjectVsBroadPhaseLayerFilterMask(BroadPhase));
         }
 
-        /// <summary>Makes <paramref name="layer"/> hold the bodies whose groups meet <paramref name="admits"/> and have no other role.</summary>
-        private void Admit(BroadPhaseLayers layer, uint admits) =>
-            BroadPhase.ConfigureLayer((byte)layer, admits, AllRoles & ~admits);
-
         public ObjectLayerPairFilterMask Pairs { get; }
         public BroadPhaseLayerInterfaceMask BroadPhase { get; }
         public ObjectVsBroadPhaseLayerFilterMask ObjectVsBroadPhase { get; }
+
+        /// <summary>Makes <paramref name="layer"/> hold the bodies whose groups meet <paramref name="admits"/> and have no other role.</summary>
+        private void Admit(BroadPhaseLayers layer, uint admits) =>
+            BroadPhase.ConfigureLayer((byte)layer, admits, AllRoles & ~admits);
     }
 }

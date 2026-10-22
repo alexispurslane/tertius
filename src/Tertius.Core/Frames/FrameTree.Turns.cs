@@ -16,10 +16,13 @@ public sealed partial class FrameTree
     // V1 and V2 of each semantic frame (see Turns). A numeric frame never turns, so its own slot keeps no turns, and it reads
     // its semantic frame's. The default FrameTurn holds zero quaternions, not the identity, so every slot starts at NoTurns.
     private FrameTurns[] turns = NewTurns(64);
+
     // V3 of each frame (see AngularAcceleration).
     private Double3[] angularAcceleration = new Double3[64];
+
     // The frames without a last turn (see BeginStep), by stable index.
     private bool[] withoutLastTurn = new bool[64];
+
     // The length in seconds of the step that BeginStep last prepared, whose turns the store holds: the step over which the
     // angular velocity of V2 grew into that of V1 (see WithRotationTerms). Zero before the first BeginStep, when no frame turns.
     private double turnsStep;
@@ -94,11 +97,13 @@ public sealed partial class FrameTree
                 BeginNumericFrame(dense, id, stepIntents, step);
                 continue;
             }
+
             int parent = parents[dense];
             while (parent >= 0 && numeric[ids[parent]] != NumericMode.None)
                 parent = parents[parent];
             BeginTurn(id, parent < 0 ? -1 : ids[parent], locals[dense].Rotation, stepIntents, step, lastStepFailed);
         }
+
         // Every frame that the list held took its new turn as its last turn in the pass.
         Array.Clear(withoutLastTurn);
         turnsStep = step;
@@ -115,7 +120,8 @@ public sealed partial class FrameTree
     /// the semantic parent and does not turn, so the level is relative to the semantic parent. When no level of the chain
     /// turns, the turn is exactly the identity, so a frame that does not turn is no turning frame, to the bit.
     /// <para>
-    /// The level's row is chosen by the hull's motion in the step (see <see cref="HullMotionInStep(FrameHandle, ReadOnlySpan{PhysicsIntent})"/>) and the case of the
+    /// The level's row is chosen by the hull's motion in the step (see
+    /// <see cref="HullMotionInStep(FrameHandle, ReadOnlySpan{PhysicsIntent})"/>) and the case of the
     /// owner's motion intent, as the follow kind is (see <see cref="FollowKindOf"/>), never by the stored motion of the last
     /// finished step:
     /// <list type="bullet">
@@ -134,7 +140,8 @@ public sealed partial class FrameTree
     /// last turn.
     /// </para>
     /// </summary>
-    private void BeginTurn(int id, int parent, DQuaternion treeRotation, ReadOnlySpan<PhysicsIntent> stepIntents, double step, bool lastStepFailed)
+    private void BeginTurn(int id, int parent, DQuaternion treeRotation, ReadOnlySpan<PhysicsIntent> stepIntents,
+        double step, bool lastStepFailed)
     {
         FrameTurn parentTurn = FrameTurn.None;
         // A frame below a frame that the pass listed has no last turn either: its axes jumped with its parent's.
@@ -144,12 +151,14 @@ public sealed partial class FrameTree
             parentTurn = turns[parent].Step;
             listed |= withoutLastTurn[parent];
         }
+
         uint slot = owner[id].Index;
         // A root frame has no hull (see HullMotion).
         BodyMotion? stored = parent < 0 ? null : hullMotion[id];
         FollowKind kind = FollowKindOf(HullMotionInStep(stored, slot, stepIntents), slot, stepIntents);
         DQuaternion start = treeRotation;
-        if (TeleportsAt(slot, stepIntents, stored.HasValue, kind, out DPose teleport) && teleport.Rotation != treeRotation)
+        if (TeleportsAt(slot, stepIntents, stored.HasValue, kind, out DPose teleport) &&
+            teleport.Rotation != treeRotation)
         {
             start = teleport.Rotation.Normalized();
             listed = true;
@@ -162,20 +171,22 @@ public sealed partial class FrameTree
             case FollowKind.Rails or FollowKind.Kinematic:
                 // The record's rotation and angular velocity depend only on the rotation where the step starts, which is
                 // all that the pose of the start gives here.
-                stepIntents[(int)slot].Move.TryRecordFrom(new DPose(Double3.Zero, start), step, out MotionSample record);
+                stepIntents[(int)slot].Move.TryRecordFrom(new(Double3.Zero, start), step, out MotionSample record);
                 end = record.Pose.Rotation;
                 level = record.AngularVelocity;
                 break;
             case FollowKind.Physics:
                 // A zero rate gives exactly the identity rotation, so a hull that does not turn ends where it starts, to the bit.
-                level = (Double3)angularVelocity[id] + angularAcceleration[id] * step;
+                level = angularVelocity[id] + angularAcceleration[id] * step;
                 end = DQuaternion.FromAxisAngle(level, level.Length * step) * start;
                 break;
         }
 
-        DQuaternion turn = parentTurn.IsIdentity && start == end ? DQuaternion.Identity : end.Conjugate() * parentTurn.Turn * start;
+        DQuaternion turn = parentTurn.IsIdentity && start == end
+            ? DQuaternion.Identity
+            : end.Conjugate() * parentTurn.Turn * start;
         var stepTurn = new FrameTurn(turn, end.Conjugate().Rotate(parentTurn.AngularVelocity + level));
-        turns[id] = new FrameTurns(stepTurn, listed ? stepTurn : turns[id].Step);
+        turns[id] = new(stepTurn, listed ? stepTurn : turns[id].Step);
         withoutLastTurn[id] = listed;
     }
 
@@ -188,7 +199,8 @@ public sealed partial class FrameTree
     /// <see cref="PhysicsIntent.StepRecord"/>). A frame without a hull and without such a motion intent holds still where it
     /// stands. False when the frame takes no teleport.
     /// </summary>
-    private static bool TeleportsAt(uint slot, ReadOnlySpan<PhysicsIntent> stepIntents, bool hull, FollowKind kind, out DPose pose)
+    private static bool TeleportsAt(uint slot, ReadOnlySpan<PhysicsIntent> stepIntents, bool hull, FollowKind kind,
+        out DPose pose)
     {
         if (slot < (uint)stepIntents.Length && (stepIntents[(int)slot].Flags & IntentFlags.Teleport) != 0 &&
             (hull || kind is FollowKind.Rails or FollowKind.Kinematic))
@@ -196,6 +208,7 @@ public sealed partial class FrameTree
             pose = stepIntents[(int)slot].TeleportPose;
             return true;
         }
+
         pose = default;
         return false;
     }
@@ -235,6 +248,7 @@ public sealed partial class FrameTree
             omega = level.AngularToParent(omega);
             x = TreeParent(x);
         }
+
         if (x == to)
             return alpha;
         var path = new Stack<FrameHandle>();
@@ -246,6 +260,7 @@ public sealed partial class FrameTree
             alpha = level.AngularAccelerationFromParent(alpha, omega);
             omega = level.AngularFromParent(omega);
         }
+
         return alpha;
     }
 
@@ -253,10 +268,11 @@ public sealed partial class FrameTree
     private FrameMotion AngularLevel(FrameHandle frame)
     {
         int id = Node(frame).Id;
-        return new FrameMotion(TreeLocalPose(frame), Double3.Zero, angularVelocity[id], Double3.Zero, angularAcceleration[id]);
+        return new(TreeLocalPose(frame), Double3.Zero, angularVelocity[id], Double3.Zero, angularAcceleration[id]);
     }
 
-    /// <summary>Grows the stores of the turns to <paramref name="size"/> slots, each new slot with no turn (see <see cref="Grow"/>).</summary>
+    /// <summary>Grows the stores of the turns to <paramref name="size"/> slots, each new slot with no turn (see
+    /// <see cref="Grow"/>).</summary>
     private void GrowTurns(int size)
     {
         int old = turns.Length;

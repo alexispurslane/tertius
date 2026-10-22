@@ -13,7 +13,10 @@ internal sealed class QueryShapeCache : IDisposable
 {
     public const int Capacity = 64;
 
-    private readonly Dictionary<QueryShape, Shape> shapes = new(Capacity);
+    private readonly Dictionary<QueryShape, Shape> shapes = [with(Capacity)];
+
+    /// <summary>How many native shapes the cache holds.</summary>
+    public int Count => shapes.Count;
 
     /// <summary>The native shape of <paramref name="shape"/>, which <see cref="QueryShape.Problem"/> accepts, built on first use.</summary>
     public Shape Get(in QueryShape shape)
@@ -26,11 +29,9 @@ internal sealed class QueryShapeCache : IDisposable
             native = Create(shape);
             shapes.Add(shape, native);
         }
+
         return native;
     }
-
-    /// <summary>How many native shapes the cache holds.</summary>
-    public int Count => shapes.Count;
 
     public void Dispose()
     {
@@ -43,10 +44,12 @@ internal sealed class QueryShapeCache : IDisposable
     {
         // A query box has sharp edges: no convex radius rounds them.
         QueryBox(var halfExtents) => NativeOwnership.Owned(new BoxShape(halfExtents, 0)),
-        QueryCapsule(var halfHeight, var radius) when halfHeight > 0 => NativeOwnership.Owned(new CapsuleShape(halfHeight, radius)),
+        QueryCapsule(var halfHeight, var radius) when halfHeight > 0 => NativeOwnership.Owned(
+            new CapsuleShape(halfHeight, radius)),
         // Jolt does not accept a capsule without a cylinder part. That capsule is a sphere.
         QueryCapsule(_, var radius) => NativeOwnership.Owned(new SphereShape(radius)),
         QuerySphere(var radius) => NativeOwnership.Owned(new SphereShape(radius)),
-        null => throw new ArgumentException("The default shape holds no sphere, box or capsule, so it has no native shape.", nameof(shape)),
+        null => throw new ArgumentException(
+            "The default shape holds no sphere, box or capsule, so it has no native shape.", nameof(shape))
     };
 }

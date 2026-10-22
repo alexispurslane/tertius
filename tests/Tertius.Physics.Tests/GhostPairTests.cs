@@ -14,21 +14,30 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public class GhostPairTests
 {
-    private static FrameHandle Space(World world) => world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
-
-    /// <summary>A frame without a body in <paramref name="parent"/> at <paramref name="pose"/>, with no gravity and a bubble of <paramref name="radius"/> m.</summary>
-    private static FrameHandle Bubble(World world, FrameHandle parent, DPose pose, float radius) =>
-        world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = parent, Pose = pose, AsFrame = new FrameSpec(FrameBounds.Sphere(radius)) }));
-
     /// <summary>A dynamic sensor ball of radius 0.5 m and 1 kg that nothing slows down.</summary>
     private static readonly BodyDesc SensorBall = Ball() with { IsSensor = true };
+
+    private static FrameHandle Space(World world) => world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
+
+    /// <summary>A frame without a body in <paramref name="parent"/> at <paramref name="pose"/>, with no gravity and a bubble of
+    /// <paramref name="radius"/> m.</summary>
+    private static FrameHandle Bubble(World world, FrameHandle parent, DPose pose, float radius) =>
+        world.GetOwnedFrame(
+            world.Spawn(new() { Frame = parent, Pose = pose, AsFrame = new(FrameBounds.Sphere(radius)) }));
 
     /// <summary>
     /// The scene of <see cref="SensorAndBody"/>. <paramref name="First"/> and <paramref name="Second"/> are the homes of the
     /// sensor and the body, which are <paramref name="Parent"/> in the run in one frame.
     /// </summary>
-    private sealed record PairScene(FrameHandle Parent, FrameHandle First, FrameHandle Second, Entity Sensor, Entity Body,
-        CollisionLog SensorLog, CollisionLog BodyLog, Pilot SensorPilot);
+    private sealed record PairScene(
+        FrameHandle Parent,
+        FrameHandle First,
+        FrameHandle Second,
+        Entity Sensor,
+        Entity Body,
+        CollisionLog SensorLog,
+        CollisionLog BodyLog,
+        Pilot SensorPilot);
 
     /// <summary>
     /// Case 2 of the design. In <paramref name="parent"/>, with no gravity, two sibling bubbles of radius 3 m lie 1.4 m apart
@@ -49,9 +58,11 @@ public class GhostPairTests
         var sensorLog = new CollisionLog();
         var bodyLog = new CollisionLog();
         var pilot = new Pilot();
-        Entity sensor = world.Spawn(new SpawnDesc { Frame = first, Pose = At(-0.4 - firstX), Body = SensorBall, Components = [sensorLog, pilot] });
-        Entity other = world.Spawn(new SpawnDesc { Frame = second, Pose = At(0.4 - secondX), Body = body, Components = [bodyLog] });
-        return new PairScene(parent, first, second, sensor, other, sensorLog, bodyLog, pilot);
+        Entity sensor = world.Spawn(new()
+            { Frame = first, Pose = At(-0.4 - firstX), Body = SensorBall, Components = [sensorLog, pilot] });
+        Entity other = world.Spawn(new()
+            { Frame = second, Pose = At(0.4 - secondX), Body = body, Components = [bodyLog] });
+        return new(parent, first, second, sensor, other, sensorLog, bodyLog, pilot);
     }
 
     /// <summary>Checks that only the parent's system holds a body of each entity of the scene across frames: their two ghosts.</summary>
@@ -59,8 +70,10 @@ public class GhostPairTests
     {
         faults.Jolt.HasGhostIn(scene.Sensor, scene.Parent).Should().BeTrue("the sensor sticks out of its bubble");
         faults.Jolt.HasGhostIn(scene.Body, scene.Parent).Should().BeTrue("the body sticks out of its bubble");
-        faults.Jolt.HasGhostIn(scene.Sensor, scene.Second).Should().BeFalse("a dynamic sensor reaches only the bubble of another frame");
-        faults.Jolt.HasGhostIn(scene.Body, scene.First).Should().BeFalse("a dynamic body reaches only the bubble of another frame");
+        faults.Jolt.HasGhostIn(scene.Sensor, scene.Second).Should()
+            .BeFalse("a dynamic sensor reaches only the bubble of another frame");
+        faults.Jolt.HasGhostIn(scene.Body, scene.First).Should()
+            .BeFalse("a dynamic body reaches only the bubble of another frame");
     }
 
     // ---- A sensor and a body that touch only through two ghosts ----
@@ -74,7 +87,9 @@ public class GhostPairTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void ASensorAndABodyThatStickOutOfSiblingFramesAndOverlapOnlyOutsideBothBubblesHearOneCollisionAndOneEndWhenTheyPart(bool acrossFrames)
+    public void
+        ASensorAndABodyThatStickOutOfSiblingFramesAndOverlapOnlyOutsideBothBubblesHearOneCollisionAndOneEndWhenTheyPart(
+            bool acrossFrames)
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         PairScene scene = SensorAndBody(world, Space(world), acrossFrames, Ball());
@@ -85,7 +100,7 @@ public class GhostPairTests
         scene.BodyLog.NewsOf(scene.Sensor).Should().Equal(Started);
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
 
-        scene.SensorPilot.Once = body => body.SetVelocity(new Double3(-0.5, 0, 0));
+        scene.SensorPilot.Once = body => body.SetVelocity(new(-0.5, 0, 0));
         Tick(world, 90);
 
         world.GetFrame(scene.Sensor).Should().Be(scene.First);
@@ -102,22 +117,22 @@ public class GhostPairTests
     [Fact]
     public void TwoSensorsThatOverlapOnlyThroughTheirGhostsReportWhatTwoRealSensorsReportInOneFrame()
     {
-        (List<ContactNews> First, List<ContactNews> Second) Run(bool acrossFrames)
+        static (List<ContactNews> First, List<ContactNews> Second) Run(bool acrossFrames)
         {
             using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
             PairScene scene = SensorAndBody(world, Space(world), acrossFrames, SensorBall);
             Tick(world, 10);
             if (acrossFrames)
                 OnlyTheParentHoldsBoth(faults, scene);
-            scene.SensorPilot.Once = body => body.SetVelocity(new Double3(-0.5, 0, 0));
+            scene.SensorPilot.Once = body => body.SetVelocity(new(-0.5, 0, 0));
             Tick(world, 90);
             faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
             world.Errors.Should().BeEmpty();
             return (scene.SensorLog.NewsOf(scene.Body), scene.BodyLog.NewsOf(scene.Sensor));
         }
 
-        var inOneFrame = Run(acrossFrames: false);
-        var acrossFrames = Run(acrossFrames: true);
+        (List<ContactNews> First, List<ContactNews> Second) inOneFrame = Run(acrossFrames: false);
+        (List<ContactNews> First, List<ContactNews> Second) acrossFrames = Run(acrossFrames: true);
 
         acrossFrames.First.Should().Equal(inOneFrame.First);
         acrossFrames.Second.Should().Equal(inOneFrame.Second);
@@ -130,10 +145,12 @@ public class GhostPairTests
     {
         /// <summary>In space, which also holds the box: the run in one frame.</summary>
         Space,
+
         /// <summary>In the ship's frame.</summary>
         Ship,
+
         /// <summary>In a room inside the ship, out of whose bubble it sticks into the ship's frame.</summary>
-        Room,
+        Room
     }
 
     /// <summary>
@@ -148,16 +165,18 @@ public class GhostPairTests
     /// bodies. The two overlap while the ship is less than 1 m from the box along X. In space, the ball flies the same way
     /// past the box. Returns what the ball and the box heard of each other.
     /// </summary>
-    private static (List<ContactNews> BallHeard, List<ContactNews> BoxHeard) BallPassingAStaticBox(SensorPlace place, BodyDesc ballBody,
+    private static (List<ContactNews> BallHeard, List<ContactNews> BoxHeard) BallPassingAStaticBox(SensorPlace place,
+        BodyDesc ballBody,
         bool boxIsSensor = false)
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
         var boxLog = new CollisionLog();
-        Entity box = world.Spawn(new SpawnDesc
+        Entity box = world.Spawn(new()
         {
-            Frame = space, Pose = At(0, 11.3), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Static) { IsSensor = boxIsSensor },
-            Components = [boxLog],
+            Frame = space, Pose = At(0, 11.3),
+            Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static) { IsSensor = boxIsSensor },
+            Components = [boxLog]
         });
         FrameHandle ship = FrameHandle.Null, room = FrameHandle.Null;
         var ballLog = new CollisionLog();
@@ -166,25 +185,28 @@ public class GhostPairTests
         {
             var flyer = new SpawnDesc
             {
-                Frame = space, Pose = At(-8, 11.3), LinearVelocity = new Vector3(4, 0, 0), Body = ballBody, Components = [ballLog],
+                Frame = space, Pose = At(-8, 11.3), LinearVelocity = new Vector3(4, 0, 0), Body = ballBody,
+                Components = [ballLog]
             };
             // A kinematic body moves only by its motion intents, so it drifts by end poses.
-            ball = world.Spawn(ballBody.Motion == BodyMotion.Kinematic ? KinematicDrift.Drifting(flyer, world, flyer.LinearVelocity) : flyer);
+            ball = world.Spawn(ballBody.Motion == BodyMotion.Kinematic
+                ? KinematicDrift.Drifting(flyer, world, flyer.LinearVelocity)
+                : flyer);
         }
         else
         {
-            ship = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+            ship = world.GetOwnedFrame(world.Spawn(new()
             {
                 Frame = space,
                 Pose = At(-8),
                 LinearVelocity = new Vector3(4, 0, 0),
-                Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.25f)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
+                Body = new(new BoxShapeDesc(new(0.25f)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+                AsFrame = new(FrameBounds.Sphere(20))
             }));
             if (place == SensorPlace.Room)
                 room = Bubble(world, ship, At(0, 8), 3);
             ball = world.Spawn(place == SensorPlace.Room
-                ? new SpawnDesc { Frame = room, Pose = At(0, 3.3), Body = ballBody, Components = [ballLog] }
+                ? new() { Frame = room, Pose = At(0, 3.3), Body = ballBody, Components = [ballLog] }
                 : new SpawnDesc { Frame = ship, Pose = At(0, 11.3), Body = ballBody, Components = [ballLog] });
         }
 
@@ -206,6 +228,7 @@ public class GhostPairTests
             ghostOfTheBall.Should().Be(place == SensorPlace.Room);
             world.GetFrame(ball).Should().Be(place == SensorPlace.Room ? room : ship);
         }
+
         world.PoseIn(ball, space).Position.X.Should().BeInRange(3.5, 4.5, "the ball flew 12 m in 3 s");
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
         world.Errors.Should().BeEmpty();
@@ -220,9 +243,10 @@ public class GhostPairTests
     [Theory]
     [InlineData(SensorPlace.Room)]
     [InlineData(SensorPlace.Space)]
-    public void ADynamicSensorThatSticksOutOfARoomInsideAShipDetectsTheMovingGhostOfAStaticBodyOfTheShipsParent(SensorPlace place)
+    public void ADynamicSensorThatSticksOutOfARoomInsideAShipDetectsTheMovingGhostOfAStaticBodyOfTheShipsParent(
+        SensorPlace place)
     {
-        var heard = BallPassingAStaticBox(place, SensorBall);
+        (List<ContactNews> BallHeard, List<ContactNews> BoxHeard) heard = BallPassingAStaticBox(place, SensorBall);
 
         heard.BallHeard.Should().Equal(Started, Ended);
         heard.BoxHeard.Should().Equal(Started, Ended);
@@ -240,7 +264,8 @@ public class GhostPairTests
     [InlineData(SensorPlace.Space)]
     public void AKinematicSensorInAShipDoesNotDetectTheMovingGhostOfAStaticBodyOfTheShipsParent(SensorPlace place)
     {
-        var heard = BallPassingAStaticBox(place, SensorBall with { Motion = BodyMotion.Kinematic });
+        (List<ContactNews> BallHeard, List<ContactNews> BoxHeard) heard =
+            BallPassingAStaticBox(place, SensorBall with { Motion = BodyMotion.Kinematic });
 
         heard.BallHeard.Should().BeEmpty();
         heard.BoxHeard.Should().BeEmpty();
@@ -258,7 +283,8 @@ public class GhostPairTests
     [InlineData(SensorPlace.Space)]
     public void AStaticSensorDetectsAKinematicBodyInAPassingShipThroughItsMovingGhost(SensorPlace place)
     {
-        var heard = BallPassingAStaticBox(place, Ball() with { Motion = BodyMotion.Kinematic }, boxIsSensor: true);
+        (List<ContactNews> BallHeard, List<ContactNews> BoxHeard) heard =
+            BallPassingAStaticBox(place, Ball() with { Motion = BodyMotion.Kinematic }, boxIsSensor: true);
 
         heard.BallHeard.Should().Equal(Started, Ended);
         heard.BoxHeard.Should().Equal(Started, Ended);
@@ -297,6 +323,7 @@ public class GhostPairTests
             faults.Jolt.HasGhostIn(scene.Sensor, space).Should().BeTrue();
             faults.Jolt.HasGhostIn(scene.Body, space).Should().BeTrue();
         }
+
         world.GetFrame(scene.Sensor).Should().Be(acrossFrames ? scene.First : space);
         scene.SensorLog.NewsOf(scene.Body).Should().Equal(Started);
         scene.BodyLog.NewsOf(scene.Sensor).Should().Equal(Started);
@@ -325,39 +352,43 @@ public class GhostPairTests
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
         var velocity = new Vector3(0, 0, 60);
-        Thruster Thrusting(float mass) => new(mass) { Direction = Vector3.UnitZ };
+        static Thruster Thrusting(float mass) => new(mass) { Direction = Vector3.UnitZ };
         FrameHandle first = space, second = space;
         if (acrossFrames)
         {
-            var hull = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 1000, LinearDamping: 0, AngularDamping: 0);
-            first = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+            var hull = new BodyDesc(new BoxShapeDesc(new(0.5f)), Mass: 1000, LinearDamping: 0, AngularDamping: 0);
+            first = world.GetOwnedFrame(world.Spawn(new()
             {
-                Frame = space, Pose = At(-3.7), LinearVelocity = velocity, Body = hull, AsFrame = new FrameSpec(FrameBounds.Sphere(3)),
-                Components = [Thrusting(1000)],
+                Frame = space, Pose = At(-3.7), LinearVelocity = velocity, Body = hull,
+                AsFrame = new(FrameBounds.Sphere(3)),
+                Components = [Thrusting(1000)]
             }));
-            second = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+            second = world.GetOwnedFrame(world.Spawn(new()
             {
-                Frame = space, Pose = At(3.7), LinearVelocity = velocity, Body = hull, AsFrame = new FrameSpec(FrameBounds.Sphere(3)),
-                Components = [Thrusting(1000)],
+                Frame = space, Pose = At(3.7), LinearVelocity = velocity, Body = hull,
+                AsFrame = new(FrameBounds.Sphere(3)),
+                Components = [Thrusting(1000)]
             }));
         }
+
         double firstX = acrossFrames ? -3.7 : 0, secondX = acrossFrames ? 3.7 : 0;
         Vector3 bodyVelocity = acrossFrames ? Vector3.Zero : velocity;
         var sensorLog = new CollisionLog();
         var ballLog = new CollisionLog();
-        Entity sensor = world.Spawn(new SpawnDesc
+        Entity sensor = world.Spawn(new()
         {
             Frame = first, Pose = At(-0.4 - firstX), LinearVelocity = bodyVelocity, Body = SensorBall,
-            Components = acrossFrames ? [sensorLog] : [sensorLog, Thrusting(1)],
+            Components = acrossFrames ? [sensorLog] : [sensorLog, Thrusting(1)]
         });
-        Entity ball = world.Spawn(new SpawnDesc
+        Entity ball = world.Spawn(new()
         {
             Frame = second, Pose = At(0.4 - secondX), LinearVelocity = bodyVelocity, Body = Ball(),
-            Components = acrossFrames ? [ballLog] : [ballLog, Thrusting(1)],
+            Components = acrossFrames ? [ballLog] : [ballLog, Thrusting(1)]
         });
         Entity firstMover = acrossFrames ? first.Entity : sensor, secondMover = acrossFrames ? second.Entity : ball;
 
-        int ticks = TickUntil(world, () => world.Frames.Numeric(world.PhysicsHomeOf(firstMover)) == NumericMode.Falling, 60);
+        int ticks = TickUntil(world, () => world.Frames.Numeric(world.PhysicsHomeOf(firstMover)) == NumericMode.Falling,
+            60);
 
         ticks.Should().BeInRange(30, 40, "the bodies count as bodies that thrust after 0.5 s");
         sensorLog.NewsOf(ball).Should().Equal([Started], "the contact started before the move");
@@ -369,6 +400,7 @@ public class GhostPairTests
             faults.Jolt.HasGhostIn(ball, falling).Should().BeTrue("the move took the ball's ghost along");
             faults.Jolt.HasGhostIn(sensor, space).Should().BeFalse();
         }
+
         Tick(world, 10);
 
         if (acrossFrames)
@@ -376,6 +408,7 @@ public class GhostPairTests
             world.GetFrame(sensor).Should().Be(first);
             world.GetFrame(ball).Should().Be(second);
         }
+
         sensorLog.NewsOf(ball).Should().Equal(Started);
         ballLog.NewsOf(sensor).Should().Equal(Started);
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();

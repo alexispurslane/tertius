@@ -1,4 +1,3 @@
-using System.Numerics;
 using System.Runtime.CompilerServices;
 using BenchmarkDotNet.Attributes;
 using Tertius.Frames.Rails;
@@ -28,8 +27,7 @@ public class PuffTableBenchmarks
     private const double EarthMu = 3.986004418e14;
     private const int NewbornsPerStep = 64;
 
-    [Params(100, 1024, 4096)]
-    public int Puffs;
+    [Params(100, 1024, 4096)] public int Puffs;
 
     [Params("earth", "earth-surface", "station")]
     public string Frame = "earth";
@@ -49,46 +47,52 @@ public class PuffTableBenchmarks
     [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "newborns")]
     private static extern ref Puff[] NewbornsOf(PuffTable table);
 
-    private static PuffLook Look(float life) => new(life, 0.2f, 1, 3, PuffShading.Glow(new Vector3(4, 3, 2)));
+    private static PuffLook Look(float life) => new(life, 0.2f, 1, 3, PuffShading.Glow(new(4, 3, 2)));
 
     /// <summary>The world, its frame of the puffs and the place of the emitter in it.</summary>
     private (FrameHandle Frame, Double3 Place) Scene(int capacity)
     {
-        world = new World(new WorldOptions { MaxDegreeOfParallelism = 1, PuffCapacity = capacity });
+        world = new(new() { MaxDegreeOfParallelism = 1, PuffCapacity = capacity });
         switch (Frame)
         {
             case "earth":
-                return (world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu))), new Double3(6.8e6, 0, 0));
+                return (world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu))),
+                    new(6.8e6, 0, 0));
             case "earth-surface":
             {
-                FrameHandle earth = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
+                FrameHandle earth = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
                 var spin = new FrameSpin(DQuaternion.Identity, 7.2921e-5);
-                return (Spinning(earth, spin, new FrameSpec(FrameBounds.Sphere(5e7f), GravityField.Point(EarthMu), MediumField.Planet(6.371e6, 1.225f, 8500, 2))),
-                    new Double3(6.371e6 + 100, 0, 0));
+                return (
+                    Spinning(earth, spin,
+                        new(FrameBounds.Sphere(5e7f), GravityField.Point(EarthMu),
+                            MediumField.Planet(6.371e6, 1.225f, 8500, 2))),
+                    new(6.371e6 + 100, 0, 0));
             }
             default:
             {
-                FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
-                return (Spinning(space, new FrameSpin(DQuaternion.Identity, 0.31321), new FrameSpec(FrameBounds.Sphere(150))), new Double3(8, 0, 0));
+                FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
+                return (Spinning(space, new(DQuaternion.Identity, 0.31321), new(FrameBounds.Sphere(150))),
+                    new(8, 0, 0));
             }
         }
     }
 
     /// <summary>A frame that turns in place at the origin of <paramref name="parent"/> by its rails, from its first step on.</summary>
-    private FrameHandle Spinning(FrameHandle parent, FrameSpin spin, FrameSpec spec) => world.GetOwnedFrame(world.Spawn(new SpawnDesc
-    {
-        Frame = parent,
-        Pose = new DPose(Double3.Zero, spin.RotationAt(world.Time)),
-        AsFrame = spec,
-        FirstMove = new MotionIntent(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
-        Components = [new SpinMotion { Spin = spin }],
-    }));
+    private FrameHandle Spinning(FrameHandle parent, FrameSpin spin, FrameSpec spec) => world.GetOwnedFrame(world.Spawn(
+        new()
+        {
+            Frame = parent,
+            Pose = new(Double3.Zero, spin.RotationAt(world.Time)),
+            AsFrame = spec,
+            FirstMove = new(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
+            Components = [new SpinMotion { Spin = spin }]
+        }));
 
-    private void SpawnEmitter(FrameHandle frame, Double3 place, float rate, float life) => world.Spawn(new SpawnDesc
+    private void SpawnEmitter(FrameHandle frame, Double3 place, float rate, float life) => world.Spawn(new()
     {
         Frame = frame,
-        Pose = new DPose(place, DQuaternion.Identity),
-        Render = new RenderData { Emitter = new PuffEmitter(rate, 10, 1, Look(life)) },
+        Pose = new(place, DQuaternion.Identity),
+        Render = new RenderData { Emitter = new(rate, 10, 1, Look(life)) }
     });
 
     [GlobalSetup(Target = nameof(Step))]
@@ -122,8 +126,10 @@ public class PuffTableBenchmarks
     [GlobalCleanup]
     public void Cleanup()
     {
-        long bytes = (RowsOf(table).LongLength + SpareOf(table).LongLength + NewbornsOf(table).LongLength) * Unsafe.SizeOf<Puff>();
-        Console.WriteLine($"// {Frame}, {Puffs}: {table.Count} live puffs in {table.View.Ranges.Length} range(s), {table.Looks.InUse} look(s); rows, spare and newborns {bytes} bytes");
+        long bytes = (RowsOf(table).LongLength + SpareOf(table).LongLength + NewbornsOf(table).LongLength) *
+                     Unsafe.SizeOf<Puff>();
+        Console.WriteLine(
+            $"// {Frame}, {Puffs}: {table.Count} live puffs in {table.View.Ranges.Length} range(s), {table.Looks.InUse} look(s); rows, spare and newborns {bytes} bytes");
         world.Dispose();
     }
 

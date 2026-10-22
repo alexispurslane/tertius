@@ -11,7 +11,10 @@ namespace Tertius.Host.Tests;
 public sealed class DockingMachineTests
 {
     private static readonly DockingEvent[] Every =
-        [new Dock(), new AtRollWindow(12.5), new SpunUp(), new EntryEnded(), new Landed(), new Lost("its hull has no mass")];
+    [
+        new Dock(), new AtRollWindow(12.5), new SpunUp(), new EntryEnded(), new Landed(),
+        new Lost("its hull has no mass")
+    ];
 
     private static readonly DockingState[] Flying = [new Waiting(), new SpinUp(4), new Entry(), new MoveOut()];
 
@@ -21,7 +24,8 @@ public sealed class DockingMachineTests
 
     [Fact]
     public void TheRollWindowStartsTheSpinUpAtTheTimeOfTheReport() =>
-        DockingAutopilot.Next(new Waiting(), new AtRollWindow(4874.5)).Should().Be(new DockingState(new SpinUp(4874.5)));
+        DockingAutopilot.Next(new Waiting(), new AtRollWindow(4874.5)).Should()
+            .Be(new DockingState(new SpinUp(4874.5)));
 
     [Fact]
     public void TheEndOfTheSpinUpStartsTheEntry() =>
@@ -40,13 +44,15 @@ public sealed class DockingMachineTests
     public void ALossHaltsEveryCaseThatFlies()
     {
         foreach (DockingState state in Flying)
-            DockingAutopilot.Next(state, new Lost("its station is gone or owns no frame")).Should().Be(new DockingState(new Halted()), $"a loss halts {state}");
+            DockingAutopilot.Next(state, new Lost("its station is gone or owns no frame")).Should()
+                .Be(new DockingState(new Halted()), $"a loss halts {state}");
     }
 
     /// <summary>A loss in standby changes nothing: the autopilot looks at its station only once it is ordered to dock.</summary>
     [Fact]
     public void ALossInStandbyChangesNothing() =>
-        DockingAutopilot.Next(new Standby(), new Lost("its hull has no mass")).Should().Be(new DockingState(new Standby()));
+        DockingAutopilot.Next(new Standby(), new Lost("its hull has no mass")).Should()
+            .Be(new DockingState(new Standby()));
 
     /// <summary>A second order changes nothing in any case after standby, so the script cannot restart a docking.</summary>
     [Fact]
@@ -61,8 +67,8 @@ public sealed class DockingMachineTests
     public void DockedAndHaltedAreFinal()
     {
         foreach (DockingState state in new DockingState[] { new Docked(), new Halted() })
-            foreach (DockingEvent report in Every)
-                DockingAutopilot.Next(state, report).Should().Be(state, $"{report} leaves {state} as it is");
+        foreach (DockingEvent report in Every)
+            DockingAutopilot.Next(state, report).Should().Be(state, $"{report} leaves {state} as it is");
     }
 
     /// <summary>
@@ -73,10 +79,13 @@ public sealed class DockingMachineTests
     public void AReportChangesOnlyTheCaseThatMakesIt()
     {
         (DockingState State, DockingEvent Report)[] own =
-            [(new Waiting(), new AtRollWindow(12.5)), (new SpinUp(4), new SpunUp()), (new Entry(), new EntryEnded()), (new MoveOut(), new Landed())];
+        [
+            (new Waiting(), new AtRollWindow(12.5)), (new SpinUp(4), new SpunUp()), (new Entry(), new EntryEnded()),
+            (new MoveOut(), new Landed())
+        ];
         foreach (DockingState state in Flying.Prepend(new Standby()))
-            foreach (DockingEvent report in Every.Where(report => report.Value is not (Dock or Lost)))
-                if (!own.Contains((state, report)))
-                    DockingAutopilot.Next(state, report).Should().Be(state, $"{report} leaves {state} as it is");
+        foreach (DockingEvent report in Every.Where(report => report.Value is not (Dock or Lost)))
+            if (!own.Contains((state, report)))
+                DockingAutopilot.Next(state, report).Should().Be(state, $"{report} leaves {state} as it is");
     }
 }

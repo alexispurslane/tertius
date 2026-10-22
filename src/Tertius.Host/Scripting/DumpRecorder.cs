@@ -11,7 +11,7 @@ namespace Tertius.Host.Scripting;
 /// </summary>
 internal sealed class DumpRecorder(World world, SceneInstance scene, EventPayloads payloads)
 {
-    private List<EventRecord> eventsSinceDump = new();
+    private List<EventRecord> eventsSinceDump = [];
 
     /// <summary>Keeps the events that the last sync point routed, in routing order. Call it after every tick that a dump step comes after.</summary>
     public void RecordRoutedEvents()
@@ -19,7 +19,7 @@ internal sealed class DumpRecorder(World world, SceneInstance scene, EventPayloa
         foreach (ref readonly Event e in world.RoutedEvents)
         {
             Type type = EventTypeRegistry.TypeOf(e.Type);
-            eventsSinceDump.Add(new EventRecord(
+            eventsSinceDump.Add(new(
                 world.TickNumber,
                 type.Name,
                 TargetOf(e.Target),
@@ -41,11 +41,11 @@ internal sealed class DumpRecorder(World world, SceneInstance scene, EventPayloa
             world.TickNumber,
             world.Time,
             world.IsAlive(world.Camera) ? scene.IdOf(world.Camera) : null,
-            live.Select(EntityRecordOf).ToArray(),
-            frames.Select(FrameRecordOf).ToArray(),
+            [.. live.Select(EntityRecordOf)],
+            [.. frames.Select(FrameRecordOf)],
             eventsSinceDump,
-            world.Errors.ToArray());
-        eventsSinceDump = new List<EventRecord>();
+            [.. world.Errors]);
+        eventsSinceDump = [];
         return dump;
     }
 
@@ -64,7 +64,7 @@ internal sealed class DumpRecorder(World world, SceneInstance scene, EventPayloa
             pose = world.Frames.LocalPose(own);
             velocity = world.Frames.LinearVelocity(own);
             angularVelocity = world.Frames.AngularVelocity(own);
-            rootPose = new FramePose(scene.IdOf(entity), Double3.Zero, DQuaternion.Identity);
+            rootPose = new(scene.IdOf(entity), Double3.Zero, DQuaternion.Identity);
         }
         else
         {
@@ -73,11 +73,12 @@ internal sealed class DumpRecorder(World world, SceneInstance scene, EventPayloa
             angularVelocity = world.AngularVelocityIn(entity, frame);
             FrameHandle root = RootOf(frame);
             DPose inRoot = world.PoseIn(entity, root);
-            rootPose = new FramePose(scene.IdOf(root.Entity), inRoot.Position, inRoot.Rotation);
+            rootPose = new(scene.IdOf(root.Entity), inRoot.Position, inRoot.Rotation);
         }
-        return new EntityRecord(
+
+        return new(
             scene.IdOf(entity),
-            new FramePose(frame.IsNull ? null : scene.IdOf(frame.Entity), pose.Position, pose.Rotation),
+            new(frame.IsNull ? null : scene.IdOf(frame.Entity), pose.Position, pose.Rotation),
             rootPose,
             velocity,
             angularVelocity,
@@ -87,16 +88,17 @@ internal sealed class DumpRecorder(World world, SceneInstance scene, EventPayloa
     private FrameRecord FrameRecordOf(FrameHandle frame)
     {
         FrameHandle parent = world.Frames.Parent(frame);
-        return new FrameRecord(scene.IdOf(frame.Entity), parent.IsNull ? null : scene.IdOf(parent.Entity), FollowsOf(frame));
+        return new(scene.IdOf(frame.Entity), parent.IsNull ? null : scene.IdOf(parent.Entity), FollowsOf(frame));
     }
 
-    /// <summary>How <paramref name="frame"/> followed its owner at the dump's sync point (see <see cref="FrameRecord.Follows"/>).</summary>
+    /// <summary>How <paramref name="frame"/> followed its owner at the dump's sync point (see
+    /// <see cref="FrameRecord.Follows"/>).</summary>
     private string FollowsOf(FrameHandle frame) => world.Frames.Followed(frame) switch
     {
         FollowKind.Rails => "rails",
         FollowKind.Kinematic => "kinematic",
         FollowKind.Physics => "physics",
-        _ => "static",
+        _ => "static"
     };
 
     private FrameHandle RootOf(FrameHandle frame)
@@ -112,7 +114,7 @@ internal sealed class DumpRecorder(World world, SceneInstance scene, EventPayloa
         Topic { IsFrameTopic: true } topic => new ToFrame(FrameOwnerId(topic)),
         Topic topic => new ToTopic(Topics.NameOf(topic)),
         Broadcast => new ToEveryone(),
-        _ => throw new InvalidOperationException("A routed event has a target with no value."),
+        _ => throw new InvalidOperationException("A routed event has a target with no value.")
     };
 
     /// <summary>The scene id of the owner of a frame topic's frame, or the topic's name if that frame is gone.</summary>

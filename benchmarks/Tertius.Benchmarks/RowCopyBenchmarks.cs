@@ -1,5 +1,5 @@
-using System.Numerics;
 using System.Diagnostics;
+using System.Numerics;
 using Tertius.Simulation;
 
 namespace Tertius.Benchmarks;
@@ -32,13 +32,14 @@ internal static class RowCopyBenchmarks
 
         public Table(int rows, bool parallel)
         {
-            Entities = new EntityTable(ChunkSize, rows, parallel ? AllWorkers : null) { ParallelCopyThreshold = 1 };
+            Entities = new(ChunkSize, rows, parallel ? AllWorkers : null) { ParallelCopyThreshold = 1 };
             Live = new Entity[rows];
             for (int i = 0; i < rows; i++)
             {
                 Live[i] = Entities.Reserve();
-                Entities.Activate(Live[i], new TransformRow(), new RenderData(), [], [], null, Vector3.Zero, FrameHandle.Null);
+                Entities.Activate(Live[i], new(), new(), [], [], null, Vector3.Zero, FrameHandle.Null);
             }
+
             Entities.TakeMoved();
         }
 
@@ -50,13 +51,14 @@ internal static class RowCopyBenchmarks
             Parallel.For(0, (Live.Length + ChunkSize - 1) / ChunkSize, AllWorkers, chunk =>
             {
                 for (int i = chunk * ChunkSize, end = Math.Min(Live.Length, i + ChunkSize); i < end; i++)
-                    Entities.WritableTransform(Live[i]).Position = new Double3(now, i, 0);
+                    Entities.WritableTransform(Live[i]).Position = new(now, i, 0);
             });
             Entities.EndGameplay();
             long spinEnd = Stopwatch.GetTimestamp() + Stopwatch.Frequency / 5000;
             while (Stopwatch.GetTimestamp() < spinEnd)
             {
             }
+
             long start = Stopwatch.GetTimestamp();
             Entities.CopyDirtyRows();
             long stop = Stopwatch.GetTimestamp();
@@ -70,27 +72,28 @@ internal static class RowCopyBenchmarks
     public static void Run(int rows, int rounds)
     {
         EngineEvents.Register();
-        (string Name, Table Table)[] variants = [("sync thread", new Table(rows, parallel: false)), ("all workers", new Table(rows, parallel: true))];
-        var medians = variants.Select(_ => new List<double>()).ToArray();
-        var times = new double[40];
+        (string Name, Table Table)[] variants =
+            [("sync thread", new(rows, parallel: false)), ("all workers", new(rows, parallel: true))];
+        List<double>[] medians = [.. variants.Select(_ => new List<double>())];
+        double[] times = new double[40];
         for (int round = 0; round < rounds; round++)
+        for (int k = 0; k < variants.Length; k++)
         {
-            for (int k = 0; k < variants.Length; k++)
-            {
-                int v = (k + round) % variants.Length;
-                for (int i = 0; i < 10; i++)
-                    variants[v].Table.Tick();
-                for (int i = 0; i < times.Length; i++)
-                    times[i] = variants[v].Table.Tick();
-                Array.Sort(times);
-                medians[v].Add(times[times.Length / 2]);
-            }
+            int v = (k + round) % variants.Length;
+            for (int i = 0; i < 10; i++)
+                variants[v].Table.Tick();
+            for (int i = 0; i < times.Length; i++)
+                times[i] = variants[v].Table.Tick();
+            Array.Sort(times);
+            medians[v].Add(times[times.Length / 2]);
         }
+
         for (int v = 0; v < variants.Length; v++)
         {
             List<double> m = medians[v];
             m.Sort();
-            Console.WriteLine($"ROWCOPY|{rows} rows|{variants[v].Name}|median {m[m.Count / 2]:F1} us|min {m[0]:F1}|max {m[^1]:F1}|{m.Count} rounds");
+            Console.WriteLine(
+                $"ROWCOPY|{rows} rows|{variants[v].Name}|median {m[m.Count / 2]:F1} us|min {m[0]:F1}|max {m[^1]:F1}|{m.Count} rounds");
         }
     }
 }

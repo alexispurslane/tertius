@@ -48,13 +48,15 @@ public struct Event
             payload = Unsafe.As<PayloadBytes, T>(ref Unsafe.AsRef(in Payload));
             return true;
         }
+
         payload = default;
         return false;
     }
 
-    public override readonly string ToString() => $"Event({EventTypeRegistry.NameOf(Type)}, {Target}, from {Sender})";
+    public readonly override string ToString() => $"Event({EventTypeRegistry.NameOf(Type)}, {Target}, from {Sender})";
 
-    [DoesNotReturn, StackTraceHidden]
+    [DoesNotReturn]
+    [StackTraceHidden]
     private readonly void ThrowWrongType(Type requested) =>
         throw new InvalidOperationException($"Event holds {EventTypeRegistry.NameOf(Type)}, not {requested.Name}.");
 }

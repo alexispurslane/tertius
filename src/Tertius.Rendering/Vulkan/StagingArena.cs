@@ -7,22 +7,15 @@ namespace Tertius.Rendering;
 /// fence has signaled, so the copies that read it are done. When a frame needs more space, another buffer is added;
 /// at the next reset the buffers are merged into one buffer of the combined size.
 /// </summary>
-internal sealed unsafe class StagingArena : IDisposable
+internal sealed unsafe class StagingArena(VulkanDevice device, DeviceAllocator allocator, string name) : IDisposable
 {
     private const ulong MinimumSize = 4ul << 20;
 
-    private readonly VulkanDevice device;
-    private readonly DeviceAllocator allocator;
-    private readonly string name;
-    private readonly List<GpuBuffer> buffers = new();
+    private readonly VulkanDevice device = device;
+    private readonly DeviceAllocator allocator = allocator;
+    private readonly string name = name;
+    private readonly List<GpuBuffer> buffers = [];
     private ulong offset;
-
-    public StagingArena(VulkanDevice device, DeviceAllocator allocator, string name)
-    {
-        this.device = device;
-        this.allocator = allocator;
-        this.name = name;
-    }
 
     /// <summary>The bytes handed out since the last reset.</summary>
     public ulong Used { get; private set; }
@@ -36,13 +29,15 @@ internal sealed unsafe class StagingArena : IDisposable
         if (current == null || aligned + size > current.Size)
         {
             ulong capacity = Math.Max(MinimumSize, Math.Max(size, current == null ? 0 : current.Size * 2));
-            current = GpuBuffer.Create(device, allocator, capacity, BufferUsageFlags.TransferSrcBit, MemoryUsage.Upload, $"{name} staging {buffers.Count}");
+            current = GpuBuffer.Create(device, allocator, capacity, BufferUsageFlags.TransferSrcBit, MemoryUsage.Upload,
+                $"{name} staging {buffers.Count}");
             buffers.Add(current);
             aligned = 0;
         }
+
         offset = aligned + size;
         Used += size;
-        return new StagingSlice(current, aligned, current.Mapped + aligned, size);
+        return new(current, aligned, current.Mapped + aligned, size);
     }
 
     /// <summary>Starts over. The frame that used this arena must be complete.</summary>
@@ -56,9 +51,12 @@ internal sealed unsafe class StagingArena : IDisposable
                 total += buffer.Size;
                 buffer.Dispose();
             }
+
             buffers.Clear();
-            buffers.Add(GpuBuffer.Create(device, allocator, total, BufferUsageFlags.TransferSrcBit, MemoryUsage.Upload, $"{name} staging"));
+            buffers.Add(GpuBuffer.Create(device, allocator, total, BufferUsageFlags.TransferSrcBit, MemoryUsage.Upload,
+                $"{name} staging"));
         }
+
         offset = 0;
         Used = 0;
     }

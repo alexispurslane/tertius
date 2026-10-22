@@ -18,15 +18,16 @@ public class BackendTests
         var frames = new FrameTree();
         var changes = new PhysicsChanges();
         var output = new PhysicsStepOutput();
-        FrameHandle space = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), default);
+        FrameHandle space =
+            frames.Create(new(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), default);
         changes.FramesCreated.Add(space);
-        using var backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 });
+        using var backend = new JoltPhysicsBackend(new() { WorkerThreads = 2 });
         backend.ApplyChanges(changes, frames);
         changes.Clear();
         frames.Update();
 
         backend.Invoking(b => b.ApplyChanges(null!, frames)).Should().Throw<ArgumentNullException>();
-        backend.Invoking(b => b.ApplyChanges(new PhysicsChanges(), null!)).Should().Throw<ArgumentNullException>();
+        backend.Invoking(b => b.ApplyChanges(new(), null!)).Should().Throw<ArgumentNullException>();
         backend.Invoking(b => b.Step(Context(frames, 0f), output)).Should().Throw<ArgumentOutOfRangeException>();
         backend.Invoking(b => b.Step(Context(frames, float.NaN), output)).Should().Throw<ArgumentOutOfRangeException>();
         backend.Invoking(b => b.Step(Context(frames, Dt), null!)).Should().Throw<ArgumentNullException>();
@@ -34,7 +35,7 @@ public class BackendTests
 
         // After Dispose, the backend refuses work instead of touching freed Jolt objects.
         backend.Dispose();
-        backend.Invoking(b => b.ApplyChanges(new PhysicsChanges(), frames)).Should().Throw<ObjectDisposedException>();
+        backend.Invoking(b => b.ApplyChanges(new(), frames)).Should().Throw<ObjectDisposedException>();
         backend.Invoking(b => b.Step(Context(frames, Dt), output)).Should().Throw<ObjectDisposedException>();
         backend.Invoking(b => b.Dispose()).Should().NotThrow();
     }
@@ -56,7 +57,8 @@ public class BackendTests
     {
         using World world = NewWorld(out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 0);
-        Entity box = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(5), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Static) });
+        Entity box = world.Spawn(new()
+            { Frame = ground, Pose = At(5), Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static) });
         world.Tick();
         var filter = new AcceptsEveryEntity();
         QueryShape unusable = QueryShape.Sphere(0);
@@ -65,9 +67,11 @@ public class BackendTests
         var overlapped = new List<Entity>();
 
         backend.Invoking(b => b.CastShape(ground, unusable, DPose.Identity, Double3.UnitX, 0, 10, filter, shapeHits))
-            .Should().Throw<ArgumentException>().WithParameterName("shape").WithMessage("*is a sphere with a radius of 0 m*");
+            .Should().Throw<ArgumentException>().WithParameterName("shape")
+            .WithMessage("*is a sphere with a radius of 0 m*");
         backend.Invoking(b => b.Overlap(ground, unusable, DPose.Identity, filter, overlapped))
-            .Should().Throw<ArgumentException>().WithParameterName("shape").WithMessage("*is a sphere with a radius of 0 m*");
+            .Should().Throw<ArgumentException>().WithParameterName("shape")
+            .WithMessage("*is a sphere with a radius of 0 m*");
 
         backend.CastShape(ground, usable, DPose.Identity, Double3.UnitX, 0, 10, filter, shapeHits);
         backend.Overlap(ground, usable, At(5), filter, overlapped);
@@ -79,20 +83,21 @@ public class BackendTests
     public void SceneWithMoreFramesThanTheFirstTablesHoldKeepsEveryBodyInItsFrame()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         // A ball in space makes the step look at every child bubble of space.
-        Entity probe = world.Spawn(new SpawnDesc { Frame = space, Pose = At(0, -100), Body = Ball() });
+        Entity probe = world.Spawn(new() { Frame = space, Pose = At(0, -100), Body = Ball() });
         var rooms = new List<(FrameHandle Frame, Entity Ball)>();
         // The backend's tables start with room for 16 frames.
         for (int i = 0; i < 20; i++)
         {
-            FrameHandle room = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+            FrameHandle room = world.GetOwnedFrame(world.Spawn(new()
             {
                 Frame = space,
                 Pose = At(i * 50),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
+                AsFrame = new(FrameBounds.Sphere(10))
             }));
-            Entity ball = world.Spawn(new SpawnDesc { Frame = room, Pose = At(0, 0, 0), LinearVelocity = new Vector3(0, 1, 0), Body = Ball() });
+            Entity ball = world.Spawn(new()
+                { Frame = room, Pose = At(0, 0, 0), LinearVelocity = new Vector3(0, 1, 0), Body = Ball() });
             rooms.Add((room, ball));
         }
 
@@ -100,11 +105,12 @@ public class BackendTests
 
         faults.Jolt.SystemCount.Should().Be(21);
         world.GetFrame(probe).Should().Be(space);
-        foreach (var (room, ball) in rooms)
+        foreach ((FrameHandle room, Entity ball) in rooms)
         {
             world.GetFrame(ball).Should().Be(room);
             world.PoseInOwnFrame(ball).Position.Y.Should().BeApproximately(3 * Dt, 1e-6);
         }
+
         faults.Outputs.SelectMany(output => output.HandOffs).Should().BeEmpty();
         world.Errors.Should().BeEmpty();
     }
@@ -114,20 +120,19 @@ public class BackendTests
     {
         var warnings = new List<string>();
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults, warnings);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         var roomOwners = new List<Entity>();
         for (int i = 0; i < 45; i++)
-        {
-            roomOwners.Add(world.Spawn(new SpawnDesc
+            roomOwners.Add(world.Spawn(new()
             {
                 Frame = space,
                 Pose = At(i * 50),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
+                AsFrame = new(FrameBounds.Sphere(10))
             }));
-        }
         // Only one room, far past the first tables, gets a body and so a system.
         FrameHandle occupied = world.GetOwnedFrame(roomOwners[39]);
-        Entity ball = world.Spawn(new SpawnDesc { Frame = occupied, Pose = At(0, 0, 0), LinearVelocity = new Vector3(0, 1, 0), Body = Ball() });
+        Entity ball = world.Spawn(new()
+            { Frame = occupied, Pose = At(0, 0, 0), LinearVelocity = new Vector3(0, 1, 0), Body = Ball() });
         world.Tick();
         faults.Jolt.SystemCount.Should().Be(1);
         world.GetFrame(ball).Should().Be(occupied);

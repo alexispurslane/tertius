@@ -1,4 +1,3 @@
-using System.Numerics;
 using Tertius.Simulation;
 
 namespace Tertius.Demo;
@@ -30,7 +29,8 @@ public sealed class JetThruster(Jet jet) : IComponent
     /// (docs/plans/blue-danube-demo.md, "The plumes").
     /// </summary>
     public static Plume Plume { get; } = new(
-        new PuffLook(Life: 3, StartRadius: 0.3f, EndRadius: 3, TemperatureRatio: 0.75f, PuffShading.Lit(new Vector3(0.9f, 0.92f, 0.95f))),
+        new(Life: 3, StartRadius: 0.3f, EndRadius: 3, TemperatureRatio: 0.75f,
+            PuffShading.Lit(new(0.9f, 0.92f, 0.95f))),
         FullRate: 50, Speed: 20, Spread: 0.2f);
 
     /// <summary>The jet that this part is.</summary>

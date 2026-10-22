@@ -1,4 +1,3 @@
-using System.Numerics;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
 
@@ -22,10 +21,11 @@ public class LooseBodyStepPhysicsTests
     /// <paramref name="frame"/> gives, at each place, the linear gravity that physics read in that tick's step. Returns how
     /// many ticks ended with a proper acceleration that differs from the one that the step found.
     /// </summary>
-    private static int CheckTicks(World world, FaultInjectingBackend faults, FrameHandle frame, int ticks, Action<int>? beforeTick = null)
+    private static int CheckTicks(World world, FaultInjectingBackend faults, FrameHandle frame, int ticks,
+        Action<int>? beforeTick = null)
     {
         Double3[] read = [];
-        faults.EditOutput = _ => read = Places.Select(place => world.Frames.LinearGravity(frame, place)).ToArray();
+        faults.EditOutput = _ => read = [.. Places.Select(place => world.Frames.LinearGravity(frame, place))];
         int changes = 0;
         for (int tick = 0; tick < ticks; tick++)
         {
@@ -35,9 +35,10 @@ public class LooseBodyStepPhysicsTests
             LooseBodyStep step = world.Frames.LastLooseBodyStep(frame);
             for (int i = 0; i < Places.Length; i++)
                 step.LinearGravity(Places[i]).Should().Be(read[i], "tick {0}, place {1}", tick, Places[i]);
-            if ((Double3)world.Frames.ProperAcceleration(frame) != step.ProperAcceleration)
+            if (world.Frames.ProperAcceleration(frame) != step.ProperAcceleration)
                 changes++;
         }
+
         faults.EditOutput = null;
         world.Errors.Should().BeEmpty();
         return changes;
@@ -49,40 +50,43 @@ public class LooseBodyStepPhysicsTests
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle ground = Ground(world, G);
         // The cabin's own field holds only inside its box, so the field's part shows at some places and not at others.
-        var cabinField = GravityField.Uniform(new Vector3(0.5f, 0, -0.25f), new BoundingBox(new Vector3(-2), new Vector3(2)));
-        FrameHandle cabin = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        GravityField cabinField = GravityField.Uniform(new(0.5f, 0, -0.25f), new BoundingBox(new(-2), new(2)));
+        FrameHandle cabin = world.GetOwnedFrame(world.Spawn(new()
         {
             Frame = ground,
             Pose = At(0, 100),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2, 0.5f, 2)), BodyMotion.Static),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), cabinField),
+            Body = new(new BoxShapeDesc(new(2, 0.5f, 2)), BodyMotion.Static),
+            AsFrame = new(FrameBounds.Sphere(10), cabinField)
         }));
 
         int changes = CheckTicks(world, faults, cabin, ticks: 5);
 
-        changes.Should().Be(1, "the first step 2 gives the new cabin the ground's gravity reversed, which its first step did not find");
+        changes.Should().Be(1,
+            "the first step 2 gives the new cabin the ground's gravity reversed, which its first step did not find");
     }
 
     [Fact]
     public void TheLinearGravityOfTheLastStepIsTheGravityThatPhysicsReadInThatStepInAHullsFrameUnderThrust()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         const float mass = 500;
         var pilot = new Pilot();
-        FrameHandle ship = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        FrameHandle ship = world.GetOwnedFrame(world.Spawn(new()
         {
             Frame = space,
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2, 0.5f, 2)), BodyMotion.Dynamic, Mass: mass, LinearDamping: 0, AngularDamping: 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), GravityField.Uniform(new Vector3(0, -1, 0))),
-            Components = [pilot],
+            Body = new(new BoxShapeDesc(new(2, 0.5f, 2)), BodyMotion.Dynamic, Mass: mass, LinearDamping: 0,
+                AngularDamping: 0),
+            AsFrame = new(FrameBounds.Sphere(10), GravityField.Uniform(new(0, -1, 0))),
+            Components = [pilot]
         }));
         Tick(world, 3);
 
         // The engine burns from tick 2 of the check to tick 5, and its force acts in the steps of ticks 3 to 6.
         int changes = CheckTicks(world, faults, ship, ticks: 9, beforeTick: tick =>
-            pilot.EveryTick = tick is >= 2 and <= 5 ? hull => hull.AddForce(new Vector3(0, mass * 1.5f, 0)) : null);
+            pilot.EveryTick = tick is >= 2 and <= 5 ? hull => hull.AddForce(new(0, mass * 1.5f, 0)) : null);
 
-        changes.Should().BeGreaterThanOrEqualTo(2, "step 2 changes the ship's proper acceleration when the burn starts and when it ends");
+        changes.Should().BeGreaterThanOrEqualTo(2,
+            "step 2 changes the ship's proper acceleration when the burn starts and when it ends");
     }
 }

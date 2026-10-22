@@ -11,7 +11,8 @@ public class ComponentFlagsWorldTests
 {
     /// <summary>A component that records, on each tick, whether <paramref name="target"/> had a <typeparamref name="T"/> in the snapshot.</summary>
     private static Lambda Watches<T>(Func<Entity> target, List<bool> seen) where T : IComponent =>
-        Lambda.OnTick((self, scoped ref events, scoped ref outbox) => seen.Add(self.Snapshot.HasComponent<T>(target())));
+        Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+            seen.Add(self.Snapshot.HasComponent<T>(target())));
 
     [Fact]
     public void AComponentSeesWhichComponentsAnotherEntityHad()
@@ -114,7 +115,7 @@ public class ComponentFlagsWorldTests
         t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
         {
             if (self.Tick == 0)
-                child = self.Spawn(new SpawnDesc { Frame = self.Frame, Components = [new Crew()] });
+                child = self.Spawn(new() { Frame = self.Frame, Components = [new Crew()] });
         }));
 
         t.World.Tick();
@@ -143,7 +144,10 @@ public class ComponentFlagsWorldTests
                         if (self.Snapshot.HasComponent<Flammable>(entities[n]))
                             seen++;
                     lock (counts)
+                    {
                         counts.Add((int)(self.Tick * 100_000 + me * 10 + seen));
+                    }
+
                     if ((self.Tick + me) % 3 == 0)
                     {
                         if (self.GetComponent<Flammable>() is { } flammable)
@@ -152,8 +156,9 @@ public class ComponentFlagsWorldTests
                             self.AddComponent(new Flammable());
                     }
                 }));
-                entities[i] = t.SpawnAt(new Double3(i, 0, 0), lambdas[i]);
+                entities[i] = t.SpawnAt(new(i, 0, 0), lambdas[i]);
             }
+
             t.World.Run(12);
             t.World.Errors.Should().BeEmpty();
             counts.Sort();

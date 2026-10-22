@@ -16,7 +16,8 @@ public static class MotionChanges
     /// of the step after that tick, and the frame tree stores it at the sync point after that step. A refusal of
     /// <c>SetMotion</c> lands in <see cref="World.Errors"/>, as any exception of a component does.
     /// </summary>
-    public static void SetMotionNextTick(this World world, Entity owner, BodyMotion motion, IComponent? add = null, IComponent? remove = null) =>
+    public static void SetMotionNextTick(this World world, Entity owner, BodyMotion motion, IComponent? add = null,
+        IComponent? remove = null) =>
         world.AddComponent(owner, new SetsMotionOnce(motion, add, remove));
 
     /// <summary>Runs once: it removes itself first, so that a refusal does not make it run again.</summary>

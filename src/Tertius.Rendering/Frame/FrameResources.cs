@@ -18,7 +18,8 @@ internal sealed unsafe class FrameResources : IDisposable
     private int texturesWritten;
     private int materialVersion = -1;
 
-    public FrameResources(VulkanDevice device, DeviceAllocator allocator, DescriptorLayouts layouts, TextureStore textures, int index)
+    public FrameResources(VulkanDevice device, DeviceAllocator allocator, DescriptorLayouts layouts,
+        TextureStore textures, int index)
     {
         this.device = device;
         this.layouts = layouts;
@@ -29,7 +30,7 @@ internal sealed unsafe class FrameResources : IDisposable
         {
             SType = StructureType.CommandPoolCreateInfo,
             Flags = CommandPoolCreateFlags.TransientBit,
-            QueueFamilyIndex = device.QueueFamily,
+            QueueFamilyIndex = device.QueueFamily
         };
         vk.CreateCommandPool(device.Device, &poolInfo, null, out CommandPool pool).Check("vkCreateCommandPool");
         CommandPool = pool;
@@ -38,13 +39,15 @@ internal sealed unsafe class FrameResources : IDisposable
             SType = StructureType.CommandBufferAllocateInfo,
             CommandPool = pool,
             Level = CommandBufferLevel.Primary,
-            CommandBufferCount = 1,
+            CommandBufferCount = 1
         };
-        vk.AllocateCommandBuffers(device.Device, &allocateInfo, out CommandBuffer commandBuffer).Check("vkAllocateCommandBuffers");
+        vk.AllocateCommandBuffers(device.Device, &allocateInfo, out CommandBuffer commandBuffer)
+            .Check("vkAllocateCommandBuffers");
         CommandBuffer = commandBuffer;
         device.SetName(ObjectType.CommandBuffer, (ulong)commandBuffer.Handle, $"frame {index} commands");
 
-        var fenceInfo = new FenceCreateInfo { SType = StructureType.FenceCreateInfo, Flags = FenceCreateFlags.SignaledBit };
+        var fenceInfo = new FenceCreateInfo
+            { SType = StructureType.FenceCreateInfo, Flags = FenceCreateFlags.SignaledBit };
         vk.CreateFence(device.Device, &fenceInfo, null, out Fence fence).Check("vkCreateFence");
         Fence = fence;
         var semaphoreInfo = new SemaphoreCreateInfo { SType = StructureType.SemaphoreCreateInfo };
@@ -52,15 +55,16 @@ internal sealed unsafe class FrameResources : IDisposable
         ImageAvailable = acquired;
         device.SetName(ObjectType.Semaphore, acquired.Handle, $"frame {index} image available");
 
-        Constants = GpuBuffer.Create(device, allocator, (ulong)Unsafe.SizeOf<GpuFrameConstants>(), BufferUsageFlags.UniformBufferBit,
+        Constants = GpuBuffer.Create(device, allocator, (ulong)Unsafe.SizeOf<GpuFrameConstants>(),
+            BufferUsageFlags.UniformBufferBit,
             MemoryUsage.Upload, $"frame {index} constants");
-        Instances = new HostArray<GpuInstance>(device, allocator, BufferUsageFlags.StorageBufferBit, $"frame {index} instances", 1024);
-        Commands = new HostArray<DrawIndexedIndirectCommand>(device, allocator, BufferUsageFlags.IndirectBufferBit, $"frame {index} indirect", 256);
-        Lights = new HostArray<GpuLight>(device, allocator, BufferUsageFlags.StorageBufferBit, $"frame {index} lights", 64);
-        Occluders = new HostArray<Vector4>(device, allocator, BufferUsageFlags.StorageBufferBit, $"frame {index} occluders", 16);
-        Outlines = new HostArray<GpuOutline>(device, allocator, BufferUsageFlags.StorageBufferBit, $"frame {index} outlines", 16);
-        Puffs = new HostArray<GpuPuff>(device, allocator, BufferUsageFlags.StorageBufferBit, $"frame {index} puffs", 256);
-        Staging = new StagingArena(device, allocator, $"frame {index}");
+        Instances = new(device, allocator, BufferUsageFlags.StorageBufferBit, $"frame {index} instances", 1024);
+        Commands = new(device, allocator, BufferUsageFlags.IndirectBufferBit, $"frame {index} indirect", 256);
+        Lights = new(device, allocator, BufferUsageFlags.StorageBufferBit, $"frame {index} lights", 64);
+        Occluders = new(device, allocator, BufferUsageFlags.StorageBufferBit, $"frame {index} occluders", 16);
+        Outlines = new(device, allocator, BufferUsageFlags.StorageBufferBit, $"frame {index} outlines", 16);
+        Puffs = new(device, allocator, BufferUsageFlags.StorageBufferBit, $"frame {index} puffs", 256);
+        Staging = new(device, allocator, $"frame {index}");
 
         FrameSet = layouts.AllocateFrameSet();
         TextureSet = layouts.AllocateTextureSet();
@@ -76,10 +80,13 @@ internal sealed unsafe class FrameResources : IDisposable
     public int Index { get; }
     public CommandPool CommandPool { get; }
     public CommandBuffer CommandBuffer { get; }
+
     /// <summary>Signaled when the GPU has finished this frame's last submission.</summary>
     public Fence Fence { get; }
+
     /// <summary>Signaled by vkAcquireNextImageKHR for this frame's swapchain image.</summary>
     public Semaphore ImageAvailable { get; }
+
     public GpuBuffer Constants { get; }
     public HostArray<GpuInstance> Instances { get; }
     public HostArray<DrawIndexedIndirectCommand> Commands { get; }
@@ -90,6 +97,7 @@ internal sealed unsafe class FrameResources : IDisposable
     public StagingArena Staging { get; }
     public DescriptorSet FrameSet { get; }
     public DescriptorSet TextureSet { get; }
+
     /// <summary>The frame number this slot last recorded.</summary>
     public long Number { get; set; } = -1;
 
@@ -120,6 +128,7 @@ internal sealed unsafe class FrameResources : IDisposable
             layouts.WriteBuffer(FrameSet, 2, DescriptorType.StorageBuffer, materials.Buffer);
             materialVersion = materials.Version;
         }
+
         for (; texturesWritten < textures.Count; texturesWritten++)
             layouts.WriteImage(TextureSet, 0, (uint)texturesWritten, textures[texturesWritten]);
     }
@@ -145,7 +154,7 @@ internal sealed unsafe class FrameResources : IDisposable
 /// A host-visible buffer of <typeparamref name="T"/> that one frame in flight rewrites every frame. It grows by
 /// doubling; the old buffer can be destroyed at once because only this frame used it and its fence has signaled.
 /// </summary>
-internal sealed unsafe class HostArray<T> : IDisposable where T : unmanaged
+internal sealed class HostArray<T> : IDisposable where T : unmanaged
 {
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
@@ -175,10 +184,12 @@ internal sealed unsafe class HostArray<T> : IDisposable where T : unmanaged
             while (capacity < data.Length)
                 capacity *= 2;
             Buffer.Dispose();
-            Buffer = GpuBuffer.Create(device, allocator, (ulong)(capacity * sizeof(T)), usage, MemoryUsage.Upload, name);
+            Buffer = GpuBuffer.Create(device, allocator, (ulong)(capacity * sizeof(T)), usage, MemoryUsage.Upload,
+                name);
             Capacity = capacity;
             replaced = true;
         }
+
         if (data.Length > 0)
             Buffer.Write(data);
         return replaced;

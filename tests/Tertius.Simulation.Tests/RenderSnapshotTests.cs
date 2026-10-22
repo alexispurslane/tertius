@@ -99,17 +99,17 @@ public class RenderSnapshotTests
     public void AnEntityWithAVisibleMeshBecomesOneInstanceWithItsRenderRow()
     {
         using var test = new TestWorld();
-        Entity box = test.World.Spawn(new SpawnDesc
+        Entity box = test.World.Spawn(new()
         {
             Frame = test.Root,
             Render = new RenderData
             {
-                Mesh = new MeshId(4),
-                Material = new MaterialId(3),
+                Mesh = new(4),
+                Material = new(3),
                 Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
                 BoundingRadius = 1.5f,
-                Scale = new Vector3(1, 2, 3),
-            },
+                Scale = new(1, 2, 3)
+            }
         });
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
 
@@ -129,7 +129,8 @@ public class RenderSnapshotTests
     {
         using var test = new TestWorld();
         // A default render row has no mesh, so it draws nothing even when it is visible.
-        test.World.Spawn(new SpawnDesc { Frame = test.Root, Render = default(RenderData) with { Flags = RenderFlags.Visible } });
+        test.World.Spawn(new()
+            { Frame = test.Root, Render = default(RenderData) with { Flags = RenderFlags.Visible } });
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
 
         test.Run(1);
@@ -141,7 +142,8 @@ public class RenderSnapshotTests
     public void AnEntityWithAMeshButWithoutTheVisibleFlagDrawsNothing()
     {
         using var test = new TestWorld();
-        test.World.Spawn(new SpawnDesc { Frame = test.Root, Render = new RenderData { Mesh = new MeshId(1), Flags = RenderFlags.CastsShadow } });
+        test.World.Spawn(new()
+            { Frame = test.Root, Render = new RenderData { Mesh = new(1), Flags = RenderFlags.CastsShadow } });
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
 
         test.Run(1);
@@ -191,12 +193,12 @@ public class RenderSnapshotTests
     public void TheOwnerOfAFrameIsDrawnAtTheFramesPose()
     {
         using var test = new TestWorld();
-        Entity planet = test.World.Spawn(new SpawnDesc
+        Entity planet = test.World.Spawn(new()
         {
             Frame = test.Root,
             Pose = TestWorld.At(0, 0, -1e7),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1e8f)),
-            Render = Visible(radius: 6e6f),
+            AsFrame = new(FrameBounds.Sphere(1e8f)),
+            Render = Visible(radius: 6e6f)
         });
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
 
@@ -210,12 +212,12 @@ public class RenderSnapshotTests
     {
         using var test = new TestWorld();
         FrameHandle outer = test.SpawnStaticFrame(TestWorld.At(100), radius: 1e4f);
-        Entity moon = test.World.Spawn(new SpawnDesc
+        Entity moon = test.World.Spawn(new()
         {
             Frame = outer,
             Pose = TestWorld.At(0, 5, 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
-            Render = Visible(),
+            AsFrame = new(FrameBounds.Sphere(10)),
+            Render = Visible()
         });
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
 
@@ -228,14 +230,15 @@ public class RenderSnapshotTests
     public void AnObjectInATurnedFrameIsTurnedByTheFrameAndThenByItsOwnRotation()
     {
         using var test = new TestWorld();
-        FrameHandle turned = test.SpawnStaticFrame(new DPose(new Double3(100, 0, 0), PoseChecks.QuarterTurnAboutY), radius: 1e4f);
-        Entity box = test.Show(turned, new DPose(Double3.Zero, PoseChecks.QuarterTurnAboutY));
+        FrameHandle turned = test.SpawnStaticFrame(new(new(100, 0, 0), PoseChecks.QuarterTurnAboutY), radius: 1e4f);
+        Entity box = test.Show(turned, new(Double3.Zero, PoseChecks.QuarterTurnAboutY));
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
 
         test.Run(1);
 
         // Two quarter turns about +Y make a half turn.
-        PoseChecks.AssertSameRotation(test.World.Latest().InstanceOf(box).Rotation, DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI));
+        PoseChecks.AssertSameRotation(test.World.Latest().InstanceOf(box).Rotation,
+            DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI));
     }
 
     // ---- When a change shows ---------------------------------------------------------------------------------------
@@ -244,18 +247,21 @@ public class RenderSnapshotTests
     public void ARenderChangeMadeDuringATickShowsInTheSnapshotOfThatTick()
     {
         using var test = new TestWorld();
-        Entity box = test.World.Spawn(new SpawnDesc
+        Entity box = test.World.Spawn(new()
         {
             Frame = test.Root,
             Render = new RenderData(),
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            {
-                if (self.Tick == 1)
+            Components =
+            [
+                Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
                 {
-                    self.Render.Mesh = new MeshId(9);
-                    self.Render.Flags = RenderFlags.Visible;
-                }
-            })],
+                    if (self.Tick == 1)
+                    {
+                        self.Render.Mesh = new(9);
+                        self.Render.Flags = RenderFlags.Visible;
+                    }
+                })
+            ]
         });
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
 
@@ -271,10 +277,10 @@ public class RenderSnapshotTests
     {
         using var test = new TestWorld();
         Entity? seen = null;
-        Entity reader = test.World.Spawn(new SpawnDesc
+        Entity reader = test.World.Spawn(new()
         {
             Frame = test.Root,
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => seen = self.Snapshot.Camera)],
+            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => seen = self.Snapshot.Camera)]
         });
         test.World.Camera = reader;
 
@@ -288,15 +294,18 @@ public class RenderSnapshotTests
     {
         using var test = new TestWorld();
         MeshId? readAfterWriting = null;
-        test.World.Spawn(new SpawnDesc
+        test.World.Spawn(new()
         {
             Frame = test.Root,
             Render = new RenderData(),
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            {
-                self.Render.Mesh = new MeshId(9);
-                readAfterWriting = self.Snapshot.RenderOf(self.Entity).Mesh;
-            })],
+            Components =
+            [
+                Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+                {
+                    self.Render.Mesh = new(9);
+                    readAfterWriting = self.Snapshot.RenderOf(self.Entity).Mesh;
+                })
+            ]
         });
 
         test.Run(1);
@@ -308,11 +317,11 @@ public class RenderSnapshotTests
     public void TheWorldReadsTheNewRenderRowAfterTheSyncPoint()
     {
         using var test = new TestWorld();
-        Entity box = test.World.Spawn(new SpawnDesc
+        Entity box = test.World.Spawn(new()
         {
             Frame = test.Root,
             Render = new RenderData(),
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Render.Mesh = new MeshId(9))],
+            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Render.Mesh = new(9))]
         });
 
         test.Run(1);

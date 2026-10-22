@@ -15,16 +15,38 @@ public readonly struct Target : IEquatable<Target>
     private readonly ulong bits;
     private readonly byte kind;
 
-    public Target(Entity entity) { kind = KindEntity; bits = entity.Raw; }
-    public Target(Topic topic) { kind = KindTopic; bits = ((ulong)topic.Generation << 32) | (uint)topic.Id; }
-    public Target(Broadcast broadcast) { kind = KindBroadcast; bits = 0; }
+    public Target(Entity entity)
+    {
+        kind = KindEntity;
+        bits = entity.Raw;
+    }
+
+    public Target(Topic topic)
+    {
+        kind = KindTopic;
+        bits = ((ulong)topic.Generation << 32) | (uint)topic.Id;
+    }
+
+    public Target(Broadcast broadcast)
+    {
+        kind = KindBroadcast;
+        bits = 0;
+    }
+
+    public bool HasValue => kind != KindNone;
+
+    public object? Value => kind switch
+    {
+        KindEntity => Entity.FromRaw(bits),
+        KindTopic => new Topic((int)(uint)bits, (uint)(bits >> 32)),
+        KindBroadcast => new Broadcast(),
+        _ => null
+    };
 
     public static implicit operator Target(Entity entity) => new(entity);
     public static implicit operator Target(FrameHandle frame) => new(frame.Entity);
     public static implicit operator Target(Topic topic) => new(topic);
     public static implicit operator Target(Broadcast broadcast) => new(broadcast);
-
-    public bool HasValue => kind != KindNone;
 
     public bool TryGetValue(out Entity entity)
     {
@@ -34,7 +56,7 @@ public readonly struct Target : IEquatable<Target>
 
     public bool TryGetValue(out Topic topic)
     {
-        topic = new Topic((int)(uint)bits, (uint)(bits >> 32));
+        topic = new((int)(uint)bits, (uint)(bits >> 32));
         return kind == KindTopic;
     }
 
@@ -43,14 +65,6 @@ public readonly struct Target : IEquatable<Target>
         broadcast = default;
         return kind == KindBroadcast;
     }
-
-    public object? Value => kind switch
-    {
-        KindEntity => Entity.FromRaw(bits),
-        KindTopic => new Topic((int)(uint)bits, (uint)(bits >> 32)),
-        KindBroadcast => new Broadcast(),
-        _ => null,
-    };
 
     public bool Equals(Target other) => kind == other.kind && bits == other.bits;
     public override bool Equals(object? obj) => obj is Target other && Equals(other);
@@ -63,6 +77,6 @@ public readonly struct Target : IEquatable<Target>
         Entity e => $"Target({e})",
         Topic t => $"Target({Topics.NameOf(t)})",
         Broadcast => "Target(broadcast)",
-        _ => "Target(none)",
+        _ => "Target(none)"
     };
 }

@@ -7,15 +7,10 @@ namespace Tertius.Rendering;
 /// Loads the SPIR-V modules that the build compiled from Shaders/*.vert and Shaders/*.frag and embedded as
 /// resources named <c>Tertius.Rendering.Shaders.&lt;file&gt;.spv</c>. Modules are created once and cached.
 /// </summary>
-internal sealed unsafe class ShaderLibrary : IDisposable
+internal sealed unsafe class ShaderLibrary(VulkanDevice device) : IDisposable
 {
-    private readonly VulkanDevice device;
-    private readonly Dictionary<string, ShaderModule> modules = new();
-
-    public ShaderLibrary(VulkanDevice device)
-    {
-        this.device = device;
-    }
+    private readonly VulkanDevice device = device;
+    private readonly Dictionary<string, ShaderModule> modules = [];
 
     /// <summary>The module for a shader file name such as <c>mesh.vert</c>.</summary>
     public ShaderModule Get(string file)
@@ -29,10 +24,11 @@ internal sealed unsafe class ShaderLibrary : IDisposable
             {
                 SType = StructureType.ShaderModuleCreateInfo,
                 CodeSize = (nuint)code.Length,
-                PCode = (uint*)p,
+                PCode = (uint*)p
             };
             device.Vk.CreateShaderModule(device.Device, &info, null, out module).Check($"vkCreateShaderModule({file})");
         }
+
         device.SetName(ObjectType.ShaderModule, module.Handle, file);
         modules.Add(file, module);
         return module;
@@ -42,12 +38,13 @@ internal sealed unsafe class ShaderLibrary : IDisposable
     {
         string resource = $"Tertius.Rendering.Shaders.{file}.spv";
         using Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(resource)
-            ?? throw new FileNotFoundException($"The shader {resource} is not embedded. Was it compiled by the build?");
-        var code = new byte[stream.Length];
+                              ?? throw new FileNotFoundException(
+                                  $"The shader {resource} is not embedded. Was it compiled by the build?");
+        byte[] code = new byte[stream.Length];
         stream.ReadExactly(code);
-        if (code.Length < 20 || BitConverter.ToUInt32(code, 0) != 0x07230203)
-            throw new InvalidDataException($"{resource} is not SPIR-V.");
-        return code;
+        return code.Length < 20 || BitConverter.ToUInt32(code, 0) != 0x07230203
+            ? throw new InvalidDataException($"{resource} is not SPIR-V.")
+            : code;
     }
 
     public void Dispose()

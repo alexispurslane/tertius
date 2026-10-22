@@ -49,7 +49,8 @@ public sealed class SpawnDesc
     /// <summary>The component instances. Each instance belongs to one entity, so do not share them between spawns.</summary>
     public IReadOnlyList<IComponent> Components { get; init; } = [];
 
-    /// <summary>If set, the entity becomes a frame whose parent is <see cref="Frame"/> and whose local pose is <see cref="Pose"/>.</summary>
+    /// <summary>If set, the entity becomes a frame whose parent is <see cref="Frame"/> and whose local pose is
+    /// <see cref="Pose"/>.</summary>
     public FrameSpec? AsFrame { get; init; }
 
     /// <summary>

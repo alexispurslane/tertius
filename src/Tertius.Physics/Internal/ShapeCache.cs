@@ -11,7 +11,7 @@ namespace Tertius.Physics;
 /// </summary>
 internal sealed class ShapeCache : IDisposable
 {
-    private readonly Dictionary<ShapeDesc, Shape> shapes = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<ShapeDesc, Shape> shapes = [with(ReferenceEqualityComparer.Instance)];
 
     /// <summary>
     /// The native shape of <paramref name="desc"/>, built on first use. Throws <see cref="ArgumentException"/>, with a
@@ -28,6 +28,7 @@ internal sealed class ShapeCache : IDisposable
             shape = Create(desc);
             shapes.Add(desc, shape);
         }
+
         return shape;
     }
 
@@ -46,7 +47,7 @@ internal sealed class ShapeCache : IDisposable
         ConvexHullShapeDesc hull => CreateHull(hull),
         MeshShapeDesc mesh => CreateMesh(mesh),
         CompoundShapeDesc compound => CreateCompound(compound),
-        _ => throw new NotSupportedException($"Shape type {desc.GetType().Name} is not supported by the Jolt backend."),
+        _ => throw new NotSupportedException($"Shape type {desc.GetType().Name} is not supported by the Jolt backend.")
     };
 
     private static BoxShape CreateBox(BoxShapeDesc box)
@@ -60,31 +61,35 @@ internal sealed class ShapeCache : IDisposable
 
     private static SphereShape CreateSphere(float radius) => NativeOwnership.Owned(new SphereShape(radius));
 
-    private static ConvexShape CreateCapsule(CapsuleShapeDesc capsule)
-    {
+    private static ConvexShape CreateCapsule(CapsuleShapeDesc capsule) =>
         // Jolt does not accept a capsule without a cylinder part. That capsule is a sphere.
-        return capsule.HalfHeight > 0 ? NativeOwnership.Owned(new CapsuleShape(capsule.HalfHeight, capsule.Radius)) : CreateSphere(capsule.Radius);
-    }
+        capsule.HalfHeight > 0
+            ? NativeOwnership.Owned(new CapsuleShape(capsule.HalfHeight, capsule.Radius))
+            : CreateSphere(capsule.Radius);
 
     private static ConvexHullShape CreateHull(ConvexHullShapeDesc hull)
     {
-        using ConvexHullShapeSettings settings = NativeOwnership.Owned(new ConvexHullShapeSettings(hull.Points.AsSpan(), hull.ConvexRadius));
+        using ConvexHullShapeSettings settings =
+            NativeOwnership.Owned(new ConvexHullShapeSettings(hull.Points.AsSpan(), hull.ConvexRadius));
         ConvexHullShape shape = NativeOwnership.Owned(new ConvexHullShape(settings));
-        if (shape.Handle == 0)
-            throw new ArgumentException($"is a convex hull that Jolt cannot build from its {hull.Points.Length} points: they may coincide or lie on a line");
-        return shape;
+        return shape.Handle == 0
+            ? throw new ArgumentException(
+                $"is a convex hull that Jolt cannot build from its {hull.Points.Length} points: they may coincide or lie on a line")
+            : shape;
     }
 
     private static MeshShape CreateMesh(MeshShapeDesc mesh)
     {
         var triangles = new IndexedTriangle[mesh.Indices.Length / 3];
         for (int i = 0; i < triangles.Length; i++)
-            triangles[i] = new IndexedTriangle(mesh.Indices[3 * i], mesh.Indices[3 * i + 1], mesh.Indices[3 * i + 2]);
-        using MeshShapeSettings settings = NativeOwnership.Owned(new MeshShapeSettings(mesh.Vertices.AsSpan(), triangles.AsSpan()));
+            triangles[i] = new(mesh.Indices[3 * i], mesh.Indices[3 * i + 1], mesh.Indices[3 * i + 2]);
+        using MeshShapeSettings settings =
+            NativeOwnership.Owned(new MeshShapeSettings(mesh.Vertices.AsSpan(), triangles.AsSpan()));
         MeshShape shape = NativeOwnership.Owned(new MeshShape(settings));
-        if (shape.Handle == 0)
-            throw new ArgumentException("is a mesh that Jolt cannot build: Jolt drops a triangle whose corners lie on a line, and it may have dropped them all");
-        return shape;
+        return shape.Handle == 0
+            ? throw new ArgumentException(
+                "is a mesh that Jolt cannot build: Jolt drops a triangle whose corners lie on a line, and it may have dropped them all")
+            : shape;
     }
 
     private StaticCompoundShape CreateCompound(CompoundShapeDesc compound)
@@ -95,9 +100,8 @@ internal sealed class ShapeCache : IDisposable
             Pose pose = child.Pose;
             settings.AddShape(pose.Position, Quaternion.Normalize(pose.Rotation), Get(child.Shape));
         }
+
         StaticCompoundShape shape = NativeOwnership.Owned(new StaticCompoundShape(settings));
-        if (shape.Handle == 0)
-            throw new ArgumentException("is a compound shape that Jolt cannot build");
-        return shape;
+        return shape.Handle == 0 ? throw new ArgumentException("is a compound shape that Jolt cannot build") : shape;
     }
 }

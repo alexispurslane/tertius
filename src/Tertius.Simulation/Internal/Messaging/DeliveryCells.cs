@@ -24,7 +24,9 @@ internal sealed class DeliveryCells
 
     private int slotCount;
     private int rangeShift = OneRangeShift;
+
     private RefList<Delivery>[] cells = [new(256)];
+
     // Per slot range, the index in the sorted deliveries of its first delivery.
     private int[] rangeStarts = new int[1];
 
@@ -65,8 +67,9 @@ internal sealed class DeliveryCells
             int old = cells.Length;
             Array.Resize(ref cells, cellCount);
             for (int i = old; i < cellCount; i++)
-                cells[i] = new RefList<Delivery>(64);
+                cells[i] = new(64);
         }
+
         if (rangeStarts.Length < RangeCount)
             rangeStarts = new int[RangeCount];
     }
@@ -77,7 +80,7 @@ internal sealed class DeliveryCells
         Span<RefList<Delivery>> mine = cells.AsSpan(block * RangeCount, RangeCount);
         foreach (RefList<Delivery> cell in mine)
             cell.Clear();
-        return new BlockCells(mine, rangeShift);
+        return new(mine, rangeShift);
     }
 
     /// <summary>
@@ -93,6 +96,7 @@ internal sealed class DeliveryCells
             for (int b = 0; b < BlockCount; b++)
                 start += cells[b * RangeCount + r].Count;
         }
+
         Count = start;
     }
 

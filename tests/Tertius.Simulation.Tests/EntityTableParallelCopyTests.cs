@@ -1,4 +1,3 @@
-using System.Numerics;
 using AwesomeAssertions;
 using static Tertius.Simulation.Tests.EntityTableSupport;
 
@@ -23,12 +22,15 @@ public class EntityTableParallelCopyTests : EntityTableDirtyRowTests
     {
         EngineEvents.Register();
         return parallel
-            ? new EntityTable(ChunkSize, initialCapacity: 8, new ParallelOptions { MaxDegreeOfParallelism = 4 }) { ParallelCopyThreshold = 1 }
+            ? new(ChunkSize, initialCapacity: 8, new() { MaxDegreeOfParallelism = 4 }) { ParallelCopyThreshold = 1 }
             : new EntityTable(ChunkSize, initialCapacity: 8);
     }
 
     /// <summary>What a copy leaves behind: the moved list, every live entity's front rows, and the component index.</summary>
-    private sealed record CopyResult(Entity[] Moved, (Entity, TransformRow, RenderData, ComponentFlags)[] Rows, Entity[][] Index);
+    private sealed record CopyResult(
+        Entity[] Moved,
+        (Entity, TransformRow, RenderData, ComponentFlags)[] Rows,
+        Entity[][] Index);
 
     private static int Id<T>() where T : IComponent => ComponentTypes.IdOf(typeof(T));
 
@@ -47,6 +49,7 @@ public class EntityTableParallelCopyTests : EntityTableDirtyRowTests
             IComponent[] components = (i % 3) switch { 0 => [new Metal()], 1 => [new Wet(), new Metal()], _ => [] };
             entities.Add(table.SpawnLiveAt(i, null, components));
         }
+
         table.TakeMoved();
 
         for (int tick = 0; tick < 3; tick++)
@@ -61,12 +64,13 @@ public class EntityTableParallelCopyTests : EntityTableDirtyRowTests
                 if (k % 2 == 0)
                     table.WritableTransform(e) = TestWorld.At(100 * tick + k);
                 if (k % 3 == 0)
-                    table.WritableRender(e).Scale = new Vector3(tick + k);
+                    table.WritableRender(e).Scale = new(tick + k);
                 if (k % 5 == 0)
                     table.AddComponent(e, new Flammable());
                 if (k % 11 == 0)
                     table.WritableTransform(e) = TestWorld.At(-k);
             }
+
             table.EndGameplay();
 
             Entity dying = entities[(tick * 13 + 2) % entities.Count];
@@ -78,13 +82,20 @@ public class EntityTableParallelCopyTests : EntityTableDirtyRowTests
 
             table.CopyDirtyRows();
             table.AssertInvariants();
-            results.Add(new CopyResult(
+            results.Add(new(
                 table.TakeMoved().ToArray(),
-                [.. entities.Where(table.IsAlive).Select(e => (e, table.FrontRow(e), table.FrontRender(e), table.FrontComponents(e)))],
-                [table.WithComponent(Id<Metal>()).ToArray(), table.WithComponent(Id<Wet>()).ToArray(), table.WithComponent(Id<Flammable>()).ToArray()]));
+                [
+                    .. entities.Where(table.IsAlive).Select(e =>
+                        (e, table.FrontRow(e), table.FrontRender(e), table.FrontComponents(e)))
+                ],
+                [
+                    table.WithComponent(Id<Metal>()).ToArray(), table.WithComponent(Id<Wet>()).ToArray(),
+                    table.WithComponent(Id<Flammable>()).ToArray()
+                ]));
             table.SwapIntents(keep: false);
             table.EndTick();
         }
+
         return results;
     }
 
@@ -97,10 +108,12 @@ public class EntityTableParallelCopyTests : EntityTableDirtyRowTests
         parallel.Should().HaveCount(serial.Count);
         for (int tick = 0; tick < serial.Count; tick++)
         {
-            parallel[tick].Moved.Should().Equal(serial[tick].Moved, $"tick {tick} must list the moved entities in the serial order");
+            parallel[tick].Moved.Should().Equal(serial[tick].Moved,
+                $"tick {tick} must list the moved entities in the serial order");
             parallel[tick].Rows.Should().Equal(serial[tick].Rows, $"tick {tick} must copy the same front rows");
             for (int type = 0; type < serial[tick].Index.Length; type++)
-                parallel[tick].Index[type].Should().Equal(serial[tick].Index[type], $"tick {tick} must index the same entities by component type {type}");
+                parallel[tick].Index[type].Should().Equal(serial[tick].Index[type],
+                    $"tick {tick} must index the same entities by component type {type}");
         }
     }
 
@@ -123,6 +136,7 @@ public class EntityTableParallelCopyTests : EntityTableDirtyRowTests
         Action set = () => table.ParallelCopyThreshold = threshold;
 
         set.Should().Throw<ArgumentOutOfRangeException>();
-        table.ParallelCopyThreshold.Should().Be(EntityTable.DefaultParallelCopyThreshold, "a refused threshold changes nothing");
+        table.ParallelCopyThreshold.Should()
+            .Be(EntityTable.DefaultParallelCopyThreshold, "a refused threshold changes nothing");
     }
 }

@@ -10,10 +10,10 @@ public class InputRouterTests
     /// <summary>Records what the router asks of the window, in order.</summary>
     private sealed class Window : IInputTarget
     {
-        public List<InputEvent> Posted { get; } = new();
-        public List<(FlyKey Key, bool Down)> FlyKeys { get; } = new();
-        public List<Vector2> Turns { get; } = new();
-        public List<bool> FlyChanges { get; } = new();
+        public List<InputEvent> Posted { get; } = [];
+        public List<(FlyKey Key, bool Down)> FlyKeys { get; } = [];
+        public List<Vector2> Turns { get; } = [];
+        public List<bool> FlyChanges { get; } = [];
         public int Closes { get; private set; }
         public int ViewChanges { get; private set; }
 
@@ -69,18 +69,18 @@ public class InputRouterTests
         var window = new Window();
         var router = new InputRouter(freePlay: true, window);
 
-        router.MouseMove(new Vector2(10, 10));
-        router.MouseMove(new Vector2(13, 6));
+        router.MouseMove(new(10, 10));
+        router.MouseMove(new(13, 6));
         router.MouseButton(MouseButton.Left, down: true);
         router.MouseButton(MouseButton.Left, down: false);
-        router.Scroll(new Vector2(0, -2));
+        router.Scroll(new(0, -2));
 
         window.Posted.Should().Equal(
             InputEvent.MouseMove(Vector2.Zero),
-            InputEvent.MouseMove(new Vector2(3, -4)),
+            InputEvent.MouseMove(new(3, -4)),
             InputEvent.MouseDown((int)MouseButton.Left),
             InputEvent.MouseUp((int)MouseButton.Left),
-            InputEvent.Scroll(new Vector2(0, -2)));
+            InputEvent.Scroll(new(0, -2)));
     }
 
     [Fact]
@@ -91,9 +91,9 @@ public class InputRouterTests
 
         router.Key(Key.W, down: true);
         router.Key(Key.W, down: false);
-        router.MouseMove(new Vector2(10, 10));
+        router.MouseMove(new(10, 10));
         router.MouseButton(MouseButton.Left, down: true);
-        router.Scroll(new Vector2(0, 1));
+        router.Scroll(new(0, 1));
 
         window.Posted.Should().BeEmpty();
     }
@@ -120,8 +120,8 @@ public class InputRouterTests
 
         router.Key(Key.W, down: true);
         router.Key(Key.ShiftLeft, down: true);
-        router.MouseMove(new Vector2(100, 100));
-        router.MouseMove(new Vector2(110, 95));
+        router.MouseMove(new(100, 100));
+        router.MouseMove(new(110, 95));
         router.Key(Key.X, down: true);
         router.MouseButton(MouseButton.Left, down: true);
 
@@ -141,7 +141,8 @@ public class InputRouterTests
 
         router.Key(Key.F1, down: true);
 
-        window.Posted.Should().HaveCount(2).And.Contain(InputEvent.KeyUp((int)Key.W)).And.Contain(InputEvent.MouseUp((int)MouseButton.Right));
+        window.Posted.Should().HaveCount(2).And.Contain(InputEvent.KeyUp((int)Key.W)).And
+            .Contain(InputEvent.MouseUp((int)MouseButton.Right));
     }
 
     [Fact]
@@ -165,14 +166,14 @@ public class InputRouterTests
     {
         var window = new Window();
         var router = new InputRouter(freePlay: true, window);
-        router.MouseMove(new Vector2(10, 10));
+        router.MouseMove(new(10, 10));
         router.Key(Key.F1, down: true);
         // While flying, the window hides the cursor and reports positions far from the last one.
-        router.MouseMove(new Vector2(800, 10));
+        router.MouseMove(new(800, 10));
         router.Key(Key.F1, down: true);
         window.Posted.Clear();
 
-        router.MouseMove(new Vector2(12, 10));
+        router.MouseMove(new(12, 10));
 
         window.Posted.Should().Equal(InputEvent.MouseMove(Vector2.Zero));
     }

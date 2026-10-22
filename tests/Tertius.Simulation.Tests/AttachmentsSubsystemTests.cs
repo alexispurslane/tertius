@@ -14,9 +14,9 @@ public class AttachmentsSubsystemTests
     /// <summary>A quarter turn about +Y, which maps +X to -Z and +Z to +X.</summary>
     private static readonly Quaternion QuarterTurn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2);
 
-    private static Pose Offset(float x, float y, float z = 0) => new(new Vector3(x, y, z), Quaternion.Identity);
+    private static Pose Offset(float x, float y, float z = 0) => new(new(x, y, z), Quaternion.Identity);
 
-    private static Pose TurnedOffset(float x, float y, float z) => new(new Vector3(x, y, z), QuarterTurn);
+    private static Pose TurnedOffset(float x, float y, float z) => new(new(x, y, z), QuarterTurn);
 
     private static Double3 PositionOf(EntityTable entities, Entity entity) => entities.BackRow(entity).Pose.Position;
 
@@ -285,7 +285,7 @@ public class AttachmentsSubsystemTests
         attachments.Derive();
 
         // The quarter turn maps the parent's +Z to the frame's +X.
-        PoseChecks.AssertNear(PositionOf(entities, child), new Double3(12, 0, 0), 1e-6);
+        PoseChecks.AssertNear(PositionOf(entities, child), new(12, 0, 0), 1e-6);
     }
 
     [Fact]
@@ -302,7 +302,7 @@ public class AttachmentsSubsystemTests
 
         // Two quarter turns about +Y make a half turn, which maps +X to -X.
         Double3 turnedX = entities.BackRow(child).Pose.Rotation.Rotate(Double3.UnitX);
-        PoseChecks.AssertNear(turnedX, new Double3(-1, 0, 0), 1e-6);
+        PoseChecks.AssertNear(turnedX, new(-1, 0, 0), 1e-6);
     }
 
     [Fact]
@@ -319,7 +319,7 @@ public class AttachmentsSubsystemTests
         attachments.Derive();
 
         // The child is at (11, 0, 0) and turned a quarter turn, which maps the grandchild's +Z offset to +X: (12, 0, 0).
-        PoseChecks.AssertNear(PositionOf(entities, grandchild), new Double3(12, 0, 0), 1e-6);
+        PoseChecks.AssertNear(PositionOf(entities, grandchild), new(12, 0, 0), 1e-6);
     }
 
     [Fact]
@@ -337,7 +337,7 @@ public class AttachmentsSubsystemTests
 
         attachments.Derive();
 
-        PoseChecks.AssertNear(PositionOf(entities, grandchild), new Double3(12, 0, 0), 1e-6);
+        PoseChecks.AssertNear(PositionOf(entities, grandchild), new(12, 0, 0), 1e-6);
     }
 
     [Fact]
@@ -436,7 +436,7 @@ public class AttachmentsSubsystemTests
         Entity parent = entities.SpawnLive(x: 10);
         Entity child = entities.SpawnLive();
         // A defaulted Pose has the quaternion (0, 0, 0, 0), which is not a rotation.
-        attachments.Attach(child, parent, new Pose(new Vector3(1, 0, 0), default));
+        attachments.Attach(child, parent, new(new(1, 0, 0), default));
 
         attachments.Derive();
 
@@ -452,14 +452,14 @@ public class AttachmentsSubsystemTests
         EntityTable entities = TableSupport.NewTable();
         var attachments = new Attachments(entities);
         Entity root = entities.SpawnLive();
-        SetMotion(entities, root, velocity: new Vector3(1, 0, 0), spin: new Vector3(0, 1, 0));
+        SetMotion(entities, root, velocity: new(1, 0, 0), spin: new(0, 1, 0));
         Entity child = entities.SpawnLive();
         attachments.Attach(child, root, Offset(0, 0, 2));
 
         attachments.Derive();
 
         // The velocity of a point on a spinning body is v + w x r. Here (1, 0, 0) + (0, 1, 0) x (0, 0, 2) = (3, 0, 0).
-        PoseChecks.AssertNear(entities.BackRow(child).LinearVelocity, new Vector3(3, 0, 0));
+        PoseChecks.AssertNear(entities.BackRow(child).LinearVelocity, new(3, 0, 0));
     }
 
     [Fact]
@@ -469,14 +469,14 @@ public class AttachmentsSubsystemTests
         var attachments = new Attachments(entities);
         Entity root = entities.SpawnLive();
         TurnTo(entities, root, QuarterTurn);
-        SetMotion(entities, root, velocity: new Vector3(1, 0, 0), spin: new Vector3(0, 1, 0));
+        SetMotion(entities, root, velocity: new(1, 0, 0), spin: new(0, 1, 0));
         Entity child = entities.SpawnLive();
         attachments.Attach(child, root, Offset(0, 0, 2));
 
         attachments.Derive();
 
         // The turned root puts the child 2 m along +X, so the lever arm is (2, 0, 0), and (0, 1, 0) x (2, 0, 0) = (0, 0, -2).
-        PoseChecks.AssertNear(entities.BackRow(child).LinearVelocity, new Vector3(1, 0, -2), 1e-5f);
+        PoseChecks.AssertNear(entities.BackRow(child).LinearVelocity, new(1, 0, -2), 1e-5f);
     }
 
     [Fact]
@@ -485,7 +485,7 @@ public class AttachmentsSubsystemTests
         EntityTable entities = TableSupport.NewTable();
         var attachments = new Attachments(entities);
         Entity root = entities.SpawnLive();
-        SetMotion(entities, root, velocity: Vector3.Zero, spin: new Vector3(0, 0, 1));
+        SetMotion(entities, root, velocity: Vector3.Zero, spin: new(0, 0, 1));
         Entity child = entities.SpawnLive();
         Entity grandchild = entities.SpawnLive();
         attachments.Attach(child, root, Offset(1, 0));
@@ -494,8 +494,8 @@ public class AttachmentsSubsystemTests
         attachments.Derive();
 
         // The grandchild is 1 m along +X and 1 m along +Y from the root: (0, 0, 1) x (1, 1, 0) = (-1, 1, 0).
-        PoseChecks.AssertNear(entities.BackRow(grandchild).LinearVelocity, new Vector3(-1, 1, 0));
-        PoseChecks.AssertNear(entities.BackRow(child).LinearVelocity, new Vector3(0, 1, 0));
+        PoseChecks.AssertNear(entities.BackRow(grandchild).LinearVelocity, new(-1, 1, 0));
+        PoseChecks.AssertNear(entities.BackRow(child).LinearVelocity, new(0, 1, 0));
     }
 
     [Fact]
@@ -504,7 +504,7 @@ public class AttachmentsSubsystemTests
         EntityTable entities = TableSupport.NewTable();
         var attachments = new Attachments(entities);
         Entity root = entities.SpawnLive();
-        SetMotion(entities, root, velocity: Vector3.Zero, spin: new Vector3(0.5f, 0, 2));
+        SetMotion(entities, root, velocity: Vector3.Zero, spin: new(0.5f, 0, 2));
         Entity child = entities.SpawnLive();
         Entity grandchild = entities.SpawnLive();
         attachments.Attach(child, root, Offset(1, 0));
@@ -537,7 +537,7 @@ public class AttachmentsSubsystemTests
     private static Entity BodyRoot(EntityTable entities, FrameHandle frame)
     {
         Entity entity = entities.Reserve();
-        entities.Activate(entity, new TransformRow { Frame = frame, PhysicsHome = frame }, new RenderData(), [], [], TestWorld.Ball,
+        entities.Activate(entity, new() { Frame = frame, PhysicsHome = frame }, new(), [], [], TestWorld.Ball,
             Vector3.Zero, FrameHandle.Null);
         return entity;
     }
@@ -558,14 +558,15 @@ public class AttachmentsSubsystemTests
         entities.WritablePush(dying).Force += new Vector3(0, 2, 0);
         entities.EndGameplay();
         entities.SwapIntents(keep: true);
-        var marks = new bool[entities.Capacity];
+        bool[] marks = new bool[entities.Capacity];
         marks[dying.Index] = true;
 
         attachments.CarryPushes(marks, []);
 
         entities.FrontIntents.Span[(int)root.Index].Force.Should().Be(new Vector3(1, 0, 0));
         entities.HasEmptyFrontIntent(living).Should().BeTrue("the living part's push moved to its root");
-        entities.HasEmptyFrontIntent(dying).Should().BeTrue("the dying part's push does not act and leaves its intent too");
+        entities.HasEmptyFrontIntent(dying).Should()
+            .BeTrue("the dying part's push does not act and leaves its intent too");
         entities.EndTick();
         entities.AssertInvariants();
         attachments.AssertInvariants();
@@ -581,14 +582,15 @@ public class AttachmentsSubsystemTests
 
         Action carry = () => attachments.CarryPushes(new bool[entities.Capacity], []);
 
-        carry.Should().Throw<ContractException>("the flow reads the front intents, which only the sync point may change");
+        carry.Should()
+            .Throw<ContractException>("the flow reads the front intents, which only the sync point may change");
     }
 #endif
 
     // ---- Helpers --------------------------------------------------------------------------------------------------
 
     /// <summary>A frame handle for a test that needs only distinct frames: the subsystem compares frames and does not look them up.</summary>
-    private static FrameHandle FakeFrame(int index) => new(new Entity((uint)index, 1), index, 1);
+    private static FrameHandle FakeFrame(int index) => new(new((uint)index, 1), index, 1);
 
     private static void TurnTo(EntityTable entities, Entity entity, Quaternion rotation)
     {

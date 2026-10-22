@@ -1,5 +1,7 @@
+using System.Numerics;
 using Tertius.Demo;
 using Tertius.Host.Scripting;
+using Tertius.Physics;
 using Tertius.Rendering;
 using Tertius.Simulation;
 using static Tertius.Host.Tests.HostTesting;
@@ -27,25 +29,26 @@ public sealed class OrbitRun : IDisposable
     /// <summary>The ship's angular speed round Earth, sqrt(mu / r³), in radians per second.</summary>
     public static double MeanMotion => Math.Sqrt(Mu / (Radius * Radius * Radius));
 
+    public OrbitRun()
+    {
+        World = new(new() { MaxDegreeOfParallelism = 1, DisposePhysics = true, StartTime = Math.PI / MeanMotion - 10 },
+            new JoltPhysicsBackend());
+        Scene = DemoScenes.All.Single(s => s.Name == "orbit").Build(World, RenderResources.None);
+        Result = ScriptRunner.Run(Script.Parse("""
+                                               { "scene": "orbit", "steps": [ { "do": "dump", "name": "before" }, { "do": "run", "ticks": 1200 }, { "do": "dump", "name": "after" } ] }
+                                               """), World, Scene);
+    }
+
+    public World World { get; }
+    public SceneInstance Scene { get; }
+    public RunResult Result { get; }
+
     /// <summary>
     /// The point of the circle at mean anomaly <paramref name="m"/>, in Earth's axes, which follow the equator. The circle
     /// crosses the equator northward at +X, at m = 0, and leans by <see cref="Inclination"/> about +X.
     /// </summary>
     public static Double3 OnCircle(double m) =>
         new Double3(Math.Cos(m), Math.Sin(m) * Math.Sin(Inclination), -Math.Sin(m) * Math.Cos(Inclination)) * Radius;
-
-    public OrbitRun()
-    {
-        World = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DisposePhysics = true, StartTime = Math.PI / MeanMotion - 10 }, new Tertius.Physics.JoltPhysicsBackend());
-        Scene = DemoScenes.All.Single(s => s.Name == "orbit").Build(World, RenderResources.None);
-        Result = ScriptRunner.Run(Script.Parse("""
-            { "scene": "orbit", "steps": [ { "do": "dump", "name": "before" }, { "do": "run", "ticks": 1200 }, { "do": "dump", "name": "after" } ] }
-            """), World, Scene);
-    }
-
-    public World World { get; }
-    public SceneInstance Scene { get; }
-    public RunResult Result { get; }
 
     public FrameHandle Frame(string id) => World.GetOwnedFrame(Scene[id]);
 
@@ -60,13 +63,13 @@ public sealed class OrbitSliceTests(OrbitRun run) : IClassFixture<OrbitRun>
     [Fact]
     public void TheSunIsTheRootAndEarthGoesRoundItWithItsSurfaceAndTheShip()
     {
-        run.Result.Dump("after").Frames.Select(f => (f.Id, f.Parent, f.Follows)).Should().BeEquivalentTo(new (string, string?, string)[]
-        {
+        run.Result.Dump("after").Frames.Select(f => (f.Id, f.Parent, f.Follows)).Should().BeEquivalentTo(
+        [
             ("sun", null, "static"),
             ("earth", "sun", "rails"),
             ("earth-surface", "earth", "rails"),
-            ("ship", "earth", "physics"),
-        });
+            ("ship", "earth", "physics")
+        ]);
     }
 
     [Fact]
@@ -80,6 +83,7 @@ public sealed class OrbitSliceTests(OrbitRun run) : IClassFixture<OrbitRun>
             // the velocity before it moves the ship, so the ship falls ahead of the circle by g Δt t / 2: 1.45 m after 20 s.
             ExpectNear(ship.Position, OrbitRun.OnCircle(OrbitRun.MeanMotion * dump.Time), 3);
         }
+
         run.Result.Dump("before").Time.Should().BeLessThan(Math.PI / OrbitRun.MeanMotion);
         run.Result.Dump("after").Time.Should().BeGreaterThan(Math.PI / OrbitRun.MeanMotion);
     }
@@ -109,8 +113,9 @@ public sealed class OrbitSliceTests(OrbitRun run) : IClassFixture<OrbitRun>
         // In the ship's own axes, the camera is at (0, 12, 70) m, and it looks along -(0, 12, 70) / sqrt(5,044), at the
         // ship's center. The ship's rotation comes from Jolt as floats, so the 71 m offset carries about 5 µm of rounding.
         DQuaternion toShip = ship.Rotation.Conjugate();
-        ExpectNear(toShip.Rotate(chase.Position - ship.Position), new Double3(0, 12, 70), 1e-4);
-        ExpectNear(toShip.Rotate(chase.Rotation.Rotate(new Double3(0, 0, -1))), new Double3(0, -0.1689638151, -0.9856222548), 1e-6);
+        ExpectNear(toShip.Rotate(chase.Position - ship.Position), new(0, 12, 70), 1e-4);
+        ExpectNear(toShip.Rotate(chase.Rotation.Rotate(new Double3(0, 0, -1))), new(0, -0.1689638151, -0.9856222548),
+            1e-6);
     }
 
     [Fact]
@@ -142,7 +147,7 @@ public sealed class OrbitSliceTests(OrbitRun run) : IClassFixture<OrbitRun>
 
         DQuaternion surface = run.World.Frames.LocalPose(run.Frame("earth-surface")).Rotation;
 
-        ExpectNear(surface.Rotate(Double3.UnitX), new Double3(Math.Cos(angle), 0, -Math.Sin(angle)), 1e-9);
+        ExpectNear(surface.Rotate(Double3.UnitX), new(Math.Cos(angle), 0, -Math.Sin(angle)), 1e-9);
         ExpectNear(surface.Rotate(Double3.UnitY), Double3.UnitY, 1e-12);
     }
 
@@ -154,9 +159,9 @@ public sealed class OrbitSliceTests(OrbitRun run) : IClassFixture<OrbitRun>
 
         // The pole leans 23.44 degrees from the pole of the orbit toward -Z, where the sun stands seen from Earth in June,
         // and +X, the March equinox direction, stays where it is.
-        ExpectNear(earth.Rotate(Double3.UnitY), new Double3(0, Math.Cos(obliquity), -Math.Sin(obliquity)), 1e-9);
+        ExpectNear(earth.Rotate(Double3.UnitY), new(0, Math.Cos(obliquity), -Math.Sin(obliquity)), 1e-9);
         ExpectNear(earth.Rotate(Double3.UnitX), Double3.UnitX, 1e-9);
-        run.World.Frames.AngularVelocity(run.Frame("earth")).Should().Be(System.Numerics.Vector3.Zero);
+        run.World.Frames.AngularVelocity(run.Frame("earth")).Should().Be(Vector3.Zero);
     }
 
     [Fact]
@@ -214,7 +219,8 @@ public sealed class OrbitStartTests
         using World world = NewJoltWorld();
         SceneInstance scene = DemoScenes.All.Single(s => s.Name == "orbit").Build(world, RenderResources.None);
 
-        Double3 toSun = world.Frames.Relative(world.GetOwnedFrame(scene["sun"]), world.GetOwnedFrame(scene["ship"])).Position.Normalized();
+        Double3 toSun = world.Frames.Relative(world.GetOwnedFrame(scene["sun"]), world.GetOwnedFrame(scene["ship"]))
+            .Position.Normalized();
 
         // The ship's up is +Y. Earth's distance from the ship, 6,771 km, shifts the sun by under 5e-5 rad.
         Double3.Distance(toSun, Double3.UnitY).Should().BeLessThan(1e-4);
@@ -232,11 +238,11 @@ public sealed class OrbitStartTests
         // roof or against a side, the center is 0.92 m or 0.32 m out from the hull. The field ends at the cabin, inside
         // the slabs. The ship turns on its facing orbit, but the reads come before its first step, when it has no turns yet,
         // so the effective gravity is the linear gravity (docs/plans/spin-gravity.md, "V5, the effective gravity").
-        world.Frames.EffectiveGravity(ship, new Double3(3, -2, 20)).Should().Be(new Double3(0, -9.81f, 0));
-        world.Frames.EffectiveGravity(ship, new Double3(0, 4.92, 0)).Should().Be(Double3.Zero);
-        world.Frames.EffectiveGravity(ship, new Double3(10.32, 0, 0)).Should().Be(Double3.Zero);
-        world.Frames.EffectiveGravity(ship, new Double3(0, 0, -30.32)).Should().Be(Double3.Zero);
-        world.Frames.EffectiveGravity(ship, new Double3(0, 3.75, 0)).Should().Be(Double3.Zero);
+        world.Frames.EffectiveGravity(ship, new(3, -2, 20)).Should().Be(new Double3(0, -9.81f, 0));
+        world.Frames.EffectiveGravity(ship, new(0, 4.92, 0)).Should().Be(Double3.Zero);
+        world.Frames.EffectiveGravity(ship, new(10.32, 0, 0)).Should().Be(Double3.Zero);
+        world.Frames.EffectiveGravity(ship, new(0, 0, -30.32)).Should().Be(Double3.Zero);
+        world.Frames.EffectiveGravity(ship, new(0, 3.75, 0)).Should().Be(Double3.Zero);
     }
 
     [Fact]
@@ -273,8 +279,10 @@ public sealed class OrbitStartTests
         (earth.Flags & RenderFlags.CastsShadow).Should().Be(RenderFlags.CastsShadow);
         (sun.Flags & RenderFlags.CastsShadow).Should().Be(RenderFlags.None);
         // Both are drawn, and neither ever becomes an impostor.
-        (earth.Flags & (RenderFlags.Visible | RenderFlags.Celestial)).Should().Be(RenderFlags.Visible | RenderFlags.Celestial);
-        (sun.Flags & (RenderFlags.Visible | RenderFlags.Celestial)).Should().Be(RenderFlags.Visible | RenderFlags.Celestial);
+        (earth.Flags & (RenderFlags.Visible | RenderFlags.Celestial)).Should()
+            .Be(RenderFlags.Visible | RenderFlags.Celestial);
+        (sun.Flags & (RenderFlags.Visible | RenderFlags.Celestial)).Should()
+            .Be(RenderFlags.Visible | RenderFlags.Celestial);
     }
 }
 
@@ -290,18 +298,24 @@ public sealed class OrbitSliceImageTests : IDisposable
     private Png ChaseAt(double degrees, string name)
     {
         double period = 2 * Math.PI / OrbitRun.MeanMotion;
-        using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DisposePhysics = true, StartTime = degrees / 360 * period }, new Tertius.Physics.JoltPhysicsBackend());
-        Script script = Script.Parse($$"""{ "scene": "orbit", "window": { "width": 1280, "height": 720 }, "steps": [ { "do": "capture", "name": "{{name}}" } ] }""");
+        using var world =
+            new World(new() { MaxDegreeOfParallelism = 1, DisposePhysics = true, StartTime = degrees / 360 * period },
+                new JoltPhysicsBackend());
+        Script script =
+            Script.Parse(
+                $$"""{ "scene": "orbit", "window": { "width": 1280, "height": 720 }, "steps": [ { "do": "capture", "name": "{{name}}" } ] }""");
         VulkanRenderer renderer = GpuTesting.Headless(16, 16);
         try
         {
-            ScriptRunner.Run(script, world, DemoScenes.All.Single(s => s.Name == "orbit").Build(world, renderer), folder, new HeadlessPlayback(renderer, script.Window, new PngFolder(folder)));
+            ScriptRunner.Run(script, world, DemoScenes.All.Single(s => s.Name == "orbit").Build(world, renderer),
+                folder, new HeadlessPlayback(renderer, script.Window, new PngFolder(folder)));
         }
         finally
         {
             renderer.Dispose();
             renderer.ValidationMessages.Should().BeEmpty();
         }
+
         return Png.Load(Path.Combine(folder, name + ".png"));
     }
 
@@ -314,14 +328,16 @@ public sealed class OrbitSliceImageTests : IDisposable
         {
             var stars = new HashSet<(int, int)>();
             for (int y = 0; y < 250; y++)
-                for (int x = 0; x < image.Width; x++)
-                {
-                    (int r, int g, int b) = image.At(x, y);
-                    if (r + g + b > 75)
-                        stars.Add((x, y));
-                }
+            for (int x = 0; x < image.Width; x++)
+            {
+                (int r, int g, int b) = image.At(x, y);
+                if (r + g + b > 75)
+                    stars.Add((x, y));
+            }
+
             return stars;
         }
+
         HashSet<(int, int)> start = Stars(ChaseAt(0, "stars-0")), quarter = Stars(ChaseAt(90, "stars-90"));
 
         start.Count.Should().BeGreaterThan(50);
@@ -345,14 +361,15 @@ public sealed class OrbitSliceImageTests : IDisposable
     public void TheChaseViewShowsTheShipWithEarthBelowAndTheFarViewShowsTheWholePlanet()
     {
         Script script = Script.Parse("""
-            { "scene": "orbit", "window": { "width": 1280, "height": 720 },
-              "steps": [ { "do": "capture", "name": "chase" }, { "do": "camera", "entity": "far" }, { "do": "capture", "name": "far" } ] }
-            """);
+                                     { "scene": "orbit", "window": { "width": 1280, "height": 720 },
+                                       "steps": [ { "do": "capture", "name": "chase" }, { "do": "camera", "entity": "far" }, { "do": "capture", "name": "far" } ] }
+                                     """);
         using World world = NewJoltWorld();
         VulkanRenderer renderer = GpuTesting.Headless(16, 16);
         try
         {
-            ScriptRunner.Run(script, world, DemoScenes.All.Single(s => s.Name == "orbit").Build(world, renderer), folder, new HeadlessPlayback(renderer, script.Window, new PngFolder(folder)));
+            ScriptRunner.Run(script, world, DemoScenes.All.Single(s => s.Name == "orbit").Build(world, renderer),
+                folder, new HeadlessPlayback(renderer, script.Window, new PngFolder(folder)));
         }
         finally
         {
@@ -366,9 +383,11 @@ public sealed class OrbitSliceImageTests : IDisposable
         // 400 km up, crosses the image below the ship.
         Png chase = Png.Load(Path.Combine(folder, "chase.png"));
         (int r, int g, int b) top = chase.Average(640, 340);
-        (top.r > 150 && Math.Abs(top.r - top.g) < 12 && Math.Abs(top.g - top.b) < 12).Should().BeTrue($"the hull's top is sunlit gray, not {top}");
+        (top.r > 150 && Math.Abs(top.r - top.g) < 12 && Math.Abs(top.g - top.b) < 12).Should()
+            .BeTrue($"the hull's top is sunlit gray, not {top}");
         (int r, int g, int b) back = chase.Average(640, 440);
-        (back.r + back.g + back.b < 120).Should().BeTrue($"the hull's back is edge-on to the sun overhead, so it is dark, not {back}");
+        (back.r + back.g + back.b < 120).Should()
+            .BeTrue($"the hull's back is edge-on to the sun overhead, so it is dark, not {back}");
         (int r, int g, int b) ground = chase.Average(300, 650);
         (ground.b > ground.r + 40).Should().BeTrue($"Earth below is blue, not {ground}");
         (int r, int g, int b) sky = chase.Average(640, 120);

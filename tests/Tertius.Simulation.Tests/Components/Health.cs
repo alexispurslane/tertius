@@ -18,12 +18,12 @@ public sealed class Health : IComponent
     /// <summary>The most that <see cref="Heal"/> can restore.</summary>
     public float Max = 100;
 
-    /// <summary>The hit points now.</summary>
-    public float Current { get; set; } = 100;
-
     public Faction Side;
     public string? Name;
     public int? Armor;
+
+    /// <summary>The hit points now.</summary>
+    public float Current { get; set; } = 100;
 
     public int Priority => 0;
     public EventMask Wants => EventMask.Of<Damage>().And<Heal>();
@@ -36,6 +36,7 @@ public sealed class Health : IComponent
             Current -= damage.Amount;
             damaged = true;
         }
+
         foreach (ref Heal heal in events.Of<Heal>())
             Current = MathF.Min(Max, Current + heal.Amount);
 

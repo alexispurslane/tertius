@@ -39,10 +39,12 @@ internal sealed unsafe class BarrierBatch
         {
             if ((next.Stages & ~current.Stages) == 0)
                 return;
-            AddImage(image, current.Stages, AccessFlags2.None, next.Stages, next.Access, current.Layout, next.Layout, 0, image.MipLevels);
-            image.State = new ResourceState(current.Layout, current.Stages | next.Stages, current.Access | next.Access);
+            AddImage(image, current.Stages, AccessFlags2.None, next.Stages, next.Access, current.Layout, next.Layout, 0,
+                image.MipLevels);
+            image.State = new(current.Layout, current.Stages | next.Stages, current.Access | next.Access);
             return;
         }
+
         AddImage(image, current.Stages, current.Access & ResourceUses.WriteMask, next.Stages, next.Access,
             discard ? ImageLayout.Undefined : current.Layout, next.Layout, 0, image.MipLevels);
         image.State = next;
@@ -57,7 +59,8 @@ internal sealed unsafe class BarrierBatch
         PipelineStageFlags2 srcStages, AccessFlags2 srcAccess, PipelineStageFlags2 dstStages, AccessFlags2 dstAccess,
         uint baseLayer = 0, uint layerCount = 0)
     {
-        AddImage(image, srcStages, srcAccess, dstStages, dstAccess, oldLayout, newLayout, baseMip, mipCount, baseLayer, layerCount);
+        AddImage(image, srcStages, srcAccess, dstStages, dstAccess, oldLayout, newLayout, baseMip, mipCount, baseLayer,
+            layerCount);
     }
 
     /// <summary>Prepares <paramref name="buffer"/> for <paramref name="use"/>.</summary>
@@ -73,14 +76,16 @@ internal sealed unsafe class BarrierBatch
             buffer.State = next;
             return;
         }
+
         if (!currentWrites && !nextWrites)
         {
             if ((next.Stages & ~current.Stages) == 0)
                 return;
             AddBuffer(buffer, current.Stages, AccessFlags2.None, next.Stages, next.Access);
-            buffer.State = new ResourceState(ImageLayout.Undefined, current.Stages | next.Stages, current.Access | next.Access);
+            buffer.State = new(ImageLayout.Undefined, current.Stages | next.Stages, current.Access | next.Access);
             return;
         }
+
         AddBuffer(buffer, current.Stages, current.Access & ResourceUses.WriteMask, next.Stages, next.Access);
         buffer.State = next;
     }
@@ -99,22 +104,24 @@ internal sealed unsafe class BarrierBatch
                 ImageMemoryBarrierCount = (uint)imageCount,
                 PImageMemoryBarriers = imageBarriers,
                 BufferMemoryBarrierCount = (uint)bufferCount,
-                PBufferMemoryBarriers = bufferBarriers,
+                PBufferMemoryBarriers = bufferBarriers
             };
             vk.CmdPipelineBarrier2(commandBuffer, &dependency);
         }
+
         imageCount = 0;
         bufferCount = 0;
         FlushCount++;
     }
 
-    private void AddImage(GpuImage image, PipelineStageFlags2 srcStages, AccessFlags2 srcAccess, PipelineStageFlags2 dstStages,
+    private void AddImage(GpuImage image, PipelineStageFlags2 srcStages, AccessFlags2 srcAccess,
+        PipelineStageFlags2 dstStages,
         AccessFlags2 dstAccess, ImageLayout oldLayout, ImageLayout newLayout, uint baseMip, uint mipCount,
         uint baseLayer = 0, uint layerCount = 0)
     {
         if (imageCount == images.Length)
             Array.Resize(ref images, images.Length * 2);
-        images[imageCount++] = new ImageMemoryBarrier2
+        images[imageCount++] = new()
         {
             SType = StructureType.ImageMemoryBarrier2,
             SrcStageMask = srcStages,
@@ -127,16 +134,17 @@ internal sealed unsafe class BarrierBatch
             DstQueueFamilyIndex = Vk.QueueFamilyIgnored,
             Image = image.Handle,
             // A layer count of 0 means every layer from the base layer on.
-            SubresourceRange = new ImageSubresourceRange(image.Aspect, baseMip, mipCount, baseLayer,
-                layerCount == 0 ? image.ArrayLayers - baseLayer : layerCount),
+            SubresourceRange = new(image.Aspect, baseMip, mipCount, baseLayer,
+                layerCount == 0 ? image.ArrayLayers - baseLayer : layerCount)
         };
     }
 
-    private void AddBuffer(GpuBuffer buffer, PipelineStageFlags2 srcStages, AccessFlags2 srcAccess, PipelineStageFlags2 dstStages, AccessFlags2 dstAccess)
+    private void AddBuffer(GpuBuffer buffer, PipelineStageFlags2 srcStages, AccessFlags2 srcAccess,
+        PipelineStageFlags2 dstStages, AccessFlags2 dstAccess)
     {
         if (bufferCount == buffers.Length)
             Array.Resize(ref buffers, buffers.Length * 2);
-        buffers[bufferCount++] = new BufferMemoryBarrier2
+        buffers[bufferCount++] = new()
         {
             SType = StructureType.BufferMemoryBarrier2,
             SrcStageMask = srcStages,
@@ -147,7 +155,7 @@ internal sealed unsafe class BarrierBatch
             DstQueueFamilyIndex = Vk.QueueFamilyIgnored,
             Buffer = buffer.Handle,
             Offset = 0,
-            Size = Vk.WholeSize,
+            Size = Vk.WholeSize
         };
     }
 }

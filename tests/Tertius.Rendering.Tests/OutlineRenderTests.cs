@@ -1,5 +1,4 @@
 using System.Numerics;
-using Tertius.Rendering;
 
 namespace Tertius.Rendering.Tests;
 
@@ -14,7 +13,8 @@ public sealed class OutlineRenderTests
     private const int Width = 640, Height = 360;
 
     /// <summary>The display color of a packed outline color, in [0, 1].</summary>
-    private static Vector3 Display(uint packed) => new Vector3(packed & 0xFF, (packed >> 8) & 0xFF, (packed >> 16) & 0xFF) / 255f;
+    private static Vector3 Display(uint packed) =>
+        new Vector3(packed & 0xFF, (packed >> 8) & 0xFF, (packed >> 16) & 0xFF) / 255f;
 
     private static Vector2 Pixel(Vector3 point) => Gpu.Project(point, Width, Height);
 
@@ -22,25 +22,26 @@ public sealed class OutlineRenderTests
     /// The pixels within <paramref name="radius"/> of <paramref name="around"/> that a ring covers: those whose color differs
     /// from the render without outlines. Each gives its color with the outlines and without.
     /// </summary>
-    private static List<(Vector3 With, Vector3 Without)> Covered(Capture with, Capture without, Vector2 around, int radius = 2)
+    private static List<(Vector3 With, Vector3 Without)> Covered(Capture with, Capture without, Vector2 around,
+        int radius = 2)
     {
         var covered = new List<(Vector3, Vector3)>();
         for (int y = (int)around.Y - radius; y <= (int)around.Y + radius; y++)
+        for (int x = (int)around.X - radius; x <= (int)around.X + radius; x++)
         {
-            for (int x = (int)around.X - radius; x <= (int)around.X + radius; x++)
-            {
-                Vector3 a = with.Color(x, y), b = without.Color(x, y);
-                if (Vector3.Distance(a, b) > 0.02f)
-                    covered.Add((a, b));
-            }
+            Vector3 a = with.Color(x, y), b = without.Color(x, y);
+            if (Vector3.Distance(a, b) > 0.02f)
+                covered.Add((a, b));
         }
+
         return covered;
     }
 
     /// <summary>Renders <paramref name="snapshot"/> once without its outlines and once with them.</summary>
-    private static (Capture Without, Capture With) RenderBoth(VulkanRenderer renderer, RenderSnapshot snapshot, string name)
+    private static (Capture Without, Capture With) RenderBoth(VulkanRenderer renderer, RenderSnapshot snapshot,
+        string name)
     {
-        List<FrameOutline> outlines = snapshot.Outlines.ToList();
+        List<FrameOutline> outlines = [.. snapshot.Outlines];
         snapshot.Outlines.Clear();
         Capture without = Gpu.RenderAndCapture(renderer, snapshot, name + "-without");
         snapshot.Outlines.AddRange(outlines);
@@ -58,14 +59,14 @@ public sealed class OutlineRenderTests
         VulkanRenderer renderer = Gpu.Headless(Width, Height);
         try
         {
-            RenderSnapshot snapshot = Gpu.Snapshot(new Vector3(0.4f, 0.8f, 0.5f));
-            snapshot.Outlines.Add(new RestingOutline(new Vector3(0, 0, -6), 2.4f));
+            RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.5f));
+            snapshot.Outlines.Add(new RestingOutline(new(0, 0, -6), 2.4f));
 
             (Capture without, Capture with) = RenderBoth(renderer, snapshot, "outline-sphere-rim");
 
             float rim = 2.4f * MathF.Sqrt(1 - 2.4f * 2.4f / 36f) / MathF.Sqrt(2);
-            Vector2 upperRight = Pixel(new Vector3(rim, rim, -5.04f));
-            Vector2 lowerLeft = Pixel(new Vector3(-rim, -rim, -5.04f));
+            Vector2 upperRight = Pixel(new(rim, rim, -5.04f));
+            Vector2 lowerLeft = Pixel(new(-rim, -rim, -5.04f));
             foreach (Vector2 pixel in new[] { upperRight, lowerLeft })
             {
                 List<(Vector3 With, Vector3 Without)> covered = Covered(with, without, pixel, radius: 1);
@@ -73,9 +74,10 @@ public sealed class OutlineRenderTests
                 covered.Should().AllSatisfy(p => Vector3.Distance(p.With, Display(OutlineColors.Resting)).Should()
                     .BeLessThan(0.02f, "a ring against the sky draws its color at full alpha: {0}", p.With));
             }
+
             // Halfway between the rim and the ring of the XY plane, 4 px inside the rim, is sky.
             float between = (rim + 2.4f / 6f * 5.04f / MathF.Sqrt(2)) / 2;
-            Covered(with, without, Pixel(new Vector3(between, between, -5.04f)), radius: 0).Should().BeEmpty();
+            Covered(with, without, Pixel(new(between, between, -5.04f)), radius: 0).Should().BeEmpty();
         }
         finally
         {
@@ -89,17 +91,21 @@ public sealed class OutlineRenderTests
     /// </summary>
     private static RenderSnapshot RingAmongGeometry(VulkanRenderer renderer)
     {
-        MeshId box = renderer.CreateMesh(Primitives.Box(new Vector3(0.5f)));
-        MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(new Vector4(0.8f, 0.8f, 0.8f, 1), gloss: 0.1f) with { SpecularIntensity = 0f });
-        RenderSnapshot snapshot = Gpu.Snapshot(new Vector3(0.3f, 0.5f, 0.8f));
-        snapshot.Instances.Add(Gpu.Instance(box, white, new Vector3(2, 2, -6), new Vector3(2.5f, 2.5f, 0.5f)));
-        snapshot.Instances.Add(Gpu.Instance(box, white, new Vector3(-4, -4, -20), new Vector3(6, 6, 0.5f)));
-        snapshot.Outlines.Add(new SemanticOutline(new Vector3(0, 0, -10), Quaternion.Identity, new Vector3(3)));
+        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+        MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(new(0.8f, 0.8f, 0.8f, 1), gloss: 0.1f) with
+        {
+            SpecularIntensity = 0f
+        });
+        RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.5f, 0.8f));
+        snapshot.Instances.Add(Gpu.Instance(box, white, new(2, 2, -6), new(2.5f, 2.5f, 0.5f)));
+        snapshot.Instances.Add(Gpu.Instance(box, white, new(-4, -4, -20), new(6, 6, 0.5f)));
+        snapshot.Outlines.Add(new SemanticOutline(new(0, 0, -10), Quaternion.Identity, new(3)));
         return snapshot;
     }
 
     /// <summary>The point of the bubble's XY ring at 45° from +X toward the quadrant (sx, sy).</summary>
-    private static Vector2 RingPixel(float sx, float sy) => Pixel(new Vector3(sx * 3 / MathF.Sqrt(2), sy * 3 / MathF.Sqrt(2), -10));
+    private static Vector2 RingPixel(float sx, float sy) =>
+        Pixel(new(sx * 3 / MathF.Sqrt(2), sy * 3 / MathF.Sqrt(2), -10));
 
     [Fact]
     public void ARingBehindAnOpaqueBoxDrawsAtThirtyPercentAlphaThere()
@@ -115,7 +121,7 @@ public sealed class OutlineRenderTests
             for (int degrees = 30; degrees <= 60; degrees++)
             {
                 float angle = degrees * MathF.PI / 180;
-                Vector2 pixel = Pixel(new Vector3(3 * MathF.Cos(angle), 3 * MathF.Sin(angle), -10));
+                Vector2 pixel = Pixel(new(3 * MathF.Cos(angle), 3 * MathF.Sin(angle), -10));
                 List<(Vector3 With, Vector3 Without)> covered = Covered(with, without, pixel, radius: 1);
                 covered.Should().NotBeEmpty("the ring passes behind the box at {0}°", degrees);
                 foreach ((Vector3 shown, Vector3 box) in covered)
@@ -141,7 +147,8 @@ public sealed class OutlineRenderTests
         {
             (Capture without, Capture with) = RenderBoth(renderer, RingAmongGeometry(renderer), "outline-in-front");
 
-            without.Luma(RingPixel(-1, -1)).Should().BeGreaterThan(0.3f, "the wall is behind the ring at the lower left");
+            without.Luma(RingPixel(-1, -1)).Should()
+                .BeGreaterThan(0.3f, "the wall is behind the ring at the lower left");
             foreach (Vector2 pixel in new[] { RingPixel(-1, -1), RingPixel(-1, 1) })
             {
                 List<(Vector3 With, Vector3 Without)> covered = Covered(with, without, pixel, radius: 1);
@@ -165,9 +172,9 @@ public sealed class OutlineRenderTests
         VulkanRenderer renderer = Gpu.Headless(Width, Height);
         try
         {
-            RenderSnapshot snapshot = Gpu.Snapshot(new Vector3(0.4f, 0.8f, 0.5f));
+            RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.5f));
             Vector3 center = new(1, 0.5f, 5);
-            snapshot.Outlines.Add(new SemanticOutline(center, Quaternion.Identity, new Vector3(9, 7, 8)));
+            snapshot.Outlines.Add(new SemanticOutline(center, Quaternion.Identity, new(9, 7, 8)));
 
             (Capture without, Capture with) = RenderBoth(renderer, snapshot, "outline-camera-inside");
 
@@ -198,9 +205,9 @@ public sealed class OutlineRenderTests
         VulkanRenderer renderer = Gpu.Headless(Width, Height);
         try
         {
-            RenderSnapshot snapshot = Gpu.Snapshot(new Vector3(0.4f, 0.8f, 0.5f));
+            RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.5f));
             Vector3 center = new(3, -0.01f, 0);
-            snapshot.Outlines.Add(new SemanticOutline(center, Quaternion.Identity, new Vector3(3)));
+            snapshot.Outlines.Add(new SemanticOutline(center, Quaternion.Identity, new(3)));
 
             (Capture without, Capture with) = RenderBoth(renderer, snapshot, "outline-near-plane");
 
@@ -210,7 +217,8 @@ public sealed class OutlineRenderTests
             Vector3 AtDepth(float depth) => Vector3.Lerp(start, end, (-start.Z - depth) / -start.Z);
             List<(Vector3 With, Vector3 Without)> ahead = Covered(with, without, Pixel(AtDepth(0.1f)), radius: 1);
             ahead.Should().NotBeEmpty("the segment draws 10 cm ahead, in front of the near plane");
-            ahead.Should().AllSatisfy(p => Vector3.Distance(p.With, Display(OutlineColors.Semantic)).Should().BeLessThan(0.02f));
+            ahead.Should().AllSatisfy(p =>
+                Vector3.Distance(p.With, Display(OutlineColors.Semantic)).Should().BeLessThan(0.02f));
             Covered(with, without, Pixel(AtDepth(0.025f)), radius: 1).Should()
                 .BeEmpty("2.5 cm ahead is nearer than the near plane, where geometry would be cut off too");
         }
@@ -229,17 +237,19 @@ public sealed class OutlineRenderTests
         VulkanRenderer renderer = Gpu.Headless(Width, Height);
         try
         {
-            RenderSnapshot snapshot = Gpu.Snapshot(new Vector3(0.4f, 0.8f, 0.5f));
-            snapshot.Outlines.Add(new SemanticOutline(new Vector3(0.01f, 0, -5), Quaternion.Identity, new Vector3(2)));
+            RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.5f));
+            snapshot.Outlines.Add(new SemanticOutline(new(0.01f, 0, -5), Quaternion.Identity, new(2)));
 
             (Capture without, Capture with) = RenderBoth(renderer, snapshot, "outline-edge-on");
 
             float tip = 2 / MathF.Sqrt(21);
-            Covered(with, without, Pixel(new Vector3(0, tip - 0.02f, -1)), radius: 1).Should().NotBeEmpty("the ring reaches up to its tip");
+            Covered(with, without, Pixel(new(0, tip - 0.02f, -1)), radius: 1).Should()
+                .NotBeEmpty("the ring reaches up to its tip");
             for (float above = 4; above <= 40; above += 4)
             {
-                Vector2 pixel = Pixel(new Vector3(0, tip, -1)) - new Vector2(0, above);
-                Covered(with, without, pixel, radius: 1).Should().BeEmpty("nothing is drawn {0} px above the tip", above);
+                Vector2 pixel = Pixel(new(0, tip, -1)) - new Vector2(0, above);
+                Covered(with, without, pixel, radius: 1).Should()
+                    .BeEmpty("nothing is drawn {0} px above the tip", above);
             }
         }
         finally
@@ -254,11 +264,11 @@ public sealed class OutlineRenderTests
         VulkanRenderer renderer = Gpu.Headless(Width, Height);
         try
         {
-            RenderSnapshot snapshot = Gpu.Snapshot(new Vector3(0.4f, 0.8f, 0.5f));
-            snapshot.Outlines.Add(new FallingOutline(new Vector3(0, 0, -10), 2));
-            snapshot.Outlines.Add(new FollowingOutline(new Vector3(0, 0, -10), 3));
-            snapshot.Outlines.Add(new FallingOutline(new Vector3(0, 0, 30), 2));   // behind the eye
-            snapshot.Outlines.Add(new RestingOutline(new Vector3(0, 0, -10), 0));  // holds nothing
+            RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.5f));
+            snapshot.Outlines.Add(new FallingOutline(new(0, 0, -10), 2));
+            snapshot.Outlines.Add(new FollowingOutline(new(0, 0, -10), 3));
+            snapshot.Outlines.Add(new FallingOutline(new(0, 0, 30), 2)); // behind the eye
+            snapshot.Outlines.Add(new RestingOutline(new(0, 0, -10), 0)); // holds nothing
 
             renderer.Render(snapshot, 1f);
             renderer.LastFrameStats.Outlines.Should().Be(2);
@@ -290,23 +300,23 @@ public sealed class OutlineRenderTests
     /// </summary>
     private static RenderSnapshot OutlineScene(VulkanRenderer renderer)
     {
-        MeshId box = renderer.CreateMesh(Primitives.Box(new Vector3(0.5f)));
+        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
         MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
-        MaterialId gray = renderer.CreateMaterial(MaterialDesc.Color(new Vector4(0.55f, 0.55f, 0.55f, 1), gloss: 0.3f));
-        MaterialId ground = renderer.CreateMaterial(MaterialDesc.Color(new Vector4(0.35f, 0.35f, 0.35f, 1), gloss: 0.2f));
-        RenderSnapshot snapshot = Gpu.Snapshot(new Vector3(0.4f, 0.8f, 0.5f));
-        snapshot.Instances.Add(Gpu.Instance(plane, ground, new Vector3(0, -2, -30), new Vector3(30, 1, 30)));
+        MaterialId gray = renderer.CreateMaterial(MaterialDesc.Color(new(0.55f, 0.55f, 0.55f, 1), gloss: 0.3f));
+        MaterialId ground = renderer.CreateMaterial(MaterialDesc.Color(new(0.35f, 0.35f, 0.35f, 1), gloss: 0.2f));
+        RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.5f));
+        snapshot.Instances.Add(Gpu.Instance(plane, ground, new(0, -2, -30), new(30, 1, 30)));
 
-        Quaternion turned = Quaternion.CreateFromYawPitchRoll(0.5f, 0, 0);
+        var turned = Quaternion.CreateFromYawPitchRoll(0.5f, 0, 0);
         Vector3 boxCenter = new(-3, -0.5f, -11);
-        snapshot.Instances.Add(Gpu.Instance(box, gray, boxCenter, new Vector3(1.2f), turned));
-        snapshot.Outlines.Add(new SemanticOutline(boxCenter, turned, new Vector3(1.8f, 1.3f, 1.6f)));
+        snapshot.Instances.Add(Gpu.Instance(box, gray, boxCenter, new(1.2f), turned));
+        snapshot.Outlines.Add(new SemanticOutline(boxCenter, turned, new(1.8f, 1.3f, 1.6f)));
 
-        snapshot.Instances.Add(Gpu.Instance(box, gray, new Vector3(3, -0.8f, -9), new Vector3(2.8f, 2.5f, 0.4f)));
-        snapshot.Outlines.Add(new FallingOutline(new Vector3(2.5f, 0, -14), 2.2f));
-        snapshot.Outlines.Add(new RestingOutline(new Vector3(-0.5f, 2.6f, -14), 1f));
-        snapshot.Outlines.Add(new NestingOutline(new Vector3(-1, -2.6f, -16), 1.4f));
-        snapshot.Outlines.Add(new FollowingOutline(new Vector3(7, 3.2f, -18), 1.6f));
+        snapshot.Instances.Add(Gpu.Instance(box, gray, new(3, -0.8f, -9), new(2.8f, 2.5f, 0.4f)));
+        snapshot.Outlines.Add(new FallingOutline(new(2.5f, 0, -14), 2.2f));
+        snapshot.Outlines.Add(new RestingOutline(new(-0.5f, 2.6f, -14), 1f));
+        snapshot.Outlines.Add(new NestingOutline(new(-1, -2.6f, -16), 1.4f));
+        snapshot.Outlines.Add(new FollowingOutline(new(7, 3.2f, -18), 1.6f));
         return snapshot;
     }
 

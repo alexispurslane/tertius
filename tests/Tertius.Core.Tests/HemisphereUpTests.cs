@@ -23,7 +23,8 @@ public class HemisphereUpTests
         up.HasValue.Should().BeTrue();
         up.TryGetValue(out UpAlong along).Should().BeTrue();
         along.Direction.Should().Be(Sideways);
-        (up is UpAlong { Direction: var direction } ? direction : default).Should().Be(Sideways, "a pattern match reads the same case");
+        (up is UpAlong { Direction: var direction } ? direction : default).Should()
+            .Be(Sideways, "a pattern match reads the same case");
     }
 
     [Fact]
@@ -34,7 +35,8 @@ public class HemisphereUpTests
         up.HasValue.Should().BeTrue();
         up.TryGetValue(out UpAwayFrom away).Should().BeTrue();
         away.Center.Should().Be(Below);
-        (up is UpAwayFrom { Center: var center } ? center : default).Should().Be(Below, "a pattern match reads the same case");
+        (up is UpAwayFrom { Center: var center } ? center : default).Should()
+            .Be(Below, "a pattern match reads the same case");
     }
 
     [Fact]
@@ -53,7 +55,8 @@ public class HemisphereUpTests
         HemisphereUp up = HemisphereUp.Along(Sideways);
 
         up.TryGetValue(out UpAwayFrom away).Should().BeFalse();
-        away.Should().Be(default(UpAwayFrom), "the view of the other case is empty, so the direction does not leak out as a center");
+        away.Should().Be(default(UpAwayFrom),
+            "the view of the other case is empty, so the direction does not leak out as a center");
         (up is UpAwayFrom).Should().BeFalse();
     }
 
@@ -63,7 +66,8 @@ public class HemisphereUpTests
         HemisphereUp up = HemisphereUp.AwayFrom(Below);
 
         up.TryGetValue(out UpAlong along).Should().BeFalse();
-        along.Should().Be(default(UpAlong), "the view of the other case is empty, so the center does not leak out as a direction");
+        along.Should().Be(default(UpAlong),
+            "the view of the other case is empty, so the center does not leak out as a direction");
         (up is UpAlong).Should().BeFalse();
     }
 
@@ -78,14 +82,16 @@ public class HemisphereUpTests
         along.Should().Be(default(UpAlong));
         away.Should().Be(default(UpAwayFrom));
         even.Value.Should().BeNull();
-        (even == default).Should().BeTrue("the even up is the all-zero default, so an instance made without an up has none");
+        (even == default).Should()
+            .BeTrue("the even up is the all-zero default, so an instance made without an up has none");
     }
 
     [Fact]
     public void AnUpOfTheZeroVectorIsStillAnUpAndNotTheEvenUp()
     {
         HemisphereUp.Along(Vector3.Zero).HasValue.Should().BeTrue();
-        HemisphereUp.AwayFrom(Vector3.Zero).HasValue.Should().BeTrue("a planet's own center is exactly zero from the planet");
+        HemisphereUp.AwayFrom(Vector3.Zero).HasValue.Should()
+            .BeTrue("a planet's own center is exactly zero from the planet");
         (HemisphereUp.Along(Vector3.Zero) == HemisphereUp.Even).Should().BeFalse();
         (HemisphereUp.AwayFrom(Vector3.Zero) == HemisphereUp.Even).Should().BeFalse();
     }
@@ -126,7 +132,9 @@ public class HemisphereUpTests
 
         foreach (HemisphereUp up in ups)
         {
-            HemisphereUp copy = up.TryGetValue(out UpAlong along) ? HemisphereUp.Along(along.Direction) : HemisphereUp.AwayFrom(((UpAwayFrom)up.Value!).Center);
+            HemisphereUp copy = up.TryGetValue(out UpAlong along)
+                ? HemisphereUp.Along(along.Direction)
+                : HemisphereUp.AwayFrom(((UpAwayFrom)up.Value!).Center);
 
             up.Equals(up).Should().BeTrue($"{up} equals itself");
             up.Equals((object)up).Should().BeTrue($"{up} equals itself as an object");
@@ -134,6 +142,7 @@ public class HemisphereUpTests
             (up != copy).Should().BeFalse($"{up} does not differ from a copy of itself");
             up.GetHashCode().Should().Be(copy.GetHashCode(), $"{up} and its copy are equal, so they hash the same");
         }
+
         (ups[0] == ups[1]).Should().BeFalse("a direction and a center that hold the same vector are still two ups");
     }
 
@@ -151,7 +160,7 @@ public class HemisphereUpTests
         {
             UpAlong { Direction: var direction } => $"along {direction.X}",
             UpAwayFrom { Center: var center } => $"away from {center.Y}",
-            _ => "even",
+            _ => "even"
         };
 
         Describe(HemisphereUp.Along(Sideways)).Should().Be("along 1");
@@ -175,8 +184,10 @@ public class HemisphereUpTests
         Type union = typeof(HemisphereUp);
 
         union.GetFields(publicInstance).Should().BeEmpty();
-        union.GetProperties(publicInstance).Select(property => property.PropertyType).Should().OnlyContain(type => type == typeof(bool) || type == typeof(object));
+        union.GetProperties(publicInstance).Select(property => property.PropertyType).Should()
+            .OnlyContain(type => type == typeof(bool) || type == typeof(object));
         union.GetConstructors().Select(constructor => constructor.GetParameters().Single().ParameterType)
-            .Should().BeEquivalentTo([typeof(UpAlong), typeof(UpAwayFrom)], "an up is made from one case and nothing else");
+            .Should().BeEquivalentTo([typeof(UpAlong), typeof(UpAwayFrom)],
+                "an up is made from one case and nothing else");
     }
 }

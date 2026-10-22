@@ -1,8 +1,8 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Silk.NET.Input;
-using Silk.NET.Maths;
 using Silk.NET.Windowing;
 using Tertius.Host.Scripting;
 using Tertius.Physics;
@@ -22,7 +22,9 @@ namespace Tertius.Host.Windowing;
 /// render thread reads), the <see cref="CaptureMailbox"/>, the fly camera under its lock, and the closing token. The
 /// renderer belongs to the render thread, which disposes it before the window is destroyed, as MoltenVK needs.
 /// </remarks>
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "A CancellationTokenSource without a timer holds an OS handle only after a read of its WaitHandle, which this class never does.")]
+[SuppressMessage("Design", "CA1001",
+    Justification =
+        "A CancellationTokenSource without a timer holds an OS handle only after a read of its WaitHandle, which this class never does.")]
 internal sealed class WindowHost : IInputTarget
 {
     private readonly IWindow window;
@@ -32,7 +34,9 @@ internal sealed class WindowHost : IInputTarget
     private readonly FreePlay? freePlay;
     private readonly RecordTo? record;
     private readonly Script? script;
+
     private readonly string? outputFolder;
+
     // Where the captures of a script go: PNG files in its output folder. Free play has none, because it captures nothing.
     private readonly PngFolder? images;
     private readonly TickPacer pacer;
@@ -55,7 +59,8 @@ internal sealed class WindowHost : IInputTarget
     private int signalled;
 
 
-    private WindowHost(IWindow window, VulkanRenderer renderer, World world, SceneInstance scene, Script? script, string? outputFolder, double speed, RecordTo? record)
+    private WindowHost(IWindow window, VulkanRenderer renderer, World world, SceneInstance scene, Script? script,
+        string? outputFolder, double speed, RecordTo? record)
     {
         this.window = window;
         this.renderer = renderer;
@@ -67,8 +72,8 @@ internal sealed class WindowHost : IInputTarget
         this.script = script;
         this.outputFolder = outputFolder;
         images = outputFolder is null ? null : new PngFolder(outputFolder);
-        pacer = new TickPacer(world.DeltaTime, speed);
-        router = new InputRouter(freePlay: script is null, this);
+        pacer = new(world.DeltaTime, speed);
+        router = new(freePlay: script is null, this);
     }
 
     /// <summary>
@@ -77,7 +82,8 @@ internal sealed class WindowHost : IInputTarget
     /// the session there as a script when it ends. Returns the exit code of <see cref="ScriptCommand"/>.
     /// Call it on the main thread, which macOS needs for a window.
     /// </summary>
-    public static int Run(Scene sceneToBuild, Script? script, string? scriptPath, string? outputFolder, double speed, string? recordPath, TextWriter output, TextWriter error)
+    public static int Run(Scene sceneToBuild, Script? script, string? scriptPath, string? outputFolder, double speed,
+        string? recordPath, TextWriter output, TextWriter error)
     {
         ScriptWindow size = script?.Window ?? ScriptWindow.Default;
         RecordTo? record = recordPath is null ? null : new RecordTo(recordPath, sceneToBuild.Name, size);
@@ -86,9 +92,9 @@ internal sealed class WindowHost : IInputTarget
         {
             window = Window.Create(WindowOptions.DefaultVulkan with
             {
-                Size = new Vector2D<int>(size.Width, size.Height),
+                Size = new(size.Width, size.Height),
                 Title = $"Tertius: {sceneToBuild.Name}",
-                IsEventDriven = true,
+                IsEventDriven = true
             });
             window.Initialize();
         }
@@ -99,27 +105,29 @@ internal sealed class WindowHost : IInputTarget
             window?.Dispose();
             return ScriptCommand.ToolError;
         }
+
         try
         {
             VulkanRenderer renderer;
             try
             {
                 // Free play may use impostors. A script draws every object as geometry, as a headless run does.
-                renderer = VulkanRenderer.CreateForWindow(window, new RendererOptions { Impostors = script is null });
+                renderer = VulkanRenderer.CreateForWindow(window, new() { Impostors = script is null });
             }
             catch (Exception ex)
             {
                 error.WriteLine($"Cannot start the renderer for the window: {ex.Message}");
                 return ScriptCommand.ToolError;
             }
+
             var host = default(WindowHost);
             try
             {
-                using var world = new World(new WorldOptions { DisposePhysics = true }, new JoltPhysicsBackend());
+                using var world = new World(new() { DisposePhysics = true }, new JoltPhysicsBackend());
                 world.Log += error.WriteLine;
                 SceneInstance scene = sceneToBuild.Build(world, renderer);
                 world.PublishRenderSnapshot();
-                host = new WindowHost(window, renderer, world, scene, script, outputFolder, speed, record);
+                host = new(window, renderer, world, scene, script, outputFolder, speed, record);
                 host.Play();
                 return host.Report(scriptPath, output, error);
             }
@@ -144,9 +152,7 @@ internal sealed class WindowHost : IInputTarget
     {
         var signals = new List<PosixSignalRegistration>();
         if (record != null)
-        {
             foreach (PosixSignal signal in new[] { PosixSignal.SIGINT, PosixSignal.SIGTERM, PosixSignal.SIGHUP })
-            {
                 try
                 {
                     signals.Add(PosixSignalRegistration.Create(signal, CloseOnFirstSignal));
@@ -155,8 +161,7 @@ internal sealed class WindowHost : IInputTarget
                 catch (PlatformNotSupportedException)
                 {
                 }
-            }
-        }
+
         try
         {
             RunThreads();
@@ -186,13 +191,15 @@ internal sealed class WindowHost : IInputTarget
             keyboard.KeyDown += (_, key, _) => router.Key(key, down: true);
             keyboard.KeyUp += (_, key, _) => router.Key(key, down: false);
         }
+
         foreach (IMouse device in input.Mice)
         {
             device.MouseMove += (_, position) => router.MouseMove(position);
             device.MouseDown += (_, button) => router.MouseButton(button, down: true);
             device.MouseUp += (_, button) => router.MouseButton(button, down: false);
-            device.Scroll += (_, wheel) => router.Scroll(new Vector2(wheel.X, wheel.Y));
+            device.Scroll += (_, wheel) => router.Scroll(new(wheel.X, wheel.Y));
         }
+
         CaptureCursor();
 
         var renderThread = new Thread(RenderLoop) { Name = "Render" };
@@ -263,8 +270,8 @@ internal sealed class WindowHost : IInputTarget
                     do
                     {
                         renderer.Render(shot, alpha: 1f);
-                    }
-                    while (!renderer.LastFrameStats.Rendered && !closing.Token.WaitHandle.WaitOne(10));
+                    } while (!renderer.LastFrameStats.Rendered && !closing.Token.WaitHandle.WaitOne(10));
+
                     if (renderer.LastFrameStats.Rendered)
                         captures.Done();
                     continue;
@@ -287,12 +294,14 @@ internal sealed class WindowHost : IInputTarget
                     {
                         fly.Follow(worldCamera.Rotation, snapshot.OriginFrameId);
                     }
+
                     if (flyActive)
                     {
                         fly.Advance(frameSeconds);
                         fly.Apply(ref snapshot.Camera);
                     }
                 }
+
                 renderer.Render(snapshot, alpha);
                 // The snapshot keeps the world's camera, so a later frame of the same snapshot starts from it again.
                 snapshot.Camera = worldCamera;
@@ -317,13 +326,17 @@ internal sealed class WindowHost : IInputTarget
     public void Fly(FlyKey key, bool down)
     {
         lock (flyLock)
+        {
             fly.SetKey(key, down);
+        }
     }
 
     public void Turn(Vector2 movement)
     {
         lock (flyLock)
+        {
             fly.Turn(movement);
+        }
     }
 
     public void FlyChanged(bool flying)
@@ -334,6 +347,7 @@ internal sealed class WindowHost : IInputTarget
             // The render thread starts it at the world's camera, which only it can read.
             flyStartWanted = flying;
         }
+
         CaptureCursor();
     }
 
@@ -341,7 +355,8 @@ internal sealed class WindowHost : IInputTarget
     private void CaptureCursor()
     {
         foreach (IMouse device in input!.Mice)
-            device.Cursor.CursorMode = !router.CapturesCursor ? CursorMode.Normal : device.Cursor.IsSupported(CursorMode.Raw) ? CursorMode.Raw : CursorMode.Disabled;
+            device.Cursor.CursorMode = !router.CapturesCursor ? CursorMode.Normal :
+                device.Cursor.IsSupported(CursorMode.Raw) ? CursorMode.Raw : CursorMode.Disabled;
     }
 
     public void Close() => window.Close();
@@ -369,6 +384,7 @@ internal sealed class WindowHost : IInputTarget
             error.WriteLine($"Cannot write the record {record.Path}: {problem.Message}");
             return code == ScriptCommand.Ok ? ScriptCommand.FileError : code;
         }
+
         if (freePlay.RecordWritten)
             output.WriteLine(record.Path);
         return code;
@@ -381,25 +397,30 @@ internal sealed class WindowHost : IInputTarget
             error.WriteLine($"Cannot write into {outputFolder}: {failure.Message}");
             return ScriptCommand.FileError;
         }
+
         if (failure is NotSupportedException)
         {
             error.WriteLine($"The window cannot do what the script asks: {failure.Message}");
             return ScriptCommand.ToolError;
         }
+
         if (failure != null)
         {
             error.WriteLine($"The window failed: {failure}");
             return ScriptCommand.InternalError;
         }
+
         if (scriptProblem != null)
         {
             error.WriteLine($"{scriptPath}: {scriptProblem}");
             return ScriptCommand.ScriptError;
         }
+
         if (result != null)
             ScriptCommand.WriteFiles(result, outputFolder!, images!, output);
         if (result is { Stopped: true })
-            error.WriteLine($"The window closed at tick {world.TickNumber}, so the script stopped before its last step.");
+            error.WriteLine(
+                $"The window closed at tick {world.TickNumber}, so the script stopped before its last step.");
         return ScriptCommand.Ok;
     }
 }

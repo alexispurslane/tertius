@@ -1,5 +1,4 @@
 using AwesomeAssertions;
-using static Tertius.Simulation.Tests.EntityTableSupport;
 
 namespace Tertius.Simulation.Tests;
 

@@ -13,42 +13,46 @@ namespace Tertius.Host.Tests;
 [Collection(GpuCollection.Name)]
 public sealed class ScriptCommandVideoTests : IDisposable
 {
+    private const int Width = 160, Height = 90;
+
+    // A capture, a run, a capture and a film of three frames: five images of a box that falls.
+    private const string FiveCaptures = """
+                                        { "do": "capture", "name": "start" }, { "do": "run", "ticks": 20 }, { "do": "capture", "name": "falling" },
+                                        { "do": "film", "name": "drop", "frames": 3, "every": 15 }
+                                        """;
+
+    private static readonly string[] FiveCaptureNames =
+        ["start", "falling", "drop-000000", "drop-000001", "drop-000002"];
+
     private readonly string folder = NewFolder();
     private readonly StringWriter output = new();
     private readonly StringWriter error = new();
-
-    public void Dispose() => Directory.Delete(folder, recursive: true);
 
     private string Out => Path.Combine(folder, "out");
 
     private string Video => Path.Combine(folder, "video.mkv");
 
-    private const int Width = 160, Height = 90;
+    public void Dispose() => Directory.Delete(folder, recursive: true);
 
     private string ScriptFile(string steps, string scene = "lit-drop")
     {
         string path = Path.Combine(folder, "script.json");
-        File.WriteAllText(path, $$"""{ "scene": "{{scene}}", "window": { "width": {{Width}}, "height": {{Height}} }, "steps": [ {{steps}} ] }""");
+        File.WriteAllText(path,
+            $$"""{ "scene": "{{scene}}", "window": { "width": {{Width}}, "height": {{Height}} }, "steps": [ {{steps}} ] }""");
         return path;
     }
 
     private int Run(string script, params string[] more) =>
-        ScriptCommand.Run(["--script", script, "--headless", "--out", Out, .. more], [LitBoxScene, LitDropScene], output, error);
-
-    // A capture, a run, a capture and a film of three frames: five images of a box that falls.
-    private const string FiveCaptures = """
-        { "do": "capture", "name": "start" }, { "do": "run", "ticks": 20 }, { "do": "capture", "name": "falling" },
-        { "do": "film", "name": "drop", "frames": 3, "every": 15 }
-        """;
-
-    private static readonly string[] FiveCaptureNames = ["start", "falling", "drop-000000", "drop-000001", "drop-000002"];
+        ScriptCommand.Run(["--script", script, "--headless", "--out", Out, .. more], [LitBoxScene, LitDropScene],
+            output, error);
 
     [Fact]
     public void AVideoRunHoldsOneFrameForEachCaptureInTheOrderOfTheStepsPixelForPixelAsThePngCaptures()
     {
         string script = ScriptFile(FiveCaptures);
         string pngs = Path.Combine(folder, "pngs");
-        ScriptCommand.Run(["--script", script, "--headless", "--out", pngs], [LitDropScene], output, error).Should().Be(ScriptCommand.Ok, error.ToString());
+        ScriptCommand.Run(["--script", script, "--headless", "--out", pngs], [LitDropScene], output, error).Should()
+            .Be(ScriptCommand.Ok, error.ToString());
 
         int code = Run(script, "--video", Video);
 
@@ -56,7 +60,8 @@ public sealed class ScriptCommandVideoTests : IDisposable
         List<byte[]> frames = DecodeFrames(Video, Width, Height);
         frames.Should().HaveCount(5);
         for (int i = 0; i < FiveCaptureNames.Length; i++)
-            frames[i].Should().Equal(Rgb(Path.Combine(pngs, FiveCaptureNames[i] + ".png")), "frame {0} is the capture '{1}'", i, FiveCaptureNames[i]);
+            frames[i].Should().Equal(Rgb(Path.Combine(pngs, FiveCaptureNames[i] + ".png")),
+                "frame {0} is the capture '{1}'", i, FiveCaptureNames[i]);
         frames[0].Should().NotEqual(frames[4], "the box falls, so the order of the frames shows");
         Directory.EnumerateFiles(Out, "*.png").Should().BeEmpty("the captures of a video run go into the video only");
     }
@@ -92,19 +97,24 @@ public sealed class ScriptCommandVideoTests : IDisposable
     [Fact]
     public void AVideoRunWritesThePathOfEachDumpAndThenThePathOfTheVideo()
     {
-        string script = ScriptFile("""{ "do": "dump", "name": "start" }, { "do": "capture", "name": "only" }, { "do": "dump", "name": "end" }""");
+        string script =
+            ScriptFile(
+                """{ "do": "dump", "name": "start" }, { "do": "capture", "name": "only" }, { "do": "dump", "name": "end" }""");
 
         int code = Run(script, "--video", Video);
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
-        output.ToString().Should().Be(string.Join(Environment.NewLine, Path.Combine(Out, "start.json"), Path.Combine(Out, "end.json"), Video) + Environment.NewLine);
+        output.ToString().Should()
+            .Be(string.Join(Environment.NewLine, Path.Combine(Out, "start.json"), Path.Combine(Out, "end.json"),
+                Video) + Environment.NewLine);
         File.Exists(Path.Combine(Out, "end.json")).Should().BeTrue("the dumps still go into the output folder");
     }
 
     [Fact]
     public void WhenFfmpegCannotStartTheCommandExitsWithTheToolErrorCodeBeforeTheSceneBuildsAndWritesNothing()
     {
-        string script = ScriptFile("""{ "do": "dump", "name": "start" }, { "do": "capture", "name": "only" }""", scene: "counted");
+        string script = ScriptFile("""{ "do": "dump", "name": "start" }, { "do": "capture", "name": "only" }""",
+            scene: "counted");
         string video = Path.Combine(folder, "runs", "new", "video.mkv");
         int builds = 0;
         var counted = new Scene("counted", (world, resources) =>
@@ -114,11 +124,13 @@ public sealed class ScriptCommandVideoTests : IDisposable
         });
 
         // The real start of the sink, with a program that is not on the search path, as in a shell without ffmpeg.
-        int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out, "--video", video], [counted], output, error,
+        int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out, "--video", video], [counted],
+            output, error,
             VulkanRenderer.CreateHeadless, (file, size) => FfmpegVideoSink.Start(file, size, "no-such-ffmpeg"));
 
         code.Should().Be(ScriptCommand.ToolError);
-        error.ToString().Should().Contain("Cannot start ffmpeg").And.Contain(video).And.Contain("No such file or directory");
+        error.ToString().Should().Contain("Cannot start ffmpeg").And.Contain(video).And
+            .Contain("No such file or directory");
         builds.Should().Be(0, "the command starts ffmpeg before the scene builds");
         Directory.EnumerateFileSystemEntries(folder).Select(Path.GetFileName).Should().Equal(["script.json"],
             "no tick runs, so nothing is written: no folder of the video, no video, no output folder and no dump");
@@ -134,7 +146,8 @@ public sealed class ScriptCommandVideoTests : IDisposable
         int code = Run(script, "--video", Path.Combine(taken, "video.mkv"));
 
         code.Should().Be(ScriptCommand.FileError, error.ToString());
-        error.ToString().Should().StartWith($"Cannot write the video {Path.Combine(taken, "video.mkv")} of {script}: ").And.Contain("taken");
+        error.ToString().Should().StartWith($"Cannot write the video {Path.Combine(taken, "video.mkv")} of {script}: ")
+            .And.Contain("taken");
     }
 
     [Theory]
@@ -142,17 +155,20 @@ public sealed class ScriptCommandVideoTests : IDisposable
     [InlineData(1, 16, 16)]
     // Twenty frames of 57,600 bytes do not, so a write in the middle of the run meets the closed pipe.
     [InlineData(20, Width, Height)]
-    public void WhenFfmpegFailsTheCommandExitsWithTheFileErrorCodeAndPrintsFfmpegsExitCodeAndItsLastErrorLines(int frames, int width, int height)
+    public void WhenFfmpegFailsTheCommandExitsWithTheFileErrorCodeAndPrintsFfmpegsExitCodeAndItsLastErrorLines(
+        int frames, int width, int height)
     {
         string path = Path.Combine(folder, "script.json");
-        File.WriteAllText(path, $$"""{ "scene": "lit-drop", "window": { "width": {{width}}, "height": {{height}} }, "steps": [ { "do": "film", "name": "drop", "frames": {{frames}}, "every": 1 } ] }""");
+        File.WriteAllText(path,
+            $$"""{ "scene": "lit-drop", "window": { "width": {{width}}, "height": {{height}} }, "steps": [ { "do": "film", "name": "drop", "frames": {{frames}}, "every": 1 } ] }""");
         // A folder at the path of the video: ffmpeg reads the first frame, cannot open its output, and exits.
         Directory.CreateDirectory(Video);
 
         int code = Run(path, "--video", Video);
 
         code.Should().Be(ScriptCommand.FileError);
-        error.ToString().Should().StartWith($"Cannot write the video of {path}: ffmpeg stopped with exit code", "the video is not in the output folder")
+        error.ToString().Should().StartWith($"Cannot write the video of {path}: ffmpeg stopped with exit code",
+                "the video is not in the output folder")
             .And.Contain("Is a directory").And.Contain(Video);
     }
 
@@ -168,7 +184,8 @@ public sealed class ScriptCommandVideoTests : IDisposable
             return scene;
         });
 
-        int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out, "--video", Video], [dyingEye], output, error);
+        int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out, "--video", Video], [dyingEye],
+            output, error);
 
         code.Should().Be(ScriptCommand.ScriptError);
         error.ToString().Should().Contain("frame 1").And.Contain("not alive");
@@ -178,7 +195,8 @@ public sealed class ScriptCommandVideoTests : IDisposable
     [Fact]
     public void AScriptThatFailsBeforeTheFirstTickExitsWithTheScriptErrorCodeAndLeavesNoVideo()
     {
-        string script = ScriptFile("""{ "do": "capture", "name": "only" }, { "do": "camera", "entity": "no-such-camera" }""");
+        string script =
+            ScriptFile("""{ "do": "capture", "name": "only" }, { "do": "camera", "entity": "no-such-camera" }""");
 
         int code = Run(script, "--video", Video);
 

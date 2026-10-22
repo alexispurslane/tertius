@@ -40,16 +40,58 @@ public readonly struct MediumField : IEquatable<MediumField>
 {
     private const byte KindNone = 0, KindUniform = 1, KindPlanet = 2;
 
+    /// <summary>No medium: vacuum.</summary>
+    public static MediumField None => default;
+
     // The view of a case that the medium does not hold stays all zero, so equality needs to compare only the held case.
     private readonly UniformMedium uniform;
     private readonly PlanetMedium planet;
     private readonly byte kind;
 
-    public MediumField(UniformMedium uniform) { kind = KindUniform; this.uniform = uniform; }
-    public MediumField(PlanetMedium planet) { kind = KindPlanet; this.planet = planet; }
+    public MediumField(UniformMedium uniform)
+    {
+        kind = KindUniform;
+        this.uniform = uniform;
+    }
 
-    /// <summary>No medium: vacuum.</summary>
-    public static MediumField None => default;
+    public MediumField(PlanetMedium planet)
+    {
+        kind = KindPlanet;
+        this.planet = planet;
+    }
+
+    /// <summary>False for the empty medium, which is vacuum.</summary>
+    public bool HasValue => kind != KindNone;
+
+    public object? Value => kind switch
+    {
+        KindUniform => uniform,
+        KindPlanet => planet,
+        _ => null
+    };
+
+    /// <summary>
+    /// True for a medium that the World accepts: every number is finite, the densities, the drags and the radius are 0 or
+    /// more, the scale height is above 0, and a region has finite corners. No medium is valid.
+    /// </summary>
+    public bool IsValid => this switch
+    {
+        UniformMedium { Density: var density, Drag: var drag, Region: var region } =>
+            NotNegative(density) && NotNegative(drag) &&
+            (region is not { } box || (IsFinite(box.Min) && IsFinite(box.Max))),
+        PlanetMedium { Radius: var radius, SurfaceDensity: var surface, ScaleHeight: var scale, Drag: var drag } =>
+            double.IsFinite(radius) && radius >= 0 && NotNegative(surface) && float.IsFinite(scale) && scale > 0 &&
+            NotNegative(drag),
+        _ => true
+    };
+
+    /// <summary>The medium's drag, in 1/s, and 0 in vacuum.</summary>
+    public float Drag => this switch
+    {
+        UniformMedium { Drag: var drag } => drag,
+        PlanetMedium { Drag: var drag } => drag,
+        _ => 0
+    };
 
     /// <summary>A uniform medium. Without a <paramref name="region"/>, it fills the whole frame.</summary>
     /// <param name="density">The density, in kg/m³.</param>
@@ -66,9 +108,6 @@ public readonly struct MediumField : IEquatable<MediumField>
     public static MediumField Planet(double radius, float surfaceDensity, float scaleHeight, float drag) =>
         new(new PlanetMedium(radius, surfaceDensity, scaleHeight, drag));
 
-    /// <summary>False for the empty medium, which is vacuum.</summary>
-    public bool HasValue => kind != KindNone;
-
     public bool TryGetValue(out UniformMedium value)
     {
         value = uniform;
@@ -80,26 +119,6 @@ public readonly struct MediumField : IEquatable<MediumField>
         value = planet;
         return kind == KindPlanet;
     }
-
-    public object? Value => kind switch
-    {
-        KindUniform => uniform,
-        KindPlanet => planet,
-        _ => null,
-    };
-
-    /// <summary>
-    /// True for a medium that the World accepts: every number is finite, the densities, the drags and the radius are 0 or
-    /// more, the scale height is above 0, and a region has finite corners. No medium is valid.
-    /// </summary>
-    public bool IsValid => this switch
-    {
-        UniformMedium { Density: var density, Drag: var drag, Region: var region } =>
-            NotNegative(density) && NotNegative(drag) && (region is not { } box || (IsFinite(box.Min) && IsFinite(box.Max))),
-        PlanetMedium { Radius: var radius, SurfaceDensity: var surface, ScaleHeight: var scale, Drag: var drag } =>
-            double.IsFinite(radius) && radius >= 0 && NotNegative(surface) && float.IsFinite(scale) && scale > 0 && NotNegative(drag),
-        _ => true,
-    };
 
     private static bool NotNegative(float value) => float.IsFinite(value) && value >= 0;
 
@@ -116,7 +135,7 @@ public readonly struct MediumField : IEquatable<MediumField>
         UniformMedium { Density: var density, Region: var region } =>
             density > 0 && (region is not { } box || box.Contains(place.ToVector3())),
         PlanetMedium { SurfaceDensity: var surface } => surface > 0,
-        _ => false,
+        _ => false
     };
 
     /// <summary>
@@ -131,22 +150,14 @@ public readonly struct MediumField : IEquatable<MediumField>
             region is { } box && !box.Contains(place.ToVector3()) ? 0 : density,
         PlanetMedium { Radius: var radius, SurfaceDensity: var surface, ScaleHeight: var scale } =>
             surface * Math.Exp(-Math.Max(0, place.Length - radius) / scale),
-        _ => 0,
-    };
-
-    /// <summary>The medium's drag, in 1/s, and 0 in vacuum.</summary>
-    public float Drag => this switch
-    {
-        UniformMedium { Drag: var drag } => drag,
-        PlanetMedium { Drag: var drag } => drag,
-        _ => 0,
+        _ => 0
     };
 
     public bool Equals(MediumField other) => kind == other.kind && kind switch
     {
         KindUniform => uniform == other.uniform,
         KindPlanet => planet == other.planet,
-        _ => true,
+        _ => true
     };
 
     public override bool Equals(object? obj) => obj is MediumField other && Equals(other);
@@ -155,7 +166,7 @@ public readonly struct MediumField : IEquatable<MediumField>
     {
         KindUniform => HashCode.Combine(kind, uniform),
         KindPlanet => HashCode.Combine(kind, planet),
-        _ => 0,
+        _ => 0
     };
 
     public static bool operator ==(MediumField a, MediumField b) => a.Equals(b);
@@ -165,6 +176,6 @@ public readonly struct MediumField : IEquatable<MediumField>
     {
         UniformMedium u => $"MediumField({u})",
         PlanetMedium p => $"MediumField({p})",
-        _ => "MediumField(none)",
+        _ => "MediumField(none)"
     };
 }

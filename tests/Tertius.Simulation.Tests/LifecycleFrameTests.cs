@@ -15,7 +15,8 @@ public class LifecycleFrameTests
 
     /// <summary>Checks that two positions are at most <paramref name="tolerance"/> metres apart, and shows both if they are not.</summary>
     private static void ShouldBeNear(Double3 actual, Double3 expected, double tolerance = 1e-9) =>
-        (actual - expected).Length.Should().BeLessThanOrEqualTo(tolerance, "{0} should be within {2} m of {1}", actual, expected, tolerance);
+        (actual - expected).Length.Should().BeLessThanOrEqualTo(tolerance, "{0} should be within {2} m of {1}", actual,
+            expected, tolerance);
 
     // ---- A ship with its crew, its cargo and a pod inside it -------------------------------------------------------
 
@@ -26,6 +27,26 @@ public class LifecycleFrameTests
     /// </summary>
     private sealed class ShipScene : IDisposable
     {
+        public ShipScene()
+        {
+            T = TestWorld.OnJolt(out FaultInjectingBackend faults);
+            Batches = faults.AppliedChanges;
+            ShipOwner = T.World.Spawn(new()
+            {
+                Frame = T.Root,
+                Pose = new(new(1000, 0, 0), QuarterTurnAboutY),
+                AsFrame = new(FrameBounds.Sphere(100))
+            });
+            Ship = T.World.GetOwnedFrame(ShipOwner);
+            Crew = T.World.Spawn(new()
+                { Frame = Ship, Pose = TestWorld.At(10), Body = TestWorld.Ball, Components = [CrewLog] });
+            Cargo = T.World.SpawnAt(Ship, new(0, 0, 10));
+            Pod = T.SpawnStaticFrame(TestWorld.At(-20), 5, Ship);
+            Passenger = T.World.SpawnAt(Pod, new(1, 2, 3));
+            T.Run(1);
+            Batches.Clear();
+        }
+
         public TestWorld T { get; }
         public List<PhysicsChanges> Batches { get; }
         public Recorder CrewLog { get; } = new(EventMask.Of<FrameChanged>());
@@ -35,25 +56,6 @@ public class LifecycleFrameTests
         public Entity Cargo { get; }
         public FrameHandle Pod { get; }
         public Entity Passenger { get; }
-
-        public ShipScene()
-        {
-            T = TestWorld.OnJolt(out FaultInjectingBackend faults);
-            Batches = faults.AppliedChanges;
-            ShipOwner = T.World.Spawn(new SpawnDesc
-            {
-                Frame = T.Root,
-                Pose = new DPose(new Double3(1000, 0, 0), QuarterTurnAboutY),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
-            });
-            Ship = T.World.GetOwnedFrame(ShipOwner);
-            Crew = T.World.Spawn(new SpawnDesc { Frame = Ship, Pose = TestWorld.At(10), Body = TestWorld.Ball, Components = [CrewLog] });
-            Cargo = T.World.SpawnAt(Ship, new Double3(0, 0, 10));
-            Pod = T.SpawnStaticFrame(TestWorld.At(-20), 5, Ship);
-            Passenger = T.World.SpawnAt(Pod, new Double3(1, 2, 3));
-            T.Run(1);
-            Batches.Clear();
-        }
 
         public void DestroyTheShip() => T.World.Destroy(ShipOwner);
 
@@ -114,8 +116,8 @@ public class LifecycleFrameTests
         // A quarter turn about +Y maps local +X to -Z and local +Z to +X. The ship is at x = 1000.
         Double3 crew = s.T.World.PoseInOwnFrame(s.Crew).Position;
         Double3 cargo = s.T.World.PoseInOwnFrame(s.Cargo).Position;
-        ShouldBeNear(crew, new Double3(1000, 0, -10));
-        ShouldBeNear(cargo, new Double3(1010, 0, 0));
+        ShouldBeNear(crew, new(1000, 0, -10));
+        ShouldBeNear(cargo, new(1010, 0, 0));
     }
 
     [Fact]
@@ -127,7 +129,7 @@ public class LifecycleFrameTests
 
         // The pod is at x = -20 in the ship, which is (0, 0, 20) in the root frame's axes, added to the ship's origin.
         Double3 pod = s.T.World.PoseInOwnFrame(s.Pod.Entity).Position;
-        ShouldBeNear(pod, new Double3(1000, 0, 20));
+        ShouldBeNear(pod, new(1000, 0, 20));
     }
 
     [Fact]
@@ -300,7 +302,7 @@ public class LifecycleFrameTests
         var t = new TestWorld(chunkSize: 1);
         outer = t.SpawnStaticFrame(TestWorld.At(100), 50);
         inner = t.SpawnStaticFrame(TestWorld.At(10), 5, outer);
-        x = t.World.SpawnAt(inner, new Double3(1, 0, 0));
+        x = t.World.SpawnAt(inner, new(1, 0, 0));
         t.SpawnWith(SendOnce.Of(inner.Entity, new Destroy()), SendOnce.Of(outer.Entity, new Destroy()));
         t.Run(2);
         return t;
@@ -331,7 +333,7 @@ public class LifecycleFrameTests
 
         // 100 for the outer frame, 10 for the inner one, 1 for the entity.
         Double3 position = t.World.PoseInOwnFrame(x).Position;
-        ShouldBeNear(position, new Double3(111, 0, 0));
+        ShouldBeNear(position, new(111, 0, 0));
     }
 
     [Fact]
@@ -351,7 +353,8 @@ public class LifecycleFrameTests
     /// on tick 0 and the world runs three ticks. With <paramref name="innerOwnerHasTheLowerSlot"/> the inner frame's owner
     /// is in the lower slot, so that the sync point destroys it first; without, the outer frame's owner is.
     /// </summary>
-    private static TestWorld PodInTwoDyingFrames(bool innerOwnerHasTheLowerSlot, out FrameHandle inner, out FrameHandle pod, out Entity passenger, out Recorder podLog)
+    private static TestWorld PodInTwoDyingFrames(bool innerOwnerHasTheLowerSlot, out FrameHandle inner,
+        out FrameHandle pod, out Entity passenger, out Recorder podLog)
     {
         var t = new TestWorld(chunkSize: 1);
         if (innerOwnerHasTheLowerSlot)
@@ -361,13 +364,15 @@ public class LifecycleFrameTests
             t.World.Destroy(high);
             t.World.Destroy(low);
         }
+
         FrameHandle outer = t.SpawnStaticFrame(TestWorld.At(100), 50);
-        inner = t.SpawnStaticFrame(new DPose(new Double3(10, 0, 0), QuarterTurnAboutY), 20, outer);
+        inner = t.SpawnStaticFrame(new(new(10, 0, 0), QuarterTurnAboutY), 20, outer);
         pod = t.SpawnStaticFrame(TestWorld.At(0, 0, 5), 2, inner);
-        (inner.Entity.Index < outer.Entity.Index).Should().Be(innerOwnerHasTheLowerSlot, "this is the order of death that the test wants");
-        podLog = new Recorder(EventMask.Of<FrameChanged>());
+        (inner.Entity.Index < outer.Entity.Index).Should()
+            .Be(innerOwnerHasTheLowerSlot, "this is the order of death that the test wants");
+        podLog = new(EventMask.Of<FrameChanged>());
         t.World.AddComponent(pod.Entity, podLog);
-        passenger = t.World.SpawnAt(pod, new Double3(1, 0, 0));
+        passenger = t.World.SpawnAt(pod, new(1, 0, 0));
         t.SpawnWith(SendOnce.Of(outer.Entity, new Destroy()), SendOnce.Of(inner.Entity, new Destroy()));
         t.Run(3);
         return t;
@@ -394,7 +399,7 @@ public class LifecycleFrameTests
 
         // The inner frame's quarter turn maps the pod's offset of z = 5 to x = 5. With the inner frame's x = 10 and the outer's 100, that is x = 115.
         Double3 position = t.World.PoseInOwnFrame(pod.Entity).Position;
-        ShouldBeNear(position, new Double3(115, 0, 0));
+        ShouldBeNear(position, new(115, 0, 0));
     }
 
     [Theory]
@@ -402,12 +407,13 @@ public class LifecycleFrameTests
     [InlineData(true)]
     public void WhatWasInsideThePodStaysInThePodAndKeepsItsPlaceInSpace(bool innerOwnerHasTheLowerSlot)
     {
-        using TestWorld t = PodInTwoDyingFrames(innerOwnerHasTheLowerSlot, out _, out FrameHandle pod, out Entity passenger, out _);
+        using TestWorld t = PodInTwoDyingFrames(innerOwnerHasTheLowerSlot, out _, out FrameHandle pod,
+            out Entity passenger, out _);
 
         t.World.GetFrame(passenger).Should().Be(pod);
         t.World.Snapshot.TryGetPoseIn(passenger, t.Root, out DPose inRoot).Should().BeTrue();
         // The pod turned with the inner frame, so the passenger's x = 1 offset became z = -1 beside the pod at x = 115.
-        ShouldBeNear(inRoot.Position, new Double3(115, 0, -1));
+        ShouldBeNear(inRoot.Position, new(115, 0, -1));
     }
 
     [Theory]
@@ -415,9 +421,10 @@ public class LifecycleFrameTests
     [InlineData(true)]
     public void ThePodsOwnerHearsOnceThatItMovedFromTheFrameItWasInToTheSurvivor(bool innerOwnerHasTheLowerSlot)
     {
-        using TestWorld t = PodInTwoDyingFrames(innerOwnerHasTheLowerSlot, out FrameHandle inner, out _, out _, out Recorder podLog);
+        using TestWorld t = PodInTwoDyingFrames(innerOwnerHasTheLowerSlot, out FrameHandle inner, out _, out _,
+            out Recorder podLog);
 
-        FrameChanged changed = podLog.Seen.Should().ContainSingle().Subject.Event.As<FrameChanged>();
+        var changed = podLog.Seen.Should().ContainSingle().Subject.Event.As<FrameChanged>();
         changed.From.Should().Be(inner);
         changed.To.Should().Be(t.Root);
     }
@@ -441,14 +448,6 @@ public class LifecycleFrameTests
     /// </summary>
     private sealed class MoonScene : IDisposable
     {
-        public TestWorld T { get; } = new();
-        public Entity MoonOwner { get; }
-        public FrameHandle Pod { get; }
-        public Entity Passenger { get; }
-        public Double3 PodVelocityBefore { get; }
-        public Double3 PodSpinBefore { get; }
-        public DPose PassengerInRootBefore { get; }
-
         public MoonScene()
         {
             // The moon takes its G·M from the point gravity of the root frame.
@@ -456,17 +455,25 @@ public class LifecycleFrameTests
             MoonOwner = T.World.Spawn(new SpawnDesc
             {
                 Frame = T.Root,
-                AsFrame = new FrameSpec(FrameBounds.Sphere(1e5f)),
+                AsFrame = new(FrameBounds.Sphere(1e5f))
             }.OnKeplerOrbit(T.World, KeplerOrbit.Circular(7e6, spinRate: 0.01)));
             FrameHandle moon = T.World.GetOwnedFrame(MoonOwner);
             Pod = T.SpawnStaticFrame(TestWorld.At(100, 20, -30), 10, moon);
-            Passenger = T.World.SpawnAt(Pod, new Double3(1, 0, 0));
+            Passenger = T.World.SpawnAt(Pod, new(1, 0, 0));
             T.Run(3);
             PodVelocityBefore = T.World.Frames.ConvertVelocity(Pod, T.Root, Double3.Zero, Double3.Zero);
             PodSpinBefore = T.World.Frames.AngularVelocityRelative(Pod, T.Root);
             T.World.Snapshot.TryGetPoseIn(Passenger, T.Root, out DPose passengerInRoot).Should().BeTrue();
             PassengerInRootBefore = passengerInRoot;
         }
+
+        public TestWorld T { get; } = new();
+        public Entity MoonOwner { get; }
+        public FrameHandle Pod { get; }
+        public Entity Passenger { get; }
+        public Double3 PodVelocityBefore { get; }
+        public Double3 PodSpinBefore { get; }
+        public DPose PassengerInRootBefore { get; }
 
         public void DestroyTheMoon() => T.World.Destroy(MoonOwner);
 
@@ -560,18 +567,18 @@ public class LifecycleFrameTests
     private static TestWorld SpawnIntoAFrameThatDiesInTheSameTick(out FrameHandle doomed, out Entity child)
     {
         var t = new TestWorld();
-        doomed = t.World.GetOwnedFrame(t.World.Spawn(new SpawnDesc
+        doomed = t.World.GetOwnedFrame(t.World.Spawn(new()
         {
             Frame = t.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy())],
+            AsFrame = new(FrameBounds.Sphere(10)),
+            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy())]
         }));
         FrameHandle target = doomed;
         Entity spawned = default;
         t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
         {
             if (self.Tick == 0)
-                spawned = self.Spawn(new SpawnDesc { Frame = target });
+                spawned = self.Spawn(new() { Frame = target });
         }));
         t.Run(1);
         child = spawned;
@@ -592,7 +599,8 @@ public class LifecycleFrameTests
     {
         using TestWorld t = SpawnIntoAFrameThatDiesInTheSameTick(out _, out Entity child);
 
-        t.World.Errors.Should().ContainSingle().Which.Should().Contain("dropped the spawn").And.Contain(child.ToString());
+        t.World.Errors.Should().ContainSingle().Which.Should().Contain("dropped the spawn").And
+            .Contain(child.ToString());
     }
 
     [Fact]

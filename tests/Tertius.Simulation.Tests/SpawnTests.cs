@@ -25,7 +25,7 @@ public class SpawnTests
         {
             if (self.Tick != 0)
                 return;
-            child = self.Spawn(new SpawnDesc { Frame = self.Frame });
+            child = self.Spawn(new() { Frame = self.Frame });
             aliveDuringTheTick = self.Snapshot.IsAlive(child);
         }));
 
@@ -44,7 +44,7 @@ public class SpawnTests
         t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
         {
             if (self.Tick == 0)
-                child = self.Spawn(new SpawnDesc { Frame = self.Frame, Pose = TestWorld.At(3), Components = [childLog] });
+                child = self.Spawn(new() { Frame = self.Frame, Pose = TestWorld.At(3), Components = [childLog] });
         }));
 
         t.Run(1);
@@ -62,7 +62,7 @@ public class SpawnTests
         t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
         {
             if (self.Tick == 0)
-                child = self.Spawn(new SpawnDesc { Frame = bay });
+                child = self.Spawn(new() { Frame = bay });
         }));
 
         t.Run(1);
@@ -78,7 +78,7 @@ public class SpawnTests
         t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
         {
             if (self.Tick == 0)
-                self.Spawn(new SpawnDesc { Frame = self.Frame, Components = [childLog] });
+                self.Spawn(new() { Frame = self.Frame, Components = [childLog] });
         }));
 
         t.Run(1);
@@ -97,7 +97,7 @@ public class SpawnTests
         {
             if (self.Tick != 0)
                 return;
-            Entity child = self.Spawn(new SpawnDesc { Frame = self.Frame, Components = [childLog] });
+            Entity child = self.Spawn(new() { Frame = self.Frame, Components = [childLog] });
             outbox.Send(child, new Ping { Value = 5 });
         }));
 
@@ -115,14 +115,15 @@ public class SpawnTests
         {
             if (self.Tick != 0)
                 return;
-            Entity child = self.Spawn(new SpawnDesc { Frame = self.Frame, Components = [childLog] });
+            Entity child = self.Spawn(new() { Frame = self.Frame, Components = [childLog] });
             outbox.Send(child, new Ping { Value = 1 });
             outbox.Send(child, new Ping { Value = 2 });
         }));
 
         t.Run(2);
 
-        childLog.History.Should().ContainSingle().Which.EventTypes.Should().Equal(typeof(Spawned), typeof(Ping), typeof(Ping));
+        childLog.History.Should().ContainSingle().Which.EventTypes.Should()
+            .Equal(typeof(Spawned), typeof(Ping), typeof(Ping));
     }
 
     [Fact]
@@ -135,7 +136,7 @@ public class SpawnTests
         {
             if (self.Tick != 0)
                 return;
-            Entity child = self.Spawn(new SpawnDesc { Frame = self.Frame, Components = [childLog] });
+            Entity child = self.Spawn(new() { Frame = self.Frame, Components = [childLog] });
             outbox.Send(child, new Ping { Value = 1 });
         }));
 
@@ -152,7 +153,7 @@ public class SpawnTests
         t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
         {
             if (self.Tick == 0)
-                self.Spawn(new SpawnDesc { Frame = self.Frame, Components = [childLog] });
+                self.Spawn(new() { Frame = self.Frame, Components = [childLog] });
         }));
 
         t.Run(4);
@@ -169,7 +170,7 @@ public class SpawnTests
         t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
         {
             if (self.Tick == 0)
-                self.Spawn(new SpawnDesc { Frame = self.Frame, Components = [childLog] });
+                self.Spawn(new() { Frame = self.Frame, Components = [childLog] });
         }));
 
         t.Run(3);
@@ -188,9 +189,10 @@ public class SpawnTests
 
         spawner.Children.Should().HaveCount(3).And.OnlyContain(child => t.World.IsAlive(child));
         // The chunk's pool was reserved from fresh slots in order, and the children took them in order.
-        spawner.Children.Select(child => child.Index).Should().Equal(FirstPoolSlot, FirstPoolSlot + 1, FirstPoolSlot + 2);
+        spawner.Children.Select(child => child.Index).Should()
+            .Equal(FirstPoolSlot, FirstPoolSlot + 1, FirstPoolSlot + 2);
         spawner.Children.Select(child => child.Generation).Should().OnlyContain(generation => generation == 1u);
-        spawner.Children.Select(child => t.World.GetComponent<Recorder>(child)).Distinct().Should().HaveCount(3);
+        spawner.Children.Select(t.World.GetComponent<Recorder>).Distinct().Should().HaveCount(3);
     }
 
     [Fact]
@@ -216,7 +218,7 @@ public class SpawnTests
         {
             if (self.Tick != 0)
                 return;
-            child = self.Spawn(new SpawnDesc { Frame = self.Frame, Components = [childLog] });
+            child = self.Spawn(new() { Frame = self.Frame, Components = [childLog] });
             outbox.Send(child, new Destroy());
         }));
 
@@ -233,7 +235,7 @@ public class SpawnTests
         Entity child = default;
         Entity parent = t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
         {
-            child = self.Spawn(new SpawnDesc { Frame = self.Frame });
+            child = self.Spawn(new() { Frame = self.Frame });
             self.Destroy();
         }));
 
@@ -251,18 +253,14 @@ public class SpawnTests
         t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
         {
             if (self.Tick == 0)
-            {
-                bay = self.Spawn(new SpawnDesc
+                bay = self.Spawn(new()
                 {
                     Frame = self.Frame,
                     Pose = TestWorld.At(500),
-                    AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
+                    AsFrame = new(FrameBounds.Sphere(50))
                 });
-            }
             else if (self.Tick == 1 && self.Snapshot.Frames.TryGetFrame(bay, out FrameHandle frame))
-            {
-                visitor = self.Spawn(new SpawnDesc { Frame = frame });
-            }
+                visitor = self.Spawn(new() { Frame = frame });
         }));
 
         t.Run(3);
@@ -289,7 +287,7 @@ public class SpawnTests
     {
         using var t = new TestWorld();
 
-        Entity entity = t.SpawnAt(new Double3(3, 4, 5));
+        Entity entity = t.SpawnAt(new(3, 4, 5));
 
         t.World.PoseInOwnFrame(entity).Position.Should().Be(new Double3(3, 4, 5));
         t.World.GetFrame(entity).Should().Be(t.Root);
@@ -349,13 +347,13 @@ public class SpawnTests
     [Fact]
     public void ABodySpawnedDuringATickReachesPhysicsAtTheSyncPointOfThatTick()
     {
-        using var t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld t = TestWorld.OnJolt(out FaultInjectingBackend faults);
         List<PhysicsChanges> batches = faults.AppliedChanges;
         Entity child = default;
         t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
         {
             if (self.Tick == 0)
-                child = self.Spawn(new SpawnDesc { Frame = self.Frame, Body = TestWorld.Ball });
+                child = self.Spawn(new() { Frame = self.Frame, Body = TestWorld.Ball });
         }));
 
         t.Run(1);
@@ -368,12 +366,13 @@ public class SpawnTests
     [Fact]
     public void ABodySpawnedOutsideATickReachesPhysicsBeforeTheFirstStep()
     {
-        using var t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld t = TestWorld.OnJolt(out FaultInjectingBackend faults);
         List<PhysicsChanges> batches = faults.AppliedChanges;
         Entity ball = default;
         var ballCreatedAtEachStep = new List<bool>();
-        faults.EditOutput = _ => ballCreatedAtEachStep.Add(batches.Any(batch => batch.BodiesCreated.Any(create => create.Entity == ball)));
-        ball = t.World.Spawn(new SpawnDesc { Frame = t.Root, Body = TestWorld.Ball });
+        faults.EditOutput = _ =>
+            ballCreatedAtEachStep.Add(batches.Any(batch => batch.BodiesCreated.Any(create => create.Entity == ball)));
+        ball = t.World.Spawn(new() { Frame = t.Root, Body = TestWorld.Ball });
 
         t.Run(1);
 
@@ -386,7 +385,7 @@ public class SpawnTests
     [Fact]
     public void AnEntityWithoutABodyIsNeverCreatedInPhysics()
     {
-        using var t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld t = TestWorld.OnJolt(out FaultInjectingBackend faults);
         List<PhysicsChanges> batches = faults.AppliedChanges;
         t.SpawnWith(new Recorder());
 
@@ -480,10 +479,14 @@ public class SpawnTests
         var made = new List<Entity>();
         t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
         {
-            made.Add(self.Spawn(new SpawnDesc
+            made.Add(self.Spawn(new()
             {
                 Frame = self.Frame,
-                Components = [new Lambda(EventMask.Of<Spawned>(), (child, scoped ref childEvents, scoped ref childOutbox) => child.Destroy())],
+                Components =
+                [
+                    new Lambda(EventMask.Of<Spawned>(),
+                        (child, scoped ref childEvents, scoped ref childOutbox) => child.Destroy())
+                ]
             }));
         }));
         t.Run(ticks);
@@ -519,7 +522,7 @@ public class SpawnTests
         List<Entity> made = RunWithShortLivedChildren(t, 40);
 
         // The child of the last tick has not had its first run yet; every earlier child destroyed itself on that run.
-        made.Where(e => t.World.IsAlive(e)).Should().Equal(made[^1]);
+        made.Where(t.World.IsAlive).Should().Equal(made[^1]);
     }
 
     [Fact]

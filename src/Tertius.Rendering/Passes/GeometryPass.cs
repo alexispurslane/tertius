@@ -40,14 +40,14 @@ internal sealed unsafe class GeometryPass : RenderPass
             VertexInput = VertexInput.Mesh,
             DepthTest = true,
             DepthWrite = true,
-            DepthCompare = CompareOp.Greater,
+            DepthCompare = CompareOp.Greater
         }.Create(device, shaders);
     }
 
     public override string Name => "G-buffer";
 
     /// <summary>Called in every range after the meshes, in order. See <see cref="IRangeDrawer"/>.</summary>
-    public List<IRangeDrawer> RangeDrawers { get; } = new();
+    public List<IRangeDrawer> RangeDrawers { get; } = [];
 
     public override void Record(FrameContext context)
     {
@@ -72,8 +72,7 @@ internal sealed unsafe class GeometryPass : RenderPass
             barriers.Flush(vk, commandBuffer);
 
             for (int i = 0; i < gbuffer.Length; i++)
-            {
-                colors[i] = new RenderingAttachmentInfo
+                colors[i] = new()
                 {
                     SType = StructureType.RenderingAttachmentInfo,
                     ImageView = gbuffer[i].View,
@@ -81,9 +80,8 @@ internal sealed unsafe class GeometryPass : RenderPass
                     LoadOp = first ? AttachmentLoadOp.Clear : AttachmentLoadOp.Load,
                     StoreOp = AttachmentStoreOp.Store,
                     // Zero everywhere: distance 0 marks sky for the lighting pass.
-                    ClearValue = new ClearValue(new ClearColorValue(0f, 0f, 0f, 0f)),
+                    ClearValue = new(new ClearColorValue(0f, 0f, 0f, 0f))
                 };
-            }
             var depth = new RenderingAttachmentInfo
             {
                 SType = StructureType.RenderingAttachmentInfo,
@@ -92,16 +90,16 @@ internal sealed unsafe class GeometryPass : RenderPass
                 LoadOp = AttachmentLoadOp.Clear,
                 // The next range clears depth again and later passes use the G-buffer distance instead.
                 StoreOp = AttachmentStoreOp.DontCare,
-                ClearValue = new ClearValue(depthStencil: new ClearDepthStencilValue(DepthRanges.ClearDepth(range), 0)),
+                ClearValue = new(depthStencil: new ClearDepthStencilValue(DepthRanges.ClearDepth(range), 0))
             };
             var rendering = new RenderingInfo
             {
                 SType = StructureType.RenderingInfo,
-                RenderArea = new Rect2D(new Offset2D(0, 0), targets.Extent),
+                RenderArea = new(new Offset2D(0, 0), targets.Extent),
                 LayerCount = 1,
                 ColorAttachmentCount = (uint)gbuffer.Length,
                 PColorAttachments = colors,
-                PDepthAttachment = &depth,
+                PDepthAttachment = &depth
             };
             vk.CmdBeginRendering(commandBuffer, &rendering);
             // Every range: a range drawer may have bound its own pipeline. Sets and dynamic state stay.
@@ -112,12 +110,14 @@ internal sealed unsafe class GeometryPass : RenderPass
                 context.SetFullViewport();
                 BindGeometry(context);
             }
+
             CommandRange commands = scene.Opaque[range];
             if (commands.Count > 0)
             {
                 PushDraw(context, scene.RangeViewProjection[range]);
                 DrawIndirect(context, commands);
             }
+
             foreach (IRangeDrawer drawer in RangeDrawers)
                 drawer.DrawRange(context, range);
             vk.CmdEndRendering(commandBuffer);
@@ -137,9 +137,10 @@ internal sealed unsafe class GeometryPass : RenderPass
     /// Sets the mesh-pass push constants. The main view has its eye at the origin; a shadow cascade or an impostor
     /// capture passes its own matrix. <paramref name="layout"/> defaults to <see cref="DescriptorLayouts.SceneLayout"/>.
     /// </summary>
-    public static void PushDraw(FrameContext context, Matrix4x4 viewProjection, Vector3 eye = default, PipelineLayout layout = default)
+    public static void PushDraw(FrameContext context, Matrix4x4 viewProjection, Vector3 eye = default,
+        PipelineLayout layout = default)
     {
-        var push = new DrawPushConstants { ViewProj = viewProjection, Eye = new Vector4(eye, 1f) };
+        var push = new DrawPushConstants { ViewProj = viewProjection, Eye = new(eye, 1f) };
         context.Vk.CmdPushConstants(context.CommandBuffer, layout.Handle != 0 ? layout : context.Layouts.SceneLayout,
             ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit, 0, (uint)sizeof(DrawPushConstants), &push);
     }

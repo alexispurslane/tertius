@@ -13,7 +13,69 @@ public class GravityFieldTests
 {
     private const double EarthMu = 3.986004418e14;
     private static readonly Vector3 Down = new(0, -9.81f, 0);
-    private static readonly BoundingBox Cabin = new(new Vector3(-2, -1, -3), new Vector3(2, 1, 3));
+    private static readonly BoundingBox Cabin = new(new(-2, -1, -3), new(2, 1, 3));
+
+    // ---- Equality ---------------------------------------------------------------------------------------------------
+
+    public static TheoryData<string, GravityField, GravityField> EqualFields => new()
+    {
+        { "two empty fields", GravityField.None, default },
+        { "two uniform fields of the same acceleration", GravityField.Uniform(Down), GravityField.Uniform(Down) },
+        {
+            "two uniform fields of the same acceleration and region", GravityField.Uniform(Down, Cabin),
+            GravityField.Uniform(Down, Cabin)
+        },
+        { "two point fields of the same G·M", GravityField.Point(EarthMu), GravityField.Point(EarthMu) }
+    };
+
+    public static TheoryData<string, GravityField, GravityField> UnequalFields => new()
+    {
+        { "uniform fields of different accelerations", GravityField.Uniform(Down), GravityField.Uniform(2 * Down) },
+        {
+            "a uniform field with a region and one without", GravityField.Uniform(Down, Cabin),
+            GravityField.Uniform(Down)
+        },
+        {
+            "uniform fields of different regions", GravityField.Uniform(Down, Cabin),
+            GravityField.Uniform(Down, new BoundingBox(Vector3.Zero, Vector3.One))
+        },
+        { "point fields of different G·M", GravityField.Point(EarthMu), GravityField.Point(2 * EarthMu) },
+        { "a uniform field of zero and the empty field", GravityField.Uniform(Vector3.Zero), GravityField.None },
+        { "a point field of zero and the empty field", GravityField.Point(0), GravityField.None },
+        {
+            "a uniform field of zero and a point field of zero", GravityField.Uniform(Vector3.Zero),
+            GravityField.Point(0)
+        }
+    };
+
+    // ---- Validity and orbits ----------------------------------------------------------------------------------------
+
+    public static TheoryData<string, GravityField> ValidFields => new()
+    {
+        { "no gravity", GravityField.None },
+        { "a uniform field", GravityField.Uniform(Down) },
+        { "a uniform field of zero", GravityField.Uniform(Vector3.Zero) },
+        { "a uniform field in a region", GravityField.Uniform(Down, Cabin) },
+        { "a point field", GravityField.Point(EarthMu) },
+        { "a point field of G·M 0", GravityField.Point(0) }
+    };
+
+    public static TheoryData<string, GravityField> InvalidFields => new()
+    {
+        { "a uniform field with a NaN component", GravityField.Uniform(new(0, float.NaN, 0)) },
+        { "a uniform field with an infinite component", GravityField.Uniform(new(float.PositiveInfinity, 0, 0)) },
+        {
+            "a uniform field with a NaN corner of the region",
+            GravityField.Uniform(Down, new BoundingBox(new(float.NaN), Vector3.One))
+        },
+        {
+            "a uniform field with an infinite corner of the region",
+            GravityField.Uniform(Down, new BoundingBox(Vector3.Zero, new(0, float.PositiveInfinity, 0)))
+        },
+        { "a point field with a NaN G·M", GravityField.Point(double.NaN) },
+        { "a point field with an infinite G·M", GravityField.Point(double.PositiveInfinity) },
+        { "a point field with a negative G·M", GravityField.Point(-EarthMu) }
+    };
 
     // ---- Holding a case and reading it back -------------------------------------------------------------------------
 
@@ -26,7 +88,8 @@ public class GravityFieldTests
         field.TryGetValue(out UniformGravity uniform).Should().BeTrue();
         uniform.Acceleration.Should().Be(Down);
         uniform.Region.Should().Be(Cabin);
-        (field is UniformGravity { Acceleration: var acceleration } ? acceleration : default).Should().Be(Down, "a pattern match reads the same case");
+        (field is UniformGravity { Acceleration: var acceleration } ? acceleration : default).Should()
+            .Be(Down, "a pattern match reads the same case");
     }
 
     [Fact]
@@ -90,7 +153,8 @@ public class GravityFieldTests
         uniform.Should().Be(default(UniformGravity));
         point.Should().Be(default(PointGravity));
         none.Value.Should().BeNull();
-        (none == default).Should().BeTrue("the empty field is the all-zero default, so a frame made without a field has none");
+        (none == default).Should()
+            .BeTrue("the empty field is the all-zero default, so a frame made without a field has none");
     }
 
     [Fact]
@@ -117,7 +181,7 @@ public class GravityFieldTests
             UniformGravity { Region: null } => "uniform everywhere",
             UniformGravity => "uniform in a region",
             PointGravity => "point",
-            _ => "none",
+            _ => "none"
         };
 
         Describe(GravityField.Uniform(Down)).Should().Be("uniform everywhere");
@@ -125,27 +189,6 @@ public class GravityFieldTests
         Describe(GravityField.Point(EarthMu)).Should().Be("point");
         Describe(GravityField.None).Should().Be("none");
     }
-
-    // ---- Equality ---------------------------------------------------------------------------------------------------
-
-    public static TheoryData<string, GravityField, GravityField> EqualFields => new()
-    {
-        { "two empty fields", GravityField.None, default },
-        { "two uniform fields of the same acceleration", GravityField.Uniform(Down), GravityField.Uniform(Down) },
-        { "two uniform fields of the same acceleration and region", GravityField.Uniform(Down, Cabin), GravityField.Uniform(Down, Cabin) },
-        { "two point fields of the same G·M", GravityField.Point(EarthMu), GravityField.Point(EarthMu) },
-    };
-
-    public static TheoryData<string, GravityField, GravityField> UnequalFields => new()
-    {
-        { "uniform fields of different accelerations", GravityField.Uniform(Down), GravityField.Uniform(2 * Down) },
-        { "a uniform field with a region and one without", GravityField.Uniform(Down, Cabin), GravityField.Uniform(Down) },
-        { "uniform fields of different regions", GravityField.Uniform(Down, Cabin), GravityField.Uniform(Down, new BoundingBox(Vector3.Zero, Vector3.One)) },
-        { "point fields of different G·M", GravityField.Point(EarthMu), GravityField.Point(2 * EarthMu) },
-        { "a uniform field of zero and the empty field", GravityField.Uniform(Vector3.Zero), GravityField.None },
-        { "a point field of zero and the empty field", GravityField.Point(0), GravityField.None },
-        { "a uniform field of zero and a point field of zero", GravityField.Uniform(Vector3.Zero), GravityField.Point(0) },
-    };
 
     [Theory]
     [MemberData(nameof(EqualFields))]
@@ -180,33 +223,12 @@ public class GravityFieldTests
         Type union = typeof(GravityField);
 
         union.GetFields(publicInstance).Should().BeEmpty();
-        union.GetProperties(publicInstance).Select(property => property.PropertyType).Should().OnlyContain(type => type == typeof(bool) || type == typeof(object));
+        union.GetProperties(publicInstance).Select(property => property.PropertyType).Should()
+            .OnlyContain(type => type == typeof(bool) || type == typeof(object));
         union.GetConstructors().Select(constructor => constructor.GetParameters().Single().ParameterType)
-            .Should().BeEquivalentTo([typeof(UniformGravity), typeof(PointGravity)], "a field is made from one case and nothing else");
+            .Should().BeEquivalentTo([typeof(UniformGravity), typeof(PointGravity)],
+                "a field is made from one case and nothing else");
     }
-
-    // ---- Validity and orbits ----------------------------------------------------------------------------------------
-
-    public static TheoryData<string, GravityField> ValidFields => new()
-    {
-        { "no gravity", GravityField.None },
-        { "a uniform field", GravityField.Uniform(Down) },
-        { "a uniform field of zero", GravityField.Uniform(Vector3.Zero) },
-        { "a uniform field in a region", GravityField.Uniform(Down, Cabin) },
-        { "a point field", GravityField.Point(EarthMu) },
-        { "a point field of G·M 0", GravityField.Point(0) },
-    };
-
-    public static TheoryData<string, GravityField> InvalidFields => new()
-    {
-        { "a uniform field with a NaN component", GravityField.Uniform(new Vector3(0, float.NaN, 0)) },
-        { "a uniform field with an infinite component", GravityField.Uniform(new Vector3(float.PositiveInfinity, 0, 0)) },
-        { "a uniform field with a NaN corner of the region", GravityField.Uniform(Down, new BoundingBox(new Vector3(float.NaN), Vector3.One)) },
-        { "a uniform field with an infinite corner of the region", GravityField.Uniform(Down, new BoundingBox(Vector3.Zero, new Vector3(0, float.PositiveInfinity, 0))) },
-        { "a point field with a NaN G·M", GravityField.Point(double.NaN) },
-        { "a point field with an infinite G·M", GravityField.Point(double.PositiveInfinity) },
-        { "a point field with a negative G·M", GravityField.Point(-EarthMu) },
-    };
 
     [Theory]
     [MemberData(nameof(ValidFields))]
@@ -248,13 +270,13 @@ public class GravityFieldTests
     [Fact]
     public void TheEmptyFieldPullsNowhere()
     {
-        GravityField.None.At(new Double3(3, 4, 5)).Should().Be(Vector3.Zero);
+        GravityField.None.At(new(3, 4, 5)).Should().Be(Vector3.Zero);
     }
 
     [Fact]
     public void AUniformFieldAcceleratesEverywhereInItsFrameWhenItHasNoRegion()
     {
-        GravityField.Uniform(Down).At(new Double3(1e9, -1e9, 5)).Should().Be(Down);
+        GravityField.Uniform(Down).At(new(1e9, -1e9, 5)).Should().Be(Down);
     }
 
     [Fact]
@@ -262,9 +284,9 @@ public class GravityFieldTests
     {
         GravityField field = GravityField.Uniform(Down, Cabin);
 
-        field.At(new Double3(2, 1, 3)).Should().Be(Down, "the region includes its edge");
-        field.At(new Double3(2.01, 0, 0)).Should().Be(Vector3.Zero);
-        field.At(new Double3(0, -1.01, 0)).Should().Be(Vector3.Zero);
+        field.At(new(2, 1, 3)).Should().Be(Down, "the region includes its edge");
+        field.At(new(2.01, 0, 0)).Should().Be(Vector3.Zero);
+        field.At(new(0, -1.01, 0)).Should().Be(Vector3.Zero);
     }
 
     [Fact]
@@ -272,14 +294,15 @@ public class GravityFieldTests
     {
         GravityField field = GravityField.Point(100);
 
-        field.At(new Double3(10, 0, 0)).Should().Be(new Vector3(-1, 0, 0));
-        field.At(new Double3(0, 0, -5)).Should().Be(new Vector3(0, 0, 4));
+        field.At(new(10, 0, 0)).Should().Be(new Vector3(-1, 0, 0));
+        field.At(new(0, 0, -5)).Should().Be(new Vector3(0, 0, 4));
     }
 
     [Fact]
     public void APointFieldPullsNothingAtItsOwnCenterInsteadOfDividingByZero()
     {
         GravityField.Point(100).At(Double3.Zero).Should().Be(Vector3.Zero);
-        GravityField.Point(100).At(new Double3(0.0005, 0, 0)).Should().Be(Vector3.Zero, "closer than a millimeter, the pull is zero");
+        GravityField.Point(100).At(new(0.0005, 0, 0)).Should()
+            .Be(Vector3.Zero, "closer than a millimeter, the pull is zero");
     }
 }

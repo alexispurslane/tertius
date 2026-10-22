@@ -26,12 +26,16 @@ public static class ReadoutText
     public static string Altitude(Double3 position)
     {
         double altitude = position.Length - DemoScenes.EarthRadius;
-        return altitude < MetersBelow ? string.Format(Invariant, "{0:N1} m", altitude) : string.Format(Invariant, "{0:N2} km", altitude / 1e3);
+        return altitude < MetersBelow
+            ? string.Format(Invariant, "{0:N1} m", altitude)
+            : string.Format(Invariant, "{0:N2} km", altitude / 1e3);
     }
 
     /// <summary>A distance of <paramref name="distance"/> meters: in meters with one decimal below 10 km, and in kilometers with one above.</summary>
     public static string Distance(double distance) =>
-        distance < MetersBelow ? string.Format(Invariant, "{0:N1} m", distance) : string.Format(Invariant, "{0:N1} km", distance / 1e3);
+        distance < MetersBelow
+            ? string.Format(Invariant, "{0:N1} m", distance)
+            : string.Format(Invariant, "{0:N1} km", distance / 1e3);
 
     /// <summary>A felt gravity of <paramref name="felt"/> m/s², in g with two decimals.</summary>
     public static string Gravity(double felt) => string.Format(Invariant, "{0:F2} g", felt / StandardGravity);
@@ -43,14 +47,16 @@ public static class ReadoutText
     public static string Clock(long tick)
     {
         long tenths = tick / 6;
-        return string.Format(Invariant, "T+ {0}:{1:00}:{2:00}.{3}", tenths / 36_000, tenths / 600 % 60, tenths / 10 % 60, tenths % 10);
+        return string.Format(Invariant, "T+ {0}:{1:00}:{2:00}.{3}", tenths / 36_000, tenths / 600 % 60,
+            tenths / 10 % 60, tenths % 10);
     }
 
     /// <summary>
     /// The rate of a film of every <paramref name="every"/>th tick in a video at 60 frames per second: real time for every
     /// tick, and a time-lapse of <paramref name="every"/> times for more.
     /// </summary>
-    public static string Rate(int every) => every == 1 ? "REAL TIME" : string.Format(Invariant, "TIME-LAPSE ×{0}", every);
+    public static string Rate(int every) =>
+        every == 1 ? "REAL TIME" : string.Format(Invariant, "TIME-LAPSE ×{0}", every);
 
     /// <summary>
     /// The four readouts of <paramref name="row"/>, one per line, each a label and its value, all of one width: the speed,
@@ -61,7 +67,7 @@ public static class ReadoutText
         Line("SPEED", Speed(row.Speed)),
         Line("ALTITUDE", Altitude(row.Position)),
         Line("TO STATION", Distance(row.ToStation)),
-        Line("FELT GRAVITY", Gravity(row.Felt)),
+        Line("FELT GRAVITY", Gravity(row.Felt))
     ];
 
     private static string Line(string label, string value) => label.PadRight(13) + value.PadLeft(12);
@@ -76,10 +82,10 @@ public delegate string[] CheckPanel(ReadoutRow first, ReadoutRow row);
 /// <summary>The check panels of the demo edit: values of the run beside the values that a textbook formula predicts.</summary>
 public static class CheckPanels
 {
-    private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
-
     /// <summary>Below this time since the span's first frame, in seconds, the run's period shows as measuring.</summary>
     private const double MeasuringFor = 10;
+
+    private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
 
     /// <summary>
     /// The parking orbit: at r, the distance of the row's person from Earth's center, the circular speed √(GM / r) beside the
@@ -99,11 +105,15 @@ public static class CheckPanels
             double cos = Double3.Dot(first.Position.Normalized(), row.Position.Normalized());
             run = string.Format(Invariant, "{0:F1} min", 2 * Math.PI * t / Math.Acos(Math.Clamp(cos, -1, 1)) / 60);
         }
+
         string[] lines =
         [
-            string.Format(Invariant, "TEXTBOOK CHECK   parking orbit, {0:F1} km up", (r - DemoScenes.EarthRadius) / 1e3),
-            string.Format(Invariant, "circular speed √(GM/r)   {0,11}   run {1}", ReadoutText.Speed(circularSpeed), ReadoutText.Speed(row.Speed)),
-            string.Format(Invariant, "one orbit 2π√(r³/GM)     {0,11}   run {1}", string.Format(Invariant, "{0:F1} min", circlePeriod / 60), run),
+            string.Format(Invariant, "TEXTBOOK CHECK   parking orbit, {0:F1} km up",
+                (r - DemoScenes.EarthRadius) / 1e3),
+            string.Format(Invariant, "circular speed √(GM/r)   {0,11}   run {1}", ReadoutText.Speed(circularSpeed),
+                ReadoutText.Speed(row.Speed)),
+            string.Format(Invariant, "one orbit 2π√(r³/GM)     {0,11}   run {1}",
+                string.Format(Invariant, "{0:F1} min", circlePeriod / 60), run)
         ];
         int width = lines.Max(line => line.Length);
         return [.. lines.Select(line => line.PadRight(width))];
@@ -122,7 +132,8 @@ public static class CheckPanels
         [
             "TEXTBOOK CHECK   spin gravity in the wheel",
             string.Format(Invariant, "ω {0:F5} rad/s, r {1:F2} m from the axis", omega, r),
-            string.Format(Invariant, "felt gravity ω²r   {0}   run {1}", Acceleration(omega * omega * r), Acceleration(row.Felt)),
+            string.Format(Invariant, "felt gravity ω²r   {0}   run {1}", Acceleration(omega * omega * r),
+                Acceleration(row.Felt))
         ];
         int width = lines.Max(line => line.Length);
         return [.. lines.Select(line => line.PadRight(width))];
@@ -148,7 +159,7 @@ public static class CheckPanels
             string.Format(Invariant, "TEXTBOOK CHECK   a box thrown in the wheel, ω {0:F5} rad/s", omega),
             ThrowColumns("lands", "release", "straight line", "run", "uniform 1 g"),
             ThrowLine("spinward", 1, row.FirstThrow),
-            ThrowLine("antispinward", -1, row.SecondThrow),
+            ThrowLine("antispinward", -1, row.SecondThrow)
         ];
         int width = lines.Max(line => line.Length);
         return [.. lines.Select(line => line.PadRight(width))];

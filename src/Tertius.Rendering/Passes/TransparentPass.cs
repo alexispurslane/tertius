@@ -28,7 +28,7 @@ internal sealed unsafe class TransparentPass : RenderPass
             ColorFormats = [RenderTargets.HdrFormat],
             VertexInput = VertexInput.Mesh,
             DepthClamp = true,
-            Blend = BlendMode.Alpha,
+            Blend = BlendMode.Alpha
         }.Create(device, shaders);
         puffPipeline = new GraphicsPipelineDesc
         {
@@ -41,7 +41,7 @@ internal sealed unsafe class TransparentPass : RenderPass
             // The square faces the eye, and its winding does not matter.
             CullMode = CullModeFlags.None,
             DepthClamp = true,
-            Blend = BlendMode.Additive,
+            Blend = BlendMode.Additive
         }.Create(device, shaders);
     }
 
@@ -75,15 +75,15 @@ internal sealed unsafe class TransparentPass : RenderPass
             ImageView = targets.Hdr.View,
             ImageLayout = ImageLayout.ColorAttachmentOptimal,
             LoadOp = AttachmentLoadOp.Load,
-            StoreOp = AttachmentStoreOp.Store,
+            StoreOp = AttachmentStoreOp.Store
         };
         var rendering = new RenderingInfo
         {
             SType = StructureType.RenderingInfo,
-            RenderArea = new Rect2D(new Offset2D(0, 0), targets.Extent),
+            RenderArea = new(new Offset2D(0, 0), targets.Extent),
             LayerCount = 1,
             ColorAttachmentCount = 1,
-            PColorAttachments = &color,
+            PColorAttachments = &color
         };
         vk.CmdBeginRendering(commandBuffer, &rendering);
         // Both pipelines have the scene layout, so the sets and the push constants stay bound when the pipeline changes.
@@ -99,7 +99,6 @@ internal sealed unsafe class TransparentPass : RenderPass
                 continue;
             GeometryPass.PushDraw(context, scene.RangeViewProjection[range]);
             foreach (TransparentRun run in runs)
-            {
                 switch (run)
                 {
                     case MeshCommands(var commands):
@@ -111,8 +110,8 @@ internal sealed unsafe class TransparentPass : RenderPass
                         vk.CmdDraw(commandBuffer, 6, (uint)count, 0, (uint)first);
                         break;
                 }
-            }
         }
+
         vk.CmdEndRendering(commandBuffer);
     }
 

@@ -20,8 +20,13 @@ public sealed class ApproachGuidanceTests
     /// <summary>The station's angular velocity in its own axes: 0.31321 rad/s about +Y.</summary>
     private static readonly Double3 Spin = Double3.UnitY * DemoScenes.SpinStation.Rate;
 
-    private static readonly ApproachGuidance Brake = ApproachGuidance.ForBrake(), Glide = ApproachGuidance.ForGlide(), MoveOut = ApproachGuidance.ForMoveOut();
-    private static readonly (Double3 Position, Double3 Velocity) Station = KeplerOrbit.Circular(StationRadius, phase: 1.1).StateAt(0, Mu);
+    private static readonly ApproachGuidance Brake = ApproachGuidance.ForBrake(),
+        Glide = ApproachGuidance.ForGlide(),
+        MoveOut = ApproachGuidance.ForMoveOut();
+
+    private static readonly (Double3 Position, Double3 Velocity) Station =
+        KeplerOrbit.Circular(StationRadius, phase: 1.1).StateAt(0, Mu);
+
     private static readonly Double3 HoldPoint = Station.Position + Double3.UnitY * HoldDistance;
 
     /// <summary>The difference of Earth's gravity between <paramref name="position"/> and the station's center, in m/s².</summary>
@@ -97,8 +102,10 @@ public sealed class ApproachGuidanceTests
         Double3 shuttle = HoldPoint + Double3.UnitX * distance;
         Double3 velocity = Double3.UnitX * speedAway;
 
-        Brake.Push(shuttle, velocity, HoldPoint, Double3.Zero).Length.Should().BeLessThanOrEqualTo(Brake.MaxAcceleration + 1e-12);
-        Glide.Push(shuttle, velocity, HoldPoint, Double3.Zero).Length.Should().BeLessThanOrEqualTo(Glide.MaxAcceleration + 1e-12);
+        Brake.Push(shuttle, velocity, HoldPoint, Double3.Zero).Length.Should()
+            .BeLessThanOrEqualTo(Brake.MaxAcceleration + 1e-12);
+        Glide.Push(shuttle, velocity, HoldPoint, Double3.Zero).Length.Should()
+            .BeLessThanOrEqualTo(Glide.MaxAcceleration + 1e-12);
     }
 
     /// <summary>
@@ -115,7 +122,8 @@ public sealed class ApproachGuidanceTests
         Double3 push = MoveOut.Push(center, Double3.Zero, center, free);
 
         double rate = DemoScenes.SpinStation.Rate, fromTheAxis = Math.Sqrt(center.X * center.X + center.Z * center.Z);
-        Double3.Distance(push, -new Double3(center.X, 0, center.Z) * (rate * rate)).Should().BeLessThan(1e-12, "the push points at the axis");
+        Double3.Distance(push, -new Double3(center.X, 0, center.Z) * (rate * rate)).Should()
+            .BeLessThan(1e-12, "the push points at the axis");
         push.Length.Should().BeApproximately(rate * rate * fromTheAxis, 1e-12);
         push.Length.Should().BeApproximately(0.773, 0.001);
     }
@@ -132,7 +140,8 @@ public sealed class ApproachGuidanceTests
         var velocity = new Double3(-0.5, 0, 0);
         var target = new Double3(-6.1, 3, -5.1);
 
-        Double3 turning = MoveOut.Push(onTheAxis, velocity, target, ApproachGuidance.FreeAcceleration(Spin, onTheAxis, velocity, Double3.Zero));
+        Double3 turning = MoveOut.Push(onTheAxis, velocity, target,
+            ApproachGuidance.FreeAcceleration(Spin, onTheAxis, velocity, Double3.Zero));
         Double3 still = MoveOut.Push(onTheAxis, velocity, target, Double3.Zero);
 
         Double3.Distance(turning - still, 2 * Double3.Cross(Spin, velocity)).Should().BeLessThan(1e-12);
@@ -151,10 +160,12 @@ public sealed class ApproachGuidanceTests
         Double3 difference = GravityDifference(HoldPoint);
         Double3 spinOnly = ApproachGuidance.FreeAcceleration(Spin, center, Double3.Zero, Double3.Zero);
 
-        Double3 push = Glide.Push(center, Double3.Zero, center, ApproachGuidance.FreeAcceleration(Spin, center, Double3.Zero, difference));
+        Double3 push = Glide.Push(center, Double3.Zero, center,
+            ApproachGuidance.FreeAcceleration(Spin, center, Double3.Zero, difference));
 
         Double3.Distance(push, -spinOnly - difference).Should().BeLessThan(1e-15);
-        difference.Length.Should().BeGreaterThan(1e-4, "the difference of gravity is not negligible beside the spin's terms on the axis");
+        difference.Length.Should().BeGreaterThan(1e-4,
+            "the difference of gravity is not negligible beside the spin's terms on the axis");
     }
 
     /// <summary>
@@ -170,7 +181,7 @@ public sealed class ApproachGuidanceTests
         var velocity = new Double3(0.5, 0, 0.5);
         Double3 free = ApproachGuidance.FreeAcceleration(Spin, center, velocity, Double3.Zero);
 
-        Double3 push = MoveOut.Push(center, velocity, new Double3(-6.7, 3, -5.7), free);
+        Double3 push = MoveOut.Push(center, velocity, new(-6.7, 3, -5.7), free);
 
         push.Length.Should().BeGreaterThan(MoveOut.MaxAcceleration + 0.3, "the cancelled terms come on top of the cap");
         (push + free).Length.Should().BeApproximately(MoveOut.MaxAcceleration, 1e-12, "the correction is capped");

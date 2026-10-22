@@ -1,4 +1,3 @@
-using System.Numerics;
 using AwesomeAssertions;
 
 namespace Tertius.Core.Tests;
@@ -106,7 +105,7 @@ public class CollisionGroupTests
     [Fact]
     public void AGroupSetContainsTheGroupsAddedToItAndNoOther()
     {
-        var (a, b, c) = ThreeGroups();
+        (CollisionGroup a, CollisionGroup b, CollisionGroup c) = ThreeGroups();
 
         CollisionGroups groups = CollisionGroups.Of(a).And(b);
 
@@ -123,7 +122,7 @@ public class CollisionGroupTests
     [Fact]
     public void AnEmptyMaskIsNoConditionSoItMatchesEveryGroupSet()
     {
-        var (a, b, _) = ThreeGroups();
+        (CollisionGroup a, CollisionGroup b, _) = ThreeGroups();
 
         CollisionMask.Empty.Matches(CollisionGroups.None).Should().BeTrue();
         CollisionMask.Empty.Matches(CollisionGroups.Of(a)).Should().BeTrue();
@@ -133,7 +132,7 @@ public class CollisionGroupTests
     [Fact]
     public void EachInAnyWidensTheOneAnyOfSet()
     {
-        var (a, b, c) = ThreeGroups();
+        (CollisionGroup a, CollisionGroup b, CollisionGroup c) = ThreeGroups();
 
         CollisionMask mask = CollisionMask.Empty.InAny(a).InAny(b);
 
@@ -148,7 +147,7 @@ public class CollisionGroupTests
     [Fact]
     public void InAllNeedsEveryGroupThatItNames()
     {
-        var (a, b, c) = ThreeGroups();
+        (CollisionGroup a, CollisionGroup b, CollisionGroup c) = ThreeGroups();
 
         CollisionMask mask = CollisionMask.Empty.InAll(a).InAll(b);
 
@@ -161,7 +160,7 @@ public class CollisionGroupTests
     [Fact]
     public void InNoneRefusesEveryGroupThatItNames()
     {
-        var (a, b, c) = ThreeGroups();
+        (CollisionGroup a, CollisionGroup b, CollisionGroup c) = ThreeGroups();
 
         CollisionMask mask = CollisionMask.Empty.InNone(a).InNone(b);
 
@@ -174,7 +173,7 @@ public class CollisionGroupTests
     [Fact]
     public void AMaskMatchesOnlyWhenEveryPartMatches()
     {
-        var (a, b, c) = ThreeGroups();
+        (CollisionGroup a, CollisionGroup b, CollisionGroup c) = ThreeGroups();
 
         CollisionMask mask = CollisionMask.Empty.InAll(a).InNone(b).InAny(c);
 
@@ -198,12 +197,12 @@ public class CollisionGroupTests
     [Fact]
     public void ABodyCanBeInSeveralGroupsAndCollideWithSeveral()
     {
-        var (a, b, c) = ThreeGroups();
+        (CollisionGroup a, CollisionGroup b, CollisionGroup c) = ThreeGroups();
 
         var desc = new BodyDesc(new SphereShapeDesc(1))
         {
             CollisionGroups = CollisionGroups.Of(a).And(b),
-            CollisionMask = CollisionMask.Empty.InAny(b).InAny(c),
+            CollisionMask = CollisionMask.Empty.InAny(b).InAny(c)
         };
 
         desc.Problem(BodyRole.OwnsNoFrame).Should().BeNull();
@@ -215,7 +214,8 @@ public class CollisionGroupTests
     [InlineData(BodyRole.OwnsRootFrame)]
     public void ABodyWhoseMaskHasAnAllOfPartIsRefused(BodyRole role)
     {
-        var desc = new BodyDesc(new BoxShapeDesc(new Vector3(1))) { CollisionMask = CollisionMask.Empty.InAny(CollisionGroup.Solid).InAll(CollisionGroup.Solid) };
+        var desc = new BodyDesc(new BoxShapeDesc(new(1)))
+            { CollisionMask = CollisionMask.Empty.InAny(CollisionGroup.Solid).InAll(CollisionGroup.Solid) };
 
         desc.Problem(role).Should().Contain("all-of");
     }
@@ -226,7 +226,8 @@ public class CollisionGroupTests
     [InlineData(BodyRole.OwnsRootFrame)]
     public void ABodyWhoseMaskHasANoneOfPartIsRefused(BodyRole role)
     {
-        var desc = new BodyDesc(new BoxShapeDesc(new Vector3(1))) { CollisionMask = CollisionMask.Empty.InNone(CollisionGroup.Solid) };
+        var desc = new BodyDesc(new BoxShapeDesc(new(1)))
+            { CollisionMask = CollisionMask.Empty.InNone(CollisionGroup.Solid) };
 
         desc.Problem(role).Should().Contain("none-of");
     }

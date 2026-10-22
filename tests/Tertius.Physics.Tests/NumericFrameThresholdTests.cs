@@ -1,4 +1,3 @@
-using System.Numerics;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
 
@@ -26,19 +25,22 @@ public class NumericFrameThresholdTests
     /// <summary>How many quiet ticks at 60 Hz end the thrust of a body: the first count of ticks of 1/60 s that reaches 20 s.</summary>
     private const int WindowTicks = 1200;
 
-    private static readonly BodyDesc Crate = new(new BoxShapeDesc(new Vector3(0.5f)), Mass: CrateMass, LinearDamping: 0, AngularDamping: 0);
+    private static readonly BodyDesc Crate = new(new BoxShapeDesc(new(0.5f)), Mass: CrateMass, LinearDamping: 0,
+        AngularDamping: 0);
 
     private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
 
     /// <summary>A root frame without gravity, with a bubble of 1,000 km.</summary>
-    private static FrameHandle Space(World world) => world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+    private static FrameHandle Space(World world) => world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
 
-    /// <summary>A crate at the origin of <paramref name="space"/> that drifts along +X at 60 m/s, with <paramref name="components"/>.</summary>
+    /// <summary>A crate at the origin of <paramref name="space"/> that drifts along +X at 60 m/s, with
+    /// <paramref name="components"/>.</summary>
     private static Entity CrateAt60MetersPerSecond(World world, FrameHandle space, params IComponent[] components) =>
-        world.Spawn(new SpawnDesc { Frame = space, LinearVelocity = new Double3(60, 0, 0), Body = Crate, Components = components });
+        world.Spawn(new() { Frame = space, LinearVelocity = new(60, 0, 0), Body = Crate, Components = components });
 
     /// <summary>How the home of the body of <paramref name="entity"/> moves: <see cref="NumericMode.None"/> for its semantic frame's own system.</summary>
-    private static NumericMode HomeMode(World world, Entity entity) => world.Frames.Numeric(world.PhysicsHomeOf(entity));
+    private static NumericMode HomeMode(World world, Entity entity) =>
+        world.Frames.Numeric(world.PhysicsHomeOf(entity));
 
     /// <summary>Ticks <paramref name="ticks"/> times and returns the mode of the home of <paramref name="entity"/> after each tick.</summary>
     private static List<NumericMode> HomeModes(World world, Entity entity, int ticks)
@@ -49,6 +51,7 @@ public class NumericFrameThresholdTests
             world.Tick();
             modes.Add(HomeMode(world, entity));
         }
+
         return modes;
     }
 
@@ -79,12 +82,13 @@ public class NumericFrameThresholdTests
     [Theory]
     [InlineData(1000, true)]
     [InlineData(999, false)]
-    public void ACrateThatCoastsThroughEmptySpaceFallsInANumericFrameFromTheCreateSpeedOfAGroupOfFreeBodies(double speed, bool falls)
+    public void ACrateThatCoastsThroughEmptySpaceFallsInANumericFrameFromTheCreateSpeedOfAGroupOfFreeBodies(
+        double speed, bool falls)
     {
         NumericMode expected = falls ? NumericMode.Falling : NumericMode.None;
         using World world = NewWorld(out _);
         FrameHandle space = Space(world);
-        Entity crate = world.Spawn(new SpawnDesc { Frame = space, LinearVelocity = new Double3(speed, 0, 0), Body = Crate });
+        Entity crate = world.Spawn(new() { Frame = space, LinearVelocity = new(speed, 0, 0), Body = Crate });
 
         List<NumericMode> modes = HomeModes(world, crate, 60);
 
@@ -100,7 +104,8 @@ public class NumericFrameThresholdTests
     /// from which a group that thrusts falls. So it gets a falling frame at that sync point, not before.
     /// </summary>
     [Fact]
-    public void ACrateThatDriftsAt60MetersPerSecondWithAGentleThrustGetsAFallingFrameAtTheTickWhereItsThrustTimeReachesHalfASecond()
+    public void
+        ACrateThatDriftsAt60MetersPerSecondWithAGentleThrustGetsAFallingFrameAtTheTickWhereItsThrustTimeReachesHalfASecond()
     {
         using World world = NewWorld(out _);
         FrameHandle space = Space(world);
@@ -108,13 +113,16 @@ public class NumericFrameThresholdTests
 
         List<NumericMode> modes = HomeModes(world, crate, OnsetTicks + 30);
 
-        modes.IndexOf(NumericMode.Falling).Should().Be(OnsetTicks - 1, "the crate thrusts from the sync point of its thirtieth tick of thrust");
+        modes.IndexOf(NumericMode.Falling).Should().Be(OnsetTicks - 1,
+            "the crate thrusts from the sync point of its thirtieth tick of thrust");
         modes.Skip(OnsetTicks - 1).Should().AllBeEquivalentTo(NumericMode.Falling, "the crate keeps thrusting");
         world.Errors.Should().BeEmpty();
     }
 
     /// <summary>
-    /// As <see cref="ACrateThatDriftsAt60MetersPerSecondWithAGentleThrustGetsAFallingFrameAtTheTickWhereItsThrustTimeReachesHalfASecond"/>,
+    /// As
+    /// <see cref="ACrateThatDriftsAt60MetersPerSecondWithAGentleThrustGetsAFallingFrameAtTheTickWhereItsThrustTimeReachesHalfASecond"/>
+    /// ,
     /// but the crate pushes itself with an impulse on every tick, which asks for the same acceleration as the force of the
     /// thruster: the World counts an impulse over the step of 1/60 s.
     /// </summary>
@@ -126,16 +134,18 @@ public class NumericFrameThresholdTests
         var pilot = new Pilot();
         Entity crate = CrateAt60MetersPerSecond(world, space, pilot);
         float impulse = CrateMass * Thruster.GentleAcceleration * world.DeltaTime;
-        pilot.EveryTick = body => body.AddImpulse(new Vector3(impulse, 0, 0));
+        pilot.EveryTick = body => body.AddImpulse(new(impulse, 0, 0));
 
         List<NumericMode> modes = HomeModes(world, crate, OnsetTicks + 30);
 
-        modes.IndexOf(NumericMode.Falling).Should().Be(OnsetTicks - 1, "the crate thrusts from the sync point of its thirtieth tick of thrust");
+        modes.IndexOf(NumericMode.Falling).Should().Be(OnsetTicks - 1,
+            "the crate thrusts from the sync point of its thirtieth tick of thrust");
         world.Errors.Should().BeEmpty();
     }
 
     /// <summary>
-    /// The crate of <see cref="ACrateThatDriftsAt60MetersPerSecondWithAGentleThrustGetsAFallingFrameAtTheTickWhereItsThrustTimeReachesHalfASecond"/>
+    /// The crate of
+    /// <see cref="ACrateThatDriftsAt60MetersPerSecondWithAGentleThrustGetsAFallingFrameAtTheTickWhereItsThrustTimeReachesHalfASecond"/>
     /// falls in its numeric frame for 1 s, and then its thrust stops. It keeps thrusting for the 20 s of the thrust window
     /// after its last tick of thrust, so it keeps its frame. At the sync point of the 1,200th quiet tick, its clock starts
     /// again, and the crate is a free body at 60 m/s, far below the 400 m/s down to which a falling frame of free bodies
@@ -154,8 +164,10 @@ public class NumericFrameThresholdTests
         thruster.On = false;
         List<NumericMode> modes = HomeModes(world, crate, WindowTicks + 30);
 
-        modes.IndexOf(NumericMode.None).Should().Be(WindowTicks - 1, "the crate stops thrusting at the sync point of its 1,200th quiet tick");
-        modes.Skip(WindowTicks - 1).Should().AllBeEquivalentTo(NumericMode.None, "a free body at 60 m/s needs no numeric frame");
+        modes.IndexOf(NumericMode.None).Should().Be(WindowTicks - 1,
+            "the crate stops thrusting at the sync point of its 1,200th quiet tick");
+        modes.Skip(WindowTicks - 1).Should()
+            .AllBeEquivalentTo(NumericMode.None, "a free body at 60 m/s needs no numeric frame");
         world.PhysicsHomeOf(crate).Should().Be(space);
         world.Errors.Should().BeEmpty();
     }
@@ -169,11 +181,11 @@ public class NumericFrameThresholdTests
     {
         using World world = NewWorld(out _);
         FrameHandle space = Space(world);
-        Entity crate = world.Spawn(KinematicDrift.Drifting(new SpawnDesc
+        Entity crate = world.Spawn(KinematicDrift.Drifting(new()
         {
             Frame = space, Body = Crate with { Motion = BodyMotion.Kinematic },
-            Components = [new Thruster(CrateMass)],
-        }, world, new Double3(60, 0, 0)));
+            Components = [new Thruster(CrateMass)]
+        }, world, new(60, 0, 0)));
 
         List<NumericMode> modes = HomeModes(world, crate, 120);
 
@@ -190,11 +202,12 @@ public class NumericFrameThresholdTests
     {
         using World world = NewWorld(out _);
         FrameHandle space = Space(world);
-        Entity person = world.Spawn(new SpawnDesc { Frame = space, LinearVelocity = new Double3(60, 0, 0), Body = Person });
+        Entity person = world.Spawn(new() { Frame = space, LinearVelocity = new(60, 0, 0), Body = Person });
 
         List<NumericMode> modes = HomeModes(world, person, 120);
 
-        modes.Should().AllBeEquivalentTo(NumericMode.Falling, "a character thrusts, and 60 m/s passes the 50 m/s of a group that thrusts");
+        modes.Should().AllBeEquivalentTo(NumericMode.Falling,
+            "a character thrusts, and 60 m/s passes the 50 m/s of a group that thrusts");
         world.Errors.Should().BeEmpty();
     }
 
@@ -202,7 +215,7 @@ public class NumericFrameThresholdTests
 
     /// <summary>A root frame with a uniform gravity of 9.81 m/s² along -Y and a bubble of 20,000 km.</summary>
     private static FrameHandle Planet(World world) =>
-        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(2e7f), GravityField.Uniform(new Vector3(0, -9.81f, 0))));
+        world.CreateRootFrame(new(FrameBounds.Sphere(2e7f), GravityField.Uniform(new(0, -9.81f, 0))));
 
     /// <summary>
     /// A static floor of 100 m by 100 m in <paramref name="planet"/>, with its top at height 0, <paramref name="distance"/> m
@@ -210,11 +223,12 @@ public class NumericFrameThresholdTests
     /// </summary>
     private static (Entity Floor, Entity Crate) CrateOnFloor(World world, FrameHandle planet, double distance)
     {
-        Entity floor = world.Spawn(new SpawnDesc
+        Entity floor = world.Spawn(new()
         {
-            Frame = planet, Pose = At(distance, -0.5), Body = new BodyDesc(new BoxShapeDesc(new Vector3(50, 0.5f, 50)), BodyMotion.Static),
+            Frame = planet, Pose = At(distance, -0.5),
+            Body = new(new BoxShapeDesc(new(50, 0.5f, 50)), BodyMotion.Static)
         });
-        Entity crate = world.Spawn(new SpawnDesc { Frame = planet, Pose = At(distance, 0.5), Body = Crate });
+        Entity crate = world.Spawn(new() { Frame = planet, Pose = At(distance, 0.5), Body = Crate });
         return (floor, crate);
     }
 
@@ -252,7 +266,8 @@ public class NumericFrameThresholdTests
         List<NumericMode> modes = HomeModes(world, crate, 120);
 
         modes.Should().AllBeEquivalentTo(NumericMode.Resting, "a slow group 10,000 km out rests in a numeric frame");
-        world.PhysicsHomeOf(floor).Should().Be(world.PhysicsHomeOf(crate), "the crate on the floor and the floor form one group");
+        world.PhysicsHomeOf(floor).Should()
+            .Be(world.PhysicsHomeOf(crate), "the crate on the floor and the floor form one group");
         Double3 position = world.PoseIn(crate, planet).Position;
         position.X.Should().BeApproximately(10_000e3, 1e-3, "the crate stays where it rests");
         position.Y.Should().BeApproximately(0.5, 0.02, "the crate rests on the floor's top at height 0");

@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Numerics;
 using Tertius.Frames.Rails;
 
@@ -8,28 +7,28 @@ public sealed partial class World
 {
     // Entities whose back row physics wrote this sync, in the order of the writes. An entity that physics wrote twice
     // is here twice; its second entry finds its membership already moved.
-    private readonly List<Entity> physicsTouched = new();
+    private readonly List<Entity> physicsTouched = [];
 
     // The step record of each frame whose hull physics moved in the step, which the check did not skip, in the order of the
     // output. Step 2 fills it from the output and FollowOwners puts each frame on its record (see "One motion record per
     // frame" in docs/plans/rails-components.md), with the proper acceleration that physics measured for a dynamic hull. It
     // is empty without a physics backend and after a step that failed.
-    private readonly Dictionary<FrameHandle, FrameStepRecord> stepRecords = new();
+    private readonly Dictionary<FrameHandle, FrameStepRecord> stepRecords = [];
 
     // The following frame of each plain anchor that ended the step away from the frame's origin, because it teleported, in
     // the order of the output: the frame jumps to its step plan's place after the rows have landed (see
     // PlaceFollowingFrames and FollowOwners).
-    private readonly List<FrameHandle> plainAnchorJumps = new();
+    private readonly List<FrameHandle> plainAnchorJumps = [];
 
     // The entities without body or frame that took a step record at step 2 of this sync point, and those that took one at
     // the step 2 before, which FollowFramelessEntities swaps. An entity in the old list that takes no record now holds still
     // (see FollowFramelessEntities).
-    private List<Entity> framelessMovers = new();
-    private List<Entity> framelessMoversLast = new();
+    private List<Entity> framelessMovers = [];
+    private List<Entity> framelessMoversLast = [];
 
     // Scratch of step 4 (see ApplyMotionChanges): the owners whose change of motion the step that ended applied, then the
     // owners that wrote a change in the tick that ends.
-    private readonly List<Entity> motionChanges = new();
+    private readonly List<Entity> motionChanges = [];
 
     // Per entity: true when physics stood the character on walkable ground under gravity in its last step. The sync
     // point writes it from each step's character states, and gameplay reads it in the next tick. Nothing writes it
@@ -46,6 +45,29 @@ public sealed partial class World
     // call that compiles away must still name a member, so the field stays: one array of a few longs per World.
     internal readonly SyncProfile Profile = new();
 
+    /// <summary>
+    /// Whether the physics step of the last sync point failed, so that its results were dropped. The next tick's preparation
+    /// passes it to <see cref="FrameTree.BeginStep"/>.
+    /// </summary>
+    private bool lastStepFailed;
+
+    // Scratch of CarryPushes: the parts that the flow skipped for a frame that only a bug gives.
+    private readonly List<Entity> skippedPushers = [];
+
+    // The owner view stamp of the frame tree (see FrameTree.OwnerViewStamp) at the end of the last pass of MirrorFrameOwners.
+    // From that pass to the end of the sync point, only a write of the frame tree changes what the owners' rows must
+    // mirror, so while the tree's stamp equals this one, every frame owner's row mirrors its frame. Gameplay writes the rows
+    // of frames without a hull during the tick, so the pass of step 2 always runs.
+    private long mirroredStamp = -1;
+
+    // The count of the entity table's writes that moved a back row to another frame (see EntityTable.RowFrameChanges) at
+    // the end of the last pass of ConvertMovedIntents. Each intent names the frame of its entity's front row when gameplay
+    // wrote it, and step 8 copied the back rows forward after that pass, so while the table's count equals this one, no row
+    // is in another frame than its intent names, and the pass would convert nothing. In a scene of frames on rails, that
+    // skips a visit of every intent writer in every sync point. World.AssertInvariants checks that every intent names its
+    // entity's frame at the end of each sync point.
+    private long convertedAtRowFrameChanges = -1;
+
     /// <summary>What the entity table knows about an entity, for the check of the physics output.</summary>
     private readonly struct PhysicsOutputFacts(EntityTable entities) : IPhysicsOutputFacts
     {
@@ -60,12 +82,6 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// Whether the physics step of the last sync point failed, so that its results were dropped. The next tick's preparation
-    /// passes it to <see cref="FrameTree.BeginStep"/>.
-    /// </summary>
-    private bool lastStepFailed;
-
-    /// <summary>
     /// The sync point, the steps of "Threads and the tick" in ARCHITECTURE.md. One thread runs it; nothing else runs
     /// meanwhile. Each step calls into the subsystems, which keep their own bookkeeping; the comments say why a step
     /// needs what came before it.
@@ -77,15 +93,18 @@ public sealed partial class World
         Profile.Start();
 
         // 1. The gameplay chunks and the physics step are done: Tick waited for both.
-        int fallbackSpawns = entities.EndGameplay();
+        int fallbackSpawns = Entities.EndGameplay();
         ReportChunkMessages(fallbackSpawns);
         InitializeAddedComponentTypes();
         if (physicsError != null)
         {
             // A step that threw may have written only part of its output. Use none of it.
-            Report($"tick {TickNumber}: the physics step failed and its results were dropped: {physicsError.GetType().Name}: {physicsError.Message}", isError: true);
+            Report(
+                $"tick {TickNumber}: the physics step failed and its results were dropped: {physicsError.GetType().Name}: {physicsError.Message}",
+                isError: true);
             stepOutput.Clear();
         }
+
         Profile.Lap(0);
 
         // 2. The falling numeric frames move over the step that physics made, with the acceleration that physics used.
@@ -103,13 +122,13 @@ public sealed partial class World
         Profile.Lap(1);
         stepRecords.Clear();
         physicsTouched.Clear();
-        if (physics != null)
+        if (Physics != null)
             ApplyPhysicsOutput();
         Profile.Lap(2);
         FollowOwners(stepFailed: physicsError != null);
         FollowFramelessEntities();
         Profile.Lap(25);
-        if (physics != null)
+        if (Physics != null)
             RouteStepContacts();
         Profile.Lap(6);
 
@@ -117,13 +136,13 @@ public sealed partial class World
         //     that every frame now holds, and the puffs whose age reached their life die. This comes after every frame took
         //     its step record and before step 5, which converts the contents of each dying frame with the frame's pose at
         //     the end of the step. It reads only the frame tree, so it runs also after a failed step and without physics.
-        puffs.Step(TickNumber, DeltaTime);
+        Puffs.Step(TickNumber, DeltaTime);
         Profile.Lap(26);
 
         // 3. Physics owns the transform of every entity with a body. The entity table refuses such writes, and checks
         //    that none got through among its invariants.
-        if (options.DebugChecks)
-            entities.AssertInvariants();
+        if (Options.DebugChecks)
+            Entities.AssertInvariants();
         Profile.Lap(7);
 
         // 4. The step applied the intents of the previous tick, so their collision groups and masks become the bodies' rows,
@@ -132,10 +151,10 @@ public sealed partial class World
         //    changes of motion of this tick plan the next step, which applies them: the frames and the intents drop what
         //    the new motion refuses. Then this tick's intents become the input of the next physics step. Without a physics
         //    backend the motion intents stay, because the sync point moves a frame without a body by them too.
-        if (physics != null)
-            entities.ApplyCollisionIntents();
+        if (Physics != null)
+            Entities.ApplyCollisionIntents();
         ApplyMotionChanges();
-        entities.SwapIntents(keep: physics != null);
+        Entities.SwapIntents(keep: Physics != null);
         Profile.Lap(8);
 
         // 5. Subscriptions first, while every entity that asked is still live, then the destroy batch, which grows to the
@@ -151,7 +170,7 @@ public sealed partial class World
         if (dying.Count > 0)
             GrowDestroyBatch();
         Profile.Lap(9);
-        if (physics != null)
+        if (Physics != null)
             CarryPushes();
         Profile.Lap(28);
         if (dying.Count > 0)
@@ -168,7 +187,7 @@ public sealed partial class World
         //     of the same moment: a station that orbits at 7.5 km/s is not 126 m behind its bodies. The structural
         //     changes of this sync reach physics with the update's first batch, so that a spawn that joins a numeric frame
         //     is created in it, with its velocity converted in doubles.
-        if (physics != null)
+        if (Physics != null)
             UpdateNumericFrames(DeltaTime);
         FlushPhysicsChanges();
         Profile.Lap(11);
@@ -187,7 +206,7 @@ public sealed partial class World
         //     entity is in the frame of the next tick, and every frame stands where the next step starts.
         //     The destroy batch of step 5 converted the intents that name its dying frames, which are gone by now. The
         //     motion intents convert with the rest of each intent. A pass that would find no moved entity is skipped.
-        if (entities.RowFrameChanges != convertedAtRowFrameChanges)
+        if (Entities.RowFrameChanges != convertedAtRowFrameChanges)
             ConvertMovedIntents();
         Profile.Lap(14);
 
@@ -195,7 +214,7 @@ public sealed partial class World
         //     step, and before step 8, which replaces the front render rows, whose emitters are those of the step. The
         //     emitter bits are those of the last step 8, so an entity that step 6 made live makes none: it was not in the
         //     step. Then the cap, and the rebuild of the ranges.
-        puffs.AddNewborns(TickNumber, DeltaTime);
+        Puffs.AddNewborns(TickNumber, DeltaTime);
         Profile.Lap(27);
 
         // 8. The back tables become the front tables.
@@ -204,7 +223,7 @@ public sealed partial class World
         // 9. The physics queries of this tick, against Jolt at the end of the step with this sync's destroys and spawns, and
         //    against the new front snapshot, which describes the same moment: its component flags, collision groups,
         //    poses and frames. Their answers join the routing as engine events.
-        queryRunner.Run(entities.Chunks, TickNumber);
+        queryRunner.Run(Entities.Chunks, TickNumber);
         Profile.Lap(18);
 
         // 10. Messages, after every membership and subscription change of this sync, and after the answers of step 9.
@@ -218,8 +237,8 @@ public sealed partial class World
         Profile.Lap(20);
 
         // 12. Ready for the next tick.
-        entities.EndTick();
-        if (options.DebugChecks)
+        Entities.EndTick();
+        if (Options.DebugChecks)
             AssertInvariants();
         Profile.Lap(21);
     }
@@ -227,14 +246,16 @@ public sealed partial class World
     /// <summary>Reports the chunks' log lines and errors in chunk order, then the spawns that missed their pool.</summary>
     private void ReportChunkMessages(int fallbackSpawns)
     {
-        foreach (ChunkState chunk in entities.Chunks)
-            foreach (ChunkMessage message in chunk.Messages)
-                Report(message.Text, message.IsError);
+        foreach (ChunkState chunk in Entities.Chunks)
+        foreach (ChunkMessage message in chunk.Messages)
+            Report(message.Text, message.IsError);
         if (fallbackSpawns > 0)
         {
             fallbackSpawnTotal += fallbackSpawns;
-            Report($"tick {TickNumber}: {fallbackSpawns} spawns ran out of their chunk's reserved slot pool and took slots from the global fallback. " +
-                   "Slot assignment for this tick depends on thread timing, so the run is no longer deterministic. Raise WorldOptions.SpawnPoolSize.", isError: false);
+            Report(
+                $"tick {TickNumber}: {fallbackSpawns} spawns ran out of their chunk's reserved slot pool and took slots from the global fallback. " +
+                "Slot assignment for this tick depends on thread timing, so the run is no longer deterministic. Raise WorldOptions.SpawnPoolSize.",
+                isError: false);
         }
     }
 
@@ -268,9 +289,10 @@ public sealed partial class World
         foreach (BodyState state in stepOutput.Bodies)
         {
             Entity entity = state.Entity;
-            if (physicsOutputCheck.IsSkipped(entity) || !entities.OwnedFrame(entity).IsNull)
+            if (physicsOutputCheck.IsSkipped(entity) || !Entities.OwnedFrame(entity).IsNull)
                 continue;
-            entities.SetBackTransform(entity, PhysicsRow(state.Frame, state.Pose, state.LinearVelocity, state.AngularVelocity));
+            Entities.SetBackTransform(entity,
+                PhysicsRow(state.Frame, state.Pose, state.LinearVelocity, state.AngularVelocity));
             physicsTouched.Add(entity);
         }
 
@@ -279,16 +301,15 @@ public sealed partial class World
             Entity entity = handOff.Entity;
             if (physicsOutputCheck.IsSkipped(entity))
                 continue;
-            entities.SetBackTransform(entity, PhysicsRow(handOff.To, handOff.Pose, handOff.LinearVelocity, handOff.AngularVelocity));
+            Entities.SetBackTransform(entity,
+                PhysicsRow(handOff.To, handOff.Pose, handOff.LinearVelocity, handOff.AngularVelocity));
             physicsTouched.Add(entity);
         }
 
         // The check skipped every character state that is broken, and the state of every entity whose update it skipped.
         for (int i = 0; i < stepOutput.Characters.Count; i++)
-        {
             if (!physicsOutputCheck.IsCharacterStateSkipped(i))
                 characterStanding[stepOutput.Characters[i].Entity] = stepOutput.Characters[i].Standing;
-        }
     }
 
     /// <summary>
@@ -310,12 +331,13 @@ public sealed partial class World
         plainAnchorJumps.Clear();
         if (Frames.NumericCount == 0)
             return;
-        ReadOnlySpan<PhysicsIntent> applied = entities.FrontIntents.Span;
+        ReadOnlySpan<PhysicsIntent> applied = Entities.FrontIntents.Span;
         foreach (BodyState state in stepOutput.Bodies)
         {
             Entity entity = state.Entity;
             // The frame of a hull's owner hangs in the following frame, and its record says where the hull ended.
-            if (!Frames.Anchors(state.Frame, entity) || physicsOutputCheck.IsSkipped(entity) || !entities.OwnedFrame(entity).IsNull)
+            if (!Frames.Anchors(state.Frame, entity) || physicsOutputCheck.IsSkipped(entity) ||
+                !Entities.OwnedFrame(entity).IsNull)
                 continue;
             if ((applied[(int)entity.Index].Flags & IntentFlags.Teleport) != 0)
                 plainAnchorJumps.Add(state.Frame);
@@ -342,7 +364,7 @@ public sealed partial class World
     private void FollowOwners(bool stepFailed)
     {
         var owners = new OwnerFacts(this);
-        Frames.TakeStepRecords(ref owners, entities.FrontIntents.Span, stepFailed, DeltaTime);
+        Frames.TakeStepRecords(ref owners, Entities.FrontIntents.Span, stepFailed, DeltaTime);
 
         Profile.Lap(3);
         // An anchor that teleported in the step left the origin of its following frame, for its step plan's place: a hull,
@@ -355,21 +377,25 @@ public sealed partial class World
             Frames.JumpFollowingFrame(Frames.TreeParent(frame), physicsChanges);
             jumped = true;
         }
+
         foreach (FrameHandle following in plainAnchorJumps)
         {
             Frames.JumpFollowingFrame(following, physicsChanges);
             jumped = true;
         }
+
         if (jumped)
         {
             // The rows of the bodies that stay lose the following frame's move, as for a drain, and physics shifts their bodies
             // and the hull in one batch.
             foreach (FrameShift shift in physicsChanges.FramesShifted)
-                foreach (Entity entity in entities.LiveEntities)
-                    if (entities.Body(entity) != null && attachments.ParentOf(entity).IsNull && entities.BackRow(entity).PhysicsHome == shift.Frame)
-                        ShiftRow(entity, shift);
+            foreach (Entity entity in Entities.LiveEntities)
+                if (Entities.Body(entity) != null && Attachments.ParentOf(entity).IsNull &&
+                    Entities.BackRow(entity).PhysicsHome == shift.Frame)
+                    ShiftRow(entity, shift);
             FlushPhysicsChanges();
         }
+
         Profile.Lap(4);
 
         MirrorFrameOwners();
@@ -388,6 +414,7 @@ public sealed partial class World
                 record = default;
                 return false;
             }
+
             return world.stepRecords.TryGetValue(frame, out record);
         }
 
@@ -399,12 +426,13 @@ public sealed partial class World
         public bool TryGetTransformWrite(FrameHandle frame, out DPose pose)
         {
             Entity owner = frame.Entity;
-            if (!world.entities.GameplayWroteTransform(owner))
+            if (!world.Entities.GameplayWroteTransform(owner))
             {
                 pose = default;
                 return false;
             }
-            ref readonly TransformRow row = ref world.entities.BackRow(owner);
+
+            ref readonly TransformRow row = ref world.Entities.BackRow(owner);
             Contract.Assert(row.Frame == world.Frames.Parent(frame));
             pose = row.Pose.WithUnitRotation();
             return true;
@@ -428,33 +456,37 @@ public sealed partial class World
         (framelessMoversLast, framelessMovers) = (framelessMovers, framelessMoversLast);
         framelessMovers.Clear();
         // The intents of the step that ended, which step 4 swaps out after this.
-        ReadOnlySpan<PhysicsIntent> stepIntents = entities.FrontIntents.Span;
-        foreach (Entity entity in entities.IntentEntities.Span)
+        ReadOnlySpan<PhysicsIntent> stepIntents = Entities.FrontIntents.Span;
+        foreach (Entity entity in Entities.IntentEntities.Span)
         {
             // The frame first: in a scene of frames on rails, most intent writers own one.
-            if (!entities.OwnedFrame(entity).IsNull || entities.Body(entity) != null)
+            if (!Entities.OwnedFrame(entity).IsNull || Entities.Body(entity) != null)
                 continue;
             ref readonly PhysicsIntent intent = ref stepIntents[(int)entity.Index];
-            ref readonly TransformRow row = ref entities.BackRow(entity);
+            ref readonly TransformRow row = ref Entities.BackRow(entity);
             // The guard lets no attached entity write a motion intent, and step 7b of the last sync point converted the intent
             // into the entity's frame, which is its home.
             Contract.Assert(intent.Frame == row.Frame && row.PhysicsHome == row.Frame);
-            if (entities.GameplayWroteTransform(entity) || !intent.StepRecord(row.Pose, DeltaTime, out MotionSample record))
+            if (Entities.GameplayWroteTransform(entity) ||
+                !intent.StepRecord(row.Pose, DeltaTime, out MotionSample record))
                 continue;
-            entities.SetBackTransform(entity, row with
+            Entities.SetBackTransform(entity, row with
             {
                 Pose = record.Pose,
                 LinearVelocity = record.Velocity.ToVector3(),
-                AngularVelocity = record.AngularVelocity.ToVector3(),
+                AngularVelocity = record.AngularVelocity.ToVector3()
             });
             framelessMovers.Add(entity);
         }
+
         foreach (Entity entity in framelessMoversLast)
         {
-            if (!entities.IsAlive(entity) || stepIntents[(int)entity.Index].Move is EndPose or MotionSample || entities.GameplayWroteTransform(entity))
+            if (!Entities.IsAlive(entity) || stepIntents[(int)entity.Index].Move is EndPose or MotionSample ||
+                Entities.GameplayWroteTransform(entity))
                 continue;
-            ref readonly TransformRow row = ref entities.BackRow(entity);
-            entities.SetBackTransform(entity, row with { LinearVelocity = Vector3.Zero, AngularVelocity = Vector3.Zero });
+            ref readonly TransformRow row = ref Entities.BackRow(entity);
+            Entities.SetBackTransform(entity,
+                row with { LinearVelocity = Vector3.Zero, AngularVelocity = Vector3.Zero });
         }
     }
 
@@ -466,7 +498,7 @@ public sealed partial class World
     private void RouteStepContacts()
     {
         foreach (Entity entity in physicsTouched)
-            MoveMembership(entity, entities.BackRow(entity).Frame);
+            MoveMembership(entity, Entities.BackRow(entity).Frame);
 
         foreach (ContactStarted contact in stepOutput.Contacts)
             RouteContact(contact);
@@ -484,14 +516,14 @@ public sealed partial class World
     private TransformRow PhysicsRow(FrameHandle home, in DPose pose, Vector3 linearVelocity, Vector3 angularVelocity)
     {
         FrameHandle semantic = Frames.SemanticOf(home);
-        return new TransformRow
+        return new()
         {
             Frame = semantic,
             PhysicsHome = home,
-            Pose = home == semantic ? pose : new DPose(Frames.InSemantic(home, semantic, pose.Position), pose.Rotation),
+            Pose = home == semantic ? pose : new(Frames.InSemantic(home, semantic, pose.Position), pose.Rotation),
             HomePosition = pose.Position,
             LinearVelocity = linearVelocity,
-            AngularVelocity = angularVelocity,
+            AngularVelocity = angularVelocity
         };
     }
 
@@ -509,7 +541,7 @@ public sealed partial class World
     /// </summary>
     private void SkipBrokenPhysicsUpdates()
     {
-        physicsOutputCheck.Run(stepOutput, Frames, entities.FrontIntents.Span, new PhysicsOutputFacts(entities));
+        physicsOutputCheck.Run(stepOutput, Frames, Entities.FrontIntents.Span, new PhysicsOutputFacts(Entities));
         foreach (PhysicsOutputFault fault in physicsOutputCheck.Faults)
         {
             // Only a bug in the backend produces a broken output.
@@ -531,7 +563,7 @@ public sealed partial class World
             Entity entity = handOff.Entity;
             if (physicsOutputCheck.IsSkipped(entity))
                 continue;
-            FrameHandle own = entities.OwnedFrame(entity);
+            FrameHandle own = Entities.OwnedFrame(entity);
             if (!own.IsNull)
                 Frames.Reparent(own, handOff.To);
         }
@@ -550,19 +582,22 @@ public sealed partial class World
         AddCollision(contact.B, contact.A, contact.Frame, contact.Point, -contact.Normal, contact.Impulse);
     }
 
-    private void AddCollision(Entity recipient, Entity other, FrameHandle contactFrame, Double3 point, Vector3 normal, float impulse)
+    private void AddCollision(Entity recipient, Entity other, FrameHandle contactFrame, Double3 point, Vector3 normal,
+        float impulse)
     {
         // The owner of a root frame is in no frame. Its only body is its interior, in its own frame.
-        FrameHandle frame = entities.BackRow(recipient).Frame;
+        FrameHandle frame = Entities.BackRow(recipient).Frame;
         if (frame.IsNull)
-            frame = entities.OwnedFrame(recipient);
+            frame = Entities.OwnedFrame(recipient);
         if (frame != contactFrame)
         {
             DPose toRecipient = Frames.Relative(contactFrame, frame);
             point = toRecipient.TransformPoint(point);
             normal = toRecipient.Rotation.Rotate(normal);
         }
-        router.AddEngineEvent(Event.Create(new Target(recipient), Entity.Null, new Collision { Other = other, Point = point, Normal = normal, Impulse = impulse }));
+
+        router.AddEngineEvent(Event.Create(new(recipient), Entity.Null,
+            new Collision { Other = other, Point = point, Normal = normal, Impulse = impulse }));
     }
 
     /// <summary>
@@ -574,33 +609,31 @@ public sealed partial class World
     {
         if (physicsOutputCheck.IsSkipped(ended.A) || physicsOutputCheck.IsSkipped(ended.B))
             return;
-        router.AddEngineEvent(Event.Create(new Target(ended.A), Entity.Null, new CollisionEnded { Other = ended.B }));
-        router.AddEngineEvent(Event.Create(new Target(ended.B), Entity.Null, new CollisionEnded { Other = ended.A }));
+        router.AddEngineEvent(Event.Create(new(ended.A), Entity.Null, new CollisionEnded { Other = ended.B }));
+        router.AddEngineEvent(Event.Create(new(ended.B), Entity.Null, new CollisionEnded { Other = ended.A }));
     }
 
     /// <summary>Applies the subscribe and unsubscribe requests of the chunks, in chunk order, for entities that are still live.</summary>
     private void ApplySubscriptionChanges()
     {
-        foreach (ChunkState chunk in entities.Chunks)
+        foreach (ChunkState chunk in Entities.Chunks)
+        foreach (SubscriptionChange change in chunk.SubscriptionChanges)
         {
-            foreach (SubscriptionChange change in chunk.SubscriptionChanges)
-            {
-                if (!entities.IsAlive(change.Entity))
-                    continue;
-                if (change.Subscribe)
-                    SubscribeEntity(change.Entity, change.Topic);
-                else
-                    topics.Unsubscribe(change.Entity, change.Topic);
-            }
+            if (!Entities.IsAlive(change.Entity))
+                continue;
+            if (change.Subscribe)
+                SubscribeEntity(change.Entity, change.Topic);
+            else
+                topics.Unsubscribe(change.Entity, change.Topic);
         }
     }
 
     /// <summary>Puts every entity that asked to be destroyed this tick in the destroy batch, in chunk order.</summary>
     private void MarkRequestedDestroys()
     {
-        foreach (ChunkState chunk in entities.Chunks)
-            foreach (Entity entity in chunk.Destroys)
-                MarkDying(entity);
+        foreach (ChunkState chunk in Entities.Chunks)
+        foreach (Entity entity in chunk.Destroys)
+            MarkDying(entity);
     }
 
     /// <summary>
@@ -610,20 +643,13 @@ public sealed partial class World
     /// </summary>
     private void CarryPushes()
     {
-        attachments.CarryPushes(dyingMarks.AsSpan(), skippedPushers);
+        Attachments.CarryPushes(dyingMarks.AsSpan(), skippedPushers);
         foreach (Entity part in skippedPushers)
-            Report($"tick {TickNumber}: the push of {part} named another frame than the front row of its chain root {attachments.RootOf(part)}, which only a bug in the engine makes. The push was dropped.", isError: true);
+            Report(
+                $"tick {TickNumber}: the push of {part} named another frame than the front row of its chain root {Attachments.RootOf(part)}, which only a bug in the engine makes. The push was dropped.",
+                isError: true);
         skippedPushers.Clear();
     }
-
-    // Scratch of CarryPushes: the parts that the flow skipped for a frame that only a bug gives.
-    private readonly List<Entity> skippedPushers = new();
-
-    // The owner view stamp of the frame tree (see FrameTree.OwnerViewStamp) at the end of the last pass of MirrorFrameOwners.
-    // From that pass to the end of the sync point, only a write of the frame tree changes what the owners' rows must
-    // mirror, so while the tree's stamp equals this one, every frame owner's row mirrors its frame. Gameplay writes the rows
-    // of frames without a hull during the tick, so the pass of step 2 always runs.
-    private long mirroredStamp = -1;
 
     /// <summary>
     /// Steps 2 and 7: the row of the owner of every frame mirrors its frame. In step 2 every frame took its record (see
@@ -661,30 +687,25 @@ public sealed partial class World
     /// </summary>
     private void ConvertMovedIntents()
     {
-        foreach (Entity entity in entities.IntentEntities.Span)
+        foreach (Entity entity in Entities.IntentEntities.Span)
         {
-            ref PhysicsIntent intent = ref entities.NextStepIntent(entity);
-            ref readonly TransformRow row = ref entities.BackRow(entity);
+            ref PhysicsIntent intent = ref Entities.NextStepIntent(entity);
+            ref readonly TransformRow row = ref Entities.BackRow(entity);
             if (intent.Frame != row.Frame)
             {
-                (FrameMotion start, FrameMotion end) = Frames.MotionRelativeInStep(intent.Frame, row.Frame, entities.FrontIntents.Span, DeltaTime);
+                (FrameMotion start, FrameMotion end) = Frames.MotionRelativeInStep(intent.Frame, row.Frame,
+                    Entities.FrontIntents.Span, DeltaTime);
                 ConvertIntent(ref intent, row.Frame, row.Pose.Position, start, end);
             }
         }
-        convertedAtRowFrameChanges = entities.RowFrameChanges;
-    }
 
-    // The count of the entity table's writes that moved a back row to another frame (see EntityTable.RowFrameChanges) at
-    // the end of the last pass of ConvertMovedIntents. Each intent names the frame of its entity's front row when gameplay
-    // wrote it, and step 8 copied the back rows forward after that pass, so while the table's count equals this one, no row
-    // is in another frame than its intent names, and the pass would convert nothing. In a scene of frames on rails, that
-    // skips a visit of every intent writer in every sync point. World.AssertInvariants checks that every intent names its
-    // entity's frame at the end of each sync point.
-    private long convertedAtRowFrameChanges = -1;
+        convertedAtRowFrameChanges = Entities.RowFrameChanges;
+    }
 
     /// <summary>
     /// Step 4, before the intents swap (docs/plans/rails-components.md, "Changes of motion"). First each hull whose change of
-    /// motion the step that ended applied, from the front intents, stores that motion (see <see cref="FrameTree.HullMotion"/>),
+    /// motion the step that ended applied, from the front intents, stores that motion (see <see cref="FrameTree.HullMotion"/>
+    /// ),
     /// as the collision rows take their groups from the same intents: the stored motion describes the last finished step.
     /// Then each owner that wrote a change in this tick, which the next step applies, gets its frame planned for that step
     /// (see <see cref="FrameTree.PlanHullMotion"/>), and its intent loses the requests that the hull refuses in a tick under
@@ -698,23 +719,23 @@ public sealed partial class World
     /// </summary>
     private void ApplyMotionChanges()
     {
-        ReadOnlySpan<PhysicsIntent> applied = entities.FrontIntents.Span;
+        ReadOnlySpan<PhysicsIntent> applied = Entities.FrontIntents.Span;
         motionChanges.Clear();
-        entities.CollectFrontMotionChanges(motionChanges);
+        Entities.CollectFrontMotionChanges(motionChanges);
         foreach (Entity owner in motionChanges)
         {
-            FrameHandle frame = entities.OwnedFrame(owner);
+            FrameHandle frame = Entities.OwnedFrame(owner);
             // SetMotion refuses a body that is no hull, and in the World a frame never becomes a root after its spawn.
             Contract.Assert(!frame.IsNull && Frames.HullMotion(frame) is not null);
             Frames.SetHullMotion(frame, applied[(int)owner.Index].Motion);
         }
 
         motionChanges.Clear();
-        entities.CollectMotionChanges(motionChanges);
+        Entities.CollectMotionChanges(motionChanges);
         foreach (Entity owner in motionChanges)
         {
-            ref PhysicsIntent intent = ref entities.WrittenIntent(owner);
-            FrameHandle frame = entities.OwnedFrame(owner);
+            ref PhysicsIntent intent = ref Entities.WrittenIntent(owner);
+            FrameHandle frame = Entities.OwnedFrame(owner);
             Contract.Assert(!frame.IsNull && Frames.HullMotion(frame) is not null);
             Frames.PlanHullMotion(frame, intent.Motion);
             // Before the swap, the guard reads the change that this intent holds as the hull's motion in the next step.
@@ -739,14 +760,17 @@ public sealed partial class World
     /// where the step starts too, so they convert by its pose. Without a teleport on the path, that pose is the tree's
     /// relative pose of the two frames, to the bit.
     /// </summary>
-    private void ConvertIntent(ref PhysicsIntent intent, FrameHandle to, Double3 position, in FrameMotion start, in FrameMotion end)
+    private void ConvertIntent(ref PhysicsIntent intent, FrameHandle to, Double3 position, in FrameMotion start,
+        in FrameMotion end)
     {
         DPose relative = start.Pose;
         IntentFlags flags = intent.Flags;
         if ((flags & IntentFlags.SetVelocity) != 0)
         {
             // A teleport in the same intent puts the body at its pose before the velocity applies.
-            Double3 at = (flags & IntentFlags.Teleport) != 0 ? intent.TeleportPose.Position : relative.InverseTransformPoint(position);
+            Double3 at = (flags & IntentFlags.Teleport) != 0
+                ? intent.TeleportPose.Position
+                : relative.InverseTransformPoint(position);
             // Without a teleport on the path, the start's relation is the tree's: its pose is the tree's relative pose to the
             // bit, and its velocities are the rows'. Then the tree converts the velocity level by level, as it did before the
             // rotation terms, which rounds as before. A composed relation rounds otherwise on a path of two levels or more.
@@ -754,6 +778,7 @@ public sealed partial class World
                 ? Frames.ConvertVelocity(intent.Frame, to, at, intent.Velocity)
                 : start.VelocityToParent(at, intent.Velocity);
         }
+
         if ((flags & IntentFlags.SetAngularVelocity) != 0)
             intent.AngularVelocity = start.AngularToParent(intent.AngularVelocity).ToVector3();
         if (intent.Move.HasValue)
@@ -775,11 +800,11 @@ public sealed partial class World
     /// </summary>
     private void SwapSnapshot()
     {
-        entities.CopyDirtyRows();
+        Entities.CopyDirtyRows();
         Profile.Lap(15);
         Frames.Update();
         Profile.Lap(16);
-        spatial.Update();
+        Spatial.Update();
         Profile.Lap(17);
     }
 }

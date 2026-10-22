@@ -8,6 +8,8 @@ namespace Tertius.Simulation.Tests;
 /// </summary>
 public class EntityQueryRunTests
 {
+    private static readonly EntityQuery NearbyFlammable = EntityQuery.With<Flammable>().Near(3);
+
     private static List<Entity> Found(FoundEntities run)
     {
         var found = new List<Entity>();
@@ -80,9 +82,9 @@ public class EntityQueryRunTests
     public void MatchesSaysWhetherARunOfTheQueryWouldFindTheEntity()
     {
         using var t = new TestWorld();
-        Entity crew = t.SpawnAt(new Double3(9, 0, 0), new Crew());
-        Entity near = t.SpawnAt(new Double3(1, 0, 0), new Crew());
-        Entity cargo = t.SpawnAt(new Double3(9, 0, 0));
+        Entity crew = t.SpawnAt(new(9, 0, 0), new Crew());
+        Entity near = t.SpawnAt(new(1, 0, 0), new Crew());
+        Entity cargo = t.SpawnAt(new(9, 0, 0));
         EntityQuery query = EntityQuery.With<Crew>().Where(static (snapshot, entity) => X(snapshot, entity) > 5);
 
         Snapshot snapshot = t.World.Snapshot;
@@ -136,9 +138,9 @@ public class EntityQueryRunTests
     public void NearAroundTheAskerKeepsTheEntitiesWithinTheRadiusOfIt()
     {
         using var t = new TestWorld();
-        Entity close = t.SpawnAt(new Double3(3, 0, 0), new Flammable());
-        t.SpawnAt(new Double3(6, 0, 0), new Flammable());
-        Entity edge = t.SpawnAt(new Double3(0, 0, -5), new Flammable());
+        Entity close = t.SpawnAt(new(3, 0, 0), new Flammable());
+        t.SpawnAt(new(6, 0, 0), new Flammable());
+        Entity edge = t.SpawnAt(new(0, 0, -5), new Flammable());
         var found = new List<Entity>();
         Entity asker = t.SpawnAt(default, Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
             self.Snapshot.Find(EntityQuery.With<Flammable>().Near(5)).CopyTo(found)));
@@ -163,9 +165,9 @@ public class EntityQueryRunTests
     public void NearAroundAnotherEntityKeepsTheEntitiesWithinTheRadiusOfItsSnapshotPosition()
     {
         using var t = new TestWorld();
-        Entity center = t.SpawnAt(new Double3(50, 0, 0));
-        Entity close = t.SpawnAt(new Double3(52, 0, 0), new Metal());
-        t.SpawnAt(new Double3(0, 0, 0), new Metal());
+        Entity center = t.SpawnAt(new(50, 0, 0));
+        Entity close = t.SpawnAt(new(52, 0, 0), new Metal());
+        t.SpawnAt(new(0, 0, 0), new Metal());
 
         Found(t.World.Snapshot.Find(EntityQuery.With<Metal>().Near(center, 3))).Should().Equal(close);
     }
@@ -174,8 +176,8 @@ public class EntityQueryRunTests
     public void NearAroundAnEntityThatIsNotLiveMatchesNothing()
     {
         using var t = new TestWorld();
-        Entity center = t.SpawnAt(new Double3(50, 0, 0));
-        t.SpawnAt(new Double3(50, 0, 0), new Metal());
+        Entity center = t.SpawnAt(new(50, 0, 0));
+        t.SpawnAt(new(50, 0, 0), new Metal());
         t.World.Destroy(center);
 
         t.World.Snapshot.Find(EntityQuery.Near(center, 100)).Any().Should().BeFalse();
@@ -185,10 +187,10 @@ public class EntityQueryRunTests
     public void NearAroundAFixedPointKeepsTheEntitiesWithinTheRadiusOfIt()
     {
         using var t = new TestWorld();
-        Entity inside = t.SpawnAt(new Double3(10, 10, 0), new Metal());
-        t.SpawnAt(new Double3(10, 13, 0), new Metal());
+        Entity inside = t.SpawnAt(new(10, 10, 0), new Metal());
+        t.SpawnAt(new(10, 13, 0), new Metal());
 
-        Found(t.World.Snapshot.Find(EntityQuery.Near(t.Root, new Double3(10, 10, 1), 2))).Should().Equal(inside);
+        Found(t.World.Snapshot.Find(EntityQuery.Near(t.Root, new(10, 10, 1), 2))).Should().Equal(inside);
     }
 
     [Fact]
@@ -212,7 +214,7 @@ public class EntityQueryRunTests
         // A ship at the origin of the root: an entity at its origin is at the center, but in another frame.
         FrameHandle ship = t.SpawnStaticFrame(TestWorld.At(0));
         t.World.SpawnWith(ship, new Crew());
-        Entity outside = t.SpawnAt(new Double3(1, 0, 0), new Crew());
+        Entity outside = t.SpawnAt(new(1, 0, 0), new Crew());
 
         Found(t.World.Snapshot.Find(EntityQuery.With<Crew>().Near(t.Root, default, 10))).Should().Equal(outside);
     }
@@ -221,11 +223,11 @@ public class EntityQueryRunTests
     public void TwoNearsBothNarrow()
     {
         using var t = new TestWorld();
-        t.SpawnAt(new Double3(-4, 0, 0), new Metal());
-        Entity between = t.SpawnAt(new Double3(5, 0, 0), new Metal());
-        t.SpawnAt(new Double3(14, 0, 0), new Metal());
+        t.SpawnAt(new(-4, 0, 0), new Metal());
+        Entity between = t.SpawnAt(new(5, 0, 0), new Metal());
+        t.SpawnAt(new(14, 0, 0), new Metal());
 
-        EntityQuery query = EntityQuery.With<Metal>().Near(t.Root, default, 6).Near(t.Root, new Double3(10, 0, 0), 6);
+        EntityQuery query = EntityQuery.With<Metal>().Near(t.Root, default, 6).Near(t.Root, new(10, 0, 0), 6);
 
         Found(t.World.Snapshot.Find(query)).Should().Equal(between);
     }
@@ -236,8 +238,8 @@ public class EntityQueryRunTests
     public void WhereKeepsTheEntitiesThatPassThePredicate()
     {
         using var t = new TestWorld();
-        t.SpawnAt(new Double3(1, 0, 0), new Metal());
-        Entity far = t.SpawnAt(new Double3(9, 0, 0), new Metal());
+        t.SpawnAt(new(1, 0, 0), new Metal());
+        Entity far = t.SpawnAt(new(9, 0, 0), new Metal());
 
         EntityQuery query = EntityQuery.With<Metal>().Where(static (snapshot, entity) => X(snapshot, entity) > 5);
 
@@ -248,9 +250,9 @@ public class EntityQueryRunTests
     public void TwoWheresBothNarrow()
     {
         using var t = new TestWorld();
-        t.SpawnAt(new Double3(1, 0, 0), new Metal());
-        Entity middle = t.SpawnAt(new Double3(5, 0, 0), new Metal());
-        t.SpawnAt(new Double3(9, 0, 0), new Metal());
+        t.SpawnAt(new(1, 0, 0), new Metal());
+        Entity middle = t.SpawnAt(new(5, 0, 0), new Metal());
+        t.SpawnAt(new(9, 0, 0), new Metal());
 
         EntityQuery query = EntityQuery
             .Where(static (snapshot, entity) => X(snapshot, entity) > 2)
@@ -310,11 +312,12 @@ public class EntityQueryRunTests
     {
         using var t = new TestWorld();
         for (int i = 0; i < 20; i++)
-            t.SpawnAt(new Double3(i, 0, 0), i % 2 == 0 ? new Metal() : new Wet());
+            t.SpawnAt(new(i, 0, 0), i % 2 == 0 ? new Metal() : new Wet());
         Snapshot snapshot = t.World.Snapshot;
-        EntityQuery stored = EntityQuery.With<Metal>().Without<Wet>().Near(t.Root, new Double3(10, 0, 0), 5).In(t.Root);
+        EntityQuery stored = EntityQuery.With<Metal>().Without<Wet>().Near(t.Root, new(10, 0, 0), 5).In(t.Root);
 
-        List<Entity> chain = Found(snapshot.Entities.With<Metal>().Without<Wet>().Near(t.Root, new Double3(10, 0, 0), 5).In(t.Root));
+        List<Entity> chain =
+            Found(snapshot.Entities.With<Metal>().Without<Wet>().Near(t.Root, new(10, 0, 0), 5).In(t.Root));
 
         chain.Should().Equal(Found(snapshot.Find(stored))).And.HaveCount(5);
     }
@@ -324,9 +327,9 @@ public class EntityQueryRunTests
     {
         using var t = new TestWorld();
         for (int i = 0; i < 10; i++)
-            t.SpawnAt(new Double3(i, 0, 0), new Metal());
+            t.SpawnAt(new(i, 0, 0), new Metal());
         FoundEntities chain = t.World.Snapshot.Entities
-            .Near(t.Root, default, 8).Near(t.Root, new Double3(9, 0, 0), 8)
+            .Near(t.Root, default, 8).Near(t.Root, new(9, 0, 0), 8)
             .Where(static (s, e) => X(s, e) != 4)
             .Where(static (s, e) => X(s, e) != 5)
             .In(t.Root).In(t.Root);
@@ -338,10 +341,11 @@ public class EntityQueryRunTests
     public void TheShorthandChainBuildsNoHeapPartSoAComponentCanUseItDuringItsRun()
     {
         using var t = new TestWorld();
-        t.SpawnAt(new Double3(1, 0, 0), new Metal());
+        t.SpawnAt(new(1, 0, 0), new Metal());
         int count = -1;
         t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            count = self.Snapshot.Entities.With<Metal>().Near(5).Near(6).Where(static (s, e) => true).Where(static (s, e) => true)
+            count = self.Snapshot.Entities.With<Metal>().Near(5).Near(6).Where(static (s, e) => true)
+                .Where(static (s, e) => true)
                 .In(self.Frame).In(self.Frame).Count()));
 
         t.World.Tick();
@@ -399,8 +403,8 @@ public class EntityQueryRunTests
     public void FiltersAddedToTheRunOfAStoredQueryNarrowIt()
     {
         using var t = new TestWorld();
-        t.SpawnAt(new Double3(1, 0, 0), new Metal(), new Wet());
-        Entity dry = t.SpawnAt(new Double3(2, 0, 0), new Metal());
+        t.SpawnAt(new(1, 0, 0), new Metal(), new Wet());
+        Entity dry = t.SpawnAt(new(2, 0, 0), new Metal());
 
         Found(t.World.Snapshot.Find(EntityQuery.With<Metal>()).Without<Wet>()).Should().Equal(dry);
     }
@@ -438,18 +442,18 @@ public class EntityQueryRunTests
     public void ARunWithASmallNearStartsFromTheGridCellsAroundTheCenterAndYieldsInEntityIndexOrder()
     {
         using var t = new TestWorld();
-        Entity early = t.SpawnAt(new Double3(5000, 0, 0), new Metal());
+        Entity early = t.SpawnAt(new(5000, 0, 0), new Metal());
         // Far apart along x, so that a small sphere touches few cells.
         for (int i = 0; i < 30; i++)
-            t.SpawnAt(new Double3(1000 + i * 100, 0, 0), new Metal());
-        Entity a = t.SpawnAt(new Double3(300, 0, 0), new Metal());
-        Entity b = t.SpawnAt(new Double3(301, 0, 0), new Metal());
+            t.SpawnAt(new(1000 + i * 100, 0, 0), new Metal());
+        Entity a = t.SpawnAt(new(300, 0, 0), new Metal());
+        Entity b = t.SpawnAt(new(301, 0, 0), new Metal());
         // The new entity takes the slot of the early one, the lowest index, but its cell lists it last.
         t.World.Destroy(early);
-        Entity c = t.SpawnAt(new Double3(302, 0, 0), new Metal());
+        Entity c = t.SpawnAt(new(302, 0, 0), new Metal());
         c.Index.Should().BeLessThan(a.Index);
 
-        FoundEntities run = t.World.Snapshot.Find(EntityQuery.With<Metal>().Near(t.Root, new Double3(301, 0, 0), 2));
+        FoundEntities run = t.World.Snapshot.Find(EntityQuery.With<Metal>().Near(t.Root, new(301, 0, 0), 2));
 
         PlanOf(run).Should().Be((QueryIndex.Grid, 3));
         Found(run).Should().Equal(c, a, b);
@@ -461,13 +465,13 @@ public class EntityQueryRunTests
     /// </summary>
     private static (Entity At300, Entity At301, Entity At302) SpawnMetalClusterAmongFarEntities(TestWorld t)
     {
-        Entity early = t.SpawnAt(new Double3(5000, 0, 0), new Metal());
+        Entity early = t.SpawnAt(new(5000, 0, 0), new Metal());
         for (int i = 0; i < 30; i++)
-            t.SpawnAt(new Double3(1000 + i * 100, 0, 0), new Metal());
-        Entity at300 = t.SpawnAt(new Double3(300, 0, 0), new Metal());
-        Entity at301 = t.SpawnAt(new Double3(301, 0, 0), new Metal());
+            t.SpawnAt(new(1000 + i * 100, 0, 0), new Metal());
+        Entity at300 = t.SpawnAt(new(300, 0, 0), new Metal());
+        Entity at301 = t.SpawnAt(new(301, 0, 0), new Metal());
         t.World.Destroy(early);
-        Entity at302 = t.SpawnAt(new Double3(302, 0, 0), new Metal());
+        Entity at302 = t.SpawnAt(new(302, 0, 0), new Metal());
         return (at300, at301, at302);
     }
 
@@ -501,7 +505,7 @@ public class EntityQueryRunTests
     {
         using var t = new TestWorld();
         for (int i = 0; i < 4; i++)
-            t.SpawnAt(new Double3(i, 0, 0), new Metal());
+            t.SpawnAt(new(i, 0, 0), new Metal());
         int members = t.World.Snapshot.Find(EntityQuery.In(t.Root)).Count();
 
         PlanOf(t.World.Snapshot.Find(EntityQuery.Near(t.Root, default, 1e6))).Should().Be((QueryIndex.Frame, members));
@@ -533,7 +537,8 @@ public class EntityQueryRunTests
         t.SpawnWith(new Metal());
         t.SpawnWith(new Wet());
 
-        PlanOf(t.World.Snapshot.Find(EntityQuery.Without<Wet>().Where(static (s, e) => true))).Should().Be((QueryIndex.All, t.World.Stats.LiveEntities));
+        PlanOf(t.World.Snapshot.Find(EntityQuery.Without<Wet>().Where(static (s, e) => true))).Should()
+            .Be((QueryIndex.All, t.World.Stats.LiveEntities));
     }
 
     [Fact]
@@ -578,22 +583,29 @@ public class EntityQueryRunTests
             for (int i = 0; i < 300; i++)
             {
                 int me = i;
-                t.SpawnAt(new Double3(i * 0.5, 0, 0), Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+                t.SpawnAt(new(i * 0.5, 0, 0), Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
                 {
                     int stored = self.Snapshot.Find(NearbyFlammable).Count();
                     int chain = self.Snapshot.Entities.With<Flammable>().Near(4).Where(static (s, e) => true).Count();
                     lock (results)
+                    {
                         results.Add(self.Tick * 10_000_000 + me * 10_000 + stored * 100 + chain);
+                    }
+
                     if ((self.Tick + me) % 4 == 0)
                     {
                         if (self.GetComponent<Flammable>() is { } flammable)
                             self.RemoveComponent(flammable);
                         else
                             self.AddComponent(new Flammable());
-                        self.SetTransform(self.PoseIn(self.Frame) with { Position = self.PoseIn(self.Frame).Position + new Double3(0, 0.7, 0) });
+                        self.SetTransform(self.PoseIn(self.Frame) with
+                        {
+                            Position = self.PoseIn(self.Frame).Position + new Double3(0, 0.7, 0)
+                        });
                     }
                 }));
             }
+
             t.World.Run(10);
             t.World.Errors.Should().BeEmpty();
             results.Sort();
@@ -604,6 +616,4 @@ public class EntityQueryRunTests
         one.Should().Contain(r => r % 100 > 0, "some entity found Flammable neighbors, so the test measures something");
         Run(8).Should().Equal(one);
     }
-
-    private static readonly EntityQuery NearbyFlammable = EntityQuery.With<Flammable>().Near(3);
 }

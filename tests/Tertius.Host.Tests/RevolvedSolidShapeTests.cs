@@ -23,10 +23,6 @@ public sealed class RevolvedSolidShapeTests
     private const float TorusMajor = 3, TorusMinor = 1;
     private const int TorusSegments = 64, TorusSides = 24;
 
-    private static readonly RevolvedSolid Cylinder = RevolvedSolid.Cylinder(CylinderRadius, CylinderHalfHeight, CylinderSegments);
-    private static readonly RevolvedSolid Ring = RevolvedSolid.Ring(RingInner, RingOuter, RingHalfWidth, RingSegments);
-    private static readonly RevolvedSolid Torus = RevolvedSolid.Torus(TorusMajor, TorusMinor, TorusSegments, TorusSides);
-
     private const float BallRadius = 0.25f;
 
     /// <summary>
@@ -47,10 +43,13 @@ public sealed class RevolvedSolidShapeTests
     /// </summary>
     private const double OffCrease = 0.00025;
 
-    private static Double3 At(double rho, double theta, double y) => new(rho * Math.Cos(theta), y, -rho * Math.Sin(theta));
+    private static readonly RevolvedSolid Cylinder =
+        RevolvedSolid.Cylinder(CylinderRadius, CylinderHalfHeight, CylinderSegments);
 
-    /// <summary>A turn of <paramref name="angle"/> radians about the Y axis, which moves the point at angle θ to θ + angle.</summary>
-    private static DQuaternion AboutY(double angle) => DQuaternion.FromAxisAngle(Double3.UnitY, angle);
+    private static readonly RevolvedSolid Ring = RevolvedSolid.Ring(RingInner, RingOuter, RingHalfWidth, RingSegments);
+
+    private static readonly RevolvedSolid
+        Torus = RevolvedSolid.Torus(TorusMajor, TorusMinor, TorusSegments, TorusSides);
 
     /// <summary>
     /// A ring standing on edge: its axis along Z, and the point at angle θ (ρ cos θ, ρ sin θ, y), so its lowest point is at
@@ -58,17 +57,29 @@ public sealed class RevolvedSolidShapeTests
     /// </summary>
     private static readonly DQuaternion OnEdge = DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2);
 
+    private static Double3 At(double rho, double theta, double y) =>
+        new(rho * Math.Cos(theta), y, -rho * Math.Sin(theta));
+
+    /// <summary>A turn of <paramref name="angle"/> radians about the Y axis, which moves the point at angle θ to θ + angle.</summary>
+    private static DQuaternion AboutY(double angle) => DQuaternion.FromAxisAngle(Double3.UnitY, angle);
+
     /// <summary>
     /// Spawns <paramref name="solid"/> as a static body at the origin of a root frame, turned by <paramref name="turn"/>, in
     /// uniform gravity of 9.81 m/s² along <paramref name="down"/>. Drops a ball of radius <see cref="BallRadius"/> from
     /// <paramref name="from"/>, runs 3 s, and returns where the ball is then and how fast it moves.
     /// </summary>
-    private static (Double3 Position, double Speed) Drop(RevolvedSolid solid, DQuaternion turn, Double3 from, Double3 down)
+    private static (Double3 Position, double Speed) Drop(RevolvedSolid solid, DQuaternion turn, Double3 from,
+        Double3 down)
     {
         using World world = NewWorld(out _);
-        FrameHandle frame = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), GravityField.Uniform((9.81 * down).ToVector3())));
-        world.Spawn(new SpawnDesc { Frame = frame, Pose = new DPose(Double3.Zero, turn), Body = new BodyDesc(solid.Shape(), BodyMotion.Static) });
-        Entity ball = world.Spawn(new SpawnDesc { Frame = frame, Pose = new DPose(from, DQuaternion.Identity), Body = new BodyDesc(new SphereShapeDesc(BallRadius), Mass: 1) });
+        FrameHandle frame =
+            world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), GravityField.Uniform((9.81 * down).ToVector3())));
+        world.Spawn(new()
+            { Frame = frame, Pose = new(Double3.Zero, turn), Body = new(solid.Shape(), BodyMotion.Static) });
+        Entity ball = world.Spawn(new()
+        {
+            Frame = frame, Pose = new(from, DQuaternion.Identity), Body = new(new SphereShapeDesc(BallRadius), Mass: 1)
+        });
         Tick(world, 180);
         world.Errors.Should().BeEmpty();
         return (world.PoseIn(ball, frame).Position, world.VelocityIn(ball, frame).Length);
@@ -81,23 +92,27 @@ public sealed class RevolvedSolidShapeTests
     private static void ExpectRestingOnFacet(double height, double speed)
     {
         speed.Should().BeLessThan(0.01, "the ball has come to rest");
-        (height - BallRadius).Should().BeInRange(-OffFacet, OffFacet, "the ball rests on the facet that the mesh draws");
+        (height - BallRadius).Should()
+            .BeInRange(-OffFacet, OffFacet, "the ball rests on the facet that the mesh draws");
     }
 
     [Fact]
     public void ABallDroppedOnTheCapOfACylinderRestsOnTheCap()
     {
-        var (position, speed) = Drop(Cylinder, DQuaternion.Identity, new Double3(0.4, CylinderHalfHeight + BallRadius + 0.1, 0.3), -Double3.UnitY);
+        (Double3 position, double speed) = Drop(Cylinder, DQuaternion.Identity,
+            new(0.4, CylinderHalfHeight + BallRadius + 0.1, 0.3), -Double3.UnitY);
 
         ExpectRestingOnFacet(position.Y - CylinderHalfHeight, speed);
-        (new Double3(position.X, 0, position.Z) - new Double3(0.4, 0, 0.3)).Length.Should().BeLessThan(1e-3, "the cap is flat, so the ball stays where it landed");
+        (new Double3(position.X, 0, position.Z) - new Double3(0.4, 0, 0.3)).Length.Should()
+            .BeLessThan(1e-3, "the cap is flat, so the ball stays where it landed");
     }
 
     [Fact]
     public void ABallDroppedOnTheCenterOfACylindersCapRestsOnTheCap()
     {
         // Every segment's triangle of the cap's mesh has a corner at its center.
-        var (position, speed) = Drop(Cylinder, DQuaternion.Identity, new Double3(0, CylinderHalfHeight + BallRadius + 0.1, 0), -Double3.UnitY);
+        (Double3 position, double speed) = Drop(Cylinder, DQuaternion.Identity,
+            new(0, CylinderHalfHeight + BallRadius + 0.1, 0), -Double3.UnitY);
 
         ExpectRestingOnFacet(position.Y - CylinderHalfHeight, speed);
     }
@@ -107,12 +122,15 @@ public sealed class RevolvedSolidShapeTests
     {
         // The ball's center is 5 mm inside the rim, across the middle of segment 0, so it rests on the flat cap there.
         // A hull with rounded edges would slope down toward the rim under it, and the ball would roll off.
-        Double3 landing = At(CylinderRadius * Math.Cos(Math.PI / CylinderSegments) - 0.005, Math.PI / CylinderSegments, 0);
+        Double3 landing = At(CylinderRadius * Math.Cos(Math.PI / CylinderSegments) - 0.005, Math.PI / CylinderSegments,
+            0);
 
-        var (position, speed) = Drop(Cylinder, DQuaternion.Identity, landing + new Double3(0, CylinderHalfHeight + BallRadius + 0.1, 0), -Double3.UnitY);
+        (Double3 position, double speed) = Drop(Cylinder, DQuaternion.Identity,
+            landing + new Double3(0, CylinderHalfHeight + BallRadius + 0.1, 0), -Double3.UnitY);
 
         ExpectRestingOnFacet(position.Y - CylinderHalfHeight, speed);
-        (new Double3(position.X, 0, position.Z) - landing).Length.Should().BeLessThan(1e-3, "the cap is flat out to its rim, so the ball stays where it landed");
+        (new Double3(position.X, 0, position.Z) - landing).Length.Should().BeLessThan(1e-3,
+            "the cap is flat out to its rim, so the ball stays where it landed");
     }
 
     [Fact]
@@ -121,7 +139,8 @@ public sealed class RevolvedSolidShapeTests
         // Gravity pulls straight at the middle of segment 0's facet.
         Double3 outward = At(1, Math.PI / CylinderSegments, 0);
 
-        var (position, speed) = Drop(Cylinder, DQuaternion.Identity, (CylinderRadius + BallRadius + 0.1) * outward, -outward);
+        (Double3 position, double speed) = Drop(Cylinder, DQuaternion.Identity,
+            (CylinderRadius + BallRadius + 0.1) * outward, -outward);
 
         double facet = CylinderRadius * Math.Cos(Math.PI / CylinderSegments);
         ExpectRestingOnFacet(Double3.Dot(position, outward) - facet, speed);
@@ -133,7 +152,8 @@ public sealed class RevolvedSolidShapeTests
         // Turned by half a segment about its axis, the ring has the middle of a facet at its lowest point.
         double facet = RingInner * Math.Cos(Math.PI / RingSegments);
 
-        var (position, speed) = Drop(Ring, OnEdge * AboutY(Math.PI / RingSegments), new Double3(0, -facet + BallRadius + 0.1, 0), -Double3.UnitY);
+        (Double3 position, double speed) = Drop(Ring, OnEdge * AboutY(Math.PI / RingSegments),
+            new(0, -facet + BallRadius + 0.1, 0), -Double3.UnitY);
 
         ExpectRestingOnFacet(position.Y + facet, speed);
     }
@@ -143,15 +163,17 @@ public sealed class RevolvedSolidShapeTests
     {
         // Untwisted, the ring has the joint of segments 191 and 192 at its lowest point. The ball touches both of their
         // facets, whose middles are half a segment to either side.
-        var (position, speed) = Drop(Ring, OnEdge, new Double3(0, -RingInner + BallRadius + 0.1, 0), -Double3.UnitY);
+        (Double3 position, double speed) = Drop(Ring, OnEdge, new(0, -RingInner + BallRadius + 0.1, 0), -Double3.UnitY);
 
         speed.Should().BeLessThan(0.01, "the ball has come to rest");
         double facet = RingInner * Math.Cos(Math.PI / RingSegments);
-        foreach (double middle in new[] { 1.5 * Math.PI - Math.PI / RingSegments, 1.5 * Math.PI + Math.PI / RingSegments })
+        foreach (double middle in new[]
+                     { 1.5 * Math.PI - Math.PI / RingSegments, 1.5 * Math.PI + Math.PI / RingSegments })
         {
             // The facet's plane is facet from the axis across the direction to its middle, and the ball is on the axis's side.
             var toMiddle = new Double3(Math.Cos(middle), Math.Sin(middle), 0);
-            (facet - Double3.Dot(position, toMiddle) - BallRadius).Should().BeInRange(-OffCrease, OffCrease, "the ball rests in the crease, on both facets");
+            (facet - Double3.Dot(position, toMiddle) - BallRadius).Should().BeInRange(-OffCrease, OffCrease,
+                "the ball rests in the crease, on both facets");
         }
     }
 
@@ -160,7 +182,8 @@ public sealed class RevolvedSolidShapeTests
     {
         double facet = RingOuter * Math.Cos(Math.PI / RingSegments);
 
-        var (position, speed) = Drop(Ring, OnEdge * AboutY(Math.PI / RingSegments), new Double3(0, facet + BallRadius + 0.1, 0), -Double3.UnitY);
+        (Double3 position, double speed) = Drop(Ring, OnEdge * AboutY(Math.PI / RingSegments),
+            new(0, facet + BallRadius + 0.1, 0), -Double3.UnitY);
 
         ExpectRestingOnFacet(position.Y - facet, speed);
     }
@@ -172,10 +195,12 @@ public sealed class RevolvedSolidShapeTests
         double top = TorusMinor * Math.Cos(Math.PI / TorusSides);
         Double3 landing = At(TorusMajor * Math.Cos(Math.PI / TorusSegments), Math.PI / TorusSegments, 0);
 
-        var (position, speed) = Drop(Torus, DQuaternion.Identity, landing + new Double3(0, top + BallRadius + 0.1, 0), -Double3.UnitY);
+        (Double3 position, double speed) = Drop(Torus, DQuaternion.Identity,
+            landing + new Double3(0, top + BallRadius + 0.1, 0), -Double3.UnitY);
 
         ExpectRestingOnFacet(position.Y - top, speed);
-        (new Double3(position.X, 0, position.Z) - landing).Length.Should().BeLessThan(1e-3, "the facet is flat, so the ball stays where it landed");
+        (new Double3(position.X, 0, position.Z) - landing).Length.Should()
+            .BeLessThan(1e-3, "the facet is flat, so the ball stays where it landed");
     }
 
     [Fact]
@@ -185,10 +210,12 @@ public sealed class RevolvedSolidShapeTests
         double top = TorusMinor * Math.Cos(Math.PI / TorusSides);
         Double3 landing = At(TorusMajor, 0, 0);
 
-        var (position, speed) = Drop(Torus, DQuaternion.Identity, landing + new Double3(0, top + BallRadius + 0.1, 0), -Double3.UnitY);
+        (Double3 position, double speed) = Drop(Torus, DQuaternion.Identity,
+            landing + new Double3(0, top + BallRadius + 0.1, 0), -Double3.UnitY);
 
         ExpectRestingOnFacet(position.Y - top, speed);
-        (new Double3(position.X, 0, position.Z) - landing).Length.Should().BeLessThan(1e-3, "the top is flat across the joint, so the ball stays where it landed");
+        (new Double3(position.X, 0, position.Z) - landing).Length.Should().BeLessThan(1e-3,
+            "the top is flat across the joint, so the ball stays where it landed");
     }
 
     /// <summary>A query filter that accepts every entity.</summary>
@@ -206,11 +233,12 @@ public sealed class RevolvedSolidShapeTests
     /// solid, or a side of a torus's tube.
     /// </summary>
     private static void ExpectRaysHit(RevolvedSolid solid, int arcs,
-        Func<double, (Double3 Origin, Double3 Direction)> ray, Func<double, double, (double Distance, Vector3? Normal)> expect)
+        Func<double, (Double3 Origin, Double3 Direction)> ray,
+        Func<double, double, (double Distance, Vector3? Normal)> expect)
     {
         using World world = NewWorld(out JoltPhysicsBackend backend);
-        FrameHandle frame = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
-        world.Spawn(new SpawnDesc { Frame = frame, Pose = DPose.Identity, Body = new BodyDesc(solid.Shape(), BodyMotion.Static) });
+        FrameHandle frame = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
+        world.Spawn(new() { Frame = frame, Pose = DPose.Identity, Body = new(solid.Shape(), BodyMotion.Static) });
         world.Tick();
         var hits = new List<RayCastHit>();
         for (int k = 0; k < arcs; k++)
@@ -224,9 +252,11 @@ public sealed class RevolvedSolidShapeTests
                 hits.Clear();
                 backend.CastRay(frame, origin, direction, 0, 100, new AcceptsEveryEntity(), RayCastKind.Nearest, hits);
                 hits.Should().ContainSingle($"the ray at {angle} in arc {k} meets the shape");
-                hits[0].Distance.Should().BeApproximately(distance, 1e-4, $"the ray at {angle} in arc {k} meets the facet");
+                hits[0].Distance.Should()
+                    .BeApproximately(distance, 1e-4, $"the ray at {angle} in arc {k} meets the facet");
                 if (normal is { } facing)
-                    (hits[0].Normal - facing).Length().Should().BeLessThan(1e-4f, $"the facet of arc {k} faces {facing}");
+                    (hits[0].Normal - facing).Length().Should()
+                        .BeLessThan(1e-4f, $"the facet of arc {k} faces {facing}");
             }
         }
     }
@@ -247,7 +277,7 @@ public sealed class RevolvedSolidShapeTests
         double facet = RingInner * Math.Cos(Math.PI / RingSegments);
 
         ExpectRaysHit(Ring, RingSegments,
-            angle => (new Double3(0, 0.7, 0), At(1, angle, 0)),
+            angle => (new(0, 0.7, 0), At(1, angle, 0)),
             (middle, angle) => (facet / Math.Cos(angle - middle), -At(1, middle, 0).ToVector3()));
     }
 
@@ -274,7 +304,8 @@ public sealed class RevolvedSolidShapeTests
     [Theory]
     [InlineData(1f, 128)]
     [InlineData(0.1f, 44)]
-    public void RaysFromOutsideACylinderWhoseSideBendsByJustOver1MillimeterMeetTheFacetsOfItsSideAllAround(float radius, int segments)
+    public void RaysFromOutsideACylinderWhoseSideBendsByJustOver1MillimeterMeetTheFacetsOfItsSideAllAround(float radius,
+        int segments)
     {
         // The side bends by 1.2 mm and by 1.02 mm at each edge between two facets, just over the 1 mm within which Jolt
         // drops a corner of a hull. A hull without some corners would put some facets up to the bend inside the mesh.
@@ -296,7 +327,7 @@ public sealed class RevolvedSolidShapeTests
         const int sides = 128;
         double halfSide = Math.PI / sides, side = TorusMinor * Math.Cos(halfSide);
         Double3 center = new(TorusMajor, 0, 0);
-        Double3 Across(double angle) => new(Math.Cos(angle), Math.Sin(angle), 0);
+        static Double3 Across(double angle) => new(Math.Cos(angle), Math.Sin(angle), 0);
 
         ExpectRaysHit(RevolvedSolid.Torus(TorusMajor, TorusMinor, 8, sides), sides,
             angle => (center + 5 * Across(angle + halfSide), -Across(angle + halfSide)),
@@ -313,5 +344,4 @@ public sealed class RevolvedSolidShapeTests
             angle => (At(10, angle, 0.1), -At(1, angle, 0)),
             (middle, angle) => (10 - facet / Math.Cos(angle - middle), At(1, middle, 0).ToVector3()));
     }
-
 }

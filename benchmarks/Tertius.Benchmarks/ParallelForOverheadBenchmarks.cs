@@ -12,8 +12,7 @@ public class ParallelForOverheadBenchmarks
     private static readonly ParallelOptions Options = new() { MaxDegreeOfParallelism = -1 };
     private readonly Action<int> empty = _ => { };
 
-    [Params(8, 64, 1024)]
-    public int Items;
+    [Params(8, 64, 1024)] public int Items;
 
     [Benchmark]
     public void ParallelFor() => Parallel.For(0, Items, Options, empty);

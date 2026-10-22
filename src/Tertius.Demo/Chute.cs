@@ -13,16 +13,16 @@ namespace Tertius.Demo;
 /// <param name="End">The x of the trough's lower end.</param>
 /// <param name="Coefficient">The friction coefficient of the trough above the brake run.</param>
 /// <param name="BrakeCoefficient">The friction coefficient of the brake run.</param>
-public readonly record struct Chute(double BackFace, double HalfWidth, double Depth, double Top, double BrakeFrom, double End, double Coefficient, double BrakeCoefficient)
+public readonly record struct Chute(
+    double BackFace,
+    double HalfWidth,
+    double Depth,
+    double Top,
+    double BrakeFrom,
+    double End,
+    double Coefficient,
+    double BrakeCoefficient)
 {
-    /// <summary>
-    /// True when the chute holds a person's center at <paramref name="position"/>: between the rails, within
-    /// <see cref="Depth"/> of the back plate's face, and from the trough's end to 1 m above the deck. So it holds the center
-    /// of a person who stands over the chute's top, 0.9 m up, as well as one in the trough.
-    /// </summary>
-    public bool Holds(Double3 position) =>
-        Math.Abs(position.Y) <= HalfWidth && position.Z >= BackFace && position.Z <= BackFace + Depth && position.X <= Top + 1 && position.X >= End;
-
     /// <summary>
     /// How far a person's center lies beyond its radius from the back plate's face, at most, in meters, while it touches
     /// the plate: 0.1 m. A character keeps 2 cm of padding from a wall. Its up also leans toward the felt gravity, which
@@ -30,6 +30,15 @@ public readonly record struct Chute(double BackFace, double HalfWidth, double De
     /// 0.6 m × sin(lean) farther off. At the top of the spoke the lean is 4.4 degrees, and the center lies 0.37 m off the face.
     /// </summary>
     public const double ContactMargin = 0.1;
+
+    /// <summary>
+    /// True when the chute holds a person's center at <paramref name="position"/>: between the rails, within
+    /// <see cref="Depth"/> of the back plate's face, and from the trough's end to 1 m above the deck. So it holds the center
+    /// of a person who stands over the chute's top, 0.9 m up, as well as one in the trough.
+    /// </summary>
+    public bool Holds(Double3 position) =>
+        Math.Abs(position.Y) <= HalfWidth && position.Z >= BackFace && position.Z <= BackFace + Depth &&
+        position.X <= Top + 1 && position.X >= End;
 
     /// <summary>
     /// The acceleration, in m/s² in the station's axes, that the chute's friction gives a person whose center is at
@@ -49,7 +58,8 @@ public readonly record struct Chute(double BackFace, double HalfWidth, double De
     /// <param name="dt">The length of one step, in seconds.</param>
     public Double3 Friction(Double3 position, Double3 velocity, Double3 omega, double radius, double dt)
     {
-        bool touches = position.Z - BackFace <= radius + ContactMargin && Math.Abs(position.Y) <= HalfWidth && position.X <= Top && position.X >= End;
+        bool touches = position.Z - BackFace <= radius + ContactMargin && Math.Abs(position.Y) <= HalfWidth &&
+                       position.X <= Top && position.X >= End;
         if (!touches)
             return Double3.Zero;
         // The back plate's normal toward the person is +Z, so the press is the free acceleration's part along -Z.

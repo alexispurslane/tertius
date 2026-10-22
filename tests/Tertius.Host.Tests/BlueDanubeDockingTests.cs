@@ -1,6 +1,6 @@
+using System.Numerics;
 using System.Text.Json.Nodes;
 using Tertius.Demo;
-using Tertius.Simulation;
 using static Tertius.Host.Tests.HostTesting;
 using DemoStation = Tertius.Demo.DemoScenes.DemoStation;
 using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
@@ -21,7 +21,8 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run)
     private const double Degree = Math.PI / 180;
 
     /// <summary>The ticks from the first of the spin-up to the end of the film <c>docked</c>, where the exit starts.</summary>
-    private IReadOnlyList<RendezvousTick> Docking { get; } = [.. run.ThroughDocked.SkipWhile(tick => tick.Docking.Value is Standby or Waiting)];
+    private IReadOnlyList<RendezvousTick> Docking { get; } =
+        [.. run.ThroughDocked.SkipWhile(tick => tick.Docking.Value is Standby or Waiting)];
 
     private static double AngleBetween(DQuaternion a, DQuaternion b) => a.AngularVelocityTo(b, 1).Length;
 
@@ -38,12 +39,15 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run)
         start.Docking.Value.Should().BeOfType<SpinUp>();
         start.Rendezvous.Value.Should().BeOfType<Hold>();
         start.ShuttleFrame.Should().Be(run.Earth, "the shuttle docks from earth, which holds the station");
-        (start.InStation.Position - DemoStation.HoldPoint).Length.Should().BeLessThan(RendezvousAutopilot.HoldDistanceTolerance);
-        (Math.Acos(Math.Clamp(Double3.Dot(start.InStation.Rotation.Rotate(-Double3.UnitZ), -Double3.UnitY), -1, 1))).Should().BeLessThan(Degree);
+        (start.InStation.Position - DemoStation.HoldPoint).Length.Should()
+            .BeLessThan(RendezvousAutopilot.HoldDistanceTolerance);
+        Math.Acos(Math.Clamp(Double3.Dot(start.InStation.Rotation.Rotate(-Double3.UnitZ), -Double3.UnitY), -1, 1))
+            .Should().BeLessThan(Degree);
     }
 
     /// <summary>
-    /// The shuttle enters the station's frame, its cabin frame becomes a child of it, and at the end of the film <c>docked</c> the hull is
+    /// The shuttle enters the station's frame, its cabin frame becomes a child of it, and at the end of the film <c>docked</c>
+    /// the hull is
     /// static at the parked pose: within 3 cm across the axis, 0.1 m along it and 0.5 degrees, and the docking autopilot is
     /// in <see cref="Docked"/>.
     /// </summary>
@@ -52,7 +56,8 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run)
     {
         RendezvousTick last = run.DockedEnd;
 
-        Docking.Should().Contain(tick => tick.ShuttleFrame == run.StationFrame, "the shuttle enters the station's frame");
+        Docking.Should().Contain(tick => tick.ShuttleFrame == run.StationFrame,
+            "the shuttle enters the station's frame");
         last.ShuttleFrame.Should().Be(run.StationFrame);
         last.CabinParent.Should().Be(run.StationFrame);
         last.Docking.Value.Should().BeOfType<Docked>();
@@ -79,7 +84,8 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run)
         Docking.Should().OnlyContain(tick => tick.Passenger.Value is Strapped);
         Docking.Max(tick => (tick.PersonInCabin - Shuttle.SeatStand).Length).Should().BeLessThan(0.4);
         run.DockedEnd.PersonStanding.Should().BeTrue("the person stands at its seat in the docked cabin");
-        (run.DockedEnd.PersonInCabin - Shuttle.SeatStand).X.Should().BeNegative("the person stands on the port side of the seat stand, down the felt slope");
+        (run.DockedEnd.PersonInCabin - Shuttle.SeatStand).X.Should()
+            .BeNegative("the person stands on the port side of the seat stand, down the felt slope");
     }
 
     /// <summary>The person keeps the drawn copy of the pen in its hand: in every tick of the docking, the copy lies within 5 cm of the hand.</summary>
@@ -100,7 +106,8 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run)
     {
         double first = run.Ticks[0].PersonHeading;
 
-        run.ThroughDocked.Max(tick => Math.Abs(Math.IEEERemainder(tick.PersonHeading - first, 2 * Math.PI))).Should().BeLessThan(0.01);
+        run.ThroughDocked.Max(tick => Math.Abs(Math.IEEERemainder(tick.PersonHeading - first, 2 * Math.PI))).Should()
+            .BeLessThan(0.01);
     }
 
     /// <summary>
@@ -115,8 +122,9 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run)
 
         frames.Should().NotBeEmpty();
         foreach (RendezvousFrame frame in frames)
-            foreach (Double3 corner in corners)
-                Picture.Contains(Picture.Project(frame.ViewInStation, corner, frame.VerticalFov)).Should().BeTrue($"the corner {corner} lies in the picture of {frame.Name}");
+        foreach (Double3 corner in corners)
+            Picture.Contains(Picture.Project(frame.ViewInStation, corner, frame.VerticalFov)).Should()
+                .BeTrue($"the corner {corner} lies in the picture of {frame.Name}");
     }
 
     /// <summary>
@@ -128,17 +136,24 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run)
     public void TheHoldCameraFramesTheHubAndTheShuttleInTheSpinMatch()
     {
         RendezvousFrame[] frames = [.. run.Frames.Where(frame => frame.Of("spin-match"))];
-        System.Numerics.Vector3 hub = DemoStation.HubHalf;
-        Double3[] hubCorners = [.. Corners(new BoundingBox(-hub, hub))];
+        Vector3 hub = DemoStation.HubHalf;
+        Double3[] hubCorners = [.. Corners(new(-hub, hub))];
 
         frames.Should().NotBeEmpty();
         foreach (RendezvousFrame frame in frames)
         {
-            Double3[] shuttle = [.. Enumerable.Range(0, 8).Select(corner => frame.ShuttleInStation.TransformPoint(new Double3(
-                (corner & 1) == 0 ? -Shuttle.Hull.X : Shuttle.Hull.X, (corner & 2) == 0 ? -Shuttle.Hull.Y : Shuttle.Hull.Y, (corner & 4) == 0 ? -Shuttle.Hull.Z : Shuttle.Hull.Z)))];
+            Double3[] shuttle =
+            [
+                .. Enumerable.Range(0, 8).Select(corner => frame.ShuttleInStation.TransformPoint(new(
+                    (corner & 1) == 0 ? -Shuttle.Hull.X : Shuttle.Hull.X,
+                    (corner & 2) == 0 ? -Shuttle.Hull.Y : Shuttle.Hull.Y,
+                    (corner & 4) == 0 ? -Shuttle.Hull.Z : Shuttle.Hull.Z)))
+            ];
             foreach (Double3 corner in hubCorners.Concat(shuttle))
-                Picture.Contains(Picture.Project(frame.ViewInStation, corner, frame.VerticalFov)).Should().BeTrue($"the corner {corner} lies in the picture of {frame.Name}");
-            Picture.Cover(frame.ViewInStation, frame.ShuttleInStation, (Double3)Shuttle.Hull, frame.VerticalFov).Should().BeGreaterThan(0.01, $"the shuttle is no speck in {frame.Name}");
+                Picture.Contains(Picture.Project(frame.ViewInStation, corner, frame.VerticalFov)).Should()
+                    .BeTrue($"the corner {corner} lies in the picture of {frame.Name}");
+            Picture.Cover(frame.ViewInStation, frame.ShuttleInStation, Shuttle.Hull, frame.VerticalFov).Should()
+                .BeGreaterThan(0.01, $"the shuttle is no speck in {frame.Name}");
         }
     }
 
@@ -157,8 +172,10 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run)
         foreach (RendezvousFrame frame in frames)
         {
             Double3 inCabin = frame.ShuttleInStation.InverseTransformPoint(slot);
-            Picture.Contains(Picture.Project(frame.View, inCabin, frame.VerticalFov)).Should().BeTrue($"the slot is in the picture of {frame.Name}");
-            PaneChecks.Through(nose, frame.View.Position, inCabin).Should().BeTrue($"the slot lies inside pane-nose in {frame.Name}");
+            Picture.Contains(Picture.Project(frame.View, inCabin, frame.VerticalFov)).Should()
+                .BeTrue($"the slot is in the picture of {frame.Name}");
+            PaneChecks.Through(nose, frame.View.Position, inCabin).Should()
+                .BeTrue($"the slot lies inside pane-nose in {frame.Name}");
         }
     }
 
@@ -170,9 +187,11 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run)
     [Fact]
     public void TheOnlyLogLineOfTheDockingIsTheRendezvousHaltAtTheHandOff()
     {
-        run.Logged.Should().ContainSingle().Which.Should().EndWith($"{nameof(RendezvousAutopilot)} halts: the shuttle is not in the frame that holds its station.");
+        run.Logged.Should().ContainSingle().Which.Should()
+            .EndWith($"{nameof(RendezvousAutopilot)} halts: the shuttle is not in the frame that holds its station.");
         RendezvousTick first = Docking.First(tick => tick.ShuttleFrame == run.StationFrame);
-        Docking.TakeWhile(tick => tick != first).Should().OnlyContain(tick => tick.Rendezvous.Value is Hold, "the rendezvous holds until the hand-off");
+        Docking.TakeWhile(tick => tick != first).Should().OnlyContain(tick => tick.Rendezvous.Value is Hold,
+            "the rendezvous holds until the hand-off");
         Docking.SkipWhile(tick => tick != first).Skip(2).Should().OnlyContain(tick => tick.Rendezvous.Value is Halted);
     }
 
@@ -188,11 +207,17 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run)
     [Fact]
     public void TheDockingScriptIsTheLongScriptWithOnlyTheDockingFilmed()
     {
-        JsonArray full = JsonNode.Parse(File.ReadAllText(Path.Combine(RepositoryRoot(), "scripts", "blue-danube.json")))!["steps"]!.AsArray();
-        JsonNode docking = JsonNode.Parse(File.ReadAllText(Path.Combine(RepositoryRoot(), "scripts", "demo-docking.json")))!;
+        JsonArray full =
+            JsonNode.Parse(File.ReadAllText(Path.Combine(RepositoryRoot(), "scripts", "blue-danube.json")))!["steps"]!
+                .AsArray();
+        JsonNode docking =
+            JsonNode.Parse(File.ReadAllText(Path.Combine(RepositoryRoot(), "scripts", "demo-docking.json")))!;
         // The docking's first section is its camera step, then its post of the order.
-        int first = full.ToList().FindIndex(step => step!["do"]!.GetValue<string>() == "post" && step["event"]!.GetValue<string>() == nameof(Dock)) - 1;
-        int last = full.ToList().FindIndex(step => step!["do"]!.GetValue<string>() == "film" && step["name"]!.GetValue<string>() == BlueDanubeRendezvousRun.DockedFilm);
+        int first = full.ToList().FindIndex(step =>
+            step!["do"]!.GetValue<string>() == "post" && step["event"]!.GetValue<string>() == nameof(Dock)) - 1;
+        int last = full.ToList().FindIndex(step =>
+            step!["do"]!.GetValue<string>() == "film" &&
+            step["name"]!.GetValue<string>() == BlueDanubeRendezvousRun.DockedFilm);
         var expected = new JsonArray();
         foreach ((JsonNode? step, int index) in full.Select((step, index) => (step, index)).Take(last + 1))
         {
@@ -200,17 +225,20 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run)
             if (index >= first || kind == "post")
                 expected.Add(step.DeepClone());
             else if (kind == "film")
-                expected.Add(new JsonObject { ["do"] = "run", ["ticks"] = step["frames"]!.GetValue<int>() * step["every"]!.GetValue<int>() });
+                expected.Add(new JsonObject
+                    { ["do"] = "run", ["ticks"] = step["frames"]!.GetValue<int>() * step["every"]!.GetValue<int>() });
         }
 
         first.Should().BePositive("the long script orders the docking");
         last.Should().BeLessThan(full.Count - 1, "the exit's films follow the docking in the long script");
 
         docking["scene"]!.GetValue<string>().Should().Be(BlueDanube.SceneName);
-        JsonNode.DeepEquals(docking["steps"], expected).Should().BeTrue("the docking script runs the long script to the hold and films only the docking");
+        JsonNode.DeepEquals(docking["steps"], expected).Should()
+            .BeTrue("the docking script runs the long script to the hold and films only the docking");
     }
 
     /// <summary>The eight corners of <paramref name="box"/>.</summary>
     private static IEnumerable<Double3> Corners(BoundingBox box) => Enumerable.Range(0, 8).Select(corner => new Double3(
-        (corner & 1) == 0 ? box.Min.X : box.Max.X, (corner & 2) == 0 ? box.Min.Y : box.Max.Y, (corner & 4) == 0 ? box.Min.Z : box.Max.Z));
+        (corner & 1) == 0 ? box.Min.X : box.Max.X, (corner & 2) == 0 ? box.Min.Y : box.Max.Y,
+        (corner & 4) == 0 ? box.Min.Z : box.Max.Z));
 }

@@ -21,7 +21,8 @@ public static class Contract
     [Conditional("TERTIUS_CONTRACTS")]
     public static void Requires(
         [DoesNotReturnIf(false)] bool condition,
-        [CallerArgumentExpression(nameof(condition))] string? expression = null)
+        [CallerArgumentExpression(nameof(condition))]
+        string? expression = null)
     {
         if (!condition)
             Fail("Precondition", expression);
@@ -31,7 +32,8 @@ public static class Contract
     [Conditional("TERTIUS_CONTRACTS")]
     public static void Ensures(
         [DoesNotReturnIf(false)] bool condition,
-        [CallerArgumentExpression(nameof(condition))] string? expression = null)
+        [CallerArgumentExpression(nameof(condition))]
+        string? expression = null)
     {
         if (!condition)
             Fail("Postcondition", expression);
@@ -41,7 +43,8 @@ public static class Contract
     [Conditional("TERTIUS_CONTRACTS")]
     public static void Assert(
         [DoesNotReturnIf(false)] bool condition,
-        [CallerArgumentExpression(nameof(condition))] string? expression = null)
+        [CallerArgumentExpression(nameof(condition))]
+        string? expression = null)
     {
         if (!condition)
             Fail("Assertion", expression);
@@ -50,13 +53,15 @@ public static class Contract
     /// <summary>A class invariant, checked in every build. Call it only from an <c>AssertInvariants</c> method.</summary>
     public static void Invariant(
         [DoesNotReturnIf(false)] bool condition,
-        [CallerArgumentExpression(nameof(condition))] string? expression = null)
+        [CallerArgumentExpression(nameof(condition))]
+        string? expression = null)
     {
         if (!condition)
             Fail("Invariant", expression);
     }
 
-    [DoesNotReturn, StackTraceHidden]
+    [DoesNotReturn]
+    [StackTraceHidden]
     private static void Fail(string kind, string? expression) =>
         throw new ContractException($"{kind} failed: {expression}");
 }

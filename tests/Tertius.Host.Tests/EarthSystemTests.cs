@@ -1,4 +1,3 @@
-using System.Numerics;
 using Tertius.Demo;
 using Tertius.Frames.Rails;
 using Tertius.Physics;
@@ -11,8 +10,10 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// The scene <c>earth-system</c>, built without a script, on the World and the real Jolt backend: the Sun at its true size,
-/// Earth on its Kepler orbit round the Sun at the demo's date, the June solstice with the demo's ground turn, the frame <c>earth</c> that does not turn, the frame
-/// <c>earth-surface</c> that turns once per sidereal day and whose bubble ends 50 km up, the Moon on its Kepler orbit in <c>earth</c>,
+/// Earth on its Kepler orbit round the Sun at the demo's date, the June solstice with the demo's ground turn, the frame
+/// <c>earth</c> that does not turn, the frame
+/// <c>earth-surface</c> that turns once per sidereal day and whose bubble ends 50 km up, the Moon on its Kepler orbit in
+/// <c>earth</c>,
 /// the demo's station on its orbit in <c>earth</c>, and a pad at the north pole in <c>earth-surface</c>.
 /// </summary>
 public sealed class EarthSystemTests : IDisposable
@@ -44,15 +45,18 @@ public sealed class EarthSystemTests : IDisposable
     {
         KeplerOrbit orbit = DemoScenes.EarthOrbit(DemoScenes.EarthDate.JuneSolstice);
         DQuaternion lean = world.PoseIn(scene["earth"], sun).Rotation;
-        world.PoseIn(scene["earth"], sun).Position.Normalized().Z.Should().BeApproximately(1, 1e-9, "Earth starts at the June solstice");
+        world.PoseIn(scene["earth"], sun).Position.Normalized().Z.Should()
+            .BeApproximately(1, 1e-9, "Earth starts at the June solstice");
 
         for (int second = 1; second <= 10; second++)
         {
             Tick(world, 60);
             DPose pose = world.PoseIn(scene["earth"], sun);
-            (pose.Position - orbit.StateAt(world.Time, DemoScenes.SunMu).Position).Length.Should().BeLessThan(1, $"earth is on its orbit after {second} s");
+            (pose.Position - orbit.StateAt(world.Time, DemoScenes.SunMu).Position).Length.Should()
+                .BeLessThan(1, $"earth is on its orbit after {second} s");
             Dot(pose.Rotation, lean).Should().BeApproximately(1, 1e-12, $"earth has not turned after {second} s");
-            ((Double3)world.AngularVelocityIn(scene["earth"], sun)).Length.Should().BeLessThan(1e-12, $"earth does not turn after {second} s");
+            ((Double3)world.AngularVelocityIn(scene["earth"], sun)).Length.Should()
+                .BeLessThan(1e-12, $"earth does not turn after {second} s");
         }
     }
 
@@ -69,11 +73,14 @@ public sealed class EarthSystemTests : IDisposable
 
         DPose pose = world.PoseIn(scene["earth-surface"], earth);
         pose.Position.Length.Should().BeLessThan(1e-6, "earth-surface sits at earth's center");
-        DQuaternion turned = DQuaternion.FromAxisAngle(Double3.UnitY, DemoScenes.DemoSurface.Date.GroundTurn + DemoScenes.SiderealRate * world.Time);
-        Math.Abs(Dot(pose.Rotation, turned)).Should().BeApproximately(1, 1e-12, $"earth-surface has turned from the demo's ground turn by the sidereal rate times {world.Time} s");
-        ((Double3)world.AngularVelocityIn(scene["earth-surface"], earth) - Double3.UnitY * DemoScenes.SiderealRate).Length
+        DQuaternion turned = DQuaternion.FromAxisAngle(Double3.UnitY,
+            DemoScenes.DemoSurface.Date.GroundTurn + DemoScenes.SiderealRate * world.Time);
+        Math.Abs(Dot(pose.Rotation, turned)).Should().BeApproximately(1, 1e-12,
+            $"earth-surface has turned from the demo's ground turn by the sidereal rate times {world.Time} s");
+        (world.AngularVelocityIn(scene["earth-surface"], earth) - Double3.UnitY * DemoScenes.SiderealRate).Length
             .Should().BeLessThan(1e-9, "earth-surface turns about the pole at the sidereal rate");
-        world.Frames.Bounds(surface).Should().Be(FrameBounds.Sphere((float)(DemoScenes.EarthRadius + 50e3)), "the bubble ends 50 km up");
+        world.Frames.Bounds(surface).Should().Be(FrameBounds.Sphere((float)(DemoScenes.EarthRadius + 50e3)),
+            "the bubble ends 50 km up");
     }
 
     /// <summary>
@@ -91,14 +98,16 @@ public sealed class EarthSystemTests : IDisposable
         {
             Tick(world, 60);
             DPose pose = world.PoseIn(moon, earth);
-            (pose.Position - DemoScenes.MoonOrbit.StateAt(world.Time, DemoScenes.EarthMu).Position).Length.Should().BeLessThan(1e-3, $"the Moon is on its orbit after {second} s");
+            (pose.Position - DemoScenes.MoonOrbit.StateAt(world.Time, DemoScenes.EarthMu).Position).Length.Should()
+                .BeLessThan(1e-3, $"the Moon is on its orbit after {second} s");
             Dot(pose.Rotation, start).Should().BeApproximately(1, 1e-12, $"the Moon has not turned after {second} s");
         }
 
         // The ecliptic's pole in earth's axes: the Sun's +Y, seen in earth's leaning axes.
         Double3 eclipticPole = world.PoseIn(scene["earth"], sun).Rotation.Conjugate().Rotate(Double3.UnitY);
         Double3 normal = Double3.Cross(world.PoseIn(moon, earth).Position, world.VelocityIn(moon, earth)).Normalized();
-        (Math.Acos(Double3.Dot(normal, eclipticPole)) * 180 / Math.PI).Should().BeApproximately(5.145, 1e-4, "the Moon's orbit leans 5.145 degrees from the ecliptic");
+        (Math.Acos(Double3.Dot(normal, eclipticPole)) * 180 / Math.PI).Should()
+            .BeApproximately(5.145, 1e-4, "the Moon's orbit leans 5.145 degrees from the ecliptic");
     }
 
     /// <summary>
@@ -113,7 +122,8 @@ public sealed class EarthSystemTests : IDisposable
         {
             Tick(world, 60);
             world.GetFrame(station).Should().Be(earth, $"the station is in earth after {second} s");
-            (world.PoseIn(station, earth).Position - DemoStation.Orbit.StateAt(world.Time, DemoScenes.EarthMu).Position).Length
+            (world.PoseIn(station, earth).Position - DemoStation.Orbit.StateAt(world.Time, DemoScenes.EarthMu).Position)
+                .Length
                 .Should().BeLessThan(0.01, $"the station is on its orbit after {second} s");
         }
     }
@@ -126,11 +136,11 @@ public sealed class EarthSystemTests : IDisposable
     public void ABoxRestingOnThePadAtThePoleStaysAtRestInEarthSurface()
     {
         var restingOn = new Double3(0, EarthSystem.PadTop + 0.5, 0);
-        Entity box = world.Spawn(new SpawnDesc
+        Entity box = world.Spawn(new()
         {
             Frame = surface,
-            Pose = new DPose(restingOn + new Double3(0, 0.05, 0), DQuaternion.Identity),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 100),
+            Pose = new(restingOn + new Double3(0, 0.05, 0), DQuaternion.Identity),
+            Body = new(new BoxShapeDesc(new(0.5f)), Mass: 100)
         });
 
         Tick(world, 5 * 60);
@@ -152,12 +162,14 @@ public sealed class EarthSystemTests : IDisposable
         // The angle between the Moon and the Sun as seen from Earth, in radians, at a time in seconds.
         double Elongation(double time)
         {
-            Double3 toSun = earthOrbit.RotationAt(time, DemoScenes.SunMu).Conjugate().Rotate(-earthOrbit.StateAt(time, DemoScenes.SunMu).Position);
+            Double3 toSun = earthOrbit.RotationAt(time, DemoScenes.SunMu).Conjugate()
+                .Rotate(-earthOrbit.StateAt(time, DemoScenes.SunMu).Position);
             Double3 toMoon = DemoScenes.MoonOrbit.StateAt(time, DemoScenes.EarthMu).Position;
             return Math.Acos(Double3.Dot(toSun.Normalized(), toMoon.Normalized()));
         }
 
-        (Elongation(0) * 180 / Math.PI).Should().BeApproximately(45, 1, "the Moon stands about 45 degrees from the Sun");
+        (Elongation(0) * 180 / Math.PI).Should()
+            .BeApproximately(45, 1, "the Moon stands about 45 degrees from the Sun");
         Elongation(86_400).Should().BeLessThan(Elongation(0), "the Moon moves toward the Sun, so it wanes");
     }
 
@@ -175,9 +187,15 @@ public sealed class EarthSystemTests : IDisposable
     [Fact]
     public void PadViewFacesTheSunInAWorldThatStartsLater()
     {
-        using var later = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true, StartTime = Math.PI / 2 / DemoScenes.SiderealRate },
+        using var later = new World(
+            new()
+            {
+                MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true,
+                StartTime = Math.PI / 2 / DemoScenes.SiderealRate
+            },
             new JoltPhysicsBackend());
-        SceneInstance laterScene = DemoScenes.All.Single(s => s.Name == "earth-system").Build(later, RenderResources.None);
+        SceneInstance laterScene =
+            DemoScenes.All.Single(s => s.Name == "earth-system").Build(later, RenderResources.None);
 
         PadViewFacesTheSun(later, laterScene);
     }
@@ -202,6 +220,7 @@ public sealed class EarthSystemTests : IDisposable
         using World orbitWorld = HostTesting.NewJoltWorld();
         SceneInstance orbit = DemoScenes.All.Single(s => s.Name == "orbit").Build(orbitWorld, RenderResources.None);
 
-        orbitWorld.PoseIn(orbit["earth"], orbitWorld.GetOwnedFrame(orbit["sun"])).Position.Normalized().X.Should().BeApproximately(-1, 1e-9);
+        orbitWorld.PoseIn(orbit["earth"], orbitWorld.GetOwnedFrame(orbit["sun"])).Position.Normalized().X.Should()
+            .BeApproximately(-1, 1e-9);
     }
 }

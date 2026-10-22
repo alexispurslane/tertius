@@ -23,7 +23,7 @@ internal sealed unsafe class ToneMapPass : RenderPass
             FragmentShader = "tonemap.frag",
             Layout = layouts.PostLayout,
             ColorFormats = [outputFormat],
-            CullMode = CullModeFlags.None,
+            CullMode = CullModeFlags.None
         }.Create(device, shaders);
         OutputFormat = outputFormat;
     }
@@ -47,15 +47,15 @@ internal sealed unsafe class ToneMapPass : RenderPass
             ImageView = context.Output.View,
             ImageLayout = ImageLayout.ColorAttachmentOptimal,
             LoadOp = AttachmentLoadOp.DontCare,
-            StoreOp = AttachmentStoreOp.Store,
+            StoreOp = AttachmentStoreOp.Store
         };
         var rendering = new RenderingInfo
         {
             SType = StructureType.RenderingInfo,
-            RenderArea = new Rect2D(new Offset2D(0, 0), context.Output.Extent),
+            RenderArea = new(new Offset2D(0, 0), context.Output.Extent),
             LayerCount = 1,
             ColorAttachmentCount = 1,
-            PColorAttachments = &color,
+            PColorAttachments = &color
         };
         vk.CmdBeginRendering(commandBuffer, &rendering);
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, pipeline);
@@ -63,7 +63,8 @@ internal sealed unsafe class ToneMapPass : RenderPass
         vk.CmdBindDescriptorSets(commandBuffer, PipelineBindPoint.Graphics, layouts.PostLayout, 0, 1, &set, 0, null);
         context.SetFullViewport();
         var push = new ToneMapPushConstants { Exposure = context.Exposure, EncodeSrgb = context.EncodeSrgb ? 1u : 0u };
-        vk.CmdPushConstants(commandBuffer, layouts.PostLayout, ShaderStageFlags.FragmentBit, 0, (uint)sizeof(ToneMapPushConstants), &push);
+        vk.CmdPushConstants(commandBuffer, layouts.PostLayout, ShaderStageFlags.FragmentBit, 0,
+            (uint)sizeof(ToneMapPushConstants), &push);
         vk.CmdDraw(commandBuffer, 3, 1, 0, 0);
         vk.CmdEndRendering(commandBuffer);
     }

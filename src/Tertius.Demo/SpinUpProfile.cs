@@ -32,7 +32,8 @@ public readonly record struct SpinUpProfile(double Rate, double Duration, DQuate
     /// </summary>
     public double TurnRate(double elapsed) => -Rate * (Duration - Math.Clamp(elapsed, 0, Duration)) / Duration;
 
-    /// <summary>The attitude target in the station's axes at <paramref name="elapsed"/> seconds into the spin-up: <see cref="Docked"/> turned by the lag about +Y.</summary>
+    /// <summary>The attitude target in the station's axes at <paramref name="elapsed"/> seconds into the spin-up:
+    /// <see cref="Docked"/> turned by the lag about +Y.</summary>
     public DQuaternion Target(double elapsed) => DQuaternion.FromAxisAngle(Double3.UnitY, Lag(elapsed)) * Docked;
 
     /// <summary>

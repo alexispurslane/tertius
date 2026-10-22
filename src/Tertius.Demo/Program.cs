@@ -5,6 +5,10 @@ namespace Tertius.Demo;
 
 public static class Program
 {
+    private const string ReadoutsUsage = "Usage: --readouts <script> <log.csv>";
+
+    private const string GenerateUsage = "Usage: --generate <file> [<scene>]";
+
     /// <summary>
     /// Runs one of the demo's scenes. See <see cref="ScriptCommand"/> and docs/plans/host-and-scripted-runs.md.
     /// <list type="bullet">
@@ -17,8 +21,10 @@ public static class Program
     /// <item><c>--generate scripts/blue-danube.json</c> writes the Blue Danube demo's long script, and its cuts beside it,
     /// such as <c>scripts/demo-docking.json</c> (see <see cref="Generate"/>).</item>
     /// <item><c>--generate scripts/demo-exit.json demo-exit</c> writes the exit's short script.</item>
-    /// <item><c>--readouts scripts/blue-danube.json runs/danube/readouts.csv</c> writes the readout log of a script (see <see cref="Readouts"/>).</item>
-    /// <item><c>--edit runs/danube/blue-danube.mp4 --script scripts/blue-danube.json --master runs/danube/blue-danube.mkv --readouts runs/danube/readouts.csv</c>
+    /// <item><c>--readouts scripts/blue-danube.json runs/danube/readouts.csv</c> writes the readout log of a script (see
+    /// <see cref="Readouts"/>).</item>
+    /// <item>
+    /// <c>--edit runs/danube/blue-danube.mp4 --script scripts/blue-danube.json --master runs/danube/blue-danube.mkv --readouts runs/danube/readouts.csv</c>
     /// cuts the master video of the script into the final video (see <see cref="EditCommand"/>).</item>
     /// </list>
     /// </summary>
@@ -37,10 +43,8 @@ public static class Program
             ["--generate", ..] => Generate(args, output, error),
             ["--readouts", ..] => Readouts(args, DemoScenes.All, output, error),
             ["--edit", ..] => EditCommand.Run(args, BlueDanubeEdit.Cuts, output, error),
-            _ => ScriptCommand.Run(args, DemoScenes.All, output, error),
+            _ => ScriptCommand.Run(args, DemoScenes.All, output, error)
         };
-
-    private const string ReadoutsUsage = "Usage: --readouts <script> <log.csv>";
 
     /// <summary>
     /// <c>--readouts &lt;script&gt; &lt;log.csv&gt;</c> runs the script with no renderer, with its scene from
@@ -57,6 +61,7 @@ public static class Program
             error.WriteLine(ReadoutsUsage);
             return ScriptCommand.CommandLineError;
         }
+
         IReadOnlyList<ReadoutRow> rows;
         try
         {
@@ -72,6 +77,7 @@ public static class Program
             error.WriteLine($"Cannot read the script {scriptPath}: {ex.Message}");
             return ScriptCommand.FileError;
         }
+
         try
         {
             File.WriteAllText(logPath, ReadoutLog.ToCsv(rows));
@@ -81,11 +87,10 @@ public static class Program
             error.WriteLine($"Cannot write the log {logPath}: {ex.Message}");
             return ScriptCommand.FileError;
         }
+
         output.WriteLine($"{logPath}: {rows.Count} rows");
         return ScriptCommand.Ok;
     }
-
-    private const string GenerateUsage = "Usage: --generate <file> [<scene>]";
 
     /// <summary>
     /// <c>--generate &lt;file&gt;</c> writes the Blue Danube demo's long script (see <see cref="BlueDanube"/>) to the file,
@@ -106,13 +111,16 @@ public static class Program
             error.WriteLine(GenerateUsage);
             return ScriptCommand.CommandLineError;
         }
+
         string scene = rest is [string named] ? named : BlueDanube.SceneName;
         if (!BlueDanube.Scenes.Contains(scene))
         {
-            error.WriteLine($"--generate knows the sections of the scenes {string.Join(" and ", BlueDanube.Scenes)}, not of {scene}.");
+            error.WriteLine(
+                $"--generate knows the sections of the scenes {string.Join(" and ", BlueDanube.Scenes)}, not of {scene}.");
             error.WriteLine(GenerateUsage);
             return ScriptCommand.CommandLineError;
         }
+
         Script script;
         try
         {
@@ -128,6 +136,7 @@ public static class Program
             error.WriteLine($"The Blue Danube script cannot be generated: {ex.Message}");
             return ScriptCommand.InternalError;
         }
+
         if (!Write(path, script, error))
             return ScriptCommand.FileError;
         output.WriteLine(path);
@@ -136,21 +145,27 @@ public static class Program
         {
             if (step.Value is not FilmStep film)
                 continue;
-            output.WriteLine(FormattableString.Invariant($"{film.Name}: {film.Frames} frames, every {film.Every} ticks, from {tick / 60.0:F1} s"));
+            output.WriteLine(FormattableString.Invariant(
+                $"{film.Name}: {film.Frames} frames, every {film.Every} ticks, from {tick / 60.0:F1} s"));
             tick += (long)film.Frames * film.Every;
         }
+
         // The cuts film a part of the long script, so only the long script has them.
-        foreach ((string file, string firstSection, string lastSection) in scene == BlueDanube.SceneName ? BlueDanube.Cuts : [])
+        foreach ((string file, string firstSection, string lastSection) in scene == BlueDanube.SceneName
+                     ? BlueDanube.Cuts
+                     : [])
         {
             string cut = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path))!, file);
             if (!Write(cut, BlueDanube.FilmedBetween(script, firstSection, lastSection), error))
                 return ScriptCommand.FileError;
             output.WriteLine(cut);
         }
+
         return ScriptCommand.Ok;
     }
 
-    /// <summary>Writes <paramref name="script"/> to <paramref name="path"/>, or the reason that it cannot to <paramref name="error"/>. Returns true when it wrote it.</summary>
+    /// <summary>Writes <paramref name="script"/> to <paramref name="path"/>, or the reason that it cannot to
+    /// <paramref name="error"/>. Returns true when it wrote it.</summary>
     private static bool Write(string path, Script script, TextWriter error)
     {
         try

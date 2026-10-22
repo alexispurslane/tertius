@@ -1,5 +1,4 @@
 using System.Numerics;
-using Tertius.Rendering;
 
 namespace Tertius.Rendering.Tests;
 
@@ -43,6 +42,7 @@ public sealed class DepthRangeTests
             Depth(projection, boundary * 1.001f).Should().BeLessThan(clear);
             Depth(projection, DepthRanges.NearOf(range)).Should().BeApproximately(1f, 1e-5f);
         }
+
         DepthRanges.ClearDepth(DepthRanges.Far).Should().Be(0f);
     }
 
@@ -69,15 +69,15 @@ public sealed class DepthRangeTests
 
     [Theory]
     [InlineData(10f, 1f, Near)]
-    [InlineData(1_995f, 4f, Near)]                   // fits in the near slab thanks to the overlap
-    [InlineData(1_999f, 30f, Near | Middle)]           // straddles 2 km
-    [InlineData(50_000f, 600f, Middle)]                // the station
-    [InlineData(3.0e7f, 6.0e6f, Far)]                  // the planet
-    [InlineData(1.0e6f, 1.5e6f, Near | Middle | Far)]  // reaches from the camera to beyond 2,000 km
-    [InlineData(2.0e6f, 1.0e4f, Middle)]                // fits in the middle slab thanks to the overlap
-    [InlineData(2.0e6f, 3.0e4f, Middle | Far)]         // straddles 2,000 km
-    [InlineData(1.5e11f, 7.0e8f, Far)]                 // the star
-    [InlineData(0.02f, 0.5f, Near)]                    // touches the camera
+    [InlineData(1_995f, 4f, Near)] // fits in the near slab thanks to the overlap
+    [InlineData(1_999f, 30f, Near | Middle)] // straddles 2 km
+    [InlineData(50_000f, 600f, Middle)] // the station
+    [InlineData(3.0e7f, 6.0e6f, Far)] // the planet
+    [InlineData(1.0e6f, 1.5e6f, Near | Middle | Far)] // reaches from the camera to beyond 2,000 km
+    [InlineData(2.0e6f, 1.0e4f, Middle)] // fits in the middle slab thanks to the overlap
+    [InlineData(2.0e6f, 3.0e4f, Middle | Far)] // straddles 2,000 km
+    [InlineData(1.5e11f, 7.0e8f, Far)] // the star
+    [InlineData(0.02f, 0.5f, Near)] // touches the camera
     public void OpaqueObjectsGoToEveryRangeTheyReach(float depth, float radius, int expected)
     {
         DepthRanges.OpaqueMask(depth, radius).Should().Be(expected);

@@ -22,6 +22,9 @@ public class ConvexRadiusTests
     /// <summary>The distance, in m, that the ball may be off, for a ball that rests on a flat face.</summary>
     private const double Tolerance = 1e-4;
 
+    private static readonly Vector3[] LeftSlab = SlabPoints(-1, 0);
+    private static readonly Vector3[] RightSlab = SlabPoints(0, 1);
+
     /// <summary>
     /// The 8 corners of a slab of 1 m along X, from <paramref name="x0"/> to <paramref name="x1"/>, 2 m along Z, and 0.5 m
     /// thick along Y, whose flat top is at height 0.
@@ -29,11 +32,8 @@ public class ConvexRadiusTests
     private static Vector3[] SlabPoints(float x0, float x1) =>
     [
         new(x0, -0.5f, -1), new(x1, -0.5f, -1), new(x0, -0.5f, 1), new(x1, -0.5f, 1),
-        new(x0, 0, -1), new(x1, 0, -1), new(x0, 0, 1), new(x1, 0, 1),
+        new(x0, 0, -1), new(x1, 0, -1), new(x0, 0, 1), new(x1, 0, 1)
     ];
-
-    private static readonly Vector3[] LeftSlab = SlabPoints(-1, 0);
-    private static readonly Vector3[] RightSlab = SlabPoints(0, 1);
 
     private static ConvexHullShapeDesc LeftHull(float convexRadius) => new(LeftSlab, convexRadius);
 
@@ -41,19 +41,20 @@ public class ConvexRadiusTests
 
     /// <summary>A box of 1 m along X, 2 m along Z and 0.5 m along Y, whose flat top is at height 0, as a child of a compound.</summary>
     private static CompoundChild BoxChild(float x0, float convexRadius) =>
-        new(new BoxShapeDesc(new Vector3(0.5f, 0.25f, 1), convexRadius), new Pose(new Vector3(x0 + 0.5f, -0.25f, 0), Quaternion.Identity));
+        new(new BoxShapeDesc(new(0.5f, 0.25f, 1), convexRadius), new(new(x0 + 0.5f, -0.25f, 0), Quaternion.Identity));
 
     private static CompoundShapeDesc Joint(ShapeDesc left, ShapeDesc right) =>
-        new([new CompoundChild(left, Pose.Identity), new CompoundChild(right, Pose.Identity)]);
+        new([new(left, Pose.Identity), new(right, Pose.Identity)]);
 
     /// <summary>Spawns <paramref name="shape"/> as a static body whose origin is at (<paramref name="x"/>, 0, 0).</summary>
     private static void SpawnStatic(World world, FrameHandle ground, double x, ShapeDesc shape) =>
-        world.Spawn(new SpawnDesc { Frame = ground, Pose = At(x), Body = new BodyDesc(shape, BodyMotion.Static) });
+        world.Spawn(new() { Frame = ground, Pose = At(x), Body = new(shape, BodyMotion.Static) });
 
     /// <summary>Drops a ball 1 cm above its resting height onto (<paramref name="x"/>, 0, 0), lets it settle, and returns the height of its center.</summary>
     private static double RestingHeightOfBallAt(World world, FrameHandle ground, double x)
     {
-        Entity ball = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(x, RestingHeight + 0.01), Body = Ball(BallRadius) });
+        Entity ball = world.Spawn(new()
+            { Frame = ground, Pose = At(x, RestingHeight + 0.01), Body = Ball(BallRadius) });
         Tick(world, 120);
         return world.PoseInOwnFrame(ball).Position.Y;
     }
@@ -82,7 +83,8 @@ public class ConvexRadiusTests
     public void ABallAcrossTheJointOfTwoHullsWithTheDefaultConvexRadiusSinksBelowTheirFlatFaces()
     {
         // The default keeps today's shapes: the groove is the one that a 5 cm radius makes.
-        double height = HeightOfBallAcrossTheJointOf(Joint(new ConvexHullShapeDesc(LeftSlab), new ConvexHullShapeDesc(RightSlab)));
+        double height =
+            HeightOfBallAcrossTheJointOf(Joint(new ConvexHullShapeDesc(LeftSlab), new ConvexHullShapeDesc(RightSlab)));
 
         height.Should().BeApproximately(0.245804, 2 * Tolerance);
     }
@@ -127,7 +129,9 @@ public class ConvexRadiusTests
     [Fact]
     public void ABallAcrossTheJointOfTwoBoxesWithTheDefaultConvexRadiusSinksBelowTheirFlatFaces()
     {
-        double height = HeightOfBallAcrossTheJointOf(new CompoundShapeDesc([BoxChild(-1, ShapeDesc.DefaultConvexRadius), BoxChild(0, ShapeDesc.DefaultConvexRadius)]));
+        double height = HeightOfBallAcrossTheJointOf(new CompoundShapeDesc([
+            BoxChild(-1, ShapeDesc.DefaultConvexRadius), BoxChild(0, ShapeDesc.DefaultConvexRadius)
+        ]));
 
         height.Should().BeApproximately(0.245804, 2 * Tolerance);
     }
@@ -160,7 +164,10 @@ public class ConvexRadiusTests
         using World world = NewWorld(out _);
         FrameHandle ground = Ground(world, 9.81f);
         // A block with the half extents (2, 0.5, 2), whose flat top is at height 0.
-        world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, -0.5), Body = new BodyDesc(new BoxShapeDesc(new Vector3(2, 0.5f, 2), 0), BodyMotion.Static) });
+        world.Spawn(new()
+        {
+            Frame = ground, Pose = At(0, -0.5), Body = new(new BoxShapeDesc(new(2, 0.5f, 2), 0), BodyMotion.Static)
+        });
 
         RestingHeightOfBallAt(world, ground, 0).Should().BeApproximately(RestingHeight, Tolerance);
         world.Errors.Should().BeEmpty();
@@ -172,8 +179,8 @@ public class ConvexRadiusTests
         using World world = NewWorld(out _);
         FrameHandle ground = Ground(world, 9.81f);
         // A plate with the half extents (2, 0.1, 2) and a convex radius of 5 m: physics rounds it by 0.1 m at the most.
-        var plate = new BoxShapeDesc(new Vector3(2, 0.1f, 2), 5);
-        world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, -0.1), Body = new BodyDesc(plate, BodyMotion.Static) });
+        var plate = new BoxShapeDesc(new(2, 0.1f, 2), 5);
+        world.Spawn(new() { Frame = ground, Pose = At(0, -0.1), Body = new(plate, BodyMotion.Static) });
 
         RestingHeightOfBallAt(world, ground, 0).Should().BeApproximately(RestingHeight, Tolerance);
         world.Errors.Should().BeEmpty();
@@ -185,7 +192,7 @@ public class ConvexRadiusTests
         JoltRuntime.EnsureInitialized();
         using var cache = new ShapeCache();
 
-        var box = (BoxShape)cache.Get(new BoxShapeDesc(new Vector3(2, 0.5f, 2), 0.2f));
+        var box = (BoxShape)cache.Get(new BoxShapeDesc(new(2, 0.5f, 2), 0.2f));
 
         box.ConvexRadius.Should().Be(0.2f);
     }
@@ -198,7 +205,7 @@ public class ConvexRadiusTests
 
         // A plate of 0.1 m half thickness is rounded by 0.1 m. Jolt's box clamps the radius so by itself, and the shape
         // cache does the same, so this pins Jolt's clamp as much as the cache's.
-        var plate = (BoxShape)cache.Get(new BoxShapeDesc(new Vector3(2, 0.1f, 2), 5));
+        var plate = (BoxShape)cache.Get(new BoxShapeDesc(new(2, 0.1f, 2), 5));
 
         plate.ConvexRadius.Should().Be(0.1f);
     }
@@ -212,7 +219,8 @@ public class ConvexRadiusTests
         var roundedLeft = new ConvexHullShapeDesc(LeftSlab);
         var roundedRight = new ConvexHullShapeDesc(RightSlab);
         SpawnStatic(world, ground, -10, Joint(roundedLeft, roundedRight));
-        SpawnStatic(world, ground, 10, Joint(roundedLeft with { ConvexRadius = 0 }, roundedRight with { ConvexRadius = 0 }));
+        SpawnStatic(world, ground, 10,
+            Joint(roundedLeft with { ConvexRadius = 0 }, roundedRight with { ConvexRadius = 0 }));
 
         double onRounded = RestingHeightOfBallAt(world, ground, -10);
         double onSharp = RestingHeightOfBallAt(world, ground, 10);

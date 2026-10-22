@@ -67,7 +67,8 @@ internal readonly record struct FrameTurn(DQuaternion Turn, Double3 AngularVeloc
     /// body's turn in the frame's axes divided by the step, of a body that keeps its inertial angular velocity and turns at
     /// <paramref name="instant"/> relative to the frame at the step's end, in the frame's axes then, in rad/s.
     /// </summary>
-    public Double3 AngularChordBehind(Double3 instant, double dt) => AngularChordBehindInertial(instant + AngularVelocity, dt);
+    public Double3 AngularChordBehind(Double3 instant, double dt) =>
+        AngularChordBehindInertial(instant + AngularVelocity, dt);
 
     /// <summary>
     /// The exact inverse of <see cref="AngularChordBehind"/>: the angular velocity relative to the frame at this step's end
@@ -89,5 +90,6 @@ internal readonly record struct FrameTurn(DQuaternion Turn, Double3 AngularVeloc
     /// the frame's axes then, of a body that Jolt turned by <paramref name="chord"/> over the step.
     /// </summary>
     internal Double3 InertialAngularAtEnd(Double3 chord, double dt) =>
-        DQuaternion.Identity.AngularVelocityTo(DQuaternion.FromAxisAngle(chord, chord.Length * dt) * Turn.Conjugate(), dt);
+        DQuaternion.Identity.AngularVelocityTo(DQuaternion.FromAxisAngle(chord, chord.Length * dt) * Turn.Conjugate(),
+            dt);
 }

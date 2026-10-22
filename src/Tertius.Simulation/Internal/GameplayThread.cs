@@ -6,18 +6,16 @@ namespace Tertius.Simulation;
 /// </summary>
 internal static class GameplayThread
 {
-    [ThreadStatic]
-    private static bool inEntityRun;
-
     /// <summary>True while this thread runs an entity's components.</summary>
-    public static bool InEntityRun => inEntityRun;
+    [field: ThreadStatic]
+    public static bool InEntityRun { get; private set; }
 
     /// <summary>Sets the marker for one entity run. The scheduler calls it, and <see cref="EndEntityRun"/> in a finally block.</summary>
     public static void BeginEntityRun()
     {
-        Contract.Requires(!inEntityRun);
-        inEntityRun = true;
+        Contract.Requires(!InEntityRun);
+        InEntityRun = true;
     }
 
-    public static void EndEntityRun() => inEntityRun = false;
+    public static void EndEntityRun() => InEntityRun = false;
 }

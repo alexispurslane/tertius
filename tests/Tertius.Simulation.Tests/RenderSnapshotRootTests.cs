@@ -1,6 +1,5 @@
 using System.Numerics;
 using AwesomeAssertions;
-using Tertius.Frames.Rails;
 
 namespace Tertius.Simulation.Tests;
 
@@ -22,14 +21,15 @@ public class RenderSnapshotRootTests
     {
         // Two axes pin a rotation down.
         ExpectNear(actual, expected);
-        Vector3.Distance(Vector3.Transform(Vector3.UnitY, actual), expected.Rotate(Double3.UnitY).ToVector3()).Should().BeLessThan(1e-6f);
+        Vector3.Distance(Vector3.Transform(Vector3.UnitY, actual), expected.Rotate(Double3.UnitY).ToVector3()).Should()
+            .BeLessThan(1e-6f);
     }
 
     [Fact]
     public void ACameraInTheRootFrameSeesTheRootsAxesUnturned()
     {
         using var test = new TestWorld();
-        test.World.Camera = test.SpawnCamera(test.Root, new DPose(new Double3(3, 0, 0), QuarterTurnAboutY));
+        test.World.Camera = test.SpawnCamera(test.Root, new(new(3, 0, 0), QuarterTurnAboutY));
 
         test.Run(1);
 
@@ -40,10 +40,10 @@ public class RenderSnapshotRootTests
     public void ACameraInANestedTurnedFrameGetsTheRootsAxesInItsFramesAxes()
     {
         using var test = new TestWorld();
-        FrameHandle ship = test.SpawnStaticFrame(new DPose(new Double3(10, 0, 0), QuarterTurnAboutY));
-        FrameHandle cabin = test.SpawnStaticFrame(new DPose(Double3.Zero, TiltAboutX), radius: 10, parent: ship);
+        FrameHandle ship = test.SpawnStaticFrame(new(new(10, 0, 0), QuarterTurnAboutY));
+        FrameHandle cabin = test.SpawnStaticFrame(new(Double3.Zero, TiltAboutX), radius: 10, parent: ship);
         // The camera's own rotation turns the view, not the axes of its frame, so it does not count.
-        test.World.Camera = test.SpawnCamera(cabin, new DPose(Double3.Zero, TiltAboutX));
+        test.World.Camera = test.SpawnCamera(cabin, new(Double3.Zero, TiltAboutX));
 
         test.Run(1);
 
@@ -59,8 +59,8 @@ public class RenderSnapshotRootTests
         FrameHandle turning = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
-        }.Spinning(test.World, new FrameSpin(DQuaternion.Identity, 1))));
+            AsFrame = new(FrameBounds.Sphere(100))
+        }.Spinning(test.World, new(DQuaternion.Identity, 1))));
         test.World.Camera = test.SpawnCamera(turning, DPose.Identity);
         test.Run(1);
         Quaternion before = test.World.Latest().RootRotation;
@@ -77,7 +77,7 @@ public class RenderSnapshotRootTests
     public void WhenTheCameraChangesFrameTheSkyDoesNotBlendFromTheOldFramesAxes()
     {
         using var test = new TestWorld();
-        FrameHandle ship = test.SpawnStaticFrame(new DPose(new Double3(10, 0, 0), QuarterTurnAboutY));
+        FrameHandle ship = test.SpawnStaticFrame(new(new(10, 0, 0), QuarterTurnAboutY));
         Entity outside = test.SpawnCamera(test.Root, DPose.Identity), inside = test.SpawnCamera(ship, DPose.Identity);
         test.World.Camera = outside;
         test.Run(1);

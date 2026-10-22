@@ -1,5 +1,4 @@
 using System.Numerics;
-using Tertius.Rendering;
 using Xunit.Sdk;
 
 namespace Tertius.Rendering.Tests;
@@ -31,9 +30,9 @@ public sealed class ReferenceImageRenderTests
         VulkanRenderer renderer = Gpu.Headless(Width, Height);
         try
         {
-            MeshId box = renderer.CreateMesh(Primitives.Box(new Vector3(0.5f)));
-            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(new Vector4(0.8f, 0.8f, 0.8f, 1), gloss: 0.5f));
-            RenderSnapshot snapshot = Gpu.Snapshot(new Vector3(0.4f, 0.8f, 0.5f));
+            MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(new(0.8f, 0.8f, 0.8f, 1), gloss: 0.5f));
+            RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.5f));
             snapshot.Instances.Add(Gpu.Instance(box, white, BoxCenter + offset, Vector3.One,
                 Quaternion.CreateFromYawPitchRoll(0.6f, 0.3f, 0), radius: 0.87f, entity: 1));
             return Gpu.RenderAndCapture(renderer, snapshot, name);
@@ -61,12 +60,14 @@ public sealed class ReferenceImageRenderTests
         string reference = Path.Combine(Folder, "box-moved.png");
         ReferenceImages.Verify(RenderBox("reference-box-in-place"), reference, approve: true);
 
-        Action check = () => ReferenceImages.Verify(RenderBox("reference-box-moved", offset: new Vector3(1.6f, 0, 0)), reference, approve: false);
+        Action check = () =>
+            ReferenceImages.Verify(RenderBox("reference-box-moved", offset: new(1.6f, 0, 0)), reference,
+                approve: false);
 
         check.Should().Throw<FailException>();
         Capture heatMap = Capture.Load(Path.Combine(Folder, "box-moved.flip.png"));
         heatMap.MeanLuma(Gpu.Project(BoxCenter, Width, Height), 2)
             .Should().BeGreaterThan(0.5f, "the box moved 1.6 m to the right, clear of its old place, which became sky");
-        heatMap.MeanLuma(new Vector2(20, 20), 2).Should().BeLessThan(0.02f, "the sky far from the box did not change");
+        heatMap.MeanLuma(new(20, 20), 2).Should().BeLessThan(0.02f, "the sky far from the box did not change");
     }
 }

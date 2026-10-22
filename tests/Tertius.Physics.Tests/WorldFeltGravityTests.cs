@@ -1,12 +1,11 @@
-using System.Numerics;
-using Tertius.Frames.Rails;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// The public read of the gravity that a body feels in a frame over the last finished step, <see cref="FrameTree.FeltGravity"/>,
+/// The public read of the gravity that a body feels in a frame over the last finished step,
+/// <see cref="FrameTree.FeltGravity"/>,
 /// on the World and the real Jolt backend (docs/plans/spin-gravity.md, "V5, the effective gravity"): the frame's field at
 /// the place, less the frame's proper acceleration, plus the centrifugal term −ω × (ω × r) and the Euler term −α × r of the
 /// frame's inertial turn, in the frame's axes. The stations of the tests are frames without a body and without a field,
@@ -21,7 +20,7 @@ public class WorldFeltGravityTests
     private static readonly FrameSpec StationSpec = new(FrameBounds.Sphere(150));
     private static readonly Double3 Rim = new(100, 0, 0);
 
-    private static FrameHandle Space(World world) => world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+    private static FrameHandle Space(World world) => world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
 
     /// <summary>
     /// A frame without a body that holds still in <paramref name="space"/>, turned a quarter turn about +Z, so that its +Y,
@@ -29,11 +28,11 @@ public class WorldFeltGravityTests
     /// put the station's ω along its own −X, and miss both terms at its rim.
     /// </summary>
     private static FrameHandle TiltedHolder(World world, FrameHandle space) =>
-        world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        world.GetOwnedFrame(world.Spawn(new()
         {
             Frame = space,
-            Pose = new DPose(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1000)),
+            Pose = new(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2)),
+            AsFrame = new(FrameBounds.Sphere(1000))
         }));
 
     [Fact]
@@ -46,19 +45,19 @@ public class WorldFeltGravityTests
         using World world = NewWorld(out _, debugChecks: false);
         FrameHandle space = Space(world);
         FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = space, AsFrame = StationSpec }
-            .Spinning(world, new FrameSpin(DQuaternion.Identity, StationRate), firstMove: true)));
-        world.Spawn(new SpawnDesc
+            .Spinning(world, new(DQuaternion.Identity, StationRate), firstMove: true)));
+        world.Spawn(new()
         {
             Frame = station,
             Pose = At(FloorRadius + 0.5),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f, 10, 10)), BodyMotion.Static),
+            Body = new(new BoxShapeDesc(new(0.5f, 10, 10)), BodyMotion.Static)
         });
-        FrameHandle ship = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        FrameHandle ship = world.GetOwnedFrame(world.Spawn(new()
         {
             Frame = station,
             Pose = At(FloorRadius - 1),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1, 2, 2)), Mass: 1000),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(0.5f)),
+            Body = new(new BoxShapeDesc(new(1, 2, 2)), Mass: 1000),
+            AsFrame = new(FrameBounds.Sphere(0.5f))
         }));
         var place = new Double3(-0.5, 0.6, 1.5);
         // A new frame reads no proper acceleration in its first step, and the floor's contact settles in the next one.
@@ -70,7 +69,9 @@ public class WorldFeltGravityTests
             world.Tick();
             DPose shipInStation = world.Frames.Relative(ship, station);
             Double3 inStation = shipInStation.TransformPoint(place);
-            Double3 expected = shipInStation.InverseTransformDirection(StationRate * StationRate * new Double3(inStation.X, 0, inStation.Z));
+            Double3 expected =
+                shipInStation.InverseTransformDirection(StationRate * StationRate *
+                                                        new Double3(inStation.X, 0, inStation.Z));
             worst = Math.Max(worst, Double3.Distance(world.Frames.FeltGravity(ship, place), expected));
         }
 
@@ -89,11 +90,14 @@ public class WorldFeltGravityTests
         using World world = NewWorld(out _);
         FrameHandle holder = TiltedHolder(world, Space(world));
         double start = world.Time;
-        FrameHandle station = world.GetOwnedFrame(world.Spawn(SpinUp.Spawning(new SpawnDesc { Frame = holder, AsFrame = StationSpec }, world, spinUp)));
+        FrameHandle station =
+            world.GetOwnedFrame(world.Spawn(SpinUp.Spawning(new() { Frame = holder, AsFrame = StationSpec }, world,
+                spinUp)));
         Tick(world, 3);
 
         double rate = spinUp * (world.Time - start);
-        Double3.Distance(world.Frames.FeltGravity(station, Rim), new Double3(rate * rate * 100, 0, spinUp * 100)).Should().BeLessThan(1e-6);
+        Double3.Distance(world.Frames.FeltGravity(station, Rim), new(rate * rate * 100, 0, spinUp * 100)).Should()
+            .BeLessThan(1e-6);
         world.Errors.Should().BeEmpty();
     }
 
@@ -105,26 +109,28 @@ public class WorldFeltGravityTests
         // term, not even a zero one.
         using World world = NewWorld(out _);
         FrameHandle ground = Ground(world, 9.81f);
-        FrameHandle frame = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        FrameHandle frame = world.GetOwnedFrame(world.Spawn(new()
         {
             Frame = ground,
             Pose = At(3, 20, -7),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(50), GravityField.Point(1234.5)),
+            AsFrame = new(FrameBounds.Sphere(50), GravityField.Point(1234.5))
         }));
         var place = new Double3(1.1, -2.3, 0.7);
         Tick(world, 3);
 
         FrameTree frames = world.Frames;
-        frames.ProperAcceleration(frame).Y.Should().BeApproximately(9.81f, 1e-4f, "the frame holds still in the ground's field");
-        frames.FeltGravity(frame, place).Should().Be(frames.Gravity(frame).AtPrecise(place) - (Double3)frames.ProperAcceleration(frame));
+        frames.ProperAcceleration(frame).Y.Should()
+            .BeApproximately(9.81f, 1e-4f, "the frame holds still in the ground's field");
+        frames.FeltGravity(frame, place).Should()
+            .Be(frames.Gravity(frame).AtPrecise(place) - frames.ProperAcceleration(frame));
         world.Errors.Should().BeEmpty();
     }
 
     /// <summary>Reads the felt gravity and the effective gravity of the step in flight at a place in a frame, in every tick.</summary>
     private sealed class GravityProbe(FrameHandle frame, Double3 place) : IComponent
     {
-        public readonly List<Double3> Felt = new();
-        public readonly List<Double3> InFlight = new();
+        public readonly List<Double3> Felt = [];
+        public readonly List<Double3> InFlight = [];
 
         public int Priority => 0;
 
@@ -148,9 +154,11 @@ public class WorldFeltGravityTests
         const double spinUp = 0.5;
         using World world = NewWorld(out _);
         FrameHandle space = Space(world);
-        FrameHandle station = world.GetOwnedFrame(world.Spawn(SpinUp.Spawning(new SpawnDesc { Frame = space, AsFrame = StationSpec }, world, spinUp)));
+        FrameHandle station =
+            world.GetOwnedFrame(world.Spawn(SpinUp.Spawning(new() { Frame = space, AsFrame = StationSpec }, world,
+                spinUp)));
         var probe = new GravityProbe(station, Rim);
-        world.Spawn(new SpawnDesc { Frame = space, Components = [probe] });
+        world.Spawn(new() { Frame = space, Components = [probe] });
         Tick(world, 3);
 
         var after = new List<Double3>();
@@ -160,9 +168,12 @@ public class WorldFeltGravityTests
             world.Tick();
             Double3 inTick = probe.Felt[^1], inFlight = probe.InFlight[^1];
             inTick.Should().Be(after[^1], $"tick {tick} reads the step that ended before it");
-            Double3.Distance(inTick, inFlight).Should().BeGreaterThan(0.01, $"tick {tick} does not read the step in flight");
-            Double3.Distance(world.Frames.FeltGravity(station, Rim), inFlight).Should().BeLessThan(1e-6, $"after tick {tick} the read describes the step that was in flight");
+            Double3.Distance(inTick, inFlight).Should()
+                .BeGreaterThan(0.01, $"tick {tick} does not read the step in flight");
+            Double3.Distance(world.Frames.FeltGravity(station, Rim), inFlight).Should().BeLessThan(1e-6,
+                $"after tick {tick} the read describes the step that was in flight");
         }
+
         world.Errors.Should().BeEmpty();
     }
 }

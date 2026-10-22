@@ -33,6 +33,7 @@ public abstract class CheckedInRun : IDisposable
             Scene = DemoScenes.All.Single(s => s.Name == Script.Scene).Build(World, renderer);
             IPlayback playback = new HeadlessPlayback(renderer, Script.Window, new PngFolder(Folder));
             long lastWatched = -1;
+
             void Watch()
             {
                 if (World.TickNumber == lastWatched)
@@ -40,6 +41,7 @@ public abstract class CheckedInRun : IDisposable
                 lastWatched = World.TickNumber;
                 beforeEachTick!(World, Scene);
             }
+
             if (beforeEachTick != null)
                 playback = new WatchedPlayback(playback, Watch);
             Result = ScriptRunner.Run(Script, World, Scene, Folder, playback);
@@ -69,7 +71,8 @@ public abstract class CheckedInRun : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    /// <summary>A playback that calls <paramref name="beforeTick"/> before each tick, and otherwise is <paramref name="inner"/>.</summary>
+    /// <summary>A playback that calls <paramref name="beforeTick"/> before each tick, and otherwise is
+    /// <paramref name="inner"/>.</summary>
     private sealed class WatchedPlayback(IPlayback inner, Action beforeTick) : IPlayback
     {
         public bool WaitForTick()

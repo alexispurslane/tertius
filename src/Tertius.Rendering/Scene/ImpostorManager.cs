@@ -10,7 +10,8 @@ namespace Tertius.Rendering;
 /// </summary>
 internal readonly record struct ImpostorKey(uint EntityIndex, ushort Part, int Mesh, uint Material)
 {
-    public static ImpostorKey Of(in PreparedInstance instance) => new(instance.EntityIndex, instance.Part, instance.Mesh, instance.Material);
+    public static ImpostorKey Of(in PreparedInstance instance) =>
+        new(instance.EntityIndex, instance.Part, instance.Mesh, instance.Material);
 }
 
 /// <summary>A capture that <see cref="ImpostorPass"/> renders this frame: one object alone, into one atlas tile.</summary>
@@ -18,22 +19,31 @@ internal struct ImpostorCapture
 {
     /// <summary>The atlas tile (layer) the capture replaces.</summary>
     public int Tile;
+
     public int Mesh;
     public uint Material;
+
     /// <summary>The object's interpolated, camera-relative transform this frame.</summary>
     public Vector3 Position;
+
     public Quaternion Rotation;
     public Vector3 Scale;
+
     /// <summary>The capture's axes in camera-relative world space. <see cref="Toward"/> points from the object to the eye.</summary>
     public Vector3 Right;
+
     public Vector3 Up;
     public Vector3 Toward;
+
     /// <summary>The distance from the eye to the center of the bounding sphere.</summary>
     public float Distance;
+
     /// <summary>The bounding radius.</summary>
     public float Radius;
+
     /// <summary>The tangent of the capture frustum's half angle: the sphere's tangent cone plus the margin.</summary>
     public float TanHalfAngle;
+
     /// <summary>Which way is up for the object's hemisphere ambient light, as the capture bakes it.</summary>
     public HemisphereUp Hemisphere;
 }
@@ -43,16 +53,20 @@ internal struct ImpostorDraw
 {
     /// <summary>The camera-relative center of the bounding sphere.</summary>
     public Vector3 Center;
+
     /// <summary>
     /// The billboard's axes in camera-relative world space: <see cref="Right"/> and <see cref="Up"/> span half the
     /// captured square in the plane of the center, and <see cref="Toward"/> reaches from the center to the eye the
     /// capture was taken from, as the object has turned and scaled since.
     /// </summary>
     public Vector3 Right;
+
     public Vector3 Up;
     public Vector3 Toward;
+
     /// <summary>The atlas tile (layer) that holds the capture.</summary>
     public int Tile;
+
     /// <summary>The depth ranges to draw it in, as a bit mask over <see cref="DepthRanges"/>.</summary>
     public int Ranges;
 }
@@ -106,30 +120,37 @@ internal sealed class ImpostorManager : IInstanceProcessor
 {
     /// <summary>Below this projected height, in pixels, an object becomes an impostor.</summary>
     public const float EnterHeight = 200f;
+
     /// <summary>Above this projected height, in pixels, an impostor returns to geometry.</summary>
     public const float ExitHeight = 300f;
+
     /// <summary>The capture budget per frame.</summary>
     public const int CapturesPerFrame = 4;
+
     /// <summary>A capture is stale when its error (radians, or a relative change) times h exceeds this.</summary>
     public const float RecaptureError = 2f;
+
     /// <summary>The side of one atlas tile in texels.</summary>
     public const int TileSize = 512;
+
     /// <summary>
     /// The capture frustum's half-angle tangent over the tangent cone's: two texels of margin on every side, so that
     /// the silhouette never touches the tile's edge.
     /// </summary>
     public const float MarginScale = TileSize / (TileSize - 4f);
+
     /// <summary>
     /// An eye closer than this many bounding radii to the center never sees an impostor: the capture frustum's near
     /// plane would cut into the sphere.
     /// </summary>
     public const float MinimumDistance = 1.05f;
+
     /// <summary>Frames a key without a tile is remembered after it was last seen.</summary>
     public const int StateLifetime = 120;
 
     private const RenderFlags Excluded = RenderFlags.NoImpostor | RenderFlags.Celestial | RenderFlags.Transparent;
 
-    private readonly Dictionary<ImpostorKey, int> lookup = new();
+    private readonly Dictionary<ImpostorKey, int> lookup = [];
     private readonly int[] tileOwner;
     private readonly long[] tileUsed;
     private readonly CandidateHeap recaptures = new();
@@ -143,7 +164,6 @@ internal sealed class ImpostorManager : IInstanceProcessor
     private ImpostorDraw[] draws = new ImpostorDraw[64];
     private int drawCount;
     private int captureCount;
-    private long frame;
 
     /// <param name="tiles">The number of atlas tiles. At least 1.</param>
     public ImpostorManager(int tiles)
@@ -156,7 +176,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
     }
 
     /// <summary>Counts <see cref="Process"/> calls. Captures and tile use are stamped with it.</summary>
-    public long Frame => frame;
+    public long Frame { get; private set; }
 
     /// <summary>Atlas tiles.</summary>
     public int TileCount => tileOwner.Length;
@@ -191,8 +211,9 @@ internal sealed class ImpostorManager : IInstanceProcessor
             status = default;
             return false;
         }
+
         ref State state = ref states[slot];
-        status = new ImpostorStatus(state.Impostor, state.Tile, state.CapturedFrame, state.Height);
+        status = new(state.Impostor, state.Tile, state.CapturedFrame, state.Height);
         return true;
     }
 
@@ -210,7 +231,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
 
     public void Process(PreparedScene scene)
     {
-        frame++;
+        Frame++;
         captureCount = 0;
         drawCount = 0;
         recaptures.Clear();
@@ -227,17 +248,18 @@ internal sealed class ImpostorManager : IInstanceProcessor
         {
             decisions[i] = -1;
             ref PreparedInstance instance = ref visible[i];
-            if ((instance.Flags & Excluded) != 0 || !(instance.Radius > 0f) || instance.Distance < MinimumDistance * instance.Radius)
+            if ((instance.Flags & Excluded) != 0 || !(instance.Radius > 0f) ||
+                instance.Distance < MinimumDistance * instance.Radius)
                 continue;
             float height = ProjectedHeight(instance.Distance, instance.Radius, camera);
-            var key = ImpostorKey.Of(instance);
+            ImpostorKey key = ImpostorKey.Of(instance);
             ref int slot = ref CollectionsMarshal.GetValueRefOrAddDefault(lookup, key, out bool exists);
             if (!exists)
                 slot = AllocateState(key);
             ref State state = ref states[slot];
-            if (state.LastSeen == frame)
+            if (state.LastSeen == Frame)
                 continue;
-            state.LastSeen = frame;
+            state.LastSeen = Frame;
             state.Height = height;
             if (state.Impostor ? height > ExitHeight : height < EnterHeight)
                 state.Impostor = !state.Impostor;
@@ -251,7 +273,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
                 bool current = error <= RecaptureError;
                 // A stale capture is drawn only by an impostor that was drawn last frame, until its recapture. An
                 // object that just became an impostor again, or came back into view, waits as geometry instead.
-                state.Drawable = current || state.DrawnFrame == frame - 1;
+                state.Drawable = current || state.DrawnFrame == Frame - 1;
                 if (!current)
                     recaptures.Push(state.Drawable ? error : MathF.PI * height, i);
             }
@@ -286,6 +308,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
                 AcquireTile(slot);
                 available--;
             }
+
             RecordCapture(slot, visible[index], light, camera);
         }
     }
@@ -302,12 +325,14 @@ internal sealed class ImpostorManager : IInstanceProcessor
                 AddDraw(ref states[slot], visible[i]);
                 continue;
             }
+
             if (slot >= 0)
                 waiting++;
             if (kept != i)
                 visible[kept] = visible[i];
             kept++;
         }
+
         scene.VisibleCount = kept;
         Waiting = waiting;
     }
@@ -321,7 +346,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
         float scale = UniformScale(instance.Scale, state.Scale);
         float extent = state.Extent * scale;
         int containing = DepthRanges.Containing(instance.Depth);
-        draws[drawCount++] = new ImpostorDraw
+        draws[drawCount++] = new()
         {
             Center = instance.Position,
             Right = Vector3.Transform(state.Right, rotation) * extent,
@@ -330,10 +355,10 @@ internal sealed class ImpostorManager : IInstanceProcessor
             Tile = state.Tile,
             // The range of the center and any nearer range the sphere reaches: the billboard lies in the plane of
             // the center, so a farther range would clip it at its near plane.
-            Ranges = DepthRanges.OpaqueMask(instance.Depth, instance.Radius) & ~((1 << containing) - 1),
+            Ranges = DepthRanges.OpaqueMask(instance.Depth, instance.Radius) & ~((1 << containing) - 1)
         };
-        tileUsed[state.Tile] = frame;
-        state.DrawnFrame = frame;
+        tileUsed[state.Tile] = Frame;
+        state.DrawnFrame = Frame;
     }
 
     private void RecordCapture(int slot, in PreparedInstance instance, in SceneLight light, in CameraView camera)
@@ -359,11 +384,11 @@ internal sealed class ImpostorManager : IInstanceProcessor
         state.Extent = distance * tanHalfAngle;
         state.Parallax = radius / distance;
         state.Light = light.At(instance);
-        state.CapturedFrame = frame;
+        state.CapturedFrame = Frame;
         state.Drawable = true;
-        tileUsed[state.Tile] = frame;
+        tileUsed[state.Tile] = Frame;
 
-        captures[captureCount++] = new ImpostorCapture
+        captures[captureCount++] = new()
         {
             Tile = state.Tile,
             Mesh = instance.Mesh,
@@ -377,7 +402,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
             Distance = distance,
             Radius = radius,
             TanHalfAngle = tanHalfAngle,
-            Hemisphere = instance.Hemisphere,
+            Hemisphere = instance.Hemisphere
         };
     }
 
@@ -422,38 +447,37 @@ internal sealed class ImpostorManager : IInstanceProcessor
             if (owner < 0 || Evictable(owner))
                 available++;
         }
+
         return available;
     }
 
     /// <summary>A tile may be taken from a key that was not seen this frame or is back to geometry.</summary>
-    private bool Evictable(int owner) => states[owner].LastSeen != frame || !states[owner].Impostor;
+    private bool Evictable(int owner) => states[owner].LastSeen != Frame || !states[owner].Impostor;
 
     /// <summary>Gives the state a free tile, or else evicts the least recently used evictable one.</summary>
     private void AcquireTile(int slot)
     {
         int chosen = -1;
         for (int tile = 0; tile < tileOwner.Length; tile++)
-        {
             if (tileOwner[tile] < 0)
             {
                 chosen = tile;
                 break;
             }
-        }
+
         if (chosen < 0)
         {
             for (int tile = 0; tile < tileOwner.Length; tile++)
-            {
                 if (Evictable(tileOwner[tile]) && (chosen < 0 || tileUsed[tile] < tileUsed[chosen]))
                     chosen = tile;
-            }
             if (chosen < 0)
                 throw new InvalidOperationException("No atlas tile is available; the caller counts them first.");
             states[tileOwner[chosen]].Tile = -1;
             TilesInUse--;
         }
+
         tileOwner[chosen] = slot;
-        tileUsed[chosen] = frame;
+        tileUsed[chosen] = Frame;
         states[slot].Tile = chosen;
         TilesInUse++;
     }
@@ -471,7 +495,8 @@ internal sealed class ImpostorManager : IInstanceProcessor
             if (slot == states.Length)
                 Array.Resize(ref states, states.Length * 2);
         }
-        states[slot] = new State { Key = key, Live = true, Tile = -1, LastSeen = -1, CapturedFrame = -1, DrawnFrame = -1 };
+
+        states[slot] = new() { Key = key, Live = true, Tile = -1, LastSeen = -1, CapturedFrame = -1, DrawnFrame = -1 };
         return slot;
     }
 
@@ -481,7 +506,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
         for (int slot = 0; slot < stateSlots; slot++)
         {
             ref State state = ref states[slot];
-            if (!state.Live || state.Tile >= 0 || frame - state.LastSeen <= StateLifetime)
+            if (!state.Live || state.Tile >= 0 || Frame - state.LastSeen <= StateLifetime)
                 continue;
             lookup.Remove(state.Key);
             state = default;
@@ -495,29 +520,41 @@ internal sealed class ImpostorManager : IInstanceProcessor
     {
         public ImpostorKey Key;
         public bool Live;
+
         /// <summary>The hysteresis state.</summary>
         public bool Impostor;
+
         /// <summary>The atlas tile with this key's capture, or -1. A tile always holds a capture.</summary>
         public int Tile;
+
         /// <summary>This frame: the capture may be drawn (it is current, or it is an impostor's that waits for a recapture).</summary>
         public bool Drawable;
+
         public long LastSeen;
+
         /// <summary>The last frame the key was drawn as an impostor.</summary>
         public long DrawnFrame;
+
         public float Height;
+
         public long CapturedFrame;
+
         // The capture, in object space: the direction to the eye, the sun direction, and the capture's own axes.
         public Vector3 View;
         public Vector3 Sun;
         public Vector3 Right;
         public Vector3 Up;
         public Vector3 Scale;
+
         /// <summary>The eye's distance from the center at capture, in meters, at <see cref="Scale"/>.</summary>
         public float EyeDistance;
+
         /// <summary>Half the side of the captured square in the plane of the center, in meters, at <see cref="Scale"/>.</summary>
         public float Extent;
+
         /// <summary>r / d at capture: how much perspective the capture has.</summary>
         public float Parallax;
+
         public LightSignature Light;
     }
 
@@ -526,14 +563,21 @@ internal sealed class ImpostorManager : IInstanceProcessor
     /// hemisphere ambient light at its center in object space, weighted by how much the sky and the ground differ, and
     /// the irradiance from the point and spot lights, with that irradiance's direction in object space.
     /// </summary>
-    private readonly record struct LightSignature(Vector3 Sun, Vector3 Sky, Vector3 Ground, Vector3 Up, Vector3 Local, Vector3 LocalDirection)
+    private readonly record struct LightSignature(
+        Vector3 Sun,
+        Vector3 Sky,
+        Vector3 Ground,
+        Vector3 Up,
+        Vector3 Local,
+        Vector3 LocalDirection)
     {
         private float Total => Sun.Length() + Sky.Length() + Ground.Length() + Local.Length();
 
         /// <summary>The change from <paramref name="a"/> to <paramref name="b"/> as a fraction of the larger total light.</summary>
         public static float Change(in LightSignature a, in LightSignature b)
         {
-            float difference = (a.Sun - b.Sun).Length() + (a.Sky - b.Sky).Length() + (a.Ground - b.Ground).Length() + (a.Up - b.Up).Length() +
+            float difference = (a.Sun - b.Sun).Length() + (a.Sky - b.Sky).Length() + (a.Ground - b.Ground).Length() +
+                               (a.Up - b.Up).Length() +
                                (a.Local - b.Local).Length() + (a.LocalDirection - b.LocalDirection).Length();
             return difference / MathF.Max(MathF.Max(a.Total, b.Total), 1e-6f);
         }
@@ -568,7 +612,9 @@ internal sealed class ImpostorManager : IInstanceProcessor
         public LightSignature At(in PreparedInstance instance)
         {
             Vector3 position = instance.Position;
-            Vector3 sun = HasSun ? sunRadiance * Eclipse.SunVisibility(position, SunDirection, sunAngularRadius, occluders) : Vector3.Zero;
+            Vector3 sun = HasSun
+                ? sunRadiance * Eclipse.SunVisibility(position, SunDirection, sunAngularRadius, occluders)
+                : Vector3.Zero;
             Vector3 local = Vector3.Zero, direction = Vector3.Zero;
             Quaternion inverse = Quaternion.Conjugate(instance.Rotation);
             HemisphereUp hemisphere = instance.Hemisphere;
@@ -578,7 +624,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
             {
                 UpAlong along => along.Direction,
                 UpAwayFrom away when away.Center.Length() > instance.Radius => Vector3.Normalize(-away.Center),
-                _ => Vector3.Zero,
+                _ => Vector3.Zero
             };
             Vector3 upInObject = Vector3.Transform(up, inverse) * (sky - ground).Length();
             if (!lights.IsEmpty)
@@ -588,7 +634,8 @@ internal sealed class ImpostorManager : IInstanceProcessor
                 {
                     // The lighting shader's range window and spot cone, at the center, with the window measured to
                     // the nearest point of the bounding sphere so that a light grazing the object counts.
-                    Vector3 toLight = new Vector3(light.PositionRange.X, light.PositionRange.Y, light.PositionRange.Z) - position;
+                    Vector3 toLight = new Vector3(light.PositionRange.X, light.PositionRange.Y, light.PositionRange.Z) -
+                                      position;
                     float distance = toLight.Length();
                     float range = light.PositionRange.W;
                     float nearest = MathF.Max(distance - radius, 0f);
@@ -600,15 +647,19 @@ internal sealed class ImpostorManager : IInstanceProcessor
                     Vector3 unit = toLight / distance;
                     if (light.RadianceKind.W > 0.5f)
                     {
-                        float cosAngle = Vector3.Dot(-unit, new Vector3(light.DirectionCosOuter.X, light.DirectionCosOuter.Y, light.DirectionCosOuter.Z));
+                        float cosAngle = Vector3.Dot(-unit,
+                            new(light.DirectionCosOuter.X, light.DirectionCosOuter.Y, light.DirectionCosOuter.Z));
                         attenuation *= SmoothStep(light.DirectionCosOuter.W, light.Spot.X, cosAngle);
                     }
-                    Vector3 irradiance = new Vector3(light.RadianceKind.X, light.RadianceKind.Y, light.RadianceKind.Z) * attenuation;
+
+                    Vector3 irradiance = new Vector3(light.RadianceKind.X, light.RadianceKind.Y, light.RadianceKind.Z) *
+                                         attenuation;
                     local += irradiance;
                     direction += Vector3.Transform(unit, inverse) * irradiance.Length();
                 }
             }
-            return new LightSignature(sun, sky, ground, upInObject, local, direction);
+
+            return new(sun, sky, ground, upInObject, local, direction);
         }
 
         private static float SmoothStep(float edge0, float edge1, float x)
@@ -634,7 +685,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
         {
             if (Count == items.Length)
                 Array.Resize(ref items, items.Length * 2);
-            items[Count++] = new Candidate(priority, index);
+            items[Count++] = new(priority, index);
         }
 
         /// <summary>Turns the pushed items into a heap in linear time.</summary>
@@ -686,7 +737,8 @@ internal static class Eclipse
     /// a planet's ground faces away from the sun at night anyway. Impostor captures get no shadow-map shadows, so every
     /// sphere counts here, also those of casters that the maps draw.
     /// </summary>
-    public static float SunVisibility(Vector3 position, Vector3 sunDirection, float sunAngularRadius, ReadOnlySpan<Vector4> occluders)
+    public static float SunVisibility(Vector3 position, Vector3 sunDirection, float sunAngularRadius,
+        ReadOnlySpan<Vector4> occluders)
     {
         float sunRadius = MathF.Max(sunAngularRadius, 1e-5f);
         float visibility = 1f;
@@ -697,13 +749,16 @@ internal static class Eclipse
             if (distance <= occluder.W)
                 continue;
             float occluderRadius = MathF.Asin(occluder.W / distance);
-            float separation = MathF.Atan2(Vector3.Cross(toCenter, sunDirection).Length(), Vector3.Dot(toCenter, sunDirection));
+            float separation = MathF.Atan2(Vector3.Cross(toCenter, sunDirection).Length(),
+                Vector3.Dot(toCenter, sunDirection));
             visibility *= 1f - DiscCoverage(sunRadius, occluderRadius, separation);
         }
+
         return visibility;
     }
 
-    /// <summary>The fraction of the sun's disc hidden by an occluder's disc whose center is <paramref name="separation"/> radians away.</summary>
+    /// <summary>The fraction of the sun's disc hidden by an occluder's disc whose center is <paramref name="separation"/>
+    /// radians away.</summary>
     public static float DiscCoverage(float sunRadius, float occluderRadius, float separation)
     {
         if (separation >= sunRadius + occluderRadius)
@@ -713,6 +768,7 @@ internal static class Eclipse
             float x = Math.Clamp((separation - occluderRadius) / sunRadius, -1f, 1f);
             return (MathF.Acos(x) - x * MathF.Sqrt(1f - x * x)) / MathF.PI;
         }
+
         if (separation <= MathF.Abs(occluderRadius - sunRadius))
             return occluderRadius >= sunRadius ? 1f : occluderRadius * occluderRadius / (sunRadius * sunRadius);
         float d = separation, r1 = sunRadius, r2 = occluderRadius;

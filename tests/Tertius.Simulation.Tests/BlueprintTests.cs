@@ -24,8 +24,8 @@ public class BlueprintTests
     public void ANumberIsConvertedToTheNumericTypeOfTheFieldItSets()
     {
         var blueprints = new Blueprints();
-        blueprints.Register(new Blueprint("radio", [new ComponentSpec(typeof(Radio), Fields(("Channel", (byte)3)))]));
-        blueprints.Register(new Blueprint("weapon", [new ComponentSpec(typeof(Weapon), Fields(("Damage", 5.0), ("Range", 30)))]));
+        blueprints.Register(new("radio", [new(typeof(Radio), Fields(("Channel", (byte)3)))]));
+        blueprints.Register(new("weapon", [new(typeof(Weapon), Fields(("Damage", 5.0), ("Range", 30)))]));
 
         // A byte for an int field, a double for a float field and an int for a double property.
         ((Radio)blueprints.Instantiate("radio")[0]).Channel.Should().Be(3);
@@ -46,7 +46,7 @@ public class BlueprintTests
     public void ANumberIsConvertedToTheEnumValueWithThatNumber()
     {
         var blueprints = new Blueprints();
-        blueprints.Register(new Blueprint("enemy", [new ComponentSpec(typeof(Health), Fields(("Side", 2)))]));
+        blueprints.Register(new("enemy", [new(typeof(Health), Fields(("Side", 2)))]));
 
         // Faction.Empire is the third value of the enum, so its number is 2.
         ((Health)blueprints.Instantiate("enemy")[0]).Side.Should().Be(Faction.Empire);
@@ -73,7 +73,7 @@ public class BlueprintTests
     public void AFieldThatTheBlueprintDoesNotMentionKeepsTheComponentsOwnDefault()
     {
         var blueprints = new Blueprints();
-        blueprints.Register(new Blueprint("plain", [new ComponentSpec(typeof(Weapon), Fields(("Damage", 2f)))]));
+        blueprints.Register(new("plain", [new(typeof(Weapon), Fields(("Damage", 2f)))]));
         var weapon = (Weapon)blueprints.Instantiate("plain")[0];
 
         weapon.Damage.Should().Be(2f);
@@ -84,7 +84,7 @@ public class BlueprintTests
     public void AComponentWithNoFieldValuesIsBuiltWithItsDefaults()
     {
         var blueprints = new Blueprints();
-        blueprints.Register(new Blueprint("radio", [new ComponentSpec(typeof(Radio))]));
+        blueprints.Register(new("radio", [new(typeof(Radio))]));
 
         ((Radio)blueprints.Instantiate("radio")[0]).Channel.Should().Be(1);
     }
@@ -93,7 +93,7 @@ public class BlueprintTests
     public void ANullableFieldTakesAPlainValue()
     {
         var blueprints = new Blueprints();
-        blueprints.Register(new Blueprint("tag", [new ComponentSpec(typeof(Labelled), Fields(("Level", 8)))]));
+        blueprints.Register(new("tag", [new(typeof(Labelled), Fields(("Level", 8)))]));
 
         ((Labelled)blueprints.Instantiate("tag")[0]).Level.Should().Be(8);
     }
@@ -102,7 +102,7 @@ public class BlueprintTests
     public void ANullValueClearsAFieldThatHasANonNullDefault()
     {
         var blueprints = new Blueprints();
-        blueprints.Register(new Blueprint("tag", [new ComponentSpec(typeof(Labelled), Fields(("Label", null), ("Level", null)))]));
+        blueprints.Register(new("tag", [new(typeof(Labelled), Fields(("Label", null), ("Level", null)))]));
 
         var labelled = (Labelled)blueprints.Instantiate("tag")[0];
 
@@ -128,7 +128,7 @@ public class BlueprintTests
         // Documented: field values are shared. Reflection runs once at registration, so the value is stored, not copied.
         int[] marks = [1, 2, 3];
         var blueprints = new Blueprints();
-        blueprints.Register(new Blueprint("tag", [new ComponentSpec(typeof(Labelled), Fields(("Marks", marks)))]));
+        blueprints.Register(new("tag", [new(typeof(Labelled), Fields(("Marks", marks)))]));
 
         var first = (Labelled)blueprints.Instantiate("tag")[0];
         var second = (Labelled)blueprints.Instantiate("tag")[0];
@@ -141,7 +141,7 @@ public class BlueprintTests
     public void ABlueprintWithNoComponentsInstantiatesToNothing()
     {
         var blueprints = new Blueprints();
-        blueprints.Register(new Blueprint("empty", []));
+        blueprints.Register(new("empty", []));
 
         blueprints.Instantiate("empty").Should().BeEmpty();
     }
@@ -150,7 +150,7 @@ public class BlueprintTests
     public void ABlueprintSetsAFieldOfItsComponent()
     {
         var blueprints = new Blueprints();
-        blueprints.Register(new Blueprint("box", [new ComponentSpec(typeof(Boxed), Fields(("Content", 42)))]));
+        blueprints.Register(new("box", [new(typeof(Boxed), Fields(("Content", 42)))]));
 
         ((Boxed)blueprints.Instantiate("box")[0]).Content.Should().Be(42);
     }
@@ -160,7 +160,8 @@ public class BlueprintTests
     {
         var blueprints = new Blueprints();
 
-        Action register = () => blueprints.Register(new Blueprint("box", [new ComponentSpec(EmittedComponents.OpenGeneric.MakeGenericType(typeof(int)))]));
+        Action register = () =>
+            blueprints.Register(new("box", [new(EmittedComponents.OpenGeneric.MakeGenericType(typeof(int)))]));
 
         register.Should().Throw<ArgumentException>().WithMessage("*generic component types are refused*");
     }
@@ -171,8 +172,8 @@ public class BlueprintTests
     public void FieldValuesLandInTheRightFieldsWhateverOrderTheBlueprintListsThem()
     {
         var blueprints = new Blueprints();
-        blueprints.Register(new Blueprint("light", [new ComponentSpec(typeof(Weapon), Fields(("Damage", 1f), ("Range", 5.0)))]));
-        blueprints.Register(new Blueprint("heavy", [new ComponentSpec(typeof(Weapon), Fields(("Range", 50.0), ("Damage", 9f)))]));
+        blueprints.Register(new("light", [new(typeof(Weapon), Fields(("Damage", 1f), ("Range", 5.0)))]));
+        blueprints.Register(new("heavy", [new(typeof(Weapon), Fields(("Range", 50.0), ("Damage", 9f)))]));
 
         var light = (Weapon)blueprints.Instantiate("light")[0];
         var heavy = (Weapon)blueprints.Instantiate("heavy")[0];
@@ -186,8 +187,8 @@ public class BlueprintTests
     {
         // Reflection and expression compiling are the costly steps. They happen once per component type and set of field names.
         var blueprints = new Blueprints();
-        blueprints.Register(new Blueprint("light", [new ComponentSpec(typeof(Weapon), Fields(("Damage", 1f), ("Range", 5.0)))]));
-        blueprints.Register(new Blueprint("heavy", [new ComponentSpec(typeof(Weapon), Fields(("Range", 50.0), ("Damage", 9f)))]));
+        blueprints.Register(new("light", [new(typeof(Weapon), Fields(("Damage", 1f), ("Range", 5.0)))]));
+        blueprints.Register(new("heavy", [new(typeof(Weapon), Fields(("Range", 50.0), ("Damage", 9f)))]));
 
         blueprints.FactoryOf("heavy", 0).Should().BeSameAs(blueprints.FactoryOf("light", 0));
     }
@@ -196,8 +197,8 @@ public class BlueprintTests
     public void BlueprintsThatSetDifferentFieldsDoNotShareAFactory()
     {
         var blueprints = new Blueprints();
-        blueprints.Register(new Blueprint("light", [new ComponentSpec(typeof(Weapon), Fields(("Damage", 1f), ("Range", 5.0)))]));
-        blueprints.Register(new Blueprint("plain", [new ComponentSpec(typeof(Weapon), Fields(("Damage", 2f)))]));
+        blueprints.Register(new("light", [new(typeof(Weapon), Fields(("Damage", 1f), ("Range", 5.0)))]));
+        blueprints.Register(new("plain", [new(typeof(Weapon), Fields(("Damage", 2f)))]));
 
         blueprints.FactoryOf("plain", 0).Should().NotBeSameAs(blueprints.FactoryOf("light", 0));
     }
@@ -207,8 +208,8 @@ public class BlueprintTests
     {
         var first = new Blueprints();
         var second = new Blueprints();
-        first.Register(new Blueprint("a", [new ComponentSpec(typeof(Radio), Fields(("Channel", 4)))]));
-        second.Register(new Blueprint("b", [new ComponentSpec(typeof(Radio), Fields(("Channel", 9)))]));
+        first.Register(new("a", [new(typeof(Radio), Fields(("Channel", 4)))]));
+        second.Register(new("b", [new(typeof(Radio), Fields(("Channel", 9)))]));
 
         second.FactoryOf("b", 0).Should().BeSameAs(first.FactoryOf("a", 0));
         ((Radio)second.Instantiate("b")[0]).Channel.Should().Be(9);
@@ -224,7 +225,8 @@ public class BlueprintTests
 
         Entity officer = t.World.Spawn("officer", t.Root, TestWorld.At(3));
 
-        t.World.GetComponents(officer).Select(c => c.GetType()).Should().Equal(typeof(Health), typeof(Weapon), typeof(Radio));
+        t.World.GetComponents(officer).Select(c => c.GetType()).Should()
+            .Equal(typeof(Health), typeof(Weapon), typeof(Radio));
         t.World.GetComponent<Health>(officer)!.Max.Should().Be(150f);
     }
 
@@ -266,7 +268,7 @@ public class BlueprintTests
     [Fact]
     public void ASpawnedBlueprintsBodyIsHandedToPhysics()
     {
-        using var t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld t = TestWorld.OnJolt(out FaultInjectingBackend faults);
         List<PhysicsChanges> batches = faults.AppliedChanges;
         Soldiers(t.World.Blueprints);
         Entity soldier = t.World.Spawn("soldier", t.Root, TestWorld.At(7));
@@ -284,7 +286,7 @@ public class BlueprintTests
     public void ASpawnedBlueprintWithoutABodyHasNone()
     {
         using var t = new TestWorld();
-        t.World.Blueprints.Register(new Blueprint("crate", [new ComponentSpec(typeof(Radio))]));
+        t.World.Blueprints.Register(new("crate", [new(typeof(Radio))]));
 
         Entity crate = t.World.Spawn("crate", t.Root, TestWorld.At(0));
 
@@ -295,8 +297,8 @@ public class BlueprintTests
     public void ABlueprintWithAFrameSpecSpawnsAFrame()
     {
         using var t = new TestWorld();
-        t.World.Blueprints.Register(new Blueprint("outpost", [new ComponentSpec(typeof(Radio))],
-            Frame: new FrameSpec(FrameBounds.Sphere(30))));
+        t.World.Blueprints.Register(new("outpost", [new(typeof(Radio))],
+            Frame: new(FrameBounds.Sphere(30))));
 
         Entity outpost = t.World.Spawn("outpost", t.Root, TestWorld.At(100));
 

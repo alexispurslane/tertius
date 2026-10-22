@@ -13,30 +13,36 @@ public class PhysicsIntentTests
 {
     private delegate void WriteIntent(BodyHandle body);
 
-    /// <summary>What a test writes through the running entity, for a write that is no request to a body. A delegate of its own, because <see cref="Self"/> is a ref struct.</summary>
+    /// <summary>What a test writes through the running entity, for a write that is no request to a body. A delegate of its own, because
+    /// <see cref="Self"/> is a ref struct.</summary>
     private delegate void WriteSelfIntent(Self self);
 
     /// <summary>
-    /// A world on real Jolt behind the wrapper that records intents, and a ball whose component runs <paramref name="write"/> in
+    /// A world on real Jolt behind the wrapper that records intents, and a ball whose component runs <paramref name="write"/>
+    /// in
     /// tick 0 and then does nothing. The world has run three ticks, so physics has received the intent once.
     /// </summary>
     private static List<IntentRecord> IntentsReceivedAfterWriting(WriteIntent write, out Entity ball) =>
         IntentsReceivedAfterWriting(self => write(self.Body), TestWorld.Ball, out ball);
 
-    /// <summary>Like <see cref="IntentsReceivedAfterWriting(WriteIntent, out Entity)"/>, for a ball with the body <paramref name="body"/>.</summary>
+    /// <summary>Like <see cref="IntentsReceivedAfterWriting(WriteIntent, out Entity)"/>, for a ball with the body
+    /// <paramref name="body"/>.</summary>
     private static List<IntentRecord> IntentsReceivedAfterWriting(WriteSelfIntent write, BodyDesc body, out Entity ball)
     {
-        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
         List<IntentRecord> intents = faults.Intents;
-        ball = test.World.Spawn(new SpawnDesc
+        ball = test.World.Spawn(new()
         {
             Frame = test.Root,
             Body = body,
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            {
-                if (self.Tick == 0)
-                    write(self);
-            })],
+            Components =
+            [
+                Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 0)
+                        write(self);
+                })
+            ]
         });
 
         test.Run(3);
@@ -44,7 +50,8 @@ public class PhysicsIntentTests
         return intents;
     }
 
-    /// <summary>A ball that is kinematic, which takes an end pose, or dynamic, which takes a steer target (see <see cref="WriteAimPose"/>).</summary>
+    /// <summary>A ball that is kinematic, which takes an end pose, or dynamic, which takes a steer target (see
+    /// <see cref="WriteAimPose"/>).</summary>
     private static BodyDesc BallFor(string writer) =>
         writer == nameof(BodyHandle.SteerTo) ? TestWorld.Ball : TestWorld.Ball with { Motion = BodyMotion.Kinematic };
 
@@ -64,15 +71,16 @@ public class PhysicsIntentTests
     [Fact]
     public void PhysicsReceivesAnIntentOnlyFromTheEntitiesThatWroteOne()
     {
-        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
         List<IntentRecord> intents = faults.Intents;
-        Entity pusher = test.World.Spawn(new SpawnDesc
+        Entity pusher = test.World.Spawn(new()
         {
             Frame = test.Root,
             Body = TestWorld.Ball,
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Body.AddForce(Vector3.UnitX))],
+            Components =
+                [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Body.AddForce(Vector3.UnitX))]
         });
-        test.World.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball });
+        test.World.Spawn(new() { Frame = test.Root, Body = TestWorld.Ball });
 
         test.Run(3);
 
@@ -82,10 +90,10 @@ public class PhysicsIntentTests
     [Fact]
     public void TheIntentsOfTwoEntitiesStaySeparate()
     {
-        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
         List<IntentRecord> intents = faults.Intents;
-        Entity left = SpawnPusher(test, new Vector3(-1, 0, 0));
-        Entity right = SpawnPusher(test, new Vector3(1, 0, 0));
+        Entity left = SpawnPusher(test, new(-1, 0, 0));
+        Entity right = SpawnPusher(test, new(1, 0, 0));
 
         test.Run(2);
 
@@ -96,7 +104,7 @@ public class PhysicsIntentTests
     [Fact]
     public void AnIntentDoesNotPileUpFromOneTickToTheNext()
     {
-        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
         List<IntentRecord> intents = faults.Intents;
         SpawnPusher(test, Vector3.UnitY);
 
@@ -111,8 +119,8 @@ public class PhysicsIntentTests
     {
         PhysicsIntent intent = TheOneIntentReceivedAfterWriting(body =>
         {
-            body.AddForce(new Vector3(1, 0, 0));
-            body.AddForce(new Vector3(2, 0, 0));
+            body.AddForce(new(1, 0, 0));
+            body.AddForce(new(2, 0, 0));
         });
 
         intent.Force.Should().Be(new Vector3(3, 0, 0));
@@ -123,8 +131,8 @@ public class PhysicsIntentTests
     {
         PhysicsIntent intent = TheOneIntentReceivedAfterWriting(body =>
         {
-            body.AddImpulse(new Vector3(0, 1, 0));
-            body.AddImpulse(new Vector3(0, 1, 0));
+            body.AddImpulse(new(0, 1, 0));
+            body.AddImpulse(new(0, 1, 0));
         });
 
         intent.Impulse.Should().Be(new Vector3(0, 2, 0));
@@ -135,8 +143,8 @@ public class PhysicsIntentTests
     {
         PhysicsIntent intent = TheOneIntentReceivedAfterWriting(body =>
         {
-            body.AddTorque(new Vector3(0, 0, 3));
-            body.AddTorque(new Vector3(0, 0, -1));
+            body.AddTorque(new(0, 0, 3));
+            body.AddTorque(new(0, 0, -1));
         });
 
         intent.Torque.Should().Be(new Vector3(0, 0, 2));
@@ -147,8 +155,8 @@ public class PhysicsIntentTests
     {
         PhysicsIntent intent = TheOneIntentReceivedAfterWriting(body =>
         {
-            body.AddAngularImpulse(new Vector3(4, 0, 0));
-            body.AddAngularImpulse(new Vector3(1, 0, 0));
+            body.AddAngularImpulse(new(4, 0, 0));
+            body.AddAngularImpulse(new(1, 0, 0));
         });
 
         intent.AngularImpulse.Should().Be(new Vector3(5, 0, 0));
@@ -171,8 +179,8 @@ public class PhysicsIntentTests
     {
         PhysicsIntent intent = TheOneIntentReceivedAfterWriting(body =>
         {
-            body.SetAngularVelocity(new Vector3(5, 5, 5));
-            body.SetAngularVelocity(new Vector3(0, 1, 0));
+            body.SetAngularVelocity(new(5, 5, 5));
+            body.SetAngularVelocity(new(0, 1, 0));
         });
 
         intent.AngularVelocity.Should().Be(new Vector3(0, 1, 0));
@@ -208,24 +216,29 @@ public class PhysicsIntentTests
     public void AnEndPoseOrASteerTargetWithANumberThatIsNotFiniteOrAZeroRotationIsRefused(string writer, string fault)
     {
         DPose pose = fault == "a zero rotation"
-            ? new DPose(new Double3(1, 0, 0), default)
-            : new DPose(new Double3(double.NaN, 0, 0), DQuaternion.Identity);
-        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
-        Entity ball = test.World.Spawn(new SpawnDesc
+            ? new(new(1, 0, 0), default)
+            : new DPose(new(double.NaN, 0, 0), DQuaternion.Identity);
+        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        Entity ball = test.World.Spawn(new()
         {
             Frame = test.Root,
             Body = BallFor(writer),
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            {
-                if (self.Tick == 0)
-                    WriteAimPose(self, writer, pose);
-            })],
+            Components =
+            [
+                Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 0)
+                        WriteAimPose(self, writer, pose);
+                })
+            ]
         });
 
         test.Run(3);
 
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain(nameof(ArgumentException)).And.Contain(writer);
-        faults.Intents.Should().NotContain(record => record.Entity == ball, "the refused write leaves the ball no intent");
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain(nameof(ArgumentException)).And
+            .Contain(writer);
+        faults.Intents.Should()
+            .NotContain(record => record.Entity == ball, "the refused write leaves the ball no intent");
     }
 
     [Theory]
@@ -236,10 +249,13 @@ public class PhysicsIntentTests
         DQuaternion turn = DQuaternion.FromAxisAngle(Double3.UnitZ, 0.4);
         var doubled = new DQuaternion(2 * turn.X, 2 * turn.Y, 2 * turn.Z, 2 * turn.W);
 
-        PhysicsIntent intent = IntentsReceivedAfterWriting(self => WriteAimPose(self, writer, new DPose(new Double3(1, 0, 0), doubled)), BallFor(writer), out _)
-            .Should().ContainSingle().Subject.Intent;
+        PhysicsIntent intent =
+            IntentsReceivedAfterWriting(self => WriteAimPose(self, writer, new(new(1, 0, 0), doubled)), BallFor(writer),
+                    out _)
+                .Should().ContainSingle().Subject.Intent;
 
-        intent.Move.AimPose.Rotation.Should().Be(doubled.Normalized(), "the World makes the rotation of a motion intent unit length");
+        intent.Move.AimPose.Rotation.Should().Be(doubled.Normalized(),
+            "the World makes the rotation of a motion intent unit length");
     }
 
     [Fact]
@@ -247,8 +263,8 @@ public class PhysicsIntentTests
     {
         PhysicsIntent intent = TheOneIntentReceivedAfterWriting(body =>
         {
-            body.MoveCharacter(new Vector3(1, 0, 0));
-            body.MoveCharacter(new Vector3(0, 0, 2));
+            body.MoveCharacter(new(1, 0, 0));
+            body.MoveCharacter(new(0, 0, 2));
             body.Jump(3);
             body.Jump(4);
         });
@@ -271,7 +287,8 @@ public class PhysicsIntentTests
         });
 
         intent.Flags.Should().Be(IntentFlags.SetVelocity | IntentFlags.SetAngularVelocity |
-                                 IntentFlags.Teleport | IntentFlags.CharacterMove | IntentFlags.Jump | IntentFlags.SetCollision);
+                                 IntentFlags.Teleport | IntentFlags.CharacterMove | IntentFlags.Jump |
+                                 IntentFlags.SetCollision);
     }
 
     [Fact]
@@ -296,18 +313,23 @@ public class PhysicsIntentTests
     [InlineData("none-of")]
     public void ABodyCannotTakeAMaskWithAnAllOfOrANoneOfPartAndTheErrorIsReported(string part)
     {
-        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
         List<IntentRecord> intents = faults.Intents;
-        CollisionMask mask = part == "all-of" ? CollisionMask.Empty.InAll(CollisionGroup.Solid) : CollisionMask.Empty.InNone(CollisionGroup.Solid);
-        Entity ball = test.World.Spawn(new SpawnDesc
+        CollisionMask mask = part == "all-of"
+            ? CollisionMask.Empty.InAll(CollisionGroup.Solid)
+            : CollisionMask.Empty.InNone(CollisionGroup.Solid);
+        Entity ball = test.World.Spawn(new()
         {
             Frame = test.Root,
             Body = TestWorld.Ball,
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            {
-                if (self.Tick == 0)
-                    self.Body.SetCollision(CollisionGroups.None, mask);
-            })],
+            Components =
+            [
+                Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 0)
+                        self.Body.SetCollision(CollisionGroups.None, mask);
+                })
+            ]
         });
 
         test.Run(3);
@@ -327,18 +349,21 @@ public class PhysicsIntentTests
     [Fact]
     public void AnEntityCanReadWhatItHasWrittenSoFarInTheSameTick()
     {
-        using var test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(out _);
         PhysicsIntent pendingAtTheEnd = default;
-        test.World.Spawn(new SpawnDesc
+        test.World.Spawn(new()
         {
             Frame = test.Root,
             Body = TestWorld.Ball,
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            {
-                self.Body.AddForce(new Vector3(1, 0, 0));
-                self.Body.AddForce(new Vector3(2, 0, 0));
-                pendingAtTheEnd = self.Body.Pending;
-            })],
+            Components =
+            [
+                Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+                {
+                    self.Body.AddForce(new(1, 0, 0));
+                    self.Body.AddForce(new(2, 0, 0));
+                    pendingAtTheEnd = self.Body.Pending;
+                })
+            ]
         });
 
         test.Run(1);
@@ -349,18 +374,20 @@ public class PhysicsIntentTests
     [Fact]
     public void AnEntityWithoutABodyCannotWriteAnIntentAndTheErrorIsReported()
     {
-        using var test = TestWorld.OnJolt(out _);
-        Entity ghost = test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Body.AddForce(Vector3.UnitX)));
+        using TestWorld test = TestWorld.OnJolt(out _);
+        Entity ghost = test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+            self.Body.AddForce(Vector3.UnitX)));
 
         test.Run(1);
 
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain(ghost.ToString()).And.Contain("has no physics body");
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain(ghost.ToString()).And
+            .Contain("has no physics body");
     }
 
-    private static Entity SpawnPusher(TestWorld test, Vector3 force) => test.World.Spawn(new SpawnDesc
+    private static Entity SpawnPusher(TestWorld test, Vector3 force) => test.World.Spawn(new()
     {
         Frame = test.Root,
         Body = TestWorld.Ball,
-        Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Body.AddForce(force))],
+        Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Body.AddForce(force))]
     });
 }

@@ -20,7 +20,7 @@ public sealed class ScriptRecorder
 
     private readonly string scene;
     private readonly ScriptWindow window;
-    private readonly List<ScriptStep> steps = new();
+    private readonly List<ScriptStep> steps = [];
 
     // The ticks that the steps so far run, which is the tick of the latest step.
     private long ticksRun;
@@ -45,7 +45,8 @@ public sealed class ScriptRecorder
     public void Post(long tick, InputEvent e)
     {
         RunUntil(tick);
-        steps.Add(new PostStep(new ToTopic(Topics.NameOf(Topics.Input)), nameof(InputEvent), JsonSerializer.SerializeToElement(e, ScriptJson.Recordings)));
+        steps.Add(new PostStep(new ToTopic(Topics.NameOf(Topics.Input)), nameof(InputEvent),
+            JsonSerializer.SerializeToElement(e, ScriptJson.Recordings)));
     }
 
     /// <summary>
@@ -68,7 +69,7 @@ public sealed class ScriptRecorder
         var all = new List<ScriptStep>(steps);
         AddRuns(all, endTick - ticksRun, endTick);
         all.Add(new DumpStep(EndDump));
-        return new Script(scene, all, window);
+        return new(scene, all, window);
     }
 
     private void RunUntil(long tick)
@@ -82,7 +83,8 @@ public sealed class ScriptRecorder
     private static void AddRuns(List<ScriptStep> to, long gap, long tick)
     {
         if (gap < 0)
-            throw new ArgumentOutOfRangeException(nameof(tick), tick, "A step cannot come at a tick before the tick of the step before it.");
+            throw new ArgumentOutOfRangeException(nameof(tick), tick,
+                "A step cannot come at a tick before the tick of the step before it.");
         for (; gap > 0; gap -= int.MaxValue)
             to.Add(new RunStep((int)Math.Min(gap, int.MaxValue)));
     }

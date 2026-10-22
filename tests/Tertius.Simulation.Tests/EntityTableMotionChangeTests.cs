@@ -1,6 +1,5 @@
 using System.Numerics;
 using AwesomeAssertions;
-using Tertius.Simulation;
 
 namespace Tertius.Simulation.Tests;
 
@@ -48,7 +47,7 @@ public class EntityTableMotionChangeTests
         TickAndSwap(table, () =>
         {
             table.WriteMotionChange(c, BodyMotion.Kinematic);
-            table.WritableIntent(b).Force = new Vector3(1, 0, 0);
+            table.WritableIntent(b).Force = new(1, 0, 0);
             table.WriteMotionChange(a, BodyMotion.Static);
         });
 
@@ -64,7 +63,7 @@ public class EntityTableMotionChangeTests
         Entity a = table.SpawnLiveWith(TestWorld.Ball);
         TickAndSwap(table, () => table.WriteMotionChange(a, BodyMotion.Static));
 
-        TickAndSwap(table, () => table.WritableIntent(a).Force = new Vector3(1, 0, 0));
+        TickAndSwap(table, () => table.WritableIntent(a).Force = new(1, 0, 0));
 
         FrontMotionChanges(table).Should().BeEmpty();
         table.AssertInvariants();
@@ -101,9 +100,9 @@ public class EntityTableMotionChangeTests
 
         TickAndSwap(table, () =>
         {
-            table.WritableIntent(a).Force = new Vector3(1, 0, 0);
+            table.WritableIntent(a).Force = new(1, 0, 0);
             table.WriteMotionChange(a, BodyMotion.Static);
-            table.WritableIntent(b).Force = new Vector3(1, 0, 0);
+            table.WritableIntent(b).Force = new(1, 0, 0);
         }, keep: false);
 
         table.IntentEntities.ToArray().Should().Equal(a);
@@ -120,12 +119,13 @@ public class EntityTableMotionChangeTests
         Entity a = table.SpawnLiveWith(TestWorld.Ball);
         Entity b = table.SpawnLiveWith(TestWorld.Ball);
         table.BeginTick(spawnPoolSize: 0);
-        table.WritableIntent(b).Force = new Vector3(1, 0, 0);
+        table.WritableIntent(b).Force = new(1, 0, 0);
         BodyMotion? before = table.WrittenMotionChange(a);
         table.WriteMotionChange(a, BodyMotion.Kinematic);
         table.WriteMotionChange(a, BodyMotion.Static);
 
-        (before, table.WrittenMotionChange(a), table.WrittenMotionChange(b)).Should().Be(((BodyMotion?)null, (BodyMotion?)BodyMotion.Static, (BodyMotion?)null));
+        (before, table.WrittenMotionChange(a), table.WrittenMotionChange(b)).Should()
+            .Be((null, BodyMotion.Static, null));
         table.EndGameplay();
         table.SwapIntents(keep: true);
         table.WrittenMotionChange(a).Should().BeNull("the change went to the front intents");
@@ -136,7 +136,7 @@ public class EntityTableMotionChangeTests
     {
         EntityTable table = TableSupport.NewTable();
         Entity a = table.SpawnLiveWith(TestWorld.Ball);
-        TickAndSwap(table, () => table.WritableIntent(a).Force = new Vector3(1, 0, 0));
+        TickAndSwap(table, () => table.WritableIntent(a).Force = new(1, 0, 0));
 
         table.NextStepIntent(a).Flags |= IntentFlags.SetMotion;
 
@@ -151,9 +151,9 @@ public class EntityTableMotionChangeTests
         Entity b = table.SpawnLiveWith(TestWorld.Ball);
         Entity c = table.SpawnLiveWith(TestWorld.Ball);
         table.BeginTick(spawnPoolSize: 0);
-        table.WritableIntent(c).Force = new Vector3(1, 0, 0);
+        table.WritableIntent(c).Force = new(1, 0, 0);
         table.WriteMotionChange(b, BodyMotion.Static);
-        table.WritableIntent(a).Force = new Vector3(1, 0, 0);
+        table.WritableIntent(a).Force = new(1, 0, 0);
         table.WriteMotionChange(c, BodyMotion.Kinematic);
         table.WriteMotionChange(c, BodyMotion.Static);
         table.EndGameplay();
@@ -215,7 +215,7 @@ public class EntityTableMotionChangeTests
         Entity a = table.SpawnLiveWith(TestWorld.Ball);
         Entity b = table.SpawnLiveWith(TestWorld.Ball);
         table.BeginTick(spawnPoolSize: 0);
-        table.WritableIntent(a).Force = new Vector3(1, 0, 0);
+        table.WritableIntent(a).Force = new(1, 0, 0);
         table.WriteMotionChange(b, BodyMotion.Static);
         table.WriteMotionChange(a, BodyMotion.Static);
         table.EndGameplay();

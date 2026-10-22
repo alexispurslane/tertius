@@ -47,7 +47,7 @@ public class EventListTests
         var buffer = new EventBuffer();
         EventList list = buffer.Begin(Owner);
 
-        list.Add(Event.Create<Heal>(new Topic(3), Other, new Heal { Amount = 1 }));
+        list.Add(Event.Create(new Topic(3), Other, new Heal { Amount = 1 }));
 
         list.Count.Should().Be(1);
         list[0].Target.TryGetValue(out Topic topic).Should().BeTrue();
@@ -241,7 +241,7 @@ public class EventListTests
         EventList list = buffer.Begin(Owner);
         list.Add(new Note());
 
-        list.Where(static (ref Event _) => false).Remove().Should().Be(0);
+        list.Where(static (ref _) => false).Remove().Should().Be(0);
 
         list.Mask.Contains<Note>().Should().BeTrue();
     }
@@ -282,7 +282,7 @@ public class EventListTests
             list.Add(new Damage { Amount = 1 });
             list.Add(new Damage { Amount = 2 });
             foreach (ref Damage _ in list.Of<Damage>())
-                list.Of<Damage>().Where(static (ref Damage d) => d.Amount == 1).Remove();
+                list.Of<Damage>().Where(static (ref d) => d.Amount == 1).Remove();
         };
 
         removeAt.Should().Throw<InvalidOperationException>();
@@ -339,11 +339,9 @@ public class EventListTests
                 list.Add(new Note { Value = i });
             try
             {
-                list.Of<Note>().Where((ref Note n) =>
+                list.Of<Note>().Where((ref n) =>
                 {
-                    if (++calls == 4)
-                        throw new InvalidOperationException("boom");
-                    return n.Value % 2 == 0;
+                    return ++calls == 4 ? throw new InvalidOperationException("boom") : n.Value % 2 == 0;
                 }).Remove();
             }
             finally
@@ -377,15 +375,13 @@ public class EventListTests
         {
             EventList list = buffer.Begin(Owner);
             for (int i = 0; i < 64; i++)
-            {
                 if (i % 3 == 0)
                     list.Add(new Heal { Amount = i });
                 else
                     list.Add(new Damage { Amount = i });
-            }
             foreach (ref Damage d in list.Of<Damage>())
                 d.Amount *= 0.5f;
-            list.Of<Damage>().Where(static (ref Damage d) => d.Amount < 4).Remove();
+            list.Of<Damage>().Where(static (ref d) => d.Amount < 4).Remove();
             list.RemoveAt(0);
             _ = list.Of<Heal>().Any();
         }

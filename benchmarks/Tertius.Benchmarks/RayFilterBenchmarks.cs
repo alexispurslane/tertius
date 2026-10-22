@@ -39,11 +39,12 @@ public sealed class RayMarker : IComponent
 [MemoryDiagnoser]
 public unsafe class RayFilterBenchmarks
 {
-    [Params(256)]
-    public int Bodies;
+    private static readonly RVector3 Origin = new(0, 0, 0);
+    private static readonly Vector3 Direction = new(1000, 0, 0);
 
-    [Params(false, true)]
-    public bool OnlyFarthestMatches;
+    [Params(256)] public int Bodies;
+
+    [Params(false, true)] public bool OnlyFarthestMatches;
 
     private World world = null!;
     private Entity asker;
@@ -52,38 +53,36 @@ public unsafe class RayFilterBenchmarks
     private BodyInterface bodiesNoLock;
     private Snapshot snapshot;
     private EntityQuery query;
-    private readonly List<RayCastResult> sorted = new(1024);
+    private readonly List<RayCastResult> sorted = [with(1024)];
     private GroupFilter groupFilter = null!;
     private QueryBodyFilter bodyFilter = null!;
     private AllBroadPhaseLayers broadPhaseFilter = null!;
     private GCHandle self;
 
-    private static readonly RVector3 Origin = new(0, 0, 0);
-    private static readonly Vector3 Direction = new(1000, 0, 0);
+    // The nearest accepted fraction so far, for CollectorFilters.
+    private float nearest;
 
     [GlobalSetup]
     public void Setup()
     {
-        var backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 });
-        world = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DisposePhysics = true }, backend);
-        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
-        asker = world.Spawn(new SpawnDesc
+        var backend = new JoltPhysicsBackend(new() { WorkerThreads = 2 });
+        world = new(new() { MaxDegreeOfParallelism = 1, DisposePhysics = true }, backend);
+        FrameHandle root = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
+        asker = world.Spawn(new()
         {
             Frame = root,
-            Pose = new DPose(Double3.Zero, DQuaternion.Identity),
-            Body = new BodyDesc(new SphereShapeDesc(0.5f), BodyMotion.Static),
+            Pose = new(Double3.Zero, DQuaternion.Identity),
+            Body = new(new SphereShapeDesc(0.5f), BodyMotion.Static)
         });
         var boxes = new List<Entity> { asker };
         for (int i = 0; i < Bodies; i++)
-        {
-            boxes.Add(world.Spawn(new SpawnDesc
+            boxes.Add(world.Spawn(new()
             {
                 Frame = root,
-                Pose = new DPose(new Double3(3 + 2 * i, 0, 0), DQuaternion.Identity),
-                Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Static),
-                Components = i == Bodies - 1 ? [new RayMarker()] : [],
+                Pose = new(new(3 + 2 * i, 0, 0), DQuaternion.Identity),
+                Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static),
+                Components = i == Bodies - 1 ? [new RayMarker()] : []
             }));
-        }
         world.Tick();
         byIndex = new Entity[boxes.Max(static e => e.Index) + 1];
         foreach (Entity e in boxes)
@@ -92,11 +91,13 @@ public unsafe class RayFilterBenchmarks
         PhysicsSystem system = backend.SystemOf(root)!;
         narrowPhase = system.NarrowPhaseQuery;
         bodiesNoLock = system.BodyInterfaceNoLock;
-        snapshot = new Snapshot(world, asker);
-        query = OnlyFarthestMatches ? EntityQuery.InAny(CollisionGroup.Solid).With<RayMarker>() : EntityQuery.InAny(CollisionGroup.Solid);
-        groupFilter = new GroupFilter(query.Collision.AnyOf.Bits);
-        bodyFilter = new QueryBodyFilter(this);
-        broadPhaseFilter = new AllBroadPhaseLayers();
+        snapshot = new(world, asker);
+        query = OnlyFarthestMatches
+            ? EntityQuery.InAny(CollisionGroup.Solid).With<RayMarker>()
+            : EntityQuery.InAny(CollisionGroup.Solid);
+        groupFilter = new(query.Collision.AnyOf.Bits);
+        bodyFilter = new(this);
+        broadPhaseFilter = new();
         self = GCHandle.Alloc(this);
 
         // Every variant must find the same box, or the comparison means nothing.
@@ -125,7 +126,12 @@ public unsafe class RayFilterBenchmarks
     public float InsideJolt()
     {
         lock (JoltRuntime.NativeGate)
-            return narrowPhase.CastRay(Origin, Direction, out RayCastResult hit, broadPhaseFilter, groupFilter, bodyFilter) ? hit.Fraction : -1;
+        {
+            return narrowPhase.CastRay(Origin, Direction, out RayCastResult hit, broadPhaseFilter, groupFilter,
+                bodyFilter)
+                ? hit.Fraction
+                : -1;
+        }
     }
 
     [Benchmark]
@@ -134,7 +140,8 @@ public unsafe class RayFilterBenchmarks
         lock (JoltRuntime.NativeGate)
         {
             sorted.Clear();
-            narrowPhase.CastRay(Origin, Direction, new RayCastSettings(), CollisionCollectorType.ClosestHit, sorted, bodyFilter: bodyFilter);
+            narrowPhase.CastRay(Origin, Direction, new(), CollisionCollectorType.ClosestHit, sorted,
+                bodyFilter: bodyFilter);
             return sorted.Count > 0 ? sorted[0].Fraction : -1;
         }
     }
@@ -145,7 +152,7 @@ public unsafe class RayFilterBenchmarks
         lock (JoltRuntime.NativeGate)
         {
             sorted.Clear();
-            narrowPhase.CastRay(Origin, Direction, new RayCastSettings(), CollisionCollectorType.AllHitSorted, sorted);
+            narrowPhase.CastRay(Origin, Direction, new(), CollisionCollectorType.AllHitSorted, sorted);
             foreach (RayCastResult hit in sorted)
                 if (Accepts(hit.BodyID))
                     return hit.Fraction;
@@ -153,16 +160,13 @@ public unsafe class RayFilterBenchmarks
         }
     }
 
-    // The nearest accepted fraction so far, for CollectorFilters.
-    private float nearest;
-
     [Benchmark]
     public float CollectorFilters()
     {
         lock (JoltRuntime.NativeGate)
         {
             nearest = 1.0000001f;
-            narrowPhase.CastRay(Origin, Direction, new RayCastSettings(), &OnHit, GCHandle.ToIntPtr(self));
+            narrowPhase.CastRay(Origin, Direction, new(), &OnHit, GCHandle.ToIntPtr(self));
             return nearest <= 1 ? nearest : -1;
         }
     }

@@ -30,6 +30,16 @@ namespace Tertius.Physics;
 /// </remarks>
 internal sealed unsafe class ContactListener : IDisposable
 {
+    // ---- The process-wide callbacks ----
+
+    // The table that joltc reads. joltc keeps the pointer, so the table lives in native memory until the process ends.
+    private static ContactListenerProcs* callbacks;
+    private static int strayReports;
+
+    /// <summary>The number of reports that reached these callbacks from a listener that is not a <see cref="ContactListener"/>
+    /// .</summary>
+    public static int StrayReports => Volatile.Read(ref strayReports);
+
     // Keeps the world alive, and lets a callback find it from the user data of the native listener.
     private GCHandle world;
     private nint handle;
@@ -52,15 +62,6 @@ internal sealed unsafe class ContactListener : IDisposable
         handle = 0;
         world.Free();
     }
-
-    // ---- The process-wide callbacks ----
-
-    // The table that joltc reads. joltc keeps the pointer, so the table lives in native memory until the process ends.
-    private static ContactListenerProcs* callbacks;
-    private static int strayReports;
-
-    /// <summary>The number of reports that reached these callbacks from a listener that is not a <see cref="ContactListener"/>.</summary>
-    public static int StrayReports => Volatile.Read(ref strayReports);
 
     /// <summary>
     /// Makes joltc call this class's contact callbacks for every listener in the process. Call it once, after
@@ -88,11 +89,13 @@ internal sealed unsafe class ContactListener : IDisposable
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static void OnContactAdded(nint userData, nint body1, nint body2, nint manifold, ContactSettings* settings) =>
+    private static void OnContactAdded(nint userData, nint body1, nint body2, nint manifold,
+        ContactSettings* settings) =>
         WorldOf(userData)?.OnContactAdded(body1, body2, manifold, settings);
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static void OnContactPersisted(nint userData, nint body1, nint body2, nint manifold, ContactSettings* settings) =>
+    private static void OnContactPersisted(nint userData, nint body1, nint body2, nint manifold,
+        ContactSettings* settings) =>
         WorldOf(userData)?.OnContactPersisted(body1, body2, manifold, settings);
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]

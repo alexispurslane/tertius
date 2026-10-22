@@ -13,10 +13,13 @@ public readonly record struct CollisionGroup
     /// </summary>
     public const int Capacity = 12;
 
-    private CollisionGroup(int index) => Index = index;
-
     /// <summary>The default group, which every body starts in. Every registry has it first, under the name "Solid".</summary>
     public static CollisionGroup Solid => default;
+
+    private CollisionGroup(int index)
+    {
+        Index = index;
+    }
 
     /// <summary>The bit of this group in a <see cref="CollisionGroups"/> set, from 0 to <see cref="Capacity"/> - 1.</summary>
     public int Index { get; }
@@ -24,19 +27,24 @@ public readonly record struct CollisionGroup
     internal static CollisionGroup FromIndex(int index)
     {
         Contract.Requires((uint)index < Capacity);
-        return new CollisionGroup(index);
+        return new(index);
     }
 }
 
 /// <summary>A set of collision groups. The default value is the empty set.</summary>
 public readonly record struct CollisionGroups
 {
-    private CollisionGroups(ushort bits) => Bits = bits;
+    public static CollisionGroups None => default;
+
+    private CollisionGroups(ushort bits)
+    {
+        Bits = bits;
+    }
 
     /// <summary>One bit for each group in the set: bit <see cref="CollisionGroup.Index"/>. Only the low 12 bits are ever set.</summary>
     public ushort Bits { get; }
 
-    public static CollisionGroups None => default;
+    public bool IsEmpty => Bits == 0;
 
     public static CollisionGroups Of(CollisionGroup group) => None.And(group);
 
@@ -44,8 +52,6 @@ public readonly record struct CollisionGroups
     public CollisionGroups And(CollisionGroup group) => new((ushort)(Bits | (1 << group.Index)));
 
     public bool Contains(CollisionGroup group) => (Bits & (1 << group.Index)) != 0;
-
-    public bool IsEmpty => Bits == 0;
 
     /// <summary>True when this set and <paramref name="other"/> share a group.</summary>
     public bool Overlaps(CollisionGroups other) => (Bits & other.Bits) != 0;
@@ -61,6 +67,9 @@ public readonly record struct CollisionGroups
 /// </summary>
 public readonly record struct CollisionMask
 {
+    /// <summary>The mask with no condition, which every set of groups matches.</summary>
+    public static CollisionMask Empty => default;
+
     /// <summary>The groups that a matching set must all have.</summary>
     public CollisionGroups AllOf { get; private init; }
 
@@ -69,9 +78,6 @@ public readonly record struct CollisionMask
 
     /// <summary>The groups of which a matching set must have at least one, unless this set is empty.</summary>
     public CollisionGroups AnyOf { get; private init; }
-
-    /// <summary>The mask with no condition, which every set of groups matches.</summary>
-    public static CollisionMask Empty => default;
 
     /// <summary>This mask, which also needs <paramref name="group"/>.</summary>
     public CollisionMask InAll(CollisionGroup group) => this with { AllOf = AllOf.And(group) };
@@ -114,6 +120,12 @@ public sealed class CollisionGroupRegistry
     /// <summary>How many groups have a name, Solid included.</summary>
     public int Count => names.Count;
 
+    /// <summary>The group named <paramref name="name"/>. Throws <see cref="KeyNotFoundException"/> when no group has the name.</summary>
+    public CollisionGroup this[string name] =>
+        TryGet(name, out CollisionGroup group)
+            ? group
+            : throw new KeyNotFoundException($"No collision group is named \"{name}\".");
+
     /// <summary>
     /// The group named <paramref name="name"/>. A new name gets the next free group. A name that is already registered
     /// keeps its group, so two mods that name the same group share it. Throws <see cref="ArgumentException"/> for a blank
@@ -138,8 +150,4 @@ public sealed class CollisionGroupRegistry
         group = index < 0 ? default : CollisionGroup.FromIndex(index);
         return index >= 0;
     }
-
-    /// <summary>The group named <paramref name="name"/>. Throws <see cref="KeyNotFoundException"/> when no group has the name.</summary>
-    public CollisionGroup this[string name] =>
-        TryGet(name, out CollisionGroup group) ? group : throw new KeyNotFoundException($"No collision group is named \"{name}\".");
 }

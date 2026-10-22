@@ -11,32 +11,69 @@ namespace Tertius.Host.Tests;
 /// adds one row at each capture of a script, on the real World and the real Jolt backend. The log reads in the frame
 /// <c>earth</c>, which does not turn. The first scene of these tests drops a ball, the <c>person</c>, from 5 m in the root
 /// frame <c>earth</c>, whose uniform gravity is 9.81 m/s². The <c>station</c> is a static box 30 m to the side at the
-/// ball's first height, turned a quarter turn about earth's -Z, so that its axis, its +Y, lies along earth's +X. The second scene, <see cref="Turning"/>, holds a turning ground in earth.
+/// ball's first height, turned a quarter turn about earth's -Z, so that its axis, its +Y, lies along earth's +X. The second scene,
+/// <see cref="Turning"/>, holds a turning ground in earth.
 /// </summary>
 public sealed class ReadoutLogTests
 {
     private const float G = 9.81f;
+
+    /// <summary>
+    /// The turn of <see cref="Turning"/>'s ground about +Y, in rad/s: fast, so that a person who stands still on it 10 m
+    /// from the axis moves at 5 m/s in <c>earth</c>.
+    /// </summary>
+    private const double GroundRate = 0.5;
 
     private static readonly Scene Drop = new("readout-drop", (world, _) =>
     {
         var scene = new SceneInstance();
         FrameHandle earth = Ground(world, G);
         scene.Add("earth", earth.Entity);
-        scene.Add("person", world.Spawn(new SpawnDesc { Frame = earth, Pose = At(0, 5), Body = Ball() }));
-        scene.Add("station", world.Spawn(new SpawnDesc
+        scene.Add("person", world.Spawn(new() { Frame = earth, Pose = At(0, 5), Body = Ball() }));
+        scene.Add("station", world.Spawn(new()
         {
             Frame = earth,
-            Pose = new DPose(new Double3(30, 5, 0), DQuaternion.FromAxisAngle(-Double3.UnitZ, Math.PI / 2)),
-            Body = new BodyDesc(new BoxShapeDesc(new System.Numerics.Vector3(1)), BodyMotion.Static),
+            Pose = new(new(30, 5, 0), DQuaternion.FromAxisAngle(-Double3.UnitZ, Math.PI / 2)),
+            Body = new(new BoxShapeDesc(new(1)), BodyMotion.Static)
         }));
-        scene.Add("camera", world.Spawn(new SpawnDesc { Frame = earth, Pose = At(0, 2, 10), Render = new RenderData() }));
+        scene.Add("camera", world.Spawn(new() { Frame = earth, Pose = At(0, 2, 10), Render = new RenderData() }));
         return scene;
     });
 
     /// <summary>A film of 3 frames every 2 ticks, then a film of 2 frames every tick: frames after ticks 2, 4, 6, 7 and 8.</summary>
-    private static readonly Script TwoFilms = new("readout-drop", [new(new CameraStep("camera")), new(new FilmStep("a", 3, 2)), new(new FilmStep("b", 2, 1))], new ScriptWindow(16, 16));
+    private static readonly Script TwoFilms = new("readout-drop",
+        [new(new CameraStep("camera")), new(new FilmStep("a", 3, 2)), new(new FilmStep("b", 2, 1))], new(16, 16));
 
     private static IReadOnlyList<ReadoutRow> Rows => ReadoutLog.Record(TwoFilms, [Drop]);
+
+    /// <summary>
+    /// A scene of a turning ground, as demo-surface's: the root frame <c>earth</c>, which does not turn, holds the frame
+    /// <c>earth-surface</c> at its origin, turned a quarter turn about +Y at the world's start and turning about +Y at
+    /// <see cref="GroundRate"/>. The <c>person</c> is a static box that stands still in earth-surface, 10 m from the axis
+    /// on its +X. The <c>station</c> is a static box in earth, 10 m out on earth's +X.
+    /// </summary>
+    private static readonly Scene Turning = new("readout-turning", (world, _) =>
+    {
+        var scene = new SceneInstance();
+        FrameHandle earth = world.CreateRootFrame(new(FrameBounds.Sphere(1e4f)));
+        scene.Add("earth", earth.Entity);
+        var spin = new FrameSpin(DQuaternion.Identity, GroundRate, PhaseAtEpoch: Math.PI / 2);
+        Entity ground = world.Spawn(new()
+        {
+            Frame = earth,
+            Pose = new(Double3.Zero, spin.RotationAt(world.Time)),
+            FirstMove = new(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
+            AsFrame = new(FrameBounds.Sphere(1e3f)),
+            Components = [new SpinMotion { Spin = spin }]
+        });
+        scene.Add("earth-surface", ground);
+        FrameHandle surface = world.GetOwnedFrame(ground);
+        var box = new BodyDesc(new BoxShapeDesc(new(0.5f)), BodyMotion.Static);
+        scene.Add("person", world.Spawn(new() { Frame = surface, Pose = At(10), Body = box }));
+        scene.Add("station", world.Spawn(new() { Frame = earth, Pose = At(10), Body = box }));
+        scene.Add("camera", world.Spawn(new() { Frame = earth, Pose = At(0, 2, 20), Render = new RenderData() }));
+        return scene;
+    });
 
     /// <summary>The time of a tick, in seconds: the engine's 60 ticks per second.</summary>
     private static double Seconds(long tick) => tick / 60.0;
@@ -75,43 +112,9 @@ public sealed class ReadoutLogTests
         IReadOnlyList<ReadoutRow> rows = Rows;
         rows[0].Speed.Should().BePositive();
         for (int i = 1; i < rows.Count; i++)
-            (rows[i].Speed - rows[i - 1].Speed).Should().BeApproximately(G * Seconds(rows[i].Tick - rows[i - 1].Tick), 1e-4);
+            (rows[i].Speed - rows[i - 1].Speed).Should()
+                .BeApproximately(G * Seconds(rows[i].Tick - rows[i - 1].Tick), 1e-4);
     }
-
-    /// <summary>
-    /// The turn of <see cref="Turning"/>'s ground about +Y, in rad/s: fast, so that a person who stands still on it 10 m
-    /// from the axis moves at 5 m/s in <c>earth</c>.
-    /// </summary>
-    private const double GroundRate = 0.5;
-
-    /// <summary>
-    /// A scene of a turning ground, as demo-surface's: the root frame <c>earth</c>, which does not turn, holds the frame
-    /// <c>earth-surface</c> at its origin, turned a quarter turn about +Y at the world's start and turning about +Y at
-    /// <see cref="GroundRate"/>. The <c>person</c> is a static box that stands still in earth-surface, 10 m from the axis
-    /// on its +X. The <c>station</c> is a static box in earth, 10 m out on earth's +X.
-    /// </summary>
-    private static readonly Scene Turning = new("readout-turning", (world, _) =>
-    {
-        var scene = new SceneInstance();
-        FrameHandle earth = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f)));
-        scene.Add("earth", earth.Entity);
-        var spin = new FrameSpin(DQuaternion.Identity, GroundRate, PhaseAtEpoch: Math.PI / 2);
-        Entity ground = world.Spawn(new SpawnDesc
-        {
-            Frame = earth,
-            Pose = new DPose(Double3.Zero, spin.RotationAt(world.Time)),
-            FirstMove = new MotionIntent(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1e3f)),
-            Components = [new SpinMotion { Spin = spin }],
-        });
-        scene.Add("earth-surface", ground);
-        FrameHandle surface = world.GetOwnedFrame(ground);
-        var box = new BodyDesc(new BoxShapeDesc(new System.Numerics.Vector3(0.5f)), BodyMotion.Static);
-        scene.Add("person", world.Spawn(new SpawnDesc { Frame = surface, Pose = At(10), Body = box }));
-        scene.Add("station", world.Spawn(new SpawnDesc { Frame = earth, Pose = At(10), Body = box }));
-        scene.Add("camera", world.Spawn(new SpawnDesc { Frame = earth, Pose = At(0, 2, 20), Render = new RenderData() }));
-        return scene;
-    });
 
     /// <summary>
     /// The readouts read in <c>earth</c>, the frame that does not turn, as the guidance does: a person who stands still on
@@ -127,10 +130,13 @@ public sealed class ReadoutLogTests
         rows.Should().HaveCount(5);
         foreach (ReadoutRow row in rows)
         {
-            row.Speed.Should().BeApproximately(GroundRate * 10, 1e-4, $"the person moves with the ground in earth at {row.Frame}");
+            row.Speed.Should().BeApproximately(GroundRate * 10, 1e-4,
+                $"the person moves with the ground in earth at {row.Frame}");
             row.Position.Length.Should().BeApproximately(10, 1e-6);
-            Math.Abs(row.Position.X).Should().BeLessThan(1, $"the ground stands a quarter turn from earth's axes at {row.Frame}, so the place in earth is not {row.Position}");
-            row.ToStation.Should().BeApproximately(Double3.Distance(row.Position, new Double3(10, 0, 0)), 1e-6, "the station's place is read in earth too");
+            Math.Abs(row.Position.X).Should().BeLessThan(1,
+                $"the ground stands a quarter turn from earth's axes at {row.Frame}, so the place in earth is not {row.Position}");
+            row.ToStation.Should().BeApproximately(Double3.Distance(row.Position, new(10, 0, 0)), 1e-6,
+                "the station's place is read in earth too");
         }
     }
 
@@ -138,7 +144,8 @@ public sealed class ReadoutLogTests
     public void ARowHoldsTheDistanceFromThePersonToTheStationsCenter()
     {
         foreach (ReadoutRow row in Rows)
-            row.ToStation.Should().BeApproximately(Math.Sqrt(30 * 30 + (5 - row.Position.Y) * (5 - row.Position.Y)), 1e-9);
+            row.ToStation.Should()
+                .BeApproximately(Math.Sqrt(30 * 30 + (5 - row.Position.Y) * (5 - row.Position.Y)), 1e-9);
     }
 
     [Fact]
@@ -172,8 +179,8 @@ public sealed class ReadoutLogTests
         string[] lines = ReadoutLog.ToCsv(Rows).TrimEnd('\n').Split('\n');
 
         lines[0].Should().Be("frame,tick,x,y,z,speed,station,axis,felt," +
-            "throw1_x,throw1_y,throw1_z,throw1_vx,throw1_vy,throw1_vz,throw1_time,throw1_land_x,throw1_land_y,throw1_land_z," +
-            "throw2_x,throw2_y,throw2_z,throw2_vx,throw2_vy,throw2_vz,throw2_time,throw2_land_x,throw2_land_y,throw2_land_z");
+                             "throw1_x,throw1_y,throw1_z,throw1_vx,throw1_vy,throw1_vz,throw1_time,throw1_land_x,throw1_land_y,throw1_land_z," +
+                             "throw2_x,throw2_y,throw2_z,throw2_vx,throw2_vy,throw2_vz,throw2_time,throw2_land_x,throw2_land_y,throw2_land_z");
         lines.Should().HaveCount(6);
         lines[1].Should().StartWith("a-000000,2,0,");
     }
@@ -206,18 +213,18 @@ public sealed class ReadoutLogTests
     [Fact]
     public void TheCsvHoldsEachThrowFromItsReleaseAndItsLandingFromTheLandingOn()
     {
-        var release = new ThrowRelease(new Double3(-98, -2, 3.5), new Double3(4, 0, 6.9));
+        var release = new ThrowRelease(new(-98, -2, 3.5), new(4, 0, 6.9));
         ReadoutRow before = Rows[0];
         ReadoutRow flying = before with { FirstThrow = new ThrowReadout(release, null) };
         ReadoutRow landed = before with
         {
-            FirstThrow = new ThrowReadout(release, new ThrowLanding(0.83, new Double3(-99.5, -2, 9.4))),
-            SecondThrow = new ThrowReadout(release with { Velocity = -release.Velocity }, null),
+            FirstThrow = new ThrowReadout(release, new ThrowLanding(0.83, new(-99.5, -2, 9.4))),
+            SecondThrow = new ThrowReadout(release with { Velocity = -release.Velocity }, null)
         };
 
         string csv = ReadoutLog.ToCsv([before, flying, landed]);
 
-        csv.Split('\n')[1].Should().EndWith(new string(',', 20));
+        csv.Split('\n')[1].Should().EndWith(new(',', 20));
         ReadoutLog.FromCsv(csv).Should().Equal(before, flying, landed);
     }
 
@@ -230,21 +237,27 @@ public sealed class ReadoutLogTests
     [Fact]
     public void TheLogOfTheExitsScriptHoldsEachThrowFromItsBoxsFlightRecorder()
     {
-        Script script = Script.Parse(File.ReadAllText(Path.Combine(HostTesting.RepositoryRoot(), "scripts", "demo-exit.json")));
+        Script script =
+            Script.Parse(File.ReadAllText(Path.Combine(HostTesting.RepositoryRoot(), "scripts", "demo-exit.json")));
 
         IReadOnlyList<ReadoutRow> rows = ReadoutLog.Record(script, DemoScenes.All);
 
-        rows.TakeWhile(row => !row.Frame.StartsWith("spinward", StringComparison.Ordinal)).Should().OnlyContain(row => row.FirstThrow == null && row.SecondThrow == null);
+        rows.TakeWhile(row => !row.Frame.StartsWith("spinward", StringComparison.Ordinal)).Should()
+            .OnlyContain(row => row.FirstThrow == null && row.SecondThrow == null);
         ReadoutRow last = rows[^1];
         foreach (ThrowReadout? readout in new[] { last.FirstThrow, last.SecondThrow })
         {
             ThrowReadout thrown = readout!.Value;
-            ThrowLanding line = thrown.Release.Landing(DemoScenes.SpinStation.Rate, DemoScenes.DemoStation.WheelFloor, DemoScenes.WheelCoda.BoxHalf);
+            ThrowLanding line = thrown.Release.Landing(DemoScenes.SpinStation.Rate, DemoScenes.DemoStation.WheelFloor,
+                DemoScenes.WheelCoda.BoxHalf);
             Double3.Distance(thrown.Landing!.Value.Place, line.Place).Should().BeLessThan(1e-3);
         }
-        Double3 Spinward(ThrowReadout? thrown) => WheelFloor.SpinwardAt(thrown!.Value.Release.Place);
-        Double3.Dot(last.FirstThrow!.Value.Release.Velocity, Spinward(last.FirstThrow)).Should().BePositive("the first throw goes spinward");
-        Double3.Dot(last.SecondThrow!.Value.Release.Velocity, Spinward(last.SecondThrow)).Should().BeNegative("the second throw goes antispinward");
+
+        static Double3 Spinward(ThrowReadout? thrown) => WheelFloor.SpinwardAt(thrown!.Value.Release.Place);
+        Double3.Dot(last.FirstThrow!.Value.Release.Velocity, Spinward(last.FirstThrow)).Should()
+            .BePositive("the first throw goes spinward");
+        Double3.Dot(last.SecondThrow!.Value.Release.Velocity, Spinward(last.SecondThrow)).Should()
+            .BeNegative("the second throw goes antispinward");
         int firstLanded = rows.ToList().FindIndex(row => row.FirstThrow?.Landing != null);
         rows[firstLanded - 1].FirstThrow.Should().NotBeNull("the release comes before the landing");
         rows[firstLanded].Frame.Should().StartWith("spinward");

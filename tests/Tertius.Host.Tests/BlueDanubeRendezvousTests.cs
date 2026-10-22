@@ -1,3 +1,4 @@
+using System.Numerics;
 using Tertius.Demo;
 using Tertius.Frames.Rails;
 using Tertius.Host.Scripting;
@@ -41,13 +42,15 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
         int last = full.Steps.ToList().FindIndex(step => step.Value is FilmStep { Name: LastFilm });
         if (last < 0)
             throw new InvalidOperationException($"scripts/blue-danube.json has no film '{LastFilm}'.");
-        World = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = false, DisposePhysics = true }, new JoltPhysicsBackend());
-        World.Log += line => Logged.Add(line);
+        World = new(new() { MaxDegreeOfParallelism = 1, DebugChecks = false, DisposePhysics = true },
+            new JoltPhysicsBackend());
+        World.Log += Logged.Add;
         Scene = DemoScenes.All.Single(s => s.Name == full.Scene).Build(World, RenderResources.None);
         Earth = World.GetOwnedFrame(Scene["earth"]);
         Mu = KeplerOrbit.MuFrom(World.Frames.Gravity(Earth));
         var recorder = new Recorder(this);
-        ScriptRunner.Run(full with { Steps = [.. full.Steps.Take(last + 1)] }, World, Scene, outputFolder: null, recorder);
+        ScriptRunner.Run(full with { Steps = [.. full.Steps.Take(last + 1)] }, World, Scene, outputFolder: null,
+            recorder);
         // The playback asks before each tick, so the run records the state after the last tick itself.
         recorder.WaitForTick();
     }
@@ -92,13 +95,13 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
     public double Mu { get; }
 
     /// <summary>One <see cref="RendezvousTick"/> for each tick from the first tick of the parking orbit, in order.</summary>
-    public List<RendezvousTick> Ticks { get; } = new();
+    public List<RendezvousTick> Ticks { get; } = [];
 
     /// <summary>One <see cref="RendezvousFrame"/> for each frame of the run, in order.</summary>
-    public List<RendezvousFrame> Frames { get; } = new();
+    public List<RendezvousFrame> Frames { get; } = [];
 
     /// <summary>The lines that the world logged.</summary>
-    public List<string> Logged { get; } = new();
+    public List<string> Logged { get; } = [];
 
     public void Dispose() => World.Dispose();
 
@@ -114,14 +117,21 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
         PassengerState passenger = World.GetComponent<Passenger>(person)!.State;
         DPose personPose = World.PoseIn(person, cabin);
         Double3 inStation = World.PoseIn(person, StationFrame).Position;
-        Ticks.Add(new RendezvousTick(World.TickNumber, World.Time, pose.Position, World.VelocityIn(shuttle, Earth), pose.Rotation.Rotate(-Double3.UnitZ),
+        Ticks.Add(new(World.TickNumber, World.Time, pose.Position, World.VelocityIn(shuttle, Earth),
+            pose.Rotation.Rotate(-Double3.UnitZ),
             stationPose.Position, World.VelocityIn(station, Earth), stationPose.Rotation.Rotate(Double3.UnitY),
-            World.GetComponent<RendezvousAutopilot>(shuttle)!.State, passenger, World.Frames.ProperAcceleration(cabin), World.GetFrame(shuttle),
-            PenFromHand(passenger, cabin), personPose.Rotation.Rotate(Double3.UnitY), BlueDanube.InEarthsShadow(World, Scene),
-            World.PoseIn(Scene["sun"], Earth).Position.Normalized(), World.GetComponent<DockingAutopilot>(shuttle)!.State,
-            World.PoseIn(shuttle, StationFrame), personPose.Position, World.IsStanding(person), World.Frames.Parent(cabin), World.Frames.HullMotion(cabin),
-            World.GetComponent<Disembark>(person)!.State, World.GetFrame(person), inStation, World.VelocityIn(person, StationFrame),
-            World.Frames.FeltGravity(StationFrame, inStation).Length, WalkHeading.Yaw(World.GetRender(person).ViewOffset.Rotation),
+            World.GetComponent<RendezvousAutopilot>(shuttle)!.State, passenger, World.Frames.ProperAcceleration(cabin),
+            World.GetFrame(shuttle),
+            PenFromHand(passenger, cabin), personPose.Rotation.Rotate(Double3.UnitY),
+            BlueDanube.InEarthsShadow(World, Scene),
+            World.PoseIn(Scene["sun"], Earth).Position.Normalized(),
+            World.GetComponent<DockingAutopilot>(shuttle)!.State,
+            World.PoseIn(shuttle, StationFrame), personPose.Position, World.IsStanding(person),
+            World.Frames.Parent(cabin), World.Frames.HullMotion(cabin),
+            World.GetComponent<Disembark>(person)!.State, World.GetFrame(person), inStation,
+            World.VelocityIn(person, StationFrame),
+            World.Frames.FeltGravity(StationFrame, inStation).Length,
+            WalkHeading.Yaw(World.GetRender(person).ViewOffset.Rotation),
             World.GetComponent<BoxPlay>(person)!.State));
     }
 
@@ -135,7 +145,8 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
         if (copy.IsNull || !World.IsAlive(copy))
             return null;
         Entity person = Scene["person"];
-        Double3 hand = World.PoseIn(person, cabin).TransformPoint((Double3)World.GetRender(person).ViewOffset.TransformPoint(Passenger.PenHold));
+        Double3 hand = World.PoseIn(person, cabin)
+            .TransformPoint(World.GetRender(person).ViewOffset.TransformPoint(Passenger.PenHold));
         return Double3.Distance(hand, World.PoseIn(copy, cabin).Position);
     }
 
@@ -146,7 +157,7 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
         Returning returning => returning.Copy,
         Strapped strapped => strapped.Copy,
         Unstrapped unstrapped => unstrapped.Copy,
-        _ => Entity.Null,
+        _ => Entity.Null
     };
 
     private RendezvousFrame RecordFrame(string name)
@@ -155,10 +166,11 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
         FrameHandle cabin = World.GetOwnedFrame(Scene["shuttle"]);
         DPose personPose = World.PoseIn(person, cabin);
         Entity copy = CopyOf(World.GetComponent<Passenger>(person)!.State);
-        return new RendezvousFrame(name, World.PoseIn(World.Camera, cabin), World.PoseIn(Scene["station"], cabin).Position, personPose,
-            personPose.TransformPoint((Double3)World.GetRender(person).ViewOffset.Position),
+        return new(name, World.PoseIn(World.Camera, cabin), World.PoseIn(Scene["station"], cabin).Position, personPose,
+            personPose.TransformPoint(World.GetRender(person).ViewOffset.Position),
             !copy.IsNull && World.IsAlive(copy) ? World.PoseIn(copy, cabin).Position : null, World.VerticalFov,
-            World.PoseIn(Scene["sun"], cabin).Position, World.PoseIn(Scene["moon"], cabin).Position, World.PoseIn(Scene["earth"], cabin).Position,
+            World.PoseIn(Scene["sun"], cabin).Position, World.PoseIn(Scene["moon"], cabin).Position,
+            World.PoseIn(Scene["earth"], cabin).Position,
             World.PoseIn(World.Camera, StationFrame), World.PoseIn(Scene["shuttle"], StationFrame));
     }
 
@@ -179,8 +191,13 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
             if (name.StartsWith(FloorFilm + "-", StringComparison.Ordinal))
             {
                 run.FloorTick = world.TickNumber;
-                run.StackAtFloor = [.. DemoScenes.WheelCoda.Stack().Select(box => world.PoseIn(run.Scene[box.Id], run.StationFrame).Position)];
+                run.StackAtFloor =
+                [
+                    .. DemoScenes.WheelCoda.Stack()
+                        .Select(box => world.PoseIn(run.Scene[box.Id], run.StationFrame).Position)
+                ];
             }
+
             return true;
         }
     }
@@ -221,13 +238,39 @@ public sealed class BlueDanubeLongRunCollection : ICollectionFixture<BlueDanubeR
 /// <param name="PersonInStation">The person's center in the station's frame, in meters.</param>
 /// <param name="PersonVelocityInStation">The person's velocity in the station's frame, in m/s.</param>
 /// <param name="PersonFeltGravity">The gravity that the person feels at its center, in the station's frame, in m/s².</param>
-/// <param name="PersonHeading">The person's heading: the turn of its view about its up, in radians, as <see cref="WalkHeading.Yaw"/> gives it.</param>
+/// <param name="PersonHeading">The person's heading: the turn of its view about its up, in radians, as
+/// <see cref="WalkHeading.Yaw"/> gives it.</param>
 /// <param name="Play">What the person's <see cref="BoxPlay"/> of the coda does.</param>
-public sealed record RendezvousTick(long Tick, double Time, Double3 Position, Double3 Velocity, Double3 Nose, Double3 StationCenter,
-    Double3 StationVelocity, Double3 Axis, RendezvousState Rendezvous, PassengerState Passenger, System.Numerics.Vector3 CabinAcceleration,
-    FrameHandle ShuttleFrame, double? PenFromHand, Double3 PersonUp, bool InShadow, Double3 ToSun, DockingState Docking, DPose InStation,
-    Double3 PersonInCabin, bool PersonStanding, FrameHandle CabinParent, BodyMotion? HullMotion, DisembarkState Exit, FrameHandle PersonFrame,
-    Double3 PersonInStation, Double3 PersonVelocityInStation, double PersonFeltGravity, double PersonHeading, BoxPlayState Play)
+public sealed record RendezvousTick(
+    long Tick,
+    double Time,
+    Double3 Position,
+    Double3 Velocity,
+    Double3 Nose,
+    Double3 StationCenter,
+    Double3 StationVelocity,
+    Double3 Axis,
+    RendezvousState Rendezvous,
+    PassengerState Passenger,
+    Vector3 CabinAcceleration,
+    FrameHandle ShuttleFrame,
+    double? PenFromHand,
+    Double3 PersonUp,
+    bool InShadow,
+    Double3 ToSun,
+    DockingState Docking,
+    DPose InStation,
+    Double3 PersonInCabin,
+    bool PersonStanding,
+    FrameHandle CabinParent,
+    BodyMotion? HullMotion,
+    DisembarkState Exit,
+    FrameHandle PersonFrame,
+    Double3 PersonInStation,
+    Double3 PersonVelocityInStation,
+    double PersonFeltGravity,
+    double PersonHeading,
+    BoxPlayState Play)
 {
     /// <summary>The shuttle's place relative to the station's center, in meters, in earth's axes.</summary>
     public Double3 FromStation => Position - StationCenter;
@@ -249,20 +292,39 @@ public sealed record RendezvousTick(long Tick, double Time, Double3 Position, Do
 /// <param name="EarthCenter">Earth's center in the shuttle's frame, in meters.</param>
 /// <param name="ViewInStation">The camera's pose in the station's frame.</param>
 /// <param name="ShuttleInStation">The shuttle's pose in the station's frame.</param>
-public sealed record RendezvousFrame(string Name, DPose View, Double3 Station, DPose Person, Double3 Eye, Double3? Pen, double VerticalFov,
-    Double3 Sun, Double3 Moon, Double3 EarthCenter, DPose ViewInStation, DPose ShuttleInStation)
+public sealed record RendezvousFrame(
+    string Name,
+    DPose View,
+    Double3 Station,
+    DPose Person,
+    Double3 Eye,
+    Double3? Pen,
+    double VerticalFov,
+    Double3 Sun,
+    Double3 Moon,
+    Double3 EarthCenter,
+    DPose ViewInStation,
+    DPose ShuttleInStation)
 {
     /// <summary>True when the frame belongs to the film <paramref name="film"/>.</summary>
-    public bool Of(string film) => Name.StartsWith(film + "-", StringComparison.Ordinal) && Name.Length == film.Length + 7;
+    public bool Of(string film) =>
+        Name.StartsWith(film + "-", StringComparison.Ordinal) && Name.Length == film.Length + 7;
 }
 
 [Collection(BlueDanubeRendezvousRun.Collection)]
 public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
 {
     /// <summary>The ticks of the rendezvous: from the first of the parking orbit until the docking autopilot starts its spin-up.</summary>
-    private IReadOnlyList<RendezvousTick> Log { get; } = [.. run.Ticks.TakeWhile(tick => tick.Docking.Value is Standby or Waiting)];
+    private IReadOnlyList<RendezvousTick> Log { get; } =
+        [.. run.Ticks.TakeWhile(tick => tick.Docking.Value is Standby or Waiting)];
 
-    private static double Degrees(Double3 a, Double3 b) => Math.Acos(Math.Clamp(Double3.Dot(a.Normalized(), b.Normalized()), -1, 1)) * 180 / Math.PI;
+    private RendezvousTick Window => Log.First(tick => tick.Rendezvous.Value is Transfer);
+
+    /// <summary>The ticks from the first in which the autopilot waits for its window, after the order.</summary>
+    private IEnumerable<RendezvousTick> AfterTheOrder => Log.SkipWhile(tick => tick.Rendezvous.Value is Standby);
+
+    private static double Degrees(Double3 a, Double3 b) =>
+        Math.Acos(Math.Clamp(Double3.Dot(a.Normalized(), b.Normalized()), -1, 1)) * 180 / Math.PI;
 
     /// <summary>
     /// The angle along the orbit, φ, in degrees from 0 to 360: about the launch plane's normal, from the pad's up, +Y of
@@ -274,11 +336,6 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
         double degrees = Math.Atan2(Double3.Dot(position, ahead), position.Y) * 180 / Math.PI;
         return degrees < 0 ? degrees + 360 : degrees;
     }
-
-    private RendezvousTick Window => Log.First(tick => tick.Rendezvous.Value is Transfer);
-
-    /// <summary>The ticks from the first in which the autopilot waits for its window, after the order.</summary>
-    private IEnumerable<RendezvousTick> AfterTheOrder => Log.SkipWhile(tick => tick.Rendezvous.Value is Standby);
 
     private RendezvousTick FirstOf<T>() => Log.First(tick => tick.Rendezvous.Value is T);
 
@@ -292,8 +349,10 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
         RendezvousTick[] parking = [.. Log.TakeWhile(tick => tick.Rendezvous.Value is not Transfer)];
 
         parking.Should().HaveCountGreaterThan(60 * 60 * 20, "the shuttle waits about 26 minutes for its window");
-        parking.Max(tick => Math.Abs(Double3.Dot(tick.Position, DemoSurface.LaunchPlaneNormal))).Should().BeLessThan(100);
-        parking.Max(tick => Math.Abs(Double3.Dot(tick.Velocity, DemoSurface.LaunchPlaneNormal))).Should().BeLessThan(0.1);
+        parking.Max(tick => Math.Abs(Double3.Dot(tick.Position, DemoSurface.LaunchPlaneNormal))).Should()
+            .BeLessThan(100);
+        parking.Max(tick => Math.Abs(Double3.Dot(tick.Velocity, DemoSurface.LaunchPlaneNormal))).Should()
+            .BeLessThan(0.1);
     }
 
     /// <summary>
@@ -303,9 +362,11 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
     [Fact]
     public void ThePassengerIsStrappedBeforeTheFirstBurn()
     {
-        RendezvousTick firstPush = AfterTheOrder.First(tick => tick.CabinAcceleration.Length() >= FrameTree.ZeroGravityThreshold);
+        RendezvousTick firstPush =
+            AfterTheOrder.First(tick => tick.CabinAcceleration.Length() >= FrameTree.ZeroGravityThreshold);
 
-        firstPush.Rendezvous.Value.Should().BeOfType<Transfer>("the first push of the parking orbit is the transfer's burn");
+        firstPush.Rendezvous.Value.Should()
+            .BeOfType<Transfer>("the first push of the parking orbit is the transfer's burn");
         firstPush.Passenger.Value.Should().BeOfType<Strapped>();
     }
 
@@ -320,9 +381,12 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
     [Fact]
     public void TheStrappedPassengerKeepsItsUpThroughTheTrimAfterTheBurn()
     {
-        RendezvousTick[] afterTheBurn = [.. AfterTheOrder.SkipWhile(tick => tick.CabinAcceleration.Length() < FrameTree.ZeroGravityThreshold)
-            .SkipWhile(tick => tick.CabinAcceleration.Length() >= FrameTree.ZeroGravityThreshold)
-            .TakeWhile(tick => tick.Rendezvous.Value is Transfer)];
+        RendezvousTick[] afterTheBurn =
+        [
+            .. AfterTheOrder.SkipWhile(tick => tick.CabinAcceleration.Length() < FrameTree.ZeroGravityThreshold)
+                .SkipWhile(tick => tick.CabinAcceleration.Length() >= FrameTree.ZeroGravityThreshold)
+                .TakeWhile(tick => tick.Rendezvous.Value is Transfer)
+        ];
 
         afterTheBurn.Should().HaveCountGreaterThan(60 * 60 * 30, "the trim and the coast last about 40 minutes");
         afterTheBurn.Should().OnlyContain(tick => tick.Passenger.Value is Strapped);
@@ -381,7 +445,8 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
     public void TheTotalChangeOfVelocityIsWithin10PercentOfTheTwoBodyCost()
     {
         double cost = TransferCost(Window);
-        double flown = Log.SkipWhile(tick => tick.Rendezvous.Value is not Transfer).TakeWhile(tick => tick.Rendezvous.Value is not Glide)
+        double flown = Log.SkipWhile(tick => tick.Rendezvous.Value is not Transfer)
+            .TakeWhile(tick => tick.Rendezvous.Value is not Glide)
             .Sum(tick => (double)tick.CabinAcceleration.Length()) / 60;
 
         cost.Should().BeInRange(100, 140, "the plan's transfer costs about 120 m/s");
@@ -396,9 +461,11 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
     private double TransferCost(RendezvousTick window)
     {
         var guidance = new TransferGuidance(run.Mu);
-        (Double3 arrival, Double3 stationAtArrival) = guidance.Arrival(window.StationCenter, window.StationVelocity, window.Axis,
+        (Double3 arrival, Double3 stationAtArrival) = guidance.Arrival(window.StationCenter, window.StationVelocity,
+            window.Axis,
             RendezvousPlan.Demo.ArrivalDistance, RendezvousPlan.Demo.TransferTime);
-        (Double3 departure, Double3 atArrival) = KeplerOrbit.Lambert(window.Position, arrival, RendezvousPlan.Demo.TransferTime, run.Mu,
+        (Double3 departure, Double3 atArrival) = KeplerOrbit.Lambert(window.Position, arrival,
+            RendezvousPlan.Demo.TransferTime, run.Mu,
             TransferGuidance.OrbitNormal(window.StationCenter, window.StationVelocity));
         return (departure - window.Velocity).Length + (atArrival - stationAtArrival).Length;
     }
@@ -423,7 +490,8 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
         RendezvousTick[] glide = [.. Log.Where(tick => tick.Rendezvous.Value is Glide)];
 
         glide.Should().HaveCountGreaterThan(60 * 60, "the glide takes several minutes");
-        glide.Max(tick => (tick.FromStation - tick.Axis * Double3.Dot(tick.FromStation, tick.Axis)).Length).Should().BeLessThan(5);
+        glide.Max(tick => (tick.FromStation - tick.Axis * Double3.Dot(tick.FromStation, tick.Axis)).Length).Should()
+            .BeLessThan(5);
     }
 
     /// <summary>
@@ -435,9 +503,11 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
     {
         RendezvousTick[] hold = [.. Log.SkipWhile(tick => tick.Rendezvous.Value is not Hold)];
 
-        hold.Should().HaveCountGreaterThanOrEqualTo(60 * 8, "the films arrival and hold go on 8 s after the hold starts");
+        hold.Should()
+            .HaveCountGreaterThanOrEqualTo(60 * 8, "the films arrival and hold go on 8 s after the hold starts");
         hold.Should().OnlyContain(tick => tick.Rendezvous.Value is Hold);
-        hold.Max(tick => (tick.FromStation - tick.Axis * RendezvousPlan.Demo.HoldDistance).Length).Should().BeLessThan(RendezvousAutopilot.HoldDistanceTolerance);
+        hold.Max(tick => (tick.FromStation - tick.Axis * RendezvousPlan.Demo.HoldDistance).Length).Should()
+            .BeLessThan(RendezvousAutopilot.HoldDistanceTolerance);
         hold.Max(tick => tick.Relative.Length).Should().BeLessThan(RendezvousAutopilot.HoldSpeedTolerance);
         hold.Max(tick => Degrees(tick.Nose, -tick.Axis)).Should().BeLessThan(1);
     }
@@ -459,8 +529,10 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
         frames.Should().NotBeEmpty();
         foreach (RendezvousFrame frame in frames)
         {
-            Picture.Contains(Picture.Project(frame.View, frame.Station, frame.VerticalFov)).Should().BeTrue($"the station is in the picture of {frame.Name}");
-            PaneChecks.Through(glass, frame.View.Position, frame.Station).Should().BeTrue($"the station lies inside {pane} in {frame.Name}");
+            Picture.Contains(Picture.Project(frame.View, frame.Station, frame.VerticalFov)).Should()
+                .BeTrue($"the station is in the picture of {frame.Name}");
+            PaneChecks.Through(glass, frame.View.Position, frame.Station).Should()
+                .BeTrue($"the station lies inside {pane} in {frame.Name}");
         }
     }
 
@@ -472,13 +544,19 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
     [Fact]
     public void TheChaseCameraSeesThePersonThroughTheGlassInHoldChase()
     {
-        RendezvousFrame[] frames = [.. run.Frames.Where(frame => frame.Of("hold-chase")), .. run.Frames.Where(frame => frame.Of("phasing")).Take(60)];
+        RendezvousFrame[] frames =
+        [
+            .. run.Frames.Where(frame => frame.Of("hold-chase")),
+            .. run.Frames.Where(frame => frame.Of("phasing")).Take(60)
+        ];
 
         frames.Should().HaveCountGreaterThan(60);
         foreach (RendezvousFrame frame in frames)
         {
-            Picture.Contains(Picture.Project(frame.View, frame.Eye, frame.VerticalFov)).Should().BeTrue($"the person's eye is in the picture of {frame.Name}");
-            Shuttle.Glass.Should().Contain(pane => PaneChecks.Through(pane, frame.View.Position, frame.Eye), $"the camera sees the person's eye through the glass in {frame.Name}");
+            Picture.Contains(Picture.Project(frame.View, frame.Eye, frame.VerticalFov)).Should()
+                .BeTrue($"the person's eye is in the picture of {frame.Name}");
+            Shuttle.Glass.Should().Contain(pane => PaneChecks.Through(pane, frame.View.Position, frame.Eye),
+                $"the camera sees the person's eye through the glass in {frame.Name}");
         }
     }
 
@@ -495,7 +573,8 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
         RendezvousFrame[] closing = [.. run.Frames.Where(frame => frame.Of("closing"))];
 
         closing.Should().NotBeEmpty();
-        closing.Should().OnlyContain(frame => Picture.Contains(Picture.Project(frame.View, frame.Station, frame.VerticalFov)));
+        closing.Should().OnlyContain(frame =>
+            Picture.Contains(Picture.Project(frame.View, frame.Station, frame.VerticalFov)));
     }
 
     /// <summary>
@@ -505,8 +584,11 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
     [Fact]
     public void ThePenStaysInThePassengersHandThroughTheBurns()
     {
-        RendezvousTick[] burns = [.. AfterTheOrder.SkipWhile(tick => tick.CabinAcceleration.Length() < FrameTree.ZeroGravityThreshold)
-            .TakeWhile(tick => tick.Rendezvous.Value is not Glide)];
+        RendezvousTick[] burns =
+        [
+            .. AfterTheOrder.SkipWhile(tick => tick.CabinAcceleration.Length() < FrameTree.ZeroGravityThreshold)
+                .TakeWhile(tick => tick.Rendezvous.Value is not Glide)
+        ];
 
         burns.Should().NotBeEmpty();
         burns.Should().OnlyContain(tick => tick.Passenger.Value is Strapped);
@@ -524,19 +606,28 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
     [Fact]
     public void TheCockpitCameraShowsTheStrappedPersonWithThePenAndTheNoseWindow()
     {
-        Double3 noseWindow = Shuttle.Glass.Single(pane => pane.Id == "pane-nose").Center, half = (Double3)DemoSurface.PersonHalf;
-        RendezvousFrame[] cockpit = [.. run.Frames.Where(frame => frame.Of("night") || frame.Of("burn") || frame.Of("transfer-night") || frame.Of("arrival"))];
+        Double3 noseWindow = Shuttle.Glass.Single(pane => pane.Id == "pane-nose").Center, half = DemoSurface.PersonHalf;
+        RendezvousFrame[] cockpit =
+        [
+            .. run.Frames.Where(frame =>
+                frame.Of("night") || frame.Of("burn") || frame.Of("transfer-night") || frame.Of("arrival"))
+        ];
 
         cockpit.Should().NotBeEmpty();
         foreach (RendezvousFrame frame in cockpit)
         {
             frame.Pen.Should().NotBeNull($"the person holds the pen in {frame.Name}");
-            Picture.Contains(Picture.Project(frame.View, frame.Eye, frame.VerticalFov)).Should().BeTrue($"the person's eye is in the picture of {frame.Name}");
-            Picture.Contains(Picture.Project(frame.View, frame.Pen!.Value, frame.VerticalFov)).Should().BeTrue($"the pen is in the picture of {frame.Name}");
-            Picture.Contains(Picture.Project(frame.View, noseWindow, frame.VerticalFov)).Should().BeTrue($"the nose window is in the picture of {frame.Name}");
-            CrossesTheBox(frame.Person.InverseTransformPoint(frame.View.Position), frame.Person.InverseTransformPoint(frame.Pen!.Value), half)
+            Picture.Contains(Picture.Project(frame.View, frame.Eye, frame.VerticalFov)).Should()
+                .BeTrue($"the person's eye is in the picture of {frame.Name}");
+            Picture.Contains(Picture.Project(frame.View, frame.Pen!.Value, frame.VerticalFov)).Should()
+                .BeTrue($"the pen is in the picture of {frame.Name}");
+            Picture.Contains(Picture.Project(frame.View, noseWindow, frame.VerticalFov)).Should()
+                .BeTrue($"the nose window is in the picture of {frame.Name}");
+            CrossesTheBox(frame.Person.InverseTransformPoint(frame.View.Position),
+                    frame.Person.InverseTransformPoint(frame.Pen!.Value), half)
                 .Should().BeFalse($"the person's body hides the pen in {frame.Name}");
-            Picture.Cover(frame.View, frame.Person, half, frame.VerticalFov).Should().BeLessThanOrEqualTo(0.5, frame.Name);
+            Picture.Cover(frame.View, frame.Person, half, frame.VerticalFov).Should()
+                .BeLessThanOrEqualTo(0.5, frame.Name);
         }
     }
 
@@ -557,9 +648,11 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
                     return false;
                 continue;
             }
+
             double a = (-extent - start) / step, b = (extent - start) / step;
             (enter, leave) = (Math.Max(enter, Math.Min(a, b)), Math.Min(leave, Math.Max(a, b)));
         }
+
         return enter <= leave;
     }
 
@@ -571,8 +664,11 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
     [Fact]
     public void TheBurnFallsInEarthsShadow()
     {
-        RendezvousTick[] burn = [.. AfterTheOrder.SkipWhile(tick => tick.CabinAcceleration.Length() < FrameTree.ZeroGravityThreshold)
-            .TakeWhile(tick => tick.CabinAcceleration.Length() >= FrameTree.ZeroGravityThreshold)];
+        RendezvousTick[] burn =
+        [
+            .. AfterTheOrder.SkipWhile(tick => tick.CabinAcceleration.Length() < FrameTree.ZeroGravityThreshold)
+                .TakeWhile(tick => tick.CabinAcceleration.Length() >= FrameTree.ZeroGravityThreshold)
+        ];
 
         burn.Should().HaveCountGreaterThan(60, "the burn lasts more than a second");
         burn.Should().OnlyContain(tick => tick.InShadow);
@@ -587,10 +683,12 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
     {
         RendezvousTick brake = FirstOf<Brake>();
         double towardTheSun = Double3.Dot(brake.StationCenter, brake.ToSun);
-        bool shadowed = towardTheSun < 0 && (brake.StationCenter - brake.ToSun * towardTheSun).Length < DemoScenes.EarthRadius;
+        bool shadowed = towardTheSun < 0 &&
+                        (brake.StationCenter - brake.ToSun * towardTheSun).Length < DemoScenes.EarthRadius;
 
         shadowed.Should().BeFalse("the station is in sunlight at the arrival");
-        (90 - Degrees(brake.StationCenter, brake.ToSun)).Should().BeGreaterThan(30, "the Sun stands high over the station's horizon");
+        (90 - Degrees(brake.StationCenter, brake.ToSun)).Should()
+            .BeGreaterThan(30, "the Sun stands high over the station's horizon");
     }
 
     /// <summary>
@@ -630,8 +728,8 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
     {
         run.World.Errors.Should().BeEmpty();
         run.Logged.Where(line => line.Contains(nameof(RendezvousAutopilot))).Should().ContainSingle()
-            .Which.Should().EndWith($"{nameof(RendezvousAutopilot)} halts: the shuttle is not in the frame that holds its station.");
+            .Which.Should()
+            .EndWith($"{nameof(RendezvousAutopilot)} halts: the shuttle is not in the frame that holds its station.");
         Log[^1].Rendezvous.Value.Should().BeOfType<Hold>("the rendezvous holds until the docking takes over");
     }
-
 }

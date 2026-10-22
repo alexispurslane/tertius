@@ -1,5 +1,4 @@
 using System.Numerics;
-using Tertius;
 
 namespace Tertius.Core.Tests;
 
@@ -11,7 +10,8 @@ public class ContractChangeTests
         var tree = new PoseTree<DPose>();
         var nodes = new List<PoseNode> { tree.Add(PoseNode.Null, DPose.Identity) };
         for (int i = 1; i < 600; i++)
-            nodes.Add(tree.Add(nodes[(i - 1) / 3], new DPose(new Double3(i, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, i * 0.01))));
+            nodes.Add(tree.Add(nodes[(i - 1) / 3],
+                new(new(i, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, i * 0.01))));
         tree.UpdateWorld();
 
         var expected = new DPose[tree.Count];
@@ -30,12 +30,12 @@ public class ContractChangeTests
     {
         var tree = new PoseTree<DPose>();
         PoseNode root = tree.Add(PoseNode.Null, DPose.Identity);
-        PoseNode a = tree.Add(root, new DPose(new Double3(10, 0, 0), DQuaternion.Identity));
-        PoseNode b = tree.Add(root, new DPose(new Double3(20, 0, 0), DQuaternion.Identity));
+        PoseNode a = tree.Add(root, new(new(10, 0, 0), DQuaternion.Identity));
+        PoseNode b = tree.Add(root, new(new(20, 0, 0), DQuaternion.Identity));
         tree.UpdateWorld();
 
         DPose[] previous = tree.LocalPoses.ToArray();
-        previous[tree.DenseIndex(b)] = new DPose(new Double3(25, 0, 0), DQuaternion.Identity);
+        previous[tree.DenseIndex(b)] = new(new(25, 0, 0), DQuaternion.Identity);
         var result = new DPose[tree.Count];
         tree.ComputeRelativeTo(a, previous, result);
         Assert.Equal(15, result[tree.DenseIndex(b)].Position.X, 9);
@@ -47,20 +47,23 @@ public class ContractChangeTests
     public void DestroyingAFrameConvertsChildVelocities()
     {
         var frames = new FrameTree();
-        FrameHandle root = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
-        FrameHandle ship = frames.Create(new Entity(2, 1), root, new DPose(new Double3(1000, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2)), FrameBounds.Sphere(500));
-        FrameHandle shuttle = frames.Create(new Entity(3, 1), ship, new DPose(new Double3(10, 0, 0), DQuaternion.Identity), FrameBounds.Sphere(20));
-        frames.SetTreeLinearVelocity(ship, new Double3(0, 0, 100));
-        frames.SetAngularVelocity(ship, new Vector3(0, 0.1f, 0));
-        frames.SetTreeLinearVelocity(shuttle, new Double3(1, 0, 0));
+        FrameHandle root = frames.Create(new(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
+        FrameHandle ship = frames.Create(new(2, 1), root,
+            new(new(1000, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2)), FrameBounds.Sphere(500));
+        FrameHandle shuttle = frames.Create(new(3, 1), ship, new(new(10, 0, 0), DQuaternion.Identity),
+            FrameBounds.Sphere(20));
+        frames.SetTreeLinearVelocity(ship, new(0, 0, 100));
+        frames.SetAngularVelocity(ship, new(0, 0.1f, 0));
+        frames.SetTreeLinearVelocity(shuttle, new(1, 0, 0));
         frames.Update();
 
-        Double3 expected = frames.VelocityToParent(ship, new Double3(10, 0, 0), new Double3(1, 0, 0));
+        Double3 expected = frames.VelocityToParent(ship, new(10, 0, 0), new(1, 0, 0));
         frames.Destroy(ship);
         frames.Update();
 
         Assert.Equal(root, frames.Parent(shuttle));
-        Assert.True((frames.LinearVelocity(shuttle) - expected).Length < 1e-9, frames.LinearVelocity(shuttle).ToString());
+        Assert.True((frames.LinearVelocity(shuttle) - expected).Length < 1e-9,
+            frames.LinearVelocity(shuttle).ToString());
         Assert.Equal(0.1f, frames.AngularVelocity(shuttle).Y, 6);
     }
 
@@ -68,9 +71,11 @@ public class ContractChangeTests
     public void ChildOfADestroyedRootBecomesARootAndKeepsItsMotion()
     {
         var frames = new FrameTree();
-        FrameHandle root = frames.Create(new Entity(1, 1), FrameHandle.Null, new DPose(new Double3(5, 0, 0), DQuaternion.Identity), FrameBounds.Sphere(1e6f));
-        FrameHandle child = frames.Create(new Entity(2, 1), root, new DPose(new Double3(1, 0, 0), DQuaternion.Identity), FrameBounds.Sphere(10));
-        frames.SetTreeLinearVelocity(child, new Double3(0, 3, 0));
+        FrameHandle root = frames.Create(new(1, 1), FrameHandle.Null, new(new(5, 0, 0), DQuaternion.Identity),
+            FrameBounds.Sphere(1e6f));
+        FrameHandle child = frames.Create(new(2, 1), root, new(new(1, 0, 0), DQuaternion.Identity),
+            FrameBounds.Sphere(10));
+        frames.SetTreeLinearVelocity(child, new(0, 3, 0));
         frames.Update();
 
         frames.Destroy(root);
@@ -84,7 +89,7 @@ public class ContractChangeTests
     [Fact]
     public void FrameTopicsCarryTheFrameGeneration()
     {
-        var frame = new FrameHandle(new Entity(9, 1), 4, 7);
+        var frame = new FrameHandle(new(9, 1), 4, 7);
         Topic topic = frame.Topic;
         Assert.Equal(7u, topic.Generation);
         Target target = topic;
@@ -109,7 +114,8 @@ public class ContractChangeTests
     [Fact]
     public void RenderInstanceCreateIsDrawableAndStill()
     {
-        var i = RenderInstance.Create(new MeshId(1), new MaterialId(2), new Vector3(1, 2, 3), Quaternion.Identity, Vector3.One, 1.5f, HemisphereUp.Even, part: 2);
+        var i = RenderInstance.Create(new(1), new(2), new(1, 2, 3), Quaternion.Identity, Vector3.One, 1.5f,
+            HemisphereUp.Even, part: 2);
         Assert.Equal(i.Position, i.PreviousPosition);
         Assert.Equal(i.Rotation, i.PreviousRotation);
         Assert.Equal((ushort)2, i.Part);

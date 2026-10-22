@@ -24,12 +24,12 @@ public class PlainBodyOnRailsTests
     private static BodyDesc KinematicBall => Ball() with { Motion = BodyMotion.Kinematic };
 
     /// <summary>A plain kinematic ball on <see cref="Orbit"/> in <paramref name="space"/>, spawned where the orbit is at time 0.</summary>
-    private static Entity OnOrbit(World world, FrameHandle space) => world.Spawn(new SpawnDesc
+    private static Entity OnOrbit(World world, FrameHandle space) => world.Spawn(new()
     {
         Frame = space,
-        Pose = new DPose(Orbit.StateAt(0, Scenes.AsteroidMu).Position, Orbit.RotationAt(0, Scenes.AsteroidMu)),
+        Pose = new(Orbit.StateAt(0, Scenes.AsteroidMu).Position, Orbit.RotationAt(0, Scenes.AsteroidMu)),
         Body = KinematicBall,
-        Components = [new KeplerMotion { Orbit = Orbit }],
+        Components = [new KeplerMotion { Orbit = Orbit }]
     });
 
     [Fact]
@@ -43,10 +43,14 @@ public class PlainBodyOnRailsTests
         for (int i = 0; i < 30; i++)
         {
             world.Tick();
-            world.PoseIn(ball, space).Should().Be(new DPose(Orbit.StateAt(world.Time, Scenes.AsteroidMu).Position, Orbit.RotationAt(world.Time, Scenes.AsteroidMu)),
+            world.PoseIn(ball, space).Should().Be(
+                new DPose(Orbit.StateAt(world.Time, Scenes.AsteroidMu).Position,
+                    Orbit.RotationAt(world.Time, Scenes.AsteroidMu)),
                 "the body stands on its orbit at sync point {0}, rotation included", world.TickNumber);
         }
-        world.Frames.Numeric(world.GetFrame(ball)).Should().Be(NumericMode.None, "the body stays in the asteroid's own system");
+
+        world.Frames.Numeric(world.GetFrame(ball)).Should()
+            .Be(NumericMode.None, "the body stays in the asteroid's own system");
         world.Errors.Should().BeEmpty();
     }
 
@@ -60,14 +64,18 @@ public class PlainBodyOnRailsTests
     {
         using World world = NewWorld(out _);
         FrameHandle space = Scenes.AsteroidSpace(world);
-        Entity ball = world.Spawn(new SpawnDesc { Frame = space, Body = KinematicBall }.OnKeplerOrbit(world, Orbit, firstMove: true));
+        Entity ball =
+            world.Spawn(
+                new SpawnDesc { Frame = space, Body = KinematicBall }.OnKeplerOrbit(world, Orbit, firstMove: true));
 
         for (int i = 0; i < 5; i++)
         {
             world.Tick();
-            (world.PoseIn(ball, space).Position - Orbit.StateAt(world.Time, Scenes.AsteroidMu).Position).Length.Should().BeLessThan(1e-9,
-                "the body stands on its orbit at sync point {0}", world.TickNumber);
+            (world.PoseIn(ball, space).Position - Orbit.StateAt(world.Time, Scenes.AsteroidMu).Position).Length.Should()
+                .BeLessThan(1e-9,
+                    "the body stands on its orbit at sync point {0}", world.TickNumber);
         }
+
         world.Errors.Should().BeEmpty();
     }
 
@@ -78,16 +86,22 @@ public class PlainBodyOnRailsTests
         using World world = NewWorld(out _);
         FrameHandle space = Ground(world, 0);
         var spin = new FrameSpin(DQuaternion.Identity, 0.5);
-        Entity ball = world.Spawn(new SpawnDesc { Frame = space, Pose = At(3), Body = KinematicBall }.Spinning(world, spin, firstMove: true));
+        Entity ball =
+            world.Spawn(
+                new SpawnDesc { Frame = space, Pose = At(3), Body = KinematicBall }.Spinning(world, spin,
+                    firstMove: true));
 
         for (int i = 0; i < 5; i++)
         {
             world.Tick();
             DPose pose = world.PoseIn(ball, space);
-            pose.Position.Should().Be(new Double3(3, 0, 0), "the body turns in place at sync point {0}", world.TickNumber);
+            pose.Position.Should().Be(new Double3(3, 0, 0), "the body turns in place at sync point {0}",
+                world.TickNumber);
             DQuaternion expected = spin.RotationAt(world.Time);
-            Math.Abs((pose.Rotation.Conjugate() * expected).W).Should().BeGreaterThan(1 - 1e-12, "the body turns with the spin at sync point {0}", world.TickNumber);
+            Math.Abs((pose.Rotation.Conjugate() * expected).W).Should().BeGreaterThan(1 - 1e-12,
+                "the body turns with the spin at sync point {0}", world.TickNumber);
         }
+
         world.Errors.Should().BeEmpty();
     }
 
@@ -110,6 +124,7 @@ public class PlainBodyOnRailsTests
             (world.VelocityIn(ball, space) - velocity).Length.Should().BeLessThan(1e-3,
                 "the body reads its sample's instant velocity at sync point {0}", world.TickNumber);
         }
+
         world.Errors.Should().BeEmpty();
     }
 
@@ -123,9 +138,12 @@ public class PlainBodyOnRailsTests
     {
         using World world = NewWorld(out _);
         FrameHandle space = Ground(world, 0);
-        Entity ball = world.Spawn(KinematicDrift.Drifting(new SpawnDesc { Frame = space, Body = KinematicBall }, world, new Double3(1_200, 0, 0)));
+        Entity ball =
+            world.Spawn(KinematicDrift.Drifting(new() { Frame = space, Body = KinematicBall }, world,
+                new(1_200, 0, 0)));
         Tick(world, 10);
-        world.Frames.Numeric(world.PhysicsHomeOf(ball)).Should().NotBe(NumericMode.None, "a body at 1,200 m/s runs in a numeric frame");
+        world.Frames.Numeric(world.PhysicsHomeOf(ball)).Should()
+            .NotBe(NumericMode.None, "a body at 1,200 m/s runs in a numeric frame");
 
         for (int i = 0; i < 30; i++)
         {
@@ -133,6 +151,7 @@ public class PlainBodyOnRailsTests
             (world.VelocityIn(ball, space) - new Double3(1_200, 0, 0)).Length.Should().BeLessThan(1e-3,
                 "the ball reads the velocity of its end poses at sync point {0}", world.TickNumber);
         }
+
         world.Errors.Should().BeEmpty();
     }
 
@@ -146,8 +165,11 @@ public class PlainBodyOnRailsTests
     {
         using World world = NewWorld(out _);
         FrameHandle space = Ground(world, 0);
-        FrameHandle room = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = space, Pose = At(2_000), AsFrame = new FrameSpec(FrameBounds.Sphere(100)) }));
-        Entity ball = world.Spawn(KinematicDrift.Drifting(new SpawnDesc { Frame = space, Body = KinematicBall }, world, new Double3(1_200, 0, 0)));
+        FrameHandle room = world.GetOwnedFrame(world.Spawn(new()
+            { Frame = space, Pose = At(2_000), AsFrame = new(FrameBounds.Sphere(100)) }));
+        Entity ball =
+            world.Spawn(KinematicDrift.Drifting(new() { Frame = space, Body = KinematicBall }, world,
+                new(1_200, 0, 0)));
 
         var handOffs = new List<(FrameHandle To, bool FromNumeric, double Off)>();
         FrameHandle frame = world.GetFrame(ball);
@@ -160,17 +182,23 @@ public class PlainBodyOnRailsTests
                 frame = world.GetFrame(ball);
                 handOffs.Add((frame, numeric, (world.VelocityIn(ball, space) - new Double3(1_200, 0, 0)).Length));
             }
+
             numeric = world.Frames.Numeric(world.PhysicsHomeOf(ball)) != NumericMode.None;
         }
 
-        handOffs.Select(handOff => handOff.To).Should().Equal([room, space], "the ball passes through the room's bubble");
-        handOffs.Should().Contain(handOff => handOff.FromNumeric, "the ball hands off from a numeric home at least once");
-        handOffs.Should().AllSatisfy(handOff => handOff.Off.Should().BeLessThan(1e-3, "the hand-off into {0} carries the velocity of the end poses", handOff.To));
+        handOffs.Select(handOff => handOff.To).Should()
+            .Equal([room, space], "the ball passes through the room's bubble");
+        handOffs.Should().Contain(handOff => handOff.FromNumeric,
+            "the ball hands off from a numeric home at least once");
+        handOffs.Should().AllSatisfy(handOff =>
+            handOff.Off.Should().BeLessThan(1e-3, "the hand-off into {0} carries the velocity of the end poses",
+                handOff.To));
         world.Errors.Should().BeEmpty();
     }
 
     /// <summary>
-    /// Moves its body on a straight line along +X in <paramref name="space"/> that speeds up at <paramref name="acceleration"/>
+    /// Moves its body on a straight line along +X in <paramref name="space"/> that speeds up at
+    /// <paramref name="acceleration"/>
     /// m/s², from <paramref name="start"/> at 2 m/s at time 0, and turns it about Z, from 0.5 rad/s at time 0, faster by
     /// <paramref name="spinUp"/> rad/s². In every tick it writes the full sample of the step that the tick's intents act in,
     /// in the frame that the body is in, through the frames' relation that the tick reads. The frames in these tests do not
@@ -178,17 +206,17 @@ public class PlainBodyOnRailsTests
     /// </summary>
     private sealed class Speeding(FrameHandle space, Double3 start, double acceleration, double spinUp) : IComponent
     {
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
         public Double3 At(double time) => start + new Double3(2 * time + 0.5 * acceleration * time * time, 0, 0);
 
         public Double3 VelocityAt(double time) => new(2 + acceleration * time, 0, 0);
 
-        public DQuaternion RotationAt(double time) => DQuaternion.FromAxisAngle(Double3.UnitZ, 0.5 * time + 0.5 * spinUp * time * time);
+        public DQuaternion RotationAt(double time) =>
+            DQuaternion.FromAxisAngle(Double3.UnitZ, 0.5 * time + 0.5 * spinUp * time * time);
 
         public Double3 AngularVelocityAt(double time) => new(0, 0, 0.5 + spinUp * time);
-
-        public int Priority => 0;
-
-        public EventMask Wants => EventMask.Of<Tick>();
 
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
@@ -196,8 +224,8 @@ public class PlainBodyOnRailsTests
             double step = self.DeltaTime;
             DPose relation = self.Snapshot.Frames.Relative(space, self.Frame);
             DQuaternion turn = relation.Rotation;
-            self.MoveOnRails(new MotionSample(
-                DPose.Compose(relation, new DPose(At(end), RotationAt(end))),
+            self.MoveOnRails(new(
+                DPose.Compose(relation, new(At(end), RotationAt(end))),
                 turn.Rotate((At(end) - At(end - step)) / step),
                 turn.Rotate(VelocityAt(end)),
                 turn.Rotate(new Double3(acceleration, 0, 0)),
@@ -211,25 +239,27 @@ public class PlainBodyOnRailsTests
     /// <paramref name="lopsided"/>, the cube sits 1 m along its X axis from the body's origin, so its centre of mass does too
     /// (see <see cref="CentreOfMass"/>).
     /// </summary>
-    private static Entity CubeOn(World world, FrameHandle space, Speeding rails, bool lopsided = false) => world.Spawn(new SpawnDesc
-    {
-        Frame = space,
-        Pose = new DPose(rails.At(0), rails.RotationAt(0)),
-        Body = new BodyDesc(lopsided
-            ? new CompoundShapeDesc([new CompoundChild(new BoxShapeDesc(new Vector3(0.5f)), new Pose(new Vector3(1, 0, 0), Quaternion.Identity))])
-            : new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Kinematic),
-        Components = [rails],
-    });
+    private static Entity CubeOn(World world, FrameHandle space, Speeding rails, bool lopsided = false) => world.Spawn(
+        new()
+        {
+            Frame = space,
+            Pose = new(rails.At(0), rails.RotationAt(0)),
+            Body = new(lopsided
+                ? new CompoundShapeDesc([new(new BoxShapeDesc(new(0.5f)), new(new(1, 0, 0), Quaternion.Identity))])
+                : new BoxShapeDesc(new(0.5f)), BodyMotion.Kinematic),
+            Components = [rails]
+        });
 
     /// <summary>The centre of mass of a cube of <see cref="CubeOn"/> in its body's axes.</summary>
-    private static Double3 CentreOfMass(bool lopsided) => lopsided ? new Double3(1, 0, 0) : Double3.Zero;
+    private static Double3 CentreOfMass(bool lopsided) => lopsided ? new(1, 0, 0) : Double3.Zero;
 
     /// <summary>
     /// The instant velocity of the centre of mass of a cube of <see cref="CubeOn"/> on <paramref name="rails"/> at
     /// <paramref name="time"/>: the velocity of its origin, plus the turn of the arm from the origin to the centre of mass.
     /// </summary>
     private static Double3 CentreVelocity(Speeding rails, double time, bool lopsided) =>
-        rails.VelocityAt(time) + Double3.Cross(rails.AngularVelocityAt(time), rails.RotationAt(time).Rotate(CentreOfMass(lopsided)));
+        rails.VelocityAt(time) + Double3.Cross(rails.AngularVelocityAt(time),
+            rails.RotationAt(time).Rotate(CentreOfMass(lopsided)));
 
     /// <summary>
     /// The velocity that gameplay reads for a plain body is that of its centre of mass, as Jolt gives it for every body. So
@@ -240,7 +270,7 @@ public class PlainBodyOnRailsTests
     public void APlainBodyOnRailsReadsTheInstantVelocityOfItsCentreOfMass()
     {
         using World world = NewWorld(out _);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         var rails = new Speeding(space, Double3.Zero, acceleration: 3, spinUp: 2);
         Entity cube = CubeOn(world, space, rails, lopsided: true);
         Tick(world, 2);
@@ -248,9 +278,11 @@ public class PlainBodyOnRailsTests
         for (int i = 0; i < 30; i++)
         {
             world.Tick();
-            (world.VelocityIn(cube, space) - CentreVelocity(rails, world.Time, lopsided: true)).Length.Should().BeLessThan(1e-4,
-                "the body reads the instant velocity of its centre of mass at sync point {0}", world.TickNumber);
+            (world.VelocityIn(cube, space) - CentreVelocity(rails, world.Time, lopsided: true)).Length.Should()
+                .BeLessThan(1e-4,
+                    "the body reads the instant velocity of its centre of mass at sync point {0}", world.TickNumber);
         }
+
         world.Errors.Should().BeEmpty();
     }
 
@@ -263,7 +295,7 @@ public class PlainBodyOnRailsTests
     public void APlainBodyOnRailsReadsTheSamplesInstantAngularVelocity()
     {
         using World world = NewWorld(out _);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         var rails = new Speeding(space, Double3.Zero, acceleration: 0, spinUp: 2);
         Entity cube = CubeOn(world, space, rails);
         Tick(world, 2);
@@ -271,9 +303,11 @@ public class PlainBodyOnRailsTests
         for (int i = 0; i < 30; i++)
         {
             world.Tick();
-            ((Double3)world.AngularVelocityIn(cube, space) - rails.AngularVelocityAt(world.Time)).Length.Should().BeLessThan(1e-4,
+            (world.AngularVelocityIn(cube, space) - rails.AngularVelocityAt(world.Time)).Length.Should().BeLessThan(
+                1e-4,
                 "the body reads its sample's instant angular velocity at sync point {0}", world.TickNumber);
         }
+
         world.Errors.Should().BeEmpty();
     }
 
@@ -290,15 +324,16 @@ public class PlainBodyOnRailsTests
     public void APlainBodyOnRailsThatHandsOffCarriesTheSamplesInstantVelocity(bool lopsided)
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
-        var turned = DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2) * DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2);
-        FrameHandle room = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
+        DQuaternion turned = DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2) *
+                             DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2);
+        FrameHandle room = world.GetOwnedFrame(world.Spawn(new()
         {
             Frame = space,
-            Pose = new DPose(new Double3(20, 0, 0), turned),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
+            Pose = new(new(20, 0, 0), turned),
+            AsFrame = new(FrameBounds.Sphere(5))
         }));
-        var rails = new Speeding(space, new Double3(5, 0, 0), acceleration: 3, spinUp: 2);
+        var rails = new Speeding(space, new(5, 0, 0), acceleration: 3, spinUp: 2);
         Entity cube = CubeOn(world, space, rails, lopsided);
         Tick(world, 2);
 
@@ -311,20 +346,26 @@ public class PlainBodyOnRailsTests
                 continue;
             frame = world.GetFrame(cube);
             handOffs.Add((frame, (world.VelocityIn(cube, space) - CentreVelocity(rails, world.Time, lopsided)).Length,
-                ((Double3)world.AngularVelocityIn(cube, space) - rails.AngularVelocityAt(world.Time)).Length));
+                (world.AngularVelocityIn(cube, space) - rails.AngularVelocityAt(world.Time)).Length));
             HandOff handOff = faults.Outputs[^1].HandOffs.Single(h => h.Entity == cube);
             BodyState state = faults.Outputs[^1].Bodies.Single(b => b.Entity == cube);
             state.Frame.Should().Be(handOff.To);
-            (state.Pose.Position - handOff.Pose.Position).Length.Should().BeLessThan(1e-9, "the body state is the cube's place in its new frame");
-            Math.Abs(Dot(state.Pose.Rotation, handOff.Pose.Rotation)).Should().BeGreaterThan(1 - 1e-6, "and its rotation there");
-            (state.LinearVelocity - handOff.LinearVelocity).Length().Should().BeLessThan(1e-5f, "and its velocity there");
+            (state.Pose.Position - handOff.Pose.Position).Length.Should()
+                .BeLessThan(1e-9, "the body state is the cube's place in its new frame");
+            Math.Abs(Dot(state.Pose.Rotation, handOff.Pose.Rotation)).Should()
+                .BeGreaterThan(1 - 1e-6, "and its rotation there");
+            (state.LinearVelocity - handOff.LinearVelocity).Length().Should()
+                .BeLessThan(1e-5f, "and its velocity there");
         }
 
-        handOffs.Select(handOff => handOff.To).Should().Equal([room, space], "the cube passes through the room's bubble");
+        handOffs.Select(handOff => handOff.To).Should()
+            .Equal([room, space], "the cube passes through the room's bubble");
         handOffs.Should().AllSatisfy(handOff =>
         {
-            handOff.Off.Should().BeLessThan(1e-4, "the hand-off into {0} carries the instant velocity of the step's sample", handOff.To);
-            handOff.TurnOff.Should().BeLessThan(1e-4, "the hand-off into {0} carries the instant angular velocity of the step's sample", handOff.To);
+            handOff.Off.Should().BeLessThan(1e-4,
+                "the hand-off into {0} carries the instant velocity of the step's sample", handOff.To);
+            handOff.TurnOff.Should().BeLessThan(1e-4,
+                "the hand-off into {0} carries the instant angular velocity of the step's sample", handOff.To);
         });
         world.Errors.Should().BeEmpty();
     }

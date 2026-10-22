@@ -1,4 +1,3 @@
-using System.Numerics;
 using AwesomeAssertions;
 using Tertius.Frames.Rails;
 
@@ -8,7 +7,8 @@ namespace Tertius.Core.Tests;
 /// The gravity that a body feels in a frame (docs/plans/spin-gravity.md, "V5, the effective gravity"):
 /// <see cref="FrameTree.LinearGravity"/>, the field minus the proper acceleration and the home's acceleration, and
 /// <see cref="FrameTree.EffectiveGravity"/> and <see cref="FrameTree.SemanticGravity"/>, which add the centrifugal and the
-/// Euler term of a turning frame at the body's semantic place, from the turns that <see cref="FrameTree.BeginStep"/> fixed.
+/// Euler term of a turning frame at the body's semantic place, from the turns that <see cref="FrameTree.BeginStep"/>
+/// fixed.
 /// Each value is worked out by hand.
 /// <para>
 /// The station of the tests holds a uniform field of 2 m/s² along its −Y, so that the sum of the field and the rotation
@@ -27,24 +27,26 @@ public class FrameTreeEffectiveGravityTests
     private const double SpinUpRate = 0.5;
 
     private static readonly FrameSpin StationSpin = new(DQuaternion.Identity, StationRate);
-    private static readonly GravityField StationField = GravityField.Uniform(new Vector3(0, -2, 0));
+    private static readonly GravityField StationField = GravityField.Uniform(new(0, -2, 0));
     private static readonly Double3 Rim = new(100, 0, 0);
 
     private readonly FrameTree frames = new();
     private readonly FrameHandle space;
     private uint nextOwner = 2;
 
-    public FrameTreeEffectiveGravityTests() =>
-        space = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
+    public FrameTreeEffectiveGravityTests()
+    {
+        space = frames.Create(new(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
+    }
 
     private FrameHandle Station(GravityField? field = null) =>
-        frames.Create(new Entity(nextOwner++, 1), space, DPose.Identity, FrameBounds.Sphere(1e5f), field ?? StationField);
+        frames.Create(new(nextOwner++, 1), space, DPose.Identity, FrameBounds.Sphere(1e5f), field ?? StationField);
 
     /// <summary>The intents of a step in which the owner of <paramref name="frame"/> wrote <paramref name="move"/>, relative to the frame's parent.</summary>
     private PhysicsIntent[] Intents(FrameHandle frame, MotionIntent move)
     {
         var intents = new PhysicsIntent[nextOwner];
-        intents[frame.Entity.Index] = new PhysicsIntent { Frame = frames.Parent(frame), Move = move };
+        intents[frame.Entity.Index] = new() { Frame = frames.Parent(frame), Move = move };
         return intents;
     }
 
@@ -61,10 +63,11 @@ public class FrameTreeEffectiveGravityTests
 
     private static MotionIntent Spin(double stepEnd) => new(StationSpin.Sample(Double3.Zero, stepEnd, Step));
 
-    /// <summary>The full sample of the step that ends at <paramref name="stepEnd"/> of a frame that spins up about +Y from rest at time 0, at <see cref="SpinUpRate"/>.</summary>
+    /// <summary>The full sample of the step that ends at <paramref name="stepEnd"/> of a frame that spins up about +Y from rest at time 0, at
+    /// <see cref="SpinUpRate"/>.</summary>
     private static MotionIntent SpinningUp(double stepEnd) => new(new MotionSample(
-        new DPose(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, 0.5 * SpinUpRate * stepEnd * stepEnd)),
-        Double3.Zero, Double3.Zero, Double3.Zero, new Double3(0, SpinUpRate * stepEnd, 0), new Double3(0, SpinUpRate, 0)));
+        new(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, 0.5 * SpinUpRate * stepEnd * stepEnd)),
+        Double3.Zero, Double3.Zero, Double3.Zero, new(0, SpinUpRate * stepEnd, 0), new(0, SpinUpRate, 0)));
 
     private static void ExpectNear(Double3 actual, Double3 expected, double tolerance) =>
         Double3.Distance(actual, expected).Should().BeLessThan(tolerance, $"{actual} is not {expected}");
@@ -84,7 +87,7 @@ public class FrameTreeEffectiveGravityTests
         FrameHandle station = SpinningStation();
 
         // ω² r = 0.31321² · 100 m = 9.81005041 m/s², outward along +X, and the field of 2 m/s² along −Y.
-        ExpectNear(frames.EffectiveGravity(station, Rim), new Double3(StationRate * StationRate * 100, -2, 0), 1e-12);
+        ExpectNear(frames.EffectiveGravity(station, Rim), new(StationRate * StationRate * 100, -2, 0), 1e-12);
     }
 
     [Fact]
@@ -97,7 +100,7 @@ public class FrameTreeEffectiveGravityTests
         // The step in flight ends at End(2), where the station turns at α · End(2) = 1/60 rad/s, and the angular velocity
         // grew by α over the step: the Euler term is α r = 50 m/s² along +Z.
         double rate = SpinUpRate * End(2);
-        ExpectNear(frames.EffectiveGravity(station, Rim), new Double3(rate * rate * 100, -2, SpinUpRate * 100), 1e-9);
+        ExpectNear(frames.EffectiveGravity(station, Rim), new(rate * rate * 100, -2, SpinUpRate * 100), 1e-9);
     }
 
     [Fact]
@@ -112,7 +115,8 @@ public class FrameTreeEffectiveGravityTests
     public void ANewFrameFeelsOnlyItsLinearGravityBeforeItsFirstStepAlsoInTheSlotOfADestroyedFrameThatTurned()
     {
         FrameHandle fresh = Station();
-        frames.EffectiveGravity(fresh, Rim).Should().Be(frames.LinearGravity(fresh, Rim), "a frame that had no step reads no turn");
+        frames.EffectiveGravity(fresh, Rim).Should()
+            .Be(frames.LinearGravity(fresh, Rim), "a frame that had no step reads no turn");
 
         FrameHandle station = Station();
         for (int k = 1; k <= 2; k++)
@@ -131,37 +135,41 @@ public class FrameTreeEffectiveGravityTests
     {
         // A pod falls 10 km from the station's axis. A body 5 m past the pod's origin along +X is 10,005 m from the axis.
         FrameHandle station = Station();
-        FrameHandle pod = FallingFrame(station, new Double3(10_000, 0, 0), new Double3(0, 0, -3_000));
+        FrameHandle pod = FallingFrame(station, new(10_000, 0, 0), new(0, 0, -3_000));
         for (int k = 1; k <= 3; k++)
             RunStep(Intents(station, Spin(End(k))));
 
-        ExpectNear(frames.SemanticGravity(pod, new Double3(5, 0, 0)), new Double3(StationRate * StationRate * 10_005, -2, 0), 1e-9);
-        frames.SemanticGravity(station, Rim).Should().Be(frames.EffectiveGravity(station, Rim), "in a semantic frame the two are one");
+        ExpectNear(frames.SemanticGravity(pod, new(5, 0, 0)), new(StationRate * StationRate * 10_005, -2, 0), 1e-9);
+        frames.SemanticGravity(station, Rim).Should()
+            .Be(frames.EffectiveGravity(station, Rim), "in a semantic frame the two are one");
     }
 
     [Fact]
     public void TheEffectiveGravityInANumericFrameOfATurningFrameIsItsSemanticGravityLessTheHomesAcceleration()
     {
         FrameHandle station = Station();
-        FrameHandle pod = FallingFrame(station, new Double3(10_000, 0, 0), new Double3(0, 0, -3_000));
+        FrameHandle pod = FallingFrame(station, new(10_000, 0, 0), new(0, 0, -3_000));
         for (int k = 1; k <= 3; k++)
             RunStep(Intents(station, Spin(End(k))));
         var member = new Double3(5, 0, 0);
 
-        frames.HomeAcceleration(pod, station).Should().NotBe(Double3.Zero, "the origin of the falling pod keeps to the inertial line of a free body");
-        ExpectNear(frames.EffectiveGravity(pod, member), frames.SemanticGravity(pod, member) - frames.HomeAcceleration(pod, station), 1e-9);
+        frames.HomeAcceleration(pod, station).Should().NotBe(Double3.Zero,
+            "the origin of the falling pod keeps to the inertial line of a free body");
+        ExpectNear(frames.EffectiveGravity(pod, member),
+            frames.SemanticGravity(pod, member) - frames.HomeAcceleration(pod, station), 1e-9);
     }
 
-    /// <summary>The falling numeric frame that a numeric update gives one body of <paramref name="semantic"/> at <paramref name="position"/>.</summary>
+    /// <summary>The falling numeric frame that a numeric update gives one body of <paramref name="semantic"/> at
+    /// <paramref name="position"/>.</summary>
     private FrameHandle FallingFrame(FrameHandle semantic, Double3 position, Double3 velocity)
     {
         FrameHandle home = FrameHandle.Null;
         var body = new NumericBody
         {
-            Entity = new Entity(100, 1), Semantic = semantic, Home = semantic, Position = position, HomePosition = position,
-            Velocity = velocity, Radius = 1, Mass = 1,
+            Entity = new(100, 1), Semantic = semantic, Home = semantic, Position = position, HomePosition = position,
+            Velocity = velocity, Radius = 1, Mass = 1
         };
-        frames.UpdateNumericFrames([body], 0.1, 0.1, new PhysicsChanges(), moves => home = moves.Single().To);
+        frames.UpdateNumericFrames([body], 0.1, 0.1, new(), moves => home = moves.Single().To);
         frames.Numeric(home).Should().Be(NumericMode.Falling);
         return home;
     }

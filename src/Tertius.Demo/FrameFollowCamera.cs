@@ -1,4 +1,3 @@
-using System.Numerics;
 using Tertius.Simulation;
 
 namespace Tertius.Demo;
@@ -18,7 +17,8 @@ namespace Tertius.Demo;
 /// <param name="reference">The frame in whose axes the offset and the look hold.</param>
 /// <param name="offset">The camera's place relative to the subject's center, in the reference's axes, in meters.</param>
 /// <param name="forward">The way that the camera looks, in the reference's axes.</param>
-/// <param name="up">The way that the top of the picture points, in the reference's axes. It must not lie along <paramref name="forward"/>.</param>
+/// <param name="up">The way that the top of the picture points, in the reference's axes. It must not lie along
+/// <paramref name="forward"/>.</param>
 public sealed class FrameFollowCamera(FrameHandle reference, Double3 offset, Double3 forward, Double3 up) : IComponent
 {
     private readonly FrameHandle reference = reference;
@@ -31,9 +31,11 @@ public sealed class FrameFollowCamera(FrameHandle reference, Double3 offset, Dou
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
         Entity subject = self.AttachedTo;
-        if (subject.IsNull || !self.Snapshot.Frames.IsAlive(reference) || !self.Snapshot.TryGetPoseIn(subject, reference, out DPose pose))
+        if (subject.IsNull || !self.Snapshot.Frames.IsAlive(reference) ||
+            !self.Snapshot.TryGetPoseIn(subject, reference, out DPose pose))
             return;
         DQuaternion toSubject = pose.Rotation.Conjugate();
-        self.AttachOffset = new Pose(toSubject.Rotate(offset).ToVector3(), ChaseCamera.View(toSubject.Rotate(forward), toSubject.Rotate(up)));
+        self.AttachOffset = new(toSubject.Rotate(offset).ToVector3(),
+            ChaseCamera.View(toSubject.Rotate(forward), toSubject.Rotate(up)));
     }
 }

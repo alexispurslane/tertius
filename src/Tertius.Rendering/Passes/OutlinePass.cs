@@ -13,12 +13,16 @@ internal static class OutlineColors
 {
     /// <summary>A semantic frame's bubble: #7AA7FA, blue.</summary>
     public static readonly uint Semantic = Pack(0x7AA7FA);
+
     /// <summary>A falling numeric frame: #E58FB4, pink.</summary>
     public static readonly uint Falling = Pack(0xE58FB4);
+
     /// <summary>A resting numeric frame: #4FC1B6, teal.</summary>
     public static readonly uint Resting = Pack(0x4FC1B6);
+
     /// <summary>A nesting numeric frame: #B58CF0, purple.</summary>
     public static readonly uint Nesting = Pack(0xB58CF0);
+
     /// <summary>A following frame: #C9B458, gold.</summary>
     public static readonly uint Following = Pack(0xC9B458);
 
@@ -47,8 +51,10 @@ internal sealed class OutlinePass : RenderPass
 {
     /// <summary>The segments of each ring.</summary>
     public const int SegmentsPerRing = 64;
+
     /// <summary>The rings of each outline: three in the principal planes, and the outline of a sphere seen from the eye.</summary>
     public const int Rings = 4;
+
     /// <summary>
     /// The vertices of one outline: 6 for each segment of each ring. An ellipsoid has no outline as seen from the eye,
     /// so the 384 vertices of its fourth ring collapse to nothing.
@@ -75,7 +81,7 @@ internal sealed class OutlinePass : RenderPass
             CullMode = CullModeFlags.None,
             // The vertex shader cuts each segment at the near plane, so no clipping is wanted there. No depth buffer is bound.
             DepthClamp = true,
-            Blend = BlendMode.Alpha,
+            Blend = BlendMode.Alpha
         }.Create(device, shaders);
     }
 
@@ -94,13 +100,13 @@ internal sealed class OutlinePass : RenderPass
     internal static void Collect(RenderSnapshot snapshot, PreparedScene scene)
     {
         foreach (ref readonly FrameOutline outline in CollectionsMarshal.AsSpan(snapshot.Outlines))
-        {
             // The default outline holds no case, so no arm takes it.
             switch (outline)
             {
                 case SemanticOutline(var center, var rotation, var radii):
                     // A bubble with three equal radii is a sphere, by the rule of FrameBounds, so it also gets its rim.
-                    Add(scene, center, new Vector4(rotation.X, rotation.Y, rotation.Z, rotation.W), radii, OutlineColors.Semantic,
+                    Add(scene, center, new(rotation.X, rotation.Y, rotation.Z, rotation.W), radii,
+                        OutlineColors.Semantic,
                         new FrameBounds(radii).IsSphere ? GpuOutline.SphereFlag : 0);
                     break;
                 case FallingOutline(var center, var radius):
@@ -116,14 +122,14 @@ internal sealed class OutlinePass : RenderPass
                     AddSphere(scene, center, radius, OutlineColors.Following);
                     break;
             }
-        }
     }
 
     /// <summary>A contents sphere has no axes of its own, so its rings lie in the axes of the camera's frame.</summary>
     private static void AddSphere(PreparedScene scene, Vector3 center, float radius, uint color) =>
-        Add(scene, center, new Vector4(0, 0, 0, 1), new Vector3(radius), color, GpuOutline.SphereFlag);
+        Add(scene, center, new(0, 0, 0, 1), new(radius), color, GpuOutline.SphereFlag);
 
-    private static void Add(PreparedScene scene, Vector3 center, Vector4 rotation, Vector3 radii, uint color, uint flags)
+    private static void Add(PreparedScene scene, Vector3 center, Vector4 rotation, Vector3 radii, uint color,
+        uint flags)
     {
         float outlineRadius = MathF.Max(radii.X, MathF.Max(radii.Y, radii.Z));
         Vector3 position = center - scene.Camera.Offset;
@@ -131,7 +137,8 @@ internal sealed class OutlinePass : RenderPass
         if (!float.IsFinite(position.X + position.Y + position.Z + radii.X + radii.Y + radii.Z) || !(outlineRadius > 0f)
             || scene.Camera.Culls(position, outlineRadius))
             return;
-        scene.AppendOutline(new GpuOutline { Rotation = rotation, Center = position, Color = color, Radii = radii, Flags = flags });
+        scene.AppendOutline(new()
+            { Rotation = rotation, Center = position, Color = color, Radii = radii, Flags = flags });
     }
 
     public override unsafe void Record(FrameContext context)
@@ -153,23 +160,25 @@ internal sealed class OutlinePass : RenderPass
             ImageView = context.Output.View,
             ImageLayout = ImageLayout.ColorAttachmentOptimal,
             LoadOp = AttachmentLoadOp.Load,
-            StoreOp = AttachmentStoreOp.Store,
+            StoreOp = AttachmentStoreOp.Store
         };
         var rendering = new RenderingInfo
         {
             SType = StructureType.RenderingInfo,
-            RenderArea = new Rect2D(new Offset2D(0, 0), context.Output.Extent),
+            RenderArea = new(new Offset2D(0, 0), context.Output.Extent),
             LayerCount = 1,
             ColorAttachmentCount = 1,
-            PColorAttachments = &color,
+            PColorAttachments = &color
         };
         vk.CmdBeginRendering(commandBuffer, &rendering);
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, pipeline);
-        DescriptorSet* sets = stackalloc[] { context.Frame.FrameSet, context.Frame.TextureSet, context.Targets.GBufferSet };
+        DescriptorSet* sets = stackalloc[]
+            { context.Frame.FrameSet, context.Frame.TextureSet, context.Targets.GBufferSet };
         vk.CmdBindDescriptorSets(commandBuffer, PipelineBindPoint.Graphics, layouts.OverlayLayout, 0, 3, sets, 0, null);
         context.SetFullViewport();
         var push = new OutlinePushConstants { EncodeSrgb = context.EncodeSrgb ? 1u : 0u };
-        vk.CmdPushConstants(commandBuffer, layouts.OverlayLayout, ShaderStageFlags.FragmentBit, 0, (uint)sizeof(OutlinePushConstants), &push);
+        vk.CmdPushConstants(commandBuffer, layouts.OverlayLayout, ShaderStageFlags.FragmentBit, 0,
+            (uint)sizeof(OutlinePushConstants), &push);
         vk.CmdDraw(commandBuffer, VerticesPerOutline, (uint)count, 0, 0);
         vk.CmdEndRendering(commandBuffer);
     }

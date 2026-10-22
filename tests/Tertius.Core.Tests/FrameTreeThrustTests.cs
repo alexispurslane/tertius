@@ -18,8 +18,10 @@ public class FrameTreeThrustTests
     private readonly FrameHandle ground;
     private readonly PhysicsChanges changes = new();
 
-    public FrameTreeThrustTests() =>
-        ground = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
+    public FrameTreeThrustTests()
+    {
+        ground = frames.Create(new(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
+    }
 
     private static Double3 X(double x) => new(x, 0, 0);
 
@@ -29,7 +31,7 @@ public class FrameTreeThrustTests
     /// </summary>
     private NumericBody Body(uint id, double x, double vx, double thrust = 0) => new()
     {
-        Entity = new Entity(id, 1),
+        Entity = new(id, 1),
         Semantic = ground,
         Home = ground,
         Position = X(x),
@@ -37,7 +39,7 @@ public class FrameTreeThrustTests
         Velocity = X(vx),
         Radius = 1,
         Mass = 1,
-        ThrustAcceleration = thrust,
+        ThrustAcceleration = thrust
     };
 
     /// <summary>Runs one update and returns the bodies with their new homes and their places in them.</summary>
@@ -47,12 +49,15 @@ public class FrameTreeThrustTests
         var moves = new List<NumericMove>();
         frames.UpdateNumericFrames(bodies, dt, 1.0 / 60, changes, moves.AddRange);
         frames.AssertInvariants();
-        var homes = moves.ToDictionary(move => move.Entity, move => move.To);
-        return bodies.Select(body =>
-        {
-            FrameHandle home = homes.TryGetValue(body.Entity, out FrameHandle to) ? to : body.Home;
-            return body with { Home = home, HomePosition = body.Position - frames.HomeOffset(home, body.Semantic) };
-        }).ToArray();
+        Dictionary<Entity, FrameHandle> homes = moves.ToDictionary(move => move.Entity, move => move.To);
+        return
+        [
+            .. bodies.Select(body =>
+            {
+                FrameHandle home = homes.TryGetValue(body.Entity, out FrameHandle to) ? to : body.Home;
+                return body with { Home = home, HomePosition = body.Position - frames.HomeOffset(home, body.Semantic) };
+            })
+        ];
     }
 
     /// <summary>Runs <paramref name="count"/> updates of the body alone and returns it with its home after the last one.</summary>
@@ -65,7 +70,8 @@ public class FrameTreeThrustTests
 
     [Fact]
     public void A_free_body_at_60_m_s_stays_in_its_semantic_frame() =>
-        Update(Tick, Body(10, x: 100, vx: 60))[0].Home.Should().Be(ground, "a group of free bodies falls only from 1,000 m/s");
+        Update(Tick, Body(10, x: 100, vx: 60))[0].Home.Should()
+            .Be(ground, "a group of free bodies falls only from 1,000 m/s");
 
     [Fact]
     public void A_character_at_60_m_s_gets_a_falling_frame_at_the_first_update()
@@ -98,7 +104,8 @@ public class FrameTreeThrustTests
     }
 
     [Fact]
-    public void A_free_body_and_a_body_that_thrusts_whose_common_speed_reaches_the_thrust_create_speed_get_a_falling_frame()
+    public void
+        A_free_body_and_a_body_that_thrusts_whose_common_speed_reaches_the_thrust_create_speed_get_a_falling_frame()
     {
         // Neither body needs a frame by itself: the free one is below 1,000 m/s and the character below 50 m/s. Together
         // they thrust at 50 m/s, so the update must look at the frame although no body passes its own threshold.

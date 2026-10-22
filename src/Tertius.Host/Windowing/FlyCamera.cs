@@ -11,7 +11,7 @@ public enum FlyKey
     Right,
     Down,
     Up,
-    Fast,
+    Fast
 }
 
 /// <summary>
@@ -44,9 +44,11 @@ public sealed class FlyCamera
     /// the yaw about the frame's +Y.
     /// </summary>
     public Quaternion Rotation =>
-        Quaternion.CreateFromAxisAngle(Vector3.UnitY, yaw) * start * Quaternion.CreateFromAxisAngle(Vector3.UnitX, pitch);
+        Quaternion.CreateFromAxisAngle(Vector3.UnitY, yaw) * start *
+        Quaternion.CreateFromAxisAngle(Vector3.UnitX, pitch);
 
-    /// <summary>The id of the world camera's frame when the camera started, as <see cref="RenderSnapshot.OriginFrameId"/> gives it.</summary>
+    /// <summary>The id of the world camera's frame when the camera started, as <see cref="RenderSnapshot.OriginFrameId"/>
+    /// gives it.</summary>
     public long Frame { get; private set; }
 
     /// <summary>

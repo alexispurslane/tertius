@@ -1,7 +1,5 @@
-using System.Numerics;
 using Tertius.Demo;
 using Tertius.Frames.Rails;
-using Tertius.Physics;
 using Tertius.Simulation;
 using static Tertius.Host.Tests.RendezvousAutopilotTests;
 using static Tertius.Testing.WorldTesting;
@@ -16,7 +14,8 @@ namespace Tertius.Host.Tests;
 /// degree, where <see cref="KeplerOrbit.Lambert"/> refuses it. <see cref="HighOrbitRun"/> flies a plan where it does not:
 /// a station in a geostationary orbit turns only 0.25 degrees a minute.
 /// </summary>
-public sealed class RendezvousCoastTests(RendezvousCoastTests.HighOrbitRun run) : IClassFixture<RendezvousCoastTests.HighOrbitRun>
+public sealed class RendezvousCoastTests(RendezvousCoastTests.HighOrbitRun run)
+    : IClassFixture<RendezvousCoastTests.HighOrbitRun>
 {
     /// <summary>
     /// The plan's transfer angle falls below Lambert's refused angle about 240 s before the arrival. The autopilot logs no
@@ -26,7 +25,9 @@ public sealed class RendezvousCoastTests(RendezvousCoastTests.HighOrbitRun run) 
     public void ATransferWhoseAngleFallsBelowLambertsRefusalBeforeTheLastMinuteFliesWithoutAnError()
     {
         run.Log.Should().Contain(record => record.State is Transfer && record.TimeLeft > TransferGuidance.CoastTime
-            && record.RemainingAngle < KeplerOrbit.LambertRefusedAngle * 180 / Math.PI, "the plan must reach the case");
+                                                                    && record.RemainingAngle <
+                                                                    KeplerOrbit.LambertRefusedAngle * 180 / Math.PI,
+            "the plan must reach the case");
         run.Errors.Should().BeEmpty();
         run.Log.Should().Contain(record => record.State is Brake);
     }
@@ -46,7 +47,8 @@ public sealed class RendezvousCoastTests(RendezvousCoastTests.HighOrbitRun run) 
             .And.OnlyContain(record => record.Translates);
         transfer.Where(record => record.RemainingAngle < coastDegrees - 0.01).Should().NotBeEmpty()
             .And.OnlyContain(record => !record.Translates && record.Throttle == null);
-        transfer.First(record => record.RemainingAngle < coastDegrees).TimeLeft.Should().BeGreaterThan(TransferGuidance.CoastTime);
+        transfer.First(record => record.RemainingAngle < coastDegrees).TimeLeft.Should()
+            .BeGreaterThan(TransferGuidance.CoastTime);
     }
 
     /// <summary>
@@ -65,20 +67,14 @@ public sealed class RendezvousCoastTests(RendezvousCoastTests.HighOrbitRun run) 
         /// falls to Lambert's refused angle of 1 degree about 240 s before the arrival. The shuttle carries no crew, so
         /// the nose turns at the attitude autopilot's full rate.
         /// </summary>
-        public static RendezvousPlan Plan { get; } = new(TransferTime: 1000, ArrivalDistance: 400, HoldDistance: DemoStation.HoldPoint.Y,
-            WindowOpens: 30 * Math.PI / 180, WindowCloses: 2 * Math.PI / 180, WeightlessTurnRate: AttitudeAutopilot.MaxTurnRate);
+        public static RendezvousPlan Plan { get; } = new(TransferTime: 1000, ArrivalDistance: 400,
+            HoldDistance: DemoStation.HoldPoint.Y,
+            WindowOpens: 30 * Math.PI / 180, WindowCloses: 2 * Math.PI / 180,
+            WeightlessTurnRate: AttitudeAutopilot.MaxTurnRate);
 
-        /// <summary>The state of the autopilot after a tick, and what it added in that tick.</summary>
-        /// <param name="State">The autopilot's state after the tick.</param>
-        /// <param name="TimeLeft">The time left to the arrival time after the tick, in seconds, or NaN without a transfer.</param>
-        /// <param name="RemainingAngle">
-        /// The transfer angle from the shuttle to the arrival point of the arrival time, as the world reads the states after
-        /// the tick, in degrees from 0 to 180: the angle about the station's orbit normal, or 360 degrees less it, whichever
-        /// is smaller. NaN without a transfer.
-        /// </param>
-        /// <param name="Translates">True when the autopilot added a translation in the tick.</param>
-        /// <param name="Throttle">The throttle that the autopilot added in the tick, or null.</param>
-        public readonly record struct Record(object State, double TimeLeft, double RemainingAngle, bool Translates, float? Throttle);
+        /// <summary>The station's orbit: the demo station's, at <see cref="OrbitRadius"/>, at mean anomaly 0 at the epoch.</summary>
+        public static KeplerOrbit StationOrbit { get; } =
+            DemoStation.Orbit with { SemiMajorAxis = OrbitRadius, MeanAnomalyAtEpoch = 0 };
 
         private readonly World world = NewWorld();
 
@@ -87,10 +83,12 @@ public sealed class RendezvousCoastTests(RendezvousCoastTests.HighOrbitRun run) 
             FrameHandle earth = Earth(world);
             Entity station = SpawnStation(world, earth);
             KeplerOrbit orbit = StationOrbit;
-            (Double3 position, Double3 velocity) = (orbit with { MeanAnomalyAtEpoch = orbit.MeanAnomalyAtEpoch - 5000 / OrbitRadius }).StateAt(world.Time, Mu);
+            (Double3 position, Double3 velocity) =
+                (orbit with { MeanAnomalyAtEpoch = orbit.MeanAnomalyAtEpoch - 5000 / OrbitRadius }).StateAt(world.Time,
+                    Mu);
             RendezvousAutopilotTests.Recorder recorder = new();
             Entity shuttle = Fly(world, earth, station, Plan, position, velocity, recorder);
-            RendezvousAutopilot autopilot = world.GetComponent<RendezvousAutopilot>(shuttle)!;
+            var autopilot = world.GetComponent<RendezvousAutopilot>(shuttle)!;
             world.Post(Event.Create(shuttle, Entity.Null, new Rendezvous()));
             Tick(world, 2);
 
@@ -102,24 +100,41 @@ public sealed class RendezvousCoastTests(RendezvousCoastTests.HighOrbitRun run) 
                 {
                     timeLeft = transfer.ArrivalTime - world.Time;
                     (Double3 center, Double3 stationVelocity, Double3 axis) = StationNow(world, station, earth);
-                    Double3 arrival = transfer.Guidance.Arrival(center, stationVelocity, axis, Plan.ArrivalDistance, timeLeft).Point;
+                    Double3 arrival = transfer.Guidance
+                        .Arrival(center, stationVelocity, axis, Plan.ArrivalDistance, timeLeft).Point;
                     double angle = TransferGuidance.TransferAngle(world.PoseIn(shuttle, earth).Position, arrival,
                         TransferGuidance.OrbitNormal(center, stationVelocity)) * 180 / Math.PI;
                     remaining = Math.Min(angle, 360 - angle);
                 }
-                Log.Add(new Record(autopilot.State.Value, timeLeft, remaining, recorder.Translates, recorder.Throttle));
+
+                Log.Add(new(autopilot.State.Value, timeLeft, remaining, recorder.Translates, recorder.Throttle));
             }
+
             Errors = [.. world.Errors];
         }
-
-        /// <summary>The station's orbit: the demo station's, at <see cref="OrbitRadius"/>, at mean anomaly 0 at the epoch.</summary>
-        public static KeplerOrbit StationOrbit { get; } = DemoStation.Orbit with { SemiMajorAxis = OrbitRadius, MeanAnomalyAtEpoch = 0 };
 
         /// <summary>The records of the ticks after the order, oldest first.</summary>
         public List<Record> Log { get; } = [];
 
         /// <summary>The world's errors at the end of the flight.</summary>
         public string[] Errors { get; }
+
+        /// <summary>The state of the autopilot after a tick, and what it added in that tick.</summary>
+        /// <param name="State">The autopilot's state after the tick.</param>
+        /// <param name="TimeLeft">The time left to the arrival time after the tick, in seconds, or NaN without a transfer.</param>
+        /// <param name="RemainingAngle">
+        /// The transfer angle from the shuttle to the arrival point of the arrival time, as the world reads the states after
+        /// the tick, in degrees from 0 to 180: the angle about the station's orbit normal, or 360 degrees less it, whichever
+        /// is smaller. NaN without a transfer.
+        /// </param>
+        /// <param name="Translates">True when the autopilot added a translation in the tick.</param>
+        /// <param name="Throttle">The throttle that the autopilot added in the tick, or null.</param>
+        public readonly record struct Record(
+            object State,
+            double TimeLeft,
+            double RemainingAngle,
+            bool Translates,
+            float? Throttle);
 
         public void Dispose() => world.Dispose();
 
@@ -132,16 +147,16 @@ public sealed class RendezvousCoastTests(RendezvousCoastTests.HighOrbitRun run) 
         {
             KeplerOrbit orbit = StationOrbit;
             (Double3 place, Double3 velocity) = orbit.StateAt(world.Time, Mu);
-            return world.Spawn(new SpawnDesc
+            return world.Spawn(new()
             {
                 Frame = frame,
-                Pose = new DPose(place, orbit.RotationAt(world.Time, Mu)),
+                Pose = new(place, orbit.RotationAt(world.Time, Mu)),
                 LinearVelocity = velocity,
                 AngularVelocity = orbit.AngularVelocityAt(world.Time, Mu).ToVector3(),
-                FirstMove = new MotionIntent(orbit.Sample(Mu, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
+                FirstMove = new(orbit.Sample(Mu, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
                 Components = [new KeplerMotion { Orbit = orbit }],
-                Body = new BodyDesc(new BoxShapeDesc(new Vector3(10)), BodyMotion.Kinematic, Mass: 100_000),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(30)),
+                Body = new(new BoxShapeDesc(new(10)), BodyMotion.Kinematic, Mass: 100_000),
+                AsFrame = new(FrameBounds.Sphere(30))
             });
         }
     }

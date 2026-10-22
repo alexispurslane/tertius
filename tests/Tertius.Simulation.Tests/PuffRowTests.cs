@@ -22,8 +22,8 @@ public class PuffRowTests
     [Fact]
     public void APuffViewHandsOutTheRowsTheRangesTheLooksAndTheStepThatItWasMadeWith()
     {
-        var frame = new FrameHandle(new Entity(3, 1), 2, 1);
-        Puff[] rows = [new() { Place = new Double3(1, 2, 3), Chord = new Double3(4, 5, 6), Age = 0.25f, Look = 1 }];
+        var frame = new FrameHandle(new(3, 1), 2, 1);
+        Puff[] rows = [new() { Place = new(1, 2, 3), Chord = new(4, 5, 6), Age = 0.25f, Look = 1 }];
         PuffRange[] ranges = [new(frame, 0, 1)];
         PuffLook[] looks = [default, new(2, 0.5f, 3, 3, PuffShading.Glow(Vector3.One))];
 

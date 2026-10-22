@@ -41,7 +41,7 @@ public class EntityTableBodyTests
         Entity reserved = table.Reserve();
 
         BodyEntities(table).Should().BeEmpty();
-        table.Activate(reserved, new TransformRow(), new RenderData(), [], [], Ball, Vector3.Zero, FrameHandle.Null);
+        table.Activate(reserved, new(), new(), [], [], Ball, Vector3.Zero, FrameHandle.Null);
         BodyEntities(table).Should().Equal(reserved);
     }
 
@@ -108,10 +108,10 @@ public class EntityTableBodyTests
     public void TheInteriorRadiusOfABodyIsTheBoundingRadiusOfItsInteriorShape()
     {
         EntityTable table = TableSupport.NewTable();
-        var hull = new BoxShapeDesc(new Vector3(1));
-        var interior = new BoxShapeDesc(new Vector3(3, 4, 12));
+        var hull = new BoxShapeDesc(new(1));
+        var interior = new BoxShapeDesc(new(3, 4, 12));
 
-        Entity entity = table.SpawnLiveWith(new BodyDesc(hull, InteriorShape: interior));
+        Entity entity = table.SpawnLiveWith(new(hull, InteriorShape: interior));
 
         table.BodyBoundingRadius(entity).Should().Be(hull.BoundingRadius());
         table.BodyInteriorBoundingRadius(entity).Should().Be(interior.BoundingRadius());
@@ -122,9 +122,9 @@ public class EntityTableBodyTests
     public void ABodyWithoutAnInteriorShapeHasTheRadiusOfItsShapeInside()
     {
         EntityTable table = TableSupport.NewTable();
-        var shape = new BoxShapeDesc(new Vector3(2));
+        var shape = new BoxShapeDesc(new(2));
 
-        Entity entity = table.SpawnLiveWith(new BodyDesc(shape));
+        Entity entity = table.SpawnLiveWith(new(shape));
 
         table.BodyInteriorBoundingRadius(entity).Should().Be(shape.BoundingRadius());
     }
@@ -144,12 +144,12 @@ public class EntityTableBodyTests
     public void TheRadiiOfAReusedSlotAreThoseOfTheNewBody()
     {
         EntityTable table = TableSupport.NewTable();
-        var small = new BoxShapeDesc(new Vector3(1));
-        var large = new BoxShapeDesc(new Vector3(5));
-        Entity first = table.SpawnLiveWith(new BodyDesc(small, InteriorShape: small));
+        var small = new BoxShapeDesc(new(1));
+        var large = new BoxShapeDesc(new(5));
+        Entity first = table.SpawnLiveWith(new(small, InteriorShape: small));
         table.Release(first);
 
-        Entity successor = table.SpawnLiveWith(new BodyDesc(large, InteriorShape: large));
+        Entity successor = table.SpawnLiveWith(new(large, InteriorShape: large));
 
         successor.Index.Should().Be(first.Index);
         table.BodyBoundingRadius(successor).Should().Be(large.BoundingRadius());

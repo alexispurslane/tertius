@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Frames.Rails;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
 
@@ -14,26 +15,31 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public class WorldIntentFrameTests
 {
-    /// <summary>A root frame without gravity.</summary>
-    private static FrameHandle Space(World world) => world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
-
-    /// <summary>A static frame without a body in <paramref name="space"/>, at <paramref name="pose"/>, with a bubble of <paramref name="radius"/> m.</summary>
-    private static Entity Room(World world, FrameHandle space, DPose pose, float radius, params IComponent[] components) => world.Spawn(new SpawnDesc
-    {
-        Frame = space,
-        Pose = pose,
-        AsFrame = new FrameSpec(FrameBounds.Sphere(radius)),
-        Components = components,
-    });
-
     /// <summary>A turn that moves every axis: 90 degrees about Z, then 90 degrees about the new X.</summary>
-    private static DQuaternion Turned => DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2) * DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2);
+    private static DQuaternion Turned => DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2) *
+                                         DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2);
 
     /// <summary>A kinematic cube with sides of 1 m.</summary>
-    private static BodyDesc KinematicCube => new(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Kinematic);
+    private static BodyDesc KinematicCube => new(new BoxShapeDesc(new(0.5f)), BodyMotion.Kinematic);
 
     /// <summary>A dynamic cube with sides of 1 m that nothing slows down.</summary>
-    private static BodyDesc DynamicCube => new(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Dynamic, LinearDamping: 0, AngularDamping: 0);
+    private static BodyDesc DynamicCube =>
+        new(new BoxShapeDesc(new(0.5f)), BodyMotion.Dynamic, LinearDamping: 0, AngularDamping: 0);
+
+    /// <summary>A root frame without gravity.</summary>
+    private static FrameHandle Space(World world) => world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
+
+    /// <summary>A static frame without a body in <paramref name="space"/>, at <paramref name="pose"/>, with a bubble of
+    /// <paramref name="radius"/> m.</summary>
+    private static Entity
+        Room(World world, FrameHandle space, DPose pose, float radius, params IComponent[] components) => world.Spawn(
+        new()
+        {
+            Frame = space,
+            Pose = pose,
+            AsFrame = new(FrameBounds.Sphere(radius)),
+            Components = components
+        });
 
     /// <summary>
     /// Moves a body along a straight line in <paramref name="space"/>, with no turn: <paramref name="start"/> at time 0 and
@@ -44,15 +50,15 @@ public class WorldIntentFrameTests
     /// </summary>
     private sealed class Rail(FrameHandle space, Double3 start, Double3 velocity, bool steer = false) : IComponent
     {
-        public Double3 At(double time) => start + velocity * time;
-
         public int Priority => 0;
 
         public EventMask Wants => EventMask.Of<Tick>();
+        public Double3 At(double time) => start + velocity * time;
 
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
-            var place = DPose.Compose(self.Snapshot.Frames.Relative(space, self.Frame), new DPose(At(self.TimeAt(self.Tick + 2)), DQuaternion.Identity));
+            DPose place = DPose.Compose(self.Snapshot.Frames.Relative(space, self.Frame),
+                new(At(self.TimeAt(self.Tick + 2)), DQuaternion.Identity));
             if (steer)
                 self.Body.SteerTo(place);
             else
@@ -79,7 +85,8 @@ public class WorldIntentFrameTests
     /// <paramref name="entity"/> lies from where <paramref name="rail"/> puts it at that moment, in meters, at the worst
     /// tick.
     /// </summary>
-    private static (double Off, long Tick) WorstOffRail(World world, Entity entity, FrameHandle space, Rail rail, int ticks)
+    private static (double Off, long Tick) WorstOffRail(World world, Entity entity, FrameHandle space, Rail rail,
+        int ticks)
     {
         (double Off, long Tick) worst = (0, 0);
         for (int i = 0; i < ticks; i++)
@@ -91,6 +98,7 @@ public class WorldIntentFrameTests
             if (off > worst.Off)
                 worst = (off, world.TickNumber);
         }
+
         return worst;
     }
 
@@ -103,16 +111,22 @@ public class WorldIntentFrameTests
     {
         using World world = NewWorld(out _);
         FrameHandle space = Space(world);
-        FrameHandle room = world.GetOwnedFrame(Room(world, space, new DPose(new Double3(20, 0, 0), Turned), radius: 5));
+        FrameHandle room = world.GetOwnedFrame(Room(world, space, new(new(20, 0, 0), Turned), radius: 5));
         // 6 m/s along +X: the cube touches the bubble at x = 14.1, in the step of tick 91, and leaves it fully at x = 26.7.
-        var rail = new Rail(space, new Double3(5, 0, 0), new Double3(6, 0, 0));
+        var rail = new Rail(space, new(5, 0, 0), new(6, 0, 0));
         var frames = new FrameChangedLog();
-        Entity cube = world.Spawn(new SpawnDesc { Frame = space, Pose = new DPose(rail.At(0), DQuaternion.Identity), Body = KinematicCube, Components = [rail, frames] });
+        Entity cube = world.Spawn(new()
+        {
+            Frame = space, Pose = new(rail.At(0), DQuaternion.Identity), Body = KinematicCube,
+            Components = [rail, frames]
+        });
 
         (double off, long tick) = WorstOffRail(world, cube, space, rail, ticks: 300);
 
-        frames.Seen.Select(change => (change.From, change.To)).Should().Equal([(space, room), (room, space)], "the cube passes through the room's bubble");
-        off.Should().BeLessThan(1e-6, $"each end pose means the place that gameplay meant in the frame it named; the cube was {off} m off at tick {tick}");
+        frames.Seen.Select(change => (change.From, change.To)).Should().Equal([(space, room), (room, space)],
+            "the cube passes through the room's bubble");
+        off.Should().BeLessThan(1e-6,
+            $"each end pose means the place that gameplay meant in the frame it named; the cube was {off} m off at tick {tick}");
         world.Errors.Should().BeEmpty();
     }
 
@@ -131,7 +145,7 @@ public class WorldIntentFrameTests
 
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
-            Written = new DPose(start + velocity * self.TimeAt(self.Tick + 2), DQuaternion.Identity);
+            Written = new(start + velocity * self.TimeAt(self.Tick + 2), DQuaternion.Identity);
             self.MoveKinematic(Written);
         }
     }
@@ -147,11 +161,14 @@ public class WorldIntentFrameTests
     {
         using World world = NewWorld(out _);
         FrameHandle space = Space(world);
-        var cruise = new Cruise(Double3.Zero, new Double3(0, 0, 30));
+        var cruise = new Cruise(Double3.Zero, new(0, 0, 30));
         Entity shipOwner = Room(world, space, DPose.Identity, radius: 5, cruise);
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
-        var outward = new Cruise(new Double3(3, 0, 0), new Double3(6, 0, 0));
-        Entity cube = world.Spawn(new SpawnDesc { Frame = ship, Pose = new DPose(new Double3(3, 0, 0), DQuaternion.Identity), Body = KinematicCube, Components = [outward] });
+        var outward = new Cruise(new(3, 0, 0), new(6, 0, 0));
+        Entity cube = world.Spawn(new()
+        {
+            Frame = ship, Pose = new(new(3, 0, 0), DQuaternion.Identity), Body = KinematicCube, Components = [outward]
+        });
 
         for (int tick = 0; tick < 120 && world.GetFrame(cube) == ship; tick++)
             world.Tick();
@@ -160,7 +177,8 @@ public class WorldIntentFrameTests
         world.Entities.NextStepIntent(cube).Move.TryGetValue(out EndPose end).Should().BeTrue();
         world.Entities.NextStepIntent(shipOwner).Move.TryGetValue(out EndPose shipEnd).Should().BeTrue();
         Double3 expected = DPose.Compose(shipEnd.Pose, outward.Written).Position;
-        (end.Pose.Position - expected).Length.Should().BeLessThan(1e-9, $"the end pose {end.Pose.Position} is not {expected}");
+        (end.Pose.Position - expected).Length.Should()
+            .BeLessThan(1e-9, $"the end pose {end.Pose.Position} is not {expected}");
         world.Errors.Should().BeEmpty();
     }
 
@@ -174,15 +192,20 @@ public class WorldIntentFrameTests
     {
         using World world = NewWorld(out _);
         FrameHandle space = Space(world);
-        FrameHandle room = world.GetOwnedFrame(Room(world, space, new DPose(new Double3(20, 0, 0), Turned), radius: 5));
-        var rail = new Rail(space, new Double3(5, 0, 0), new Double3(6, 0, 0), steer: true);
+        FrameHandle room = world.GetOwnedFrame(Room(world, space, new(new(20, 0, 0), Turned), radius: 5));
+        var rail = new Rail(space, new(5, 0, 0), new(6, 0, 0), steer: true);
         var frames = new FrameChangedLog();
-        Entity cube = world.Spawn(new SpawnDesc { Frame = space, Pose = new DPose(rail.At(0), DQuaternion.Identity), Body = DynamicCube, Components = [rail, frames] });
+        Entity cube = world.Spawn(new()
+        {
+            Frame = space, Pose = new(rail.At(0), DQuaternion.Identity), Body = DynamicCube, Components = [rail, frames]
+        });
 
         (double off, long tick) = WorstOffRail(world, cube, space, rail, ticks: 300);
 
-        frames.Seen.Select(change => (change.From, change.To)).Should().Equal([(space, room), (room, space)], "the cube passes through the room's bubble");
-        off.Should().BeLessThan(1e-6, $"each steer target means the place that gameplay meant in the frame it named; the cube was {off} m off at tick {tick}");
+        frames.Seen.Select(change => (change.From, change.To)).Should().Equal([(space, room), (room, space)],
+            "the cube passes through the room's bubble");
+        off.Should().BeLessThan(1e-6,
+            $"each steer target means the place that gameplay meant in the frame it named; the cube was {off} m off at tick {tick}");
         world.Errors.Should().BeEmpty();
     }
 
@@ -192,23 +215,25 @@ public class WorldIntentFrameTests
         using World world = NewWorld(out _);
         FrameHandle space = Space(world);
         const long doomsday = 20;
-        Entity roomOwner = Room(world, space, new DPose(new Double3(0, 0, 30), Turned), radius: 50, new DestroyAt(doomsday));
+        Entity roomOwner = Room(world, space, new(new(0, 0, 30), Turned), radius: 50, new DestroyAt(doomsday));
         FrameHandle room = world.GetOwnedFrame(roomOwner);
-        var rail = new Rail(space, new Double3(1, 0, 31), new Double3(0, 3, 0));
+        var rail = new Rail(space, new(1, 0, 31), new(0, 3, 0));
         var frames = new FrameChangedLog();
-        Entity cube = world.Spawn(new SpawnDesc
+        Entity cube = world.Spawn(new()
         {
             Frame = room,
-            Pose = new DPose(world.Frames.Relative(space, room).TransformPoint(rail.At(0)), DQuaternion.Identity),
+            Pose = new(world.Frames.Relative(space, room).TransformPoint(rail.At(0)), DQuaternion.Identity),
             Body = KinematicCube,
-            Components = [rail, frames],
+            Components = [rail, frames]
         });
 
         (double off, long tick) = WorstOffRail(world, cube, space, rail, ticks: 60);
 
         world.IsAlive(roomOwner).Should().BeFalse();
-        frames.Seen.Should().ContainSingle("the destroy batch moves the cube out of the room that dies").Which.From.Should().Be(room);
-        off.Should().BeLessThan(1e-6, $"the end pose of the tick of the destroy means the place that gameplay meant in the room; the cube was {off} m off at tick {tick}");
+        frames.Seen.Should().ContainSingle("the destroy batch moves the cube out of the room that dies").Which.From
+            .Should().Be(room);
+        off.Should().BeLessThan(1e-6,
+            $"the end pose of the tick of the destroy means the place that gameplay meant in the room; the cube was {off} m off at tick {tick}");
         world.Errors.Should().BeEmpty();
     }
 
@@ -221,25 +246,27 @@ public class WorldIntentFrameTests
         // outside: 6.73 m from the room's center. At 6 m/s from the center, the step of tick 67 ends 6.8 m out, and the step
         // before 6.7 m. The room dies at the same sync point.
         const long leaving = 67;
-        Entity roomOwner = Room(world, space, new DPose(new Double3(0, 0, 30), Turned), radius: 5, new DestroyAt(leaving));
+        Entity roomOwner = Room(world, space, new(new(0, 0, 30), Turned), radius: 5, new DestroyAt(leaving));
         FrameHandle room = world.GetOwnedFrame(roomOwner);
-        var rail = new Rail(space, new Double3(0, 0, 30), new Double3(0, 6, 0));
-        Entity cube = world.Spawn(new SpawnDesc
+        var rail = new Rail(space, new(0, 0, 30), new(0, 6, 0));
+        Entity cube = world.Spawn(new()
         {
             Frame = room,
-            Pose = new DPose(world.Frames.Relative(space, room).TransformPoint(rail.At(0)), DQuaternion.Identity),
+            Pose = new(world.Frames.Relative(space, room).TransformPoint(rail.At(0)), DQuaternion.Identity),
             Body = KinematicCube,
-            Components = [rail],
+            Components = [rail]
         });
         Tick(world, (int)leaving);
         world.GetFrame(cube).Should().Be(room);
 
         world.Tick();
         world.IsAlive(roomOwner).Should().BeFalse();
-        world.GetFrame(cube).Should().Be(space, "the step of the tick in which the room died handed the cube out of its bubble");
+        world.GetFrame(cube).Should().Be(space,
+            "the step of the tick in which the room died handed the cube out of its bubble");
         (double off, long tick) = WorstOffRail(world, cube, space, rail, ticks: 10);
 
-        off.Should().BeLessThan(1e-6, $"the end pose of the tick of the hand-off means the place that gameplay meant in the room; the cube was {off} m off at tick {tick}");
+        off.Should().BeLessThan(1e-6,
+            $"the end pose of the tick of the hand-off means the place that gameplay meant in the room; the cube was {off} m off at tick {tick}");
         world.Errors.Should().BeEmpty();
     }
 
@@ -250,7 +277,8 @@ public class WorldIntentFrameTests
 
         public EventMask Wants => EventMask.Of<Tick>();
 
-        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) => self.MoveKinematic(self.PoseIn(self.Frame));
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
+            self.MoveKinematic(self.PoseIn(self.Frame));
     }
 
     /// <summary>
@@ -266,16 +294,19 @@ public class WorldIntentFrameTests
         long entering = RunCabinScene(doomsday: long.MaxValue, out _, out _, out _, out _, out _);
         entering.Should().BeGreaterThan(10, "the cube enters the cabin after a while");
 
-        RunCabinScene(entering, out World world, out Entity roomOwner, out FrameHandle cabin, out Entity cube, out Rail rail);
+        RunCabinScene(entering, out World world, out Entity roomOwner, out FrameHandle cabin, out Entity cube,
+            out Rail rail);
         using (world)
         {
             world.IsAlive(roomOwner).Should().BeFalse();
-            world.GetFrame(cube).Should().Be(cabin, "the step of the tick in which the room died handed the cube into the cabin");
+            world.GetFrame(cube).Should().Be(cabin,
+                "the step of the tick in which the room died handed the cube into the cabin");
             FrameHandle space = world.Frames.Parent(cabin);
             world.Frames.Parent(space).IsNull.Should().BeTrue("the cabin moved into space when the room died");
             (double off, long tick) = WorstOffRail(world, cube, space, rail, ticks: 10);
 
-            off.Should().BeLessThan(1e-6, $"the end pose of the tick of the hand-off means the place that gameplay meant in the room; the cube was {off} m off at tick {tick}");
+            off.Should().BeLessThan(1e-6,
+                $"the end pose of the tick of the hand-off means the place that gameplay meant in the room; the cube was {off} m off at tick {tick}");
             world.Errors.Should().BeEmpty();
         }
     }
@@ -286,21 +317,22 @@ public class WorldIntentFrameTests
     /// drives along +Z at 3 m/s from (0, 0, 40), in the room, into the cabin. Ticks until the cube enters the cabin, and
     /// returns the tick whose step handed it in. With a doomsday, the world stays open for the caller.
     /// </summary>
-    private static long RunCabinScene(long doomsday, out World world, out Entity roomOwner, out FrameHandle cabin, out Entity cube, out Rail rail)
+    private static long RunCabinScene(long doomsday, out World world, out Entity roomOwner, out FrameHandle cabin,
+        out Entity cube, out Rail rail)
     {
         world = NewWorld(out _);
         FrameHandle space = Space(world);
-        roomOwner = Room(world, space, new DPose(new Double3(0, 0, 30), Turned), radius: 50, new DestroyAt(doomsday));
+        roomOwner = Room(world, space, new(new(0, 0, 30), Turned), radius: 50, new DestroyAt(doomsday));
         FrameHandle room = world.GetOwnedFrame(roomOwner);
         // Turned carries the room's +Y to space's +Z.
-        cabin = world.GetOwnedFrame(Room(world, room, new DPose(new Double3(0, 20, 0), DQuaternion.Identity), radius: 5, new Hold()));
-        rail = new Rail(space, new Double3(0, 0, 40), new Double3(0, 0, 3));
-        cube = world.Spawn(new SpawnDesc
+        cabin = world.GetOwnedFrame(Room(world, room, new(new(0, 20, 0), DQuaternion.Identity), radius: 5, new Hold()));
+        rail = new(space, new(0, 0, 40), new(0, 0, 3));
+        cube = world.Spawn(new()
         {
             Frame = room,
-            Pose = new DPose(world.Frames.Relative(space, room).TransformPoint(rail.At(0)), DQuaternion.Identity),
+            Pose = new(world.Frames.Relative(space, room).TransformPoint(rail.At(0)), DQuaternion.Identity),
             Body = KinematicCube,
-            Components = [rail],
+            Components = [rail]
         });
         while (world.GetFrame(cube) != cabin && world.TickNumber < 300)
             world.Tick();
@@ -317,24 +349,24 @@ public class WorldIntentFrameTests
     /// </summary>
     private static (FrameHandle Ship, Entity Ball) BallMeetsDriftingShip(World world, FrameHandle space, Pilot pilot)
     {
-        Entity hull = world.Spawn(new SpawnDesc
+        Entity hull = world.Spawn(new()
         {
             Frame = space,
-            Pose = new DPose(new Double3(30, 0, 0), Turned),
-            LinearVelocity = new Double3(0, 0.5, 0),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
+            Pose = new(new(30, 0, 0), Turned),
+            LinearVelocity = new(0, 0.5, 0),
+            Body = new(new BoxShapeDesc(new(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+            AsFrame = new(FrameBounds.Sphere(20))
         });
         FrameHandle ship = world.GetOwnedFrame(hull);
         // The ship drifts 0.25 m sideways before the touch, which moves the touch by 2 mm: well inside half a step.
         Scenes.Approach approach = Scenes.ApproachToBubble(world, ship, tick: 30);
-        Entity ball = world.Spawn(new SpawnDesc
+        Entity ball = world.Spawn(new()
         {
             Frame = space,
             Pose = approach.Pose,
             LinearVelocity = approach.Velocity,
-            Body = new BodyDesc(new SphereShapeDesc(0.5f), Mass: 1, LinearDamping: 0, AngularDamping: 0),
-            Components = [pilot],
+            Body = new(new SphereShapeDesc(0.5f), Mass: 1, LinearDamping: 0, AngularDamping: 0),
+            Components = [pilot]
         });
         return (ship, ball);
     }
@@ -356,7 +388,8 @@ public class WorldIntentFrameTests
         world.Tick();
 
         Double3 read = world.VelocityIn(ball, space);
-        (read - velocity).Length.Should().BeLessThan(1e-4, $"the ball moves at the velocity that gameplay set relative to space, not at {read}");
+        (read - velocity).Length.Should().BeLessThan(1e-4,
+            $"the ball moves at the velocity that gameplay set relative to space, not at {read}");
         world.Errors.Should().BeEmpty();
     }
 
@@ -370,13 +403,14 @@ public class WorldIntentFrameTests
         Tick(world, 30);
         Double3 before = world.VelocityIn(ball, space);
 
-        pilot.Once = body => body.AddImpulse(new Vector3(0, 2, 0));
+        pilot.Once = body => body.AddImpulse(new(0, 2, 0));
         world.Tick();
         world.GetFrame(ball).Should().Be(ship, "the step of tick 30 handed the ball into the ship");
         world.Tick();
 
         Double3 change = world.VelocityIn(ball, space) - before;
-        (change - new Double3(0, 2, 0)).Length.Should().BeLessThan(1e-4, $"the impulse of 2 N·s along space's +Y gives the ball of 1 kg 2 m/s along it, not {change}");
+        (change - new Double3(0, 2, 0)).Length.Should().BeLessThan(1e-4,
+            $"the impulse of 2 N·s along space's +Y gives the ball of 1 kg 2 m/s along it, not {change}");
         world.Errors.Should().BeEmpty();
     }
 
@@ -390,13 +424,14 @@ public class WorldIntentFrameTests
         Tick(world, 30);
         Double3 before = world.VelocityIn(ball, space);
 
-        pilot.Once = body => body.AddForce(new Vector3(0, 0, 120));
+        pilot.Once = body => body.AddForce(new(0, 0, 120));
         world.Tick();
         world.GetFrame(ball).Should().Be(ship, "the step of tick 30 handed the ball into the ship");
         world.Tick();
 
         Double3 change = world.VelocityIn(ball, space) - before;
-        (change - new Double3(0, 0, 2)).Length.Should().BeLessThan(1e-4, $"120 N along space's +Z for a step of 1/60 s gives the ball of 1 kg 2 m/s along it, not {change}");
+        (change - new Double3(0, 0, 2)).Length.Should().BeLessThan(1e-4,
+            $"120 N along space's +Z for a step of 1/60 s gives the ball of 1 kg 2 m/s along it, not {change}");
         world.Errors.Should().BeEmpty();
     }
 
@@ -410,7 +445,7 @@ public class WorldIntentFrameTests
         Tick(world, 30);
 
         var place = new Double3(20, 3, -2);
-        pilot.Once = body => body.Teleport(new DPose(place, DQuaternion.Identity));
+        pilot.Once = body => body.Teleport(new(place, DQuaternion.Identity));
         world.Tick();
         world.GetFrame(ball).Should().Be(ship, "the step of tick 30 handed the ball into the ship");
         world.Tick();
@@ -418,7 +453,8 @@ public class WorldIntentFrameTests
         // A teleport leaves the ball at rest in its frame, so it drifts with the ship for the step after the teleport.
         Double3 expected = place + new Double3(0, 0.5, 0) * world.DeltaTime;
         Double3 read = world.PoseIn(ball, space).Position;
-        (read - expected).Length.Should().BeLessThan(1e-4, $"the ball lands where gameplay put it in space, not at {read}");
+        (read - expected).Length.Should()
+            .BeLessThan(1e-4, $"the ball lands where gameplay put it in space, not at {read}");
         world.Errors.Should().BeEmpty();
     }
 
@@ -438,7 +474,8 @@ public class WorldIntentFrameTests
         world.Tick();
 
         Vector3 read = world.AngularVelocityIn(ball, space);
-        (read - spin).Length().Should().BeLessThan(1e-4f, $"the ball spins as gameplay set it relative to space, not at {read}");
+        (read - spin).Length().Should()
+            .BeLessThan(1e-4f, $"the ball spins as gameplay set it relative to space, not at {read}");
         world.Errors.Should().BeEmpty();
     }
 
@@ -482,25 +519,25 @@ public class WorldIntentFrameTests
             using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
             FrameHandle space = Scenes.AsteroidSpace(world);
             // An inclined orbit and a tilted frame, so that no level of the path is a plain shift.
-            var orbit = Tertius.Frames.Rails.KeplerOrbit.Circular(5_000, phase: 0.7) with
+            KeplerOrbit orbit = KeplerOrbit.Circular(5_000, phase: 0.7) with
             {
-                Inclination = 0.4, AxialTilt = DQuaternion.FromAxisAngle(new Double3(1, 2, 3).Normalized(), 0.9),
+                Inclination = 0.4, AxialTilt = DQuaternion.FromAxisAngle(new Double3(1, 2, 3).Normalized(), 0.9)
             };
             FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
             {
                 Frame = space,
                 Body = KinematicCube,
-                AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
+                AsFrame = new(FrameBounds.Sphere(5))
             }.OnKeplerOrbit(world, orbit)));
             (Double3 place, Double3 velocity) = orbit.StateAt(world.Time, Scenes.AsteroidMu);
             var setter = new SetVelocityAt { AtTick = handOff };
-            Entity ball = world.Spawn(new SpawnDesc
+            Entity ball = world.Spawn(new()
             {
                 Frame = space,
-                Pose = new DPose(place + new Double3(0, 8, 0), DQuaternion.Identity),
+                Pose = new(place + new Double3(0, 8, 0), DQuaternion.Identity),
                 LinearVelocity = velocity + new Double3(0, -2, 0),
                 Body = Ball(),
-                Components = [setter],
+                Components = [setter]
             });
             int ticks = TickUntil(world, () => world.GetFrame(ball) == station, 120);
             ticks.Should().BeLessThan(120, "the ball enters the station's bubble");
@@ -509,9 +546,11 @@ public class WorldIntentFrameTests
                 handOff = world.TickNumber - 1;
                 continue;
             }
+
             world.Frames.Numeric(world.Frames.TreeParent(station)).Should().Be(NumericMode.Following);
             world.TickNumber.Should().Be(handOff + 1, "the velocity acts after the step of the hand-off");
-            Double3 at = world.Frames.Relative(space, station).InverseTransformPoint(world.PoseInOwnFrame(ball).Position);
+            Double3 at = world.Frames.Relative(space, station)
+                .InverseTransformPoint(world.PoseInOwnFrame(ball).Position);
             Double3 expected = world.Frames.ConvertVelocity(space, station, at, setter.Written);
 
             world.Tick();
@@ -534,23 +573,26 @@ public class WorldIntentFrameTests
         using World world = NewWorld(out _);
         FrameHandle space = Space(world);
         var turner = new Pilot();
-        Entity owner = world.Spawn(new SpawnDesc
+        Entity owner = world.Spawn(new()
         {
             Frame = space,
-            Pose = new DPose(new Double3(30, 0, 0), DQuaternion.Identity),
+            Pose = new(new(30, 0, 0), DQuaternion.Identity),
             Body = KinematicCube,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
-            Components = [turner],
+            AsFrame = new(FrameBounds.Sphere(20)),
+            Components = [turner]
         });
         FrameHandle cabin = world.GetOwnedFrame(owner);
         var pilot = new Pilot();
         Scenes.Approach approach = Scenes.ApproachToBubble(world, cabin, tick: 30);
-        Entity ball = world.Spawn(new SpawnDesc { Frame = space, Pose = approach.Pose, LinearVelocity = approach.Velocity, Body = Ball(), Components = [pilot] });
+        Entity ball = world.Spawn(new()
+        {
+            Frame = space, Pose = approach.Pose, LinearVelocity = approach.Velocity, Body = Ball(), Components = [pilot]
+        });
         Tick(world, 30);
         world.GetFrame(ball).Should().Be(space);
 
         var velocity = new Double3(3, 4, 0);
-        turner.Once = body => body.Teleport(new DPose(new Double3(30, 0, 0), Turned));
+        turner.Once = body => body.Teleport(new(new(30, 0, 0), Turned));
         pilot.Once = body => body.SetVelocity(velocity);
         world.Tick();
         world.GetFrame(ball).Should().Be(cabin, "the step of tick 30 handed the ball into the cabin");
@@ -558,7 +600,8 @@ public class WorldIntentFrameTests
 
         world.Frames.LocalPose(cabin).Rotation.Should().Be(Turned, "the teleport turned the cabin");
         Double3 read = world.VelocityIn(ball, space);
-        (read - velocity).Length.Should().BeLessThan(1e-4, $"the ball moves at the velocity that gameplay set relative to space, not at {read}");
+        (read - velocity).Length.Should().BeLessThan(1e-4,
+            $"the ball moves at the velocity that gameplay set relative to space, not at {read}");
         world.Errors.Should().BeEmpty();
     }
 }

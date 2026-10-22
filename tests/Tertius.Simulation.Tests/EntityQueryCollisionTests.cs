@@ -1,4 +1,3 @@
-using System.Numerics;
 using AwesomeAssertions;
 using Tertius.Physics;
 
@@ -15,17 +14,18 @@ public class EntityQueryCollisionTests
     private static World NewWorld(out FrameHandle space)
     {
         World world = WorldTesting.NewWorld(out JoltPhysicsBackend _);
-        space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         return world;
     }
 
     /// <summary>A static box of 1 m in <paramref name="groups"/>, far from the others, with a <see cref="Metal"/> flag.</summary>
-    private static Entity Box(World world, FrameHandle frame, double x, CollisionGroups groups, params IComponent[] more) => world.Spawn(new SpawnDesc
+    private static Entity Box(World world, FrameHandle frame, double x, CollisionGroups groups,
+        params IComponent[] more) => world.Spawn(new()
     {
         Frame = frame,
         Pose = WorldTesting.At(x),
-        Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Static) with { CollisionGroups = groups },
-        Components = [new Metal(), .. more],
+        Body = new BodyDesc(new BoxShapeDesc(new(0.5f)), BodyMotion.Static) with { CollisionGroups = groups },
+        Components = [new Metal(), .. more]
     });
 
     private static List<Entity> Found(FoundEntities run)
@@ -44,7 +44,8 @@ public class EntityQueryCollisionTests
         Entity solidWall = Box(world, space, 10, CollisionGroups.Of(CollisionGroup.Solid).And(wall));
         Box(world, space, 20, CollisionGroups.Of(wall));
 
-        Found(world.Snapshot.Find(EntityQuery.With<Metal>().InAll(CollisionGroup.Solid).InAll(wall))).Should().Equal(solidWall);
+        Found(world.Snapshot.Find(EntityQuery.With<Metal>().InAll(CollisionGroup.Solid).InAll(wall))).Should()
+            .Equal(solidWall);
     }
 
     [Fact]
@@ -69,7 +70,8 @@ public class EntityQueryCollisionTests
         Entity plain = world.SpawnWith(space, new Metal());
 
         Found(world.Snapshot.Find(EntityQuery.With<Metal>().InNone(wall))).Should().Equal(solid, plain);
-        Found(world.Snapshot.Find(EntityQuery.With<Metal>().InAny(CollisionGroup.Solid))).Should().Equal(solid, solidWall);
+        Found(world.Snapshot.Find(EntityQuery.With<Metal>().InAny(CollisionGroup.Solid))).Should()
+            .Equal(solid, solidWall);
     }
 
     [Fact]
@@ -86,6 +88,7 @@ public class EntityQueryCollisionTests
 
         Found(world.Snapshot.Find(EntityQuery.InAny(glass))).Should().Equal(box);
         world.Snapshot.Find(EntityQuery.With<Metal>().InAny(CollisionGroup.Solid)).Any().Should().BeFalse();
-        world.GetBody(box)!.CollisionGroups.Should().Be(CollisionGroups.Of(CollisionGroup.Solid), "the spawn description stays as it was");
+        world.GetBody(box)!.CollisionGroups.Should().Be(CollisionGroups.Of(CollisionGroup.Solid),
+            "the spawn description stays as it was");
     }
 }

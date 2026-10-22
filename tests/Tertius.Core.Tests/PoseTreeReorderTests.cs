@@ -8,7 +8,7 @@ namespace Tertius.Core.Tests;
 /// </summary>
 public class PoseTreeReorderTests
 {
-    private static DPose At(double x) => new(new Double3(x, 0, 0), DQuaternion.Identity);
+    private static DPose At(double x) => new(new(x, 0, 0), DQuaternion.Identity);
 
     private static (PoseTree<DPose> Tree, PoseNode Older, PoseNode Newer) MovedUnderNewer()
     {

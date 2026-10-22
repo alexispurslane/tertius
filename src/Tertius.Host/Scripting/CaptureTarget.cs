@@ -15,28 +15,36 @@ namespace Tertius.Host.Scripting;
 public readonly struct CaptureTarget : IEquatable<CaptureTarget>
 {
     // The held case, or null for the default value.
-    private readonly object? target;
 
-    public CaptureTarget(PngFolder folder) { ArgumentNullException.ThrowIfNull(folder); target = folder; }
-    public CaptureTarget(VideoFile video) { ArgumentNullException.ThrowIfNull(video); target = video; }
+    public CaptureTarget(PngFolder folder)
+    {
+        ArgumentNullException.ThrowIfNull(folder);
+        Value = folder;
+    }
+
+    public CaptureTarget(VideoFile video)
+    {
+        ArgumentNullException.ThrowIfNull(video);
+        Value = video;
+    }
 
     /// <summary>False for the default value, which holds no case.</summary>
-    public bool HasValue => target != null;
-
-    public bool TryGetValue([NotNullWhen(true)] out PngFolder? value) => (value = target as PngFolder) != null;
-    public bool TryGetValue([NotNullWhen(true)] out VideoFile? value) => (value = target as VideoFile) != null;
+    public bool HasValue => Value != null;
 
     /// <summary>The held case, or null for the default value.</summary>
-    public object? Value => target;
+    public object? Value { get; }
+
+    public bool TryGetValue([NotNullWhen(true)] out PngFolder? value) => (value = Value as PngFolder) != null;
+    public bool TryGetValue([NotNullWhen(true)] out VideoFile? value) => (value = Value as VideoFile) != null;
 
     // The held case decides equality, by the value equality of its record. Two cases of different types are never equal.
-    public bool Equals(CaptureTarget other) => Equals(target, other.target);
+    public bool Equals(CaptureTarget other) => Equals(Value, other.Value);
     public override bool Equals(object? obj) => obj is CaptureTarget other && Equals(other);
-    public override int GetHashCode() => target?.GetHashCode() ?? 0;
+    public override int GetHashCode() => Value?.GetHashCode() ?? 0;
     public static bool operator ==(CaptureTarget a, CaptureTarget b) => a.Equals(b);
     public static bool operator !=(CaptureTarget a, CaptureTarget b) => !a.Equals(b);
 
-    public override string ToString() => target?.ToString() ?? "CaptureTarget(none)";
+    public override string ToString() => Value?.ToString() ?? "CaptureTarget(none)";
 }
 
 /// <summary>
@@ -60,7 +68,8 @@ public sealed record PngFolder
 }
 
 /// <summary>
-/// Captures as the frames of one video, in the order taken, which one ffmpeg process encodes (<see cref="FfmpegVideoSink"/>).
+/// Captures as the frames of one video, in the order taken, which one ffmpeg process encodes (
+/// <see cref="FfmpegVideoSink"/>).
 /// The video drops the names of the captures. Only a headless run has this target.
 /// </summary>
 public sealed record VideoFile
@@ -74,13 +83,16 @@ public sealed record VideoFile
     /// <summary>The frame rate of a video whose command line gives none, in frames per second.</summary>
     public const int DefaultFramesPerSecond = 30;
 
-    /// <exception cref="ArgumentException"><paramref name="path"/> is null, empty, only white space, or does not end in <see cref="Extension"/>.</exception>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="framesPerSecond"/> is outside <see cref="MinFramesPerSecond"/> to <see cref="MaxFramesPerSecond"/>.</exception>
+    /// <exception cref="ArgumentException"><paramref name="path"/> is null, empty, only white space, or does not end in
+    /// <see cref="Extension"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="framesPerSecond"/> is outside
+    /// <see cref="MinFramesPerSecond"/> to <see cref="MaxFramesPerSecond"/>.</exception>
     public VideoFile(string path, int framesPerSecond)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         if (!HasVideoExtension(path))
-            throw new ArgumentException($"A video file's name ends in {Extension}, and '{path}' does not.", nameof(path));
+            throw new ArgumentException($"A video file's name ends in {Extension}, and '{path}' does not.",
+                nameof(path));
         ArgumentOutOfRangeException.ThrowIfLessThan(framesPerSecond, MinFramesPerSecond);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(framesPerSecond, MaxFramesPerSecond);
         Path = path;

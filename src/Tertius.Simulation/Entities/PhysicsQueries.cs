@@ -62,7 +62,8 @@ public readonly ref struct PhysicsQueries
     /// <see cref="QueryShape.Problem"/> refuses, a pose or a direction that is not finite, a zero direction or rotation, or
     /// a length that is not finite and positive, and <see cref="InvalidOperationException"/> for an entity in no frame.
     /// </summary>
-    public void CastShape(in QueryShape shape, in DPose start, Double3 direction, double length, in EntityQuery query, int tag) =>
+    public void CastShape(in QueryShape shape, in DPose start, Double3 direction, double length, in EntityQuery query,
+        int tag) =>
         world.RequestShapeCast(chunk, entity, shape, start, direction, length, query, tag);
 
     /// <summary>
@@ -86,4 +87,9 @@ public readonly ref struct PhysicsQueries
 /// <param name="Question">A ray cast, a shape cast or an overlap test.</param>
 /// <param name="Query">Which entities the query may hit.</param>
 /// <param name="Tag">The tag that the answer carries.</param>
-internal readonly record struct PhysicsRequest(Entity Asker, FrameHandle Frame, PhysicsQuestion Question, EntityQuery Query, int Tag);
+internal readonly record struct PhysicsRequest(
+    Entity Asker,
+    FrameHandle Frame,
+    PhysicsQuestion Question,
+    EntityQuery Query,
+    int Tag);

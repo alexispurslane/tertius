@@ -19,8 +19,9 @@ public enum RayCastKind : byte
 {
     /// <summary>The nearest hit that the filter accepts, if any.</summary>
     Nearest,
+
     /// <summary>Every hit that the filter accepts, by distance. A body can be hit more than once, for example a mesh.</summary>
-    All,
+    All
 }
 
 /// <summary>
@@ -45,7 +46,8 @@ public readonly record struct QuerySphere(float Radius);
 /// <param name="HalfExtents">Half the size of the box along each of its axes, in meters. A query can use them only when all three are finite and more than 0.</param>
 public readonly record struct QueryBox(Vector3 HalfExtents);
 
-/// <summary>The case of a <see cref="QueryShape"/> that is a capsule along +Y: <c>QueryShape.Capsule(halfHeight, radius)</c>.</summary>
+/// <summary>The case of a <see cref="QueryShape"/> that is a capsule along +Y:
+/// <c>QueryShape.Capsule(halfHeight, radius)</c>.</summary>
 /// <param name="HalfHeight">Half the length of the cylinder part, in meters. A query can use it only when it is finite and at least 0. A half height of 0 makes a sphere.</param>
 /// <param name="Radius">The radius of the cylinder part and of both ends, in meters. A query can use it only when it is finite and more than 0.</param>
 public readonly record struct QueryCapsule(float HalfHeight, float Radius);
@@ -69,16 +71,54 @@ public readonly struct QueryShape : IEquatable<QueryShape>
     private const byte KindNone = 0, KindSphere = 1, KindBox = 2, KindCapsule = 3;
 
     private readonly byte kind;
+
     /// <summary>The radius of <see cref="QuerySphere"/> and of <see cref="QueryCapsule"/>, in meters.</summary>
     private readonly float radius;
+
     /// <summary>The half extents of <see cref="QueryBox"/>, in meters.</summary>
     private readonly Vector3 halfExtents;
+
     /// <summary>The half height of <see cref="QueryCapsule"/>, in meters.</summary>
     private readonly float halfHeight;
 
-    public QueryShape(QuerySphere sphere) { kind = KindSphere; radius = sphere.Radius; }
-    public QueryShape(QueryBox box) { kind = KindBox; halfExtents = box.HalfExtents; }
-    public QueryShape(QueryCapsule capsule) { kind = KindCapsule; radius = capsule.Radius; halfHeight = capsule.HalfHeight; }
+    public QueryShape(QuerySphere sphere)
+    {
+        kind = KindSphere;
+        radius = sphere.Radius;
+    }
+
+    public QueryShape(QueryBox box)
+    {
+        kind = KindBox;
+        halfExtents = box.HalfExtents;
+    }
+
+    public QueryShape(QueryCapsule capsule)
+    {
+        kind = KindCapsule;
+        radius = capsule.Radius;
+        halfHeight = capsule.HalfHeight;
+    }
+
+    /// <summary>False for the default shape, which holds no sphere, box or capsule.</summary>
+    public bool HasValue => kind != KindNone;
+
+    public object? Value => kind switch
+    {
+        KindSphere => new QuerySphere(radius),
+        KindBox => new QueryBox(halfExtents),
+        KindCapsule => new QueryCapsule(halfHeight, radius),
+        _ => null
+    };
+
+    /// <summary>The radius of the smallest sphere about the shape's center that holds the shape, in meters. 0 for the default shape.</summary>
+    public double BoundingRadius => this switch
+    {
+        QuerySphere(var sphereRadius) => sphereRadius,
+        QueryBox(var boxHalfExtents) => ((Double3)boxHalfExtents).Length,
+        QueryCapsule(var capsuleHalfHeight, var capsuleRadius) => (double)capsuleHalfHeight + capsuleRadius,
+        null => 0
+    };
 
     public static implicit operator QueryShape(QuerySphere sphere) => new(sphere);
     public static implicit operator QueryShape(QueryBox box) => new(box);
@@ -90,9 +130,6 @@ public readonly struct QueryShape : IEquatable<QueryShape>
 
     /// <summary>A capsule along +Y, with a total height of 2 · (<paramref name="halfHeight"/> + <paramref name="radius"/>). A half height of 0 makes a sphere.</summary>
     public static QueryShape Capsule(float halfHeight, float radius) => new(new QueryCapsule(halfHeight, radius));
-
-    /// <summary>False for the default shape, which holds no sphere, box or capsule.</summary>
-    public bool HasValue => kind != KindNone;
 
     public bool TryGetValue(out QuerySphere value)
     {
@@ -112,23 +149,6 @@ public readonly struct QueryShape : IEquatable<QueryShape>
         return kind == KindCapsule;
     }
 
-    public object? Value => kind switch
-    {
-        KindSphere => new QuerySphere(radius),
-        KindBox => new QueryBox(halfExtents),
-        KindCapsule => new QueryCapsule(halfHeight, radius),
-        _ => null,
-    };
-
-    /// <summary>The radius of the smallest sphere about the shape's center that holds the shape, in meters. 0 for the default shape.</summary>
-    public double BoundingRadius => this switch
-    {
-        QuerySphere(var sphereRadius) => sphereRadius,
-        QueryBox(var boxHalfExtents) => ((Double3)boxHalfExtents).Length,
-        QueryCapsule(var capsuleHalfHeight, var capsuleRadius) => (double)capsuleHalfHeight + capsuleRadius,
-        null => 0,
-    };
-
     /// <summary>
     /// Why no query can use this shape, or null when every query can: a radius or a half extent that is not finite and
     /// more than 0, a half height of a capsule that is not finite and at least 0, or the default shape, which holds no
@@ -141,11 +161,13 @@ public readonly struct QueryShape : IEquatable<QueryShape>
         QueryBox(var boxHalfExtents) when !(boxHalfExtents.X > 0 && boxHalfExtents.Y > 0 && boxHalfExtents.Z > 0)
                                           || !float.IsFinite(boxHalfExtents.X + boxHalfExtents.Y + boxHalfExtents.Z) =>
             $"is a box with half extents of {boxHalfExtents} m, which are not all finite and more than 0",
-        QueryCapsule(var capsuleHalfHeight, var capsuleRadius) when !(capsuleRadius > 0) || !float.IsFinite(capsuleRadius)
-                                                                     || !(capsuleHalfHeight >= 0) || !float.IsFinite(capsuleHalfHeight) =>
+        QueryCapsule(var capsuleHalfHeight, var capsuleRadius) when !(capsuleRadius > 0) ||
+                                                                    !float.IsFinite(capsuleRadius)
+                                                                    || !(capsuleHalfHeight >= 0) ||
+                                                                    !float.IsFinite(capsuleHalfHeight) =>
             $"is a capsule with a half height of {capsuleHalfHeight} m and a radius of {capsuleRadius} m, which need a finite radius of more than 0 and a finite half height of at least 0",
         QuerySphere or QueryBox or QueryCapsule => null,
-        null => "is the default shape, which holds no sphere, box or capsule",
+        null => "is the default shape, which holds no sphere, box or capsule"
     };
 
     // The held case alone decides equality: the fields of the other cases are not compared.
@@ -154,7 +176,7 @@ public readonly struct QueryShape : IEquatable<QueryShape>
         KindSphere => radius.Equals(other.radius),
         KindBox => halfExtents.Equals(other.halfExtents),
         KindCapsule => radius.Equals(other.radius) && halfHeight.Equals(other.halfHeight),
-        _ => true,
+        _ => true
     };
 
     public override bool Equals(object? obj) => obj is QueryShape shape && Equals(shape);
@@ -164,7 +186,7 @@ public readonly struct QueryShape : IEquatable<QueryShape>
         KindSphere => HashCode.Combine(kind, radius),
         KindBox => HashCode.Combine(kind, halfExtents),
         KindCapsule => HashCode.Combine(kind, radius, halfHeight),
-        _ => 0,
+        _ => 0
     };
 
     public static bool operator ==(QueryShape a, QueryShape b) => a.Equals(b);
@@ -175,6 +197,6 @@ public readonly struct QueryShape : IEquatable<QueryShape>
         QuerySphere sphere => $"QueryShape({sphere})",
         QueryBox box => $"QueryShape({box})",
         QueryCapsule capsule => $"QueryShape({capsule})",
-        null => "QueryShape(none)",
+        null => "QueryShape(none)"
     };
 }

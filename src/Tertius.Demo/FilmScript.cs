@@ -17,7 +17,8 @@ public delegate bool Cue(World world, SceneInstance scene);
 /// starts where the section before it ends. It posts <paramref name="Posts"/>, films until <paramref name="Until"/> holds
 /// and then for <paramref name="Hold"/> ticks more, and ends at the first frame at or after that moment.
 /// </summary>
-/// <param name="Name">The name of the section's film, so its frames are named <c>name-000000</c> and on. A scene id of at most <see cref="FilmStep.MaxNameLength"/> characters.</param>
+/// <param name="Name">The name of the section's film, so its frames are named <c>name-000000</c> and on. A scene id of at most
+/// <see cref="FilmStep.MaxNameLength"/> characters.</param>
 /// <param name="Camera">The scene id of the camera that films the section.</param>
 /// <param name="Every">How many ticks the section runs before each frame, at least 1. Above 1, the video of the section is a time-lapse.</param>
 /// <param name="Until">The moment that the section waits for. <see cref="Now"/> holds at once, so the section films only its hold.</param>
@@ -25,7 +26,15 @@ public delegate bool Cue(World world, SceneInstance scene);
 /// <param name="Posts">The events that the section posts at its start, before its first tick, or null for none.</param>
 /// <param name="Limit">How many ticks of the section its cue may take before the generator gives up, at least 1.</param>
 /// <param name="Outlines">True when the section's frames show the frame outlines (<c>World.ShowFrameOutlines</c>). They start off.</param>
-public sealed record FilmSection(string Name, string Camera, int Every, Cue Until, int Hold = 0, IReadOnlyList<PostStep>? Posts = null, int Limit = FilmSection.DefaultLimit, bool Outlines = false)
+public sealed record FilmSection(
+    string Name,
+    string Camera,
+    int Every,
+    Cue Until,
+    int Hold = 0,
+    IReadOnlyList<PostStep>? Posts = null,
+    int Limit = FilmSection.DefaultLimit,
+    bool Outlines = false)
 {
     /// <summary>The <see cref="Limit"/> of a section that names none: 10 minutes of the engine's 60 ticks per second.</summary>
     public const int DefaultLimit = 36_000;
@@ -57,7 +66,7 @@ public static class FilmScript
         ArgumentNullException.ThrowIfNull(window);
         ArgumentNullException.ThrowIfNull(sections);
         // As the command makes the world of a headless run.
-        using var world = new World(new WorldOptions { DisposePhysics = true }, new JoltPhysicsBackend());
+        using var world = new World(new() { DisposePhysics = true }, new JoltPhysicsBackend());
         SceneInstance instance = scene.Build(world, RenderResources.None);
         var steps = new List<ScriptStep>();
         // The outlines start off, as World.ShowFrameOutlines does, so a script with no section that shows them has no
@@ -68,15 +77,17 @@ public static class FilmScript
             ArgumentOutOfRangeException.ThrowIfLessThan(section.Every, 1);
             ArgumentOutOfRangeException.ThrowIfNegative(section.Hold);
             ArgumentOutOfRangeException.ThrowIfLessThan(section.Limit, 1);
-            List<ScriptStep> opening = [new CameraStep(section.Camera), .. (section.Posts ?? []).Select(post => (ScriptStep)post)];
+            List<ScriptStep> opening =
+                [new CameraStep(section.Camera), .. (section.Posts ?? []).Select(post => (ScriptStep)post)];
             if (section.Outlines != outlines)
                 opening.Insert(0, new OutlinesStep(section.Outlines));
             outlines = section.Outlines;
             // The runner checks and takes the camera step and the posts, so the rehearsal posts as a run of the script does.
-            ScriptRunner.Run(new Script(scene.Name, opening, window), world, instance);
+            ScriptRunner.Run(new(scene.Name, opening, window), world, instance);
             steps.AddRange(opening);
             steps.Add(new FilmStep(section.Name, Rehearse(world, instance, section), section.Every));
         }
+
         var script = new Script(scene.Name, steps, window);
         // Parse runs the checks of the script format, such as the grammar of the film names.
         return Script.Parse(script.ToJson());
@@ -89,9 +100,11 @@ public static class FilmScript
         while (!section.Until(world, scene))
         {
             if (frames * section.Every >= section.Limit)
-                throw new InvalidOperationException($"The cue of the section '{section.Name}' did not hold within its limit of {section.Limit} ticks.");
+                throw new InvalidOperationException(
+                    $"The cue of the section '{section.Name}' did not hold within its limit of {section.Limit} ticks.");
             RunFrame();
         }
+
         int holdFrames = (section.Hold + section.Every - 1) / section.Every;
         for (int frame = 0; frame < holdFrames; frame++)
             RunFrame();

@@ -1,8 +1,6 @@
 using System.Numerics;
 using Tertius.Demo;
-using Tertius.Frames.Rails;
 using Tertius.Simulation;
-using Tertius.Testing;
 using static Tertius.Testing.WorldTesting;
 using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
 
@@ -21,20 +19,24 @@ public sealed class WalkerTests : IDisposable
     private readonly FaultInjectingBackend faults;
     private readonly World world;
 
-    public WalkerTests() => world = NewWorldWithFaults(out faults);
+    public WalkerTests()
+    {
+        world = NewWorldWithFaults(out faults);
+    }
 
     public void Dispose() => world.Dispose();
 
-    private Entity Person(FrameHandle frame, Double3 position, params Waypoint[] path) => world.Spawn(new SpawnDesc
+    private Entity Person(FrameHandle frame, Double3 position, params Waypoint[] path) => world.Spawn(new()
     {
         Frame = frame,
-        Pose = new DPose(position, DQuaternion.Identity),
-        Body = new BodyDesc(Capsule, BodyMotion.Character, Mass: 70),
-        Components = [new Walker(path)],
+        Pose = new(position, DQuaternion.Identity),
+        Body = new(Capsule, BodyMotion.Character, Mass: 70),
+        Components = [new Walker(path)]
     });
 
     /// <summary>The distance from <paramref name="a"/> to <paramref name="b"/> across +Y, in meters.</summary>
-    private static double Across(Double3 a, Double3 b) => Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Z - b.Z) * (a.Z - b.Z));
+    private static double Across(Double3 a, Double3 b) =>
+        Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Z - b.Z) * (a.Z - b.Z));
 
     /// <summary>
     /// Runs <paramref name="ticks"/> ticks, and returns for each waypoint of <paramref name="path"/> the person's closest
@@ -54,6 +56,7 @@ public sealed class WalkerTests : IDisposable
                     (closest[i], tick[i]) = (distance, world.TickNumber);
             }
         }
+
         return (closest, tick);
     }
 
@@ -62,7 +65,7 @@ public sealed class WalkerTests : IDisposable
     [
         .. faults.Intents
             .Where(record => record.Entity == person && (record.Intent.Flags & IntentFlags.CharacterMove) != 0)
-            .Select(record => record.Intent.CharacterVelocity),
+            .Select(record => record.Intent.CharacterVelocity)
     ];
 
     /// <summary>An L of three waypoints 4 m apart on a floor in a root frame with 9.81 m/s² of gravity.</summary>
@@ -70,8 +73,8 @@ public sealed class WalkerTests : IDisposable
     {
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
-        Waypoint[] path = [new(ground, new Double3(4, 0.9, 0)), new(ground, new Double3(4, 0.9, -4)), new(ground, new Double3(0, 0.9, -4))];
-        return (Person(ground, new Double3(0, 0.95, 0), path), path, ground);
+        Waypoint[] path = [new(ground, new(4, 0.9, 0)), new(ground, new(4, 0.9, -4)), new(ground, new(0, 0.9, -4))];
+        return (Person(ground, new(0, 0.95, 0), path), path, ground);
     }
 
     [Fact]
@@ -95,7 +98,8 @@ public sealed class WalkerTests : IDisposable
         Tick(world, 60);
 
         Across(end, path[^1].Position).Should().BeLessThanOrEqualTo(Walker.StopRadius + 0.01);
-        Across(world.PoseIn(person, ground).Position, end).Should().BeLessThan(0.005, "the walker stays where it stopped");
+        Across(world.PoseIn(person, ground).Position, end).Should()
+            .BeLessThan(0.005, "the walker stays where it stopped");
     }
 
     /// <summary>
@@ -145,8 +149,10 @@ public sealed class WalkerTests : IDisposable
         List<double> speeds = [.. Walks(person).Select(walk => (double)walk.Length())];
         speeds[0].Should().BeApproximately(0.05, 1e-4, "the walk starts from rest");
         for (int i = 1; i < speeds.Count; i++)
-            (speeds[i] - speeds[i - 1]).Should().BeLessThanOrEqualTo(0.05 + 1e-4, $"walk {i} speeds up by one tick of the start's acceleration at most");
-        speeds.FindIndex(speed => speed >= PersonControl.WalkSpeed - 1e-4).Should().BeInRange(56, 61, "the walk reaches its full speed after about a second");
+            (speeds[i] - speeds[i - 1]).Should().BeLessThanOrEqualTo(0.05 + 1e-4,
+                $"walk {i} speeds up by one tick of the start's acceleration at most");
+        speeds.FindIndex(speed => speed >= PersonControl.WalkSpeed - 1e-4).Should()
+            .BeInRange(56, 61, "the walk reaches its full speed after about a second");
     }
 
     /// <summary>
@@ -164,7 +170,8 @@ public sealed class WalkerTests : IDisposable
         List<double> speeds = [.. Walks(person).Select(walk => (double)walk.Length())];
         int top = speeds.FindLastIndex(speed => speed >= PersonControl.WalkSpeed - 1e-4);
         speeds.Skip(top + 1).Should().BeInDescendingOrder("past the last tick at full speed, the walk only slows");
-        speeds.Skip(top + 1).Take(4).Should().Contain(speed => speed < PersonControl.WalkSpeed - 0.25, "the slowdown is faster than the start");
+        speeds.Skip(top + 1).Take(4).Should().Contain(speed => speed < PersonControl.WalkSpeed - 0.25,
+            "the slowdown is faster than the start");
     }
 
     /// <summary>
@@ -177,17 +184,19 @@ public sealed class WalkerTests : IDisposable
     public void TheWalkerFollowsItsWaypointsInAFrameThatMoves()
     {
         FrameHandle space = Ground(world, 9.81f);
-        Entity turntable = world.Spawn(new SpawnDesc { Frame = space, AsFrame = new FrameSpec(FrameBounds.Sphere(100)) }
-            .Spinning(world, new FrameSpin(DQuaternion.Identity, 0.1)));
+        Entity turntable = world.Spawn(new SpawnDesc { Frame = space, AsFrame = new(FrameBounds.Sphere(100)) }
+            .Spinning(world, new(DQuaternion.Identity, 0.1)));
         FrameHandle table = world.GetOwnedFrame(turntable);
-        world.Spawn(new SpawnDesc { Frame = table, Pose = At(30, -0.5), Body = new BodyDesc(new BoxShapeDesc(new Vector3(8, 0.5f, 8)), BodyMotion.Static) });
-        Waypoint[] path = [new(table, new Double3(34, 0.9, 0)), new(table, new Double3(34, 0.9, -4)), new(table, new Double3(30, 0.9, -4))];
-        Entity person = Person(table, new Double3(30, 0.95, 0), path);
+        world.Spawn(new()
+            { Frame = table, Pose = At(30, -0.5), Body = new(new BoxShapeDesc(new(8, 0.5f, 8)), BodyMotion.Static) });
+        Waypoint[] path = [new(table, new(34, 0.9, 0)), new(table, new(34, 0.9, -4)), new(table, new(30, 0.9, -4))];
+        Entity person = Person(table, new(30, 0.95, 0), path);
         Double3 start = world.PoseIn(person, space).Position;
 
         (double[] closest, long[] tick) = Walk(person, path, 600);
 
-        Across(world.PoseIn(person, space).Position, start).Should().BeGreaterThan(10, "the turntable carried the person round");
+        Across(world.PoseIn(person, space).Position, start).Should()
+            .BeGreaterThan(10, "the turntable carried the person round");
         closest.Should().AllSatisfy(distance => distance.Should().BeLessThanOrEqualTo(Walker.ArrivalRadius));
         tick.Should().BeInAscendingOrder();
         closest[^1].Should().BeLessThanOrEqualTo(Walker.StopRadius + 0.01);
@@ -204,12 +213,14 @@ public sealed class WalkerTests : IDisposable
     {
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
-        Entity marker = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(2, 5, -2), AsFrame = new FrameSpec(FrameBounds.Sphere(0.5f)) }
-            .Spinning(world, new FrameSpin(DQuaternion.Identity, 0.05, PhaseAtEpoch: Math.PI)));
+        Entity marker = world.Spawn(new SpawnDesc
+                { Frame = ground, Pose = At(2, 5, -2), AsFrame = new(FrameBounds.Sphere(0.5f)) }
+            .Spinning(world, new(DQuaternion.Identity, 0.05, PhaseAtEpoch: Math.PI)));
         FrameHandle turning = world.GetOwnedFrame(marker);
         // A half turn about +Y takes (x, y, z) in the marker's axes to (-x, y, -z) in the ground's.
-        Waypoint[] path = [new(turning, new Double3(-2, -4.1, -2)), new(turning, new Double3(-2, -4.1, 2)), new(turning, new Double3(2, -4.1, 2))];
-        Entity person = Person(ground, new Double3(0, 0.95, 0), path);
+        Waypoint[] path =
+            [new(turning, new(-2, -4.1, -2)), new(turning, new(-2, -4.1, 2)), new(turning, new(2, -4.1, 2))];
+        Entity person = Person(ground, new(0, 0.95, 0), path);
 
         (double[] closest, long[] tick) = Walk(person, path, 600);
 
@@ -227,15 +238,18 @@ public sealed class WalkerTests : IDisposable
     {
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
-        FrameHandle cabin = world.GetOwnedFrame(Shuttle.Park(world, ground, new DPose(new Double3(0, Shuttle.Hull.Y, 0), DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2))));
+        FrameHandle cabin = world.GetOwnedFrame(Shuttle.Park(world, ground,
+            new(new(0, Shuttle.Hull.Y, 0), DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2))));
         // The shuttle's +X, the hatch's side, is the ground's -Z, and its +Z is the ground's +X.
-        Entity person = Person(ground, new Double3(Shuttle.Hatch.Center.Z, 0.95, -15),
-            new Waypoint(cabin, Shuttle.OutsideHatch), new Waypoint(cabin, Shuttle.InsideHatch), new Waypoint(cabin, Shuttle.SeatStand));
+        Entity person = Person(ground, new(Shuttle.Hatch.Center.Z, 0.95, -15),
+            new Waypoint(cabin, Shuttle.OutsideHatch), new Waypoint(cabin, Shuttle.InsideHatch),
+            new Waypoint(cabin, Shuttle.SeatStand));
 
         Tick(world, 900);
 
         world.Snapshot.FrameOf(person).Should().Be(cabin);
-        Across(world.PoseIn(person, cabin).Position, Shuttle.SeatStand).Should().BeLessThanOrEqualTo(Walker.StopRadius + 0.01);
+        Across(world.PoseIn(person, cabin).Position, Shuttle.SeatStand).Should()
+            .BeLessThanOrEqualTo(Walker.StopRadius + 0.01);
         world.Errors.Should().BeEmpty();
     }
 
@@ -248,8 +262,9 @@ public sealed class WalkerTests : IDisposable
     {
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
-        Entity marker = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(10, 5), AsFrame = new FrameSpec(FrameBounds.Sphere(0.5f)) });
-        Entity person = Person(ground, new Double3(0, 0.95, 0), new Waypoint(world.GetOwnedFrame(marker), new Double3(-2, -4.1, 0)));
+        Entity marker = world.Spawn(new()
+            { Frame = ground, Pose = At(10, 5), AsFrame = new(FrameBounds.Sphere(0.5f)) });
+        Entity person = Person(ground, new(0, 0.95, 0), new Waypoint(world.GetOwnedFrame(marker), new(-2, -4.1, 0)));
         Tick(world, 60);
         double walked = world.PoseIn(person, ground).Position.X;
 
@@ -260,7 +275,8 @@ public sealed class WalkerTests : IDisposable
 
         walked.Should().BeGreaterThan(1, "the person walked toward the waypoint while its frame lived");
         stopped.X.Should().BeLessThan(walked + 0.25, "the person stopped within a few steps");
-        Across(world.PoseIn(person, ground).Position, stopped).Should().BeLessThan(0.005, "the walker stays where it stopped");
+        Across(world.PoseIn(person, ground).Position, stopped).Should()
+            .BeLessThan(0.005, "the walker stays where it stopped");
         world.Errors.Should().BeEmpty();
     }
 
@@ -273,8 +289,9 @@ public sealed class WalkerTests : IDisposable
     {
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
-        Entity marker = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(10, 5), AsFrame = new FrameSpec(FrameBounds.Sphere(0.5f)) });
-        Entity person = Person(ground, new Double3(0, 0.95, 0), new Waypoint(world.GetOwnedFrame(marker), new Double3(-2, -4.1, 0)));
+        Entity marker = world.Spawn(new()
+            { Frame = ground, Pose = At(10, 5), AsFrame = new(FrameBounds.Sphere(0.5f)) });
+        Entity person = Person(ground, new(0, 0.95, 0), new Waypoint(world.GetOwnedFrame(marker), new(-2, -4.1, 0)));
         Tick(world, 60);
 
         world.Destroy(marker);

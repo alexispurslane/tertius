@@ -1,5 +1,3 @@
-using System.Numerics;
-
 namespace Tertius.Physics.Tests.Precision;
 
 /// <summary>
@@ -12,7 +10,7 @@ public sealed class CastFalseHitsMeasurement
 {
     /// <summary>A cube with sides of 1 m and 10 kg that nothing slows down, turned +X onto d, so that its faces are square to d.</summary>
     private static readonly MovingPair.Member Box = new(
-        new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0),
+        new(new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0),
         _ => 0.5,
         TurnsOntoD: true);
 

@@ -34,14 +34,21 @@ public sealed class Door(Vector3 slide, float openSeconds, bool openAtStart = fa
 {
     private readonly float openSeconds = openSeconds > 0 && float.IsFinite(openSeconds)
         ? openSeconds
-        : throw new ArgumentOutOfRangeException(nameof(openSeconds), openSeconds, "The time to open must be positive and finite.");
+        : throw new ArgumentOutOfRangeException(nameof(openSeconds), openSeconds,
+            "The time to open must be positive and finite.");
+
     private DPose closed;
+
     // The frame that the closed pose is relative to.
     private FrameHandle closedFrame;
+
     private bool started;
+
     // How far open the door is, from 0 (shut) to 1 (open), and whether it moves toward open.
     private float openness;
+
     private bool opening;
+
     // How many entities are in the sensors that the door hears: the Entered events that it heard, less the Left events.
     // Each Entered has exactly one Left.
     private int inSensors;
@@ -59,26 +66,32 @@ public sealed class Door(Vector3 slide, float openSeconds, bool openAtStart = fa
             if (openAtStart)
             {
                 // The door spawned at its open pose, its slide on from the closed pose.
-                closed = new DPose(closed.Position - closed.Rotation.Rotate((Double3)slide), closed.Rotation);
+                closed = new(closed.Position - closed.Rotation.Rotate((Double3)slide), closed.Rotation);
                 openness = 1;
                 opening = true;
             }
+
             started = true;
         }
+
         for (int i = 0; i < events.Count; i++)
-        {
             if (events[i].Is<OpenDoor>())
+            {
                 opening = true;
+            }
             else if (events[i].Is<CloseDoor>())
+            {
                 opening = false;
+            }
             else if (events[i].Is<Entered>())
             {
                 inSensors++;
                 opening = true;
             }
             else if (events[i].Is<Left>() && --inSensors == 0)
+            {
                 opening = false;
-        }
+            }
 
         float target = opening ? 1 : 0;
         if (openness == target)
@@ -92,6 +105,8 @@ public sealed class Door(Vector3 slide, float openSeconds, bool openAtStart = fa
         // An end pose moves the body there over the next step, and stops it there. It is relative to the frame that the
         // door is in.
         var place = new DPose(closed.Position + closed.Rotation.Rotate((Double3)(slide * openness)), closed.Rotation);
-        self.MoveKinematic(closedFrame == self.Frame ? place : DPose.Compose(frames.Relative(closedFrame, self.Frame), place));
+        self.MoveKinematic(closedFrame == self.Frame
+            ? place
+            : DPose.Compose(frames.Relative(closedFrame, self.Frame), place));
     }
 }

@@ -1,4 +1,3 @@
-using System.Numerics;
 using Tertius.Simulation;
 using static Tertius.Physics.Tests.Precision.ContactRuns;
 
@@ -21,26 +20,27 @@ public sealed class StackCreepMeasurement
     /// <summary>The ticks of the measurement after the settle, 60 s at 60 Hz.</summary>
     private const int MeasureTicks = 3600;
 
-    /// <summary>The ticks after the settle at which a row is written: 5 s, 20 s and 60 s.</summary>
-    private static readonly int[] ReportTicks = [300, 1200, 3600];
-
     private const int BoxCount = 3;
 
     /// <summary>Half the side of the platform, in meters.</summary>
     private const double PlatformHalf = 5;
 
+    /// <summary>The ticks after the settle at which a row is written: 5 s, 20 s and 60 s.</summary>
+    private static readonly int[] ReportTicks = [300, 1200, 3600];
+
     /// <summary>
     /// A cube with sides of 10 m, which the engine moves with its velocity. No numeric frame and no target moves it, so
     /// Jolt keeps its spawn velocity.
     /// </summary>
-    private static readonly BodyDesc PlatformBody = new(new BoxShapeDesc(new Vector3((float)PlatformHalf)), BodyMotion.Kinematic);
+    private static readonly BodyDesc PlatformBody =
+        new(new BoxShapeDesc(new((float)PlatformHalf)), BodyMotion.Kinematic);
 
     /// <summary>
     /// A cube with sides of 1 m and 10 kg, with the default friction (0.5), restitution (0) and angular damping (0.05). It
     /// has no linear damping, because Jolt damps the whole velocity relative to its system's origin, so a damping would
     /// slow a stack that moves at V by a real force, which is no rounding error.
     /// </summary>
-    private static readonly BodyDesc BoxBody = new(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10, LinearDamping: 0);
+    private static readonly BodyDesc BoxBody = new(new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0);
 
     /// <summary>What one box shows at one report time.</summary>
     /// <param name="Offset">Its position minus the platform's, in meters.</param>
@@ -53,13 +53,27 @@ public sealed class StackCreepMeasurement
     /// <param name="Tilt">The angle of its rotation, in radians.</param>
     /// <param name="Asleep">True when Jolt had the box asleep at the report time.</param>
     /// <param name="Slept">True when Jolt had the box asleep at the end of any tick so far, the settle included.</param>
-    private readonly record struct BoxReport(Double3 Offset, Double3 Creep, Double3 ReadVelocity, double JitterRms, double JitterRmsUp,
-        double JitterRmsAcross, double JitterMax, double Tilt, bool Asleep, bool Slept);
+    private readonly record struct BoxReport(
+        Double3 Offset,
+        Double3 Creep,
+        Double3 ReadVelocity,
+        double JitterRms,
+        double JitterRmsUp,
+        double JitterRmsAcross,
+        double JitterMax,
+        double Tilt,
+        bool Asleep,
+        bool Slept);
 
     /// <summary>What the stack shows at one report time.</summary>
     /// <param name="Stands">True when every box rests on the one below, as <see cref="Stands"/> says.</param>
     /// <param name="FirstSleepTick">The first tick at whose end Jolt had any body asleep, or -1.</param>
-    private sealed record StackReport(BoxReport[] Boxes, bool Stands, bool PlatformAsleep, bool PlatformSlept, long FirstSleepTick);
+    private sealed record StackReport(
+        BoxReport[] Boxes,
+        bool Stands,
+        bool PlatformAsleep,
+        bool PlatformSlept,
+        long FirstSleepTick);
 
     /// <param name="LargestDistance">The largest distance of any body's center from the origin of the space during the run, in meters.</param>
     /// <param name="Warnings">The warnings of the backend plus the errors of the world during the run.</param>
@@ -100,26 +114,27 @@ public sealed class StackCreepMeasurement
         StackRun reference = Run(0, Double3.UnitX, Double3.Zero);
         double totalTime = (SettleTicks + MeasureTicks) * (double)(1f / 60);
         foreach (Direction direction in new[] { AlongX, Diagonal })
+        foreach (double speed in Speeds)
         {
-            foreach (double speed in Speeds)
-            {
-                // The path passes the origin at the middle of the run.
-                StackRun run = speed == 0 ? reference : Run(speed, direction.Unit, direction.Unit * (-speed * totalTime / 2));
-                Write(csv, "speed", direction, speed, run, reference,
-                    speed == 0 ? "V = 0: the stack can sleep, which freezes its creep and jitter" : "");
-                if (speed == 0)
-                    continue;
-                StackRun control = Run(0, direction.Unit, direction.Unit * run.LargestDistance);
-                Write(csv, "distance-control", direction, 0, control, reference,
-                    $"V = 0, the scene placed at the largest distance of the run at {speed} m/s: the stack can sleep");
-            }
+            // The path passes the origin at the middle of the run.
+            StackRun run = speed == 0
+                ? reference
+                : Run(speed, direction.Unit, direction.Unit * (-speed * totalTime / 2));
+            Write(csv, "speed", direction, speed, run, reference,
+                speed == 0 ? "V = 0: the stack can sleep, which freezes its creep and jitter" : "");
+            if (speed == 0)
+                continue;
+            StackRun control = Run(0, direction.Unit, direction.Unit * run.LargestDistance);
+            Write(csv, "distance-control", direction, 0, control, reference,
+                $"V = 0, the scene placed at the largest distance of the run at {speed} m/s: the stack can sleep");
         }
 
         csv.Save("stack-creep");
         csv.Rows.Should().Be(2 * (2 * Speeds.Length - 1) * BoxCount * ReportTicks.Length);
     }
 
-    private static void Write(Csv csv, string kind, Direction direction, double speed, StackRun run, StackRun reference, string note)
+    private static void Write(Csv csv, string kind, Direction direction, double speed, StackRun run, StackRun reference,
+        string note)
     {
         for (int r = 0; r < ReportTicks.Length; r++)
         {
@@ -133,7 +148,8 @@ public sealed class StackCreepMeasurement
                     box.Creep.X, box.Creep.Y, box.Creep.Z, box.Creep.Length,
                     fromReference.Y, fromReference.Length,
                     box.JitterRms, box.JitterRmsUp, box.JitterRmsAcross, box.JitterMax,
-                    up, across, box.Tilt, report.Stands, box.Asleep, box.Slept, report.PlatformAsleep, report.PlatformSlept,
+                    up, across, box.Tilt, report.Stands, box.Asleep, box.Slept, report.PlatformAsleep,
+                    report.PlatformSlept,
                     report.FirstSleepTick, run.Warnings, note);
             }
         }
@@ -147,21 +163,26 @@ public sealed class StackCreepMeasurement
     {
         var warnings = new List<string>();
         using World world = NewWorld(out JoltPhysicsBackend backend, warnings);
-        FrameHandle space = Space(world, new Vector3(0, -Gravity, 0));
+        FrameHandle space = Space(world, new(0, -Gravity, 0));
         Double3 velocity = direction * speed;
-        Entity platform = world.Spawn(new SpawnDesc
+        Entity platform = world.Spawn(new()
         {
-            Frame = space, Pose = At(origin + new Double3(0, -PlatformHalf, 0)), LinearVelocity = velocity, Body = PlatformBody,
+            Frame = space, Pose = At(origin + new Double3(0, -PlatformHalf, 0)), LinearVelocity = velocity,
+            Body = PlatformBody
         });
         var boxes = new Entity[BoxCount];
         for (int k = 0; k < BoxCount; k++)
-            boxes[k] = world.Spawn(new SpawnDesc { Frame = space, Pose = At(origin + new Double3(0, 0.5 + k, 0)), LinearVelocity = velocity, Body = BoxBody });
+            boxes[k] = world.Spawn(new()
+            {
+                Frame = space, Pose = At(origin + new Double3(0, 0.5 + k, 0)), LinearVelocity = velocity, Body = BoxBody
+            });
         Entity[] bodies = [platform, .. boxes];
 
         double largest = 0;
-        var slept = new bool[bodies.Length];
-        var asleep = new bool[bodies.Length];
+        bool[] slept = new bool[bodies.Length];
+        bool[] asleep = new bool[bodies.Length];
         long firstSleep = -1;
+
         void Step()
         {
             world.Tick();
@@ -183,10 +204,10 @@ public sealed class StackCreepMeasurement
         for (int k = 0; k < BoxCount; k++)
             settled[k] = last[k] = Offset(world, space, boxes[k], platform);
 
-        var sumSquares = new double[BoxCount];
-        var sumSquaresUp = new double[BoxCount];
-        var sumSquaresAcross = new double[BoxCount];
-        var max = new double[BoxCount];
+        double[] sumSquares = new double[BoxCount];
+        double[] sumSquaresUp = new double[BoxCount];
+        double[] sumSquaresAcross = new double[BoxCount];
+        double[] max = new double[BoxCount];
         var reports = new List<StackReport>();
         double dt = world.DeltaTime;
         for (int tick = 1; tick <= MeasureTicks; tick++)
@@ -206,19 +227,22 @@ public sealed class StackCreepMeasurement
                 sumSquaresAcross[k] += across * across;
                 max[k] = Math.Max(max[k], relative.Length);
             }
+
             if (Array.IndexOf(ReportTicks, tick) < 0)
                 continue;
             var boxReports = new BoxReport[BoxCount];
             for (int k = 0; k < BoxCount; k++)
             {
                 Double3 read = world.VelocityIn(boxes[k], space) - world.VelocityIn(platform, space);
-                boxReports[k] = new BoxReport(offsets[k], offsets[k] - settled[k], read, Math.Sqrt(sumSquares[k] / tick),
+                boxReports[k] = new(offsets[k], offsets[k] - settled[k], read, Math.Sqrt(sumSquares[k] / tick),
                     Math.Sqrt(sumSquaresUp[k] / tick), Math.Sqrt(sumSquaresAcross[k] / tick), max[k],
                     AngleOf(world.PoseIn(boxes[k], space).Rotation), asleep[k + 1], slept[k + 1]);
             }
-            reports.Add(new StackReport(boxReports, Stands(offsets), asleep[0], slept[0], firstSleep));
+
+            reports.Add(new(boxReports, Stands(offsets), asleep[0], slept[0], firstSleep));
         }
-        return new StackRun([.. reports], largest, warnings.Count + world.Errors.Count);
+
+        return new([.. reports], largest, warnings.Count + world.Errors.Count);
     }
 
     /// <summary>The position of <paramref name="box"/> minus the position of the platform's top center, in meters.</summary>
@@ -243,6 +267,7 @@ public sealed class StackCreepMeasurement
             if (step.Y <= 0.5 || step.Y >= 1.5 || Math.Abs(step.X) >= 0.5 || Math.Abs(step.Z) >= 0.5)
                 return false;
         }
+
         return true;
     }
 

@@ -32,11 +32,11 @@ public static partial class DemoScenes
     /// </summary>
     public static class EarthSystem
     {
-        /// <summary>The pad's half extents, in meters: 12 by 1 by 12 m.</summary>
-        public static Vector3 PadHalf { get; } = new(6, 0.5f, 6);
-
         /// <summary>The height of the pad's top face above Earth's center, in meters, along earth-surface's +Y.</summary>
         public const double PadTop = EarthRadius + 0.5;
+
+        /// <summary>The pad's half extents, in meters: 12 by 1 by 12 m.</summary>
+        public static Vector3 PadHalf { get; } = new(6, 0.5f, 6);
 
         public static SceneInstance Build(World world, IRenderResources resources)
         {
@@ -49,25 +49,25 @@ public static partial class DemoScenes
             DemoStation.Spawn(world, earth, scene, resources);
 
             // The pad lies on the ground at the pole, the vertex of Earth's sphere on +Y.
-            scene.Add("pad", world.Spawn(new SpawnDesc
+            scene.Add("pad", world.Spawn(new()
             {
                 Frame = surface,
-                Pose = new DPose(new Double3(0, PadTop - PadHalf.Y, 0), DQuaternion.Identity),
-                Body = new BodyDesc(new BoxShapeDesc(PadHalf), BodyMotion.Static),
-                Render = Drawn(resources, Primitives.Box(PadHalf), new Vector4(0.75f, 0.74f, 0.7f, 1), PadHalf.Length()) with
+                Pose = new(new(0, PadTop - PadHalf.Y, 0), DQuaternion.Identity),
+                Body = new(new BoxShapeDesc(PadHalf), BodyMotion.Static),
+                Render = Drawn(resources, Primitives.Box(PadHalf), new(0.75f, 0.74f, 0.7f, 1), PadHalf.Length()) with
                 {
-                    Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
-                },
+                    Flags = RenderFlags.Visible | RenderFlags.CastsShadow
+                }
             }));
             var mastHalf = new Vector3(0.3f, 5, 0.3f);
-            scene.Add("mast", world.Spawn(new SpawnDesc
+            scene.Add("mast", world.Spawn(new()
             {
                 Frame = surface,
-                Pose = new DPose(new Double3(5, PadTop + mastHalf.Y, -5), DQuaternion.Identity),
-                Render = Drawn(resources, Primitives.Box(mastHalf), new Vector4(0.8f, 0.15f, 0.1f, 1), mastHalf.Length()) with
+                Pose = new(new(5, PadTop + mastHalf.Y, -5), DQuaternion.Identity),
+                Render = Drawn(resources, Primitives.Box(mastHalf), new(0.8f, 0.15f, 0.1f, 1), mastHalf.Length()) with
                 {
-                    Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
-                },
+                    Flags = RenderFlags.Visible | RenderFlags.CastsShadow
+                }
             }));
 
             // Where the Sun stands from Earth at the world's time, in earth's axes.
@@ -77,7 +77,7 @@ public static partial class DemoScenes
 
             void View(string id, FrameHandle frame, DPose pose)
             {
-                scene.Add(id, world.Spawn(new SpawnDesc { Frame = frame, Pose = pose, Render = new RenderData() }));
+                scene.Add(id, world.Spawn(new() { Frame = frame, Pose = pose, Render = new RenderData() }));
                 scene.AddView(id);
             }
 
@@ -90,14 +90,16 @@ public static partial class DemoScenes
             Double3 moon = MoonOrbit.StateAt(world.Time, EarthMu).Position, outward = moon.Normalized();
             Double3 sunward = (toSun - outward * Double3.Dot(toSun, outward)).Normalized();
             Double3 moonWatch = moon + outward * 30e6 + sunward * 40e6;
-            View("earth-moon", earth, LookingAt(moonWatch, moonWatch + (moon - moonWatch).Normalized() + (-moonWatch).Normalized()));
+            View("earth-moon", earth,
+                LookingAt(moonWatch, moonWatch + (moon - moonWatch).Normalized() + (-moonWatch).Normalized()));
 
             // The station over Earth's limb: 300 m out along its axis, looking 11 degrees below it, with the roof away from Earth.
             KeplerOrbit stationOrbit = DemoStation.Orbit;
             Double3 station = stationOrbit.StateAt(world.Time, EarthMu).Position, up = station.Normalized();
             Double3 axis = stationOrbit.RotationAt(world.Time, EarthMu).Rotate(Double3.UnitY);
             double down = 11 * Math.PI / 180;
-            View("station-view", earth, new DPose(station + axis * 300, AttitudeAutopilot.Facing(-axis * Math.Cos(down) - up * Math.Sin(down), up)));
+            View("station-view", earth,
+                new(station + axis * 300, AttitudeAutopilot.Facing(-axis * Math.Cos(down) - up * Math.Sin(down), up)));
 
             // The pad from the ground, looking past it toward the Sun, which stands 23.44 degrees up: the eye stands 22 m
             // from the pole on the side away from the Sun. At the world's time, earth-surface has turned from earth's axes by
@@ -105,7 +107,7 @@ public static partial class DemoScenes
             Double3 toSunInSurface = date.Ground.RotationAt(world.Time).Conjugate().Rotate(toSun);
             Double3 sunAcross = new Double3(toSunInSurface.X, 0, toSunInSurface.Z).Normalized();
             Double3 padEye = -sunAcross * 22 + new Double3(0, EarthRadius + 6, 0);
-            View("pad-view", surface, LookingAt(padEye, new Double3(0, EarthRadius + 8, 0)));
+            View("pad-view", surface, LookingAt(padEye, new(0, EarthRadius + 8, 0)));
 
             Double3 farEye = (toSun + Double3.UnitX * 0.6).Normalized() * 5e7;
             View("earth-far", earth, LookingAt(farEye, Double3.Zero));

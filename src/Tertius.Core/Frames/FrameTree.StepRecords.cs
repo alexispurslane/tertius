@@ -37,7 +37,11 @@ public sealed partial class FrameTree
     /// A frame of the pass of <see cref="TakeStepRecords"/>: its handle, its dense index, its tree parent and its semantic
     /// parent, which the pass reads from the tree's own storage, so that no member below checks a handle again.
     /// </summary>
-    private readonly record struct RecordTaker(FrameHandle Frame, int Dense, FrameHandle TreeParent, FrameHandle Parent);
+    private readonly record struct RecordTaker(
+        FrameHandle Frame,
+        int Dense,
+        FrameHandle TreeParent,
+        FrameHandle Parent);
 
     /// <summary>
     /// Step 2 of the sync point, once, after the physics output of a step of <paramref name="step"/> seconds that applied
@@ -60,7 +64,8 @@ public sealed partial class FrameTree
     /// relative to the parent's frame velocity, the chord of the step, so that a read in the semantic parent gives the
     /// instant velocity (see <see cref="HomeInstantVelocityOverChord"/>). A frame at the origin of its following frame that takes
     /// a record with another place left that origin in the step, because its hull teleported: <see cref="JumpFollowingFrame"/>
-    /// brings it back after this pass. The frame keeps the record's angular acceleration (see <see cref="AngularAcceleration"/>),
+    /// brings it back after this pass. The frame keeps the record's angular acceleration (see
+    /// <see cref="AngularAcceleration"/>),
     /// and not its chord or its acceleration. A write of the owner's transform that turns the frame lists it among the frames
     /// without a last turn, because its axes jump against inertial space before the next step (see <see cref="BeginStep"/>).
     /// <para>
@@ -83,7 +88,8 @@ public sealed partial class FrameTree
     /// not add, remove or move a frame, which would replace the arrays that the walk reads: a contract checks it after each
     /// frame.
     /// </summary>
-    internal void TakeStepRecords<TOwners>(ref TOwners owners, ReadOnlySpan<PhysicsIntent> stepIntents, bool stepFailed, double step)
+    internal void TakeStepRecords<TOwners>(ref TOwners owners, ReadOnlySpan<PhysicsIntent> stepIntents, bool stepFailed,
+        double step)
         where TOwners : struct, IFrameOwnerFacts
     {
         properAcceleration.AsSpan().CopyTo(properAccelerationTheStepFound);
@@ -107,21 +113,26 @@ public sealed partial class FrameTree
                     s = parents[s];
                 parent = s == p ? treeParent : HandleOf(ids[s], generations);
             }
-            TakeStepRecord(ref owners, new RecordTaker(HandleOf(id, generations), dense, treeParent, parent), locals, stepIntents, stepFailed, step);
+
+            TakeStepRecord(ref owners, new(HandleOf(id, generations), dense, treeParent, parent), locals, stepIntents,
+                stepFailed, step);
             Contract.Assert(poses.Version == shape, "The owner facts added, removed or moved a frame during the pass.");
         }
     }
 
     /// <summary>One frame of <see cref="TakeStepRecords"/>, by the rules of its summary.</summary>
-    private void TakeStepRecord<TOwners>(ref TOwners owners, in RecordTaker taker, Span<DPose> locals, ReadOnlySpan<PhysicsIntent> stepIntents,
+    private void TakeStepRecord<TOwners>(ref TOwners owners, in RecordTaker taker, Span<DPose> locals,
+        ReadOnlySpan<PhysicsIntent> stepIntents,
         bool stepFailed, double step) where TOwners : struct, IFrameOwnerFacts
     {
         FrameHandle frame = taker.Frame;
         bool hull = !taker.TreeParent.IsNull && hullMotion[frame.Index].HasValue;
         if (owners.TryGetHullRecord(frame, out FrameStepRecord released))
-            FollowAt(taker, locals, released.Motion, inTreeParent: true, FollowKindAt(taker, stepIntents), released.ProperAcceleration, step);
+            FollowAt(taker, locals, released.Motion, inTreeParent: true, FollowKindAt(taker, stepIntents),
+                released.ProperAcceleration, step);
         // A frame without a hull hangs in its semantic parent, so its tree pose is its pose there, which FollowAt checks.
-        else if (!hull && StepRecordOfIntent(frame.Entity.Index, taker.Parent, locals[taker.Dense], stepIntents, step, out MotionSample move))
+        else if (!hull && StepRecordOfIntent(frame.Entity.Index, taker.Parent, locals[taker.Dense], stepIntents, step,
+                     out MotionSample move))
             FollowAt(taker, locals, move, inTreeParent: false, FollowKindAt(taker, stepIntents), measured: null, step);
         else if (!(hull && stepFailed) && !owners.IsSkipped(frame))
             HoldStillAt(taker, locals, step);
@@ -143,7 +154,8 @@ public sealed partial class FrameTree
     /// tree parent when <paramref name="inTreeParent"/>, and else to its semantic parent, which is then the same frame:
     /// only a frame with a hull hangs in a numeric frame (see the class summary).
     /// </summary>
-    private void FollowAt(in RecordTaker taker, Span<DPose> locals, in MotionSample record, bool inTreeParent, FollowKind kind,
+    private void FollowAt(in RecordTaker taker, Span<DPose> locals, in MotionSample record, bool inTreeParent,
+        FollowKind kind,
         Vector3? measured, double step)
     {
         Contract.Requires(record.Pose.Rotation.IsUnit && (inTreeParent || taker.TreeParent == taker.Parent));
@@ -156,21 +168,26 @@ public sealed partial class FrameTree
         properAcceleration[id] = measured ?? ProperAccelerationOf(taker, inTreeParent, record, step);
     }
 
-    /// <summary>The frame holds still in its tree parent over a step of <paramref name="dt"/> seconds, by the rules of <see cref="TakeStepRecords"/>.</summary>
+    /// <summary>The frame holds still in its tree parent over a step of <paramref name="dt"/> seconds, by the rules of
+    /// <see cref="TakeStepRecords"/>.</summary>
     private void HoldStillAt(in RecordTaker taker, ReadOnlySpan<DPose> locals, double dt)
     {
         int id = taker.Frame.Index;
         FrameHandle treeParent = taker.TreeParent;
-        LinearVelocityForWrite(id) = treeParent == taker.Parent ? Double3.Zero : HomeInstantVelocityOverChord(treeParent, taker.Parent, dt);
+        LinearVelocityForWrite(id) = treeParent == taker.Parent
+            ? Double3.Zero
+            : HomeInstantVelocityOverChord(treeParent, taker.Parent, dt);
         AngularVelocityForWrite(id) = Vector3.Zero;
         angularAcceleration[id] = Double3.Zero;
         followKind[id] = FollowKind.Static;
-        var rest = new MotionSample(locals[taker.Dense], Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
+        var rest = new MotionSample(locals[taker.Dense], Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero,
+            Double3.Zero);
         properAcceleration[id] = ProperAccelerationOf(taker, inTreeParent: true, rest, dt);
     }
 
     /// <summary>
-    /// The proper acceleration that <paramref name="record"/> gives the frame by the rule of <see cref="ProperAccelerationFrom"/>,
+    /// The proper acceleration that <paramref name="record"/> gives the frame by the rule of
+    /// <see cref="ProperAccelerationFrom"/>,
     /// after the record moves into the frame's semantic parent (docs/plans/rails-components.md, "The proper acceleration of a
     /// frame"). A record relative to the semantic parent is there already. The anchor of a following frame that has a step
     /// plan moved on the plan, which is its record in the semantic parent (see <see cref="BeginStep"/>). Any other
@@ -182,10 +199,11 @@ public sealed partial class FrameTree
         if (inTreeParent && treeParent != taker.Parent)
         {
             int t = treeParent.Index;
-            if (anchor[t] == taker.Frame.Entity && stepPlan[t] is { } plan)
-                return ProperAccelerationFrom(taker.Parent, plan, step);
-            return ProperAccelerationFrom(taker.Parent, InSemanticParent(treeParent, record), step);
+            return anchor[t] == taker.Frame.Entity && stepPlan[t] is { } plan
+                ? ProperAccelerationFrom(taker.Parent, plan, step)
+                : ProperAccelerationFrom(taker.Parent, InSemanticParent(treeParent, record), step);
         }
+
         return ProperAccelerationFrom(taker.Parent, record, step);
     }
 
@@ -215,8 +233,10 @@ public sealed partial class FrameTree
             gravity = FieldTheStepFound(parent.Index, start);
             ref readonly FrameTurns parentTurns = ref turns[parent.Index];
             if (parentTurns.Turns)
-                gravity += parentTurns.Centrifugal(start) + parentTurns.Euler(start, step) + parentTurns.Coriolis(record.ChordVelocity);
+                gravity += parentTurns.Centrifugal(start) + parentTurns.Euler(start, step) +
+                           parentTurns.Coriolis(record.ChordVelocity);
         }
+
         return record.Pose.Rotation.Conjugate().Rotate(record.Acceleration - gravity).ToVector3();
     }
 
@@ -236,9 +256,9 @@ public sealed partial class FrameTree
         FrameHandle semantic = SemanticOf(treeParent);
         return record with
         {
-            Pose = new DPose(InSemantic(treeParent, semantic, record.Pose.Position), record.Pose.Rotation),
+            Pose = new(InSemantic(treeParent, semantic, record.Pose.Position), record.Pose.Rotation),
             ChordVelocity = record.ChordVelocity + HomeVelocity(treeParent, semantic),
-            Acceleration = record.Acceleration + HomeAcceleration(treeParent, semantic),
+            Acceleration = record.Acceleration + HomeAcceleration(treeParent, semantic)
         };
     }
 
@@ -267,12 +287,10 @@ public sealed partial class FrameTree
     /// The rule of <see cref="FollowKindInStep"/>, for a frame whose owner has the slot <paramref name="slot"/> and whose
     /// hull has <paramref name="motion"/> in the step, or no hull.
     /// </summary>
-    private static FollowKind FollowKindOf(BodyMotion? motion, uint slot, ReadOnlySpan<PhysicsIntent> stepIntents)
-    {
-        if (motion == BodyMotion.Dynamic)
-            return FollowKind.Physics;
-        if (motion == BodyMotion.Static || slot >= (uint)stepIntents.Length)
-            return FollowKind.Static;
-        return stepIntents[(int)slot].Move.FollowKind;
-    }
+    private static FollowKind FollowKindOf(BodyMotion? motion, uint slot, ReadOnlySpan<PhysicsIntent> stepIntents) =>
+        motion == BodyMotion.Dynamic
+            ? FollowKind.Physics
+            : motion == BodyMotion.Static || slot >= (uint)stepIntents.Length
+                ? FollowKind.Static
+                : stepIntents[(int)slot].Move.FollowKind;
 }

@@ -1,4 +1,3 @@
-using System.Numerics;
 using AwesomeAssertions;
 using Tertius.Frames.Rails;
 using static Tertius.Simulation.Tests.BlueprintSamples;
@@ -15,6 +14,17 @@ public class RailsComponentTests
 {
     private const double Mu = 4e14;
 
+    /// <summary>An orbit that a <see cref="KeplerMotion"/> cannot follow. The default orbit would leave the frame at its parent's origin.</summary>
+    public static TheoryData<string, KeplerOrbit> OrbitsThatAreNotValid => new()
+    {
+        { "the default orbit", default },
+        { "no semi-major axis", KeplerOrbit.Circular(0) },
+        { "an open orbit", KeplerOrbit.Circular(1000) with { Eccentricity = 1 } },
+        { "a negative eccentricity", KeplerOrbit.Circular(1000) with { Eccentricity = -0.1 } },
+        { "a semi-major axis that is not a number", KeplerOrbit.Circular(double.NaN) },
+        { "an infinite spin", KeplerOrbit.Circular(1000, spinRate: double.PositiveInfinity) }
+    };
+
     // ---- The checks of the properties ---------------------------------------------------------------------------
 
     [Theory]
@@ -27,22 +37,11 @@ public class RailsComponentTests
         {
             "the default orbit" => default,
             "an open orbit" => KeplerOrbit.Circular(1000) with { Eccentricity = 1 },
-            _ => KeplerOrbit.Circular(double.PositiveInfinity),
+            _ => KeplerOrbit.Circular(double.PositiveInfinity)
         };
 
         FluentActions.Invoking(() => new KeplerMotion { Orbit = orbit }).Should().Throw<ArgumentException>();
     }
-
-    /// <summary>An orbit that a <see cref="KeplerMotion"/> cannot follow. The default orbit would leave the frame at its parent's origin.</summary>
-    public static TheoryData<string, KeplerOrbit> OrbitsThatAreNotValid => new()
-    {
-        { "the default orbit", default },
-        { "no semi-major axis", KeplerOrbit.Circular(0) },
-        { "an open orbit", KeplerOrbit.Circular(1000) with { Eccentricity = 1 } },
-        { "a negative eccentricity", KeplerOrbit.Circular(1000) with { Eccentricity = -0.1 } },
-        { "a semi-major axis that is not a number", KeplerOrbit.Circular(double.NaN) },
-        { "an infinite spin", KeplerOrbit.Circular(1000, spinRate: double.PositiveInfinity) },
-    };
 
     [Theory]
     [MemberData(nameof(OrbitsThatAreNotValid))]
@@ -65,9 +64,9 @@ public class RailsComponentTests
     [Fact]
     public void ABlueprintMakesAKeplerMotionFromItsProperties()
     {
-        var orbit = KeplerOrbit.Circular(7e6, phase: 0.4);
+        KeplerOrbit orbit = KeplerOrbit.Circular(7e6, phase: 0.4);
         var blueprints = new Blueprints();
-        blueprints.Register(new Blueprint("moon", [new ComponentSpec(typeof(KeplerMotion), Fields(("Orbit", orbit)))]));
+        blueprints.Register(new("moon", [new(typeof(KeplerMotion), Fields(("Orbit", orbit)))]));
 
         var motion = (KeplerMotion)blueprints.Instantiate("moon").Single();
 
@@ -79,7 +78,7 @@ public class RailsComponentTests
     {
         var spin = new FrameSpin(DQuaternion.FromAxisAngle(Double3.UnitZ, -0.4), 0.7, PhaseAtEpoch: 0.3, Epoch: 2);
         var blueprints = new Blueprints();
-        blueprints.Register(new Blueprint("ground", [new ComponentSpec(typeof(SpinMotion), Fields(("Spin", spin)))]));
+        blueprints.Register(new("ground", [new(typeof(SpinMotion), Fields(("Spin", spin)))]));
 
         var motion = (SpinMotion)blueprints.Instantiate("ground").Single();
 
@@ -93,7 +92,7 @@ public class RailsComponentTests
     {
         using var test = new TestWorld();
         test.GiveRootPointGravity(Mu);
-        var orbit = KeplerOrbit.Circular(7e6, phase: 0.4, spinRate: 0.01);
+        KeplerOrbit orbit = KeplerOrbit.Circular(7e6, phase: 0.4, spinRate: 0.01);
         FrameHandle moon = SpawnFrame(test, components: new KeplerMotion { Orbit = orbit });
 
         test.Run(3);
@@ -121,13 +120,13 @@ public class RailsComponentTests
     {
         using var test = new TestWorld();
         test.GiveRootPointGravity(Mu);
-        var parked = new MotionSample(new DPose(new Double3(1, 2, 3), DQuaternion.Identity), Double3.Zero, Double3.Zero, Double3.Zero,
+        var parked = new MotionSample(new(new(1, 2, 3), DQuaternion.Identity), Double3.Zero, Double3.Zero, Double3.Zero,
             Double3.Zero, Double3.Zero);
         // The other component comes first in the list, so only the priority of KeplerMotion makes it run first.
         FrameHandle moon = SpawnFrame(test, components:
         [
             Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.MoveOnRails(parked)),
-            new KeplerMotion { Orbit = KeplerOrbit.Circular(7e6) },
+            new KeplerMotion { Orbit = KeplerOrbit.Circular(7e6) }
         ]);
 
         test.Run(1);
@@ -148,7 +147,8 @@ public class RailsComponentTests
         Lambda flight = Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
         {
             Double3 place = velocity * self.TimeAt(self.Tick + 2);
-            self.MoveOnRails(new MotionSample(new DPose(place, DQuaternion.Identity), velocity, velocity, Double3.Zero, Double3.Zero, Double3.Zero));
+            self.MoveOnRails(new(new(place, DQuaternion.Identity), velocity, velocity, Double3.Zero, Double3.Zero,
+                Double3.Zero));
         });
         var spin = new FrameSpin(DQuaternion.FromAxisAngle(Double3.UnitZ, 0.1), 0.7);
         FrameHandle frame = SpawnFrame(test, components: flight);
@@ -158,12 +158,15 @@ public class RailsComponentTests
         test.World.AddComponent(frame.Entity, new SpinMotion { Spin = spin });
         test.Run(1);
         Double3 stop = velocity * test.World.Time;
-        test.World.Frames.LocalPose(frame).Position.Should().Be(stop, "the flight's last sample moves the frame in the step of the swap");
+        test.World.Frames.LocalPose(frame).Position.Should()
+            .Be(stop, "the flight's last sample moves the frame in the step of the swap");
 
         test.Run(3);
 
-        test.World.Frames.LocalPose(frame).Position.Should().Be(stop, "the spin turns the frame where the flight left it");
-        Applied(test, frame)!.Value.Should().Be(spin.Sample(stop, test.World.TimeAt(test.World.TickNumber + 1), test.World.DeltaTime));
+        test.World.Frames.LocalPose(frame).Position.Should()
+            .Be(stop, "the spin turns the frame where the flight left it");
+        Applied(test, frame)!.Value.Should()
+            .Be(spin.Sample(stop, test.World.TimeAt(test.World.TickNumber + 1), test.World.DeltaTime));
     }
 
     // ---- The checks of a run ------------------------------------------------------------------------------------
@@ -229,7 +232,8 @@ public class RailsComponentTests
 
         test.Run(3);
 
-        log.Should().Contain(line => line.Contains(moon.Entity.ToString()), "the component logged that it holds its frame still");
+        log.Should().Contain(line => line.Contains(moon.Entity.ToString()),
+            "the component logged that it holds its frame still");
         test.World.Errors.Should().BeEmpty();
     }
 
@@ -242,7 +246,7 @@ public class RailsComponentTests
         test.GiveRootPointGravity(Mu);
         IComponent rails = component == "KeplerMotion"
             ? new KeplerMotion { Orbit = KeplerOrbit.Circular(7e6) }
-            : new SpinMotion { Spin = new FrameSpin(DQuaternion.Identity, 0.5) };
+            : new SpinMotion { Spin = new(DQuaternion.Identity, 0.5) };
         FrameHandle frame = SpawnFrame(test, components: rails);
 
         test.Run(2);
@@ -256,12 +260,12 @@ public class RailsComponentTests
 
     /// <summary>Spawns a frame without a body at <paramref name="place"/> in the root, and returns it.</summary>
     private static FrameHandle SpawnFrame(TestWorld test, Double3 place = default, params IComponent[] components) =>
-        test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
+        test.World.GetOwnedFrame(test.World.Spawn(new()
         {
             Frame = test.Root,
-            Pose = new DPose(place, DQuaternion.Identity),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
-            Components = components,
+            Pose = new(place, DQuaternion.Identity),
+            AsFrame = new(FrameBounds.Sphere(10)),
+            Components = components
         }));
 
     /// <summary>The full sample that the next step applies to the owner of <paramref name="frame"/>, between two ticks, or null.</summary>

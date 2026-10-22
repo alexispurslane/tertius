@@ -39,7 +39,8 @@ public sealed class BlueDanubeScriptTests
             foreach ((string file, _, _) in BlueDanube.Cuts)
             {
                 output.ToString().Should().Contain(Path.Combine(folder, file));
-                File.ReadAllText(Path.Combine(folder, file)).Should().Be(File.ReadAllText(Path.Combine(RepositoryRoot(), "scripts", file)),
+                File.ReadAllText(Path.Combine(folder, file)).Should().Be(
+                    File.ReadAllText(Path.Combine(RepositoryRoot(), "scripts", file)),
                     $"scripts/{file} must be what the generator writes beside the long script");
             }
         }
@@ -104,7 +105,8 @@ public sealed class BlueDanubeScriptTests
     [Fact]
     public void TheGeneratorReportsAFileErrorWhenItCannotWriteTheScript()
     {
-        string path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "no-such-folder", "blue-danube.json");
+        string path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "no-such-folder",
+            "blue-danube.json");
         var output = new StringWriter();
         var error = new StringWriter();
 

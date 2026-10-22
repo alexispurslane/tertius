@@ -15,6 +15,9 @@ namespace Tertius.Host.Tests;
 [Collection(GpuCollection.Name)]
 public sealed class OutlinesStepTests : IDisposable
 {
+    /// <summary>The bubble of the ship, as the camera <c>front</c> sees it: 4 m ahead, in the axes of space, with radius 2 m.</summary>
+    private static readonly FrameOutline ShipBubble = new SemanticOutline(new(0, 0, -4), Quaternion.Identity, new(2));
+
     private readonly string folder = NewFolder();
 
     public void Dispose() => Directory.Delete(folder, recursive: true);
@@ -27,7 +30,8 @@ public sealed class OutlinesStepTests : IDisposable
     private static SceneInstance LitBoxInShip(World world, IRenderResources resources)
     {
         SceneInstance scene = LitBox(world, resources);
-        scene.Add("ship", world.Spawn(new SpawnDesc { Frame = world.GetFrame(scene["box"]), AsFrame = new FrameSpec(FrameBounds.Sphere(2)) }));
+        scene.Add("ship",
+            world.Spawn(new() { Frame = world.GetFrame(scene["box"]), AsFrame = new(FrameBounds.Sphere(2)) }));
         return scene;
     }
 
@@ -64,14 +68,17 @@ public sealed class OutlinesStepTests : IDisposable
     /// </summary>
     private static List<FrameOutline[]> Run(string steps, string output)
     {
-        Script script = Script.Parse($$"""{ "scene": "lit-box-in-ship", "window": { "width": 320, "height": 180 }, "steps": [ {{steps}} ] }""");
+        Script script =
+            Script.Parse(
+                $$"""{ "scene": "lit-box-in-ship", "window": { "width": 320, "height": 180 }, "steps": [ {{steps}} ] }""");
         using World world = NewWorld();
         // A small renderer: the runner resizes it to the script's window.
         VulkanRenderer vulkan = Headless(16, 16);
         var renderer = new NotesTheOutlines(vulkan);
         try
         {
-            ScriptRunner.Run(script, world, LitBoxInShip(world, renderer), output, new HeadlessPlayback(renderer, script.Window, new PngFolder(output)));
+            ScriptRunner.Run(script, world, LitBoxInShip(world, renderer), output,
+                new HeadlessPlayback(renderer, script.Window, new PngFolder(output)));
             return renderer.Drawn;
         }
         finally
@@ -81,15 +88,12 @@ public sealed class OutlinesStepTests : IDisposable
         }
     }
 
-    /// <summary>The bubble of the ship, as the camera <c>front</c> sees it: 4 m ahead, in the axes of space, with radius 2 m.</summary>
-    private static readonly FrameOutline ShipBubble = new SemanticOutline(new Vector3(0, 0, -4), Quaternion.Identity, new Vector3(2));
-
     [Fact]
     public void AnOutlinesStepShowsTheFrameOutlinesFromTheNextCaptureOn()
     {
         List<FrameOutline[]> captures = Run("""
-            { "do": "capture", "name": "before" }, { "do": "outlines", "show": true }, { "do": "capture", "name": "after" }, { "do": "capture", "name": "later" }
-            """, folder);
+                                            { "do": "capture", "name": "before" }, { "do": "outlines", "show": true }, { "do": "capture", "name": "after" }, { "do": "capture", "name": "later" }
+                                            """, folder);
 
         captures.Should().HaveCount(3);
         captures[0].Should().BeEmpty("the outlines are off by default");
@@ -101,8 +105,8 @@ public sealed class OutlinesStepTests : IDisposable
     public void AnOutlinesStepThatDoesNotShowThemHidesTheFrameOutlinesFromTheNextCaptureOn()
     {
         List<FrameOutline[]> captures = Run("""
-            { "do": "outlines", "show": true }, { "do": "capture", "name": "shown" }, { "do": "outlines", "show": false }, { "do": "capture", "name": "hidden" }
-            """, folder);
+                                            { "do": "outlines", "show": true }, { "do": "capture", "name": "shown" }, { "do": "outlines", "show": false }, { "do": "capture", "name": "hidden" }
+                                            """, folder);
 
         captures.Should().HaveCount(2);
         captures[0].Should().Equal(ShipBubble);
@@ -125,6 +129,7 @@ public sealed class OutlinesStepTests : IDisposable
 
         firstCaptures.Should().ContainSingle().Which.Should().Equal(ShipBubble);
         secondCaptures.Should().ContainSingle().Which.Should().Equal(ShipBubble);
-        File.ReadAllBytes(Path.Combine(second, "outlined.png")).Should().Equal(File.ReadAllBytes(Path.Combine(folder, "outlined.png")));
+        File.ReadAllBytes(Path.Combine(second, "outlined.png")).Should()
+            .Equal(File.ReadAllBytes(Path.Combine(folder, "outlined.png")));
     }
 }

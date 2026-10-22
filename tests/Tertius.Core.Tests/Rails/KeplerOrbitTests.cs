@@ -1,4 +1,3 @@
-using System.Numerics;
 using AwesomeAssertions;
 using Tertius.Frames.Rails;
 
@@ -15,6 +14,53 @@ public class KeplerOrbitTests
 {
     private const double Mu = 3.986004418e14;
     private const double Tick = 1.0 / 60;
+
+    // ---- The propagation of a state and Lambert's problem ---------------------------------------------------------
+
+    /// <summary>The station's circle, 400 km above Earth's mean radius, and the shuttle's parking circle, 200 km up.</summary>
+    private const double StationRadius = 6.771e6, ParkingRadius = 6.571e6;
+
+    /// <summary>The demo's transfer: 2,560 s, the cheapest time of flight for 170 degrees between the two circles.</summary>
+    private const double TransferTime = 2560;
+
+    // ---- The sample of an orbit over a step --------------------------------------------------------------------
+
+    /// <summary>
+    /// An eccentric, inclined orbit from 7,000 km to 13,000 km round earth, whose period is about 9,950 s, with a tilted
+    /// spin for the attitude <see cref="KeplerAttitude.Spin"/>. A frame that faces earth on it turns at a changing rate about
+    /// a tilted normal.
+    /// </summary>
+    private static readonly KeplerOrbit InclinedOval =
+        new(1e7, 0.3, 0.5, 0.7, 1.1, 0.2, 100, DQuaternion.FromAxisAngle(Double3.UnitZ, -0.4), 7.3e-5, 0.6,
+            KeplerAttitude.FacesParent);
+
+    /// <summary>Ends of steps, in seconds: at the epoch, after a fraction of a turn, and after more than three turns.</summary>
+    private static readonly double[] StepEnds = [100, 1334.56, 33_000.25];
+
+    public static TheoryData<double, double, double, double, string> PropagationsThatAreRefused => new()
+    {
+        { 0, 7e6, 7000, 10, "mu" },
+        { double.NaN, 7e6, 7000, 10, "mu" },
+        { Mu, 0, 7000, 10, "position" },
+        { Mu, double.PositiveInfinity, 7000, 10, "position" },
+        { Mu, 7e6, double.NaN, 10, "velocity" },
+        { Mu, 7e6, 7000, double.PositiveInfinity, "time" }
+    };
+
+    /// <summary>The demo's transfer, from the parking circle to a point 170 degrees on, 1.5 km to the side of the plane.</summary>
+    private static readonly Double3 TransferStart = OnThePlane(ParkingRadius, 0);
+
+    private static readonly Double3 TransferEnd = OnThePlane(StationRadius, Degrees(170)) + new Double3(0, 1500, 0);
+
+    public static TheoryData<double, double, double, string> LambertProblemsThatAreRefused => new()
+    {
+        { 0, TransferTime, 1, "mu" },
+        { double.PositiveInfinity, TransferTime, 1, "mu" },
+        { Mu, 0, 1, "timeOfFlight" },
+        { Mu, -10, 1, "timeOfFlight" },
+        { Mu, double.NaN, 1, "timeOfFlight" },
+        { Mu, TransferTime, 0, "normal" }
+    };
 
     private static KeplerOrbit Oval(double eccentricity, KeplerAttitude attitude = KeplerAttitude.Spin) =>
         new(1e7, eccentricity, 0, 0, 0, 0, 0, DQuaternion.Identity, 0, 0, attitude);
@@ -42,7 +88,8 @@ public class KeplerOrbitTests
     [InlineData(0.8)]
     [InlineData(0.9)]
     [InlineData(0.99)]
-    public void OnAnOrbitOfHighEccentricityAFacingFrameTurnsNoFurtherInATickThanItsAngularVelocityCarriesIt(double eccentricity)
+    public void OnAnOrbitOfHighEccentricityAFacingFrameTurnsNoFurtherInATickThanItsAngularVelocityCarriesIt(
+        double eccentricity)
     {
         KeplerOrbit orbit = Oval(eccentricity, KeplerAttitude.FacesParent);
         DQuaternion rotation = orbit.RotationAt(0, Mu);
@@ -52,7 +99,8 @@ public class KeplerOrbitTests
         {
             DQuaternion next = orbit.RotationAt(tick * Tick, Mu);
             double nextRate = orbit.AngularVelocityAt(tick * Tick, Mu).Length;
-            double dot = Math.Abs(rotation.X * next.X + rotation.Y * next.Y + rotation.Z * next.Z + rotation.W * next.W);
+            double dot = Math.Abs(rotation.X * next.X + rotation.Y * next.Y + rotation.Z * next.Z +
+                                  rotation.W * next.W);
             double angle = 2 * Math.Acos(Math.Min(dot, 1));
             // The small absolute margin covers the rounding of Acos near 1.
             angle.Should().BeLessThan(Math.Max(rate, nextRate) * Tick * 1.05 + 1e-6, $"the frame flips at tick {tick}");
@@ -66,8 +114,9 @@ public class KeplerOrbitTests
         KeplerOrbit orbit = new(1e7, 0, 0, 0, 0, 0, 40, DQuaternion.Identity, 3, Math.PI / 2);
 
         // At the epoch, a quarter turn about +Y takes +X to -Z; π/6 s later, 3 rad/s has turned it another half turn.
-        Double3.Distance(orbit.RotationAt(40, Mu).Rotate(Double3.UnitX), new Double3(0, 0, -1)).Should().BeLessThan(1e-12);
-        Double3.Distance(orbit.RotationAt(40 + Math.PI / 6, Mu).Rotate(Double3.UnitX), new Double3(-1, 0, 0)).Should().BeLessThan(1e-12);
+        Double3.Distance(orbit.RotationAt(40, Mu).Rotate(Double3.UnitX), new(0, 0, -1)).Should().BeLessThan(1e-12);
+        Double3.Distance(orbit.RotationAt(40 + Math.PI / 6, Mu).Rotate(Double3.UnitX), new(-1, 0, 0)).Should()
+            .BeLessThan(1e-12);
     }
 
     [Fact]
@@ -76,27 +125,16 @@ public class KeplerOrbitTests
         // Periapsis lies along +X, at a (1 - e) = 7,000 km, and the epoch is 100 s.
         KeplerOrbit orbit = new(1e7, 0.3, 0, 0, 0, 0, 100, DQuaternion.Identity, 0, 0, KeplerAttitude.FacesParent);
 
-        Double3.Distance(orbit.StateAt(100, Mu).Position, new Double3(7e6, 0, 0)).Should().BeLessThan(1e-3);
-        Double3.Distance(orbit.RotationAt(100, Mu).Rotate(new Double3(0, -1, 0)), new Double3(-1, 0, 0)).Should().BeLessThan(1e-9);
+        Double3.Distance(orbit.StateAt(100, Mu).Position, new(7e6, 0, 0)).Should().BeLessThan(1e-3);
+        Double3.Distance(orbit.RotationAt(100, Mu).Rotate(new Double3(0, -1, 0)), new(-1, 0, 0)).Should()
+            .BeLessThan(1e-9);
     }
-
-    // ---- The sample of an orbit over a step --------------------------------------------------------------------
-
-    /// <summary>
-    /// An eccentric, inclined orbit from 7,000 km to 13,000 km round earth, whose period is about 9,950 s, with a tilted
-    /// spin for the attitude <see cref="KeplerAttitude.Spin"/>. A frame that faces earth on it turns at a changing rate about
-    /// a tilted normal.
-    /// </summary>
-    private static readonly KeplerOrbit InclinedOval =
-        new(1e7, 0.3, 0.5, 0.7, 1.1, 0.2, 100, DQuaternion.FromAxisAngle(Double3.UnitZ, -0.4), 7.3e-5, 0.6, KeplerAttitude.FacesParent);
-
-    /// <summary>Ends of steps, in seconds: at the epoch, after a fraction of a turn, and after more than three turns.</summary>
-    private static readonly double[] StepEnds = [100, 1334.56, 33_000.25];
 
     [Theory]
     [InlineData(KeplerAttitude.Spin)]
     [InlineData(KeplerAttitude.FacesParent)]
-    public void A_sample_holds_the_place_rotation_velocity_and_angular_velocity_of_the_orbit_at_the_end_of_its_step(KeplerAttitude attitude)
+    public void A_sample_holds_the_place_rotation_velocity_and_angular_velocity_of_the_orbit_at_the_end_of_its_step(
+        KeplerAttitude attitude)
     {
         KeplerOrbit orbit = InclinedOval with { Attitude = attitude };
         foreach (double stepEnd in StepEnds)
@@ -104,7 +142,8 @@ public class KeplerOrbitTests
             MotionSample sample = orbit.Sample(Mu, stepEnd, Tick);
 
             (Double3 position, Double3 velocity) = orbit.StateAt(stepEnd, Mu);
-            sample.Pose.Should().Be(new DPose(position, orbit.RotationAt(stepEnd, Mu)), $"the sample ends its step at {stepEnd} s");
+            sample.Pose.Should().Be(new DPose(position, orbit.RotationAt(stepEnd, Mu)),
+                $"the sample ends its step at {stepEnd} s");
             sample.Velocity.Should().Be(velocity);
             sample.AngularVelocity.Should().Be(orbit.AngularVelocityAt(stepEnd, Mu));
         }
@@ -113,7 +152,8 @@ public class KeplerOrbitTests
     [Theory]
     [InlineData(6.8e6, 0)]
     [InlineData(1e7, 0.3)]
-    public void The_chord_of_a_sample_is_the_change_of_place_over_its_step_divided_by_the_step(double semiMajorAxis, double eccentricity)
+    public void The_chord_of_a_sample_is_the_change_of_place_over_its_step_divided_by_the_step(double semiMajorAxis,
+        double eccentricity)
     {
         KeplerOrbit orbit = InclinedOval with { SemiMajorAxis = semiMajorAxis, Eccentricity = eccentricity };
         foreach (double stepEnd in StepEnds)
@@ -132,7 +172,8 @@ public class KeplerOrbitTests
     [Theory]
     [InlineData(6.8e6, 0)]
     [InlineData(1e7, 0.3)]
-    public void The_acceleration_of_a_sample_is_the_pull_at_the_place_where_its_step_starts(double semiMajorAxis, double eccentricity)
+    public void The_acceleration_of_a_sample_is_the_pull_at_the_place_where_its_step_starts(double semiMajorAxis,
+        double eccentricity)
     {
         KeplerOrbit orbit = InclinedOval with { SemiMajorAxis = semiMajorAxis, Eccentricity = eccentricity };
         foreach (double stepEnd in StepEnds)
@@ -153,10 +194,12 @@ public class KeplerOrbitTests
     [InlineData(2_000)]
     [InlineData(7_000)]
     [InlineData(33_000.25)]
-    public void The_angular_acceleration_of_a_frame_that_faces_its_parent_is_the_change_of_its_angular_velocity(double time)
+    public void The_angular_acceleration_of_a_frame_that_faces_its_parent_is_the_change_of_its_angular_velocity(
+        double time)
     {
         const double h = 0.25;
-        Double3 change = (InclinedOval.AngularVelocityAt(time + h, Mu) - InclinedOval.AngularVelocityAt(time - h, Mu)) / (2 * h);
+        Double3 change = (InclinedOval.AngularVelocityAt(time + h, Mu) - InclinedOval.AngularVelocityAt(time - h, Mu)) /
+                         (2 * h);
         change.Length.Should().BeGreaterThan(5e-8, "away from the apsides, the frame turns faster or slower");
 
         // The central difference leaves out the third derivative of the angular velocity times h² / 6: under 1.4e-14
@@ -187,7 +230,8 @@ public class KeplerOrbitTests
         foreach (double stepEnd in StepEnds)
         {
             Double3 mean = orbit.Sample(Mu, stepEnd, Tick).AngularAcceleration;
-            mean.Should().Be((orbit.AngularVelocityAt(stepEnd, Mu) - orbit.AngularVelocityAt(stepEnd - Tick, Mu)) / Tick);
+            mean.Should()
+                .Be((orbit.AngularVelocityAt(stepEnd, Mu) - orbit.AngularVelocityAt(stepEnd - Tick, Mu)) / Tick);
             (mean - orbit.AngularAccelerationAt(stepEnd - Tick / 2, Mu)).Length.Should().BeLessThan(1e-13);
         }
     }
@@ -271,8 +315,9 @@ public class KeplerOrbitTests
     [InlineData(0, KeplerAttitude.FacesParent)]
     [InlineData(-1e7, KeplerAttitude.Spin)]
     [InlineData(-1e7, KeplerAttitude.FacesParent)]
-    public void A_sample_of_an_orbit_with_a_semi_major_axis_of_0_or_below_rests_at_the_origin_without_chord_or_acceleration(
-        double semiMajorAxis, KeplerAttitude attitude)
+    public void
+        A_sample_of_an_orbit_with_a_semi_major_axis_of_0_or_below_rests_at_the_origin_without_chord_or_acceleration(
+            double semiMajorAxis, KeplerAttitude attitude)
     {
         KeplerOrbit orbit = InclinedOval with { SemiMajorAxis = semiMajorAxis, Attitude = attitude };
 
@@ -335,7 +380,8 @@ public class KeplerOrbitTests
     {
         KeplerOrbit orbit = KeplerOrbit.Circular(7e6, spinRate: 0.1);
 
-        orbit.RotationAt(50, Mu).Should().Be(orbit.RotationAt(50, 4 * Mu), "only the attitude that faces the parent follows the place on the orbit");
+        orbit.RotationAt(50, Mu).Should().Be(orbit.RotationAt(50, 4 * Mu),
+            "only the attitude that faces the parent follows the place on the orbit");
         orbit.AngularVelocityAt(50, Mu).Should().Be(orbit.AngularVelocityAt(50, 4 * Mu));
     }
 
@@ -365,23 +411,17 @@ public class KeplerOrbitTests
         orbit.AngularVelocityAt(50, 4 * Mu).Length.Should().BeApproximately(2 * rate, 1e-12);
     }
 
-    // ---- The propagation of a state and Lambert's problem ---------------------------------------------------------
-
-    /// <summary>The station's circle, 400 km above Earth's mean radius, and the shuttle's parking circle, 200 km up.</summary>
-    private const double StationRadius = 6.771e6, ParkingRadius = 6.571e6;
-
-    /// <summary>The demo's transfer: 2,560 s, the cheapest time of flight for 170 degrees between the two circles.</summary>
-    private const double TransferTime = 2560;
-
     private static double Degrees(double degrees) => degrees * Math.PI / 180;
 
     /// <summary>
     /// The point at <paramref name="radius"/> on the reference plane, <paramref name="angle"/> radians along the motion of
     /// an orbit about +Y from +X: an orbit of zero inclination runs from +X toward -Z.
     /// </summary>
-    private static Double3 OnThePlane(double radius, double angle) => new(radius * Math.Cos(angle), 0, -radius * Math.Sin(angle));
+    private static Double3 OnThePlane(double radius, double angle) =>
+        new(radius * Math.Cos(angle), 0, -radius * Math.Sin(angle));
 
-    /// <summary>The velocity of the circle of <paramref name="radius"/> about +Y at <paramref name="angle"/> (see <see cref="OnThePlane"/>).</summary>
+    /// <summary>The velocity of the circle of <paramref name="radius"/> about +Y at <paramref name="angle"/> (see
+    /// <see cref="OnThePlane"/>).</summary>
     private static Double3 CircleVelocity(double radius, double angle) =>
         new Double3(-Math.Sin(angle), 0, -Math.Cos(angle)) * Math.Sqrt(Mu / radius);
 
@@ -490,12 +530,13 @@ public class KeplerOrbitTests
     [Fact]
     public void APropagationThatNewtonsMethodDoesNotSolveIsRefused()
     {
-        Action propagate = () => KeplerOrbit.Propagate(new Double3(StationRadius, 0, 0), new Double3(0, 0, -20000), Mu, 1e300);
+        Action propagate = () => KeplerOrbit.Propagate(new(StationRadius, 0, 0), new(0, 0, -20000), Mu, 1e300);
 
         propagate.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("time");
     }
 
-    private static (Double3 Position, Double3 Velocity) Integrate(Double3 position, Double3 velocity, double time, double step)
+    private static (Double3 Position, Double3 Velocity) Integrate(Double3 position, Double3 velocity, double time,
+        double step)
     {
         for (int i = 0, steps = (int)Math.Round(time / step); i < steps; i++)
         {
@@ -506,31 +547,19 @@ public class KeplerOrbitTests
             position += (k1x + 2 * k2x + 2 * k3x + k4x) * (step / 6);
             velocity += (k1v + 2 * k2v + 2 * k3v + k4v) * (step / 6);
         }
+
         return (position, velocity);
     }
 
-    public static TheoryData<double, double, double, double, string> PropagationsThatAreRefused => new()
-    {
-        { 0, 7e6, 7000, 10, "mu" },
-        { double.NaN, 7e6, 7000, 10, "mu" },
-        { Mu, 0, 7000, 10, "position" },
-        { Mu, double.PositiveInfinity, 7000, 10, "position" },
-        { Mu, 7e6, double.NaN, 10, "velocity" },
-        { Mu, 7e6, 7000, double.PositiveInfinity, "time" },
-    };
-
     [Theory]
     [MemberData(nameof(PropagationsThatAreRefused))]
-    public void APropagationWithoutAGravityAStateOrAFiniteTimeIsRefused(double mu, double radius, double speed, double time, string argument)
+    public void APropagationWithoutAGravityAStateOrAFiniteTimeIsRefused(double mu, double radius, double speed,
+        double time, string argument)
     {
-        Action propagate = () => KeplerOrbit.Propagate(new Double3(radius, 0, 0), new Double3(0, 0, -speed), mu, time);
+        Action propagate = () => KeplerOrbit.Propagate(new(radius, 0, 0), new(0, 0, -speed), mu, time);
 
         propagate.Should().Throw<ArgumentOutOfRangeException>().WithParameterName(argument);
     }
-
-    /// <summary>The demo's transfer, from the parking circle to a point 170 degrees on, 1.5 km to the side of the plane.</summary>
-    private static readonly Double3 TransferStart = OnThePlane(ParkingRadius, 0);
-    private static readonly Double3 TransferEnd = OnThePlane(StationRadius, Degrees(170)) + new Double3(0, 1500, 0);
 
     [Fact]
     public void TheLambertVelocityLandsOnTheTargetAfterTheTimeOfFlight()
@@ -545,7 +574,8 @@ public class KeplerOrbitTests
     [Fact]
     public void TheLambertVelocityAtTheTargetIsThePropagatedVelocity()
     {
-        (Double3 departure, Double3 arrival) = KeplerOrbit.Lambert(TransferStart, TransferEnd, TransferTime, Mu, Double3.UnitY);
+        (Double3 departure, Double3 arrival) =
+            KeplerOrbit.Lambert(TransferStart, TransferEnd, TransferTime, Mu, Double3.UnitY);
 
         (_, Double3 propagated) = KeplerOrbit.Propagate(TransferStart, departure, Mu, TransferTime);
 
@@ -566,7 +596,8 @@ public class KeplerOrbitTests
         for (double time = 2000; time <= 3500; time += 10)
         {
             (Double3 departure, Double3 arrival) = KeplerOrbit.Lambert(TransferStart, end, time, Mu, Double3.UnitY);
-            double cost = Double3.Distance(departure, CircleVelocity(ParkingRadius, 0)) + Double3.Distance(arrival, CircleVelocity(StationRadius, angle));
+            double cost = Double3.Distance(departure, CircleVelocity(ParkingRadius, 0)) +
+                          Double3.Distance(arrival, CircleVelocity(StationRadius, angle));
             cheapest = Math.Min(cheapest, cost);
         }
 
@@ -605,8 +636,10 @@ public class KeplerOrbitTests
 
         (Double3 departure, _) = KeplerOrbit.Lambert(TransferStart, end, TransferTime, Mu, normal);
 
-        Double3.Cross(TransferStart, departure).Normalized().Should().Match<Double3>(h => Double3.Distance(h, normal) < 1e-9);
-        Double3.Distance(KeplerOrbit.Propagate(TransferStart, departure, Mu, TransferTime).Position, end).Should().BeLessThan(1e-3);
+        Double3.Cross(TransferStart, departure).Normalized().Should()
+            .Match<Double3>(h => Double3.Distance(h, normal) < 1e-9);
+        Double3.Distance(KeplerOrbit.Propagate(TransferStart, departure, Mu, TransferTime).Position, end).Should()
+            .BeLessThan(1e-3);
     }
 
     /// <summary>A quarter of a turn in 300 s needs about 33 km/s, far above the escape speed, so the path is a hyperbola.</summary>
@@ -637,21 +670,13 @@ public class KeplerOrbitTests
         solve.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("timeOfFlight");
     }
 
-    public static TheoryData<double, double, double, string> LambertProblemsThatAreRefused => new()
-    {
-        { 0, TransferTime, 1, "mu" },
-        { double.PositiveInfinity, TransferTime, 1, "mu" },
-        { Mu, 0, 1, "timeOfFlight" },
-        { Mu, -10, 1, "timeOfFlight" },
-        { Mu, double.NaN, 1, "timeOfFlight" },
-        { Mu, TransferTime, 0, "normal" },
-    };
-
     [Theory]
     [MemberData(nameof(LambertProblemsThatAreRefused))]
-    public void ALambertProblemWithoutAGravityATimeOfFlightOrANormalIsRefused(double mu, double timeOfFlight, double normalLength, string argument)
+    public void ALambertProblemWithoutAGravityATimeOfFlightOrANormalIsRefused(double mu, double timeOfFlight,
+        double normalLength, string argument)
     {
-        Action solve = () => KeplerOrbit.Lambert(TransferStart, TransferEnd, timeOfFlight, mu, Double3.UnitY * normalLength);
+        Action solve = () =>
+            KeplerOrbit.Lambert(TransferStart, TransferEnd, timeOfFlight, mu, Double3.UnitY * normalLength);
 
         solve.Should().Throw<ArgumentOutOfRangeException>().WithParameterName(argument);
     }

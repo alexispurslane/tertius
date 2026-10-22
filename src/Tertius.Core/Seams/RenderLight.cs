@@ -31,10 +31,17 @@ public readonly record struct PointRenderLight(Vector3 Position, Vector3 Color, 
 /// <param name="InnerConeAngle">Half-angle of the full-intensity cone, in radians.</param>
 /// <param name="OuterConeAngle">Half-angle of the outer edge of the cone, in radians. The light fades to zero between the two angles.</param>
 public readonly record struct SpotRenderLight(
-    Vector3 Position, Vector3 Direction, Vector3 Color, float Intensity, float Range, float InnerConeAngle, float OuterConeAngle);
+    Vector3 Position,
+    Vector3 Direction,
+    Vector3 Color,
+    float Intensity,
+    float Range,
+    float InnerConeAngle,
+    float OuterConeAngle);
 
 /// <summary>
-/// One dynamic light of a <see cref="RenderSnapshot"/>: a <see cref="PointRenderLight"/> or a <see cref="SpotRenderLight"/>.
+/// One dynamic light of a <see cref="RenderSnapshot"/>: a <see cref="PointRenderLight"/> or a
+/// <see cref="SpotRenderLight"/>.
 /// The default value holds no light. The renderer skips it.
 /// </summary>
 /// <remarks>
@@ -43,7 +50,8 @@ public readonly record struct SpotRenderLight(
 /// case, so the fields of the case that it does not hold may hold anything and never matter. The two cases keep the
 /// fields that they share (position, color, intensity and range) in the same place. It takes 56 bytes, one spot light and
 /// its kind byte, as the old struct did.
-/// Equality needs the same case and the same fields, and counts a NaN as equal to a NaN, as <see cref="Vector3.Equals(Vector3)"/> does.
+/// Equality needs the same case and the same fields, and counts a NaN as equal to a NaN, as
+/// <see cref="Vector3.Equals(Vector3)"/> does.
 /// </remarks>
 [Union]
 public readonly struct RenderLight : IEquatable<RenderLight>
@@ -51,15 +59,20 @@ public readonly struct RenderLight : IEquatable<RenderLight>
     private const byte KindNone = 0, KindPoint = 1, KindSpot = 2;
 
     private readonly byte kind;
+
     /// <summary>The position of both cases.</summary>
     private readonly Vector3 position;
+
     /// <summary>The direction of <see cref="SpotRenderLight"/>.</summary>
     private readonly Vector3 direction;
+
     private readonly Vector3 color;
     private readonly float intensity;
     private readonly float range;
+
     /// <summary>The inner cone angle of <see cref="SpotRenderLight"/>.</summary>
     private readonly float innerConeAngle;
+
     /// <summary>The outer cone angle of <see cref="SpotRenderLight"/>.</summary>
     private readonly float outerConeAngle;
 
@@ -84,11 +97,18 @@ public readonly struct RenderLight : IEquatable<RenderLight>
         outerConeAngle = light.OuterConeAngle;
     }
 
-    public static implicit operator RenderLight(PointRenderLight light) => new(light);
-    public static implicit operator RenderLight(SpotRenderLight light) => new(light);
-
     /// <summary>False for the default value, which holds no light.</summary>
     public bool HasValue => kind != KindNone;
+
+    public object? Value => kind switch
+    {
+        KindPoint => new PointRenderLight(position, color, intensity, range),
+        KindSpot => new SpotRenderLight(position, direction, color, intensity, range, innerConeAngle, outerConeAngle),
+        _ => null
+    };
+
+    public static implicit operator RenderLight(PointRenderLight light) => new(light);
+    public static implicit operator RenderLight(SpotRenderLight light) => new(light);
 
     public bool TryGetValue(out PointRenderLight value)
     {
@@ -98,27 +118,23 @@ public readonly struct RenderLight : IEquatable<RenderLight>
 
     public bool TryGetValue(out SpotRenderLight value)
     {
-        value = kind == KindSpot ? new SpotRenderLight(position, direction, color, intensity, range, innerConeAngle, outerConeAngle) : default;
+        value = kind == KindSpot
+            ? new SpotRenderLight(position, direction, color, intensity, range, innerConeAngle, outerConeAngle)
+            : default;
         return kind == KindSpot;
     }
-
-    public object? Value => kind switch
-    {
-        KindPoint => new PointRenderLight(position, color, intensity, range),
-        KindSpot => new SpotRenderLight(position, direction, color, intensity, range, innerConeAngle, outerConeAngle),
-        _ => null,
-    };
 
     // Equals on the fields, not the operator ==. The operator follows IEEE 754, so it calls a NaN unequal to itself, and a
     // light that holds a NaN would not equal itself. Equals treats a NaN as equal to a NaN, which agrees with GetHashCode.
     // The held case alone decides equality: the fields of the other case are not compared.
     public bool Equals(RenderLight other) => kind == other.kind && kind switch
     {
-        KindPoint => position.Equals(other.position) && color.Equals(other.color) && intensity.Equals(other.intensity) && range.Equals(other.range),
+        KindPoint => position.Equals(other.position) && color.Equals(other.color) &&
+                     intensity.Equals(other.intensity) && range.Equals(other.range),
         KindSpot => position.Equals(other.position) && direction.Equals(other.direction) && color.Equals(other.color)
-            && intensity.Equals(other.intensity) && range.Equals(other.range)
-            && innerConeAngle.Equals(other.innerConeAngle) && outerConeAngle.Equals(other.outerConeAngle),
-        _ => true,
+                    && intensity.Equals(other.intensity) && range.Equals(other.range)
+                    && innerConeAngle.Equals(other.innerConeAngle) && outerConeAngle.Equals(other.outerConeAngle),
+        _ => true
     };
 
     public override bool Equals(object? obj) => obj is RenderLight other && Equals(other);
@@ -126,8 +142,9 @@ public readonly struct RenderLight : IEquatable<RenderLight>
     public override int GetHashCode() => kind switch
     {
         KindPoint => HashCode.Combine(kind, position, color, intensity, range),
-        KindSpot => HashCode.Combine(kind, position, direction, color, intensity, range, innerConeAngle, outerConeAngle),
-        _ => 0,
+        KindSpot => HashCode.Combine(kind, position, direction, color, intensity, range, innerConeAngle,
+            outerConeAngle),
+        _ => 0
     };
 
     public static bool operator ==(RenderLight a, RenderLight b) => a.Equals(b);
@@ -138,6 +155,6 @@ public readonly struct RenderLight : IEquatable<RenderLight>
     {
         PointRenderLight light => $"RenderLight({light})",
         SpotRenderLight light => $"RenderLight({light})",
-        null => "RenderLight(none)",
+        null => "RenderLight(none)"
     };
 }

@@ -1,4 +1,3 @@
-using System.Numerics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using BenchmarkDotNet.Attributes;
@@ -35,9 +34,10 @@ public class RenderSnapshotBenchmarks
 {
     private const double EarthMu = 3.986004418e14;
 
-    private static readonly RenderData Visible = new() { Mesh = new MeshId(1), Material = new MaterialId(1), BoundingRadius = 1, Flags = RenderFlags.Visible };
-
     private const int PuffCount = 4_096;
+
+    private static readonly RenderData Visible = new()
+        { Mesh = new(1), Material = new(1), BoundingRadius = 1, Flags = RenderFlags.Visible };
 
     private World world = null!;
 
@@ -45,17 +45,17 @@ public class RenderSnapshotBenchmarks
     private readonly RenderSnapshot puffSnapshot = new();
     private Puff[] puffRows = [];
     private PuffRange[] puffRanges = [];
+
     private readonly PuffLook[] puffLooks =
     [
-        new(Life: 2, StartRadius: 0.5f, EndRadius: 2, TemperatureRatio: 3, PuffShading.Glow(new Vector3(4, 2, 1))),
-        new(Life: 5, StartRadius: 1, EndRadius: 4, TemperatureRatio: 0.5f, PuffShading.Lit(new Vector3(0.5f))),
+        new(Life: 2, StartRadius: 0.5f, EndRadius: 2, TemperatureRatio: 3, PuffShading.Glow(new(4, 2, 1))),
+        new(Life: 5, StartRadius: 1, EndRadius: 4, TemperatureRatio: 0.5f, PuffShading.Lit(new(0.5f)))
     ];
 
     [Params("flat", "orbit", "frames1000")]
     public string Scene = "flat";
 
-    [Params(false, true)]
-    public bool Outlines;
+    [Params(false, true)] public bool Outlines;
 
     [GlobalSetup]
     public void Setup()
@@ -65,7 +65,7 @@ public class RenderSnapshotBenchmarks
             "flat" => Flat(),
             "orbit" => Orbit(),
             "frames1000" => ThousandFrames(),
-            _ => throw new ArgumentException($"No scene {Scene}."),
+            _ => throw new ArgumentException($"No scene {Scene}.")
         };
         world.ShowFrameOutlines = Outlines;
         world.PublishRenderSnapshot();
@@ -77,7 +77,8 @@ public class RenderSnapshotBenchmarks
     {
         world.PublishRenderSnapshot();
         world.RenderSnapshots.TryAcquireLatest(out RenderSnapshot snapshot);
-        Console.WriteLine($"RenderSnapshot {Scene} outlines={Outlines}: {world.Frames.Count} frames, {world.Frames.NumericCount} numeric, " +
+        Console.WriteLine(
+            $"RenderSnapshot {Scene} outlines={Outlines}: {world.Frames.Count} frames, {world.Frames.NumericCount} numeric, " +
             $"{snapshot.Instances.Count} instances, {snapshot.Outlines.Count} outlines, {snapshot.Outlines.Count * Unsafe.SizeOf<FrameOutline>()} bytes of outlines");
         world.Dispose();
     }
@@ -95,7 +96,9 @@ public class RenderSnapshotBenchmarks
         Setup();
         // The tick's build follows the build of the setup, which was of the tick before.
         world.Tick();
-        puffBuilder = (RenderSnapshotBuilder)typeof(World).GetField("renderBuilder", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(world)!;
+        puffBuilder =
+            (RenderSnapshotBuilder)typeof(World).GetField("renderBuilder",
+                BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(world)!;
         FrameTree frames = world.Frames;
         FrameHandle root = frames.AtDense(0), last = root;
         for (int i = frames.Count - 1; i > 0 && last == root; i--)
@@ -103,93 +106,101 @@ public class RenderSnapshotBenchmarks
                 last = frames.AtDense(i);
         puffRows = new Puff[PuffCount];
         for (int i = 0; i < PuffCount; i++)
-            puffRows[i] = new Puff
+            puffRows[i] = new()
             {
-                Place = new Double3(i % 64 * 0.5, i / 64 % 64 * 0.5, -i * 0.01),
-                Chord = new Double3(20, 3, -5),
+                Place = new(i % 64 * 0.5, i / 64 % 64 * 0.5, -i * 0.01),
+                Chord = new(20, 3, -5),
                 Age = i % 120 / 60f,
-                Look = i & 1,
+                Look = i & 1
             };
-        puffRanges = [new PuffRange(root, 0, PuffCount / 2), new PuffRange(last, PuffCount / 2, PuffCount - PuffCount / 2)];
+        puffRanges = [new(root, 0, PuffCount / 2), new(last, PuffCount / 2, PuffCount - PuffCount / 2)];
         PlacePuffs();
     }
 
     [GlobalCleanup(Target = nameof(PlacePuffs))]
     public void CleanupPuffs()
     {
-        Console.WriteLine($"RenderSnapshot {Scene} puffs: {puffSnapshot.Puffs.Count} puffs, age step {puffSnapshot.PuffAgeStep} s, " +
+        Console.WriteLine(
+            $"RenderSnapshot {Scene} puffs: {puffSnapshot.Puffs.Count} puffs, age step {puffSnapshot.PuffAgeStep} s, " +
             $"{puffSnapshot.PuffLooks.Count} looks, {puffRanges.Length} ranges");
         world.Dispose();
     }
 
     /// <summary>The placement of the puffs into a snapshot, per puff.</summary>
     [Benchmark(OperationsPerInvoke = PuffCount)]
-    public void PlacePuffs() => puffBuilder.BuildPuffs(puffSnapshot, new PuffView(puffRows, puffRanges, puffLooks, world.DeltaTime));
+    public void PlacePuffs() =>
+        puffBuilder.BuildPuffs(puffSnapshot, new(puffRows, puffRanges, puffLooks, world.DeltaTime));
 
     private static World Flat()
     {
         const int entities = 20_000;
-        var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), GravityField.Uniform(new Vector3(0, -9.81f, 0))));
-        FrameHandle ship = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        var world = new World(new() { MaxDegreeOfParallelism = 1 });
+        FrameHandle ground =
+            world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(0, -9.81f, 0))));
+        FrameHandle ship = world.GetOwnedFrame(world.Spawn(new()
         {
             Frame = ground,
-            Pose = new DPose(new Double3(0, 0, -50), DQuaternion.FromAxisAngle(Double3.UnitX, 0.3)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1e4f), GravityField.Uniform(new Vector3(0, -9.81f, 0))),
+            Pose = new(new(0, 0, -50), DQuaternion.FromAxisAngle(Double3.UnitX, 0.3)),
+            AsFrame = new(FrameBounds.Sphere(1e4f), GravityField.Uniform(new(0, -9.81f, 0)))
         }));
         for (int i = 0; i < entities; i++)
-            world.Spawn(new SpawnDesc
+            world.Spawn(new()
             {
                 Frame = (i & 1) == 0 ? ground : ship,
-                Pose = new DPose(new Double3(i % 100, (i / 100) % 100, -(i / 10_000)), DQuaternion.Identity),
-                Render = Visible,
+                Pose = new(new(i % 100, i / 100 % 100, -(i / 10_000)), DQuaternion.Identity),
+                Render = Visible
             });
-        world.Camera = world.Spawn(new SpawnDesc { Frame = ground, Pose = new DPose(new Double3(50, 50, 100), DQuaternion.Identity), Render = new RenderData() });
+        world.Camera = world.Spawn(new()
+            { Frame = ground, Pose = new(new(50, 50, 100), DQuaternion.Identity), Render = new RenderData() });
         world.Tick();
         return world;
     }
 
     private static World Orbit()
     {
-        var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DisposePhysics = true },
-            new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 }));
-        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
-        var orbit = KeplerOrbit.Circular(7e6);
+        var world = new World(new() { MaxDegreeOfParallelism = 1, DisposePhysics = true },
+            new JoltPhysicsBackend(new() { WorkerThreads = 2 }));
+        FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
+        KeplerOrbit orbit = KeplerOrbit.Circular(7e6);
         (Double3 place, Double3 velocity) = orbit.StateAt(world.Time, EarthMu);
-        Entity stationHull = world.Spawn(new SpawnDesc
+        Entity stationHull = world.Spawn(new()
         {
             Frame = planet,
-            Pose = new DPose(place, orbit.RotationAt(world.Time, EarthMu)),
+            Pose = new(place, orbit.RotationAt(world.Time, EarthMu)),
             LinearVelocity = velocity,
             AngularVelocity = orbit.AngularVelocityAt(world.Time, EarthMu).ToVector3(),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(10, 5, 10)), BodyMotion.Kinematic),
+            Body = new(new BoxShapeDesc(new(10, 5, 10)), BodyMotion.Kinematic),
             Render = Visible,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
-            Components = [new KeplerMotion { Orbit = orbit }],
+            AsFrame = new(FrameBounds.Sphere(100)),
+            Components = [new KeplerMotion { Orbit = orbit }]
         });
         // The ship and its crates coast 2 km behind the station along the orbit, at the station's velocity, too far for
         // its bubble.
         Double3 behind = place - velocity.Normalized() * 2_000;
-        world.Spawn(new SpawnDesc
+        world.Spawn(new()
         {
             Frame = planet,
-            Pose = new DPose(behind, DQuaternion.Identity),
+            Pose = new(behind, DQuaternion.Identity),
             LinearVelocity = velocity,
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+            Body = new(new BoxShapeDesc(new(5, 3, 15)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
             Render = Visible,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
+            AsFrame = new(FrameBounds.Sphere(50))
         });
-        var crate = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
+        var crate = new BodyDesc(new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
         for (int i = 0; i < 10; i++)
-            world.Spawn(new SpawnDesc
+            world.Spawn(new()
             {
                 Frame = planet,
-                Pose = new DPose(behind + new Double3(0, 100 + 30 * i, 0), DQuaternion.Identity),
+                Pose = new(behind + new Double3(0, 100 + 30 * i, 0), DQuaternion.Identity),
                 LinearVelocity = velocity,
                 Body = crate,
-                Render = Visible,
+                Render = Visible
             });
-        world.Camera = world.Spawn(new SpawnDesc { Frame = world.GetOwnedFrame(stationHull), Pose = new DPose(new Double3(0, 20, 60), DQuaternion.Identity), Render = new RenderData() });
+        world.Camera = world.Spawn(new()
+        {
+            Frame = world.GetOwnedFrame(stationHull), Pose = new(new(0, 20, 60), DQuaternion.Identity),
+            Render = new RenderData()
+        });
         for (int i = 0; i < 5; i++)
             world.Tick();
         return world;
@@ -198,28 +209,34 @@ public class RenderSnapshotBenchmarks
     private static World ThousandFrames()
     {
         const int semanticFrames = 900, clusters = 100, boxesPerCluster = 200;
-        var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DisposePhysics = true, InitialCapacity = semanticFrames + clusters * boxesPerCluster + 1024 },
-            new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 }));
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e12f)));
+        var world = new World(
+            new()
+            {
+                MaxDegreeOfParallelism = 1, DisposePhysics = true,
+                InitialCapacity = semanticFrames + clusters * boxesPerCluster + 1024
+            },
+            new JoltPhysicsBackend(new() { WorkerThreads = 2 }));
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e12f)));
         for (int i = 0; i < semanticFrames; i++)
-            world.Spawn(new SpawnDesc
+            world.Spawn(new()
             {
                 Frame = space,
-                Pose = new DPose(new Double3(i % 30 * 200.0, i / 30 * 200.0, -500), DQuaternion.Identity),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
+                Pose = new(new(i % 30 * 200.0, i / 30 * 200.0, -500), DQuaternion.Identity),
+                AsFrame = new(FrameBounds.Sphere(50))
             });
         // Each cluster is a grid of 10 by 20 boxes 1.5 m apart, whose bounding spheres overlap, so the boxes form one group.
-        var box = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Static);
+        var box = new BodyDesc(new BoxShapeDesc(new(0.5f)), BodyMotion.Static);
         for (int c = 0; c < clusters; c++)
-            for (int b = 0; b < boxesPerCluster; b++)
-                world.Spawn(new SpawnDesc
-                {
-                    Frame = space,
-                    Pose = new DPose(new Double3(1e7 + c * 1e4 + b % 10 * 1.5, b / 10 * 1.5, 0), DQuaternion.Identity),
-                    Body = box,
-                    Render = Visible,
-                });
-        world.Camera = world.Spawn(new SpawnDesc { Frame = space, Pose = new DPose(new Double3(1e7 - 100, 0, 0), DQuaternion.Identity), Render = new RenderData() });
+        for (int b = 0; b < boxesPerCluster; b++)
+            world.Spawn(new()
+            {
+                Frame = space,
+                Pose = new(new(1e7 + c * 1e4 + b % 10 * 1.5, b / 10 * 1.5, 0), DQuaternion.Identity),
+                Body = box,
+                Render = Visible
+            });
+        world.Camera = world.Spawn(new()
+            { Frame = space, Pose = new(new(1e7 - 100, 0, 0), DQuaternion.Identity), Render = new RenderData() });
         for (int i = 0; i < 3; i++)
             world.Tick();
         return world;

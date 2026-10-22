@@ -11,24 +11,30 @@ internal struct CameraView
     public Vector3 Right;
     public Vector3 Up;
     public Vector3 Forward;
+
     /// <summary>The interpolated eye position relative to the render origin. Subtracted from every position.</summary>
     public Vector3 Offset;
+
     public float VerticalFov;
     public float Aspect;
     public float TanHalfX;
     public float TanHalfY;
     public int Width;
     public int Height;
+
     /// <summary>World to view rotation, in System.Numerics row-vector form.</summary>
     public Matrix4x4 View;
+
     /// <summary>The root frame's axes in world axes, interpolated like <see cref="Rotation"/>.</summary>
     public Quaternion RootRotation;
 
     /// <summary>The angle that one pixel covers at the center of the screen.</summary>
     public readonly float PixelAngle => 2f * TanHalfY / Math.Max(Height, 1);
 
-    /// <summary>World to clip for one depth range, in System.Numerics row-vector form. See <see cref="DepthRanges.RangeProjection"/>.</summary>
-    public readonly Matrix4x4 ViewProjection(int range) => View * DepthRanges.RangeProjection(range, VerticalFov, Aspect);
+    /// <summary>World to clip for one depth range, in System.Numerics row-vector form. See
+    /// <see cref="DepthRanges.RangeProjection"/>.</summary>
+    public readonly Matrix4x4 ViewProjection(int range) =>
+        View * DepthRanges.RangeProjection(range, VerticalFov, Aspect);
 
     /// <summary>True when a sphere is completely outside the four side planes or behind the near plane.</summary>
     public readonly bool Culls(Vector3 center, float radius)
@@ -51,20 +57,28 @@ internal struct PreparedInstance
 {
     /// <summary>Camera-relative position.</summary>
     public Vector3 Position;
+
     public Quaternion Rotation;
     public Vector3 Scale;
     public float Radius;
+
     /// <summary>View depth of the center: distance along the view axis.</summary>
     public float Depth;
+
     /// <summary>Distance of the center from the eye.</summary>
     public float Distance;
+
     public int Mesh;
+
     /// <summary>Index into the material buffer, already checked.</summary>
     public uint Material;
+
     public RenderFlags Flags;
     public uint EntityIndex;
+
     /// <summary>Which of the entity's render parts this is. With <see cref="EntityIndex"/>, it names the object from frame to frame.</summary>
     public ushort Part;
+
     /// <summary>Which way is up for the hemisphere ambient light.</summary>
     public HemisphereUp Hemisphere;
 }
@@ -99,15 +113,33 @@ internal readonly struct TransparentRun : IEquatable<TransparentRun>
     private readonly int count;
     private readonly byte kind;
 
-    public TransparentRun(MeshCommands meshes) { kind = KindMeshes; first = meshes.Commands.First; count = meshes.Commands.Count; }
-    public TransparentRun(PuffSprites puffs) { kind = KindPuffs; first = puffs.First; count = puffs.Count; }
+    public TransparentRun(MeshCommands meshes)
+    {
+        kind = KindMeshes;
+        first = meshes.Commands.First;
+        count = meshes.Commands.Count;
+    }
+
+    public TransparentRun(PuffSprites puffs)
+    {
+        kind = KindPuffs;
+        first = puffs.First;
+        count = puffs.Count;
+    }
 
     /// <summary>False for the default value, which holds no case.</summary>
     public bool HasValue => kind != KindNone;
 
+    public object? Value => kind switch
+    {
+        KindMeshes => new MeshCommands(new(first, count)),
+        KindPuffs => new PuffSprites(first, count),
+        _ => null
+    };
+
     public bool TryGetValue(out MeshCommands value)
     {
-        value = kind == KindMeshes ? new MeshCommands(new CommandRange(first, count)) : default;
+        value = kind == KindMeshes ? new MeshCommands(new(first, count)) : default;
         return kind == KindMeshes;
     }
 
@@ -116,13 +148,6 @@ internal readonly struct TransparentRun : IEquatable<TransparentRun>
         value = kind == KindPuffs ? new PuffSprites(first, count) : default;
         return kind == KindPuffs;
     }
-
-    public object? Value => kind switch
-    {
-        KindMeshes => new MeshCommands(new CommandRange(first, count)),
-        KindPuffs => new PuffSprites(first, count),
-        _ => null,
-    };
 
     public bool Equals(TransparentRun other) => kind == other.kind && first == other.first && count == other.count;
     public override bool Equals(object? obj) => obj is TransparentRun other && Equals(other);
@@ -135,7 +160,7 @@ internal readonly struct TransparentRun : IEquatable<TransparentRun>
     {
         MeshCommands meshes => $"TransparentRun({meshes})",
         PuffSprites puffs => $"TransparentRun({puffs})",
-        null => "TransparentRun(none)",
+        null => "TransparentRun(none)"
     };
 }
 
@@ -147,19 +172,24 @@ internal readonly struct TransparentRun : IEquatable<TransparentRun>
 internal sealed class PreparedScene
 {
     public CameraView Camera;
+
     /// <summary>The snapshot's sun, as given. Instance processors read it, for example to light impostor captures.</summary>
     public RenderSun Sun;
+
     /// <summary>The snapshot's ambient light, as given.</summary>
     public AmbientLight Ambient;
+
     public GpuFrameConstants Constants;
     public readonly Matrix4x4[] RangeViewProjection = new Matrix4x4[DepthRanges.Count];
 
     /// <summary>Visible instances. Instance processors may edit this list before batching.</summary>
     public PreparedInstance[] Visible = new PreparedInstance[256];
+
     public int VisibleCount;
 
     /// <summary>GPU instances in draw order. An opaque object in two depth ranges appears twice.</summary>
     public GpuInstance[] Instances = new GpuInstance[256];
+
     public int InstanceCount;
 
     public DrawIndexedIndirectCommand[] Commands = new DrawIndexedIndirectCommand[64];
@@ -167,25 +197,30 @@ internal sealed class PreparedScene
 
     /// <summary>Opaque commands per depth range, indexed by <see cref="DepthRanges"/>.</summary>
     public readonly CommandRange[] Opaque = new CommandRange[DepthRanges.Count];
+
     /// <summary>
     /// The runs of the transparent pass per depth range, indexed by <see cref="DepthRanges"/>, each list in draw order. The
     /// transparent instances and the puffs of a range are sorted together back to front, and each stretch of one kind is one
     /// run. The pass draws the far range first.
     /// </summary>
-    public readonly List<TransparentRun>[] Transparent = [new(), new(), new()];
+    public readonly List<TransparentRun>[] Transparent = [[], [], []];
 
     /// <summary>The puffs to draw, in the order of the runs of <see cref="Transparent"/>.</summary>
     public GpuPuff[] Puffs = new GpuPuff[64];
+
     public int PuffCount;
 
     public GpuLight[] Lights = new GpuLight[16];
     public int LightCount;
+
     /// <summary>
     /// The far shadows: xyz camera-relative center, w the radius of the caster's bounding sphere (see
     /// <see cref="Eclipse.SunVisibility"/>). Those of casters in the shadow maps come first.
     /// </summary>
     public Vector4[] Occluders = new Vector4[8];
+
     public int OccluderCount;
+
     /// <summary>How many far shadows, at the front of <see cref="Occluders"/>, belong to casters that the shadow maps also draw.</summary>
     public int MappedOccluderCount;
 
@@ -194,10 +229,29 @@ internal sealed class PreparedScene
     /// <see cref="RenderPass.Prepare"/>.
     /// </summary>
     public GpuOutline[] Outlines = new GpuOutline[16];
+
     public int OutlineCount;
 
     /// <summary>Instances in the snapshot, before any filtering.</summary>
     public int SubmittedInstances;
+
+    /// <summary>The sun shadow cascades of this frame. Valid when <see cref="ShadowCascadeCount"/> is not 0.</summary>
+    public ShadowCascadeArray Cascades;
+
+    /// <summary>Cascades the shadow pass renders and the lighting pass samples: 0 or <see cref="ShadowCascades.Count"/>.</summary>
+    public int ShadowCascadeCount;
+
+    /// <summary>Caster commands per cascade, appended after batching by the shadow pass.</summary>
+    public readonly CommandRange[] ShadowCommands = new CommandRange[ShadowCascades.Count];
+
+    /// <summary>Distinct instances selected as shadow casters.</summary>
+    public int ShadowCasters;
+
+    /// <summary>Caster instances over all cascades: a caster in two cascades counts twice.</summary>
+    public int ShadowInstances;
+
+    /// <summary>Impostor billboards per depth range, appended after batching by the impostor pass.</summary>
+    public readonly InstanceRange[] Impostors = new InstanceRange[DepthRanges.Count];
 
     /// <summary>The transparent indirect commands over all ranges: the commands of every <see cref="MeshCommands"/> run.</summary>
     public int TransparentCommandCount
@@ -206,30 +260,13 @@ internal sealed class PreparedScene
         {
             int count = 0;
             foreach (List<TransparentRun> runs in Transparent)
-            {
-                foreach (TransparentRun run in runs)
-                {
-                    if (run is MeshCommands meshes)
-                        count += meshes.Commands.Count;
-                }
-            }
+            foreach (TransparentRun run in runs)
+                if (run is MeshCommands meshes)
+                    count += meshes.Commands.Count;
+
             return count;
         }
     }
-
-    /// <summary>The sun shadow cascades of this frame. Valid when <see cref="ShadowCascadeCount"/> is not 0.</summary>
-    public ShadowCascadeArray Cascades;
-    /// <summary>Cascades the shadow pass renders and the lighting pass samples: 0 or <see cref="ShadowCascades.Count"/>.</summary>
-    public int ShadowCascadeCount;
-    /// <summary>Caster commands per cascade, appended after batching by the shadow pass.</summary>
-    public readonly CommandRange[] ShadowCommands = new CommandRange[ShadowCascades.Count];
-    /// <summary>Distinct instances selected as shadow casters.</summary>
-    public int ShadowCasters;
-    /// <summary>Caster instances over all cascades: a caster in two cascades counts twice.</summary>
-    public int ShadowInstances;
-
-    /// <summary>Impostor billboards per depth range, appended after batching by the impostor pass.</summary>
-    public readonly InstanceRange[] Impostors = new InstanceRange[DepthRanges.Count];
 
     public Span<PreparedInstance> VisibleSpan => Visible.AsSpan(0, VisibleCount);
 

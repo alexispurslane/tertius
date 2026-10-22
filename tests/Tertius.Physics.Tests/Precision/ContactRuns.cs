@@ -16,21 +16,6 @@ namespace Tertius.Physics.Tests.Precision;
 /// </summary>
 internal static class ContactRuns
 {
-    /// <summary>The common speeds V, in m/s. 7,672 m/s is the speed of a low Earth orbit.</summary>
-    public static readonly double[] Speeds = [0, 1, 10, 50, 100, 200, 500, 1000, 2000, 5000, 7672, 10000, 20000, 50000, 100000, 300000];
-
-    /// <summary>A direction of the common velocity, with the name that the CSV files give it.</summary>
-    /// <param name="Name">"x", "z" or "diagonal".</param>
-    /// <param name="Unit">The unit vector d in the axes of the space.</param>
-    public readonly record struct Direction(string Name, Double3 Unit);
-
-    public static readonly Direction AlongX = new("x", Double3.UnitX);
-
-    public static readonly Direction AlongZ = new("z", Double3.UnitZ);
-
-    /// <summary>d = (1, 1, 1) / sqrt(3), where every component of every velocity holds the common speed.</summary>
-    public static readonly Direction Diagonal = new("diagonal", new Double3(1, 1, 1) / Math.Sqrt(3));
-
     /// <summary>
     /// The speed limit of a Jolt body in these runs, in m/s. The engine's default of 30 km/s would clamp the bodies of the
     /// faster runs, so the runs raise it above the fastest common speed.
@@ -40,6 +25,31 @@ internal static class ContactRuns
     /// <summary>The radius of the space's bubble, in meters, far beyond the largest distance of any run (9,300 km).</summary>
     private const float SpaceRadius = 1e9f;
 
+    /// <summary>The common speeds V, in m/s. 7,672 m/s is the speed of a low Earth orbit.</summary>
+    public static readonly double[] Speeds =
+        [0, 1, 10, 50, 100, 200, 500, 1000, 2000, 5000, 7672, 10000, 20000, 50000, 100000, 300000];
+
+    public static readonly Direction AlongX = new("x", Double3.UnitX);
+
+    public static readonly Direction AlongZ = new("z", Double3.UnitZ);
+
+    /// <summary>d = (1, 1, 1) / sqrt(3), where every component of every velocity holds the common speed.</summary>
+    public static readonly Direction Diagonal = new("diagonal", new Double3(1, 1, 1) / Math.Sqrt(3));
+
+    /// <summary>
+    /// The folder that the CSV files go to: the environment variable TERTIUS_PRECISION_DIR, or the folder
+    /// tertius-precision in the temporary folder.
+    /// </summary>
+    public static string OutputFolder =>
+        Environment.GetEnvironmentVariable("TERTIUS_PRECISION_DIR") is { Length: > 0 } folder
+            ? folder
+            : Path.Combine(Path.GetTempPath(), "tertius-precision");
+
+    /// <summary>A direction of the common velocity, with the name that the CSV files give it.</summary>
+    /// <param name="Name">"x", "z" or "diagonal".</param>
+    /// <param name="Unit">The unit vector d in the axes of the space.</param>
+    public readonly record struct Direction(string Name, Double3 Unit);
+
     /// <summary>
     /// A world without numeric frames, on a new real backend with one Jolt worker thread and the speed limit
     /// <see cref="SpeedLimit"/>, with one gameplay thread and no debug checks. The backend's warnings go to
@@ -47,19 +57,26 @@ internal static class ContactRuns
     /// </summary>
     public static World NewWorld(out JoltPhysicsBackend backend, List<string> warnings)
     {
-        backend = new JoltPhysicsBackend(new JoltBackendOptions
+        backend = new(new()
         {
             WorkerThreads = 1,
             MaxLinearVelocity = SpeedLimit,
-            Log = message => { lock (warnings) warnings.Add(message); },
+            Log = message =>
+            {
+                lock (warnings)
+                {
+                    warnings.Add(message);
+                }
+            }
         });
-        var options = new WorldOptions { MaxDegreeOfParallelism = 1, DisposePhysics = true, NumericFrames = WithoutNumericFrames };
-        return new World(options, backend);
+        var options = new WorldOptions
+            { MaxDegreeOfParallelism = 1, DisposePhysics = true, NumericFrames = WithoutNumericFrames };
+        return new(options, backend);
     }
 
     /// <summary>The root frame that every scene runs in: a uniform field of <paramref name="gravity"/> m/s², or none when it is zero.</summary>
     public static FrameHandle Space(World world, Vector3 gravity) =>
-        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(SpaceRadius),
+        world.CreateRootFrame(new(FrameBounds.Sphere(SpaceRadius),
             gravity == Vector3.Zero ? default : GravityField.Uniform(gravity)));
 
     public static DPose At(Double3 position) => new(position, DQuaternion.Identity);
@@ -69,9 +86,9 @@ internal static class ContactRuns
     {
         Double3 axis = Double3.Cross(Double3.UnitX, d);
         double sine = axis.Length;
-        if (sine < 1e-12)
-            return DQuaternion.Identity;
-        return DQuaternion.FromAxisAngle(axis / sine, Math.Atan2(sine, Double3.Dot(Double3.UnitX, d)));
+        return sine < 1e-12
+            ? DQuaternion.Identity
+            : DQuaternion.FromAxisAngle(axis / sine, Math.Atan2(sine, Double3.Dot(Double3.UnitX, d)));
     }
 
     /// <summary>The angle of <paramref name="rotation"/> from no rotation, in radians, from 0 to pi.</summary>
@@ -87,15 +104,6 @@ internal static class ContactRuns
         double along = Double3.Dot(v, axis);
         return (along, (v - axis * along).Length);
     }
-
-    /// <summary>
-    /// The folder that the CSV files go to: the environment variable TERTIUS_PRECISION_DIR, or the folder
-    /// tertius-precision in the temporary folder.
-    /// </summary>
-    public static string OutputFolder =>
-        Environment.GetEnvironmentVariable("TERTIUS_PRECISION_DIR") is { Length: > 0 } folder
-            ? folder
-            : Path.Combine(Path.GetTempPath(), "tertius-precision");
 
     /// <summary>
     /// A table that becomes one CSV file: a header row that names each column and its unit, then one row per record.
@@ -118,7 +126,8 @@ internal static class ContactRuns
         public void Add(params object[] values)
         {
             if (values.Length != columns)
-                throw new ArgumentException($"A row has {values.Length} values, and the header {columns} columns.", nameof(values));
+                throw new ArgumentException($"A row has {values.Length} values, and the header {columns} columns.",
+                    nameof(values));
             text.AppendLine(string.Join(',', values.Select(Format)));
             Rows++;
         }
@@ -139,7 +148,7 @@ internal static class ContactRuns
             bool b => b ? "true" : "false",
             string s when s.Contains(',') || s.Contains('"') => '"' + s.Replace("\"", "\"\"") + '"',
             IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
-            _ => value.ToString() ?? "",
+            _ => value.ToString() ?? ""
         };
     }
 }

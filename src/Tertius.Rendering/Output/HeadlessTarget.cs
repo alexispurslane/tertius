@@ -34,7 +34,8 @@ internal sealed class HeadlessTarget : IOutputTarget
     {
     }
 
-    public void SubmitAndPresent(FrameResources frame) => QueueSubmission.Submit(device, frame, default, PipelineStageFlags2.None, default);
+    public void SubmitAndPresent(FrameResources frame) =>
+        QueueSubmission.Submit(device, frame, default, PipelineStageFlags2.None, default);
 
     public void Resize(Extent2D extent)
     {

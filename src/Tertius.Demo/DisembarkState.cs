@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using Tertius.Simulation;
 
 namespace Tertius.Demo;
 
@@ -20,7 +19,8 @@ public readonly record struct Strolling(WalkProgress Walk);
 /// <summary>A <see cref="Disembark"/> has walked its stroll, and the exit is over.</summary>
 public readonly record struct Arrived;
 
-/// <summary>Tells a person to leave the docked ship: its <see cref="Passenger"/> opens the belt, and its <see cref="Disembark"/> starts the walk.</summary>
+/// <summary>Tells a person to leave the docked ship: its <see cref="Passenger"/> opens the belt, and its
+/// <see cref="Disembark"/> starts the walk.</summary>
 public struct LeaveShip : IEventPayload;
 
 /// <summary>A report of <see cref="Disembark"/>'s walk: the person is off its feet over the chute's top.</summary>
@@ -44,36 +44,52 @@ public readonly record struct StationGone;
 [Union]
 public readonly struct DisembarkState : IEquatable<DisembarkState>
 {
-    private const byte KindAboard = 0, KindWalking = 1, KindSliding = 2, KindStrolling = 3, KindArrived = 4, KindHalted = 5;
+    private const byte KindAboard = 0,
+        KindWalking = 1,
+        KindSliding = 2,
+        KindStrolling = 3,
+        KindArrived = 4,
+        KindHalted = 5;
 
     // A walking or strolling state fills its walk. Every other state leaves it at the default, so equality compares every
     // field.
     private readonly WalkProgress walk;
     private readonly byte kind;
 
-    public DisembarkState(Aboard aboard) { kind = KindAboard; }
-    public DisembarkState(Walking walking) { kind = KindWalking; walk = walking.Walk; }
-    public DisembarkState(Sliding sliding) { kind = KindSliding; }
-    public DisembarkState(Strolling strolling) { kind = KindStrolling; walk = strolling.Walk; }
-    public DisembarkState(Arrived arrived) { kind = KindArrived; }
-    public DisembarkState(Halted halted) { kind = KindHalted; }
+    public DisembarkState(Aboard aboard)
+    {
+        kind = KindAboard;
+    }
 
-    public static implicit operator DisembarkState(Aboard value) => new(value);
-    public static implicit operator DisembarkState(Walking value) => new(value);
-    public static implicit operator DisembarkState(Sliding value) => new(value);
-    public static implicit operator DisembarkState(Strolling value) => new(value);
-    public static implicit operator DisembarkState(Arrived value) => new(value);
-    public static implicit operator DisembarkState(Halted value) => new(value);
+    public DisembarkState(Walking walking)
+    {
+        kind = KindWalking;
+        walk = walking.Walk;
+    }
+
+    public DisembarkState(Sliding sliding)
+    {
+        kind = KindSliding;
+    }
+
+    public DisembarkState(Strolling strolling)
+    {
+        kind = KindStrolling;
+        walk = strolling.Walk;
+    }
+
+    public DisembarkState(Arrived arrived)
+    {
+        kind = KindArrived;
+    }
+
+    public DisembarkState(Halted halted)
+    {
+        kind = KindHalted;
+    }
 
     /// <summary>Always true: every value is a state, and the default value is <see cref="Aboard"/>.</summary>
     public bool HasValue => true;
-
-    public bool TryGetValue(out Aboard value) { value = default; return kind == KindAboard; }
-    public bool TryGetValue(out Walking value) { value = new Walking(walk); return kind == KindWalking; }
-    public bool TryGetValue(out Sliding value) { value = default; return kind == KindSliding; }
-    public bool TryGetValue(out Strolling value) { value = new Strolling(walk); return kind == KindStrolling; }
-    public bool TryGetValue(out Arrived value) { value = default; return kind == KindArrived; }
-    public bool TryGetValue(out Halted value) { value = default; return kind == KindHalted; }
 
     public object Value => kind switch
     {
@@ -82,8 +98,51 @@ public readonly struct DisembarkState : IEquatable<DisembarkState>
         KindStrolling => new Strolling(walk),
         KindArrived => new Arrived(),
         KindHalted => new Halted(),
-        _ => new Aboard(),
+        _ => new Aboard()
     };
+
+    public static implicit operator DisembarkState(Aboard value) => new(value);
+    public static implicit operator DisembarkState(Walking value) => new(value);
+    public static implicit operator DisembarkState(Sliding value) => new(value);
+    public static implicit operator DisembarkState(Strolling value) => new(value);
+    public static implicit operator DisembarkState(Arrived value) => new(value);
+    public static implicit operator DisembarkState(Halted value) => new(value);
+
+    public bool TryGetValue(out Aboard value)
+    {
+        value = default;
+        return kind == KindAboard;
+    }
+
+    public bool TryGetValue(out Walking value)
+    {
+        value = new(walk);
+        return kind == KindWalking;
+    }
+
+    public bool TryGetValue(out Sliding value)
+    {
+        value = default;
+        return kind == KindSliding;
+    }
+
+    public bool TryGetValue(out Strolling value)
+    {
+        value = new(walk);
+        return kind == KindStrolling;
+    }
+
+    public bool TryGetValue(out Arrived value)
+    {
+        value = default;
+        return kind == KindArrived;
+    }
+
+    public bool TryGetValue(out Halted value)
+    {
+        value = default;
+        return kind == KindHalted;
+    }
 
     /// <summary>
     /// The state that <paramref name="change"/> leads to from <paramref name="state"/>, or null when the pair has no row.
@@ -96,7 +155,7 @@ public readonly struct DisembarkState : IEquatable<DisembarkState>
         (Sliding, Landed) => new Strolling(WalkProgress.Start),
         (Strolling, WalkDone) => new Arrived(),
         (Walking or Sliding or Strolling, StationGone) => new Halted(),
-        _ => null,
+        _ => null
     };
 
     public bool Equals(DisembarkState other) => kind == other.kind && walk == other.walk;
@@ -119,26 +178,33 @@ public readonly struct DisembarkEvent : IEquatable<DisembarkEvent>
 
     private readonly byte kind;
 
-    public DisembarkEvent(LeaveShip leave) { kind = KindLeaveShip; }
-    public DisembarkEvent(Dropped dropped) { kind = KindDropped; }
-    public DisembarkEvent(Landed landed) { kind = KindLanded; }
-    public DisembarkEvent(WalkDone done) { kind = KindWalkDone; }
-    public DisembarkEvent(StationGone gone) { kind = KindStationGone; }
+    public DisembarkEvent(LeaveShip leave)
+    {
+        kind = KindLeaveShip;
+    }
 
-    public static implicit operator DisembarkEvent(LeaveShip value) => new(value);
-    public static implicit operator DisembarkEvent(Dropped value) => new(value);
-    public static implicit operator DisembarkEvent(Landed value) => new(value);
-    public static implicit operator DisembarkEvent(WalkDone value) => new(value);
-    public static implicit operator DisembarkEvent(StationGone value) => new(value);
+    public DisembarkEvent(Dropped dropped)
+    {
+        kind = KindDropped;
+    }
+
+    public DisembarkEvent(Landed landed)
+    {
+        kind = KindLanded;
+    }
+
+    public DisembarkEvent(WalkDone done)
+    {
+        kind = KindWalkDone;
+    }
+
+    public DisembarkEvent(StationGone gone)
+    {
+        kind = KindStationGone;
+    }
 
     /// <summary>Always true: every value is an event.</summary>
     public bool HasValue => true;
-
-    public bool TryGetValue(out LeaveShip value) { value = default; return kind == KindLeaveShip; }
-    public bool TryGetValue(out Dropped value) { value = default; return kind == KindDropped; }
-    public bool TryGetValue(out Landed value) { value = default; return kind == KindLanded; }
-    public bool TryGetValue(out WalkDone value) { value = default; return kind == KindWalkDone; }
-    public bool TryGetValue(out StationGone value) { value = default; return kind == KindStationGone; }
 
     public object Value => kind switch
     {
@@ -146,8 +212,44 @@ public readonly struct DisembarkEvent : IEquatable<DisembarkEvent>
         KindLanded => new Landed(),
         KindWalkDone => new WalkDone(),
         KindStationGone => new StationGone(),
-        _ => new LeaveShip(),
+        _ => new LeaveShip()
     };
+
+    public static implicit operator DisembarkEvent(LeaveShip value) => new(value);
+    public static implicit operator DisembarkEvent(Dropped value) => new(value);
+    public static implicit operator DisembarkEvent(Landed value) => new(value);
+    public static implicit operator DisembarkEvent(WalkDone value) => new(value);
+    public static implicit operator DisembarkEvent(StationGone value) => new(value);
+
+    public bool TryGetValue(out LeaveShip value)
+    {
+        value = default;
+        return kind == KindLeaveShip;
+    }
+
+    public bool TryGetValue(out Dropped value)
+    {
+        value = default;
+        return kind == KindDropped;
+    }
+
+    public bool TryGetValue(out Landed value)
+    {
+        value = default;
+        return kind == KindLanded;
+    }
+
+    public bool TryGetValue(out WalkDone value)
+    {
+        value = default;
+        return kind == KindWalkDone;
+    }
+
+    public bool TryGetValue(out StationGone value)
+    {
+        value = default;
+        return kind == KindStationGone;
+    }
 
     public bool Equals(DisembarkEvent other) => kind == other.kind;
     public override bool Equals(object? obj) => obj is DisembarkEvent other && Equals(other);

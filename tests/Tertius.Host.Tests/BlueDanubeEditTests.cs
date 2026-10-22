@@ -10,7 +10,8 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class BlueDanubeEditTests
 {
-    private static IReadOnlyList<ScriptFilm> Films { get; } = ScriptFilm.Of(Script.Load(Path.Combine(RepositoryRoot(), "scripts", "blue-danube.json")));
+    private static IReadOnlyList<ScriptFilm> Films { get; } =
+        ScriptFilm.Of(Script.Load(Path.Combine(RepositoryRoot(), "scripts", "blue-danube.json")));
 
     private static int IndexOf(string film) => Films.ToList().FindIndex(f => f.Name == film);
 
@@ -18,7 +19,11 @@ public sealed class BlueDanubeEditTests
     public void TheCutListNamesOnlyFilmsOfTheCheckedInScript()
     {
         CutList cuts = BlueDanubeEdit.Cuts;
-        IEnumerable<string> named = [.. cuts.Parts.Select(p => p.FirstFilm), .. cuts.Trims.Select(t => t.Film), .. cuts.Panels.SelectMany(p => (string[])[p.FirstFilm, p.LastFilm])];
+        IEnumerable<string> named =
+        [
+            .. cuts.Parts.Select(p => p.FirstFilm), .. cuts.Trims.Select(t => t.Film),
+            .. cuts.Panels.SelectMany(p => (string[])[p.FirstFilm, p.LastFilm])
+        ];
 
         named.Should().OnlyContain(film => IndexOf(film) >= 0);
     }
@@ -26,7 +31,12 @@ public sealed class BlueDanubeEditTests
     [Fact]
     public void TheEditCanCutTheCheckedInScriptWithTheCutList()
     {
-        List<ReadoutRow> rows = [.. Films.SelectMany(film => Enumerable.Range(0, film.Frames).Select(k => new ReadoutRow($"{film.Name}-{k:000000}", film.FirstTick, new Double3(DemoScenes.EarthRadius, 0, 0), 0, 0, 0, 0)))];
+        List<ReadoutRow> rows =
+        [
+            .. Films.SelectMany(film => Enumerable.Range(0, film.Frames).Select(k =>
+                new ReadoutRow($"{film.Name}-{k:000000}", film.FirstTick, new(DemoScenes.EarthRadius, 0, 0), 0, 0, 0,
+                    0)))
+        ];
 
         Action cut = () => EditSubtitles.Film(Stretch.Of(Films, BlueDanubeEdit.Cuts.Trims), rows, BlueDanubeEdit.Cuts);
 
@@ -84,7 +94,7 @@ public sealed class BlueDanubeEditTests
     [Fact]
     public void TheSpinGravityPanelSpansTheBrakeRunAndTheFloorToTheEndOfTheRun()
     {
-        PanelSpan panel = BlueDanubeEdit.Cuts.Panels.Single(span => span.Panel == (CheckPanel)CheckPanels.SpinGravity);
+        PanelSpan panel = BlueDanubeEdit.Cuts.Panels.Single(span => span.Panel == CheckPanels.SpinGravity);
 
         // The slide ends with the film chute, 10 m above the wheel's ceiling, and the brake run and the landing follow. The
         // panel ends with the person on the floor, before the coda's own panel.
@@ -119,7 +129,8 @@ public sealed class BlueDanubeEditTests
         // The walk into the parked shuttle's bubble, the falling frame that forms round the shuttle early in the climb, the
         // hand-off out of the turning ground later in the climb, the shuttle's own frame in orbit, the station's bubble at
         // the rim, and the entry into the station's turning bubble (docs/plans/blue-danube-demo.md, "The frames made visible").
-        Films.Where(film => film.Outlines).Select(film => film.Name).Should().Equal("boarding", "climb-low", "climb-high", "orbit", "glide-rim", "entry");
+        Films.Where(film => film.Outlines).Select(film => film.Name).Should().Equal("boarding", "climb-low",
+            "climb-high", "orbit", "glide-rim", "entry");
     }
 
     [Fact]

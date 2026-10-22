@@ -1,5 +1,3 @@
-using Tertius.Simulation;
-
 namespace Tertius.Demo;
 
 /// <summary>

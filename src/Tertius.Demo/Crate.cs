@@ -16,7 +16,12 @@ namespace Tertius.Demo;
 /// True for a crate that is never drawn as an impostor, as every part of a spinning station is: in a frame that turns 18
 /// degrees a second, an impostor's capture goes stale within a few ticks (<see cref="DemoScenes.DemoStation"/>).
 /// </param>
-public readonly record struct CrateSpec(Vector3 HalfExtents, float Mass, MeshId Mesh, MaterialId Material, bool NoImpostor = false)
+public readonly record struct CrateSpec(
+    Vector3 HalfExtents,
+    float Mass,
+    MeshId Mesh,
+    MaterialId Material,
+    bool NoImpostor = false)
 {
     /// <summary>The radius of the crate's bounding sphere, in meters.</summary>
     public float BoundingRadius => HalfExtents.Length();
@@ -27,7 +32,7 @@ public readonly record struct CrateSpec(Vector3 HalfExtents, float Mass, MeshId 
         Mesh = Mesh,
         Material = Material,
         BoundingRadius = BoundingRadius,
-        Flags = RenderFlags.Visible | RenderFlags.CastsShadow | (NoImpostor ? RenderFlags.NoImpostor : RenderFlags.None),
+        Flags = RenderFlags.Visible | RenderFlags.CastsShadow | (NoImpostor ? RenderFlags.NoImpostor : RenderFlags.None)
     };
 
     /// <summary>
@@ -44,7 +49,7 @@ public readonly record struct CrateSpec(Vector3 HalfExtents, float Mass, MeshId 
         AttachTo = holder,
         AttachOffset = HeldInView.Place(view, grip),
         Render = Drawn(),
-        Components = [new HeldInView(grip)],
+        Components = [new HeldInView(grip)]
     };
 
     /// <summary>
@@ -58,9 +63,9 @@ public readonly record struct CrateSpec(Vector3 HalfExtents, float Mass, MeshId 
         Frame = frame,
         Pose = pose,
         LinearVelocity = velocity,
-        Body = new BodyDesc(new BoxShapeDesc(HalfExtents), Mass: Mass, LinearDamping: 0, AngularDamping: 0),
+        Body = new(new BoxShapeDesc(HalfExtents), Mass: Mass, LinearDamping: 0, AngularDamping: 0),
         Render = Drawn(),
-        Components = [new Crate(this), .. more],
+        Components = [new Crate(this), .. more]
     };
 }
 
@@ -95,17 +100,19 @@ public struct CrateTaken : IEventPayload;
 /// </param>
 public sealed class Crate(CrateSpec spec) : IComponent
 {
-    private readonly CrateSpec spec = IsPositiveAndFinite(spec.HalfExtents.X) && IsPositiveAndFinite(spec.HalfExtents.Y) &&
-        IsPositiveAndFinite(spec.HalfExtents.Z) && IsPositiveAndFinite(spec.Mass)
-        ? spec
-        : throw new ArgumentOutOfRangeException(nameof(spec), spec, "A crate's size and mass must be positive and finite.");
-
     /// <summary>
     /// How many ticks after an offer its answer reaches the crate, if there is one. A message arrives one tick after the
     /// tick that sends it. So the offer reaches the user one tick after the crate sends it, and the user's
     /// <see cref="CrateTaken"/> reaches the crate one tick after that.
     /// </summary>
     public const int AnswerTicks = 2;
+
+    private readonly CrateSpec spec = IsPositiveAndFinite(spec.HalfExtents.X) &&
+                                      IsPositiveAndFinite(spec.HalfExtents.Y) &&
+                                      IsPositiveAndFinite(spec.HalfExtents.Z) && IsPositiveAndFinite(spec.Mass)
+        ? spec
+        : throw new ArgumentOutOfRangeException(nameof(spec), spec,
+            "A crate's size and mass must be positive and finite.");
 
     // The number of the tick on which the crate sent its last offer, or null if it has sent none.
     private long? offeredOn;
@@ -121,6 +128,7 @@ public sealed class Crate(CrateSpec spec) : IComponent
             self.Destroy();
             return;
         }
+
         // An offer is out while its answer can still come.
         if (offeredOn is long sent && self.Tick - sent < AnswerTicks)
             return;

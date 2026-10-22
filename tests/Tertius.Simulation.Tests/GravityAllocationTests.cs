@@ -14,7 +14,7 @@ namespace Tertius.Simulation.Tests;
 public class GravityAllocationTests
 {
     private static readonly Vector3 Down = new(0, -9.81f, 0);
-    private static readonly BoundingBox Cabin = new(new Vector3(-2), new Vector3(2));
+    private static readonly BoundingBox Cabin = new(new(-2), new(2));
 
     /// <summary>The fields to read, by the names that the tests use: one frame of each case and one without gravity.</summary>
     private static readonly (string Name, GravityField Field)[] Fields =
@@ -22,22 +22,22 @@ public class GravityAllocationTests
         ("no gravity", GravityField.None),
         ("a uniform field", GravityField.Uniform(Down)),
         ("a uniform field in a region", GravityField.Uniform(Down, Cabin)),
-        ("a point field", GravityField.Point(4e14)),
+        ("a point field", GravityField.Point(4e14))
     ];
 
     private static FrameHandle FrameWith(TestWorld test, GravityField field, Double3 at) =>
-        test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
+        test.World.GetOwnedFrame(test.World.Spawn(new()
         {
             Frame = test.Root,
-            Pose = new DPose(at, DQuaternion.Identity),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1000), field),
+            Pose = new(at, DQuaternion.Identity),
+            AsFrame = new(FrameBounds.Sphere(1000), field)
         }));
 
     [Fact]
     public void TheEffectiveGravityOfABodyAllocatesNothingWhateverTheFieldOfItsFrame()
     {
         using var test = new TestWorld(debugChecks: false);
-        FrameHandle[] frames = Fields.Select((f, i) => FrameWith(test, f.Field, new Double3(i * 3000, 0, 0))).ToArray();
+        FrameHandle[] frames = [.. Fields.Select((f, i) => FrameWith(test, f.Field, new(i * 3000, 0, 0)))];
         var inside = new Double3(1, 1, 1);
         var outside = new Double3(500, 20, 0);
         for (int warm = 0; warm < 1000; warm++)
@@ -68,11 +68,12 @@ public class GravityAllocationTests
         using var test = new TestWorld(debugChecks: false);
         for (int kind = 0; kind < Fields.Length; kind++)
         {
-            FrameHandle frame = FrameWith(test, Fields[kind].Field, new Double3(kind * 3000, 0, 0));
+            FrameHandle frame = FrameWith(test, Fields[kind].Field, new(kind * 3000, 0, 0));
             for (int i = 0; i < 50; i++)
-                test.Show(frame, new DPose(new Double3(i % 5 - 2, i / 5 % 5 - 2, i / 25 - 1), DQuaternion.Identity));
+                test.Show(frame, new(new(i % 5 - 2, i / 5 % 5 - 2, i / 25 - 1), DQuaternion.Identity));
         }
-        test.World.Camera = test.SpawnCamera(test.Root, new DPose(new Double3(0, 0, 50), DQuaternion.Identity));
+
+        test.World.Camera = test.SpawnCamera(test.Root, new(new(0, 0, 50), DQuaternion.Identity));
         test.Run(30);
 
         long before = GC.GetAllocatedBytesForCurrentThread();
@@ -90,15 +91,17 @@ public class GravityAllocationTests
         using var test = new TestWorld(debugChecks: false);
         var entities = new List<Entity>();
         foreach ((string _, GravityField field) in Fields)
-            entities.Add(test.Show(FrameWith(test, field, new Double3(entities.Count * 3000, 0, 0)), new DPose(new Double3(1, 1, 1), DQuaternion.Identity)));
-        test.World.Camera = test.SpawnCamera(test.Root, new DPose(new Double3(0, 0, 50), DQuaternion.Identity));
+            entities.Add(test.Show(FrameWith(test, field, new(entities.Count * 3000, 0, 0)),
+                new(new(1, 1, 1), DQuaternion.Identity)));
+        test.World.Camera = test.SpawnCamera(test.Root, new(new(0, 0, 50), DQuaternion.Identity));
         test.Run(1);
 
         RenderSnapshot snapshot = test.World.Latest();
 
         snapshot.InstanceOf(entities[0]).Hemisphere.HasValue.Should().BeFalse("no gravity");
         snapshot.InstanceOf(entities[1]).Hemisphere.TryGetValue(out UpAlong _).Should().BeTrue("a uniform field");
-        snapshot.InstanceOf(entities[2]).Hemisphere.TryGetValue(out UpAlong _).Should().BeTrue("a uniform field in a region, at a place inside it");
+        snapshot.InstanceOf(entities[2]).Hemisphere.TryGetValue(out UpAlong _).Should()
+            .BeTrue("a uniform field in a region, at a place inside it");
         snapshot.InstanceOf(entities[3]).Hemisphere.TryGetValue(out UpAwayFrom _).Should().BeTrue("a point field");
     }
 }

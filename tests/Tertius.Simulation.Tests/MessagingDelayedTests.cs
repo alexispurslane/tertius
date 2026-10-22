@@ -152,8 +152,8 @@ public class MessagingDelayedTests
         var stays = new Recorder();
         var leaves = new Recorder();
         var joins = new Recorder();
-        t.World.Spawn(new SpawnDesc { Frame = t.Root, Components = [stays], Subscriptions = [topic] });
-        Entity leavesEntity = t.World.Spawn(new SpawnDesc { Frame = t.Root, Components = [leaves], Subscriptions = [topic] });
+        t.World.Spawn(new() { Frame = t.Root, Components = [stays], Subscriptions = [topic] });
+        Entity leavesEntity = t.World.Spawn(new() { Frame = t.Root, Components = [leaves], Subscriptions = [topic] });
         Entity joinsEntity = t.SpawnWith(joins);
         t.SpawnWith(SendsAfter(0, 3, topic, 7));
         t.Run(1);
@@ -207,7 +207,7 @@ public class MessagingDelayedTests
         using var t = new TestWorld();
         var inbox = new Recorder(EventMask.Of<Damage>());
         Entity target = t.SpawnWith(inbox);
-        var extra = new object();
+        object extra = new();
         Entity sender = t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
         {
             if (self.Tick == 0)
@@ -245,7 +245,8 @@ public class MessagingDelayedTests
     public void ADelayedSendToNoTargetIsRejectedAndReported()
     {
         using var t = new TestWorld();
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) => outbox.SendAfter(1, default(Target), new Ping())));
+        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+            outbox.SendAfter(1, default, new Ping())));
 
         t.World.Tick();
 

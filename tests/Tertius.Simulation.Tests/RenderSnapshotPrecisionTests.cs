@@ -1,6 +1,5 @@
 using System.Numerics;
 using AwesomeAssertions;
-using static Tertius.Simulation.Tests.RenderSnapshotSupport;
 
 namespace Tertius.Simulation.Tests;
 
@@ -33,7 +32,7 @@ public class RenderSnapshotPrecisionTests
     {
         using var test = new TestWorld();
         FrameHandle home = test.SpawnStaticFrame(DPose.Identity, radius: 1e6f);
-        FrameHandle distant = test.SpawnStaticFrame(new DPose(new Double3(1e11, 0, 0), PoseChecks.QuarterTurnAboutY), radius: 1e6f);
+        FrameHandle distant = test.SpawnStaticFrame(new(new(1e11, 0, 0), PoseChecks.QuarterTurnAboutY), radius: 1e6f);
         Entity camera = test.SpawnCamera(home, TestWorld.At(12345.678));
         // The quarter turn maps the frame's (3, 4, 5) to (5, 4, -3), so the object is at (1e11 + 5, 4, -3) in the root.
         Entity far = test.Show(distant, TestWorld.At(3, 4, 5));
@@ -52,7 +51,7 @@ public class RenderSnapshotPrecisionTests
     {
         using var test = new TestWorld();
         FrameHandle home = test.SpawnStaticFrame(DPose.Identity, radius: 1e6f);
-        FrameHandle distant = test.SpawnStaticFrame(new DPose(new Double3(1e11, 0, 0), PoseChecks.QuarterTurnAboutY), radius: 1e6f);
+        FrameHandle distant = test.SpawnStaticFrame(new(new(1e11, 0, 0), PoseChecks.QuarterTurnAboutY), radius: 1e6f);
         Entity far = test.Show(distant, DPose.Identity);
         test.World.Camera = test.SpawnCamera(home, DPose.Identity);
 

@@ -1,5 +1,6 @@
+using System.Diagnostics;
 using System.Numerics;
-using Tertius.Host.Scripting;
+using Tertius.Demo;
 using Tertius.Host.Windowing;
 using Tertius.Simulation;
 
@@ -75,7 +76,7 @@ public class FlyCameraTests
     public void ItStartsAtTheWorldsCameraWithItsRotation()
     {
         var camera = new FlyCamera();
-        Quaternion turned = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.7f);
+        var turned = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.7f);
 
         camera.Start(turned);
 
@@ -89,7 +90,7 @@ public class FlyCameraTests
         var camera = new FlyCamera();
         camera.Start(Quaternion.Identity);
 
-        ExpectNear(Moved(camera, FlyKey.Forward), new Vector3(0, 0, -5));
+        ExpectNear(Moved(camera, FlyKey.Forward), new(0, 0, -5));
     }
 
     [Fact]
@@ -99,7 +100,7 @@ public class FlyCameraTests
         // Turned 90 degrees about +Y, the view looks along -X.
         camera.Start(Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2));
 
-        ExpectNear(Moved(camera, FlyKey.Forward), new Vector3(-5, 0, 0));
+        ExpectNear(Moved(camera, FlyKey.Forward), new(-5, 0, 0));
     }
 
     [Fact]
@@ -109,7 +110,7 @@ public class FlyCameraTests
         camera.Start(Quaternion.Identity);
         camera.SetKey(FlyKey.Fast, true);
 
-        ExpectNear(Moved(camera, FlyKey.Right), new Vector3(50, 0, 0));
+        ExpectNear(Moved(camera, FlyKey.Right), new(50, 0, 0));
     }
 
     [Fact]
@@ -118,9 +119,9 @@ public class FlyCameraTests
         var camera = new FlyCamera();
         camera.Start(Quaternion.Identity);
 
-        camera.Turn(new Vector2(MathF.PI / 2 / FlyCamera.TurnPerPixel, 0));
+        camera.Turn(new(MathF.PI / 2 / FlyCamera.TurnPerPixel, 0));
 
-        ExpectNear(Moved(camera, FlyKey.Forward), new Vector3(5, 0, 0));
+        ExpectNear(Moved(camera, FlyKey.Forward), new(5, 0, 0));
     }
 
     [Fact]
@@ -128,9 +129,9 @@ public class FlyCameraTests
     {
         var camera = new FlyCamera();
         camera.Start(Quaternion.Identity);
-        camera.Turn(new Vector2(0, MathF.PI / 4 / FlyCamera.TurnPerPixel));
+        camera.Turn(new(0, MathF.PI / 4 / FlyCamera.TurnPerPixel));
 
-        ExpectNear(Moved(camera, FlyKey.Up), new Vector3(0, 5, 0));
+        ExpectNear(Moved(camera, FlyKey.Up), new(0, 5, 0));
         ExpectNear(Moved(camera, FlyKey.Down), Vector3.Zero);
     }
 
@@ -140,7 +141,7 @@ public class FlyCameraTests
         var camera = new FlyCamera();
         camera.Start(Quaternion.Identity);
 
-        camera.Turn(new Vector2(0, 100_000));
+        camera.Turn(new(0, 100_000));
 
         Vector3 forward = Vector3.Transform(-Vector3.UnitZ, camera.Rotation);
         forward.Y.Should().BeLessThan(-0.99f, "the view looks almost straight down");
@@ -191,7 +192,7 @@ public class FlyCameraMotionTests
         var camera = new FlyCamera();
         camera.Start(Quaternion.Identity);
 
-        ExpectNear(Held(camera, key, 1), new Vector3(x, y, z));
+        ExpectNear(Held(camera, key, 1), new(x, y, z));
     }
 
     [Fact]
@@ -200,7 +201,7 @@ public class FlyCameraMotionTests
         var camera = new FlyCamera();
         camera.Start(Quaternion.Identity);
 
-        ExpectNear(Held(camera, FlyKey.Forward, 0.25f), new Vector3(0, 0, -1.25f));
+        ExpectNear(Held(camera, FlyKey.Forward, 0.25f), new(0, 0, -1.25f));
     }
 
     [Fact]
@@ -210,9 +211,9 @@ public class FlyCameraMotionTests
         // The start looks 30 degrees down. A turn right by 90 degrees about the frame's +Y then takes the view's right,
         // which stays level, from +X to +Z.
         camera.Start(Quaternion.CreateFromAxisAngle(Vector3.UnitX, -MathF.PI / 6));
-        camera.Turn(new Vector2(MathF.PI / 2 / FlyCamera.TurnPerPixel, 0));
+        camera.Turn(new(MathF.PI / 2 / FlyCamera.TurnPerPixel, 0));
 
-        ExpectNear(Held(camera, FlyKey.Right, 1), new Vector3(0, 0, 5));
+        ExpectNear(Held(camera, FlyKey.Right, 1), new(0, 0, 5));
     }
 
     [Fact]
@@ -221,9 +222,9 @@ public class FlyCameraMotionTests
         var camera = new FlyCamera();
         camera.Start(Quaternion.Identity);
         // Right 90 degrees and down 45 degrees: the view looks along +X and down, (0.707, -0.707, 0).
-        camera.Turn(new Vector2(MathF.PI / 2 / FlyCamera.TurnPerPixel, MathF.PI / 4 / FlyCamera.TurnPerPixel));
+        camera.Turn(new(MathF.PI / 2 / FlyCamera.TurnPerPixel, MathF.PI / 4 / FlyCamera.TurnPerPixel));
 
-        ExpectNear(Held(camera, FlyKey.Forward, 1), new Vector3(3.5355f, -3.5355f, 0));
+        ExpectNear(Held(camera, FlyKey.Forward, 1), new(3.5355f, -3.5355f, 0));
     }
 
     [Fact]
@@ -233,8 +234,8 @@ public class FlyCameraMotionTests
         camera.Start(Quaternion.Identity);
         camera.SetKey(FlyKey.Forward, true);
         camera.Advance(1);
-        camera.Turn(new Vector2(100, 50));
-        Quaternion again = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.3f);
+        camera.Turn(new(100, 50));
+        var again = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.3f);
 
         camera.Start(again);
 
@@ -253,7 +254,7 @@ public class FlyCameraMotionTests
 
         camera.Follow(Quaternion.CreateFromAxisAngle(Vector3.UnitY, 1), frame: 7);
 
-        ExpectNear(camera.Position, new Vector3(0, 0, -5));
+        ExpectNear(camera.Position, new(0, 0, -5));
         camera.Rotation.Should().Be(Quaternion.Identity);
     }
 
@@ -263,7 +264,7 @@ public class FlyCameraMotionTests
         var camera = new FlyCamera();
         camera.Start(Quaternion.Identity, frame: 7);
         Held(camera, FlyKey.Forward, 1);
-        Quaternion inNewFrame = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 1);
+        var inNewFrame = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 1);
 
         camera.Follow(inNewFrame, frame: 8);
 
@@ -281,19 +282,19 @@ public class MouseTrackerTests
     {
         var mouse = new MouseTracker();
 
-        mouse.MoveTo(new Vector2(100, 50)).Should().Be(Vector2.Zero);
-        mouse.MoveTo(new Vector2(103, 46)).Should().Be(new Vector2(3, -4));
+        mouse.MoveTo(new(100, 50)).Should().Be(Vector2.Zero);
+        mouse.MoveTo(new(103, 46)).Should().Be(new Vector2(3, -4));
     }
 
     [Fact]
     public void AfterForgettingThePositionTheNextOneMovesNothing()
     {
         var mouse = new MouseTracker();
-        mouse.MoveTo(new Vector2(100, 50));
+        mouse.MoveTo(new(100, 50));
 
         mouse.Forget();
 
-        mouse.MoveTo(new Vector2(900, 700)).Should().Be(Vector2.Zero);
+        mouse.MoveTo(new(900, 700)).Should().Be(Vector2.Zero);
     }
 }
 
@@ -305,16 +306,18 @@ public class CaptureMailboxTests
 
     private static CancellationToken TestStop => TestContext.Current.CancellationToken;
 
-    /// <summary>Takes the sink of the waiting capture, as the render thread does. Fails if no request arrives within <see cref="Bound"/>.</summary>
+    /// <summary>Takes the sink of the waiting capture, as the render thread does. Fails if no request arrives within
+    /// <see cref="Bound"/>.</summary>
     internal static ICaptureSink TakeWithin(CaptureMailbox mailbox)
     {
-        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var clock = Stopwatch.StartNew();
         ICaptureSink? sink;
         while (!mailbox.TryTake(out sink))
         {
             clock.Elapsed.Should().BeLessThan(Bound, "the request must arrive");
             Thread.Yield();
         }
+
         return sink;
     }
 
@@ -336,7 +339,8 @@ public class CaptureMailboxTests
         Task request = Task.Run(() => mailbox.RequestAndWait(sink, CancellationToken.None), TestStop);
 
         TakeWithin(mailbox).Should().BeSameAs(sink);
-        (await EndsWithin(request, TimeSpan.FromMilliseconds(100))).Should().BeFalse("the request is taken but the sink has no pixels yet");
+        (await EndsWithin(request, TimeSpan.FromMilliseconds(100))).Should()
+            .BeFalse("the request is taken but the sink has no pixels yet");
 
         mailbox.Done();
         await request.WaitAsync(Bound, TestStop);
@@ -360,7 +364,8 @@ public class CaptureMailboxTests
         // The closing only bounds the test: a request that waited would end with OperationCanceledException.
         using var closing = new CancellationTokenSource(TimeSpan.FromSeconds(1));
         FluentActions.Invoking(() => new CaptureMailbox().RequestAndWait(null!, closing.Token))
-            .Should().Throw<ArgumentNullException>("a request with no sink would wait for a capture that the render thread never sees");
+            .Should().Throw<ArgumentNullException>(
+                "a request with no sink would wait for a capture that the render thread never sees");
     }
 
     [Fact]
@@ -377,7 +382,8 @@ public class CaptureMailboxTests
 
         Task request = Task.Run(() => mailbox.RequestAndWait(new Sink(), closing.Token), TestStop);
 
-        await FluentActions.Awaiting(() => request.WaitAsync(Bound, TestStop)).Should().ThrowAsync<OperationCanceledException>();
+        await FluentActions.Awaiting(() => request.WaitAsync(Bound, TestStop)).Should()
+            .ThrowAsync<OperationCanceledException>();
     }
 
     [Fact]
@@ -386,7 +392,8 @@ public class CaptureMailboxTests
         var mailbox = new CaptureMailbox();
         using var closing = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
         Task request = Task.Run(() => mailbox.RequestAndWait(new Sink(), closing.Token), TestStop);
-        await FluentActions.Awaiting(() => request.WaitAsync(Bound, TestStop)).Should().ThrowAsync<OperationCanceledException>();
+        await FluentActions.Awaiting(() => request.WaitAsync(Bound, TestStop)).Should()
+            .ThrowAsync<OperationCanceledException>();
 
         mailbox.TryTake(out _).Should().BeFalse("the render thread must not draw a capture that nobody waits for");
     }
@@ -399,7 +406,7 @@ public class WindowPlaybackTests
     public void TheFirstTickRunsAtOnce()
     {
         var reads = new List<double>();
-        var playback = new WindowPlayback(new TickPacer(0.02, 1), new CaptureMailbox(), new PngFolder("unused"), Clock(reads, 0), CancellationToken.None);
+        var playback = new WindowPlayback(new(0.02, 1), new(), new("unused"), Clock(reads, 0), CancellationToken.None);
 
         playback.WaitForTick().Should().BeTrue();
         reads.Should().Equal(0);
@@ -409,7 +416,8 @@ public class WindowPlaybackTests
     public void ALaterTickWaitsForItsStartTime()
     {
         var reads = new List<double>();
-        var playback = new WindowPlayback(new TickPacer(0.02, 1), new CaptureMailbox(), new PngFolder("unused"), Clock(reads, 0, 0, 0.03), CancellationToken.None);
+        var playback = new WindowPlayback(new(0.02, 1), new(), new("unused"), Clock(reads, 0, 0, 0.03),
+            CancellationToken.None);
 
         playback.WaitForTick();
         playback.WaitForTick().Should().BeTrue();
@@ -425,7 +433,8 @@ public class WindowPlaybackTests
     private static Func<double> Clock(List<double> reads, params double[] values) => () =>
     {
         if (reads.Count >= values.Length)
-            throw new InvalidOperationException($"The clock was read {reads.Count + 1} times, more than the {values.Length} that the test expects.");
+            throw new InvalidOperationException(
+                $"The clock was read {reads.Count + 1} times, more than the {values.Length} that the test expects.");
         reads.Add(values[reads.Count]);
         return reads[^1];
     };
@@ -434,7 +443,8 @@ public class WindowPlaybackTests
     public void ATickLateByLessThanOneTickRunsAtOnceAndKeepsTheSchedule()
     {
         var reads = new List<double>();
-        var playback = new WindowPlayback(new TickPacer(0.02, 1), new CaptureMailbox(), new PngFolder("unused"), Clock(reads, 0, 0.03, 0.04), CancellationToken.None);
+        var playback = new WindowPlayback(new(0.02, 1), new(), new("unused"), Clock(reads, 0, 0.03, 0.04),
+            CancellationToken.None);
 
         for (int i = 0; i < 3; i++)
             playback.WaitForTick().Should().BeTrue();
@@ -447,7 +457,8 @@ public class WindowPlaybackTests
     public void AfterAStallTheScheduleMovesSoTheTicksAfterItKeepTheirPace()
     {
         var reads = new List<double>();
-        var playback = new WindowPlayback(new TickPacer(0.02, 1), new CaptureMailbox(), new PngFolder("unused"), Clock(reads, 0, 0.5, 0.5, 0.52), CancellationToken.None);
+        var playback = new WindowPlayback(new(0.02, 1), new(), new("unused"), Clock(reads, 0, 0.5, 0.5, 0.52),
+            CancellationToken.None);
 
         for (int i = 0; i < 3; i++)
             playback.WaitForTick().Should().BeTrue();
@@ -461,7 +472,8 @@ public class WindowPlaybackTests
     public void EachStallMovesTheScheduleAgain()
     {
         var reads = new List<double>();
-        var playback = new WindowPlayback(new TickPacer(0.02, 1), new CaptureMailbox(), new PngFolder("unused"), Clock(reads, 0, 0.5, 0.5, 0.52, 1.0, 1.0, 1.02), CancellationToken.None);
+        var playback = new WindowPlayback(new(0.02, 1), new(), new("unused"),
+            Clock(reads, 0, 0.5, 0.5, 0.52, 1.0, 1.0, 1.02), CancellationToken.None);
 
         for (int i = 0; i < 5; i++)
             playback.WaitForTick().Should().BeTrue();
@@ -474,7 +486,7 @@ public class WindowPlaybackTests
     public void NoTickRunsAfterTheWindowCloses()
     {
         using var closing = new CancellationTokenSource();
-        var playback = new WindowPlayback(new TickPacer(0.02, 1), new CaptureMailbox(), new PngFolder("unused"), () => 0, closing.Token);
+        var playback = new WindowPlayback(new(0.02, 1), new(), new("unused"), () => 0, closing.Token);
         closing.Cancel();
 
         playback.WaitForTick().Should().BeFalse();
@@ -484,12 +496,12 @@ public class WindowPlaybackTests
     public void AWaitForALaterTickEndsWhenTheWindowCloses()
     {
         using var closing = new CancellationTokenSource();
-        var playback = new WindowPlayback(new TickPacer(3600, 1), new CaptureMailbox(), new PngFolder("unused"), () => 0, closing.Token);
+        var playback = new WindowPlayback(new(3600, 1), new(), new("unused"), () => 0, closing.Token);
         playback.WaitForTick().Should().BeTrue();
         closing.CancelAfter(TimeSpan.FromMilliseconds(50));
 
         // The second tick would start an hour later.
-        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var clock = Stopwatch.StartNew();
         playback.WaitForTick().Should().BeFalse();
         clock.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(5));
     }
@@ -499,11 +511,12 @@ public class WindowPlaybackTests
     {
         using var closing = new CancellationTokenSource();
         // At this speed, one tick lasts about 190 days of wall clock, longer than one wait can be.
-        var playback = new WindowPlayback(new TickPacer(1.0 / 60, 1e-9), new CaptureMailbox(), new PngFolder("unused"), () => 0, closing.Token);
+        var playback = new WindowPlayback(new(1.0 / 60, 1e-9), new(), new("unused"), () => 0, closing.Token);
         playback.WaitForTick().Should().BeTrue();
         closing.CancelAfter(TimeSpan.FromMilliseconds(50));
 
-        bool second = await Task.Run(playback.WaitForTick, TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        bool second = await Task.Run(playback.WaitForTick, TestContext.Current.CancellationToken)
+            .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 
         second.Should().BeFalse();
     }
@@ -536,7 +549,7 @@ public class WindowPlaybackTests
         world.PublishRenderSnapshot();
         world.RenderSnapshots.TryAcquireLatest(out _);
         var mailbox = new CaptureMailbox();
-        var playback = new WindowPlayback(new TickPacer(0.02, 1), mailbox, new PngFolder("unused"), () => 0, CancellationToken.None);
+        var playback = new WindowPlayback(new(0.02, 1), mailbox, new("unused"), () => 0, CancellationToken.None);
         bool fresh = false;
         Task renderThread = ServeOneCapture(mailbox, sink => fresh = world.RenderSnapshots.TryAcquireLatest(out _));
 
@@ -553,9 +566,9 @@ public class WindowPlaybackTests
         string folder = HostTesting.NewFolder();
         string path = Path.Combine(folder, "shot.png");
         var mailbox = new CaptureMailbox();
-        var playback = new WindowPlayback(new TickPacer(0.02, 1), mailbox, new PngFolder(folder), () => 0, CancellationToken.None);
+        var playback = new WindowPlayback(new(0.02, 1), mailbox, new(folder), () => 0, CancellationToken.None);
         // The render thread hands the sink the pixels of the frame that it drew: here one pixel.
-        Task renderThread = ServeOneCapture(mailbox, sink => sink.Take(new CapturedImage([200, 100, 50, 0], 1, 1)));
+        Task renderThread = ServeOneCapture(mailbox, sink => sink.Take(new([200, 100, 50, 0], 1, 1)));
 
         playback.Capture(world, "shot").Should().BeTrue();
 
@@ -569,7 +582,7 @@ public class WindowPlaybackTests
     {
         using World world = HostTesting.NewWorld();
         using var closing = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
-        var playback = new WindowPlayback(new TickPacer(0.02, 1), new CaptureMailbox(), new PngFolder("unused"), () => 0, closing.Token);
+        var playback = new WindowPlayback(new(0.02, 1), new(), new("unused"), () => 0, closing.Token);
 
         // Nobody serves the capture, so only the closing ends the wait.
         bool captured = await Task.Run(() => playback.Capture(world, "x"), TestContext.Current.CancellationToken)
@@ -584,7 +597,7 @@ public class ViewSwitchTests
     private static (World World, SceneInstance Scene) Orbit()
     {
         World world = HostTesting.NewJoltWorld();
-        return (world, Tertius.Demo.DemoScenes.All.Single(s => s.Name == "orbit").Build(world, RenderResources.None));
+        return (world, DemoScenes.All.Single(s => s.Name == "orbit").Build(world, RenderResources.None));
     }
 
     [Fact]

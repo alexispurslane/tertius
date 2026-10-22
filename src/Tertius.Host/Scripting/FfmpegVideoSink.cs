@@ -21,11 +21,13 @@ public sealed class FfmpegVideoSink : ICaptureSink, IDisposable
     private readonly Process ffmpeg;
     private readonly Stream input;
     private readonly string path;
+
     private readonly int width, height;
+
     // The last lines of ffmpeg's error output. A thread-pool callback adds them as ffmpeg writes them, so that ffmpeg never
     // blocks on a full error pipe.
     private readonly Queue<string> errorLines = new();
-    private int framesWritten;
+
     // True once ffmpeg's input is closed and ffmpeg has exited.
     private bool ended;
     private bool disposed;
@@ -40,6 +42,9 @@ public sealed class FfmpegVideoSink : ICaptureSink, IDisposable
         ffmpeg.ErrorDataReceived += KeepErrorLine;
         ffmpeg.BeginErrorReadLine();
     }
+
+    /// <summary>How many frames went whole into ffmpeg's input.</summary>
+    public int FramesWritten { get; private set; }
 
     /// <summary>
     /// Starts ffmpeg for a video of <paramref name="size"/> into <paramref name="video"/>, and then makes the folder of
@@ -60,7 +65,8 @@ public sealed class FfmpegVideoSink : ICaptureSink, IDisposable
         ArgumentNullException.ThrowIfNull(video);
         ArgumentNullException.ThrowIfNull(size);
         string full = Path.GetFullPath(video.Path);
-        var start = new ProcessStartInfo(program) { RedirectStandardInput = true, RedirectStandardError = true, UseShellExecute = false };
+        var start = new ProcessStartInfo(program)
+            { RedirectStandardInput = true, RedirectStandardError = true, UseShellExecute = false };
         foreach (string argument in Arguments(full, size.Width, size.Height, video.FramesPerSecond))
             start.ArgumentList.Add(argument);
         var ffmpeg = new Process { StartInfo = start };
@@ -73,11 +79,12 @@ public sealed class FfmpegVideoSink : ICaptureSink, IDisposable
             ffmpeg.Dispose();
             throw;
         }
+
         try
         {
             if (Path.GetDirectoryName(full) is { Length: > 0 } directory)
                 Directory.CreateDirectory(directory);
-            return new FfmpegVideoSink(ffmpeg, full, size.Width, size.Height);
+            return new(ffmpeg, full, size.Width, size.Height);
         }
         // ffmpeg has had no frame, so it has opened no output, and once stopped it never does.
         catch
@@ -100,11 +107,8 @@ public sealed class FfmpegVideoSink : ICaptureSink, IDisposable
         "-hide_banner", "-loglevel", "error", "-nostats",
         "-f", "rawvideo", "-pixel_format", "rgb0", "-video_size", $"{width}x{height}",
         "-framerate", framesPerSecond.ToString(CultureInfo.InvariantCulture), "-i", "pipe:0",
-        "-c:v", "libx264rgb", "-qp", "0", "-preset", "veryfast", "-f", "matroska", "-y", path,
+        "-c:v", "libx264rgb", "-qp", "0", "-preset", "veryfast", "-f", "matroska", "-y", path
     ];
-
-    /// <summary>How many frames went whole into ffmpeg's input.</summary>
-    public int FramesWritten => framesWritten;
 
     /// <summary>
     /// Writes the pixels of the next frame into ffmpeg's input. The write blocks only while ffmpeg's input queue is full.
@@ -118,7 +122,9 @@ public sealed class FfmpegVideoSink : ICaptureSink, IDisposable
         if (ended)
             throw new InvalidOperationException($"The video {path} has ended, so it takes no more frames.");
         if (image.Width != width || image.Height != height)
-            throw new ArgumentException($"A frame of {image.Width}x{image.Height} pixels does not fit the video {path}, which is {width}x{height}.", nameof(image));
+            throw new ArgumentException(
+                $"A frame of {image.Width}x{image.Height} pixels does not fit the video {path}, which is {width}x{height}.",
+                nameof(image));
         try
         {
             input.Write(image.Rgba);
@@ -129,7 +135,8 @@ public sealed class FfmpegVideoSink : ICaptureSink, IDisposable
             End();
             throw Failure(ex);
         }
-        framesWritten++;
+
+        FramesWritten++;
     }
 
     /// <summary>
@@ -159,7 +166,7 @@ public sealed class FfmpegVideoSink : ICaptureSink, IDisposable
         if (!ended)
             End();
         ffmpeg.Dispose();
-        if (framesWritten > 0 || !File.Exists(path))
+        if (FramesWritten > 0 || !File.Exists(path))
             return;
         // ffmpeg writes a file with no frame when its input closes before the first one. The run that led here fails
         // already, so a file that cannot be deleted is left, rather than hiding that failure behind this one.
@@ -185,6 +192,7 @@ public sealed class FfmpegVideoSink : ICaptureSink, IDisposable
         catch (IOException)
         {
         }
+
         ffmpeg.WaitForExit();
     }
 
@@ -192,8 +200,11 @@ public sealed class FfmpegVideoSink : ICaptureSink, IDisposable
     {
         string[] lines;
         lock (errorLines)
+        {
             lines = [.. errorLines];
-        return new VideoStreamException(path, ffmpeg.ExitCode, framesWritten, lines, inner);
+        }
+
+        return new(path, ffmpeg.ExitCode, FramesWritten, lines, inner);
     }
 
     private void KeepErrorLine(object sender, DataReceivedEventArgs line)
@@ -212,28 +223,26 @@ public sealed class FfmpegVideoSink : ICaptureSink, IDisposable
 /// <summary>
 /// ffmpeg stopped before a video was complete, or failed at its end. The command reports it as a file problem, exit code 2.
 /// </summary>
-public sealed class VideoStreamException : IOException
+public sealed class VideoStreamException(
+    string path,
+    int exitCode,
+    int framesWritten,
+    IReadOnlyList<string> errorLines,
+    Exception? inner) : IOException(
+    Describe(path, exitCode, framesWritten, errorLines ?? throw new ArgumentNullException(nameof(errorLines))),
+    inner)
 {
-    public VideoStreamException(string path, int exitCode, int framesWritten, IReadOnlyList<string> errorLines, Exception? inner)
-        : base(Describe(path, exitCode, framesWritten, errorLines ?? throw new ArgumentNullException(nameof(errorLines))), inner)
-    {
-        Path = path;
-        ExitCode = exitCode;
-        FramesWritten = framesWritten;
-        ErrorLines = errorLines;
-    }
-
     /// <summary>The file of the video.</summary>
-    public string Path { get; }
+    public string Path { get; } = path;
 
     /// <summary>ffmpeg's exit code.</summary>
-    public int ExitCode { get; }
+    public int ExitCode { get; } = exitCode;
 
     /// <summary>How many frames went whole into ffmpeg's input before it stopped.</summary>
-    public int FramesWritten { get; }
+    public int FramesWritten { get; } = framesWritten;
 
     /// <summary>The last lines of ffmpeg's error output, at most <see cref="FfmpegVideoSink.ErrorLinesKept"/>, oldest first.</summary>
-    public IReadOnlyList<string> ErrorLines { get; }
+    public IReadOnlyList<string> ErrorLines { get; } = errorLines;
 
     private static string Describe(string path, int exitCode, int framesWritten, IReadOnlyList<string> errorLines) =>
         $"ffmpeg stopped with exit code {exitCode} after {framesWritten} frames of the video {path}."

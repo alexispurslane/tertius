@@ -56,7 +56,15 @@ public readonly record struct Stopped;
 [Union]
 public readonly struct PassengerState : IEquatable<PassengerState>
 {
-    private const byte KindBoarding = 0, KindSeated = 1, KindFetching = 2, KindHolding = 3, KindStopped = 4, KindReturning = 5, KindStrapped = 6, KindUnstrapped = 7, KindPenAway = 8;
+    private const byte KindBoarding = 0,
+        KindSeated = 1,
+        KindFetching = 2,
+        KindHolding = 3,
+        KindStopped = 4,
+        KindReturning = 5,
+        KindStrapped = 6,
+        KindUnstrapped = 7,
+        KindPenAway = 8;
 
     // A seated state fills the weightless ticks, and a holding, returning, strapped or unstrapped one the copy. Every other field is zero, so equality
     // compares every field.
@@ -64,72 +72,58 @@ public readonly struct PassengerState : IEquatable<PassengerState>
     private readonly int weightlessTicks;
     private readonly byte kind;
 
-    public PassengerState(Boarding boarding) { kind = KindBoarding; }
-    public PassengerState(Seated seated) { kind = KindSeated; weightlessTicks = seated.WeightlessTicks; }
-    public PassengerState(Fetching fetching) { kind = KindFetching; }
-    public PassengerState(Holding holding) { kind = KindHolding; copy = holding.Copy; }
-    public PassengerState(Stopped stopped) { kind = KindStopped; }
-    public PassengerState(Returning returning) { kind = KindReturning; copy = returning.Copy; }
-    public PassengerState(Strapped strapped) { kind = KindStrapped; copy = strapped.Copy; }
-    public PassengerState(Unstrapped unstrapped) { kind = KindUnstrapped; copy = unstrapped.Copy; }
-    public PassengerState(PenAway away) { kind = KindPenAway; }
+    public PassengerState(Boarding boarding)
+    {
+        kind = KindBoarding;
+    }
+
+    public PassengerState(Seated seated)
+    {
+        kind = KindSeated;
+        weightlessTicks = seated.WeightlessTicks;
+    }
+
+    public PassengerState(Fetching fetching)
+    {
+        kind = KindFetching;
+    }
+
+    public PassengerState(Holding holding)
+    {
+        kind = KindHolding;
+        copy = holding.Copy;
+    }
+
+    public PassengerState(Stopped stopped)
+    {
+        kind = KindStopped;
+    }
+
+    public PassengerState(Returning returning)
+    {
+        kind = KindReturning;
+        copy = returning.Copy;
+    }
+
+    public PassengerState(Strapped strapped)
+    {
+        kind = KindStrapped;
+        copy = strapped.Copy;
+    }
+
+    public PassengerState(Unstrapped unstrapped)
+    {
+        kind = KindUnstrapped;
+        copy = unstrapped.Copy;
+    }
+
+    public PassengerState(PenAway away)
+    {
+        kind = KindPenAway;
+    }
 
     /// <summary>Always true: every value is a state, and the default value is <see cref="Boarding"/>.</summary>
     public bool HasValue => true;
-
-    public bool TryGetValue(out Boarding value)
-    {
-        value = default;
-        return kind == KindBoarding;
-    }
-
-    public bool TryGetValue(out Seated value)
-    {
-        value = new Seated(weightlessTicks);
-        return kind == KindSeated;
-    }
-
-    public bool TryGetValue(out Fetching value)
-    {
-        value = default;
-        return kind == KindFetching;
-    }
-
-    public bool TryGetValue(out Holding value)
-    {
-        value = new Holding(copy);
-        return kind == KindHolding;
-    }
-
-    public bool TryGetValue(out Stopped value)
-    {
-        value = default;
-        return kind == KindStopped;
-    }
-
-    public bool TryGetValue(out Returning value)
-    {
-        value = new Returning(copy);
-        return kind == KindReturning;
-    }
-
-    public bool TryGetValue(out Strapped value)
-    {
-        value = new Strapped(copy);
-        return kind == KindStrapped;
-    }
-
-    public bool TryGetValue(out Unstrapped value)
-    {
-        value = new Unstrapped(copy);
-        return kind == KindUnstrapped;
-    }
-
-    public bool TryGetValue(out PenAway value)
-    {
-        value = default;
-        return kind == KindPenAway;
-    }
 
     public object Value => kind switch
     {
@@ -141,10 +135,66 @@ public readonly struct PassengerState : IEquatable<PassengerState>
         KindStrapped => new Strapped(copy),
         KindUnstrapped => new Unstrapped(copy),
         KindPenAway => new PenAway(),
-        _ => new Boarding(),
+        _ => new Boarding()
     };
 
-    public bool Equals(PassengerState other) => kind == other.kind && weightlessTicks == other.weightlessTicks && copy == other.copy;
+    public bool TryGetValue(out Boarding value)
+    {
+        value = default;
+        return kind == KindBoarding;
+    }
+
+    public bool TryGetValue(out Seated value)
+    {
+        value = new(weightlessTicks);
+        return kind == KindSeated;
+    }
+
+    public bool TryGetValue(out Fetching value)
+    {
+        value = default;
+        return kind == KindFetching;
+    }
+
+    public bool TryGetValue(out Holding value)
+    {
+        value = new(copy);
+        return kind == KindHolding;
+    }
+
+    public bool TryGetValue(out Stopped value)
+    {
+        value = default;
+        return kind == KindStopped;
+    }
+
+    public bool TryGetValue(out Returning value)
+    {
+        value = new(copy);
+        return kind == KindReturning;
+    }
+
+    public bool TryGetValue(out Strapped value)
+    {
+        value = new(copy);
+        return kind == KindStrapped;
+    }
+
+    public bool TryGetValue(out Unstrapped value)
+    {
+        value = new(copy);
+        return kind == KindUnstrapped;
+    }
+
+    public bool TryGetValue(out PenAway value)
+    {
+        value = default;
+        return kind == KindPenAway;
+    }
+
+    public bool Equals(PassengerState other) =>
+        kind == other.kind && weightlessTicks == other.weightlessTicks && copy == other.copy;
+
     public override bool Equals(object? obj) => obj is PassengerState other && Equals(other);
     public override int GetHashCode() => HashCode.Combine(kind, weightlessTicks, copy);
     public static bool operator ==(PassengerState a, PassengerState b) => a.Equals(b);
@@ -270,7 +320,10 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     /// A passenger that starts in <paramref name="start"/>, as a scene that starts in the middle of the flight builds it,
     /// such as the exit's scene, which starts <see cref="Strapped"/> at the docked seat.
     /// </summary>
-    public Passenger(Waypoint seat, Entity pen, PassengerState start) : this(seat, pen) => State = start;
+    public Passenger(Waypoint seat, Entity pen, PassengerState start) : this(seat, pen)
+    {
+        State = start;
+    }
 
     /// <summary>What the passenger does now. It starts <see cref="Boarding"/>, unless a constructor names another state.</summary>
     public PassengerState State { get; private set; } = new Boarding();
@@ -280,7 +333,8 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
 
     public int Priority => 0;
 
-    public EventMask Wants => EventMask.Of<Tick>().And<CrateOffer>().And<FastenBelt>().And<LeaveShip>().And<PlayWithBoxes>();
+    public EventMask Wants =>
+        EventMask.Of<Tick>().And<CrateOffer>().And<FastenBelt>().And<LeaveShip>().And<PlayWithBoxes>();
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
@@ -290,7 +344,8 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
         switch (State)
         {
             case Boarding:
-                if (self.Frame == seat.Frame && Double3.Distance(self.PoseIn(seat.Frame).Position, seat.Position) <= BuckleRadius)
+                if (self.Frame == seat.Frame &&
+                    Double3.Distance(self.PoseIn(seat.Frame).Position, seat.Position) <= BuckleRadius)
                     State = new Seated(0);
                 return;
             case Seated { WeightlessTicks: int ticks }:
@@ -301,13 +356,13 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
                 return;
             case Fetching:
                 for (int i = 0; i < events.Count; i++)
-                {
-                    if (events[i].Is<CrateOffer>() && events[i].Sender == pen && Take(self, outbox, events[i].As<CrateOffer>().Crate))
+                    if (events[i].Is<CrateOffer>() && events[i].Sender == pen &&
+                        Take(self, outbox, events[i].As<CrateOffer>().Crate))
                     {
                         Steer(self, outbox, Double3.Zero, mass);
                         return;
                     }
-                }
+
                 Fetch(self, outbox, mass);
                 return;
             case Holding { Copy: Entity held }:
@@ -316,6 +371,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
                     Steer(self, outbox, Double3.Zero, mass);
                     return;
                 }
+
                 State = new Returning(held);
                 Return(self, outbox, held, mass);
                 return;
@@ -328,6 +384,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
                     State = new Unstrapped(held);
                     return;
                 }
+
                 if (self.Frame == seat.Frame)
                     HoldAtSeat(self, mass);
                 return;
@@ -337,6 +394,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
                     outbox.Send(held, new Destroy());
                     State = new PenAway();
                 }
+
                 return;
             case PenAway:
                 return;
@@ -374,6 +432,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
             Steer(self, outbox, Double3.Zero, mass);
             return;
         }
+
         Double3 way = seat.Position - self.PoseIn(seat.Frame).Position;
         double distance = way.Length;
         if (distance <= BuckleRadius)
@@ -381,6 +440,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
             State = new Strapped(held);
             return;
         }
+
         Steer(self, outbox, way * (Math.Min(FloatSpeed, distance * ApproachRate) / distance), mass);
     }
 
@@ -391,7 +451,8 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     private void Belt(Self self, Double3 gravity, float mass)
     {
         Double3 offset = seat.Position - self.PoseIn(seat.Frame).Position;
-        Double3 push = -gravity + offset * (BeltFrequency * BeltFrequency) - self.VelocityIn(seat.Frame) * (2 * BeltFrequency);
+        Double3 push = -gravity + offset * (BeltFrequency * BeltFrequency) -
+                       self.VelocityIn(seat.Frame) * (2 * BeltFrequency);
         self.Body.AddForce((push * mass).ToVector3());
     }
 
@@ -401,16 +462,18 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     /// </summary>
     private void Fetch(Self self, Outbox outbox, float mass)
     {
-        if (!self.Snapshot.TryGetPoseIn(pen, self.Frame, out DPose penPose) || !self.Snapshot.TryGetVelocityIn(pen, self.Frame, out Double3 penVelocity))
+        if (!self.Snapshot.TryGetPoseIn(pen, self.Frame, out DPose penPose) ||
+            !self.Snapshot.TryGetVelocityIn(pen, self.Frame, out Double3 penVelocity))
         {
             State = new Stopped();
             Steer(self, outbox, Double3.Zero, mass);
             return;
         }
+
         // The hand and the line ahead of the view, in the passenger's frame.
         DPose pose = self.PoseIn(self.Frame);
         Pose view = self.Render.ViewOffset;
-        Double3 hand = pose.TransformPoint((Double3)view.TransformPoint(PenHold));
+        Double3 hand = pose.TransformPoint(view.TransformPoint(PenHold));
         Double3 ahead = pose.Rotation.Rotate((Double3)view.TransformDirection(-Vector3.UnitZ));
         Double3 way = penPose.Position - hand;
         if (way.Length <= GripReach)
@@ -434,7 +497,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
         if (!self.Snapshot.TryGetPoseIn(pen, self.Frame, out DPose penPose))
             return false;
         Pose view = self.Render.ViewOffset;
-        Pose grip = Pose.Compose(view.Inverse(), DPose.Compose(self.PoseIn(self.Frame).Inverse(), penPose).ToPose());
+        var grip = Pose.Compose(view.Inverse(), DPose.Compose(self.PoseIn(self.Frame).Inverse(), penPose).ToPose());
         outbox.Send(pen, new CrateTaken());
         State = new Holding(self.Spawn(offered.HeldCopy(self.Frame, self.Entity, view, grip)));
         return true;
@@ -451,6 +514,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
         if (force.Length > PersonControl.ThrustForce)
             force *= PersonControl.ThrustForce / force.Length;
         // The back jet takes the force in the passenger's own axes, which it keeps.
-        outbox.Send(BackJetPart, new JetForce { Force = self.PoseIn(self.Frame).Rotation.Conjugate().Rotate(force).ToVector3() });
+        outbox.Send(BackJetPart,
+            new JetForce { Force = self.PoseIn(self.Frame).Rotation.Conjugate().Rotate(force).ToVector3() });
     }
 }

@@ -21,9 +21,11 @@ public class CharacterOrbitHandOffTests
     private const double EarthMu = 3.986004418e14;
     private const double OrbitRadius = 6_371_000 + 400_000;
     private const float PersonMass = 70;
-    private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: PersonMass);
 
     private const float Dt = 1f / 60f;
+
+    private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character,
+        Mass: PersonMass);
 
     /// <summary>
     /// The ship's attitude in <c>earth</c>: 90 degrees about +X, so the ship's +Y is earth's +Z, along the orbit, and the
@@ -40,22 +42,27 @@ public class CharacterOrbitHandOffTests
 
         /// <summary>The person's last state in the ship before the hand-off out, and the hand-off itself.</summary>
         public BodyState BeforeExit;
+
         public HandOff Exit;
+
         /// <summary>The ship's state after the step of the hand-off out, relative to <c>earth</c>.</summary>
         public FrameStepRecord ShipAtExit;
 
         /// <summary>The person's state in <c>earth</c> after each step there, the step of the hand-off out first.</summary>
-        public List<BodyState> InEarth = new();
+        public readonly List<BodyState> InEarth = [];
+
         /// <summary>Whether physics stood the person, after each step, from the start. Null for a step that did not say.</summary>
-        public List<bool?> Standing = new();
+        public readonly List<bool?> Standing = [];
 
         /// <summary>The state in <c>earth</c> before the step of the push, and the force of the push, in newtons.</summary>
         public BodyState BeforePush;
+
         public BodyState AfterPush;
         public Vector3 Push;
 
         /// <summary>The person's last state in <c>earth</c> before the hand-off back, the hand-off, and the ship's pose after its step.</summary>
         public BodyState BeforeEntry;
+
         public HandOff Entry;
         public DPose ShipPoseAtEntry;
     }
@@ -75,37 +82,41 @@ public class CharacterOrbitHandOffTests
         var run = new Drift();
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults,
             configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
-        FrameHandle sun = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e13f), GravityField.Point(SunMu)));
+        FrameHandle sun = world.CreateRootFrame(new(FrameBounds.Sphere(1e13f), GravityField.Point(SunMu)));
         run.Earth = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = sun,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(9.25e8f), GravityField.Point(EarthMu)),
+            AsFrame = new(FrameBounds.Sphere(9.25e8f), GravityField.Point(EarthMu))
         }.OnKeplerOrbit(world, KeplerOrbit.Circular(1.496e11))));
-        var hull = new BodyDesc(new BoxShapeDesc(new Vector3(10, 4, 30)), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0, InteriorShape: new SphereShapeDesc(1));
-        var cabin = new BoundingBox(new Vector3(-9.5f, -3.5f, -29.5f), new Vector3(9.5f, 3.5f, 29.5f));
-        Entity shipOwner = world.Spawn(new SpawnDesc
+        var hull = new BodyDesc(new BoxShapeDesc(new(10, 4, 30)), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0,
+            InteriorShape: new SphereShapeDesc(1));
+        var cabin = new BoundingBox(new(-9.5f, -3.5f, -29.5f), new(9.5f, 3.5f, 29.5f));
+        Entity shipOwner = world.Spawn(new()
         {
             Frame = run.Earth,
-            Pose = new DPose(new Double3(OrbitRadius, 0, 0), ShipAttitude),
+            Pose = new(new(OrbitRadius, 0, 0), ShipAttitude),
             LinearVelocity = new Vector3(0, 0, (float)Math.Sqrt(EarthMu / OrbitRadius)),
             Body = hull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), GravityField.Uniform(new Vector3(0, -9.81f, 0), cabin)),
+            AsFrame = new(FrameBounds.Sphere(100), GravityField.Uniform(new(0, -9.81f, 0), cabin))
         });
         run.Ship = world.GetOwnedFrame(shipOwner);
         var pilot = new Pilot();
-        run.Person = world.Spawn(new SpawnDesc
+        run.Person = world.Spawn(new()
         {
             Frame = run.Ship,
             Pose = At(0, 0, 97),
             LinearVelocity = new Vector3(0, 0, 3),
             Body = Person,
-            Components = [pilot],
+            Components = [pilot]
         });
         Entity person = run.Person;
 
         HandOff? handOff = null;
         FrameStepRecord shipState = default;
-        BodyState StateNow() => new(person, world.GetFrame(person), world.PoseInOwnFrame(person), world.VelocityInOwnFrame(person), world.AngularVelocityInOwnFrame(person));
+
+        BodyState StateNow() => new(person, world.GetFrame(person), world.PoseInOwnFrame(person),
+            world.VelocityInOwnFrame(person), world.AngularVelocityInOwnFrame(person));
+
         void Step()
         {
             world.Tick();
@@ -130,6 +141,7 @@ public class CharacterOrbitHandOffTests
             run.BeforeExit = StateNow();
             Step();
         }
+
         run.Exit = handOff ?? throw new InvalidOperationException("The person never left the ship.");
         run.ShipAtExit = shipState;
 
@@ -139,7 +151,7 @@ public class CharacterOrbitHandOffTests
         // applies it.
         for (int i = 0; i < 29; i++)
             Step();
-        run.Push = new Vector3(0, 25_200, 0);
+        run.Push = new(0, 25_200, 0);
         pilot.Once = body => body.AddForce(run.Push);
         Step();
         run.BeforePush = StateNow();
@@ -152,6 +164,7 @@ public class CharacterOrbitHandOffTests
             run.BeforeEntry = StateNow();
             Step();
         }
+
         run.Entry = handOff ?? throw new InvalidOperationException("The person never came back into the ship.");
         run.ShipPoseAtEntry = world.Frames.LocalPose(run.Ship);
         return run;
@@ -169,11 +182,12 @@ public class CharacterOrbitHandOffTests
         run.Exit.To.Should().Be(run.Earth);
         // In the ship the person coasts in a straight line, so at the end of the step it is one step further along.
         Double3 inShip = run.BeforeExit.Pose.Position + (Double3)run.BeforeExit.LinearVelocity * Dt;
-        inShip.Length.Should().BeInRange(102, 104, "the person leaves the bubble of 100 m once it is fully outside it, with a margin");
+        inShip.Length.Should().BeInRange(102, 104,
+            "the person leaves the bubble of 100 m once it is fully outside it, with a margin");
         DPose ship = run.ShipAtExit.Motion.Pose;
         (run.Exit.Pose.Position - ship.TransformPoint(inShip)).Length.Should().BeLessThan(1e-2);
         Double3 velocity = run.ShipAtExit.Motion.ChordVelocity + ship.TransformDirection(run.BeforeExit.LinearVelocity);
-        ((Double3)run.Exit.LinearVelocity - velocity).Length.Should().BeLessThan(1e-2);
+        (run.Exit.LinearVelocity - velocity).Length.Should().BeLessThan(1e-2);
     }
 
     [Fact]
@@ -182,12 +196,14 @@ public class CharacterOrbitHandOffTests
         Drift run = Run(numericFrames: true);
 
         // The person never turned in the ship, so its rotation in earth is the ship's attitude.
-        Quaternion attitude = ShipAttitude.ToQuaternion();
+        var attitude = ShipAttitude.ToQuaternion();
         run.InEarth.Should().HaveCountGreaterThan(30);
         foreach (BodyState state in run.InEarth)
         {
-            Vector3.Distance(UpOf(state.Pose.Rotation), UpOf(ShipAttitude)).Should().BeLessThan(1e-4f, "gravity does not turn a person in free fall");
-            Math.Abs(Quaternion.Dot(state.Pose.Rotation.ToQuaternion(), attitude)).Should().BeGreaterThan(1 - 1e-6f, "the body does not turn either");
+            Vector3.Distance(UpOf(state.Pose.Rotation), UpOf(ShipAttitude)).Should()
+                .BeLessThan(1e-4f, "gravity does not turn a person in free fall");
+            Math.Abs(Quaternion.Dot(state.Pose.Rotation.ToQuaternion(), attitude)).Should()
+                .BeGreaterThan(1 - 1e-6f, "the body does not turn either");
         }
     }
 
@@ -201,13 +217,13 @@ public class CharacterOrbitHandOffTests
         BodyState last = run.BeforePush;
         Double3 middle = (first.Pose.Position + last.Pose.Position) * 0.5;
         Double3 gravity = middle * (-EarthMu / Math.Pow(middle.Length, 3));
-        Double3 expected = (Double3)first.LinearVelocity + gravity * (30 * Dt);
-        ((Double3)last.LinearVelocity - expected).Length.Should().BeLessThan(0.02);
+        Double3 expected = first.LinearVelocity + gravity * (30 * Dt);
+        (last.LinearVelocity - expected).Length.Should().BeLessThan(0.02);
         (gravity * (30 * Dt)).Length.Should().BeGreaterThan(4, "the bend is far larger than the tolerance");
 
         // The push adds F / m · dt to the velocity, besides one step of gravity.
-        Double3 pushed = (Double3)run.BeforePush.LinearVelocity + gravity * Dt + (Double3)(run.Push / PersonMass * Dt);
-        ((Double3)run.AfterPush.LinearVelocity - pushed).Length.Should().BeLessThan(0.01);
+        Double3 pushed = run.BeforePush.LinearVelocity + gravity * Dt + run.Push / PersonMass * Dt;
+        (run.AfterPush.LinearVelocity - pushed).Length.Should().BeLessThan(0.01);
     }
 
     [Fact]
@@ -222,7 +238,7 @@ public class CharacterOrbitHandOffTests
         // radius of 0.9 m. The capsule's own radius is 0.3 m.
         run.Entry.Pose.Position.Length.Should().BeInRange(100, 101.5);
         // It drifts forward at 3 m/s relative to the ship: along the ship's -Z.
-        Vector3.Distance(run.Entry.LinearVelocity, new Vector3(0, 0, -3)).Should().BeLessThan(0.05f);
+        Vector3.Distance(run.Entry.LinearVelocity, new(0, 0, -3)).Should().BeLessThan(0.05f);
         // The earth state of the step before, one step further along, in the ship's axes after the step.
         Double3 inEarth = run.BeforeEntry.Pose.Position + (Double3)run.BeforeEntry.LinearVelocity * Dt;
         (run.Entry.Pose.Position - run.ShipPoseAtEntry.InverseTransformPoint(inEarth)).Length.Should().BeLessThan(1e-2);
@@ -230,8 +246,10 @@ public class CharacterOrbitHandOffTests
         // person walks in earth's field of 8.7 m/s², so its up turns against that field in the air, away from earth's
         // center, where before it kept the up that it had in the ship. Outside the cabin the ship has no gravity, so the
         // person comes back with the up of its last step in earth, in the ship's axes.
-        Vector3 away = run.ShipPoseAtEntry.Rotation.Conjugate().Rotate(run.BeforeEntry.Pose.Position.Normalized()).ToVector3();
-        Vector3.Distance(UpOf(run.Entry.Pose.Rotation), away).Should().BeLessThan(1e-4f, "the person comes back with its feet toward earth");
+        var away = run.ShipPoseAtEntry.Rotation.Conjugate().Rotate(run.BeforeEntry.Pose.Position.Normalized())
+            .ToVector3();
+        Vector3.Distance(UpOf(run.Entry.Pose.Rotation), away).Should()
+            .BeLessThan(1e-4f, "the person comes back with its feet toward earth");
     }
 
     [Fact]

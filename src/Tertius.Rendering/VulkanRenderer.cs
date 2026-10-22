@@ -42,7 +42,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly ValidationLog log;
     private readonly bool headless;
     private readonly Stack<IDisposable> owned = new();
-    private readonly DeviceAllocator allocator;
     private readonly DeferredReleases releases;
     private readonly DescriptorLayouts layouts;
     private readonly IOutputTarget output;
@@ -52,13 +51,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly TextureStore textures;
     private readonly MaterialStore materials;
     private readonly RenderTargets targets;
-    private readonly ShadowMap shadowMap;
     private readonly ImpostorAtlas? impostorAtlas;
-    private readonly ImpostorManager? impostors;
-    private readonly SceneBatcher batcher = new();
-    private readonly PreparedScene scene = new();
     private readonly BarrierBatch barriers = new();
-    private readonly FrameGraph graph = new();
     private readonly FrameContext context;
     private IWindow? window;
     private Action<Vector2D<int>>? onFramebufferResize;
@@ -68,51 +62,53 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private long frameNumber;
     private bool disposed;
 
-    private VulkanRenderer(RendererOptions options, VulkanDevice device, Func<VulkanDevice, DeviceAllocator, IOutputTarget> createOutput, bool headless)
+    private VulkanRenderer(RendererOptions options, VulkanDevice device,
+        Func<VulkanDevice, DeviceAllocator, IOutputTarget> createOutput, bool headless)
     {
         this.device = device;
         this.headless = headless;
         log = device.Log;
         try
         {
-            allocator = Own(new DeviceAllocator(device));
+            Allocator = Own(new DeviceAllocator(device));
             releases = Own(new DeferredReleases());
-            var shaders = Own(new ShaderLibrary(device));
+            ShaderLibrary shaders = Own(new ShaderLibrary(device));
             layouts = Own(new DescriptorLayouts(device, options.FramesInFlight));
-            output = Own(createOutput(device, allocator));
-            geometry = Own(new GeometryStore(device, allocator));
-            textures = Own(new TextureStore(device, allocator));
-            materials = Own(new MaterialStore(device, allocator));
-            uploads = new UploadQueue((int)device.Properties.Limits.MaxImageDimension2D);
-            Extent2D extent = output.Extent.Width > 0 && output.Extent.Height > 0 ? output.Extent : new Extent2D(1, 1);
-            targets = Own(new RenderTargets(device, allocator, layouts, extent));
-            shadowMap = Own(new ShadowMap(device, allocator, options.ShadowMapSize));
+            output = Own(createOutput(device, Allocator));
+            geometry = Own(new GeometryStore(device, Allocator));
+            textures = Own(new TextureStore(device, Allocator));
+            materials = Own(new MaterialStore(device, Allocator));
+            uploads = new((int)device.Properties.Limits.MaxImageDimension2D);
+            Extent2D extent = output.Extent.Width > 0 && output.Extent.Height > 0 ? output.Extent : new(1, 1);
+            targets = Own(new RenderTargets(device, Allocator, layouts, extent));
+            ShadowMap = Own(new ShadowMap(device, Allocator, options.ShadowMapSize));
             // Written once: the shadow map never changes, and resizing rewrites only the other G-buffer bindings.
-            layouts.WriteImage(targets.GBufferSet, 5, 0, shadowMap.Image);
+            layouts.WriteImage(targets.GBufferSet, 5, 0, ShadowMap.Image);
             frames = new FrameResources[options.FramesInFlight];
             for (int i = 0; i < frames.Length; i++)
-                frames[i] = Own(new FrameResources(device, allocator, layouts, textures, i));
+                frames[i] = Own(new FrameResources(device, Allocator, layouts, textures, i));
 
-            graph.Add(FrameGraph.Stage.ShadowMaps, new ShadowPass(device, shaders, layouts, shadowMap));
+            Graph.Add(FrameGraph.Stage.ShadowMaps, new ShadowPass(device, shaders, layouts, ShadowMap));
             var geometryPass = new GeometryPass(device, shaders, layouts);
-            graph.Add(FrameGraph.Stage.GBuffer, geometryPass);
+            Graph.Add(FrameGraph.Stage.GBuffer, geometryPass);
             if (options.Impostors)
             {
-                impostorAtlas = Own(new ImpostorAtlas(device, allocator, layouts, options.ImpostorTiles));
-                impostors = new ImpostorManager(options.ImpostorTiles);
-                batcher.Processors.Add(impostors);
-                var impostorPass = new ImpostorPass(device, shaders, layouts, impostorAtlas, impostors);
-                graph.Add(FrameGraph.Stage.ImpostorCaptures, impostorPass);
+                impostorAtlas = Own(new ImpostorAtlas(device, Allocator, layouts, options.ImpostorTiles));
+                Impostors = new(options.ImpostorTiles);
+                Batcher.Processors.Add(Impostors);
+                var impostorPass = new ImpostorPass(device, shaders, layouts, impostorAtlas, Impostors);
+                Graph.Add(FrameGraph.Stage.ImpostorCaptures, impostorPass);
                 geometryPass.RangeDrawers.Add(impostorPass);
             }
-            graph.Add(FrameGraph.Stage.Lighting, new LightingPass(device, shaders, layouts));
-            graph.Add(FrameGraph.Stage.Transparent, new TransparentPass(device, shaders, layouts));
-            graph.Add(FrameGraph.Stage.ToneMap, new ToneMapPass(device, shaders, layouts, output.Format));
-            graph.Add(FrameGraph.Stage.Overlay, new OutlinePass(device, shaders, layouts, output.Format));
-            graph.Add(FrameGraph.Stage.Readback, new CapturePass());
-            Own(graph);
 
-            context = new FrameContext
+            Graph.Add(FrameGraph.Stage.Lighting, new LightingPass(device, shaders, layouts));
+            Graph.Add(FrameGraph.Stage.Transparent, new TransparentPass(device, shaders, layouts));
+            Graph.Add(FrameGraph.Stage.ToneMap, new ToneMapPass(device, shaders, layouts, output.Format));
+            Graph.Add(FrameGraph.Stage.Overlay, new OutlinePass(device, shaders, layouts, output.Format));
+            Graph.Add(FrameGraph.Stage.Readback, new CapturePass());
+            Own(Graph);
+
+            context = new()
             {
                 Device = device,
                 Layouts = layouts,
@@ -120,7 +116,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 Geometry = geometry,
                 Materials = materials,
                 Barriers = barriers,
-                Shadows = shadowMap,
+                Shadows = ShadowMap
             };
         }
         catch
@@ -131,23 +127,64 @@ public sealed unsafe class VulkanRenderer : IRenderer
         }
     }
 
-    /// <summary>Creates a renderer that draws into an offscreen image of <see cref="RendererOptions.Width"/> by <see cref="RendererOptions.Height"/>.</summary>
+    /// <summary>Every validation warning and error so far, including those reported during <see cref="Dispose"/>.</summary>
+    public IReadOnlyList<string> ValidationMessages => log.Snapshot();
+
+    /// <summary>The physical device in use.</summary>
+    public string DeviceName => device.DeviceName;
+
+    /// <summary>Linear scale applied to the HDR image before tone mapping.</summary>
+    public float Exposure { get; set; } = 1f;
+
+    /// <summary>Statistics of the last <see cref="Render"/> call.</summary>
+    public RenderStats LastFrameStats { get; private set; }
+
+    /// <summary>The size of the image the renderer draws.</summary>
+    public (int Width, int Height) OutputSize => ((int)output.Extent.Width, (int)output.Extent.Height);
+
+    internal DeviceAllocator Allocator { get; }
+
+    internal ShadowMap ShadowMap { get; }
+
+    /// <summary>The impostor manager, or null when impostors are off. A test and tooling hook.</summary>
+    internal ImpostorManager? Impostors { get; }
+
+    internal SceneBatcher Batcher { get; } = new();
+
+    internal FrameGraph Graph { get; } = new();
+
+    internal PreparedScene LastScene { get; } = new();
+
+    /// <summary>Textures from <see cref="CreateTexture"/> on the GPU, not counting the built-in defaults.</summary>
+    internal int TextureCount => textures.UserCount;
+
+    /// <summary>Materials from <see cref="CreateMaterial"/> on the GPU, not counting the default material.</summary>
+    internal int MaterialCount => materials.UserCount;
+
+    internal int MeshCount => geometry.Meshes.Length;
+    internal int PendingReleases => releases.Count;
+
+    /// <summary>Creates a renderer that draws into an offscreen image of <see cref="RendererOptions.Width"/> by
+    /// <see cref="RendererOptions.Height"/>.</summary>
     public static VulkanRenderer CreateHeadless(RendererOptions options) =>
-        CreateOffscreen(options, (device, allocator, extent) => new HeadlessTarget(device, allocator, extent, bgra: false));
+        CreateOffscreen(options,
+            (device, allocator, extent) => new HeadlessTarget(device, allocator, extent, bgra: false));
 
     /// <summary>
     /// Creates a renderer with no window that draws into the output that <paramref name="createOutput"/> makes, at
     /// <see cref="RendererOptions.Width"/> by <see cref="RendererOptions.Height"/>. <see cref="CreateHeadless"/> makes
     /// a <see cref="HeadlessTarget"/>. A test and tooling hook: a test makes outputs that skip frames or store BGRA.
     /// </summary>
-    internal static VulkanRenderer CreateOffscreen(RendererOptions options, Func<VulkanDevice, DeviceAllocator, Extent2D, IOutputTarget> createOutput)
+    internal static VulkanRenderer CreateOffscreen(RendererOptions options,
+        Func<VulkanDevice, DeviceAllocator, Extent2D, IOutputTarget> createOutput)
     {
         CheckOptions(options);
         if (options.Width <= 0 || options.Height <= 0)
-            throw new ArgumentOutOfRangeException(nameof(options), "A headless renderer needs a positive Width and Height.");
-        VulkanDevice device = VulkanDevice.Create(options.Validation, [], null);
+            throw new ArgumentOutOfRangeException(nameof(options),
+                "A headless renderer needs a positive Width and Height.");
+        var device = VulkanDevice.Create(options.Validation, [], null);
         var extent = new Extent2D((uint)options.Width, (uint)options.Height);
-        return new VulkanRenderer(options, device, (d, a) => createOutput(d, a, extent), headless: true);
+        return new(options, device, (d, a) => createOutput(d, a, extent), headless: true);
     }
 
     /// <summary>
@@ -167,19 +204,23 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ArgumentNullException.ThrowIfNull(window);
         CheckOptions(options);
         IVkSurface surfaceSource = window.VkSurface
-            ?? throw new ArgumentException("The window has no Vulkan surface. Create it with GraphicsAPI.DefaultVulkan and initialize it first.", nameof(window));
+                                   ?? throw new ArgumentException(
+                                       "The window has no Vulkan surface. Create it with GraphicsAPI.DefaultVulkan and initialize it first.",
+                                       nameof(window));
         byte** names = surfaceSource.GetRequiredExtensions(out uint count);
         var extensions = new List<string>((int)count);
         for (int i = 0; i < count; i++)
-            extensions.Add(Marshal.PtrToStringUTF8((nint)names[i]) ?? throw new InvalidOperationException("Null surface extension name."));
+            extensions.Add(Marshal.PtrToStringUTF8((nint)names[i]) ??
+                           throw new InvalidOperationException("Null surface extension name."));
 
-        VulkanDevice device = VulkanDevice.Create(options.Validation, extensions,
+        var device = VulkanDevice.Create(options.Validation, extensions,
             instance => surfaceSource.Create<AllocationCallbacks>(instance.ToHandle(), null).ToSurface());
         Vector2D<int> framebuffer = window.FramebufferSize;
         var extent = new Extent2D(
             (uint)(options.Width > 0 ? options.Width : Math.Max(framebuffer.X, 0)),
             (uint)(options.Height > 0 ? options.Height : Math.Max(framebuffer.Y, 0)));
-        var renderer = new VulkanRenderer(options, device, (d, _) => new SwapchainTarget(d, extent, options.VSync), headless: false);
+        var renderer = new VulkanRenderer(options, device, (d, _) => new SwapchainTarget(d, extent, options.VSync),
+            headless: false);
         renderer.window = window;
         renderer.onFramebufferResize = size => renderer.Resize(Math.Max(size.X, 0), Math.Max(size.Y, 0));
         window.FramebufferResize += renderer.onFramebufferResize;
@@ -194,39 +235,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
         if (options.Width < 0 || options.Height < 0)
             throw new ArgumentOutOfRangeException(nameof(options), "Width and Height cannot be negative.");
         if (options.ShadowMapSize < ShadowMap.MinimumSize)
-            throw new ArgumentOutOfRangeException(nameof(options), $"ShadowMapSize must be at least {ShadowMap.MinimumSize}.");
+            throw new ArgumentOutOfRangeException(nameof(options),
+                $"ShadowMapSize must be at least {ShadowMap.MinimumSize}.");
         if (options.Impostors && options.ImpostorTiles < 1)
             throw new ArgumentOutOfRangeException(nameof(options), "ImpostorTiles must be at least 1.");
     }
-
-    /// <summary>Every validation warning and error so far, including those reported during <see cref="Dispose"/>.</summary>
-    public IReadOnlyList<string> ValidationMessages => log.Snapshot();
-
-    /// <summary>The physical device in use.</summary>
-    public string DeviceName => device.DeviceName;
-
-    /// <summary>Linear scale applied to the HDR image before tone mapping.</summary>
-    public float Exposure { get; set; } = 1f;
-
-    /// <summary>Statistics of the last <see cref="Render"/> call.</summary>
-    public RenderStats LastFrameStats { get; private set; }
-
-    /// <summary>The size of the image the renderer draws.</summary>
-    public (int Width, int Height) OutputSize => ((int)output.Extent.Width, (int)output.Extent.Height);
-
-    internal DeviceAllocator Allocator => allocator;
-    internal ShadowMap ShadowMap => shadowMap;
-    /// <summary>The impostor manager, or null when impostors are off. A test and tooling hook.</summary>
-    internal ImpostorManager? Impostors => impostors;
-    internal SceneBatcher Batcher => batcher;
-    internal FrameGraph Graph => graph;
-    internal PreparedScene LastScene => scene;
-    /// <summary>Textures from <see cref="CreateTexture"/> on the GPU, not counting the built-in defaults.</summary>
-    internal int TextureCount => textures.UserCount;
-    /// <summary>Materials from <see cref="CreateMaterial"/> on the GPU, not counting the default material.</summary>
-    internal int MaterialCount => materials.UserCount;
-    internal int MeshCount => geometry.Meshes.Length;
-    internal int PendingReleases => releases.Count;
 
     /// <summary>Queues a mesh. It can be drawn from the next <see cref="Render"/> on.</summary>
     public MeshId CreateMesh(MeshData mesh)
@@ -284,7 +297,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ArgumentNullException.ThrowIfNull(sink);
         ObjectDisposedException.ThrowIf(disposed, this);
         if (!output.CanCapture)
-            throw new NotSupportedException($"The swapchain images of this surface cannot be captured: they must allow transfer reads and hold 8-bit color, and their format is {output.Format}.");
+            throw new NotSupportedException(
+                $"The swapchain images of this surface cannot be captured: they must allow transfer reads and hold 8-bit color, and their format is {output.Format}.");
         Interlocked.Exchange(ref pendingCapture, sink);
     }
 
@@ -305,9 +319,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
         GpuImage? image = output.Acquire(frame);
         if (image == null)
         {
-            LastFrameStats = new RenderStats { SubmittedInstances = snapshot.Instances.Count, Rendered = false };
+            LastFrameStats = new() { SubmittedInstances = snapshot.Instances.Count, Rendered = false };
             return;
         }
+
         if (image.Extent.Width != targets.Extent.Width || image.Extent.Height != targets.Extent.Height)
         {
             // The swapchain changed size on its own (out of date). The targets are shared by frames in flight.
@@ -318,7 +333,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
         // Resetting the pool also discards a command buffer left recording by an exception in an earlier frame.
         vk.ResetCommandPool(device.Device, frame.CommandPool, 0).Check("vkResetCommandPool");
         CommandBuffer commandBuffer = frame.CommandBuffer;
-        var begin = new CommandBufferBeginInfo { SType = StructureType.CommandBufferBeginInfo, Flags = CommandBufferUsageFlags.OneTimeSubmitBit };
+        var begin = new CommandBufferBeginInfo
+            { SType = StructureType.CommandBufferBeginInfo, Flags = CommandBufferUsageFlags.OneTimeSubmitBit };
         vk.BeginCommandBuffer(commandBuffer, &begin).Check("vkBeginCommandBuffer");
 
         UploadQueue.Pending pending = uploads.Drain();
@@ -330,9 +346,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
             materials.Upload(commandBuffer, pending.Materials, frame.Staging, barriers, releases, frameNumber);
             device.EndLabel(commandBuffer);
         }
+
         frame.UpdateSharedDescriptors(materials, textures);
 
-        batcher.Prepare(snapshot, alpha, (int)targets.Extent.Width, (int)targets.Extent.Height, geometry.Meshes, materials.Count, scene);
+        Batcher.Prepare(snapshot, alpha, (int)targets.Extent.Width, (int)targets.Extent.Height, geometry.Meshes,
+            materials.Count, LastScene);
 
         ICaptureSink? sink = Interlocked.Exchange(ref pendingCapture, null);
         GpuBuffer? capture = sink != null ? CaptureBuffer(image.Extent) : null;
@@ -340,16 +358,16 @@ public sealed unsafe class VulkanRenderer : IRenderer
         context.Frame = frame;
         context.Snapshot = snapshot;
         context.Alpha = alpha;
-        context.Scene = scene;
+        context.Scene = LastScene;
         context.Output = image;
         context.Number = frameNumber;
         context.Exposure = Exposure;
         context.EncodeSrgb = output.EncodeSrgbInShader;
         context.CaptureBuffer = capture;
         context.IndirectDrawCalls = 0;
-        graph.Prepare(context);
-        frame.Write(scene, Exposure);
-        graph.Record(context);
+        Graph.Prepare(context);
+        frame.Write(LastScene, Exposure);
+        Graph.Record(context);
         output.FinishRecording(barriers, commandBuffer);
         vk.EndCommandBuffer(commandBuffer).Check("vkEndCommandBuffer");
         // Reset only now: if anything above threw, the fence stays signaled and the next frame does not hang.
@@ -358,7 +376,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         frame.Number = frameNumber;
         frameNumber++;
 
-        LastFrameStats = StatsOf(scene, impostors, context.IndirectDrawCalls);
+        LastFrameStats = StatsOf(LastScene, Impostors, context.IndirectDrawCalls);
 
         if (sink != null && capture != null)
         {
@@ -377,7 +395,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
         MiddleCommands = scene.Opaque[DepthRanges.Middle].Count,
         NearCommands = scene.Opaque[DepthRanges.Near].Count,
         TransparentCommands = scene.TransparentCommandCount,
-        ShadowCommands = scene.ShadowCommands[0].Count + scene.ShadowCommands[1].Count + scene.ShadowCommands[2].Count + scene.ShadowCommands[3].Count,
+        ShadowCommands = scene.ShadowCommands[0].Count + scene.ShadowCommands[1].Count + scene.ShadowCommands[2].Count +
+                         scene.ShadowCommands[3].Count,
         ShadowCascades = scene.ShadowCascadeCount,
         ShadowCasters = scene.ShadowCasters,
         ShadowInstances = scene.ShadowInstances,
@@ -389,7 +408,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         Lights = scene.LightCount,
         Outlines = scene.OutlineCount,
         Puffs = scene.PuffCount,
-        Rendered = true,
+        Rendered = true
     };
 
     private void ApplyPendingResize()
@@ -411,21 +430,32 @@ public sealed unsafe class VulkanRenderer : IRenderer
     internal float[] ReadShadowCascade(int cascade)
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)cascade, (uint)ShadowCascades.Count);
-        GpuImage image = shadowMap.Image;
-        int size = shadowMap.Size;
-        int texelBytes = shadowMap.Format == Format.D32Sfloat ? 4 : 2;
+        GpuImage image = ShadowMap.Image;
+        int size = ShadowMap.Size;
+        int texelBytes = ShadowMap.Format == Format.D32Sfloat ? 4 : 2;
         device.WaitIdle();
         Vk vk = device.Vk;
-        var poolInfo = new CommandPoolCreateInfo { SType = StructureType.CommandPoolCreateInfo, Flags = CommandPoolCreateFlags.TransientBit, QueueFamilyIndex = device.QueueFamily };
+        var poolInfo = new CommandPoolCreateInfo
+        {
+            SType = StructureType.CommandPoolCreateInfo, Flags = CommandPoolCreateFlags.TransientBit,
+            QueueFamilyIndex = device.QueueFamily
+        };
         vk.CreateCommandPool(device.Device, &poolInfo, null, out CommandPool pool).Check("vkCreateCommandPool");
         var fenceInfo = new FenceCreateInfo { SType = StructureType.FenceCreateInfo };
         vk.CreateFence(device.Device, &fenceInfo, null, out Fence fence).Check("vkCreateFence");
-        using GpuBuffer buffer = GpuBuffer.Create(device, allocator, (ulong)(size * size * texelBytes), BufferUsageFlags.TransferDstBit, MemoryUsage.Readback, "shadow readback");
+        using var buffer = GpuBuffer.Create(device, Allocator, (ulong)(size * size * texelBytes),
+            BufferUsageFlags.TransferDstBit, MemoryUsage.Readback, "shadow readback");
         try
         {
-            var allocate = new CommandBufferAllocateInfo { SType = StructureType.CommandBufferAllocateInfo, CommandPool = pool, Level = CommandBufferLevel.Primary, CommandBufferCount = 1 };
-            vk.AllocateCommandBuffers(device.Device, &allocate, out CommandBuffer commandBuffer).Check("vkAllocateCommandBuffers");
-            var begin = new CommandBufferBeginInfo { SType = StructureType.CommandBufferBeginInfo, Flags = CommandBufferUsageFlags.OneTimeSubmitBit };
+            var allocate = new CommandBufferAllocateInfo
+            {
+                SType = StructureType.CommandBufferAllocateInfo, CommandPool = pool, Level = CommandBufferLevel.Primary,
+                CommandBufferCount = 1
+            };
+            vk.AllocateCommandBuffers(device.Device, &allocate, out CommandBuffer commandBuffer)
+                .Check("vkAllocateCommandBuffers");
+            var begin = new CommandBufferBeginInfo
+                { SType = StructureType.CommandBufferBeginInfo, Flags = CommandBufferUsageFlags.OneTimeSubmitBit };
             vk.BeginCommandBuffer(commandBuffer, &begin).Check("vkBeginCommandBuffer");
             // The renderer's own barriers continue from the tracked state afterwards, so leave the image as it was.
             ResourceState state = image.State;
@@ -435,33 +465,41 @@ public sealed unsafe class VulkanRenderer : IRenderer
             local.Flush(vk, commandBuffer);
             var region = new BufferImageCopy
             {
-                ImageSubresource = new ImageSubresourceLayers(ImageAspectFlags.DepthBit, 0, (uint)cascade, 1),
-                ImageExtent = new Extent3D((uint)size, (uint)size, 1),
+                ImageSubresource = new(ImageAspectFlags.DepthBit, 0, (uint)cascade, 1),
+                ImageExtent = new((uint)size, (uint)size, 1)
             };
-            vk.CmdCopyImageToBuffer(commandBuffer, image.Handle, ImageLayout.TransferSrcOptimal, buffer.Handle, 1, &region);
+            vk.CmdCopyImageToBuffer(commandBuffer, image.Handle, ImageLayout.TransferSrcOptimal, buffer.Handle, 1,
+                &region);
             local.Buffer(buffer, BufferUse.HostRead);
             if (state.Layout != ImageLayout.Undefined)
             {
                 local.ImageLevels(image, 0, 1, ImageLayout.TransferSrcOptimal, state.Layout,
-                    PipelineStageFlags2.AllTransferBit, AccessFlags2.None, PipelineStageFlags2.AllCommandsBit, AccessFlags2.None);
+                    PipelineStageFlags2.AllTransferBit, AccessFlags2.None, PipelineStageFlags2.AllCommandsBit,
+                    AccessFlags2.None);
                 image.State = state;
             }
+
             local.Flush(vk, commandBuffer);
             vk.EndCommandBuffer(commandBuffer).Check("vkEndCommandBuffer");
-            var submitBuffer = new CommandBufferSubmitInfo { SType = StructureType.CommandBufferSubmitInfo, CommandBuffer = commandBuffer };
-            var submit = new SubmitInfo2 { SType = StructureType.SubmitInfo2, CommandBufferInfoCount = 1, PCommandBufferInfos = &submitBuffer };
+            var submitBuffer = new CommandBufferSubmitInfo
+                { SType = StructureType.CommandBufferSubmitInfo, CommandBuffer = commandBuffer };
+            var submit = new SubmitInfo2
+                { SType = StructureType.SubmitInfo2, CommandBufferInfoCount = 1, PCommandBufferInfos = &submitBuffer };
             vk.QueueSubmit2(device.Queue, 1, &submit, fence).Check("vkQueueSubmit2");
             vk.WaitForFences(device.Device, 1, &fence, true, ulong.MaxValue).Check("vkWaitForFences");
 
-            var depths = new float[size * size];
+            float[] depths = new float[size * size];
             if (texelBytes == 4)
+            {
                 new ReadOnlySpan<float>(buffer.Mapped, depths.Length).CopyTo(depths);
+            }
             else
             {
                 var texels = new ReadOnlySpan<ushort>(buffer.Mapped, depths.Length);
                 for (int i = 0; i < depths.Length; i++)
                     depths[i] = texels[i] / 65535f;
             }
+
             return depths;
         }
         finally
@@ -491,17 +529,28 @@ public sealed unsafe class VulkanRenderer : IRenderer
     {
         device.WaitIdle();
         Vk vk = device.Vk;
-        var poolInfo = new CommandPoolCreateInfo { SType = StructureType.CommandPoolCreateInfo, Flags = CommandPoolCreateFlags.TransientBit, QueueFamilyIndex = device.QueueFamily };
+        var poolInfo = new CommandPoolCreateInfo
+        {
+            SType = StructureType.CommandPoolCreateInfo, Flags = CommandPoolCreateFlags.TransientBit,
+            QueueFamilyIndex = device.QueueFamily
+        };
         vk.CreateCommandPool(device.Device, &poolInfo, null, out CommandPool pool).Check("vkCreateCommandPool");
         var fenceInfo = new FenceCreateInfo { SType = StructureType.FenceCreateInfo };
         vk.CreateFence(device.Device, &fenceInfo, null, out Fence fence).Check("vkCreateFence");
         int count = size * size * channels;
-        using GpuBuffer buffer = GpuBuffer.Create(device, allocator, (ulong)(count * 2), BufferUsageFlags.TransferDstBit, MemoryUsage.Readback, "impostor readback");
+        using var buffer = GpuBuffer.Create(device, Allocator, (ulong)(count * 2), BufferUsageFlags.TransferDstBit,
+            MemoryUsage.Readback, "impostor readback");
         try
         {
-            var allocate = new CommandBufferAllocateInfo { SType = StructureType.CommandBufferAllocateInfo, CommandPool = pool, Level = CommandBufferLevel.Primary, CommandBufferCount = 1 };
-            vk.AllocateCommandBuffers(device.Device, &allocate, out CommandBuffer commandBuffer).Check("vkAllocateCommandBuffers");
-            var begin = new CommandBufferBeginInfo { SType = StructureType.CommandBufferBeginInfo, Flags = CommandBufferUsageFlags.OneTimeSubmitBit };
+            var allocate = new CommandBufferAllocateInfo
+            {
+                SType = StructureType.CommandBufferAllocateInfo, CommandPool = pool, Level = CommandBufferLevel.Primary,
+                CommandBufferCount = 1
+            };
+            vk.AllocateCommandBuffers(device.Device, &allocate, out CommandBuffer commandBuffer)
+                .Check("vkAllocateCommandBuffers");
+            var begin = new CommandBufferBeginInfo
+                { SType = StructureType.CommandBufferBeginInfo, Flags = CommandBufferUsageFlags.OneTimeSubmitBit };
             vk.BeginCommandBuffer(commandBuffer, &begin).Check("vkBeginCommandBuffer");
             // Leave the image in the state the renderer's own barriers continue from.
             ResourceState state = image.State;
@@ -511,25 +560,30 @@ public sealed unsafe class VulkanRenderer : IRenderer
             local.Flush(vk, commandBuffer);
             var region = new BufferImageCopy
             {
-                ImageSubresource = new ImageSubresourceLayers(ImageAspectFlags.ColorBit, 0, (uint)layer, 1),
-                ImageExtent = new Extent3D((uint)size, (uint)size, 1),
+                ImageSubresource = new(ImageAspectFlags.ColorBit, 0, (uint)layer, 1),
+                ImageExtent = new((uint)size, (uint)size, 1)
             };
-            vk.CmdCopyImageToBuffer(commandBuffer, image.Handle, ImageLayout.TransferSrcOptimal, buffer.Handle, 1, &region);
+            vk.CmdCopyImageToBuffer(commandBuffer, image.Handle, ImageLayout.TransferSrcOptimal, buffer.Handle, 1,
+                &region);
             local.Buffer(buffer, BufferUse.HostRead);
             if (state.Layout != ImageLayout.Undefined)
             {
                 local.ImageLevels(image, 0, image.MipLevels, ImageLayout.TransferSrcOptimal, state.Layout,
-                    PipelineStageFlags2.AllTransferBit, AccessFlags2.None, PipelineStageFlags2.AllCommandsBit, AccessFlags2.None);
+                    PipelineStageFlags2.AllTransferBit, AccessFlags2.None, PipelineStageFlags2.AllCommandsBit,
+                    AccessFlags2.None);
                 image.State = state;
             }
+
             local.Flush(vk, commandBuffer);
             vk.EndCommandBuffer(commandBuffer).Check("vkEndCommandBuffer");
-            var submitBuffer = new CommandBufferSubmitInfo { SType = StructureType.CommandBufferSubmitInfo, CommandBuffer = commandBuffer };
-            var submit = new SubmitInfo2 { SType = StructureType.SubmitInfo2, CommandBufferInfoCount = 1, PCommandBufferInfos = &submitBuffer };
+            var submitBuffer = new CommandBufferSubmitInfo
+                { SType = StructureType.CommandBufferSubmitInfo, CommandBuffer = commandBuffer };
+            var submit = new SubmitInfo2
+                { SType = StructureType.SubmitInfo2, CommandBufferInfoCount = 1, PCommandBufferInfos = &submitBuffer };
             vk.QueueSubmit2(device.Queue, 1, &submit, fence).Check("vkQueueSubmit2");
             vk.WaitForFences(device.Device, 1, &fence, true, ulong.MaxValue).Check("vkWaitForFences");
 
-            var values = new float[count];
+            float[] values = new float[count];
             var halves = new ReadOnlySpan<Half>(buffer.Mapped, count);
             for (int i = 0; i < count; i++)
                 values[i] = (float)halves[i];
@@ -549,8 +603,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
         {
             // Only Render uses this buffer and it waits for the capture frame, so the old one is idle.
             captureBuffer?.Dispose();
-            captureBuffer = GpuBuffer.Create(device, allocator, size, BufferUsageFlags.TransferDstBit, MemoryUsage.Readback, "capture readback");
+            captureBuffer = GpuBuffer.Create(device, Allocator, size, BufferUsageFlags.TransferDstBit,
+                MemoryUsage.Readback, "capture readback");
         }
+
         return captureBuffer;
     }
 
@@ -564,11 +620,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
         int width = (int)extent.Width, height = (int)extent.Height;
         var pixels = new Span<byte>(buffer.Mapped, width * height * 4);
         if (output.BgraOrder)
-        {
             for (int i = 0; i < pixels.Length; i += 4)
                 (pixels[i], pixels[i + 2]) = (pixels[i + 2], pixels[i]);
-        }
-        sink.Take(new CapturedImage(pixels, width, height));
+        sink.Take(new(pixels, width, height));
     }
 
     private T Own<T>(T resource) where T : IDisposable
@@ -586,7 +640,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
         {
             IDisposable resource = owned.Pop();
             if (resource is DeviceAllocator memory && memory.LiveAllocations > 0)
-                log.Add($"[error, Tertius] leak: {memory.LiveAllocations} device memory allocations were still live at shutdown.");
+                log.Add(
+                    $"[error, Tertius] leak: {memory.LiveAllocations} device memory allocations were still live at shutdown.");
             resource.Dispose();
         }
     }

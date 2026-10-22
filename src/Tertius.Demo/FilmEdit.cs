@@ -13,7 +13,14 @@ namespace Tertius.Demo;
 /// <param name="FirstFrame">The index of the film's first frame in the video: the count of the frames of the films before it.</param>
 /// <param name="FirstTick">The world's tick number when the film starts, before its first ticks.</param>
 /// <param name="Outlines">True when the last outlines step before the film turned the outlines on. They start off.</param>
-public sealed record ScriptFilm(string Name, string Camera, int Every, int Frames, int FirstFrame, long FirstTick, bool Outlines)
+public sealed record ScriptFilm(
+    string Name,
+    string Camera,
+    int Every,
+    int Frames,
+    int FirstFrame,
+    long FirstTick,
+    bool Outlines)
 {
     /// <summary>
     /// The films of <paramref name="script"/>, in their order. Throws <see cref="ScriptException"/> for a script with a
@@ -28,7 +35,6 @@ public sealed record ScriptFilm(string Name, string Camera, int Every, int Frame
         int frame = 0;
         long tick = 0;
         foreach (ScriptStep step in script.Steps)
-        {
             switch (step.Value)
             {
                 case RunStep run:
@@ -41,14 +47,15 @@ public sealed record ScriptFilm(string Name, string Camera, int Every, int Frame
                     outlines = outlinesStep.Show;
                     break;
                 case FilmStep film:
-                    films.Add(new ScriptFilm(film.Name, camera, film.Every, film.Frames, frame, tick, outlines));
+                    films.Add(new(film.Name, camera, film.Every, film.Frames, frame, tick, outlines));
                     frame += film.Frames;
                     tick += (long)film.Frames * film.Every;
                     break;
                 case CaptureStep capture:
-                    throw new ScriptException($"The script has the capture '{capture.Name}', and the edit takes only film steps for captures.");
+                    throw new ScriptException(
+                        $"The script has the capture '{capture.Name}', and the edit takes only film steps for captures.");
             }
-        }
+
         return films;
     }
 
@@ -71,7 +78,8 @@ public sealed record ScriptFilm(string Name, string Camera, int Every, int Frame
             {
                 string name = step.FrameName(k);
                 if (rows[film.FirstFrame + k].Frame != name)
-                    throw new ScriptException($"Row {film.FirstFrame + k} of the log is named '{rows[film.FirstFrame + k].Frame}', and the frame of the script is '{name}'.");
+                    throw new ScriptException(
+                        $"Row {film.FirstFrame + k} of the log is named '{rows[film.FirstFrame + k].Frame}', and the frame of the script is '{name}'.");
             }
         }
     }
@@ -83,7 +91,8 @@ public sealed record ScriptFilm(string Name, string Camera, int Every, int Frame
 /// <param name="Tail">How many of the film's last frames the edit drops, 0 or more.</param>
 public sealed record EditTrim(string Film, int Head, int Tail);
 
-/// <summary>The frames of one film that the edit keeps: <paramref name="Count"/> frames of the video from <paramref name="From"/> on.</summary>
+/// <summary>The frames of one film that the edit keeps: <paramref name="Count"/> frames of the video from
+/// <paramref name="From"/> on.</summary>
 public sealed record Stretch(ScriptFilm Film, int From, int Count)
 {
     /// <summary>The frames per second of the video, and so the frames of one second.</summary>
@@ -101,24 +110,30 @@ public sealed record Stretch(ScriptFilm Film, int From, int Count)
         foreach (EditTrim trim in trims)
         {
             if (films.All(film => film.Name != trim.Film))
-                throw new ArgumentException($"The trim names the film '{trim.Film}', which the script does not have.", nameof(trims));
+                throw new ArgumentException($"The trim names the film '{trim.Film}', which the script does not have.",
+                    nameof(trims));
             if (trim.Head < 0 || trim.Tail < 0)
-                throw new ArgumentException($"The trim of the film '{trim.Film}' drops fewer than 0 frames.", nameof(trims));
+                throw new ArgumentException($"The trim of the film '{trim.Film}' drops fewer than 0 frames.",
+                    nameof(trims));
         }
+
         var stretches = new List<Stretch>(films.Count);
         foreach (ScriptFilm film in films)
         {
             EditTrim? trim = trims.SingleOrDefault(t => t.Film == film.Name);
             if (trim == null)
             {
-                stretches.Add(new Stretch(film, film.FirstFrame, film.Frames));
+                stretches.Add(new(film, film.FirstFrame, film.Frames));
                 continue;
             }
+
             int count = film.Frames - trim.Head - trim.Tail;
             if (count < FramesPerSecond)
-                throw new ArgumentException($"The trim of the film '{film.Name}' leaves {count} frames, less than one second.", nameof(trims));
-            stretches.Add(new Stretch(film, film.FirstFrame + trim.Head, count));
+                throw new ArgumentException(
+                    $"The trim of the film '{film.Name}' leaves {count} frames, less than one second.", nameof(trims));
+            stretches.Add(new(film, film.FirstFrame + trim.Head, count));
         }
+
         return stretches;
     }
 }
@@ -129,7 +144,8 @@ public sealed record Stretch(ScriptFilm Film, int From, int Count)
 /// <param name="Subtitle">One sentence under the title.</param>
 public sealed record EditPart(string FirstFilm, string Title, string Subtitle);
 
-/// <summary>A check panel that shows over the stretches from the film <paramref name="FirstFilm"/> through the film <paramref name="LastFilm"/>.</summary>
+/// <summary>A check panel that shows over the stretches from the film <paramref name="FirstFilm"/> through the film
+/// <paramref name="LastFilm"/>.</summary>
 /// <param name="FirstFilm">The name of the span's first film. The panel measures from the first frame of this film.</param>
 /// <param name="LastFilm">The name of the span's last film.</param>
 /// <param name="Panel">The lines of the panel at each frame.</param>
@@ -155,4 +171,9 @@ public sealed record TitleCard(double Seconds, IReadOnlyList<CardLine> Lines)
 /// The cut list of an edit (docs/plans/blue-danube-demo.md, "The cut list"): every film of the script becomes one stretch
 /// in the script's order, less its trims, with the parts' titles, the check panels, and a card before and after.
 /// </summary>
-public sealed record CutList(IReadOnlyList<EditPart> Parts, IReadOnlyList<EditTrim> Trims, IReadOnlyList<PanelSpan> Panels, TitleCard Opening, TitleCard Closing);
+public sealed record CutList(
+    IReadOnlyList<EditPart> Parts,
+    IReadOnlyList<EditTrim> Trims,
+    IReadOnlyList<PanelSpan> Panels,
+    TitleCard Opening,
+    TitleCard Closing);

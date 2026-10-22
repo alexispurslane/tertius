@@ -8,17 +8,21 @@ namespace Tertius.Physics;
 internal enum BodyKind : byte
 {
     None = 0,
+
     /// <summary>The entity's own body: a rigid body, the rigid form of a character, or the hull of a frame in its parent frame.</summary>
     Primary = 1,
+
     /// <summary>
     /// The interior geometry of a frame, in the frame's own system: static while the hull is static, and kinematic and at
     /// rest while it moves.
     /// </summary>
     Interior = 2,
+
     /// <summary>A copy of a body that lives in another frame (see <see cref="GhostBody"/>).</summary>
     Ghost = 3,
+
     /// <summary>The kinematic inner body of a character in its walking form.</summary>
-    CharacterInner = 4,
+    CharacterInner = 4
 }
 
 /// <summary>Packs the kind and the entity into a Jolt body's 64-bit user data.</summary>
@@ -44,8 +48,10 @@ internal struct GhostBody
     public FrameHandle Frame;
     public FrameWorld World;
     public BodyID Body;
+
     /// <summary>Set by the ghost pass when the ghost is still needed this step.</summary>
     public bool Wanted;
+
     /// <summary>
     /// The role of the ghost's object layer, which <c>JoltPhysicsBackend.GhostLayer</c> turns into the layer with the
     /// record's collision groups and mask. It is set when the ghost is made and never changes: a ghost that needs another
@@ -68,65 +74,79 @@ internal sealed class BodyRecord
 {
     public Entity Entity;
     public BodyDesc Desc = null!;
+
     /// <summary>
     /// The description of the Jolt rigid body that stands for the entity: <see cref="Desc"/>, or for a character the
     /// description of its rigid form (see <c>JoltPhysicsBackend.RigidForm</c>). The primary rigid body takes its shape, mass,
     /// material and damping from it, and so do the conversions between instant velocities and chords.
     /// </summary>
     public BodyDesc Material = null!;
+
     /// <summary>The bounding-sphere radius of the primary shape, about the body origin.</summary>
     public float Radius;
+
     /// <summary>
     /// The motion of the primary body as Jolt sees it. For a frame hull, physics gives the record the motion of each step at
     /// the start of that step (see <see cref="FrameTree.HullMotionInStep"/>), and a record that the simulation creates
     /// between two steps, at a spawn or a rehome, starts with the motion of the next step, which it runs first. The owner of
     /// a frame that is a root from its spawn, which has no hull, gets the static motion of its interior. A frame that
     /// becomes a root later loses its hull and keeps the motion of that hull, which the interior no longer follows: the
-    /// interior of a root frame is static (see <c>JoltPhysicsBackend.InteriorMotion</c>). For a character it is its form: <see cref="BodyMotion.Character"/> for the walking form, a
+    /// interior of a root frame is static (see <c>JoltPhysicsBackend.InteriorMotion</c>). For a character it is its form:
+    /// <see cref="BodyMotion.Character"/> for the walking form, a
     /// Jolt CharacterVirtual in <see cref="Character"/>, and <see cref="BodyMotion.Dynamic"/> for the rigid form, a dynamic
     /// Jolt body in <see cref="Body"/> whose rotation is locked (see <c>JoltPhysicsBackend.NextCharacterMotion</c>).
     /// </summary>
     public BodyMotion Motion;
+
     /// <summary>
     /// The entity's collision groups and mask now: those of <see cref="Desc"/>, until a collision intent changes them.
     /// Every Jolt body of the record carries them, except the hull of a frame (see <see cref="Layers"/>).
     /// </summary>
     public CollisionGroups CollisionGroups;
+
     /// <inheritdoc cref="CollisionGroups"/>
     public CollisionMask CollisionMask;
+
     /// <summary>True when the primary shape is or contains a mesh. Only static bodies can have one.</summary>
     public bool HasMesh;
 
     /// <summary>The frame whose system holds the primary body or the character. Null if there is none.</summary>
     public FrameHandle Frame;
+
     public FrameWorld? World;
     public int MemberIndex = -1;
     public BodyID Body = BodyID.Invalid;
 
     /// <summary>The Jolt character of a character in its walking form, or null.</summary>
     public CharacterVirtual? Character;
+
     /// <summary>
     /// The desired movement velocity of a character, in frame axes. It persists until a new CharacterMove, in both forms.
     /// </summary>
     public Vector3 DesiredVelocity;
+
     /// <summary>The speed of the jump that the walking form makes in its next update, if it stands. Zero between steps.</summary>
     public float PendingJump;
+
     /// <summary>
     /// Velocity change from impulses and forces on a character in its walking form, applied at its next update. Zero
     /// between steps. The rigid form takes impulses and forces as Jolt bodies do.
     /// </summary>
     public Vector3 PendingVelocityChange;
+
     /// <summary>
     /// The up of a character, in frame axes. The walking form turns it against the gravity when it touches something. The
     /// rigid form keeps it, so that the character walks again with the up that it had.
     /// </summary>
     public Vector3 Up = Vector3.UnitY;
+
     /// <summary>
     /// For a character: true when its last update stood it on walkable ground under gravity. A new character starts
     /// false, and so does a character that a hand-off moved to another frame. A growth of the system keeps it, because
     /// the character stays where it stood. A character in its rigid form never stands.
     /// </summary>
     public bool Standing;
+
     /// <summary>
     /// For a character: true when its last update held it on its ground against gravity, because it stood and did not jump,
     /// so it took no gravity and moved with its ground (see <see cref="FrameAcceleration"/>). A new character starts false.
@@ -135,6 +155,7 @@ internal sealed class BodyRecord
 
     /// <summary>The frame that this entity owns, or null.</summary>
     public FrameHandle OwnedFrame;
+
     public FrameWorld? InteriorWorld;
     public BodyID InteriorBody = BodyID.Invalid;
 
@@ -146,11 +167,13 @@ internal sealed class BodyRecord
 
     // Per-step bookkeeping.
     public Vector3 VelocityBefore;
+
     /// <summary>
     /// For a dynamic hull: Jolt's velocities after the intents of the step, which can set them or add an impulse, and
     /// before the update, for its frame's acceleration and angular acceleration over the step.
     /// </summary>
     public Vector3 VelocityAfterIntents, AngularVelocityAfterIntents;
+
     /// <summary>
     /// For a dynamic hull: its acceleration and angular acceleration in the last update, in the axes of its home: the
     /// gravity that the step applied plus its proper acceleration, less the change of velocity that the intents made
@@ -161,9 +184,12 @@ internal sealed class BodyRecord
     /// <see cref="FrameMotion.AngularAccelerationToParent"/>).
     /// </summary>
     public Double3 StepAcceleration;
+
     public Vector3 AngularAcceleration;
+
     /// <summary>The step whose intent gave the dynamic body an impulse or an angular impulse, or -1.</summary>
     public long ImpulseStep = -1;
+
     /// <summary>
     /// The change of Jolt's linear and angular velocity that the impulses of <see cref="ImpulseStep"/> made at the start of
     /// that step, in the axes of the body's home then: the difference of Jolt's velocities before and after them, exact in
@@ -171,15 +197,19 @@ internal sealed class BodyRecord
     /// step that ended, and puts it back as a change of the step in flight (docs/plans/spin-gravity.md, "Impulses").
     /// </summary>
     public Double3 ImpulseVelocityChange, ImpulseAngularVelocityChange;
+
     /// <summary>The step whose intent teleported the body, or -1.</summary>
     public long TeleportStep = -1;
+
     /// <summary>
     /// The step in which a hand-off moved the hull into its current home, or -1. Physics sets it only for a hull, whose
     /// frame's step record then takes the acceleration of the hand-off (see <see cref="StepAcceleration"/>).
     /// </summary>
     public long HandOffStep = -1;
+
     /// <summary>The pose in its home, with a unit rotation, at which the teleport of <see cref="TeleportStep"/> put the body.</summary>
     public DPose TeleportPose;
+
     /// <summary>
     /// The acceleration that the body's frame gave it in the last step in which physics moved it, in the axes of its home
     /// (V4 of docs/plans/spin-gravity.md): the linear gravity, to a dynamic rigid body while it was awake and to a character
@@ -188,16 +218,20 @@ internal sealed class BodyRecord
     /// which it rests.
     /// </summary>
     public AppliedFrameAcceleration FrameAcceleration;
+
     /// <summary>
     /// For a dynamic body in a turning frame: what the last two-turn update expects of it at the end of its step (V6 of
     /// docs/plans/spin-gravity.md), or none. Every new primary body starts without one, and so does a body after a
     /// teleport, a velocity that the game sets, an impulse or a steer target, or after it falls asleep.
     /// </summary>
     public VelocityShadow Shadow;
+
     /// <summary>For a dynamic frame hull: the frame's proper acceleration in frame axes, from the last step.</summary>
     public Vector3 ProperAcceleration;
+
     /// <summary>The step whose motion intent aimed or steered the body, or -1 (see JoltPhysicsBackend.ApplyBodyIntent).</summary>
     public long KinematicTargetStep = -1;
+
     /// <summary>
     /// For a plain kinematic body that a motion intent aimed in the step of <see cref="KinematicTargetStep"/>: the step record
     /// of that motion intent, relative to the body's semantic frame, in its axes, and the home that the body had then. The
@@ -205,14 +239,17 @@ internal sealed class BodyRecord
     /// JoltPhysicsBackend.TryAimedRecord).
     /// </summary>
     public MotionSample AimedRecord;
+
     public FrameHandle AimedHome;
     public long VelocitySetStep = -1;
+
     /// <summary>
     /// For a character: the step whose update starts from an instant velocity that the game gave it, by a spawn, a
     /// teleport or SetVelocity. That update moves it by the chord of the instant velocity. A hand-off gives a character
     /// its chord right away, as it does a rigid body.
     /// </summary>
     public long InstantVelocityStep = -1;
+
     public long ReportedStep = -1;
 
     public bool IsHull => !OwnedFrame.IsNull;

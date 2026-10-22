@@ -9,9 +9,9 @@ public sealed partial class JoltPhysicsBackend
     // The one Jolt body filter of every query, created with the first cast and freed in Dispose. The binding's filter
     // classes leave OwnsHandle false, so NativeOwnership makes Dispose free the native filter.
     private QueryBodyFilter? queryBodyFilter;
-    private readonly List<RayCastResult> rayResults = new(16);
-    private readonly List<ShapeCastResult> shapeCastResults = new(4);
-    private readonly List<CollideShapeResult> collideResults = new(16);
+    private readonly List<RayCastResult> rayResults = [with(16)];
+    private readonly List<ShapeCastResult> shapeCastResults = [with(4)];
+    private readonly List<CollideShapeResult> collideResults = [with(16)];
     private readonly QueryShapeCache queryShapes = new();
 
     // Made with the first shape cast, because the binding fills it from joltc, which Foundation.Init loads.
@@ -27,7 +27,8 @@ public sealed partial class JoltPhysicsBackend
     /// cast, which tests the shape of every body along the ray. The normal of each hit comes from the body under a read
     /// lock, through <see cref="JoltNative"/>, so that no managed body object is made.
     /// </remarks>
-    public void CastRay(FrameHandle frame, Double3 origin, Double3 direction, double start, double end, IPhysicsQueryFilter filter,
+    public void CastRay(FrameHandle frame, Double3 origin, Double3 direction, double start, double end,
+        IPhysicsQueryFilter filter,
         RayCastKind kind, List<RayCastHit> hits)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
@@ -40,13 +41,15 @@ public sealed partial class JoltPhysicsBackend
             QueryBodyFilter bodyFilter = queryBodyFilter ??= NativeOwnership.Owned(new QueryBodyFilter(this));
             double length = end - start;
             RVector3 from = (origin + direction * start).ToJolt();
-            Vector3 ray = (direction * length).ToVector3();
+            var ray = (direction * length).ToVector3();
             rayResults.Clear();
             bodyFilter.Begin(world.System.BodyInterfaceNoLock, filter);
             try
             {
-                world.System.NarrowPhaseQuery.CastRay(from, ray, new RayCastSettings(),
-                    kind == RayCastKind.Nearest ? CollisionCollectorType.ClosestHit : CollisionCollectorType.AllHitSorted, rayResults, bodyFilter: bodyFilter);
+                world.System.NarrowPhaseQuery.CastRay(from, ray, new(),
+                    kind == RayCastKind.Nearest
+                        ? CollisionCollectorType.ClosestHit
+                        : CollisionCollectorType.AllHitSorted, rayResults, bodyFilter: bodyFilter);
             }
             finally
             {
@@ -59,7 +62,7 @@ public sealed partial class JoltPhysicsBackend
             {
                 double distance = start + result.Fraction * length;
                 Entity entity = EntityOf(bodies.GetUserData(result.BodyID));
-                hits.Add(new RayCastHit(entity, distance, SurfaceNormal(locks, result, origin + direction * distance)));
+                hits.Add(new(entity, distance, SurfaceNormal(locks, result, origin + direction * distance)));
             }
         }
     }
@@ -72,7 +75,8 @@ public sealed partial class JoltPhysicsBackend
     /// opposite of Jolt's penetration axis, which points from the moving shape into the body. The cast collects no faces:
     /// joltc allocates face arrays that the binding never frees.
     /// </remarks>
-    public void CastShape(FrameHandle frame, in QueryShape shape, in DPose start, Double3 direction, double startDistance, double endDistance,
+    public void CastShape(FrameHandle frame, in QueryShape shape, in DPose start, Double3 direction,
+        double startDistance, double endDistance,
         IPhysicsQueryFilter filter, List<ShapeCastHit> hits)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
@@ -92,7 +96,8 @@ public sealed partial class JoltPhysicsBackend
             bodyFilter.Begin(world.System.BodyInterfaceNoLock, filter);
             try
             {
-                world.System.NarrowPhaseQuery.CastShape(queryShapes.Get(shape), Transform(from, start.Rotation), (direction * length).ToVector3(), settings,
+                world.System.NarrowPhaseQuery.CastShape(queryShapes.Get(shape), Transform(from, start.Rotation),
+                    (direction * length).ToVector3(), settings,
                     from.ToJolt(), CollisionCollectorType.ClosestHit, shapeCastResults, bodyFilter: bodyFilter);
             }
             finally
@@ -105,8 +110,8 @@ public sealed partial class JoltPhysicsBackend
             {
                 Vector3 axis = result.PenetrationAxis;
                 Vector3 normal = axis.LengthSquared() > 0 ? -Vector3.Normalize(axis) : Vector3.Zero;
-                hits.Add(new ShapeCastHit(EntityOf(bodies.GetUserData(result.BodyID2)), startDistance + result.Fraction * length,
-                    from + (Double3)result.ContactPointOn2, normal));
+                hits.Add(new(EntityOf(bodies.GetUserData(result.BodyID2)), startDistance + result.Fraction * length,
+                    from + result.ContactPointOn2, normal));
             }
         }
     }
@@ -117,7 +122,8 @@ public sealed partial class JoltPhysicsBackend
     /// which reports each pair of touching parts, so one body can come more than once. Jolt's default settings for it
     /// collect no faces and ignore the back faces of a mesh.
     /// </remarks>
-    public void Overlap(FrameHandle frame, in QueryShape shape, in DPose pose, IPhysicsQueryFilter filter, List<Entity> entities)
+    public void Overlap(FrameHandle frame, in QueryShape shape, in DPose pose, IPhysicsQueryFilter filter,
+        List<Entity> entities)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         ArgumentNullException.ThrowIfNull(filter);
@@ -133,7 +139,8 @@ public sealed partial class JoltPhysicsBackend
             bodyFilter.Begin(world.System.BodyInterfaceNoLock, filter);
             try
             {
-                world.System.NarrowPhaseQuery.CollideShape(queryShapes.Get(shape), Vector3.One, Transform(pose.Position, pose.Rotation), pose.Position.ToJolt(),
+                world.System.NarrowPhaseQuery.CollideShape(queryShapes.Get(shape), Vector3.One,
+                    Transform(pose.Position, pose.Rotation), pose.Position.ToJolt(),
                     CollisionCollectorType.AllHit, collideResults, bodyFilter: bodyFilter);
             }
             finally
@@ -154,7 +161,8 @@ public sealed partial class JoltPhysicsBackend
     private static ShapeCastSettings ShapeCastSettingsOfQueries()
     {
         var settings = new ShapeCastSettings { BackFaceModeConvex = BackFaceMode.CollideWithBackFaces };
-        Contract.Assert(settings.CollectFacesMode == CollectFacesMode.NoFaces && settings.BackFaceModeTriangles == BackFaceMode.IgnoreBackFaces);
+        Contract.Assert(settings.CollectFacesMode == CollectFacesMode.NoFaces &&
+                        settings.BackFaceModeTriangles == BackFaceMode.IgnoreBackFaces);
         return settings;
     }
 
@@ -183,6 +191,7 @@ public sealed partial class JoltPhysicsBackend
             RVector3 position = point.ToJolt();
             JoltNative.SurfaceNormal(read.BodyHandle, result.subShapeID2, &position, &normal);
         }
+
         locks.UnlockRead(read);
         return normal;
     }
@@ -201,7 +210,7 @@ public sealed partial class JoltPhysicsBackend
     /// </remarks>
     private sealed class QueryBodyFilter(JoltPhysicsBackend backend) : BodyFilter
     {
-        private readonly HashSet<Body> bodiesHandedIn = new(ReferenceEqualityComparer.Instance);
+        private readonly HashSet<Body> bodiesHandedIn = [with(ReferenceEqualityComparer.Instance)];
         private BodyInterface bodies;
         private IPhysicsQueryFilter? filter;
         private ExceptionDispatchInfo? failure;

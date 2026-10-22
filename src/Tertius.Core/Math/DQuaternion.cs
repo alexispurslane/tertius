@@ -6,14 +6,6 @@ namespace Tertius;
 /// <summary>A double-precision rotation quaternion. Multiplication is the Hamilton product: (a * b) rotates by b, then by a.</summary>
 public record struct DQuaternion(double X, double Y, double Z, double W)
 {
-    public static DQuaternion Identity => new(0, 0, 0, 1);
-
-    public static DQuaternion operator *(DQuaternion a, DQuaternion b) => new(
-        a.W * b.X + a.X * b.W + a.Y * b.Z - a.Z * b.Y,
-        a.W * b.Y - a.X * b.Z + a.Y * b.W + a.Z * b.X,
-        a.W * b.Z + a.X * b.Y - a.Y * b.X + a.Z * b.W,
-        a.W * b.W - a.X * b.X - a.Y * b.Y - a.Z * b.Z);
-
     /// <summary>
     /// The most that the square of the length of a unit quaternion may differ from 1. A rotation that was built in double
     /// precision from axes and angles differs by about 1E-16. A float rotation from Jolt, widened to double, differs by up to
@@ -21,13 +13,22 @@ public record struct DQuaternion(double X, double Y, double Z, double W)
     /// </summary>
     public const double UnitTolerance = 1e-12;
 
+    public static DQuaternion Identity => new(0, 0, 0, 1);
+
     public readonly double LengthSquared => X * X + Y * Y + Z * Z + W * W;
 
     /// <summary>
-    /// True when the square of the length is within <see cref="UnitTolerance"/> of 1, so that <see cref="Rotate(Double3)"/> and
+    /// True when the square of the length is within <see cref="UnitTolerance"/> of 1, so that <see cref="Rotate(Double3)"/>
+    /// and
     /// <see cref="Conjugate"/> are exact. False for the zero quaternion and for one with a component that is not finite.
     /// </summary>
     public readonly bool IsUnit => Math.Abs(LengthSquared - 1) <= UnitTolerance;
+
+    public static DQuaternion operator *(DQuaternion a, DQuaternion b) => new(
+        a.W * b.X + a.X * b.W + a.Y * b.Z - a.Z * b.Y,
+        a.W * b.Y - a.X * b.Z + a.Y * b.W + a.Z * b.X,
+        a.W * b.Z + a.X * b.Y - a.Y * b.X + a.Z * b.W,
+        a.W * b.W - a.X * b.X - a.Y * b.Y - a.Z * b.Z);
 
     /// <summary>The inverse of a unit quaternion.</summary>
     public readonly DQuaternion Conjugate() => new(-X, -Y, -Z, W);
@@ -105,7 +106,7 @@ public record struct DQuaternion(double X, double Y, double Z, double W)
     {
         DQuaternion delta = (to * Conjugate()).Normalized();
         if (delta.W < 0)
-            delta = new DQuaternion(-delta.X, -delta.Y, -delta.Z, -delta.W);
+            delta = new(-delta.X, -delta.Y, -delta.Z, -delta.W);
         var axis = new Double3(delta.X, delta.Y, delta.Z);
         double sinHalf = axis.Length;
         if (sinHalf < 1e-15)
@@ -114,5 +115,5 @@ public record struct DQuaternion(double X, double Y, double Z, double W)
         return axis * (angle / (sinHalf * time));
     }
 
-    public override readonly string ToString() => $"({X:G9}, {Y:G9}, {Z:G9}, {W:G9})";
+    public readonly override string ToString() => $"({X:G9}, {Y:G9}, {Z:G9}, {W:G9})";
 }

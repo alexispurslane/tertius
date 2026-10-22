@@ -18,7 +18,8 @@ namespace Tertius.Host.Tests;
 /// of live puffs over every tick and over the captures, with the film of each peak, and the mean count at a capture. It
 /// is an explicit test, so a normal run reports it as not run. It runs in a Release build, with the variable
 /// <see cref="Variable"/> set to the file of its report:
-/// <c>TERTIUS_PLUME_COST=report.md dotnet test -c Release --project tests/Tertius.Host.Tests -- --filter-class "*BlueDanubePlumeCostMeasurement" --explicit only</c>.
+/// <c>TERTIUS_PLUME_COST=report.md dotnet test -c Release --project tests/Tertius.Host.Tests -- --filter-class "*BlueDanubePlumeCostMeasurement" --explicit only</c>
+/// .
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class BlueDanubePlumeCostMeasurement
@@ -37,26 +38,32 @@ public sealed class BlueDanubePlumeCostMeasurement
         CultureInfo inv = CultureInfo.InvariantCulture;
         try
         {
-            using VulkanRenderer vulkan = VulkanRenderer.CreateHeadless(new RendererOptions { Width = script.Window.Width, Height = script.Window.Height, Impostors = false });
+            using var vulkan = VulkanRenderer.CreateHeadless(new()
+                { Width = script.Window.Width, Height = script.Window.Height, Impostors = false });
             var seconds = new Dictionary<int, double>();
             foreach (int capacity in new[] { 4096, 0 })
             {
-                using var world = new World(new WorldOptions { DisposePhysics = true, PuffCapacity = capacity }, new JoltPhysicsBackend());
+                using var world = new World(new() { DisposePhysics = true, PuffCapacity = capacity },
+                    new JoltPhysicsBackend());
                 SceneInstance scene = DemoScenes.All.Single(s => s.Name == script.Scene).Build(world, vulkan);
-                using var headless = new HeadlessPlayback(vulkan, script.Window, new VideoFile(Path.Combine(folder, $"master-{capacity}.mkv"), 60));
+                using var headless = new HeadlessPlayback(vulkan, script.Window,
+                    new VideoFile(Path.Combine(folder, $"master-{capacity}.mkv"), 60));
                 var counting = new CountingPlayback(world, headless);
                 long start = Stopwatch.GetTimestamp();
                 ScriptRunner.Run(script, world, scene, outputFolder: null, counting);
                 headless.Finish();
                 seconds[capacity] = Stopwatch.GetElapsedTime(start).TotalSeconds;
-                report.AppendLine(inv, $"capacity {capacity}: {seconds[capacity]:F1} s for {counting.Captures} frames and {counting.Ticks} ticks; "
+                report.AppendLine(inv,
+                    $"capacity {capacity}: {seconds[capacity]:F1} s for {counting.Captures} frames and {counting.Ticks} ticks; "
                     + $"peak {counting.PeakInTick} live puffs after a tick, in the film of {counting.PeakInTickFilm}; "
                     + $"peak {counting.PeakAtCapture} at a capture, at {counting.PeakCapture}; mean {counting.SumAtCaptures / Math.Max(1, counting.Captures):F0} at a capture; "
                     + $"{counting.CappedTicks} ticks at the capacity");
             }
+
             double difference = seconds[4096] - seconds[0];
             int frames = script.Steps.Sum(step => step.Value is FilmStep film ? film.Frames : 0);
-            report.AppendLine(inv, $"difference: {difference:F1} s in all, {difference / frames * 1e3:F2} ms per frame");
+            report.AppendLine(inv,
+                $"difference: {difference:F1} s in all, {difference / frames * 1e3:F2} ms per frame");
             File.WriteAllText(reportPath, report.ToString());
         }
         finally
@@ -65,7 +72,8 @@ public sealed class BlueDanubePlumeCostMeasurement
         }
     }
 
-    /// <summary>A playback that counts the live puffs of <paramref name="world"/> before each tick and at each capture, and passes on to <paramref name="inner"/>.</summary>
+    /// <summary>A playback that counts the live puffs of <paramref name="world"/> before each tick and at each capture, and passes on to
+    /// <paramref name="inner"/>.</summary>
     private sealed class CountingPlayback(World world, IPlayback inner) : IPlayback
     {
         private string lastCapture = "the start";
@@ -87,6 +95,7 @@ public sealed class BlueDanubePlumeCostMeasurement
                 PeakInTick = count;
                 PeakInTickFilm = lastCapture;
             }
+
             if (count > 0 && count >= world.Options.PuffCapacity)
                 CappedTicks++;
             Ticks++;
@@ -101,6 +110,7 @@ public sealed class BlueDanubePlumeCostMeasurement
                 PeakAtCapture = count;
                 PeakCapture = name;
             }
+
             SumAtCaptures += count;
             Captures++;
             lastCapture = name;

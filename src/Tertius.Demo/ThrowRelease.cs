@@ -27,7 +27,7 @@ public readonly record struct ThrowRelease(Double3 Place, Double3 Velocity)
     /// </summary>
     public Double3 PlaceAt(double time, double rate)
     {
-        Double3 inertial = Velocity + Double3.Cross(new Double3(0, rate, 0), Place);
+        Double3 inertial = Velocity + Double3.Cross(new(0, rate, 0), Place);
         return DQuaternion.FromAxisAngle(Double3.UnitY, -rate * time).Rotate(Place + inertial * time);
     }
 
@@ -46,8 +46,10 @@ public readonly record struct ThrowRelease(Double3 Place, Double3 Velocity)
         {
             after += SearchStep;
             if (after > LongestFlight)
-                throw new InvalidOperationException($"The line of the release at {Place} does not come down to the floor within {LongestFlight} s.");
+                throw new InvalidOperationException(
+                    $"The line of the release at {Place} does not come down to the floor within {LongestFlight} s.");
         }
+
         double before = Math.Max(0, after - SearchStep);
         while (after - before > 1e-12)
         {
@@ -57,7 +59,8 @@ public readonly record struct ThrowRelease(Double3 Place, Double3 Velocity)
             else
                 after = middle;
         }
-        return new ThrowLanding(after, PlaceAt(after, rate));
+
+        return new(after, PlaceAt(after, rate));
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 using System.Numerics;
 using Tertius.Demo;
+using Tertius.Physics;
 using Tertius.Simulation;
 using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
 
@@ -14,8 +15,15 @@ namespace Tertius.Host.Tests;
 /// <param name="CabinAcceleration">The proper acceleration of the shuttle's frame, in m/s², in its axes.</param>
 /// <param name="CrateFrame">The crate's home frame.</param>
 /// <param name="CrateInCabin">The crate's center in the shuttle's frame, in meters.</param>
-internal sealed record HandOffTick(long Tick, FrameHandle Frame, Double3 Position, DQuaternion Rotation, Double3 AngularVelocity,
-    Vector3 CabinAcceleration, FrameHandle CrateFrame, Double3 CrateInCabin);
+internal sealed record HandOffTick(
+    long Tick,
+    FrameHandle Frame,
+    Double3 Position,
+    DQuaternion Rotation,
+    Double3 AngularVelocity,
+    Vector3 CabinAcceleration,
+    FrameHandle CrateFrame,
+    Double3 CrateInCabin);
 
 /// <summary>
 /// One run of the scene <c>earth-system</c> with the real shuttle's hull, dynamic, spawned in the turning
@@ -29,15 +37,6 @@ internal sealed record HandOffTick(long Tick, FrameHandle Frame, Double3 Positio
 /// </summary>
 public sealed class TurningGroundHandOffRun : IDisposable
 {
-    /// <summary>The crate's half extents, in meters.</summary>
-    public static readonly Vector3 CrateHalf = new(0.2f);
-
-    /// <summary>
-    /// Where the crate starts, in the shuttle's axes: 1 mm forward of the aft wall's inner face at z = 7.8 m, and to
-    /// starboard of the housing, which reaches 0.9 m from the middle line.
-    /// </summary>
-    public static readonly Double3 CrateStart = new(1.8, 0, Shuttle.Cabin.Z - CrateHalf.Z - 0.001);
-
     /// <summary>The thrust along the nose, in m/s²: a third of the engine's full thrust, over the hull's mass.</summary>
     public const double Thrust = Shuttle.ThrustAcceleration / 3.0;
 
@@ -49,6 +48,15 @@ public sealed class TurningGroundHandOffRun : IDisposable
     /// </summary>
     public const double StartTime = DemoScenes.DemoSurface.DepartureAt;
 
+    /// <summary>The crate's half extents, in meters.</summary>
+    public static readonly Vector3 CrateHalf = new(0.2f);
+
+    /// <summary>
+    /// Where the crate starts, in the shuttle's axes: 1 mm forward of the aft wall's inner face at z = 7.8 m, and to
+    /// starboard of the housing, which reaches 0.9 m from the middle line.
+    /// </summary>
+    public static readonly Double3 CrateStart = new(1.8, 0, Shuttle.Cabin.Z - CrateHalf.Z - 0.001);
+
     /// <summary>
     /// How far from Earth's center the shuttle's center lies when it leaves earth-surface, by the engine's rule of the
     /// hand-off (ARCHITECTURE.md, "Hand-off", rule 2): the bubble's radius, plus the shuttle's bounding sphere, plus the exit
@@ -59,15 +67,16 @@ public sealed class TurningGroundHandOffRun : IDisposable
     {
         get
         {
-            double bubble = DemoScenes.EarthRadius + DemoScenes.GroundBubbleTop, radius = DemoScenes.Shuttle.Hull.Length();
+            double bubble = DemoScenes.EarthRadius + DemoScenes.GroundBubbleTop, radius = Shuttle.Hull.Length();
             return bubble + Math.Max(0.02 * bubble, radius) + radius;
         }
     }
 
     public TurningGroundHandOffRun()
     {
-        World = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true, StartTime = StartTime },
-            new Tertius.Physics.JoltPhysicsBackend());
+        World = new(
+            new() { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true, StartTime = StartTime },
+            new JoltPhysicsBackend());
         Scene = DemoScenes.All.Single(s => s.Name == "earth-system").Build(World, RenderResources.None);
         Earth = World.GetOwnedFrame(Scene["earth"]);
         Surface = World.GetOwnedFrame(Scene["earth-surface"]);
@@ -77,28 +86,30 @@ public sealed class TurningGroundHandOffRun : IDisposable
         var place = new Double3(across, Math.Sqrt((top - 1e3) * (top - 1e3) - across * across), 0);
         Double3 up = place.Normalized();
         Double3 velocity = up * 1e3 - Double3.UnitZ * 1e3;
-        Hull = World.Spawn(new SpawnDesc
+        Hull = World.Spawn(new()
         {
             Frame = Surface,
-            Pose = new DPose(place, AttitudeAutopilot.Facing(velocity, up)),
+            Pose = new(place, AttitudeAutopilot.Facing(velocity, up)),
             LinearVelocity = velocity.ToVector3(),
-            Body = DemoScenes.Shuttle.Body(BodyMotion.Dynamic),
-            AsFrame = new FrameSpec(new FrameBounds(DemoScenes.Shuttle.Bubble)),
-            Components = [new ThirdThrottle(), new MainEngine(DemoScenes.Shuttle.Mass * DemoScenes.Shuttle.ThrustAcceleration)],
+            Body = Shuttle.Body(BodyMotion.Dynamic),
+            AsFrame = new(new(Shuttle.Bubble)),
+            Components = [new ThirdThrottle(), new MainEngine(Shuttle.Mass * Shuttle.ThrustAcceleration)]
         });
         Cabin = World.GetOwnedFrame(Hull);
-        Crate = World.Spawn(new SpawnDesc
+        Crate = World.Spawn(new()
         {
             Frame = Cabin,
-            Pose = new DPose(CrateStart, DQuaternion.Identity),
-            Body = new BodyDesc(new BoxShapeDesc(CrateHalf), Mass: 5),
+            Pose = new(CrateStart, DQuaternion.Identity),
+            Body = new(new BoxShapeDesc(CrateHalf), Mass: 5)
         });
 
         for (int tick = 0; tick < 120; tick++)
         {
             World.Tick();
-            Ticks.Add(new HandOffTick(World.TickNumber, World.GetFrame(Hull), World.PoseIn(Hull, Earth).Position, World.PoseIn(Hull, Earth).Rotation,
-                World.AngularVelocityIn(Hull, Earth), World.Frames.ProperAcceleration(Cabin), World.GetFrame(Crate), World.PoseIn(Crate, Cabin).Position));
+            Ticks.Add(new(World.TickNumber, World.GetFrame(Hull), World.PoseIn(Hull, Earth).Position,
+                World.PoseIn(Hull, Earth).Rotation,
+                World.AngularVelocityIn(Hull, Earth), World.Frames.ProperAcceleration(Cabin), World.GetFrame(Crate),
+                World.PoseIn(Crate, Cabin).Position));
         }
     }
 
@@ -109,7 +120,7 @@ public sealed class TurningGroundHandOffRun : IDisposable
     public FrameHandle Cabin { get; }
     public Entity Hull { get; }
     public Entity Crate { get; }
-    internal List<HandOffTick> Ticks { get; } = new();
+    internal List<HandOffTick> Ticks { get; } = [];
 
     /// <summary>The index in <see cref="Ticks"/> of the first tick after which the shuttle is in earth, or -1.</summary>
     internal int HandOff => Ticks.FindIndex(tick => tick.Frame == Earth);
@@ -123,7 +134,8 @@ public sealed class TurningGroundHandOffRun : IDisposable
 
         public EventMask Wants => EventMask.Of<Tick>();
 
-        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) => events.Add(new Throttle { Value = 1f / 3 });
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
+            events.Add(new Throttle { Value = 1f / 3 });
     }
 }
 
@@ -154,8 +166,10 @@ public sealed class TurningGroundHandOffTests(TurningGroundHandOffRun run) : ICl
         handOff.Should().BeInRange(30, 90, "the hand-off falls near the middle of the 120 ticks");
         Ticks.Take(handOff).Should().OnlyContain(tick => tick.Frame == run.Surface);
         Ticks.Skip(handOff).Should().OnlyContain(tick => tick.Frame == run.Earth);
-        Ticks[handOff - 1].Position.Length.Should().BeLessThanOrEqualTo(TurningGroundHandOffRun.ExitRadius, "the shuttle is still inside the exit radius before the hand-off");
-        Ticks[handOff].Position.Length.Should().BeInRange(TurningGroundHandOffRun.ExitRadius, TurningGroundHandOffRun.ExitRadius + 30,
+        Ticks[handOff - 1].Position.Length.Should().BeLessThanOrEqualTo(TurningGroundHandOffRun.ExitRadius,
+            "the shuttle is still inside the exit radius before the hand-off");
+        Ticks[handOff].Position.Length.Should().BeInRange(TurningGroundHandOffRun.ExitRadius,
+            TurningGroundHandOffRun.ExitRadius + 30,
             "the shuttle leaves above the top of the bubble, by its bounding sphere and the exit margin");
     }
 
@@ -168,8 +182,12 @@ public sealed class TurningGroundHandOffTests(TurningGroundHandOffRun run) : ICl
     [Fact]
     public void TheShuttlesAccelerationInEarthStaysThatOfGravityAndThrustThroughTheHandOff()
     {
-        double turned = 2 * Math.Acos(Math.Min(1, Math.Abs(run.World.PoseIn(run.Scene["earth-surface"], run.Earth).Rotation.W))) * 180 / Math.PI;
-        turned.Should().BeGreaterThan(90, "the axes of the two frames differ by far more than the thrust's tolerance allows");
+        double turned = 2 *
+                        Math.Acos(Math.Min(1,
+                            Math.Abs(run.World.PoseIn(run.Scene["earth-surface"], run.Earth).Rotation.W))) * 180 /
+                        Math.PI;
+        turned.Should().BeGreaterThan(90,
+            "the axes of the two frames differ by far more than the thrust's tolerance allows");
         double dt = run.World.DeltaTime;
         foreach (int k in AroundTheHandOff)
         {
@@ -177,7 +195,8 @@ public sealed class TurningGroundHandOffTests(TurningGroundHandOffRun run) : ICl
             Double3 measured = (Ticks[k + 1].Position - 2 * tick.Position + Ticks[k - 1].Position) / (dt * dt);
             Double3 gravity = -tick.Position * (DemoScenes.EarthMu / Math.Pow(tick.Position.Length, 3));
             Double3 expected = gravity + tick.Rotation.Rotate(-Double3.UnitZ) * TurningGroundHandOffRun.Thrust;
-            (measured - expected).Length.Should().BeLessThan(0.01, $"at tick {tick.Tick}, {k - run.HandOff} from the hand-off: measured {measured}, expected {expected}");
+            (measured - expected).Length.Should().BeLessThan(0.01,
+                $"at tick {tick.Tick}, {k - run.HandOff} from the hand-off: measured {measured}, expected {expected}");
         }
     }
 
@@ -188,8 +207,9 @@ public sealed class TurningGroundHandOffTests(TurningGroundHandOffRun run) : ICl
         foreach (int k in AroundTheHandOff)
         {
             HandOffTick tick = Ticks[k];
-            ((Double3)tick.CabinAcceleration + Double3.UnitZ * TurningGroundHandOffRun.Thrust).Length
-                .Should().BeLessThan(0.01, $"at tick {tick.Tick}, {k - run.HandOff} from the hand-off: {tick.CabinAcceleration}");
+            (tick.CabinAcceleration + Double3.UnitZ * TurningGroundHandOffRun.Thrust).Length
+                .Should().BeLessThan(0.01,
+                    $"at tick {tick.Tick}, {k - run.HandOff} from the hand-off: {tick.CabinAcceleration}");
         }
     }
 
@@ -204,8 +224,12 @@ public sealed class TurningGroundHandOffTests(TurningGroundHandOffRun run) : ICl
     {
         foreach (int k in AroundTheHandOff)
         {
-            (Ticks[k].AngularVelocity - Ticks[k - 1].AngularVelocity).Length.Should().BeLessThan(1e-6, $"at tick {Ticks[k].Tick}, {k - run.HandOff} from the hand-off");
-            double turn = Math.Acos(Math.Clamp(Double3.Dot(Ticks[k].Rotation.Rotate(-Double3.UnitZ), Ticks[k - 1].Rotation.Rotate(-Double3.UnitZ)), -1, 1));
+            (Ticks[k].AngularVelocity - Ticks[k - 1].AngularVelocity).Length.Should().BeLessThan(1e-6,
+                $"at tick {Ticks[k].Tick}, {k - run.HandOff} from the hand-off");
+            double turn =
+                Math.Acos(Math.Clamp(
+                    Double3.Dot(Ticks[k].Rotation.Rotate(-Double3.UnitZ), Ticks[k - 1].Rotation.Rotate(-Double3.UnitZ)),
+                    -1, 1));
             turn.Should().BeLessThan(1e-5, $"at tick {Ticks[k].Tick}, {k - run.HandOff} from the hand-off");
         }
     }
@@ -220,10 +244,13 @@ public sealed class TurningGroundHandOffTests(TurningGroundHandOffRun run) : ICl
         Ticks.Should().OnlyContain(tick => tick.CrateFrame == run.Cabin);
         foreach (int k in AroundTheHandOff)
         {
-            double step = Double3.Distance(Ticks[k + 1].CrateInCabin, Ticks[k].CrateInCabin), before = Double3.Distance(Ticks[k].CrateInCabin, Ticks[k - 1].CrateInCabin);
+            double step = Double3.Distance(Ticks[k + 1].CrateInCabin, Ticks[k].CrateInCabin),
+                before = Double3.Distance(Ticks[k].CrateInCabin, Ticks[k - 1].CrateInCabin);
             step.Should().BeLessThan(before + 1e-3, $"at tick {Ticks[k].Tick}, {k - run.HandOff} from the hand-off");
         }
-        Ticks[run.HandOff + 10].CrateInCabin.Z.Should().BeApproximately(Shuttle.Cabin.Z - TurningGroundHandOffRun.CrateHalf.Z, 0.01, "the crate rests on the aft wall");
+
+        Ticks[run.HandOff + 10].CrateInCabin.Z.Should().BeApproximately(
+            Shuttle.Cabin.Z - TurningGroundHandOffRun.CrateHalf.Z, 0.01, "the crate rests on the aft wall");
     }
 
     [Fact]

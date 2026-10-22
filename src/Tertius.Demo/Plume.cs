@@ -22,7 +22,8 @@ public readonly record struct Plume(PuffLook Look, float FullRate, float Speed, 
     /// they mostly work at 0.1 to 3 percent of their thrust, and a rate in proportion to the throttle made almost no
     /// puffs in the docking. At a hundredth of the thrust, the square root makes a tenth of the full rate.
     /// </remarks>
-    public PuffEmitter At(float throttle) => throttle > 0 ? new PuffEmitter(MathF.Sqrt(throttle) * FullRate, Speed, Spread, Look) : default;
+    public PuffEmitter At(float throttle) =>
+        throttle > 0 ? new PuffEmitter(MathF.Sqrt(throttle) * FullRate, Speed, Spread, Look) : default;
 
     /// <summary>
     /// The rotation whose -Z, the way that puffs leave an entity, points along <paramref name="exhaust"/>, which need not
@@ -47,13 +48,14 @@ public readonly record struct Plume(PuffLook Look, float FullRate, float Speed, 
     public static DQuaternion PushedBodyRotation(Self self)
     {
         Entity parent = self.AttachedTo;
-        if (parent.IsNull)
-            return self.PoseIn(self.Frame).Rotation;
-        if (!self.Snapshot.TryGetPoseIn(parent, self.Frame, out DPose pose))
-            throw new InvalidOperationException($"The part {self.Entity} has no live parent to push.");
-        return pose.Rotation;
+        return parent.IsNull
+            ? self.PoseIn(self.Frame).Rotation
+            : !self.Snapshot.TryGetPoseIn(parent, self.Frame, out DPose pose)
+                ? throw new InvalidOperationException($"The part {self.Entity} has no live parent to push.")
+                : pose.Rotation;
     }
 
-    /// <summary>The offset of a part at <paramref name="place"/>, in meters in its parent's axes, whose puffs leave along <paramref name="exhaust"/>, in the same axes.</summary>
+    /// <summary>The offset of a part at <paramref name="place"/>, in meters in its parent's axes, whose puffs leave along
+    /// <paramref name="exhaust"/>, in the same axes.</summary>
     public static Pose AimedOffset(Vector3 place, Double3 exhaust) => new(place, Aim(exhaust).ToQuaternion());
 }

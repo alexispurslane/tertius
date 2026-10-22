@@ -20,7 +20,7 @@ public class SleepTests
 {
     /// <summary>A cube of 1 m with no damping and no bounce, so that only gravity and the floor move it.</summary>
     private static BodyDesc Box(float mass) =>
-        new(new BoxShapeDesc(new Vector3(0.5f)), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
+        new(new BoxShapeDesc(new(0.5f)), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>A frame with uniform gravity of <paramref name="g"/> m/s² along -Y, and a floor whose top is at y = 0.</summary>
     private static FrameHandle GroundWithFloor(World world, float g)
@@ -44,7 +44,7 @@ public class SleepTests
     {
         using World world = NewWorld(out _, debugChecks: false);
         FrameHandle ground = GroundWithFloor(world, g);
-        Entity box = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 1.5), Body = Box(mass: 10) });
+        Entity box = world.Spawn(new() { Frame = ground, Pose = At(0, 1.5), Body = Box(mass: 10) });
 
         Tick(world, 900);
 
@@ -61,13 +61,15 @@ public class SleepTests
     {
         using World world = NewWorld(out _, debugChecks: false);
         FrameHandle ground = GroundWithFloor(world, 0.1f);
-        Entity bottom = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 1.5), Body = Box(mass: 10) });
-        Entity top = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 2.5), Body = Box(mass: 10) });
+        Entity bottom = world.Spawn(new() { Frame = ground, Pose = At(0, 1.5), Body = Box(mass: 10) });
+        Entity top = world.Spawn(new() { Frame = ground, Pose = At(0, 2.5), Body = Box(mass: 10) });
 
         Tick(world, 900);
 
-        world.PoseInOwnFrame(bottom).Position.Y.Should().BeApproximately(0.5, 0.02, "the stack fell 1 m onto the floor");
-        world.PoseInOwnFrame(top).Position.Y.Should().BeApproximately(1.5, 0.03, "the top box rides the bottom one down");
+        world.PoseInOwnFrame(bottom).Position.Y.Should()
+            .BeApproximately(0.5, 0.02, "the stack fell 1 m onto the floor");
+        world.PoseInOwnFrame(top).Position.Y.Should()
+            .BeApproximately(1.5, 0.03, "the top box rides the bottom one down");
         world.Errors.Should().BeEmpty();
     }
 
@@ -79,8 +81,9 @@ public class SleepTests
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle ground = GroundWithFloor(world, g);
-        Entity box = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 0.6), Body = Box(mass: 10) });
-        List<ContactStarted> Contacts() => faults.Outputs.SelectMany(output => output.Contacts).ToList();
+        Entity box = world.Spawn(new() { Frame = ground, Pose = At(0, 0.6), Body = Box(mass: 10) });
+
+        List<ContactStarted> Contacts() => [.. faults.Outputs.SelectMany(output => output.Contacts)];
         // The fall of 0.1 m takes 2 s at 0.05 m/s².
         TickUntil(world, () => Contacts().Count > 0, 300);
         Contacts().Should().ContainSingle("the box landed");
@@ -105,23 +108,32 @@ public class SleepTests
     public void CargoAsleepOnADeckSlidesTowardTheSternWhenTheShipsThrustGrows(float newtonsPerTick)
     {
         using World world = NewWorld(out JoltPhysicsBackend backend);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
-        var deck = new CompoundShapeDesc([new CompoundChild(new BoxShapeDesc(new Vector3(10, 0.25f, 30)), new Pose(new Vector3(0, -2.25f, 0), Quaternion.Identity))]);
-        var hull = new BodyDesc(new BoxShapeDesc(new Vector3(10, 3, 30)), Mass: 1000, LinearDamping: 0, AngularDamping: 0, InteriorShape: deck);
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
+        var deck = new CompoundShapeDesc([
+            new(new BoxShapeDesc(new(10, 0.25f, 30)), new(new(0, -2.25f, 0), Quaternion.Identity))
+        ]);
+        var hull = new BodyDesc(new BoxShapeDesc(new(10, 3, 30)), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
+            InteriorShape: deck);
         // The ship's engine pushes with this force along +Z in every tick. A pilot writes it in one tick and Jolt applies
         // it in the step of the next one.
         float thrust = 0;
-        var pilot = new Pilot { EveryTick = body => { if (thrust > 0) body.AddForce(new Vector3(0, 0, thrust)); } };
-        Entity owner = world.Spawn(new SpawnDesc
+        var pilot = new Pilot
+        {
+            EveryTick = body =>
+            {
+                if (thrust > 0) body.AddForce(new(0, 0, thrust));
+            }
+        };
+        Entity owner = world.Spawn(new()
         {
             Frame = space,
             Pose = At(0),
             Body = hull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), GravityField.Uniform(new Vector3(0, -9.81f, 0))),
-            Components = [pilot],
+            AsFrame = new(FrameBounds.Sphere(100), GravityField.Uniform(new(0, -9.81f, 0))),
+            Components = [pilot]
         });
         FrameHandle ship = world.GetOwnedFrame(owner);
-        Entity crate = world.Spawn(new SpawnDesc { Frame = ship, Pose = At(0, -1.5), Body = Box(mass: 5) });
+        Entity crate = world.Spawn(new() { Frame = ship, Pose = At(0, -1.5), Body = Box(mass: 5) });
         world.Tick();
         TickUntil(world, () => !IsAwake(backend, ship, crate), 300);
         IsAwake(backend, ship, crate).Should().BeFalse("the crate fell asleep on the deck");
@@ -131,10 +143,12 @@ public class SleepTests
             thrust = MathF.Min(force, 6000);
             world.Tick();
         }
+
         thrust = 6000;
         Tick(world, 60);
 
-        world.PoseInOwnFrame(crate).Position.Z.Should().BeLessThan(-0.3, "6 m/s² toward the stern beats the friction that holds 4.9 m/s²");
+        world.PoseInOwnFrame(crate).Position.Z.Should()
+            .BeLessThan(-0.3, "6 m/s² toward the stern beats the friction that holds 4.9 m/s²");
         world.Errors.Should().BeEmpty();
     }
 }

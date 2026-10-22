@@ -10,7 +10,8 @@ namespace Tertius.Simulation.Tests;
 /// <param name="subscribeOnTick">The first tick on which it subscribes. Its default of 0 means the first tick the entity runs.</param>
 /// <param name="unsubscribeOnTick">The first tick on which it unsubscribes, or null to stay subscribed. It acts only after it has subscribed.</param>
 /// <param name="priority">Its place in the entity's pipeline. Lower runs first.</param>
-public sealed class Subscriber(Topic topic, long subscribeOnTick = 0, long? unsubscribeOnTick = null, int priority = 0) : IComponent
+public sealed class Subscriber(Topic topic, long subscribeOnTick = 0, long? unsubscribeOnTick = null, int priority = 0)
+    : IComponent
 {
     public int Priority => priority;
     public EventMask Wants => EventMask.Of<Tick>();

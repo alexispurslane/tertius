@@ -47,7 +47,6 @@ internal sealed partial class EntityTable
         private readonly int words;
         private int word;
         private ulong bits;
-        private Entity current;
 
         internal BodyEntityEnumerator(EntityTable table)
         {
@@ -55,12 +54,12 @@ internal sealed partial class EntityTable
             words = BodySlots.WordsFor(table.SlotCount);
             word = -1;
             bits = 0;
-            current = default;
+            Current = default;
         }
 
-        public readonly BodyEntityEnumerator GetEnumerator() => this;
+        public Entity Current { get; private set; }
 
-        public readonly Entity Current => current;
+        public readonly BodyEntityEnumerator GetEnumerator() => this;
 
         public bool MoveNext()
         {
@@ -70,9 +69,10 @@ internal sealed partial class EntityTable
                     return false;
                 bits = table!.bodySlots.Word(word);
             }
+
             uint slot = (uint)(word * 64 + BitOperations.TrailingZeroCount(bits));
             bits &= bits - 1;
-            current = new Entity(slot, table!.generation[slot]);
+            Current = new(slot, table!.generation[slot]);
             return true;
         }
     }

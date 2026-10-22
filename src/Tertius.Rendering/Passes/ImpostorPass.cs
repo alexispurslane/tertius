@@ -37,7 +37,8 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
     private readonly PreparedCapture[] prepared = new PreparedCapture[ImpostorManager.CapturesPerFrame];
     private int preparedCount;
 
-    public ImpostorPass(VulkanDevice device, ShaderLibrary shaders, DescriptorLayouts layouts, ImpostorAtlas atlas, ImpostorManager manager)
+    public ImpostorPass(VulkanDevice device, ShaderLibrary shaders, DescriptorLayouts layouts, ImpostorAtlas atlas,
+        ImpostorManager manager)
     {
         this.device = device;
         this.layouts = layouts;
@@ -54,7 +55,7 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
             VertexInput = VertexInput.Mesh,
             DepthTest = true,
             DepthWrite = true,
-            DepthCompare = CompareOp.Greater,
+            DepthCompare = CompareOp.Greater
         }.Create(device, shaders);
         try
         {
@@ -70,7 +71,7 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
                 DepthTest = true,
                 DepthWrite = true,
                 DepthCompare = CompareOp.Greater,
-                CullMode = CullModeFlags.None,
+                CullMode = CullModeFlags.None
             }.Create(device, shaders);
         }
         catch
@@ -90,17 +91,19 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
         foreach (ref readonly ImpostorCapture capture in manager.Captures)
         {
             MeshInfo mesh = meshes[capture.Mesh];
-            int instance = scene.AppendInstance(GpuInstance.From(capture.Position, capture.Rotation, capture.Scale, capture.Material, capture.Hemisphere));
-            int command = scene.AppendCommand(new DrawIndexedIndirectCommand
+            int instance = scene.AppendInstance(GpuInstance.From(capture.Position, capture.Rotation, capture.Scale,
+                capture.Material, capture.Hemisphere));
+            int command = scene.AppendCommand(new()
             {
                 IndexCount = mesh.IndexCount,
                 InstanceCount = 1,
                 FirstIndex = mesh.FirstIndex,
                 VertexOffset = mesh.VertexOffset,
-                FirstInstance = (uint)instance,
+                FirstInstance = (uint)instance
             });
-            prepared[preparedCount++] = new PreparedCapture(capture.Tile, command,
-                CaptureProjection(capture.Right, capture.Up, capture.Toward, capture.Distance, capture.Radius, capture.TanHalfAngle));
+            prepared[preparedCount++] = new(capture.Tile, command,
+                CaptureProjection(capture.Right, capture.Up, capture.Toward, capture.Distance, capture.Radius,
+                    capture.TanHalfAngle));
         }
 
         ReadOnlySpan<ImpostorDraw> draws = manager.Draws;
@@ -109,11 +112,10 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
             int first = scene.InstanceCount;
             int bit = 1 << range;
             foreach (ref readonly ImpostorDraw draw in draws)
-            {
                 if ((draw.Ranges & bit) != 0)
-                    scene.AppendInstance(GpuInstance.FromAxes(draw.Right, draw.Up, draw.Toward, draw.Center, (uint)draw.Tile));
-            }
-            scene.Impostors[range] = new InstanceRange(first, scene.InstanceCount - first);
+                    scene.AppendInstance(GpuInstance.FromAxes(draw.Right, draw.Up, draw.Toward, draw.Center,
+                        (uint)draw.Tile));
+            scene.Impostors[range] = new(first, scene.InstanceCount - first);
         }
     }
 
@@ -126,7 +128,8 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
     /// but makes clip w, and so 1 / gl_FragCoord.w, the depth relative to the sphere's center. The axes are
     /// right-handed like view space (toward = right × up), so front faces stay counterclockwise.
     /// </summary>
-    internal static Matrix4x4 CaptureProjection(Vector3 right, Vector3 up, Vector3 toward, float distance, float radius, float tanHalfAngle)
+    internal static Matrix4x4 CaptureProjection(Vector3 right, Vector3 up, Vector3 toward, float distance, float radius,
+        float tanHalfAngle)
     {
         float near = distance - 1.01f * radius;
         float far = distance + 1.01f * radius;
@@ -137,7 +140,7 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
         float b = -near / (far - near) / distance;
         float w = 1f / distance;
         Vector3 forward = -toward;
-        return new Matrix4x4(
+        return new(
             right.X * lateral, -up.X * lateral, forward.X * b, forward.X * w,
             right.Y * lateral, -up.Y * lateral, forward.Y * b, forward.Y * w,
             right.Z * lateral, -up.Z * lateral, forward.Z * b, forward.Z * w,
@@ -147,7 +150,8 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
     public override void Record(FrameContext context)
     {
         PreparedScene scene = context.Scene;
-        bool billboards = scene.Impostors[DepthRanges.Far].Count + scene.Impostors[DepthRanges.Middle].Count + scene.Impostors[DepthRanges.Near].Count > 0;
+        bool billboards = scene.Impostors[DepthRanges.Far].Count + scene.Impostors[DepthRanges.Middle].Count +
+            scene.Impostors[DepthRanges.Near].Count > 0;
         if (preparedCount == 0 && !billboards)
             return;
 
@@ -163,6 +167,7 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
             barriers.Buffer(context.Geometry.IndexBuffer, BufferUse.VertexInput);
             barriers.Buffer(context.Materials.Buffer, BufferUse.ShaderRead);
         }
+
         barriers.Flush(vk, commandBuffer);
         if (preparedCount == 0)
             return;
@@ -198,17 +203,17 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
             LoadOp = AttachmentLoadOp.Clear,
             StoreOp = AttachmentStoreOp.DontCare,
             // Reversed depth: 0 is the far side of the capture box.
-            ClearValue = new ClearValue(depthStencil: new ClearDepthStencilValue(0f, 0)),
+            ClearValue = new(depthStencil: new ClearDepthStencilValue(0f, 0))
         };
         var extent = new Extent2D(ImpostorAtlas.TileSize, ImpostorAtlas.TileSize);
         var rendering = new RenderingInfo
         {
             SType = StructureType.RenderingInfo,
-            RenderArea = new Rect2D(new Offset2D(0, 0), extent),
+            RenderArea = new(new Offset2D(0, 0), extent),
             LayerCount = 1,
             ColorAttachmentCount = 2,
             PColorAttachments = colors,
-            PDepthAttachment = &depth,
+            PDepthAttachment = &depth
         };
         vk.CmdBeginRendering(commandBuffer, &rendering);
         if (bindState)
@@ -216,16 +221,18 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
             vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, capturePipeline);
             // Frame constants, instances and materials, and the textures. The G-buffer set is not used here.
             DescriptorSet* sets = stackalloc[] { context.Frame.FrameSet, context.Frame.TextureSet };
-            vk.CmdBindDescriptorSets(commandBuffer, PipelineBindPoint.Graphics, layouts.SceneLayout, 0, 2, sets, 0, null);
+            vk.CmdBindDescriptorSets(commandBuffer, PipelineBindPoint.Graphics, layouts.SceneLayout, 0, 2, sets, 0,
+                null);
             var viewport = new Viewport(0, 0, ImpostorAtlas.TileSize, ImpostorAtlas.TileSize, 0, 1);
             var scissor = new Rect2D(new Offset2D(0, 0), extent);
             vk.CmdSetViewport(commandBuffer, 0, 1, &viewport);
             vk.CmdSetScissor(commandBuffer, 0, 1, &scissor);
             GeometryPass.BindGeometry(context);
         }
+
         // The main view's eye (the origin), so that specular highlights are where the camera would see them.
         GeometryPass.PushDraw(context, capture.ViewProjection);
-        GeometryPass.DrawIndirect(context, new CommandRange(capture.Command, 1));
+        GeometryPass.DrawIndirect(context, new(capture.Command, 1));
         vk.CmdEndRendering(commandBuffer);
 
         GenerateMips(vk, commandBuffer, barriers, layer);
@@ -239,16 +246,19 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
         LoadOp = AttachmentLoadOp.Clear,
         StoreOp = AttachmentStoreOp.Store,
         // No coverage, no color, no depth offset.
-        ClearValue = new ClearValue(new ClearColorValue(0f, 0f, 0f, 0f)),
+        ClearValue = new(new ClearColorValue(0f, 0f, 0f, 0f))
     };
 
     private static void DiscardTile(BarrierBatch barriers, GpuImage image, uint layer)
     {
         barriers.ImageLevels(image, 0, 1, ImageLayout.Undefined, ImageLayout.ColorAttachmentOptimal,
             PipelineStageFlags2.FragmentShaderBit, AccessFlags2.None,
-            PipelineStageFlags2.ColorAttachmentOutputBit, AccessFlags2.ColorAttachmentReadBit | AccessFlags2.ColorAttachmentWriteBit, layer, 1);
-        barriers.ImageLevels(image, 1, ImpostorAtlas.MipLevels - 1, ImageLayout.Undefined, ImageLayout.TransferDstOptimal,
-            PipelineStageFlags2.FragmentShaderBit, AccessFlags2.None, PipelineStageFlags2.AllTransferBit, AccessFlags2.TransferWriteBit, layer, 1);
+            PipelineStageFlags2.ColorAttachmentOutputBit,
+            AccessFlags2.ColorAttachmentReadBit | AccessFlags2.ColorAttachmentWriteBit, layer, 1);
+        barriers.ImageLevels(image, 1, ImpostorAtlas.MipLevels - 1, ImageLayout.Undefined,
+            ImageLayout.TransferDstOptimal,
+            PipelineStageFlags2.FragmentShaderBit, AccessFlags2.None, PipelineStageFlags2.AllTransferBit,
+            AccessFlags2.TransferWriteBit, layer, 1);
     }
 
     /// <summary>
@@ -259,11 +269,9 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
     {
         const uint levels = ImpostorAtlas.MipLevels;
         foreach (GpuImage image in Images())
-        {
             barriers.ImageLevels(image, 0, 1, ImageLayout.ColorAttachmentOptimal, ImageLayout.TransferSrcOptimal,
                 PipelineStageFlags2.ColorAttachmentOutputBit, AccessFlags2.ColorAttachmentWriteBit,
                 PipelineStageFlags2.AllTransferBit, AccessFlags2.TransferReadBit, layer, 1);
-        }
         barriers.Flush(vk, commandBuffer);
 
         int size = ImpostorAtlas.TileSize;
@@ -272,36 +280,40 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
             if (level > 1)
             {
                 foreach (GpuImage image in Images())
-                {
-                    barriers.ImageLevels(image, level - 1, 1, ImageLayout.TransferDstOptimal, ImageLayout.TransferSrcOptimal,
+                    barriers.ImageLevels(image, level - 1, 1, ImageLayout.TransferDstOptimal,
+                        ImageLayout.TransferSrcOptimal,
                         PipelineStageFlags2.AllTransferBit, AccessFlags2.TransferWriteBit,
                         PipelineStageFlags2.AllTransferBit, AccessFlags2.TransferReadBit, layer, 1);
-                }
                 barriers.Flush(vk, commandBuffer);
             }
+
             int next = Math.Max(1, size / 2);
             var blit = new ImageBlit
             {
-                SrcSubresource = new ImageSubresourceLayers(ImageAspectFlags.ColorBit, level - 1, layer, 1),
-                DstSubresource = new ImageSubresourceLayers(ImageAspectFlags.ColorBit, level, layer, 1),
+                SrcSubresource = new(ImageAspectFlags.ColorBit, level - 1, layer, 1),
+                DstSubresource = new(ImageAspectFlags.ColorBit, level, layer, 1)
             };
-            blit.SrcOffsets[1] = new Offset3D(size, size, 1);
-            blit.DstOffsets[1] = new Offset3D(next, next, 1);
+            blit.SrcOffsets[1] = new(size, size, 1);
+            blit.DstOffsets[1] = new(next, next, 1);
             foreach (GpuImage image in Images())
-                vk.CmdBlitImage(commandBuffer, image.Handle, ImageLayout.TransferSrcOptimal, image.Handle, ImageLayout.TransferDstOptimal, 1, &blit, Filter.Linear);
+                vk.CmdBlitImage(commandBuffer, image.Handle, ImageLayout.TransferSrcOptimal, image.Handle,
+                    ImageLayout.TransferDstOptimal, 1, &blit, Filter.Linear);
             size = next;
         }
 
         // Every level but the last is a transfer source now; the last is still a transfer destination.
         foreach (GpuImage image in Images())
         {
-            barriers.ImageLevels(image, 0, levels - 1, ImageLayout.TransferSrcOptimal, ImageLayout.ShaderReadOnlyOptimal,
+            barriers.ImageLevels(image, 0, levels - 1, ImageLayout.TransferSrcOptimal,
+                ImageLayout.ShaderReadOnlyOptimal,
                 PipelineStageFlags2.AllTransferBit, AccessFlags2.TransferReadBit,
                 PipelineStageFlags2.FragmentShaderBit, AccessFlags2.ShaderSampledReadBit, layer, 1);
-            barriers.ImageLevels(image, levels - 1, 1, ImageLayout.TransferDstOptimal, ImageLayout.ShaderReadOnlyOptimal,
+            barriers.ImageLevels(image, levels - 1, 1, ImageLayout.TransferDstOptimal,
+                ImageLayout.ShaderReadOnlyOptimal,
                 PipelineStageFlags2.AllTransferBit, AccessFlags2.TransferWriteBit,
                 PipelineStageFlags2.FragmentShaderBit, AccessFlags2.ShaderSampledReadBit, layer, 1);
         }
+
         barriers.Flush(vk, commandBuffer);
     }
 
@@ -317,7 +329,8 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, billboardPipeline);
         // Compatible with the scene layout for sets 0 to 2, so those stay bound.
         DescriptorSet set = atlas.Set;
-        vk.CmdBindDescriptorSets(commandBuffer, PipelineBindPoint.Graphics, layouts.ImpostorLayout, 3, 1, &set, 0, null);
+        vk.CmdBindDescriptorSets(commandBuffer, PipelineBindPoint.Graphics, layouts.ImpostorLayout, 3, 1, &set, 0,
+            null);
         GeometryPass.PushDraw(context, context.Scene.RangeViewProjection[range], layout: layouts.ImpostorLayout);
         vk.CmdDraw(commandBuffer, 6, (uint)instances.Count, 0, (uint)instances.First);
     }

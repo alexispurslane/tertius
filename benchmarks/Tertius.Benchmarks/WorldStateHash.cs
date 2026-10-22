@@ -19,11 +19,13 @@ internal static class WorldStateHash
     public static ulong Of(World world)
     {
         ulong hash = 14695981039346656037;
+
         void Mix(ReadOnlySpan<byte> bytes)
         {
             foreach (byte b in bytes)
                 hash = (hash ^ b) * 1099511628211;
         }
+
         var live = new List<Entity>();
         world.CopyLiveEntities(live);
         live.Sort((a, b) => a.Index.CompareTo(b.Index));
@@ -33,6 +35,7 @@ internal static class WorldStateHash
             Mix(MemoryMarshal.AsBytes(new ReadOnlySpan<TransformRow>(in front)));
             Mix(MemoryMarshal.AsBytes(new ReadOnlySpan<TransformRow>(in back)));
         }
+
         for (int i = 0; i < world.Frames.Count; i++)
         {
             FrameHandle frame = world.Frames.AtDense(i);
@@ -47,6 +50,7 @@ internal static class WorldStateHash
             Mix(MemoryMarshal.AsBytes(new ReadOnlySpan<Vector3>(in proper)));
             Mix(MemoryMarshal.AsBytes(new ReadOnlySpan<FollowKind>(in followed)));
         }
+
         return hash;
     }
 }

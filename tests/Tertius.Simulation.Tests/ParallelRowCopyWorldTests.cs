@@ -1,4 +1,3 @@
-using System.Numerics;
 using AwesomeAssertions;
 
 namespace Tertius.Simulation.Tests;
@@ -17,7 +16,7 @@ public class ParallelRowCopyWorldTests
     private sealed class Wanderer : IComponent
     {
         private static readonly EventMask WantsMask = EventMask.Of<Tick>();
-        private readonly List<Entity> neighbors = new();
+        private readonly List<Entity> neighbors = [];
         private Metal? metal;
 
         public ulong Rng;
@@ -42,29 +41,33 @@ public class ParallelRowCopyWorldTests
             DPose pose = self.PoseInOwnFrame();
             self.SetTransform(pose with { Position = pose.Position + new Double3(Next() - 0.5, 0, Next() - 0.5) });
             if (Next() < 0.5)
-                self.Render.Scale = new Vector3((float)Next());
+                self.Render.Scale = new((float)Next());
             if (Next() < 0.1)
             {
                 if (metal is null)
-                    self.AddComponent(metal = new Metal());
+                {
+                    self.AddComponent(metal = new());
+                }
                 else
                 {
                     self.RemoveComponent(metal);
                     metal = null;
                 }
             }
+
             self.Snapshot.QueryRadius(self.Frame, pose.Position, 6, neighbors);
             foreach (Entity neighbor in neighbors)
             {
                 Hash = WorldHash.Mix(Hash, neighbor.Raw);
                 Hash = WorldHash.Mix(Hash, self.Snapshot.RenderOf(neighbor).Scale);
             }
+
             if (Next() < 0.01)
-                self.Spawn(new SpawnDesc
+                self.Spawn(new()
                 {
                     Frame = self.Frame,
                     Pose = pose,
-                    Components = [new Wanderer { Rng = Rng | 1 }],
+                    Components = [new Wanderer { Rng = Rng | 1 }]
                 });
             if (Next() < 0.01)
                 self.Destroy();
@@ -73,23 +76,23 @@ public class ParallelRowCopyWorldTests
 
     private static ulong Run(int maxDop)
     {
-        using var world = new World(new WorldOptions
+        using var world = new World(new()
         {
             MaxDegreeOfParallelism = maxDop,
             ChunkSize = 8,
             SpawnPoolSize = 8,
-            DebugChecks = true,
+            DebugChecks = true
         });
         world.Entities.ParallelCopyThreshold = 1;
-        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        FrameHandle root = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         var random = new Random(20261018);
         for (int i = 0; i < 120; i++)
-            world.Spawn(new SpawnDesc
+            world.Spawn(new()
             {
                 Frame = root,
                 Pose = TestWorld.At(random.NextDouble() * 40 - 20, 0, random.NextDouble() * 40 - 20),
-                Render = new RenderData { Mesh = new MeshId(i % 3), Flags = RenderFlags.Visible },
-                Components = [new Wanderer { Rng = (ulong)random.NextInt64() | 1 }],
+                Render = new RenderData { Mesh = new(i % 3), Flags = RenderFlags.Visible },
+                Components = [new Wanderer { Rng = (ulong)random.NextInt64() | 1 }]
             });
         for (int tick = 0; tick < 60; tick++)
             world.Tick();
@@ -97,7 +100,7 @@ public class ParallelRowCopyWorldTests
         {
             Wanderer w => WorldHash.Mix(WorldHash.Mix(soFar, w.Hash), w.Rng),
             Metal => WorldHash.Mix(soFar, 7),
-            _ => soFar,
+            _ => soFar
         });
     }
 

@@ -13,10 +13,11 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public class StateDumpTests
 {
-    private static RunResult Run(World world, SceneInstance scene, params string[] steps) =>
-        ScriptRunner.Run(Script.Parse($$"""{ "scene": "test", "steps": [ {{string.Join(", ", steps)}} ] }"""), world, scene);
-
     private const string DumpNow = """{ "do": "dump", "name": "now" }""";
+
+    private static RunResult Run(World world, SceneInstance scene, params string[] steps) =>
+        ScriptRunner.Run(Script.Parse($$"""{ "scene": "test", "steps": [ {{string.Join(", ", steps)}} ] }"""), world,
+            scene);
 
     [Fact]
     public void ADumpHoldsAnEntitysPoseInItsOwnFrame()
@@ -151,7 +152,8 @@ public class StateDumpTests
         WorldTesting.Tick(world, 2);
         world.AddComponent(scene["moon"], new RemovesOnce(world.GetComponent<KeplerMotion>(scene["moon"])!));
 
-        RunResult run = Run(world, scene, """{ "do": "run", "ticks": 2 }""", """{ "do": "dump", "name": "last-sample" }""",
+        RunResult run = Run(world, scene, """{ "do": "run", "ticks": 2 }""",
+            """{ "do": "dump", "name": "last-sample" }""",
             """{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "after" }""");
 
         FollowsOf(run.Dump("last-sample"), "moon").Should().Be("rails");
@@ -206,45 +208,52 @@ public class StateDumpTests
     {
         using World world = NewJoltWorld();
         var scene = new SceneInstance();
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         scene.Add("space", space.Entity);
-        static DPose At(long tick) => new(new Double3(tick, 0, 0), DQuaternion.Identity);
-        static MotionSample Still(long tick) => new(At(tick), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
-        scene.Add("yard", world.Spawn(new SpawnDesc
+        static DPose At(long tick) => new(new(tick, 0, 0), DQuaternion.Identity);
+
+        static MotionSample Still(long tick) =>
+            new(At(tick), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
+
+        scene.Add("yard", world.Spawn(new()
         {
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static),
-            Components = [new EachTick(self => self.MoveKinematic(At(self.Tick)))],
+            AsFrame = new(FrameBounds.Sphere(100)),
+            Body = new(new BoxShapeDesc(new(1)), BodyMotion.Static),
+            Components = [new EachTick(self => self.MoveKinematic(At(self.Tick)))]
         }));
-        scene.Add("moon", world.Spawn(new SpawnDesc
+        scene.Add("moon", world.Spawn(new()
         {
             Frame = space,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
-            Components = [new EachTick(self => self.MoveOnRails(Still(self.Tick)))],
+            AsFrame = new(FrameBounds.Sphere(10)),
+            Components = [new EachTick(self => self.MoveOnRails(Still(self.Tick)))]
         }));
-        scene.Add("room", world.Spawn(new SpawnDesc
+        scene.Add("room", world.Spawn(new()
         {
             Frame = space,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
-            Components = [new EachTick(self =>
-            {
-                self.MoveOnRails(Still(self.Tick));
-                self.SetTransform(At(-self.Tick));
-            })],
+            AsFrame = new(FrameBounds.Sphere(10)),
+            Components =
+            [
+                new EachTick(self =>
+                {
+                    self.MoveOnRails(Still(self.Tick));
+                    self.SetTransform(At(-self.Tick));
+                })
+            ]
         }));
-        scene.Add("ship", world.Spawn(new SpawnDesc
+        scene.Add("ship", world.Spawn(new()
         {
             Frame = space,
-            Pose = new DPose(new Double3(500, 0, 0), DQuaternion.Identity),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Dynamic, Mass: 1000),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
+            Pose = new(new(500, 0, 0), DQuaternion.Identity),
+            Body = new(new BoxShapeDesc(new(2)), BodyMotion.Dynamic, Mass: 1000),
+            AsFrame = new(FrameBounds.Sphere(10))
         }));
 
         StateDump dump = Run(world, scene, """{ "do": "run", "ticks": 2 }""", DumpNow).Dump("now");
 
         FollowsOf(dump, "yard").Should().Be("kinematic");
         FollowsOf(dump, "moon").Should().Be("rails");
-        FollowsOf(dump, "room").Should().Be("static", "the write of the transform wins over the motion intent for one tick");
+        FollowsOf(dump, "room").Should()
+            .Be("static", "the write of the transform wins over the motion intent for one tick");
         FollowsOf(dump, "ship").Should().Be("physics");
         FollowsOf(dump, "space").Should().Be("static");
         dump.Errors.Should().BeEmpty();
@@ -272,17 +281,17 @@ public class StateDumpTests
     {
         const double mu = 5e5;
         var scene = new SceneInstance();
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), GravityField.Point(mu)));
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f), GravityField.Point(mu)));
         scene.Add("space", space);
-        var orbit = KeplerOrbit.Circular(5000, phase: 1.0);
+        KeplerOrbit orbit = KeplerOrbit.Circular(5000, phase: 1.0);
         (Double3 position, Double3 velocity) = orbit.StateAt(world.Time, mu);
         var desc = new SpawnDesc
         {
             Frame = space,
-            Pose = new DPose(position, DQuaternion.Identity),
+            Pose = new(position, DQuaternion.Identity),
             LinearVelocity = velocity,
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), motion, Mass: 1000),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
+            Body = new(new BoxShapeDesc(new(2)), motion, Mass: 1000),
+            AsFrame = new(FrameBounds.Sphere(10))
         };
         Entity owner = world.Spawn(motion == BodyMotion.Kinematic ? desc.OnKeplerOrbit(world, orbit) : desc);
         scene.Add("ship", owner);
@@ -369,15 +378,15 @@ public class StateDumpTests
         try
         {
             RunResult result = ScriptRunner.Run(Script.Parse("""
-                { "scene": "test", "steps": [
-                  { "do": "camera", "entity": "probe" },
-                  { "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Nudge", "payload": { "amount": 1 } },
-                  { "do": "run", "ticks": 2 },
-                  { "do": "dump", "name": "first" },
-                  { "do": "post", "to": { "kind": "entity", "id": "crew" }, "event": "Nudge", "payload": { "amount": 2 } },
-                  { "do": "film", "name": "climb", "frames": 2, "every": 2 },
-                  { "do": "dump", "name": "second" } ] }
-                """), world, scene, folder, new DrawsNothing());
+                                                             { "scene": "test", "steps": [
+                                                               { "do": "camera", "entity": "probe" },
+                                                               { "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Nudge", "payload": { "amount": 1 } },
+                                                               { "do": "run", "ticks": 2 },
+                                                               { "do": "dump", "name": "first" },
+                                                               { "do": "post", "to": { "kind": "entity", "id": "crew" }, "event": "Nudge", "payload": { "amount": 2 } },
+                                                               { "do": "film", "name": "climb", "frames": 2, "every": 2 },
+                                                               { "do": "dump", "name": "second" } ] }
+                                                             """), world, scene, folder, new DrawsNothing());
 
             result.Dump("first").Events.Select(e => ((Nudge)e.Payload).Amount).Should().Equal(1);
             // Posted after 2 ticks, so the sync point of the film's first tick routes it.
@@ -402,21 +411,28 @@ public class StateDumpTests
         {
             using World world = NewWorld();
             SceneInstance scene = Probes(world);
-            world.Spawn(new SpawnDesc { Frame = world.GetOwnedFrame(scene["space"]), Components = [new NudgesItselfEveryTick(nudgesPerTick)] });
-            Script script = Script.Parse($$"""{ "scene": "test", "steps": [ { "do": "camera", "entity": "probe" }, {{steps}} ] }""");
+            world.Spawn(new()
+            {
+                Frame = world.GetOwnedFrame(scene["space"]), Components = [new NudgesItselfEveryTick(nudgesPerTick)]
+            });
+            Script script =
+                Script.Parse(
+                    $$"""{ "scene": "test", "steps": [ { "do": "camera", "entity": "probe" }, {{steps}} ] }""");
             string folder = NewFolder();
             try
             {
                 long before = GC.GetAllocatedBytesForCurrentThread();
                 ScriptRunner.Run(script, world, scene, folder, new DrawsNothing());
                 bytes = GC.GetAllocatedBytesForCurrentThread() - before;
-                world.Stats.RoutedEvents.Should().Be(nudgesPerTick, "the last sync point routed the nudges of the last tick");
+                world.Stats.RoutedEvents.Should()
+                    .Be(nudgesPerTick, "the last sync point routed the nudges of the last tick");
             }
             finally
             {
                 Directory.Delete(folder, recursive: true);
             }
         }
+
         return bytes;
     }
 
@@ -435,7 +451,8 @@ public class StateDumpTests
         long quiet = BytesToRun(0, steps);
         long busy = BytesToRun(100, steps);
 
-        (busy - quiet).Should().BeLessThan(10_000 * 8, $"no dump reads them (quiet run: {quiet} bytes, busy run: {busy} bytes)");
+        (busy - quiet).Should().BeLessThan(10_000 * 8,
+            $"no dump reads them (quiet run: {quiet} bytes, busy run: {busy} bytes)");
     }
 
     [Fact]
@@ -476,9 +493,10 @@ public class StateDumpTests
     {
         using World world = NewWorld();
         SceneInstance scene = Probes(world);
-        world.Spawn(new SpawnDesc { Frame = world.GetOwnedFrame(scene["space"]), Components = [new ThrowsOnce()] });
+        world.Spawn(new() { Frame = world.GetOwnedFrame(scene["space"]), Components = [new ThrowsOnce()] });
 
-        RunResult result = Run(world, scene, """{ "do": "dump", "name": "before" }""", """{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "after" }""");
+        RunResult result = Run(world, scene, """{ "do": "dump", "name": "before" }""",
+            """{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "after" }""");
 
         result.Dump("before").Errors.Should().BeEmpty();
         result.Dump("after").Errors.Should().ContainSingle().Which.Should().Contain("the probe broke on purpose");
@@ -493,13 +511,14 @@ public class StateDumpTests
         using World world = NewWorld();
         SceneInstance scene = Probes(world);
 
-        StateDump dump = Run(world, scene, $$"""{ "do": "post", "to": {{target}}, "event": "Nudge" }""", """{ "do": "run", "ticks": 1 }""", DumpNow).Dump("now");
+        StateDump dump = Run(world, scene, $$"""{ "do": "post", "to": {{target}}, "event": "Nudge" }""",
+            """{ "do": "run", "ticks": 1 }""", DumpNow).Dump("now");
 
         MessageTarget expected = kind switch
         {
             "frame" => new ToFrame("ship"),
             "broadcast" => new ToEveryone(),
-            _ => new ToEntity("crew"),
+            _ => new ToEntity("crew")
         };
         dump.Events.Should().ContainSingle().Which.To.Should().Be(expected);
     }
@@ -509,10 +528,10 @@ public class StateDumpTests
     {
         using World world = NewWorld();
         SceneInstance scene = Probes(world);
-        scene.Add("sender", world.Spawn(new SpawnDesc
+        scene.Add("sender", world.Spawn(new()
         {
             Frame = world.GetOwnedFrame(scene["space"]),
-            Components = [SendOnce.Of(scene["probe"], new Nudge { Amount = 4 })],
+            Components = [SendOnce.Of(scene["probe"], new Nudge { Amount = 4 })]
         }));
 
         StateDump dump = Run(world, scene, """{ "do": "run", "ticks": 1 }""", DumpNow).Dump("now");
@@ -530,7 +549,8 @@ public class StateDumpTests
 
         StateDump dump = Run(world, scene, """{ "do": "run", "ticks": 90 }""", DumpNow).Dump("now");
 
-        dump.Entity("box").Pose.Position.Y.Should().BeApproximately(0.5, 0.02, "the 1 m box rests on the floor whose top is at y = 0");
+        dump.Entity("box").Pose.Position.Y.Should()
+            .BeApproximately(0.5, 0.02, "the 1 m box rests on the floor whose top is at y = 0");
         dump.Entity("box").Velocity.Length.Should().BeLessThan(0.05);
         EventRecord hit = dump.Events.First(e => e.Event == "Collision" && e.To == new ToEntity("box"));
         ((Collision)hit.Payload).Other.Should().Be(scene["floor"]);
@@ -546,8 +566,8 @@ public class StateDumpTests
         SceneInstance scene = BoxOnFloor(world);
         FrameHandle ground = world.GetOwnedFrame(scene["ground"]);
         var person = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
-        scene.Add("person", world.Spawn(new SpawnDesc { Frame = ground, Pose = At(3, 0.92), Body = person }));
-        scene.Add("faller", world.Spawn(new SpawnDesc { Frame = ground, Pose = At(-3, 30), Body = person }));
+        scene.Add("person", world.Spawn(new() { Frame = ground, Pose = At(3, 0.92), Body = person }));
+        scene.Add("faller", world.Spawn(new() { Frame = ground, Pose = At(-3, 30), Body = person }));
         return scene;
     }
 

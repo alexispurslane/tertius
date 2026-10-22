@@ -1,4 +1,4 @@
-using Tertius.Frames.Rails;
+using Tertius.Demo;
 using Tertius.Host.Scripting;
 using Tertius.Physics;
 using Tertius.Simulation;
@@ -15,9 +15,12 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class StationRun : CheckedInRun
 {
-    public StationRun() : this([]) { }
+    public StationRun() : this([])
+    {
+    }
 
-    private StationRun(List<StationSample> samples) : base("station", (world, scene) => samples.Add(StationSample.Take(world, scene)))
+    private StationRun(List<StationSample> samples) : base("station",
+        (world, scene) => samples.Add(StationSample.Take(world, scene)))
     {
         Samples = samples;
     }
@@ -33,19 +36,27 @@ public sealed class StationRun : CheckedInRun
 /// <param name="HullHome">The physics home of the station's hull.</param>
 /// <param name="HullHomeMode">How the hull's home moves: <see cref="NumericMode.Following"/> for its following frame.</param>
 /// <param name="HullOffEarthOrbit">How far the read of the hull's place in earth lies from its orbit's place, in meters.</param>
-internal sealed record StationSample(long Tick, double Time, IReadOnlyDictionary<string, StationBody> Bodies, FrameHandle HullHome,
-    NumericMode HullHomeMode, double HullOffEarthOrbit)
+internal sealed record StationSample(
+    long Tick,
+    double Time,
+    IReadOnlyDictionary<string, StationBody> Bodies,
+    FrameHandle HullHome,
+    NumericMode HullHomeMode,
+    double HullOffEarthOrbit)
 {
     public static readonly string[] BodyIds = [.. Station.Pods.Select(pod => pod.Id), "crate"];
 
     public static StationSample Take(World world, SceneInstance scene)
     {
         Entity station = scene["station"];
-        FrameHandle frame = world.GetOwnedFrame(station), earth = world.GetOwnedFrame(scene["earth"]), hullHome = world.PhysicsHomeOf(station);
+        FrameHandle frame = world.GetOwnedFrame(station),
+            earth = world.GetOwnedFrame(scene["earth"]),
+            hullHome = world.PhysicsHomeOf(station);
         double mu = world.Frames.Gravity(earth) is PointGravity { Mu: var m } ? m : double.NaN;
         Double3 orbitPlace = world.GetComponent<KeplerMotion>(station)!.Orbit.StateAt(world.Time, mu).Position;
-        return new StationSample(world.TickNumber, world.Time,
-            BodyIds.ToDictionary(id => id, id => StationBody.Take(world, scene[id], frame, hullHome)), hullHome, world.Frames.Numeric(hullHome),
+        return new(world.TickNumber, world.Time,
+            BodyIds.ToDictionary(id => id, id => StationBody.Take(world, scene[id], frame, hullHome)), hullHome,
+            world.Frames.Numeric(hullHome),
             (world.PoseIn(station, earth).Position - orbitPlace).Length);
     }
 }
@@ -61,8 +72,10 @@ internal sealed record StationBody(Double3 InStation, Double3 VelocityInStation,
     public static StationBody Take(World world, Entity entity, FrameHandle station, FrameHandle hullHome)
     {
         FrameHandle home = world.PhysicsHomeOf(entity);
-        string kind = home == station ? "station" : home == hullHome ? "following frame" : world.Frames.Numeric(home).ToString();
-        return new StationBody(world.PoseIn(entity, station).Position, world.VelocityIn(entity, station), world.GetFrame(entity) == station, kind);
+        string kind = home == station ? "station" :
+            home == hullHome ? "following frame" : world.Frames.Numeric(home).ToString();
+        return new(world.PoseIn(entity, station).Position, world.VelocityIn(entity, station),
+            world.GetFrame(entity) == station, kind);
     }
 }
 
@@ -76,12 +89,15 @@ public sealed class StationSliceTests(StationRun run) : IClassFixture<StationRun
 
     private IReadOnlyList<StationSample> Samples => run.Samples;
 
+    /// <summary>The first sample after the step in which the script's Launch threw the crate.</summary>
+    private int Launched => Samples.ToList().FindIndex(s => s.Bodies["crate"].VelocityInStation.Length > 1);
+
     /// <summary>Every Collision of the run that <paramref name="id"/> heard, in order: the tick and the other entity.</summary>
     private List<(long Tick, Entity Other)> CollisionsOf(string id) =>
     [
         .. run.Result.Dumps.SelectMany(dump => dump.Events)
             .Where(e => e.To == new ToEntity(id) && e.Payload is Collision)
-            .Select(e => (e.Tick, ((Collision)e.Payload).Other)),
+            .Select(e => (e.Tick, ((Collision)e.Payload).Other))
     ];
 
     /// <summary>
@@ -91,38 +107,46 @@ public sealed class StationSliceTests(StationRun run) : IClassFixture<StationRun
     private double PredictedBump(int index)
     {
         (string id, _, Double3 velocity) = Station.Pods[index];
-        double z = Samples[ReferenceTick].Bodies[id].InStation.Z, contact = Station.Radiator.Max.Z + Station.PodHalfSize;
+        double z = Samples[ReferenceTick].Bodies[id].InStation.Z,
+            contact = Station.Radiator.Max.Z + Station.PodHalfSize;
         return ReferenceTick + (z - contact) / -velocity.Z * TicksPerSecond;
     }
 
     [Fact]
-    public void ThePodsDriftOutOfTheAirlockAndOnInAStraightLineRelativeToTheStationToWithinACentimeterUntilTheyBumpTheRadiator()
+    public void
+        ThePodsDriftOutOfTheAirlockAndOnInAStraightLineRelativeToTheStationToWithinACentimeterUntilTheyBumpTheRadiator()
     {
         for (int i = 0; i < Station.Pods.Count; i++)
         {
             (string id, Double3 start, Double3 velocity) = Station.Pods[i];
             StationSample reference = Samples[ReferenceTick];
             Double3.Distance(reference.Bodies[id].InStation, start + velocity * reference.Time).Should()
-                .BeLessThan(velocity.Length / TicksPerSecond + 1e-3, $"{id} drifts from its start at its velocity, from the first step on");
+                .BeLessThan(velocity.Length / TicksPerSecond + 1e-3,
+                    $"{id} drifts from its start at its velocity, from the first step on");
             double worst = 0;
             long worstTick = 0;
-            foreach (StationSample sample in Samples.Where(s => s.Tick >= ReferenceTick && s.Tick < PredictedBump(i) - 3))
+            foreach (StationSample sample in
+                     Samples.Where(s => s.Tick >= ReferenceTick && s.Tick < PredictedBump(i) - 3))
             {
-                double off = Double3.Distance(sample.Bodies[id].InStation, reference.Bodies[id].InStation + velocity * (sample.Time - reference.Time));
+                double off = Double3.Distance(sample.Bodies[id].InStation,
+                    reference.Bodies[id].InStation + velocity * (sample.Time - reference.Time));
                 if (off > worst)
                     (worst, worstTick) = (off, sample.Tick);
             }
+
             // At 7.67 km/s a float velocity steps by 0.5 mm/s, so in earth's own system each tick's pull of 0.14 m/s
             // would round, and the drift would wander. In the hull's following frame both are slow. Earth's tidal pull
             // over the 10 s outside the bubble moves a pod by about 2 mm.
-            worst.Should().BeLessThan(0.01, $"{id} keeps its drift relative to the station; it was {worst:F4} m off at tick {worstTick}");
+            worst.Should().BeLessThan(0.01,
+                $"{id} keeps its drift relative to the station; it was {worst:F4} m off at tick {worstTick}");
         }
     }
 
     [Fact]
     public void ThePodsLeaveTheBubbleIntoTheStationHullsFollowingFrameAndDriftThereForSecondsBeforeTheyBump()
     {
-        Samples.Skip(1).Should().OnlyContain(s => s.HullHomeMode == NumericMode.Following, "the station's hull rests in its following frame");
+        Samples.Skip(1).Should().OnlyContain(s => s.HullHomeMode == NumericMode.Following,
+            "the station's hull rests in its following frame");
         Samples.Skip(1).Select(s => s.HullHome).Distinct().Should().ContainSingle("the hull keeps one following frame");
         for (int i = 0; i < Station.Pods.Count; i++)
         {
@@ -134,7 +158,8 @@ public sealed class StationSliceTests(StationRun run) : IClassFixture<StationRun
             homes.Should().Equal([(true, "station"), (false, "following frame")],
                 $"{id} leaves the station's bubble into earth, and its body joins the hull's following frame, where both are slow");
             long left = Samples.First(s => !s.Bodies[id].InStationFrame).Tick;
-            (PredictedBump(i) - left).Should().BeGreaterThan(5 * TicksPerSecond, $"{id} drifts in the following frame for more than 5 s before it bumps");
+            (PredictedBump(i) - left).Should().BeGreaterThan(5 * TicksPerSecond,
+                $"{id} drifts in the following frame for more than 5 s before it bumps");
         }
     }
 
@@ -151,10 +176,12 @@ public sealed class StationSliceTests(StationRun run) : IClassFixture<StationRun
             collisions[0].Other.Should().Be(station, $"the first thing that {id} meets is the station's hull");
             // Jolt reports a contact when the gap falls below its speculative contact distance of 2 cm, which a pod
             // closes in 2 ticks at about 0.6 m/s.
-            ((double)collisions[0].Tick).Should().BeApproximately(PredictedBump(i), 3, $"{id} bumps the radiator where its drift takes it");
+            ((double)collisions[0].Tick).Should().BeApproximately(PredictedBump(i), 3,
+                $"{id} bumps the radiator where its drift takes it");
             StationBody atBump = Samples[(int)collisions[0].Tick].Bodies[id];
             atBump.InStationFrame.Should().BeFalse($"{id} bumps the radiator outside the station's bubble");
-            atBump.Home.Should().Be("following frame", $"{id} meets the hull as a real body of the hull's following frame");
+            atBump.Home.Should().Be("following frame",
+                $"{id} meets the hull as a real body of the hull's following frame");
         }
     }
 
@@ -164,26 +191,29 @@ public sealed class StationSliceTests(StationRun run) : IClassFixture<StationRun
         StationSample end = Samples[^1];
         foreach ((string id, _, _) in Station.Pods)
         {
-            end.Bodies[id].InStation.Z.Should().BeGreaterThan(Station.Radiator.Max.Z + Station.PodHalfSize - 0.02, $"{id} does not pass into the radiator");
-            end.Bodies[id].InStation.Z.Should().BeLessThan(Station.Radiator.Max.Z + Station.PodHalfSize + 0.05, $"{id} does not bounce off the radiator");
+            end.Bodies[id].InStation.Z.Should().BeGreaterThan(Station.Radiator.Max.Z + Station.PodHalfSize - 0.02,
+                $"{id} does not pass into the radiator");
+            end.Bodies[id].InStation.Z.Should().BeLessThan(Station.Radiator.Max.Z + Station.PodHalfSize + 0.05,
+                $"{id} does not bounce off the radiator");
             // A read in the station's frame of a body in the following frame carries half a step of earth's pull, about 7 cm/s
             // along the radius and 2.3 cm/s of it along the station's Z: the following frame moves with the orbit's chord over
             // each step, and the station's frame with the orbit's instant velocity. The places agree.
-            Math.Abs(end.Bodies[id].VelocityInStation.Z).Should().BeLessThan(0.05, $"the bump stopped {id}'s drift toward the nose");
-            end.Bodies[id].InStation.X.Should().BeGreaterThan(Station.Radiator.Min.X, $"{id} is still beside the radiator");
+            Math.Abs(end.Bodies[id].VelocityInStation.Z).Should()
+                .BeLessThan(0.05, $"the bump stopped {id}'s drift toward the nose");
+            end.Bodies[id].InStation.X.Should()
+                .BeGreaterThan(Station.Radiator.Min.X, $"{id} is still beside the radiator");
         }
     }
-
-    /// <summary>The first sample after the step in which the script's Launch threw the crate.</summary>
-    private int Launched => Samples.ToList().FindIndex(s => s.Bodies["crate"].VelocityInStation.Length > 1);
 
     [Fact]
     public void TheScriptThrowsTheCrateAfterThePodsHaveLeftTheStationsFrame()
     {
         Launched.Should().BePositive("the script throws the crate");
-        Samples.Take(Launched).Should().OnlyContain(s => Double3.Distance(s.Bodies["crate"].InStation, Station.CrateStart) < 1e-6,
+        Samples.Take(Launched).Should().OnlyContain(
+            s => Double3.Distance(s.Bodies["crate"].InStation, Station.CrateStart) < 1e-6,
             "the crate floats at its start until the script throws it");
-        Samples[Launched].Bodies.Where(body => body.Key != "crate").Should().OnlyContain(body => !body.Value.InStationFrame,
+        Samples[Launched].Bodies.Where(body => body.Key != "crate").Should().OnlyContain(
+            body => !body.Value.InStationFrame,
             "the pods have left the station's frame, so no pod is in the crate's group in the merge test");
     }
 
@@ -197,13 +227,17 @@ public sealed class StationSliceTests(StationRun run) : IClassFixture<StationRun
         Entity wall = run.Scene["wall"];
         StationBody flying = Samples[Launched].Bodies["crate"], end = Samples[^1].Bodies["crate"];
 
-        Double3.Distance(flying.VelocityInStation, Station.CrateVelocity).Should().BeLessThan(1e-3, "the crate flies at 1,200 m/s before it reaches the wall");
-        flying.InStation.Z.Should().BeInRange(Station.ThinWall.Max.Z + Station.CrateHalfSize + 1, Station.CrateStart.Z - 1,
+        Double3.Distance(flying.VelocityInStation, Station.CrateVelocity).Should()
+            .BeLessThan(1e-3, "the crate flies at 1,200 m/s before it reaches the wall");
+        flying.InStation.Z.Should().BeInRange(Station.ThinWall.Max.Z + Station.CrateHalfSize + 1,
+            Station.CrateStart.Z - 1,
             "after the first step of its flight, the crate is on its way, short of the wall");
-        run.Result.Dump("crate-flying").Tick.Should().Be(Samples[Launched].Tick, "the script dumps and captures the crate in its one tick in the air");
+        run.Result.Dump("crate-flying").Tick.Should().Be(Samples[Launched].Tick,
+            "the script dumps and captures the crate in its one tick in the air");
         // Jolt pushes two bodies apart only as far as they sink beyond the penetration slop, so the crate may rest that far in.
         double sink = Station.ThinWall.Max.Z + Station.CrateHalfSize - end.InStation.Z;
-        sink.Should().BeInRange(-2e-3, new JoltBackendOptions().PenetrationSlop + 2e-3, "the crate stops with its front at the wall's aft face");
+        sink.Should().BeInRange(-2e-3, new JoltBackendOptions().PenetrationSlop + 2e-3,
+            "the crate stops with its front at the wall's aft face");
         end.VelocityInStation.Length.Should().BeLessThan(0.05, "the crate stopped at the wall");
         CollisionsOf("crate").Should().ContainSingle("the crate hears one Collision").Which.Other.Should().Be(wall);
     }
@@ -219,11 +253,14 @@ public sealed class StationSliceTests(StationRun run) : IClassFixture<StationRun
     {
         foreach (string id in new[] { "airlock-outer", "airlock-inner" })
         {
-            run.Result.Dumps.SelectMany(dump => dump.Events).Where(e => e.To == new ToEntity(id) && e.Payload is FrameChanged)
+            run.Result.Dumps.SelectMany(dump => dump.Events)
+                .Where(e => e.To == new ToEntity(id) && e.Payload is FrameChanged)
                 .Should().BeEmpty($"{id} never enters a pod's bubble");
             FramePose first = run.Result.Dumps[0].Entity(id).Pose;
             first.Frame.Should().Be("station");
-            run.Result.Dumps.Should().OnlyContain(dump => dump.Entity(id).Pose.Frame == "station" && Double3.Distance(dump.Entity(id).Pose.Position, first.Position) < 1e-9,
+            run.Result.Dumps.Should().OnlyContain(
+                dump => dump.Entity(id).Pose.Frame == "station" &&
+                        Double3.Distance(dump.Entity(id).Pose.Position, first.Position) < 1e-9,
                 $"{id} stays where it spawned");
         }
     }
@@ -242,9 +279,11 @@ public sealed class StationSliceTests(StationRun run) : IClassFixture<StationRun
     public void TheThrownCrateLivesInTheWallsSystemAtEveryTick()
     {
         StationBody flying = Samples[Launched].Bodies["crate"];
-        flying.VelocityInStation.Length.Should().BeGreaterThan(new NumericFrameOptions().CreateSpeed, "the crate alone would fall in a numeric frame");
+        flying.VelocityInStation.Length.Should().BeGreaterThan(new NumericFrameOptions().CreateSpeed,
+            "the crate alone would fall in a numeric frame");
         flying.Home.Should().Be("station", "the anchors of its group keep the fast crate in the wall's system");
-        Samples.Skip(1).Should().OnlyContain(s => s.Bodies["crate"].Home == "station" && s.Bodies["crate"].InStationFrame);
+        Samples.Skip(1).Should()
+            .OnlyContain(s => s.Bodies["crate"].Home == "station" && s.Bodies["crate"].InStationFrame);
     }
 
     [Fact]
@@ -252,7 +291,8 @@ public sealed class StationSliceTests(StationRun run) : IClassFixture<StationRun
     {
         // A new frame on rails stands on its rails from the second sync point after its spawn (docs/plans/rails-components.md,
         // "Other rules" in "The rails components"). At the first, it is one step of its motion behind, about 1.2 mm.
-        Samples.Where(s => s.Tick >= 2).Max(s => s.HullOffEarthOrbit).Should().BeLessThan(1e-6, "the following frame puts the hull on its orbit at every sync point");
+        Samples.Where(s => s.Tick >= 2).Max(s => s.HullOffEarthOrbit).Should().BeLessThan(1e-6,
+            "the following frame puts the hull on its orbit at every sync point");
     }
 
     [Fact]
@@ -274,11 +314,13 @@ public sealed class StationDeterminismTests
     /// <summary>The dumps of one run of the station's script without captures, on <paramref name="threads"/> threads.</summary>
     private static IReadOnlyList<StateDump> Run(int threads)
     {
-        Script script = Script.Parse(File.ReadAllText(Path.Combine(HostTesting.RepositoryRoot(), "scripts", "station.json")));
+        Script script =
+            Script.Parse(File.ReadAllText(Path.Combine(HostTesting.RepositoryRoot(), "scripts", "station.json")));
         script = script with { Steps = [.. script.Steps.Where(step => step is not CaptureStep)] };
-        using var world = new World(new WorldOptions { MaxDegreeOfParallelism = threads, DebugChecks = true, DisposePhysics = true },
-            new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = threads }));
-        SceneInstance scene = Tertius.Demo.DemoScenes.All.Single(s => s.Name == script.Scene).Build(world, RenderResources.None);
+        using var world = new World(
+            new() { MaxDegreeOfParallelism = threads, DebugChecks = true, DisposePhysics = true },
+            new JoltPhysicsBackend(new() { WorkerThreads = threads }));
+        SceneInstance scene = DemoScenes.All.Single(s => s.Name == script.Scene).Build(world, RenderResources.None);
         RunResult result = ScriptRunner.Run(script, world, scene);
         world.Errors.Should().BeEmpty();
         return result.Dumps;
@@ -289,14 +331,17 @@ public sealed class StationDeterminismTests
     {
         IReadOnlyList<StateDump> first = Run(1), second = Run(1), parallel = Run(4);
 
-        first.SelectMany(dump => dump.Events).Should().Contain(e => e.Event == nameof(Collision), "the run has the bumps and the crate's hit");
+        first.SelectMany(dump => dump.Events).Should().Contain(e => e.Event == nameof(Collision),
+            "the run has the bumps and the crate's hit");
         foreach (IReadOnlyList<StateDump> other in new[] { second, parallel })
         {
             other.Select(dump => dump.Name).Should().Equal(first.Select(dump => dump.Name));
             for (int i = 0; i < first.Count; i++)
             {
-                other[i].Entities.Should().Equal(first[i].Entities, $"every entity has the same state, to the bit, in the dump {first[i].Name}");
-                other[i].Events.Should().Equal(first[i].Events, $"the same events reach the same entities, in the dump {first[i].Name}");
+                other[i].Entities.Should().Equal(first[i].Entities,
+                    $"every entity has the same state, to the bit, in the dump {first[i].Name}");
+                other[i].Events.Should().Equal(first[i].Events,
+                    $"the same events reach the same entities, in the dump {first[i].Name}");
             }
         }
     }

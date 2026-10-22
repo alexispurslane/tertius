@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
@@ -19,7 +20,8 @@ namespace Tertius.Host.Tests;
 /// of the capture's build of the render snapshot with its draw, fence wait and readback, and of the video's pipe write. It is an explicit test, so a
 /// normal run reports it as not run. It runs in a Release build, with the variable <see cref="Variable"/> set to the file of
 /// its report:
-/// <c>TERTIUS_DEMO_COST=report.md dotnet test -c Release --project tests/Tertius.Host.Tests -- --filter-class "*DemoFrameCostMeasurement" --explicit only</c>.
+/// <c>TERTIUS_DEMO_COST=report.md dotnet test -c Release --project tests/Tertius.Host.Tests -- --filter-class "*DemoFrameCostMeasurement" --explicit only</c>
+/// .
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class DemoFrameCostMeasurement
@@ -40,18 +42,22 @@ public sealed class DemoFrameCostMeasurement
         try
         {
             // As the command makes them.
-            using var world = new World(new WorldOptions { DisposePhysics = true }, new JoltPhysicsBackend());
-            using VulkanRenderer vulkan = VulkanRenderer.CreateHeadless(new RendererOptions { Width = script.Window.Width, Height = script.Window.Height, Impostors = false, Validation = false });
+            using var world = new World(new() { DisposePhysics = true }, new JoltPhysicsBackend());
+            using var vulkan = VulkanRenderer.CreateHeadless(new()
+                { Width = script.Window.Width, Height = script.Window.Height, Impostors = false, Validation = false });
             var timed = new TimedRenderer(vulkan);
             SceneInstance scene = DemoScenes.All.Single(s => s.Name == script.Scene).Build(world, vulkan);
-            using var playback = new HeadlessPlayback(timed, script.Window, new VideoFile(Path.Combine(folder, "demo.mkv"), 60));
+            using var playback =
+                new HeadlessPlayback(timed, script.Window, new VideoFile(Path.Combine(folder, "demo.mkv"), 60));
             var watched = new TimedPlayback(playback, timed);
             long start = Stopwatch.GetTimestamp();
             ScriptRunner.Run(script, world, scene, outputFolder: null, watched);
             long ran = Stopwatch.GetTimestamp();
             playback.Finish();
             long finished = Stopwatch.GetTimestamp();
-            File.WriteAllText(reportPath, Report(script, watched.Frames, TimedRenderer.Seconds(ran - start), TimedRenderer.Seconds(finished - ran)));
+            File.WriteAllText(reportPath,
+                Report(script, watched.Frames, TimedRenderer.Seconds(ran - start),
+                    TimedRenderer.Seconds(finished - ran)));
         }
         finally
         {
@@ -63,9 +69,9 @@ public sealed class DemoFrameCostMeasurement
     internal static Script Stretch(Script full, string lastFilm)
     {
         int last = full.Steps.ToList().FindIndex(step => step.Value is FilmStep film && film.Name == lastFilm);
-        if (last < 0)
-            throw new InvalidOperationException($"The script has no film '{lastFilm}' to end the measurement at.");
-        return full with { Steps = [.. full.Steps.Take(last + 1)] };
+        return last < 0
+            ? throw new InvalidOperationException($"The script has no film '{lastFilm}' to end the measurement at.")
+            : full with { Steps = [.. full.Steps.Take(last + 1)] };
     }
 
     /// <summary>
@@ -90,9 +96,14 @@ public sealed class DemoFrameCostMeasurement
         static string Ms(double seconds) => (seconds * 1000).ToString("F2", CultureInfo.InvariantCulture);
         var report = new StringBuilder();
         report.AppendLine("# The frame time of the demo scene").AppendLine();
-        report.AppendLine($"Machine: {Machine()}, {Environment.ProcessorCount} logical processors, {RuntimeInformation.OSDescription}. Optimized build of Host: {IsOptimized()}. Validation off.").AppendLine();
-        report.AppendLine($"scripts/blue-danube.json from its start through the film {LastFilm}, {frames.Count} frames at {script.Window.Width}x{script.Window.Height} into a video at 60 frames per second. Wall-clock means per frame, in ms.").AppendLine();
-        report.AppendLine("| Film | Camera | Frames | Ticks per frame | Ticks | Snapshot, draw, fence wait and readback | Video's pipe write | All |");
+        report.AppendLine(
+                $"Machine: {Machine()}, {Environment.ProcessorCount} logical processors, {RuntimeInformation.OSDescription}. Optimized build of Host: {IsOptimized()}. Validation off.")
+            .AppendLine();
+        report.AppendLine(
+                $"scripts/blue-danube.json from its start through the film {LastFilm}, {frames.Count} frames at {script.Window.Width}x{script.Window.Height} into a video at 60 frames per second. Wall-clock means per frame, in ms.")
+            .AppendLine();
+        report.AppendLine(
+            "| Film | Camera | Frames | Ticks per frame | Ticks | Snapshot, draw, fence wait and readback | Video's pipe write | All |");
         report.AppendLine("|---|---|---|---|---|---|---|---|");
         string camera = "";
         foreach (ScriptStep step in script.Steps)
@@ -102,29 +113,36 @@ public sealed class DemoFrameCostMeasurement
             if (step.Value is not FilmStep film)
                 continue;
             List<CaptureTime> own = [.. frames.Where(frame => film.HasFrameNamed(frame.Name))];
-            double ticks = own.Average(frame => frame.Ticks), draw = own.Average(frame => frame.Capture - frame.Sink), sink = own.Average(frame => frame.Sink);
-            report.AppendLine($"| {film.Name} | {camera} | {own.Count} | {film.Every} | {Ms(ticks)} | {Ms(draw)} | {Ms(sink)} | {Ms(ticks + draw + sink)} |");
+            double ticks = own.Average(frame => frame.Ticks),
+                draw = own.Average(frame => frame.Capture - frame.Sink),
+                sink = own.Average(frame => frame.Sink);
+            report.AppendLine(
+                $"| {film.Name} | {camera} | {own.Count} | {film.Every} | {Ms(ticks)} | {Ms(draw)} | {Ms(sink)} | {Ms(ticks + draw + sink)} |");
         }
+
         report.AppendLine();
-        report.AppendLine($"- The whole stretch: {Ms(run / frames.Count)} ms per frame, and the end of the video (`Finish`) {Ms(finish)} ms once.");
+        report.AppendLine(
+            $"- The whole stretch: {Ms(run / frames.Count)} ms per frame, and the end of the video (`Finish`) {Ms(finish)} ms once.");
         return report.ToString();
     }
 
     private static bool IsOptimized() =>
-        typeof(ScriptCommand).Assembly.GetCustomAttributes(typeof(DebuggableAttribute), false).OfType<DebuggableAttribute>().All(a => !a.IsJITOptimizerDisabled);
+        typeof(ScriptCommand).Assembly.GetCustomAttributes(typeof(DebuggableAttribute), false)
+            .OfType<DebuggableAttribute>().All(a => !a.IsJITOptimizerDisabled);
 
     /// <summary>The processor's name, from sysctl on macOS, or the architecture elsewhere.</summary>
     private static string Machine()
     {
         try
         {
-            var start = new ProcessStartInfo("sysctl", "-n machdep.cpu.brand_string") { UseShellExecute = false, RedirectStandardOutput = true };
+            var start = new ProcessStartInfo("sysctl", "-n machdep.cpu.brand_string")
+                { UseShellExecute = false, RedirectStandardOutput = true };
             using Process sysctl = Process.Start(start)!;
             string name = sysctl.StandardOutput.ReadToEnd().Trim();
             sysctl.WaitForExit();
             return sysctl.ExitCode == 0 && name.Length > 0 ? name : RuntimeInformation.ProcessArchitecture.ToString();
         }
-        catch (System.ComponentModel.Win32Exception)
+        catch (Win32Exception)
         {
             return RuntimeInformation.ProcessArchitecture.ToString();
         }

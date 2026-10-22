@@ -1,5 +1,4 @@
 using StbImageSharp;
-using Tertius.Rendering;
 
 namespace Tertius.Rendering.Tests;
 
@@ -18,14 +17,14 @@ public sealed class PngCaptureSinkTests : IDisposable
     private static byte[] Pixels() =>
     [
         200, 10, 20, 0, 30, 220, 40, 7, 50, 60, 240, 128,
-        1, 2, 3, 254, 90, 100, 110, 33, 255, 255, 255, 64,
+        1, 2, 3, 254, 90, 100, 110, 33, 255, 255, 255, 64
     ];
 
     private static ImageResult Decode(string path) =>
         ImageResult.FromMemory(File.ReadAllBytes(path), ColorComponents.RedGreenBlueAlpha);
 
     private static void Write(string path, byte[] rgba, int width, int height) =>
-        new PngCaptureSink(path).Take(new CapturedImage(rgba, width, height));
+        new PngCaptureSink(path).Take(new(rgba, width, height));
 
     [Fact]
     public void ThePngHoldsTheColorsOfTheImageWithEveryPixelOpaque()
@@ -61,7 +60,8 @@ public sealed class PngCaptureSinkTests : IDisposable
 
         Write(path, Pixels(), 3, 2);
 
-        new FileInfo(path).Length.Should().BeLessThan(1000, "the new image replaces the old file, with none of the old bytes left after it");
+        new FileInfo(path).Length.Should().BeLessThan(1000,
+            "the new image replaces the old file, with none of the old bytes left after it");
         Decode(path).Width.Should().Be(3);
     }
 

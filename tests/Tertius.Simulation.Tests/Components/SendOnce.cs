@@ -37,8 +37,9 @@ public sealed class SendOnce : IComponent
     /// <param name="payload">The message.</param>
     /// <param name="onTick">The first tick on which it may send. Its default of 0 means the first tick the entity runs.</param>
     /// <param name="priority">Its place in the entity's pipeline. Lower runs first.</param>
-    public static SendOnce Of<T>(Target target, T payload, long onTick = 0, int priority = 0) where T : unmanaged, IEventPayload =>
-        new((scoped ref Outbox outbox, long _) => outbox.Send(target, payload), onTick, priority);
+    public static SendOnce Of<T>(Target target, T payload, long onTick = 0, int priority = 0)
+        where T : unmanaged, IEventPayload =>
+        new((scoped ref outbox, _) => outbox.Send(target, payload), onTick, priority);
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {

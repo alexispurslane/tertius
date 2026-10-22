@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Numerics;
 using AwesomeAssertions;
 using Tertius.Frames.Rails;
 
@@ -13,18 +12,30 @@ namespace Tertius.Simulation.Tests;
 /// hears contacts, so a change in the order of anything shows in the hash. The four runs are made once, by
 /// <see cref="Runs"/>, and each test reads what it needs.
 /// </summary>
-public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper output) : IClassFixture<DeterminismTests.Runs>
+public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper output)
+    : IClassFixture<DeterminismTests.Runs>
 {
     private const int Seed = 20261010;
     private const int Ticks = 200;
+
+    /// <summary>
+    /// How far from the planet at the origin of the root frame the bodies of the root group start, in meters: 10,000 km,
+    /// past the 8,389 km from which a slow group gets a resting numeric frame (
+    /// <see cref="NumericFrameOptions.CreateDistance"/>).
+    /// So the slow bodies of the root group, and the balls of its collision course, rest in numeric frames. The planet pulls
+    /// them with the G·M of the root's point gravity, 1e8 / 1e7² = 1e-6 m/s², too little to make them fast.
+    /// </summary>
+    private const double RootGroupDistance = 1e7;
 
     private static readonly Topic Chat = Topics.Get("tests.determinism.chat");
 
     /// <summary>A seeded entity that moves, talks in every delivery mode, spawns, destroys and subscribes.</summary>
     private sealed class Chatter(ConcurrentDictionary<int, byte> threads) : IComponent
     {
-        private static readonly EventMask WantsMask = EventMask.Of<Tick>().And<Ping>().And<Spawned>().And<FrameChanged>().And<Collision>();
-        private readonly List<Entity> neighbors = new();
+        private static readonly EventMask WantsMask =
+            EventMask.Of<Tick>().And<Ping>().And<Spawned>().And<FrameChanged>().And<Collision>();
+
+        private readonly List<Entity> neighbors = [];
 
         public ulong Rng;
         public ulong Hash;
@@ -57,15 +68,17 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
                 Hash = WorldHash.MixPayload(Hash, e);
                 Received++;
             }
+
             if (!events.Of<Tick>().Any())
                 return;
 
             if (self.Body.Exists)
-                self.Body.AddForce(new Vector3((float)(Next() - 0.5), 0, (float)(Next() - 0.5)));
+                self.Body.AddForce(new((float)(Next() - 0.5), 0, (float)(Next() - 0.5)));
             else
-            {
-                self.SetTransform(self.PoseInOwnFrame() with { Position = self.PoseInOwnFrame().Position + new Double3(Next() - 0.5, 0, Next() - 0.5) });
-            }
+                self.SetTransform(self.PoseInOwnFrame() with
+                {
+                    Position = self.PoseInOwnFrame().Position + new Double3(Next() - 0.5, 0, Next() - 0.5)
+                });
 
             self.Snapshot.QueryRadius(self.Frame, self.PoseInOwnFrame().Position, 30, neighbors);
             neighbors.Remove(self.Entity);
@@ -83,11 +96,12 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
                 Target target = neighbors.Count > 0 ? neighbors[(int)(Next() * neighbors.Count)] : self.Entity;
                 outbox.SendAfter(1 + (int)(Next() * 5), target, new Ping { Value = value + 4 });
             }
+
             if (Children < 2 && Next() < 0.012)
             {
                 Children++;
                 bool withBody = Next() < 0.3;
-                Entity child = self.Spawn(new SpawnDesc
+                Entity child = self.Spawn(new()
                 {
                     Frame = self.Frame,
                     Pose = self.PoseInOwnFrame(),
@@ -95,10 +109,11 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
                     Components = Next() < 0.5
                         ? [new Chatter(threads) { Rng = Rng ^ 0x9E3779B97F4A7C15UL }, new Shield()]
                         : [new Chatter(threads) { Rng = Rng ^ 0xD1B54A32D192ED03UL }],
-                    Subscriptions = Next() < 0.5 ? [Chat] : [],
+                    Subscriptions = Next() < 0.5 ? [Chat] : []
                 });
                 outbox.Send(child, new Ping { Value = value + 5 });
             }
+
             if (neighbors.Count > 0 && Next() < 0.004)
                 outbox.Send(neighbors[(int)(Next() * neighbors.Count)], new Destroy());
             if (Next() < 0.004)
@@ -137,15 +152,15 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
     /// <param name="Errors">The number of errors that the world recorded.</param>
     /// <param name="FallingFrameTicks">The falling numeric frames that lived after each tick, summed over the ticks.</param>
     /// <param name="RestingFrameTicks">The resting numeric frames that lived after each tick, summed over the ticks.</param>
-    public sealed record RunResult(ulong Hash, WorldStats Stats, long Messages, int HandOffs, int Contacts, int Errors, int FallingFrameTicks, int RestingFrameTicks);
-
-    /// <summary>
-    /// How far from the planet at the origin of the root frame the bodies of the root group start, in meters: 10,000 km,
-    /// past the 8,389 km from which a slow group gets a resting numeric frame (<see cref="NumericFrameOptions.CreateDistance"/>).
-    /// So the slow bodies of the root group, and the balls of its collision course, rest in numeric frames. The planet pulls
-    /// them with the G·M of the root's point gravity, 1e8 / 1e7² = 1e-6 m/s², too little to make them fast.
-    /// </summary>
-    private const double RootGroupDistance = 1e7;
+    public sealed record RunResult(
+        ulong Hash,
+        WorldStats Stats,
+        long Messages,
+        int HandOffs,
+        int Contacts,
+        int Errors,
+        int FallingFrameTicks,
+        int RestingFrameTicks);
 
     /// <summary>
     /// Runs the workload on <paramref name="maxDop"/> workers and returns what it ended in, and how many different threads
@@ -155,19 +170,20 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
     {
         var threads = new ConcurrentDictionary<int, byte>();
         // Debug checks are off: the invariant tests run them over a workload that churns more. Here they would only slow the four runs.
-        using World world = WorldTesting.NewWorldWithFaults(out FaultInjectingBackend faults, debugChecks: false, configure: options =>
-        {
-            options.MaxDegreeOfParallelism = maxDop;
-            options.ChunkSize = 16;
-            options.SpawnPoolSize = 16;
-        });
+        using World world = WorldTesting.NewWorldWithFaults(out FaultInjectingBackend faults, debugChecks: false,
+            configure: options =>
+            {
+                options.MaxDegreeOfParallelism = maxDop;
+                options.ChunkSize = 16;
+                options.SpawnPoolSize = 16;
+            });
         // The Kepler frame below takes its G·M from the point gravity of the root, which also pulls the bodies in the root.
-        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e12f), GravityField.Point(1e8)));
+        FrameHandle root = world.CreateRootFrame(new(FrameBounds.Sphere(1e12f), GravityField.Point(1e8)));
         FrameHandle west = world.SpawnStaticFrame(root, TestWorld.At(-1000), radius: 200);
         FrameHandle east = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(200)),
+            AsFrame = new(FrameBounds.Sphere(200))
         }.OnKeplerOrbit(world, KeplerOrbit.Circular(1000, spinRate: 0.05))));
 
         var random = new Random(seed);
@@ -181,19 +197,19 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
             // speed is above the 50 m/s from which a group that thrusts falls.
             double speed = hasBody && i % 8 == 0 ? 120 + random.NextDouble() * 40 : random.NextDouble();
             double distance = frame == root ? RootGroupDistance : 0;
-            world.Spawn(new SpawnDesc
+            world.Spawn(new()
             {
                 Frame = frame,
                 Pose = TestWorld.At(random.NextDouble() * 60 - 30, 0, random.NextDouble() * 60 - 30 + distance),
                 Body = hasBody ? TestWorld.Ball : null,
-                Render = new RenderData { Mesh = new MeshId(i % 3), Flags = RenderFlags.Visible },
+                Render = new RenderData { Mesh = new(i % 3), Flags = RenderFlags.Visible },
                 // Only a body takes a spawn velocity: motion intents move an entity without one. The speed is drawn for
                 // every entity, so the random scatter stays the same.
-                LinearVelocity = hasBody ? new Double3(speed, 0, 0) : Double3.Zero,
+                LinearVelocity = hasBody ? new(speed, 0, 0) : Double3.Zero,
                 Components = i % 5 == 0
                     ? [new Chatter(threads) { Rng = (ulong)random.NextInt64() | 1 }, new Shield()]
                     : [new Chatter(threads) { Rng = (ulong)random.NextInt64() | 1 }],
-                Subscriptions = i % 2 == 0 ? [Chat] : [],
+                Subscriptions = i % 2 == 0 ? [Chat] : []
             });
         }
 
@@ -203,18 +219,17 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
         {
             double distance = frame == root ? RootGroupDistance : 0;
             foreach (int side in new[] { -1, 1 })
-            {
-                world.Spawn(new SpawnDesc
+                world.Spawn(new()
                 {
                     Frame = frame,
                     Pose = TestWorld.At(5 * side, 0, 45 + distance),
-                    LinearVelocity = new Double3(-4 * side, 0, 0),
+                    LinearVelocity = new(-4 * side, 0, 0),
                     Body = TestWorld.Ball,
-                    Components = [new Chatter(threads) { Rng = (ulong)random.NextInt64() | 1 }],
+                    Components = [new Chatter(threads) { Rng = (ulong)random.NextInt64() | 1 }]
                 });
-            }
         }
-        world.Camera = world.Spawn(new SpawnDesc { Frame = west, Render = new RenderData() });
+
+        world.Camera = world.Spawn(new() { Frame = west, Render = new RenderData() });
 
         long messages = 0;
         int fallingFrameTicks = 0, restingFrameTicks = 0;
@@ -231,13 +246,16 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
 
         ulong hash = WorldHash.Of(world, static (soFar, component) => component switch
         {
-            Chatter c => WorldHash.Mix(WorldHash.Mix(WorldHash.Mix(soFar, c.Hash), c.Rng), (ulong)(c.Children * 1000 + c.Received)),
+            Chatter c => WorldHash.Mix(WorldHash.Mix(WorldHash.Mix(soFar, c.Hash), c.Rng),
+                (ulong)(c.Children * 1000 + c.Received)),
             Shield s => WorldHash.Mix(soFar, (ulong)s.Refused),
-            _ => soFar,
+            _ => soFar
         });
         int handOffs = faults.Outputs.Sum(output => output.HandOffs.Count);
         int contacts = faults.Outputs.Sum(output => output.Contacts.Count);
-        return (new RunResult(hash, world.Stats, messages, handOffs, contacts, world.Errors.Count, fallingFrameTicks, restingFrameTicks), threads.Count);
+        return (
+            new(hash, world.Stats, messages, handOffs, contacts, world.Errors.Count, fallingFrameTicks,
+                restingFrameTicks), threads.Count);
     }
 
     /// <summary>The four runs, made once for the whole class: two on one worker and two on eight, alternating.</summary>
@@ -332,7 +350,8 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
     {
         // Equal worlds would prove nothing about the order of the numeric update if no group ever got a numeric frame.
         runs.OneWorker.FallingFrameTicks.Should().BeGreaterThan(0, "the shot balls thrust at 120 to 160 m/s");
-        runs.OneWorker.RestingFrameTicks.Should().BeGreaterThan(0, "the slow bodies of the root group are 10,000 km from its origin");
+        runs.OneWorker.RestingFrameTicks.Should()
+            .BeGreaterThan(0, "the slow bodies of the root group are 10,000 km from its origin");
     }
 
     [Fact]

@@ -1,5 +1,3 @@
-using Tertius.Rendering;
-
 namespace Tertius.Rendering.Tests;
 
 public sealed class FreeListTests
@@ -23,7 +21,7 @@ public sealed class FreeListTests
     public void FreeingMergesNeighborsBackIntoOneRange()
     {
         var list = new FreeList(4096);
-        var offsets = new ulong[8];
+        ulong[] offsets = new ulong[8];
         for (int i = 0; i < offsets.Length; i++)
             list.TryAllocate(512, 16, out offsets[i]).Should().BeTrue();
         list.TryAllocate(1, 1, out _).Should().BeFalse("the list is full");
@@ -62,8 +60,10 @@ public sealed class FreeListTests
         list.TryAllocate(64, 16, out ulong offset).Should().BeTrue();
         list.Free(offset, 64);
         FluentActions.Invoking(() => list.Free(offset, 64)).Should().ThrowExactly<InvalidOperationException>();
-        FluentActions.Invoking(() => list.TryAllocate(8, 3, out _)).Should().ThrowExactly<ArgumentException>("the alignment is not a power of two");
-        FluentActions.Invoking(() => list.TryAllocate(0, 16, out _)).Should().ThrowExactly<ArgumentOutOfRangeException>();
+        FluentActions.Invoking(() => list.TryAllocate(8, 3, out _)).Should()
+            .ThrowExactly<ArgumentException>("the alignment is not a power of two");
+        FluentActions.Invoking(() => list.TryAllocate(0, 16, out _)).Should()
+            .ThrowExactly<ArgumentOutOfRangeException>();
         FluentActions.Invoking(() => list.Free(250, 16)).Should().ThrowExactly<ArgumentOutOfRangeException>();
     }
 
@@ -82,17 +82,21 @@ public sealed class FreeListTests
                 live.RemoveAt(index);
                 continue;
             }
+
             ulong size = (ulong)random.Next(1, 4096);
             ulong alignment = 1ul << random.Next(0, 9);
             if (list.TryAllocate(size, alignment, out ulong offset))
             {
                 (offset % alignment).Should().Be(0ul);
                 // One assertion per allocation, not per pair: this loop runs millions of comparisons.
-                bool overlaps = live.Exists(range => !(offset + size <= range.Offset || range.Offset + range.Size <= offset));
-                overlaps.Should().BeFalse("step {0} allocated [{1}, {2}), which must not overlap a live range", step, offset, offset + size);
+                bool overlaps = live.Exists(range =>
+                    !(offset + size <= range.Offset || range.Offset + range.Size <= offset));
+                overlaps.Should().BeFalse("step {0} allocated [{1}, {2}), which must not overlap a live range", step,
+                    offset, offset + size);
                 live.Add((offset, size));
             }
         }
+
         ulong used = 0;
         foreach ((_, ulong s) in live)
             used += s;

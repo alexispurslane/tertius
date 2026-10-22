@@ -13,22 +13,23 @@ namespace Tertius.Core.Tests;
 /// </summary>
 public class PhysicsIntentTests
 {
-    private static readonly FieldInfo[] Fields = typeof(PhysicsIntent).GetFields(BindingFlags.Public | BindingFlags.Instance);
+    private static readonly FieldInfo[] Fields =
+        typeof(PhysicsIntent).GetFields(BindingFlags.Public | BindingFlags.Instance);
 
     /// <summary>A value of <paramref name="type"/> that is not its default, for each type of a field of the intent.</summary>
     private static object NotDefault(Type type) => type switch
     {
-        _ when type == typeof(FrameHandle) => new FrameHandle(new Entity(3, 1), 2, 1),
+        _ when type == typeof(FrameHandle) => new FrameHandle(new(3, 1), 2, 1),
         _ when type == typeof(Vector3) => new Vector3(1, 2, 3),
         _ when type == typeof(Double3) => new Double3(4, 5, 6),
-        _ when type == typeof(DPose) => new DPose(new Double3(7, 8, 9), DQuaternion.FromAxisAngle(Double3.UnitZ, 0.5)),
+        _ when type == typeof(DPose) => new DPose(new(7, 8, 9), DQuaternion.FromAxisAngle(Double3.UnitZ, 0.5)),
         _ when type == typeof(float) => 2.5f,
         _ when type == typeof(CollisionGroups) => CollisionGroups.Of(CollisionGroup.FromIndex(3)),
         _ when type == typeof(CollisionMask) => CollisionMask.Empty.InAny(CollisionGroup.FromIndex(4)),
         _ when type == typeof(BodyMotion) => BodyMotion.Kinematic,
-        _ when type == typeof(MotionIntent) => new MotionIntent(new EndPose(new DPose(new Double3(1, 0, 0), DQuaternion.Identity))),
+        _ when type == typeof(MotionIntent) => new MotionIntent(new EndPose(new(new(1, 0, 0), DQuaternion.Identity))),
         _ when type == typeof(IntentFlags) => Enum.GetValues<IntentFlags>().Aggregate((all, flag) => all | flag),
-        _ => throw new InvalidOperationException($"Give the new field type {type} of PhysicsIntent a value here."),
+        _ => throw new InvalidOperationException($"Give the new field type {type} of PhysicsIntent a value here.")
     };
 
     /// <summary>An intent in which every field holds a value that is not its default, every flag included.</summary>
@@ -48,7 +49,8 @@ public class PhysicsIntentTests
 
         kept.KeepOnlyMotion();
 
-        kept.Should().Be(new PhysicsIntent { Frame = full.Frame, Move = full.Move, Motion = full.Motion, Flags = IntentFlags.SetMotion });
+        kept.Should().Be(new PhysicsIntent
+            { Frame = full.Frame, Move = full.Move, Motion = full.Motion, Flags = IntentFlags.SetMotion });
     }
 
     [Fact]
@@ -61,10 +63,12 @@ public class PhysicsIntentTests
         object boxed = kept;
         foreach (FieldInfo field in Fields)
         {
-            if (field.Name is nameof(PhysicsIntent.Frame) or nameof(PhysicsIntent.Move) or nameof(PhysicsIntent.Motion) or nameof(PhysicsIntent.Flags))
+            if (field.Name is nameof(PhysicsIntent.Frame) or nameof(PhysicsIntent.Move) or nameof(PhysicsIntent.Motion)
+                or nameof(PhysicsIntent.Flags))
                 continue;
             // The default of the field's type, all zero, which a parameterless constructor such as DPose's would not give.
-            field.GetValue(boxed).Should().Be(RuntimeHelpers.GetUninitializedObject(field.FieldType), $"nothing applies {field.Name} without a backend");
+            field.GetValue(boxed).Should().Be(RuntimeHelpers.GetUninitializedObject(field.FieldType),
+                $"nothing applies {field.Name} without a backend");
         }
     }
 

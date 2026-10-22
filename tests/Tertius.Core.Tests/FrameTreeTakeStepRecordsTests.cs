@@ -17,47 +17,55 @@ public class FrameTreeTakeStepRecordsTests
 {
     private const double Step = 1.0 / 60;
     private const float G = 9.81f;
+
+    /// <summary>A full sample 5 m on along +X, turned about Z, with velocities of its own.</summary>
+    private static readonly MotionSample Sample = new(new(X(105), DQuaternion.FromAxisAngle(Double3.UnitZ, 0.1)),
+        X(300), X(301),
+        new(0, -G, 0), new(0, 0, 0.5), Double3.Zero);
+
     private readonly FrameTree frames = new();
     private readonly FrameHandle ground;
 
-    public FrameTreeTakeStepRecordsTests() =>
-        ground = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f),
-            GravityField.Uniform(new Vector3(0, -G, 0)));
+    public FrameTreeTakeStepRecordsTests()
+    {
+        ground = frames.Create(new(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f),
+            GravityField.Uniform(new(0, -G, 0)));
+    }
 
     private static Double3 X(double x) => new(x, 0, 0);
 
-    /// <summary>A frame of the owner <paramref name="id"/> 100 m along +X in ground, moving at 3 m/s along +Z, with a hull of <paramref name="motion"/>.</summary>
+    /// <summary>A frame of the owner <paramref name="id"/> 100 m along +X in ground, moving at 3 m/s along +Z, with a hull of
+    /// <paramref name="motion"/>.</summary>
     private FrameHandle Child(uint id, BodyMotion? motion)
     {
-        FrameHandle frame = frames.Create(new Entity(id, 1), ground, new DPose(X(100), DQuaternion.Identity), FrameBounds.Sphere(10));
+        FrameHandle frame =
+            frames.Create(new(id, 1), ground, new(X(100), DQuaternion.Identity), FrameBounds.Sphere(10));
         frames.SetHullMotion(frame, motion);
-        frames.SetTreeLinearVelocity(frame, new Double3(0, 0, 3));
-        frames.SetAngularVelocity(frame, new Vector3(0, 0.2f, 0));
+        frames.SetTreeLinearVelocity(frame, new(0, 0, 3));
+        frames.SetAngularVelocity(frame, new(0, 0.2f, 0));
         return frame;
     }
 
-    /// <summary>A full sample 5 m on along +X, turned about Z, with velocities of its own.</summary>
-    private static readonly MotionSample Sample = new(new DPose(X(105), DQuaternion.FromAxisAngle(Double3.UnitZ, 0.1)), X(300), X(301),
-        new Double3(0, -G, 0), new Double3(0, 0, 0.5), Double3.Zero);
-
-    /// <summary>The intents of a step in which only the owner of <paramref name="frame"/> wrote one, <paramref name="move"/> relative to ground.</summary>
+    /// <summary>The intents of a step in which only the owner of <paramref name="frame"/> wrote one, <paramref name="move"/>
+    /// relative to ground.</summary>
     private PhysicsIntent[] Moving(FrameHandle frame, in MotionIntent move)
     {
         var intents = new PhysicsIntent[frame.Entity.Index + 1];
-        intents[frame.Entity.Index] = new PhysicsIntent { Frame = ground, Move = move };
+        intents[frame.Entity.Index] = new() { Frame = ground, Move = move };
         return intents;
     }
 
     /// <summary>The pose, the velocities and the follow kind of <paramref name="frame"/>.</summary>
     private (DPose Pose, Double3 Velocity, Vector3 Spin, FollowKind Followed) State(FrameHandle frame) =>
-        (frames.TreeLocalPose(frame), frames.TreeLinearVelocity(frame), frames.AngularVelocity(frame), frames.Followed(frame));
+        (frames.TreeLocalPose(frame), frames.TreeLinearVelocity(frame), frames.AngularVelocity(frame),
+            frames.Followed(frame));
 
     [Fact]
     public void AFrameWithoutAHullTakesTheFullSampleOfItsOwnersMotionIntent()
     {
         FrameHandle moon = Child(2, motion: null);
 
-        frames.TakeStepRecords(Moving(moon, new MotionIntent(Sample)), Step);
+        frames.TakeStepRecords(Moving(moon, new(Sample)), Step);
 
         State(moon).Should().Be((Sample.Pose, Sample.Velocity, Sample.AngularVelocity.ToVector3(), FollowKind.Rails));
     }
@@ -68,21 +76,23 @@ public class FrameTreeTakeStepRecordsTests
         FrameHandle moon = Child(2, motion: null);
         var end = new DPose(X(101), DQuaternion.Identity);
 
-        frames.TakeStepRecords(Moving(moon, new MotionIntent(new EndPose(end))), Step);
+        frames.TakeStepRecords(Moving(moon, new(new EndPose(end))), Step);
 
         State(moon).Should().Be((end, X(1) / Step, Vector3.Zero, FollowKind.Kinematic));
-        frames.ProperAcceleration(moon).Should().Be(new Vector3(0, G, 0), "an end pose has no acceleration, so the frame feels the gravity reversed");
+        frames.ProperAcceleration(moon).Should().Be(new Vector3(0, G, 0),
+            "an end pose has no acceleration, so the frame feels the gravity reversed");
     }
 
     [Fact]
     public void AFrameWithAHullTakesTheRecordThatPhysicsReleasedAndNotItsOwnersMotionIntent()
     {
         FrameHandle ship = Child(2, BodyMotion.Kinematic);
-        MotionSample released = Sample with { Pose = new DPose(X(104), DQuaternion.Identity), Velocity = X(240) };
+        MotionSample released = Sample with { Pose = new(X(104), DQuaternion.Identity), Velocity = X(240) };
 
-        frames.TakeStepRecords(Moving(ship, new MotionIntent(Sample)), Step, new StepOwners().WithHullRecord(ship, released));
+        frames.TakeStepRecords(Moving(ship, new(Sample)), Step, new StepOwners().WithHullRecord(ship, released));
 
-        State(ship).Should().Be((released.Pose, released.Velocity, released.AngularVelocity.ToVector3(), FollowKind.Rails));
+        State(ship).Should().Be((released.Pose, released.Velocity, released.AngularVelocity.ToVector3(),
+            FollowKind.Rails));
     }
 
     [Fact]
@@ -90,9 +100,9 @@ public class FrameTreeTakeStepRecordsTests
     {
         FrameHandle ship = Child(2, BodyMotion.Kinematic);
 
-        frames.TakeStepRecords(Moving(ship, new MotionIntent(Sample)), Step);
+        frames.TakeStepRecords(Moving(ship, new(Sample)), Step);
 
-        State(ship).Should().Be((new DPose(X(100), DQuaternion.Identity), Double3.Zero, Vector3.Zero, FollowKind.Static),
+        State(ship).Should().Be((new(X(100), DQuaternion.Identity), Double3.Zero, Vector3.Zero, FollowKind.Static),
             "the motion intent of a hull moves the hull in physics, which released no record of it");
         frames.ProperAcceleration(ship).Should().Be(new Vector3(0, G, 0));
     }
@@ -102,9 +112,9 @@ public class FrameTreeTakeStepRecordsTests
     {
         FrameHandle moon = Child(2, motion: null);
 
-        frames.TakeStepRecords(Moving(moon, new MotionIntent(new SteerTarget(Sample.Pose))), Step);
+        frames.TakeStepRecords(Moving(moon, new(new SteerTarget(Sample.Pose))), Step);
 
-        State(moon).Should().Be((new DPose(X(100), DQuaternion.Identity), Double3.Zero, Vector3.Zero, FollowKind.Static),
+        State(moon).Should().Be((new(X(100), DQuaternion.Identity), Double3.Zero, Vector3.Zero, FollowKind.Static),
             "a steer target gives no record");
     }
 
@@ -113,12 +123,13 @@ public class FrameTreeTakeStepRecordsTests
     {
         FrameHandle ship = Child(2, BodyMotion.Dynamic);
         frames.TakeStepRecords([], Step, new StepOwners().WithHullRecord(ship, Sample));
-        var before = State(ship);
+        (DPose Pose, Double3 Velocity, Vector3 Spin, FollowKind Followed) before = State(ship);
         Vector3 proper = frames.ProperAcceleration(ship);
 
         frames.TakeStepRecords([], Step, stepFailed: true);
 
-        State(ship).Should().Be(before, "physics may have moved the hull or not, so the next step that works moves it on");
+        State(ship).Should().Be(before,
+            "physics may have moved the hull or not, so the next step that works moves it on");
         frames.ProperAcceleration(ship).Should().Be(proper);
     }
 
@@ -127,7 +138,7 @@ public class FrameTreeTakeStepRecordsTests
     {
         FrameHandle moon = Child(2, motion: null);
 
-        frames.TakeStepRecords(Moving(moon, new MotionIntent(Sample)), Step, stepFailed: true);
+        frames.TakeStepRecords(Moving(moon, new(Sample)), Step, stepFailed: true);
 
         State(moon).Should().Be((Sample.Pose, Sample.Velocity, Sample.AngularVelocity.ToVector3(), FollowKind.Rails),
             "the sync point moves a frame without a hull, whatever physics did");
@@ -140,14 +151,14 @@ public class FrameTreeTakeStepRecordsTests
 
         frames.TakeStepRecords([], Step, stepFailed: true);
 
-        State(moon).Should().Be((new DPose(X(100), DQuaternion.Identity), Double3.Zero, Vector3.Zero, FollowKind.Static));
+        State(moon).Should().Be((new(X(100), DQuaternion.Identity), Double3.Zero, Vector3.Zero, FollowKind.Static));
     }
 
     [Fact]
     public void AFrameWhoseOwnersUpdateTheOutputCheckSkippedKeepsItsState()
     {
         FrameHandle ship = Child(2, BodyMotion.Dynamic);
-        var before = State(ship);
+        (DPose Pose, Double3 Velocity, Vector3 Spin, FollowKind Followed) before = State(ship);
         var owners = new StepOwners();
         owners.Skipped.Add(ship);
 
@@ -165,10 +176,11 @@ public class FrameTreeTakeStepRecordsTests
         var owners = new StepOwners();
         owners.Writes[moon] = written;
 
-        frames.TakeStepRecords(Moving(moon, new MotionIntent(Sample)), Step, owners);
+        frames.TakeStepRecords(Moving(moon, new(Sample)), Step, owners);
 
         State(moon).Should().Be((written, Double3.Zero, Vector3.Zero, FollowKind.Static));
-        frames.ProperAcceleration(moon).Should().Be(written.Rotation.Conjugate().Rotate(new Double3(0, G, 0)).ToVector3(),
+        frames.ProperAcceleration(moon).Should().Be(
+            written.Rotation.Conjugate().Rotate(new Double3(0, G, 0)).ToVector3(),
             "the frame holds still at the written place, so it feels the gravity there reversed, in its own axes");
     }
 
@@ -176,12 +188,13 @@ public class FrameTreeTakeStepRecordsTests
     public void TheTransformOfTheOwnerOfAFrameWithAHullIsPhysicsBusiness()
     {
         FrameHandle ship = Child(2, BodyMotion.Kinematic);
-        var owners = new StepOwners().WithHullRecord(ship, Sample);
-        owners.Writes[ship] = new DPose(X(90), DQuaternion.Identity);
+        StepOwners owners = new StepOwners().WithHullRecord(ship, Sample);
+        owners.Writes[ship] = new(X(90), DQuaternion.Identity);
 
-        frames.TakeStepRecords(Moving(ship, new MotionIntent(Sample)), Step, owners);
+        frames.TakeStepRecords(Moving(ship, new(Sample)), Step, owners);
 
-        frames.TreeLocalPose(ship).Should().Be(Sample.Pose, "physics owns the transform of a body, so a hull takes only its record");
+        frames.TreeLocalPose(ship).Should().Be(Sample.Pose,
+            "physics owns the transform of a body, so a hull takes only its record");
     }
 
     [Fact]
@@ -191,18 +204,21 @@ public class FrameTreeTakeStepRecordsTests
         frames.SetTreeLinearVelocity(hull, X(60));
         var body = new NumericBody
         {
-            Entity = hull.Entity, Semantic = ground, Home = ground, Position = X(100), HomePosition = X(100), Velocity = X(60),
-            Radius = 1, Mass = 1, Character = true, OwnedFrame = hull,
+            Entity = hull.Entity, Semantic = ground, Home = ground, Position = X(100), HomePosition = X(100),
+            Velocity = X(60),
+            Radius = 1, Mass = 1, Character = true, OwnedFrame = hull
         };
-        frames.UpdateNumericFrames([body], 0.1, 0.1, new PhysicsChanges(), _ => { });
+        frames.UpdateNumericFrames([body], 0.1, 0.1, new(), _ => { });
         FrameHandle pod = frames.TreeParent(hull);
         frames.Numeric(pod).Should().Be(NumericMode.Falling);
-        var before = (frames.TreeLocalPose(pod), frames.TreeLinearVelocity(pod));
+        (DPose, Double3) before = (frames.TreeLocalPose(pod), frames.TreeLinearVelocity(pod));
 
         frames.TakeStepRecords([], Step, new StepOwners().WithHullRecord(hull, Sample with { Pose = DPose.Identity }));
 
-        (frames.TreeLocalPose(pod), frames.TreeLinearVelocity(pod)).Should().Be(before, "the engine moves a numeric frame by its own rules");
-        frames.TreeLocalPose(hull).Should().Be(DPose.Identity, "the hull's frame takes its record relative to the pod, its tree parent");
+        (frames.TreeLocalPose(pod), frames.TreeLinearVelocity(pod)).Should()
+            .Be(before, "the engine moves a numeric frame by its own rules");
+        frames.TreeLocalPose(hull).Should().Be(DPose.Identity,
+            "the hull's frame takes its record relative to the pod, its tree parent");
     }
 
     [Fact]
@@ -211,10 +227,11 @@ public class FrameTreeTakeStepRecordsTests
         FrameHandle hull = Child(20, BodyMotion.Dynamic);
         var body = new NumericBody
         {
-            Entity = hull.Entity, Semantic = ground, Home = ground, Position = X(100), HomePosition = X(100), Velocity = X(60),
-            Radius = 1, Mass = 1, Character = true, OwnedFrame = hull,
+            Entity = hull.Entity, Semantic = ground, Home = ground, Position = X(100), HomePosition = X(100),
+            Velocity = X(60),
+            Radius = 1, Mass = 1, Character = true, OwnedFrame = hull
         };
-        frames.UpdateNumericFrames([body], 0.1, 0.1, new PhysicsChanges(), _ => { });
+        frames.UpdateNumericFrames([body], 0.1, 0.1, new(), _ => { });
         frames.Numeric(frames.TreeParent(hull)).Should().Be(NumericMode.Falling);
         frames.Update();
         frames.BeginStep([], Step, lastStepFailed: false);
@@ -226,7 +243,8 @@ public class FrameTreeTakeStepRecordsTests
         // the step lies half a step of that fall past the chord.
         Double3 velocity = frames.TreeLinearVelocity(hull);
         velocity.X.Should().Be(0);
-        velocity.Y.Should().BeApproximately(-G * Step / 2, 1e-12, "a frame at rest in the pod moves with the pod's instant velocity");
+        velocity.Y.Should().BeApproximately(-G * Step / 2, 1e-12,
+            "a frame at rest in the pod moves with the pod's instant velocity");
         velocity.Z.Should().Be(0);
         frames.Followed(hull).Should().Be(FollowKind.Static);
     }

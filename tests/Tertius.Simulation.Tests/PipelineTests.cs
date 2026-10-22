@@ -20,7 +20,8 @@ public class PipelineTests
         using var t = new TestWorld();
         var log = new List<string>();
         EventMask tick = EventMask.Of<Tick>();
-        t.SpawnWith(Named(log, "3", 3, tick), Named(log, "-2", -2, tick), Named(log, "1", 1, tick), Named(log, "0", 0, tick));
+        t.SpawnWith(Named(log, "3", 3, tick), Named(log, "-2", -2, tick), Named(log, "1", 1, tick),
+            Named(log, "0", 0, tick));
 
         t.World.Tick();
 
@@ -184,13 +185,14 @@ public class PipelineTests
             if (self.Tick != 0)
                 return;
             // The child is spawned and sent a message on the same tick, so its first run has all three kinds of event.
-            Entity child = self.Spawn(new SpawnDesc { Frame = self.Frame, Components = [recorder] });
+            Entity child = self.Spawn(new() { Frame = self.Frame, Components = [recorder] });
             outbox.Send(child, new Ping { Value = 1 });
         }));
 
         t.Run(2);
 
-        recorder.History.Should().ContainSingle().Which.EventTypes.Should().Equal(typeof(Tick), typeof(Spawned), typeof(Ping));
+        recorder.History.Should().ContainSingle().Which.EventTypes.Should()
+            .Equal(typeof(Tick), typeof(Spawned), typeof(Ping));
     }
 
     [Fact]

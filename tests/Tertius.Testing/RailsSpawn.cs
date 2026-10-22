@@ -16,10 +16,12 @@ namespace Tertius.Testing;
 public static class RailsSpawn
 {
     /// <summary>
-    /// A copy of <paramref name="desc"/> whose frame goes round the point gravity of its parent, <see cref="SpawnDesc.Frame"/>,
+    /// A copy of <paramref name="desc"/> whose frame goes round the point gravity of its parent, <see cref="SpawnDesc.Frame"/>
+    /// ,
     /// on <paramref name="orbit"/>: a <see cref="KeplerMotion"/> on that orbit comes before the other components, and the
     /// pose, the velocity and the angular velocity are the orbit's at <see cref="World.Time"/>, with the G·M of the parent's
-    /// point gravity (see <see cref="KeplerOrbit.MuFrom"/>). An entity that takes no spawn velocity, such as one without a body or a plain kinematic body, takes the pose and no velocities (see <see cref="With"/>). A parent without a point gravity gives the place of an orbit of G·M 0.
+    /// point gravity (see <see cref="KeplerOrbit.MuFrom"/>). An entity that takes no spawn velocity, such as one without a body or a plain kinematic body, takes the pose and no velocities (see
+    /// <see cref="With"/>). A parent without a point gravity gives the place of an orbit of G·M 0.
     /// With <paramref name="firstMove"/>, its first motion intent is the orbit's sample of the step of the next tick.
     /// </summary>
     public static SpawnDesc OnKeplerOrbit(this SpawnDesc desc, World world, KeplerOrbit orbit, bool firstMove = false)
@@ -27,21 +29,27 @@ public static class RailsSpawn
         double mu = KeplerOrbit.MuFrom(world.Frames.Gravity(desc.Frame));
         double time = world.Time;
         (Double3 position, Double3 velocity) = orbit.StateAt(time, mu);
-        MotionIntent first = firstMove ? new MotionIntent(orbit.Sample(mu, FirstStepEnd(world), world.DeltaTime)) : default;
-        return With(desc, new DPose(position, orbit.RotationAt(time, mu)), velocity, orbit.AngularVelocityAt(time, mu).ToVector3(),
+        MotionIntent first =
+            firstMove ? new MotionIntent(orbit.Sample(mu, FirstStepEnd(world), world.DeltaTime)) : default;
+        return With(desc, new(position, orbit.RotationAt(time, mu)), velocity,
+            orbit.AngularVelocityAt(time, mu).ToVector3(),
             first, new KeplerMotion { Orbit = orbit });
     }
 
     /// <summary>
-    /// A copy of <paramref name="desc"/> whose frame turns in place by <paramref name="spin"/>: a <see cref="SpinMotion"/> with
+    /// A copy of <paramref name="desc"/> whose frame turns in place by <paramref name="spin"/>: a <see cref="SpinMotion"/>
+    /// with
     /// that spin comes before the other components, the pose keeps the place of
     /// <paramref name="desc"/> and takes the spin's rotation at <see cref="World.Time"/>, the velocity is zero, and the angular
-    /// velocity is the spin's, for an entity that takes a spawn velocity (see <see cref="With"/>); any other takes the pose and no velocities. With <paramref name="firstMove"/>, its first motion intent is the spin's sample of the step
+    /// velocity is the spin's, for an entity that takes a spawn velocity (see <see cref="With"/>); any other takes the pose and no velocities. With
+    /// <paramref name="firstMove"/>, its first motion intent is the spin's sample of the step
     /// of the next tick, at the place of <paramref name="desc"/>.
     /// </summary>
     public static SpawnDesc Spinning(this SpawnDesc desc, World world, FrameSpin spin, bool firstMove = false) =>
-        With(desc, new DPose(desc.Pose.Position, spin.RotationAt(world.Time)), Double3.Zero, spin.AngularVelocity.ToVector3(),
-            firstMove ? new MotionIntent(spin.Sample(desc.Pose.Position, FirstStepEnd(world), world.DeltaTime)) : default,
+        With(desc, new(desc.Pose.Position, spin.RotationAt(world.Time)), Double3.Zero, spin.AngularVelocity.ToVector3(),
+            firstMove
+                ? new MotionIntent(spin.Sample(desc.Pose.Position, FirstStepEnd(world), world.DeltaTime))
+                : default,
             new SpinMotion { Spin = spin });
 
     /// <summary>The end of the first step of an entity spawned now, outside a tick: the end of the step of the next tick.</summary>
@@ -54,7 +62,8 @@ public static class RailsSpawn
     /// motion intents and teleports move, and a rails component moves a plain kinematic body and an entity without a body by
     /// its samples alone, so those take the pose and no velocities.
     /// </summary>
-    private static SpawnDesc With(SpawnDesc desc, DPose pose, Double3 velocity, Vector3 angularVelocity, MotionIntent firstMove, IComponent rails) => new()
+    private static SpawnDesc With(SpawnDesc desc, DPose pose, Double3 velocity, Vector3 angularVelocity,
+        MotionIntent firstMove, IComponent rails) => new()
     {
         Frame = desc.Frame,
         Pose = pose,
@@ -67,7 +76,7 @@ public static class RailsSpawn
         AsFrame = desc.AsFrame,
         AttachTo = desc.AttachTo,
         AttachOffset = desc.AttachOffset,
-        Subscriptions = desc.Subscriptions,
+        Subscriptions = desc.Subscriptions
     };
 
     /// <summary>
@@ -78,6 +87,6 @@ public static class RailsSpawn
     {
         BodyMotion.Kinematic => desc.AsFrame is not null && !desc.Frame.IsNull,
         BodyMotion.Dynamic or BodyMotion.Character => true,
-        _ => false,
+        _ => false
     };
 }

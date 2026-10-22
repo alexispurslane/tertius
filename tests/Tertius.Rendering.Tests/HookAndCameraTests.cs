@@ -1,6 +1,4 @@
 using System.Numerics;
-using Silk.NET.Vulkan;
-using Tertius.Rendering;
 
 namespace Tertius.Rendering.Tests;
 
@@ -15,26 +13,27 @@ public sealed class HookAndCameraTests
         try
         {
             MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f, 48, 24));
-            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(new Vector4(0.8f, 0.8f, 0.8f, 1), gloss: 0.1f));
-            MaterialId red = renderer.CreateMaterial(MaterialDesc.Color(new Vector4(0.8f, 0.1f, 0.1f, 1), gloss: 0.1f));
+            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(new(0.8f, 0.8f, 0.8f, 1), gloss: 0.1f));
+            MaterialId red = renderer.CreateMaterial(MaterialDesc.Color(new(0.8f, 0.1f, 0.1f, 1), gloss: 0.1f));
             // Turned 90 degrees to the left, the camera looks down −X. The sun shines from +Y, so the upper half of
             // the sphere in front is lit and the lower half is not, whatever the camera's rotation.
             RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
-            Quaternion left = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2);
+            var left = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2);
             snapshot.Camera.Rotation = left;
             snapshot.Camera.PreviousRotation = left;
-            snapshot.Instances.Add(Gpu.Instance(sphere, white, new Vector3(-6, 0, 0), Vector3.One));
-            snapshot.Instances.Add(Gpu.Instance(sphere, red, new Vector3(0, 0, -6), Vector3.One));
+            snapshot.Instances.Add(Gpu.Instance(sphere, white, new(-6, 0, 0), Vector3.One));
+            snapshot.Instances.Add(Gpu.Instance(sphere, red, new(0, 0, -6), Vector3.One));
 
             Capture image = Gpu.RenderAndCapture(renderer, snapshot, "rotated-camera");
             renderer.LastFrameStats.VisibleInstances.Should().Be(1, "the red sphere is behind the turned camera");
             // In camera space the white sphere is straight ahead: project it as (0, 0, -6).
-            Vector2 top = Gpu.Project(new Vector3(0, 0.7f, -5.4f), width, height);
-            Vector2 bottom = Gpu.Project(new Vector3(0, -0.7f, -5.4f), width, height);
+            Vector2 top = Gpu.Project(new(0, 0.7f, -5.4f), width, height);
+            Vector2 bottom = Gpu.Project(new(0, -0.7f, -5.4f), width, height);
             image.Luma(top).Should().BeGreaterThan(0.5f, "the sun from +Y lights the top");
             image.Luma(bottom).Should().BeLessThan(0.25f, "the bottom faces away from the sun");
             Vector3 center = image.Color(width / 2, height / 2);
-            MathF.Abs(center.X - center.Y).Should().BeLessThan(0.05f, "the white sphere is in front, not the red one: {0}", center);
+            MathF.Abs(center.X - center.Y).Should()
+                .BeLessThan(0.05f, "the white sphere is in front, not the red one: {0}", center);
         }
         finally
         {
@@ -70,13 +69,13 @@ public sealed class HookAndCameraTests
         VulkanRenderer renderer = Gpu.Headless(160, 90);
         try
         {
-            MeshId box = renderer.CreateMesh(Primitives.Box(new Vector3(0.5f)));
+            MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
             MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One));
             var log = new List<string>();
             var probe = new ProbePass(log);
             renderer.Graph.Add(FrameGraph.Stage.ShadowMaps, probe);
             RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
-            snapshot.Instances.Add(Gpu.Instance(box, white, new Vector3(0, 0, -5), Vector3.One));
+            snapshot.Instances.Add(Gpu.Instance(box, white, new(0, 0, -5), Vector3.One));
             renderer.Render(snapshot, 1f);
 
             log.Should().Equal("prepare", "record");
@@ -105,8 +104,9 @@ public sealed class HookAndCameraTests
         {
             log.Add("prepare");
             SeenSnapshot = context.Snapshot;
-            AppendedInstance = context.Scene.AppendInstance(GpuInstance.From(new Vector3(0, 0, -3), Quaternion.Identity, Vector3.One, 0));
-            AppendedCommand = context.Scene.AppendCommand(new DrawIndexedIndirectCommand(36, 1, 0, 0, (uint)AppendedInstance));
+            AppendedInstance =
+                context.Scene.AppendInstance(GpuInstance.From(new(0, 0, -3), Quaternion.Identity, Vector3.One, 0));
+            AppendedCommand = context.Scene.AppendCommand(new(36, 1, 0, 0, (uint)AppendedInstance));
         }
 
         public override void Record(FrameContext context) => log.Add("record");

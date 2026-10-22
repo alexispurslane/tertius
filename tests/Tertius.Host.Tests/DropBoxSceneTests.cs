@@ -14,7 +14,8 @@ public sealed class DropBoxSceneTests : IDisposable
 
     public void Dispose() => world.Dispose();
 
-    private SceneInstance Build() => DemoScenes.All.Single(s => s.Name == "drop-box").Build(world, RenderResources.None);
+    private SceneInstance Build() =>
+        DemoScenes.All.Single(s => s.Name == "drop-box").Build(world, RenderResources.None);
 
     [Fact]
     public void TheSceneNamesItsGroundAsTheFrameThatHoldsTheFloorAndTheBox()

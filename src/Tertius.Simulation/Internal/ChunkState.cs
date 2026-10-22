@@ -31,21 +31,27 @@ internal readonly record struct ChunkMessage(string Text, bool IsError);
 /// </summary>
 internal sealed class ChunkState(int index)
 {
-    public int Index { get; } = index;
-
     public readonly RefList<Event> Outbox = new(16);
     public readonly RefList<DelayedEvent> Delayed = new(4);
-    public readonly List<PendingSpawn> Spawns = new();
+    public readonly List<PendingSpawn> Spawns = [];
+
     /// <summary>Entities of this chunk that asked to be destroyed, each once, in the order they asked.</summary>
-    public readonly List<Entity> Destroys = new();
-    public readonly List<SubscriptionChange> SubscriptionChanges = new();
+    public readonly List<Entity> Destroys = [];
+
+    public readonly List<SubscriptionChange> SubscriptionChanges = [];
+
     /// <summary>Component changes of the entity that is running. Applied right after its run.</summary>
-    public readonly List<ComponentChange> ComponentChanges = new();
+    public readonly List<ComponentChange> ComponentChanges = [];
+
     /// <summary>The types of the components that this chunk's entities added this tick, for their class constructors.</summary>
-    public readonly List<Type> AddedComponentTypes = new();
-    public readonly List<ChunkMessage> Messages = new();
+    public readonly List<Type> AddedComponentTypes = [];
+
+    public readonly List<ChunkMessage> Messages = [];
+
     /// <summary>The physics queries that this chunk's entities asked for, in the order they asked. The sync point runs them.</summary>
     public readonly RefList<PhysicsRequest> PhysicsRequests = new(4);
+
+    public int Index { get; } = index;
 
     /// <summary>Empties the lists of this tick. The router empties the outbox and the delayed list itself.</summary>
     public void EndTick()

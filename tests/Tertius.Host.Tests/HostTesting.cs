@@ -1,4 +1,6 @@
 using System.Numerics;
+using System.Runtime.InteropServices;
+using Tertius.Demo;
 using Tertius.Frames.Rails;
 using Tertius.Physics;
 using Tertius.Simulation;
@@ -57,7 +59,7 @@ public struct Label : IEventPayload
 }
 
 /// <summary>Not a payload that an event can hold: 64 bytes, more than the 48 of the payload bytes.</summary>
-[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, Size = 64)]
+[StructLayout(LayoutKind.Sequential, Size = 64)]
 public struct Huge : IEventPayload;
 
 /// <summary>Not a payload that an event can hold: a ref struct cannot be a type argument.</summary>
@@ -87,7 +89,7 @@ public sealed class Probe(EventMask wants) : IComponent
     public EventMask Wants => wants;
 
     /// <summary>Every event it handled, with <c>World.TickNumber</c> during the tick that handled it.</summary>
-    public List<(long Tick, Event Event)> Seen { get; } = new();
+    public List<(long Tick, Event Event)> Seen { get; } = [];
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
@@ -125,14 +127,17 @@ public sealed class SendOnce : IComponent
     private readonly SendFn send;
     private bool sent;
 
-    private SendOnce(SendFn send) => this.send = send;
+    private SendOnce(SendFn send)
+    {
+        this.send = send;
+    }
 
     public int Priority => 0;
     public EventMask Wants => EventMask.Of<Tick>();
 
     /// <summary>A component that sends <paramref name="payload"/> to <paramref name="target"/> on its first tick.</summary>
     public static SendOnce Of<T>(Target target, T payload) where T : unmanaged, IEventPayload =>
-        new((scoped ref Outbox outbox) => outbox.Send(target, payload));
+        new((scoped ref outbox) => outbox.Send(target, payload));
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
@@ -201,8 +206,6 @@ public sealed class LogsOnce(string message) : IComponent
 /// <summary>Worlds and scenes for the tests of scripted runs.</summary>
 public static class HostTesting
 {
-    public static DPose At(double x, double y = 0, double z = 0) => new(new Double3(x, y, z), DQuaternion.Identity);
-
     /// <summary>
     /// The center of mass of the demo shuttle's hull, in meters, in the hull's own axes, as the engine computes it and
     /// publishes it in <see cref="BodyFacts.CenterOfMass"/>: the value that the demo reads (docs/plans/parts.md, "Settled
@@ -213,23 +216,40 @@ public static class HostTesting
     private static readonly Lazy<Vector3> shuttleCenterOfMass = new(() =>
     {
         using World world = NewJoltWorld();
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f)));
-        Entity hull = Tertius.Demo.DemoScenes.Shuttle.Park(world, space, DPose.Identity);
-        return world.Snapshot.TryGetBody(hull, out BodyFacts facts) ? facts.CenterOfMass : throw new InvalidOperationException("The shuttle's hull has a body.");
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e4f)));
+        Entity hull = DemoScenes.Shuttle.Park(world, space, DPose.Identity);
+        return world.Snapshot.TryGetBody(hull, out BodyFacts facts)
+            ? facts.CenterOfMass
+            : throw new InvalidOperationException("The shuttle's hull has a body.");
     });
 
+    public static readonly Scene ProbesScene = new("probes", (world, _) => Probes(world));
+
+    /// <summary>The scene "logger": the root frame <c>space</c> and one entity that logs "hello from the logger" on its first tick.</summary>
+    public static readonly Scene LoggerScene = new("logger", (world, _) =>
+    {
+        var scene = new SceneInstance();
+        FrameHandle space = Space(world);
+        scene.Add("space", space);
+        world.Spawn(new() { Frame = space, Components = [new LogsOnce("hello from the logger")] });
+        return scene;
+    });
+
+    public static readonly Scene BoxOnFloorScene = new("box-on-floor", (world, _) => BoxOnFloor(world));
+    public static DPose At(double x, double y = 0, double z = 0) => new(new(x, y, z), DQuaternion.Identity);
+
     /// <summary>A world with no physics, one gameplay thread and the invariant checks of every tick.</summary>
-    public static World NewWorld() => new(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = true });
+    public static World NewWorld() => new(new() { MaxDegreeOfParallelism = 1, DebugChecks = true });
 
     /// <summary>A world on the real Jolt backend, which it owns, with one gameplay thread and the invariant checks of every tick.</summary>
     public static World NewJoltWorld() =>
-        new(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true }, new JoltPhysicsBackend());
+        new(new() { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true }, new JoltPhysicsBackend());
 
     private static FrameHandle Space(World world) =>
-        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
 
     private static FrameHandle ChildFrame(World world, FrameHandle parent, DPose pose) =>
-        world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = parent, Pose = pose, AsFrame = new FrameSpec(FrameBounds.Sphere(100)) }));
+        world.GetOwnedFrame(world.Spawn(new() { Frame = parent, Pose = pose, AsFrame = new(FrameBounds.Sphere(100)) }));
 
     /// <summary>
     /// The scene "probes", with no physics. In the root frame <c>space</c>: <c>probe</c>, which subscribes to the topic
@@ -243,25 +263,13 @@ public static class HostTesting
         FrameHandle ship = ChildFrame(world, space, At(10));
         scene.Add("space", space);
         scene.Add("ship", ship);
-        Entity probe = world.Spawn(new SpawnDesc { Frame = space, Components = [new Probe()] });
+        Entity probe = world.Spawn(new() { Frame = space, Components = [new Probe()] });
         world.Subscribe(probe, Topics.Get("test"));
         scene.Add("probe", probe);
-        scene.Add("bystander", world.Spawn(new SpawnDesc { Frame = space, Pose = At(1), Components = [new Probe()] }));
-        scene.Add("crew", world.Spawn(new SpawnDesc { Frame = ship, Components = [new Probe()] }));
+        scene.Add("bystander", world.Spawn(new() { Frame = space, Pose = At(1), Components = [new Probe()] }));
+        scene.Add("crew", world.Spawn(new() { Frame = ship, Components = [new Probe()] }));
         return scene;
     }
-
-    public static readonly Scene ProbesScene = new("probes", (world, _) => Probes(world));
-
-    /// <summary>The scene "logger": the root frame <c>space</c> and one entity that logs "hello from the logger" on its first tick.</summary>
-    public static readonly Scene LoggerScene = new("logger", (world, _) =>
-    {
-        var scene = new SceneInstance();
-        FrameHandle space = Space(world);
-        scene.Add("space", space);
-        world.Spawn(new SpawnDesc { Frame = space, Components = [new LogsOnce("hello from the logger")] });
-        return scene;
-    });
 
     /// <summary>The probe component of the entity with the scene id.</summary>
     public static Probe ProbeOf(World world, SceneInstance scene, string id) => world.GetComponent<Probe>(scene[id])!;
@@ -270,7 +278,8 @@ public static class HostTesting
     /// The scene "ship-with-crate", with no physics. The root frame <c>space</c> holds the frame <c>ship</c> at (10, 0, 0),
     /// turned 90 degrees about +Y, which takes +X to -Z. The ship holds <c>crate</c> at (1, 0, 0), which moves at
     /// (1, 2, 3) m/s and turns at (0.25, 0.5, 0.75) rad/s in its first step, so it has these velocities after the first
-    /// tick, and the frame <c>shuttle</c> at (0, 0, 2), which holds <c>pod</c> at (1, 0, 0). Space has a point gravity with G·M 1e9 m³/s², and it also holds the frame <c>moon</c> on a Kepler orbit around
+    /// tick, and the frame <c>shuttle</c> at (0, 0, 2), which holds <c>pod</c> at (1, 0, 0). Space has a point gravity with G·M 1e9 m³/s², and it also holds the frame
+    /// <c>moon</c> on a Kepler orbit around
     /// that G·M, and one entity with no scene id at (0, 5, 0).
     /// They are made in that order.
     /// </summary>
@@ -280,7 +289,7 @@ public static class HostTesting
         FrameHandle space = Space(world);
         // The moon takes its G·M from the point gravity of space. There is no physics, so nothing else feels it.
         world.SetFrameGravity(space, GravityField.Point(1e9));
-        var turned = new DPose(new Double3(10, 0, 0), DQuaternion.FromAxisAngle(new Double3(0, 1, 0), Math.PI / 2));
+        var turned = new DPose(new(10, 0, 0), DQuaternion.FromAxisAngle(new(0, 1, 0), Math.PI / 2));
         FrameHandle ship = ChildFrame(world, space, turned);
         scene.Add("space", space);
         scene.Add("ship", ship);
@@ -290,22 +299,24 @@ public static class HostTesting
         var crateVelocity = new Double3(1, 2, 3);
         var crateSpin = new Double3(0.25, 0.5, 0.75);
         double step = world.DeltaTime;
-        var crateEnd = new DPose(At(1).Position + crateVelocity * step, DQuaternion.FromAxisAngle(crateSpin / crateSpin.Length, crateSpin.Length * step));
-        scene.Add("crate", world.Spawn(new SpawnDesc
+        var crateEnd = new DPose(At(1).Position + crateVelocity * step,
+            DQuaternion.FromAxisAngle(crateSpin / crateSpin.Length, crateSpin.Length * step));
+        scene.Add("crate", world.Spawn(new()
         {
             Frame = ship,
             Pose = At(1),
-            FirstMove = new MotionIntent(new MotionSample(crateEnd, crateVelocity, crateVelocity, Double3.Zero, crateSpin, Double3.Zero)),
+            FirstMove = new(new MotionSample(crateEnd, crateVelocity, crateVelocity, Double3.Zero, crateSpin,
+                Double3.Zero))
         }));
         FrameHandle shuttle = ChildFrame(world, ship, At(0, 0, 2));
         scene.Add("shuttle", shuttle);
-        scene.Add("pod", world.Spawn(new SpawnDesc { Frame = shuttle, Pose = At(1) }));
+        scene.Add("pod", world.Spawn(new() { Frame = shuttle, Pose = At(1) }));
         scene.Add("moon", world.Spawn(new SpawnDesc
         {
             Frame = space,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
+            AsFrame = new(FrameBounds.Sphere(100))
         }.OnKeplerOrbit(world, KeplerOrbit.Circular(1000))));
-        world.Spawn(new SpawnDesc { Frame = space, Pose = At(0, 5) });
+        world.Spawn(new() { Frame = space, Pose = At(0, 5) });
         return scene;
     }
 
@@ -317,19 +328,20 @@ public static class HostTesting
     public static SceneInstance BoxOnFloor(World world)
     {
         var scene = new SceneInstance();
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), GravityField.Uniform(new Vector3(0, -9.81f, 0))));
+        FrameHandle ground =
+            world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(0, -9.81f, 0))));
         scene.Add("ground", ground);
-        scene.Add("floor", world.Spawn(new SpawnDesc
+        scene.Add("floor", world.Spawn(new()
         {
             Frame = ground,
             Pose = At(0, -0.5),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(50, 0.5f, 50)), BodyMotion.Static),
+            Body = new(new BoxShapeDesc(new(50, 0.5f, 50)), BodyMotion.Static)
         }));
-        scene.Add("box", world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 1.5), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10) }));
+        scene.Add("box",
+            world.Spawn(new()
+                { Frame = ground, Pose = At(0, 1.5), Body = new(new BoxShapeDesc(new(0.5f)), Mass: 10) }));
         return scene;
     }
-
-    public static readonly Scene BoxOnFloorScene = new("box-on-floor", (world, _) => BoxOnFloor(world));
 
     /// <summary>A new empty folder under the system temp folder. The caller deletes it.</summary>
     public static string NewFolder() => Directory.CreateTempSubdirectory("tertius-host-tests-").FullName;

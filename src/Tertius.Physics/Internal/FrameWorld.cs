@@ -56,47 +56,148 @@ internal readonly record struct SystemLimits(int MaxBodies, int MaxBodyPairs, in
 /// </remarks>
 internal sealed class FrameWorld : IDisposable
 {
+    /// <summary>Jolt's own sleep threshold, in m/s: a body whose points move slower than this for half a second sleeps.</summary>
+    public const float JoltSleepThreshold = 0.03f;
+
+    /// <summary>How far beyond the bounds of a body <see cref="WakeAround"/> reaches, in meters: more than Jolt's speculative contact distance of 0.02 m.</summary>
+    private const float WakeMargin = 0.05f;
+
+    /// <summary>
+    /// How far apart two bodies can be and still touch, in meters: ten times Jolt's collision tolerance, so that the
+    /// rounding of Jolt's contact search hides no touch, and a twentieth of Jolt's speculative contact distance.
+    /// </summary>
+    public const float TouchTolerance = 0.001f;
+
+    /// <summary>
+    /// Jolt's speculative contact distance, in m: Jolt finds the pair of two bodies that are this close, and holds their
+    /// contact while they stay this close. It is Jolt's default, which the engine keeps.
+    /// </summary>
+    public const float JoltSpeculativeContactDistance = 0.02f;
+
+    /// <summary>
+    /// Jolt's <c>MinVelocityForRestitution</c>, in m/s: Jolt bounces a contact point only when it approaches faster than
+    /// this. It is Jolt's default, which the engine keeps.
+    /// </summary>
+    public const float JoltMinVelocityForRestitution = 1f;
+
+    /// <summary>
+    /// The least height, in m, that a bounce that a contact keeps rises before the pull toward the surface brings it
+    /// back: twice <see cref="JoltSpeculativeContactDistance"/>. So every bounce that remains carries the body out of that
+    /// distance, and ends the contact, wherever its landing step begins. At 1 g the slowest rebound that remains is
+    /// about 0.89 m/s.
+    /// </summary>
+    /// <remarks>
+    /// Jolt finds a pair within its speculative contact distance. When a landing step begins there, Jolt gives a bouncing
+    /// body its rebound at once, from where it is, so it rises to about its gap at the start of the step plus the height
+    /// of its bounce. Without the minimum, a small bounce from a step that begins near the surface stayed within the
+    /// distance, and the same bounce from a step that begins near the edge left it: one drop reported one landing or two
+    /// (ter-4kaa). Twice the distance leaves a margin for the rounding of the rise in whole steps.
+    /// </remarks>
+    public const float MinReboundHeight = 2 * JoltSpeculativeContactDistance;
+
+    private static readonly Comparison<RawContact> ByPairAndPoint = static (a, b) =>
+    {
+        int c = a.PairKey.CompareTo(b.PairKey);
+        if (c != 0) return c;
+        c = a.Point.X.CompareTo(b.Point.X);
+        if (c != 0) return c;
+        c = a.Point.Y.CompareTo(b.Point.Y);
+        return c != 0 ? c : a.Point.Z.CompareTo(b.Point.Z);
+    };
+
     private readonly float penetrationSlop;
     private readonly Lock contactGate = new();
-    private readonly List<RawContact> added = new(64);
+
+    private readonly List<RawContact> added = [with(64)];
+
     // The contacts that Jolt reported again in the last update for a pair in pending, when they really touch.
-    private readonly List<RawContact> persistedTouches = new(16);
-    private readonly List<ulong> removed = new(64);
+    private readonly List<RawContact> persistedTouches = [with(16)];
+
+    private readonly List<ulong> removed = [with(64)];
+
     // Body pairs in contact as Jolt's contact cache holds them, with the number of touching sub-shape pairs. A pair that
     // Jolt adds starts at once if it really touches, unless it is held. Otherwise it waits in pending.
-    private readonly Dictionary<ulong, int> touching = new();
+    private readonly Dictionary<ulong, int> touching = [];
+
     // The pairs of touching that have not started: Jolt found them within its speculative contact distance, but they have
     // not touched yet. A pair leaves at its first real touch, which starts it, or when Jolt drops it, which reports nothing.
     // Only the physics thread changes it, between updates, so Jolt's worker threads read it during an update without the gate.
-    private readonly HashSet<ulong> pending = new();
+    private readonly HashSet<ulong> pending = [];
+
     // Jolt's reports of this frame's contacts arrive through it, from every system of the frame.
     private readonly ContactListener listener;
+
     // Body pairs that touch as far as the backend knows, but that Jolt's contact cache no longer holds. Jolt finds contacts
     // only for a body that it simulates. So it drops the pair of two bodies that it does not simulate (a body fell asleep
     // or a hull became static, on something static or asleep) while the system keeps stepping. A growth drops every pair,
     // because the new system starts with an empty cache. Jolt reports a held pair as added when it finds it again: the
     // contact continues. A held pair ends as HeldPairEnded says. A pair is never in touching and held at once.
-    private readonly HashSet<ulong> held = new();
+    private readonly HashSet<ulong> held = [];
+
     // True from an update until the contacts that it reported are drained.
     private bool updatedSinceDrain;
+
     // The length of the last update, in seconds, by which a contact's approach speed closes its gap (see Touches).
     private float updateDeltaTime;
+
     // The bodies of this system's characters, and each pair of such a body with a body that the character's own contact
     // list holds, from the last update: the inner body of a character in the walking form, and the body of one in the
     // rigid form. Jolt never simulates an inner body, and the walking form keeps a gap from what it touches as wide as
     // Jolt's speculative contact distance, so for these pairs the character decides. The rigid form gets the same list
     // from a query, so that a switch of form ends no contact (see NoteRigidCharacterContacts).
-    private readonly HashSet<uint> characterBodies = new();
-    private readonly HashSet<ulong> characterTouches = new();
+    private readonly HashSet<uint> characterBodies = [];
+
+    private readonly HashSet<ulong> characterTouches = [];
+
     // Each body that a character hit in its last update, as a contact of its inner body. For the same reason, Jolt can miss
     // the contact of the inner body, so a hit starts the pair as a held pair (see DrainContacts).
-    private readonly List<RawContact> characterHits = new();
-    private readonly List<ulong> purgeScratch = new();
+    private readonly List<RawContact> characterHits = [];
+
+    private readonly List<ulong> purgeScratch = [];
+
     // The pairs that a growth holds, before they take the new IDs, and the held pairs that a drain ends.
-    private readonly List<ulong> heldScratch = new();
+    private readonly List<ulong> heldScratch = [];
 
     // Reports a state that only a bug produces, which the system found on the physics thread (see JoltPhysicsBackend.ReportBug).
     private readonly Action<string> reportBug;
+
+    // The frame's gravity state, to wake sleeping bodies when it changes: the field at the last step, and the frame's push
+    // (FrameTree.PushInStep) when the frame's bodies last woke, or when the frame first stepped. A push that drifts by a
+    // small amount each step still wakes them once it has drifted far enough.
+    public bool HasGravityState;
+    public Vector3 WakePush;
+    public GravityField LastGravity;
+
+    /// <summary>
+    /// The inertial angular velocity, in rad/s, and angular acceleration, in rad/s², of the system's semantic frame for the
+    /// step in which its dynamic bodies last woke, or in which the system first stepped, in the semantic frame's axes (V8 of
+    /// docs/plans/spin-gravity.md). With <see cref="WakePush"/> they are the state of the one wake test: a change of the
+    /// frame's push or turn since then wakes the bodies once the change of the acceleration that they feel relative to the
+    /// frame, which the test bounds, passes the wake threshold (see JoltPhysicsBackend.FeltChangeWakes).
+    /// </summary>
+    public Double3 WakeAngularVelocity, WakeAngularAcceleration;
+
+    /// <summary>
+    /// How fast the origin of <see cref="Frame"/> accelerates relative to its semantic frame in the current step, in
+    /// m/s², in frame axes: the step acceleration of a numeric frame, which falls with its semantic frame's gravity, and
+    /// zero for a semantic frame. The backend sets it before each update. The minimum rebound reads it (see
+    /// <see cref="ForceAcceleration"/>).
+    /// </summary>
+    public Vector3 HomeAcceleration;
+
+    // Records reported in the last and the current step. A body that falls asleep gets one final report.
+    public List<BodyRecord> ReportedLast = [];
+    public List<BodyRecord> ReportedNow = [];
+
+    // The ghosts in this system, copies of bodies whose own system is another frame's (see GhostBody), each with its
+    // contact motion: the motion of its real body, Static, Kinematic or Dynamic, and Dynamic for a character in either
+    // form. A ghost stands for its real body, so the contact filter and the pair test judge a pair with a ghost by Jolt's
+    // rule on the contact motions of both bodies (see ContactMotionsMeet and CanTouch): the ghost of a static body is
+    // kinematic in Jolt while it moves, and the ghost of every body that can move is kinematic in Jolt, but each meets
+    // only what its real body meets. It holds the body of every ghost that a record keeps in this system, with the
+    // record's contact motion, and nothing else. The backend's AssertInvariants checks that. Only the physics thread
+    // changes it, between updates, so Jolt's worker threads read it during an update without the gate.
+    private readonly Dictionary<BodyID, MotionType> ghosts = [];
 
     /// <summary>
     /// The system of <paramref name="frame"/>. It hands each state that only a bug produces and that it finds on the physics
@@ -108,7 +209,7 @@ internal sealed class FrameWorld : IDisposable
         this.reportBug = reportBug;
         penetrationSlop = options.PenetrationSlop;
         Limits = SystemLimits.From(options);
-        listener = new ContactListener(this);
+        listener = new(this);
         System = CreateSystem(Limits);
         Bodies = System.BodyInterface;
         BodiesNoLock = System.BodyInterfaceNoLock;
@@ -131,9 +232,10 @@ internal sealed class FrameWorld : IDisposable
     public bool IsFull => System.BodiesCount >= System.MaxBodies;
 
     /// <summary>Records whose primary body or character lives in this system.</summary>
-    public List<BodyRecord> Members { get; } = new();
+    public List<BodyRecord> Members { get; } = [];
 
-    /// <summary>The number of members that are characters, in either form. <see cref="AddMember"/> and <see cref="RemoveMember"/> keep it.</summary>
+    /// <summary>The number of members that are characters, in either form. <see cref="AddMember"/> and
+    /// <see cref="RemoveMember"/> keep it.</summary>
     public int CharacterCount { get; private set; }
 
     /// <summary>
@@ -146,32 +248,11 @@ internal sealed class FrameWorld : IDisposable
     /// <summary>Set after the first update that overflowed a Jolt limit, so the warning appears once.</summary>
     public bool ReportedOverflow { get; set; }
 
-    // The frame's gravity state, to wake sleeping bodies when it changes: the field at the last step, and the frame's push
-    // (FrameTree.PushInStep) when the frame's bodies last woke, or when the frame first stepped. A push that drifts by a
-    // small amount each step still wakes them once it has drifted far enough.
-    public bool HasGravityState;
-    public Vector3 WakePush;
-    public GravityField LastGravity;
-    /// <summary>
-    /// The inertial angular velocity, in rad/s, and angular acceleration, in rad/s², of the system's semantic frame for the
-    /// step in which its dynamic bodies last woke, or in which the system first stepped, in the semantic frame's axes (V8 of
-    /// docs/plans/spin-gravity.md). With <see cref="WakePush"/> they are the state of the one wake test: a change of the
-    /// frame's push or turn since then wakes the bodies once the change of the acceleration that they feel relative to the
-    /// frame, which the test bounds, passes the wake threshold (see JoltPhysicsBackend.FeltChangeWakes).
-    /// </summary>
-    public Double3 WakeAngularVelocity, WakeAngularAcceleration;
+    /// <summary>The number of ghosts in this system.</summary>
+    public int GhostCount => ghosts.Count;
 
-    /// <summary>
-    /// How fast the origin of <see cref="Frame"/> accelerates relative to its semantic frame in the current step, in
-    /// m/s², in frame axes: the step acceleration of a numeric frame, which falls with its semantic frame's gravity, and
-    /// zero for a semantic frame. The backend sets it before each update. The minimum rebound reads it (see
-    /// <see cref="ForceAcceleration"/>).
-    /// </summary>
-    public Vector3 HomeAcceleration;
-
-    // Records reported in the last and the current step. A body that falls asleep gets one final report.
-    public List<BodyRecord> ReportedLast = new();
-    public List<BodyRecord> ReportedNow = new();
+    /// <summary>The sleep threshold of <see cref="System"/>, in m/s. A system starts with Jolt's own.</summary>
+    public float SleepThreshold { get; private set; } = JoltSleepThreshold;
 
     public void AddMember(BodyRecord record)
     {
@@ -194,19 +275,6 @@ internal sealed class FrameWorld : IDisposable
             CharacterCount--;
     }
 
-    // The ghosts in this system, copies of bodies whose own system is another frame's (see GhostBody), each with its
-    // contact motion: the motion of its real body, Static, Kinematic or Dynamic, and Dynamic for a character in either
-    // form. A ghost stands for its real body, so the contact filter and the pair test judge a pair with a ghost by Jolt's
-    // rule on the contact motions of both bodies (see ContactMotionsMeet and CanTouch): the ghost of a static body is
-    // kinematic in Jolt while it moves, and the ghost of every body that can move is kinematic in Jolt, but each meets
-    // only what its real body meets. It holds the body of every ghost that a record keeps in this system, with the
-    // record's contact motion, and nothing else. The backend's AssertInvariants checks that. Only the physics thread
-    // changes it, between updates, so Jolt's worker threads read it during an update without the gate.
-    private readonly Dictionary<BodyID, MotionType> ghosts = new();
-
-    /// <summary>The number of ghosts in this system.</summary>
-    public int GhostCount => ghosts.Count;
-
     /// <summary>True when <paramref name="body"/> is a ghost in this system.</summary>
     public bool HasGhost(BodyID body) => ghosts.ContainsKey(body);
 
@@ -217,7 +285,8 @@ internal sealed class FrameWorld : IDisposable
     /// The contact motion of <paramref name="ghost"/>, a ghost in this system: the motion of its real body, which decides
     /// what the ghost meets (see <see cref="ContactMotionsMeet"/>). Null when it is no ghost in this system.
     /// </summary>
-    public MotionType? GhostContactMotion(BodyID ghost) => ghosts.TryGetValue(ghost, out MotionType motion) ? motion : null;
+    public MotionType? GhostContactMotion(BodyID ghost) =>
+        ghosts.TryGetValue(ghost, out MotionType motion) ? motion : null;
 
     /// <summary>
     /// Counts <paramref name="body"/>, a new body of this system, as a ghost whose real body has the contact motion
@@ -232,7 +301,8 @@ internal sealed class FrameWorld : IDisposable
         ghosts.Add(body, contactMotion);
     }
 
-    /// <summary>Removes and destroys the ghost <paramref name="body"/>, after it wakes the bodies around it (see <see cref="WakeAround"/>).</summary>
+    /// <summary>Removes and destroys the ghost <paramref name="body"/>, after it wakes the bodies around it (see
+    /// <see cref="WakeAround"/>).</summary>
     public void RemoveGhost(BodyID body)
     {
         Contract.Requires(ghosts.ContainsKey(body));
@@ -251,7 +321,7 @@ internal sealed class FrameWorld : IDisposable
         BodyLockInterface locks = System.BodyLockInterface;
         locks.LockRead(body, out BodyLockRead read);
         bool can = read.Succeeded && read.Body is { MotionProperties: { IsNotNull: true } motion }
-                   && float.IsFinite(motion.InverseMassUnchecked) && motion.InverseMassUnchecked > 0;
+                                  && float.IsFinite(motion.InverseMassUnchecked) && motion.InverseMassUnchecked > 0;
         locks.UnlockRead(read);
         return can;
     }
@@ -273,11 +343,12 @@ internal sealed class FrameWorld : IDisposable
         {
             bodies.GetRPosition(ghost, out RVector3 position);
             Quaternion rotation = bodies.GetRotation(ghost);
-            bodies.SetRPositionAndRotation(ghost, (position.ToDouble3() - offset).ToJolt(), rotation, Activation.DontActivate);
+            bodies.SetRPositionAndRotation(ghost, (position.ToDouble3() - offset).ToJolt(), rotation,
+                Activation.DontActivate);
             if (velocity == Double3.Zero)
                 continue;
             // Jolt gives a static body no velocity.
-            Vector3 linear = ((Double3)bodies.GetLinearVelocity(ghost) - velocity).ToVector3();
+            var linear = (bodies.GetLinearVelocity(ghost) - velocity).ToVector3();
             if (linear != Vector3.Zero && bodies.GetMotionType(ghost) == MotionType.Static)
                 bodies.SetMotionType(ghost, MotionType.Kinematic, Activation.Activate);
             bodies.SetLinearVelocity(ghost, linear);
@@ -293,14 +364,14 @@ internal sealed class FrameWorld : IDisposable
     {
         // The system frees its tables when it is destroyed.
         var layers = new Layers.Tables();
-        PhysicsSystem system = NativeOwnership.Owned(new PhysicsSystem(new PhysicsSystemSettings
+        PhysicsSystem system = NativeOwnership.Owned(new PhysicsSystem(new()
         {
             MaxBodies = limits.MaxBodies,
             MaxBodyPairs = limits.MaxBodyPairs,
             MaxContactConstraints = limits.MaxContactConstraints,
             ObjectLayerPairFilter = layers.Pairs,
             BroadPhaseLayerInterface = layers.BroadPhase,
-            ObjectVsBroadPhaseLayerFilter = layers.ObjectVsBroadPhase,
+            ObjectVsBroadPhaseLayerFilter = layers.ObjectVsBroadPhase
         }));
         // JoltPhysicsSharp gave the system a listener of its own, which would now call the backend's callbacks with its
         // own user data. Replace it before anything can update the system.
@@ -312,12 +383,6 @@ internal sealed class FrameWorld : IDisposable
         system.Settings = settings;
         return system;
     }
-
-    /// <summary>Jolt's own sleep threshold, in m/s: a body whose points move slower than this for half a second sleeps.</summary>
-    public const float JoltSleepThreshold = 0.03f;
-
-    /// <summary>The sleep threshold of <see cref="System"/>, in m/s. A system starts with Jolt's own.</summary>
-    public float SleepThreshold { get; private set; } = JoltSleepThreshold;
 
     /// <summary>Gives <see cref="System"/> a new sleep threshold, in m/s. A growth keeps it.</summary>
     public void SetSleepThreshold(float threshold)
@@ -371,9 +436,6 @@ internal sealed class FrameWorld : IDisposable
     private static BodyID Renamed(uint id, IReadOnlyDictionary<uint, uint> renamed) =>
         new(renamed.TryGetValue(id, out uint newId) ? newId : id);
 
-    /// <summary>How far beyond the bounds of a body <see cref="WakeAround"/> reaches, in meters: more than Jolt's speculative contact distance of 0.02 m.</summary>
-    private const float WakeMargin = 0.05f;
-
     /// <summary>
     /// Wakes every body in or near the bounds of <paramref name="body"/> whose layer collides with the body's layer. Jolt
     /// wakes a sleeping body only when a body that it simulates touches it. So call this before the backend removes or
@@ -395,7 +457,7 @@ internal sealed class FrameWorld : IDisposable
         // Jolt keeps the bounds in float, so far from the frame origin they are rounded by more than the margin.
         float reach = MathF.Max(MaxAbs(bounds.Min), MaxAbs(bounds.Max));
         var margin = new Vector3(WakeMargin + reach * 1e-6f);
-        System.ActivateBodiesInAABox(new JoltPhysicsSharp.BoundingBox(bounds.Min - margin, bounds.Max + margin), layer);
+        System.ActivateBodiesInAABox(new(bounds.Min - margin, bounds.Max + margin), layer);
     }
 
     private static float MaxAbs(Vector3 v) => MathF.Max(MathF.Abs(v.X), MathF.Max(MathF.Abs(v.Y), MathF.Abs(v.Z)));
@@ -459,7 +521,8 @@ internal sealed class FrameWorld : IDisposable
             // Jolt's contact normal points out of the other body, toward the character. A contact's normal points from
             // its first body, here the inner body, to its second.
             Vector3 normal = -contact.ContactNormal;
-            characterHits.Add(new RawContact(inner, contact.BodyB, character.UserData, contact.UserData, contact.RPosition.ToDouble3(),
+            characterHits.Add(new(inner, contact.BodyB, character.UserData, contact.UserData,
+                contact.RPosition.ToDouble3(),
                 normal, Vector3.Dot(contact.LinearVelocity - velocity, normal), Touches: true));
         }
     }
@@ -484,12 +547,10 @@ internal sealed class FrameWorld : IDisposable
     /// and Jolt did not find the pair: Jolt finds the contacts of every body that it simulates, also of one that woke
     /// during the update, while two bodies that Jolt did not simulate did not move apart.
     /// </summary>
-    private bool HeldPairEnded(ulong key)
-    {
-        if (characterBodies.Contains((uint)(key >> 32)) || characterBodies.Contains((uint)key))
-            return !characterTouches.Contains(key);
-        return IsAwake(First(key)) || IsAwake(Second(key));
-    }
+    private bool HeldPairEnded(ulong key) =>
+        characterBodies.Contains((uint)(key >> 32)) || characterBodies.Contains((uint)key)
+            ? !characterTouches.Contains(key)
+            : IsAwake(First(key)) || IsAwake(Second(key));
 
     /// <summary>True when Jolt simulates the body: it is awake and not static. False for a body that left the system.</summary>
     private bool IsAwake(BodyID body) => BodiesNoLock.IsActive(body);
@@ -524,6 +585,7 @@ internal sealed class FrameWorld : IDisposable
                 else if (contact.Touches && (count == 0 || pending.Remove(key)))
                     started.Add(contact);
             }
+
             foreach (RawContact contact in persistedTouches)
                 if (pending.Remove(contact.PairKey))
                     started.Add(contact);
@@ -536,12 +598,14 @@ internal sealed class FrameWorld : IDisposable
                     touching[key] = count - 1;
                     continue;
                 }
+
                 // A pair that never touched leaves without a report. A pair that started ended, or Jolt dropped it because
                 // it simulates neither body. The check below tells which.
                 touching.Remove(key);
                 if (!pending.Remove(key))
                     held.Add(key);
             }
+
             added.Clear();
             persistedTouches.Clear();
             removed.Clear();
@@ -567,19 +631,10 @@ internal sealed class FrameWorld : IDisposable
                     ended.Add(EndOf(key));
                 }
             }
+
             updatedSinceDrain = false;
         }
     }
-
-    private static readonly Comparison<RawContact> ByPairAndPoint = static (a, b) =>
-    {
-        int c = a.PairKey.CompareTo(b.PairKey);
-        if (c != 0) return c;
-        c = a.Point.X.CompareTo(b.Point.X);
-        if (c != 0) return c;
-        c = a.Point.Y.CompareTo(b.Point.Y);
-        return c != 0 ? c : a.Point.Z.CompareTo(b.Point.Z);
-    };
 
     /// <summary>The end of the pair <paramref name="key"/>, whose two bodies are still in the system.</summary>
     private RawEnd EndOf(ulong key) => new(BodiesNoLock.GetUserData(First(key)), BodiesNoLock.GetUserData(Second(key)));
@@ -595,7 +650,9 @@ internal sealed class FrameWorld : IDisposable
     {
         ulong key = PairKey(a, b);
         lock (contactGate)
+        {
             return touching.ContainsKey(key) ? pending.Remove(key) : held.Add(key);
+        }
     }
 
     /// <summary>
@@ -613,6 +670,7 @@ internal sealed class FrameWorld : IDisposable
                 if (Involves(key, body))
                     return true;
         }
+
         return false;
     }
 
@@ -710,12 +768,6 @@ internal sealed class FrameWorld : IDisposable
     }
 
     /// <summary>
-    /// How far apart two bodies can be and still touch, in meters: ten times Jolt's collision tolerance, so that the
-    /// rounding of Jolt's contact search hides no touch, and a twentieth of Jolt's speculative contact distance.
-    /// </summary>
-    public const float TouchTolerance = 0.001f;
-
-    /// <summary>
     /// True when a contact that Jolt found in a step is a real touch: the bodies are at most <see cref="TouchTolerance"/>
     /// apart, or they approach fast enough to close their gap within the step, so that the solver pushes them apart. Jolt
     /// finds a pair as soon as its bodies are within its speculative contact distance of 0.02 m, and such a pair can
@@ -729,33 +781,6 @@ internal sealed class FrameWorld : IDisposable
         float gap = -penetrationDepth;
         return gap <= TouchTolerance || -normalVelocity * deltaTime >= gap;
     }
-
-    /// <summary>
-    /// Jolt's speculative contact distance, in m: Jolt finds the pair of two bodies that are this close, and holds their
-    /// contact while they stay this close. It is Jolt's default, which the engine keeps.
-    /// </summary>
-    public const float JoltSpeculativeContactDistance = 0.02f;
-
-    /// <summary>
-    /// Jolt's <c>MinVelocityForRestitution</c>, in m/s: Jolt bounces a contact point only when it approaches faster than
-    /// this. It is Jolt's default, which the engine keeps.
-    /// </summary>
-    public const float JoltMinVelocityForRestitution = 1f;
-
-    /// <summary>
-    /// The least height, in m, that a bounce that a contact keeps rises before the pull toward the surface brings it
-    /// back: twice <see cref="JoltSpeculativeContactDistance"/>. So every bounce that remains carries the body out of that
-    /// distance, and ends the contact, wherever its landing step begins. At 1 g the slowest rebound that remains is
-    /// about 0.89 m/s.
-    /// </summary>
-    /// <remarks>
-    /// Jolt finds a pair within its speculative contact distance. When a landing step begins there, Jolt gives a bouncing
-    /// body its rebound at once, from where it is, so it rises to about its gap at the start of the step plus the height
-    /// of its bounce. Without the minimum, a small bounce from a step that begins near the surface stayed within the
-    /// distance, and the same bounce from a step that begins near the edge left it: one drop reported one landing or two
-    /// (ter-4kaa). Twice the distance leaves a margin for the rounding of the rise in whole steps.
-    /// </remarks>
-    public const float MinReboundHeight = 2 * JoltSpeculativeContactDistance;
 
     /// <summary>
     /// The restitution that a contact keeps: <paramref name="restitution"/> when the bounce that Jolt gives it rises at
@@ -773,7 +798,8 @@ internal sealed class FrameWorld : IDisposable
     /// <param name="approachSpeed">How fast the bodies approach along the contact's normal, in m/s, as Jolt measures it for its rebound. Below zero, how fast they move apart.</param>
     /// <param name="approachAcceleration">How fast the accumulated forces accelerate the bodies toward each other along the normal, in m/s². Below zero, apart.</param>
     /// <param name="deltaTime">The length of the step, in seconds.</param>
-    internal static float KeptRestitution(float restitution, float approachSpeed, float approachAcceleration, float deltaTime)
+    internal static float KeptRestitution(float restitution, float approachSpeed, float approachAcceleration,
+        float deltaTime)
     {
         float pull = MathF.Max(approachAcceleration, 0f);
         float rebound = restitution * (approachSpeed - pull * deltaTime);
@@ -789,12 +815,12 @@ internal sealed class FrameWorld : IDisposable
     /// <c>JoltPhysicsBackend.GhostMotion</c>), so the approach that Jolt simulates is the approach of the entities, which
     /// the touch test and the impulse read too (see <see cref="PointVelocity"/>).
     /// </summary>
-    private unsafe float KeptRestitution(nint body1, nint body2, nint manifold, float restitution)
+    private float KeptRestitution(nint body1, nint body2, nint manifold, float restitution)
     {
         float approach = BounceApproach(body1, body2, manifold, out Vector3 normal);
-        if (approach <= 0f)
-            return 0f;
-        return KeptRestitution(restitution, approach, ApproachAcceleration(body1, body2, normal), updateDeltaTime);
+        return approach <= 0f
+            ? 0f
+            : KeptRestitution(restitution, approach, ApproachAcceleration(body1, body2, normal), updateDeltaTime);
     }
 
     /// <summary>
@@ -845,6 +871,7 @@ internal sealed class FrameWorld : IDisposable
             if (approach > fastest && approach > JoltMinVelocityForRestitution)
                 fastest = approach;
         }
+
         return fastest;
     }
 
@@ -854,7 +881,7 @@ internal sealed class FrameWorld : IDisposable
     /// <see cref="ForceAcceleration"/>). Below zero, apart. The backend adds gravity as a force, and keeps the system's
     /// own gravity at zero during an update, so this holds gravity and every Force intent.
     /// </summary>
-    private unsafe float ApproachAcceleration(nint body1, nint body2, Vector3 normal) =>
+    private float ApproachAcceleration(nint body1, nint body2, Vector3 normal) =>
         Vector3.Dot(ForceAcceleration(body1) - ForceAcceleration(body2), normal);
 
     /// <summary>
@@ -905,7 +932,9 @@ internal sealed class FrameWorld : IDisposable
             return;
         RawContact contact = Describe(body1, body2, data1, data2, manifold, settings->IsSensor);
         lock (contactGate)
+        {
             added.Add(contact);
+        }
     }
 
     /// <summary>
@@ -921,11 +950,14 @@ internal sealed class FrameWorld : IDisposable
             settings->CombinedRestitution = KeptRestitution(body1, body2, manifold, restitution);
         if (pending.Count == 0 || !pending.Contains(PairKey(JoltNative.BodyId(body1), JoltNative.BodyId(body2))))
             return;
-        RawContact contact = Describe(body1, body2, JoltNative.BodyUserData(body1), JoltNative.BodyUserData(body2), manifold, settings->IsSensor);
+        RawContact contact = Describe(body1, body2, JoltNative.BodyUserData(body1), JoltNative.BodyUserData(body2),
+            manifold, settings->IsSensor);
         if (!contact.Touches)
             return;
         lock (contactGate)
+        {
             persistedTouches.Add(contact);
+        }
     }
 
     /// <summary>Jolt's report that it no longer holds a contact between a sub-shape of each of two bodies.</summary>
@@ -933,18 +965,21 @@ internal sealed class FrameWorld : IDisposable
     {
         ulong key = PairKey(body1, body2);
         lock (contactGate)
+        {
             removed.Add(key);
+        }
     }
 
     /// <summary>
     /// The contact of a manifold that Jolt found in this update, at the mean of its points on the first body.
     /// <paramref name="sensor"/> is true when one of the bodies is a sensor.
     /// </summary>
-    private unsafe RawContact Describe(nint body1, nint body2, ulong data1, ulong data2, nint manifold, bool sensor)
+    private RawContact Describe(nint body1, nint body2, ulong data1, ulong data2, nint manifold, bool sensor)
     {
         float normalVelocity = NormalVelocity(body1, body2, manifold, out Double3 point, out Vector3 normal);
-        return new RawContact(new BodyID(JoltNative.BodyId(body1)), new BodyID(JoltNative.BodyId(body2)), data1, data2, point, normal,
-            normalVelocity, Touches(JoltNative.ManifoldPenetrationDepth(manifold), normalVelocity, updateDeltaTime), sensor);
+        return new(new(JoltNative.BodyId(body1)), new(JoltNative.BodyId(body2)), data1, data2, point, normal,
+            normalVelocity, Touches(JoltNative.ManifoldPenetrationDepth(manifold), normalVelocity, updateDeltaTime),
+            sensor);
     }
 
     /// <summary>
@@ -953,7 +988,8 @@ internal sealed class FrameWorld : IDisposable
     /// manifold's points on the first body, or the first body's center of mass when the manifold has none.
     /// <paramref name="normal"/> is the manifold's normal, from the first body to the second.
     /// </summary>
-    private static unsafe float NormalVelocity(nint body1, nint body2, nint manifold, out Double3 point, out Vector3 normal)
+    private static unsafe float NormalVelocity(nint body1, nint body2, nint manifold, out Double3 point,
+        out Vector3 normal)
     {
         uint count = JoltNative.ManifoldPointCount(manifold);
         point = Double3.Zero;
@@ -965,6 +1001,7 @@ internal sealed class FrameWorld : IDisposable
                 JoltNative.ContactPointOn1(manifold, i, &p);
                 point += p.ToDouble3();
             }
+
             point /= count;
         }
         else
@@ -999,14 +1036,10 @@ internal sealed class FrameWorld : IDisposable
     /// applies Jolt's rule alone, and the backend's AssertInvariants finds the missing entry. Reads the bodies only for a
     /// pair with a ghost.
     /// </summary>
-    private bool ContactMotionsMeet(nint body1, ulong data1, nint body2, ulong data2)
-    {
-        if (BodyUserData.Kind(data1) != BodyKind.Ghost && BodyUserData.Kind(data2) != BodyKind.Ghost)
-            return true;
-        if (ContactMotion(body1, data1) is not { } motion1 || ContactMotion(body2, data2) is not { } motion2)
-            return true;
-        return MotionsMeet(motion1, JoltNative.BodyIsSensor(body1) != 0, motion2, JoltNative.BodyIsSensor(body2) != 0);
-    }
+    private bool ContactMotionsMeet(nint body1, ulong data1, nint body2, ulong data2) =>
+        (BodyUserData.Kind(data1) != BodyKind.Ghost && BodyUserData.Kind(data2) != BodyKind.Ghost) ||
+        ContactMotion(body1, data1) is not { } motion1 || ContactMotion(body2, data2) is not { } motion2 ||
+        MotionsMeet(motion1, JoltNative.BodyIsSensor(body1) != 0, motion2, JoltNative.BodyIsSensor(body2) != 0);
 
     /// <summary>
     /// The contact motion of a body that Jolt passes to a report: for a ghost, its entry in the table of ghosts, or null
@@ -1015,11 +1048,11 @@ internal sealed class FrameWorld : IDisposable
     /// </summary>
     private MotionType? ContactMotion(nint body, ulong data) => BodyUserData.Kind(data) switch
     {
-        BodyKind.Ghost => GhostContactMotion(new BodyID(JoltNative.BodyId(body))),
+        BodyKind.Ghost => GhostContactMotion(new(JoltNative.BodyId(body))),
         BodyKind.CharacterInner => MotionType.Dynamic,
         _ => JoltNative.BodyIsDynamic(body) != 0 ? MotionType.Dynamic
             : JoltNative.BodyIsKinematic(body) != 0 ? MotionType.Kinematic
-            : MotionType.Static,
+            : MotionType.Static
     };
 
     /// <summary>
@@ -1036,7 +1069,11 @@ internal sealed class FrameWorld : IDisposable
     /// it is a sensor. A character's inner body has the dynamic motion and contact motion of a character. A body that is
     /// not a ghost has its Jolt motion as its contact motion.
     /// </summary>
-    private readonly record struct PairSide(ObjectLayer Layer, MotionType Motion, MotionType ContactMotion, bool IsSensor);
+    private readonly record struct PairSide(
+        ObjectLayer Layer,
+        MotionType Motion,
+        MotionType ContactMotion,
+        bool IsSensor);
 
     /// <summary>
     /// The pair test: true when Jolt and the contact filter can make a contact between <paramref name="a"/> and
@@ -1055,8 +1092,9 @@ internal sealed class FrameWorld : IDisposable
     /// on the physics thread, between updates.
     /// </summary>
     public bool CanTouch(BodyID a, BodyID b) => SideOf(a) is { } x && SideOf(b) is { } y &&
-        Layers.Meet(x.Layer, y.Layer) && MotionsMeet(x.Motion, x.IsSensor, y.Motion, y.IsSensor) &&
-        MotionsMeet(x.ContactMotion, x.IsSensor, y.ContactMotion, y.IsSensor);
+                                                Layers.Meet(x.Layer, y.Layer) && MotionsMeet(x.Motion, x.IsSensor,
+                                                    y.Motion, y.IsSensor) &&
+                                                MotionsMeet(x.ContactMotion, x.IsSensor, y.ContactMotion, y.IsSensor);
 
     /// <summary>
     /// What the pair test reads of <paramref name="body"/>, or null when it is not in this system. A ghost without a contact
@@ -1080,13 +1118,16 @@ internal sealed class FrameWorld : IDisposable
                 else
                     ghostWithoutContactMotion = true;
             }
+
             side = new PairSide(jolt.ObjectLayer, motion, contactMotion, jolt.IsSensor);
         }
+
         locks.UnlockRead(read);
         // The backend gives every ghost its contact motion when it adds the ghost (see AddGhost). The report comes after the
         // lock, because in a Debug build it throws.
         if (ghostWithoutContactMotion)
-            reportBug($"Physics: the ghost {body.ID} in the system of {Frame} has no contact motion. Only a bug leaves such a ghost, " +
+            reportBug(
+                $"Physics: the ghost {body.ID} in the system of {Frame} has no contact motion. Only a bug leaves such a ghost, " +
                 "so the pair test judged it by its Jolt motion.");
         return side;
     }
@@ -1110,7 +1151,7 @@ internal sealed class FrameWorld : IDisposable
         JoltNative.BodyCenterOfMass(body, &com);
         JoltNative.BodyLinearVelocity(body, &linear);
         JoltNative.BodyAngularVelocity(body, &angular);
-        Vector3 offset = (point - com.ToDouble3()).ToVector3();
+        var offset = (point - com.ToDouble3()).ToVector3();
         return linear + Vector3.Cross(angular, offset);
     }
 }

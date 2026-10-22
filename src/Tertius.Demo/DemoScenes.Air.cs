@@ -1,5 +1,3 @@
-using Tertius.Simulation;
-
 namespace Tertius.Demo;
 
 public static partial class DemoScenes
@@ -25,7 +23,8 @@ public static partial class DemoScenes
         /// </summary>
         public const float Drag = 2;
 
-        /// <summary>Earth's air, for earth-surface, whose origin is Earth's center: it thins with height above <see cref="EarthRadius"/>.</summary>
+        /// <summary>Earth's air, for earth-surface, whose origin is Earth's center: it thins with height above
+        /// <see cref="EarthRadius"/>.</summary>
         public static MediumField Earth => MediumField.Planet(EarthRadius, SurfaceDensity, ScaleHeight, Drag);
 
         /// <summary>Air at the surface's density that fills <paramref name="region"/> of a frame, in its axes, or the whole frame when it is null.</summary>

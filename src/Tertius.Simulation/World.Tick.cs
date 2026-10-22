@@ -9,8 +9,16 @@ namespace Tertius.Simulation;
 public sealed partial class World
 {
     // Each worker thread fills its own event list. A list never outlives one entity run.
-    [ThreadStatic]
-    private static EventBuffer? workerEvents;
+    [ThreadStatic] private static EventBuffer? workerEvents;
+
+    /// <summary>
+    /// The time that the sync points of this world took, in <see cref="Stopwatch"/> timestamp units, summed over
+    /// <see cref="SyncCount"/> sync points. The benchmarks read it, because a sync point has no timer of its own.
+    /// </summary>
+    internal long SyncTimestampTotal { get; private set; }
+
+    /// <summary>The number of sync points that <see cref="SyncTimestampTotal"/> sums.</summary>
+    internal long SyncCount { get; private set; }
 
     /// <summary>
     /// Runs one tick. Physics steps on its own thread while the gameplay chunks run in parallel; both read only the
@@ -34,7 +42,8 @@ public sealed partial class World
             if (physicsWorker != null)
             {
                 stepOutput.Clear();
-                physicsWorker.Begin(new PhysicsStepContext(TickNumber, DeltaTime, Time, Frames, entities.FrontIntents, entities.IntentEntities));
+                physicsWorker.Begin(new(TickNumber, DeltaTime, Time, Frames, Entities.FrontIntents,
+                    Entities.IntentEntities));
                 stepping = true;
             }
 
@@ -46,6 +55,7 @@ public sealed partial class World
                 stepping = false;
                 physicsError = physicsWorker!.Wait();
             }
+
             // A broken contract is a bug in the backend, not a failed step, so the world does not survive it like one.
             // It escapes here, on the ticking thread, with the stack of the physics thread where it broke.
             if (physicsError?.SourceException is ContractException)
@@ -61,17 +71,9 @@ public sealed partial class World
                 physicsWorker!.Wait();
             inTick = false;
         }
+
         FlushLog();
     }
-
-    /// <summary>
-    /// The time that the sync points of this world took, in <see cref="Stopwatch"/> timestamp units, summed over
-    /// <see cref="SyncCount"/> sync points. The benchmarks read it, because a sync point has no timer of its own.
-    /// </summary>
-    internal long SyncTimestampTotal { get; private set; }
-
-    /// <summary>The number of sync points that <see cref="SyncTimestampTotal"/> sums.</summary>
-    internal long SyncCount { get; private set; }
 
     /// <summary>
     /// The simulation time at the start of tick <paramref name="tick"/>, in seconds: the same double that <see cref="Time"/>
@@ -80,7 +82,7 @@ public sealed partial class World
     /// <c>TimeAt(TickNumber + 1)</c>, which is the end of the first step of an entity spawned now (see
     /// <see cref="SpawnDesc.FirstMove"/>).
     /// </summary>
-    public double TimeAt(long tick) => options.StartTime + tick * (double)DeltaTime;
+    public double TimeAt(long tick) => Options.StartTime + tick * (double)DeltaTime;
 
     private void PrepareTick()
     {
@@ -94,6 +96,7 @@ public sealed partial class World
             DeriveAttachments();
             SwapSnapshot();
         }
+
         FlushPhysicsChanges();
         Frames.Update();
         // Every frame fixes its turns for the step, which physics reads, the falling numeric frames and the following frames
@@ -101,17 +104,18 @@ public sealed partial class World
         // its anchor's motion intent in the intents of the step, while the tree stands where the step starts. After a step
         // that failed, the chords of the bodies may or may not come from the turns of that step, so every frame takes its new
         // turn as its last turn.
-        Frames.BeginStep(entities.FrontIntents.Span, DeltaTime, lastStepFailed);
+        Frames.BeginStep(Entities.FrontIntents.Span, DeltaTime, lastStepFailed);
         // The indexes that entity queries start from apply their queued changes, so that the workers only read them.
         topics.SettleMembers();
-        entities.BeginTick(options.SpawnPoolSize);
+        Entities.BeginTick(Options.SpawnPoolSize);
     }
 
     /// <summary>Hands this batch of structural changes to physics (see <see cref="ApplyPhysicsChanges"/>), unless it holds no change.</summary>
     private void FlushPhysicsChanges()
     {
         PhysicsChanges changes = physicsChanges;
-        if (changes.FramesCreated.Count == 0 && changes.BodiesDestroyed.Count == 0 && changes.FramesDestroyed.Count == 0 &&
+        if (changes.FramesCreated.Count == 0 && changes.BodiesDestroyed.Count == 0 &&
+            changes.FramesDestroyed.Count == 0 &&
             changes.FramesShifted.Count == 0 && changes.BodiesMoved.Count == 0 && changes.BodiesCreated.Count == 0)
             return;
         ApplyPhysicsChanges();
@@ -127,13 +131,15 @@ public sealed partial class World
         PhysicsChanges changes = physicsChanges;
         try
         {
-            physics?.ApplyChanges(changes, Frames);
+            Physics?.ApplyChanges(changes, Frames);
         }
         // A broken contract is a bug in the backend, not a failure to apply changes, so it is not survived like one.
         catch (Exception ex) when (ex is not ContractException)
         {
-            Report($"tick {TickNumber}: the physics backend failed to apply changes: {ex.GetType().Name}: {ex.Message}", isError: true);
+            Report($"tick {TickNumber}: the physics backend failed to apply changes: {ex.GetType().Name}: {ex.Message}",
+                isError: true);
         }
+
         // The states that only a bug produces, which the backend skipped in a Release build.
         foreach (string error in changes.Errors)
             Report($"tick {TickNumber}: {error}", isError: true);
@@ -142,32 +148,28 @@ public sealed partial class World
 
     private void RunGameplay()
     {
-        int count = entities.Chunks.Length;
+        int count = Entities.Chunks.Length;
         if (count == 0)
             return;
-        if (options.MaxDegreeOfParallelism == 1 || count == 1)
-        {
+        if (Options.MaxDegreeOfParallelism == 1 || count == 1)
             for (int c = 0; c < count; c++)
                 RunChunk(c);
-        }
         else
-        {
             Parallel.For(0, count, parallelOptions, runChunk);
-        }
     }
 
     /// <summary>Runs every entity of one chunk that has mail, wants Tick, or is new and wants Spawned. On a worker.</summary>
     private void RunChunk(int chunkIndex)
     {
-        ChunkState chunk = entities.Chunks[chunkIndex];
-        EventBuffer buffer = workerEvents ??= new EventBuffer(64);
+        ChunkState chunk = Entities.Chunks[chunkIndex];
+        EventBuffer buffer = workerEvents ??= new(64);
         int tickType = EventType<TickEvent>.Id;
         int spawnedType = EventType<Spawned>.Id;
-        foreach (Entity entity in entities.LiveEntitiesOfChunk(chunkIndex))
+        foreach (Entity entity in Entities.LiveEntitiesOfChunk(chunkIndex))
         {
-            bool first = entities.TakeFirstTick(entity);
-            bool wantsTick = entities.Accepts(entity, tickType);
-            bool wantsSpawned = first && entities.Accepts(entity, spawnedType);
+            bool first = Entities.TakeFirstTick(entity);
+            bool wantsTick = Entities.Accepts(entity, tickType);
+            bool wantsSpawned = first && Entities.Accepts(entity, spawnedType);
             if (router.InboxCount(entity) == 0 && !wantsTick && !wantsSpawned)
                 continue;
             RunEntity(chunk, buffer, entity, wantsTick, wantsSpawned);
@@ -184,8 +186,8 @@ public sealed partial class World
         // The per-recipient copy runs here, on the worker, not at the serial sync point.
         router.CopyInbox(entity, events);
 
-        ReadOnlySpan<IComponent> components = entities.Components(entity);
-        ReadOnlySpan<EventMask> wants = entities.ComponentWants(entity);
+        ReadOnlySpan<IComponent> components = Entities.Components(entity);
+        ReadOnlySpan<EventMask> wants = Entities.ComponentWants(entity);
         var self = new Self(this, chunk, entity);
         var outbox = new Outbox(chunk, entity, TickNumber);
         // The marker lets the code that must not run in a component's Handle call, such as building the heap part of an
@@ -204,8 +206,9 @@ public sealed partial class World
                 // A broken contract is a bug in the engine, not in the component, so it is not survived like one.
                 catch (Exception ex) when (ex is not ContractException)
                 {
-                    chunk.Messages.Add(new ChunkMessage(
-                        $"tick {TickNumber}: {entity} {components[c].GetType().FullName}: {ex.GetType().Name}: {ex.Message}", true));
+                    chunk.Messages.Add(new(
+                        $"tick {TickNumber}: {entity} {components[c].GetType().FullName}: {ex.GetType().Name}: {ex.Message}",
+                        true));
                 }
             }
         }
@@ -235,12 +238,14 @@ public sealed partial class World
     /// </summary>
     internal ref DPose WritableTransform(Entity entity)
     {
-        if (entities.Body(entity) != null)
-            throw new InvalidOperationException($"{entity} has a physics body, so physics owns its transform. Move it through Self.Body.");
-        Entity parent = attachments.ParentOf(entity);
+        if (Entities.Body(entity) != null)
+            throw new InvalidOperationException(
+                $"{entity} has a physics body, so physics owns its transform. Move it through Self.Body.");
+        Entity parent = Attachments.ParentOf(entity);
         if (!parent.IsNull)
-            throw new InvalidOperationException($"{entity} is attached to {parent}, so its transform follows the parent. Change Self.AttachOffset instead.");
-        return ref entities.WritableTransform(entity);
+            throw new InvalidOperationException(
+                $"{entity} is attached to {parent}, so its transform follows the parent. Change Self.AttachOffset instead.");
+        return ref Entities.WritableTransform(entity);
     }
 
     /// <summary>
@@ -248,79 +253,84 @@ public sealed partial class World
     /// <see cref="RayCastKind.Nearest"/> for <see cref="PhysicsQueries.CastRay"/> and <see cref="RayCastKind.All"/> for
     /// <see cref="PhysicsQueries.CastRayAll"/>, which give the arguments and the answer.
     /// </summary>
-    internal void RequestRay(ChunkState chunk, Entity entity, RayCastKind kind, Double3 from, Double3 direction, double length,
+    internal void RequestRay(ChunkState chunk, Entity entity, RayCastKind kind, Double3 from, Double3 direction,
+        double length,
         in EntityQuery query, int tag)
     {
         FrameHandle frame = QueryFrame(entity, "cast a ray");
         Double3 origin = CheckedOrigin(from);
         Double3 unit = CheckedSweep("A ray", direction, length);
-        chunk.PhysicsRequests.Add(new PhysicsRequest(entity, frame, new RayQuestion(origin, unit, length, kind), query, tag));
+        chunk.PhysicsRequests.Add(new(entity, frame, new RayQuestion(origin, unit, length, kind), query, tag));
     }
 
     /// <summary>
     /// Queues a shape cast of the running entity for this tick's sync point, in the frame that the entity is in. See
     /// <see cref="PhysicsQueries.CastShape"/> for the arguments and the answer.
     /// </summary>
-    internal void RequestShapeCast(ChunkState chunk, Entity entity, in QueryShape shape, in DPose start, Double3 direction,
+    internal void RequestShapeCast(ChunkState chunk, Entity entity, in QueryShape shape, in DPose start,
+        Double3 direction,
         double length, in EntityQuery query, int tag)
     {
         FrameHandle frame = QueryFrame(entity, "cast a shape");
         DPose pose = CheckedPose(shape, start, "A shape cast", nameof(start));
         Double3 unit = CheckedSweep("A shape cast", direction, length);
-        chunk.PhysicsRequests.Add(new PhysicsRequest(entity, frame, new ShapeCastQuestion(shape, pose, unit, length), query, tag));
+        chunk.PhysicsRequests.Add(new(entity, frame, new ShapeCastQuestion(shape, pose, unit, length), query, tag));
     }
 
     /// <summary>
     /// Queues an overlap query of the running entity for this tick's sync point, in the frame that the entity is in. See
     /// <see cref="PhysicsQueries.Overlap"/> for the arguments and the answer.
     /// </summary>
-    internal void RequestOverlap(ChunkState chunk, Entity entity, in QueryShape shape, in DPose pose, in EntityQuery query, int tag)
+    internal void RequestOverlap(ChunkState chunk, Entity entity, in QueryShape shape, in DPose pose,
+        in EntityQuery query, int tag)
     {
         FrameHandle frame = QueryFrame(entity, "test an overlap");
         DPose checkedPose = CheckedPose(shape, pose, "An overlap query", nameof(pose));
-        chunk.PhysicsRequests.Add(new PhysicsRequest(entity, frame, new OverlapQuestion(shape, checkedPose), query, tag));
+        chunk.PhysicsRequests.Add(new(entity, frame, new OverlapQuestion(shape, checkedPose), query, tag));
     }
 
     /// <summary>The frame that a query of <paramref name="entity"/> works in: the frame the entity is in.</summary>
     private FrameHandle QueryFrame(Entity entity, string toDo)
     {
-        FrameHandle frame = entities.FrontRow(entity).Frame;
-        if (frame.IsNull)
-            throw new InvalidOperationException($"{entity} owns a root frame and is in no frame, so it has no frame to {toDo} in.");
-        return frame;
+        FrameHandle frame = Entities.FrontRow(entity).Frame;
+        return frame.IsNull
+            ? throw new InvalidOperationException(
+                $"{entity} owns a root frame and is in no frame, so it has no frame to {toDo} in.")
+            : frame;
     }
 
-    private static Double3 CheckedOrigin(Double3 from)
-    {
-        if (!double.IsFinite(from.X) || !double.IsFinite(from.Y) || !double.IsFinite(from.Z))
-            throw new ArgumentException($"A ray needs a finite origin, not {from}.", nameof(from));
-        return from;
-    }
+    private static Double3 CheckedOrigin(Double3 from) =>
+        !double.IsFinite(from.X) || !double.IsFinite(from.Y) || !double.IsFinite(from.Z)
+            ? throw new ArgumentException($"A ray needs a finite origin, not {from}.", nameof(from))
+            : from;
 
     /// <summary>The unit vector along <paramref name="direction"/>, after the checks of a cast's direction and length.</summary>
     private static Double3 CheckedSweep(string what, Double3 direction, double length)
     {
         double size = direction.Length;
-        if (!(size > 0) || !double.IsFinite(size))
-            throw new ArgumentException($"{what} needs a finite direction that is not zero, not {direction}.", nameof(direction));
-        if (!(length > 0) || !double.IsFinite(length))
-            throw new ArgumentOutOfRangeException(nameof(length), length, $"{what} needs a finite length of more than 0 m.");
-        return direction / size;
+        return !(size > 0) || !double.IsFinite(size)
+            ? throw new ArgumentException($"{what} needs a finite direction that is not zero, not {direction}.",
+                nameof(direction))
+            : !(length > 0) || !double.IsFinite(length)
+                ? throw new ArgumentOutOfRangeException(nameof(length), length,
+                    $"{what} needs a finite length of more than 0 m.")
+                : direction / size;
     }
 
     /// <summary>The pose of a shape query with a unit rotation, after the checks of its shape and pose.</summary>
     private static DPose CheckedPose(in QueryShape shape, in DPose pose, string what, string parameter)
     {
         if (shape.Problem() is { } problem)
-            throw new ArgumentException($"{what} needs a sphere, a box or a capsule of a usable size, and its shape {problem}.", nameof(shape));
+            throw new ArgumentException(
+                $"{what} needs a sphere, a box or a capsule of a usable size, and its shape {problem}.", nameof(shape));
         Double3 p = pose.Position;
         DQuaternion q = pose.Rotation;
         if (!double.IsFinite(p.X) || !double.IsFinite(p.Y) || !double.IsFinite(p.Z))
             throw new ArgumentException($"{what} needs a finite position, not {p}.", parameter);
         double rotationSize = q.LengthSquared;
-        if (!(rotationSize > 0) || !double.IsFinite(rotationSize))
-            throw new ArgumentException($"{what} needs a finite rotation that is not zero, not {q}.", parameter);
-        return new DPose(p, q.Normalized());
+        return !(rotationSize > 0) || !double.IsFinite(rotationSize)
+            ? throw new ArgumentException($"{what} needs a finite rotation that is not zero, not {q}.", parameter)
+            : new(p, q.Normalized());
     }
 
     /// <summary>
@@ -329,9 +339,9 @@ public sealed partial class World
     /// </summary>
     internal ref PhysicsIntent WritableIntent(Entity entity)
     {
-        if (entities.Body(entity) == null)
+        if (Entities.Body(entity) == null)
             throw new InvalidOperationException($"{entity} has no physics body.");
-        return ref entities.WritableIntent(entity);
+        return ref Entities.WritableIntent(entity);
     }
 
     /// <summary>
@@ -345,12 +355,13 @@ public sealed partial class World
     /// </summary>
     internal ref PhysicsIntent WritablePush(Entity entity)
     {
-        if (entities.Body(entity) != null)
-            return ref entities.WritableIntent(entity);
-        Entity root = attachments.RootOf(entity);
-        if (root.IsNull || entities.Body(root) == null)
-            throw new InvalidOperationException($"{entity} has no physics body, and it is not part of a chain whose root has one.");
-        return ref entities.WritablePush(entity);
+        if (Entities.Body(entity) != null)
+            return ref Entities.WritableIntent(entity);
+        Entity root = Attachments.RootOf(entity);
+        if (root.IsNull || Entities.Body(root) == null)
+            throw new InvalidOperationException(
+                $"{entity} has no physics body, and it is not part of a chain whose root has one.");
+        return ref Entities.WritablePush(entity);
     }
 
     /// <summary>
@@ -365,11 +376,14 @@ public sealed partial class World
     {
         if (NextStepMotion(entity) == BodyMotion.Kinematic)
         {
-            FrameHandle own = entities.OwnedFrame(entity);
-            string body = own.IsNull ? $"{entity} has a kinematic body" : $"{entity} owns {own}, whose body is a kinematic hull,";
+            FrameHandle own = Entities.OwnedFrame(entity);
+            string body = own.IsNull
+                ? $"{entity} has a kinematic body"
+                : $"{entity} owns {own}, whose body is a kinematic hull,";
             throw new InvalidOperationException(
                 $"{body} so it cannot take {call}: a kinematic body moves only by its motion intents and teleports.");
         }
+
         return ref WritableIntent(entity);
     }
 
@@ -389,9 +403,9 @@ public sealed partial class World
     /// </remarks>
     public string? MotionIntentProblem(Entity entity, in MotionIntent intent)
     {
-        FrameHandle own = entities.OwnedFrame(entity);
+        FrameHandle own = Entities.OwnedFrame(entity);
         bool ownsRootFrame = !own.IsNull && Frames.Parent(own).IsNull;
-        return intent.ProblemFor(NextStepMotion(entity), attached: !attachments.ParentOf(entity).IsNull, ownsRootFrame);
+        return intent.ProblemFor(NextStepMotion(entity), attached: !Attachments.ParentOf(entity).IsNull, ownsRootFrame);
     }
 
     /// <summary>
@@ -402,9 +416,10 @@ public sealed partial class World
     /// </summary>
     public bool TakesMotionIntent(Entity entity, in MotionIntent intent)
     {
-        FrameHandle own = entities.OwnedFrame(entity);
+        FrameHandle own = Entities.OwnedFrame(entity);
         bool ownsRootFrame = !own.IsNull && Frames.Parent(own).IsNull;
-        return intent.RefusalFor(NextStepMotion(entity), attached: !attachments.ParentOf(entity).IsNull, ownsRootFrame) == MotionIntentRefusal.None;
+        return intent.RefusalFor(NextStepMotion(entity), attached: !Attachments.ParentOf(entity).IsNull,
+            ownsRootFrame) == MotionIntentRefusal.None;
     }
 
     /// <summary>
@@ -422,11 +437,12 @@ public sealed partial class World
             throw new ArgumentException($"{call} {problem}.", nameof(move));
         if (MotionIntentProblem(entity, move) is { } refusal)
         {
-            FrameHandle own = entities.OwnedFrame(entity);
+            FrameHandle own = Entities.OwnedFrame(entity);
             string who = own.IsNull ? $"{entity}" : $"{entity}, which owns {own},";
             throw new InvalidOperationException($"{who} cannot take {call}: it {refusal}.");
         }
-        entities.WriteMotionIntent(entity, WithUnitRotation(move));
+
+        Entities.WriteMotionIntent(entity, WithUnitRotation(move));
     }
 
     /// <summary>
@@ -436,17 +452,17 @@ public sealed partial class World
     /// </summary>
     private static string? MotionIntentNumberProblem(in MotionIntent move)
     {
-        switch (move)
+        return move switch
         {
-            case MotionSample sample:
-                return SampleProblem(sample);
-            case EndPose end:
-                return end.Pose.IsValid ? null : $"needs an end pose with a finite position and a finite rotation that is not zero, not {end.Pose}";
-            case SteerTarget steer:
-                return steer.Pose.IsValid ? null : $"needs a steer target with a finite position and a finite rotation that is not zero, not {steer.Pose}";
-            default:
-                return null;
-        }
+            MotionSample sample => SampleProblem(sample),
+            EndPose end => end.Pose.IsValid
+                ? null
+                : $"needs an end pose with a finite position and a finite rotation that is not zero, not {end.Pose}",
+            SteerTarget steer => steer.Pose.IsValid
+                ? null
+                : $"needs a steer target with a finite position and a finite rotation that is not zero, not {steer.Pose}",
+            _ => null
+        };
     }
 
     /// <summary>
@@ -456,10 +472,10 @@ public sealed partial class World
     /// </summary>
     private static MotionIntent WithUnitRotation(in MotionIntent move) => move switch
     {
-        MotionSample sample => new MotionIntent(sample with { Pose = sample.Pose.WithUnitRotation() }),
-        EndPose end => new MotionIntent(new EndPose(end.Pose.WithUnitRotation())),
-        SteerTarget steer => new MotionIntent(new SteerTarget(steer.Pose.WithUnitRotation())),
-        _ => move,
+        MotionSample sample => new(sample with { Pose = sample.Pose.WithUnitRotation() }),
+        EndPose end => new(new EndPose(end.Pose.WithUnitRotation())),
+        SteerTarget steer => new(new SteerTarget(steer.Pose.WithUnitRotation())),
+        _ => move
     };
 
     /// <summary>
@@ -481,8 +497,8 @@ public sealed partial class World
     /// </remarks>
     internal BodyMotion? NextStepHullMotion(FrameHandle frame)
     {
-        BodyMotion? inFrontStep = Frames.HullMotionInStep(frame, entities.FrontIntents.Span);
-        return inFrontStep is null ? null : entities.WrittenMotionChange(frame.Entity) ?? inFrontStep;
+        BodyMotion? inFrontStep = Frames.HullMotionInStep(frame, Entities.FrontIntents.Span);
+        return inFrontStep is null ? null : Entities.WrittenMotionChange(frame.Entity) ?? inFrontStep;
     }
 
     /// <summary>
@@ -492,9 +508,9 @@ public sealed partial class World
     /// </summary>
     internal BodyMotion? NextStepMotion(Entity entity)
     {
-        if (entities.Body(entity) is not { } body)
+        if (Entities.Body(entity) is not { } body)
             return null;
-        FrameHandle own = entities.OwnedFrame(entity);
+        FrameHandle own = Entities.OwnedFrame(entity);
         return own.IsNull ? body.Motion : NextStepHullMotion(own) ?? BodyMotion.Static;
     }
 
@@ -508,18 +524,21 @@ public sealed partial class World
     /// </summary>
     internal void WriteHullMotion(Entity entity, BodyMotion motion)
     {
-        FrameHandle own = entities.OwnedFrame(entity);
+        FrameHandle own = Entities.OwnedFrame(entity);
         string owner = own.IsNull ? $"{entity}" : $"{entity}, which owns {own},";
-        if (entities.Body(entity) is not { } body)
-            throw new InvalidOperationException($"{owner} has no physics body, so it has no hull whose motion can change.");
+        if (Entities.Body(entity) is not { } body)
+            throw new InvalidOperationException(
+                $"{owner} has no physics body, so it has no hull whose motion can change.");
         if (own.IsNull)
-            throw new InvalidOperationException($"{owner} owns no frame, so its body is no hull: only a hull can change its motion.");
+            throw new InvalidOperationException(
+                $"{owner} owns no frame, so its body is no hull: only a hull can change its motion.");
         if (Frames.HullMotion(own) is null)
             throw new InvalidOperationException(
                 $"{owner} has a root frame, so its body is only the frame's static interior, not a hull: only a hull can change its motion.");
         if ((body with { Motion = motion }).Problem(BodyRole.Hull) is { } problem)
-            throw new ArgumentException($"The hull of {owner} cannot take the motion {motion}: as a hull it {problem}.", nameof(motion));
-        entities.WriteMotionChange(entity, motion);
+            throw new ArgumentException($"The hull of {owner} cannot take the motion {motion}: as a hull it {problem}.",
+                nameof(motion));
+        Entities.WriteMotionChange(entity, motion);
     }
 
     /// <summary>
@@ -527,7 +546,7 @@ public sealed partial class World
     /// <see cref="Self.MoveOnRails"/> and <see cref="WriteMotionIntent"/>).
     /// </summary>
     internal void MoveOnRails(Entity entity, in MotionSample sample) =>
-        WriteMotionIntent(entity, nameof(Self.MoveOnRails), new MotionIntent(sample));
+        WriteMotionIntent(entity, nameof(Self.MoveOnRails), new(sample));
 
     /// <summary>
     /// The pose in <paramref name="frame"/> at which <paramref name="entity"/> starts the next step (see
@@ -542,14 +561,14 @@ public sealed partial class World
     /// </summary>
     internal DPose PoseAtNextStepStartIn(Entity entity, FrameHandle frame)
     {
-        ReadOnlySpan<PhysicsIntent> front = entities.FrontIntents.Span;
+        ReadOnlySpan<PhysicsIntent> front = Entities.FrontIntents.Span;
         ref readonly PhysicsIntent intent = ref front[(int)entity.Index];
         (DPose pose, FrameHandle from) = intent.Move switch
         {
             EndPose end => (end.Pose, intent.Frame),
             MotionSample sample => (sample.Pose, intent.Frame),
             _ when (intent.Flags & IntentFlags.Teleport) != 0 => (intent.TeleportPose, intent.Frame),
-            _ => PoseNowAtRunningStepEnd(entity, front),
+            _ => PoseNowAtRunningStepEnd(entity, front)
         };
         return from == frame ? pose : DPose.Compose(Frames.Relative(from, LiveFrame(frame)), pose);
     }
@@ -566,21 +585,22 @@ public sealed partial class World
     /// </summary>
     private (DPose Pose, FrameHandle From) PoseNowAtRunningStepEnd(Entity entity, ReadOnlySpan<PhysicsIntent> front)
     {
-        FrameHandle own = entities.OwnedFrame(entity);
+        FrameHandle own = Entities.OwnedFrame(entity);
         if (own.IsNull)
         {
-            ref readonly TransformRow row = ref entities.FrontRow(entity);
-            if (entities.Body(entity) is not { Motion: BodyMotion.Kinematic })
+            ref readonly TransformRow row = ref Entities.FrontRow(entity);
+            if (Entities.Body(entity) is not { Motion: BodyMotion.Kinematic })
                 return (row.Pose, row.Frame);
             Double3 move = Frames.HomeMoveOver(row.PhysicsHome, row.Frame, DeltaTime);
-            return (new DPose(row.Pose.Position + move, row.Pose.Rotation), row.Frame);
+            return (new(row.Pose.Position + move, row.Pose.Rotation), row.Frame);
         }
+
         DPose local = Frames.LocalPose(own);
         FrameHandle parent = Frames.Parent(own);
         if (Frames.HullMotionInStep(own, front) != BodyMotion.Kinematic)
             return (local, parent);
         Double3 carried = Frames.HomeMoveOver(Frames.TreeParent(own), parent, DeltaTime);
-        return (new DPose(local.Position + carried, local.Rotation), parent);
+        return (new(local.Position + carried, local.Rotation), parent);
     }
 
     /// <summary>
@@ -589,12 +609,13 @@ public sealed partial class World
     /// </summary>
     private static string? SampleProblem(in MotionSample sample)
     {
-        if (!IsFinite(sample.Pose.Position) || !IsFinite(sample.ChordVelocity) || !IsFinite(sample.Velocity) || !IsFinite(sample.Acceleration)
+        if (!IsFinite(sample.Pose.Position) || !IsFinite(sample.ChordVelocity) || !IsFinite(sample.Velocity) ||
+            !IsFinite(sample.Acceleration)
             || !IsFinite(sample.AngularVelocity) || !IsFinite(sample.AngularAcceleration))
             return $"needs fields that are finite numbers, not {sample}";
         double rotationSize = sample.Pose.Rotation.LengthSquared;
-        if (!(rotationSize > 0) || !double.IsFinite(rotationSize))
-            return $"needs a finite rotation that is not zero, not {sample.Pose.Rotation}";
-        return null;
+        return !(rotationSize > 0) || !double.IsFinite(rotationSize)
+            ? $"needs a finite rotation that is not zero, not {sample.Pose.Rotation}"
+            : null;
     }
 }

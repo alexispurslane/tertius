@@ -11,7 +11,7 @@ public class FrameTreeReparentTests
 {
     private static readonly Double3 HullVelocity = new(1, 2, 3);
     private static readonly Vector3 HullSpin = new(0, 0.5f, 0);
-    private static readonly DPose HullPose = new(new Double3(100, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, 0.3));
+    private static readonly DPose HullPose = new(new(100, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, 0.3));
 
     /// <summary>
     /// A root frame, a hull frame inside it that moves with <see cref="HullVelocity"/> and spins with
@@ -26,9 +26,9 @@ public class FrameTreeReparentTests
 
         public Ship()
         {
-            Root = Frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
-            Hull = Frames.Create(new Entity(2, 1), Root, HullPose, FrameBounds.Sphere(50));
-            Cabin = Frames.Create(new Entity(3, 1), Hull, new DPose(new Double3(10, 0, 0), DQuaternion.Identity), FrameBounds.Sphere(5));
+            Root = Frames.Create(new(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
+            Hull = Frames.Create(new(2, 1), Root, HullPose, FrameBounds.Sphere(50));
+            Cabin = Frames.Create(new(3, 1), Hull, new(new(10, 0, 0), DQuaternion.Identity), FrameBounds.Sphere(5));
             Frames.SetTreeLinearVelocity(Hull, HullVelocity);
             Frames.SetAngularVelocity(Hull, HullSpin);
             Frames.Update();

@@ -76,11 +76,38 @@ public static partial class DemoScenes
     /// </summary>
     public static class Station
     {
-        /// <summary>The half extents of the station's module, in meters: 8 m wide, 6 m high and 30 m long.</summary>
-        public static Vector3 Hull { get; } = new(4, 3, 15);
-
         /// <summary>The thickness of the module's floor, roof and walls, in meters.</summary>
         public const float HullWall = 0.4f;
+
+        /// <summary>How far aft of the station's center the airlock's chamber is centered, in meters.</summary>
+        public const float AirlockZ = 9;
+
+        /// <summary>The thickness of the chamber's walls, in meters.</summary>
+        public const float ChamberWall = 0.2f;
+
+        /// <summary>Half the size of a cargo pod along each of its axes, in meters.</summary>
+        public const float PodHalfSize = 0.35f;
+
+        /// <summary>The mass of a cargo pod, in kilograms.</summary>
+        public const float PodMass = 20;
+
+        /// <summary>Half the size of the thrown crate along each of its axes, in meters.</summary>
+        public const float CrateHalfSize = 0.25f;
+
+        /// <summary>
+        /// The mass of the thrown crate, in kilograms: heavy enough that it would set the speed of the group that the merge
+        /// test links it to, if the doors in that group were not kinematic (see <see cref="Station"/>).
+        /// </summary>
+        public const float CrateMass = 25;
+
+        /// <summary>The roll of the station about its Z axis after it faces Earth, in radians: 35 degrees, port side up.</summary>
+        private const double Roll = -35 * Math.PI / 180;
+
+        /// <summary>The pitch of the station about its X axis after the roll, in radians: 25 degrees, aft end up.</summary>
+        private const double Pitch = -25 * Math.PI / 180;
+
+        /// <summary>The half extents of the station's module, in meters: 8 m wide, 6 m high and 30 m long.</summary>
+        public static Vector3 Hull { get; } = new(4, 3, 15);
 
         /// <summary>The half extents of the cabin, in meters: the module less its walls.</summary>
         public static Vector3 Cabin { get; } = Hull - new Vector3(HullWall);
@@ -95,35 +122,27 @@ public static partial class DemoScenes
         /// The radiator, in the station's axes: a plate 24 m long along -X from the module's port face, as tall as the
         /// module, 30 cm thick, centered 3 m ahead of the module's center. Its aft face, toward the pods, is at z = -2.85.
         /// </summary>
-        public static BoundingBox Radiator { get; } = new(new Vector3(-Hull.X - 24, -Hull.Y, -3.15f), new Vector3(-Hull.X, Hull.Y, -2.85f));
-
-        /// <summary>How far aft of the station's center the airlock's chamber is centered, in meters.</summary>
-        public const float AirlockZ = 9;
+        public static BoundingBox Radiator { get; } =
+            new(new(-Hull.X - 24, -Hull.Y, -3.15f), new(-Hull.X, Hull.Y, -2.85f));
 
         /// <summary>The airlock's chamber, in the station's axes: 3 m deep against the port wall, 4 m wide, as tall as the cabin.</summary>
-        public static BoundingBox Chamber { get; } = new(new Vector3(-Cabin.X, -Cabin.Y, AirlockZ - 2), new Vector3(-Cabin.X + 3, Cabin.Y, AirlockZ + 2));
-
-        /// <summary>The thickness of the chamber's walls, in meters.</summary>
-        public const float ChamberWall = 0.2f;
+        public static BoundingBox Chamber { get; } = new(new(-Cabin.X, -Cabin.Y, AirlockZ - 2),
+            new(-Cabin.X + 3, Cabin.Y, AirlockZ + 2));
 
         /// <summary>
         /// The cargo hatch through the module's port wall, from the chamber to the outside, in the station's axes: 3 m wide
         /// and 3 m tall, with a sill 0.2 m high. The door <c>airlock-outer</c> closes it.
         /// </summary>
-        public static BoundingBox Hatch { get; } = new(new Vector3(-Hull.X, -Cabin.Y + 0.2f, AirlockZ - 1.5f), new Vector3(-Cabin.X, -Cabin.Y + 3.2f, AirlockZ + 1.5f));
+        public static BoundingBox Hatch { get; } = new(new(-Hull.X, -Cabin.Y + 0.2f, AirlockZ - 1.5f),
+            new(-Cabin.X, -Cabin.Y + 3.2f, AirlockZ + 1.5f));
 
         /// <summary>
         /// The doorway through the chamber's inner wall, from the cabin into the chamber, in the station's axes: 1.2 m wide
         /// and 2.1 m tall, with a sill 0.2 m high. The door <c>airlock-inner</c> closes it.
         /// </summary>
         public static BoundingBox InnerDoorway { get; } =
-            new(new Vector3(Chamber.Max.X, -Cabin.Y + 0.2f, AirlockZ - 0.6f), new Vector3(Chamber.Max.X + ChamberWall, -Cabin.Y + 2.3f, AirlockZ + 0.6f));
-
-        /// <summary>Half the size of a cargo pod along each of its axes, in meters.</summary>
-        public const float PodHalfSize = 0.35f;
-
-        /// <summary>The mass of a cargo pod, in kilograms.</summary>
-        public const float PodMass = 20;
+            new(new(Chamber.Max.X, -Cabin.Y + 0.2f, AirlockZ - 0.6f),
+                new(Chamber.Max.X + ChamberWall, -Cabin.Y + 2.3f, AirlockZ + 0.6f));
 
         /// <summary>
         /// The pods' places at the start, in the station's axes, and their velocities relative to the station, in m/s: 1 m/s
@@ -134,25 +153,13 @@ public static partial class DemoScenes
         /// </summary>
         public static IReadOnlyList<(string Id, Double3 Start, Double3 Velocity)> Pods { get; } =
         [
-            ("pod-1", new Double3(-1.8, -1.9, AirlockZ + 1.4), Drift(41)),
-            ("pod-2", new Double3(-1.8, -0.9, AirlockZ + 1.4), Drift(37)),
-            ("pod-3", new Double3(-1.8, 0.1, AirlockZ + 1.4), Drift(33)),
+            ("pod-1", new(-1.8, -1.9, AirlockZ + 1.4), Drift(41)),
+            ("pod-2", new(-1.8, -0.9, AirlockZ + 1.4), Drift(37)),
+            ("pod-3", new(-1.8, 0.1, AirlockZ + 1.4), Drift(33))
         ];
 
-        /// <summary>A velocity of 1 m/s out of the port side, turned toward the nose by <paramref name="degrees"/>.</summary>
-        private static Double3 Drift(double degrees) => new(-Math.Cos(degrees * Math.PI / 180), 0, -Math.Sin(degrees * Math.PI / 180));
-
         /// <summary>The thin wall, in the station's axes: 3 m wide, as tall as the cabin, 10 cm thick, 10 m ahead of the center.</summary>
-        public static BoundingBox ThinWall { get; } = new(new Vector3(0.5f, -Cabin.Y, -10.05f), new Vector3(3.5f, Cabin.Y, -9.95f));
-
-        /// <summary>Half the size of the thrown crate along each of its axes, in meters.</summary>
-        public const float CrateHalfSize = 0.25f;
-
-        /// <summary>
-        /// The mass of the thrown crate, in kilograms: heavy enough that it would set the speed of the group that the merge
-        /// test links it to, if the doors in that group were not kinematic (see <see cref="Station"/>).
-        /// </summary>
-        public const float CrateMass = 25;
+        public static BoundingBox ThinWall { get; } = new(new(0.5f, -Cabin.Y, -10.05f), new(3.5f, Cabin.Y, -9.95f));
 
         /// <summary>
         /// Where the thrown crate starts, in the station's axes: 23.5 m aft of the wall's center, with its back 0.85 m from
@@ -168,12 +175,6 @@ public static partial class DemoScenes
         /// </summary>
         public static Double3 CrateVelocity { get; } = new(0, 0, -1200);
 
-        /// <summary>The roll of the station about its Z axis after it faces Earth, in radians: 35 degrees, port side up.</summary>
-        private const double Roll = -35 * Math.PI / 180;
-
-        /// <summary>The pitch of the station about its X axis after the roll, in radians: 25 degrees, aft end up.</summary>
-        private const double Pitch = -25 * Math.PI / 180;
-
         /// <summary>
         /// The turn from the attitude that faces Earth to the station's attitude: the roll, then the pitch. In a world that
         /// starts at time 0, the sun stands straight above a station that faces Earth, so in the station's axes it then
@@ -181,7 +182,23 @@ public static partial class DemoScenes
         /// faces. The station does not turn, and in the half minute of the script it moves 2 degrees round Earth, so the
         /// sun stays there.
         /// </summary>
-        private static DQuaternion Lean => DQuaternion.FromAxisAngle(Double3.UnitZ, Roll) * DQuaternion.FromAxisAngle(Double3.UnitX, Pitch);
+        private static DQuaternion Lean => DQuaternion.FromAxisAngle(Double3.UnitZ, Roll) *
+                                           DQuaternion.FromAxisAngle(Double3.UnitX, Pitch);
+
+        /// <summary>The chamber's two side walls, from the port wall to the cabin side of its inner wall.</summary>
+        private static BoundingBox[] ChamberSides =>
+        [
+            new(new(-Cabin.X, -Cabin.Y, Chamber.Min.Z - ChamberWall), new(InnerDoorway.Max.X, Cabin.Y, Chamber.Min.Z)),
+            new(new(-Cabin.X, -Cabin.Y, Chamber.Max.Z), new(InnerDoorway.Max.X, Cabin.Y, Chamber.Max.Z + ChamberWall))
+        ];
+
+        /// <summary>The chamber's inner wall, between its side walls, which the inner doorway goes through.</summary>
+        private static BoundingBox ChamberInnerWall => new(new(InnerDoorway.Min.X, -Cabin.Y, Chamber.Min.Z),
+            new(InnerDoorway.Max.X, Cabin.Y, Chamber.Max.Z));
+
+        /// <summary>A velocity of 1 m/s out of the port side, turned toward the nose by <paramref name="degrees"/>.</summary>
+        private static Double3 Drift(double degrees) =>
+            new(-Math.Cos(degrees * Math.PI / 180), 0, -Math.Sin(degrees * Math.PI / 180));
 
         /// <summary>
         /// The station's orbit: the circle of the orbit scene's ship (see <see cref="ShipOrbit"/>), 400 km up and tilted
@@ -189,7 +206,11 @@ public static partial class DemoScenes
         /// <see cref="Lean"/>.
         /// </summary>
         public static KeplerOrbit OrbitAt(double time) =>
-            ShipOrbit with { Attitude = KeplerAttitude.Spin, AxialTilt = ShipOrbit.RotationAt(time, EarthMu) * Lean, SpinRate = 0, SpinPhaseAtEpoch = 0 };
+            ShipOrbit with
+            {
+                Attitude = KeplerAttitude.Spin, AxialTilt = ShipOrbit.RotationAt(time, EarthMu) * Lean,
+                SpinRate = 0, SpinPhaseAtEpoch = 0
+            };
 
         public static SceneInstance Build(World world, IRenderResources resources)
         {
@@ -200,23 +221,26 @@ public static partial class DemoScenes
             // step of the next tick, and its KeplerMotion from the second step on, so its contents float from the start.
             KeplerOrbit orbit = OrbitAt(world.Time);
             (Double3 stationPlace, Double3 stationVelocity) = orbit.StateAt(world.Time, EarthMu);
-            Entity station = world.Spawn(new SpawnDesc
+            Entity station = world.Spawn(new()
             {
                 Frame = earth,
-                Pose = new DPose(stationPlace, orbit.RotationAt(world.Time, EarthMu)),
+                Pose = new(stationPlace, orbit.RotationAt(world.Time, EarthMu)),
                 LinearVelocity = stationVelocity,
                 AngularVelocity = orbit.AngularVelocityAt(world.Time, EarthMu).ToVector3(),
-                FirstMove = new MotionIntent(orbit.Sample(EarthMu, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
+                FirstMove = new(orbit.Sample(EarthMu, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
                 Components = [new KeplerMotion { Orbit = orbit }],
                 // The hull outside the frame: the solid module and the radiator. It is kinematic, and its KeplerMotion
                 // moves it.
-                Body = new BodyDesc(new CompoundShapeDesc([
-                        new CompoundChild(new BoxShapeDesc(Hull), new Pose(Vector3.Zero, Quaternion.Identity)),
-                        new CompoundChild(new BoxShapeDesc(Radiator.Extents), new Pose(Radiator.Center, Quaternion.Identity)),
+                Body = new(new CompoundShapeDesc([
+                        new(new BoxShapeDesc(Hull), new(Vector3.Zero, Quaternion.Identity)),
+                        new(new BoxShapeDesc(Radiator.Extents), new(Radiator.Center, Quaternion.Identity))
                     ]), BodyMotion.Kinematic, Mass: 2e5f,
-                    InteriorShape: new CompoundShapeDesc([.. Interior().Select(box => new CompoundChild(new BoxShapeDesc(box.Extents), new Pose(box.Center, Quaternion.Identity)))])),
-                AsFrame = new FrameSpec(new FrameBounds(Bubble)),
-                Render = Drawn(resources, HullMesh(), new Vector4(0.8f, 0.8f, 0.82f, 1), boundingRadius: 33),
+                    InteriorShape: new CompoundShapeDesc([
+                        .. Interior().Select(box =>
+                            new CompoundChild(new BoxShapeDesc(box.Extents), new(box.Center, Quaternion.Identity)))
+                    ])),
+                AsFrame = new(new(Bubble)),
+                Render = Drawn(resources, HullMesh(), new(0.8f, 0.8f, 0.82f, 1), boundingRadius: 33)
             });
             scene.Add("station", station);
             FrameHandle frame = world.GetOwnedFrame(station);
@@ -224,77 +248,84 @@ public static partial class DemoScenes
             // Five lamps under the roof, 6 m apart, placed as in the orbit scene's ship, at 40 % of its light. At its light,
             // the tone curve washed the cabin's colors out: the green crate came out as pale as the thin wall beside it, and
             // the lamps' own faces white.
-            MeshId lampMesh = resources.CreateMesh(Primitives.Box(new Vector3(0.6f, 0.05f, 0.6f)));
-            MaterialId lampMaterial = resources.CreateMaterial(new MaterialDesc(new Vector4(0, 0, 0, 1), SpecularIntensity: 0, Emissive: new Vector3(2, 1.8f, 1.5f)));
+            MeshId lampMesh = resources.CreateMesh(Primitives.Box(new(0.6f, 0.05f, 0.6f)));
+            MaterialId lampMaterial =
+                resources.CreateMaterial(new(new(0, 0, 0, 1), SpecularIntensity: 0, Emissive: new(2, 1.8f, 1.5f)));
             for (int i = -2; i <= 2; i++)
-                world.Spawn(new SpawnDesc
+                world.Spawn(new()
                 {
                     Frame = frame,
-                    Pose = new DPose(new Double3(0, Cabin.Y - 0.05, 6 * i), DQuaternion.Identity),
+                    Pose = new(new(0, Cabin.Y - 0.05, 6 * i), DQuaternion.Identity),
                     Render = new RenderData
                     {
                         Mesh = lampMesh,
                         Material = lampMaterial,
                         BoundingRadius = 0.85f,
                         Flags = RenderFlags.Visible,
-                        Light = new PointLightData(new Pose(new Vector3(0, -0.1f, 0), Quaternion.Identity), new Vector3(1, 0.9f, 0.75f), Intensity: 40, Range: 20),
-                    },
+                        Light = new PointLightData(new(new(0, -0.1f, 0), Quaternion.Identity), new(1, 0.9f, 0.75f),
+                            Intensity: 40, Range: 20)
+                    }
                 });
 
             // The outer door slides aft into the port wall beside the hatch, and the inner door up into the chamber's
             // inner wall. Each slides 0.1 m farther than its doorway is wide or tall, so that its edge hides in the wall.
             // The outer door spawns open, so that it never moves past the pods (see Station).
-            Entity outerDoor = world.Spawn(DoorOf(frame, Hatch, new Vector3(0, 0, 2 * Hatch.Extents.Z + 0.1f), open: true, resources));
-            Entity innerDoor = world.Spawn(DoorOf(frame, InnerDoorway, new Vector3(0, 2 * InnerDoorway.Extents.Y + 0.1f, 0), open: false, resources));
+            Entity outerDoor =
+                world.Spawn(DoorOf(frame, Hatch, new(0, 0, 2 * Hatch.Extents.Z + 0.1f), open: true, resources));
+            Entity innerDoor = world.Spawn(DoorOf(frame, InnerDoorway, new(0, 2 * InnerDoorway.Extents.Y + 0.1f, 0),
+                open: false, resources));
             scene.Add("airlock-inner", innerDoor);
             scene.Add("airlock-outer", outerDoor);
-            scene.Add("airlock", world.Spawn(new SpawnDesc
+            scene.Add("airlock", world.Spawn(new()
             {
                 Frame = frame,
-                Pose = new DPose(Chamber.Center, DQuaternion.Identity),
-                Components = [new Airlock(innerDoor, outerDoor, cycleSeconds: 3, outerOpenAtStart: true)],
+                Pose = new(Chamber.Center, DQuaternion.Identity),
+                Components = [new Airlock(innerDoor, outerDoor, cycleSeconds: 3, outerOpenAtStart: true)]
             }));
 
             var orange = new Vector4(1, 0.45f, 0.1f, 1);
             RenderData pod = new()
             {
-                Mesh = resources.CreateMesh(Primitives.Box(new Vector3(PodHalfSize))),
-                Material = resources.CreateMaterial(new MaterialDesc(orange, Emissive: MarkerGlow(orange))),
+                Mesh = resources.CreateMesh(Primitives.Box(new(PodHalfSize))),
+                Material = resources.CreateMaterial(new(orange, Emissive: MarkerGlow(orange))),
                 BoundingRadius = PodHalfSize * MathF.Sqrt(3),
-                Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
+                Flags = RenderFlags.Visible | RenderFlags.CastsShadow
             };
             foreach ((string id, Double3 start, Double3 velocity) in Pods)
-                scene.Add(id, world.Spawn(new SpawnDesc
+                scene.Add(id, world.Spawn(new()
                 {
                     Frame = frame,
-                    Pose = new DPose(start, DQuaternion.Identity),
+                    Pose = new(start, DQuaternion.Identity),
                     LinearVelocity = velocity,
-                    Body = new BodyDesc(new BoxShapeDesc(new Vector3(PodHalfSize)), BodyMotion.Dynamic, Mass: PodMass, LinearDamping: 0, AngularDamping: 0),
-                    AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
-                    Render = pod,
+                    Body = new(new BoxShapeDesc(new(PodHalfSize)), BodyMotion.Dynamic, Mass: PodMass, LinearDamping: 0,
+                        AngularDamping: 0),
+                    AsFrame = new(FrameBounds.Sphere(0.01f)),
+                    Render = pod
                 }));
 
-            scene.Add("wall", world.Spawn(new SpawnDesc
+            scene.Add("wall", world.Spawn(new()
             {
                 Frame = frame,
-                Pose = new DPose(ThinWall.Center, DQuaternion.Identity),
-                Body = new BodyDesc(new BoxShapeDesc(ThinWall.Extents), BodyMotion.Static),
-                Render = Drawn(resources, Primitives.Box(ThinWall.Extents), new Vector4(0.14f, 0.18f, 0.34f, 1), boundingRadius: ThinWall.Extents.Length()),
+                Pose = new(ThinWall.Center, DQuaternion.Identity),
+                Body = new(new BoxShapeDesc(ThinWall.Extents), BodyMotion.Static),
+                Render = Drawn(resources, Primitives.Box(ThinWall.Extents), new(0.14f, 0.18f, 0.34f, 1),
+                    boundingRadius: ThinWall.Extents.Length())
             }));
-            var crate = new CrateSpec(new Vector3(CrateHalfSize), CrateMass, resources.CreateMesh(Primitives.Box(new Vector3(CrateHalfSize))),
-                resources.CreateMaterial(MaterialDesc.Color(new Vector4(0.15f, 0.55f, 0.1f, 1))));
-            scene.Add("crate", world.Spawn(new SpawnDesc
+            var crate = new CrateSpec(new(CrateHalfSize), CrateMass,
+                resources.CreateMesh(Primitives.Box(new(CrateHalfSize))),
+                resources.CreateMaterial(MaterialDesc.Color(new(0.15f, 0.55f, 0.1f, 1))));
+            scene.Add("crate", world.Spawn(new()
             {
                 Frame = frame,
-                Pose = new DPose(CrateStart, DQuaternion.Identity),
-                Body = new BodyDesc(new BoxShapeDesc(crate.HalfExtents), Mass: crate.Mass, LinearDamping: 0, AngularDamping: 0),
+                Pose = new(CrateStart, DQuaternion.Identity),
+                Body = new(new BoxShapeDesc(crate.HalfExtents), Mass: crate.Mass, LinearDamping: 0, AngularDamping: 0),
                 Render = crate.Drawn(),
-                Components = [new Crate(crate), new Launchable()],
+                Components = [new Crate(crate), new Launchable()]
             }));
 
-            scene.Add("watch", world.Spawn(View(frame, eye: new Double3(-13, -1, 23), target: new Double3(-8, -1, 3))));
-            scene.Add("radiator-view", world.Spawn(View(frame, eye: new Double3(-12, 7, 9), target: new Double3(-19, -0.9, -2.5))));
-            scene.Add("cabin", world.Spawn(View(frame, eye: new Double3(-2.6, 1.6, -3.5), target: new Double3(2, -0.4, -9.6))));
+            scene.Add("watch", world.Spawn(View(frame, eye: new(-13, -1, 23), target: new(-8, -1, 3))));
+            scene.Add("radiator-view", world.Spawn(View(frame, eye: new(-12, 7, 9), target: new(-19, -0.9, -2.5))));
+            scene.Add("cabin", world.Spawn(View(frame, eye: new(-2.6, 1.6, -3.5), target: new(2, -0.4, -9.6))));
             scene.AddView("watch");
             scene.AddView("radiator-view");
             scene.AddView("cabin");
@@ -310,12 +341,15 @@ public static partial class DemoScenes
         private static SpawnDesc View(FrameHandle frame, Double3 eye, Double3 target)
         {
             Double3 look = target - eye;
-            double heading = Math.Atan2(-look.X, -look.Z), elevation = Math.Atan2(look.Y, Math.Sqrt(look.X * look.X + look.Z * look.Z));
-            return new SpawnDesc
+            double heading = Math.Atan2(-look.X, -look.Z),
+                elevation = Math.Atan2(look.Y, Math.Sqrt(look.X * look.X + look.Z * look.Z));
+            return new()
             {
                 Frame = frame,
-                Pose = new DPose(eye, DQuaternion.FromAxisAngle(Double3.UnitY, heading) * DQuaternion.FromAxisAngle(Double3.UnitX, elevation)),
-                Render = new RenderData(),
+                Pose = new(eye,
+                    DQuaternion.FromAxisAngle(Double3.UnitY, heading) *
+                    DQuaternion.FromAxisAngle(Double3.UnitX, elevation)),
+                Render = new RenderData()
             };
         }
 
@@ -324,28 +358,20 @@ public static partial class DemoScenes
         /// 0.1 m thick in the middle of the wall, which slides by <paramref name="slide"/> in 1.5 s. It spawns shut, or with
         /// <paramref name="open"/> slid open.
         /// </summary>
-        private static SpawnDesc DoorOf(FrameHandle frame, BoundingBox doorway, Vector3 slide, bool open, IRenderResources resources)
+        private static SpawnDesc DoorOf(FrameHandle frame, BoundingBox doorway, Vector3 slide, bool open,
+            IRenderResources resources)
         {
             Vector3 half = doorway.Extents with { X = 0.05f };
-            return new SpawnDesc
+            return new()
             {
                 Frame = frame,
-                Pose = new DPose(open ? doorway.Center + slide : doorway.Center, DQuaternion.Identity),
-                Body = new BodyDesc(new BoxShapeDesc(half), BodyMotion.Kinematic),
-                Render = Drawn(resources, Primitives.Box(half), new Vector4(0.85f, 0.45f, 0.1f, 1), boundingRadius: half.Length()),
-                Components = [new Door(slide, openSeconds: 1.5f, openAtStart: open)],
+                Pose = new(open ? doorway.Center + slide : doorway.Center, DQuaternion.Identity),
+                Body = new(new BoxShapeDesc(half), BodyMotion.Kinematic),
+                Render = Drawn(resources, Primitives.Box(half), new(0.85f, 0.45f, 0.1f, 1),
+                    boundingRadius: half.Length()),
+                Components = [new Door(slide, openSeconds: 1.5f, openAtStart: open)]
             };
         }
-
-        /// <summary>The chamber's two side walls, from the port wall to the cabin side of its inner wall.</summary>
-        private static BoundingBox[] ChamberSides =>
-        [
-            new(new Vector3(-Cabin.X, -Cabin.Y, Chamber.Min.Z - ChamberWall), new Vector3(InnerDoorway.Max.X, Cabin.Y, Chamber.Min.Z)),
-            new(new Vector3(-Cabin.X, -Cabin.Y, Chamber.Max.Z), new Vector3(InnerDoorway.Max.X, Cabin.Y, Chamber.Max.Z + ChamberWall)),
-        ];
-
-        /// <summary>The chamber's inner wall, between its side walls, which the inner doorway goes through.</summary>
-        private static BoundingBox ChamberInnerWall => new(new Vector3(InnerDoorway.Min.X, -Cabin.Y, Chamber.Min.Z), new Vector3(InnerDoorway.Max.X, Cabin.Y, Chamber.Max.Z));
 
         /// <summary>
         /// The boxes of the station's interior shape, which physics uses inside the station's own frame, in the station's
@@ -357,12 +383,13 @@ public static partial class DemoScenes
         {
             var hull = new BoundingBox(-Hull, Hull);
             yield return hull with { Max = Hull with { Y = -Cabin.Y } };
-            yield return hull with { Min = (-Hull) with { Y = Cabin.Y } };
-            yield return new BoundingBox(new Vector3(Cabin.X, -Cabin.Y, -Hull.Z), new Vector3(Hull.X, Cabin.Y, Hull.Z));
-            foreach (BoundingBox part in AroundDoorway(new BoundingBox(new Vector3(-Hull.X, -Cabin.Y, -Hull.Z), new Vector3(-Cabin.X, Cabin.Y, Hull.Z)), Hatch))
+            yield return hull with { Min = -Hull with { Y = Cabin.Y } };
+            yield return new(new(Cabin.X, -Cabin.Y, -Hull.Z), new(Hull.X, Cabin.Y, Hull.Z));
+            foreach (BoundingBox part in AroundDoorway(
+                         new(new(-Hull.X, -Cabin.Y, -Hull.Z), new(-Cabin.X, Cabin.Y, Hull.Z)), Hatch))
                 yield return part;
-            yield return new BoundingBox(new Vector3(-Cabin.X, -Cabin.Y, -Hull.Z), new Vector3(Cabin.X, Cabin.Y, -Cabin.Z));
-            yield return new BoundingBox(new Vector3(-Cabin.X, -Cabin.Y, Cabin.Z), new Vector3(Cabin.X, Cabin.Y, Hull.Z));
+            yield return new(new(-Cabin.X, -Cabin.Y, -Hull.Z), new(Cabin.X, Cabin.Y, -Cabin.Z));
+            yield return new(new(-Cabin.X, -Cabin.Y, Cabin.Z), new(Cabin.X, Cabin.Y, Hull.Z));
             foreach (BoundingBox side in ChamberSides)
                 yield return side;
             foreach (BoundingBox part in AroundDoorway(ChamberInnerWall, InnerDoorway))
@@ -376,14 +403,14 @@ public static partial class DemoScenes
         /// </summary>
         private static MeshData HullMesh()
         {
-            var hatch = Opening.ThroughX(Hatch);
+            Opening hatch = Opening.ThroughX(Hatch);
             BoxMesh mesh = new BoxMesh()
-                .Box(new BoundingBox(-Hull, Hull), openings: hatch)
-                .Box(new BoundingBox(-Cabin, Cabin), inward: true, openings: hatch)
+                .Box(new(-Hull, Hull), openings: hatch)
+                .Box(new(-Cabin, Cabin), inward: true, openings: hatch)
                 .Sides(hatch);
             foreach (BoundingBox side in ChamberSides)
                 mesh.Box(side);
-            var innerDoorway = Opening.ThroughX(InnerDoorway);
+            Opening innerDoorway = Opening.ThroughX(InnerDoorway);
             return mesh.Box(ChamberInnerWall, openings: innerDoorway).Sides(innerDoorway).Box(Radiator).Build();
         }
     }

@@ -13,7 +13,7 @@ public class MediumFieldTests
     private const double EarthRadius = 6_371_000;
     private const float SeaLevelAir = 1.225f;
     private const float ScaleHeight = 8_500;
-    private static readonly BoundingBox Cabin = new(new Vector3(-2, -1, -3), new Vector3(2, 1, 3));
+    private static readonly BoundingBox Cabin = new(new(-2, -1, -3), new(2, 1, 3));
     private static readonly Double3 InCabin = new(1, 0.5, -2);
     private static readonly Double3 OutsideCabin = new(0, 5, 0);
 
@@ -37,7 +37,7 @@ public class MediumFieldTests
         MediumField cabin = MediumField.Uniform(SeaLevelAir, 2, Cabin);
 
         everywhere.DensityAt(InCabin).Should().Be(SeaLevelAir);
-        everywhere.DensityAt(new Double3(1e7, -3e6, 4)).Should().Be(SeaLevelAir);
+        everywhere.DensityAt(new(1e7, -3e6, 4)).Should().Be(SeaLevelAir);
         cabin.DensityAt(InCabin).Should().Be(SeaLevelAir);
         cabin.DensityAt(OutsideCabin).Should().Be(0, "outside its region the frame holds vacuum");
         everywhere.Drag.Should().Be(2);
@@ -47,14 +47,15 @@ public class MediumFieldTests
     [Fact]
     public void AMediumFillsItsRegionOrItsWholeFrameOnlyWhenItsDensityIsAboveZero()
     {
-        MediumField.Uniform(SeaLevelAir, 2).Fills(OutsideCabin).Should().BeTrue("a uniform medium without a region fills the whole frame");
+        MediumField.Uniform(SeaLevelAir, 2).Fills(OutsideCabin).Should()
+            .BeTrue("a uniform medium without a region fills the whole frame");
         MediumField.Uniform(SeaLevelAir, 2, Cabin).Fills(InCabin).Should().BeTrue();
         MediumField.Uniform(SeaLevelAir, 2, Cabin).Fills(OutsideCabin).Should().BeFalse();
         MediumField.Uniform(0, 2).Fills(InCabin).Should().BeFalse("a medium of no density holds no gas");
         MediumField.Uniform(0, 2, Cabin).Fills(InCabin).Should().BeFalse();
-        MediumField.Planet(EarthRadius, SeaLevelAir, ScaleHeight, 2).Fills(new Double3(0, EarthRadius * 3, 0))
+        MediumField.Planet(EarthRadius, SeaLevelAir, ScaleHeight, 2).Fills(new(0, EarthRadius * 3, 0))
             .Should().BeTrue("a planet medium fills its whole frame, however thin");
-        MediumField.Planet(EarthRadius, 0, ScaleHeight, 2).Fills(new Double3(0, EarthRadius, 0)).Should().BeFalse();
+        MediumField.Planet(EarthRadius, 0, ScaleHeight, 2).Fills(new(0, EarthRadius, 0)).Should().BeFalse();
     }
 
     [Fact]
@@ -74,7 +75,7 @@ public class MediumFieldTests
     {
         MediumField air = MediumField.Planet(EarthRadius, SeaLevelAir, ScaleHeight, 2);
 
-        air.DensityAt(new Double3(0, EarthRadius - 1000, 0)).Should().Be(SeaLevelAir);
+        air.DensityAt(new(0, EarthRadius - 1000, 0)).Should().Be(SeaLevelAir);
         air.DensityAt(Double3.Zero).Should().Be(SeaLevelAir);
     }
 
@@ -94,8 +95,8 @@ public class MediumFieldTests
             MediumField.Uniform(SeaLevelAir, -1),
             MediumField.Uniform(SeaLevelAir, float.NaN),
             MediumField.Uniform(SeaLevelAir, float.PositiveInfinity),
-            MediumField.Uniform(SeaLevelAir, 2, new BoundingBox(new Vector3(float.NaN, 0, 0), Vector3.One)),
-            MediumField.Uniform(SeaLevelAir, 2, new BoundingBox(Vector3.Zero, new Vector3(0, float.PositiveInfinity, 0))),
+            MediumField.Uniform(SeaLevelAir, 2, new BoundingBox(new(float.NaN, 0, 0), Vector3.One)),
+            MediumField.Uniform(SeaLevelAir, 2, new BoundingBox(Vector3.Zero, new(0, float.PositiveInfinity, 0))),
             MediumField.Planet(-1, SeaLevelAir, ScaleHeight, 2),
             MediumField.Planet(double.NaN, SeaLevelAir, ScaleHeight, 2),
             MediumField.Planet(double.PositiveInfinity, SeaLevelAir, ScaleHeight, 2),
@@ -108,7 +109,7 @@ public class MediumFieldTests
             MediumField.Planet(EarthRadius, SeaLevelAir, float.PositiveInfinity, 2),
             MediumField.Planet(EarthRadius, SeaLevelAir, ScaleHeight, -1),
             MediumField.Planet(EarthRadius, SeaLevelAir, ScaleHeight, float.NaN),
-            MediumField.Planet(EarthRadius, SeaLevelAir, ScaleHeight, float.PositiveInfinity),
+            MediumField.Planet(EarthRadius, SeaLevelAir, ScaleHeight, float.PositiveInfinity)
         ];
         for (int i = 0; i < invalid.Length; i++)
             invalid[i].IsValid.Should().BeFalse($"medium {i}, {invalid[i]}, holds a number out of its range");
@@ -139,10 +140,11 @@ public class MediumFieldTests
 
         // The constructors, the implicit conversions and the factories build the same medium.
         (new MediumField(uniformCase) == uniform).Should().BeTrue();
-        ((MediumField)planetCase == planet).Should().BeTrue();
+        (planetCase == planet).Should().BeTrue();
         (uniform == planet).Should().BeFalse();
         (uniform == MediumField.None).Should().BeFalse();
-        (MediumField.Uniform(0, 0) == MediumField.None).Should().BeFalse("a medium with a case never equals vacuum, even with zero fields");
+        (MediumField.Uniform(0, 0) == MediumField.None).Should()
+            .BeFalse("a medium with a case never equals vacuum, even with zero fields");
         (uniform != MediumField.Uniform(SeaLevelAir, 2.5f, Cabin)).Should().BeTrue();
         uniform.GetHashCode().Should().Be(MediumField.Uniform(SeaLevelAir, 2, Cabin).GetHashCode());
         uniform.Equals((object)planet).Should().BeFalse();
@@ -169,6 +171,6 @@ public class MediumFieldTests
     {
         UniformMedium { Drag: var drag } => drag,
         PlanetMedium { Drag: var drag } => drag,
-        _ => 0,
+        _ => 0
     };
 }

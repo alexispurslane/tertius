@@ -199,7 +199,8 @@ public class RouterTests
     public void InboxesStayCompleteAndInOrderWhenEventsAndDeliveriesOutgrowTheStartingBuffers()
     {
         RouterHarness h = NewHarness();
-        Entity[] entities = [h.Spawn(EventMask.Of<Ping>()), h.Spawn(EventMask.Of<Ping>()), h.Spawn(EventMask.Of<Ping>())];
+        Entity[] entities =
+            [h.Spawn(EventMask.Of<Ping>()), h.Spawn(EventMask.Of<Ping>()), h.Spawn(EventMask.Of<Ping>())];
 
         // 300 direct sends, value i to entity i mod 3, then 50 broadcasts: 350 events and 300 + 150 deliveries.
         for (int i = 0; i < 300; i++)
@@ -215,6 +216,7 @@ public class RouterTests
             int[] expected = [.. Enumerable.Range(0, 100).Select(j => k + 3 * j), .. Enumerable.Range(1000, 50)];
             h.Pings(entities[k]).Should().Equal(expected);
         }
+
         h.Router.RoutedCount.Should().Be(350);
         h.Router.DeliveryCount.Should().Be(450);
     }

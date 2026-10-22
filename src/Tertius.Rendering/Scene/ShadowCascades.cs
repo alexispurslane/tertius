@@ -3,7 +3,8 @@ using System.Runtime.CompilerServices;
 
 namespace Tertius.Rendering;
 
-/// <summary>The light space of the sun shadow: <see cref="Z"/> points toward the sun, <see cref="X"/> and <see cref="Y"/> span the map.</summary>
+/// <summary>The light space of the sun shadow: <see cref="Z"/> points toward the sun, <see cref="X"/> and <see cref="Y"/>
+/// span the map.</summary>
 internal readonly record struct LightBasis(Vector3 X, Vector3 Y, Vector3 Z)
 {
     /// <summary>A basis that depends only on the sun direction, so it is the same every frame while the sun stands still.</summary>
@@ -14,7 +15,7 @@ internal readonly record struct LightBasis(Vector3 X, Vector3 Y, Vector3 Z)
         // (or underfoot), where the basis turns once.
         Vector3 reference = MathF.Abs(z.Y) < 0.99f ? Vector3.UnitY : Vector3.UnitX;
         Vector3 x = Vector3.Normalize(Vector3.Cross(reference, z));
-        return new LightBasis(x, Vector3.Cross(z, x), z);
+        return new(x, Vector3.Cross(z, x), z);
     }
 
     public Vector3 ToLight(Vector3 world) => new(Vector3.Dot(world, X), Vector3.Dot(world, Y), Vector3.Dot(world, Z));
@@ -28,18 +29,25 @@ internal struct ShadowCascade
     /// [−1, 1] across the map; z is reversed: 1 on the sun side of the cascade box and 0 on the far side.
     /// </summary>
     public Matrix4x4 ViewProjection;
+
     /// <summary>The center of the cascade box in light space. x and y lie on the world-fixed texel grid.</summary>
     public Vector3 Center;
+
     /// <summary>Half the side of the cascade box across the light: x and y span 2 · HalfExtent.</summary>
     public float HalfExtent;
+
     /// <summary>Half the depth of the cascade box along the light: <see cref="HalfExtent"/> times the depth range scale.</summary>
     public float DepthHalfRange;
+
     /// <summary>The radius of the bounding sphere of the view slice that this cascade covers.</summary>
     public float Radius;
+
     /// <summary>The world size of one texel.</summary>
     public float TexelSize;
+
     /// <summary>The view depth where the slice starts: the previous cascade's blend start (the near plane for the first).</summary>
     public float NearDepth;
+
     /// <summary>The view depth where the slice ends: this cascade's split.</summary>
     public float FarDepth;
 }
@@ -82,8 +90,23 @@ internal struct ShadowCascadeArray
 internal static class ShadowCascades
 {
     public const int Count = 4;
+
     /// <summary>Shadow maps cover view depths up to here, and only casters whose bounding sphere comes this close to the camera are drawn.</summary>
     public const float Distance = 2_000f;
+
+    /// <summary>The weight of the logarithmic split against the uniform one.</summary>
+    public const float SplitLambda = 0.9f;
+
+    /// <summary>The fraction of each cascade's depth interval over which it blends into the next.</summary>
+    public const float BlendFraction = 0.1f;
+
+    /// <summary>
+    /// Texels kept free around the bounding sphere on every side: half a texel of snapping, the 4 × 4 PCF footprint
+    /// (2 texels) and the normal offset (1 texel) stay inside the map.
+    /// </summary>
+    public const int MarginTexels = 4;
+
+    private static readonly float[] Splits = ComputeSplits();
 
     /// <summary>
     /// True when the shadow maps draw a caster with bounding radius <paramref name="radius"/> whose center is
@@ -92,17 +115,6 @@ internal static class ShadowCascades
     /// to notice; for a caster that the maps draw, that sphere counts only where the maps end.
     /// </summary>
     public static bool TakesCaster(float distance, float radius) => distance - radius <= Distance;
-    /// <summary>The weight of the logarithmic split against the uniform one.</summary>
-    public const float SplitLambda = 0.9f;
-    /// <summary>The fraction of each cascade's depth interval over which it blends into the next.</summary>
-    public const float BlendFraction = 0.1f;
-    /// <summary>
-    /// Texels kept free around the bounding sphere on every side: half a texel of snapping, the 4 × 4 PCF footprint
-    /// (2 texels) and the normal offset (1 texel) stay inside the map.
-    /// </summary>
-    public const int MarginTexels = 4;
-
-    private static readonly float[] Splits = ComputeSplits();
 
     /// <summary>The view depth where cascade <paramref name="cascade"/> ends.</summary>
     public static float Split(int cascade) => Splits[cascade];
@@ -116,7 +128,7 @@ internal static class ShadowCascades
 
     private static float[] ComputeSplits()
     {
-        var splits = new float[Count];
+        float[] splits = new float[Count];
         double near = DepthRanges.NearPlane, far = Distance;
         for (int i = 1; i <= Count; i++)
         {
@@ -125,6 +137,7 @@ internal static class ShadowCascades
             double uniform = near + (far - near) * t;
             splits[i - 1] = (float)(SplitLambda * logarithmic + (1 - SplitLambda) * uniform);
         }
+
         splits[Count - 1] = Distance;
         return splits;
     }
@@ -133,7 +146,8 @@ internal static class ShadowCascades
     /// The smallest sphere that holds the view frustum between view depths <paramref name="near"/> and
     /// <paramref name="far"/>. Its center is on the view axis at depth <c>CenterDepth</c>.
     /// </summary>
-    public static (float CenterDepth, float Radius) BoundingSphere(float near, float far, float tanHalfX, float tanHalfY)
+    public static (float CenterDepth, float Radius) BoundingSphere(float near, float far, float tanHalfX,
+        float tanHalfY)
     {
         // The slice's corners are at lateral distance depth · k from the axis. The center that is equally far from
         // the near and far corners is at (f + n)(1 + k²) / 2. If that lies beyond the far plane, the far corners
@@ -162,7 +176,8 @@ internal static class ShadowCascades
     /// </remarks>
     public static Double3 Anchor(Double3 originInFrame, Vector3 cameraOffset)
     {
-        bool finite = double.IsFinite(originInFrame.X) && double.IsFinite(originInFrame.Y) && double.IsFinite(originInFrame.Z);
+        bool finite = double.IsFinite(originInFrame.X) && double.IsFinite(originInFrame.Y) &&
+                      double.IsFinite(originInFrame.Z);
         return (finite ? -originInFrame : Double3.Zero) - cameraOffset;
     }
 
@@ -175,7 +190,8 @@ internal static class ShadowCascades
     /// <param name="depthRangeScale">How many times deeper than wide each cascade box is.</param>
     /// <param name="anchor">A world-fixed point in camera-relative world space (see <see cref="Anchor"/>). The texel grid passes through it.</param>
     /// <param name="cascades">Receives the cascades.</param>
-    public static void Fit(in CameraView camera, in LightBasis light, int mapSize, float depthRangeScale, Double3 anchor, ref ShadowCascadeArray cascades)
+    public static void Fit(in CameraView camera, in LightBasis light, int mapSize, float depthRangeScale,
+        Double3 anchor, ref ShadowCascadeArray cascades)
     {
         double anchorX = Double3.Dot(anchor, light.X);
         double anchorY = Double3.Dot(anchor, light.Y);
@@ -215,7 +231,7 @@ internal static class ShadowCascades
         float lateral = 1f / halfExtent;
         float depth = 0.5f / depthHalfRange;
         Vector3 x = light.X * lateral, y = light.Y * lateral, z = light.Z * depth;
-        return new Matrix4x4(
+        return new(
             x.X, y.X, z.X, 0f,
             x.Y, y.Y, z.Y, 0f,
             x.Z, y.Z, z.Z, 0f,

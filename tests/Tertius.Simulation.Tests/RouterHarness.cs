@@ -17,16 +17,22 @@ internal sealed class RouterHarness
     private readonly CountingScheduler? workers;
 
     /// <summary>A harness whose router has no workers, so every routing runs on the calling thread.</summary>
-    public RouterHarness() : this(null) { }
+    public RouterHarness() : this(null)
+    {
+    }
 
     private RouterHarness(CountingScheduler? workers)
     {
         EngineEvents.Register();
-        Entities = new EntityTable(chunkSize: 1, initialCapacity: 16);
-        Topics = new TopicSets(Entities);
+        Entities = new(chunkSize: 1, initialCapacity: 16);
+        Topics = new(Entities);
         this.workers = workers;
-        Router = new Router(Entities, Topics, workers is null ? null : new ParallelOptions { MaxDegreeOfParallelism = 4, TaskScheduler = workers });
+        Router = new(Entities, Topics,
+            workers is null ? null : new ParallelOptions { MaxDegreeOfParallelism = 4, TaskScheduler = workers });
     }
+
+    /// <summary>How many tasks the router queued on its workers so far. Always 0 for a harness without workers.</summary>
+    public int TasksQueued => workers?.Queued ?? 0;
 
     /// <summary>
     /// A harness whose router routes on four workers from <paramref name="threshold"/> messages on, in
@@ -35,24 +41,22 @@ internal sealed class RouterHarness
     /// </summary>
     public static RouterHarness OnWorkers(int workItems = 3, int? threshold = 1)
     {
-        var h = new RouterHarness(new CountingScheduler());
+        var h = new RouterHarness(new());
         if (threshold is { } t)
             h.Router.ParallelThreshold = t;
         h.Router.WorkItems = workItems;
         return h;
     }
 
-    /// <summary>How many tasks the router queued on its workers so far. Always 0 for a harness without workers.</summary>
-    public int TasksQueued => workers?.Queued ?? 0;
-
     /// <summary>A handle for a frame, with a made-up owner. The topic sets only need the index and the generation.</summary>
-    public static FrameHandle Frame(int index, uint generation) => new(new Entity(15, generation), index, generation);
+    public static FrameHandle Frame(int index, uint generation) => new(new(15, generation), index, generation);
 
     /// <summary>A live entity whose one component wants <paramref name="wants"/>, optionally a member of a frame.</summary>
     public Entity Spawn(EventMask wants, FrameHandle frame = default)
     {
         Entity entity = Entities.Reserve();
-        Entities.Activate(entity, new TransformRow { Frame = frame, PhysicsHome = frame }, new RenderData(), [new Recorder(wants)], [wants], null, Vector3.Zero, FrameHandle.Null);
+        Entities.Activate(entity, new() { Frame = frame, PhysicsHome = frame }, new(), [new Recorder(wants)], [wants],
+            null, Vector3.Zero, FrameHandle.Null);
         Topics.MoveMember(entity, frame, out _);
         return entity;
     }
@@ -69,11 +73,12 @@ internal sealed class RouterHarness
         Entities.Chunks[chunk].Outbox.Add(Event.Create(target, Entity.Null, payload));
     }
 
-    /// <summary>Writes a delayed message into a chunk, as an entity of that chunk would. It is due at routing number <paramref name="due"/>.</summary>
+    /// <summary>Writes a delayed message into a chunk, as an entity of that chunk would. It is due at routing number
+    /// <paramref name="due"/>.</summary>
     public void SendAt<T>(int chunk, long due, Target target, T payload) where T : unmanaged, IEventPayload
     {
         EnsureChunk(chunk);
-        Entities.Chunks[chunk].Delayed.Add(new DelayedEvent { Due = due, Event = Event.Create(target, Entity.Null, payload) });
+        Entities.Chunks[chunk].Delayed.Add(new() { Due = due, Event = Event.Create(target, Entity.Null, payload) });
     }
 
     // With one slot per chunk, chunk n exists once slot n has been handed out.
@@ -105,10 +110,12 @@ internal sealed class RouterHarness
     }
 
     /// <summary>The value of each <see cref="Ping"/> in the inbox of an entity, in inbox order.</summary>
-    public List<int> Pings(Entity entity) => Inbox(entity).Where(e => e.Is<Ping>()).Select(e => e.As<Ping>().Value).ToList();
+    public List<int> Pings(Entity entity) =>
+        [.. Inbox(entity).Where(e => e.Is<Ping>()).Select(e => e.As<Ping>().Value)];
 
     /// <summary>The amount of each <see cref="Heal"/> in the inbox of an entity, in inbox order.</summary>
-    public List<float> Heals(Entity entity) => Inbox(entity).Where(e => e.Is<Heal>()).Select(e => e.As<Heal>().Amount).ToList();
+    public List<float> Heals(Entity entity) =>
+        [.. Inbox(entity).Where(e => e.Is<Heal>()).Select(e => e.As<Heal>().Amount)];
 
     /// <summary>How many <see cref="Destroy"/> events the inbox of an entity holds.</summary>
     public int Destroys(Entity entity) => Inbox(entity).Count(e => e.Is<Destroy>());
@@ -143,4 +150,3 @@ internal sealed class CountingScheduler : TaskScheduler
 
     protected override IEnumerable<Task> GetScheduledTasks() => [];
 }
-

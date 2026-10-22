@@ -36,16 +36,59 @@ public readonly struct MotionIntent : IEquatable<MotionIntent>
     private readonly MotionSample sample;
     private readonly byte kind;
 
-    public MotionIntent(EndPose end) { kind = KindEndPose; sample = default(MotionSample) with { Pose = end.Pose }; }
-    public MotionIntent(MotionSample sample) { kind = KindSample; this.sample = sample; }
-    public MotionIntent(SteerTarget steer) { kind = KindSteer; sample = default(MotionSample) with { Pose = steer.Pose }; }
+    public MotionIntent(EndPose end)
+    {
+        kind = KindEndPose;
+        sample = default(MotionSample) with { Pose = end.Pose };
+    }
+
+    public MotionIntent(MotionSample sample)
+    {
+        kind = KindSample;
+        this.sample = sample;
+    }
+
+    public MotionIntent(SteerTarget steer)
+    {
+        kind = KindSteer;
+        sample = default(MotionSample) with { Pose = steer.Pose };
+    }
 
     /// <summary>False for the empty union: no motion intent.</summary>
     public bool HasValue => kind != KindNone;
 
+    /// <summary>
+    /// The pose that physics aims the entity at, which every case gives. For an end pose and a full sample, it is the pose at
+    /// the end of the step, where physics or the sync point puts the entity exactly. For a steer target, it is the pose that
+    /// physics steers a dynamic body toward, which contacts and gravity can keep the body from. The empty union gives the
+    /// default pose.
+    /// </summary>
+    public DPose AimPose => sample.Pose;
+
+    /// <summary>
+    /// How a frame follows when it takes the record of this intent (docs/plans/rails-components.md, "The follow kind"):
+    /// <see cref="FollowKind.Rails"/> for a full sample, <see cref="FollowKind.Kinematic"/> for an end pose, and
+    /// <see cref="FollowKind.Static"/> for a steer target and the empty union, which give no record. It reads the case alone,
+    /// so it copies no field (see <see cref="FrameTree.FollowKindInStep"/>).
+    /// </summary>
+    internal FollowKind FollowKind => kind switch
+    {
+        KindSample => FollowKind.Rails,
+        KindEndPose => FollowKind.Kinematic,
+        _ => FollowKind.Static
+    };
+
+    public object? Value => kind switch
+    {
+        KindEndPose => new EndPose(sample.Pose),
+        KindSample => sample,
+        KindSteer => new SteerTarget(sample.Pose),
+        _ => null
+    };
+
     public bool TryGetValue(out EndPose end)
     {
-        end = new EndPose(sample.Pose);
+        end = new(sample.Pose);
         return kind == KindEndPose;
     }
 
@@ -57,17 +100,9 @@ public readonly struct MotionIntent : IEquatable<MotionIntent>
 
     public bool TryGetValue(out SteerTarget steer)
     {
-        steer = new SteerTarget(sample.Pose);
+        steer = new(sample.Pose);
         return kind == KindSteer;
     }
-
-    /// <summary>
-    /// The pose that physics aims the entity at, which every case gives. For an end pose and a full sample, it is the pose at
-    /// the end of the step, where physics or the sync point puts the entity exactly. For a steer target, it is the pose that
-    /// physics steers a dynamic body toward, which contacts and gravity can keep the body from. The empty union gives the
-    /// default pose.
-    /// </summary>
-    public DPose AimPose => sample.Pose;
 
     /// <summary>
     /// The step record of this intent, the entity's motion over a step that starts at <paramref name="stepStart"/> and lasts
@@ -88,26 +123,13 @@ public readonly struct MotionIntent : IEquatable<MotionIntent>
                 DPose end = sample.Pose;
                 Double3 chord = (end.Position - stepStart.Position) / step;
                 Double3 spin = stepStart.Rotation.AngularVelocityTo(end.Rotation, step);
-                record = new MotionSample(end, chord, chord, Double3.Zero, spin, Double3.Zero);
+                record = new(end, chord, chord, Double3.Zero, spin, Double3.Zero);
                 return true;
             default:
                 record = default;
                 return false;
         }
     }
-
-    /// <summary>
-    /// How a frame follows when it takes the record of this intent (docs/plans/rails-components.md, "The follow kind"):
-    /// <see cref="FollowKind.Rails"/> for a full sample, <see cref="FollowKind.Kinematic"/> for an end pose, and
-    /// <see cref="FollowKind.Static"/> for a steer target and the empty union, which give no record. It reads the case alone,
-    /// so it copies no field (see <see cref="FrameTree.FollowKindInStep"/>).
-    /// </summary>
-    internal FollowKind FollowKind => kind switch
-    {
-        KindSample => FollowKind.Rails,
-        KindEndPose => FollowKind.Kinematic,
-        _ => FollowKind.Static,
-    };
 
     /// <summary>
     /// This intent in another frame, which the two relations call the parent: <paramref name="start"/> and
@@ -120,18 +142,10 @@ public readonly struct MotionIntent : IEquatable<MotionIntent>
     /// </summary>
     internal MotionIntent Converted(in FrameMotion start, in FrameMotion end, double step) => kind switch
     {
-        KindEndPose => new MotionIntent(new EndPose(end.PoseToParent(sample.Pose))),
-        KindSample => new MotionIntent(sample.Converted(start, end, step)),
-        KindSteer => new MotionIntent(new SteerTarget(end.PoseToParent(sample.Pose))),
-        _ => this,
-    };
-
-    public object? Value => kind switch
-    {
-        KindEndPose => new EndPose(sample.Pose),
-        KindSample => sample,
-        KindSteer => new SteerTarget(sample.Pose),
-        _ => null,
+        KindEndPose => new(new EndPose(end.PoseToParent(sample.Pose))),
+        KindSample => new(sample.Converted(start, end, step)),
+        KindSteer => new(new SteerTarget(end.PoseToParent(sample.Pose))),
+        _ => this
     };
 
     /// <summary>
@@ -161,16 +175,18 @@ public readonly struct MotionIntent : IEquatable<MotionIntent>
             return MotionIntentRefusal.Attached;
         if (motion == BodyMotion.Character)
             return MotionIntentRefusal.Character;
-        if (kind != KindSteer)
-            return motion is null or BodyMotion.Kinematic || ownsRootFrame ? MotionIntentRefusal.None : MotionIntentRefusal.NeedsKinematicBody;
-        if (ownsRootFrame)
-            return MotionIntentRefusal.SteerOfRootFrame;
-        return motion switch
-        {
-            BodyMotion.Dynamic => MotionIntentRefusal.None,
-            null => MotionIntentRefusal.SteerWithoutBody,
-            _ => MotionIntentRefusal.NeedsDynamicBody,
-        };
+        return kind != KindSteer
+            ? motion is null or BodyMotion.Kinematic || ownsRootFrame
+                ? MotionIntentRefusal.None
+                : MotionIntentRefusal.NeedsKinematicBody
+            : ownsRootFrame
+                ? MotionIntentRefusal.SteerOfRootFrame
+                : motion switch
+                {
+                    BodyMotion.Dynamic => MotionIntentRefusal.None,
+                    null => MotionIntentRefusal.SteerWithoutBody,
+                    _ => MotionIntentRefusal.NeedsDynamicBody
+                };
     }
 
     /// <summary>
@@ -187,17 +203,23 @@ public readonly struct MotionIntent : IEquatable<MotionIntent>
     /// <summary>The words of <paramref name="refusal"/> of this motion intent for a body of <paramref name="motion"/>, or null for none.</summary>
     private string? Reason(MotionIntentRefusal refusal, BodyMotion? motion)
     {
-        string name = kind switch { KindEndPose => "an end pose", KindSample => "a full sample", _ => "a steer target" };
+        string name = kind switch
+        {
+            KindEndPose => "an end pose", KindSample => "a full sample", _ => "a steer target"
+        };
         return refusal switch
         {
             MotionIntentRefusal.None => null,
-            MotionIntentRefusal.Attached => $"is attached, so its pose follows its parent, and it takes no motion intent, not {name}",
-            MotionIntentRefusal.Character => $"is a character, which a walk, a jump, forces and impulses move, so it takes no motion intent, not {name}",
+            MotionIntentRefusal.Attached =>
+                $"is attached, so its pose follows its parent, and it takes no motion intent, not {name}",
+            MotionIntentRefusal.Character =>
+                $"is a character, which a walk, a jump, forces and impulses move, so it takes no motion intent, not {name}",
             MotionIntentRefusal.NeedsKinematicBody =>
                 $"has a {motion} body, so it cannot take {name}: only a kinematic body, an entity without a body and the owner of a root frame take one",
-            MotionIntentRefusal.SteerOfRootFrame => "owns a root frame, whose body is only the frame's static interior, so it has nothing to steer with a steer target",
+            MotionIntentRefusal.SteerOfRootFrame =>
+                "owns a root frame, whose body is only the frame's static interior, so it has nothing to steer with a steer target",
             MotionIntentRefusal.SteerWithoutBody => "has no body, so it has nothing to steer with a steer target",
-            _ => $"has a {motion} body, so it cannot take a steer target: only a dynamic body takes one",
+            _ => $"has a {motion} body, so it cannot take a steer target: only a dynamic body takes one"
         };
     }
 
@@ -212,7 +234,7 @@ public readonly struct MotionIntent : IEquatable<MotionIntent>
         EndPose end => $"MotionIntent({end})",
         MotionSample full => $"MotionIntent({full})",
         SteerTarget steer => $"MotionIntent({steer})",
-        _ => "MotionIntent(none)",
+        _ => "MotionIntent(none)"
     };
 }
 
@@ -221,16 +243,22 @@ internal enum MotionIntentRefusal : byte
 {
     /// <summary>The entity takes the motion intent.</summary>
     None,
+
     /// <summary>An attached entity takes no motion intent.</summary>
     Attached,
+
     /// <summary>A character takes no motion intent.</summary>
     Character,
+
     /// <summary>An end pose or a full sample needs a kinematic body, no body, or the owner of a root frame.</summary>
     NeedsKinematicBody,
+
     /// <summary>The owner of a root frame has only a static interior to steer.</summary>
     SteerOfRootFrame,
+
     /// <summary>An entity without a body has nothing to steer.</summary>
     SteerWithoutBody,
+
     /// <summary>A steer target needs a dynamic body.</summary>
-    NeedsDynamicBody,
+    NeedsDynamicBody
 }
