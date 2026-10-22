@@ -48,7 +48,7 @@ public sealed record ExitSample(
 /// </summary>
 public sealed class ExitRun : IDisposable
 {
-    private readonly JoltPhysicsBackend backend = new();
+    private readonly JoltPhysicsBackend backend = new(JoltBackendOptions.Unpaced);
 
     public ExitRun()
     {
@@ -498,7 +498,7 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
 public sealed class DisembarkShortRunTests : IDisposable
 {
     private readonly World world = new(new() { MaxDegreeOfParallelism = 1, DebugChecks = false, DisposePhysics = true },
-        new JoltPhysicsBackend());
+        new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
 
     private readonly List<string> log = [];
     private readonly SceneInstance scene;

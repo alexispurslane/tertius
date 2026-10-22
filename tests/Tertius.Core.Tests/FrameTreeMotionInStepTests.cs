@@ -1,6 +1,7 @@
 using System.Numerics;
 using AwesomeAssertions;
 using Tertius.Frames.Rails;
+using Tertius.Testing;
 
 namespace Tertius.Core.Tests;
 
@@ -285,8 +286,6 @@ public class FrameTreeMotionInStepTests
         PhysicsIntent[] next = Intents((station, Spinning(3 * Step)), (cart, EndingAt(new(0, 3, 50))));
         frames.MotionRelativeInStep(room, cart, next, Step);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        frames.MotionRelativeInStep(room, cart, next, Step);
-        (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0);
+        Allocations.Fewest(() => frames.MotionRelativeInStep(room, cart, next, Step)).Should().Be(0);
     }
 }

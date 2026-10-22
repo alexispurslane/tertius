@@ -80,6 +80,12 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     // is filling now.
     private List<string>? bugReport;
 
+    /// <summary>
+    /// The gate that serializes the native work and the state of this backend: changes, steps, queries and shape builds.
+    /// Another backend has its own gate and can step at the same time on another thread.
+    /// </summary>
+    internal Lock Gate { get; } = new();
+
     /// <summary>Creates a backend. Initializes Jolt in double precision on first use in the process.</summary>
     public JoltPhysicsBackend(JoltBackendOptions? options = null)
     {
@@ -143,7 +149,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         ObjectDisposedException.ThrowIf(disposed, this);
         ArgumentNullException.ThrowIfNull(changes);
         ArgumentNullException.ThrowIfNull(frames);
-        lock (JoltRuntime.NativeGate)
+        lock (Gate)
         {
             this.frames = frames;
             bugReport = changes.Errors;
@@ -294,7 +300,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             throw new ArgumentOutOfRangeException(nameof(context), context.DeltaTime,
                 "The step needs a positive delta time.");
 
-        lock (JoltRuntime.NativeGate)
+        lock (Gate)
         {
             frames = context.Frames;
             bugReport = output.Errors;
@@ -375,7 +381,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// </summary>
     private Vector3 ReadCenterOfMass(ShapeDesc shape)
     {
-        lock (JoltRuntime.NativeGate)
+        lock (Gate)
         {
             return shapes.Get(shape).CenterOfMass;
         }
@@ -386,7 +392,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     {
         if (shape.Problem() is { } problem)
             return problem;
-        lock (JoltRuntime.NativeGate)
+        lock (Gate)
         {
             try
             {
@@ -406,7 +412,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         if (disposed)
             return;
         disposed = true;
-        lock (JoltRuntime.NativeGate)
+        lock (Gate)
         {
             // A character removes its inner body from its system, so it must go before the system.
             foreach (BodyRecord? record in records)
@@ -495,7 +501,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// </summary>
     internal VelocityShadow ShadowOf(Entity entity)
     {
-        lock (JoltRuntime.NativeGate)
+        lock (Gate)
         {
             return Find(entity)?.Shadow ?? default;
         }
@@ -507,7 +513,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         var facts = new List<BodyFacts>();
         if (ExistingWorld(frame) is not { } world)
             return facts;
-        lock (JoltRuntime.NativeGate)
+        lock (Gate)
         {
             uint count = world.System.BodiesCount;
             var ids = new BodyID[count];

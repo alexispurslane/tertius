@@ -125,7 +125,7 @@ public static class ScriptCommand
             return WindowHost.Run(scene, script, options.Script, options.Out, options.Speed, recordPath: null, output,
                 error);
 
-        using var world = new World(new() { DisposePhysics = true }, new JoltPhysicsBackend());
+        using var world = new World(new() { DisposePhysics = true }, new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
         VulkanRenderer? renderer = null;
         if (captures)
             try

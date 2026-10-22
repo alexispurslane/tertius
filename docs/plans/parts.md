@@ -358,8 +358,8 @@ The backend, in `tests/Tertius.Physics.Tests/ShapeCenterOfMassTests.cs`:
 
 - `TheCenterOfMassOfABoxASphereAndACapsuleIsTheirOrigin`
 - `TheCenterOfMassOfAShapeIsWhereJoltPutsTheCenterOfMassOfABodyAtRestAtTheOrigin`, for a convex hull and a compound
-- `AFirstQuestionWaitsForTheNativeGateAndThenGetsTheAnswerOfAQuietBackend`: the test thread holds the gate, as a step holds it, so the test needs no race with a step
-- `AKeptAnswerNeedsNoNativeGate`
+- `AFirstQuestionWaitsForTheBackendGateAndThenGetsTheAnswerOfAQuietBackend`: the test thread holds the gate, as a step holds it, so the test needs no race with a step
+- `AKeptAnswerNeedsNoBackendGate`
 - `AKeptAnswerAllocatesNothing`, for `ShapeCenterOfMass` and `ShapeProblem`
 
 The demo, in `tests/Tertius.Host.Tests/ShuttleTests.cs`, because only that project references `Tertius.Demo`. The test `TheCenterOfMassStaysStillWhileTheFreeHullSpins` (line 242) already holds the demo's value within 1 mm of where Jolt puts the center. The new test asks the backend's value directly:

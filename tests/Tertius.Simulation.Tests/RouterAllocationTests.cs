@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Tertius.Testing;
 
 namespace Tertius.Simulation.Tests;
 
@@ -33,12 +34,14 @@ public class RouterAllocationTests
             h.Router.Route(tick);
         }
 
-        for (long tick = 0; tick < 50; tick++)
-            SendAndRoute(tick);
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (long tick = 50; tick < 250; tick++)
-            SendAndRoute(tick);
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        long next = 0;
+        for (; next < 50; next++)
+            SendAndRoute(next);
+        long allocated = Allocations.Fewest(() =>
+        {
+            for (long end = next + 200; next < end; next++)
+                SendAndRoute(next);
+        });
 
         h.Router.DeliveryCount.Should()
             .BeGreaterThan(200, "the routing must have delivered the sends of the last tick");

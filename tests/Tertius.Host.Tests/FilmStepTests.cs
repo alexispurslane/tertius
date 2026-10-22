@@ -11,7 +11,6 @@ namespace Tertius.Host.Tests;
 /// images and in the state that it leaves, and a camera that dies during a film stops the run at the next frame. See
 /// docs/plans/blue-danube-demo.md, change 2, "The film step".
 /// </summary>
-[Collection(GpuCollection.Name)]
 public sealed class FilmStepTests : IDisposable
 {
     private readonly string folder = NewFolder();

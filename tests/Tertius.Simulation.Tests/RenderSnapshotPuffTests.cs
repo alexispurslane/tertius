@@ -1,5 +1,6 @@
 using System.Numerics;
 using AwesomeAssertions;
+using Tertius.Testing;
 using static Tertius.Simulation.Tests.PoseChecks;
 
 namespace Tertius.Simulation.Tests;
@@ -319,9 +320,7 @@ public class RenderSnapshotPuffTests
         h.Build(snapshot, 1, camera, View(rows, ranges, looks));
         h.Build(snapshot, 2, camera, View(rows, ranges, looks));
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        h.Builder.BuildPuffs(snapshot, View(rows, ranges, looks));
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        long allocated = Allocations.Fewest(() => h.Builder.BuildPuffs(snapshot, View(rows, ranges, looks)));
 
         allocated.Should().Be(0);
         snapshot.Puffs.Should().HaveCount(500);

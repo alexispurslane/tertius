@@ -121,6 +121,14 @@ public static class Program
             return ScriptCommand.CommandLineError;
         }
 
+        // The rehearsal of the script takes minutes, so a folder that does not exist fails before it, not after.
+        string? folder = Path.GetDirectoryName(Path.GetFullPath(path));
+        if (folder is not null && !Directory.Exists(folder))
+        {
+            error.WriteLine($"Cannot write the script {path}: the folder {folder} does not exist.");
+            return ScriptCommand.FileError;
+        }
+
         Script script;
         try
         {

@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Tertius.Testing;
 
 namespace Tertius.Simulation.Tests;
 
@@ -502,10 +503,11 @@ public class EventQueryTests
         EventQuery<Damage, float> storedWithState =
             new EventQuery<Damage>().Where(1f, static (ref d, limit) => d.Amount > limit);
         Exercise(buffer, stored, storedWithState);
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 100; i++)
-            Exercise(buffer, stored, storedWithState);
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        long allocated = Allocations.Fewest(() =>
+        {
+            for (int i = 0; i < 100; i++)
+                Exercise(buffer, stored, storedWithState);
+        });
 
         allocated.Should().Be(0);
 

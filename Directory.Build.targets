@@ -10,11 +10,21 @@
 
   <!--
     Contract.Requires, Ensures and Assert are [Conditional("TERTIUS_CONTRACTS")], which is evaluated in the calling
-    project, so every project defines the symbol in Debug. This lives here and not in Directory.Build.props, because
-    the SDK sets the default Configuration only after Directory.Build.props is imported.
+    project, so every project defines the symbol in Debug and in Checked. This lives here and not in
+    Directory.Build.props, because the SDK sets the default Configuration only after Directory.Build.props is imported.
   -->
-  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug' Or '$(Configuration)' == 'Checked'">
     <DefineConstants>$(DefineConstants);TERTIUS_CONTRACTS</DefineConstants>
+  </PropertyGroup>
+
+  <!--
+    Checked is the configuration of the test runs: tools/test-all.sh runs Checked and Release, and the pre-commit hook
+    runs Checked. It has the contracts of Debug and the optimized code of Release. Debug stays unoptimized, so that a
+    debugger shows every local and steps line by line. The optimization is what matters for the tests: the Blue Danube
+    generator test took 161 s in Debug and 28 s in Checked, and the contracts cost about 1 s of that.
+  -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Checked'">
+    <Optimize>true</Optimize>
   </PropertyGroup>
 
   <!--

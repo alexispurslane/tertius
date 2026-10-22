@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -51,10 +52,11 @@ public sealed class HookAndCameraTests
             RenderSnapshot snapshot = scene.Snapshot();
             for (int i = 0; i < 5; i++)
                 renderer.Render(snapshot, 0.5f);
-            long before = GC.GetAllocatedBytesForCurrentThread();
-            for (int i = 0; i < 20; i++)
-                renderer.Render(snapshot, i / 20f);
-            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            long allocated = Allocations.Fewest(() =>
+            {
+                for (int i = 0; i < 20; i++)
+                    renderer.Render(snapshot, i / 20f);
+            });
             allocated.Should().Be(0, "a steady state allocates nothing");
         }
         finally

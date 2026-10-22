@@ -6,7 +6,8 @@ ARCHITECTURE.md is the binding design. This file records what the user prefers, 
 
 - Run every build and test command in the dev shell: `nix develop --command bash -c '<command>'`.
 - Build: `dotnet build Tertius.slnx`. Test one module: `dotnet test --project tests/Tertius.<Module>.Tests`.
-- Run every test module in Debug and Release with `bash tools/test-all.sh`. It takes `-c` for the configurations, `-m` for the modules, `-o` for the log folder, and `-- <dotnet test args>` for a filter. It prints one count line per module and the names of the failed tests, and it exits non-zero on any failure. `tools/README.md` gives the details.
+- Run every test module in Checked and Release with `bash tools/test-all.sh`. It takes `-c` for the configurations, `-m` for the modules, `-o` for the log folder, and `-- <dotnet test args>` for a filter. It prints one count line per module and the names of the failed tests, and it exits non-zero on any failure. `tools/README.md` gives the details.
+- Checked is the test configuration: Debug's contracts with Release's optimized code. It runs the tests about five times faster than Debug. Debug stays unoptimized for the debugger. The user chose this on 2026-10-22.
 - To open the project in JetBrains Rider, start Rider with `bash tools/rider.sh`, so that it uses the dev shell's SDK and variables. `tools/README.md` gives the one-time settings.
 - The tests use xUnit v3 on Microsoft.Testing.Platform, with AwesomeAssertions.
 - The double-precision Jolt library comes from `native/joltc.nix`. Read the Jolt pitfalls in project memory before you touch Jolt interop.

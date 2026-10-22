@@ -23,7 +23,7 @@ namespace Tertius.Host.Tests;
 /// <c>TERTIUS_DEMO_COST=report.md dotnet test -c Release --project tests/Tertius.Host.Tests -- --filter-class "*DemoFrameCostMeasurement" --explicit only</c>
 /// .
 /// </summary>
-[Collection(GpuCollection.Name)]
+[Collection(MeasurementCollection.Name)]
 public sealed class DemoFrameCostMeasurement
 {
     public const string Variable = "TERTIUS_DEMO_COST";

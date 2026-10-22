@@ -14,7 +14,6 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class WindowsRun() : CheckedInRun("windows");
 
-[Collection(GpuCollection.Name)]
 public sealed class WindowsSliceTests(WindowsRun run) : IClassFixture<WindowsRun>
 {
     private StateDump Dump(string name) => run.Result.Dump(name);

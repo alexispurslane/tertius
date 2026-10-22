@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using Tertius.Host.Scripting;
 using Tertius.Simulation;
+using Tertius.Testing;
 
 namespace Tertius.Host.Tests;
 
@@ -262,10 +263,11 @@ public class ScriptUnionTests
     {
         for (int i = 0; i < 10; i++)
             action();
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 100; i++)
-            action();
-        return GC.GetAllocatedBytesForCurrentThread() - before;
+        return Allocations.Fewest(() =>
+        {
+            for (int i = 0; i < 100; i++)
+                action();
+        });
     }
 
     // A dump writes one target for each routed event, and a recording one step for each line, so a long run writes tens

@@ -16,7 +16,6 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class DemoSurfaceRun() : CheckedInRun("demo-surface");
 
-[Collection(GpuCollection.Name)]
 public sealed class DemoSurfaceTests(DemoSurfaceRun run) : IClassFixture<DemoSurfaceRun>
 {
     private StateDump Dump(string name) => run.Result.Dump(name);

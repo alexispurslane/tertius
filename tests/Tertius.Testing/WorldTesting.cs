@@ -49,7 +49,7 @@ public static class WorldTesting
                     warnings.Add(message);
                 }
             };
-        return new(new() { WorkerThreads = 2, Log = log });
+        return new(JoltBackendOptions.Unpaced with { Log = log });
     }
 
     private static WorldOptions NewOptions(bool debugChecks, Action<WorldOptions>? configure)
@@ -116,5 +116,22 @@ public static class WorldTesting
     {
         for (int i = 0; i < ticks; i++)
             world.Tick();
+    }
+
+    /// <summary>
+    /// Runs <paramref name="ticks"/> ticks and collects garbage after every 10th. An object that only a weak reference
+    /// holds is then made again after each collection, so an allocation test sees it.
+    /// </summary>
+    public static void TickCollectingGarbage(World world, int ticks)
+    {
+        for (int t = 1; t <= ticks; t++)
+        {
+            world.Tick();
+            if (t % 10 == 0)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+            }
+        }
     }
 }

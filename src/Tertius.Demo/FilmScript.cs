@@ -65,8 +65,11 @@ public static class FilmScript
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(window);
         ArgumentNullException.ThrowIfNull(sections);
-        // As the command makes the world of a headless run.
-        using var world = new World(new() { DisposePhysics = true }, new JoltPhysicsBackend());
+        // As the command makes the world of a headless run, but with no puffs. Gameplay and physics read nothing of the
+        // puffs (WorldOptions.PuffCapacity), so no cue sees them, and the rehearsal reaches each cue at the same tick. The
+        // puffs of the demo's plumes took about half of the time of a rehearsal.
+        using var world = new World(new() { DisposePhysics = true, PuffCapacity = 0 },
+            new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
         SceneInstance instance = scene.Build(world, RenderResources.None);
         var steps = new List<ScriptStep>();
         // The outlines start off, as World.ShowFrameOutlines does, so a script with no section that shows them has no

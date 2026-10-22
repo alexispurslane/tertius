@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Tertius.Testing;
 
 namespace Tertius.Simulation.Tests;
 
@@ -364,10 +365,11 @@ public class EventListTests
     {
         var buffer = new EventBuffer(8);
         Exercise(buffer);
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 100; i++)
-            Exercise(buffer);
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        long allocated = Allocations.Fewest(() =>
+        {
+            for (int i = 0; i < 100; i++)
+                Exercise(buffer);
+        });
 
         allocated.Should().Be(0);
 

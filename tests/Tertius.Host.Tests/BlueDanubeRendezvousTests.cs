@@ -43,7 +43,7 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
         if (last < 0)
             throw new InvalidOperationException($"scripts/blue-danube.json has no film '{LastFilm}'.");
         World = new(new() { MaxDegreeOfParallelism = 1, DebugChecks = false, DisposePhysics = true },
-            new JoltPhysicsBackend());
+            new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
         World.Log += Logged.Add;
         Scene = DemoScenes.All.Single(s => s.Name == full.Scene).Build(World, RenderResources.None);
         Earth = World.GetOwnedFrame(Scene["earth"]);

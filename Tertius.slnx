@@ -1,4 +1,9 @@
 <Solution>
+  <Configurations>
+    <BuildType Name="Checked" />
+    <BuildType Name="Debug" />
+    <BuildType Name="Release" />
+  </Configurations>
   <Folder Name="/src/">
     <Project Path="src/Tertius.Core/Tertius.Core.csproj" />
     <Project Path="src/Tertius.Simulation/Tertius.Simulation.csproj" />

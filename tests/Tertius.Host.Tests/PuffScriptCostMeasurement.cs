@@ -20,7 +20,7 @@ namespace Tertius.Host.Tests;
 /// <c>TERTIUS_PUFF_COST=report.md dotnet test -c Release --project tests/Tertius.Host.Tests -- --filter-class "*PuffScriptCostMeasurement" --explicit only</c>
 /// .
 /// </summary>
-[Collection(GpuCollection.Name)]
+[Collection(MeasurementCollection.Name)]
 public sealed class PuffScriptCostMeasurement
 {
     public const string Variable = "TERTIUS_PUFF_COST";

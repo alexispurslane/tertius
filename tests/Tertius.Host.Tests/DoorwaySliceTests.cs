@@ -13,7 +13,6 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class DoorwayRun() : CheckedInRun("doorway");
 
-[Collection(GpuCollection.Name)]
 public sealed class DoorwaySliceTests(DoorwayRun run) : IClassFixture<DoorwayRun>
 {
     private StateDump Dump(string name) => run.Result.Dump(name);

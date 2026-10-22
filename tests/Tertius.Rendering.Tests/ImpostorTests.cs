@@ -1,5 +1,6 @@
 using System.Numerics;
 using StbImageWriteSharp;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -602,10 +603,11 @@ public sealed class ImpostorTests(ITestOutputHelper output)
             for (int i = 0; i < 5; i++)
                 renderer.Render(snapshot, 0.5f);
             renderer.LastFrameStats.Impostors.Should().BePositive();
-            long before = GC.GetAllocatedBytesForCurrentThread();
-            for (int i = 0; i < 20; i++)
-                renderer.Render(snapshot, i / 20f);
-            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            long allocated = Allocations.Fewest(() =>
+            {
+                for (int i = 0; i < 20; i++)
+                    renderer.Render(snapshot, i / 20f);
+            });
             allocated.Should().Be(0, "a steady state allocates nothing");
         }
         finally

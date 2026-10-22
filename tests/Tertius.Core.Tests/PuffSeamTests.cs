@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using AwesomeAssertions;
+using Tertius.Testing;
 
 namespace Tertius.Core.Tests;
 
@@ -58,15 +59,17 @@ public class PuffSeamTests
         float total = 0;
         foreach (PuffShading shading in shadings)
             total += RedOf(shading);
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int round = 0; round < 100; round++)
-            foreach (PuffShading shading in shadings)
-                total += RedOf(shading);
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        long allocated = Allocations.Fewest(() =>
+        {
+            total = 0;
+            for (int round = 0; round < 100; round++)
+                foreach (PuffShading shading in shadings)
+                    total += RedOf(shading);
+        });
 
         allocated.Should().Be(0);
-        total.Should().Be((6 + 0.5f + 100) * 101,
-            "a glow of red 6, an albedo of red 0.5 and the empty shading's 100, over 101 rounds");
+        total.Should().Be((6 + 0.5f + 100) * 100,
+            "a glow of red 6, an albedo of red 0.5 and the empty shading's 100, over 100 rounds");
     }
 
     private static float RedOf(in PuffShading shading)

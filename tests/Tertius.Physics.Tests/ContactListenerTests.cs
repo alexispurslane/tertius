@@ -152,33 +152,32 @@ public class ContactListenerTests
         // The backend makes joltc call its callbacks for every listener in the process.
         using var backend = new JoltPhysicsBackend(new() { WorkerThreads = 1 });
         int stray = ContactListener.StrayReports;
-        lock (JoltRuntime.NativeGate)
+        // The system steps on this thread with no lock: joltc gives each calling thread its own temp allocator.
+        var layers = new Layers.Tables();
+        using PhysicsSystem system = NativeOwnership.Owned(new PhysicsSystem(new()
         {
-            var layers = new Layers.Tables();
-            using PhysicsSystem system = NativeOwnership.Owned(new PhysicsSystem(new()
-            {
-                MaxBodies = 16,
-                MaxBodyPairs = 16,
-                MaxContactConstraints = 16,
-                ObjectLayerPairFilter = layers.Pairs,
-                BroadPhaseLayerInterface = layers.BroadPhase,
-                ObjectVsBroadPhaseLayerFilter = layers.ObjectVsBroadPhase
-            }));
-            using JobSystemThreadPool jobs = NativeOwnership.Owned(new JobSystemThreadPool(new() { numThreads = 1 }));
-            using BoxShape cube = NativeOwnership.Owned(new BoxShape(new Vector3(0.5f)));
-            ObjectLayer moving = Layers.For(BodyLayer.Moving, CollisionGroups.Of(CollisionGroup.Solid),
-                CollisionMask.Empty.InAny(CollisionGroup.Solid));
-            // Two boxes that overlap by 10 cm, so that Jolt reports their contact in every update.
-            foreach (double x in new[] { 0.0, 0.9 })
-            {
-                using BodyCreationSettings settings = NativeOwnership.Owned(new BodyCreationSettings(cube,
-                    new RVector3(x, 0, 0), Quaternion.Identity, MotionType.Dynamic, moving));
-                system.BodyInterface.CreateAndAddBody(settings, Activation.Activate);
-            }
-
-            for (int i = 0; i < 3; i++)
-                system.Update(1 / 60f, 1, jobs);
+            MaxBodies = 16,
+            MaxBodyPairs = 16,
+            MaxContactConstraints = 16,
+            ObjectLayerPairFilter = layers.Pairs,
+            BroadPhaseLayerInterface = layers.BroadPhase,
+            ObjectVsBroadPhaseLayerFilter = layers.ObjectVsBroadPhase
+        }));
+        using JobSystemThreadPool jobs = NativeOwnership.Owned(new JobSystemThreadPool(new() { numThreads = 1 }));
+        using BoxShape cube = NativeOwnership.Owned(new BoxShape(new Vector3(0.5f)));
+        ObjectLayer moving = Layers.For(BodyLayer.Moving, CollisionGroups.Of(CollisionGroup.Solid),
+            CollisionMask.Empty.InAny(CollisionGroup.Solid));
+        // Two boxes that overlap by 10 cm, so that Jolt reports their contact in every update.
+        foreach (double x in new[] { 0.0, 0.9 })
+        {
+            using BodyCreationSettings settings = NativeOwnership.Owned(new BodyCreationSettings(cube,
+                new RVector3(x, 0, 0), Quaternion.Identity, MotionType.Dynamic, moving));
+            system.BodyInterface.CreateAndAddBody(settings, Activation.Activate);
         }
+
+        for (int i = 0; i < 3; i++)
+            system.Update(1 / 60f, 1, jobs);
+
 
         ContactListener.StrayReports.Should().BeGreaterThan(stray,
             "Jolt reported the contact of the two boxes through the listener of JoltPhysicsSharp");

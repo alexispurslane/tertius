@@ -28,7 +28,7 @@ public static class WorldTestingGrowth
                     warnings.Add(message);
                 }
             };
-        faults = new(new(new() { WorkerThreads = 2, MaxBodiesPerFrame = maxBodiesPerFrame, Log = log }));
+        faults = new(new(JoltBackendOptions.Unpaced with { MaxBodiesPerFrame = maxBodiesPerFrame, Log = log }));
         var options = new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = debugChecks, DisposePhysics = true };
         configure?.Invoke(options);
         return new(options, faults);

@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Tertius.Testing;
 
 namespace Tertius.Simulation.Tests;
 
@@ -276,9 +277,7 @@ public class PuffTableTests
         test.Run(200);
         test.World.Puffs.Count.Should().Be(200, "the cap binds");
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        test.Run(200);
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        long allocated = Allocations.Fewest(() => test.Run(200));
 
         // The total, not a mean per tick: one small object in 200 ticks would vanish in an integer mean.
         allocated.Should().Be(0, "a sync point allocates nothing for the puffs once their arrays have grown");

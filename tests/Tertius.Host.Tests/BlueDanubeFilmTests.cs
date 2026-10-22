@@ -24,7 +24,7 @@ public sealed class BlueDanubeFilmRun : IDisposable
         int last = full.Steps.ToList().FindIndex(step => step.Value is FilmStep { Name: LastFilm });
         if (last < 0)
             throw new InvalidOperationException($"scripts/blue-danube.json has no film '{LastFilm}'.");
-        Backend = new();
+        Backend = new(JoltBackendOptions.Unpaced);
         World = new(new() { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true }, Backend);
         Scene = DemoScenes.All.Single(s => s.Name == full.Scene).Build(World, RenderResources.None);
         ScriptRunner.Run(full with { Steps = [.. full.Steps.Take(last + 1)] }, World, Scene, outputFolder: null,

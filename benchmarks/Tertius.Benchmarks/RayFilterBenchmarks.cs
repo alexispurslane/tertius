@@ -47,6 +47,7 @@ public unsafe class RayFilterBenchmarks
     [Params(false, true)] public bool OnlyFarthestMatches;
 
     private World world = null!;
+    private Lock gate = null!;
     private Entity asker;
     private Entity[] byIndex = null!;
     private NarrowPhaseQuery narrowPhase;
@@ -66,6 +67,7 @@ public unsafe class RayFilterBenchmarks
     public void Setup()
     {
         var backend = new JoltPhysicsBackend(new() { WorkerThreads = 2 });
+        gate = backend.Gate;
         world = new(new() { MaxDegreeOfParallelism = 1, DisposePhysics = true }, backend);
         FrameHandle root = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         asker = world.Spawn(new()
@@ -125,7 +127,7 @@ public unsafe class RayFilterBenchmarks
     [Benchmark(Baseline = true)]
     public float InsideJolt()
     {
-        lock (JoltRuntime.NativeGate)
+        lock (gate)
         {
             return narrowPhase.CastRay(Origin, Direction, out RayCastResult hit, broadPhaseFilter, groupFilter,
                 bodyFilter)
@@ -137,7 +139,7 @@ public unsafe class RayFilterBenchmarks
     [Benchmark]
     public float BodyFilterOnly()
     {
-        lock (JoltRuntime.NativeGate)
+        lock (gate)
         {
             sorted.Clear();
             narrowPhase.CastRay(Origin, Direction, new(), CollisionCollectorType.ClosestHit, sorted,
@@ -149,7 +151,7 @@ public unsafe class RayFilterBenchmarks
     [Benchmark]
     public float SortedHitsThenFilter()
     {
-        lock (JoltRuntime.NativeGate)
+        lock (gate)
         {
             sorted.Clear();
             narrowPhase.CastRay(Origin, Direction, new(), CollisionCollectorType.AllHitSorted, sorted);
@@ -163,7 +165,7 @@ public unsafe class RayFilterBenchmarks
     [Benchmark]
     public float CollectorFilters()
     {
-        lock (JoltRuntime.NativeGate)
+        lock (gate)
         {
             nearest = 1.0000001f;
             narrowPhase.CastRay(Origin, Direction, new(), &OnHit, GCHandle.ToIntPtr(self));

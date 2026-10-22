@@ -7,7 +7,7 @@ namespace Tertius.Physics;
 /// with the same shape every tick makes it once. It holds at most <see cref="Capacity"/> shapes, and frees them all when a
 /// new one would pass that, so a component that asks with ever new sizes cannot grow it without bound: it pays for a new
 /// native shape for each new size instead. Not thread-safe: use it at the sync point, under
-/// <see cref="JoltRuntime.NativeGate"/>.
+/// the <see cref="JoltPhysicsBackend.Gate"/> of its backend.
 /// </summary>
 internal sealed class QueryShapeCache : IDisposable
 {

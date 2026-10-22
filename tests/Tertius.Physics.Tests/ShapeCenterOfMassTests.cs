@@ -1,6 +1,7 @@
 using System.Numerics;
 using JoltPhysicsSharp;
 using Tertius.Simulation;
+using Tertius.Testing;
 using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
@@ -100,7 +101,7 @@ public class ShapeCenterOfMassTests
     }
 
     [Fact]
-    public void AFirstQuestionWaitsForTheNativeGateAndThenGetsTheAnswerOfAQuietBackend()
+    public void AFirstQuestionWaitsForTheBackendGateAndThenGetsTheAnswerOfAQuietBackend()
     {
         using World world = NewWorld(out JoltPhysicsBackend backend);
         ShapeDesc unbuilt = LopsidedHull();
@@ -108,16 +109,16 @@ public class ShapeCenterOfMassTests
         var asker = new Thread(() => answer = backend.ShapeCenterOfMass(unbuilt));
 
         // The test thread holds the gate, as a step holds it while Jolt steps, so the question on the other thread must wait.
-        JoltRuntime.NativeGate.Enter();
+        backend.Gate.Enter();
         try
         {
             asker.Start();
             asker.Join(TimeSpan.FromMilliseconds(200)).Should()
-                .BeFalse("the first question about a shape builds it, which takes the native gate");
+                .BeFalse("the first question about a shape builds it, which takes the backend's gate");
         }
         finally
         {
-            JoltRuntime.NativeGate.Exit();
+            backend.Gate.Exit();
         }
 
         asker.Join(TimeSpan.FromSeconds(10)).Should().BeTrue("the question goes on once the gate is free");
@@ -128,7 +129,7 @@ public class ShapeCenterOfMassTests
     }
 
     [Fact]
-    public void AKeptAnswerNeedsNoNativeGate()
+    public void AKeptAnswerNeedsNoBackendGate()
     {
         using World world = NewWorld(out JoltPhysicsBackend backend);
         ShapeDesc shape = TwoChildren();
@@ -136,7 +137,7 @@ public class ShapeCenterOfMassTests
         Vector3? again = null;
         var asker = new Thread(() => again = backend.ShapeCenterOfMass(shape));
 
-        JoltRuntime.NativeGate.Enter();
+        backend.Gate.Enter();
         try
         {
             asker.Start();
@@ -145,7 +146,7 @@ public class ShapeCenterOfMassTests
         }
         finally
         {
-            JoltRuntime.NativeGate.Exit();
+            backend.Gate.Exit();
         }
 
         ShouldBeBitForBit(again!.Value, first, "the kept answer is the first answer");
@@ -159,14 +160,14 @@ public class ShapeCenterOfMassTests
         backend.ShapeCenterOfMass(shape);
         backend.ShapeProblem(shape);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 100; i++)
+        long allocated = Allocations.Fewest(() =>
         {
-            backend.ShapeCenterOfMass(shape);
-            backend.ShapeProblem(shape);
-        }
-
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            for (int i = 0; i < 100; i++)
+            {
+                backend.ShapeCenterOfMass(shape);
+                backend.ShapeProblem(shape);
+            }
+        });
 
         allocated.Should().Be(0,
             "the World asks both at every spawn, and the center of mass in every sync point with debug checks once per body");

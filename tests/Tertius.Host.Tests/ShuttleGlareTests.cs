@@ -13,7 +13,6 @@ namespace Tertius.Host.Tests;
 /// 0.5 % of the light, so the highlight stays faint and the view stays the brightest thing. At a grazing angle, glass
 /// reflects much more, so the highlights on the side and roof glass in the cabin views stay.
 /// </summary>
-[Collection(GpuCollection.Name)]
 public sealed class ShuttleGlareTests : IDisposable
 {
     /// <summary>How far above and below the highlight the test samples the glass beside it, in pixels.</summary>

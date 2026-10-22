@@ -21,7 +21,7 @@ namespace Tertius.Host.Tests;
 /// <c>TERTIUS_PLUME_COST=report.md dotnet test -c Release --project tests/Tertius.Host.Tests -- --filter-class "*BlueDanubePlumeCostMeasurement" --explicit only</c>
 /// .
 /// </summary>
-[Collection(GpuCollection.Name)]
+[Collection(MeasurementCollection.Name)]
 public sealed class BlueDanubePlumeCostMeasurement
 {
     public const string Variable = "TERTIUS_PLUME_COST";

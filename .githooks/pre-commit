@@ -4,8 +4,8 @@
 #      build runs every analyzer, and an error stops the commit.
 #   2. A report of the duplicated blocks and the complex or long methods that the staged changes touch
 #      (tools/commit_report.py). The report never stops the commit.
-#   3. The tests of the changed code, in Debug: every test of a changed module, and the test classes of a changed
-#      test file. A failed test stops the commit.
+#   3. The tests of the changed code, in Checked (Debug's contracts with Release's optimized code): every test of a
+#      changed module, and the test classes of a changed test file. A failed test stops the commit.
 # The pre-push hook formats and modernizes the code, so this hook changes no file.
 # To skip the hook once, run: git commit --no-verify
 set -euo pipefail
@@ -75,12 +75,13 @@ solution=.pre-commit.slnx
 trap 'rm -f "$root/$solution"' EXIT
 {
     echo "<Solution>"
+    echo "  <Configurations><BuildType Name=\"Checked\" /></Configurations>"
     for p in "${!build[@]}"; do echo "  <Project Path=\"$p\" />"; done
     echo "</Solution>"
 } > "$solution"
 echo "pre-commit: building ${#build[@]} project(s)..." >&2
 log="${TMPDIR:-/tmp}/tertius-pre-commit-build.log"
-if ! dotnet build "$solution" -v quiet -nologo -clp:ErrorsOnly > "$log" 2>&1; then
+if ! dotnet build "$solution" -c Checked -v quiet -nologo -clp:ErrorsOnly > "$log" 2>&1; then
     grep -E ': error ' "$log" | sort -u | head -40 >&2
     echo "pre-commit: the build failed, so the commit stopped. The full log: $log" >&2
     exit 1
@@ -109,7 +110,7 @@ for run in "${runs[@]}"; do
     else
         echo "pre-commit: testing all of $name..." >&2
     fi
-    dotnet test --project "$p" --no-build ${filter[@]+"${filter[@]}"} > "$logs/$name.log" 2>&1 &
+    dotnet test --project "$p" -c Checked --no-build ${filter[@]+"${filter[@]}"} > "$logs/$name.log" 2>&1 &
     pids+=("$!:$name")
 done
 status=0

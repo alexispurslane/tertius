@@ -1,4 +1,5 @@
 using Tertius.Demo;
+using Tertius.Testing;
 
 namespace Tertius.Host.Tests;
 
@@ -76,14 +77,16 @@ public sealed class DisembarkStateTests
         foreach (DisembarkState state in States)
         foreach (DisembarkEvent change in Events)
             rows += DisembarkState.Next(state, change).HasValue ? 1 : 0;
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int round = 0; round < 1000; round++)
-            foreach (DisembarkState state in States)
-            foreach (DisembarkEvent change in Events)
-                rows += DisembarkState.Next(state, change).HasValue ? 1 : 0;
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        long allocated = Allocations.Fewest(() =>
+        {
+            rows = 0;
+            for (int round = 0; round < 1000; round++)
+                foreach (DisembarkState state in States)
+                foreach (DisembarkEvent change in Events)
+                    rows += DisembarkState.Next(state, change).HasValue ? 1 : 0;
+        });
         allocated.Should().Be(0);
-        rows.Should().Be(11 * 1001);
+        rows.Should().Be(11 * 1000);
     }
 
     /// <summary>The default state is <see cref="Aboard"/>, and states with the same case and data are equal.</summary>

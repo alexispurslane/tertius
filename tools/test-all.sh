@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
-# Tool code. Builds the solution once per build configuration, then runs every test project in it. It prints one line
-# per configuration and module with the counts and the names of the failed tests, and writes each module's full output
-# to <out>/<configuration>/<module>.log. Run it inside the dev shell, from anywhere in the repository:
+# Tool code. Builds the solution once per build configuration, then runs every test project in it, all at once. It
+# prints one line per configuration and module with the counts and the names of the failed tests, and writes each
+# module's full output to <out>/<configuration>/<module>.log. Run it inside the dev shell, from anywhere in the
+# repository:
 #   nix develop --command bash -c 'bash tools/test-all.sh'
-#   nix develop --command bash -c 'bash tools/test-all.sh -c Debug -m Core,Physics -o /tmp/tertius-tests -- --filter-class "*FrameTree*"'
+#   nix develop --command bash -c 'bash tools/test-all.sh -c Checked -m Core,Physics -o /tmp/tertius-tests -- --filter-class "*FrameTree*"'
 # Options:
-#   -c <list>  build configurations, separated by commas (default Debug,Release)
+#   -c <list>  build configurations, separated by commas (default Checked,Release; Checked is Debug's contracts with
+#              Release's optimized code, see Directory.Build.targets)
 #   -m <list>  test modules, separated by commas (default Core,Simulation,Physics,Rendering,Host)
 #   -o <dir>   folder for the logs (default a new temporary folder)
+#   -j <runs>  the most test runs at once (default 0: every configuration and module at once)
 #   -- <args>  everything after -- goes to each dotnet test command unchanged, for example a filter
 # The exit code is 1 if a build failed, a test failed or a test run ended without its summary, and 0 otherwise. It is 2 for a wrong option or a module with no test project.
 # A module where no test matches the filter is not a failure. Its line says "no tests ran".
@@ -18,15 +21,17 @@ if [[ -z "${TERTIUS_VULKAN_DIR:-}" ]]; then
   echo "TERTIUS_VULKAN_DIR is empty. Run the script inside the dev shell: nix develop --command bash $0 ..." >&2
   exit 1
 fi
-usage="usage: tools/test-all.sh [-c Debug,Release] [-m Core,Simulation,Physics,Rendering,Host] [-o <out-dir>] [-- <dotnet test args>]"
-configurations=Debug,Release
+usage="usage: tools/test-all.sh [-c Checked,Release] [-m Core,Simulation,Physics,Rendering,Host] [-o <out-dir>] [-j <runs>] [-- <dotnet test args>]"
+configurations=Checked,Release
 modules=Core,Simulation,Physics,Rendering,Host
 out=
-while getopts "c:m:o:h" option; do
+jobs=0
+while getopts "c:m:o:j:h" option; do
   case $option in
     c) configurations=$OPTARG ;;
     m) modules=$OPTARG ;;
     o) out=$OPTARG ;;
+    j) jobs=$OPTARG ;;
     *) echo "$usage" >&2; exit 2 ;;
   esac
 done
@@ -48,6 +53,10 @@ out=$(cd "$out" && pwd)
 cd "$root"
 echo "Logs: $out"
 status=0
+# First every build, one configuration after another, because the builds share the restore of each project. Then every
+# test run at once, one process per configuration and module: each run already spreads its test classes over the cores,
+# but a module waits for its slowest class, and the runs of other modules fill those cores meanwhile.
+built=()
 for configuration in "${configurations[@]}"; do
   rm -rf "${out:?}/$configuration"
   mkdir -p "$out/$configuration"
@@ -58,11 +67,34 @@ for configuration in "${configurations[@]}"; do
     status=1
     continue
   fi
+  built+=("$configuration")
+done
+pids=()
+running=0
+for configuration in ${built[@]+"${built[@]}"}; do
+  for module in "${modules[@]}"; do
+    if [[ $jobs -gt 0 && $running -ge $jobs ]]; then
+      wait -n || true
+      running=$((running - 1))
+    fi
+    log="$out/$configuration/$module.log"
+    (
+      code=0
+      dotnet test --project "tests/Tertius.$module.Tests" -c "$configuration" --no-build \
+        ${passthrough[@]+"${passthrough[@]}"} > "$log" 2>&1 || code=$?
+      echo "$code" > "$log.exit"
+    ) &
+    pids+=("$!")
+    running=$((running + 1))
+  done
+done
+for pid in ${pids[@]+"${pids[@]}"}; do
+  wait "$pid" || true
+done
+for configuration in ${built[@]+"${built[@]}"}; do
   for module in "${modules[@]}"; do
     log="$out/$configuration/$module.log"
-    code=0
-    dotnet test --project "tests/Tertius.$module.Tests" -c "$configuration" --no-build \
-      ${passthrough[@]+"${passthrough[@]}"} > "$log" 2>&1 || code=$?
+    code=$(cat "$log.exit" 2>/dev/null || echo 1)
     # The runner ends with a summary of lines such as "  total: 12". Exit code 8 means that no test ran.
     count() { sed -n "s/^  $1: \([0-9]*\)$/\1/p" "$log" | tail -1; }
     total=$(count total) failed=$(count failed) succeeded=$(count succeeded) skipped=$(count skipped)

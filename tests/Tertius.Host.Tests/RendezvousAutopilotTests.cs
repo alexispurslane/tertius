@@ -51,7 +51,7 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
     /// these tests fly tens of thousands of ticks.
     /// </summary>
     internal static World NewWorld() =>
-        new(new() { MaxDegreeOfParallelism = 1, DebugChecks = false, DisposePhysics = true }, new JoltPhysicsBackend());
+        new(new() { MaxDegreeOfParallelism = 1, DebugChecks = false, DisposePhysics = true }, new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
 
     /// <summary>A root frame with Earth's point gravity, which does not turn: the analogue of <c>earth</c>, which holds the station and the shuttle in orbit.</summary>
     internal static FrameHandle Earth(World world) =>

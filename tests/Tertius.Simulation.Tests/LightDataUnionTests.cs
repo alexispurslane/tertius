@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Reflection;
 using AwesomeAssertions;
+using Tertius.Testing;
 
 namespace Tertius.Simulation.Tests;
 
@@ -173,14 +174,16 @@ public class LightDataUnionTests
         float total = 0;
         foreach (LightData light in lights)
             total += ReadRange(light);
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int round = 0; round < 100; round++)
-            foreach (LightData light in lights)
-                total += ReadRange(light);
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        long allocated = Allocations.Fewest(() =>
+        {
+            total = 0;
+            for (int round = 0; round < 100; round++)
+                foreach (LightData light in lights)
+                    total += ReadRange(light);
+        });
 
         allocated.Should().Be(0);
-        total.Should().Be(2 * 10 * 101, "a point and a spot light of range 10 each, over 101 rounds");
+        total.Should().Be(2 * 10 * 100, "a point and a spot light of range 10 each, over 100 rounds");
     }
 
     private static float ReadRange(in LightData light)

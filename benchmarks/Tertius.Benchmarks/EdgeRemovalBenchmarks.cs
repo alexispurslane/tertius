@@ -273,7 +273,7 @@ public class EdgeRemovalBenchmarks
     /// <summary>Sets or clears <c>EnhancedInternalEdgeRemoval</c> on the Jolt character of each of <paramref name="people"/>.</summary>
     private static void SetCharacterEdgeRemoval(JoltPhysicsBackend backend, List<Entity> people, bool on)
     {
-        lock (JoltRuntime.NativeGate)
+        lock (backend.Gate)
         {
             foreach (Entity person in people)
                 (backend.CharacterOf(person) ??
@@ -289,7 +289,7 @@ public class EdgeRemovalBenchmarks
     private static void SetEdgeRemoval(JoltPhysicsBackend backend, FrameHandle frame, bool on)
     {
         BodyID ring = backend.BodiesIn(frame).Single(body => body.Motion == MotionType.Static).Id;
-        lock (JoltRuntime.NativeGate)
+        lock (backend.Gate)
         {
             BodyLockInterface locks = backend.SystemOf(frame)!.BodyLockInterface;
             locks.LockWrite(ring, out BodyLockWrite write);

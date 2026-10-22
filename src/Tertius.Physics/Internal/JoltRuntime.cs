@@ -2,18 +2,17 @@ using JoltPhysicsSharp;
 
 namespace Tertius.Physics;
 
-/// <summary>Process-wide Jolt state: one-time initialization, and the gate that serializes native work.</summary>
+/// <summary>Process-wide Jolt state: one-time initialization.</summary>
+/// <remarks>
+/// The native library holds no other mutable state for the whole process that a step uses. joltc's temp allocator, a
+/// stack allocator that is not thread-safe, is one per calling thread in the patched build (native/joltc.nix), so two
+/// backends can step at the same time on different threads. Each backend serializes its own native work with its
+/// <see cref="JoltPhysicsBackend.Gate"/>.
+/// </remarks>
 internal static class JoltRuntime
 {
     private static readonly Lock InitGate = new();
     private static bool initialized;
-
-    /// <summary>
-    /// joltc has one process-wide temp allocator, a stack allocator that is not thread-safe. Every call that can use
-    /// it (system updates and character updates) runs under this gate, so two backends in one process never step
-    /// at the same time. In the engine there is one backend, so the gate is never contended.
-    /// </summary>
-    public static readonly Lock NativeGate = new();
 
     /// <summary>
     /// Initializes Jolt in double precision, which loads <c>libjoltc_double</c>, and makes joltc call the backend's own

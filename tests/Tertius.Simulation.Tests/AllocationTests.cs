@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Tertius.Testing;
 
 namespace Tertius.Simulation.Tests;
 
@@ -81,11 +82,9 @@ public class AllocationTests
         using TestWorld t = ChurningWorld(Topics.Get("tests.allocation.churn"));
         t.Run(60);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        t.Run(200);
-        long perTick = (GC.GetAllocatedBytesForCurrentThread() - before) / 200;
+        long allocated = Allocations.Fewest(() => t.Run(200));
 
-        perTick.Should().Be(0, "a steady-state tick must not allocate");
+        allocated.Should().Be(0, "a steady-state tick must not allocate");
         t.World.Errors.Should().BeEmpty();
     }
 
@@ -130,11 +129,9 @@ public class AllocationTests
         using TestWorld t = BusyWorld(Topics.Get("tests.allocation.topic"));
         t.Run(60);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        t.Run(100);
-        long perTick = (GC.GetAllocatedBytesForCurrentThread() - before) / 100;
+        long allocated = Allocations.Fewest(() => t.Run(100));
 
-        perTick.Should().Be(0, "a steady-state tick must not allocate");
+        allocated.Should().Be(0, "a steady-state tick must not allocate");
         t.World.Errors.Should().BeEmpty();
     }
 
@@ -204,11 +201,9 @@ public class AllocationTests
         using TestWorld world = t;
         world.Run(30);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        world.Run(100);
-        long perTick = (GC.GetAllocatedBytesForCurrentThread() - before) / 100;
+        long allocated = Allocations.Fewest(() => world.Run(100));
 
-        perTick.Should().Be(0, "a type-only or inline query run must not allocate");
+        allocated.Should().Be(0, "a type-only or inline query run must not allocate");
         world.World.Errors.Should().BeEmpty();
     }
 

@@ -1,0 +1,110 @@
+--- a/src/joltc.cpp
++++ b/src/joltc.cpp
+@@ -675,7 +675,18 @@
+ 
+ // 10 MB was not enough for large simulation, let's use TempAllocatorMalloc
+ static bool s_initialized = false;
+-static TempAllocator* s_TempAllocator = nullptr;
++// Tertius patch: one temp allocator per calling thread instead of one per process, so that two physics systems can
++// step at the same time on different threads. Jolt frees the temp allocations of an update or a character move
++// before the call returns, and its jobs use the allocator that the calling thread passed in.
++static TempAllocator* ThreadTempAllocator()
++{
++#if defined(__SANITIZE_THREAD__) || defined(ENABLE_SANITIZER)
++	thread_local TempAllocatorMalloc allocator;
++#else
++	thread_local TempAllocatorImplWithMallocFallback allocator(8 * 1024 * 1024);
++#endif
++	return &allocator;
++}
+ 
+ class JobSystemCallback final : public JPH::JobSystemWithBarrier
+ {
+@@ -786,16 +797,6 @@
+ 
+ 	// Register all Jolt physics types
+ 	JPH::RegisterTypes();
+-
+-#if defined(__SANITIZE_THREAD__) || defined(ENABLE_SANITIZER)
+-	// ThreadSanitizer does not understand Jolt's lock-free 8MB bump allocator
+-	// and will flag cross-frame memory reuse as data races.
+-	// We fall back to standard malloc/free which TSan can track perfectly.
+-	s_TempAllocator = new TempAllocatorMalloc();
+-#else
+-	// High-performance lock-free allocator for production
+-	s_TempAllocator = new TempAllocatorImplWithMallocFallback(8 * 1024 * 1024);
+-#endif
+ 
+ 	s_initialized = true;
+ 
+@@ -807,7 +808,6 @@
+ 	if (!s_initialized)
+ 		return;
+ 
+-	delete s_TempAllocator; s_TempAllocator = nullptr;
+ 
+ 	// Unregisters all types with the factory and cleans up the default material
+ 	JPH::UnregisterTypes();
+@@ -1123,7 +1123,7 @@
+ JPH_PhysicsUpdateError JPH_PhysicsSystem_Update(JPH_PhysicsSystem* system, float deltaTime, int collisionSteps, JPH_JobSystem* jobSystem)
+ {
+ 	JPH::JobSystem* joltJobSystem = reinterpret_cast<JPH::JobSystem*>(jobSystem);
+-	return static_cast<JPH_PhysicsUpdateError>(system->physicsSystem->Update(deltaTime, collisionSteps, s_TempAllocator, joltJobSystem));
++	return static_cast<JPH_PhysicsUpdateError>(system->physicsSystem->Update(deltaTime, collisionSteps, ThreadTempAllocator(), joltJobSystem));
+ }
+ 
+ JPH_BodyInterface* JPH_PhysicsSystem_GetBodyInterface(JPH_PhysicsSystem* system)
+@@ -8714,7 +8714,7 @@
+ 		system->physicsSystem->GetDefaultLayerFilter(joltLayer),
+ 		ToJolt(bodyFilter),
+ 		ToJolt(shapeFilter),
+-		*s_TempAllocator
++		*ThreadTempAllocator()
+ 	);
+ }
+ 
+@@ -8742,7 +8742,7 @@
+ 		system->physicsSystem->GetDefaultLayerFilter(joltLayer),
+ 		ToJolt(bodyFilter),
+ 		ToJolt(shapeFilter),
+-		*s_TempAllocator
++		*ThreadTempAllocator()
+ 	);
+ }
+ 
+@@ -8758,7 +8758,7 @@
+ 		system->physicsSystem->GetDefaultLayerFilter(joltLayer),
+ 		ToJolt(bodyFilter),
+ 		ToJolt(shapeFilter),
+-		*s_TempAllocator
++		*ThreadTempAllocator()
+ 	);
+ }
+ 
+@@ -8789,7 +8789,7 @@
+ 		system->physicsSystem->GetDefaultLayerFilter(joltLayer),
+ 		ToJolt(bodyFilter),
+ 		ToJolt(shapeFilter),
+-		*s_TempAllocator
++		*ThreadTempAllocator()
+ 	);
+ }
+ 
+@@ -8805,7 +8805,7 @@
+ 		system->physicsSystem->GetDefaultLayerFilter(joltLayer),
+ 		ToJolt(bodyFilter),
+ 		ToJolt(shapeFilter),
+-		*s_TempAllocator
++		*ThreadTempAllocator()
+ 	);
+ }
+ 
+@@ -8830,7 +8830,7 @@
+ 		system->physicsSystem->GetDefaultLayerFilter(joltLayer),
+ 		ToJolt(bodyFilter),
+ 		ToJolt(shapeFilter),
+-		*s_TempAllocator
++		*ThreadTempAllocator()
+ 	);
+ }
+ 

@@ -120,7 +120,7 @@ public sealed class ReadoutLog : IPlayback
         ArgumentNullException.ThrowIfNull(scenes);
         Scene scene = scenes.SingleOrDefault(s => s.Name == script.Scene) ??
                       throw new ScriptException($"No scene is named '{script.Scene}'.");
-        using var world = new World(new() { DisposePhysics = true }, new JoltPhysicsBackend());
+        using var world = new World(new() { DisposePhysics = true }, new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
         SceneInstance instance = scene.Build(world, RenderResources.None);
         var log = new ReadoutLog(world, instance);
         ScriptRunner.Run(script, world, instance, outputFolder: null, log);

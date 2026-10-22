@@ -9,11 +9,11 @@ This epic adds the checks that keep the code readable: compiler checks of doc co
 | Stage | Check | Blocks what |
 |---|---|---|
 | `git commit` (`.githooks/pre-commit`) | An incremental build of the changed projects and their test projects, with every analyzer | The commit, on an error |
-| `git commit` | The tests of the changed code, in Debug | The commit, on a failed test |
+| `git commit` | The tests of the changed code, in Checked | The commit, on a failed test |
 | `git commit` | jscpd duplicates, CA1502 complexity and MA0051 length, for the changed lines only | Nothing. It is a report. |
 | `git push` (`.githooks/pre-push`) | `tools/cleanup.sh` on the C# files that the pushed commits change | The push, if the cleanup changes a file. The hook commits the cleanup, and the next push sends it. |
 | `git push` | DocFX builds the docs site | The push, on a DocFX error |
-| Before a merge into main | `tools/test-all.sh`: every test, in Debug and Release | The merge |
+| Before a merge into main | `tools/test-all.sh`: every test, in Checked and Release | The merge |
 
 The commit hook changes no file and runs only what the commit touches, so that a commit stays fast. The cleanup loads a whole solution, which takes tens of seconds, so it runs once per push instead.
 
@@ -30,6 +30,8 @@ The commit hook changes no file and runs only what the commit touches, so that a
 9. The ReSharper cleanup is the custom profile "Tertius" in `Tertius.slnx.DotSettings`. It is the built-in Full Cleanup, minus the arrangement of arguments, which removes named arguments. `.editorconfig` holds the syntax style and the formatting: modern syntax, `var` only where the type is evident, lines of at most 120 characters, and doc comment text as written. The file layout groups members by kind (constants, static fields and properties, instance fields, constructors, instance properties, everything else) and keeps the author's order inside each group. Static fields and static properties share one group, because a static initializer can read a static property above it. Rider reads both files, so its cleanup gives the same result.
 10. The pre-push hook cleans the C# files that the pushed commits change, builds the solution, and commits the result as one commit. Git chose the commits to push before the hook ran, so the hook then stops the push, and the next push sends the cleanup commit too. A file with uncommitted changes stops the hook before the cleanup, so that the cleanup commit holds only the cleanup. The first cleanup of the whole codebase is one commit, and `.git-blame-ignore-revs` names it.
 11. The dev shell sets `core.hooksPath` to `.githooks`. Outside the dev shell, a hook runs itself again inside it.
+12. The cleanup leaves a `var` local as it is. A collection expression needs a target type, so `var x = new List<int> { 1, 2 }` keeps its initializer, and only a local with an explicit type gets the expression. The user chose this on 2026-10-22.
+13. The tests run in the Checked configuration, which has Debug's contracts and Release's optimized code (`Directory.Build.targets`). The commit hook builds and tests Checked, and `tools/test-all.sh` runs Checked and Release. Debug stays unoptimized for the debugger. The user chose a third configuration over an optimized Debug on 2026-10-22. Ticket `ter-a4s2` has the measurements.
 
 ## Not in this epic
 

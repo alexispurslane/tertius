@@ -171,7 +171,7 @@ where
 - `RayTag.Aim` = a value that the component picks, so that it can match each answer to its question. Two components on one entity use different tags.
 - `RayHit` = the answer: the entity hit, the point, the normal and the distance in the asker's frame, and the tag.
 
-The sync point runs every request of a tick after the physics output lands, against Jolt at the end of the step. The answers go out as events, so they arrive in tick N+1, with the snapshot that matches them. The requests run in one batch in entity order. They run serially at first. Whether they can spread over cores depends on joltc's process-wide temp allocator (`JoltRuntime.NativeGate`), which the build step measures.
+The sync point runs every request of a tick after the physics output lands, against Jolt at the end of the step. The answers go out as events, so they arrive in tick N+1, with the snapshot that matches them. The requests run in one batch in entity order. They run serially at first. joltc's temp allocator is one per calling thread since ter-a4s2, so they can spread over cores if each thread queries with its own filters. The build step measures it.
 
 The whole query runs inside Jolt, in one `BodyFilter`: Jolt asks it about each candidate body before it tests the body's shape, and it maps the body to its entity and calls `EntityQuery.Matches` against the snapshot, collision mask included. So Jolt's closest-hit collector returns the nearest match. The build step (`ter-juuk`) measured three plans with `benchmarks/Tertius.Benchmarks/RayFilterBenchmarks.cs`, one nearest-hit ray along 256 boxes:
 
