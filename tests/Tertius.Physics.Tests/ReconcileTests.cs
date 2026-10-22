@@ -40,7 +40,7 @@ public class ReconcileTests
     /// and a ship 70 m beyond the hangar's center that flies into it at 60 m/s, with a gentle thruster along -X. Far along
     /// -X, a storage frame whose system is full with 8 static crates, and a static skiff. The backend reconciles frame
     /// owners from the last one created, so it reaches the skiff's hull before the ship's. With
-    /// <paramref name="numericFrames"/> false, the World makes no numeric frames. With it true, the ship's hull thrusts from
+    /// <c>numericFrames</c> false, the World makes no numeric frames. With it true, the ship's hull thrusts from
     /// the sync point of its thirtieth tick on, 40 m beyond the hangar's center, and a hull that thrusts at 60 m/s falls in
     /// a numeric frame of space: so it enters the hangar from that frame.
     /// </summary>

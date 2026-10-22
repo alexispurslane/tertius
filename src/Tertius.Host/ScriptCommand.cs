@@ -55,7 +55,7 @@ public static class ScriptCommand
 
     /// <summary>
     /// <see cref="Run(string[], IReadOnlyList{Scene}, TextWriter, TextWriter)"/> with the function that makes the headless
-    /// renderer, and the function that starts the video's ffmpeg (<see cref="FfmpegVideoSink.Start"/> when null), so that a
+    /// renderer, and the function that starts the video's ffmpeg (<see cref="FfmpegVideoSink.Start(VideoFile, ScriptWindow)"/> when null), so that a
     /// test can wrap the real ones or make them fail.
     /// </summary>
     internal static int Run(string[] args, IReadOnlyList<Scene> scenes, TextWriter output, TextWriter error, Func<RendererOptions, VulkanRenderer> createRenderer,

@@ -107,7 +107,7 @@ public class NumericFrameAnchorTests
 
     /// <summary>
     /// Builds a scene with <paramref name="build"/>, runs it for <paramref name="ticks"/> ticks, and calls
-    /// <paramref name="watch"/> after each tick, when it is given. The mover carries <paramref name="log"/>.
+    /// <paramref name="watch"/> after each tick, when it is given. The mover carries <c>log</c>.
     /// </summary>
     private static Flight Fly(bool numericFrames, int threads, Func<World, CollisionLog, Scene> build, int ticks, Action<World, Scene>? watch = null)
     {
@@ -150,7 +150,7 @@ public class NumericFrameAnchorTests
 
     /// <summary>
     /// A crate of 20 cm with a gentle thruster (see <see cref="Along"/>) flies along +X at 60 m/s, 1 m per step, at a static
-    /// wall across the X axis at the station's origin, whose face toward the crate lies <paramref name="face"/> m before the
+    /// wall across the X axis at the station's origin, whose face toward the crate lies <c>face</c> m before the
     /// origin. It starts 200.5 m before the wall, so at the start of step 200 its center is 0.5 m before the wall, and at the
     /// end of it 0.5 m behind: no step ends with the crate touching the wall, and only a linear cast stops it. The crate
     /// thrusts from tick 30 on, 170 m before the wall, farther than the merge test reaches.

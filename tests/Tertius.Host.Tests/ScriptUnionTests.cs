@@ -259,7 +259,7 @@ public class ScriptUnionTests
         var topic = new ToTopic("input");
         ScriptStep step = run;
         MessageTarget target = topic;
-        JsonTypeInfo runInfo = options.GetTypeInfo(typeof(RunStep)), topicInfo = options.GetTypeInfo(typeof(ToTopic));
+        JsonTypeInfo runInfo = options.GetTypeInfo<RunStep>(), topicInfo = options.GetTypeInfo<ToTopic>();
         Action Writing(Action<Utf8JsonWriter> write) => () =>
         {
             buffer.ResetWrittenCount();
@@ -282,7 +282,7 @@ public class ScriptUnionTests
     {
         JsonSerializerOptions options = ScriptJson.Scripts;
         byte[] run = """{"do":"run","ticks":3}"""u8.ToArray(), topic = """{"kind":"topic","name":"input"}"""u8.ToArray();
-        JsonTypeInfo runInfo = options.GetTypeInfo(typeof(RunStep)), topicInfo = options.GetTypeInfo(typeof(ToTopic));
+        JsonTypeInfo runInfo = options.GetTypeInfo<RunStep>(), topicInfo = options.GetTypeInfo<ToTopic>();
         Action Reading(byte[] json, Action<Utf8JsonReader> read) => () => read(new Utf8JsonReader(json));
 
         long runRecord = BytesAllocatedBy(Reading(run, reader => JsonSerializer.Deserialize(ref reader, runInfo)));

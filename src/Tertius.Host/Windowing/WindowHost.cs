@@ -22,6 +22,7 @@ namespace Tertius.Host.Windowing;
 /// render thread reads), the <see cref="CaptureMailbox"/>, the fly camera under its lock, and the closing token. The
 /// renderer belongs to the render thread, which disposes it before the window is destroyed, as MoltenVK needs.
 /// </remarks>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "A CancellationTokenSource without a timer holds an OS handle only after a read of its WaitHandle, which this class never does.")]
 internal sealed class WindowHost : IInputTarget
 {
     private readonly IWindow window;
@@ -219,7 +220,7 @@ internal sealed class WindowHost : IInputTarget
     private void SimulationLoop()
     {
         var clock = Stopwatch.StartNew();
-        var playback = new WindowPlayback(pacer, captures, images, closing.Token, () => clock.Elapsed.TotalSeconds);
+        var playback = new WindowPlayback(pacer, captures, images, () => clock.Elapsed.TotalSeconds, closing.Token);
         try
         {
             if (freePlay != null)

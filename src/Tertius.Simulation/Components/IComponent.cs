@@ -8,7 +8,7 @@ namespace Tertius.Simulation;
 /// </summary>
 /// <remarks>
 /// A component changes only its own state and the rows of its own entity. It reads other entities only through
-/// <see cref="Self.Snapshot"/> and talks to them only through <paramref name="outbox"/> messages. It never stores
+/// <see cref="Self.Snapshot"/> and talks to them only through messages in its outbox. It never stores
 /// <see cref="Self"/>, the event list, the outbox or a reference into a table beyond the call.
 /// </remarks>
 public interface IComponent

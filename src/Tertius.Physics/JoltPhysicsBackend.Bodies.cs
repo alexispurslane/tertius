@@ -247,6 +247,11 @@ public sealed partial class JoltPhysicsBackend
     /// still or moves (see <see cref="GhostMotion"/>). Its spec then has the new motion. So the spec of a body and its
     /// state rebuild the body exactly.
     /// </summary>
+    /// <param name="Shape">The collision shape.</param>
+    /// <param name="Motion">Jolt's motion type: static, kinematic or dynamic.</param>
+    /// <param name="Layer">Jolt's object layer.</param>
+    /// <param name="UserData">The value that Jolt keeps in the body for the backend, which names the body's record.</param>
+    /// <param name="Material">The description that gives mass, friction, restitution and damping.</param>
     /// <param name="MotionChanges">
     /// True when the backend can change the body's motion type: the hull of a frame, unless it is a mesh, which never
     /// moves, the interior of a frame, and a ghost of a static body.

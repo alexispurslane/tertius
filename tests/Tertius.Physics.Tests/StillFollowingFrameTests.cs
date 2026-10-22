@@ -444,7 +444,7 @@ public class StillFollowingFrameTests
     }
 
     /// <summary>
-    /// The scene of <see cref="SkippingHull"/>, and in space beside it a character at rest relative to the hull, 3.5 m from it
+    /// The scene of <see cref="SkippingHull(bool)"/>, and in space beside it a character at rest relative to the hull, 3.5 m from it
     /// along -Y, with the orbit's velocity, which lives in the hull's following frame with numeric frames.
     /// </summary>
     private static (World World, FrameHandle Space, Entity Person) PersonBesideASkippingHull(bool numericFrames, out JoltPhysicsBackend backend)

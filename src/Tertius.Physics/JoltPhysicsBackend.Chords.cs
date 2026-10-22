@@ -95,6 +95,7 @@ public sealed partial class JoltPhysicsBackend
     /// </summary>
     private Double3 HomeSteppedVelocityOverPlan(FrameHandle home) => HomeInstantVelocityOverChordAtStart(home) - HomeInstantVelocityOverChord(home);
 
+    /// <summary>
     /// A moment at which physics turns an instant velocity of a body in a turning frame into Jolt's chord, or Jolt's chord
     /// back into an instant velocity (docs/plans/spin-gravity.md, "The chord rule"): the turn of the step that ends at that
     /// moment, and the place and the frame velocity then of the origin of the body's home relative to its semantic frame. A

@@ -153,7 +153,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>
     /// Creates a renderer that presents to <paramref name="window"/>, which must have been created with a Vulkan
     /// graphics API (<c>WindowOptions.API = GraphicsAPI.DefaultVulkan</c>) and initialized. The swapchain follows the
-    /// window's framebuffer size (through <see cref="IWindow.FramebufferResize"/>) and is recreated when it is out of
+    /// window's framebuffer size (through <see cref="IView.FramebufferResize"/>) and is recreated when it is out of
     /// date or suboptimal.
     /// </summary>
     /// <remarks>

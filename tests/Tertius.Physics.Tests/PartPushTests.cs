@@ -481,7 +481,7 @@ public class PartPushTests
 
     // ---- What a part cannot do ----
 
-    /// <summary>Tries every write of <see cref="Writes"/> in its entity's first tick, and counts the ones that throw <see cref="InvalidOperationException"/>.</summary>
+    /// <summary>Tries every write of <c>Writes</c> in its entity's first tick, and counts the ones that throw <see cref="InvalidOperationException"/>.</summary>
     private sealed class Attempts(params string[] writes) : IComponent
     {
         public List<string> Refused { get; } = [];

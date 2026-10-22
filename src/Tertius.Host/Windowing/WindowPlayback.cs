@@ -11,9 +11,9 @@ namespace Tertius.Host.Windowing;
 /// <param name="pacer">The wall-clock pace of the ticks.</param>
 /// <param name="captures">The handover of captures to the render thread.</param>
 /// <param name="folder">Where the captures go, or null for free play, which captures nothing.</param>
-/// <param name="stop">Fires when the window closes.</param>
 /// <param name="secondsSinceStart">The wall clock: seconds since the run started.</param>
-public sealed class WindowPlayback(TickPacer pacer, CaptureMailbox captures, PngFolder? folder, CancellationToken stop, Func<double> secondsSinceStart) : IPlayback
+/// <param name="stop">Fires when the window closes.</param>
+public sealed class WindowPlayback(TickPacer pacer, CaptureMailbox captures, PngFolder? folder, Func<double> secondsSinceStart, CancellationToken stop) : IPlayback
 {
     private readonly TickPacer pacer = pacer;
     private readonly PngFolder? folder = folder;

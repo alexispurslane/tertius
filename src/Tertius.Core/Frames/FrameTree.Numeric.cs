@@ -294,7 +294,7 @@ public sealed partial class FrameTree
     /// then its hull in the frame's parent. First the thrust clock of every body that is not static runs over the sync
     /// point (see <see cref="NumericFrameRules.ThrustClock"/>), and a group with a body that thrusts then uses the lower
     /// speeds of a group that thrusts (see <see cref="NumericBody.Thrusts"/>). Within each semantic frame, the update links every
-    /// pair of bodies that <see cref="NumericFrameRules.MayTouch"/> links, also an anchor (see <see cref="NumericFrameRules.IsAnchor"/>)
+    /// pair of bodies that <see cref="NumericFrameRules.MayTouch(in NumericBody, in NumericBody, Double3, NumericFrameOptions)"/> links, also an anchor (see <see cref="NumericFrameRules.IsAnchor"/>)
     /// and a group that falls. It holds the members of each numeric frame that are not anchors together until
     /// <see cref="NumericFrameRules.SplitClock"/> lets them split. An anchor counts as infinitely heavy (see
     /// <see cref="NumericFrameRules.Summarize"/>), so a group with one takes its home (docs/plans/numeric-frames.md,

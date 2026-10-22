@@ -311,7 +311,7 @@ public sealed partial class JoltPhysicsBackend
     /// held pair that Jolt never finds ends a step late, or never while both its bodies sleep. Of two ghosts, only a pair
     /// with a sensor passes it.
     /// </summary>
-    private int CarryContact(BodyRecord first, BodyRecord second)
+    private static int CarryContact(BodyRecord first, BodyRecord second)
     {
         int taken = 0;
         if (first.World is { } home)

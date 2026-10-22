@@ -32,8 +32,7 @@ internal sealed unsafe class GpuBuffer : IDisposable
 
     public static GpuBuffer Create(VulkanDevice device, DeviceAllocator allocator, ulong size, BufferUsageFlags usage, MemoryUsage memoryUsage, string name)
     {
-        if (size == 0)
-            throw new ArgumentOutOfRangeException(nameof(size));
+        ArgumentOutOfRangeException.ThrowIfZero(size);
         var info = new BufferCreateInfo
         {
             SType = StructureType.BufferCreateInfo,

@@ -7,6 +7,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- The compiler checks doc comments only when it writes the XML documentation file. DocFX reads that file too. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- CS1591, a public member without a doc comment, stays off until the doc comment rewrite (ter-9yg8). -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
     <InvariantGlobalization>true</InvariantGlobalization>
     <TieredPGO>true</TieredPGO>
     <ServerGarbageCollector>false</ServerGarbageCollector>

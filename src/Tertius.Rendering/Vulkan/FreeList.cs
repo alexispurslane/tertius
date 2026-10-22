@@ -10,8 +10,7 @@ internal sealed class FreeList
 
     public FreeList(ulong capacity)
     {
-        if (capacity == 0)
-            throw new ArgumentOutOfRangeException(nameof(capacity));
+        ArgumentOutOfRangeException.ThrowIfZero(capacity);
         Capacity = capacity;
         FreeBytes = capacity;
         free.Add(new Range(0, capacity));
@@ -27,8 +26,7 @@ internal sealed class FreeList
     /// <summary>Takes <paramref name="size"/> bytes at an offset that is a multiple of <paramref name="alignment"/>.</summary>
     public bool TryAllocate(ulong size, ulong alignment, out ulong offset)
     {
-        if (size == 0)
-            throw new ArgumentOutOfRangeException(nameof(size));
+        ArgumentOutOfRangeException.ThrowIfZero(size);
         if (alignment == 0 || (alignment & (alignment - 1)) != 0)
             throw new ArgumentException("Alignment must be a power of two.", nameof(alignment));
 

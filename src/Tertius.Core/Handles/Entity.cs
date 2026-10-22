@@ -5,6 +5,7 @@ namespace Tertius;
 /// slot is freed, so a handle to a destroyed entity is stale. Live generations start at 1, so
 /// <c>default(Entity)</c> is the null handle.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1036", Justification = "CompareTo gives a deterministic sort order only. Operators such as < would suggest that one entity comes before another in a meaningful way.")]
 public readonly record struct Entity(uint Index, uint Generation) : IComparable<Entity>
 {
     public static Entity Null => default;

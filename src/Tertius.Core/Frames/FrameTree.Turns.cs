@@ -115,7 +115,7 @@ public sealed partial class FrameTree
     /// the semantic parent and does not turn, so the level is relative to the semantic parent. When no level of the chain
     /// turns, the turn is exactly the identity, so a frame that does not turn is no turning frame, to the bit.
     /// <para>
-    /// The level's row is chosen by the hull's motion in the step (see <see cref="HullMotionInStep"/>) and the case of the
+    /// The level's row is chosen by the hull's motion in the step (see <see cref="HullMotionInStep(FrameHandle, ReadOnlySpan{PhysicsIntent})"/>) and the case of the
     /// owner's motion intent, as the follow kind is (see <see cref="FollowKindOf"/>), never by the stored motion of the last
     /// finished step:
     /// <list type="bullet">

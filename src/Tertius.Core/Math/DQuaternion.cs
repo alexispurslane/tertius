@@ -24,7 +24,7 @@ public record struct DQuaternion(double X, double Y, double Z, double W)
     public readonly double LengthSquared => X * X + Y * Y + Z * Z + W * W;
 
     /// <summary>
-    /// True when the square of the length is within <see cref="UnitTolerance"/> of 1, so that <see cref="Rotate"/> and
+    /// True when the square of the length is within <see cref="UnitTolerance"/> of 1, so that <see cref="Rotate(Double3)"/> and
     /// <see cref="Conjugate"/> are exact. False for the zero quaternion and for one with a component that is not finite.
     /// </summary>
     public readonly bool IsUnit => Math.Abs(LengthSquared - 1) <= UnitTolerance;

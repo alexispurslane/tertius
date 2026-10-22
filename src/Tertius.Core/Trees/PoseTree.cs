@@ -27,7 +27,7 @@ public readonly record struct PoseNode(int Id, uint Generation)
 /// </para>
 /// <para>
 /// Only <see cref="FrameTree"/> keeps the rule that the local rotation of every pose is unit length, and it checks that rule
-/// itself (see <see cref="FrameTree.AssertInvariants"/>). Another tree relies on <see cref="DPose.Compose"/> and
+/// itself (see <see cref="FrameTree.AssertInvariants()"/>). Another tree relies on <see cref="DPose.Compose"/> and
 /// <see cref="DPose.Inverse"/>, and not on the caller. The tree of attachments, for one, stores the pose of a chain root as
 /// it is, and gameplay can write a pose with any rotation.
 /// </para>

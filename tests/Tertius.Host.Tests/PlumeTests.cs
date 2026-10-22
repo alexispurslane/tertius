@@ -384,7 +384,7 @@ public sealed class PlumeTests : IDisposable
         Tick(world, 4);
 
         EmitterOf(person.Jet).CanMakePuffs.Should().BeFalse("the force stopped");
-        world.Errors.Any().Should().Be(notFinite, "only a force that is not finite is an error");
+        (world.Errors.Count > 0).Should().Be(notFinite, "only a force that is not finite is an error");
     }
 
     /// <summary>A test component that adds a <see cref="Throttle"/> of <paramref name="value"/> to its entity's events in each of its first <paramref name="ticks"/> ticks.</summary>
