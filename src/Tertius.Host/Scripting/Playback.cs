@@ -36,7 +36,7 @@ public sealed class HeadlessPlayback : IPlayback, IDisposable
 
     /// <summary>
     /// Resizes <paramref name="renderer"/> to <paramref name="size"/>, whatever size it was made with. For a video target,
-    /// starts ffmpeg (<see cref="FfmpegVideoSink.Start"/>), and throws its exception if ffmpeg cannot start or the
+    /// starts ffmpeg (<see cref="FfmpegVideoSink.Start(VideoFile, ScriptWindow)"/>), and throws its exception if ffmpeg cannot start or the
     /// folder of the video cannot be made.
     /// </summary>
     /// <exception cref="ArgumentException"><paramref name="target"/> is the default value, which holds no case.</exception>

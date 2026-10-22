@@ -7,7 +7,7 @@ namespace Tertius.Physics.Tests;
 /// <summary>
 /// What each physics intent does to a body, on the World and the real Jolt backend. A component writes an intent through
 /// <see cref="BodyHandle"/> during a tick, and physics applies it in the step of the next tick. So every test sends a
-/// command with <see cref="Send"/>, which ticks once, and ticks once more to see what the command did.
+/// command with <see cref="Send(Simulation.World, Testing.Pilot, Testing.BodyCommand)"/>, which ticks once, and ticks once more to see what the command did.
 /// </summary>
 public class IntentTests
 {

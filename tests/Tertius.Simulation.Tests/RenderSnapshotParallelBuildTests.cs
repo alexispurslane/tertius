@@ -89,7 +89,7 @@ public class RenderSnapshotParallelBuildTests
     // ---- From how many slots on --------------------------------------------------------------------------------------
 
     /// <summary>
-    /// A builder over a table that holds the owner of a root frame, a camera in that frame and <paramref name="visible"/>
+    /// A builder over a table that holds the owner of a root frame, a camera in that frame and <c>visible</c>
     /// visible entities in it, with four workers whose scheduler counts the tasks queued on it.
     /// </summary>
     private sealed class BuilderHarness

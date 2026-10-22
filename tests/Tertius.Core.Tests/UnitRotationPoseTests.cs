@@ -5,7 +5,7 @@ namespace Tertius.Core.Tests;
 
 /// <summary>
 /// Ticket ter-swgm. Jolt keeps rotations as float quaternions. Widened to double, such a rotation is off from length 1 by up
-/// to 2E-7 in the square of its length. <see cref="DQuaternion.Rotate"/> assumes a unit quaternion, so a pose with such a
+/// to 2E-7 in the square of its length. <see cref="DQuaternion.Rotate(Double3)"/> assumes a unit quaternion, so a pose with such a
 /// rotation and a position of millions of meters used to move a point by about a meter, and not the same way in
 /// <see cref="DPose.Compose"/> as in <see cref="DPose.Inverse"/>. These tests give poses and trees the rotation that Jolt
 /// gives, and the position of a ship in a low orbit, and expect the answers of the rotation normalized in double.

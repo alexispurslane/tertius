@@ -482,7 +482,7 @@ internal sealed unsafe class VulkanDevice : IDisposable
             return (byte*)p;
         }
 
-        public byte** Array(IReadOnlyList<string> values)
+        public byte** Array(List<string> values)
         {
             nint array = Marshal.AllocHGlobal(Math.Max(1, values.Count) * sizeof(nint));
             allocations.Add(array);

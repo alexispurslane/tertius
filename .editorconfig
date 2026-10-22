@@ -1,0 +1,42 @@
+root = true
+
+[*.cs]
+# Visible instance fields: the struct-of-arrays tables and the plain data structs expose fields on purpose.
+dotnet_diagnostic.CA1051.severity = none
+# A param tag for only some parameters: a doc comment documents the parameters that need more than their name and type.
+dotnet_diagnostic.CS1573.severity = none
+# Members that could be static: a custom [Union] struct needs an instance HasValue, even when every value is a case.
+dotnet_diagnostic.CA1822.severity = none
+# Fields set to their default value: a component states its first state, such as State = new Parked(), on purpose.
+dotnet_diagnostic.CA1805.severity = none
+# An argument exception whose name is not a parameter of the method: components name the property that holds the bad
+# value, and query filters name the parameter of the factory that the caller called.
+dotnet_diagnostic.CA2208.severity = none
+# Names that are keywords in other .NET languages, such as Event, Step and End: the engine and its mods are C# only.
+dotnet_diagnostic.CA1716.severity = none
+# Type names that end in Flags: the [Flags] enums say what they hold, such as RenderFlags and IntentFlags.
+dotnet_diagnostic.CA1711.severity = none
+
+[src/Tertius.Rendering/Passes/**.cs]
+# Overrides of Dispose that skip base.Dispose(): RenderPass.Dispose is an empty hook that owns nothing.
+dotnet_diagnostic.CA2215.severity = none
+
+[tests/**.cs]
+# New JsonSerializerOptions per call: a test builds the options that it tests once.
+dotnet_diagnostic.CA1869.severity = none
+# An object that is made and dropped: a test makes it to see its constructor throw.
+dotnet_diagnostic.CA1806.severity = none
+# Constant array arguments: a test runs each call once.
+dotnet_diagnostic.CA1861.severity = none
+# Visible fields that are not constant: test fixtures for reflection and serialization have them on purpose.
+dotnet_diagnostic.CA2211.severity = none
+# String literals that equal a parameter name: a test states the name that it expects an exception to carry.
+dotnet_diagnostic.CA1507.severity = none
+# Concrete types for performance: test helpers take the broadest type that reads well.
+dotnet_diagnostic.CA1859.severity = none
+# The `_` character in names: test names use it to separate the parts of a statement.
+dotnet_diagnostic.CA1707.severity = none
+
+[benchmarks/**.cs]
+# Disposable fields in a class that is not IDisposable: BenchmarkDotNet frees them in [GlobalCleanup].
+dotnet_diagnostic.CA1001.severity = none

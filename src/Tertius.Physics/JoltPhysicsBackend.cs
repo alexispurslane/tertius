@@ -95,7 +95,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <para>
     /// Physics follows the frame tree. A hand-off of a frame is only a proposal, which the sync point applies or refuses
     /// before this call, so the frame's hull goes where the tree has the frame now. A frame in FramesDestroyed is already
-    /// gone from <paramref name="frames"/>: <see cref="FrameTree.Destroy"/> moved its child frames to its parent, with
+    /// gone from <paramref name="frames"/>: <see cref="FrameTree.Destroy(FrameHandle)"/> moved its child frames to its parent, with
     /// poses and velocities converted. The hulls of those child frames move with them and take pose and velocity from
     /// the tree. Any other body still in the destroyed frame is removed with a warning, and so is the hull of an owner
     /// that outlives its frame. A frame in FramesDestroyed that the tree still has keeps its system, with a warning,

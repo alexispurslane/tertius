@@ -13,7 +13,7 @@ namespace Tertius.Host.Tests;
 /// The shuttle's <see cref="RendezvousAutopilot"/>, on the World and the real Jolt backend (docs/plans/blue-danube-demo.md,
 /// "The rendezvous autopilot"). The demo's station flies its orbit, 400 km up, in a root frame with Earth's point gravity,
 /// and the shuttle flies near it with its flight controls: the autopilot, then the actuators of the demo, the attitude
-/// autopilot and the control of the main engine and the jets (see <see cref="Shuttle.Actuators"/>). Between the autopilot and the actuators, a <see cref="Recorder"/> sees what
+/// autopilot and the control of the main engine and the jets (see <c>Shuttle.Actuators</c>). Between the autopilot and the actuators, a <see cref="Recorder"/> sees what
 /// the autopilot adds in each tick. Some tests fly the demo's plan, which waits in the parking orbit, 200 km up, for a
 /// transfer of 170 degrees. The others fly <see cref="ShortPlanRun.Plan"/>, a transfer of 300 s from 5 km behind the
 /// station, because the demo's plan takes an hour.

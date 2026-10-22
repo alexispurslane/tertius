@@ -29,7 +29,7 @@ public readonly record struct JetPair(string Name, Jet First, Jet Second);
 
 /// <summary>
 /// The jets of the shuttle and the allocation of their throttles (docs/plans/blue-danube-demo.md, "The jets as parts"),
-/// for a hull whose center of mass lies at <paramref name="centerOfMass"/>, in meters in the hull's axes. Every place,
+/// for a hull whose center of mass lies at <c>centerOfMass</c>, in meters in the hull's axes. Every place,
 /// force and torque here is in the hull's axes: +X starboard, +Y up, -Z the nose.
 /// <list type="bullet">
 /// <item>The main engine sits at <see cref="MainEnginePlace"/>, in the tail pocket on the line of thrust through the
@@ -37,11 +37,11 @@ public readonly record struct JetPair(string Name, Jet First, Jet Second);
 /// <item>Six couples turn the hull, one for each sense of each axis. Each is two jets that push in opposite directions
 /// with one thrust at two places, so it gives a torque about its axis and no net force, whatever the center of mass. At
 /// full throttle each gives the most torque that the attitude autopilot asks for about its axis,
-/// <see cref="AttitudeAutopilot.MostTorque"/> of <paramref name="inertia"/>.</item>
+/// <see cref="AttitudeAutopilot.MostTorque"/> of <c>inertia</c>.</item>
 /// <item>Six translation pairs push the hull, one for each direction along the hull's three axes. Each is
 /// two jets that push in one direction from two places, with thrusts in the shares that put the line of their sum through
 /// the center of mass. So each gives no torque about the center of mass, and at full throttle the two together give
-/// <paramref name="translationThrust"/>.</item>
+/// <c>translationThrust</c>.</item>
 /// </list>
 /// Every jet sits on the solid skin of the full cross-section, off the canopy's glass: on the rib where the nose's loft
 /// ends, on the band aft of the last rib, on the ribs at z = ±3 m, on the belly, on the lower sides below the sill, or on
@@ -122,7 +122,7 @@ public sealed class ShuttleJets
     public Double3 MainEnginePlace { get; }
 
     /// <summary>
-    /// The twelve pairs: the couples at <see cref="Couple"/>, then the translation pairs at <see cref="Translation"/>.
+    /// The twelve pairs: the couples at <see cref="Couple(int, bool)"/>, then the translation pairs at <see cref="Translation(int, bool)"/>.
     /// <see cref="Allocate"/> writes one throttle for each, which both of its jets take.
     /// </summary>
     public IReadOnlyList<JetPair> Pairs { get; }

@@ -10,7 +10,7 @@ namespace Tertius;
 /// Mutate the tree only at the sync point, then call <see cref="Update"/>. During a tick, the tree is read-only
 /// and safe to read from any thread.
 /// <para>
-/// Invariants, checked by <see cref="AssertInvariants"/>:
+/// Invariants, checked by <see cref="AssertInvariants()"/>:
 /// <list type="bullet">
 /// <item>The rotation of every frame's local pose is a unit quaternion: the square of its length is within
 /// <see cref="DQuaternion.UnitTolerance"/> of 1. A frame whose rotation is a little long or short moves everything in its
@@ -35,7 +35,7 @@ namespace Tertius;
 /// frame with a static hull or without a hull moves relative to its semantic parent, and a frame with a kinematic hull
 /// hangs in its semantic parent or in its following frame, which follows its owner's motion intents. The motion of a hull here is its motion in the step that the
 /// numeric frames are planned for, which a change of motion can make differ from the stored motion of the last finished
-/// step (see <see cref="HullMotionInStep"/> and <see cref="PlanHullMotion"/>). Such a frame also owns a
+/// step (see <see cref="HullMotionInStep(FrameHandle, ReadOnlySpan{PhysicsIntent})"/> and <see cref="PlanHullMotion"/>). Such a frame also owns a
 /// hull that was a body of the last update: only the update moves a frame into a numeric frame, with its hull, and a frame
 /// without a hull goes to the semantic frame when the frame that holds it dies (see <see cref="Heir"/>). Every ghost of
 /// <see cref="AnchorGhosts"/> names the anchor of a live following frame and a live frame of that frame's semantic frame
@@ -484,7 +484,7 @@ public sealed partial class FrameTree
     /// step that ended applied (<c>Self.Body.SetMotion</c>, written one tick before), where the collision rows of the bodies
     /// change too. So like every state that a tick reads, it describes the last finished step. The motion of a step that
     /// has not finished is derived from the pending change of motion, and never stored: see
-    /// <see cref="HullMotionInStep"/> and <c>World.NextStepHullMotion</c>. The tree changes only at sync points, so
+    /// <see cref="HullMotionInStep(FrameHandle, ReadOnlySpan{PhysicsIntent})"/> and <c>World.NextStepHullMotion</c>. The tree changes only at sync points, so
     /// the stored motion is stable during a tick, and any worker may read it. Throws
     /// <see cref="InvalidOperationException"/> for a stale frame.
     /// </summary>
@@ -506,7 +506,7 @@ public sealed partial class FrameTree
     /// step (see <see cref="FollowKindInStep"/>). Step 4 stores the changes of step k and swaps the intents, so after it the
     /// front intents are those of step k + 1, the next step: the World asks it for that step there (see
     /// <c>World.NextStepHullMotion</c>), and so does the check of the tree's invariants at the end of the sync point (see
-    /// <see cref="AssertInvariants"/>). Throws <see cref="InvalidOperationException"/> for a stale frame.
+    /// <see cref="AssertInvariants()"/>). Throws <see cref="InvalidOperationException"/> for a stale frame.
     /// </summary>
     /// <param name="frame">The frame whose hull it asks about.</param>
     /// <param name="stepIntents">
@@ -605,7 +605,7 @@ public sealed partial class FrameTree
     /// Checks the invariants of the tree (see the class summary): the rotation of every frame's local pose is unit length,
     /// and the numeric frames keep the rules of the class summary. The numeric frames are planned for the step that applies
     /// <paramref name="stepIntents"/>, so the rules about the motion of a hull read the motion of that step (see
-    /// <see cref="HullMotionInStep"/>). At the end of a sync point, the World passes the intents that the next step
+    /// <see cref="HullMotionInStep(FrameHandle, ReadOnlySpan{PhysicsIntent})"/>). At the end of a sync point, the World passes the intents that the next step
     /// applies. O(frames). It runs only on demand, so it works in every build.
     /// </summary>
     internal void AssertInvariants(ReadOnlySpan<PhysicsIntent> stepIntents)

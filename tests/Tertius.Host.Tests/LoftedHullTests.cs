@@ -42,7 +42,7 @@ public sealed class LoftedHullTests
     }
 
     /// <summary>
-    /// How far <paramref name="p"/> lies inside the convex, counterclockwise <paramref name="polygon"/>, in its plane: the least
+    /// How far the point (<paramref name="x"/>, <paramref name="y"/>) lies inside the convex, counterclockwise <paramref name="polygon"/>, in its plane: the least
     /// distance to the line of an edge, negative outside.
     /// </summary>
     internal static double Inside(Vector2[] polygon, double x, double y)

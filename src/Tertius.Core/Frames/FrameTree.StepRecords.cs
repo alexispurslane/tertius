@@ -157,7 +157,7 @@ public sealed partial class FrameTree
     }
 
     /// <summary>The frame holds still in its tree parent over a step of <paramref name="dt"/> seconds, by the rules of <see cref="TakeStepRecords"/>.</summary>
-    private void HoldStillAt(in RecordTaker taker, Span<DPose> locals, double dt)
+    private void HoldStillAt(in RecordTaker taker, ReadOnlySpan<DPose> locals, double dt)
     {
         int id = taker.Frame.Index;
         FrameHandle treeParent = taker.TreeParent;
@@ -249,7 +249,7 @@ public sealed partial class FrameTree
     /// kinematic for an end pose, which a kinematic hull or a frame without a hull follows; and static otherwise, for a
     /// teleport, a static hull, which physics moves only by a teleport, and a frame without a motion intent. A write of the
     /// owner's transform wins over the motion intent, so its record is static whatever this says. The motion of the hull in
-    /// the step comes from the intents (see <see cref="HullMotionInStep"/>), because the stored motion takes their changes only
+    /// the step comes from the intents (see <see cref="HullMotionInStep(FrameHandle, ReadOnlySpan{PhysicsIntent})"/>), because the stored motion takes their changes only
     /// at step 4.
     /// </summary>
     internal FollowKind FollowKindInStep(FrameHandle frame, ReadOnlySpan<PhysicsIntent> stepIntents) =>

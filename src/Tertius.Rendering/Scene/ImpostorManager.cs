@@ -267,7 +267,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
     }
 
     /// <summary>Takes the highest-priority candidates, up to the budget, and records their captures.</summary>
-    private void SelectCaptures(Span<PreparedInstance> visible, in SceneLight light, in CameraView camera)
+    private void SelectCaptures(ReadOnlySpan<PreparedInstance> visible, in SceneLight light, in CameraView camera)
     {
         int available = AvailableTiles();
         recaptures.Build();

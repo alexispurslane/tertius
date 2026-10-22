@@ -193,8 +193,8 @@ public partial class NumericFrameStickOutGhostTests
     }
 
     /// <summary>
-    /// The homes of <paramref name="body"/> after the last two ticks, each with the home that the scene expects for it,
-    /// which <paramref name="expectedHome"/> gives, and its mode. A contact in the step of a tick becomes a Collision event
+    /// The homes of <c>body</c> after the last two ticks, each with the home that the scene expects for it,
+    /// which <c>expectedHome</c> gives, and its mode. A contact in the step of a tick becomes a Collision event
     /// at that tick's sync point, and a component hears it in the next tick. That step ran in the home that the sync point
     /// of the tick before it gave the body. So when a component first hears a contact at the end of a tick, before
     /// <see cref="Push"/> records that tick, <see cref="OfContactStep"/> holds the home in which the contact happened.

@@ -22,7 +22,7 @@ public sealed class DumpFileTests : IDisposable
     {
         using World world = newWorld();
         ScriptRunner.Run(script, world, build(world), folder);
-        return JsonDocument.Parse(File.ReadAllText(Path.Combine(folder, dump + ".json"))).RootElement;
+        return JsonElement.Parse(File.ReadAllText(Path.Combine(folder, dump + ".json")));
     }
 
     private static JsonElement EntityNamed(JsonElement dump, string id) =>

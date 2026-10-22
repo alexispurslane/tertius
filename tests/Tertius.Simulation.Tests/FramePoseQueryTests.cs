@@ -3,7 +3,7 @@ using AwesomeAssertions;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
-/// <see cref="Snapshot.TryGetPose"/> and <see cref="Snapshot.TryGetPoseIn"/>: an entity's pose in its own frame, and in any
+/// <c>Snapshot.TryGetPose</c> and <see cref="Snapshot.TryGetPoseIn"/>: an entity's pose in its own frame, and in any
 /// other frame, composed through the frame tree. A turned frame at (100, 0, 0) is the fixture: a rotation of +90 degrees
 /// about +Y maps (x, y, z) to (z, y, -x), and its inverse maps (x, y, z) to (-z, y, x).
 /// </summary>

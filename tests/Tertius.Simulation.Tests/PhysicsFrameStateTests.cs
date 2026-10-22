@@ -5,7 +5,7 @@ namespace Tertius.Simulation.Tests;
 
 /// <summary>
 /// A frame with a dynamic hull, such as a ship, is moved by physics: after each step physics reports a
-/// <see cref="FrameState"/>, the frame's pose and motion relative to its parent. The world applies it to the frame, and
+/// <c>FrameState</c>, the frame's pose and motion relative to its parent. The world applies it to the frame, and
 /// the frame's owner mirrors it. The tests run the world on real Jolt and compare the world with the states that Jolt really
 /// sent. A test of a state that only a bug produces adds it to the output of one step, through <see cref="FaultInjectingBackend"/>.
 /// </summary>

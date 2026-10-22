@@ -334,6 +334,7 @@ public sealed class FlightControlTests : IDisposable
         orbit.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
     /// A hull in a frame that turns in the frame of its <see cref="LaunchPlane"/>, as earth-surface turns in earth: the
     /// plane's frame is a root with Earth's point gravity, and the hull's frame sits at its center, turned 90 degrees about
     /// +Y and turning about +Y at the sidereal rate. By default the hull's frame has no gravity of its own, so the autopilot can
@@ -542,7 +543,7 @@ public sealed class FlightControlTests : IDisposable
 }
 
 /// <summary>
-/// <see cref="AttitudeAutopilot.Facing"/>, the rotation that points a hull's nose along one direction and its roof along
+/// <see cref="AttitudeAutopilot.Facing(Double3, Double3)"/>, the rotation that points a hull's nose along one direction and its roof along
 /// another. The nose is the rotated -Z, and the roof is the rotated +Y, as near to the given roof as it can be across the
 /// nose. The rotation comes from the rotation matrix of the hull's axes, which has four ways to take its quaternion, one
 /// for each of: a positive sum of the three diagonal entries, and the X, the Y or the Z entry being the largest of the

@@ -813,7 +813,7 @@ internal sealed class FrameWorld : IDisposable
     /// gap within the step. This counts such a point anyway: at 60 Hz it approaches slower than 1.2 m/s, so it can be
     /// the fastest only beside points of about the same speed, and no test can tell the difference.
     /// </remarks>
-    private unsafe float BounceApproach(nint body1, nint body2, nint manifold, out Vector3 normal)
+    private static unsafe float BounceApproach(nint body1, nint body2, nint manifold, out Vector3 normal)
     {
         Vector3 direction;
         JoltNative.ManifoldNormal(manifold, &direction);
@@ -953,7 +953,7 @@ internal sealed class FrameWorld : IDisposable
     /// manifold's points on the first body, or the first body's center of mass when the manifold has none.
     /// <paramref name="normal"/> is the manifold's normal, from the first body to the second.
     /// </summary>
-    private unsafe float NormalVelocity(nint body1, nint body2, nint manifold, out Double3 point, out Vector3 normal)
+    private static unsafe float NormalVelocity(nint body1, nint body2, nint manifold, out Double3 point, out Vector3 normal)
     {
         uint count = JoltNative.ManifoldPointCount(manifold);
         point = Double3.Zero;
@@ -1103,7 +1103,7 @@ internal sealed class FrameWorld : IDisposable
     /// in Jolt with the velocity of its real body, and a static ghost holds still as its real body does (see
     /// <c>JoltPhysicsBackend.GhostMotion</c>).
     /// </summary>
-    private unsafe Vector3 PointVelocity(nint body, Double3 point)
+    private static unsafe Vector3 PointVelocity(nint body, Double3 point)
     {
         RVector3 com;
         Vector3 linear, angular;

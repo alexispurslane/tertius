@@ -30,8 +30,7 @@ internal sealed unsafe class StagingArena : IDisposable
     /// <summary>Reserves <paramref name="size"/> bytes. Write them through <see cref="StagingSlice.Pointer"/> before submitting.</summary>
     public StagingSlice Allocate(ulong size, ulong alignment = 16)
     {
-        if (size == 0)
-            throw new ArgumentOutOfRangeException(nameof(size));
+        ArgumentOutOfRangeException.ThrowIfZero(size);
         GpuBuffer? current = buffers.Count > 0 ? buffers[^1] : null;
         ulong aligned = (offset + alignment - 1) & ~(alignment - 1);
         if (current == null || aligned + size > current.Size)

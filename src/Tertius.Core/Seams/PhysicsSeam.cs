@@ -305,12 +305,20 @@ public readonly record struct CompoundChild(ShapeDesc Shape, Pose Pose);
 /// the parent frame, and <see cref="InteriorShape"/> (or <see cref="Shape"/> if null) is the interior, a body at rest in
 /// the frame's own system, static while the hull is static and kinematic while the hull can move.
 /// </summary>
+/// <param name="Shape">The collision shape of the body. For a frame owner, the hull in the parent frame.</param>
+/// <param name="Motion">Whether the body is static, kinematic or dynamic.</param>
+/// <param name="Layer">The collision layer, which says which other layers the body can touch.</param>
+/// <param name="Mass">The mass in kilograms. Only a dynamic body uses it.</param>
+/// <param name="Friction">The friction coefficient. A contact combines the coefficients of its two bodies.</param>
 /// <param name="Restitution">
 /// How much of its approach speed a contact gives back as a rebound. A contact takes the larger restitution of its two
 /// bodies, and does not bounce when its bounce would rise less than 4 cm against the pull toward the surface: about a
 /// rebound of 0.89 m/s at 1 g, more under a stronger pull, and any rebound without one. The default is 0, as in Jolt, so
 /// a body bounces only when its content names a restitution.
 /// </param>
+/// <param name="LinearDamping">The fraction of its linear velocity that the body loses per second.</param>
+/// <param name="AngularDamping">The fraction of its angular velocity that the body loses per second.</param>
+/// <param name="InteriorShape">The shape of the interior body of a frame owner, or null to use <paramref name="Shape"/>.</param>
 public sealed record BodyDesc(
     ShapeDesc Shape,
     BodyMotion Motion = BodyMotion.Dynamic,
@@ -465,7 +473,7 @@ public struct PhysicsIntent
     /// <summary>
     /// The new motion of a frame's hull. Used with <see cref="IntentFlags.SetMotion"/>. It is the motion of the hull in the
     /// step that applies the intent: physics gives the Jolt body this motion at the start of that step, and every reader that
-    /// asks about that step derives it from this field (see <see cref="FrameTree.HullMotionInStep"/>). At the sync point
+    /// asks about that step derives it from this field (see <see cref="FrameTree.HullMotionInStep(FrameHandle, ReadOnlySpan{PhysicsIntent})"/>). At the sync point
     /// after that step, the frame tree stores it as the motion of the last finished step (see
     /// <see cref="FrameTree.HullMotion"/>).
     /// </summary>
@@ -644,12 +652,12 @@ public readonly struct PhysicsStepContext
     /// <summary>
     /// Intents by entity slot index. The slots of the entities in <see cref="IntentEntities"/> hold what they wrote, and the
     /// slot of every other live entity holds an empty intent. So the motion of a hull in the step can be read from the slot
-    /// of its owner (see <see cref="FrameTree.HullMotionInStep"/>).
+    /// of its owner (see <see cref="FrameTree.HullMotionInStep(FrameHandle, ReadOnlySpan{PhysicsIntent})"/>).
     /// </summary>
     public ReadOnlyMemory<PhysicsIntent> Intents { get; }
     /// <summary>
     /// The entities that wrote an intent during the previous tick, and the new entities whose spawn gave them a first motion
-    /// intent (see <see cref="SpawnDesc.FirstMove"/>).
+    /// intent (see <c>SpawnDesc.FirstMove</c> in Tertius.Simulation).
     /// </summary>
     public ReadOnlyMemory<Entity> IntentEntities { get; }
 }

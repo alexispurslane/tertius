@@ -58,7 +58,7 @@ public readonly record struct PhysicsOutputFault(PhysicsOutputKind Kind, int Ind
 /// no frame, so it never hands off. Each entity hands off at most once per step.</item>
 /// <item>Only a dynamic hull hands off: the body of the owner of a frame with a parent, in the system of the frame's parent,
 /// whose motion in the step comes from the intents that the step applied, or else from the stored motion (see
-/// <see cref="FrameTree.HullMotionInStep"/>). So the first hand-off of a hull that the step made dynamic is no bug,
+/// <see cref="FrameTree.HullMotionInStep(FrameHandle, ReadOnlySpan{PhysicsIntent})"/>). So the first hand-off of a hull that the step made dynamic is no bug,
 /// although the stored motion takes the change only after the check. The simulation makes the motion a fact: it
 /// refuses a dynamic hull that cannot move, without mass or with a mesh (see <see cref="BodyDesc.Problem"/>). A static or
 /// a kinematic hull moves only as its frame's step record says, and physics never hands it off. So the owner of a frame
@@ -119,7 +119,7 @@ public sealed class PhysicsOutputCheck
     /// <summary>
     /// Checks every output of <paramref name="output"/> against <paramref name="frames"/> and <paramref name="facts"/>,
     /// as they are before any output lands, and the motion of each hull in the step against <paramref name="stepIntents"/>,
-    /// the intents that the step applied, by entity slot (see <see cref="FrameTree.HullMotionInStep"/>). Sets
+    /// the intents that the step applied, by entity slot (see <see cref="FrameTree.HullMotionInStep(FrameHandle, ReadOnlySpan{PhysicsIntent})"/>). Sets
     /// <see cref="Faults"/>, <see cref="IsSkipped"/> and <see cref="IsCharacterStateSkipped"/>. Changes nothing else.
     /// Allocates nothing for an output without faults, once warm.
     /// </summary>
