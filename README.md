@@ -63,15 +63,15 @@ nix develop --command bash -c 'dotnet run --project src/Tertius.Demo -- --script
 nix develop --command bash -c 'dotnet run --project src/Tertius.Demo -- --scene station'
 ```
 
-[tools/README.md](tools/README.md) gives the commands for coverage, mutation testing and JetBrains Rider.
+[tools/README.md](tools/README.md) gives the commands for coverage, mutation testing, duplicate code, the docs site and JetBrains Rider.
 
 ## Repository layout
 
 - [src](src) holds the modules. Tertius.Core holds the math, handles, messages and the frame tree, and it depends on nothing. Tertius.Simulation, Tertius.Physics and Tertius.Rendering each depend only on Core. Tertius.Host holds the window, the threads and the script runner, and Tertius.Demo holds the demo scenes.
 - [tests](tests) holds one xUnit project per module.
-- [ARCHITECTURE.md](ARCHITECTURE.md) is the binding design, and [docs/plans](docs/plans) holds the design docs.
+- [ARCHITECTURE.md](ARCHITECTURE.md) is the binding design, and [docs/plans](docs/plans/README.md) holds the design docs.
 - [scripts](scripts) holds the JSON scripts for the demo scenes.
-- [tools](tools) holds the helpers for coverage and mutation testing, and [native](native) builds the Jolt library.
+- [tools](tools/README.md) holds the helpers for coverage, mutation testing, duplicate code and the docs site, and [native](native) builds the Jolt library.
 
 ## License
 

@@ -1,6 +1,6 @@
 # Tools
 
-These helpers run every test project in one command, start JetBrains Rider inside the dev shell, run code coverage and Stryker.NET mutation testing on the lines that a branch changed, and report duplicated code. For the rules on which helper to run, read the Testing section of CLAUDE.md. The scripts are tool code: they never ship, so they skip polish.
+These helpers run every test project in one command, start JetBrains Rider inside the dev shell, run code coverage and Stryker.NET mutation testing on the lines that a branch changed, report duplicated code, build the docs site, and clean up the code. The git hooks in `.githooks/` call some of them. For the rules on which helper to run, read the Testing section of CLAUDE.md. The scripts are tool code: they never ship, so they skip polish.
 
 Run every command in the dev shell, from the repository root. The build copies the Jolt library and the Vulkan loader next to each output, so the tests need no `DYLD_*` variable. Outside the dev shell, the GPU tests cannot find `libvulkan`, and the scripts stop with a message. Write the output to a folder outside the repository, for example `/tmp/tertius-coverage`.
 
@@ -121,3 +121,78 @@ The script prints each clone with its two places, then a table with the share of
 - `-s` also reports near-miss methods: methods whose syntax trees are at least 80 percent alike.
 - `-o <folder>` also writes an HTML report to `<folder>/jscpd-report.html`.
 - Everything after `--` goes to jscpd unchanged, for example `-- --min-tokens 50`.
+
+## Docs site
+
+`tools/docs.sh` builds a website from the doc comments and the Markdown docs with DocFX. DocFX is a .NET local tool, pinned in `.config/dotnet-tools.json`. The nixpkgs build of DocFX cannot start on macOS, because it lacks the ASP.NET runtime.
+
+```bash
+nix develop --command bash -c 'bash tools/docs.sh -s'
+```
+
+The script builds the solution in Release, because DocFX reads the compiled assemblies and the XML documentation files beside them. Thus DocFX never parses C# 15 syntax itself. Then it writes the site to `artifacts/docs/`. The site holds the API reference of every module, private members included, and README.md, ARCHITECTURE.md, GUIDE.md, this file and the design docs. The source files are in the site too, so the links in GUIDE.md open them. `docfx.json` at the repository root holds the configuration, and `docs/site/` holds the navigation. The options:
+
+- `-s` serves the site at `http://localhost:8080` after the build. Stop it with Ctrl-C.
+- `-p <port>` gives another port for `-s`.
+- `-n` skips the Release build and uses the assemblies that are there.
+
+The build prints a warning for each link that has no page in the site. For example, a link to a folder such as `src` works on the git host, but the site has no page for a folder.
+
+## Git hooks
+
+The folder `.githooks/` holds two git hooks. At its start, the dev shell sets `core.hooksPath` to that folder. Thus the hooks run after you enter the dev shell once. Outside the dev shell, a hook runs itself again inside it. To skip a hook once, add `--no-verify` to `git commit` or `git push`.
+
+### Before a commit
+
+The pre-commit hook runs on every commit that stages C# files or projects. A commit with no such file, such as a ticket note, skips it. The hook changes no file. It does three things:
+
+1. It builds the projects that the commit changes and the test projects that test them, incrementally. The build runs every analyzer, and an error stops the commit.
+2. It prints a report for the changed lines only: the duplicated blocks (jscpd) and the methods over the complexity limit (CA1502) or the length limit (MA0051). The report never stops the commit.
+3. It runs the tests of the changed code in Debug, one process per test project, in parallel. A failed test stops the commit.
+
+The tests of the changed code are:
+
+| Change | Tests |
+|---|---|
+| A file in `src/Tertius.X` | Every test in `tests/Tertius.X.Tests` |
+| A file in `src/Tertius.Demo` | Every test in `tests/Tertius.Host.Tests` |
+| A file in `tests/Tertius.X.Tests` | The test classes in that file |
+| A file in `tests/Tertius.Testing` or `benchmarks/` | None. The hook only builds it. |
+
+The hook does not build or test the projects downstream of a change. Run `tools/test-all.sh` before a merge into main for that.
+
+If a staged file also holds unstaged changes, the hook says so. The build and the tests see the working tree, not only the staged changes.
+
+A changed line is a line that the staged diff adds or edits. Each compile writes its diagnostics to `obj/<configuration>/<framework>/analyzers.sarif`, and the report reads the complexity and length results from there. The limits are in `analyzers/CodeMetricsConfig.txt` (complexity) and `.editorconfig` (MA0051).
+
+### Before a push
+
+The pre-push hook does two things:
+
+1. It runs `tools/cleanup.sh` on the C# files that the pushed commits change. If the cleanup changes a file, the hook builds the solution and commits the result as "Clean up code before push". Then it stops the push, because git chose the commits to push before the hook ran. Push again to send the cleanup commit too.
+2. It builds the docs site with `tools/docs.sh`. A DocFX error stops the push, and a link warning does not.
+
+If a file that the cleanup must clean holds uncommitted changes, the hook stops before the cleanup. Commit or stash those changes, then push again. The cleanup can add a commit only to the branch that is checked out. For another pushed branch, it prints a note and skips that branch.
+
+## Code cleanup
+
+`tools/cleanup.sh` formats and modernizes C# files in two passes:
+
+1. `dotnet format style` applies Roslyn's modernization fixes, such as collection expressions, primary constructors, pattern matching and static lambdas. `.editorconfig` lists them as the IDE rules at suggestion level, and the script reads the list from there.
+2. `jb cleanupcode` runs ReSharper's cleanup with the Tertius profile: syntax style, redundancies, member layout and formatting. It runs last, so its formatting wins.
+
+Run it in the dev shell:
+
+```bash
+bash tools/cleanup.sh
+```
+
+With no argument, it cleans the C# files that differ from main, committed or not. `--all` cleans every C# file, which takes about 10 minutes. A list of files cleans only those files. ReSharper loads a solution with only the projects of the files, which takes 10 to 20 seconds.
+
+The cleanup reads its rules from two files. `.editorconfig` holds the Roslyn rules, the syntax style, the line length of 120 characters and the doc comment rules. `Tertius.slnx.DotSettings` holds the ReSharper profile and the member layout: members grouped by kind (constants, static fields and properties, instance fields, constructors, instance properties, everything else), with no sort inside a group. Rider reads both files, so its own cleanup with the Tertius profile gives the same result.
+
+The cleanup of the whole codebase is one commit. `.git-blame-ignore-revs` names it. Run this command once, so that `git blame` skips that commit:
+
+```bash
+git config blame.ignoreRevsFile .git-blame-ignore-revs
+```
