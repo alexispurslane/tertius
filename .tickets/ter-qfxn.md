@@ -1,6 +1,6 @@
 ---
 id: ter-qfxn
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-22T12:58:25Z
@@ -18,3 +18,9 @@ Build analyzers/Tertius.Unions, the Roslyn incremental generator of docs/plans/u
 
 A [GeneratedUnion] partial struct gets every member of the table in the design doc. Shared slots follow name and type. The build stays clean. Every suite passes.
 
+
+## Notes
+
+**2026-10-22T13:19:01Z**
+
+Done 2026-10-22. Slots shared by type (the user's choice of 2026-10-22, design doc decision 2). 35 tests: 22 behavior tests on generated test unions, 13 driver tests (7 diagnostics TU1001-TU1007, containers, name clash, caching, a valid union). Hand mutations, each failing its test or the build of the generated code: share no slot (build: unused slots), no padding order, trust a hand-written property, ignore extra state, each of the 7 diagnostic checks off, zero case not kind 0, Equals ignores the kind, TryGetValue unguarded, hash ignores values, HasValue always true, ToString without (none), Equals(object) ignores values, model arrays never equal, record struct and interface container keywords, no fix of a short-name clash.

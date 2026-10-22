@@ -14,7 +14,7 @@ The user chose these on 2026-10-22, from two designs.
    - Cases that are structs give a generated union struct. A built-in `union` declaration boxes a struct case: a measurement on SDK 11.0.100-rc.1 found 24 bytes per value.
    - Cases that are classes give a built-in `union` declaration, such as `public union MessageTarget(ToEntity, ToTopic, ToFrame, ToEveryone);`. It is an 8-byte struct around one reference, and it allocates nothing beyond the case.
    - Nothing marks hot code by hand, so no mark can be missing or wrong.
-2. The generator stores the cases by shared fields. A positional record struct case is stored as its fields. A positional record struct is a record struct with a parameter list, such as `readonly record struct PointGravity(double Mu)`. Fields with the same name and the same type in several cases share one slot. 17 hand-written unions share fields so by hand today. Every slot is a plain field, so the JIT can keep a union in registers. The other design overlapped whole cases with an explicit layout. That design is never larger for cases without references, but the JIT does not split a struct with overlapped fields into registers.
+2. The generator stores the cases in shared slots of plain fields. A positional record struct case is stored as its fields. A positional record struct is a record struct with a parameter list, such as `readonly record struct PointGravity(double Mu)`. Any other struct case is stored as one value of its own type. The slots are shared by type: the k-th value of a type in a case goes into the k-th slot of that type. So each type gets as many slots as the case with the most values of that type. Every slot is a plain field, so the JIT can keep a union in registers. The user first chose slots shared by name and type. Sharing by type replaced it on the same day, because it is never larger: `HemisphereUp` and `PuffShading` have one `Vector3` per case under two names, so sharing by name made them 28 bytes instead of 16. The design that the user did not choose overlapped whole cases with an explicit layout. That design is never larger for cases without references, but the JIT does not split a struct with overlapped fields into registers.
 3. The epic converts all 32 unions, one ticket per module. The union tests of each module guard its conversion.
 
 ## The generator
@@ -30,16 +30,20 @@ public readonly partial struct RenderLight;
 
 ### Storage
 
-| Case type | How the union stores it |
+Each case is a list of values:
+
+| Case type | Its values |
 |---|---|
-| A positional record struct whose properties are its parameters, with no other instance state | As its fields. A field shares a slot with every field of the same name and type in another case. |
-| Any other struct: a plain struct, a record with more state, a record whose property initializers change a parameter, another union | As one whole field of the case type, shared with no other case. |
+| A positional record struct whose properties are its parameters, with no other instance state | Its parameters, in order |
+| Any other struct: a plain struct, a record with more state, a record whose property initializers change a parameter, another union | The case itself, as one value |
 | A class | Not in a generated union. Decision 1 gives class cases a built-in `union`. |
 | A ref struct | Not possible. No field can hold a ref struct. |
 
-The generator rebuilds a field-stored case with its constructor, so a case must come back with the same bits. A property initializer that changes a parameter, such as a normalized direction, breaks that, so the generator stores such a case whole. Today every struct case is a positional record, except three plain event structs of the demo: `Dock`, `LeaveShip` and `PlayWithBoxes`. They take their full size.
+The k-th value of type `T` in a case goes into slot k of type `T`. For example, `PointRenderLight(Vector3 Position, Vector3 Color, float Intensity, float Range)` and the spot light's seven values give three `Vector3` slots and four `float` slots: 52 bytes, plus the kind byte, padded to 56.
 
-The kind byte is the last field. The slots come before it, the largest first, so that the struct has the least padding.
+The generator builds a field-stored case again with its constructor, so a case must come back with the same bits. A property initializer that changes a parameter, such as a normalized direction, breaks that. So the generator stores such a case as one value. Today every struct case is a positional record, except three plain event structs of the demo: `Dock`, `LeaveShip` and `PlayWithBoxes`.
+
+The slots have no names of meaning: `slot0`, `slot1` and so on. A comment in the generated file names the case values in each slot. A hand-written member reads a case through its pattern or `TryGetValue`, never through a slot. The kind byte is the last field. The slots come before it, the most aligned first, so that the struct has the least padding.
 
 ### Generated members
 
@@ -90,7 +94,7 @@ Each module gets one ticket. A union's tests stay as they are. The exception is 
 
 The size of a union must not grow where a comment says that its size matters: `HemisphereUp` (16 bytes, one per rendered instance), `PuffShading` (16), `RenderLight` (56), `FrameOutline` (48), and `InputEvent`, which must fit the event payload. Each conversion asserts the size in a test.
 
-`Target` packs every case into one 64-bit number, and every event carries one. Shared fields can make it larger. The Core ticket measures the generated size. If it grows, `Target` stays hand-written, with a suppression of `TU0001` that names the reason. It is the one exception that this design expects.
+`Target` packs every case into one 64-bit number, and every event carries one. Shared slots can make it larger. The Core ticket measures the generated size. If it grows, `Target` stays hand-written, with a suppression of `TU0001` that names the reason. It is the one exception that this design expects.
 
 `CharacterStartVelocity` and `VelocityShadow` have no equality members today. The generated ones cost nothing that the code calls.
 

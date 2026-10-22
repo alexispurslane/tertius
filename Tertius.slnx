@@ -12,6 +12,9 @@
     <Project Path="src/Tertius.Host/Tertius.Host.csproj" />
     <Project Path="src/Tertius.Demo/Tertius.Demo.csproj" />
   </Folder>
+  <Folder Name="/analyzers/">
+    <Project Path="analyzers/Tertius.Unions/Tertius.Unions.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Tertius.Core.Tests/Tertius.Core.Tests.csproj" />
     <Project Path="tests/Tertius.Simulation.Tests/Tertius.Simulation.Tests.csproj" />
@@ -19,6 +22,7 @@
     <Project Path="tests/Tertius.Rendering.Tests/Tertius.Rendering.Tests.csproj" />
     <Project Path="tests/Tertius.Host.Tests/Tertius.Host.Tests.csproj" />
     <Project Path="tests/Tertius.Testing/Tertius.Testing.csproj" />
+    <Project Path="tests/Tertius.Unions.Tests/Tertius.Unions.Tests.csproj" />
   </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/Tertius.Benchmarks/Tertius.Benchmarks.csproj" />

@@ -25,6 +25,7 @@ These features are out of scope. Do not design for them.
 | Images | StbImageWriteSharp writes the PNG captures, in `PngCaptureSink`. The tests read PNG files with StbImageSharp, and write the approved reference images and the failure files of snapshot tests with StbImageWriteSharp. |
 | Video | ffmpeg 9.0.1 (`ffmpeg-headless` in the dev shell), a separate process that encodes the frames of a headless run with `--video`. `FfmpegVideoSink` finds it on the search path. The Host tests read the videos with its `ffmpeg` and `ffprobe`. |
 | Benchmarks | BenchmarkDotNet 0.15.8 |
+| Union generator | `analyzers/Tertius.Unions`, a Roslyn incremental source generator on Microsoft.CodeAnalysis.CSharp 4.14.0. Every project references it as an analyzer. |
 | Platforms | The flake supports `aarch64-darwin`, `x86_64-linux` and `aarch64-linux`. |
 
 The dev shell builds the double-precision Jolt library with Nix from `native/joltc.nix`. That file pins the joltc commit and the Jolt tag by hash. The dev shell sets `TERTIUS_JOLTC_DIR` to the folder of the library. The script `native/build-joltc.sh` is a fallback. It builds the same sources without a hash check, into `native/osx-arm64` or `native/linux-x64`, and it supports only these two platforms. Both builds apply one patch to joltc, `native/joltc-thread-temp-allocator.patch`. joltc keeps a temp allocator for system and character updates, a stack allocator that is not thread-safe, and the patch makes it one per calling thread instead of one per process. So several backends in one process, such as parallel tests, step at the same time on different threads. Each backend serializes its own native work and state with its own lock (`JoltPhysicsBackend.Gate`).
@@ -1263,6 +1264,10 @@ Reflection runs only in `Blueprints.Register`, which C# code calls. For each com
 - Tables grow only outside the parallel part of a tick, so a `ref` taken during a tick is always valid for that tick.
 - A component that needs another entity later stores its `Entity` handle and checks it on use.
 - Mod support will need a registry that drops every reference to mod types before unloading. That work is deferred.
+
+## Unions
+
+A union of struct cases is a partial struct marked `[GeneratedUnion(typeof(A), typeof(B), ...)]`. The generator in `analyzers/Tertius.Unions` writes its members: a constructor and an implicit conversion per case, `HasValue`, `Value`, a `TryGetValue` per case, equality and `ToString`. It stores the cases in private slots that the cases share by type: the k-th value of a type in a case goes into the k-th slot of that type. A positional record struct case gives its parameters as values, and any other struct case is one value. So a union is as large as its slots and a kind byte, and its fields stay plain fields that the JIT can keep in registers. The all-zero value holds no case, unless the attribute names a `ZeroCase`. A union of class cases is a built-in `union` declaration, which does not box them. `docs/plans/union-tooling.md` has the design. The unions that came before the generator move to it one module at a time.
 
 ## Switches over closed sets
 
