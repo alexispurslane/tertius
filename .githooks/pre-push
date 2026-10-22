@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# Runs before every push that pushes code (see tools/README.md, "Git hooks"):
+#   1. tools/cleanup.sh formats and modernizes the C# files that the pushed commits change. If it changes a file, the
+#      hook builds the solution, commits the result as one cleanup commit and stops the push, because git already
+#      chose the commits to push. Push again to send the cleanup commit too.
+#   2. tools/docs.sh builds the docs site. A DocFX error stops the push, and a link warning does not.
+# To skip the hook once, run: git push --no-verify
+set -euo pipefail
+
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+
+# Git sends one line per pushed ref on stdin: <local ref> <local sha> <remote ref> <remote sha>. The dev shell does not
+# keep stdin, so the hook passes the lines on in a variable.
+zero=0000000000000000000000000000000000000000
+if [[ -z "${TERTIUS_PUSH_REFS+set}" ]]; then
+    TERTIUS_PUSH_REFS=$(cat)
+    export TERTIUS_PUSH_REFS
+fi
+pushes_code=false
+while read -r _ local_sha _ _; do
+    [[ -n "$local_sha" && "$local_sha" != "$zero" ]] && pushes_code=true
+done <<< "$TERTIUS_PUSH_REFS"
+$pushes_code || exit 0
+
+if [[ -z "${IN_NIX_SHELL:-}" ]]; then
+    exec nix develop --command bash "$0" "$@" < /dev/null
+fi
+
+head=$(git rev-parse HEAD)
+files=()
+while read -r local_ref local_sha _ remote_sha; do
+    [[ -z "$local_sha" || "$local_sha" == "$zero" ]] && continue
+    # The hook can add a cleanup commit only to the branch that is checked out.
+    if [[ "$local_sha" != "$head" ]]; then
+        echo "pre-push: $local_ref is not checked out, so the cleanup skips it." >&2
+        continue
+    fi
+    # The pushed commits are the ones after the remote's commit, or after main for a new branch.
+    if [[ "$remote_sha" != "$zero" ]] && git cat-file -e "$remote_sha^{commit}" 2> /dev/null; then
+        base=$remote_sha
+    else
+        base=$(git merge-base "$local_sha" main)
+    fi
+    while IFS= read -r f; do files+=("$f"); done < <(git diff --name-only --diff-filter=ACMR "$base" "$local_sha" -- '*.cs')
+done <<< "$TERTIUS_PUSH_REFS"
+
+if [[ ${#files[@]} -gt 0 ]]; then
+    dirty=$(git status --porcelain -- "${files[@]}")
+    if [[ -n "$dirty" ]]; then
+        echo "pre-push: these files have uncommitted changes, and the cleanup would mix them into its commit:" >&2
+        echo "$dirty" | sed 's/^/  /' >&2
+        echo "pre-push: commit or stash them, then push again." >&2
+        exit 1
+    fi
+    echo "pre-push: cleaning up ${#files[@]} C# file(s)..." >&2
+    if ! bash tools/cleanup.sh "${files[@]}"; then
+        echo "pre-push: the cleanup failed, so the push stopped." >&2
+        exit 1
+    fi
+    if ! git diff --quiet -- "${files[@]}"; then
+        log="${TMPDIR:-/tmp}/tertius-pre-push-build.log"
+        if ! dotnet build Tertius.slnx -v quiet -nologo -clp:ErrorsOnly > "$log" 2>&1; then
+            grep -E ': error ' "$log" | sort -u | head -40 >&2
+            echo "pre-push: the cleaned code does not build, so the push stopped. The changes stay uncommitted." >&2
+            exit 1
+        fi
+        git add -- "${files[@]}"
+        git commit --no-verify --quiet -m "Clean up code before push" \
+            -m "tools/cleanup.sh (Roslyn modernization fixes, then ReSharper's cleanup) ran in the pre-push hook."
+        count=$(git diff --name-only HEAD~1 HEAD | wc -l | tr -d ' ')
+        echo "pre-push: the cleanup changed $count file(s) and committed them as $(git rev-parse --short HEAD)." >&2
+        echo "pre-push: the push stopped, because it does not hold that commit. Push again." >&2
+        exit 1
+    fi
+fi
+
+echo "pre-push: building the docs site..." >&2
+log="${TMPDIR:-/tmp}/tertius-pre-push-docs.log"
+if ! bash tools/docs.sh > "$log" 2>&1; then
+    tail -40 "$log" >&2
+    echo "pre-push: the docs build failed, so the push stopped. The full log: $log" >&2
+    exit 1
+fi

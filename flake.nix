@@ -72,6 +72,13 @@
             VK_LAYER_PATH = "${pkgs.vulkan-validation-layers}/share/vulkan/explicit_layer.d";
             VK_ICD_FILENAMES = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isDarwin "${pkgs.moltenvk}/share/vulkan/icd.d/MoltenVK_icd.json";
 
+            # The repository's git hooks (.githooks/): cleanup, duplicates and build on commit, docs on push.
+            shellHook = ''
+              if git rev-parse --git-dir > /dev/null 2>&1; then
+                git config core.hooksPath .githooks
+              fi
+            '';
+
             # The Nix-built double-precision Jolt library, which Directory.Build.targets copies next to each output.
             TERTIUS_JOLTC_DIR = "${joltc}/lib";
 

@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+# Runs on every commit that stages C# files or projects (see tools/README.md, "Git hooks"):
+#   1. An incremental build of the projects that the commit changes and of the test projects that test them. The
+#      build runs every analyzer, and an error stops the commit.
+#   2. A report of the duplicated blocks and the complex or long methods that the staged changes touch
+#      (tools/commit_report.py). The report never stops the commit.
+#   3. The tests of the changed code, in Debug: every test of a changed module, and the test classes of a changed
+#      test file. A failed test stops the commit.
+# The pre-push hook formats and modernizes the code, so this hook changes no file.
+# To skip the hook once, run: git commit --no-verify
+set -euo pipefail
+
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+
+files=()
+while IFS= read -r f; do files+=("$f"); done < <(git diff --cached --name-only --diff-filter=ACMR -- '*.cs' '*.csproj')
+if [[ ${#files[@]} -eq 0 ]]; then
+    exit 0
+fi
+
+# The hook needs the dev shell's SDK, jscpd and native libraries. Outside the dev shell, it runs itself again inside it.
+if [[ -z "${IN_NIX_SHELL:-}" ]]; then
+    exec nix develop --command bash "$0" "$@"
+fi
+
+partial=$(git diff --name-only -- "${files[@]}")
+if [[ -n "$partial" ]]; then
+    echo "pre-commit: these files also have unstaged changes, and the build and the tests see them too:" >&2
+    echo "$partial" | sed 's/^/  /' >&2
+fi
+
+project_of() {
+    local dir
+    dir=$(dirname "$1")
+    while [[ "$dir" != "." && "$dir" != "/" ]]; do
+        for p in "$dir"/*.csproj; do
+            [[ -f "$p" ]] && { echo "$p"; return; }
+        done
+        dir=$(dirname "$dir")
+    done
+}
+
+# What to build and what to test. A change in src/Tertius.X runs every test in tests/Tertius.X.Tests. The tests of
+# src/Tertius.Demo live in tests/Tertius.Host.Tests. A change in a test file runs only the test classes in that file,
+# unless its module already runs whole. tests/Tertius.Testing and the benchmarks only build: every module uses the
+# shared helpers, so a change there waits for the full run of tools/test-all.sh before the merge.
+declare -A build=() whole=() classes=()
+for f in "${files[@]}"; do
+    p=$(project_of "$f")
+    [[ -z "$p" ]] && continue
+    build["$p"]=1
+    name=$(basename "$p" .csproj)
+    case "$p" in
+        src/*)
+            module=${name#Tertius.}
+            [[ "$module" == Demo ]] && module=Host
+            tests="tests/Tertius.$module.Tests/Tertius.$module.Tests.csproj"
+            if [[ -f "$tests" ]]; then
+                whole["$tests"]=1
+                build["$tests"]=1
+            fi
+            ;;
+        tests/*.Tests/*)
+            [[ "$f" == *.cs ]] || { whole["$p"]=1; continue; }
+            namespace=$(sed -nE 's/^namespace ([A-Za-z0-9_.]+);.*/\1/p' "$f" | head -1)
+            while IFS= read -r class; do
+                classes["$p"]+=" ${namespace:+$namespace.}$class"
+            done < <(sed -nE 's/^(public |internal )?(sealed |static |abstract |partial )*class ([A-Za-z0-9_]+).*/\3/p' "$f")
+            ;;
+    esac
+done
+
+solution=.pre-commit.slnx
+trap 'rm -f "$root/$solution"' EXIT
+{
+    echo "<Solution>"
+    for p in "${!build[@]}"; do echo "  <Project Path=\"$p\" />"; done
+    echo "</Solution>"
+} > "$solution"
+echo "pre-commit: building ${#build[@]} project(s)..." >&2
+log="${TMPDIR:-/tmp}/tertius-pre-commit-build.log"
+if ! dotnet build "$solution" -v quiet -nologo -clp:ErrorsOnly > "$log" 2>&1; then
+    grep -E ': error ' "$log" | sort -u | head -40 >&2
+    echo "pre-commit: the build failed, so the commit stopped. The full log: $log" >&2
+    exit 1
+fi
+
+python3 tools/commit_report.py >&2 || true
+
+# The test runs go in parallel, one process per test project, each with its own log.
+runs=()
+for p in "${!whole[@]}"; do runs+=("$p|"); done
+for p in "${!classes[@]}"; do
+    [[ -n "${whole[$p]:-}" ]] && continue
+    runs+=("$p|${classes[$p]}")
+done
+[[ ${#runs[@]} -eq 0 ]] && exit 0
+
+logs=$(mktemp -d "${TMPDIR:-/tmp}/tertius-pre-commit-tests.XXXXXX")
+pids=()
+for run in "${runs[@]}"; do
+    p=${run%%|*}
+    filter=()
+    for class in ${run#*|}; do filter+=(--filter-class "$class"); done
+    name=$(basename "$p" .csproj)
+    if [[ ${#filter[@]} -gt 0 ]]; then
+        echo "pre-commit: testing $((${#filter[@]} / 2)) class(es) in $name..." >&2
+    else
+        echo "pre-commit: testing all of $name..." >&2
+    fi
+    dotnet test --project "$p" --no-build ${filter[@]+"${filter[@]}"} > "$logs/$name.log" 2>&1 &
+    pids+=("$!:$name")
+done
+status=0
+for entry in "${pids[@]}"; do
+    pid=${entry%%:*} name=${entry#*:}
+    code=0
+    wait "$pid" || code=$?
+    summary=$(grep -E '^  (total|failed|succeeded|skipped): ' "$logs/$name.log" | tr -s ' ' | tr '\n' ',' | sed 's/,$//')
+    # Exit code 8 means that no test matched the filter, for example a file with only helper classes.
+    if [[ $code -eq 0 || $code -eq 8 ]]; then
+        echo "pre-commit: $name:${summary:- no tests ran}" >&2
+    else
+        status=1
+        echo "pre-commit: $name FAILED (exit code $code):$summary" >&2
+        grep -E '^(failed|error) ' "$logs/$name.log" | head -20 >&2 || true
+        echo "  full log: $logs/$name.log" >&2
+    fi
+done
+if [[ $status -ne 0 ]]; then
+    echo "pre-commit: a test failed, so the commit stopped." >&2
+    exit 1
+fi
+rm -rf "$logs"

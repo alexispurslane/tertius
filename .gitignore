@@ -28,3 +28,7 @@ __pycache__/
 # The files that a failing snapshot test writes beside its reference image.
 /tests/Tertius.Rendering.Tests/ReferenceImages/*.actual.png
 /tests/Tertius.Rendering.Tests/ReferenceImages/*.flip.png
+
+# The temporary solution of the pre-commit hook (.githooks/pre-commit).
+/.pre-commit.slnx
+/.cleanup.slnx
