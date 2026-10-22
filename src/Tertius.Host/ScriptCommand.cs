@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using Tertius.Host.Scripting;
 using Tertius.Host.Windowing;
@@ -218,6 +219,11 @@ public static class ScriptCommand
             case VideoFile video when result.Captures.Count > 0:
                 output.WriteLine(video.Path);
                 break;
+            case VideoFile or null:
+                // A video without captures holds no frames, and no target writes no files.
+                break;
+            default:
+                throw new UnreachableException($"The capture target {target} has a case that the command does not list.");
         }
     }
 

@@ -86,7 +86,7 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
             MemoryUsage.GpuOnly => (MemoryPropertyFlags.DeviceLocalBit, MemoryPropertyFlags.None),
             MemoryUsage.Upload => (MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit,
                 MemoryPropertyFlags.DeviceLocalBit),
-            _ => (MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit,
+            MemoryUsage.Readback => (MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit,
                 MemoryPropertyFlags.HostCachedBit)
         };
         int type = device.FindMemoryType(requirements.MemoryTypeBits, required, preferred);

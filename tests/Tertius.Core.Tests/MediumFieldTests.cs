@@ -174,6 +174,6 @@ public class MediumFieldTests
     {
         UniformMedium { Drag: var drag } => drag,
         PlanetMedium { Drag: var drag } => drag,
-        _ => 0
+        null => 0
     };
 }

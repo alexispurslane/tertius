@@ -152,25 +152,28 @@ public record struct KeplerOrbit(
     /// and the nose along the motion across the horizon. The G·M <paramref name="mu"/> of the parent counts only for
     /// <see cref="KeplerAttitude.FacesParent"/>, which turns with the frame's place on its orbit.
     /// </summary>
-    public readonly DQuaternion RotationAt(double time, double mu) =>
-        Attitude == KeplerAttitude.FacesParent
-            ? FacingParentAtAnomaly(EccentricAnomalyAt(time, mu, out double turns), turns)
-            : Spin.RotationAt(time);
+    public readonly DQuaternion RotationAt(double time, double mu) => Attitude switch
+    {
+        KeplerAttitude.Spin => Spin.RotationAt(time),
+        KeplerAttitude.FacesParent => FacingParentAtAnomaly(EccentricAnomalyAt(time, mu, out double turns), turns)
+    };
 
     /// <summary>
     /// The frame's angular velocity in parent axes at <paramref name="time"/>, in radians per second. The G·M
     /// <paramref name="mu"/> of the parent counts only for <see cref="KeplerAttitude.FacesParent"/>. A frame that faces a
     /// parent without G·M rests at the parent's origin and does not turn.
     /// </summary>
-    public readonly Double3 AngularVelocityAt(double time, double mu)
+    public readonly Double3 AngularVelocityAt(double time, double mu) => Attitude switch
     {
-        if (Attitude == KeplerAttitude.FacesParent)
-        {
-            (Double3 position, Double3 velocity) = StateAt(time, mu);
-            return FacingAngularVelocity(position, velocity);
-        }
+        KeplerAttitude.Spin => Spin.AngularVelocity,
+        KeplerAttitude.FacesParent => FacingAngularVelocityAt(time, mu)
+    };
 
-        return Spin.AngularVelocity;
+    /// <summary>The angular velocity of <see cref="AngularVelocityAt"/> for <see cref="KeplerAttitude.FacesParent"/>.</summary>
+    private readonly Double3 FacingAngularVelocityAt(double time, double mu)
+    {
+        (Double3 position, Double3 velocity) = StateAt(time, mu);
+        return FacingAngularVelocity(position, velocity);
     }
 
     /// <summary>
@@ -179,10 +182,15 @@ public record struct KeplerOrbit(
     /// h = r × v is constant on a two-body orbit, so only r² changes: dω/dt = h · d(1/r²)/dt = -2 h (r · v) / r⁴. That is
     /// zero at the apsides and on a circular orbit. A frame that faces a parent without G·M does not turn.
     /// </summary>
-    public readonly Double3 AngularAccelerationAt(double time, double mu)
+    public readonly Double3 AngularAccelerationAt(double time, double mu) => Attitude switch
     {
-        if (Attitude != KeplerAttitude.FacesParent)
-            return Double3.Zero;
+        KeplerAttitude.Spin => Double3.Zero,
+        KeplerAttitude.FacesParent => FacingAngularAccelerationAt(time, mu)
+    };
+
+    /// <summary>The angular acceleration of <see cref="AngularAccelerationAt"/> for <see cref="KeplerAttitude.FacesParent"/>.</summary>
+    private readonly Double3 FacingAngularAccelerationAt(double time, double mu)
+    {
         (Double3 position, Double3 velocity) = StateAt(time, mu);
         double r2 = position.LengthSquared;
         return r2 == 0
@@ -207,7 +215,11 @@ public record struct KeplerOrbit(
         double eccentric = EccentricAnomalyAt(stepEnd, mu, out double turns);
         bool orbits = Orbits(mu);
         (Double3 position, Double3 velocity) = orbits ? StateAtAnomaly(eccentric, mu) : (Double3.Zero, Double3.Zero);
-        bool faces = Attitude == KeplerAttitude.FacesParent;
+        bool faces = Attitude switch
+        {
+            KeplerAttitude.Spin => false,
+            KeplerAttitude.FacesParent => true
+        };
         DQuaternion rotation = faces ? FacingParentAtAnomaly(eccentric, turns) : Spin.RotationAt(stepEnd);
         Double3 angularVelocity = faces ? FacingAngularVelocity(position, velocity) : Spin.AngularVelocity;
         // At the parent's origin, the chord and the pull would divide zero by zero.

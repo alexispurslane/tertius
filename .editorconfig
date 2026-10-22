@@ -31,7 +31,7 @@ resharper_csharp_default_private_modifier = explicit
 resharper_csharp_parentheses_redundancy_style = remove_if_not_clarifies_precedence
 resharper_csharp_accessor_declaration_body = expression_body
 # Modern syntax that ReSharper's cleanup does not write. tools/cleanup.sh applies these Roslyn fixes with dotnet format
-# style before jb cleanupcode. Builds do not report them, because EnforceCodeStyleInBuild is off. Rider shows them as
+# style before jb cleanupcode. Builds do not report them, because a build reports only warnings and errors. Rider shows them as
 # suggestions. tools/cleanup.sh reads its list of rules from the dotnet_diagnostic.IDE lines here.
 dotnet_style_prefer_collection_expression = when_types_loosely_match
 # collection initializers and expressions
@@ -212,6 +212,12 @@ dotnet_diagnostic.CA2208.severity = none
 dotnet_diagnostic.CA1716.severity = none
 # Type names that end in Flags: the [Flags] enums say what they hold, such as RenderFlags and IntentFlags.
 dotnet_diagnostic.CA1711.severity = none
+# Switches over closed sets (docs/plans/code-quality-tooling.md, decision 14). IDE0010 fails the build at an enum switch
+# statement that does not name every member, and at any switch statement without a default case. The only IDE rule that
+# the build reports. IDE0072 stays off: it demands a discard arm on enum switch expressions, and that arm hides a missing
+# member from CS8509.
+dotnet_diagnostic.IDE0010.severity = error
+dotnet_diagnostic.IDE0072.severity = none
 
 [src/Tertius.Rendering/Passes/**.cs]
 # Overrides of Dispose that skip base.Dispose(): RenderPass.Dispose is an empty hook that owns nothing.

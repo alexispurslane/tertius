@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
 namespace Tertius.Simulation;
@@ -171,9 +172,11 @@ public readonly ref struct FoundEntities
                     near.Sort();
                     candidates = near;
                     break;
-                default:
+                case QueryIndex.Components or QueryIndex.Frame or QueryIndex.Nothing:
                     candidates = plan.Candidates;
                     break;
+                default:
+                    throw new UnreachableException($"A query plan has the index {plan.Index}, which is not a member.");
             }
         }
 

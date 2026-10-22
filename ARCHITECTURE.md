@@ -1263,3 +1263,13 @@ Reflection runs only in `Blueprints.Register`, which C# code calls. For each com
 - Tables grow only outside the parallel part of a tick, so a `ref` taken during a tick is always valid for that tick.
 - A component that needs another entity later stores its `Entity` handle and checks it on use.
 - Mod support will need a registry that drops every reference to mod types before unloading. That work is deferred.
+
+## Switches over closed sets
+
+A closed set is an enum, a custom `[Union]` struct, or a `closed` record hierarchy such as `ShapeDesc`. A new member of a closed set fails the build at every switch expression that dispatches on it. Three settings give this rule:
+
+- `CS8524` is off (`Directory.Build.props`). That warning reports an enum switch expression that names every member but not the unnamed values, such as `(BodyMotion)9`. Without it, an enum switch expression names every member and has no discard arm, and `CS8509` reports a missing member. An unnamed value throws `SwitchExpressionException`. Public inputs keep their `Enum.IsDefined` guards.
+- A switch expression over a union ends in a `null` arm for the empty value, never in a discard arm. A guarded arm does not count toward exhaustiveness, so a guarded case also gets an arm without a guard.
+- The build runs `IDE0010` as an error, and no other IDE rule. It reports an enum switch statement that does not name every member, and any switch statement without a default case.
+
+A switch that chooses a value is a switch expression. A switch statement stays only where statements are more natural: arms that run their own loops, return early or change several locals. No tool finds a missing case in a statement over a union, so such a statement names the cases that do nothing and throws `UnreachableException` in its default case. Open sets keep a discard arm: strings, numbers, the keys of Silk.NET, the transitions of a flat state machine, and the private kind tag inside each union struct.

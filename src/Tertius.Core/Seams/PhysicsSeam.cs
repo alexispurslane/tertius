@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 using Tertius.Frames.Rails;
 
@@ -38,19 +39,16 @@ public enum ShapeKind : byte
 
 /// <summary>
 /// A collision shape. Shape descriptions are immutable and shared. Backends cache native shapes by reference. The set of
-/// shapes is closed: only the six records below derive from it.
+/// shapes is closed: only the six sealed records below derive from it, and a switch expression over a shape that misses
+/// one of them fails the build.
 /// </summary>
-public abstract record ShapeDesc
+public closed record ShapeDesc
 {
     /// <summary>
     /// The convex radius, in m, that a <see cref="BoxShapeDesc"/> or a <see cref="ConvexHullShapeDesc"/> gets when its
     /// description names none: 5 cm, Jolt's own default.
     /// </summary>
     public const float DefaultConvexRadius = 0.05f;
-
-    private protected ShapeDesc()
-    {
-    }
 
     /// <summary>Which of the six shape records this is.</summary>
     public ShapeKind Kind => this switch
@@ -60,8 +58,7 @@ public abstract record ShapeDesc
         CapsuleShapeDesc => ShapeKind.Capsule,
         ConvexHullShapeDesc => ShapeKind.ConvexHull,
         MeshShapeDesc => ShapeKind.Mesh,
-        CompoundShapeDesc => ShapeKind.Compound,
-        _ => throw new NotSupportedException($"The shape type {GetType().Name} is not one of the six shape records.")
+        CompoundShapeDesc => ShapeKind.Compound
     };
 
     /// <summary>
@@ -207,7 +204,7 @@ public abstract record ShapeDesc
 
                 return null;
             default:
-                return $"is a {GetType().Name}, which physics does not know";
+                throw new UnreachableException($"The shape {this} has a case that the check does not know.");
         }
     }
 
@@ -238,8 +235,10 @@ public abstract record ShapeDesc
                     if (child.Shape?.ContainsMesh() == true)
                         return true;
                 return false;
-            default:
+            case BoxShapeDesc or SphereShapeDesc or CapsuleShapeDesc or ConvexHullShapeDesc or CompoundShapeDesc:
                 return false;
+            default:
+                throw new UnreachableException($"The shape {this} has a case that the check does not know.");
         }
     }
 
@@ -263,8 +262,10 @@ public abstract record ShapeDesc
                     if (!IsSharpPiece(child.Shape))
                         return false;
                 return true;
-            default:
+            case BoxShapeDesc or SphereShapeDesc or CapsuleShapeDesc or ConvexHullShapeDesc or CompoundShapeDesc:
                 return false;
+            default:
+                throw new UnreachableException($"The shape {this} has a case that the check does not know.");
         }
 
         static bool IsSharpPiece(ShapeDesc? piece) => piece switch
@@ -272,7 +273,7 @@ public abstract record ShapeDesc
             BoxShapeDesc box => box.ConvexRadius == 0,
             ConvexHullShapeDesc hull => hull.ConvexRadius == 0,
             MeshShapeDesc or CompoundShapeDesc => piece.IsMadeOfSharpPieces(),
-            _ => false
+            SphereShapeDesc or CapsuleShapeDesc or null => false
         };
     }
 }

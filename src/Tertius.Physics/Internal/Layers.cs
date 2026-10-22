@@ -56,7 +56,7 @@ internal static class Layers
             BodyLayer.Static => Encode(StaticRole | groups.Bits, anyOf | HullRole),
             BodyLayer.Moving => Encode(MovingRole | groups.Bits, anyOf),
             BodyLayer.Ghost => Encode(GhostRole | groups.Bits, anyOf),
-            _ => FrameHull
+            BodyLayer.FrameHull => FrameHull
         };
     }
 

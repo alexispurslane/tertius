@@ -1,4 +1,5 @@
 using Silk.NET.Vulkan;
+using System.Diagnostics;
 
 namespace Tertius.Rendering;
 
@@ -109,6 +110,8 @@ internal sealed unsafe class TransparentPass : RenderPass
                         Bind(vk, commandBuffer, ref bound, puffPipeline);
                         vk.CmdDraw(commandBuffer, 6, (uint)count, 0, (uint)first);
                         break;
+                    default:
+                        throw new UnreachableException($"The transparent run {run} has a case that the pass does not draw.");
                 }
         }
 

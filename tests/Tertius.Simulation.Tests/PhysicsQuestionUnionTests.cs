@@ -49,7 +49,7 @@ public class PhysicsQuestionUnionTests
         RayQuestion(_, _, var length, var kind) => $"ray {kind} {length}",
         ShapeCastQuestion(var shape, _, _, var length) => $"shape cast {shape.BoundingRadius} {length}",
         OverlapQuestion(var shape, var pose) => $"overlap {shape.BoundingRadius} {pose.Position.X}",
-        _ => "none"
+        null => "none"
     };
 
     private static RayQuestion Ray(RayCastKind kind = RayCastKind.Nearest) => new(Start, Along, 50, kind);

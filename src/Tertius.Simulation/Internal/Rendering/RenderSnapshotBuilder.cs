@@ -417,7 +417,7 @@ internal sealed partial class RenderSnapshotBuilder
                 instance.PreviousRotation = previous.Rotation.ToQuaternion();
             }
 
-            // The default light holds no case, so no arm takes it and the entity adds no light.
+            // The default light holds no case, so the entity adds no light.
             switch (render.Light)
             {
                 case PointLightData(var offset, var color, var intensity, var range):
@@ -437,6 +437,10 @@ internal sealed partial class RenderSnapshotBuilder
                         color, intensity, range, innerConeAngle, outerConeAngle);
                     break;
                 }
+                case null:
+                    break;
+                default:
+                    throw new UnreachableException($"The light {render.Light} has a case that the snapshot does not draw.");
             }
         }
     }
@@ -525,7 +529,8 @@ internal sealed partial class RenderSnapshotBuilder
                     Region = region.GetValueOrDefault()
                 },
             PointGravity { Mu: > 0 } => new() { Up = HemisphereUp.AwayFrom(Vector3.Zero) },
-            _ => default
+            // A field without a pull, and no field, give the even mix.
+            UniformGravity or PointGravity or null => default
         };
     }
 
@@ -651,9 +656,7 @@ internal sealed partial class RenderSnapshotBuilder
                 NumericMode.Falling => new FallingOutline(center, radius),
                 NumericMode.Resting => new RestingOutline(center, radius),
                 NumericMode.Nesting => new NestingOutline(center, radius),
-                NumericMode.Following => new FollowingOutline(center, radius),
-                var mode => throw new UnreachableException(
-                    $"A frame has the numeric mode {mode}, which has no outline.")
+                NumericMode.Following => new FollowingOutline(center, radius)
             });
         }
     }

@@ -390,19 +390,16 @@ public sealed partial class JoltPhysicsBackend
         inverseMass = 0;
         if (RecordFor(userData) is not { } record)
             return null;
-        switch (BodyUserData.Kind(userData))
+        float bodyInverseMass = record.Desc.Mass > 0 ? 1f / record.Desc.Mass : 0f;
+        (Entity? entity, inverseMass) = BodyUserData.Kind(userData) switch
         {
-            case BodyKind.Primary or BodyKind.Ghost when record.Motion is BodyMotion.Dynamic or BodyMotion.Character:
-            case BodyKind.CharacterInner:
-                inverseMass = record.Desc.Mass > 0 ? 1f / record.Desc.Mass : 0f;
-                return record.Entity;
-            case BodyKind.Primary:
-            case BodyKind.Interior:
-            case BodyKind.Ghost:
-                return record.Entity;
-            default:
-                return null;
-        }
+            BodyKind.Primary or BodyKind.Ghost when record.Motion is BodyMotion.Dynamic or BodyMotion.Character =>
+                (record.Entity, bodyInverseMass),
+            BodyKind.CharacterInner => (record.Entity, bodyInverseMass),
+            BodyKind.Primary or BodyKind.Interior or BodyKind.Ghost => (record.Entity, 0f),
+            BodyKind.None => ((Entity?)null, 0f)
+        };
+        return entity;
     }
 
     /// <summary>

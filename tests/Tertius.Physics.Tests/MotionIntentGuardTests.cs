@@ -78,6 +78,8 @@ public class MotionIntentGuardTests
             case SteerTarget steer:
                 self.Body.SteerTo(steer.Pose);
                 break;
+            default:
+                throw new ArgumentException($"The motion intent {move} has no writer here.", nameof(move));
         }
     }
 

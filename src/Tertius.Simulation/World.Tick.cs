@@ -461,7 +461,7 @@ public sealed partial class World
             SteerTarget steer => steer.Pose.IsValid
                 ? null
                 : $"needs a steer target with a finite position and a finite rotation that is not zero, not {steer.Pose}",
-            _ => null
+            null => null
         };
     }
 
@@ -475,7 +475,7 @@ public sealed partial class World
         MotionSample sample => new(sample with { Pose = sample.Pose.WithUnitRotation() }),
         EndPose end => new(new EndPose(end.Pose.WithUnitRotation())),
         SteerTarget steer => new(new SteerTarget(steer.Pose.WithUnitRotation())),
-        _ => move
+        null => move
     };
 
     /// <summary>
@@ -568,7 +568,7 @@ public sealed partial class World
             EndPose end => (end.Pose, intent.Frame),
             MotionSample sample => (sample.Pose, intent.Frame),
             _ when (intent.Flags & IntentFlags.Teleport) != 0 => (intent.TeleportPose, intent.Frame),
-            _ => PoseNowAtRunningStepEnd(entity, front)
+            SteerTarget or null => PoseNowAtRunningStepEnd(entity, front)
         };
         return from == frame ? pose : DPose.Compose(Frames.Relative(from, LiveFrame(frame)), pose);
     }

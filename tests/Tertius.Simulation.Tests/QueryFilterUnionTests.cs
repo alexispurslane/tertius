@@ -59,7 +59,7 @@ public class QueryFilterUnionTests
         NearEntity(var other, var radius) => $"entity {other.Index} {radius}",
         NearPoint(var frame, var point, var radius) => $"point {frame.Index} {point.Z} {radius}",
         WhereFilter(var predicate) => $"where {predicate(default, default)}",
-        _ => "none"
+        null => "none"
     };
 
     /// <summary>One filter of each case, each with fields that no other filter shares.</summary>

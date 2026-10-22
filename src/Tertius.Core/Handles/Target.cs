@@ -77,6 +77,6 @@ public readonly struct Target : IEquatable<Target>
         Entity e => $"Target({e})",
         Topic t => $"Target({Topics.NameOf(t)})",
         Broadcast => "Target(broadcast)",
-        _ => "Target(none)"
+        null => "Target(none)"
     };
 }

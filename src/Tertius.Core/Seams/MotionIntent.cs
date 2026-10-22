@@ -185,7 +185,8 @@ public readonly struct MotionIntent : IEquatable<MotionIntent>
                 {
                     BodyMotion.Dynamic => MotionIntentRefusal.None,
                     null => MotionIntentRefusal.SteerWithoutBody,
-                    _ => MotionIntentRefusal.NeedsDynamicBody
+                    BodyMotion.Static or BodyMotion.Kinematic or BodyMotion.Character =>
+                        MotionIntentRefusal.NeedsDynamicBody
                 };
     }
 
@@ -219,7 +220,8 @@ public readonly struct MotionIntent : IEquatable<MotionIntent>
             MotionIntentRefusal.SteerOfRootFrame =>
                 "owns a root frame, whose body is only the frame's static interior, so it has nothing to steer with a steer target",
             MotionIntentRefusal.SteerWithoutBody => "has no body, so it has nothing to steer with a steer target",
-            _ => $"has a {motion} body, so it cannot take a steer target: only a dynamic body takes one"
+            MotionIntentRefusal.NeedsDynamicBody =>
+                $"has a {motion} body, so it cannot take a steer target: only a dynamic body takes one"
         };
     }
 
@@ -234,7 +236,7 @@ public readonly struct MotionIntent : IEquatable<MotionIntent>
         EndPose end => $"MotionIntent({end})",
         MotionSample full => $"MotionIntent({full})",
         SteerTarget steer => $"MotionIntent({steer})",
-        _ => "MotionIntent(none)"
+        null => "MotionIntent(none)"
     };
 }
 

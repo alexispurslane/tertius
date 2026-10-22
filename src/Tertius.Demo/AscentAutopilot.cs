@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Tertius.Frames.Rails;
 using Tertius.Simulation;
@@ -240,6 +241,10 @@ public sealed class AscentAutopilot(double maxThrust, double orbitRadius, double
                     MaxTurnRate = AttitudeAutopilot.MaxTurnRate
                 });
                 break;
+            case Parked or Orbit or null:
+                break;
+            default:
+                throw new UnreachableException($"The ascent state {State} has a case that the autopilot does not fly.");
         }
     }
 }

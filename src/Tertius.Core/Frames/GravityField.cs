@@ -70,7 +70,7 @@ public readonly struct GravityField : IEquatable<GravityField>
         UniformGravity { Acceleration: var acceleration, Region: var region } =>
             IsFinite(acceleration) && (region is not { } box || (IsFinite(box.Min) && IsFinite(box.Max))),
         PointGravity { Mu: var mu } => double.IsFinite(mu) && mu >= 0,
-        _ => true
+        null => true
     };
 
     /// <summary>
@@ -106,21 +106,22 @@ public readonly struct GravityField : IEquatable<GravityField>
     /// <summary>
     /// Like <see cref="At"/>, in doubles, for a caller that subtracts another acceleration before it narrows the result.
     /// </summary>
-    public Double3 AtPrecise(Double3 position)
+    public Double3 AtPrecise(Double3 position) => this switch
     {
-        switch (this)
-        {
-            case UniformGravity { Acceleration: var acceleration, Region: var region }:
-                return region is { } box && !box.Contains(position.ToVector3()) ? Double3.Zero : acceleration;
-            case PointGravity { Mu: var mu }:
-                double r2 = position.LengthSquared;
-                if (r2 < 1e-6)
-                    return Double3.Zero;
-                double r = Math.Sqrt(r2);
-                return position * (-mu / (r2 * r));
-            default:
-                return Double3.Zero;
-        }
+        UniformGravity { Acceleration: var acceleration, Region: var region } =>
+            region is { } box && !box.Contains(position.ToVector3()) ? Double3.Zero : acceleration,
+        PointGravity { Mu: var mu } => PullAt(position, mu),
+        null => Double3.Zero
+    };
+
+    /// <summary>The pull of a point mass of gravitational parameter <paramref name="mu"/>, in m³/s², at the origin.</summary>
+    private static Double3 PullAt(Double3 position, double mu)
+    {
+        double r2 = position.LengthSquared;
+        if (r2 < 1e-6)
+            return Double3.Zero;
+        double r = Math.Sqrt(r2);
+        return position * (-mu / (r2 * r));
     }
 
     public bool Equals(GravityField other) => kind == other.kind && kind switch
@@ -146,6 +147,6 @@ public readonly struct GravityField : IEquatable<GravityField>
     {
         UniformGravity u => $"GravityField({u})",
         PointGravity p => $"GravityField({p})",
-        _ => "GravityField(none)"
+        null => "GravityField(none)"
     };
 }

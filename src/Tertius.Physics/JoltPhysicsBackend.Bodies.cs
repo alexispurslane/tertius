@@ -45,7 +45,7 @@ public sealed partial class JoltPhysicsBackend
     {
         BodyMotion.Static => MotionType.Static,
         BodyMotion.Kinematic => MotionType.Kinematic,
-        _ => MotionType.Dynamic
+        BodyMotion.Dynamic or BodyMotion.Character => MotionType.Dynamic
     };
 
     /// <summary>
@@ -58,7 +58,7 @@ public sealed partial class JoltPhysicsBackend
     {
         BodyMotion.Character => BodyLayer.Moving,
         BodyMotion.Static when desc.Layer == BodyLayer.Moving => BodyLayer.Static,
-        _ => desc.Layer
+        BodyMotion.Static or BodyMotion.Kinematic or BodyMotion.Dynamic => desc.Layer
     };
 
     /// <summary>

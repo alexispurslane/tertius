@@ -48,7 +48,7 @@ public class RenderLightUnionTests
     {
         PointRenderLight(var position, _, var intensity, var range) => $"point {position.X} {intensity} {range}",
         SpotRenderLight(_, var direction, _, _, _, var inner, var outer) => $"spot {direction.Y} {inner} {outer}",
-        _ => "none"
+        null => "none"
     };
 
     // ---- The default value ---------------------------------------------------------------------------------------
@@ -175,7 +175,7 @@ public class RenderLightUnionTests
         {
             PointRenderLight(_, _, _, var range) => range,
             SpotRenderLight(_, _, _, _, var range, _, _) => range,
-            _ => 0
+            null => 0
         };
     }
 

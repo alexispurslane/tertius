@@ -99,6 +99,9 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
                         charging = false;
                         Throw(self, outbox);
                         break;
+                    default:
+                        // Every other input does nothing.
+                        break;
                 }
             }
         }

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 using Silk.NET.Input;
 using Tertius.Simulation;
@@ -137,12 +138,19 @@ public sealed class PersonControl(Vector3 eye) : IComponent
                 yaw = MathF.IEEERemainder(yaw - delta.X * TurnPerPixel, 2 * MathF.PI);
                 pitch = Math.Clamp(pitch - delta.Y * TurnPerPixel, -MaxPitch, MaxPitch);
                 break;
+            case MouseButtonChanged or Scrolled or null:
+                break;
+            default:
+                throw new UnreachableException($"The input {input} has a case that the person does not read.");
         }
     }
 
     private void Hold(Key key, bool down)
     {
+        // Key is the whole keyboard of Silk.NET, an open set for this switch: most keys mean nothing to a person.
+#pragma warning disable IDE0010
         switch (key)
+#pragma warning restore IDE0010
         {
             case Key.W:
                 forward = down;
@@ -165,6 +173,9 @@ public sealed class PersonControl(Vector3 eye) : IComponent
                 break;
             case Key.E:
                 use |= down;
+                break;
+            default:
+                // Every other key does nothing.
                 break;
         }
     }

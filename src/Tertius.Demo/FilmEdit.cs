@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Tertius.Host.Scripting;
 
 namespace Tertius.Demo;
@@ -54,6 +55,10 @@ public sealed record ScriptFilm(
                 case CaptureStep capture:
                     throw new ScriptException(
                         $"The script has the capture '{capture.Name}', and the edit takes only film steps for captures.");
+                case PostStep or DumpStep or null:
+                    break;
+                default:
+                    throw new UnreachableException($"The step {step.Value} has a case that the edit does not know.");
             }
 
         return films;

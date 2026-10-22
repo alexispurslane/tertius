@@ -87,6 +87,6 @@ public readonly struct HemisphereUp : IEquatable<HemisphereUp>
     {
         UpAlong a => $"HemisphereUp({a})",
         UpAwayFrom a => $"HemisphereUp({a})",
-        _ => "HemisphereUp(even)"
+        null => "HemisphereUp(even)"
     };
 }

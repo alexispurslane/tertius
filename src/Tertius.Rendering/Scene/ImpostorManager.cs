@@ -624,7 +624,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
             {
                 UpAlong along => along.Direction,
                 UpAwayFrom away when away.Center.Length() > instance.Radius => Vector3.Normalize(-away.Center),
-                _ => Vector3.Zero
+                UpAwayFrom or null => Vector3.Zero
             };
             Vector3 upInObject = Vector3.Transform(up, inverse) * (sky - ground).Length();
             if (!lights.IsEmpty)

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Tertius.Frames.Rails;
 
 namespace Tertius;
@@ -180,6 +181,10 @@ public sealed partial class FrameTree
                 level = angularVelocity[id] + angularAcceleration[id] * step;
                 end = DQuaternion.FromAxisAngle(level, level.Length * step) * start;
                 break;
+            case FollowKind.Static:
+                break;
+            default:
+                throw new UnreachableException($"A frame has the follow kind {kind}, which is not a member.");
         }
 
         DQuaternion turn = parentTurn.IsIdentity && start == end

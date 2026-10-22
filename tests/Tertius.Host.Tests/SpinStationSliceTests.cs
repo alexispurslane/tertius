@@ -528,6 +528,9 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
                     break;
                 case CaptureStep c when c.Name == name:
                     return (tick, view ?? throw new InvalidOperationException($"no view before the capture {name}"));
+                default:
+                    // The other steps move neither the tick nor the view.
+                    break;
             }
 
         return null;

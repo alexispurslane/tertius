@@ -46,8 +46,7 @@ internal sealed class ShapeCache : IDisposable
         CapsuleShapeDesc capsule => CreateCapsule(capsule),
         ConvexHullShapeDesc hull => CreateHull(hull),
         MeshShapeDesc mesh => CreateMesh(mesh),
-        CompoundShapeDesc compound => CreateCompound(compound),
-        _ => throw new NotSupportedException($"Shape type {desc.GetType().Name} is not supported by the Jolt backend.")
+        CompoundShapeDesc compound => CreateCompound(compound)
     };
 
     private static BoxShape CreateBox(BoxShapeDesc box)

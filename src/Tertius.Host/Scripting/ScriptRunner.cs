@@ -285,7 +285,7 @@ public static class ScriptRunner
             ? frame.Topic
             : throw new ScriptException($"{where}: the entity '{id}' owns no frame."),
         ToEveryone => new Broadcast(),
-        _ => throw new InvalidOperationException($"The runner has no arm for the target {to}.")
+        null => throw new InvalidOperationException("A post step has a target with no value, which Script.CheckSteps refuses.")
     };
 
     private static Entity LiveEntity(string id, World world, SceneInstance scene, string where) =>
