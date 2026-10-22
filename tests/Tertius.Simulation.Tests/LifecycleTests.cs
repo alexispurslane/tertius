@@ -262,7 +262,7 @@ public class LifecycleTests
     {
         using var t = new TestWorld();
         Entity doomed = t.SpawnWith();
-        Entity bystander = t.SpawnAt(new Double3(4, 0, 0), new Recorder());
+        Entity bystander = t.SpawnAt(new(4, 0, 0), new Recorder());
 
         t.World.Destroy(doomed);
 
@@ -279,8 +279,11 @@ public class LifecycleTests
         // the free list gives slots back in the order they were freed, so the next three spawns get the same handles in
         // every run.
         using var t = new TestWorld(chunkSize: 1);
-        Entity[] doomed = [.. Enumerable.Range(0, 3).Select(_ =>
-            t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy())))];
+        Entity[] doomed =
+        [
+            .. Enumerable.Range(0, 3).Select(_ =>
+                t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy())))
+        ];
         t.Run(1);
 
         Entity[] next = [t.SpawnWith(), t.SpawnWith(), t.SpawnWith()];
@@ -294,9 +297,9 @@ public class LifecycleTests
     [Fact]
     public void DestroyingAnEntityWithABodyOutsideATickTellsPhysicsToDropTheBody()
     {
-        using var t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld t = TestWorld.OnJolt(out FaultInjectingBackend faults);
         List<PhysicsChanges> batches = faults.AppliedChanges;
-        Entity ball = t.World.Spawn(new SpawnDesc { Frame = t.Root, Body = TestWorld.Ball });
+        Entity ball = t.World.Spawn(new() { Frame = t.Root, Body = TestWorld.Ball });
         t.Run(1);
         batches.Clear();
 
@@ -308,17 +311,20 @@ public class LifecycleTests
     [Fact]
     public void AnEntityWithABodyThatDestroysItselfIsDroppedFromPhysicsAtTheSyncPoint()
     {
-        using var t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld t = TestWorld.OnJolt(out FaultInjectingBackend faults);
         List<PhysicsChanges> batches = faults.AppliedChanges;
-        Entity ball = t.World.Spawn(new SpawnDesc
+        Entity ball = t.World.Spawn(new()
         {
             Frame = t.Root,
             Body = TestWorld.Ball,
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            {
-                if (self.Tick == 1)
-                    self.Destroy();
-            })],
+            Components =
+            [
+                Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 1)
+                        self.Destroy();
+                })
+            ]
         });
 
         t.Run(2);
@@ -329,7 +335,7 @@ public class LifecycleTests
     [Fact]
     public void DestroyingAnEntityWithoutABodyTellsPhysicsNothingAboutBodies()
     {
-        using var t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld t = TestWorld.OnJolt(out FaultInjectingBackend faults);
         List<PhysicsChanges> batches = faults.AppliedChanges;
         Entity plain = t.SpawnWith();
         t.Run(1);

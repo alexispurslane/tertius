@@ -1,4 +1,6 @@
-using Tertius.Host.Scripting;
+using System.Text.Json;
+using Tertius.Demo;
+using Tertius.Rendering;
 using static Tertius.Host.Tests.HostTesting;
 
 namespace Tertius.Host.Tests;
@@ -9,10 +11,12 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class ScriptCommandTests : IDisposable
 {
+    private static readonly Scene[] Scenes = [ProbesScene, BoxOnFloorScene, LoggerScene];
     private readonly string folder = NewFolder();
     private readonly StringWriter output = new();
     private readonly StringWriter error = new();
-    private static readonly Scene[] Scenes = [ProbesScene, BoxOnFloorScene, LoggerScene];
+
+    private string Out => Path.Combine(folder, "out");
 
     public void Dispose() => Directory.Delete(folder, recursive: true);
 
@@ -23,20 +27,21 @@ public sealed class ScriptCommandTests : IDisposable
         return path;
     }
 
-    private string Out => Path.Combine(folder, "out");
-
     private int Run(params string[] args) => ScriptCommand.Run(args, Scenes, output, error);
 
     [Fact]
     public void TheCommandRunsTheScriptOnTheSceneThatItNamesAndWritesTheDumps()
     {
-        string script = ScriptFile("""{ "scene": "box-on-floor", "steps": [ { "do": "dump", "name": "start" }, { "do": "run", "ticks": 60 }, { "do": "dump", "name": "landed" } ] }""");
+        string script =
+            ScriptFile(
+                """{ "scene": "box-on-floor", "steps": [ { "do": "dump", "name": "start" }, { "do": "run", "ticks": 60 }, { "do": "dump", "name": "landed" } ] }""");
 
         int code = Run("--script", script, "--headless", "--out", Out);
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
         File.ReadAllText(Path.Combine(Out, "landed.json")).Should().Contain("\"box\"");
-        output.ToString().Should().Be(Path.Combine(Out, "start.json") + Environment.NewLine + Path.Combine(Out, "landed.json") + Environment.NewLine);
+        output.ToString().Should().Be(Path.Combine(Out, "start.json") + Environment.NewLine +
+                                      Path.Combine(Out, "landed.json") + Environment.NewLine);
     }
 
     [Fact]
@@ -61,7 +66,8 @@ public sealed class ScriptCommandTests : IDisposable
         int code = Run("--script", script, "--headless", "--out", taken);
 
         code.Should().Be(ScriptCommand.FileError);
-        error.ToString().Should().StartWith($"Cannot write into {taken}: ", "the window reports a dump that cannot be written in the same words");
+        error.ToString().Should().StartWith($"Cannot write into {taken}: ",
+            "the window reports a dump that cannot be written in the same words");
     }
 
     [Fact]
@@ -78,7 +84,9 @@ public sealed class ScriptCommandTests : IDisposable
     [Fact]
     public void AScriptThatCannotRunExitsWithTheScriptErrorCode()
     {
-        string script = ScriptFile("""{ "scene": "probes", "steps": [ { "do": "post", "to": { "kind": "entity", "id": "ghost" }, "event": "Nudge" } ] }""");
+        string script =
+            ScriptFile(
+                """{ "scene": "probes", "steps": [ { "do": "post", "to": { "kind": "entity", "id": "ghost" }, "event": "Nudge" } ] }""");
 
         int code = Run("--script", script, "--headless", "--out", Out);
 
@@ -124,14 +132,17 @@ public sealed class ScriptCommandTests : IDisposable
     [Fact]
     public void AScriptWithoutCapturesRunsWithNoRendererAndTheDemoSceneStillMakesItsEntities()
     {
-        string script = ScriptFile("""{ "scene": "drop-box", "steps": [ { "do": "run", "ticks": 120 }, { "do": "dump", "name": "landed" } ] }""");
+        string script =
+            ScriptFile(
+                """{ "scene": "drop-box", "steps": [ { "do": "run", "ticks": 120 }, { "do": "dump", "name": "landed" } ] }""");
 
-        int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out], Tertius.Demo.DemoScenes.All, output, error,
+        int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out], DemoScenes.All, output, error,
             _ => throw new InvalidOperationException("a script without captures makes no renderer"));
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
-        using var landed = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(Out, "landed.json")));
-        System.Text.Json.JsonElement box = landed.RootElement.GetProperty("entities").EnumerateArray().Single(e => e.GetProperty("id").GetString() == "box");
+        using JsonDocument landed = JsonDocument.Parse(File.ReadAllText(Path.Combine(Out, "landed.json")));
+        JsonElement box = landed.RootElement.GetProperty("entities").EnumerateArray()
+            .Single(e => e.GetProperty("id").GetString() == "box");
         box.GetProperty("pose").GetProperty("position")[1].GetDouble().Should().BeApproximately(0.5, 0.02);
     }
 
@@ -140,7 +151,8 @@ public sealed class ScriptCommandTests : IDisposable
     [InlineData("not both", "--script", "script.json", "--scene", "no-such-scene", "--out", "out")]
     [InlineData("free play", "--scene", "no-such-scene", "--headless")]
     [InlineData("--out applies to a script", "--scene", "no-such-scene", "--out", "out")]
-    [InlineData("--speed applies to the window", "--script", "script.json", "--headless", "--out", "out", "--speed", "2")]
+    [InlineData("--speed applies to the window", "--script", "script.json", "--headless", "--out", "out", "--speed",
+        "2")]
     [InlineData("positive", "--scene", "no-such-scene", "--speed", "0")]
     [InlineData("positive", "--scene", "no-such-scene", "--speed", "-1")]
     [InlineData("positive", "--scene", "no-such-scene", "--speed", "fast")]
@@ -150,19 +162,26 @@ public sealed class ScriptCommandTests : IDisposable
     [InlineData("--scene needs a value", "--scene")]
     [InlineData("--record needs a value", "--scene", "no-such-scene", "--record")]
     [InlineData("--record applies to free play", "--script", "script.json", "--out", "out", "--record", "record.json")]
-    [InlineData("--record applies to free play", "--script", "script.json", "--headless", "--out", "out", "--record", "record.json")]
+    [InlineData("--record applies to free play", "--script", "script.json", "--headless", "--out", "out", "--record",
+        "record.json")]
     [InlineData("--video applies to a headless run", "--script", "script.json", "--out", "out", "--video", "v.mkv")]
     [InlineData("--video applies to a headless run", "--scene", "no-such-scene", "--video", "v.mkv")]
     [InlineData("--video needs a value", "--script", "script.json", "--headless", "--out", "out", "--video")]
     [InlineData("ends in .mkv", "--script", "script.json", "--headless", "--out", "out", "--video", "v.mp4")]
     [InlineData("ends in .mkv", "--script", "script.json", "--headless", "--out", "out", "--video", "mkv")]
     [InlineData("--fps applies to a video", "--script", "script.json", "--headless", "--out", "out", "--fps", "30")]
-    [InlineData("--fps needs a value", "--script", "script.json", "--headless", "--out", "out", "--video", "v.mkv", "--fps")]
-    [InlineData("whole number from 1 to 240", "--script", "script.json", "--headless", "--out", "out", "--video", "v.mkv", "--fps", "0")]
-    [InlineData("whole number from 1 to 240", "--script", "script.json", "--headless", "--out", "out", "--video", "v.mkv", "--fps", "241")]
-    [InlineData("whole number from 1 to 240", "--script", "script.json", "--headless", "--out", "out", "--video", "v.mkv", "--fps", "29.97")]
-    [InlineData("whole number from 1 to 240", "--script", "script.json", "--headless", "--out", "out", "--video", "v.mkv", "--fps", "fast")]
-    public void AnOptionThatTheWindowRulesRefuseExitsWithTheCommandLineErrorCodeAndNamesTheRule(string rule, params string[] args)
+    [InlineData("--fps needs a value", "--script", "script.json", "--headless", "--out", "out", "--video", "v.mkv",
+        "--fps")]
+    [InlineData("whole number from 1 to 240", "--script", "script.json", "--headless", "--out", "out", "--video",
+        "v.mkv", "--fps", "0")]
+    [InlineData("whole number from 1 to 240", "--script", "script.json", "--headless", "--out", "out", "--video",
+        "v.mkv", "--fps", "241")]
+    [InlineData("whole number from 1 to 240", "--script", "script.json", "--headless", "--out", "out", "--video",
+        "v.mkv", "--fps", "29.97")]
+    [InlineData("whole number from 1 to 240", "--script", "script.json", "--headless", "--out", "out", "--video",
+        "v.mkv", "--fps", "fast")]
+    public void AnOptionThatTheWindowRulesRefuseExitsWithTheCommandLineErrorCodeAndNamesTheRule(string rule,
+        params string[] args)
     {
         int code = Run(args);
 
@@ -186,11 +205,14 @@ public sealed class ScriptCommandTests : IDisposable
     [Fact]
     public void TheVideoOptionsCarryTheFileAndTheFrameRateWhichIs30WithoutFps()
     {
-        ScriptCommand.Options? rated = ScriptCommand.ReadOptions(["--script", "s.json", "--headless", "--out", "o", "--video", "o/v.mkv", "--fps", "24"], out _);
-        ScriptCommand.Options? plain = ScriptCommand.ReadOptions(["--script", "s.json", "--headless", "--out", "o", "--video", "o/v.mkv"], out _);
+        ScriptCommand.Options? rated =
+            ScriptCommand.ReadOptions(
+                ["--script", "s.json", "--headless", "--out", "o", "--video", "o/v.mkv", "--fps", "24"], out _);
+        ScriptCommand.Options? plain =
+            ScriptCommand.ReadOptions(["--script", "s.json", "--headless", "--out", "o", "--video", "o/v.mkv"], out _);
 
-        rated.Should().Be(new ScriptCommand.Options("s.json", null, "o", true, 1, Video: new VideoFile("o/v.mkv", 24)));
-        plain.Should().Be(new ScriptCommand.Options("s.json", null, "o", true, 1, Video: new VideoFile("o/v.mkv", 30)));
+        rated.Should().Be(new ScriptCommand.Options("s.json", null, "o", true, 1, Video: new("o/v.mkv", 24)));
+        plain.Should().Be(new ScriptCommand.Options("s.json", null, "o", true, 1, Video: new("o/v.mkv", 30)));
     }
 
     [Theory]
@@ -198,30 +220,41 @@ public sealed class ScriptCommandTests : IDisposable
     [InlineData("240")]
     public void TheFrameRateMayBeAnyWholeNumberFrom1To240(string rate)
     {
-        ScriptCommand.ReadOptions(["--script", "s.json", "--headless", "--out", "o", "--video", "v.mkv", "--fps", rate], out string? problem)
+        ScriptCommand.ReadOptions(["--script", "s.json", "--headless", "--out", "o", "--video", "v.mkv", "--fps", rate],
+                out string? problem)
             .Should().NotBeNull(problem);
     }
 
     [Fact]
     public void AVideoForAScriptWithNoCaptureOrFilmExitsWithTheCommandLineErrorCodeAndStartsNoFfmpeg()
     {
-        string script = ScriptFile("""{ "scene": "probes", "steps": [ { "do": "run", "ticks": 1 }, { "do": "dump", "name": "end" } ] }""");
+        string script =
+            ScriptFile(
+                """{ "scene": "probes", "steps": [ { "do": "run", "ticks": 1 }, { "do": "dump", "name": "end" } ] }""");
         string video = Path.Combine(folder, "v.mkv");
         int started = 0;
 
-        int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out, "--video", video], Scenes, output, error, Rendering.VulkanRenderer.CreateHeadless,
-            (_, _) => { started++; throw new InvalidOperationException("no ffmpeg in this test"); });
+        int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out, "--video", video], Scenes, output,
+            error, VulkanRenderer.CreateHeadless,
+            (_, _) =>
+            {
+                started++;
+                throw new InvalidOperationException("no ffmpeg in this test");
+            });
 
         code.Should().Be(ScriptCommand.CommandLineError);
         error.ToString().Should().Contain("--video").And.Contain("no capture or film step");
         started.Should().Be(0);
-        File.Exists(Path.Combine(Out, "end.json")).Should().BeFalse("the command refuses the run before the first tick");
+        File.Exists(Path.Combine(Out, "end.json")).Should()
+            .BeFalse("the command refuses the run before the first tick");
     }
 
     [Fact]
     public void TheRecordOptionOfFreePlayCarriesItsPath()
     {
-        ScriptCommand.Options? recorded = ScriptCommand.ReadOptions(["--scene", "drop-box", "--record", "sessions/today.json", "--speed", "2"], out _);
+        ScriptCommand.Options? recorded =
+            ScriptCommand.ReadOptions(["--scene", "drop-box", "--record", "sessions/today.json", "--speed", "2"],
+                out _);
 
         recorded.Should().Be(new ScriptCommand.Options(null, "drop-box", null, false, 2, "sessions/today.json"));
     }

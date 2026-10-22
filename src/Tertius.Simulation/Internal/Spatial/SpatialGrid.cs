@@ -21,14 +21,14 @@ internal sealed class SpatialGrid
     // Beyond this the cell coordinate no longer matters: such positions are broken, and they must not overflow a long.
     private const double MaxCell = 1e15;
 
-    private readonly Dictionary<CellKey, List<Entity>> cells = new();
     private readonly Stack<List<Entity>> spareLists = new();
 
-    public int CellCount => cells.Count;
+    public int CellCount => Cells.Count;
 
-    public Dictionary<CellKey, List<Entity>> Cells => cells;
+    public Dictionary<CellKey, List<Entity>> Cells { get; } = [];
 
-    public static CellKey CellOf(Double3 position) => new(Coordinate(position.X), Coordinate(position.Y), Coordinate(position.Z));
+    public static CellKey CellOf(Double3 position) =>
+        new(Coordinate(position.X), Coordinate(position.Y), Coordinate(position.Z));
 
     public static long Coordinate(double value)
     {
@@ -38,22 +38,22 @@ internal sealed class SpatialGrid
 
     public void Add(CellKey key, Entity entity)
     {
-        ref List<Entity>? list = ref CollectionsMarshal.GetValueRefOrAddDefault(cells, key, out bool exists);
+        ref List<Entity>? list = ref CollectionsMarshal.GetValueRefOrAddDefault(Cells, key, out bool exists);
         if (!exists)
-            list = spareLists.Count > 0 ? spareLists.Pop() : new List<Entity>(4);
+            list = spareLists.Count > 0 ? spareLists.Pop() : [with(4)];
         list!.Add(entity);
     }
 
     /// <summary>Removes an entity from a cell. Order inside a cell does not matter, because queries sort their results.</summary>
     public void Remove(CellKey key, Entity entity)
     {
-        ref List<Entity> list = ref CollectionsMarshal.GetValueRefOrNullRef(cells, key);
+        ref List<Entity> list = ref CollectionsMarshal.GetValueRefOrNullRef(Cells, key);
         if (Unsafe.IsNullRef(ref list) || !TakeOut(list, entity))
             return;
         if (list.Count == 0)
         {
             spareLists.Push(list);
-            cells.Remove(key);
+            Cells.Remove(key);
         }
     }
 
@@ -64,12 +64,13 @@ internal sealed class SpatialGrid
     /// </summary>
     public void Move(CellKey from, CellKey to, Entity entity)
     {
-        ref List<Entity> source = ref CollectionsMarshal.GetValueRefOrNullRef(cells, from);
+        ref List<Entity> source = ref CollectionsMarshal.GetValueRefOrNullRef(Cells, from);
         if (Unsafe.IsNullRef(ref source))
         {
             Add(to, entity);
             return;
         }
+
         if (source.Count > 1 || source[0] != entity)
         {
             // The old cell keeps its other entities.
@@ -77,21 +78,24 @@ internal sealed class SpatialGrid
             Add(to, entity);
             return;
         }
+
         List<Entity> list = source;
-        cells.Remove(from);
-        ref List<Entity>? target = ref CollectionsMarshal.GetValueRefOrAddDefault(cells, to, out bool exists);
+        Cells.Remove(from);
+        ref List<Entity>? target = ref CollectionsMarshal.GetValueRefOrAddDefault(Cells, to, out bool exists);
         if (!exists)
         {
             // The list holds this entity alone, which is what the new cell needs.
             target = list;
             return;
         }
+
         target!.Add(entity);
         list.Clear();
         spareLists.Push(list);
     }
 
-    public bool TryGetCell(CellKey key, [MaybeNullWhen(false)] out List<Entity> entities) => cells.TryGetValue(key, out entities);
+    public bool TryGetCell(CellKey key, [MaybeNullWhen(false)] out List<Entity> entities) =>
+        Cells.TryGetValue(key, out entities);
 
     /// <summary>Takes an entity out of a cell's list by moving the last entry into its place. False if the list does not hold it.</summary>
     private static bool TakeOut(List<Entity> list, Entity entity)

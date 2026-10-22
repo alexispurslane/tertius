@@ -76,6 +76,7 @@ public static partial class DemoScenes
 
         /// <summary>The lamps: one on each wall over every fourth joint of the floor, this high above it, in meters.</summary>
         private const int LampEvery = 4;
+
         private const double LampHeight = 3.8;
 
         /// <summary>The angle of one facet of the floor, in radians.</summary>
@@ -84,11 +85,12 @@ public static partial class DemoScenes
         /// <summary>How far the middle of a facet lies from the axis, in meters.</summary>
         private static double FacetMiddle => FloorRadius * Math.Cos(Facet / 2);
 
-        /// <summary>The middle of facet <paramref name="k"/>, at <paramref name="height"/> above the floor and <paramref name="y"/> along the axis.</summary>
+        /// <summary>The middle of facet <paramref name="k"/>, at <paramref name="height"/> above the floor and
+        /// <paramref name="y"/> along the axis.</summary>
         private static Double3 OnFacet(int k, double height, double y)
         {
             double theta = (k + 0.5) * Facet, radius = FacetMiddle - height;
-            return new Double3(radius * Math.Cos(theta), y, -radius * Math.Sin(theta));
+            return new(radius * Math.Cos(theta), y, -radius * Math.Sin(theta));
         }
 
         /// <summary>
@@ -106,7 +108,7 @@ public static partial class DemoScenes
         private static DPose View(double theta, double height, double pitch)
         {
             double radius = FloorRadius - height;
-            return new DPose(new Double3(radius * Math.Cos(theta), 0, -radius * Math.Sin(theta)),
+            return new(new(radius * Math.Cos(theta), 0, -radius * Math.Sin(theta)),
                 Upright(theta) * DQuaternion.FromAxisAngle(Double3.UnitX, pitch));
         }
 
@@ -118,7 +120,7 @@ public static partial class DemoScenes
         private static DPose SideView(double theta, double height, double y)
         {
             double radius = FloorRadius - height;
-            return new DPose(new Double3(radius * Math.Cos(theta), y, -radius * Math.Sin(theta)),
+            return new(new(radius * Math.Cos(theta), y, -radius * Math.Sin(theta)),
                 Upright(theta) * DQuaternion.FromAxisAngle(Double3.UnitY, -Math.PI / 2));
         }
 
@@ -126,13 +128,14 @@ public static partial class DemoScenes
             new([.. mesh.Vertices.Select(v => v.Position)], [.. mesh.Indices.Select(i => (int)i)]);
 
         /// <summary>A gray-box render row that casts no shadow.</summary>
-        private static RenderData Unshadowed(IRenderResources resources, MeshData mesh, Vector4 color, float boundingRadius) =>
+        private static RenderData Unshadowed(IRenderResources resources, MeshData mesh, Vector4 color,
+            float boundingRadius) =>
             Drawn(resources, mesh, color, boundingRadius) with { Flags = RenderFlags.Visible };
 
         public static SceneInstance Build(World world, IRenderResources resources)
         {
             var scene = new SceneInstance();
-            FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+            FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
             scene.Add("space", space);
 
             // The station turns from its first step: its spawn carries the spin's sample of the step of the next tick, and
@@ -142,97 +145,112 @@ public static partial class DemoScenes
             RevolvedSolid ring = RevolvedSolid.Ring(FloorRadius, FloorRadius + HullThickness, HalfWidth, Segments);
             MeshData ringMesh = ring.Mesh();
             ShapeDesc hull = ring.Shape();
-            Entity station = world.Spawn(new SpawnDesc
+            Entity station = world.Spawn(new()
             {
                 Frame = space,
-                Pose = new DPose(Double3.Zero, spin.RotationAt(world.Time)),
+                Pose = new(Double3.Zero, spin.RotationAt(world.Time)),
                 AngularVelocity = spin.AngularVelocity.ToVector3(),
-                FirstMove = new MotionIntent(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
+                FirstMove = new(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
                 Components = [new SpinMotion { Spin = spin }],
-                Body = new BodyDesc(hull, BodyMotion.Kinematic, Mass: 1e6f, InteriorShape: MeshShape(ringMesh)),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(Bubble)),
-                Render = Unshadowed(resources, ringMesh, new Vector4(0.62f, 0.63f, 0.66f, 1), hull.BoundingRadius()),
+                Body = new(hull, BodyMotion.Kinematic, Mass: 1e6f, InteriorShape: MeshShape(ringMesh)),
+                AsFrame = new(FrameBounds.Sphere(Bubble)),
+                Render = Unshadowed(resources, ringMesh, new(0.62f, 0.63f, 0.66f, 1), hull.BoundingRadius())
             });
             scene.Add("station", station);
             FrameHandle frame = world.GetOwnedFrame(station);
 
             RevolvedSolid wall = RevolvedSolid.Ring(FloorRadius - WallHeight, FloorRadius, WallThickness / 2, Segments);
             ShapeDesc wallShape = wall.Shape();
-            RenderData wallRender = Unshadowed(resources, wall.Mesh(), new Vector4(0.42f, 0.44f, 0.5f, 1), wallShape.BoundingRadius());
-            foreach ((string id, double y) in new[] { ("wall-left", -(HalfWidth - WallThickness / 2)), ("wall-right", HalfWidth - WallThickness / 2) })
-                scene.Add(id, world.Spawn(new SpawnDesc
+            RenderData wallRender = Unshadowed(resources, wall.Mesh(), new(0.42f, 0.44f, 0.5f, 1),
+                wallShape.BoundingRadius());
+            foreach ((string id, double y) in new[]
+                     {
+                         ("wall-left", -(HalfWidth - WallThickness / 2)), ("wall-right", HalfWidth - WallThickness / 2)
+                     })
+                scene.Add(id, world.Spawn(new()
                 {
                     Frame = frame,
-                    Pose = new DPose(new Double3(0, y, 0), DQuaternion.Identity),
-                    Body = new BodyDesc(wallShape, BodyMotion.Static),
-                    Render = wallRender,
+                    Pose = new(new(0, y, 0), DQuaternion.Identity),
+                    Body = new(wallShape, BodyMotion.Static),
+                    Render = wallRender
                 }));
 
             // Each lamp is a glowing panel on the inner face of a wall, with its light just in front of it.
-            MeshId lampMesh = resources.CreateMesh(Primitives.Box(new Vector3(0.05f, 0.3f, 0.6f)));
-            MaterialId lampMaterial = resources.CreateMaterial(new MaterialDesc(new Vector4(0, 0, 0, 1), SpecularIntensity: 0, Emissive: new Vector3(6, 5.4f, 4.5f)));
+            MeshId lampMesh = resources.CreateMesh(Primitives.Box(new(0.05f, 0.3f, 0.6f)));
+            MaterialId lampMaterial =
+                resources.CreateMaterial(new(new(0, 0, 0, 1), SpecularIntensity: 0, Emissive: new(6, 5.4f, 4.5f)));
             for (int k = 0; k < Segments; k += LampEvery)
             {
                 double theta = k * Facet, radius = FloorRadius - LampHeight;
                 foreach (double side in new[] { -1.0, 1.0 })
-                {
-                    world.Spawn(new SpawnDesc
+                    world.Spawn(new()
                     {
                         Frame = frame,
-                        Pose = new DPose(new Double3(radius * Math.Cos(theta), side * (HalfWidth - WallThickness - 0.05), -radius * Math.Sin(theta)), Upright(theta)),
+                        Pose = new(
+                            new(radius * Math.Cos(theta), side * (HalfWidth - WallThickness - 0.05),
+                                -radius * Math.Sin(theta)), Upright(theta)),
                         Render = new RenderData
                         {
                             Mesh = lampMesh,
                             Material = lampMaterial,
                             BoundingRadius = 0.85f,
                             Flags = RenderFlags.Visible,
-                            Light = new PointLightData(new Pose(new Vector3((float)-side * 0.3f, -0.3f, 0), Quaternion.Identity), new Vector3(1, 0.92f, 0.8f), Intensity: 80, Range: 18),
-                        },
+                            Light = new PointLightData(new(new((float)-side * 0.3f, -0.3f, 0), Quaternion.Identity),
+                                new(1, 0.92f, 0.8f), Intensity: 80, Range: 18)
+                        }
                     });
-                }
             }
 
             // The person stands on the middle of facet 0, 2 cm above the floor, upright and facing spinward. Physics turns
             // its up against the effective gravity, which points away from the axis.
             var capsule = new CapsuleShapeDesc(0.6f, 0.3f);
-            scene.Add("person", world.Spawn(new SpawnDesc
+            scene.Add("person", world.Spawn(new()
             {
                 Frame = frame,
-                Pose = new DPose(OnFacet(0, StandingHeight + 0.02, 0), Upright(Facet / 2)),
-                Body = new BodyDesc(capsule, BodyMotion.Character, Mass: 70),
-                Render = Drawn(resources, Primitives.Box(new Vector3(0.3f, 0.9f, 0.3f)), new Vector4(0.2f, 0.45f, 0.8f, 1), boundingRadius: 1),
-                Components = [new PersonControl(new Vector3(0, 0.75f, 0)), new Carry(capsule)],
-                Subscriptions = [Topics.Input],
+                Pose = new(OnFacet(0, StandingHeight + 0.02, 0), Upright(Facet / 2)),
+                Body = new(capsule, BodyMotion.Character, Mass: 70),
+                Render = Drawn(resources, Primitives.Box(new(0.3f, 0.9f, 0.3f)), new(0.2f, 0.45f, 0.8f, 1),
+                    boundingRadius: 1),
+                Components = [new PersonControl(new(0, 0.75f, 0)), new Carry(capsule)],
+                Subscriptions = [Topics.Input]
             }));
 
             // The person's left is the station's -Y: its up is toward the axis and its forward spinward.
-            var crate = new CrateSpec(new Vector3(CrateHalfSize), CrateMass, resources.CreateMesh(Primitives.Box(new Vector3(CrateHalfSize))),
-                resources.CreateMaterial(MaterialDesc.Color(new Vector4(0.3f, 0.6f, 0.25f, 1))));
-            scene.Add("carried-crate", world.Spawn(crate.Spawn(frame, new DPose(OnFacet(0, CrateHalfSize, -1.5), DQuaternion.FromAxisAngle(Double3.UnitY, Facet / 2)), Double3.Zero)));
-            scene.Add("dropped-crate", world.Spawn(new SpawnDesc
+            var crate = new CrateSpec(new(CrateHalfSize), CrateMass,
+                resources.CreateMesh(Primitives.Box(new(CrateHalfSize))),
+                resources.CreateMaterial(MaterialDesc.Color(new(0.3f, 0.6f, 0.25f, 1))));
+            scene.Add("carried-crate",
+                world.Spawn(crate.Spawn(frame,
+                    new(OnFacet(0, CrateHalfSize, -1.5), DQuaternion.FromAxisAngle(Double3.UnitY, Facet / 2)),
+                    Double3.Zero)));
+            scene.Add("dropped-crate", world.Spawn(new()
             {
                 Frame = frame,
-                Pose = new DPose(OnFacet(1, CrateHalfSize + 2, 2), DQuaternion.FromAxisAngle(Double3.UnitY, 1.5 * Facet)),
-                Body = new BodyDesc(new BoxShapeDesc(new Vector3(CrateHalfSize)), Mass: CrateMass),
-                Render = Drawn(resources, Primitives.Box(new Vector3(CrateHalfSize)), new Vector4(1, 0.45f, 0.1f, 1), crate.BoundingRadius),
+                Pose = new(OnFacet(1, CrateHalfSize + 2, 2), DQuaternion.FromAxisAngle(Double3.UnitY, 1.5 * Facet)),
+                Body = new(new BoxShapeDesc(new(CrateHalfSize)), Mass: CrateMass),
+                Render = Drawn(resources, Primitives.Box(new(CrateHalfSize)), new(1, 0.45f, 0.1f, 1),
+                    crate.BoundingRadius)
             }));
 
-            Entity view = world.Spawn(new SpawnDesc { Frame = frame, Pose = View(-0.09, 2.2, 0.05), Render = new RenderData() });
+            Entity view = world.Spawn(new()
+                { Frame = frame, Pose = View(-0.09, 2.2, 0.05), Render = new RenderData() });
             scene.Add("view", view);
-            scene.Add("side", world.Spawn(new SpawnDesc { Frame = frame, Pose = SideView(0.073, 1.4, -8.5), Render = new RenderData() }));
-            scene.Add("wide", world.Spawn(new SpawnDesc { Frame = frame, Pose = View(-0.25, 8, 0.2), Render = new RenderData() }));
+            scene.Add("side",
+                world.Spawn(new() { Frame = frame, Pose = SideView(0.073, 1.4, -8.5), Render = new RenderData() }));
+            scene.Add("wide",
+                world.Spawn(new() { Frame = frame, Pose = View(-0.25, 8, 0.2), Render = new RenderData() }));
             world.Camera = view;
 
-            Entity sun = world.Spawn(new SpawnDesc
+            Entity sun = world.Spawn(new()
             {
                 Frame = frame,
-                Pose = new DPose(new Double3(0, 25, 0), DQuaternion.Identity),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(1)),
+                Pose = new(new(0, 25, 0), DQuaternion.Identity),
+                AsFrame = new(FrameBounds.Sphere(1))
             });
             scene.Add("sun", sun);
             world.SunFrame = world.GetOwnedFrame(sun);
             world.SunIntensity = 0.6f;
-            world.Ambient = new AmbientLight { SkyColor = new Vector3(0.12f), GroundColor = new Vector3(0.12f), Intensity = 1 };
+            world.Ambient = new() { SkyColor = new(0.12f), GroundColor = new(0.12f), Intensity = 1 };
 
             scene.AddView("view");
             scene.AddView("side");

@@ -21,7 +21,7 @@ public class InputEventTests
         { InputEvent.MouseDown(1), new MouseButtonChanged(1, true) },
         { InputEvent.MouseUp(1), new MouseButtonChanged(1, false) },
         { InputEvent.MouseMove(Moved), new MouseMoved(Moved) },
-        { InputEvent.Scroll(Moved), new Scrolled(Moved) },
+        { InputEvent.Scroll(Moved), new Scrolled(Moved) }
     };
 
     private static int CasesHeld(InputEvent e) =>
@@ -56,7 +56,8 @@ public class InputEventTests
         e.HasValue.Should().BeTrue();
         e.TryGetValue(out KeyChanged key).Should().BeTrue();
         key.Should().Be(new KeyChanged(KeyW, IsDown: true));
-        (e is KeyChanged { Code: var code, IsDown: var down } ? (code, down) : default).Should().Be((KeyW, true), "a pattern match reads the same case");
+        (e is KeyChanged { Code: var code, IsDown: var down } ? (code, down) : default).Should()
+            .Be((KeyW, true), "a pattern match reads the same case");
     }
 
     [Fact]
@@ -76,7 +77,8 @@ public class InputEventTests
         e.HasValue.Should().BeTrue();
         e.TryGetValue(out MouseButtonChanged button).Should().BeTrue();
         button.Should().Be(new MouseButtonChanged(2, IsDown: true));
-        (e is MouseButtonChanged { Code: var code, IsDown: var down } ? (code, down) : default).Should().Be((2, true), "a pattern match reads the same case");
+        (e is MouseButtonChanged { Code: var code, IsDown: var down } ? (code, down) : default).Should()
+            .Be((2, true), "a pattern match reads the same case");
     }
 
     [Fact]
@@ -96,7 +98,8 @@ public class InputEventTests
         e.HasValue.Should().BeTrue();
         e.TryGetValue(out MouseMoved moved).Should().BeTrue();
         moved.Delta.Should().Be(Moved);
-        (e is MouseMoved { Delta: var delta } ? delta : default).Should().Be(Moved, "a pattern match reads the same case");
+        (e is MouseMoved { Delta: var delta } ? delta : default).Should()
+            .Be(Moved, "a pattern match reads the same case");
     }
 
     [Fact]
@@ -107,7 +110,8 @@ public class InputEventTests
         e.HasValue.Should().BeTrue();
         e.TryGetValue(out Scrolled scrolled).Should().BeTrue();
         scrolled.Delta.Should().Be(Moved);
-        (e is Scrolled { Delta: var delta } ? delta : default).Should().Be(Moved, "a pattern match reads the same case");
+        (e is Scrolled { Delta: var delta } ? delta : default).Should()
+            .Be(Moved, "a pattern match reads the same case");
     }
 
     [Theory]
@@ -126,7 +130,8 @@ public class InputEventTests
 
         key.TryGetValue(out MouseButtonChanged keyAsButton).Should().BeFalse("a key is not a mouse button");
         button.TryGetValue(out KeyChanged buttonAsKey).Should().BeFalse("a mouse button is not a key");
-        keyAsButton.Should().Be(default(MouseButtonChanged), "the code and the flag of a key do not leak out as a button");
+        keyAsButton.Should().Be(default(MouseButtonChanged),
+            "the code and the flag of a key do not leak out as a button");
         buttonAsKey.Should().Be(default(KeyChanged), "the code and the flag of a button do not leak out as a key");
     }
 
@@ -209,10 +214,10 @@ public class InputEventTests
         (InputEvent.KeyDown(KeyW) == InputEvent.KeyUp(KeyW)).Should().BeFalse("down is not up");
         (InputEvent.MouseDown(1) == InputEvent.MouseDown(2)).Should().BeFalse("the button differs");
         (InputEvent.MouseDown(1) == InputEvent.MouseUp(1)).Should().BeFalse("down is not up");
-        (InputEvent.MouseMove(Moved) == InputEvent.MouseMove(new Vector2(3, 4))).Should().BeFalse("the delta differs");
-        (InputEvent.MouseMove(Moved) == InputEvent.MouseMove(new Vector2(-4, 3))).Should().BeFalse("the delta differs");
-        (InputEvent.Scroll(Moved) == InputEvent.Scroll(new Vector2(3, 4))).Should().BeFalse("the delta differs");
-        (InputEvent.Scroll(Moved) != InputEvent.Scroll(new Vector2(3, 4))).Should().BeTrue();
+        (InputEvent.MouseMove(Moved) == InputEvent.MouseMove(new(3, 4))).Should().BeFalse("the delta differs");
+        (InputEvent.MouseMove(Moved) == InputEvent.MouseMove(new(-4, 3))).Should().BeFalse("the delta differs");
+        (InputEvent.Scroll(Moved) == InputEvent.Scroll(new(3, 4))).Should().BeFalse("the delta differs");
+        (InputEvent.Scroll(Moved) != InputEvent.Scroll(new(3, 4))).Should().BeTrue();
     }
 
     [Fact]
@@ -231,7 +236,7 @@ public class InputEventTests
     [Fact]
     public void AnEventThatHoldsANaNEqualsItselfAndAnyCopyAndHashesTheSame()
     {
-        InputEvent nan = InputEvent.MouseMove(new Vector2(float.NaN, 1));
+        InputEvent nan = InputEvent.MouseMove(new(float.NaN, 1));
         InputEvent copy = nan;
 
         (nan == copy).Should().BeTrue("equality must agree with the hash, and NaN equals NaN there");
@@ -250,7 +255,7 @@ public class InputEventTests
             "KeyDown" => InputEvent.KeyDown(87),
             "KeyUp" => InputEvent.KeyUp(87),
             "MouseDown" => InputEvent.MouseDown(87),
-            _ => InputEvent.MouseUp(87),
+            _ => InputEvent.MouseUp(87)
         };
 
         e.ToString().Should().Be(expected);
@@ -259,23 +264,26 @@ public class InputEventTests
     [Fact]
     public void TheTextOfAMoveAndOfAScrollNamesTheirCase()
     {
-        InputEvent.MouseMove(new Vector2(1, 2)).ToString().Should().Be($"InputEvent(MouseMoved {{ Delta = {new Vector2(1, 2)} }})");
-        InputEvent.Scroll(new Vector2(1, 2)).ToString().Should().Be($"InputEvent(Scrolled {{ Delta = {new Vector2(1, 2)} }})");
+        InputEvent.MouseMove(new(1, 2)).ToString().Should()
+            .Be($"InputEvent(MouseMoved {{ Delta = {new Vector2(1, 2)} }})");
+        InputEvent.Scroll(new(1, 2)).ToString().Should().Be($"InputEvent(Scrolled {{ Delta = {new Vector2(1, 2)} }})");
     }
 
     [Fact]
     public void AnInputEventIsUnmanagedAndFitsInAPayload()
     {
-        RuntimeHelpers.IsReferenceOrContainsReferences<InputEvent>().Should().BeFalse("a payload is copied as raw bytes, so it can hold no reference");
+        RuntimeHelpers.IsReferenceOrContainsReferences<InputEvent>().Should()
+            .BeFalse("a payload is copied as raw bytes, so it can hold no reference");
         Unsafe.SizeOf<InputEvent>().Should().BeLessThanOrEqualTo(EventTypeRegistry.MaxPayloadSize);
-        EventTypeRegistry.Register<InputEvent>().Should().BeGreaterThanOrEqualTo(0, "registering a payload that is too large throws");
+        EventTypeRegistry.Register<InputEvent>().Should()
+            .BeGreaterThanOrEqualTo(0, "registering a payload that is too large throws");
     }
 
     [Theory]
     [MemberData(nameof(EveryCase))]
     public void AnInputEventSurvivesBeingCopiedIntoAnEventAndBack(InputEvent sent, object _)
     {
-        Event e = Event.Create(Topics.Input, Entity.Null, sent);
+        var e = Event.Create(Topics.Input, Entity.Null, sent);
 
         e.Is<InputEvent>().Should().BeTrue();
         (e.As<InputEvent>() == sent).Should().BeTrue();

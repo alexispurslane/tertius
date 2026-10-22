@@ -1,4 +1,3 @@
-using System.Numerics;
 using AwesomeAssertions;
 
 namespace Tertius.Simulation.Tests;
@@ -8,14 +7,58 @@ public class StaleHandleWorldTests
 {
     private static readonly Topic Squad = Topics.Get("tests.stale.world");
 
+    // ---- Every kind of handle, every member of the world -----------------------------------------------------------
+    // A handle names no live entity in five ways. The world has to answer all five the same way for each member: throw
+    // StaleEntityException where it reads or writes the entity's data, and answer false where the goal already holds.
+
+    private static readonly string[] NamesNoLiveEntity =
+        ["null", "never issued", "from the future", "destroyed", "destroyed and reused"];
+
+    private static readonly Topic AnyTopic = Topics.Get("tests.stale.world.members");
+
+    private static readonly Dictionary<string, Action<World, Entity>> Throwing = new()
+    {
+        // The first live frame is the root, so the frame is live and only the entity can make a read in a frame throw.
+        [nameof(World.PoseIn)] = (world, entity) => _ = world.PoseIn(entity, world.Frames.AtDense(0)),
+        [nameof(World.GetFrame)] = (world, entity) => _ = world.GetFrame(entity),
+        [nameof(World.VelocityIn)] = (world, entity) => _ = world.VelocityIn(entity, world.Frames.AtDense(0)),
+        [nameof(World.AngularVelocityIn)] =
+            (world, entity) => _ = world.AngularVelocityIn(entity, world.Frames.AtDense(0)),
+        [nameof(World.GetRender)] = (world, entity) => _ = world.GetRender(entity),
+        [nameof(World.GetOwnedFrame)] = (world, entity) => _ = world.GetOwnedFrame(entity),
+        [nameof(World.GetComponents)] = (world, entity) => _ = world.GetComponents(entity),
+        [nameof(World.GetComponent)] = (world, entity) => _ = world.GetComponent<Recorder>(entity),
+        [nameof(World.AddComponent)] = (world, entity) => world.AddComponent(entity, new Recorder()),
+        [nameof(World.Subscribe)] = (world, entity) => world.Subscribe(entity, AnyTopic),
+        [nameof(Snapshot.FrameOf)] = (world, entity) => _ = world.Snapshot.FrameOf(entity),
+        [nameof(Snapshot.RenderOf)] = (world, entity) => _ = world.Snapshot.RenderOf(entity),
+        [nameof(Snapshot.HasBody)] = (world, entity) => _ = world.Snapshot.HasBody(entity)
+    };
+
+    private static readonly Dictionary<string, Func<World, Entity, bool>> AnsweringFalse = new()
+    {
+        [nameof(World.IsAlive)] = (world, entity) => world.IsAlive(entity),
+        [nameof(World.Destroy)] = (world, entity) => world.Destroy(entity),
+        [nameof(World.RemoveComponent)] = (world, entity) => world.RemoveComponent(entity, new Recorder()),
+        [nameof(World.Unsubscribe)] = (world, entity) => world.Unsubscribe(entity, AnyTopic),
+        ["Snapshot.IsAlive"] = (world, entity) => world.Snapshot.IsAlive(entity),
+        // The first live frame is the root, so the frame is live and only the entity can make the answer false.
+        [nameof(Snapshot.TryGetPoseIn)] =
+            (world, entity) => world.Snapshot.TryGetPoseIn(entity, world.Frames.AtDense(0), out _),
+        [nameof(Snapshot.TryGetVelocityIn)] = (world, entity) =>
+            world.Snapshot.TryGetVelocityIn(entity, world.Frames.AtDense(0), out _),
+        [nameof(Snapshot.TryGetAngularVelocityIn)] = (world, entity) =>
+            world.Snapshot.TryGetAngularVelocityIn(entity, world.Frames.AtDense(0), out _)
+    };
+
     /// <summary>A world in which <paramref name="stale"/> was destroyed and <paramref name="successor"/> took its slot.</summary>
     private static World WithReusedSlot(out Entity stale, out Entity successor, out Recorder successorsRecorder)
     {
         World world = TestWorld.Create(out FrameHandle root);
         stale = world.SpawnWith(root, new Recorder());
         world.Destroy(stale);
-        successorsRecorder = new Recorder();
-        successor = world.Spawn(new SpawnDesc { Frame = root, Components = [successorsRecorder], Subscriptions = [Squad] });
+        successorsRecorder = new();
+        successor = world.Spawn(new() { Frame = root, Components = [successorsRecorder], Subscriptions = [Squad] });
         successor.Index.Should().Be(stale.Index);
         return world;
     }
@@ -116,14 +159,6 @@ public class StaleHandleWorldTests
         caught.Should().BeOfType<StaleEntityException>().Which.Message.Should().Contain(stale.ToString());
     }
 
-    // ---- Every kind of handle, every member of the world -----------------------------------------------------------
-    // A handle names no live entity in five ways. The world has to answer all five the same way for each member: throw
-    // StaleEntityException where it reads or writes the entity's data, and answer false where the goal already holds.
-
-    private static readonly string[] NamesNoLiveEntity = ["null", "never issued", "from the future", "destroyed", "destroyed and reused"];
-
-    private static readonly Topic AnyTopic = Topics.Get("tests.stale.world.members");
-
     /// <summary>A world with one live entity, and a handle of the named kind.</summary>
     private static World WithHandle(string kind, out Entity handle)
     {
@@ -132,11 +167,11 @@ public class StaleHandleWorldTests
         handle = kind switch
         {
             "null" => Entity.Null,
-            "never issued" => new Entity(100_000, 1),
-            "from the future" => new Entity(live.Index, live.Generation + 5),
+            "never issued" => new(100_000, 1),
+            "from the future" => new(live.Index, live.Generation + 5),
             "destroyed" => DestroyedEntity(world, root),
             "destroyed and reused" => DestroyedAndReusedEntity(world, root),
-            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
         };
         return world;
     }
@@ -155,43 +190,12 @@ public class StaleHandleWorldTests
         return entity;
     }
 
-    private static readonly Dictionary<string, Action<World, Entity>> Throwing = new()
-    {
-        // The first live frame is the root, so the frame is live and only the entity can make a read in a frame throw.
-        [nameof(World.PoseIn)] = (world, entity) => _ = world.PoseIn(entity, world.Frames.AtDense(0)),
-        [nameof(World.GetFrame)] = (world, entity) => _ = world.GetFrame(entity),
-        [nameof(World.VelocityIn)] = (world, entity) => _ = world.VelocityIn(entity, world.Frames.AtDense(0)),
-        [nameof(World.AngularVelocityIn)] = (world, entity) => _ = world.AngularVelocityIn(entity, world.Frames.AtDense(0)),
-        [nameof(World.GetRender)] = (world, entity) => _ = world.GetRender(entity),
-        [nameof(World.GetOwnedFrame)] = (world, entity) => _ = world.GetOwnedFrame(entity),
-        [nameof(World.GetComponents)] = (world, entity) => _ = world.GetComponents(entity),
-        [nameof(World.GetComponent)] = (world, entity) => _ = world.GetComponent<Recorder>(entity),
-        [nameof(World.AddComponent)] = (world, entity) => world.AddComponent(entity, new Recorder()),
-        [nameof(World.Subscribe)] = (world, entity) => world.Subscribe(entity, AnyTopic),
-        [nameof(Snapshot.FrameOf)] = (world, entity) => _ = world.Snapshot.FrameOf(entity),
-        [nameof(Snapshot.RenderOf)] = (world, entity) => _ = world.Snapshot.RenderOf(entity),
-        [nameof(Snapshot.HasBody)] = (world, entity) => _ = world.Snapshot.HasBody(entity),
-    };
-
-    private static readonly Dictionary<string, Func<World, Entity, bool>> AnsweringFalse = new()
-    {
-        [nameof(World.IsAlive)] = (world, entity) => world.IsAlive(entity),
-        [nameof(World.Destroy)] = (world, entity) => world.Destroy(entity),
-        [nameof(World.RemoveComponent)] = (world, entity) => world.RemoveComponent(entity, new Recorder()),
-        [nameof(World.Unsubscribe)] = (world, entity) => world.Unsubscribe(entity, AnyTopic),
-        ["Snapshot.IsAlive"] = (world, entity) => world.Snapshot.IsAlive(entity),
-        // The first live frame is the root, so the frame is live and only the entity can make the answer false.
-        [nameof(Snapshot.TryGetPoseIn)] = (world, entity) => world.Snapshot.TryGetPoseIn(entity, world.Frames.AtDense(0), out _),
-        [nameof(Snapshot.TryGetVelocityIn)] = (world, entity) => world.Snapshot.TryGetVelocityIn(entity, world.Frames.AtDense(0), out _),
-        [nameof(Snapshot.TryGetAngularVelocityIn)] = (world, entity) => world.Snapshot.TryGetAngularVelocityIn(entity, world.Frames.AtDense(0), out _),
-    };
-
     private static TheoryData<string, string> Cross(IEnumerable<string> members)
     {
         var data = new TheoryData<string, string>();
         foreach (string member in members)
-            foreach (string kind in NamesNoLiveEntity)
-                data.Add(member, kind);
+        foreach (string kind in NamesNoLiveEntity)
+            data.Add(member, kind);
         return data;
     }
 
@@ -298,7 +302,8 @@ public class StaleHandleWorldTests
     public void AMessageToTheLiveEntityStillArrivesWhileTheStaleHandleIsIgnored()
     {
         using World world = WithReusedSlot(out Entity stale, out Entity successor, out Recorder successorsRecorder);
-        world.SpawnWith(world.GetFrame(successor), SendOnce.Of(stale, new Ping { Value = 1 }), SendOnce.Of(successor, new Ping { Value = 2 }));
+        world.SpawnWith(world.GetFrame(successor), SendOnce.Of(stale, new Ping { Value = 1 }),
+            SendOnce.Of(successor, new Ping { Value = 2 }));
 
         world.Run(3);
 
@@ -309,7 +314,8 @@ public class StaleHandleWorldTests
     public void AMessageThatWasSentToAnEntityThatDiesInTheSameTickIsNotDeliveredToTheEntityThatTakesItsSlot()
     {
         using World world = TestWorld.Create(out FrameHandle root);
-        Entity doomed = world.SpawnWith(root, Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy()));
+        Entity doomed = world.SpawnWith(root,
+            Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy()));
         world.SpawnWith(root, SendOnce.Of(doomed, new Ping { Value = 1 }));
         world.Tick();
         world.IsAlive(doomed).Should().BeFalse();
@@ -366,10 +372,12 @@ public class StaleHandleWorldTests
     public void AComponentThatReadsADeadEntitysPoseGetsAnErrorThatTheSchedulerReports()
     {
         using World world = WithReusedSlot(out Entity stale, out Entity successor, out _);
-        world.SpawnWith(world.GetFrame(successor), Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Snapshot.PoseInOwnFrame(stale)));
+        world.SpawnWith(world.GetFrame(successor),
+            Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Snapshot.PoseInOwnFrame(stale)));
 
         world.Tick();
 
-        world.Errors.Should().ContainSingle().Which.Should().Contain(nameof(StaleEntityException)).And.Contain(stale.ToString());
+        world.Errors.Should().ContainSingle().Which.Should().Contain(nameof(StaleEntityException)).And
+            .Contain(stale.ToString());
     }
 }

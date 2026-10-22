@@ -22,7 +22,8 @@ public static class ScriptRunner
     /// while a dump step lies ahead. After the last dump step, or in a script with none, it records nothing, because no
     /// dump would read those records.
     /// </remarks>
-    public static RunResult Run(Script script, World world, SceneInstance scene, string? outputFolder = null, IPlayback? playback = null)
+    public static RunResult Run(Script script, World world, SceneInstance scene, string? outputFolder = null,
+        IPlayback? playback = null)
     {
         ArgumentNullException.ThrowIfNull(script);
         ArgumentNullException.ThrowIfNull(world);
@@ -43,13 +44,16 @@ public static class ScriptRunner
             {
                 case ReadyRun run:
                     if (!RunTicks(run.Ticks, recordEvents: i < lastDump))
-                        return new RunResult(dumps, captures, stopped: true);
+                        return new(dumps, captures, stopped: true);
                     break;
                 case ReadyPost post:
                     world.Post(post.Event);
                     break;
                 case ReadyCamera(Entity entity, string where):
-                    world.Camera = world.IsAlive(entity) ? entity : throw new ScriptException($"{where}: at tick {world.TickNumber}, the entity '{scene.IdOf(entity)}' is not alive.");
+                    world.Camera = world.IsAlive(entity)
+                        ? entity
+                        : throw new ScriptException(
+                            $"{where}: at tick {world.TickNumber}, the entity '{scene.IdOf(entity)}' is not alive.");
                     break;
                 case ReadyOutlines(bool show):
                     world.ShowFrameOutlines = show;
@@ -58,23 +62,26 @@ public static class ScriptRunner
                     StateDump dump = recorder.Take(name);
                     dumps.Add(dump);
                     if (outputFolder != null)
-                        File.WriteAllText(Path.Combine(outputFolder, name + ".json"), JsonSerializer.Serialize(dump, dumpJson) + "\n");
+                        File.WriteAllText(Path.Combine(outputFolder, name + ".json"),
+                            JsonSerializer.Serialize(dump, dumpJson) + "\n");
                     break;
                 case ReadyCapture(string name, string where):
                     if (!Capture(name, where))
-                        return new RunResult(dumps, captures, stopped: true);
+                        return new(dumps, captures, stopped: true);
                     break;
                 // The film is its expansion: for each frame, a run of its ticks and a capture.
                 case ReadyFilm film:
                     for (int frame = 0; frame < film.Step.Frames; frame++)
-                        if (!RunTicks(film.Step.Every, recordEvents: i < lastDump) || !Capture(film.Step.FrameName(frame), film.Where, frame))
-                            return new RunResult(dumps, captures, stopped: true);
+                        if (!RunTicks(film.Step.Every, recordEvents: i < lastDump) ||
+                            !Capture(film.Step.FrameName(frame), film.Where, frame))
+                            return new(dumps, captures, stopped: true);
                     break;
                 default:
                     throw new InvalidOperationException($"The runner has no arm for the step {step}.");
             }
         }
-        return new RunResult(dumps, captures);
+
+        return new(dumps, captures);
 
         // Runs the ticks of a run step, or of a film's frame. Returns false if the playback stopped the run.
         bool RunTicks(int ticks, bool recordEvents)
@@ -87,6 +94,7 @@ public static class ScriptRunner
                 if (recordEvents)
                     recorder.RecordRoutedEvents();
             }
+
             return true;
         }
 
@@ -95,7 +103,8 @@ public static class ScriptRunner
         {
             // The check before the first tick saw a live camera, but a component may have destroyed it since.
             if (!world.IsAlive(world.Camera))
-                throw new ScriptException($"{where}{(frame is int number ? $", frame {number}" : "")}: at tick {world.TickNumber}, the camera '{scene.IdOf(world.Camera)}' is not alive.");
+                throw new ScriptException(
+                    $"{where}{(frame is int number ? $", frame {number}" : "")}: at tick {world.TickNumber}, the camera '{scene.IdOf(world.Camera)}' is not alive.");
             if (!playback!.Capture(world, name))
                 return false;
             captures.Add(name);
@@ -110,29 +119,56 @@ public static class ScriptRunner
     [Union]
     private readonly struct ReadyStep
     {
-        private readonly object? step;
+        public ReadyStep(ReadyRun run)
+        {
+            Value = run;
+        }
 
-        public ReadyStep(ReadyRun run) { step = run; }
-        public ReadyStep(ReadyPost post) { step = post; }
-        public ReadyStep(ReadyCamera camera) { step = camera; }
-        public ReadyStep(ReadyDump dump) { step = dump; }
-        public ReadyStep(ReadyCapture capture) { step = capture; }
-        public ReadyStep(ReadyFilm film) { step = film; }
-        public ReadyStep(ReadyOutlines outlines) { step = outlines; }
+        public ReadyStep(ReadyPost post)
+        {
+            Value = post;
+        }
 
-        public bool HasValue => step != null;
+        public ReadyStep(ReadyCamera camera)
+        {
+            Value = camera;
+        }
 
-        public bool TryGetValue([NotNullWhen(true)] out ReadyRun? value) => (value = step as ReadyRun) != null;
-        public bool TryGetValue([NotNullWhen(true)] out ReadyPost? value) => (value = step as ReadyPost) != null;
-        public bool TryGetValue([NotNullWhen(true)] out ReadyCamera? value) => (value = step as ReadyCamera) != null;
-        public bool TryGetValue([NotNullWhen(true)] out ReadyDump? value) => (value = step as ReadyDump) != null;
-        public bool TryGetValue([NotNullWhen(true)] out ReadyCapture? value) => (value = step as ReadyCapture) != null;
-        public bool TryGetValue([NotNullWhen(true)] out ReadyFilm? value) => (value = step as ReadyFilm) != null;
-        public bool TryGetValue([NotNullWhen(true)] out ReadyOutlines? value) => (value = step as ReadyOutlines) != null;
+        public ReadyStep(ReadyDump dump)
+        {
+            Value = dump;
+        }
 
-        public object? Value => step;
+        public ReadyStep(ReadyCapture capture)
+        {
+            Value = capture;
+        }
 
-        public override string ToString() => step?.ToString() ?? "ReadyStep(none)";
+        public ReadyStep(ReadyFilm film)
+        {
+            Value = film;
+        }
+
+        public ReadyStep(ReadyOutlines outlines)
+        {
+            Value = outlines;
+        }
+
+        public bool HasValue => Value != null;
+
+        public object? Value { get; }
+
+        public bool TryGetValue([NotNullWhen(true)] out ReadyRun? value) => (value = Value as ReadyRun) != null;
+        public bool TryGetValue([NotNullWhen(true)] out ReadyPost? value) => (value = Value as ReadyPost) != null;
+        public bool TryGetValue([NotNullWhen(true)] out ReadyCamera? value) => (value = Value as ReadyCamera) != null;
+        public bool TryGetValue([NotNullWhen(true)] out ReadyDump? value) => (value = Value as ReadyDump) != null;
+        public bool TryGetValue([NotNullWhen(true)] out ReadyCapture? value) => (value = Value as ReadyCapture) != null;
+        public bool TryGetValue([NotNullWhen(true)] out ReadyFilm? value) => (value = Value as ReadyFilm) != null;
+
+        public bool TryGetValue([NotNullWhen(true)] out ReadyOutlines? value) =>
+            (value = Value as ReadyOutlines) != null;
+
+        public override string ToString() => Value?.ToString() ?? "ReadyStep(none)";
     }
 
     private sealed record ReadyRun(int Ticks);
@@ -154,7 +190,8 @@ public static class ScriptRunner
     /// <see cref="ScriptException"/> for the first step that cannot run. <paramref name="lastDump"/> is the index of the
     /// last dump step, or -1 for a script with none.
     /// </summary>
-    private static ReadyStep[] MakeReady(Script script, World world, SceneInstance scene, IPlayback? playback, EventPayloads payloads, out int lastDump)
+    private static ReadyStep[] MakeReady(Script script, World world, SceneInstance scene, IPlayback? playback,
+        EventPayloads payloads, out int lastDump)
     {
         script.CheckSteps();
         JsonSerializerOptions json = ScriptJson.Payloads(world, scene);
@@ -197,6 +234,7 @@ public static class ScriptRunner
                     throw new InvalidOperationException($"The runner has no arm for the step {step}.");
             }
         }
+
         return ready;
 
         // The checks of a capture, which a film has for its frames too: a live camera and a renderer. The playback's target
@@ -204,21 +242,27 @@ public static class ScriptRunner
         void CheckCanCapture(string kind, string name, string where)
         {
             if (!world.IsAlive(camera))
-                throw new ScriptException($"{where} ({kind}): a {kind} of '{name}' needs a live camera. Let the scene set one, or put a camera step before the {kind}.");
+                throw new ScriptException(
+                    $"{where} ({kind}): a {kind} of '{name}' needs a live camera. Let the scene set one, or put a camera step before the {kind}.");
             if (playback is null)
-                throw new ScriptException($"{where} ({kind}): a {kind} of '{name}' needs a renderer, and the run has none.");
+                throw new ScriptException(
+                    $"{where} ({kind}): a {kind} of '{name}' needs a renderer, and the run has none.");
         }
     }
 
     /// <summary>The event of a post step.</summary>
-    private static Event MakeEvent(PostStep post, World world, SceneInstance scene, EventPayloads payloads, JsonSerializerOptions json, string where)
+    private static Event MakeEvent(PostStep post, World world, SceneInstance scene, EventPayloads payloads,
+        JsonSerializerOptions json, string where)
     {
-        EventPayloads.PayloadType type = payloads.Find(post.Event, out string? problem) ?? throw new ScriptException($"{where}: {problem}");
+        EventPayloads.PayloadType type = payloads.Find(post.Event, out string? problem) ??
+                                         throw new ScriptException($"{where}: {problem}");
         Target target = TargetOf(post.To, world, scene, where);
         object? payload;
         try
         {
-            payload = post.Payload is { } given ? given.Deserialize(type.Type, json) : JsonSerializer.Deserialize("{}", type.Type, json);
+            payload = post.Payload is { } given
+                ? given.Deserialize(type.Type, json)
+                : JsonSerializer.Deserialize("{}", type.Type, json);
         }
         catch (JsonException ex)
         {
@@ -229,6 +273,7 @@ public static class ScriptRunner
         {
             throw new ScriptException($"{where}: a script cannot write a {post.Event}: {ex.Message}", ex);
         }
+
         return type.Create(target, payload ?? throw new ScriptException($"{where}: the payload is null."));
     }
 
@@ -240,15 +285,15 @@ public static class ScriptRunner
             ? frame.Topic
             : throw new ScriptException($"{where}: the entity '{id}' owns no frame."),
         ToEveryone => new Broadcast(),
-        _ => throw new InvalidOperationException($"The runner has no arm for the target {to}."),
+        _ => throw new InvalidOperationException($"The runner has no arm for the target {to}.")
     };
 
-    private static Entity LiveEntity(string id, World world, SceneInstance scene, string where)
-    {
-        if (!scene.TryGetEntity(id, out Entity entity))
-            throw new ScriptException($"{where}: the scene has no entity with the id '{id}'.");
-        return world.IsAlive(entity) ? entity : throw new ScriptException($"{where}: the entity '{id}' is not alive.");
-    }
+    private static Entity LiveEntity(string id, World world, SceneInstance scene, string where) =>
+        !scene.TryGetEntity(id, out Entity entity)
+            ? throw new ScriptException($"{where}: the scene has no entity with the id '{id}'.")
+            : world.IsAlive(entity)
+                ? entity
+                : throw new ScriptException($"{where}: the entity '{id}' is not alive.");
 }
 
 /// <summary>What a scripted run made: its state dumps and the names of its captures, each in the order taken.</summary>
@@ -267,5 +312,6 @@ public sealed class RunResult(IReadOnlyList<StateDump> dumps, IReadOnlyList<stri
 
     /// <summary>The dump with the name. Throws <see cref="KeyNotFoundException"/> if the run took none.</summary>
     public StateDump Dump(string name) =>
-        dumps.FirstOrDefault(dump => dump.Name == name) ?? throw new KeyNotFoundException($"The run took no dump named '{name}'.");
+        dumps.FirstOrDefault(dump => dump.Name == name) ??
+        throw new KeyNotFoundException($"The run took no dump named '{name}'.");
 }

@@ -33,7 +33,7 @@ public sealed class LaunchRampTests : IDisposable
     private double TailPastTheFoot()
     {
         DPose pose = world.PoseIn(shuttle, world.GetOwnedFrame(scene["earth-surface"]));
-        return LaunchRamp.Foot.Z - pose.TransformPoint(new Double3(0, -Shuttle.Hull.Y, Shuttle.Hull.Z)).Z;
+        return LaunchRamp.Foot.Z - pose.TransformPoint(new(0, -Shuttle.Hull.Y, Shuttle.Hull.Z)).Z;
     }
 
     /// <summary>
@@ -61,7 +61,7 @@ public sealed class LaunchRampTests : IDisposable
     [Fact]
     public void TheIgnitionStartsTheRampWithTheGuidanceOfTheClimbAndTheLaunchRadius()
     {
-        AscentAutopilot autopilot = world.GetComponent<AscentAutopilot>(shuttle)!;
+        var autopilot = world.GetComponent<AscentAutopilot>(shuttle)!;
         autopilot.State.Value.Should().BeOfType<Parked>();
 
         world.Post(Event.Create(shuttle, Entity.Null, new Ignition()));
@@ -77,7 +77,7 @@ public sealed class LaunchRampTests : IDisposable
     /// <summary>A test component that records every entity whose touch of its entity starts.</summary>
     private sealed class Touches : IComponent
     {
-        public HashSet<Entity> Others { get; } = new();
+        public HashSet<Entity> Others { get; } = [];
 
         public int Priority => 0;
 

@@ -14,13 +14,13 @@ public sealed partial class FrameTree
     {
         int id = Node(frame).Id;
         Contract.Requires(numeric[id] == NumericMode.None);
-        return new LooseBodyStep
+        return new()
         {
             Field = gravity[id],
             ProperAcceleration = properAccelerationTheStepFound[id],
             Turns = turns[id],
             TurnsStep = turnsStep,
-            Medium = medium[id],
+            Medium = medium[id]
         };
     }
 }

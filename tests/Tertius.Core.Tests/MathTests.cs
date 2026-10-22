@@ -1,5 +1,4 @@
 using System.Numerics;
-using Tertius;
 
 namespace Tertius.Core.Tests;
 
@@ -11,7 +10,7 @@ public class MathTests
     public void DQuaternion_RotateMatchesFloatQuaternion()
     {
         var q = Quaternion.CreateFromYawPitchRoll(0.3f, -1.1f, 2.0f);
-        var dq = DQuaternion.FromQuaternion(q);
+        DQuaternion dq = DQuaternion.FromQuaternion(q);
         var v = new Vector3(1.5f, -2f, 0.25f);
         Vector3 expected = Vector3.Transform(v, q);
         Vector3 actual = dq.Rotate(v);
@@ -67,7 +66,7 @@ public class MathTests
     [Fact]
     public void DPose_ComposeWithInverseIsIdentity()
     {
-        var p = new DPose(new Double3(6e6, -2.5, 1e3), DQuaternion.FromAxisAngle(new Double3(1, 2, 3), 0.9));
+        var p = new DPose(new(6e6, -2.5, 1e3), DQuaternion.FromAxisAngle(new(1, 2, 3), 0.9));
         DPose id = DPose.Compose(p, p.Inverse());
         Assert.True(id.Position.Length < 1e-8);
         Assert.True(Math.Abs(Math.Abs(id.Rotation.W) - 1) < Eps);
@@ -77,10 +76,10 @@ public class MathTests
     [Fact]
     public void DPose_ThatNamesOnlyItsPositionHasTheIdentityRotation()
     {
-        var p = new DPose { Position = new Double3(1, 2, 3) };
+        var p = new DPose { Position = new(1, 2, 3) };
         Assert.Equal(DQuaternion.Identity, p.Rotation);
-        Assert.Equal(new Double3(1, 2, 3), p.Position);
-        Assert.Equal(DPose.Identity, new DPose());
+        Assert.Equal(new(1, 2, 3), p.Position);
+        Assert.Equal(DPose.Identity, new());
     }
 
     /// <summary>The default value of a struct skips every constructor. Spawn refuses its zero rotation.</summary>
@@ -88,14 +87,14 @@ public class MathTests
     public void DPose_DefaultValueKeepsAZeroRotation()
     {
         var poses = new DPose[1];
-        Assert.Equal(new DQuaternion(0, 0, 0, 0), default(DPose).Rotation);
-        Assert.Equal(new DQuaternion(0, 0, 0, 0), poses[0].Rotation);
+        Assert.Equal(new(0, 0, 0, 0), default(DPose).Rotation);
+        Assert.Equal(new(0, 0, 0, 0), poses[0].Rotation);
     }
 
     [Fact]
     public void Pose_TransformPointRoundTrips()
     {
-        var p = new Pose(new Vector3(1, 2, 3), Quaternion.CreateFromYawPitchRoll(1, 0.5f, -0.2f));
+        var p = new Pose(new(1, 2, 3), Quaternion.CreateFromYawPitchRoll(1, 0.5f, -0.2f));
         var point = new Vector3(-4, 5, 0.5f);
         Vector3 back = p.InverseTransformPoint(p.TransformPoint(point));
         Assert.True(Vector3.Distance(point, back) < 1e-5f);
@@ -104,18 +103,18 @@ public class MathTests
     [Fact]
     public void Pose_ComposeMatchesSequentialTransforms()
     {
-        var parent = new Pose(new Vector3(10, 0, 0), Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2));
-        var local = new Pose(new Vector3(1, 0, 0), Quaternion.Identity);
-        Pose world = Pose.Compose(parent, local);
+        var parent = new Pose(new(10, 0, 0), Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2));
+        var local = new Pose(new(1, 0, 0), Quaternion.Identity);
+        var world = Pose.Compose(parent, local);
         // Rotating +X by +90 degrees about Y gives -Z.
-        Assert.True(Vector3.Distance(world.Position, new Vector3(10, 0, -1)) < 1e-5f, world.Position.ToString());
+        Assert.True(Vector3.Distance(world.Position, new(10, 0, -1)) < 1e-5f, world.Position.ToString());
     }
 
     [Fact]
     public void Double3_KeepsMillimetersAtSolarSystemScale()
     {
         var a = new Double3(5.9e12, 0, 0);
-        var b = a + new Double3(0.001, 0, 0);
+        Double3 b = a + new Double3(0.001, 0, 0);
         Assert.Equal(0.001, (b - a).X, 3);
     }
 }

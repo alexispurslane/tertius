@@ -34,8 +34,14 @@ namespace Tertius.Demo;
 /// <param name="walkSpeed">The speed of both walks, in m/s, but for the way out's last leg.</param>
 /// <param name="stepInSpeed">The speed of the way out's last leg, into the chute's top, in m/s.</param>
 /// <param name="radius">The person's radius, in meters, which the chute's friction law takes.</param>
-public sealed class Disembark(FrameHandle station, Chute chute, IReadOnlyList<Waypoint> wayOut, IReadOnlyList<Waypoint> stroll, double walkSpeed,
-    double stepInSpeed, double radius) : IComponent
+public sealed class Disembark(
+    FrameHandle station,
+    Chute chute,
+    IReadOnlyList<Waypoint> wayOut,
+    IReadOnlyList<Waypoint> stroll,
+    double walkSpeed,
+    double stepInSpeed,
+    double radius) : IComponent
 {
     private readonly FrameHandle station = station;
     private readonly Chute chute = chute;
@@ -69,6 +75,7 @@ public sealed class Disembark(FrameHandle station, Chute chute, IReadOnlyList<Wa
                 State = strolling;
                 break;
         }
+
         Apply(self, report);
     }
 
@@ -89,7 +96,7 @@ public sealed class Disembark(FrameHandle station, Chute chute, IReadOnlyList<Wa
         // first. The second walk replaces the first, and the waypoints that it skips are the same.
         if (walk.Next != before.Next && walk.Next < wayOut.Length && SpeedToward(walk.Next) != SpeedToward(before.Next))
             walk = Walker.Step(self, wayOut, before with { Next = walk.Next }, SpeedToward(walk.Next));
-        walking = new Walking(walk);
+        walking = new(walk);
         return null;
     }
 
@@ -128,7 +135,7 @@ public sealed class Disembark(FrameHandle station, Chute chute, IReadOnlyList<Wa
     {
         if (!self.Snapshot.Frames.IsAlive(station))
             return Gone(self);
-        strolling = new Strolling(Walker.Step(self, stroll, strolling.Walk, walkSpeed));
+        strolling = new(Walker.Step(self, stroll, strolling.Walk, walkSpeed));
         return strolling.Walk.Next >= stroll.Length ? new WalkDone() : null;
     }
 

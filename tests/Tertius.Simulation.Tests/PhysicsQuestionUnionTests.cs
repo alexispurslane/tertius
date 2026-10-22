@@ -1,4 +1,3 @@
-using System.Numerics;
 using AwesomeAssertions;
 
 namespace Tertius.Simulation.Tests;
@@ -19,7 +18,7 @@ public class PhysicsQuestionUnionTests
     private static readonly Double3 Along = new(0, 0.6, 0.8);
     private static readonly DQuaternion Turned = DQuaternion.FromAxisAngle(Double3.UnitY, 0.5);
     private static readonly QueryShape Ball = QueryShape.Sphere(2);
-    private static readonly QueryShape Crate = QueryShape.Box(new Vector3(3, 4, 12));
+    private static readonly QueryShape Crate = QueryShape.Box(new(3, 4, 12));
     private static readonly DPose StartPose = new(Start, Turned);
 
     /// <summary>The names of the cases whose <c>TryGetValue</c> answers true for the question.</summary>
@@ -36,7 +35,8 @@ public class PhysicsQuestionUnionTests
     }
 
     /// <summary>The value that each <c>TryGetValue</c> hands out, whatever it answers.</summary>
-    private static (RayQuestion Ray, ShapeCastQuestion ShapeCast, OverlapQuestion Overlap) Views(PhysicsQuestion question)
+    private static (RayQuestion Ray, ShapeCastQuestion ShapeCast, OverlapQuestion Overlap) Views(
+        PhysicsQuestion question)
     {
         question.TryGetValue(out RayQuestion ray);
         question.TryGetValue(out ShapeCastQuestion shapeCast);
@@ -49,7 +49,7 @@ public class PhysicsQuestionUnionTests
         RayQuestion(_, _, var length, var kind) => $"ray {kind} {length}",
         ShapeCastQuestion(var shape, _, _, var length) => $"shape cast {shape.BoundingRadius} {length}",
         OverlapQuestion(var shape, var pose) => $"overlap {shape.BoundingRadius} {pose.Position.X}",
-        _ => "none",
+        _ => "none"
     };
 
     private static RayQuestion Ray(RayCastKind kind = RayCastKind.Nearest) => new(Start, Along, 50, kind);
@@ -140,27 +140,27 @@ public class PhysicsQuestionUnionTests
     [Fact]
     public void ATryGetValueThatAnswersFalseHandsOutTheDefaultNotTheFieldsOfAnotherCase()
     {
-        var ray = Views(new PhysicsQuestion(Ray()));
+        (RayQuestion Ray, ShapeCastQuestion ShapeCast, OverlapQuestion Overlap) ray = Views(new(Ray()));
         ray.ShapeCast.Should().Be(default(ShapeCastQuestion));
         ray.Overlap.Should().Be(default(OverlapQuestion));
 
-        var cast = Views(new PhysicsQuestion(Cast()));
+        (RayQuestion Ray, ShapeCastQuestion ShapeCast, OverlapQuestion Overlap) cast = Views(new(Cast()));
         cast.Ray.Should().Be(default(RayQuestion));
         cast.Overlap.Should().Be(default(OverlapQuestion));
 
-        var overlap = Views(new PhysicsQuestion(Overlap()));
+        (RayQuestion Ray, ShapeCastQuestion ShapeCast, OverlapQuestion Overlap) overlap = Views(new(Overlap()));
         overlap.Ray.Should().Be(default(RayQuestion));
         overlap.ShapeCast.Should().Be(default(ShapeCastQuestion));
 
-        var none = Views(default);
-        none.Should().Be((default(RayQuestion), default(ShapeCastQuestion), default(OverlapQuestion)));
+        (RayQuestion Ray, ShapeCastQuestion ShapeCast, OverlapQuestion Overlap) none = Views(default);
+        none.Should().Be((default, default, default));
     }
 
     [Fact]
     public void ARayKeepsADirectionThatIsNotUnitLengthAsItWasGiven()
     {
         // The union stores what it gets. The World checks and normalizes a request before it builds the question.
-        var question = new PhysicsQuestion(new RayQuestion(Start, new Double3(0, 0, 7), 5, RayCastKind.All));
+        var question = new PhysicsQuestion(new RayQuestion(Start, new(0, 0, 7), 5, RayCastKind.All));
 
         question.TryGetValue(out RayQuestion held);
         held.Direction.Should().Be(new Double3(0, 0, 7));
@@ -206,9 +206,10 @@ public class PhysicsQuestionUnionTests
     [Fact]
     public void TwoQuestionsOfTheSameCaseWithTheSameFieldsAreEqualAndHashAlike()
     {
-        foreach (var (a, b) in new (PhysicsQuestion, PhysicsQuestion)[]
+        foreach ((PhysicsQuestion a, PhysicsQuestion b) in new (PhysicsQuestion, PhysicsQuestion)[]
                  {
-                     (Ray(), Ray()), (Ray(RayCastKind.All), Ray(RayCastKind.All)), (Cast(), Cast()), (Overlap(), Overlap()),
+                     (Ray(), Ray()), (Ray(RayCastKind.All), Ray(RayCastKind.All)), (Cast(), Cast()),
+                     (Overlap(), Overlap())
                  })
         {
             a.Equals(b).Should().BeTrue();
@@ -251,8 +252,8 @@ public class PhysicsQuestionUnionTests
         PhysicsQuestion baseline = Cast();
 
         (baseline == Cast() with { Shape = Crate }).Should().BeFalse();
-        (baseline == Cast() with { Start = new DPose(Start + Double3.UnitX, Turned) }).Should().BeFalse();
-        (baseline == Cast() with { Start = new DPose(Start, DQuaternion.Identity) }).Should().BeFalse();
+        (baseline == Cast() with { Start = new(Start + Double3.UnitX, Turned) }).Should().BeFalse();
+        (baseline == Cast() with { Start = new(Start, DQuaternion.Identity) }).Should().BeFalse();
         (baseline == Cast() with { Direction = Double3.UnitZ }).Should().BeFalse();
         (baseline == Cast() with { Length = 51 }).Should().BeFalse();
     }
@@ -263,8 +264,8 @@ public class PhysicsQuestionUnionTests
         PhysicsQuestion baseline = Overlap();
 
         (baseline == Overlap() with { Shape = Crate }).Should().BeFalse();
-        (baseline == Overlap() with { Pose = new DPose(Start + Double3.UnitX, Turned) }).Should().BeFalse();
-        (baseline == Overlap() with { Pose = new DPose(Start, DQuaternion.Identity) }).Should().BeFalse();
+        (baseline == Overlap() with { Pose = new(Start + Double3.UnitX, Turned) }).Should().BeFalse();
+        (baseline == Overlap() with { Pose = new(Start, DQuaternion.Identity) }).Should().BeFalse();
     }
 
     [Fact]
@@ -345,10 +346,12 @@ public class PhysicsQuestionUnionTests
     public void TwoRequestsAreEqualOnlyWhenTheirQuestionsAre()
     {
         var asker = new Entity(4, 1);
-        var frame = new FrameHandle(new Entity(1, 1), 0, 1);
+        var frame = new FrameHandle(new(1, 1), 0, 1);
 
-        new PhysicsRequest(asker, frame, Cast(), default, 17).Should().Be(new PhysicsRequest(asker, frame, Cast(), default, 17));
-        new PhysicsRequest(asker, frame, Cast(), default, 17).Should().NotBe(new PhysicsRequest(asker, frame, Overlap(), default, 17));
+        new PhysicsRequest(asker, frame, Cast(), default, 17).Should()
+            .Be(new PhysicsRequest(asker, frame, Cast(), default, 17));
+        new PhysicsRequest(asker, frame, Cast(), default, 17).Should()
+            .NotBe(new PhysicsRequest(asker, frame, Overlap(), default, 17));
     }
 
     /// <summary>
@@ -362,7 +365,7 @@ public class PhysicsQuestionUnionTests
         using var t = new TestWorld();
         Entity asker = t.SpawnAt(Double3.Zero);
         t.Run(1);
-        t.World.Entities.Chunks[0].PhysicsRequests.Add(new PhysicsRequest(asker, t.Root, default, default, 1));
+        t.World.Entities.Chunks[0].PhysicsRequests.Add(new(asker, t.Root, default, default, 1));
 
 #if TERTIUS_CONTRACTS
         Action tick = () => t.Run(1);

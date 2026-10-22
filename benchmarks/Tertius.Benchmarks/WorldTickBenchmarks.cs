@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using BenchmarkDotNet.Attributes;
 using Tertius.Frames.Rails;
+using Tertius.Physics;
 using Tertius.Simulation;
 
 namespace Tertius.Benchmarks;
@@ -13,6 +14,13 @@ namespace Tertius.Benchmarks;
 [MemoryDiagnoser]
 public class WorldTickBenchmarks
 {
+    private World world = null!;
+    private readonly SyncProfileReport profile = new();
+
+    [Params(10_000, 100_000)] public int Entities;
+
+    [Params(1, -1)] public int MaxDegreeOfParallelism;
+
     internal sealed class Busy(Entity neighbor, Topic topic) : IComponent
     {
         private readonly Entity neighbor = neighbor;
@@ -20,8 +28,9 @@ public class WorldTickBenchmarks
         public float Total;
 
         public int Priority => 0;
+
         // Qualified: inside this class, Tick names the benchmark method.
-        public EventMask Wants => EventMask.Of<Tertius.Tick>().And<Damage>();
+        public EventMask Wants => EventMask.Of<Tick>().And<Damage>();
 
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
@@ -35,34 +44,23 @@ public class WorldTickBenchmarks
         }
     }
 
-    private World world = null!;
-    private readonly SyncProfileReport profile = new();
-
-    [Params(10_000, 100_000)]
-    public int Entities;
-
-    [Params(1, -1)]
-    public int MaxDegreeOfParallelism;
-
     [GlobalSetup]
     public void Setup()
     {
-        world = new World(new WorldOptions { MaxDegreeOfParallelism = MaxDegreeOfParallelism, InitialCapacity = Entities + 1024 });
-        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f)));
+        world = new(new() { MaxDegreeOfParallelism = MaxDegreeOfParallelism, InitialCapacity = Entities + 1024 });
+        FrameHandle root = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f)));
         Topic topic = Topics.Get("benchmarks.squad");
-        var mesh = new RenderData { Mesh = new MeshId(0), Flags = RenderFlags.Visible, BoundingRadius = 0.5f };
+        var mesh = new RenderData { Mesh = new(0), Flags = RenderFlags.Visible, BoundingRadius = 0.5f };
         Entity previous = default;
         for (int i = 0; i < Entities; i++)
-        {
-            previous = world.Spawn(new SpawnDesc
+            previous = world.Spawn(new()
             {
                 Frame = root,
-                Pose = new DPose(new Double3(i % 300 * 2.0, i / 300 * 2.0, 0), DQuaternion.Identity),
+                Pose = new(new(i % 300 * 2.0, i / 300 * 2.0, 0), DQuaternion.Identity),
                 Render = mesh,
                 Components = [new Busy(previous.IsNull ? root.Entity : previous, topic)],
-                Subscriptions = i % (Entities / 100) == 0 ? [topic] : [],
+                Subscriptions = i % (Entities / 100) == 0 ? [topic] : []
             });
-        }
         world.Camera = previous;
         for (int i = 0; i < 20; i++)
             world.Tick();
@@ -95,61 +93,65 @@ public class KeplerFrameTickBenchmarks
     private const int FrameCount = 1_000;
     private const double EarthMu = 3.986004418e14;
 
-    private World world = null!;
-    internal World World => world;
     private long syncTimestampsAtStart;
     private long syncCountAtStart;
     private readonly SyncProfileReport profile = new();
 
-    [Params(1, -1)]
-    public int MaxDegreeOfParallelism;
+    [Params(1, -1)] public int MaxDegreeOfParallelism;
+
+    internal World World { get; private set; } = null!;
 
     [GlobalSetup]
     public void Setup()
     {
-        world = new World(new WorldOptions { MaxDegreeOfParallelism = MaxDegreeOfParallelism, InitialCapacity = FrameCount + 1024 });
-        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
+        World = new(new() { MaxDegreeOfParallelism = MaxDegreeOfParallelism, InitialCapacity = FrameCount + 1024 });
+        FrameHandle root = World.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
         for (int i = 0; i < FrameCount; i++)
         {
             double radius = 7e6 + i * 35e3;
             double phase = i * 2.399963229728653;
-            var orbit = KeplerOrbit.Circular(radius, phase: phase);
+            KeplerOrbit orbit = KeplerOrbit.Circular(radius, phase: phase);
             // A frame without a body takes no spawn velocity: its first motion intent moves it in its first step.
-            world.Spawn(new SpawnDesc
+            World.Spawn(new()
             {
                 Frame = root,
-                Pose = new DPose(orbit.StateAt(world.Time, EarthMu).Position, orbit.RotationAt(world.Time, EarthMu)),
-                FirstMove = new MotionIntent(orbit.Sample(EarthMu, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(1)),
-                Components = [new KeplerMotion { Orbit = orbit }],
+                Pose = new(orbit.StateAt(World.Time, EarthMu).Position, orbit.RotationAt(World.Time, EarthMu)),
+                FirstMove = new(orbit.Sample(EarthMu, World.TimeAt(World.TickNumber + 1), World.DeltaTime)),
+                AsFrame = new(FrameBounds.Sphere(1)),
+                Components = [new KeplerMotion { Orbit = orbit }]
             });
         }
+
         for (int i = 0; i < 20; i++)
-            world.Tick();
-        syncTimestampsAtStart = world.SyncTimestampTotal;
-        syncCountAtStart = world.SyncCount;
-        profile.Mark(world);
-        SyncSampler.RemarkProfile = () => profile.Mark(world);
-        SyncSampler.StateHash = () => WorldStateHash.Of(world);
+            World.Tick();
+        syncTimestampsAtStart = World.SyncTimestampTotal;
+        syncCountAtStart = World.SyncCount;
+        profile.Mark(World);
+        SyncSampler.RemarkProfile = () => profile.Mark(World);
+        SyncSampler.StateHash = () => WorldStateHash.Of(World);
     }
 
     [Benchmark]
-    public void Tick() => world.Tick();
+    public void Tick() => World.Tick();
 
     [GlobalCleanup]
     public void Cleanup()
     {
-        long syncs = world.SyncCount - syncCountAtStart;
-        double meanMicroseconds = syncs == 0 ? 0 : (world.SyncTimestampTotal - syncTimestampsAtStart) * 1e6 / Stopwatch.Frequency / syncs;
-        Console.WriteLine($"KeplerFrameSync MaxDegreeOfParallelism={MaxDegreeOfParallelism}: mean sync point {meanMicroseconds:F2} us per tick over {syncs} ticks");
-        profile.Print(world, $"Kepler1000-dop{MaxDegreeOfParallelism}");
-        world.Dispose();
+        long syncs = World.SyncCount - syncCountAtStart;
+        double meanMicroseconds = syncs == 0
+            ? 0
+            : (World.SyncTimestampTotal - syncTimestampsAtStart) * 1e6 / Stopwatch.Frequency / syncs;
+        Console.WriteLine(
+            $"KeplerFrameSync MaxDegreeOfParallelism={MaxDegreeOfParallelism}: mean sync point {meanMicroseconds:F2} us per tick over {syncs} ticks");
+        profile.Print(World, $"Kepler1000-dop{MaxDegreeOfParallelism}");
+        World.Dispose();
     }
 }
 
 /// <summary>
 /// The cost of one tick of <see cref="Entities"/> entities without body or frame on Kepler orbits around one root, with no
-/// other gameplay (ter-xdt8, docs/plans/rails-components.md, "Rails motion for every entity"). The <see cref="KeplerMotion"/>
+/// other gameplay (ter-xdt8, docs/plans/rails-components.md, "Rails motion for every entity"). The
+/// <see cref="KeplerMotion"/>
 /// of each entity solves its orbit in its tick, in the parallel chunks, and writes the sample as the entity's motion intent.
 /// The sync point swaps the intents at step 4 and puts each entity on the record of its intent at step 2
 /// (FollowFramelessEntities). Every entity writes a motion intent in every tick, so 100,000 of them measure the swap of the
@@ -168,34 +170,37 @@ public class KeplerEntityTickBenchmarks
     private long syncCountAtStart;
     private readonly SyncProfileReport profile = new();
 
-    [Params(1_000, 100_000)]
-    public int Entities;
+    [Params(1_000, 100_000)] public int Entities;
 
-    [Params(1, -1)]
-    public int MaxDegreeOfParallelism;
+    [Params(1, -1)] public int MaxDegreeOfParallelism;
 
-    [Params(false, true)]
-    public bool Jolt;
+    [Params(false, true)] public bool Jolt;
 
     [GlobalSetup]
     public void Setup()
     {
-        Tertius.Physics.JoltPhysicsBackend? backend = Jolt ? new(new Tertius.Physics.JoltBackendOptions { WorkerThreads = 4 }) : null;
-        world = new World(new WorldOptions { MaxDegreeOfParallelism = MaxDegreeOfParallelism, InitialCapacity = Entities + 1024, DisposePhysics = true }, backend);
-        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
+        JoltPhysicsBackend? backend = Jolt ? new(new() { WorkerThreads = 4 }) : null;
+        world = new(
+            new()
+            {
+                MaxDegreeOfParallelism = MaxDegreeOfParallelism, InitialCapacity = Entities + 1024,
+                DisposePhysics = true
+            }, backend);
+        FrameHandle root = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
         for (int i = 0; i < Entities; i++)
         {
             double radius = 7e6 + i % 1000 * 35e3;
             double phase = i * 2.399963229728653;
-            var orbit = KeplerOrbit.Circular(radius, phase: phase);
-            world.Spawn(new SpawnDesc
+            KeplerOrbit orbit = KeplerOrbit.Circular(radius, phase: phase);
+            world.Spawn(new()
             {
                 Frame = root,
-                Pose = new DPose(orbit.StateAt(world.Time, EarthMu).Position, orbit.RotationAt(world.Time, EarthMu)),
-                FirstMove = new MotionIntent(orbit.Sample(EarthMu, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
-                Components = [new KeplerMotion { Orbit = orbit }],
+                Pose = new(orbit.StateAt(world.Time, EarthMu).Position, orbit.RotationAt(world.Time, EarthMu)),
+                FirstMove = new(orbit.Sample(EarthMu, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
+                Components = [new KeplerMotion { Orbit = orbit }]
             });
         }
+
         for (int i = 0; i < 20; i++)
             world.Tick();
         syncTimestampsAtStart = world.SyncTimestampTotal;
@@ -217,8 +222,11 @@ public class KeplerEntityTickBenchmarks
     public void Cleanup()
     {
         long syncs = world.SyncCount - syncCountAtStart;
-        double meanMicroseconds = syncs == 0 ? 0 : (world.SyncTimestampTotal - syncTimestampsAtStart) * 1e6 / Stopwatch.Frequency / syncs;
-        Console.WriteLine($"KeplerEntitySync Entities={Entities} MaxDegreeOfParallelism={MaxDegreeOfParallelism} Jolt={Jolt}: mean sync point {meanMicroseconds:F2} us per tick over {syncs} ticks");
+        double meanMicroseconds = syncs == 0
+            ? 0
+            : (world.SyncTimestampTotal - syncTimestampsAtStart) * 1e6 / Stopwatch.Frequency / syncs;
+        Console.WriteLine(
+            $"KeplerEntitySync Entities={Entities} MaxDegreeOfParallelism={MaxDegreeOfParallelism} Jolt={Jolt}: mean sync point {meanMicroseconds:F2} us per tick over {syncs} ticks");
         profile.Print(world, $"KeplerEntities{Entities}-dop{MaxDegreeOfParallelism}{(Jolt ? "-jolt" : "")}");
         world.Dispose();
     }
@@ -242,60 +250,61 @@ public class MixedBodiesTickBenchmarks
     private World world = null!;
     private readonly SyncProfileReport profile = new();
 
-    [Params(1, -1)]
-    public int MaxDegreeOfParallelism;
+    [Params(1, -1)] public int MaxDegreeOfParallelism;
 
     [GlobalSetup]
     public void Setup()
     {
-        var backend = new Tertius.Physics.JoltPhysicsBackend(new Tertius.Physics.JoltBackendOptions { WorkerThreads = 4 });
-        world = new World(new WorldOptions { MaxDegreeOfParallelism = MaxDegreeOfParallelism, InitialCapacity = Bodies + Plain + KeplerFrames + 1024, DisposePhysics = true }, backend);
-        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
+        var backend = new JoltPhysicsBackend(new() { WorkerThreads = 4 });
+        world = new(
+            new()
+            {
+                MaxDegreeOfParallelism = MaxDegreeOfParallelism, InitialCapacity = Bodies + Plain + KeplerFrames + 1024,
+                DisposePhysics = true
+            }, backend);
+        FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
         for (int i = 0; i < KeplerFrames; i++)
         {
-            var orbit = KeplerOrbit.Circular(7e6 + i * 35e3, phase: i * 2.399963229728653);
+            KeplerOrbit orbit = KeplerOrbit.Circular(7e6 + i * 35e3, phase: i * 2.399963229728653);
             // A frame without a body takes no spawn velocity: its first motion intent moves it in its first step.
-            world.Spawn(new SpawnDesc
+            world.Spawn(new()
             {
                 Frame = planet,
-                Pose = new DPose(orbit.StateAt(world.Time, EarthMu).Position, orbit.RotationAt(world.Time, EarthMu)),
-                FirstMove = new MotionIntent(orbit.Sample(EarthMu, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(1)),
-                Components = [new KeplerMotion { Orbit = orbit }],
+                Pose = new(orbit.StateAt(world.Time, EarthMu).Position, orbit.RotationAt(world.Time, EarthMu)),
+                FirstMove = new(orbit.Sample(EarthMu, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
+                AsFrame = new(FrameBounds.Sphere(1)),
+                Components = [new KeplerMotion { Orbit = orbit }]
             });
         }
-        FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+
+        FrameHandle station = world.GetOwnedFrame(world.Spawn(new()
         {
             Frame = planet,
-            Pose = new DPose(new Double3(0, 0, -2e6), DQuaternion.Identity),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1000)),
+            Pose = new(new(0, 0, -2e6), DQuaternion.Identity),
+            AsFrame = new(FrameBounds.Sphere(1000))
         }));
-        var mesh = new RenderData { Mesh = new MeshId(0), Flags = RenderFlags.Visible, BoundingRadius = 0.5f };
-        var cube = new BodyDesc(new BoxShapeDesc(new System.Numerics.Vector3(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
+        var mesh = new RenderData { Mesh = new(0), Flags = RenderFlags.Visible, BoundingRadius = 0.5f };
+        var cube = new BodyDesc(new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
         for (int i = 0; i < Bodies; i++)
-        {
-            world.Spawn(new SpawnDesc
+            world.Spawn(new()
             {
                 Frame = station,
-                Pose = new DPose(new Double3(i % 20 * 3.0, i / 20 % 10 * 3.0, i / 200 * 3.0), DQuaternion.Identity),
-                AngularVelocity = new System.Numerics.Vector3(0.3f + i % 7 * 0.1f, 1f, 0.2f),
+                Pose = new(new(i % 20 * 3.0, i / 20 % 10 * 3.0, i / 200 * 3.0), DQuaternion.Identity),
+                AngularVelocity = new(0.3f + i % 7 * 0.1f, 1f, 0.2f),
                 Body = cube,
-                Render = mesh,
+                Render = mesh
             });
-        }
         Topic topic = Topics.Get("benchmarks.mixed");
         Entity previous = default;
         for (int i = 0; i < Plain; i++)
-        {
-            previous = world.Spawn(new SpawnDesc
+            previous = world.Spawn(new()
             {
                 Frame = station,
-                Pose = new DPose(new Double3(i % 100 * 2.0, 200 + i / 100 * 2.0, 0), DQuaternion.Identity),
+                Pose = new(new(i % 100 * 2.0, 200 + i / 100 * 2.0, 0), DQuaternion.Identity),
                 Render = mesh,
                 Components = [new WorldTickBenchmarks.Busy(previous.IsNull ? station.Entity : previous, topic)],
-                Subscriptions = i % (Plain / 100) == 0 ? [topic] : [],
+                Subscriptions = i % (Plain / 100) == 0 ? [topic] : []
             });
-        }
         world.Camera = previous;
         for (int i = 0; i < 20; i++)
             world.Tick();

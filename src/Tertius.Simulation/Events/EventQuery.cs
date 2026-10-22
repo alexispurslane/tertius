@@ -138,14 +138,16 @@ internal readonly struct AnyTypeFilter : IEventFilter
     // A query over every type has no type to look up in the mask.
     public bool MayMatch(in EventMask mask) => true;
 
-    public bool Matches(ref Event e) => (sender is not Entity from || e.Sender == from) && (predicate is null || predicate(ref e));
+    public bool Matches(ref Event e) =>
+        (sender is not Entity from || e.Sender == from) && (predicate is null || predicate(ref e));
 }
 
 internal static class QueryErrors
 {
     [DoesNotReturn]
     public static void ThrowSecondSender() =>
-        throw new InvalidOperationException("The query already has a sender. An event has one sender, so a query takes one From.");
+        throw new InvalidOperationException(
+            "The query already has a sender. An event has one sender, so a query takes one From.");
 
     [DoesNotReturn]
     public static void ThrowSecondPredicate() =>

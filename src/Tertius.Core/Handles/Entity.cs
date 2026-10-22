@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Tertius;
 
 /// <summary>
@@ -5,7 +7,9 @@ namespace Tertius;
 /// slot is freed, so a handle to a destroyed entity is stale. Live generations start at 1, so
 /// <c>default(Entity)</c> is the null handle.
 /// </summary>
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1036", Justification = "CompareTo gives a deterministic sort order only. Operators such as < would suggest that one entity comes before another in a meaningful way.")]
+[SuppressMessage("Design", "CA1036",
+    Justification =
+        "CompareTo gives a deterministic sort order only. Operators such as < would suggest that one entity comes before another in a meaningful way.")]
 public readonly record struct Entity(uint Index, uint Generation) : IComparable<Entity>
 {
     public static Entity Null => default;
@@ -17,7 +21,8 @@ public readonly record struct Entity(uint Index, uint Generation) : IComparable<
 
     public static Entity FromRaw(ulong raw) => new((uint)raw, (uint)(raw >> 32));
 
-    public int CompareTo(Entity other) => Index != other.Index ? Index.CompareTo(other.Index) : Generation.CompareTo(other.Generation);
+    public int CompareTo(Entity other) =>
+        Index != other.Index ? Index.CompareTo(other.Index) : Generation.CompareTo(other.Generation);
 
     public override string ToString() => IsNull ? "Entity(null)" : $"Entity({Index}v{Generation})";
 }
@@ -32,10 +37,10 @@ public readonly record struct FrameHandle(Entity Entity, int Index, uint Generat
 
     public bool IsNull => Generation == 0;
 
-    public static implicit operator Entity(FrameHandle frame) => frame.Entity;
-
     /// <summary>The message topic of this frame. Every entity in the frame subscribes to it.</summary>
     public Topic Topic => Topic.OfFrame(this);
+
+    public static implicit operator Entity(FrameHandle frame) => frame.Entity;
 
     public override string ToString() => IsNull ? "Frame(null)" : $"Frame({Index}v{Generation}, {Entity})";
 }
@@ -47,12 +52,12 @@ public readonly record struct FrameHandle(Entity Entity, int Index, uint Generat
 /// </summary>
 public readonly record struct Topic(int Id, uint Generation = 0)
 {
-    public static Topic OfFrame(FrameHandle frame) => new(-1 - frame.Index, frame.Generation);
-
     public bool IsFrameTopic => Id < 0;
 
     /// <summary>The frame index of a frame topic.</summary>
     public int FrameIndex => -1 - Id;
+
+    public static Topic OfFrame(FrameHandle frame) => new(-1 - frame.Index, frame.Generation);
 }
 
 /// <summary>The target case for a message to every live entity.</summary>
@@ -61,12 +66,23 @@ public readonly record struct Broadcast;
 /// <summary>Named topics. Ids are dense and stable for the life of the process.</summary>
 public static class Topics
 {
-    private static readonly Dictionary<string, Topic> ByName = new();
-    private static readonly List<string> Names = new();
+    private static readonly Dictionary<string, Topic> ByName = [];
+    private static readonly List<string> Names = [];
     private static readonly Lock Gate = new();
 
     /// <summary>The topic that the host sends input events to.</summary>
     public static readonly Topic Input = Get("input");
+
+    public static int Count
+    {
+        get
+        {
+            lock (Gate)
+            {
+                return Names.Count;
+            }
+        }
+    }
 
     public static Topic Get(string name)
     {
@@ -74,7 +90,7 @@ public static class Topics
         {
             if (ByName.TryGetValue(name, out Topic topic))
                 return topic;
-            topic = new Topic(Names.Count);
+            topic = new(Names.Count);
             Names.Add(name);
             ByName.Add(name, topic);
             return topic;
@@ -86,11 +102,8 @@ public static class Topics
         if (topic.IsFrameTopic)
             return $"frame:{topic.FrameIndex}";
         lock (Gate)
+        {
             return topic.Id < Names.Count ? Names[topic.Id] : $"topic:{topic.Id}";
-    }
-
-    public static int Count
-    {
-        get { lock (Gate) return Names.Count; }
+        }
     }
 }

@@ -32,17 +32,8 @@ public static partial class DemoScenes
     /// </summary>
     public static class Shuttle
     {
-        /// <summary>The half extents of the box that the hull fits, in meters, in the shuttle's axes.</summary>
-        public static Vector3 Hull { get; } = new(3, 2, 8);
-
         /// <summary>The thickness of the hull's walls, floor and roof, in meters, in the plane of a cross-section.</summary>
         public const float Wall = 0.2f;
-
-        /// <summary>
-        /// The half extents of the cabin's box inside the walls, in meters, in the shuttle's axes. The bevels along the
-        /// cabin's four long edges and the nose cut it.
-        /// </summary>
-        public static Vector3 Cabin { get; } = Hull - new Vector3(Wall);
 
         /// <summary>
         /// The mass of the hull, in kilograms. A parked hull does not use it, but it needs one so that a later
@@ -76,42 +67,33 @@ public static partial class DemoScenes
         /// </summary>
         public const double ParkingOrbitAltitude = 200e3;
 
-        /// <summary>The force of the main engine at full throttle, in newtons: <see cref="Mass"/> times <see cref="ThrustAcceleration"/>.</summary>
+        /// <summary>The force of the main engine at full throttle, in newtons: <see cref="Mass"/> times
+        /// <see cref="ThrustAcceleration"/>.</summary>
         public const float MainEngineThrust = Mass * ThrustAcceleration;
 
-        /// <summary>
-        /// The layers of the shuttle's flight program, in the order in which they run in a tick: the
-        /// <see cref="AscentAutopilot"/> at priority 0, the <see cref="RendezvousAutopilot"/> at 1 and the
-        /// <see cref="DockingAutopilot"/> at 2, which add the <see cref="Throttle"/>, the <see cref="AttitudeTarget"/> and
-        /// the <see cref="Translation"/> of each tick to the shuttle's events. The actuators, which <see cref="FitActuators"/>
-        /// adds to the hull once it is spawned, read them after every layer and follow the last layer that speaks. The main
-        /// engine pushes <see cref="Mass"/> with <see cref="ThrustAcceleration"/> at full throttle, and both autopilots plan
-        /// with that thrust. The ascent autopilot steers only once the shuttle is <paramref name="climbHeight"/> meters higher
-        /// than where it launched, clear of its ramp, and it steers into <paramref name="plane"/>, whose frame it reads in.
-        /// The rendezvous autopilot flies <see cref="RendezvousPlan.Demo"/> to <paramref name="station"/>, and the docking
-        /// autopilot docks in it.
-        /// </summary>
-        public static IComponent[] FlightControls(double climbHeight, LaunchPlane plane, Entity station) =>
-            [new AscentAutopilot(MainEngineThrust, ParkingOrbitRadius, climbHeight, plane), new RendezvousAutopilot(station, RendezvousPlan.Demo, MainEngineThrust),
-                new DockingAutopilot(station)];
+        /// <summary>Where the nose's loft ends and the full cross-section starts, in meters along the shuttle's Z.</summary>
+        private const float NoseStart = -5;
+
+        /// <summary>The bay of the hatch, from z = 1 m to 3 m, where the starboard upper side is solid round the doorway.</summary>
+        private const int HatchBay = 6;
 
         /// <summary>
-        /// Gives the spawned <paramref name="hull"/> the shuttle's actuators, outside a tick (docs/plans/blue-danube-demo.md,
-        /// "The jets as parts"): the <see cref="AttitudeAutopilot"/> at priority 10, which turns the attitude target of the
-        /// tick into a <see cref="Torque"/>, and the <see cref="ShuttleJetControl"/> at 20, which spawns the main engine and
-        /// the jets as parts of the hull and sends each its throttle by message: the main engine gives
-        /// <see cref="MainEngineThrust"/> at full throttle, and the translation pairs <see cref="TranslationThrust"/> on each
-        /// axis. Returns the control.
+        /// The specular intensity of the canopy's glass: that of glass with an anti-reflection coating, which reflects about
+        /// 0.5 % of the light that meets it head-on (F0 = 0.16 times its square, ARCHITECTURE.md, "Shading"), where the orbit
+        /// scene's glass reflects 16 %. The window films look head-on through the glass, and the cabin's lamps lie in front
+        /// of it. With 16 %, each lamp's highlight in the glass is a white blob beside the station. At a grazing angle, glass
+        /// reflects much more, whatever its coating, so the highlights on the side and roof glass in the cabin views stay.
         /// </summary>
-        public static ShuttleJetControl FitActuators(World world, Entity hull)
-        {
-            world.AddComponent(hull, new AttitudeAutopilot(Inertia));
-            return FitJets(world, hull);
-        }
+        private const float AntiReflective = 0.18f;
 
-        /// <summary>Spawns the shuttle's main engine and jets as parts of <paramref name="hull"/> and adds their control, as <see cref="FitActuators"/> does, without the attitude autopilot.</summary>
-        public static ShuttleJetControl FitJets(World world, Entity hull) =>
-            ShuttleJetControl.Fit(world, hull, MainEngineThrust, Inertia, TranslationThrust);
+        /// <summary>The half extents of the box that the hull fits, in meters, in the shuttle's axes.</summary>
+        public static Vector3 Hull { get; } = new(3, 2, 8);
+
+        /// <summary>
+        /// The half extents of the cabin's box inside the walls, in meters, in the shuttle's axes. The bevels along the
+        /// cabin's four long edges and the nose cut it.
+        /// </summary>
+        public static Vector3 Cabin { get; } = Hull - new Vector3(Wall);
 
         /// <summary>
         /// The box of the cabin's air, in meters, in the hull's axes: the cabin, <see cref="Cabin"/> on each side of the
@@ -125,13 +107,14 @@ public static partial class DemoScenes
         /// aft of the shuttle's center, with a sill 0.1 m above the cabin floor. A person on the ground below the hull
         /// steps 0.3 m up onto the sill, within the 0.4 m that a character climbs as a stair.
         /// </summary>
-        public static BoundingBox Hatch { get; } = new(new Vector3(Cabin.X, -Cabin.Y + 0.1f, 1.4f), new Vector3(Hull.X, -Cabin.Y + 2.2f, 2.6f));
+        public static BoundingBox Hatch { get; } =
+            new(new(Cabin.X, -Cabin.Y + 0.1f, 1.4f), new(Hull.X, -Cabin.Y + 2.2f, 2.6f));
 
         /// <summary>
         /// The seat, in the shuttle's axes: a box 0.6 m wide, 0.5 m tall and 0.6 m deep on the cabin floor, centered 1 m to
         /// starboard and 4.5 m ahead of the shuttle's center.
         /// </summary>
-        public static BoundingBox Seat { get; } = new(new Vector3(0.7f, -Cabin.Y, -4.8f), new Vector3(1.3f, -Cabin.Y + 0.5f, -4.2f));
+        public static BoundingBox Seat { get; } = new(new(0.7f, -Cabin.Y, -4.8f), new(1.3f, -Cabin.Y + 0.5f, -4.2f));
 
         /// <summary>
         /// The full cross-section of the outer skin, from z = -5 m to the tail, corners 0 to 9 counterclockwise seen from +Z:
@@ -139,7 +122,10 @@ public static partial class DemoScenes
         /// bevels of 0.8 m at 45 degrees up to the roof, and the roof.
         /// </summary>
         private static readonly Vector2[] Full =
-            [new(-2.8f, -2), new(2.8f, -2), new(3, -1.8f), new(3, -1.2f), new(3, 1.2f), new(2.2f, 2), new(-2.2f, 2), new(-3, 1.2f), new(-3, -1.2f), new(-3, -1.8f)];
+        [
+            new(-2.8f, -2), new(2.8f, -2), new(3, -1.8f), new(3, -1.2f), new(3, 1.2f), new(2.2f, 2), new(-2.2f, 2),
+            new(-3, 1.2f), new(-3, -1.2f), new(-3, -1.8f)
+        ];
 
         /// <summary>
         /// The nose's front, at z = -8 m, with the same corners: over the nose's last 3 m the roof falls from y = 2 m to 0.6 m
@@ -147,10 +133,10 @@ public static partial class DemoScenes
         /// and 2.6 m tall, and every edge of it is parallel to the same edge of the full cross-section.
         /// </summary>
         private static readonly Vector2[] NoseFront =
-            [new(-2.2f, -2), new(2.2f, -2), new(2.4f, -1.8f), new(2.4f, -1.2f), new(2.4f, -0.2f), new(1.6f, 0.6f), new(-1.6f, 0.6f), new(-2.4f, -0.2f), new(-2.4f, -1.2f), new(-2.4f, -1.8f)];
-
-        /// <summary>Where the nose's loft ends and the full cross-section starts, in meters along the shuttle's Z.</summary>
-        private const float NoseStart = -5;
+        [
+            new(-2.2f, -2), new(2.2f, -2), new(2.4f, -1.8f), new(2.4f, -1.2f), new(2.4f, -0.2f), new(1.6f, 0.6f),
+            new(-1.6f, 0.6f), new(-2.4f, -0.2f), new(-2.4f, -1.2f), new(-2.4f, -1.8f)
+        ];
 
         /// <summary>
         /// The rib places, in meters along the shuttle's Z: every 1.5 m in the nose and every 2 m in the body. One lies at
@@ -163,10 +149,8 @@ public static partial class DemoScenes
         /// bevels and the roof. The panes start 0.1 m above the sill, so the band runs from 0.7 m above the cabin floor
         /// over the roof.
         /// </summary>
-        private static readonly (int Edge, string Name)[] GlassEdges = [(3, "starboard"), (4, "starboard-bevel"), (5, "roof"), (6, "port-bevel"), (7, "port")];
-
-        /// <summary>The bay of the hatch, from z = 1 m to 3 m, where the starboard upper side is solid round the doorway.</summary>
-        private const int HatchBay = 6;
+        private static readonly (int Edge, string Name)[] GlassEdges =
+            [(3, "starboard"), (4, "starboard-bevel"), (5, "roof"), (6, "port-bevel"), (7, "port")];
 
         /// <summary>
         /// The shuttle's hull (docs/plans/blue-danube-demo.md, "The shuttle's tram shape and glass canopy"): the loft of
@@ -178,9 +162,11 @@ public static partial class DemoScenes
         /// skin.
         /// </summary>
         public static LoftedHull Loft { get; } = Enumerable.Range(1, Ribs.Length - 1)
-            .SelectMany(bay => GlassEdges.Where(glass => !(glass.Edge == 3 && bay == HatchBay)).Select(glass => (glass.Edge, glass.Name, Bay: bay)))
+            .SelectMany(bay =>
+                GlassEdges.Where(glass => !(glass.Edge == 3 && bay == HatchBay))
+                    .Select(glass => (glass.Edge, glass.Name, Bay: bay)))
             .Aggregate(
-                new LoftedHull([new HullSection(-Hull.Z, NoseFront), new HullSection(NoseStart, Full), new HullSection(Hull.Z, Full)], Wall, Ribs)
+                new LoftedHull([new(-Hull.Z, NoseFront), new(NoseStart, Full), new(Hull.Z, Full)], Wall, Ribs)
                     .Door(Hatch, bay: HatchBay, fromCorner: 2, toCorner: 4)
                     .TailPocket(half: 0.7f, depth: 0.6f, housing: Wall)
                     .Surrounds(rib: 0.1f, fold: 0.06f, solid: 0.1f)
@@ -195,7 +181,10 @@ public static partial class DemoScenes
         /// the hatch, and the <see cref="Seat"/>. Every piece is sharp, so physics gives the body edge removal.
         /// </summary>
         public static ShapeDesc InteriorShape { get; } = new CompoundShapeDesc(
-            [.. Loft.Interior(), new CompoundChild(new BoxShapeDesc(Seat.Extents, ConvexRadius: 0), new Pose(Seat.Center, Quaternion.Identity))]);
+        [
+            .. Loft.Interior(),
+            new(new BoxShapeDesc(Seat.Extents, ConvexRadius: 0), new(Seat.Center, Quaternion.Identity))
+        ]);
 
         /// <summary>
         /// The hull's moments of inertia about its principal axes, in kg·m², and those axes in the shuttle's axes, as physics
@@ -218,41 +207,6 @@ public static partial class DemoScenes
         /// z = 7.45 m to 7.95 m. The main engine's part sits there too (see <see cref="ShuttleJets.MainEnginePlace"/>).
         /// </summary>
         public static double NozzleZ { get; } = Hull.Z - 0.05 - 0.25;
-
-        /// <summary>
-        /// Where the nozzle lies, in the shuttle's axes, for a hull whose center of mass lies at
-        /// <paramref name="centerOfMass"/>: its axis along Z through the center of mass, where the main engine pushes, and
-        /// the tail pocket's middle, at <see cref="NozzleZ"/>, turned a quarter turn about X so that the ring's own Y lies
-        /// along Z. A nozzle off that line would show a thrust that turns the ship, and the ship does not turn.
-        /// </summary>
-        public static DPose NozzlePose(Double3 centerOfMass) =>
-            new(new Double3(centerOfMass.X, centerOfMass.Y, NozzleZ), DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2));
-
-        /// <summary>
-        /// Spawns the nozzle in <paramref name="cabin"/>, the shuttle's frame, at <see cref="NozzlePose"/> for the center of
-        /// mass of the frame's owner, the hull, which it reads from the engine's body facts. It is drawn in dark gray, with
-        /// no body. Its scene id is <c>nozzle</c>, after <paramref name="prefix"/> and a hyphen when the prefix is not empty,
-        /// so that each shuttle of a scene has its own. The nozzle is its own entity, not the main engine's part: a parked
-        /// shuttle with no flight controls draws it too, and its mesh turns a quarter turn from the hull's axes, which the
-        /// main engine's part keeps.
-        /// </summary>
-        public static Entity SpawnNozzle(World world, FrameHandle cabin, SceneInstance scene, IRenderResources resources, string prefix = "")
-        {
-            if (!world.Snapshot.TryGetBody(cabin.Entity, out BodyFacts hull))
-                throw new ArgumentException($"The frame {cabin} has no owner with a body, so it has no hull for the nozzle.", nameof(cabin));
-            Entity nozzle = world.Spawn(new SpawnDesc
-            {
-                Frame = cabin,
-                Pose = NozzlePose((Double3)hull.CenterOfMass),
-                Render = Drawn(resources, Nozzle.Mesh(), new Vector4(0.18f, 0.18f, 0.2f, 1), boundingRadius: 0.7f),
-            });
-            scene.Add(prefix.Length == 0 ? "nozzle" : $"{prefix}-nozzle", nozzle);
-            return nozzle;
-        }
-
-        /// <summary>The hull's body with <paramref name="motion"/>: <see cref="HullShape"/>, <see cref="Mass"/>, no damping, and <see cref="InteriorShape"/>.</summary>
-        public static BodyDesc Body(BodyMotion motion) =>
-            new(HullShape, motion, Mass: Mass, LinearDamping: 0, AngularDamping: 0, InteriorShape: InteriorShape);
 
         /// <summary>
         /// Where a person 1.8 m tall stands at the seat, in the shuttle's axes: the center of its capsule, 0.9 m above the
@@ -281,25 +235,116 @@ public static partial class DemoScenes
         public static IReadOnlyList<HullPane> Glass { get; } = Loft.Panes();
 
         /// <summary>
+        /// The cabin's four lamps, each with its scene id and its glowing panel, in the shuttle's axes: on the inner faces
+        /// of the pillars at z = -3 m and 3 m, on both walls, 2.4 m above the cabin floor. A panel is 0.05 m thick, 0.5 m tall
+        /// and 0.15 m wide, within its pillar's 0.2 m, so the pillar hides it from outside. The roof is glass, so the lamps
+        /// hang on the walls.
+        /// </summary>
+        public static IReadOnlyList<(string Id, BoundingBox Panel)> Lamps { get; } =
+        [
+            .. new[] { ("port", -1f), ("starboard", 1f) }.SelectMany(wall =>
+                new[] { ("fore", -3f), ("aft", 3f) }.Select(place =>
+                {
+                    var center = new Vector3(wall.Item2 * (Cabin.X - LampHalf.X), -Cabin.Y + 2.4f, place.Item2);
+                    return (Id: $"lamp-{wall.Item1}-{place.Item1}",
+                        Panel: new BoundingBox(center - LampHalf, center + LampHalf));
+                }))
+        ];
+
+        /// <summary>The half extents of a lamp's panel, in meters: 0.05 m thick across the wall, 0.5 m tall and 0.15 m wide.</summary>
+        private static Vector3 LampHalf => new(0.025f, 0.25f, 0.075f);
+
+        /// <summary>The radii of the bubble, in meters, in the shuttle's axes.</summary>
+        public static Vector3 Bubble { get; } = (Hull + new Vector3(2)) * MathF.Sqrt(3);
+
+        /// <summary>
+        /// The layers of the shuttle's flight program, in the order in which they run in a tick: the
+        /// <see cref="AscentAutopilot"/> at priority 0, the <see cref="RendezvousAutopilot"/> at 1 and the
+        /// <see cref="DockingAutopilot"/> at 2, which add the <see cref="Throttle"/>, the <see cref="AttitudeTarget"/> and
+        /// the <see cref="Translation"/> of each tick to the shuttle's events. The actuators, which <see cref="FitActuators"/>
+        /// adds to the hull once it is spawned, read them after every layer and follow the last layer that speaks. The main
+        /// engine pushes <see cref="Mass"/> with <see cref="ThrustAcceleration"/> at full throttle, and both autopilots plan
+        /// with that thrust. The ascent autopilot steers only once the shuttle is <paramref name="climbHeight"/> meters higher
+        /// than where it launched, clear of its ramp, and it steers into <paramref name="plane"/>, whose frame it reads in.
+        /// The rendezvous autopilot flies <see cref="RendezvousPlan.Demo"/> to <paramref name="station"/>, and the docking
+        /// autopilot docks in it.
+        /// </summary>
+        public static IComponent[] FlightControls(double climbHeight, LaunchPlane plane, Entity station) =>
+        [
+            new AscentAutopilot(MainEngineThrust, ParkingOrbitRadius, climbHeight, plane),
+            new RendezvousAutopilot(station, RendezvousPlan.Demo, MainEngineThrust),
+            new DockingAutopilot(station)
+        ];
+
+        /// <summary>
+        /// Gives the spawned <paramref name="hull"/> the shuttle's actuators, outside a tick (docs/plans/blue-danube-demo.md,
+        /// "The jets as parts"): the <see cref="AttitudeAutopilot"/> at priority 10, which turns the attitude target of the
+        /// tick into a <see cref="Torque"/>, and the <see cref="ShuttleJetControl"/> at 20, which spawns the main engine and
+        /// the jets as parts of the hull and sends each its throttle by message: the main engine gives
+        /// <see cref="MainEngineThrust"/> at full throttle, and the translation pairs <see cref="TranslationThrust"/> on each
+        /// axis. Returns the control.
+        /// </summary>
+        public static ShuttleJetControl FitActuators(World world, Entity hull)
+        {
+            world.AddComponent(hull, new AttitudeAutopilot(Inertia));
+            return FitJets(world, hull);
+        }
+
+        /// <summary>Spawns the shuttle's main engine and jets as parts of <paramref name="hull"/> and adds their control, as
+        /// <see cref="FitActuators"/> does, without the attitude autopilot.</summary>
+        public static ShuttleJetControl FitJets(World world, Entity hull) =>
+            ShuttleJetControl.Fit(world, hull, MainEngineThrust, Inertia, TranslationThrust);
+
+        /// <summary>
+        /// Where the nozzle lies, in the shuttle's axes, for a hull whose center of mass lies at
+        /// <paramref name="centerOfMass"/>: its axis along Z through the center of mass, where the main engine pushes, and
+        /// the tail pocket's middle, at <see cref="NozzleZ"/>, turned a quarter turn about X so that the ring's own Y lies
+        /// along Z. A nozzle off that line would show a thrust that turns the ship, and the ship does not turn.
+        /// </summary>
+        public static DPose NozzlePose(Double3 centerOfMass) =>
+            new(new(centerOfMass.X, centerOfMass.Y, NozzleZ), DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2));
+
+        /// <summary>
+        /// Spawns the nozzle in <paramref name="cabin"/>, the shuttle's frame, at <see cref="NozzlePose"/> for the center of
+        /// mass of the frame's owner, the hull, which it reads from the engine's body facts. It is drawn in dark gray, with
+        /// no body. Its scene id is <c>nozzle</c>, after <paramref name="prefix"/> and a hyphen when the prefix is not empty,
+        /// so that each shuttle of a scene has its own. The nozzle is its own entity, not the main engine's part: a parked
+        /// shuttle with no flight controls draws it too, and its mesh turns a quarter turn from the hull's axes, which the
+        /// main engine's part keeps.
+        /// </summary>
+        public static Entity SpawnNozzle(World world, FrameHandle cabin, SceneInstance scene,
+            IRenderResources resources, string prefix = "")
+        {
+            if (!world.Snapshot.TryGetBody(cabin.Entity, out BodyFacts hull))
+                throw new ArgumentException(
+                    $"The frame {cabin} has no owner with a body, so it has no hull for the nozzle.", nameof(cabin));
+            Entity nozzle = world.Spawn(new()
+            {
+                Frame = cabin,
+                Pose = NozzlePose(hull.CenterOfMass),
+                Render = Drawn(resources, Nozzle.Mesh(), new(0.18f, 0.18f, 0.2f, 1), boundingRadius: 0.7f)
+            });
+            scene.Add(prefix.Length == 0 ? "nozzle" : $"{prefix}-nozzle", nozzle);
+            return nozzle;
+        }
+
+        /// <summary>The hull's body with <paramref name="motion"/>: <see cref="HullShape"/>, <see cref="Mass"/>, no damping, and
+        /// <see cref="InteriorShape"/>.</summary>
+        public static BodyDesc Body(BodyMotion motion) =>
+            new(HullShape, motion, Mass: Mass, LinearDamping: 0, AngularDamping: 0, InteriorShape: InteriorShape);
+
+        /// <summary>
         /// The drawn hull of <see cref="Loft"/>, in light gray. It casts shadows and is never an impostor: a flat picture of
         /// the hull alone cannot hold the person inside at its depth, and the hull has few triangles. The scene draws the
         /// seat, the panes, the lamps and the nozzle apart.
         /// </summary>
         public static RenderData DrawnHull(IRenderResources resources)
         {
-            RenderData render = Drawn(resources, Loft.Mesh(), new Vector4(0.85f, 0.85f, 0.88f, 1), boundingRadius: MathF.Ceiling(Hull.Length()));
+            RenderData render = Drawn(resources, Loft.Mesh(), new(0.85f, 0.85f, 0.88f, 1),
+                boundingRadius: MathF.Ceiling(Hull.Length()));
             render.Flags |= RenderFlags.NoImpostor;
             return render;
         }
-
-        /// <summary>
-        /// The specular intensity of the canopy's glass: that of glass with an anti-reflection coating, which reflects about
-        /// 0.5 % of the light that meets it head-on (F0 = 0.16 times its square, ARCHITECTURE.md, "Shading"), where the orbit
-        /// scene's glass reflects 16 %. The window films look head-on through the glass, and the cabin's lamps lie in front
-        /// of it. With 16 %, each lamp's highlight in the glass is a white blob beside the station. At a grazing angle, glass
-        /// reflects much more, whatever its coating, so the highlights on the side and roof glass in the cabin views stay.
-        /// </summary>
-        private const float AntiReflective = 0.18f;
 
         /// <summary>
         /// Spawns each pane of <see cref="Glass"/> in <paramref name="cabin"/>, the shuttle's frame, at its center, with its
@@ -309,44 +354,28 @@ public static partial class DemoScenes
         /// solid at the glass, and it casts no shadow, so sunlight comes in through the holes of the drawn hull. Each pane is
         /// its own instance round its own center, so the renderer sorts it at its real place.
         /// </summary>
-        public static void Panes(World world, FrameHandle cabin, SceneInstance scene, IRenderResources resources, string prefix = "")
+        public static void Panes(World world, FrameHandle cabin, SceneInstance scene, IRenderResources resources,
+            string prefix = "")
         {
-            MaterialId glass = resources.CreateMaterial(new MaterialDesc(new Vector4(0.45f, 0.65f, 1, 0.2f), SpecularIntensity: AntiReflective, Gloss: 0.9f));
+            MaterialId glass = resources.CreateMaterial(new(new(0.45f, 0.65f, 1, 0.2f),
+                SpecularIntensity: AntiReflective, Gloss: 0.9f));
             foreach (HullPane pane in Glass)
             {
-                Entity entity = world.Spawn(new SpawnDesc
+                Entity entity = world.Spawn(new()
                 {
                     Frame = cabin,
-                    Pose = new DPose(pane.Center, DQuaternion.Identity),
+                    Pose = new(pane.Center, DQuaternion.Identity),
                     Render = new RenderData
                     {
                         Mesh = resources.CreateMesh(pane.Mesh),
                         Material = glass,
                         BoundingRadius = pane.Mesh.Vertices.Max(vertex => vertex.Position.Length()),
-                        Flags = RenderFlags.Visible | RenderFlags.Transparent,
-                    },
+                        Flags = RenderFlags.Visible | RenderFlags.Transparent
+                    }
                 });
                 scene.Add(prefix.Length == 0 ? pane.Id : $"{prefix}-{pane.Id}", entity);
             }
         }
-
-        /// <summary>
-        /// The cabin's four lamps, each with its scene id and its glowing panel, in the shuttle's axes: on the inner faces
-        /// of the pillars at z = -3 m and 3 m, on both walls, 2.4 m above the cabin floor. A panel is 0.05 m thick, 0.5 m tall
-        /// and 0.15 m wide, within its pillar's 0.2 m, so the pillar hides it from outside. The roof is glass, so the lamps
-        /// hang on the walls.
-        /// </summary>
-        public static IReadOnlyList<(string Id, BoundingBox Panel)> Lamps { get; } =
-        [
-            .. new[] { ("port", -1f), ("starboard", 1f) }.SelectMany(wall => new[] { ("fore", -3f), ("aft", 3f) }.Select(place =>
-            {
-                var center = new Vector3(wall.Item2 * (Cabin.X - LampHalf.X), -Cabin.Y + 2.4f, place.Item2);
-                return (Id: $"lamp-{wall.Item1}-{place.Item1}", Panel: new BoundingBox(center - LampHalf, center + LampHalf));
-            })),
-        ];
-
-        /// <summary>The half extents of a lamp's panel, in meters: 0.05 m thick across the wall, 0.5 m tall and 0.15 m wide.</summary>
-        private static Vector3 LampHalf => new(0.025f, 0.25f, 0.075f);
 
         /// <summary>
         /// Spawns the <see cref="Lamps"/> in <paramref name="cabin"/>, the shuttle's frame, with their scene ids: each a
@@ -357,27 +386,25 @@ public static partial class DemoScenes
         public static void SpawnLamps(World world, FrameHandle cabin, SceneInstance scene, IRenderResources resources)
         {
             MeshId mesh = resources.CreateMesh(Primitives.Box(LampHalf));
-            MaterialId material = resources.CreateMaterial(new MaterialDesc(new Vector4(0, 0, 0, 1), SpecularIntensity: 0, Emissive: new Vector3(6, 5.4f, 4.5f)));
+            MaterialId material =
+                resources.CreateMaterial(new(new(0, 0, 0, 1), SpecularIntensity: 0, Emissive: new(6, 5.4f, 4.5f)));
             foreach ((string id, BoundingBox panel) in Lamps)
-            {
-                scene.Add(id, world.Spawn(new SpawnDesc
+                scene.Add(id, world.Spawn(new()
                 {
                     Frame = cabin,
-                    Pose = new DPose(panel.Center, DQuaternion.Identity),
+                    Pose = new(panel.Center, DQuaternion.Identity),
                     Render = new RenderData
                     {
                         Mesh = mesh,
                         Material = material,
                         BoundingRadius = LampHalf.Length(),
                         Flags = RenderFlags.Visible,
-                        Light = new PointLightData(new Pose(new Vector3(-MathF.Sign(panel.Center.X) * 0.3f, 0, 0), Quaternion.Identity), new Vector3(1, 0.9f, 0.75f), Intensity: 50, Range: 10),
-                    },
+                        Light = new PointLightData(
+                            new(new(-MathF.Sign(panel.Center.X) * 0.3f, 0, 0), Quaternion.Identity),
+                            new(1, 0.9f, 0.75f), Intensity: 50, Range: 10)
+                    }
                 }));
-            }
         }
-
-        /// <summary>The radii of the bubble, in meters, in the shuttle's axes.</summary>
-        public static Vector3 Bubble { get; } = (Hull + new Vector3(2)) * MathF.Sqrt(3);
 
         /// <summary>
         /// Spawns the shuttle parked at <paramref name="pose"/> in <paramref name="frame"/>, drawn with
@@ -388,14 +415,15 @@ public static partial class DemoScenes
         /// field feels that gravity reversed, so the person in the parked cabin feels the weight of the ground. A new frame
         /// reads no proper acceleration during its first step, and the derived value from its second step on.
         /// </summary>
-        public static Entity Park(World world, FrameHandle frame, DPose pose, RenderData? render = null, IReadOnlyList<IComponent>? components = null) => world.Spawn(new SpawnDesc
+        public static Entity Park(World world, FrameHandle frame, DPose pose, RenderData? render = null,
+            IReadOnlyList<IComponent>? components = null) => world.Spawn(new()
         {
             Frame = frame,
             Pose = pose,
             Body = Body(BodyMotion.Static),
-            AsFrame = new FrameSpec(new FrameBounds(Bubble), Medium: Air.Filling(CabinAir)),
+            AsFrame = new(new(Bubble), Medium: Air.Filling(CabinAir)),
             Render = render,
-            Components = components ?? [],
+            Components = components ?? []
         });
     }
 }

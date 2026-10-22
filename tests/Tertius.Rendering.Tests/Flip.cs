@@ -38,40 +38,44 @@ internal static class Flip
     private const double ValueAtCutoff = 0.95;
     private const double EdgeDetectorWidthDegrees = 0.082;
 
-    /// <summary>The contrast sensitivity filter of one opponent channel: a1, b1, a2, b2 of the paper (b in degrees²).</summary>
-    private readonly record struct Sensitivity(double A1, double B1, double A2, double B2);
+    /// <summary>The largest b of the three filters. It sets the radius of all three.</summary>
+    private const double WidestSensitivity = 0.04;
 
     private static readonly Sensitivity Achromatic = new(1, 0.0047, 0, 1e-5);
     private static readonly Sensitivity RedGreen = new(1, 0.0053, 0, 1e-5);
     private static readonly Sensitivity BlueYellow = new(34.1, 0.04, 13.5, 0.025);
-
-    /// <summary>The largest b of the three filters. It sets the radius of all three.</summary>
-    private const double WidestSensitivity = 0.04;
 
     /// <summary>sRGB primaries to CIE XYZ, for the D65 white.</summary>
     private static readonly double[,] RgbToXyz =
     {
         { 10135552.0 / 24577794, 8788810.0 / 24577794, 4435075.0 / 24577794 },
         { 2613072.0 / 12288897, 8788810.0 / 12288897, 887015.0 / 12288897 },
-        { 1425312.0 / 73733382, 8788810.0 / 73733382, 70074185.0 / 73733382 },
+        { 1425312.0 / 73733382, 8788810.0 / 73733382, 70074185.0 / 73733382 }
     };
 
     private static readonly double[,] XyzToRgb = Invert(RgbToXyz);
 
     /// <summary>The XYZ of white, linear RGB (1, 1, 1): the row sums of <see cref="RgbToXyz"/>.</summary>
     private static readonly (double X, double Y, double Z) White =
-        (RgbToXyz[0, 0] + RgbToXyz[0, 1] + RgbToXyz[0, 2], RgbToXyz[1, 0] + RgbToXyz[1, 1] + RgbToXyz[1, 2], RgbToXyz[2, 0] + RgbToXyz[2, 1] + RgbToXyz[2, 2]);
+        (RgbToXyz[0, 0] + RgbToXyz[0, 1] + RgbToXyz[0, 2], RgbToXyz[1, 0] + RgbToXyz[1, 1] + RgbToXyz[1, 2],
+            RgbToXyz[2, 0] + RgbToXyz[2, 1] + RgbToXyz[2, 2]);
 
     /// <summary>The linear light of each sRGB byte.</summary>
-    private static readonly float[] LinearOfByte = Enumerable.Range(0, 256).Select(v =>
-    {
-        double c = v / 255.0;
-        return (float)(c <= 0.04045 ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4));
-    }).ToArray();
+    private static readonly float[] LinearOfByte =
+    [
+        .. Enumerable.Range(0, 256).Select(v =>
+        {
+            double c = v / 255.0;
+            return (float)(c <= 0.04045 ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4));
+        })
+    ];
 
     /// <summary>cmax: the color error of pure green against pure blue, the largest that FLIP scales to.</summary>
     private static readonly double LargestColorError =
         Math.Pow(HyAB(HuntLab(LinearToXyz(0, 1, 0)), HuntLab(LinearToXyz(0, 0, 1))), ColorExponent);
+
+    /// <summary>The contrast sensitivity filter of one opponent channel: a1, b1, a2, b2 of the paper (b in degrees²).</summary>
+    private readonly record struct Sensitivity(double A1, double B1, double A2, double B2);
 
     /// <summary>
     /// The FLIP value of each pixel of <paramref name="test"/> against <paramref name="reference"/>, for a viewer who
@@ -80,18 +84,21 @@ internal static class Flip
     public static FlipMap Compare(Capture reference, Capture test, double pixelsPerDegree = DefaultPixelsPerDegree)
     {
         if (reference.Width != test.Width || reference.Height != test.Height)
-            throw new ArgumentException($"FLIP compares images of one size, not {reference.Width}×{reference.Height} and {test.Width}×{test.Height}.", nameof(test));
+            throw new ArgumentException(
+                $"FLIP compares images of one size, not {reference.Width}×{reference.Height} and {test.Width}×{test.Height}.",
+                nameof(test));
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pixelsPerDegree);
 
         Opponent referenceOpponent = Opponent.Of(reference);
         Opponent testOpponent = Opponent.Of(test);
         float[] colorError = ColorError(referenceOpponent, testOpponent, pixelsPerDegree);
-        float[] featureDifference = FeatureDifference(referenceOpponent.Lightness, testOpponent.Lightness, pixelsPerDegree);
+        float[] featureDifference =
+            FeatureDifference(referenceOpponent.Lightness, testOpponent.Lightness, pixelsPerDegree);
 
-        var values = new float[colorError.Length];
+        float[] values = new float[colorError.Length];
         for (int i = 0; i < values.Length; i++)
             values[i] = MathF.Pow(colorError[i], 1 - featureDifference[i]);
-        return new FlipMap(reference.Width, reference.Height, values);
+        return new(reference.Width, reference.Height, values);
     }
 
     /// <summary>The color error of each pixel, in [0, 1], after the contrast sensitivity filters.</summary>
@@ -102,14 +109,16 @@ internal static class Flip
         Opponent filteredTest = test.Filtered(radius, pixelsPerDegree);
 
         double cutoff = CutoffShareOfLargestError * LargestColorError;
-        var error = new float[reference.Lightness.Values.Length];
+        float[] error = new float[reference.Lightness.Values.Length];
         for (int i = 0; i < error.Length; i++)
         {
-            double e = Math.Pow(HyAB(HuntLab(filteredReference.XyzAt(i)), HuntLab(filteredTest.XyzAt(i))), ColorExponent);
+            double e = Math.Pow(HyAB(HuntLab(filteredReference.XyzAt(i)), HuntLab(filteredTest.XyzAt(i))),
+                ColorExponent);
             error[i] = (float)(e < cutoff
                 ? ValueAtCutoff / cutoff * e
                 : ValueAtCutoff + (e - cutoff) / (LargestColorError - cutoff) * (1 - ValueAtCutoff));
         }
+
         return error;
     }
 
@@ -118,9 +127,9 @@ internal static class Flip
     {
         double sigma = 0.5 * EdgeDetectorWidthDegrees * pixelsPerDegree;
         int radius = (int)Math.Ceiling(3 * sigma);
-        var gaussian = new double[2 * radius + 1];
-        var edge = new double[2 * radius + 1];
-        var point = new double[2 * radius + 1];
+        double[] gaussian = new double[2 * radius + 1];
+        double[] edge = new double[2 * radius + 1];
+        double[] point = new double[2 * radius + 1];
         for (int i = -radius; i <= radius; i++)
         {
             double g = Math.Exp(-i * i / (2 * sigma * sigma));
@@ -128,6 +137,7 @@ internal static class Flip
             edge[i + radius] = -i * g;
             point[i + radius] = (i * i / (sigma * sigma) - 1) * g;
         }
+
         float[] blur = Normalized(gaussian);
         float[] firstDerivative = SignNormalized(edge);
         float[] secondDerivative = SignNormalized(point);
@@ -140,12 +150,14 @@ internal static class Flip
         float[] referencePoints = Strength(referenceLuminance, secondDerivative, blur);
         float[] testPoints = Strength(testLuminance, secondDerivative, blur);
 
-        var difference = new float[referenceEdges.Length];
+        float[] difference = new float[referenceEdges.Length];
         for (int i = 0; i < difference.Length; i++)
         {
-            float change = MathF.Max(MathF.Abs(referenceEdges[i] - testEdges[i]), MathF.Abs(referencePoints[i] - testPoints[i]));
+            float change = MathF.Max(MathF.Abs(referenceEdges[i] - testEdges[i]),
+                MathF.Abs(referencePoints[i] - testPoints[i]));
             difference[i] = (float)Math.Pow(change / Math.Sqrt(2), FeatureExponent);
         }
+
         return difference;
     }
 
@@ -157,7 +169,7 @@ internal static class Flip
     {
         Plane across = luminance.Filtered(derivative, blur);
         Plane down = luminance.Filtered(blur, derivative);
-        var strength = new float[across.Values.Length];
+        float[] strength = new float[across.Values.Length];
         for (int i = 0; i < strength.Length; i++)
             strength[i] = MathF.Sqrt(across.Values[i] * across.Values[i] + down.Values[i] * down.Values[i]);
         return strength;
@@ -167,7 +179,7 @@ internal static class Flip
     private static float[] Normalized(double[] weights)
     {
         double sum = weights.Sum();
-        return weights.Select(w => (float)(w / sum)).ToArray();
+        return [.. weights.Select(w => (float)(w / sum))];
     }
 
     /// <summary>
@@ -178,20 +190,21 @@ internal static class Flip
     {
         double positive = weights.Where(w => w > 0).Sum();
         double negative = -weights.Where(w => w < 0).Sum();
-        if (positive == 0 || negative == 0)
-            return new float[weights.Length];
-        return weights.Select(w => (float)(w > 0 ? w / positive : w / negative)).ToArray();
+        return positive == 0 || negative == 0
+            ? new float[weights.Length]
+            : [.. weights.Select(w => (float)(w > 0 ? w / positive : w / negative))];
     }
 
     /// <summary>The 1D Gaussian of one term of a contrast sensitivity filter, exp(−π² x² / b), x in degrees.</summary>
     private static double[] SensitivityGaussian(double b, int radius, double pixelsPerDegree)
     {
-        var weights = new double[2 * radius + 1];
+        double[] weights = new double[2 * radius + 1];
         for (int i = -radius; i <= radius; i++)
         {
             double x = i / pixelsPerDegree;
             weights[i + radius] = Math.Exp(-Math.PI * Math.PI * x * x / b);
         }
+
         return weights;
     }
 
@@ -220,8 +233,8 @@ internal static class Flip
 
     private static (double X, double Y, double Z) LinearToXyz(double r, double g, double b) =>
         (RgbToXyz[0, 0] * r + RgbToXyz[0, 1] * g + RgbToXyz[0, 2] * b,
-         RgbToXyz[1, 0] * r + RgbToXyz[1, 1] * g + RgbToXyz[1, 2] * b,
-         RgbToXyz[2, 0] * r + RgbToXyz[2, 1] * g + RgbToXyz[2, 2] * b);
+            RgbToXyz[1, 0] * r + RgbToXyz[1, 1] * g + RgbToXyz[1, 2] * b,
+            RgbToXyz[2, 0] * r + RgbToXyz[2, 1] * g + RgbToXyz[2, 2] * b);
 
     /// <summary>
     /// CIELAB of an XYZ color, after the paper clamps it to the sRGB gamut in linear RGB, with a* and b* scaled by
@@ -250,13 +263,21 @@ internal static class Flip
 
     private static double[,] Invert(double[,] m)
     {
-        double a = m[0, 0], b = m[0, 1], c = m[0, 2], d = m[1, 0], e = m[1, 1], f = m[1, 2], g = m[2, 0], h = m[2, 1], k = m[2, 2];
+        double a = m[0, 0],
+            b = m[0, 1],
+            c = m[0, 2],
+            d = m[1, 0],
+            e = m[1, 1],
+            f = m[1, 2],
+            g = m[2, 0],
+            h = m[2, 1],
+            k = m[2, 2];
         double determinant = a * (e * k - f * h) - b * (d * k - f * g) + c * (d * h - e * g);
         return new[,]
         {
             { (e * k - f * h) / determinant, (c * h - b * k) / determinant, (b * f - c * e) / determinant },
             { (f * g - d * k) / determinant, (a * k - c * g) / determinant, (c * d - a * f) / determinant },
-            { (d * h - e * g) / determinant, (b * g - a * h) / determinant, (a * e - b * d) / determinant },
+            { (d * h - e * g) / determinant, (b * g - a * h) / determinant, (a * e - b * d) / determinant }
         };
     }
 
@@ -268,18 +289,21 @@ internal static class Flip
         public static Opponent Of(Capture image)
         {
             int count = image.Width * image.Height;
-            var y = new float[count];
-            var cx = new float[count];
-            var cz = new float[count];
+            float[] y = new float[count];
+            float[] cx = new float[count];
+            float[] cz = new float[count];
             for (int i = 0; i < count; i++)
             {
-                (double x, double luminance, double z) = LinearToXyz(LinearOfByte[image.Rgba[4 * i]], LinearOfByte[image.Rgba[4 * i + 1]], LinearOfByte[image.Rgba[4 * i + 2]]);
+                (double x, double luminance, double z) = LinearToXyz(LinearOfByte[image.Rgba[4 * i]],
+                    LinearOfByte[image.Rgba[4 * i + 1]], LinearOfByte[image.Rgba[4 * i + 2]]);
                 double xr = x / White.X, yr = luminance / White.Y, zr = z / White.Z;
                 y[i] = (float)(116 * yr - 16);
                 cx[i] = (float)(500 * (xr - yr));
                 cz[i] = (float)(200 * (yr - zr));
             }
-            return new Opponent(new Plane(image.Width, image.Height, y), new Plane(image.Width, image.Height, cx), new Plane(image.Width, image.Height, cz));
+
+            return new(new(image.Width, image.Height, y), new(image.Width, image.Height, cx),
+                new(image.Width, image.Height, cz));
         }
 
         public Opponent Filtered(int radius, double pixelsPerDegree) => new(
@@ -290,7 +314,8 @@ internal static class Flip
         public (double X, double Y, double Z) XyzAt(int i)
         {
             double y = (Lightness.Values[i] + 16.0) / 116;
-            return ((y + redGreen.Values[i] / 500.0) * White.X, y * White.Y, (y - blueYellow.Values[i] / 200.0) * White.Z);
+            return ((y + redGreen.Values[i] / 500.0) * White.X, y * White.Y,
+                (y - blueYellow.Values[i] / 200.0) * White.Z);
         }
     }
 
@@ -299,10 +324,10 @@ internal static class Flip
     {
         public float[] Values { get; } = values;
 
-        public Plane Map(Func<float, float> f) => new(width, height, Values.Select(f).ToArray());
+        public Plane Map(Func<float, float> f) => new(width, height, [.. Values.Select(f)]);
 
         public Plane Combine(Plane other, Func<float, float, float> f) =>
-            new(width, height, Values.Zip(other.Values, f).ToArray());
+            new(width, height, [.. Values.Zip(other.Values, f)]);
 
         /// <summary>
         /// Correlates each row with <paramref name="acrossColumns"/>, then each column of the result with
@@ -310,7 +335,7 @@ internal static class Flip
         /// </summary>
         public Plane Filtered(float[] acrossColumns, float[] downRows)
         {
-            var rowPass = new float[Values.Length];
+            float[] rowPass = new float[Values.Length];
             int radius = acrossColumns.Length / 2;
             for (int y = 0; y < height; y++)
             {
@@ -324,19 +349,18 @@ internal static class Flip
                 }
             }
 
-            var result = new float[Values.Length];
+            float[] result = new float[Values.Length];
             radius = downRows.Length / 2;
             for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
             {
-                for (int x = 0; x < width; x++)
-                {
-                    float sum = 0;
-                    for (int i = -radius; i <= radius; i++)
-                        sum += downRows[i + radius] * rowPass[Math.Clamp(y + i, 0, height - 1) * width + x];
-                    result[y * width + x] = sum;
-                }
+                float sum = 0;
+                for (int i = -radius; i <= radius; i++)
+                    sum += downRows[i + radius] * rowPass[Math.Clamp(y + i, 0, height - 1) * width + x];
+                result[y * width + x] = sum;
             }
-            return new Plane(width, height, result);
+
+            return new(width, height, result);
         }
     }
 }

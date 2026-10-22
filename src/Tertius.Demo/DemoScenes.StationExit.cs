@@ -42,14 +42,6 @@ public static partial class DemoScenes
         /// </summary>
         public const double StepInSpeed = 0.4;
 
-        /// <summary>
-        /// The demo's chute: the back plate's face at z = -1 m, the rails' inner faces at y = ±0.6 m, from the deck down to
-        /// 5 cm above the wheel's floor. The friction is 1.5 down to the ceiling's face toward the axis and 6 in the brake
-        /// run below it, which gives a slide of 8.9 m/s at most and a landing at about 2.6 m/s.
-        /// </summary>
-        public static Chute Chute { get; } = new(BackFace: -1.0, HalfWidth: 0.6, Depth: 0.8, Top: DemoStation.Deck, BrakeFrom: -DemoStation.CeilingRadius, End: -99.95,
-            Coefficient: 1.5, BrakeCoefficient: 6);
-
         /// <summary>The thickness of the chute's back plate and of each rail, in meters.</summary>
         public const float PlateThickness = 0.1f;
 
@@ -57,119 +49,51 @@ public static partial class DemoScenes
         public const float RailDepth = 0.6f;
 
         /// <summary>
-        /// The chute's top: a hole through the deck's wall, from x = -8.5 to -8 m, y from -0.6 to 0.6 m and z from -1.0 to
-        /// -0.2 m, inside <see cref="DemoStation.SpokeMouth"/>. Its antispinward face is the plane of the back plate's face,
-        /// and its faces across the axis are the planes of the rails' inner faces. It reaches 0.2 m spinward of the rails, so
-        /// that a person who walks into it antispinward loses its footing before its back meets the far face.
-        /// </summary>
-        public static BoundingBox DeckHole { get; } = new(new Vector3(-DemoStation.HubHalf.X, -(float)Chute.HalfWidth, (float)Chute.BackFace),
-            new Vector3(DemoStation.Deck, (float)Chute.HalfWidth, (float)(Chute.BackFace + Chute.Depth)));
-
-        /// <summary>
-        /// The turn of the ceiling's bands about +Y: half a segment, 0.703 degrees, so that the middle of a segment lies under
-        /// each spoke.
-        /// </summary>
-        public static DQuaternion CeilingTurn { get; } = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / DemoStation.Segments);
-
-        /// <summary>
         /// The segment of the turned ceiling under the spoke at θ = 180 degrees: segment 127 spans θ from 179.30 to 180.70
         /// degrees once the band is turned by half a segment.
         /// </summary>
         public const int CeilingGap = DemoStation.Segments / 2 - 1;
 
-        /// <summary>
-        /// The ceiling's three bands, each with its scene id, its ring and its pose in the station's frame: the middle band
-        /// <c>station-ceiling</c>, from y = -1.75 to 1.75 m, the spoke's inside, which leaves out <see cref="CeilingGap"/>,
-        /// and <c>station-ceiling-slot</c> and <c>station-ceiling-far</c> out to y = ±10 m. All three turn by
-        /// <see cref="CeilingTurn"/>. The opening spans z from -1.159 to 1.159 m at the ceiling's face toward the axis, inside
-        /// the spoke's inside, so the spoke's tube closes it all round.
-        /// </summary>
-        public static IEnumerable<(string Id, RevolvedSolid Band, DPose Pose)> CeilingBands()
-        {
-            float inner = DemoStation.CeilingRadius, outer = DemoStation.CeilingRadius + DemoStation.CeilingThickness;
-            float middle = DemoStation.SpokeHalfWidth - DemoStation.SpokeWall, side = (DemoStation.HalfWidth - middle) / 2;
-            yield return ("station-ceiling", RevolvedSolid.Ring(inner, outer, middle, DemoStation.Segments).LeavingOut(CeilingGap), new DPose(Double3.Zero, CeilingTurn));
-            RevolvedSolid band = RevolvedSolid.Ring(inner, outer, side, DemoStation.Segments);
-            yield return ("station-ceiling-slot", band, new DPose(new Double3(0, middle + side, 0), CeilingTurn));
-            yield return ("station-ceiling-far", band, new DPose(new Double3(0, -(middle + side), 0), CeilingTurn));
-        }
-
-        /// <summary>
-        /// The boxes of the chute's body: the back plate, and the rails toward +Y and toward -Y, from the hub's outer face
-        /// to the trough's end.
-        /// </summary>
-        public static IEnumerable<BoundingBox> ChuteBoxes() => ChuteBoxes((float)Chute.End, -DemoStation.HubHalf.X);
-
-        /// <summary>The boxes of the chute's body from x = <paramref name="low"/> to <paramref name="high"/>.</summary>
-        private static IEnumerable<BoundingBox> ChuteBoxes(float low, float high)
-        {
-            float back = (float)Chute.BackFace, half = (float)Chute.HalfWidth;
-            yield return new BoundingBox(new Vector3(low, -half - PlateThickness, back - PlateThickness), new Vector3(high, half + PlateThickness, back));
-            yield return new BoundingBox(new Vector3(low, half, back), new Vector3(high, half + PlateThickness, back + RailDepth));
-            yield return new BoundingBox(new Vector3(low, -half - PlateThickness, back), new Vector3(high, -half, back + RailDepth));
-        }
-
         /// <summary>The radius of a person's capsule, in meters.</summary>
         public const double PersonRadius = 0.3;
 
         /// <summary>
-        /// The person's way out, from <see cref="Shuttle.SeatStand"/> to the chute's top: aft through the cabin to
-        /// <see cref="Shuttle.InsideHatch"/>, in <paramref name="cabin"/>, the shuttle's frame; then in
-        /// <paramref name="station"/>, the station's frame, out of the hatch to 0.6 m spinward of the deck's middle, along the
-        /// axis to beside the chute's top, and antispinward into it, to where the person's back meets the back plate's
-        /// plane. A person who stands has its center 0.9 m above the deck.
+        /// The demo's chute: the back plate's face at z = -1 m, the rails' inner faces at y = ±0.6 m, from the deck down to
+        /// 5 cm above the wheel's floor. The friction is 1.5 down to the ceiling's face toward the axis and 6 in the brake
+        /// run below it, which gives a slide of 8.9 m/s at most and a landing at about 2.6 m/s.
         /// </summary>
-        public static Waypoint[] WayOut(FrameHandle cabin, FrameHandle station)
-        {
-            double x = DemoStation.Deck + 0.9, lane = 0.6;
-            return
-            [
-                new(cabin, Shuttle.InsideHatch),
-                new(station, new Double3(x, Shuttle.Hatch.Center.Z + DemoStation.ParkedPose.Position.Y, lane)),
-                new(station, new Double3(x, 0, lane)),
-                new(station, new Double3(x, 0, Chute.BackFace + PersonRadius)),
-            ];
-        }
+        public static Chute Chute { get; } = new(BackFace: -1.0, HalfWidth: 0.6, Depth: 0.8, Top: DemoStation.Deck,
+            BrakeFrom: -DemoStation.CeilingRadius, End: -99.95,
+            Coefficient: 1.5, BrakeCoefficient: 6);
 
         /// <summary>
-        /// The person's stroll on the wheel's floor, in <paramref name="station"/>, the station's frame: from where it lands
-        /// in the trough, spinward out of the trough's open side to 4.5 m spinward of the spoke's middle, with its center
-        /// 0.9 m above the floor, 99.1 m from the axis.
+        /// The chute's top: a hole through the deck's wall, from x = -8.5 to -8 m, y from -0.6 to 0.6 m and z from -1.0 to
+        /// -0.2 m, inside <see cref="DemoStation.SpokeMouth"/>. Its antispinward face is the plane of the back plate's face,
+        /// and its faces across the axis are the planes of the rails' inner faces. It reaches 0.2 m spinward of the rails, so
+        /// that a person who walks into it antispinward loses its footing before its back meets the far face.
         /// </summary>
-        public static Waypoint[] Stroll(FrameHandle station)
-        {
-            const double z = 4.5, radius = DemoStation.FloorRadius - 0.9;
-            return [new(station, new Double3(-Math.Sqrt(radius * radius - z * z), 0, z))];
-        }
+        public static BoundingBox DeckHole { get; } = new(
+            new(-DemoStation.HubHalf.X, -(float)Chute.HalfWidth, (float)Chute.BackFace),
+            new(DemoStation.Deck, (float)Chute.HalfWidth, (float)(Chute.BackFace + Chute.Depth)));
 
         /// <summary>
-        /// The exit component of the person whose seat is in <paramref name="cabin"/>, the docked shuttle's frame, in the
-        /// station whose frame is <paramref name="station"/>: the demo's chute, <see cref="WayOut"/>, <see cref="Stroll"/>
-        /// <see cref="WalkSpeed"/>, <see cref="StepInSpeed"/> and <see cref="PersonRadius"/>.
+        /// The turn of the ceiling's bands about +Y: half a segment, 0.703 degrees, so that the middle of a segment lies under
+        /// each spoke.
         /// </summary>
-        public static Disembark Disembark(FrameHandle cabin, FrameHandle station) =>
-            new(station, Chute, WayOut(cabin, station), Stroll(station), WalkSpeed, StepInSpeed, PersonRadius);
+        public static DQuaternion CeilingTurn { get; } =
+            DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / DemoStation.Segments);
 
         /// <summary>The pose of <c>deck-camera</c>: 1.7 m above the deck, forward of the spoke's mouth, looking at the hatch and the chute's top.</summary>
-        public static DPose DeckCamera { get; } = Camera(new Double3(-6.3, -4.5, 4.5), new Double3(-7.2, 2.5, -1.0), Double3.UnitX);
+        public static DPose DeckCamera { get; } = Camera(new(-6.3, -4.5, 4.5), new(-7.2, 2.5, -1.0), Double3.UnitX);
 
         /// <summary>The pose of <c>spoke-camera</c>: in the spoke, 16 m below the deck, looking up the trough at the chute's top.</summary>
-        public static DPose SpokeCamera { get; } = Camera(new Double3(-24, 1.2, 1.3), new Double3(-8.5, 0, -0.6), Double3.UnitZ);
+        public static DPose SpokeCamera { get; } = Camera(new(-24, 1.2, 1.3), new(-8.5, 0, -0.6), Double3.UnitZ);
 
         /// <summary>
         /// The pose of <c>wheel-camera</c>: on the floor 9 m spinward of the chute's end, 2.5 m to the side, 1.7 m above the
         /// floor, looking at the chute's end, with its roof toward the axis.
         /// </summary>
         public static DPose WheelCamera { get; } = WheelCameraPose();
-
-        private static DPose WheelCameraPose()
-        {
-            const double z = 9, radius = DemoStation.FloorRadius - 1.7;
-            var at = new Double3(-Math.Sqrt(radius * radius - z * z), 2.5, z);
-            return Camera(at, new Double3(-97, 0, -0.7), -new Double3(at.X, 0, at.Z).Normalized());
-        }
-
-        private static DPose Camera(Double3 at, Double3 target, Double3 roof) => new(at, AttitudeAutopilot.Facing(target - at, roof));
 
         /// <summary>
         /// Where <c>slide-camera</c> stands relative to the person's center, in the station's axes: 3 m up the spoke, behind
@@ -186,18 +110,102 @@ public static partial class DemoScenes
         public static Double3 SlideCameraLook { get; } = new Double3(-1.5, 0, -0.1) - SlideCameraOffset;
 
         /// <summary>
+        /// The ceiling's three bands, each with its scene id, its ring and its pose in the station's frame: the middle band
+        /// <c>station-ceiling</c>, from y = -1.75 to 1.75 m, the spoke's inside, which leaves out <see cref="CeilingGap"/>,
+        /// and <c>station-ceiling-slot</c> and <c>station-ceiling-far</c> out to y = ±10 m. All three turn by
+        /// <see cref="CeilingTurn"/>. The opening spans z from -1.159 to 1.159 m at the ceiling's face toward the axis, inside
+        /// the spoke's inside, so the spoke's tube closes it all round.
+        /// </summary>
+        public static IEnumerable<(string Id, RevolvedSolid Band, DPose Pose)> CeilingBands()
+        {
+            float inner = DemoStation.CeilingRadius, outer = DemoStation.CeilingRadius + DemoStation.CeilingThickness;
+            float middle = DemoStation.SpokeHalfWidth - DemoStation.SpokeWall,
+                side = (DemoStation.HalfWidth - middle) / 2;
+            yield return ("station-ceiling",
+                RevolvedSolid.Ring(inner, outer, middle, DemoStation.Segments).LeavingOut(CeilingGap),
+                new(Double3.Zero, CeilingTurn));
+            RevolvedSolid band = RevolvedSolid.Ring(inner, outer, side, DemoStation.Segments);
+            yield return ("station-ceiling-slot", band, new(new(0, middle + side, 0), CeilingTurn));
+            yield return ("station-ceiling-far", band, new(new(0, -(middle + side), 0), CeilingTurn));
+        }
+
+        /// <summary>
+        /// The boxes of the chute's body: the back plate, and the rails toward +Y and toward -Y, from the hub's outer face
+        /// to the trough's end.
+        /// </summary>
+        public static IEnumerable<BoundingBox> ChuteBoxes() => ChuteBoxes((float)Chute.End, -DemoStation.HubHalf.X);
+
+        /// <summary>The boxes of the chute's body from x = <paramref name="low"/> to <paramref name="high"/>.</summary>
+        private static IEnumerable<BoundingBox> ChuteBoxes(float low, float high)
+        {
+            float back = (float)Chute.BackFace, half = (float)Chute.HalfWidth;
+            yield return new(new(low, -half - PlateThickness, back - PlateThickness),
+                new(high, half + PlateThickness, back));
+            yield return new(new(low, half, back), new(high, half + PlateThickness, back + RailDepth));
+            yield return new(new(low, -half - PlateThickness, back), new(high, -half, back + RailDepth));
+        }
+
+        /// <summary>
+        /// The person's way out, from <see cref="Shuttle.SeatStand"/> to the chute's top: aft through the cabin to
+        /// <see cref="Shuttle.InsideHatch"/>, in <paramref name="cabin"/>, the shuttle's frame; then in
+        /// <paramref name="station"/>, the station's frame, out of the hatch to 0.6 m spinward of the deck's middle, along the
+        /// axis to beside the chute's top, and antispinward into it, to where the person's back meets the back plate's
+        /// plane. A person who stands has its center 0.9 m above the deck.
+        /// </summary>
+        public static Waypoint[] WayOut(FrameHandle cabin, FrameHandle station)
+        {
+            double x = DemoStation.Deck + 0.9, lane = 0.6;
+            return
+            [
+                new(cabin, Shuttle.InsideHatch),
+                new(station, new(x, Shuttle.Hatch.Center.Z + DemoStation.ParkedPose.Position.Y, lane)),
+                new(station, new(x, 0, lane)),
+                new(station, new(x, 0, Chute.BackFace + PersonRadius))
+            ];
+        }
+
+        /// <summary>
+        /// The person's stroll on the wheel's floor, in <paramref name="station"/>, the station's frame: from where it lands
+        /// in the trough, spinward out of the trough's open side to 4.5 m spinward of the spoke's middle, with its center
+        /// 0.9 m above the floor, 99.1 m from the axis.
+        /// </summary>
+        public static Waypoint[] Stroll(FrameHandle station)
+        {
+            const double z = 4.5, radius = DemoStation.FloorRadius - 0.9;
+            return [new(station, new(-Math.Sqrt(radius * radius - z * z), 0, z))];
+        }
+
+        /// <summary>
+        /// The exit component of the person whose seat is in <paramref name="cabin"/>, the docked shuttle's frame, in the
+        /// station whose frame is <paramref name="station"/>: the demo's chute, <see cref="WayOut"/>, <see cref="Stroll"/>
+        /// <see cref="WalkSpeed"/>, <see cref="StepInSpeed"/> and <see cref="PersonRadius"/>.
+        /// </summary>
+        public static Disembark Disembark(FrameHandle cabin, FrameHandle station) =>
+            new(station, Chute, WayOut(cabin, station), Stroll(station), WalkSpeed, StepInSpeed, PersonRadius);
+
+        private static DPose WheelCameraPose()
+        {
+            const double z = 9, radius = DemoStation.FloorRadius - 1.7;
+            var at = new Double3(-Math.Sqrt(radius * radius - z * z), 2.5, z);
+            return Camera(at, new(-97, 0, -0.7), -new Double3(at.X, 0, at.Z).Normalized());
+        }
+
+        private static DPose Camera(Double3 at, Double3 target, Double3 roof) =>
+            new(at, AttitudeAutopilot.Facing(target - at, roof));
+
+        /// <summary>
         /// Spawns <c>slide-camera</c>, attached to <paramref name="person"/>: a <see cref="FrameFollowCamera"/> that keeps
         /// <see cref="SlideCameraOffset"/> and <see cref="SlideCameraLook"/> in the axes of <paramref name="station"/>, the
         /// station's frame, with the top of the picture toward +Z. It films the slide down the spoke from behind and above the
         /// person. The <c>follow-camera</c> cannot: its heading follows the person's way across its up, and in the slide that
         /// way lies along the up, so the heading rests where the deck left it, along the axis, and the arm ends in the rail.
         /// </summary>
-        public static Entity SpawnSlideCamera(World world, Entity person, FrameHandle station) => world.Spawn(new SpawnDesc
+        public static Entity SpawnSlideCamera(World world, Entity person, FrameHandle station) => world.Spawn(new()
         {
             AttachTo = person,
-            AttachOffset = new Pose(SlideCameraOffset.ToVector3(), Quaternion.Identity),
+            AttachOffset = new(SlideCameraOffset.ToVector3(), Quaternion.Identity),
             Render = new RenderData(),
-            Components = [new FrameFollowCamera(station, SlideCameraOffset, SlideCameraLook, Double3.UnitZ)],
+            Components = [new FrameFollowCamera(station, SlideCameraOffset, SlideCameraLook, Double3.UnitZ)]
         });
 
         /// <summary>
@@ -212,48 +220,63 @@ public static partial class DemoScenes
                 upper.Box(box);
             foreach (BoundingBox box in ChuteBoxes((float)Chute.End, brake))
                 lower.Box(box);
-            CompoundShapeDesc shape = new([.. ChuteBoxes().Select(box => new CompoundChild(new BoxShapeDesc(box.Extents), new Pose(box.Center, Quaternion.Identity)))]);
+            CompoundShapeDesc shape = new([
+                .. ChuteBoxes().Select(box =>
+                    new CompoundChild(new BoxShapeDesc(box.Extents), new(box.Center, Quaternion.Identity)))
+            ]);
             float reach = shape.BoundingRadius();
-            scene.Add("station-chute", world.Spawn(new SpawnDesc
+            scene.Add("station-chute", world.Spawn(new()
             {
                 Frame = station,
                 Pose = DPose.Identity,
-                Body = new BodyDesc(shape, BodyMotion.Static),
-                Render = Drawn(resources, upper.Build(), new Vector4(0.85f, 0.7f, 0.15f, 1), reach) with { Flags = RenderFlags.Visible | RenderFlags.CastsShadow | RenderFlags.NoImpostor },
+                Body = new(shape, BodyMotion.Static),
+                Render = Drawn(resources, upper.Build(), new(0.85f, 0.7f, 0.15f, 1), reach) with
+                {
+                    Flags = RenderFlags.Visible | RenderFlags.CastsShadow | RenderFlags.NoImpostor
+                }
             }));
-            scene.Add("station-chute-brake", world.Spawn(new SpawnDesc
+            scene.Add("station-chute-brake", world.Spawn(new()
             {
                 Frame = station,
                 Pose = DPose.Identity,
-                Render = Drawn(resources, lower.Build(), new Vector4(0.7f, 0.3f, 0.08f, 1), reach) with { Flags = RenderFlags.Visible | RenderFlags.CastsShadow | RenderFlags.NoImpostor },
+                Render = Drawn(resources, lower.Build(), new(0.7f, 0.3f, 0.08f, 1), reach) with
+                {
+                    Flags = RenderFlags.Visible | RenderFlags.CastsShadow | RenderFlags.NoImpostor
+                }
             }));
 
-            MaterialId lampMaterial = resources.CreateMaterial(new MaterialDesc(new Vector4(0, 0, 0, 1), SpecularIntensity: 0, Emissive: new Vector3(6, 5.4f, 4.5f)));
-            MeshId wallPanel = resources.CreateMesh(Primitives.Box(new Vector3(0.6f, 0.6f, 0.05f)));
-            MeshId ceilingPanel = resources.CreateMesh(Primitives.Box(new Vector3(0.05f, 0.6f, 0.6f)));
+            MaterialId lampMaterial =
+                resources.CreateMaterial(new(new(0, 0, 0, 1), SpecularIntensity: 0, Emissive: new(6, 5.4f, 4.5f)));
+            MeshId wallPanel = resources.CreateMesh(Primitives.Box(new(0.6f, 0.6f, 0.05f)));
+            MeshId ceilingPanel = resources.CreateMesh(Primitives.Box(new(0.05f, 0.6f, 0.6f)));
             // The spoke lamps, on the spoke's spinward wall, each with its light 0.3 m in front of it.
             float wall = DemoStation.SpokeHalfWidth - DemoStation.SpokeWall;
             foreach (int x in new[] { -14, -26, -38, -50, -62, -74, -86 })
-                world.Spawn(Lamp(station, new DPose(new Double3(x, 0, wall - 0.05), DQuaternion.Identity), wallPanel, lampMaterial,
-                    new PointLightData(new Pose(new Vector3(0, 0, -0.3f), Quaternion.Identity), new Vector3(1, 0.9f, 0.75f), Intensity: 60, Range: 14)));
+                world.Spawn(Lamp(station, new(new(x, 0, wall - 0.05), DQuaternion.Identity), wallPanel, lampMaterial,
+                    new(new(new(0, 0, -0.3f), Quaternion.Identity), new(1, 0.9f, 0.75f), Intensity: 60, Range: 14)));
             // The wheel lamps, flat under the ceiling's face toward the floor, each turned so that its local +X points away
             // from the axis, with its light 0.3 m below it.
             double under = DemoStation.CeilingRadius + DemoStation.CeilingThickness + 0.06;
             foreach (double y in new[] { -5.0, 5.0 })
-                foreach (double z in new[] { -6.0, 2.0, 10.0 })
-                {
-                    var at = new Double3(-Math.Sqrt(under * under - z * z), y, z);
-                    double theta = Math.Atan2(-at.Z, at.X);
-                    world.Spawn(Lamp(station, new DPose(at, DQuaternion.FromAxisAngle(Double3.UnitY, theta)), ceilingPanel, lampMaterial,
-                        new PointLightData(new Pose(new Vector3(0.3f, 0, 0), Quaternion.Identity), new Vector3(1, 0.9f, 0.75f), Intensity: 100, Range: 20)));
-                }
+            foreach (double z in new[] { -6.0, 2.0, 10.0 })
+            {
+                var at = new Double3(-Math.Sqrt(under * under - z * z), y, z);
+                double theta = Math.Atan2(-at.Z, at.X);
+                world.Spawn(Lamp(station, new(at, DQuaternion.FromAxisAngle(Double3.UnitY, theta)), ceilingPanel,
+                    lampMaterial,
+                    new(new(new(0.3f, 0, 0), Quaternion.Identity), new(1, 0.9f, 0.75f), Intensity: 100, Range: 20)));
+            }
 
-            scene.Add("deck-camera", world.Spawn(new SpawnDesc { Frame = station, Pose = DeckCamera, Render = new RenderData() }));
-            scene.Add("spoke-camera", world.Spawn(new SpawnDesc { Frame = station, Pose = SpokeCamera, Render = new RenderData() }));
-            scene.Add("wheel-camera", world.Spawn(new SpawnDesc { Frame = station, Pose = WheelCamera, Render = new RenderData() }));
+            scene.Add("deck-camera",
+                world.Spawn(new() { Frame = station, Pose = DeckCamera, Render = new RenderData() }));
+            scene.Add("spoke-camera",
+                world.Spawn(new() { Frame = station, Pose = SpokeCamera, Render = new RenderData() }));
+            scene.Add("wheel-camera",
+                world.Spawn(new() { Frame = station, Pose = WheelCamera, Render = new RenderData() }));
         }
 
-        private static SpawnDesc Lamp(FrameHandle frame, DPose pose, MeshId mesh, MaterialId material, PointLightData light) => new()
+        private static SpawnDesc Lamp(FrameHandle frame, DPose pose, MeshId mesh, MaterialId material,
+            PointLightData light) => new()
         {
             Frame = frame,
             Pose = pose,
@@ -263,8 +286,8 @@ public static partial class DemoScenes
                 Material = material,
                 BoundingRadius = 0.9f,
                 Flags = RenderFlags.Visible | RenderFlags.NoImpostor,
-                Light = light,
-            },
+                Light = light
+            }
         };
     }
 }

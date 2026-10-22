@@ -1,6 +1,4 @@
-using System.Numerics;
 using AwesomeAssertions;
-using Tertius.Testing;
 
 namespace Tertius.Simulation.Tests;
 
@@ -13,27 +11,28 @@ namespace Tertius.Simulation.Tests;
 /// </summary>
 public class FrameMediumTests
 {
-    private static readonly MediumField CabinAir = MediumField.Uniform(1.225f, 2, new BoundingBox(new Vector3(-3), new Vector3(3)));
+    private static readonly MediumField CabinAir = MediumField.Uniform(1.225f, 2, new BoundingBox(new(-3), new(3)));
     private static readonly MediumField Thin = MediumField.Planet(6_371_000, 1.225f, 8_500, 0.5f);
     private static readonly MediumField NotValid = MediumField.Planet(6_371_000, 1.225f, 0, 0.5f);
 
-    private static FrameHandle SpawnFrame(TestWorld test, FrameHandle parent, DPose pose, MediumField medium, float radius = 10,
+    private static FrameHandle SpawnFrame(TestWorld test, FrameHandle parent, DPose pose, MediumField medium,
+        float radius = 10,
         BodyDesc? hull = null) =>
-        test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
+        test.World.GetOwnedFrame(test.World.Spawn(new()
         {
             Frame = parent,
             Pose = pose,
             Body = hull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(radius), Medium: medium),
+            AsFrame = new(FrameBounds.Sphere(radius), Medium: medium)
         }));
 
     [Fact]
     public void AFrameSpawnsWithTheMediumOfItsSpec()
     {
-        using var test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(out _);
 
         FrameHandle cabin = SpawnFrame(test, test.Root, TestWorld.At(100), CabinAir);
-        FrameHandle planet = test.World.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e8f), GravityField.Point(4e14), Thin));
+        FrameHandle planet = test.World.CreateRootFrame(new(FrameBounds.Sphere(1e8f), GravityField.Point(4e14), Thin));
         FrameHandle bare = SpawnFrame(test, test.Root, TestWorld.At(-100), default);
 
         test.World.Frames.Medium(cabin).Should().Be(CabinAir);
@@ -45,7 +44,7 @@ public class FrameMediumTests
     [Fact]
     public void SetFrameMediumGivesAFrameANewMediumBetweenTicks()
     {
-        using var test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(out _);
         FrameHandle cabin = SpawnFrame(test, test.Root, TestWorld.At(100), CabinAir);
         test.Run(2);
 
@@ -54,7 +53,8 @@ public class FrameMediumTests
         test.World.Frames.Medium(cabin).Should().Be(Thin);
         test.Run(2);
         test.World.Frames.Medium(cabin).Should().Be(Thin, "no tick changes a medium");
-        test.World.Frames.LastLooseBodyStep(cabin).Medium.Should().Be(Thin, "the steps after the change read the new medium");
+        test.World.Frames.LastLooseBodyStep(cabin).Medium.Should()
+            .Be(Thin, "the steps after the change read the new medium");
         test.World.SetFrameMedium(cabin, MediumField.None);
         test.World.Frames.Medium(cabin).Should().Be(MediumField.None);
         test.World.Errors.Should().BeEmpty();
@@ -63,7 +63,7 @@ public class FrameMediumTests
     [Fact]
     public void SetFrameMediumThrowsDuringATick()
     {
-        using var test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(out _);
         FrameHandle cabin = SpawnFrame(test, test.Root, TestWorld.At(100), CabinAir);
         Exception? thrown = null;
         test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
@@ -87,7 +87,7 @@ public class FrameMediumTests
     [Fact]
     public void SetFrameMediumRefusesAGoneFrameOrAMediumThatIsNotValidAndKeepsTheOldOne()
     {
-        using var test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(out _);
         FrameHandle cabin = SpawnFrame(test, test.Root, TestWorld.At(100), CabinAir);
         FrameHandle doomed = SpawnFrame(test, test.Root, TestWorld.At(-100), CabinAir);
         test.SpawnWith(SendOnce.Of(doomed.Entity, new Destroy()));
@@ -105,11 +105,12 @@ public class FrameMediumTests
     [Fact]
     public void ASpawnWithAMediumThatIsNotValidThrows()
     {
-        using var test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(out _);
         int frames = test.World.Frames.Count;
 
         Action spawn = () => SpawnFrame(test, test.Root, TestWorld.At(100), NotValid);
-        Action root = () => test.World.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(10), Medium: MediumField.Uniform(float.NaN, 1)));
+        Action root = () =>
+            test.World.CreateRootFrame(new(FrameBounds.Sphere(10), Medium: MediumField.Uniform(float.NaN, 1)));
 
         spawn.Should().Throw<ArgumentException>().WithMessage("*medium*not valid*");
         root.Should().Throw<ArgumentException>().WithMessage("*medium*not valid*");
@@ -119,14 +120,14 @@ public class FrameMediumTests
     [Fact]
     public void AFrameKeepsItsMediumWhenItHandsOffOrIsReparented()
     {
-        using var test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(out _);
         // The ship starts in the root, 100 m inside the bubble of a carrier of 500 m, so Jolt hands it into the carrier in the
         // step of tick 0. A station of 15 m in the carrier, 5 m from the ship, is too small for the ship's bubble of 10 m to
         // enter on its own, so the game docks the ship there.
         FrameHandle carrier = test.SpawnStaticFrame(TestWorld.At(1000), radius: 500);
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(105), radius: 15, parent: carrier);
         FrameHandle ship = SpawnFrame(test, test.Root, TestWorld.At(1100), CabinAir,
-            hull: new BodyDesc(new SphereShapeDesc(5), Layer: BodyLayer.FrameHull));
+            hull: new(new SphereShapeDesc(5), Layer: BodyLayer.FrameHull));
         test.Run(4);
         test.World.GetFrame(ship.Entity).Should().Be(carrier, "Jolt handed the ship into the carrier");
         test.World.Frames.Parent(ship).Should().Be(carrier);
@@ -143,13 +144,14 @@ public class FrameMediumTests
     [Fact]
     public void ANumericFrameHasNoMediumByAnInvariantOfTheFrameTree()
     {
-        using var test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(out _);
         FrameHandle space = Scenes.AsteroidSpace(test.World);
         FrameHandle moon = test.World.GetOwnedFrame(Scenes.FastKeplerHull(test.World, space,
-            new BodyDesc(new SphereShapeDesc(0.5f), BodyMotion.Kinematic)));
+            new(new SphereShapeDesc(0.5f), BodyMotion.Kinematic)));
         test.Run(3);
         FrameHandle following = test.World.Frames.TreeParent(moon);
-        test.World.Frames.IsNumeric(following).Should().BeTrue("the hull at 2 km/s lives in a following frame of its own");
+        test.World.Frames.IsNumeric(following).Should()
+            .BeTrue("the hull at 2 km/s lives in a following frame of its own");
         test.World.Frames.Medium(following).Should().Be(MediumField.None);
         test.World.Frames.AssertInvariants();
 

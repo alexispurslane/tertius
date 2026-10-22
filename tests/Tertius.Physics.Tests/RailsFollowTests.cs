@@ -36,32 +36,54 @@ public class RailsFollowTests
     /// <summary>A fast orbit of 5 km at 2 km/s, whose frame does not turn, so that a body at rest in it moves with its origin.</summary>
     private static readonly KeplerOrbit FastStill = KeplerOrbit.Circular(5_000, phase: 0.3);
 
-    /// <summary>The owner of a frame on <paramref name="orbit"/> in <paramref name="space"/>, whose hull is a ball of 0.5 m.</summary>
-    private static Entity Hull(World world, FrameHandle space, KeplerOrbit orbit, bool firstMove = false) => world.Spawn(new SpawnDesc
-    {
-        Frame = space,
-        Body = Ball() with { Motion = BodyMotion.Kinematic },
-        AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
-    }.OnKeplerOrbit(world, orbit, firstMove));
+    // ---- Velocity reads in the semantic parent ----------------------------------------------------------------------
+    //
+    // Every kind of frame in the table "Who fills the step record" (docs/plans/rails-components.md, "One motion record per
+    // frame") reads its instant velocity in its semantic parent. Under a numeric home the tree keeps a frame's velocity
+    // relative to the home's frame velocity, the chord of the step, so a frame at rest in the home keeps the home's instant
+    // velocity past its chord. Two kinds of frame live under a numeric home: a dynamic hull in a falling frame (see
+    // DynamicHullRecordTests.AShipThatFallsInANumericFrameReadsTheInstantVelocityOfItsOrbitInEarth) and a kinematic hull at
+    // the origin of its following frame, with a sample (see
+    // TheAnchorOfAFollowingFrameSitsAtItsOriginWithTheSamplesVelocityLessTheChordSoAReadInItsParentGivesTheSamplesVelocity) or
+    // without one, below. A frame without a body, and a static hull, live in their semantic parent always.
 
-    /// <summary>The owner of a frame without a body on <paramref name="orbit"/> in <paramref name="space"/>, whose bubble has a radius of <paramref name="bubble"/> m.</summary>
-    private static Entity Bodyless(World world, FrameHandle space, KeplerOrbit orbit, float bubble = 5, bool firstMove = false) => world.Spawn(new SpawnDesc
+    /// <summary>
+    /// An orbit of 10,000 km round the point gravity of <see cref="Mu"/>, at 45 m/s, beyond the 2^23 m (8,389 km) from which a
+    /// kinematic body gets a following frame by its distance: a hull on it keeps its following frame when it holds still.
+    /// </summary>
+    private static readonly KeplerOrbit Far = KeplerOrbit.Circular(1e7, phase: 0.3);
+
+    /// <summary>The owner of a frame on <paramref name="orbit"/> in <paramref name="space"/>, whose hull is a ball of 0.5 m.</summary>
+    private static Entity Hull(World world, FrameHandle space, KeplerOrbit orbit, bool firstMove = false) =>
+        world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Body = Ball() with { Motion = BodyMotion.Kinematic },
+            AsFrame = new(FrameBounds.Sphere(0.01f))
+        }.OnKeplerOrbit(world, orbit, firstMove));
+
+    /// <summary>The owner of a frame without a body on <paramref name="orbit"/> in <paramref name="space"/>, whose bubble has a radius of
+    /// <paramref name="bubble"/> m.</summary>
+    private static Entity Bodyless(World world, FrameHandle space, KeplerOrbit orbit, float bubble = 5,
+        bool firstMove = false) => world.Spawn(new SpawnDesc
     {
         Frame = space,
-        AsFrame = new FrameSpec(FrameBounds.Sphere(bubble)),
+        AsFrame = new(FrameBounds.Sphere(bubble))
     }.OnKeplerOrbit(world, orbit, firstMove));
 
     private static Entity Owner(World world, FrameHandle space, KeplerOrbit orbit, bool withBody) =>
         withBody ? Hull(world, space, orbit) : Bodyless(world, space, orbit);
 
     /// <summary>The pose of <paramref name="orbit"/> at <paramref name="time"/> in its parent.</summary>
-    private static DPose RailsPose(KeplerOrbit orbit, double time) => new(orbit.StateAt(time, Mu).Position, orbit.RotationAt(time, Mu));
+    private static DPose RailsPose(KeplerOrbit orbit, double time) =>
+        new(orbit.StateAt(time, Mu).Position, orbit.RotationAt(time, Mu));
 
     /// <summary>
     /// Ticks for ten minutes, and checks at every sync point from the second one after the spawn that <paramref name="owner"/>
     /// stands in <paramref name="space"/> at the pose of <paramref name="orbit"/> at the world's time, to the last bit.
     /// </summary>
-    private static void AssertOnItsOrbitForTenMinutes(World world, Entity owner, FrameHandle space, KeplerOrbit orbit, Action? eachSyncPoint = null)
+    private static void AssertOnItsOrbitForTenMinutes(World world, Entity owner, FrameHandle space, KeplerOrbit orbit,
+        Action? eachSyncPoint = null)
     {
         world.Tick();
         for (int tick = 1; tick < TenMinutes; tick++)
@@ -73,6 +95,7 @@ public class RailsFollowTests
                 pose.Should().Be(expected, "at sync point {0} the frame stands on its orbit", world.TickNumber);
             eachSyncPoint?.Invoke();
         }
+
         world.Errors.Should().BeEmpty();
     }
 
@@ -89,7 +112,8 @@ public class RailsFollowTests
     }
 
     [Fact]
-    public void AKinematicHullOnRailsInItsSemanticParentStandsExactlyOnItsOrbitAtEverySyncPointFromTheSecondAfterItsSpawn()
+    public void
+        AKinematicHullOnRailsInItsSemanticParentStandsExactlyOnItsOrbitAtEverySyncPointFromTheSecondAfterItsSpawn()
     {
         using World world = NewWorld(out _);
         FrameHandle space = Scenes.AsteroidSpace(world);
@@ -103,7 +127,8 @@ public class RailsFollowTests
     }
 
     [Fact]
-    public void AFastKinematicHullStandsExactlyOnItsOrbitInsideItsFollowingFrameAtEverySyncPointFromTheSecondAfterItsSpawn()
+    public void
+        AFastKinematicHullStandsExactlyOnItsOrbitInsideItsFollowingFrameAtEverySyncPointFromTheSecondAfterItsSpawn()
     {
         using World world = NewWorld(out _);
         FrameHandle space = Scenes.AsteroidSpace(world);
@@ -113,12 +138,14 @@ public class RailsFollowTests
         {
             FrameHandle home = world.PhysicsHomeOf(owner);
             if (world.Frames.Numeric(home) != NumericMode.Following)
-                world.Frames.Numeric(home).Should().Be(NumericMode.Following, "a fast hull lives in a following frame of its own");
+                world.Frames.Numeric(home).Should().Be(NumericMode.Following,
+                    "a fast hull lives in a following frame of its own");
         });
     }
 
     [Fact]
-    public void TheAnchorOfAFollowingFrameSitsAtItsOriginWithTheSamplesVelocityLessTheChordSoAReadInItsParentGivesTheSamplesVelocity()
+    public void
+        TheAnchorOfAFollowingFrameSitsAtItsOriginWithTheSamplesVelocityLessTheChordSoAReadInItsParentGivesTheSamplesVelocity()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = Scenes.AsteroidSpace(world);
@@ -127,14 +154,16 @@ public class RailsFollowTests
 
         Tick(world, 5);
 
-        MotionSample sample = faults.Moves.Single(record => record.Entity == frame.Entity && record.Tick == world.TickNumber - 1).Sample;
+        MotionSample sample = faults.Moves
+            .Single(record => record.Entity == frame.Entity && record.Tick == world.TickNumber - 1).Sample;
         FrameHandle followingFrame = world.Frames.TreeParent(frame);
         world.Frames.Numeric(followingFrame).Should().Be(NumericMode.Following);
         world.Frames.TreeLocalPose(followingFrame).Position.Should().Be(sample.Pose.Position);
         world.Frames.LinearVelocity(followingFrame).Should().Be(sample.ChordVelocity);
         world.Frames.TreeLocalPose(frame).Should().Be(new DPose(Double3.Zero, sample.Pose.Rotation));
         world.Frames.TreeLinearVelocity(frame).Should().Be(sample.Velocity - sample.ChordVelocity);
-        (world.Frames.LinearVelocity(frame) - sample.Velocity).Length.Should().BeLessThan(1e-9, "a read in space is the sample's instant velocity");
+        (world.Frames.LinearVelocity(frame) - sample.Velocity).Length.Should()
+            .BeLessThan(1e-9, "a read in space is the sample's instant velocity");
         world.Frames.AngularVelocity(frame).Should().Be(sample.AngularVelocity.ToVector3());
         world.Errors.Should().BeEmpty();
     }
@@ -157,14 +186,17 @@ public class RailsFollowTests
         {
             world.Tick();
             long step = world.TickNumber - 1;
-            MotionSample sample = faults.Moves.Single(record => record.Entity == frame.Entity && record.Tick == step).Sample;
+            MotionSample sample = faults.Moves.Single(record => record.Entity == frame.Entity && record.Tick == step)
+                .Sample;
             BodyState hull = faults.Outputs[^1].Bodies.Single(state => state.Entity == owner);
             // The target of a hull at the origin of its following frame is that origin; any other target is the sample's place.
             Double3 target = fast ? Double3.Zero : sample.Pose.Position;
             if (hull.Pose.Position != target)
                 hull.Pose.Position.Should().Be(target, "after step {0} the hull sits on its target", step);
-            AngleBetween(hull.Pose.Rotation, sample.Pose.Rotation).Should().BeLessThan(1e-6, "Jolt keeps the rotation as a float");
+            AngleBetween(hull.Pose.Rotation, sample.Pose.Rotation).Should()
+                .BeLessThan(1e-6, "Jolt keeps the rotation as a float");
         }
+
         world.Errors.Should().BeEmpty();
     }
 
@@ -179,15 +211,17 @@ public class RailsFollowTests
         FrameHandle frame = world.GetOwnedFrame(Bodyless(world, space, FastStill, firstMove: true));
         // A ball of 1 m whose center is 4.5 m from the frame's origin sticks out of the bubble of 5 m. The frame has no
         // gravity, falls freely and does not turn, so the ball rests in it, and its ghost in space moves with the frame's origin.
-        Entity ball = world.Spawn(new SpawnDesc { Frame = frame, Pose = At(0, 4.5), Body = Ball(1) });
+        Entity ball = world.Spawn(new() { Frame = frame, Pose = At(0, 4.5), Body = Ball(1) });
 
         Tick(world, 10);
 
         MotionSample sample = faults.Moves.Last(record => record.Entity == frame.Entity).Sample;
         JoltPhysicsBackend.BodyFacts ghost = faults.Jolt.BodiesIn(space)
-            .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, ball));
-        ((Double3)ghost.LinearVelocity - sample.ChordVelocity).Length.Should().BeLessThan(1e-3);
-        (sample.Velocity - sample.ChordVelocity).Length.Should().BeGreaterThan(5, "space pulls the frame at 800 m/s², so the instant velocity is 6.7 m/s past the chord");
+            .Single(facts =>
+                BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, ball));
+        (ghost.LinearVelocity - sample.ChordVelocity).Length.Should().BeLessThan(1e-3);
+        (sample.Velocity - sample.ChordVelocity).Length.Should().BeGreaterThan(5,
+            "space pulls the frame at 800 m/s², so the instant velocity is 6.7 m/s past the chord");
         world.Errors.Should().BeEmpty();
     }
 
@@ -198,7 +232,8 @@ public class RailsFollowTests
         FrameHandle space = Scenes.AsteroidSpace(world);
         FrameHandle frame = world.GetOwnedFrame(Bodyless(world, space, FastStill));
         // The ball drifts out along +Z at 2 m/s in a frame without gravity that does not turn.
-        Entity ball = world.Spawn(new SpawnDesc { Frame = frame, Pose = At(0, 0, 3), LinearVelocity = new Double3(0, 0, 2), Body = Ball(0.2f) });
+        Entity ball = world.Spawn(new()
+            { Frame = frame, Pose = At(0, 0, 3), LinearVelocity = new(0, 0, 2), Body = Ball(0.2f) });
 
         HandOff? exit = null;
         DPose localBefore = default;
@@ -208,22 +243,26 @@ public class RailsFollowTests
             localBefore = world.PoseInOwnFrame(ball);
             velocityBefore = world.VelocityInOwnFrame(ball);
             world.Tick();
-            exit = faults.Outputs[^1].HandOffs.Where(handOff => handOff.Entity == ball).Cast<HandOff?>().SingleOrDefault();
+            exit = faults.Outputs[^1].HandOffs.Where(handOff => handOff.Entity == ball).Cast<HandOff?>()
+                .SingleOrDefault();
         }
 
         exit.Should().NotBeNull();
         exit!.Value.From.Should().Be(frame);
         exit.Value.To.Should().Be(space);
-        MotionSample sample = faults.Moves.Single(record => record.Entity == frame.Entity && record.Tick == world.TickNumber - 1).Sample;
+        MotionSample sample = faults.Moves
+            .Single(record => record.Entity == frame.Entity && record.Tick == world.TickNumber - 1).Sample;
         // The ball's instant velocity in space at the end of the step: the frame's instant velocity plus the ball's own.
         // Jolt gets the chord of it in space: half a step of space's gravity there behind it.
         double dt = world.DeltaTime;
         Double3 place = sample.Pose.TransformPoint(localBefore.Position + velocityBefore * dt);
         Double3 instant = sample.Velocity + sample.Pose.TransformDirection(velocityBefore);
         Double3 expected = instant - GravityField.Point(Mu).AtPrecise(place) * (dt / 2);
-        ((Double3)exit.Value.LinearVelocity - expected).Length.Should().BeLessThan(0.05);
-        Double3 fromChord = sample.ChordVelocity + sample.Pose.TransformDirection(velocityBefore) - GravityField.Point(Mu).AtPrecise(place) * (dt / 2);
-        ((Double3)exit.Value.LinearVelocity - fromChord).Length.Should().BeGreaterThan(5, "the chord of the frame would be 6.7 m/s off");
+        (exit.Value.LinearVelocity - expected).Length.Should().BeLessThan(0.05);
+        Double3 fromChord = sample.ChordVelocity + sample.Pose.TransformDirection(velocityBefore) -
+                            GravityField.Point(Mu).AtPrecise(place) * (dt / 2);
+        (exit.Value.LinearVelocity - fromChord).Length.Should()
+            .BeGreaterThan(5, "the chord of the frame would be 6.7 m/s off");
         world.Errors.Should().BeEmpty();
     }
 
@@ -242,14 +281,15 @@ public class RailsFollowTests
         {
             Frame = space,
             Body = withBody ? Ball() with { Motion = BodyMotion.Kinematic } : null,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
+            AsFrame = new(FrameBounds.Sphere(0.01f))
         }.OnKeplerOrbit(world, Slow));
 
         world.Tick();
 
         world.PoseIn(owner, space).Should().Be(spawnPose);
         world.VelocityIn(owner, space).Should().Be(Double3.Zero, "a frame without a step record holds still");
-        faults.Outputs[^1].Bodies.Where(state => state.Entity == owner).Should().OnlyContain(state => state.Pose == spawnPose,
+        faults.Outputs[^1].Bodies.Where(state => state.Entity == owner).Should().OnlyContain(
+            state => state.Pose == spawnPose,
             "the hull holds still in Jolt too");
         world.Errors.Should().BeEmpty();
     }
@@ -292,7 +332,8 @@ public class RailsFollowTests
         world.PoseIn(owner, space).Should().Be(RailsPose(next, world.Time));
         world.Tick();
         world.PoseIn(owner, space).Should().Be(RailsPose(next, world.Time));
-        faults.Moves.Where(record => record.Entity == frame.Entity).Select(record => record.Tick).Should().Equal(1, 2, 3, 4, 5);
+        faults.Moves.Where(record => record.Entity == frame.Entity).Select(record => record.Tick).Should()
+            .Equal(1, 2, 3, 4, 5);
         world.Errors.Should().BeEmpty();
     }
 
@@ -304,9 +345,14 @@ public class RailsFollowTests
         Entity owner = Hull(world, space, Fast);
         // A crate 3 m from the hull, on the hull's orbit, joins the hull's following frame.
         (Double3 place, Double3 velocity) = Fast.StateAt(world.Time, Mu);
-        Entity crate = world.Spawn(new SpawnDesc { Frame = space, Pose = new DPose(place + new Double3(0, 3, 0), DQuaternion.Identity), LinearVelocity = velocity, Body = Cube() });
+        Entity crate = world.Spawn(new()
+        {
+            Frame = space, Pose = new(place + new Double3(0, 3, 0), DQuaternion.Identity), LinearVelocity = velocity,
+            Body = Cube()
+        });
         Tick(world, 5);
-        world.PhysicsHomeOf(crate).Should().Be(world.PhysicsHomeOf(owner), "the crate joined the hull's following frame");
+        world.PhysicsHomeOf(crate).Should()
+            .Be(world.PhysicsHomeOf(owner), "the crate joined the hull's following frame");
         KeplerOrbit next = Fast with { MeanAnomalyAtEpoch = Fast.MeanAnomalyAtEpoch + 1 };
         Double3 crateBefore = world.PoseIn(crate, space).Position;
 
@@ -326,7 +372,7 @@ public class RailsFollowTests
     public void AFarSpinHullLivesInAFollowingFrameOfItsOwnAsAnyFarKinematicHullDoes()
     {
         using World world = NewWorld(out _);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e8f)));
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e8f)));
         // 10,000 km from the origin, past the 2^23 m (8,389 km) from which a body gets a numeric frame.
         var turning = new FrameSpin(DQuaternion.Identity, 0.1);
         Entity owner = world.Spawn(new SpawnDesc
@@ -334,13 +380,13 @@ public class RailsFollowTests
             Frame = space,
             Pose = At(1e7),
             Body = Ball() with { Motion = BodyMotion.Kinematic },
-            AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
+            AsFrame = new(FrameBounds.Sphere(0.01f))
         }.Spinning(world, turning));
 
         Tick(world, 3);
 
         world.Frames.Numeric(world.PhysicsHomeOf(owner)).Should().Be(NumericMode.Following);
-        world.PoseIn(owner, space).Should().Be(new DPose(new Double3(1e7, 0, 0), turning.RotationAt(world.Time)));
+        world.PoseIn(owner, space).Should().Be(new DPose(new(1e7, 0, 0), turning.RotationAt(world.Time)));
         world.Errors.Should().BeEmpty();
     }
 
@@ -366,7 +412,8 @@ public class RailsFollowTests
         world.PoseIn(owner, space).Should().Be(last);
         world.VelocityIn(owner, space).Should().Be(Double3.Zero);
         world.AngularVelocityIn(owner, space).Should().Be(Vector3.Zero);
-        faults.Outputs[^1].Bodies.Where(state => state.Entity == owner).Should().OnlyContain(state => state.Pose.Position == last.Position,
+        faults.Outputs[^1].Bodies.Where(state => state.Entity == owner).Should().OnlyContain(
+            state => state.Pose.Position == last.Position,
             "the hull holds still in Jolt too");
         world.Errors.Should().BeEmpty();
     }
@@ -402,8 +449,10 @@ public class RailsFollowTests
             world.AngularVelocityIn(owner, space).Should().Be(Vector3.Zero);
         }
 
-        world.PhysicsHomeOf(owner).Should().Be(space, "the still hull is slow and near the origin, so it leaves its following frame");
-        faults.Outputs[^1].Bodies.Where(state => state.Entity == owner).Should().OnlyContain(state => state.Pose.Position == last.Position,
+        world.PhysicsHomeOf(owner).Should().Be(space,
+            "the still hull is slow and near the origin, so it leaves its following frame");
+        faults.Outputs[^1].Bodies.Where(state => state.Entity == owner).Should().OnlyContain(
+            state => state.Pose.Position == last.Position,
             "the hull holds still in Jolt too");
         world.Errors.Should().BeEmpty();
     }
@@ -416,13 +465,13 @@ public class RailsFollowTests
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = Scenes.AsteroidSpace(world);
         // No component writes a sample, so nothing moves the hull, whatever its spawn velocity says.
-        Entity owner = world.Spawn(new SpawnDesc
+        Entity owner = world.Spawn(new()
         {
             Frame = space,
             Pose = At(1000),
-            LinearVelocity = new Double3(0, 0, 100),
+            LinearVelocity = new(0, 0, 100),
             Body = Ball() with { Motion = BodyMotion.Kinematic },
-            AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
+            AsFrame = new(FrameBounds.Sphere(0.01f))
         });
 
         Tick(world, 3);
@@ -437,7 +486,7 @@ public class RailsFollowTests
     public void ABodyStateOfAHullNeverWritesItsOwnersRow()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         Scenes.ShipScene ship = Scenes.ShipWithInterior(world, space);
         // The body state of the hull says that the hull is far away; the frame's step record says where it is.
         faults.EditOutput = output =>
@@ -462,14 +511,15 @@ public class RailsFollowTests
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         const float g = 9.81f;
         FrameHandle space = Ground(world, g);
-        Scenes.ShipScene ship = Scenes.ShipWithInterior(world, space, new Double3(0, 1000, 0));
+        Scenes.ShipScene ship = Scenes.ShipWithInterior(world, space, new(0, 1000, 0));
 
         Tick(world, 5);
 
         FrameStepRecord sent = faults.Outputs[^1].Frames.Single(state => state.Frame == ship.Interior);
         MotionSample record = sent.Motion;
         world.Frames.TreeLocalPose(ship.Interior).Should().Be(record.Pose);
-        world.Frames.TreeLinearVelocity(ship.Interior).Should().Be(record.Velocity, "the tree keeps the instant velocity");
+        world.Frames.TreeLinearVelocity(ship.Interior).Should()
+            .Be(record.Velocity, "the tree keeps the instant velocity");
         world.Frames.AngularVelocity(ship.Interior).Should().Be(record.AngularVelocity.ToVector3());
         world.Frames.ProperAcceleration(ship.Interior).Should().Be(sent.ProperAcceleration!.Value);
         // The ship falls freely, so the step accelerates it by the gravity of space, and its instant velocity at the end of
@@ -500,9 +550,9 @@ public class RailsFollowTests
         FrameHandle space = Scenes.AsteroidSpace(world);
         Entity entity = owner switch
         {
-            "a dynamic hull" => Scenes.ShipWithInterior(world, space, new Double3(1000, 0, 0)).Hull,
+            "a dynamic hull" => Scenes.ShipWithInterior(world, space, new(1000, 0, 0)).Hull,
             "a kinematic hull on rails" or "a static hull that teleported" => Hull(world, space, Slow),
-            _ => Bodyless(world, space, Slow),
+            _ => Bodyless(world, space, Slow)
         };
         FrameHandle frame = world.GetOwnedFrame(entity);
         Tick(world, 4);
@@ -519,7 +569,8 @@ public class RailsFollowTests
         {
             world.AddComponent(entity, park);
             world.Tick();
-            world.Frames.Followed(frame).Should().Be(FollowKind.Rails, "the step of the tick that parks the hull still moves it on rails");
+            world.Frames.Followed(frame).Should().Be(FollowKind.Rails,
+                "the step of the tick that parks the hull still moves it on rails");
             world.Tick();
             world.Frames.HullMotion(frame).Should().Be(BodyMotion.Static);
         }
@@ -528,14 +579,14 @@ public class RailsFollowTests
         {
             "a dynamic hull" => FollowKind.Physics,
             "a kinematic hull on rails" or "no body, on rails" => FollowKind.Rails,
-            _ => FollowKind.Static,
+            _ => FollowKind.Static
         });
         DPose standsAt = owner switch
         {
             "no body, on rails" => RailsPose(Slow, world.Time),
             "no body, and a transform write" => climber.Written!.Value,
             "a static hull that teleported" => park.Target!.Value,
-            _ => faults.Outputs[^1].Frames.Single(state => state.Frame == frame).Motion.Pose,
+            _ => faults.Outputs[^1].Frames.Single(state => state.Frame == frame).Motion.Pose
         };
         world.Frames.TreeLocalPose(frame).Should().Be(standsAt, "the frame stands where its step record puts it");
         world.Errors.Should().BeEmpty();
@@ -546,19 +597,21 @@ public class RailsFollowTests
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = Ground(world, 9.81f);
-        Scenes.ShipScene ship = Scenes.ShipWithInterior(world, space, new Double3(0, 1000, 0), bubbleRadius: 20);
+        Scenes.ShipScene ship = Scenes.ShipWithInterior(world, space, new(0, 1000, 0), bubbleRadius: 20);
         // A crate whose center is 19.8 m from the ship's origin sticks out of the bubble. The ship falls freely, so the
         // crate floats in it.
-        Entity crate = world.Spawn(new SpawnDesc { Frame = ship.Interior, Pose = At(0, 19.8), Body = Cube() });
+        Entity crate = world.Spawn(new() { Frame = ship.Interior, Pose = At(0, 19.8), Body = Cube() });
 
         Tick(world, 10);
 
         FrameStepRecord sent = faults.Outputs[^1].Frames.Single(state => state.Frame == ship.Interior);
         MotionSample record = sent.Motion;
         JoltPhysicsBackend.BodyFacts ghost = faults.Jolt.BodiesIn(space)
-            .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, crate));
-        ((Double3)ghost.LinearVelocity - record.ChordVelocity).Length.Should().BeLessThan(1e-3);
-        (record.Velocity - record.ChordVelocity).Length.Should().BeGreaterThan(0.05, "half a step of the gravity of space lies between them");
+            .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Ghost &&
+                             BodyUserData.Names(facts.UserData, crate));
+        (ghost.LinearVelocity - record.ChordVelocity).Length.Should().BeLessThan(1e-3);
+        (record.Velocity - record.ChordVelocity).Length.Should()
+            .BeGreaterThan(0.05, "half a step of the gravity of space lies between them");
         world.Errors.Should().BeEmpty();
     }
 
@@ -568,9 +621,10 @@ public class RailsFollowTests
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         const float g = 9.81f;
         FrameHandle space = Ground(world, g);
-        Scenes.ShipScene ship = Scenes.ShipWithInterior(world, space, new Double3(0, 1000, 0), bubbleRadius: 20);
+        Scenes.ShipScene ship = Scenes.ShipWithInterior(world, space, new(0, 1000, 0), bubbleRadius: 20);
         // The ball drifts out along +X at 2 m/s in the falling ship, where it floats.
-        Entity ball = world.Spawn(new SpawnDesc { Frame = ship.Interior, Pose = At(17), LinearVelocity = new Double3(2, 0, 0), Body = Ball(0.2f) });
+        Entity ball = world.Spawn(new()
+            { Frame = ship.Interior, Pose = At(17), LinearVelocity = new(2, 0, 0), Body = Ball(0.2f) });
 
         HandOff? exit = null;
         Double3 velocityBefore = default;
@@ -578,7 +632,8 @@ public class RailsFollowTests
         {
             velocityBefore = world.VelocityInOwnFrame(ball);
             world.Tick();
-            exit = faults.Outputs[^1].HandOffs.Where(handOff => handOff.Entity == ball).Cast<HandOff?>().SingleOrDefault();
+            exit = faults.Outputs[^1].HandOffs.Where(handOff => handOff.Entity == ball).Cast<HandOff?>()
+                .SingleOrDefault();
         }
 
         exit.Should().NotBeNull();
@@ -587,36 +642,21 @@ public class RailsFollowTests
         MotionSample record = sent.Motion;
         // The ball's instant velocity in space, of which Jolt gets the chord: half a step of the gravity of space behind it.
         var gravity = new Double3(0, -g, 0);
-        Double3 expected = record.Velocity + record.Pose.TransformDirection(velocityBefore) - gravity * (world.DeltaTime / 2.0);
-        ((Double3)exit.Value.LinearVelocity - expected).Length.Should().BeLessThan(1e-3);
+        Double3 expected = record.Velocity + record.Pose.TransformDirection(velocityBefore) -
+                           gravity * (world.DeltaTime / 2.0);
+        (exit.Value.LinearVelocity - expected).Length.Should().BeLessThan(1e-3);
         world.Errors.Should().BeEmpty();
     }
-
-    // ---- Velocity reads in the semantic parent ----------------------------------------------------------------------
-    //
-    // Every kind of frame in the table "Who fills the step record" (docs/plans/rails-components.md, "One motion record per
-    // frame") reads its instant velocity in its semantic parent. Under a numeric home the tree keeps a frame's velocity
-    // relative to the home's frame velocity, the chord of the step, so a frame at rest in the home keeps the home's instant
-    // velocity past its chord. Two kinds of frame live under a numeric home: a dynamic hull in a falling frame (see
-    // DynamicHullRecordTests.AShipThatFallsInANumericFrameReadsTheInstantVelocityOfItsOrbitInEarth) and a kinematic hull at
-    // the origin of its following frame, with a sample (see
-    // TheAnchorOfAFollowingFrameSitsAtItsOriginWithTheSamplesVelocityLessTheChordSoAReadInItsParentGivesTheSamplesVelocity) or
-    // without one, below. A frame without a body, and a static hull, live in their semantic parent always.
-
-    /// <summary>
-    /// An orbit of 10,000 km round the point gravity of <see cref="Mu"/>, at 45 m/s, beyond the 2^23 m (8,389 km) from which a
-    /// kinematic body gets a following frame by its distance: a hull on it keeps its following frame when it holds still.
-    /// </summary>
-    private static readonly KeplerOrbit Far = KeplerOrbit.Circular(1e7, phase: 0.3);
 
     /// <summary>
     /// A far hull on <see cref="Far"/> that lives in its following frame, in a root frame with the point gravity of
     /// <see cref="Mu"/> and a bubble of 20,000 km, whose rails component the test removes after five ticks and replaces with
     /// <paramref name="next"/>, if any. From the second tick after that, the hull has no sample.
     /// </summary>
-    private static (FrameHandle Space, Entity Owner, FrameHandle FollowingFrame) FarHullWhoseSamplesStop(World world, IComponent? next = null)
+    private static (FrameHandle Space, Entity Owner, FrameHandle FollowingFrame) FarHullWhoseSamplesStop(World world,
+        IComponent? next = null)
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(2e7f), GravityField.Point(Mu)));
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(2e7f), GravityField.Point(Mu)));
         Entity owner = Hull(world, space, Far);
         Tick(world, 5);
         FrameHandle followingFrame = world.PhysicsHomeOf(owner);
@@ -647,11 +687,16 @@ public class RailsFollowTests
         {
             world.Tick();
             world.PhysicsHomeOf(owner).Should().Be(followingFrame, "the far hull keeps its following frame");
-            world.Frames.TreeLocalPose(world.GetOwnedFrame(owner)).Position.Should().Be(Double3.Zero, "the hull holds still at the following frame's origin");
-            world.PoseIn(owner, space).Should().Be(still, "the hull holds still in space at tick {0}", world.TickNumber);
-            world.VelocityIn(owner, space).Should().Be(Double3.Zero, "the hull has no velocity in space at tick {0}", world.TickNumber);
-            world.Frames.LinearVelocity(followingFrame).Should().Be(Double3.Zero, "the following frame holds still too");
+            world.Frames.TreeLocalPose(world.GetOwnedFrame(owner)).Position.Should().Be(Double3.Zero,
+                "the hull holds still at the following frame's origin");
+            world.PoseIn(owner, space).Should()
+                .Be(still, "the hull holds still in space at tick {0}", world.TickNumber);
+            world.VelocityIn(owner, space).Should().Be(Double3.Zero, "the hull has no velocity in space at tick {0}",
+                world.TickNumber);
+            world.Frames.LinearVelocity(followingFrame).Should()
+                .Be(Double3.Zero, "the following frame holds still too");
         }
+
         world.Errors.Should().BeEmpty();
     }
 
@@ -680,14 +725,19 @@ public class RailsFollowTests
             world.Tick();
             DPose pose = world.PoseIn(owner, space);
             world.PhysicsHomeOf(owner).Should().Be(followingFrame, "the far hull keeps its following frame");
-            world.Frames.TreeLocalPose(world.GetOwnedFrame(owner)).Position.Should().Be(Double3.Zero, "the following frame jumped with the hull");
-            pose.Position.Should().Be(world.Frames.TreeLocalPose(followingFrame).Position, "the hull rests at the following frame's origin");
-            world.VelocityIn(owner, space).Should().Be(Double3.Zero, "the hull has no velocity in space at tick {0}", world.TickNumber);
+            world.Frames.TreeLocalPose(world.GetOwnedFrame(owner)).Position.Should()
+                .Be(Double3.Zero, "the following frame jumped with the hull");
+            pose.Position.Should().Be(world.Frames.TreeLocalPose(followingFrame).Position,
+                "the hull rests at the following frame's origin");
+            world.VelocityIn(owner, space).Should().Be(Double3.Zero, "the hull has no velocity in space at tick {0}",
+                world.TickNumber);
             (pose.Position - twoTicksBefore.Position - new Double3(0, 1, 0)).Length
                 .Should().BeLessThan(1e-6, "the hull only rose 1 m in the two steps before tick {0}", world.TickNumber);
             (twoTicksBefore, oneTickBefore) = (oneTickBefore, pose);
         }
-        (world.PoseIn(owner, space).Position.Y - start.Position.Y).Should().BeApproximately(5, 1e-6, "the hull rose 1 m every second step");
+
+        (world.PoseIn(owner, space).Position.Y - start.Position.Y).Should()
+            .BeApproximately(5, 1e-6, "the hull rose 1 m every second step");
         world.Errors.Should().BeEmpty();
     }
 
@@ -699,17 +749,20 @@ public class RailsFollowTests
     /// </summary>
     private static (World World, FrameHandle Space, Entity Station, Entity Ship) FloatingShip(bool numericFrames)
     {
-        World world = NewWorld(out _, configure: numericFrames ? null : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
+        World world = NewWorld(out _,
+            configure: numericFrames
+                ? null
+                : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
         FrameHandle space = Scenes.AsteroidSpace(world);
         Entity station = Hull(world, space, FastStill, firstMove: true);
         (Double3 place, Double3 velocity) = FastStill.StateAt(world.Time, Mu);
-        Entity ship = world.Spawn(new SpawnDesc
+        Entity ship = world.Spawn(new()
         {
             Frame = space,
-            Pose = new DPose(place + new Double3(0, 3, 0), DQuaternion.Identity),
+            Pose = new(place + new Double3(0, 3, 0), DQuaternion.Identity),
             LinearVelocity = velocity,
             Body = Ball(),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
+            AsFrame = new(FrameBounds.Sphere(0.01f))
         });
         return (world, space, station, ship);
     }
@@ -736,12 +789,16 @@ public class RailsFollowTests
             {
                 world.Tick();
                 plain.Tick();
-                world.PhysicsHomeOf(ship).Should().Be(world.PhysicsHomeOf(station), "the ship falls in the station's following frame");
+                world.PhysicsHomeOf(ship).Should().Be(world.PhysicsHomeOf(station),
+                    "the ship falls in the station's following frame");
                 (world.PoseIn(ship, space).Position - plain.PoseIn(plainShip, plainSpace).Position).Length
-                    .Should().BeLessThan(1e-3, "the ship is where it is without numeric frames at sync point {0}", world.TickNumber);
+                    .Should().BeLessThan(1e-3, "the ship is where it is without numeric frames at sync point {0}",
+                        world.TickNumber);
                 (world.VelocityIn(ship, space) - plain.VelocityIn(plainShip, plainSpace)).Length
-                    .Should().BeLessThan(1e-3, "the ship moves as it does without numeric frames at sync point {0}", world.TickNumber);
+                    .Should().BeLessThan(1e-3, "the ship moves as it does without numeric frames at sync point {0}",
+                        world.TickNumber);
             }
+
             world.Frames.Numeric(world.PhysicsHomeOf(station)).Should().Be(NumericMode.Following);
             world.Errors.Should().BeEmpty();
             plain.Errors.Should().BeEmpty();
@@ -752,19 +809,20 @@ public class RailsFollowTests
     /// A body 3 m from a station that moves as the station does, in an <see cref="Scenes.AsteroidSpace"/>, with a
     /// <see cref="Kicker"/>, so that it joins the station's following frame.
     /// </summary>
-    private static (FrameHandle Space, Entity Station, Entity Body, Kicker Kicker) BodyBesideAStation(World world, BodyDesc body)
+    private static (FrameHandle Space, Entity Station, Entity Body, Kicker Kicker) BodyBesideAStation(World world,
+        BodyDesc body)
     {
         FrameHandle space = Scenes.AsteroidSpace(world);
         Entity station = Hull(world, space, FastStill);
         (Double3 place, Double3 velocity) = FastStill.StateAt(world.Time, Mu);
         var kicker = new Kicker();
-        Entity entity = world.Spawn(new SpawnDesc
+        Entity entity = world.Spawn(new()
         {
             Frame = space,
-            Pose = new DPose(place + new Double3(0, 3, 0), DQuaternion.Identity),
+            Pose = new(place + new Double3(0, 3, 0), DQuaternion.Identity),
             LinearVelocity = velocity,
             Body = body,
-            Components = [kicker],
+            Components = [kicker]
         });
         return (space, station, entity, kicker);
     }
@@ -775,12 +833,16 @@ public class RailsFollowTests
         using World characterWorld = NewWorldWithFaults(out FaultInjectingBackend faults);
         using World ballWorld = NewWorld(out _);
         var person = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
-        (FrameHandle space, Entity station, Entity character, Kicker characterKicker) = BodyBesideAStation(characterWorld, person);
-        (FrameHandle ballSpace, Entity ballStation, Entity ball, Kicker ballKicker) = BodyBesideAStation(ballWorld, Ball());
+        (FrameHandle space, Entity station, Entity character, Kicker characterKicker) =
+            BodyBesideAStation(characterWorld, person);
+        (FrameHandle ballSpace, Entity ballStation, Entity ball, Kicker ballKicker) =
+            BodyBesideAStation(ballWorld, Ball());
         Tick(characterWorld, 5);
         Tick(ballWorld, 5);
-        characterWorld.PhysicsHomeOf(character).Should().Be(characterWorld.PhysicsHomeOf(station), "the character joined the station's following frame");
-        ballWorld.PhysicsHomeOf(ball).Should().Be(ballWorld.PhysicsHomeOf(ballStation), "the ball joined the station's following frame");
+        characterWorld.PhysicsHomeOf(character).Should().Be(characterWorld.PhysicsHomeOf(station),
+            "the character joined the station's following frame");
+        ballWorld.PhysicsHomeOf(ball).Should().Be(ballWorld.PhysicsHomeOf(ballStation),
+            "the ball joined the station's following frame");
         // Space pulls the character 3 m from the following frame's origin by more than twice the threshold of weightlessness.
         faults.Jolt.HasRigidForm(character).Should().BeFalse("the character walks, in the air");
 
@@ -793,7 +855,8 @@ public class RailsFollowTests
         Tick(ballWorld, 2);
 
         characterWorld.Snapshot.IsStanding(character).Should().BeFalse();
-        (characterWorld.VelocityIn(character, space) - ballWorld.VelocityIn(ball, ballSpace)).Length.Should().BeLessThan(1e-4);
+        (characterWorld.VelocityIn(character, space) - ballWorld.VelocityIn(ball, ballSpace)).Length.Should()
+            .BeLessThan(1e-4);
         characterWorld.Errors.Should().BeEmpty();
         ballWorld.Errors.Should().BeEmpty();
     }
@@ -815,21 +878,26 @@ public class RailsFollowTests
         {
             "a kinematic hull on rails" => Hull(world, space, Slow),
             "no body, on rails" => Bodyless(world, space, Slow),
-            "no body, and a transform write" => world.Spawn(new SpawnDesc
+            "no body, and a transform write" => world.Spawn(new()
             {
                 Frame = space,
                 Pose = At(1000),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
-                Components = [new Climber()],
+                AsFrame = new(FrameBounds.Sphere(5)),
+                Components = [new Climber()]
             }),
-            _ => world.Spawn(new SpawnDesc
+            _ => world.Spawn(new()
             {
                 Frame = space,
                 Pose = At(1000),
-                Body = Ball() with { Motion = owner.Contains("static", StringComparison.Ordinal) ? BodyMotion.Static : BodyMotion.Kinematic },
-                AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
-                Components = owner.EndsWith("teleported", StringComparison.Ordinal) ? [new Hopper()] : [],
-            }),
+                Body = Ball() with
+                {
+                    Motion = owner.Contains("static", StringComparison.Ordinal)
+                        ? BodyMotion.Static
+                        : BodyMotion.Kinematic
+                },
+                AsFrame = new(FrameBounds.Sphere(0.01f)),
+                Components = owner.EndsWith("teleported", StringComparison.Ordinal) ? [new Hopper()] : []
+            })
         };
 
         Tick(world, 4);
@@ -845,7 +913,8 @@ public class RailsFollowTests
     /// <summary>The angle in radians between two rotations.</summary>
     private static double AngleBetween(DQuaternion a, DQuaternion b)
     {
-        double dot = Math.Abs(a.X * b.X + a.Y * b.Y + a.Z * b.Z + a.W * b.W) / Math.Sqrt(a.LengthSquared * b.LengthSquared);
+        double dot = Math.Abs(a.X * b.X + a.Y * b.Y + a.Z * b.Z + a.W * b.W) /
+                     Math.Sqrt(a.LengthSquared * b.LengthSquared);
         return 2 * Math.Acos(Math.Min(1, dot));
     }
 

@@ -1,4 +1,3 @@
-using System.Numerics;
 using Tertius.Simulation;
 
 namespace Tertius.Physics.Tests;
@@ -20,11 +19,13 @@ public class WorldFrameOwnerRowTests
     /// </summary>
     private const double Speed = 1 << 19;
 
-    private static readonly BodyDesc ShipHull = new(new BoxShapeDesc(new Vector3(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
+    private static readonly BodyDesc ShipHull = new(new BoxShapeDesc(new(2)), Mass: 1000, LinearDamping: 0,
+        AngularDamping: 0,
         InteriorShape: new SphereShapeDesc(0.05f));
 
     /// <summary>A light crate, whose drift away from its ship moves the ship a little in their shared falling frame.</summary>
-    private static readonly BodyDesc Crate = new(new BoxShapeDesc(new Vector3(0.5f)), Mass: 0.01f, LinearDamping: 0, AngularDamping: 0);
+    private static readonly BodyDesc Crate = new(new BoxShapeDesc(new(0.5f)), Mass: 0.01f, LinearDamping: 0,
+        AngularDamping: 0);
 
     [Fact]
     public void Every_ship_owners_row_ends_the_tick_in_which_its_nest_jumps_on_its_frames_place_to_the_bit()
@@ -33,27 +34,27 @@ public class WorldFrameOwnerRowTests
         // falling frame, which nests at once. The crate's drift moves the ship in that frame by fractions of a nanometer each
         // tick, so its place there has fine bits. The crates sit at other distances from their ships, so the bits differ.
         using World world = WorldTesting.NewWorld(out _, debugChecks: false,
-            configure: o => o.NumericFrames = new NumericFrameOptions { NestDistance = 1 << 21 });
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e18f), GravityField.None));
+            configure: o => o.NumericFrames = new() { NestDistance = 1 << 21 });
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e18f), GravityField.None));
         var ships = new List<FrameHandle>();
         for (int i = 0; i < 24; i++)
         {
             double x = 3e6 + 37.123 * i;
-            Entity ship = world.Spawn(new SpawnDesc
+            Entity ship = world.Spawn(new()
             {
                 Frame = space,
                 Pose = WorldTesting.At(x, 500 * i),
-                LinearVelocity = new Double3(Speed, 0, 0),
+                LinearVelocity = new(Speed, 0, 0),
                 Body = ShipHull,
-                AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
+                AsFrame = new(FrameBounds.Sphere(20))
             });
             ships.Add(world.GetOwnedFrame(ship));
-            world.Spawn(new SpawnDesc
+            world.Spawn(new()
             {
                 Frame = space,
                 Pose = WorldTesting.At(x + 8 + 0.37 * i, 500 * i),
-                LinearVelocity = new Double3(Speed + 1.0 / 16, 0, 0),
-                Body = Crate,
+                LinearVelocity = new(Speed + 1.0 / 16, 0, 0),
+                Body = Crate
             });
         }
 
@@ -67,16 +68,19 @@ public class WorldFrameOwnerRowTests
             {
                 FrameHandle pod = frames.TreeParent(ship);
                 FrameHandle nest = frames.TreeParent(pod);
-                frames.Numeric(nest).Should().Be(NumericMode.Nesting, "every ship falls in a frame that nests from the first tick");
+                frames.Numeric(nest).Should().Be(NumericMode.Nesting,
+                    "every ship falls in a frame that nests from the first tick");
                 double nestX = frames.TreeLocalPose(nest).Position.X;
-                if (lastNestPlace.TryGetValue(ship, out var last) && last.Nest == nest && last.X != nestX)
+                if (lastNestPlace.TryGetValue(ship, out (FrameHandle Nest, double X) last) && last.Nest == nest &&
+                    last.X != nestX)
                 {
                     // The nest jumped this tick. Summed over the frames before the jump, the ship's place differs.
                     double step = nestX - last.X;
                     double shipX = frames.TreeLocalPose(ship).Position.X, podX = frames.TreeLocalPose(pod).Position.X;
-                    if ((shipX + podX) + nestX != (shipX + (podX + step)) + last.X)
+                    if (shipX + podX + nestX != shipX + (podX + step) + last.X)
                         roundedOtherwise++;
                 }
+
                 lastNestPlace[ship] = (nest, nestX);
 
                 Double3 place = frames.InSemantic(pod, space, frames.TreeLocalPose(ship).Position);
@@ -85,7 +89,8 @@ public class WorldFrameOwnerRowTests
             }
         }
 
-        roundedOtherwise.Should().BeGreaterThan(0, "the scene must have a jump after which a ship's place rounds to another double");
+        roundedOtherwise.Should().BeGreaterThan(0,
+            "the scene must have a jump after which a ship's place rounds to another double");
         world.Errors.Should().BeEmpty();
     }
 }

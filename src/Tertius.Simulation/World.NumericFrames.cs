@@ -11,11 +11,11 @@ namespace Tertius.Simulation;
 public sealed partial class World
 {
     // The bodies of the current numeric update, in entity slot order: a frame owner's interior, then its hull.
-    private readonly List<NumericBody> numericBodies = new();
+    private readonly List<NumericBody> numericBodies = [];
     private Action<List<NumericMove>>? applyNumericMoves;
 
     // The bodies of the current batch that physics has not created yet: the index of each one's creation in the batch.
-    private readonly Dictionary<Entity, int> pendingCreates = new();
+    private readonly Dictionary<Entity, int> pendingCreates = [];
 
     // True after a change outside a tick, until the next tick runs the numeric update for it.
     private bool numericUpdateDue;
@@ -24,7 +24,8 @@ public sealed partial class World
     /// The frame whose physics system holds the body of <paramref name="entity"/>: its frame, or a numeric frame below it.
     /// Null for an entity that is not live.
     /// </summary>
-    internal FrameHandle PhysicsHomeOf(Entity entity) => entities.IsAlive(entity) ? entities.BackRow(entity).PhysicsHome : FrameHandle.Null;
+    internal FrameHandle PhysicsHomeOf(Entity entity) =>
+        Entities.IsAlive(entity) ? Entities.BackRow(entity).PhysicsHome : FrameHandle.Null;
 
     /// <summary>
     /// Runs the rules of numeric frames once, over a sync point of <paramref name="dt"/> seconds, after the physics output,
@@ -43,35 +44,35 @@ public sealed partial class World
         for (int i = 0; i < physicsChanges.BodiesCreated.Count; i++)
             pendingCreates[physicsChanges.BodiesCreated[i].Entity] = i;
         numericBodies.Clear();
-        foreach (Entity entity in entities.BodyEntities)
+        foreach (Entity entity in Entities.BodyEntities)
         {
-            if (!attachments.ParentOf(entity).IsNull)
+            if (!Attachments.ParentOf(entity).IsNull)
                 continue;
-            BodyDesc desc = entities.Body(entity)!;
-            FrameHandle own = entities.OwnedFrame(entity);
+            BodyDesc desc = Entities.Body(entity)!;
+            FrameHandle own = Entities.OwnedFrame(entity);
             // The interior of a frame owner is a body at rest at the frame's origin, in the frame's own system, which no
             // numeric update moves. Physics keeps it static while the hull is static and kinematic while the hull can move,
             // and the update counts it as a static anchor in either motion, which fixes each group that it links in that
             // system (docs/plans/numeric-frames.md, "Anchors"). A root frame has an interior and no hull.
             if (!own.IsNull)
-                numericBodies.Add(new NumericBody
+                numericBodies.Add(new()
                 {
                     Entity = entity,
                     Semantic = own,
                     Home = own,
-                    Radius = entities.BodyInteriorBoundingRadius(entity),
+                    Radius = Entities.BodyInteriorBoundingRadius(entity),
                     Mass = desc.Mass > 0 ? desc.Mass : 1,
                     Static = true,
-                    Fixed = true,
+                    Fixed = true
                 });
-            ref readonly TransformRow row = ref entities.BackRow(entity);
+            ref readonly TransformRow row = ref Entities.BackRow(entity);
             if (row.Frame.IsNull)
                 continue;
             // The body of a frame owner is its frame's hull here, because its frame has a parent. The update plans the next
             // step, so it reads the hull's motion in that step, which counts a change written in the tick that ends.
             BodyMotion motion = own.IsNull ? desc.Motion : NextStepHullMotion(own)!.Value;
             double mass = desc.Mass > 0 ? desc.Mass : 1;
-            numericBodies.Add(new NumericBody
+            numericBodies.Add(new()
             {
                 Entity = entity,
                 Semantic = row.Frame,
@@ -79,7 +80,7 @@ public sealed partial class World
                 Position = row.Pose.Position,
                 HomePosition = row.HomePose.Position,
                 Velocity = SemanticVelocity(entity, row, own),
-                Radius = entities.BodyBoundingRadius(entity),
+                Radius = Entities.BodyBoundingRadius(entity),
                 Mass = mass,
                 Character = motion == BodyMotion.Character,
                 ThrustAcceleration = ThrustAcceleration(entity, motion, mass),
@@ -90,11 +91,13 @@ public sealed partial class World
                 // A hull that is not dynamic moves only as its frame's step records say.
                 Fixed = !own.IsNull && motion != BodyMotion.Dynamic,
                 Sensor = desc.IsSensor,
-                OwnedFrame = own,
+                OwnedFrame = own
             });
         }
+
         Profile.Lap(23);
-        Frames.UpdateNumericFrames(CollectionsMarshal.AsSpan(numericBodies), dt, DeltaTime, physicsChanges, applyNumericMoves ??= ApplyNumericMoves);
+        Frames.UpdateNumericFrames(CollectionsMarshal.AsSpan(numericBodies), dt, DeltaTime, physicsChanges,
+            applyNumericMoves ??= ApplyNumericMoves);
         Profile.Lap(24);
         ApplyPhysicsChanges();
         pendingCreates.Clear();
@@ -112,7 +115,7 @@ public sealed partial class World
     {
         if (motion is not (BodyMotion.Dynamic or BodyMotion.Character))
             return 0;
-        ref readonly PhysicsIntent intent = ref entities.NextStepIntent(entity);
+        ref readonly PhysicsIntent intent = ref Entities.NextStepIntent(entity);
         return (intent.Force.Length() + intent.Impulse.Length() / (double)DeltaTime) / mass;
     }
 
@@ -126,9 +129,9 @@ public sealed partial class World
         if (!own.IsNull)
             return Frames.HomeVelocity(row.PhysicsHome, row.Frame) + Frames.TreeLinearVelocity(own);
         // Most sync points create no body, and a lookup in an empty dictionary still hashes the entity: this runs for every body.
-        if (pendingCreates.Count > 0 && pendingCreates.TryGetValue(entity, out int created))
-            return physicsChanges.BodiesCreated[created].LinearVelocity;
-        return Frames.HomeVelocity(row.PhysicsHome, row.Frame) + row.LinearVelocity;
+        return pendingCreates.Count > 0 && pendingCreates.TryGetValue(entity, out int created)
+            ? physicsChanges.BodiesCreated[created].LinearVelocity
+            : Frames.HomeVelocity(row.PhysicsHome, row.Frame) + row.LinearVelocity;
     }
 
     /// <summary>
@@ -139,9 +142,9 @@ public sealed partial class World
     private void ApplyNumericMoves(List<NumericMove> moves)
     {
         foreach (FrameShift shift in physicsChanges.FramesShifted)
-            foreach (NumericBody body in numericBodies)
-                if (body.Home == shift.Frame)
-                    ShiftRow(body.Entity, shift);
+        foreach (NumericBody body in numericBodies)
+            if (body.Home == shift.Frame)
+                ShiftRow(body.Entity, shift);
         foreach (NumericMove move in moves)
             MoveBodyHome(move.Entity, move.To, Frames.SemanticOf(move.To));
         FlushPhysicsChanges();
@@ -150,18 +153,19 @@ public sealed partial class World
     /// <summary>The row of an entity whose physics home moved by <paramref name="shift"/>.</summary>
     private void ShiftRow(Entity entity, in FrameShift shift)
     {
-        FrameHandle own = entities.OwnedFrame(entity);
+        FrameHandle own = Entities.OwnedFrame(entity);
         if (!own.IsNull)
         {
-            entities.SetBackTransform(entity, FrameOwnerRow(own));
+            Entities.SetBackTransform(entity, FrameOwnerRow(own));
             return;
         }
+
         // The row's pose is in the semantic frame, which the shift does not move. In the frame, the body moves back.
-        TransformRow row = entities.BackRow(entity);
+        TransformRow row = Entities.BackRow(entity);
         row.HomePosition -= shift.Offset;
-        if (entities.Body(entity) is not { Motion: BodyMotion.Static })
-            row.LinearVelocity = ((Double3)row.LinearVelocity - shift.Velocity).ToVector3();
-        entities.SetBackTransform(entity, row);
+        if (Entities.Body(entity) is not { Motion: BodyMotion.Static })
+            row.LinearVelocity = (row.LinearVelocity - shift.Velocity).ToVector3();
+        Entities.SetBackTransform(entity, row);
     }
 
     /// <summary>
@@ -173,25 +177,28 @@ public sealed partial class World
     /// </summary>
     private void MoveBodyHome(Entity entity, FrameHandle home, FrameHandle semantic)
     {
-        FrameHandle own = entities.OwnedFrame(entity);
+        FrameHandle own = Entities.OwnedFrame(entity);
         bool pending = pendingCreates.TryGetValue(entity, out int created);
         if (!own.IsNull)
         {
-            entities.SetBackTransform(entity, FrameOwnerRow(own));
+            Entities.SetBackTransform(entity, FrameOwnerRow(own));
         }
         else
         {
-            TransformRow row = entities.BackRow(entity);
+            TransformRow row = Entities.BackRow(entity);
             Double3 velocity = SemanticVelocity(entity, row, own);
             // Through the homes' lowest common ancestor, so that no large number enters between two nearby homes.
-            row.HomePosition = home == semantic ? row.Pose.Position : row.HomePose.Position + Frames.Relative(row.PhysicsHome, home).Position;
+            row.HomePosition = home == semantic
+                ? row.Pose.Position
+                : row.HomePose.Position + Frames.Relative(row.PhysicsHome, home).Position;
             row.PhysicsHome = home;
             row.LinearVelocity = (velocity - Frames.HomeVelocity(home, semantic)).ToVector3();
-            entities.SetBackTransform(entity, row);
+            Entities.SetBackTransform(entity, row);
         }
+
         if (pending)
             physicsChanges.BodiesCreated[created] = physicsChanges.BodiesCreated[created] with { Frame = home };
         else
-            physicsChanges.BodiesMoved.Add(new BodyMove(entity, home));
+            physicsChanges.BodiesMoved.Add(new(entity, home));
     }
 }

@@ -43,9 +43,10 @@ public interface IInputTarget
 public sealed class InputRouter(bool freePlay, IInputTarget target)
 {
     private readonly MouseTracker mouse = new();
+
     // The keys and buttons whose down the game got, and not their release yet.
-    private readonly HashSet<Key> heldKeys = new();
-    private readonly HashSet<MouseButton> heldButtons = new();
+    private readonly HashSet<Key> heldKeys = [];
+    private readonly HashSet<MouseButton> heldButtons = [];
     private bool flying;
 
     /// <summary>
@@ -62,12 +63,14 @@ public sealed class InputRouter(bool freePlay, IInputTarget target)
                 target.Close();
             return;
         }
+
         if (key == Silk.NET.Input.Key.F1)
         {
             if (down)
                 SwitchFlyCamera();
             return;
         }
+
         if (key == Silk.NET.Input.Key.V)
         {
             // A script chooses its views with camera steps, so the key changes them only in free play.
@@ -75,12 +78,14 @@ public sealed class InputRouter(bool freePlay, IInputTarget target)
                 target.NextView();
             return;
         }
+
         if (flying)
         {
             if (FlyKeyOf(key) is { } flyKey)
                 target.Fly(flyKey, down);
             return;
         }
+
         if (!freePlay)
             return;
         if (down)
@@ -137,6 +142,7 @@ public sealed class InputRouter(bool freePlay, IInputTarget target)
             heldKeys.Clear();
             heldButtons.Clear();
         }
+
         target.FlyChanged(flying);
     }
 
@@ -151,6 +157,6 @@ public sealed class InputRouter(bool freePlay, IInputTarget target)
         Silk.NET.Input.Key.Q => FlyKey.Down,
         Silk.NET.Input.Key.E => FlyKey.Up,
         Silk.NET.Input.Key.ShiftLeft or Silk.NET.Input.Key.ShiftRight => FlyKey.Fast,
-        _ => null,
+        _ => null
     };
 }

@@ -1,4 +1,3 @@
-using System.Numerics;
 using Tertius.Demo;
 using Tertius.Simulation;
 using static Tertius.Host.Tests.HostTesting;
@@ -20,7 +19,7 @@ public sealed class AirlockTests : IDisposable
 
     public AirlockTests()
     {
-        room = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f)));
+        room = world.CreateRootFrame(new(FrameBounds.Sphere(1e4f)));
         (inner, outer, airlock) = SpawnAirlock(x: 0, cycleSeconds: 1);
     }
 
@@ -30,24 +29,25 @@ public sealed class AirlockTests : IDisposable
     /// Spawns an airlock with its inner door at z = 0 and its outer door at z = 3, at <paramref name="x"/> in the room. With
     /// <paramref name="outerOpenAtStart"/>, the airlock opens its outer door when it starts.
     /// </summary>
-    private (Entity Inner, Entity Outer, Entity Airlock) SpawnAirlock(double x, float cycleSeconds, bool outerOpenAtStart = false)
+    private (Entity Inner, Entity Outer, Entity Airlock) SpawnAirlock(double x, float cycleSeconds,
+        bool outerOpenAtStart = false)
     {
         Entity innerDoor = SpawnDoor(x, z: 0), outerDoor = SpawnDoor(x, z: 3);
-        Entity cycler = world.Spawn(new SpawnDesc
+        Entity cycler = world.Spawn(new()
         {
             Frame = room,
-            Pose = new DPose(new Double3(x, 1, 1.5), DQuaternion.Identity),
-            Components = [new Airlock(innerDoor, outerDoor, cycleSeconds, outerOpenAtStart)],
+            Pose = new(new(x, 1, 1.5), DQuaternion.Identity),
+            Components = [new Airlock(innerDoor, outerDoor, cycleSeconds, outerOpenAtStart)]
         });
         return (innerDoor, outerDoor, cycler);
     }
 
-    private Entity SpawnDoor(double x, double z) => world.Spawn(new SpawnDesc
+    private Entity SpawnDoor(double x, double z) => world.Spawn(new()
     {
         Frame = room,
-        Pose = new DPose(new Double3(x, 1, z), DQuaternion.Identity),
-        Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.6f, 1, 0.05f)), BodyMotion.Kinematic),
-        Components = [new Door(new Vector3(0, 2, 0), openSeconds: 0.5f)],
+        Pose = new(new(x, 1, z), DQuaternion.Identity),
+        Body = new(new BoxShapeDesc(new(0.6f, 1, 0.05f)), BodyMotion.Kinematic),
+        Components = [new Door(new(0, 2, 0), openSeconds: 0.5f)]
     });
 
     private void Ticks(int count)
@@ -65,9 +65,11 @@ public sealed class AirlockTests : IDisposable
     /// <summary>True while the door is more than 0.5 percent of the way open: 1 cm of its 2 m slide.</summary>
     private bool NotShut(Entity door) => Height(door) > 0.005 * 2;
 
-    private void ExpectOpen(Entity door, string name) => Height(door).Should().BeApproximately(2, 1e-4, $"the {name} door is open");
+    private void ExpectOpen(Entity door, string name) =>
+        Height(door).Should().BeApproximately(2, 1e-4, $"the {name} door is open");
 
-    private void ExpectShut(Entity door, string name) => Height(door).Should().BeApproximately(0, 1e-4, $"the {name} door is shut");
+    private void ExpectShut(Entity door, string name) =>
+        Height(door).Should().BeApproximately(0, 1e-4, $"the {name} door is shut");
 
     [Fact]
     public void AtItsStartTheAirlockOpensTheInnerDoorAndKeepsTheOuterDoorShut()
@@ -91,7 +93,8 @@ public sealed class AirlockTests : IDisposable
     [Fact]
     public void AUseCyclesAnAirlockThatStartsOpenToTheOutsideBackToItsInnerDoor()
     {
-        (Entity innerDoor, Entity outerDoor, Entity cycler) = SpawnAirlock(x: 5, cycleSeconds: 1, outerOpenAtStart: true);
+        (Entity innerDoor, Entity outerDoor, Entity cycler) =
+            SpawnAirlock(x: 5, cycleSeconds: 1, outerOpenAtStart: true);
         Ticks(Second);
         Use(cycler);
         Ticks(Second * 3 / 4);
@@ -185,13 +188,15 @@ public sealed class AirlockTests : IDisposable
     {
         Action create = () => _ = new Airlock(inner, outer, cycleSeconds);
 
-        create.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("cycleSeconds").WithMessage("*cycle time*positive and finite*");
+        create.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("cycleSeconds")
+            .WithMessage("*cycle time*positive and finite*");
     }
 
     [Theory]
     [InlineData(Second, false)]
     [InlineData(Second + 1, true)]
-    public void AUseStartsAnotherCycleOnlyFromTheFirstTickAfterTheCycleHasEnded(int ticksAfterTheFirstUse, bool startsACycle)
+    public void AUseStartsAnotherCycleOnlyFromTheFirstTickAfterTheCycleHasEnded(int ticksAfterTheFirstUse,
+        bool startsACycle)
     {
         Ticks(Second);
         Use();

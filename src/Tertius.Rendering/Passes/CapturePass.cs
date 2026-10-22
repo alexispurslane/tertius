@@ -25,10 +25,11 @@ internal sealed unsafe class CapturePass : RenderPass
             // Tightly packed rows.
             BufferRowLength = 0,
             BufferImageHeight = 0,
-            ImageSubresource = new ImageSubresourceLayers(ImageAspectFlags.ColorBit, 0, 0, 1),
-            ImageExtent = new Extent3D(extent.Width, extent.Height, 1),
+            ImageSubresource = new(ImageAspectFlags.ColorBit, 0, 0, 1),
+            ImageExtent = new(extent.Width, extent.Height, 1)
         };
-        vk.CmdCopyImageToBuffer(commandBuffer, context.Output.Handle, ImageLayout.TransferSrcOptimal, buffer.Handle, 1, &region);
+        vk.CmdCopyImageToBuffer(commandBuffer, context.Output.Handle, ImageLayout.TransferSrcOptimal, buffer.Handle, 1,
+            &region);
         // Makes the copy visible to the CPU once the frame's fence signals.
         barriers.Buffer(buffer, BufferUse.HostRead);
         barriers.Flush(vk, commandBuffer);

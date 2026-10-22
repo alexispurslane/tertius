@@ -29,10 +29,13 @@ internal sealed unsafe class ShadowPass : RenderPass
 {
     /// <summary>The caster's slope-scaled depth bias, in multiples of its largest depth change per texel.</summary>
     public const float SlopeBias = 1.5f;
+
     /// <summary>How far the lighting pass moves its lookup along the geometric normal, in texels, times sin(angle to the sun).</summary>
     public const float NormalOffsetTexels = 1f;
+
     /// <summary>The lighting pass's constant depth bias toward the sun, in texels of depth.</summary>
     public const float ConstantBiasTexels = 0.5f;
+
     /// <summary>Receiver planes are treated as at most this steep: the cosine of their angle to the sun.</summary>
     public const float MinimumReceiverCosine = 0.1f;
 
@@ -62,7 +65,7 @@ internal sealed unsafe class ShadowPass : RenderPass
             DepthClamp = true,
             CullMode = CullModeFlags.None,
             // Reversed depth: a negative bias moves casters away from the sun.
-            DepthBiasSlope = -SlopeBias,
+            DepthBiasSlope = -SlopeBias
         }.Create(device, shaders);
     }
 
@@ -94,7 +97,8 @@ internal sealed unsafe class ShadowPass : RenderPass
     }
 
     /// <summary>Finds the casters and the cascades each one touches. Returns the number of casters.</summary>
-    private int SelectCasters(RenderSnapshot snapshot, float alpha, ReadOnlySpan<MeshInfo> meshes, in LightBasis light, PreparedScene scene)
+    private int SelectCasters(RenderSnapshot snapshot, float alpha, ReadOnlySpan<MeshInfo> meshes, in LightBasis light,
+        PreparedScene scene)
     {
         Vector3 offset = scene.Camera.Offset;
         int casterCount = 0, instanceCount = 0;
@@ -108,7 +112,8 @@ internal sealed unsafe class ShadowPass : RenderPass
                 continue;
             Vector3 position = Vector3.Lerp(instance.PreviousPosition, instance.Position, alpha) - offset;
             float radius = SceneBatcher.BoundingRadius(instance, meshes[mesh]);
-            if (!float.IsFinite(position.X + position.Y + position.Z + radius) || !ShadowCascades.TakesCaster(position.Length(), radius))
+            if (!float.IsFinite(position.X + position.Y + position.Z + radius) ||
+                !ShadowCascades.TakesCaster(position.Length(), radius))
                 continue;
 
             // The caster can shadow a cascade's receivers if its sphere overlaps the cascade box or the part of the
@@ -122,10 +127,9 @@ internal sealed unsafe class ShadowPass : RenderPass
                 if (MathF.Abs(lightPosition.X - cascade.Center.X) <= reach &&
                     MathF.Abs(lightPosition.Y - cascade.Center.Y) <= reach &&
                     lightPosition.Z + radius >= cascade.Center.Z - cascade.DepthHalfRange)
-                {
                     mask |= 1 << i;
-                }
             }
+
             if (mask == 0)
                 continue;
 
@@ -133,9 +137,11 @@ internal sealed unsafe class ShadowPass : RenderPass
                 Array.Resize(ref casters, casters.Length * 2);
             Quaternion rotation = SceneBatcher.Interpolate(instance.PreviousRotation, instance.Rotation, alpha);
             // The depth-only pass reads no material.
-            casters[casterCount++] = new Caster(GpuInstance.From(position, rotation, instance.Scale, MaterialStore.DefaultSlot), mesh, mask);
+            casters[casterCount++] =
+                new(GpuInstance.From(position, rotation, instance.Scale, MaterialStore.DefaultSlot), mesh, mask);
             instanceCount += BitOperations.PopCount((uint)mask);
         }
+
         scene.ShadowCasters = casterCount;
         scene.ShadowInstances = instanceCount;
         return casterCount;
@@ -176,18 +182,20 @@ internal sealed unsafe class ShadowPass : RenderPass
                     scene.Commands[scene.CommandCount - 1].InstanceCount++;
                     continue;
                 }
+
                 currentMesh = caster.Mesh;
                 MeshInfo info = meshes[caster.Mesh];
-                scene.AppendCommand(new DrawIndexedIndirectCommand
+                scene.AppendCommand(new()
                 {
                     IndexCount = info.IndexCount,
                     InstanceCount = 1,
                     FirstIndex = info.FirstIndex,
                     VertexOffset = info.VertexOffset,
-                    FirstInstance = (uint)gpuIndex,
+                    FirstInstance = (uint)gpuIndex
                 });
             }
-            scene.ShadowCommands[cascade] = new CommandRange(rangeStart, scene.CommandCount - rangeStart);
+
+            scene.ShadowCommands[cascade] = new(rangeStart, scene.CommandCount - rangeStart);
         }
     }
 
@@ -198,15 +206,19 @@ internal sealed unsafe class ShadowPass : RenderPass
         constants.ShadowCascadeCount = ShadowCascades.Count;
         for (int i = 0; i < ShadowCascades.Count; i++)
             constants.ShadowViewProj[i] = cascades[i].ViewProjection;
-        constants.ShadowSplits = new Vector4(ShadowCascades.Split(0), ShadowCascades.Split(1), ShadowCascades.Split(2), ShadowCascades.Split(3));
-        constants.ShadowBlendStart = new Vector4(ShadowCascades.BlendStart(0), ShadowCascades.BlendStart(1), ShadowCascades.BlendStart(2), ShadowCascades.BlendStart(3));
-        constants.ShadowTexel = new Vector4(cascades[0].TexelSize, cascades[1].TexelSize, cascades[2].TexelSize, cascades[3].TexelSize);
+        constants.ShadowSplits = new(ShadowCascades.Split(0), ShadowCascades.Split(1), ShadowCascades.Split(2),
+            ShadowCascades.Split(3));
+        constants.ShadowBlendStart = new(ShadowCascades.BlendStart(0), ShadowCascades.BlendStart(1),
+            ShadowCascades.BlendStart(2), ShadowCascades.BlendStart(3));
+        constants.ShadowTexel = new(cascades[0].TexelSize, cascades[1].TexelSize, cascades[2].TexelSize,
+            cascades[3].TexelSize);
         // Every box has the same shape: a light-space slope s moves depth by s · h / d per unit of uv.
         float depthPerUv = cascades[0].HalfExtent / cascades[0].DepthHalfRange;
-        constants.ShadowAxisX = new Vector4(light.X, depthPerUv);
-        constants.ShadowAxisY = new Vector4(light.Y, 0f);
+        constants.ShadowAxisX = new(light.X, depthPerUv);
+        constants.ShadowAxisY = new(light.Y, 0f);
         // One texel of world distance along the light is depthPerUv / size in [0, 1] depth units.
-        constants.ShadowParams = new Vector4(1f / map.Size, NormalOffsetTexels, ConstantBiasTexels * depthPerUv / map.Size, MinimumReceiverCosine);
+        constants.ShadowParams = new(1f / map.Size, NormalOffsetTexels, ConstantBiasTexels * depthPerUv / map.Size,
+            MinimumReceiverCosine);
     }
 
     public override void Record(FrameContext context)
@@ -233,14 +245,14 @@ internal sealed unsafe class ShadowPass : RenderPass
                 LoadOp = AttachmentLoadOp.Clear,
                 StoreOp = AttachmentStoreOp.Store,
                 // Reversed depth: 0 is the far side of the cascade, so an empty texel shadows nothing.
-                ClearValue = new ClearValue(depthStencil: new ClearDepthStencilValue(0f, 0)),
+                ClearValue = new(depthStencil: new ClearDepthStencilValue(0f, 0))
             };
             var rendering = new RenderingInfo
             {
                 SType = StructureType.RenderingInfo,
-                RenderArea = new Rect2D(new Offset2D(0, 0), extent),
+                RenderArea = new(new Offset2D(0, 0), extent),
                 LayerCount = 1,
-                PDepthAttachment = &depth,
+                PDepthAttachment = &depth
             };
             vk.CmdBeginRendering(commandBuffer, &rendering);
             if (i == 0)
@@ -248,19 +260,22 @@ internal sealed unsafe class ShadowPass : RenderPass
                 vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, pipeline);
                 // Only the frame set: the G-buffer set holds this very image as a sampled descriptor.
                 DescriptorSet frameSet = context.Frame.FrameSet;
-                vk.CmdBindDescriptorSets(commandBuffer, PipelineBindPoint.Graphics, context.Layouts.SceneLayout, 0, 1, &frameSet, 0, null);
+                vk.CmdBindDescriptorSets(commandBuffer, PipelineBindPoint.Graphics, context.Layouts.SceneLayout, 0, 1,
+                    &frameSet, 0, null);
                 var viewport = new Viewport(0, 0, map.Size, map.Size, 0, 1);
                 var scissor = new Rect2D(new Offset2D(0, 0), extent);
                 vk.CmdSetViewport(commandBuffer, 0, 1, &viewport);
                 vk.CmdSetScissor(commandBuffer, 0, 1, &scissor);
                 GeometryPass.BindGeometry(context);
             }
+
             CommandRange commands = scene.ShadowCommands[i];
             if (commands.Count > 0)
             {
                 GeometryPass.PushDraw(context, scene.Cascades[i].ViewProjection);
                 GeometryPass.DrawIndirect(context, commands);
             }
+
             vk.CmdEndRendering(commandBuffer);
         }
     }

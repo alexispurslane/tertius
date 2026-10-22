@@ -8,8 +8,9 @@ public enum BodyMotion : byte
     Static,
     Kinematic,
     Dynamic,
+
     /// <summary>A capsule character controller. Its shape must be a <see cref="CapsuleShapeDesc"/>.</summary>
-    Character,
+    Character
 }
 
 /// <summary>
@@ -21,7 +22,7 @@ public enum BodyLayer : byte
     Static,
     Moving,
     FrameHull,
-    Ghost,
+    Ghost
 }
 
 /// <summary>The kind of a <see cref="ShapeDesc"/>: one for each of the six shape records.</summary>
@@ -32,7 +33,7 @@ public enum ShapeKind : byte
     Capsule,
     ConvexHull,
     Mesh,
-    Compound,
+    Compound
 }
 
 /// <summary>
@@ -60,7 +61,7 @@ public abstract record ShapeDesc
         ConvexHullShapeDesc => ShapeKind.ConvexHull,
         MeshShapeDesc => ShapeKind.Mesh,
         CompoundShapeDesc => ShapeKind.Compound,
-        _ => throw new NotSupportedException($"The shape type {GetType().Name} is not one of the six shape records."),
+        _ => throw new NotSupportedException($"The shape type {GetType().Name} is not one of the six shape records.")
     };
 
     /// <summary>
@@ -88,17 +89,19 @@ public abstract record ShapeDesc
                 Vector3 h = box.HalfExtents;
                 for (int corner = 0; corner < 8; corner++)
                 {
-                    var p = new Double3((corner & 1) != 0 ? h.X : -h.X, (corner & 2) != 0 ? h.Y : -h.Y, (corner & 4) != 0 ? h.Z : -h.Z);
+                    var p = new Double3((corner & 1) != 0 ? h.X : -h.X, (corner & 2) != 0 ? h.Y : -h.Y,
+                        (corner & 4) != 0 ? h.Z : -h.Z);
                     max = Math.Max(max, pose.TransformPoint(p).Length);
                 }
+
                 return max;
             }
             case SphereShapeDesc sphere:
                 return pose.Position.Length + sphere.Radius;
             case CapsuleShapeDesc capsule:
             {
-                double top = pose.TransformPoint(new Double3(0, capsule.HalfHeight, 0)).Length;
-                double bottom = pose.TransformPoint(new Double3(0, -capsule.HalfHeight, 0)).Length;
+                double top = pose.TransformPoint(new(0, capsule.HalfHeight, 0)).Length;
+                double bottom = pose.TransformPoint(new(0, -capsule.HalfHeight, 0)).Length;
                 return Math.Max(top, bottom) + capsule.Radius;
             }
             case ConvexHullShapeDesc hull:
@@ -119,9 +122,11 @@ public abstract record ShapeDesc
                 foreach (int index in mesh.Indices)
                 {
                     if ((uint)index >= (uint)mesh.Vertices.Length)
-                        throw new ArgumentException($"Mesh index {index} is outside the {mesh.Vertices.Length} vertices.");
+                        throw new ArgumentException(
+                            $"Mesh index {index} is outside the {mesh.Vertices.Length} vertices.");
                     max = Math.Max(max, pose.TransformPoint(mesh.Vertices[index]).Length);
                 }
+
                 return max;
             }
             case CompoundShapeDesc compound:
@@ -131,13 +136,16 @@ public abstract record ShapeDesc
                 double max = 0;
                 foreach (CompoundChild child in compound.Children)
                 {
-                    var local = new DPose(child.Pose.Position, DQuaternion.FromQuaternion(Quaternion.Normalize(child.Pose.Rotation)));
+                    var local = new DPose(child.Pose.Position,
+                        DQuaternion.FromQuaternion(Quaternion.Normalize(child.Pose.Rotation)));
                     max = Math.Max(max, BoundingRadius(child.Shape, DPose.Compose(pose, local)));
                 }
+
                 return max;
             }
             default:
-                throw new NotSupportedException($"The shape type {shape.GetType().Name} is not one of the six shape records.");
+                throw new NotSupportedException(
+                    $"The shape type {shape.GetType().Name} is not one of the six shape records.");
         }
     }
 
@@ -155,7 +163,9 @@ public abstract record ShapeDesc
                     return $"has the half extents {half}, which must be finite and not negative";
                 return ConvexRadiusProblem(convexRadius);
             case SphereShapeDesc { Radius: var radius }:
-                return float.IsFinite(radius) && radius > 0 ? null : $"has the radius {radius}, which must be finite and positive";
+                return float.IsFinite(radius) && radius > 0
+                    ? null
+                    : $"has the radius {radius}, which must be finite and positive";
             case CapsuleShapeDesc capsule:
                 if (!(float.IsFinite(capsule.Radius) && capsule.Radius > 0))
                     return $"has the radius {capsule.Radius}, which must be finite and positive";
@@ -186,11 +196,15 @@ public abstract record ShapeDesc
                     if (child.Shape is null)
                         return $"has no shape for child {i}";
                     Quaternion rotation = child.Pose.Rotation;
-                    if (!IsFinite(child.Pose.Position) || !float.IsFinite(rotation.X + rotation.Y + rotation.Z + rotation.W) || rotation.LengthSquared() == 0)
-                        return $"has child {i} at the pose {child.Pose}, whose position and rotation must be finite and whose rotation must not be zero";
+                    if (!IsFinite(child.Pose.Position) ||
+                        !float.IsFinite(rotation.X + rotation.Y + rotation.Z + rotation.W) ||
+                        rotation.LengthSquared() == 0)
+                        return
+                            $"has child {i} at the pose {child.Pose}, whose position and rotation must be finite and whose rotation must not be zero";
                     if (child.Shape.Problem() is { } problem)
                         return $"has child {i}, which {problem}";
                 }
+
                 return null;
             default:
                 return $"is a {GetType().Name}, which physics does not know";
@@ -198,7 +212,9 @@ public abstract record ShapeDesc
     }
 
     private static string? ConvexRadiusProblem(float convexRadius) =>
-        float.IsFinite(convexRadius) && convexRadius >= 0 ? null : $"has the convex radius {convexRadius}, which must be finite and not negative";
+        float.IsFinite(convexRadius) && convexRadius >= 0
+            ? null
+            : $"has the convex radius {convexRadius}, which must be finite and not negative";
 
     private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
 
@@ -256,7 +272,7 @@ public abstract record ShapeDesc
             BoxShapeDesc box => box.ConvexRadius == 0,
             ConvexHullShapeDesc hull => hull.ConvexRadius == 0,
             MeshShapeDesc or CompoundShapeDesc => piece.IsMadeOfSharpPieces(),
-            _ => false,
+            _ => false
         };
     }
 }
@@ -291,7 +307,8 @@ public sealed record CapsuleShapeDesc(float HalfHeight, float Radius) : ShapeDes
 /// below those limits changes a contact. The default is <see cref="ShapeDesc.DefaultConvexRadius"/>. Zero is
 /// allowed, a negative or non-finite value is refused by <see cref="ShapeDesc.Problem"/>.
 /// </param>
-public sealed record ConvexHullShapeDesc(Vector3[] Points, float ConvexRadius = ShapeDesc.DefaultConvexRadius) : ShapeDesc;
+public sealed record ConvexHullShapeDesc(Vector3[] Points, float ConvexRadius = ShapeDesc.DefaultConvexRadius)
+    : ShapeDesc;
 
 /// <summary>A triangle mesh. Only static bodies can use it.</summary>
 public sealed record MeshShapeDesc(Vector3[] Vertices, int[] Indices) : ShapeDesc;
@@ -379,8 +396,9 @@ public sealed record BodyDesc(
         // Jolt divides by the mass, so a subnormal mass gives an infinite inverse mass. A body that does not need a mass can have 0.
         if (!(Mass == 0 || (float.IsNormal(Mass) && Mass > 0)))
             return $"has the mass {Mass}, which must be 0 or a finite positive number of at least 1.2E-38";
-        if ((NotFinite("friction", Friction) ?? NotFinite("restitution", Restitution) ?? NotFinite("linear damping", LinearDamping) ??
-             NotFinite("angular damping", AngularDamping)) is { } material)
+        if ((NotFinite("friction", Friction) ?? NotFinite("restitution", Restitution) ??
+                NotFinite("linear damping", LinearDamping) ??
+                NotFinite("angular damping", AngularDamping)) is { } material)
             return material;
         if (role == BodyRole.OwnsNoFrame)
         {
@@ -400,17 +418,20 @@ public sealed record BodyDesc(
             if (role == BodyRole.OwnsRootFrame)
                 return null;
         }
-        if (Motion != BodyMotion.Static && Shape.ContainsMesh())
-            return $"is {Motion.ToString().ToLowerInvariant()}, and its shape is or holds a mesh, which only a static body or a frame interior can have";
-        if (Motion == BodyMotion.Dynamic && !(Mass > 0))
-            return $"is dynamic, so its mass must be positive, not {Mass}";
-        return null;
+
+        return Motion != BodyMotion.Static && Shape.ContainsMesh()
+            ? $"is {Motion.ToString().ToLowerInvariant()}, and its shape is or holds a mesh, which only a static body or a frame interior can have"
+            : Motion == BodyMotion.Dynamic && !(Mass > 0)
+                ? $"is dynamic, so its mass must be positive, not {Mass}"
+                : null;
     }
 
-    private static string? NotFinite(string name, float value) => float.IsFinite(value) ? null : $"has the {name} {value}, which must be finite";
+    private static string? NotFinite(string name, float value) =>
+        float.IsFinite(value) ? null : $"has the {name} {value}, which must be finite";
 }
 
-/// <summary>What a body is to its entity, which decides the rules that its description obeys (see <see cref="BodyDesc.Problem"/>).</summary>
+/// <summary>What a body is to its entity, which decides the rules that its description obeys (see
+/// <see cref="BodyDesc.Problem"/>).</summary>
 public enum BodyRole
 {
     /// <summary>The body of an entity that owns no frame. It is a body in its entity's frame, with the motion of its description.</summary>
@@ -424,7 +445,7 @@ public enum BodyRole
     Hull,
 
     /// <summary>The body of the owner of a root frame, which has no parent and so no hull: only the frame's static interior.</summary>
-    OwnsRootFrame,
+    OwnsRootFrame
 }
 
 [Flags]
@@ -437,7 +458,7 @@ public enum IntentFlags : ushort
     CharacterMove = 1 << 4,
     Jump = 1 << 5,
     SetCollision = 1 << 6,
-    SetMotion = 1 << 7,
+    SetMotion = 1 << 7
 }
 
 /// <summary>
@@ -454,37 +475,58 @@ public struct PhysicsIntent
     /// ARCHITECTURE.md).
     /// </summary>
     public FrameHandle Frame;
+
     public Vector3 Force;
     public Vector3 Torque;
     public Vector3 Impulse;
     public Vector3 AngularImpulse;
+
     /// <summary>The new linear velocity relative to the entity's frame, in doubles. Physics converts it to the body's home when it applies it.</summary>
     public Double3 Velocity;
+
     public Vector3 AngularVelocity;
+
     /// <summary>The new pose for a teleport, in frame coordinates. Used with <see cref="IntentFlags.Teleport"/>.</summary>
     public DPose TeleportPose;
+
     /// <summary>The desired movement velocity of a character.</summary>
     public Vector3 CharacterVelocity;
+
     public float JumpSpeed;
+
     /// <summary>The body's new collision groups. Used with <see cref="IntentFlags.SetCollision"/>.</summary>
     public CollisionGroups CollisionGroups;
-    /// <summary>The body's new collision mask, which holds only an any-of set. Used with <see cref="IntentFlags.SetCollision"/>.</summary>
+
+    /// <summary>The body's new collision mask, which holds only an any-of set. Used with
+    /// <see cref="IntentFlags.SetCollision"/>.</summary>
     public CollisionMask CollisionMask;
+
     /// <summary>
     /// The new motion of a frame's hull. Used with <see cref="IntentFlags.SetMotion"/>. It is the motion of the hull in the
     /// step that applies the intent: physics gives the Jolt body this motion at the start of that step, and every reader that
-    /// asks about that step derives it from this field (see <see cref="FrameTree.HullMotionInStep(FrameHandle, ReadOnlySpan{PhysicsIntent})"/>). At the sync point
+    /// asks about that step derives it from this field (see
+    /// <see cref="FrameTree.HullMotionInStep(FrameHandle, ReadOnlySpan{PhysicsIntent})"/>). At the sync point
     /// after that step, the frame tree stores it as the motion of the last finished step (see
     /// <see cref="FrameTree.HullMotion"/>).
     /// </summary>
     public BodyMotion Motion;
+
     /// <summary>
     /// How the entity moves in the step that applies the intent: an end pose, a full sample or a steer target, relative to
     /// <see cref="Frame"/>, or no case (see <see cref="MotionIntent"/>). <see cref="StepRecord"/> turns it into the entity's
     /// step record.
     /// </summary>
     public MotionIntent Move;
+
     public IntentFlags Flags;
+
+    /// <summary>
+    /// True when the intent asks nothing: no flag, force, torque, impulse or motion intent. The motion intent comes second,
+    /// so that the intent of an entity on rails, which holds only its motion intent, is judged at the second test.
+    /// </summary>
+    public readonly bool IsEmpty =>
+        Flags == IntentFlags.None && !Move.HasValue && Force == Vector3.Zero && Torque == Vector3.Zero &&
+        Impulse == Vector3.Zero && AngularImpulse == Vector3.Zero;
 
     /// <summary>
     /// The step record of <see cref="Move"/>, the one read that turns the motion intent into the entity's motion over the
@@ -509,14 +551,15 @@ public struct PhysicsIntent
         DPose start = StepStart(standing);
         return Move.TryRecordFrom(start, step, out MotionSample record)
             ? record
-            : new MotionSample(start, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
+            : new(start, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
     }
 
     /// <summary>
     /// Where the step that applies the intent starts: at <see cref="TeleportPose"/> if the intent teleports, else at
     /// <paramref name="standing"/>, the pose of the entity at the start of the step, relative to <see cref="Frame"/>.
     /// </summary>
-    private readonly DPose StepStart(in DPose standing) => (Flags & IntentFlags.Teleport) != 0 ? TeleportPose : standing;
+    private readonly DPose StepStart(in DPose standing) =>
+        (Flags & IntentFlags.Teleport) != 0 ? TeleportPose : standing;
 
     /// <summary>
     /// Keeps only what a World without a physics backend applies itself: <see cref="Frame"/>, the motion intent
@@ -539,14 +582,6 @@ public struct PhysicsIntent
         CollisionMask = default;
         Flags &= IntentFlags.SetMotion;
     }
-
-    /// <summary>
-    /// True when the intent asks nothing: no flag, force, torque, impulse or motion intent. The motion intent comes second,
-    /// so that the intent of an entity on rails, which holds only its motion intent, is judged at the second test.
-    /// </summary>
-    public readonly bool IsEmpty =>
-        Flags == IntentFlags.None && !Move.HasValue && Force == Vector3.Zero && Torque == Vector3.Zero &&
-        Impulse == Vector3.Zero && AngularImpulse == Vector3.Zero;
 
     public void Clear() => this = default;
 }
@@ -591,32 +626,37 @@ internal readonly record struct FrameShift(FrameHandle Frame, Double3 Offset, Do
 public sealed class PhysicsChanges
 {
     /// <summary>Bodies of entities that died or that move to another frame. Physics removes them and any ghosts.</summary>
-    public readonly List<Entity> BodiesDestroyed = new();
+    public readonly List<Entity> BodiesDestroyed = [];
+
     /// <summary>Frames destroyed at this sync point, after their bodies were destroyed or moved.</summary>
-    public readonly List<FrameHandle> FramesDestroyed = new();
+    public readonly List<FrameHandle> FramesDestroyed = [];
+
     /// <summary>Bodies to create, with poses and velocities in their frames.</summary>
-    public readonly List<BodyCreate> BodiesCreated = new();
+    public readonly List<BodyCreate> BodiesCreated = [];
+
     /// <summary>Frames created at this sync point.</summary>
-    public readonly List<FrameHandle> FramesCreated = new();
+    public readonly List<FrameHandle> FramesCreated = [];
+
     /// <summary>
     /// Bodies that move between the systems of one semantic frame and its numeric frames, as groups: every pair of moved
     /// bodies that touch and go to the same frame keeps touching, so its contact is not reported again. Sleeping bodies
     /// stay asleep. Numeric frames are an engine detail, so only the engine fills it.
     /// </summary>
-    internal readonly List<BodyMove> BodiesMoved = new();
+    internal readonly List<BodyMove> BodiesMoved = [];
+
     /// <summary>
     /// Numeric frames that moved or changed velocity in their parents, for a drain or a change of mode. Physics applies
     /// them before <see cref="BodiesMoved"/>, while the bodies that a move takes out of a shifted frame are still in it.
     /// Only the engine fills it.
     /// </summary>
-    internal readonly List<FrameShift> FramesShifted = new();
+    internal readonly List<FrameShift> FramesShifted = [];
 
     /// <summary>
     /// Filled by <see cref="IPhysicsBackend.ApplyChanges"/>: one message for each state that only a bug produces, which the
     /// backend found and skipped while it applied the batch, for example a change that it could not apply. A Debug build
     /// breaks a contract instead. The simulation records each message in its errors.
     /// </summary>
-    public readonly List<string> Errors = new();
+    public readonly List<string> Errors = [];
 
     public void Clear()
     {
@@ -631,41 +671,46 @@ public sealed class PhysicsChanges
 }
 
 /// <summary>Read-only inputs to one physics step. Everything here is fixed for the duration of the step.</summary>
-public readonly struct PhysicsStepContext
+public readonly struct PhysicsStepContext(
+    long tick,
+    float deltaTime,
+    double time,
+    FrameTree frames,
+    ReadOnlyMemory<PhysicsIntent> intents,
+    ReadOnlyMemory<Entity> intentEntities)
 {
-    public PhysicsStepContext(long tick, float deltaTime, double time, FrameTree frames, ReadOnlyMemory<PhysicsIntent> intents, ReadOnlyMemory<Entity> intentEntities)
-    {
-        Tick = tick;
-        DeltaTime = deltaTime;
-        Time = time;
-        Frames = frames;
-        Intents = intents;
-        IntentEntities = intentEntities;
-    }
+    public long Tick { get; } = tick;
+    public float DeltaTime { get; } = deltaTime;
 
-    public long Tick { get; }
-    public float DeltaTime { get; }
     /// <summary>Simulation time at the start of the step, in seconds.</summary>
-    public double Time { get; }
+    public double Time { get; } = time;
+
     /// <summary>The frame tree. Read-only during the step.</summary>
-    public FrameTree Frames { get; }
+    public FrameTree Frames { get; } = frames;
+
     /// <summary>
     /// Intents by entity slot index. The slots of the entities in <see cref="IntentEntities"/> hold what they wrote, and the
     /// slot of every other live entity holds an empty intent. So the motion of a hull in the step can be read from the slot
     /// of its owner (see <see cref="FrameTree.HullMotionInStep(FrameHandle, ReadOnlySpan{PhysicsIntent})"/>).
     /// </summary>
-    public ReadOnlyMemory<PhysicsIntent> Intents { get; }
+    public ReadOnlyMemory<PhysicsIntent> Intents { get; } = intents;
+
     /// <summary>
     /// The entities that wrote an intent during the previous tick, and the new entities whose spawn gave them a first motion
     /// intent (see <c>SpawnDesc.FirstMove</c> in Tertius.Simulation).
     /// </summary>
-    public ReadOnlyMemory<Entity> IntentEntities { get; }
+    public ReadOnlyMemory<Entity> IntentEntities { get; } = intentEntities;
 }
 
 /// <summary>
 /// The state of one body after a step, relative to <see cref="Frame"/>: the frame whose physics system holds the body.
 /// </summary>
-public readonly record struct BodyState(Entity Entity, FrameHandle Frame, DPose Pose, Vector3 LinearVelocity, Vector3 AngularVelocity);
+public readonly record struct BodyState(
+    Entity Entity,
+    FrameHandle Frame,
+    DPose Pose,
+    Vector3 LinearVelocity,
+    Vector3 AngularVelocity);
 
 /// <summary>
 /// The state of one character after a step. <see cref="Standing"/> is true when physics stood the character on walkable
@@ -680,7 +725,13 @@ public readonly record struct CharacterState(Entity Entity, bool Standing);
 /// when the step began (for the owner of a frame, the frame's parent), and <see cref="To"/> is a different frame. Pose and
 /// velocities are in the new frame.
 /// </summary>
-public readonly record struct HandOff(Entity Entity, FrameHandle From, FrameHandle To, DPose Pose, Vector3 LinearVelocity, Vector3 AngularVelocity);
+public readonly record struct HandOff(
+    Entity Entity,
+    FrameHandle From,
+    FrameHandle To,
+    DPose Pose,
+    Vector3 LinearVelocity,
+    Vector3 AngularVelocity);
 
 /// <summary>
 /// A contact that started during the step between two different entities, once for each pair of entities. Point and
@@ -689,7 +740,13 @@ public readonly record struct HandOff(Entity Entity, FrameHandle From, FrameHand
 /// of one and the ghost of the other's body, which stands for its real body. When the systems of several frames start
 /// the contact in the same step, <see cref="Frame"/> is the one with the lowest index.
 /// </summary>
-public readonly record struct ContactStarted(Entity A, Entity B, FrameHandle Frame, Double3 Point, Vector3 Normal, float Impulse);
+public readonly record struct ContactStarted(
+    Entity A,
+    Entity B,
+    FrameHandle Frame,
+    Double3 Point,
+    Vector3 Normal,
+    float Impulse);
 
 /// <summary>
 /// A contact that a <see cref="ContactStarted"/> of an earlier step, or of the same step, reported and that ended during
@@ -734,28 +791,29 @@ public readonly record struct FrameStepRecord(FrameHandle Frame, MotionSample Mo
 public sealed class PhysicsStepOutput
 {
     /// <summary>Bodies that moved: awake dynamic, kinematic and character bodies.</summary>
-    public readonly List<BodyState> Bodies = new();
-    public readonly List<HandOff> HandOffs = new();
-    public readonly List<ContactStarted> Contacts = new();
+    public readonly List<BodyState> Bodies = [];
+
+    public readonly List<HandOff> HandOffs = [];
+    public readonly List<ContactStarted> Contacts = [];
 
     /// <summary>The contacts that ended in the step, after the contacts that started, in entity order.</summary>
-    public readonly List<ContactEnded> ContactsEnded = new();
+    public readonly List<ContactEnded> ContactsEnded = [];
 
     /// <summary>The step record of each frame whose hull moved in the step, once each.</summary>
-    public readonly List<FrameStepRecord> Frames = new();
+    public readonly List<FrameStepRecord> Frames = [];
 
     /// <summary>
     /// The state of every character, once each, after the hand-offs of the step. So a character that a hand-off moved
     /// reports from its new frame.
     /// </summary>
-    public readonly List<CharacterState> Characters = new();
+    public readonly List<CharacterState> Characters = [];
 
     /// <summary>
     /// One message for each state that only a bug produces, which the backend found and skipped during the step, for
     /// example a change of motion that a hull cannot take. A Debug build breaks a contract instead. The sync point records
     /// each message in the simulation's errors.
     /// </summary>
-    public readonly List<string> Errors = new();
+    public readonly List<string> Errors = [];
 
     public void Clear()
     {
@@ -791,7 +849,8 @@ public interface IPhysicsBackend : IDisposable
     /// so a ray that starts inside a mesh passes out of it, and it treats a convex shape as solid, so a ray that starts
     /// inside one hits it at once.
     /// </summary>
-    void CastRay(FrameHandle frame, Double3 origin, Double3 direction, double start, double end, IPhysicsQueryFilter filter,
+    void CastRay(FrameHandle frame, Double3 origin, Double3 direction, double start, double end,
+        IPhysicsQueryFilter filter,
         RayCastKind kind, List<RayCastHit> hits);
 
     /// <summary>
@@ -804,7 +863,8 @@ public interface IPhysicsBackend : IDisposable
     /// convex body where its part of the cast starts hits it there. It ignores the back faces of a mesh, so a shape that
     /// starts inside a mesh passes out of it. It runs at the sync point, never during a step.
     /// </summary>
-    void CastShape(FrameHandle frame, in QueryShape shape, in DPose start, Double3 direction, double startDistance, double endDistance,
+    void CastShape(FrameHandle frame, in QueryShape shape, in DPose start, Double3 direction, double startDistance,
+        double endDistance,
         IPhysicsQueryFilter filter, List<ShapeCastHit> hits);
 
     /// <summary>
@@ -814,7 +874,8 @@ public interface IPhysicsBackend : IDisposable
     /// once can be added more than once. A convex body is solid, and a mesh counts only where the shape meets the front of
     /// a triangle. It runs at the sync point, never during a step.
     /// </summary>
-    void Overlap(FrameHandle frame, in QueryShape shape, in DPose pose, IPhysicsQueryFilter filter, List<Entity> entities);
+    void Overlap(FrameHandle frame, in QueryShape shape, in DPose pose, IPhysicsQueryFilter filter,
+        List<Entity> entities);
 
     /// <summary>
     /// Why this backend cannot build <paramref name="shape"/>, or null when it can: what <see cref="ShapeDesc.Problem"/>

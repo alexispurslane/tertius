@@ -54,16 +54,24 @@ internal readonly struct PhysicsQuestion : IEquatable<PhysicsQuestion>
     private const byte KindNone = 0, KindRay = 1, KindShapeCast = 2, KindOverlap = 3;
 
     private readonly byte kind;
-    /// <summary>The origin of <see cref="RayQuestion"/>, the position of the start pose of <see cref="ShapeCastQuestion"/>, and the position of the pose of <see cref="OverlapQuestion"/>.</summary>
+
+    /// <summary>The origin of <see cref="RayQuestion"/>, the position of the start pose of <see cref="ShapeCastQuestion"/>, and the position of the pose of
+    /// <see cref="OverlapQuestion"/>.</summary>
     private readonly Double3 position;
-    /// <summary>The rotation of the start pose of <see cref="ShapeCastQuestion"/> and of the pose of <see cref="OverlapQuestion"/>.</summary>
+
+    /// <summary>The rotation of the start pose of <see cref="ShapeCastQuestion"/> and of the pose of
+    /// <see cref="OverlapQuestion"/>.</summary>
     private readonly DQuaternion rotation;
+
     /// <summary>The direction of <see cref="RayQuestion"/> and of <see cref="ShapeCastQuestion"/>.</summary>
     private readonly Double3 direction;
+
     /// <summary>The length of <see cref="RayQuestion"/> and of <see cref="ShapeCastQuestion"/>, in meters.</summary>
     private readonly double length;
+
     /// <summary>The shape of <see cref="ShapeCastQuestion"/> and of <see cref="OverlapQuestion"/>.</summary>
     private readonly QueryShape shape;
+
     /// <summary>The kind of <see cref="RayQuestion"/>.</summary>
     private readonly RayCastKind rayKind;
 
@@ -94,37 +102,15 @@ internal readonly struct PhysicsQuestion : IEquatable<PhysicsQuestion>
         rotation = overlap.Pose.Rotation;
     }
 
-    public static implicit operator PhysicsQuestion(RayQuestion ray) => new(ray);
-    public static implicit operator PhysicsQuestion(ShapeCastQuestion shapeCast) => new(shapeCast);
-    public static implicit operator PhysicsQuestion(OverlapQuestion overlap) => new(overlap);
-
     /// <summary>False for the default question, which asks nothing and which no request holds.</summary>
     public bool HasValue => kind != KindNone;
-
-    public bool TryGetValue(out RayQuestion value)
-    {
-        value = kind == KindRay ? new RayQuestion(position, direction, length, rayKind) : default;
-        return kind == KindRay;
-    }
-
-    public bool TryGetValue(out ShapeCastQuestion value)
-    {
-        value = kind == KindShapeCast ? new ShapeCastQuestion(shape, new DPose(position, rotation), direction, length) : default;
-        return kind == KindShapeCast;
-    }
-
-    public bool TryGetValue(out OverlapQuestion value)
-    {
-        value = kind == KindOverlap ? new OverlapQuestion(shape, new DPose(position, rotation)) : default;
-        return kind == KindOverlap;
-    }
 
     public object? Value => kind switch
     {
         KindRay => new RayQuestion(position, direction, length, rayKind),
-        KindShapeCast => new ShapeCastQuestion(shape, new DPose(position, rotation), direction, length),
-        KindOverlap => new OverlapQuestion(shape, new DPose(position, rotation)),
-        _ => null,
+        KindShapeCast => new ShapeCastQuestion(shape, new(position, rotation), direction, length),
+        KindOverlap => new OverlapQuestion(shape, new(position, rotation)),
+        _ => null
     };
 
     // The sweep view switches over the cases with no discard arm, so a new case breaks the build here until it answers.
@@ -135,7 +121,7 @@ internal readonly struct PhysicsQuestion : IEquatable<PhysicsQuestion>
         RayQuestion ray => ray.Origin,
         ShapeCastQuestion shapeCast => shapeCast.Start.Position,
         OverlapQuestion overlap => overlap.Pose.Position,
-        null => Double3.Zero,
+        null => Double3.Zero
     };
 
     /// <summary>The unit direction of the sweep in the axes of the request's frame. Zero for an overlap, which moves nowhere, and for the default question.</summary>
@@ -144,7 +130,7 @@ internal readonly struct PhysicsQuestion : IEquatable<PhysicsQuestion>
         RayQuestion ray => ray.Direction,
         ShapeCastQuestion shapeCast => shapeCast.Direction,
         OverlapQuestion => Double3.Zero,
-        null => Double3.Zero,
+        null => Double3.Zero
     };
 
     /// <summary>How far the sweep moves, in meters. 0 for an overlap, which moves nowhere, and for the default question.</summary>
@@ -153,7 +139,7 @@ internal readonly struct PhysicsQuestion : IEquatable<PhysicsQuestion>
         RayQuestion ray => ray.Length,
         ShapeCastQuestion shapeCast => shapeCast.Length,
         OverlapQuestion => 0,
-        null => 0,
+        null => 0
     };
 
     /// <summary>How far from its line the sweep reaches, in meters: the bounding radius of the shape of a shape cast or an overlap, and 0 for a ray and for the default question.</summary>
@@ -162,26 +148,52 @@ internal readonly struct PhysicsQuestion : IEquatable<PhysicsQuestion>
         RayQuestion => 0,
         ShapeCastQuestion shapeCast => shapeCast.Shape.BoundingRadius,
         OverlapQuestion overlap => overlap.Shape.BoundingRadius,
-        null => 0,
+        null => 0
     };
 
-    /// <summary>True when only the nearest hit is the answer: for a ray of kind <see cref="RayCastKind.Nearest"/> and for a shape cast. False for a ray of kind <see cref="RayCastKind.All"/>, for an overlap and for the default question.</summary>
+    /// <summary>True when only the nearest hit is the answer: for a ray of kind <see cref="RayCastKind.Nearest"/> and for a shape cast. False for a ray of kind
+    /// <see cref="RayCastKind.All"/>, for an overlap and for the default question.</summary>
     public bool FirstHitOnly => this switch
     {
         RayQuestion ray => ray.Kind == RayCastKind.Nearest,
         ShapeCastQuestion => true,
         OverlapQuestion => false,
-        null => false,
+        null => false
     };
+
+    public static implicit operator PhysicsQuestion(RayQuestion ray) => new(ray);
+    public static implicit operator PhysicsQuestion(ShapeCastQuestion shapeCast) => new(shapeCast);
+    public static implicit operator PhysicsQuestion(OverlapQuestion overlap) => new(overlap);
+
+    public bool TryGetValue(out RayQuestion value)
+    {
+        value = kind == KindRay ? new RayQuestion(position, direction, length, rayKind) : default;
+        return kind == KindRay;
+    }
+
+    public bool TryGetValue(out ShapeCastQuestion value)
+    {
+        value = kind == KindShapeCast
+            ? new ShapeCastQuestion(shape, new(position, rotation), direction, length)
+            : default;
+        return kind == KindShapeCast;
+    }
+
+    public bool TryGetValue(out OverlapQuestion value)
+    {
+        value = kind == KindOverlap ? new OverlapQuestion(shape, new(position, rotation)) : default;
+        return kind == KindOverlap;
+    }
 
     // The held case alone decides equality: the fields of the other cases are not compared.
     public bool Equals(PhysicsQuestion other) => kind == other.kind && kind switch
     {
-        KindRay => position == other.position && direction == other.direction && length.Equals(other.length) && rayKind == other.rayKind,
+        KindRay => position == other.position && direction == other.direction && length.Equals(other.length) &&
+                   rayKind == other.rayKind,
         KindShapeCast => shape == other.shape && position == other.position && rotation == other.rotation
                          && direction == other.direction && length.Equals(other.length),
         KindOverlap => shape == other.shape && position == other.position && rotation == other.rotation,
-        _ => true,
+        _ => true
     };
 
     public override bool Equals(object? obj) => obj is PhysicsQuestion question && Equals(question);
@@ -191,7 +203,7 @@ internal readonly struct PhysicsQuestion : IEquatable<PhysicsQuestion>
         KindRay => HashCode.Combine(kind, position, direction, length, rayKind),
         KindShapeCast => HashCode.Combine(kind, shape, position, rotation, direction, length),
         KindOverlap => HashCode.Combine(kind, shape, position, rotation),
-        _ => 0,
+        _ => 0
     };
 
     public static bool operator ==(PhysicsQuestion a, PhysicsQuestion b) => a.Equals(b);
@@ -202,6 +214,6 @@ internal readonly struct PhysicsQuestion : IEquatable<PhysicsQuestion>
         RayQuestion ray => $"PhysicsQuestion({ray})",
         ShapeCastQuestion shapeCast => $"PhysicsQuestion({shapeCast})",
         OverlapQuestion overlap => $"PhysicsQuestion({overlap})",
-        null => "PhysicsQuestion(none)",
+        null => "PhysicsQuestion(none)"
     };
 }

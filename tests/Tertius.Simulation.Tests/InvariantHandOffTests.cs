@@ -17,14 +17,15 @@ public class InvariantHandOffTests
     [Fact]
     public void ABodyStateInAFrameThatIsGoneBreaksAContract()
     {
-        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
         World world = test.World;
         FrameHandle gone = world.SpawnStaticFrame(test.Root, TestWorld.At(-500), radius: 5);
-        Entity body = world.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball });
-        faults.EditNextOutput = output => output.Bodies.Add(new BodyState(body, gone, TestWorld.At(3), Vector3.Zero, Vector3.Zero));
+        Entity body = world.Spawn(new() { Frame = test.Root, Body = TestWorld.Ball });
+        faults.EditNextOutput =
+            output => output.Bodies.Add(new(body, gone, TestWorld.At(3), Vector3.Zero, Vector3.Zero));
         world.Destroy(gone.Entity).Should().BeTrue();
 
-        Action tick = () => world.Tick();
+        Action tick = world.Tick;
 
         tick.Should().Throw<ContractException>();
     }
@@ -126,7 +127,8 @@ public class InvariantHandOffTests
         World world = test.World;
         FrameHandle gone = world.SpawnStaticFrame(test.Root, TestWorld.At(-500), radius: 5);
         Entity body = world.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball });
-        faults.EditNextOutput = output => output.Bodies.Add(new BodyState(body, gone, TestWorld.At(3), Vector3.Zero, Vector3.Zero));
+        faults.EditNextOutput =
+ output => output.Bodies.Add(new BodyState(body, gone, TestWorld.At(3), Vector3.Zero, Vector3.Zero));
         world.Destroy(gone.Entity).Should().BeTrue();
 
         Action tick = () => world.Tick();
@@ -142,8 +144,10 @@ public class InvariantHandOffTests
         using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
         World world = test.World;
         FrameHandle gone = world.SpawnStaticFrame(test.Root, TestWorld.At(-500), radius: 5);
-        Entity body = world.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(7), LinearVelocity = new Vector3(1, 2, 3), Body = TestWorld.Ball });
-        faults.EditNextOutput = output => output.Bodies.Add(new BodyState(body, gone, TestWorld.At(3), new Vector3(4, 5, 6), new Vector3(0, 1, 0)));
+        Entity body = world.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(7), LinearVelocity =
+ new Vector3(1, 2, 3), Body = TestWorld.Ball });
+        faults.EditNextOutput =
+ output => output.Bodies.Add(new BodyState(body, gone, TestWorld.At(3), new Vector3(4, 5, 6), new Vector3(0, 1, 0)));
         world.Destroy(gone.Entity).Should().BeTrue();
 
         world.Tick();

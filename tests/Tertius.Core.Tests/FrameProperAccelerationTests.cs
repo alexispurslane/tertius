@@ -18,25 +18,35 @@ public class FrameProperAccelerationTests
     private const double OrbitRadius = 6.771e6;
     private const double OrbitSpeed = 7_672.6;
     private const double Dt = 1.0 / 60;
+
+    // ---- The rotation terms of a turning parent (docs/plans/spin-gravity.md, "The proper acceleration of a frame") ------
+    // The station turns in place in a root frame without a field about its +Y. A rate ω about +Y gives a place at (r, 0, 0)
+    // the centrifugal acceleration (ω² r, 0, 0), a chord (u, 0, 0) the Coriolis acceleration (0, 0, 2 ω u), and an angular
+    // acceleration α about +Y the Euler acceleration (0, 0, α r). The gravity at a frame's place in the station is the sum
+    // of the three, so the frame feels it reversed.
+
+    private const double StationRate = 0.31321;
     private static readonly GravityField Earth = GravityField.Point(EarthMu);
 
     private readonly FrameTree frames = new();
     private uint nextOwner = 1;
 
     private FrameHandle Frame(FrameHandle parent, DPose pose = default, GravityField field = default) =>
-        frames.Create(new Entity(nextOwner++, 1), parent, pose.Rotation.LengthSquared == 0 ? new DPose(pose.Position, DQuaternion.Identity) : pose,
+        frames.Create(new(nextOwner++, 1), parent,
+            pose.Rotation.LengthSquared == 0 ? new(pose.Position, DQuaternion.Identity) : pose,
             FrameBounds.Sphere(1e9f), field);
 
     [Fact]
     public void AFrameAtRestInAFrameThatHoldsStillInAFieldFeelsThatFieldOneSyncPointLater()
     {
-        FrameHandle ground = Frame(FrameHandle.Null, field: GravityField.Uniform(new Vector3(0, -9.81f, 0)));
+        FrameHandle ground = Frame(FrameHandle.Null, field: GravityField.Uniform(new(0, -9.81f, 0)));
         FrameHandle cabin = Frame(ground, TestPose(0, 10, 0));
         FrameHandle crate = Frame(cabin, TestPose(1, 0, 0));
 
         frames.TakeStepRecords([], Dt);
 
-        frames.ProperAcceleration(cabin).Should().Be(new Vector3(0, 9.81f, 0), "the cabin holds still against the ground's gravity");
+        frames.ProperAcceleration(cabin).Should()
+            .Be(new Vector3(0, 9.81f, 0), "the cabin holds still against the ground's gravity");
         frames.ProperAcceleration(crate).Should().Be(Vector3.Zero,
             "the rule read the cabin's value as the step found it, though the pass gave the cabin its new value before it reached the crate");
 
@@ -49,16 +59,17 @@ public class FrameProperAccelerationTests
     [Fact]
     public void AFrameWhoseOwnersUpdateTheStepSkippedKeepsItsProperAcceleration()
     {
-        FrameHandle ground = Frame(FrameHandle.Null, field: GravityField.Uniform(new Vector3(0, -9.81f, 0)));
+        FrameHandle ground = Frame(FrameHandle.Null, field: GravityField.Uniform(new(0, -9.81f, 0)));
         FrameHandle cabin = Frame(ground, TestPose(0, 10, 0));
         frames.TakeStepRecords([], Dt);
-        frames.SetGravity(ground, GravityField.Uniform(new Vector3(0, -3.7f, 0)));
+        frames.SetGravity(ground, GravityField.Uniform(new(0, -3.7f, 0)));
         var owners = new StepOwners();
         owners.Skipped.Add(cabin);
 
         frames.TakeStepRecords([], Dt, owners);
 
-        frames.ProperAcceleration(cabin).Should().Be(new Vector3(0, 9.81f, 0), "a skipped update changes nothing, as for the velocities");
+        frames.ProperAcceleration(cabin).Should().Be(new Vector3(0, 9.81f, 0),
+            "a skipped update changes nothing, as for the velocities");
         frames.AssertInvariants();
     }
 
@@ -66,7 +77,7 @@ public class FrameProperAccelerationTests
     public void AFrameThatHoldsStillInAFallingFrameIsInFreeFall()
     {
         FrameHandle earth = Frame(FrameHandle.Null, field: Earth);
-        FrameHandle pod = FallingFrame(earth, new Double3(OrbitRadius, 0, 0), new Double3(0, 0, OrbitSpeed));
+        FrameHandle pod = FallingFrame(earth, new(OrbitRadius, 0, 0), new(0, 0, OrbitSpeed));
         FrameHandle cabin = Frame(pod);
         frames.Update();
         frames.BeginStep([], 1.0 / 60, lastStepFailed: false);
@@ -83,42 +94,37 @@ public class FrameProperAccelerationTests
     {
         FrameHandle earth = Frame(FrameHandle.Null, field: Earth);
         var place = new Double3(OrbitRadius, 0, 0);
-        FrameHandle ship = Frame(earth, new DPose(place, DQuaternion.Identity));
+        FrameHandle ship = Frame(earth, new(place, DQuaternion.Identity));
         var chord = new Double3(0, 0, OrbitSpeed);
         var thrust = new Double3(0, 3, 0);
         Double3 end = place + chord * Dt;
         Double3 gravity = Earth.AtPrecise(place);
-        var record = new MotionSample(new DPose(end, DQuaternion.Identity), chord, chord, gravity + thrust, Double3.Zero, Double3.Zero);
+        var record = new MotionSample(new(end, DQuaternion.Identity), chord, chord, gravity + thrust, Double3.Zero,
+            Double3.Zero);
 
-        frames.TakeStepRecords(Moving(ship, new PhysicsIntent { Frame = earth, Move = new MotionIntent(record) }), Dt);
+        frames.TakeStepRecords(Moving(ship, new PhysicsIntent { Frame = earth, Move = new(record) }), Dt);
 
         Vector3 proper = frames.ProperAcceleration(ship);
         proper.X.Should().BeApproximately(0, 1e-9f);
-        proper.Y.Should().BeApproximately(3, 1e-6f, "the thrust is the only acceleration that is not the gravity where the step started");
+        proper.Y.Should().BeApproximately(3, 1e-6f,
+            "the thrust is the only acceleration that is not the gravity where the step started");
         proper.Z.Should().BeApproximately(0, 1e-9f);
     }
 
     [Fact]
     public void AFrameTakesTheProperAccelerationThatPhysicsMeasuredInPlaceOfTheRule()
     {
-        FrameHandle ground = Frame(FrameHandle.Null, field: GravityField.Uniform(new Vector3(0, -9.81f, 0)));
+        FrameHandle ground = Frame(FrameHandle.Null, field: GravityField.Uniform(new(0, -9.81f, 0)));
         FrameHandle ship = Frame(ground);
         frames.SetHullMotion(ship, BodyMotion.Dynamic);
         var jolt = new Vector3(0, 0, 120);
-        var rest = new MotionSample(DPose.Identity, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
+        var rest = new MotionSample(DPose.Identity, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero,
+            Double3.Zero);
 
         frames.TakeStepRecords([], Dt, new StepOwners().WithHullRecord(ship, rest, jolt));
 
         frames.ProperAcceleration(ship).Should().Be(jolt);
     }
-
-    // ---- The rotation terms of a turning parent (docs/plans/spin-gravity.md, "The proper acceleration of a frame") ------
-    // The station turns in place in a root frame without a field about its +Y. A rate ω about +Y gives a place at (r, 0, 0)
-    // the centrifugal acceleration (ω² r, 0, 0), a chord (u, 0, 0) the Coriolis acceleration (0, 0, 2 ω u), and an angular
-    // acceleration α about +Y the Euler acceleration (0, 0, α r). The gravity at a frame's place in the station is the sum
-    // of the three, so the frame feels it reversed.
-
-    private const double StationRate = 0.31321;
 
     [Fact]
     public void AFrameAtRestInASpinningFrameIsPushedTowardTheAxisFromTheSyncPointAfterTheFramesFirstTurningStep()
@@ -145,14 +151,17 @@ public class FrameProperAccelerationTests
         FrameHandle station = Frame(space);
         FrameHandle cart = Frame(station, TestPose(100, 0, 0));
         PhysicsIntent[] intents = Moving(station, Spinning(1 * Dt));
-        intents[cart.Entity.Index] = new PhysicsIntent { Frame = station, Move = new MotionIntent(new EndPose(TestPose(100 + outward * Dt, 0, 0))) };
+        intents[cart.Entity.Index] = new()
+            { Frame = station, Move = new(new EndPose(TestPose(100 + outward * Dt, 0, 0))) };
 
         RunStep(intents);
 
         Vector3 proper = frames.ProperAcceleration(cart);
-        proper.X.Should().BeApproximately((float)(-StationRate * StationRate * 100), 1e-5f, "ω² r toward the axis, at the place where the step started");
+        proper.X.Should().BeApproximately((float)(-StationRate * StationRate * 100), 1e-5f,
+            "ω² r toward the axis, at the place where the step started");
         proper.Y.Should().Be(0);
-        proper.Z.Should().BeApproximately((float)(-2 * StationRate * outward), 1e-6f, "the Coriolis term on the cart's chord, reversed");
+        proper.Z.Should().BeApproximately((float)(-2 * StationRate * outward), 1e-6f,
+            "the Coriolis term on the cart's chord, reversed");
     }
 
     [Fact]
@@ -164,9 +173,10 @@ public class FrameProperAccelerationTests
         FrameHandle space = Frame(FrameHandle.Null);
         FrameHandle station = Frame(space);
         FrameHandle room = Frame(station, TestPose(100, 0, 0));
-        MotionIntent SpinningUp(double stepEnd) => new(new MotionSample(
-            new DPose(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, 0.5 * spinUp * stepEnd * stepEnd)),
-            Double3.Zero, Double3.Zero, Double3.Zero, new Double3(0, spinUp * stepEnd, 0), new Double3(0, spinUp, 0)));
+
+        static MotionIntent SpinningUp(double stepEnd) => new(new MotionSample(
+            new(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, 0.5 * spinUp * stepEnd * stepEnd)),
+            Double3.Zero, Double3.Zero, Double3.Zero, new(0, spinUp * stepEnd, 0), new(0, spinUp, 0)));
 
         RunStep(Moving(station, SpinningUp(1 * Dt)));
         frames.ProperAcceleration(room).Z.Should().Be(0, "the first step of a new frame assumes a steady turn");
@@ -174,12 +184,15 @@ public class FrameProperAccelerationTests
 
         Vector3 proper = frames.ProperAcceleration(room);
         double rate = spinUp * 2 * Dt;
-        proper.X.Should().BeApproximately((float)(-rate * rate * 100), 1e-5f, "ω² R toward the axis, at the rate where the step ended");
+        proper.X.Should().BeApproximately((float)(-rate * rate * 100), 1e-5f,
+            "ω² R toward the axis, at the rate where the step ended");
         proper.Z.Should().BeApproximately((float)(-spinUp * 100), 1e-4f, "the Euler term, reversed");
     }
 
-    /// <summary>The spin sample of a station that turns at <see cref="StationRate"/> about its +Y, in the step that ends at <paramref name="stepEnd"/>.</summary>
-    private static MotionIntent Spinning(double stepEnd) => new(new FrameSpin(DQuaternion.Identity, StationRate).Sample(Double3.Zero, stepEnd, Dt));
+    /// <summary>The spin sample of a station that turns at <see cref="StationRate"/> about its +Y, in the step that ends at
+    /// <paramref name="stepEnd"/>.</summary>
+    private static MotionIntent Spinning(double stepEnd) =>
+        new(new FrameSpin(DQuaternion.Identity, StationRate).Sample(Double3.Zero, stepEnd, Dt));
 
     /// <summary>One step: the tree updates, fixes the turns of the step that applies <paramref name="intents"/>, and takes the records of the step.</summary>
     private void RunStep(PhysicsIntent[] intents)
@@ -189,15 +202,17 @@ public class FrameProperAccelerationTests
         frames.TakeStepRecords(intents, Dt);
     }
 
-    /// <summary>The intents of a step in which only the owner of <paramref name="frame"/> wrote one, its motion intent <paramref name="move"/>.</summary>
+    /// <summary>The intents of a step in which only the owner of <paramref name="frame"/> wrote one, its motion intent
+    /// <paramref name="move"/>.</summary>
     private PhysicsIntent[] Moving(FrameHandle frame, MotionIntent move)
     {
         var intents = new PhysicsIntent[nextOwner];
-        intents[frame.Entity.Index] = new PhysicsIntent { Frame = frames.Parent(frame), Move = move };
+        intents[frame.Entity.Index] = new() { Frame = frames.Parent(frame), Move = move };
         return intents;
     }
 
-    /// <summary>The intents of a step in which only the owner of <paramref name="frame"/> wrote one: <paramref name="intent"/>.</summary>
+    /// <summary>The intents of a step in which only the owner of <paramref name="frame"/> wrote one: <paramref name="intent"/>
+    /// .</summary>
     private static PhysicsIntent[] Moving(FrameHandle frame, in PhysicsIntent intent)
     {
         var intents = new PhysicsIntent[frame.Entity.Index + 1];
@@ -205,7 +220,7 @@ public class FrameProperAccelerationTests
         return intents;
     }
 
-    private static DPose TestPose(double x, double y, double z) => new(new Double3(x, y, z), DQuaternion.Identity);
+    private static DPose TestPose(double x, double y, double z) => new(new(x, y, z), DQuaternion.Identity);
 
     /// <summary>The falling frame that a numeric update gives one fast body of <paramref name="semantic"/>.</summary>
     private FrameHandle FallingFrame(FrameHandle semantic, Double3 position, Double3 velocity)
@@ -213,10 +228,10 @@ public class FrameProperAccelerationTests
         FrameHandle home = FrameHandle.Null;
         var body = new NumericBody
         {
-            Entity = new Entity(1000, 1), Semantic = semantic, Home = semantic, Position = position, HomePosition = position,
-            Velocity = velocity, Radius = 1, Mass = 1,
+            Entity = new(1000, 1), Semantic = semantic, Home = semantic, Position = position, HomePosition = position,
+            Velocity = velocity, Radius = 1, Mass = 1
         };
-        frames.UpdateNumericFrames([body], 0.1, 0.1, new PhysicsChanges(), moves => home = moves.Single().To);
+        frames.UpdateNumericFrames([body], 0.1, 0.1, new(), moves => home = moves.Single().To);
         frames.IsNumeric(home).Should().BeTrue();
         return home;
     }

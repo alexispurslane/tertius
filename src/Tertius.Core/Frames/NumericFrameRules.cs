@@ -136,7 +136,8 @@ internal readonly record struct NumericBody
 }
 
 /// <summary>
-/// The place of a ghost that physics can keep in a frame of the semantic frame P that <see cref="FrameTree.UpdateNumericFrames"/>
+/// The place of a ghost that physics can keep in a frame of the semantic frame P that
+/// <see cref="FrameTree.UpdateNumericFrames"/>
 /// works on: the ghost of a body of another semantic frame, which the merge test takes as an input, because no body of P can
 /// move it (ticket ter-4psc). A place is not a body: it never moves, keeps no frame and gets no move or clock.
 /// </summary>
@@ -153,8 +154,15 @@ internal readonly record struct NumericBody
 /// <param name="MeetsHulls">The ghost meets hulls: it is a ghost in a child frame or in a sibling of a static body or of a hull
 /// (see <see cref="NumericBody.GhostsMeetHulls"/>). A ghost in the tree parent of the bubble that the body sticks out of
 /// has the ghost role, which the mask of a hull does not name (see <see cref="NumericFrameRules.MeetsGhost"/>).</param>
-internal readonly record struct GhostPlace(FrameHandle Home, Double3 HomePosition, Double3 Velocity, double Radius, int Target,
-    bool OfStaticBody, bool Sensor, bool MeetsHulls);
+internal readonly record struct GhostPlace(
+    FrameHandle Home,
+    Double3 HomePosition,
+    Double3 Velocity,
+    double Radius,
+    int Target,
+    bool OfStaticBody,
+    bool Sensor,
+    bool MeetsHulls);
 
 /// <summary>
 /// The motion of a group of bodies of one semantic frame that the merge test links.
@@ -176,10 +184,19 @@ internal readonly record struct GhostPlace(FrameHandle Home, Double3 HomePositio
 /// <paramref name="Follows"/>.</param>
 /// <param name="Follows">True when the group takes the following frame of <paramref name="Anchor"/>: no anchor of the group rests
 /// in the semantic frame.</param>
-/// <param name="Thrusts">True when a body of the group that is not an anchor thrusts (see <see cref="NumericBody.Thrusts"/>), so
+/// <param name="Thrusts">True when a body of the group that is not an anchor thrusts (see
+/// <see cref="NumericBody.Thrusts"/>), so
 /// the group uses the speeds of a group that thrusts. A kinematic body never thrusts.</param>
-internal readonly record struct NumericGroup(Double3 Velocity, Double3 Center, bool Anchored, bool Fixed, FrameHandle Frame, double FrameMass,
-    int Anchor = -1, bool Follows = false, bool Thrusts = false);
+internal readonly record struct NumericGroup(
+    Double3 Velocity,
+    Double3 Center,
+    bool Anchored,
+    bool Fixed,
+    FrameHandle Frame,
+    double FrameMass,
+    int Anchor = -1,
+    bool Follows = false,
+    bool Thrusts = false);
 
 /// <summary>
 /// The decisions of the membership and nesting rules of numeric frames (docs/plans/numeric-frames.md, "Membership" and
@@ -224,7 +241,8 @@ internal static class NumericFrameRules
             NumericMode.Falling or NumericMode.Following when !anchored && speed >= leaveSpeed => NumericMode.Falling,
             NumericMode.Falling or NumericMode.Resting or NumericMode.Following =>
                 fast ? NumericMode.Falling : distance >= options.LeaveDistance ? NumericMode.Resting : NumericMode.None,
-            _ => fast ? NumericMode.Falling : distance >= options.CreateDistance ? NumericMode.Resting : NumericMode.None,
+            _ => fast ? NumericMode.Falling :
+                distance >= options.CreateDistance ? NumericMode.Resting : NumericMode.None
         };
     }
 
@@ -233,13 +251,16 @@ internal static class NumericFrameRules
     /// <see cref="NumericGroup.Follows"/>), and else the mode of <see cref="Mode"/>.
     /// </summary>
     internal static NumericMode GroupMode(NumericMode current, in NumericGroup group, NumericFrameOptions options) =>
-        group.Follows ? NumericMode.Following : Mode(current, group.Velocity, group.Center, group.Anchored, group.Fixed, group.Thrusts, options);
+        group.Follows
+            ? NumericMode.Following
+            : Mode(current, group.Velocity, group.Center, group.Anchored, group.Fixed, group.Thrusts, options);
 
     /// <summary>
     /// The mode that a body alone, outside a numeric frame, needs: None when it needs no frame. It uses the speeds of a body
     /// that thrusts when the body does (see <see cref="NumericBody.Thrusts"/>).
     /// </summary>
-    internal static NumericMode BodyMode(in NumericBody body, NumericFrameOptions options) => BodyMode(body, body.Thrusts, options);
+    internal static NumericMode BodyMode(in NumericBody body, NumericFrameOptions options) =>
+        BodyMode(body, body.Thrusts, options);
 
     /// <summary>
     /// The mode that a body alone, outside a numeric frame, needs, with the speeds of a body that thrusts when
@@ -249,7 +270,8 @@ internal static class NumericFrameRules
     /// the speeds of a body that thrusts with the semantic frame's other bodies, because it can join the group of one.
     /// </summary>
     internal static NumericMode BodyMode(in NumericBody body, bool thrusts, NumericFrameOptions options) =>
-        body.Follows && Mode(NumericMode.None, body.Velocity, body.Position, false, false, false, options) != NumericMode.None
+        body.Follows && Mode(NumericMode.None, body.Velocity, body.Position, false, false, false, options) !=
+        NumericMode.None
             ? NumericMode.Following
             : Mode(NumericMode.None, body.Velocity, body.Position, body.Static, body.Fixed, thrusts, options);
 
@@ -262,7 +284,8 @@ internal static class NumericFrameRules
     /// body never thrusts, so it uses the speeds of free bodies.
     /// </summary>
     internal static bool FollowsInFrame(in NumericBody body, NumericFrameOptions options) =>
-        body.Follows && Mode(body.HomeMode == NumericMode.None ? NumericMode.None : NumericMode.Falling, body.Velocity, body.Position,
+        body.Follows && Mode(body.HomeMode == NumericMode.None ? NumericMode.None : NumericMode.Falling, body.Velocity,
+            body.Position,
             anchored: false, isFixed: false, thrusts: false, options) != NumericMode.None;
 
     /// <summary>
@@ -271,7 +294,8 @@ internal static class NumericFrameRules
     /// semantic frame's own, stay linked up to the split margin farther, so that a body at the edge of the reach does not
     /// go in and out at each sync point.
     /// </summary>
-    internal static bool MayTouch(in NumericBody a, in NumericBody b, Double3 separation, NumericFrameOptions options) =>
+    internal static bool MayTouch(in NumericBody a, in NumericBody b, Double3 separation,
+        NumericFrameOptions options) =>
         MayTouch(a.Radius + b.Radius, a.Velocity - b.Velocity, a.Home == b.Home, separation, options);
 
     /// <summary>
@@ -281,10 +305,13 @@ internal static class NumericFrameRules
     /// linked up to the split margin farther, so that a body at the edge of the reach does not go in and out at each sync
     /// point.
     /// </summary>
-    internal static bool MayTouch(in NumericBody body, in GhostPlace place, Double3 separation, NumericFrameOptions options) =>
-        MayTouch(body.Radius + place.Radius, body.Velocity - place.Velocity, body.Home == place.Home, separation, options);
+    internal static bool MayTouch(in NumericBody body, in GhostPlace place, Double3 separation,
+        NumericFrameOptions options) =>
+        MayTouch(body.Radius + place.Radius, body.Velocity - place.Velocity, body.Home == place.Home, separation,
+            options);
 
-    private static bool MayTouch(double radii, Double3 relativeVelocity, bool oneSystem, Double3 separation, NumericFrameOptions options)
+    private static bool MayTouch(double radii, Double3 relativeVelocity, bool oneSystem, Double3 separation,
+        NumericFrameOptions options)
     {
         double reach = radii + relativeVelocity.Length * options.LookaheadTime;
         if (oneSystem)
@@ -299,7 +326,8 @@ internal static class NumericFrameRules
     /// awake at 1 mm/s and while it sleeps, and a fast rock near it does not move between systems at each change. A margin
     /// added to the motion only moves that edge 10 m inward.
     /// </summary>
-    private static double Allowance(double speed, NumericFrameOptions options) => Math.Max(speed * options.LookaheadTime, options.SplitMargin);
+    private static double Allowance(double speed, NumericFrameOptions options) =>
+        Math.Max(speed * options.LookaheadTime, options.SplitMargin);
 
     /// <summary>
     /// True when <paramref name="body"/>, a body of the frame whose bubble is <paramref name="bubble"/>, can stick out of that
@@ -309,7 +337,8 @@ internal static class NumericFrameRules
     /// leaves the bubble, so it sticks out by as far as it lies.
     /// </summary>
     internal static bool MayStickOut(FrameBounds bubble, in NumericBody body, NumericFrameOptions options) =>
-        !body.Static && bubble.SignedDistance(body.Position) > -(body.Radius + Allowance(body.Velocity.Length, options));
+        !body.Static && bubble.SignedDistance(body.Position) >
+        -(body.Radius + Allowance(body.Velocity.Length, options));
 
     /// <summary>
     /// The content excess of a frame before the next update: how far, in meters, the bounding sphere of a body of
@@ -320,12 +349,14 @@ internal static class NumericFrameRules
     /// the frame's content, and so does the sibling test of a body that sticks out of a sibling bubble (fork F2 of
     /// docs/plans/complete-ghosts.md).
     /// </summary>
-    internal static double ContentExcess(FrameBounds bubble, ReadOnlySpan<NumericBody> bodies, NumericFrameOptions options)
+    internal static double ContentExcess(FrameBounds bubble, ReadOnlySpan<NumericBody> bodies,
+        NumericFrameOptions options)
     {
         double excess = 0;
         foreach (ref readonly NumericBody body in bodies)
             if (!body.Static)
-                excess = Math.Max(excess, bubble.SignedDistance(body.Position) + body.Radius + Allowance(body.Velocity.Length, options));
+                excess = Math.Max(excess,
+                    bubble.SignedDistance(body.Position) + body.Radius + Allowance(body.Velocity.Length, options));
         return excess;
     }
 
@@ -335,7 +366,8 @@ internal static class NumericFrameRules
     /// give it a ghost in the frame's own system: the bubble is within <paramref name="reach"/> of the body, grown by how far
     /// the body can move (see <see cref="Allowance"/>).
     /// </summary>
-    internal static bool MayTouchBubble(FrameBounds bubble, Double3 position, Double3 velocity, double reach, NumericFrameOptions options) =>
+    internal static bool MayTouchBubble(FrameBounds bubble, Double3 position, Double3 velocity, double reach,
+        NumericFrameOptions options) =>
         bubble.SignedDistance(position) <= reach + Allowance(velocity.Length, options);
 
     /// <summary>
@@ -349,7 +381,8 @@ internal static class NumericFrameRules
     /// 1e-12 of <paramref name="scale"/>, the distances of the points from that origin, and of the reach itself. That is
     /// thousands of steps of a double, so the first test drops nothing that the full test keeps.
     /// </summary>
-    internal static bool MayReachBubble(double distance, double reach, double speedBound, double scale, NumericFrameOptions options)
+    internal static bool MayReachBubble(double distance, double reach, double speedBound, double scale,
+        NumericFrameOptions options)
     {
         double far = reach + Allowance(speedBound, options);
         return distance <= far + 1e-12 * (scale + far);
@@ -384,7 +417,8 @@ internal static class NumericFrameRules
     /// before, in seconds. Hold is true when the members must stay in one group although they are apart. Apart is the new
     /// time, which starts again at zero when they are together or when the cooldown has passed and they split.
     /// </summary>
-    internal static (bool Hold, double Apart) SplitClock(bool together, double apart, double dt, NumericFrameOptions options)
+    internal static (bool Hold, double Apart) SplitClock(bool together, double apart, double dt,
+        NumericFrameOptions options)
     {
         if (together)
             return (false, 0);
@@ -403,7 +437,8 @@ internal static class NumericFrameRules
     /// never counts, pulses less than the window apart add up, and a body that thrusts keeps counting for the window after
     /// its last thrust tick.
     /// </summary>
-    internal static (bool Thrusts, double ThrustTime, double QuietTime) ThrustClock(double acceleration, double thrustTime, double quietTime,
+    internal static (bool Thrusts, double ThrustTime, double QuietTime) ThrustClock(double acceleration,
+        double thrustTime, double quietTime,
         double dt, NumericFrameOptions options)
     {
         if (acceleration >= options.MinThrustAcceleration)
@@ -417,6 +452,7 @@ internal static class NumericFrameRules
             if (quietTime >= options.ThrustWindow)
                 return (false, 0, 0);
         }
+
         return (thrustTime >= options.ThrustOnset, thrustTime, quietTime);
     }
 
@@ -430,7 +466,8 @@ internal static class NumericFrameRules
     /// and holds nothing: a group that stays needs no hold, a group that joins a numeric frame merges at once, as numeric
     /// frames do, and a group that falls leaves at once, because the speed thresholds give falling its own hysteresis.
     /// </summary>
-    internal static (bool Hold, double Apart) LeaveClock(NumericMode mode, FrameHandle frame, double apart, double dt, NumericFrameOptions options)
+    internal static (bool Hold, double Apart) LeaveClock(NumericMode mode, FrameHandle frame, double apart, double dt,
+        NumericFrameOptions options)
     {
         if (mode != NumericMode.Resting || !frame.IsNull)
             return (false, 0);
@@ -468,10 +505,15 @@ internal static class NumericFrameRules
     /// following frame, so a body in one adds no mass to it. <paramref name="homeMasses"/> is scratch: it ends with each numeric
     /// home of the group but a following frame, and the mass in it, in the order of the members.
     /// </summary>
-    internal static NumericGroup Summarize(ReadOnlySpan<NumericBody> members, List<(FrameHandle Frame, double Mass)> homeMasses,
+    internal static NumericGroup Summarize(ReadOnlySpan<NumericBody> members,
+        List<(FrameHandle Frame, double Mass)> homeMasses,
         NumericFrameOptions options)
     {
-        Double3 momentum = Double3.Zero, moment = Double3.Zero, staticMoment = Double3.Zero, kinematicMomentum = Double3.Zero, kinematicMoment = Double3.Zero;
+        Double3 momentum = Double3.Zero,
+            moment = Double3.Zero,
+            staticMoment = Double3.Zero,
+            kinematicMomentum = Double3.Zero,
+            kinematicMoment = Double3.Zero;
         double movingMass = 0, mass = 0, staticMass = 0, kinematicMass = 0;
         bool anchored = false, isFixed = false, thrusts = false;
         int anchor = -1;
@@ -487,6 +529,7 @@ internal static class NumericFrameRules
                 isFixed |= body.MayTouchFixedGhost;
                 continue;
             }
+
             anchored |= body.Static;
             isFixed |= body.Fixed || body.MayTouchFixedGhost;
             // A body that follows is the anchor above, so only a static or fixed body is an anchor here.
@@ -503,12 +546,14 @@ internal static class NumericFrameRules
                 movingMass += body.Mass;
                 momentum += body.Velocity * body.Mass;
             }
+
             if (body.Kinematic)
             {
                 kinematicMass += body.Mass;
                 kinematicMomentum += body.Velocity * body.Mass;
                 kinematicMoment += body.Position * body.Mass;
             }
+
             if (body.Home == body.Semantic || body.HomeMode == NumericMode.Following)
                 continue;
             // ∞ + m and ∞ + ∞ are exact, so the sum stays +∞ once a static body is in it.
@@ -521,12 +566,15 @@ internal static class NumericFrameRules
             else
                 homeMasses[h] = (body.Home, homeMasses[h].Mass + weight);
         }
+
         if (anchor >= 0 && !anchored && !isFixed)
         {
             ref readonly NumericBody follower = ref members[anchor];
             FrameHandle following = follower.AnchorsHome ? follower.Home : FrameHandle.Null;
-            return new NumericGroup(Double3.Zero, follower.Position, false, false, following, following.IsNull ? 0 : double.PositiveInfinity, anchor, true, thrusts);
+            return new(Double3.Zero, follower.Position, false, false, following,
+                following.IsNull ? 0 : double.PositiveInfinity, anchor, true, thrusts);
         }
+
         FrameHandle frame = FrameHandle.Null;
         double frameMass = 0;
         foreach ((FrameHandle home, double homeMass) in homeMasses)
@@ -535,9 +583,11 @@ internal static class NumericFrameRules
         // A frame without a static body is not the home of an anchored group, however much of its mass is there.
         if (anchored && !double.IsPositiveInfinity(frameMass))
             (frame, frameMass) = (FrameHandle.Null, 0);
-        Double3 velocity = anchored || movingMass == 0 ? Double3.Zero : kinematicMass > 0 ? kinematicMomentum / kinematicMass : momentum / movingMass;
-        Double3 center = anchored ? staticMoment / staticMass : kinematicMass > 0 ? kinematicMoment / kinematicMass : moment / mass;
-        return new NumericGroup(velocity, center, anchored, isFixed, frame, frameMass, anchor, Thrusts: thrusts);
+        Double3 velocity = anchored || movingMass == 0 ? Double3.Zero :
+            kinematicMass > 0 ? kinematicMomentum / kinematicMass : momentum / movingMass;
+        Double3 center = anchored ? staticMoment / staticMass :
+            kinematicMass > 0 ? kinematicMoment / kinematicMass : moment / mass;
+        return new(velocity, center, anchored, isFixed, frame, frameMass, anchor, Thrusts: thrusts);
     }
 
     /// <summary>
@@ -546,11 +596,14 @@ internal static class NumericFrameRules
     /// when the group comes to rest, the group's velocity when the frame starts to fall or when the members' common
     /// velocity relative to the frame passes the drain speed, and else its own.
     /// </summary>
-    internal static Double3 DrainVelocity(NumericMode frameMode, NumericMode groupMode, Double3 frameVelocity, Double3 groupVelocity,
+    internal static Double3 DrainVelocity(NumericMode frameMode, NumericMode groupMode, Double3 frameVelocity,
+        Double3 groupVelocity,
         NumericFrameOptions options) =>
-        groupMode == NumericMode.Resting ? Double3.Zero
-        : frameMode == NumericMode.Resting || (groupVelocity - frameVelocity).Length > options.DrainSpeed ? groupVelocity
-        : frameVelocity;
+        groupMode == NumericMode.Resting
+            ? Double3.Zero
+            : frameMode == NumericMode.Resting || (groupVelocity - frameVelocity).Length > options.DrainSpeed
+                ? groupVelocity
+                : frameVelocity;
 
     /// <summary>
     /// The origin that a kept frame at <paramref name="framePosition"/> takes: the group's center of mass when it is
@@ -563,11 +616,13 @@ internal static class NumericFrameRules
     internal static bool Collects(bool holdsBody, bool holdsFrame) => !holdsBody && !holdsFrame;
 
     /// <summary>True when a falling or resting frame at <paramref name="position"/> in its tree parent must nest.</summary>
-    internal static bool NeedsNest(Double3 position, NumericFrameOptions options) => position.Length > options.NestDistance;
+    internal static bool NeedsNest(Double3 position, NumericFrameOptions options) =>
+        position.Length > options.NestDistance;
 
     /// <summary>The grid point nearest <paramref name="position"/>. The grid is a power of two, so this is exact.</summary>
     internal static Double3 GridPoint(Double3 position, double grid) =>
-        new(Math.Round(position.X / grid) * grid, Math.Round(position.Y / grid) * grid, Math.Round(position.Z / grid) * grid);
+        new(Math.Round(position.X / grid) * grid, Math.Round(position.Y / grid) * grid,
+            Math.Round(position.Z / grid) * grid);
 
     /// <summary>True when every coordinate of <paramref name="position"/> is a whole multiple of <paramref name="grid"/>.</summary>
     internal static bool OnGrid(Double3 position, double grid) => GridPoint(position, grid) == position;
@@ -589,7 +644,8 @@ internal static class NumericFrameRules
     /// <paramref name="position"/> in a parent at <paramref name="parentPlace"/>. Null when none is within half the nest
     /// distance. On a tie the later one wins.
     /// </summary>
-    internal static FrameHandle NearestNest(ReadOnlySpan<(FrameHandle Nest, Double3 Place)> nests, Double3 parentPlace, Double3 position,
+    internal static FrameHandle NearestNest(ReadOnlySpan<(FrameHandle Nest, Double3 Place)> nests, Double3 parentPlace,
+        Double3 position,
         NumericFrameOptions options)
     {
         FrameHandle nearest = FrameHandle.Null;
@@ -600,6 +656,7 @@ internal static class NumericFrameRules
             if (distance <= best)
                 (nearest, best) = (nest, distance);
         }
+
         return nearest;
     }
 }

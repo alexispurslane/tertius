@@ -12,15 +12,26 @@ public struct ComponentFlags : IEquatable<ComponentFlags>
 {
     private const int Words = ComponentTypes.Capacity / 64;
 
+    public static ComponentFlags None => default;
+
+    private Bits bits;
+
+    public readonly bool IsEmpty
+    {
+        get
+        {
+            for (int i = 0; i < Words; i++)
+                if (bits[i] != 0)
+                    return false;
+            return true;
+        }
+    }
+
     [InlineArray(Words)]
     private struct Bits
     {
         private ulong word;
     }
-
-    private Bits bits;
-
-    public static ComponentFlags None => default;
 
     /// <summary>The set with the type of each component of <paramref name="components"/>.</summary>
     /// <exception cref="ArgumentException">A component's type is generic (see <see cref="ComponentTypes.IdOf"/>).</exception>
@@ -48,17 +59,6 @@ public struct ComponentFlags : IEquatable<ComponentFlags>
     public void Add(int id) => bits[id >> 6] |= 1UL << (id & 63);
 
     public void Remove(int id) => bits[id >> 6] &= ~(1UL << (id & 63));
-
-    public readonly bool IsEmpty
-    {
-        get
-        {
-            for (int i = 0; i < Words; i++)
-                if (bits[i] != 0)
-                    return false;
-            return true;
-        }
-    }
 
     /// <summary>True when every type of <paramref name="other"/> is in this set.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -100,9 +100,9 @@ public struct ComponentFlags : IEquatable<ComponentFlags>
         return true;
     }
 
-    public override readonly bool Equals(object? obj) => obj is ComponentFlags other && Equals(other);
+    public readonly override bool Equals(object? obj) => obj is ComponentFlags other && Equals(other);
 
-    public override readonly int GetHashCode()
+    public readonly override int GetHashCode()
     {
         HashCode hash = default;
         for (int i = 0; i < Words; i++)
@@ -113,7 +113,7 @@ public struct ComponentFlags : IEquatable<ComponentFlags>
     public static bool operator ==(ComponentFlags a, ComponentFlags b) => a.Equals(b);
     public static bool operator !=(ComponentFlags a, ComponentFlags b) => !a.Equals(b);
 
-    public override readonly string ToString()
+    public readonly override string ToString()
     {
         var names = new List<string>();
         foreach (int id in this)
@@ -147,6 +147,7 @@ public struct ComponentFlags : IEquatable<ComponentFlags>
                     return false;
                 rest = flags.bits[word];
             }
+
             int bit = BitOperations.TrailingZeroCount(rest);
             rest &= rest - 1;
             current = (word << 6) | bit;
@@ -184,7 +185,8 @@ public readonly record struct ComponentMask
         return this with { Without = types };
     }
 
-    /// <summary>True when <paramref name="flags"/> holds every type of <see cref="With"/> and no type of <see cref="Without"/>.</summary>
+    /// <summary>True when <paramref name="flags"/> holds every type of <see cref="With"/> and no type of <see cref="Without"/>
+    /// .</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Matches(in ComponentFlags flags) => flags.ContainsAll(With) && !flags.Overlaps(Without);
 }

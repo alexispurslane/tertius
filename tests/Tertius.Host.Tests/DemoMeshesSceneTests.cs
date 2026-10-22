@@ -32,13 +32,14 @@ public sealed class DemoMeshesSceneTests : IDisposable
 
     /// <summary>A ball rests on a facet within 1 mm of where the mesh puts it (see RevolvedSolidShapeTests).</summary>
     private static void ExpectAt(Double3 actual, Double3 expected, string because) =>
-        (actual - expected).Length.Should().BeLessThan(1e-3, $"{because}: it is at {actual}, and the mesh puts it at {expected}");
+        (actual - expected).Length.Should()
+        .BeLessThan(1e-3, $"{because}: it is at {actual}, and the mesh puts it at {expected}");
 
     [Fact]
     public void TheCylindersBallRestsOnItsTopCapWhereItLanded()
     {
         // The cylinder stands on the floor, so its top is twice its half height up.
-        ExpectAt(RestingCenter("cylinder-ball"), new Double3(-4.7, 1.5 + 0.25, 0), "the ball rests on the cap");
+        ExpectAt(RestingCenter("cylinder-ball"), new(-4.7, 1.5 + 0.25, 0), "the ball rests on the cap");
     }
 
     [Fact]
@@ -47,7 +48,9 @@ public sealed class DemoMeshesSceneTests : IDisposable
         // The torus lies on the flat bottom of its tube, r cos(π / 24) below the tube's center, so the flat top is twice that up.
         double top = 2 * 0.5 * Math.Cos(Math.PI / 24);
         double middle = 1.6 * Math.Cos(Math.PI / 64);
-        ExpectAt(RestingCenter("torus-ball"), new Double3(middle * Math.Cos(Math.PI / 64), top + 0.25, -middle * Math.Sin(Math.PI / 64)), "the ball rests on the tube");
+        ExpectAt(RestingCenter("torus-ball"),
+            new(middle * Math.Cos(Math.PI / 64), top + 0.25, -middle * Math.Sin(Math.PI / 64)),
+            "the ball rests on the tube");
     }
 
     [Fact]
@@ -56,6 +59,7 @@ public sealed class DemoMeshesSceneTests : IDisposable
         // The ring stands on the middle of an outer facet, 3.25 cos(π / 256) below its axis, and the lowest inner facet is
         // 3 cos(π / 256) below the axis.
         double facet = Math.Cos(Math.PI / 256);
-        ExpectAt(RestingCenter("ring-ball"), new Double3(6, 3.25 * facet - 3 * facet + 0.25, 0), "the ball rests on the ring's floor");
+        ExpectAt(RestingCenter("ring-ball"), new(6, 3.25 * facet - 3 * facet + 0.25, 0),
+            "the ball rests on the ring's floor");
     }
 }

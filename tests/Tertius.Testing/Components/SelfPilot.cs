@@ -2,7 +2,8 @@ using Tertius.Simulation;
 
 namespace Tertius.Testing;
 
-/// <summary>What a <see cref="SelfPilot"/> does with its entity during a tick. A delegate of its own, because <see cref="Self"/> is a ref struct.</summary>
+/// <summary>What a <see cref="SelfPilot"/> does with its entity during a tick. A delegate of its own, because
+/// <see cref="Self"/> is a ref struct.</summary>
 public delegate void SelfCommand(Self self);
 
 /// <summary>

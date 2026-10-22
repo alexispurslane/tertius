@@ -20,7 +20,9 @@ public sealed class DockingEndStateTests
 
     /// <summary>The corners of the shuttle's outer collision shape at <see cref="DemoStation.ParkedPose"/>, in the station's axes.</summary>
     private static Double3[] ParkedCorners() =>
-        [.. ((ConvexHullShapeDesc)Shuttle.HullShape).Points.Select(point => DemoStation.ParkedPose.TransformPoint((Double3)point))];
+    [
+        .. ((ConvexHullShapeDesc)Shuttle.HullShape).Points.Select(point => DemoStation.ParkedPose.TransformPoint(point))
+    ];
 
     /// <summary>The angle between two rotations, in radians.</summary>
     private static double AngleBetween(DQuaternion a, DQuaternion b) => a.AngularVelocityTo(b, 1).Length;
@@ -35,7 +37,8 @@ public sealed class DockingEndStateTests
         Double3[] corners = ParkedCorners();
         corners.Min(c => c.X).Should().BeApproximately(DemoStation.Deck, 1e-5, "the belly lies on the deck");
         corners.Min(c => c.Z).Should().BeApproximately(-Bay.Z, 1e-5, "the port side lies on the bay's -Z wall");
-        corners.Max(c => c.Y).Should().BeApproximately(Bay.Y - DemoStation.ParkedTailGap, 1e-5, "the tail lies inside the slot's wall");
+        corners.Max(c => c.Y).Should().BeApproximately(Bay.Y - DemoStation.ParkedTailGap, 1e-5,
+            "the tail lies inside the slot's wall");
         DemoStation.ParkedTailGap.Should().Be(1.5f);
         foreach (Double3 corner in corners)
         {
@@ -43,6 +46,7 @@ public sealed class DockingEndStateTests
             Math.Abs(corner.Y).Should().BeLessThanOrEqualTo(Bay.Y + 1e-5, $"the corner {corner} lies inside the bay");
             Math.Abs(corner.Z).Should().BeLessThanOrEqualTo(Bay.Z + 1e-5, $"the corner {corner} lies inside the bay");
         }
+
         DemoStation.ParkedPose.Position.Should().Be(new Double3(-6, 3, -5));
     }
 
@@ -54,9 +58,12 @@ public sealed class DockingEndStateTests
     public void TheDockedRotationPutsTheBellyOnTheDeckAndTheNoseIntoTheBay()
     {
         DQuaternion docked = DemoStation.DockedRotation;
-        (docked.Rotate(-Double3.UnitZ) - -Double3.UnitY).Length.Should().BeLessThan(1e-12, "the nose points into the bay");
-        (docked.Rotate(Double3.UnitY) - Double3.UnitX).Length.Should().BeLessThan(1e-12, "the roof points away from the deck");
-        (docked.Rotate(Double3.UnitX) - Double3.UnitZ).Length.Should().BeLessThan(1e-12, "the starboard side points along +Z");
+        (docked.Rotate(-Double3.UnitZ) - -Double3.UnitY).Length.Should()
+            .BeLessThan(1e-12, "the nose points into the bay");
+        (docked.Rotate(Double3.UnitY) - Double3.UnitX).Length.Should()
+            .BeLessThan(1e-12, "the roof points away from the deck");
+        (docked.Rotate(Double3.UnitX) - Double3.UnitZ).Length.Should()
+            .BeLessThan(1e-12, "the starboard side points along +Z");
         AngleBetween(DemoStation.ParkedPose.Rotation, docked).Should().BeLessThan(1e-12);
     }
 
@@ -72,7 +79,7 @@ public sealed class DockingEndStateTests
         corners.Max(c => c.Y).Should().BeApproximately(bounds.Max.Y, 1e-4);
         corners.Min(c => c.Z).Should().BeApproximately(bounds.Min.Z, 1e-4);
         corners.Max(c => c.Z).Should().BeApproximately(bounds.Max.Z, 1e-4);
-        bounds.Should().Be(new BoundingBox(new Vector3(-8, -5, -8), new Vector3(-4, 11, -2)));
+        bounds.Should().Be(new BoundingBox(new(-8, -5, -8), new(-4, 11, -2)));
     }
 
     /// <summary>
@@ -83,9 +90,11 @@ public sealed class DockingEndStateTests
     public void TheParkedShuttleLeavesTheSpokeMouthFree()
     {
         BoundingBox mouth = DemoStation.SpokeMouth, parked = DemoStation.ParkedBounds;
-        mouth.Should().Be(new BoundingBox(new Vector3(-8.5f, -1.75f, -1.75f), new Vector3(-8, 1.75f, 1.75f)));
-        (mouth.Min.Z - parked.Max.Z).Should().BeApproximately(0.25f, 1e-5f, "the hull ends 0.25 m short of the mouth across the axis");
-        ParkedCorners().Should().OnlyContain(corner => corner.Z < mouth.Min.Z - 0.2, "no part of the hull reaches over the mouth");
+        mouth.Should().Be(new BoundingBox(new(-8.5f, -1.75f, -1.75f), new(-8, 1.75f, 1.75f)));
+        (mouth.Min.Z - parked.Max.Z).Should()
+            .BeApproximately(0.25f, 1e-5f, "the hull ends 0.25 m short of the mouth across the axis");
+        ParkedCorners().Should().OnlyContain(corner => corner.Z < mouth.Min.Z - 0.2,
+            "no part of the hull reaches over the mouth");
     }
 
     /// <summary>
@@ -96,12 +105,13 @@ public sealed class DockingEndStateTests
     public void TheParkedHatchOpensOntoTheDeckTowardTheSpokeMouth()
     {
         DPose parked = DemoStation.ParkedPose;
-        (parked.Rotation.Rotate(Double3.UnitX) - Double3.UnitZ).Length.Should().BeLessThan(1e-12, "the hatch's outward normal is +Z");
+        (parked.Rotation.Rotate(Double3.UnitX) - Double3.UnitZ).Length.Should()
+            .BeLessThan(1e-12, "the hatch's outward normal is +Z");
         BoundingBox hatch = Shuttle.Hatch, mouth = DemoStation.SpokeMouth;
         // The doorway's outer face, in the station's axes: on the hull's starboard face, from the hatch's lowest to its
         // highest point and from its forward to its aft edge.
-        Double3 a = parked.TransformPoint(new Double3(hatch.Max.X, hatch.Min.Y, hatch.Min.Z));
-        Double3 b = parked.TransformPoint(new Double3(hatch.Max.X, hatch.Max.Y, hatch.Max.Z));
+        Double3 a = parked.TransformPoint(new(hatch.Max.X, hatch.Min.Y, hatch.Min.Z));
+        Double3 b = parked.TransformPoint(new(hatch.Max.X, hatch.Max.Y, hatch.Max.Z));
         (double minY, double maxY) = (Math.Min(a.Y, b.Y), Math.Max(a.Y, b.Y));
         double doorwayZ = a.Z;
         doorwayZ.Should().BeApproximately(b.Z, 1e-9);
@@ -119,7 +129,7 @@ public sealed class DockingEndStateTests
     [Fact]
     public void TheSpinPullsTheParkedShuttleIntoTheCorner()
     {
-        Double3 center = DemoStation.ParkedPose.TransformPoint((Double3)HostTesting.ShuttleCenterOfMass);
+        Double3 center = DemoStation.ParkedPose.TransformPoint(HostTesting.ShuttleCenterOfMass);
         double rate = DemoScenes.SpinStation.Rate;
         Double3 gravity = new Double3(center.X, 0, center.Z) * (rate * rate);
         gravity.X.Should().BeNegative("the spin gravity presses the hull into the deck");
@@ -142,30 +152,34 @@ public sealed class DockingEndStateTests
         var log = new List<string>();
         world.Log += log.Add;
         FrameHandle earth = RendezvousAutopilotTests.Earth(world);
-        Entity station = DemoStation.Spawn(world, earth, new SceneInstance(), RenderResources.None);
+        Entity station = DemoStation.Spawn(world, earth, new(), RenderResources.None);
         FrameHandle frame = world.GetOwnedFrame(station);
-        Entity shuttle = world.Spawn(new SpawnDesc
+        Entity shuttle = world.Spawn(new()
         {
             Frame = frame,
             Pose = DemoStation.ParkedPose,
             Body = Shuttle.Body(BodyMotion.Dynamic),
-            AsFrame = new FrameSpec(new FrameBounds(Shuttle.Bubble)),
+            AsFrame = new(new(Shuttle.Bubble))
         });
 
         Tick(world, 600);
 
         world.GetFrame(shuttle).Should().Be(frame, "the shuttle stays in the station's frame");
         DPose pose = world.PoseIn(shuttle, frame);
-        (pose.Position - DemoStation.ParkedPose.Position).Length.Should().BeLessThan(0.03, "the corner holds the hull at its place");
-        AngleBetween(pose.Rotation, DemoStation.DockedRotation).Should().BeLessThan(0.5 * Math.PI / 180, "the corner holds the hull's rotation");
+        (pose.Position - DemoStation.ParkedPose.Position).Length.Should()
+            .BeLessThan(0.03, "the corner holds the hull at its place");
+        AngleBetween(pose.Rotation, DemoStation.DockedRotation).Should()
+            .BeLessThan(0.5 * Math.PI / 180, "the corner holds the hull's rotation");
 
         double rate = DemoScenes.SpinStation.Rate;
         Double3 seat = DemoStation.ParkedPose.TransformPoint(Shuttle.SeatStand);
         double fromTheAxis = Math.Sqrt(seat.X * seat.X + seat.Z * seat.Z);
         Double3 felt = world.Frames.FeltGravity(world.GetOwnedFrame(shuttle), Shuttle.SeatStand);
-        felt.Length.Should().BeApproximately(rate * rate * fromTheAxis, 0.03 * rate * rate * fromTheAxis, "the cabin feels the spin gravity of its radius");
+        felt.Length.Should().BeApproximately(rate * rate * fromTheAxis, 0.03 * rate * rate * fromTheAxis,
+            "the cabin feels the spin gravity of its radius");
         felt.Length.Should().BeApproximately(0.783, 0.03);
-        (Math.Acos(Double3.Dot(felt, -Double3.UnitY) / felt.Length) * 180 / Math.PI).Should().BeApproximately(30, 2, "the gravity leans from the floor's down");
+        (Math.Acos(Double3.Dot(felt, -Double3.UnitY) / felt.Length) * 180 / Math.PI).Should()
+            .BeApproximately(30, 2, "the gravity leans from the floor's down");
         felt.X.Should().BeNegative("the gravity leans toward port, away from the station's axis");
         world.Errors.Should().BeEmpty();
     }

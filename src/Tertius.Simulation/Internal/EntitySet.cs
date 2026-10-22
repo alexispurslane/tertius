@@ -29,7 +29,7 @@ internal sealed class EntitySet
     private int count;
 
     // The desired membership of each entity changed since the last merge, by sort key. A later change wins.
-    private readonly Dictionary<ulong, bool> pending = new();
+    private readonly Dictionary<ulong, bool> pending = [];
     private ulong[] pendingKeys = new ulong[4];
     private bool[] pendingWants = new bool[4];
 
@@ -78,6 +78,7 @@ internal sealed class EntitySet
             pendingKeys = new ulong[Math.Max(k, pendingKeys.Length * 2)];
             pendingWants = new bool[pendingKeys.Length];
         }
+
         int j = 0;
         foreach (KeyValuePair<ulong, bool> change in pending)
         {
@@ -85,6 +86,7 @@ internal sealed class EntitySet
             pendingWants[j] = change.Value;
             j++;
         }
+
         pending.Clear();
         Array.Sort(pendingKeys, pendingWants, 0, k);
 
@@ -98,6 +100,7 @@ internal sealed class EntitySet
                 spare[w++] = items[i++];
                 continue;
             }
+
             ulong key = pendingKeys[p];
             bool want = pendingWants[p++];
             if (i < count && SortKey(items[i]) == key)
@@ -105,6 +108,7 @@ internal sealed class EntitySet
             if (want)
                 spare[w++] = FromSortKey(key);
         }
+
         (items, spare) = (spare, items);
         count = w;
     }

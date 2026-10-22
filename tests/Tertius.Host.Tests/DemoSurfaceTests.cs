@@ -21,7 +21,8 @@ public sealed class DemoSurfaceTests(DemoSurfaceRun run) : IClassFixture<DemoSur
 {
     private StateDump Dump(string name) => run.Result.Dump(name);
 
-    private static double Across(Double3 a, Double3 b) => Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Z - b.Z) * (a.Z - b.Z));
+    private static double Across(Double3 a, Double3 b) =>
+        Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Z - b.Z) * (a.Z - b.Z));
 
     [Fact]
     public void ThePersonWalksThroughTheTerminal()
@@ -31,8 +32,10 @@ public sealed class DemoSurfaceTests(DemoSurfaceRun run) : IClassFixture<DemoSur
 
         person.Pose.Frame.Should().Be("earth-surface");
         person.Standing.Should().BeTrue();
-        Math.Abs(inHall.X).Should().BeLessThan(DemoSurface.TerminalHalf.X - 0.6, "the person is in the hall, away from its walls");
-        Math.Abs(inHall.Z).Should().BeLessThan(DemoSurface.TerminalHalf.Z - 0.6, "the person is in the hall, away from its walls");
+        Math.Abs(inHall.X).Should().BeLessThan(DemoSurface.TerminalHalf.X - 0.6,
+            "the person is in the hall, away from its walls");
+        Math.Abs(inHall.Z).Should().BeLessThan(DemoSurface.TerminalHalf.Z - 0.6,
+            "the person is in the hall, away from its walls");
     }
 
     /// <summary>The shuttle stands unturned at the origin, so the x of earth-surface is the x of the shuttle's axes.</summary>
@@ -43,7 +46,8 @@ public sealed class DemoSurfaceTests(DemoSurfaceRun run) : IClassFixture<DemoSur
 
         person.Pose.Frame.Should().Be("earth-surface");
         person.Standing.Should().BeTrue();
-        person.Pose.Position.X.Should().BeInRange(Shuttle.OutsideHatch.X, DemoSurface.TerminalCenter.X - DemoSurface.TerminalHalf.X, "the person is between the gate and the hatch");
+        person.Pose.Position.X.Should().BeInRange(Shuttle.OutsideHatch.X,
+            DemoSurface.TerminalCenter.X - DemoSurface.TerminalHalf.X, "the person is between the gate and the hatch");
     }
 
     /// <summary>
@@ -66,7 +70,8 @@ public sealed class DemoSurfaceTests(DemoSurfaceRun run) : IClassFixture<DemoSur
         StateDump end = Dump("end");
 
         end.Frames.Single(frame => frame.Id == "shuttle").Follows.Should().Be("static");
-        Double3.Distance(end.Entity("shuttle").Pose.Position, DemoSurface.ShuttleParked.Position).Should().BeLessThan(1e-9);
+        Double3.Distance(end.Entity("shuttle").Pose.Position, DemoSurface.ShuttleParked.Position).Should()
+            .BeLessThan(1e-9);
     }
 
     [Fact]
@@ -85,7 +90,8 @@ public sealed class DemoSurfaceTests(DemoSurfaceRun run) : IClassFixture<DemoSur
         person.Pose.Frame.Should().Be("shuttle");
         person.Standing.Should().BeTrue();
         Across(person.Pose.Position, Shuttle.SeatStand).Should().BeLessThanOrEqualTo(Walker.StopRadius + 0.01);
-        person.Pose.Position.Y.Should().BeApproximately(Shuttle.SeatStand.Y, 0.05, "the person stands on the cabin floor");
+        person.Pose.Position.Y.Should()
+            .BeApproximately(Shuttle.SeatStand.Y, 0.05, "the person stands on the cabin floor");
         person.Velocity.Length.Should().BeLessThan(0.01);
         Dump("at-the-seat").Errors.Should().BeEmpty();
     }
@@ -137,7 +143,8 @@ public sealed class DemoSurfaceSceneTests : IDisposable
         world.Frames.Parent(earth).Should().Be(sun);
         DPose parked = world.PoseIn(scene["shuttle"], surface);
         Double3.Distance(parked.Position, DemoSurface.ShuttleParked.Position).Should().BeLessThan(1e-9);
-        Math.Sqrt(parked.Position.X * parked.Position.X + parked.Position.Z * parked.Position.Z).Should().BeLessThan(1e-9, "the shuttle stands on the axis of the turn");
+        Math.Sqrt(parked.Position.X * parked.Position.X + parked.Position.Z * parked.Position.Z).Should()
+            .BeLessThan(1e-9, "the shuttle stands on the axis of the turn");
     }
 
     /// <summary>
@@ -153,6 +160,7 @@ public sealed class DemoSurfaceSceneTests : IDisposable
 
         world.Time.Should().BeApproximately(DemoSurface.DepartureAt, 1e-5);
         Double3 incline = world.PoseIn(scene["earth-surface"], earth).Rotation.Rotate(DemoScenes.LaunchRamp.Up);
-        (Math.Asin(Math.Abs(Double3.Dot(incline, DemoSurface.LaunchPlaneNormal))) * 180 / Math.PI).Should().BeLessThan(0.001);
+        (Math.Asin(Math.Abs(Double3.Dot(incline, DemoSurface.LaunchPlaneNormal))) * 180 / Math.PI).Should()
+            .BeLessThan(0.001);
     }
 }

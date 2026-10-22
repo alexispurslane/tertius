@@ -32,7 +32,13 @@ namespace Tertius;
 /// </remarks>
 internal sealed class InputEventJsonConverter : JsonConverter<InputEvent>
 {
-    private const string KeyDown = "keyDown", KeyUp = "keyUp", MouseDown = "mouseDown", MouseUp = "mouseUp", MouseMove = "mouseMove", Scroll = "scroll";
+    private const string KeyDown = "keyDown",
+        KeyUp = "keyUp",
+        MouseDown = "mouseDown",
+        MouseUp = "mouseUp",
+        MouseMove = "mouseMove",
+        Scroll = "scroll";
+
     private const string Form = "an input event, an object with a kind and its code or its delta";
     private const string DeltaForm = "the delta, an array of 2 numbers";
 
@@ -45,20 +51,23 @@ internal sealed class InputEventJsonConverter : JsonConverter<InputEvent>
         int? code = null;
         Vector2? delta = null;
         while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
-        {
             if (reader.ValueTextEquals("kind"u8))
             {
                 if (kind != null)
                     throw new JsonException("The kind is given twice.");
                 reader.Read();
-                kind = reader.TokenType == JsonTokenType.String ? reader.GetString() : throw new JsonException("The kind must be a string, such as \"keyDown\".");
+                kind = reader.TokenType == JsonTokenType.String
+                    ? reader.GetString()
+                    : throw new JsonException("The kind must be a string, such as \"keyDown\".");
             }
             else if (reader.ValueTextEquals("code"u8))
             {
                 if (code != null)
                     throw new JsonException("The code is given twice.");
                 reader.Read();
-                code = reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out int value) ? value : throw new JsonException("The code must be an integer.");
+                code = reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out int value)
+                    ? value
+                    : throw new JsonException("The code must be an integer.");
             }
             else if (reader.ValueTextEquals("delta"u8))
             {
@@ -69,12 +78,13 @@ internal sealed class InputEventJsonConverter : JsonConverter<InputEvent>
             }
             else
             {
-                throw new JsonException($"The member '{reader.GetString()}' is not a member of an input event. The members are kind, code and delta.");
+                throw new JsonException(
+                    $"The member '{reader.GetString()}' is not a member of an input event. The members are kind, code and delta.");
             }
-        }
 
         if (kind == null)
-            throw new JsonException($"An input event needs a kind: {KeyDown}, {KeyUp}, {MouseDown}, {MouseUp}, {MouseMove} or {Scroll}.");
+            throw new JsonException(
+                $"An input event needs a kind: {KeyDown}, {KeyUp}, {MouseDown}, {MouseUp}, {MouseMove} or {Scroll}.");
         if (Is(kind, KeyDown))
             return InputEvent.KeyDown(CodeOf(kind, code, delta));
         if (Is(kind, KeyUp))
@@ -83,11 +93,12 @@ internal sealed class InputEventJsonConverter : JsonConverter<InputEvent>
             return InputEvent.MouseDown(CodeOf(kind, code, delta));
         if (Is(kind, MouseUp))
             return InputEvent.MouseUp(CodeOf(kind, code, delta));
-        if (Is(kind, MouseMove))
-            return InputEvent.MouseMove(DeltaOf(kind, code, delta));
-        if (Is(kind, Scroll))
-            return InputEvent.Scroll(DeltaOf(kind, code, delta));
-        throw new JsonException($"'{kind}' is not an input event kind. The kinds are {KeyDown}, {KeyUp}, {MouseDown}, {MouseUp}, {MouseMove} and {Scroll}.");
+        return Is(kind, MouseMove)
+            ? InputEvent.MouseMove(DeltaOf(kind, code, delta))
+            : Is(kind, Scroll)
+                ? InputEvent.Scroll(DeltaOf(kind, code, delta))
+                : throw new JsonException(
+                    $"'{kind}' is not an input event kind. The kinds are {KeyDown}, {KeyUp}, {MouseDown}, {MouseUp}, {MouseMove} and {Scroll}.");
     }
 
     public override void Write(Utf8JsonWriter writer, InputEvent value, JsonSerializerOptions options)
@@ -113,20 +124,16 @@ internal sealed class InputEventJsonConverter : JsonConverter<InputEvent>
     }
 
     // The members of a kind of key or button event: its code, and no delta but the zero delta of an old recording.
-    private static int CodeOf(string kind, int? code, Vector2? delta)
-    {
-        if (delta is { } given && given != Vector2.Zero)
-            throw new JsonException($"A {kind} event has a code, not a delta.");
-        return code ?? throw new JsonException($"A {kind} event needs a code.");
-    }
+    private static int CodeOf(string kind, int? code, Vector2? delta) =>
+        delta is { } given && given != Vector2.Zero
+            ? throw new JsonException($"A {kind} event has a code, not a delta.")
+            : code ?? throw new JsonException($"A {kind} event needs a code.");
 
     // The members of a kind of move or scroll event: its delta, and no code but the zero code of an old recording.
-    private static Vector2 DeltaOf(string kind, int? code, Vector2? delta)
-    {
-        if (code is { } given && given != 0)
-            throw new JsonException($"A {kind} event has a delta, not a code.");
-        return delta ?? throw new JsonException($"A {kind} event needs a delta.");
-    }
+    private static Vector2 DeltaOf(string kind, int? code, Vector2? delta) =>
+        code is { } given && given != 0
+            ? throw new JsonException($"A {kind} event has a delta, not a code.")
+            : delta ?? throw new JsonException($"A {kind} event needs a delta.");
 
     private static bool Is(string kind, string name) => string.Equals(kind, name, StringComparison.OrdinalIgnoreCase);
 

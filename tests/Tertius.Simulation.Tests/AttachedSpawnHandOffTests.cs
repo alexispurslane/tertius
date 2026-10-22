@@ -12,8 +12,8 @@ namespace Tertius.Simulation.Tests;
 /// </summary>
 public class AttachedSpawnHandOffTests
 {
-    private static readonly Pose ChildOffset = new(new Vector3(0, 0, 2), Quaternion.Identity);
-    private static readonly Pose GrandchildOffset = new(new Vector3(0, 1, 0), Quaternion.Identity);
+    private static readonly Pose ChildOffset = new(new(0, 0, 2), Quaternion.Identity);
+    private static readonly Pose GrandchildOffset = new(new(0, 1, 0), Quaternion.Identity);
 
     /// <summary>An entity that a component spawned, the tick of the spawn, and a log of the event lists with a frame change in them.</summary>
     private sealed record Spawn(long Tick, Entity Entity, Recorder Log)
@@ -34,21 +34,24 @@ public class AttachedSpawnHandOffTests
     {
         public Scene()
         {
-            var backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 });
-            World = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true }, backend);
-            Space = World.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+            var backend = new JoltPhysicsBackend(new() { WorkerThreads = 2 });
+            World = new(new() { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true }, backend);
+            Space = World.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
             Station = World.SpawnStaticFrame(Space, TestWorld.At(10), radius: 5);
-            Ball = World.Spawn(new SpawnDesc
+            Ball = World.Spawn(new()
             {
                 Frame = Space,
                 Pose = TestWorld.At(3.5),
                 LinearVelocity = new Vector3(6, 0, 0),
-                Body = new BodyDesc(new SphereShapeDesc(0.5f), LinearDamping: 0, AngularDamping: 0),
-                Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-                {
-                    if (self.Frame == Space)
-                        Children.Add(SpawnAttached(self, ChildOffset, [ChildBehavior()]));
-                })],
+                Body = new(new SphereShapeDesc(0.5f), LinearDamping: 0, AngularDamping: 0),
+                Components =
+                [
+                    Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+                    {
+                        if (self.Frame == Space)
+                            Children.Add(SpawnAttached(self, ChildOffset, [ChildBehavior()]));
+                    })
+                ]
             });
         }
 
@@ -69,6 +72,7 @@ public class AttachedSpawnHandOffTests
                 if (World.GetFrame(Ball) == Station)
                     return tick;
             }
+
             throw new InvalidOperationException("The ball did not reach the station within 60 ticks.");
         }
 
@@ -78,14 +82,14 @@ public class AttachedSpawnHandOffTests
         private static Spawn SpawnAttached(Self self, Pose offset, IComponent[] components)
         {
             var log = new Recorder(EventMask.Of<FrameChanged>());
-            Entity spawned = self.Spawn(new SpawnDesc
+            Entity spawned = self.Spawn(new()
             {
                 Frame = self.Frame,
                 AttachTo = self.Entity,
                 AttachOffset = offset,
-                Components = [log, .. components],
+                Components = [log, .. components]
             });
-            return new Spawn(self.Tick, spawned, log);
+            return new(self.Tick, spawned, log);
         }
 
         /// <summary>Spawns one grandchild on the first tick of its child.</summary>
@@ -109,7 +113,8 @@ public class AttachedSpawnHandOffTests
 
         long handOff = scene.RunUntilHandOff();
 
-        Spawn child = scene.Children.Should().ContainSingle(c => c.Tick == handOff, "the ball still saw itself in space then").Subject;
+        Spawn child = scene.Children.Should()
+            .ContainSingle(c => c.Tick == handOff, "the ball still saw itself in space then").Subject;
         scene.World.IsAlive(child.Entity).Should().BeTrue();
         scene.World.GetFrame(child.Entity).Should().Be(scene.Station);
         DPose expected = DPose.Compose(scene.World.PoseInOwnFrame(scene.Ball), ChildOffset.ToDPose());

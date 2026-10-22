@@ -1,4 +1,3 @@
-using System.Numerics;
 using JoltPhysicsSharp;
 
 namespace Tertius.Physics;
@@ -22,9 +21,11 @@ public sealed partial class JoltPhysicsBackend
         {
             if (!frames.IsAlive(shift.Frame) || !frames.IsNumeric(shift.Frame))
             {
-                ReportBug($"Physics: cannot shift {shift.Frame}, which is not a live numeric frame. Only a bug sends such a shift, so it was skipped.");
+                ReportBug(
+                    $"Physics: cannot shift {shift.Frame}, which is not a live numeric frame. Only a bug sends such a shift, so it was skipped.");
                 continue;
             }
+
             if (ExistingWorld(shift.Frame) is not { } world)
                 continue;
             Double3 velocity = shift.Velocity;
@@ -36,15 +37,18 @@ public sealed partial class JoltPhysicsBackend
                 if (record.Character is { } character)
                 {
                     character.RPosition = (character.RPosition.ToDouble3() - shift.Offset).ToJolt();
-                    character.LinearVelocity = ((Double3)character.LinearVelocity - velocity).ToVector3();
+                    character.LinearVelocity = (character.LinearVelocity - velocity).ToVector3();
                     continue;
                 }
+
                 BodySnapshot s = ReadPrimary(record);
-                bodies.SetRPositionAndRotation(record.Body, (s.Pose.Position - shift.Offset).ToJolt(), s.Pose.Rotation.ToJolt(), Activation.DontActivate);
+                bodies.SetRPositionAndRotation(record.Body, (s.Pose.Position - shift.Offset).ToJolt(),
+                    s.Pose.Rotation.ToJolt(), Activation.DontActivate);
                 // A nonzero velocity wakes a sleeping body, as it must: the body now moves in the system.
                 if (record.IsMovable && velocity != Double3.Zero)
-                    bodies.SetLinearVelocity(record.Body, ((Double3)s.Linear - velocity).ToVector3());
+                    bodies.SetLinearVelocity(record.Body, (s.Linear - velocity).ToVector3());
             }
+
             world.ShiftGhosts(shift.Offset, velocity);
         }
     }

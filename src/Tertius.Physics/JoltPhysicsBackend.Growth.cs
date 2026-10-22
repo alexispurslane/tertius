@@ -5,12 +5,13 @@ namespace Tertius.Physics;
 
 public sealed partial class JoltPhysicsBackend
 {
+    private static readonly Comparer<BodyID> ByIndex =
+        Comparer<BodyID>.Create(static (a, b) => a.Index.CompareTo(b.Index));
+
     // Scratch for a growth: the IDs of the bodies of the full system, its characters, and the inner bodies that changed ID.
     private BodyID[] growthIds = new BodyID[256];
-    private readonly List<BodyRecord> growthCharacters = new();
-    private readonly Dictionary<uint, uint> renamedBodies = new();
-
-    private static readonly Comparer<BodyID> ByIndex = Comparer<BodyID>.Create(static (a, b) => a.Index.CompareTo(b.Index));
+    private readonly List<BodyRecord> growthCharacters = [];
+    private readonly Dictionary<uint, uint> renamedBodies = [];
 
     /// <summary>
     /// Makes room for one more body in the system of <paramref name="world"/>: grows the system when it is full. Every
@@ -39,13 +40,15 @@ public sealed partial class JoltPhysicsBackend
     /// the IDs of their old inner bodies. The world, its member list, every record and every rigid body ID stay the same,
     /// so a growth in the middle of a step, while a loop walks the members or the ghosts of any system, changes nothing
     /// that the loop holds. Only <see cref="FrameWorld.System"/>, <see cref="FrameWorld.Bodies"/> and the characters of
-    /// this world change. Costs time in proportion to the number of bodies: see <see cref="JoltBackendOptions.MaxBodiesPerFrame"/>.
+    /// this world change. Costs time in proportion to the number of bodies: see
+    /// <see cref="JoltBackendOptions.MaxBodiesPerFrame"/>.
     /// </summary>
     private unsafe void Grow(FrameWorld world)
     {
         SystemLimits limits = world.Limits.Doubled();
         if (limits.MaxBodies <= world.Limits.MaxBodies)
-            throw new InvalidOperationException($"The system of {world.Frame} holds {world.Limits.MaxBodies} bodies, the most that Jolt allows.");
+            throw new InvalidOperationException(
+                $"The system of {world.Frame} holds {world.Limits.MaxBodies} bodies, the most that Jolt allows.");
 
         PhysicsSystem full = world.System;
         BodyInterface from = world.Bodies;
@@ -56,7 +59,10 @@ public sealed partial class JoltPhysicsBackend
         if (count > growthIds.Length)
             Array.Resize(ref growthIds, Math.Max(count, growthIds.Length * 2));
         fixed (BodyID* first = growthIds)
+        {
             full.GetBodies(first, (uint)count);
+        }
+
         Array.Sort(growthIds, 0, count, ByIndex);
 
         for (int i = 0; i < count; i++)
@@ -71,21 +77,24 @@ public sealed partial class JoltPhysicsBackend
             // Every body in a system belongs to a live record. A body without one comes only from a bug.
             if (record is null)
             {
-                ReportBug($"Physics: {id} in {world.Frame} belongs to no entity. Only a bug leaves such a body. The growth of the system leaves it behind.");
+                ReportBug(
+                    $"Physics: {id} in {world.Frame} belongs to no entity. Only a bug leaves such a body. The growth of the system leaves it behind.");
                 continue;
             }
+
             RigidSpec spec = kind switch
             {
                 BodyKind.Primary => PrimarySpec(record),
                 BodyKind.Interior => InteriorSpec(record),
                 // A ghost keeps its layer, the layer of its role (see GhostBody.Role), and its motion.
-                _ => GhostSpec(record, from.GetMotionType(id), from.GetObjectLayer(id)),
+                _ => GhostSpec(record, from.GetMotionType(id), from.GetObjectLayer(id))
             };
             from.GetRPosition(id, out RVector3 position);
             from.GetLinearAndAngularVelocity(id, out Vector3 linear, out Vector3 angular);
             using BodyCreationSettings settings = Settings(spec, position, from.GetRotation(id), linear, angular);
             if (to.CreateBodyWithID(id, settings) is null)
-                throw new InvalidOperationException($"Jolt refused to move {id} into the grown system of {world.Frame}.");
+                throw new InvalidOperationException(
+                    $"Jolt refused to move {id} into the grown system of {world.Frame}.");
             to.AddBody(id, from.IsActive(id) ? Activation.Activate : Activation.DontActivate);
         }
 
@@ -93,7 +102,8 @@ public sealed partial class JoltPhysicsBackend
         foreach (BodyRecord member in world.Members)
             if (member.Character is not null)
                 growthCharacters.Add(member);
-        growthCharacters.Sort(static (a, b) => a.Character!.InnerBodyID.Index.CompareTo(b.Character!.InnerBodyID.Index));
+        growthCharacters.Sort(static (a, b) =>
+            a.Character!.InnerBodyID.Index.CompareTo(b.Character!.InnerBodyID.Index));
         renamedBodies.Clear();
         foreach (BodyRecord member in growthCharacters)
         {
@@ -116,7 +126,8 @@ public sealed partial class JoltPhysicsBackend
             member.Character!.RefreshContacts(PrimaryLayer(member), larger);
         growthCharacters.Clear();
 
-        log($"Physics: the system of {world.Frame} was full with {count} bodies, so it grew to hold {limits.MaxBodies}. " +
+        log(
+            $"Physics: the system of {world.Frame} was full with {count} bodies, so it grew to hold {limits.MaxBodies}. " +
             "Raise JoltBackendOptions.MaxBodiesPerFrame to avoid the pause.");
         Contract.Ensures(world.System == larger && !world.IsFull);
     }

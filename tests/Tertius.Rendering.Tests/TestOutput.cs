@@ -1,5 +1,4 @@
 using Silk.NET.Vulkan;
-using Tertius.Rendering;
 
 namespace Tertius.Rendering.Tests;
 
@@ -9,7 +8,8 @@ namespace Tertius.Rendering.Tests;
 /// features. It skips the next <see cref="FramesToSkip"/> frames, as a swapchain does while its window
 /// is minimized, and it can refuse captures, as a swapchain on some surfaces does.
 /// </summary>
-internal sealed class TestOutput(VulkanDevice device, DeviceAllocator allocator, Extent2D extent, bool bgra) : IOutputTarget
+internal sealed class TestOutput(VulkanDevice device, DeviceAllocator allocator, Extent2D extent, bool bgra)
+    : IOutputTarget
 {
     private readonly HeadlessTarget target = new(device, allocator, extent, bgra);
 
@@ -32,7 +32,8 @@ internal sealed class TestOutput(VulkanDevice device, DeviceAllocator allocator,
         return null;
     }
 
-    public void FinishRecording(BarrierBatch barriers, CommandBuffer commandBuffer) => target.FinishRecording(barriers, commandBuffer);
+    public void FinishRecording(BarrierBatch barriers, CommandBuffer commandBuffer) =>
+        target.FinishRecording(barriers, commandBuffer);
 
     public void SubmitAndPresent(FrameResources frame) => target.SubmitAndPresent(frame);
 

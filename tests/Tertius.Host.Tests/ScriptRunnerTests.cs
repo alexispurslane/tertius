@@ -11,10 +11,14 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public class ScriptRunnerTests
 {
-    private static RunResult Run(World world, SceneInstance scene, params string[] steps) =>
-        ScriptRunner.Run(Script.Parse($$"""{ "scene": "test", "steps": [ {{string.Join(", ", steps)}} ] }"""), world, scene);
+    private const string NudgeProbe =
+        """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Nudge", "payload": { "amount": 1.5 } }""";
 
-    private const string NudgeProbe = """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Nudge", "payload": { "amount": 1.5 } }""";
+    private const string CameraOnProbe = """{ "do": "camera", "entity": "probe" }""";
+
+    private static RunResult Run(World world, SceneInstance scene, params string[] steps) =>
+        ScriptRunner.Run(Script.Parse($$"""{ "scene": "test", "steps": [ {{string.Join(", ", steps)}} ] }"""), world,
+            scene);
 
     [Fact]
     public void RunStepsAdvanceTheWorldByTheirTicksInFileOrder()
@@ -41,7 +45,8 @@ public class ScriptRunnerTests
         ProbeOf(world, scene, "probe").Seen.Should().BeEmpty("the event is routed at the end of the first tick");
 
         Run(world, scene, """{ "do": "run", "ticks": 1 }""");
-        ProbeOf(world, scene, "probe").Seen.Should().ContainSingle().Which.Tick.Should().Be(1, "the second tick of the run is tick 1");
+        ProbeOf(world, scene, "probe").Seen.Should().ContainSingle().Which.Tick.Should()
+            .Be(1, "the second tick of the run is tick 1");
     }
 
     [Fact]
@@ -65,7 +70,8 @@ public class ScriptRunnerTests
         using World world = NewWorld();
         SceneInstance scene = Probes(world);
 
-        Run(world, scene, $$"""{ "do": "post", "to": {{target}}, "event": "Nudge" }""", """{ "do": "run", "ticks": 2 }""");
+        Run(world, scene, $$"""{ "do": "post", "to": {{target}}, "event": "Nudge" }""",
+            """{ "do": "run", "ticks": 2 }""");
 
         string[] all = ["probe", "bystander", "crew"];
         all.Where(id => ProbeOf(world, scene, id).Seen.Count > 0).Should().BeEquivalentTo(reached);
@@ -83,7 +89,7 @@ public class ScriptRunnerTests
             """{ "do": "run", "ticks": 2 }""");
 
         ProbeOf(world, scene, "probe").Seen.Select(seen => seen.Event.As<InputEvent>()).Should()
-            .Equal(InputEvent.MouseMove(new Vector2(1.5f, -2)), InputEvent.KeyUp(87));
+            .Equal(InputEvent.MouseMove(new(1.5f, -2)), InputEvent.KeyUp(87));
     }
 
     [Fact]
@@ -99,7 +105,7 @@ public class ScriptRunnerTests
             """{ "do": "run", "ticks": 2 }""");
 
         ProbeOf(world, scene, "probe").Seen.Select(seen => seen.Event.As<InputEvent>()).Should()
-            .Equal(InputEvent.KeyDown(87), InputEvent.MouseMove(new Vector2(3, -4)));
+            .Equal(InputEvent.KeyDown(87), InputEvent.MouseMove(new(3, -4)));
     }
 
     [Fact]
@@ -145,7 +151,8 @@ public class ScriptRunnerTests
         using World world = NewWorld();
         SceneInstance scene = Probes(world);
 
-        Run(world, scene, """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Nudge" }""", """{ "do": "run", "ticks": 2 }""");
+        Run(world, scene, """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Nudge" }""",
+            """{ "do": "run", "ticks": 2 }""");
 
         ProbeOf(world, scene, "probe").Seen.Single().Event.As<Nudge>().Amount.Should().Be(0);
     }
@@ -154,22 +161,46 @@ public class ScriptRunnerTests
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Shove" }""", "Shove")]
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "ghost" }, "event": "Nudge" }""", "ghost")]
     [InlineData("""{ "do": "post", "to": { "kind": "frame", "id": "probe" }, "event": "Nudge" }""", "probe")]
-    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Nudge", "payload": { "force": 1 } }""", "force")]
-    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Tag", "payload": { "other": "ghost" } }""", "ghost")]
+    [InlineData(
+        """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Nudge", "payload": { "force": 1 } }""",
+        "force")]
+    [InlineData(
+        """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Tag", "payload": { "other": "ghost" } }""",
+        "ghost")]
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Twin" }""", "Twin")]
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Label" }""", "Label")]
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Huge" }""", "Huge")]
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Fleeting" }""", "Fleeting")]
-    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Address", "payload": { "value": 1 } }""", "Address")]
-    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Fixed", "payload": { "amount": 5 } }""", "amount")]
-    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Nudge", "payload": { "amount": 1e39 } }""", "amount")]
-    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Aim", "payload": { "direction": [1e39, 0, 0] } }""", "direction")]
-    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Aim", "payload": { "direction": [1, 2] } }""", "direction")]
-    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Aim", "payload": { "point": [4, 5] } }""", "point")]
-    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Spin", "payload": { "attitude": [0, 0.6, 0] } }""", "attitude")]
-    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent", "payload": { "kind": 4 } }""", "kind")]
-    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent", "payload": { "kind": "mouseMove", "code": 7, "delta": [1.5, -2] } }""", "code")]
-    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent", "payload": { "kind": "keyDown" } }""", "code")]
+    [InlineData(
+        """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Address", "payload": { "value": 1 } }""",
+        "Address")]
+    [InlineData(
+        """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Fixed", "payload": { "amount": 5 } }""",
+        "amount")]
+    [InlineData(
+        """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Nudge", "payload": { "amount": 1e39 } }""",
+        "amount")]
+    [InlineData(
+        """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Aim", "payload": { "direction": [1e39, 0, 0] } }""",
+        "direction")]
+    [InlineData(
+        """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Aim", "payload": { "direction": [1, 2] } }""",
+        "direction")]
+    [InlineData(
+        """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Aim", "payload": { "point": [4, 5] } }""",
+        "point")]
+    [InlineData(
+        """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Spin", "payload": { "attitude": [0, 0.6, 0] } }""",
+        "attitude")]
+    [InlineData(
+        """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent", "payload": { "kind": 4 } }""",
+        "kind")]
+    [InlineData(
+        """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent", "payload": { "kind": "mouseMove", "code": 7, "delta": [1.5, -2] } }""",
+        "code")]
+    [InlineData(
+        """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent", "payload": { "kind": "keyDown" } }""",
+        "code")]
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent" }""", "kind")]
     [InlineData("""{ "do": "camera", "entity": "ghost" }""", "ghost")]
     public void AStepThatCannotRunStopsTheRunBeforeTheFirstTick(string badStep, string named)
@@ -177,7 +208,8 @@ public class ScriptRunnerTests
         using World world = NewWorld();
         SceneInstance scene = Probes(world);
 
-        Action run = () => Run(world, scene, """{ "do": "run", "ticks": 3 }""", badStep, """{ "do": "run", "ticks": 3 }""");
+        Action run = () =>
+            Run(world, scene, """{ "do": "run", "ticks": 3 }""", badStep, """{ "do": "run", "ticks": 3 }""");
 
         run.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 2").And.Contain(named);
         world.TickNumber.Should().Be(0);
@@ -186,7 +218,8 @@ public class ScriptRunnerTests
     [Theory]
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "crew" }, "event": "Nudge" }""")]
     [InlineData("""{ "do": "post", "to": { "kind": "frame", "id": "ship" }, "event": "Nudge" }""")]
-    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Link", "payload": { "frame": "ship" } }""")]
+    [InlineData(
+        """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Link", "payload": { "frame": "ship" } }""")]
     [InlineData("""{ "do": "camera", "entity": "crew" }""")]
     public void AStepThatNamesAnEntityThatIsGoneStopsTheRunBeforeTheFirstTick(string step)
     {
@@ -229,13 +262,13 @@ public class ScriptRunnerTests
 
         List<(long Tick, Event Event)> seen = ProbeOf(world, scene, "probe").Seen;
         seen.Should().HaveCount(3);
-        Aim aim = seen[0].Event.As<Aim>();
+        var aim = seen[0].Event.As<Aim>();
         aim.Direction.Should().Be(new Vector3(1, 2, 3));
         aim.Point.Should().Be(new Double3(4, 5, 6));
-        Spin spin = seen[1].Event.As<Spin>();
+        var spin = seen[1].Event.As<Spin>();
         spin.Turn.Should().Be(new Quaternion(0, 0, 0.6f, 0.8f));
         spin.Attitude.Should().Be(new DQuaternion(0, 0.6, 0, 0.8));
-        Link link = seen[2].Event.As<Link>();
+        var link = seen[2].Event.As<Link>();
         link.Channel.Should().Be(Topics.Get("test"));
         link.Frame.Should().Be(world.GetOwnedFrame(scene["ship"]));
     }
@@ -258,7 +291,8 @@ public class ScriptRunnerTests
         SceneInstance scene = Probes(world);
 
         RunResult result = Run(world, scene,
-            """{ "do": "dump", "name": "before" }""", """{ "do": "camera", "entity": "crew" }""", """{ "do": "dump", "name": "after" }""");
+            """{ "do": "dump", "name": "before" }""", """{ "do": "camera", "entity": "crew" }""",
+            """{ "do": "dump", "name": "after" }""");
 
         result.Dump("before").Camera.Should().BeNull("the probes scene sets no camera");
         result.Dump("after").Camera.Should().Be("crew");
@@ -272,7 +306,11 @@ public class ScriptRunnerTests
         string folder = NewFolder();
         try
         {
-            Action run = () => ScriptRunner.Run(Script.Parse("""{ "scene": "test", "steps": [ { "do": "camera", "entity": "probe" }, { "do": "capture", "name": "now" } ] }"""), world, scene, folder);
+            Action run = () =>
+                ScriptRunner.Run(
+                    Script.Parse(
+                        """{ "scene": "test", "steps": [ { "do": "camera", "entity": "probe" }, { "do": "capture", "name": "now" } ] }"""),
+                    world, scene, folder);
 
             run.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 2").And.Contain("renderer");
             world.TickNumber.Should().Be(0);
@@ -290,7 +328,8 @@ public class ScriptRunnerTests
         // The probes scene sets no camera, and no camera step comes before the capture.
         SceneInstance scene = Probes(world);
 
-        Action run = () => Run(world, scene, """{ "do": "run", "ticks": 1 }""", """{ "do": "capture", "name": "now" }""");
+        Action run = () =>
+            Run(world, scene, """{ "do": "run", "ticks": 1 }""", """{ "do": "capture", "name": "now" }""");
 
         run.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 2").And.Contain("camera");
         world.TickNumber.Should().Be(0);
@@ -320,7 +359,8 @@ public class ScriptRunnerTests
             return true;
         }
 
-        public bool Capture(World world, string name) => throw new InvalidOperationException("no captures in this test");
+        public bool Capture(World world, string name) =>
+            throw new InvalidOperationException("no captures in this test");
     }
 
     [Fact]
@@ -331,8 +371,8 @@ public class ScriptRunnerTests
         var playback = new NotesTheOutlineSetting(world);
 
         ScriptRunner.Run(Script.Parse("""
-            { "scene": "test", "steps": [ { "do": "run", "ticks": 1 }, { "do": "outlines", "show": true }, { "do": "run", "ticks": 2 }, { "do": "outlines", "show": false }, { "do": "run", "ticks": 1 } ] }
-            """), world, scene, playback: playback);
+                                      { "scene": "test", "steps": [ { "do": "run", "ticks": 1 }, { "do": "outlines", "show": true }, { "do": "run", "ticks": 2 }, { "do": "outlines", "show": false }, { "do": "run", "ticks": 1 } ] }
+                                      """), world, scene, playback: playback);
 
         playback.BeforeEachTick.Should().Equal(false, true, true, false);
     }
@@ -369,10 +409,10 @@ public class ScriptRunnerTests
     }
 
     /// <summary>Runs the steps on the scene with an output folder that the test deletes, and the playback.</summary>
-    private static RunResult RunWithCaptures(World world, SceneInstance scene, string folder, IPlayback playback, params string[] steps) =>
-        ScriptRunner.Run(Script.Parse($$"""{ "scene": "test", "steps": [ {{string.Join(", ", steps)}} ] }"""), world, scene, folder, playback);
-
-    private const string CameraOnProbe = """{ "do": "camera", "entity": "probe" }""";
+    private static RunResult RunWithCaptures(World world, SceneInstance scene, string folder, IPlayback playback,
+        params string[] steps) =>
+        ScriptRunner.Run(Script.Parse($$"""{ "scene": "test", "steps": [ {{string.Join(", ", steps)}} ] }"""), world,
+            scene, folder, playback);
 
     [Fact]
     public void AFilmCapturesEachFrameAfterItsTicksAndNamesItByItsNumberFromZeroInSixDigits()
@@ -384,7 +424,8 @@ public class ScriptRunnerTests
         try
         {
             RunResult result = RunWithCaptures(world, scene, folder, playback,
-                CameraOnProbe, """{ "do": "run", "ticks": 1 }""", """{ "do": "film", "name": "climb", "frames": 3, "every": 2 }""");
+                CameraOnProbe, """{ "do": "run", "ticks": 1 }""",
+                """{ "do": "film", "name": "climb", "frames": 3, "every": 2 }""");
 
             // The film starts after tick 1, and its frame k comes after (k + 1) × 2 of its own ticks.
             string[] frames = ["climb-000000", "climb-000001", "climb-000002"];
@@ -408,7 +449,8 @@ public class ScriptRunnerTests
         try
         {
             RunWithCaptures(world, scene, folder, playback, CameraOnProbe,
-                """{ "do": "film", "name": "a", "frames": 2, "every": 3 }""", """{ "do": "film", "name": "b", "frames": 2, "every": 3 }""");
+                """{ "do": "film", "name": "a", "frames": 2, "every": 3 }""",
+                """{ "do": "film", "name": "b", "frames": 2, "every": 3 }""");
 
             playback.Captured.Select(capture => capture.Tick).Should().Equal(3, 6, 9, 12);
         }
@@ -426,8 +468,8 @@ public class ScriptRunnerTests
         var playback = new NotesTheCaptures();
 
         RunResult result = ScriptRunner.Run(Script.Parse($$"""
-            { "scene": "test", "steps": [ {{CameraOnProbe}}, { "do": "capture", "name": "first" }, { "do": "film", "name": "climb", "frames": 1, "every": 1 } ] }
-            """), world, scene, outputFolder: null, playback);
+                                                           { "scene": "test", "steps": [ {{CameraOnProbe}}, { "do": "capture", "name": "first" }, { "do": "film", "name": "climb", "frames": 1, "every": 1 } ] }
+                                                           """), world, scene, outputFolder: null, playback);
 
         playback.Captured.Should().Equal((0, "first"), (1, "climb-000000"));
         result.Captures.Should().Equal("first", "climb-000000");
@@ -445,9 +487,12 @@ public class ScriptRunnerTests
         try
         {
             string first = cameraStep ? CameraOnProbe : """{ "do": "dump", "name": "start" }""";
-            Script script = Script.Parse($$"""{ "scene": "test", "steps": [ {{first}}, { "do": "run", "ticks": 1 }, { "do": "film", "name": "climb", "frames": 2, "every": 1 } ] }""");
+            Script script =
+                Script.Parse(
+                    $$"""{ "scene": "test", "steps": [ {{first}}, { "do": "run", "ticks": 1 }, { "do": "film", "name": "climb", "frames": 2, "every": 1 } ] }""");
 
-            Action run = () => ScriptRunner.Run(script, world, scene, folder, hasPlayback ? new NotesTheCaptures() : null);
+            Action run = () =>
+                ScriptRunner.Run(script, world, scene, folder, hasPlayback ? new NotesTheCaptures() : null);
 
             run.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 3 (film)").And.Contain(named);
             world.TickNumber.Should().Be(0);
@@ -467,7 +512,8 @@ public class ScriptRunnerTests
         try
         {
             RunResult result = RunWithCaptures(world, scene, folder, new NotesTheCaptures(ticks: 5),
-                CameraOnProbe, """{ "do": "film", "name": "climb", "frames": 5, "every": 2 }""", """{ "do": "dump", "name": "after" }""");
+                CameraOnProbe, """{ "do": "film", "name": "climb", "frames": 5, "every": 2 }""",
+                """{ "do": "dump", "name": "after" }""");
 
             result.Stopped.Should().BeTrue();
             world.TickNumber.Should().Be(5);
@@ -489,7 +535,8 @@ public class ScriptRunnerTests
         try
         {
             RunResult result = RunWithCaptures(world, scene, folder, new ClosesDuringCaptures(),
-                CameraOnProbe, """{ "do": "film", "name": "climb", "frames": 3, "every": 2 }""", """{ "do": "dump", "name": "after" }""");
+                CameraOnProbe, """{ "do": "film", "name": "climb", "frames": 3, "every": 2 }""",
+                """{ "do": "dump", "name": "after" }""");
 
             result.Stopped.Should().BeTrue();
             world.TickNumber.Should().Be(2, "the first frame waits for its capture after 2 ticks");
@@ -509,7 +556,8 @@ public class ScriptRunnerTests
 
         public bool WaitForTick() => run++ < ticks;
 
-        public bool Capture(World world, string name) => throw new InvalidOperationException("no captures in this test");
+        public bool Capture(World world, string name) =>
+            throw new InvalidOperationException("no captures in this test");
     }
 
     [Fact]
@@ -519,8 +567,8 @@ public class ScriptRunnerTests
         SceneInstance scene = Probes(world);
 
         RunResult result = ScriptRunner.Run(Script.Parse("""
-            { "scene": "test", "steps": [ { "do": "run", "ticks": 2 }, { "do": "dump", "name": "a" }, { "do": "run", "ticks": 5 }, { "do": "dump", "name": "b" } ] }
-            """), world, scene, playback: new StopsAfter(4));
+                                                         { "scene": "test", "steps": [ { "do": "run", "ticks": 2 }, { "do": "dump", "name": "a" }, { "do": "run", "ticks": 5 }, { "do": "dump", "name": "b" } ] }
+                                                         """), world, scene, playback: new StopsAfter(4));
 
         result.Stopped.Should().BeTrue();
         world.TickNumber.Should().Be(4);
@@ -553,8 +601,8 @@ public class ScriptRunnerTests
         try
         {
             RunResult result = ScriptRunner.Run(Script.Parse("""
-                { "scene": "test", "steps": [ { "do": "camera", "entity": "probe" }, { "do": "dump", "name": "a" }, { "do": "capture", "name": "b" }, { "do": "run", "ticks": 3 }, { "do": "dump", "name": "c" } ] }
-                """), world, scene, folder, new ClosesDuringCaptures());
+                                                             { "scene": "test", "steps": [ { "do": "camera", "entity": "probe" }, { "do": "dump", "name": "a" }, { "do": "capture", "name": "b" }, { "do": "run", "ticks": 3 }, { "do": "dump", "name": "c" } ] }
+                                                             """), world, scene, folder, new ClosesDuringCaptures());
 
             result.Stopped.Should().BeTrue();
             result.Dumps.Select(d => d.Name).Should().Equal("a");

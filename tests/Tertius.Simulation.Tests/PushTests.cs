@@ -11,14 +11,14 @@ namespace Tertius.Simulation.Tests;
 /// </summary>
 public class PushTests
 {
-    private static Push ForceOnly(Vector3 force) => Push.Of(new PhysicsIntent { Force = force });
+    private static Push ForceOnly(Vector3 force) => Push.Of(new() { Force = force });
 
     [Fact]
     public void AForceAtTheCenterOfMassGivesNoTorque()
     {
-        Double3 lever = Push.Lever(DQuaternion.Identity, new Double3(0, 1.5, -2), new Double3(0, 1.5, -2));
+        Double3 lever = Push.Lever(DQuaternion.Identity, new(0, 1.5, -2), new(0, 1.5, -2));
 
-        Push atCenter = ForceOnly(new Vector3(3, -4, 5)).At(lever);
+        Push atCenter = ForceOnly(new(3, -4, 5)).At(lever);
 
         atCenter.Force.Should().Be(new Double3(3, -4, 5));
         atCenter.Torque.Should().Be(Double3.Zero);
@@ -30,7 +30,7 @@ public class PushTests
         // A quarter turn about +Y takes the body's +X to the frame's -Z.
         DQuaternion quarterTurnAboutY = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
 
-        Double3 lever = Push.Lever(quarterTurnAboutY, new Double3(3, 0, 0), new Double3(1, 0, 0));
+        Double3 lever = Push.Lever(quarterTurnAboutY, new(3, 0, 0), new(1, 0, 0));
 
         lever.X.Should().BeApproximately(0, 1e-12);
         lever.Y.Should().BeApproximately(0, 1e-12);
@@ -40,7 +40,7 @@ public class PushTests
     [Fact]
     public void AForceAtALeverGivesItsCrossProductAsTorque()
     {
-        Push atLever = ForceOnly(new Vector3(0, 10, 0)).At(new Double3(2, 0, 0));
+        Push atLever = ForceOnly(new(0, 10, 0)).At(new(2, 0, 0));
 
         // (2, 0, 0) × (0, 10, 0) = (0, 0, 20).
         atLever.Force.Should().Be(new Double3(0, 10, 0));
@@ -50,9 +50,9 @@ public class PushTests
     [Fact]
     public void AnImpulseAtALeverGivesItsCrossProductAsAngularImpulse()
     {
-        Push impulse = Push.Of(new PhysicsIntent { Impulse = new Vector3(0, 0, 3), AngularImpulse = new Vector3(1, 0, 0) });
+        Push impulse = Push.Of(new() { Impulse = new(0, 0, 3), AngularImpulse = new(1, 0, 0) });
 
-        Push atLever = impulse.At(new Double3(0, 2, 0));
+        Push atLever = impulse.At(new(0, 2, 0));
 
         // (0, 2, 0) × (0, 0, 3) = (6, 0, 0), added to the part's own angular impulse.
         atLever.Impulse.Should().Be(new Double3(0, 0, 3));
@@ -63,35 +63,36 @@ public class PushTests
     [Fact]
     public void ATorqueAndAnAngularImpulseIgnoreTheLever()
     {
-        Push free = Push.Of(new PhysicsIntent { Torque = new Vector3(1, 2, 3), AngularImpulse = new Vector3(-4, 5, -6) });
+        Push free = Push.Of(new() { Torque = new(1, 2, 3), AngularImpulse = new(-4, 5, -6) });
 
-        Push atLever = free.At(new Double3(5, -7, 11));
+        Push atLever = free.At(new(5, -7, 11));
 
-        atLever.Should().Be(new Push(Double3.Zero, new Double3(1, 2, 3), Double3.Zero, new Double3(-4, 5, -6)));
+        atLever.Should().Be(new Push(Double3.Zero, new(1, 2, 3), Double3.Zero, new(-4, 5, -6)));
     }
 
     [Fact]
     public void TwoOppositeForcesAtOppositePlacesSumToExactlyZeroForce()
     {
         var thrust = new Vector3(0.1f, 0.3f, 0.7f);
-        Push left = ForceOnly(thrust).At(new Double3(1, 0, 0));
-        Push right = ForceOnly(-thrust).At(new Double3(-1, 0, 0));
+        Push left = ForceOnly(thrust).At(new(1, 0, 0));
+        Push right = ForceOnly(-thrust).At(new(-1, 0, 0));
 
         Push pair = left.Plus(right);
 
         pair.Force.Should().Be(Double3.Zero);
         // Each jet gives (1, 0, 0) × thrust, so the pair gives the couple twice that.
-        Double3 couple = Double3.Cross(new Double3(1, 0, 0), thrust) * 2;
+        Double3 couple = Double3.Cross(new(1, 0, 0), thrust) * 2;
         pair.Torque.Should().Be(couple);
     }
 
     [Fact]
     public void TheRootsOwnForceSurvivesAPairOfOppositeJetsExactly()
     {
-        var own = new PhysicsIntent { Force = new Vector3(1e5f, 3.3f, 0.1f), Velocity = new Double3(7, 8, 9), Flags = IntentFlags.SetVelocity };
+        var own = new PhysicsIntent
+            { Force = new(1e5f, 3.3f, 0.1f), Velocity = new(7, 8, 9), Flags = IntentFlags.SetVelocity };
         var thrust = new Vector3(0.123f, 4567.8f, 0.9f);
 
-        Push sum = Push.Of(own).Plus(ForceOnly(thrust).At(new Double3(0, 0, 4))).Plus(ForceOnly(-thrust).At(new Double3(0, 0, -4)));
+        Push sum = Push.Of(own).Plus(ForceOnly(thrust).At(new(0, 0, 4))).Plus(ForceOnly(-thrust).At(new(0, 0, -4)));
         PhysicsIntent written = own;
         sum.WriteInto(ref written);
 
@@ -106,10 +107,10 @@ public class PushTests
     {
         // Each part's 4e-8 N is less than half a float step at 1 N (6e-8 N), so a narrowing after each part would lose it,
         // and the three together are more than one step.
-        var own = new PhysicsIntent { Force = new Vector3(1, 0, 0), Torque = new Vector3(0, 1, 0) };
+        var own = new PhysicsIntent { Force = new(1, 0, 0), Torque = new(0, 1, 0) };
         Push sum = Push.Of(own);
         for (int part = 0; part < 3; part++)
-            sum = sum.Plus(Push.Of(new PhysicsIntent { Force = new Vector3(4e-8f, 0, 0), Torque = new Vector3(0, 4e-8f, 0) }));
+            sum = sum.Plus(Push.Of(new() { Force = new(4e-8f, 0, 0), Torque = new(0, 4e-8f, 0) }));
 
         PhysicsIntent written = own;
         sum.WriteInto(ref written);
@@ -121,10 +122,10 @@ public class PushTests
     [Fact]
     public void TheImpulsesOfASumNarrowOnceToo()
     {
-        var own = new PhysicsIntent { Impulse = new Vector3(0, 0, 1), AngularImpulse = new Vector3(1, 0, 0) };
+        var own = new PhysicsIntent { Impulse = new(0, 0, 1), AngularImpulse = new(1, 0, 0) };
         Push sum = Push.Of(own);
         for (int part = 0; part < 3; part++)
-            sum = sum.Plus(Push.Of(new PhysicsIntent { Impulse = new Vector3(0, 0, 4e-8f), AngularImpulse = new Vector3(4e-8f, 0, 0) }));
+            sum = sum.Plus(Push.Of(new() { Impulse = new(0, 0, 4e-8f), AngularImpulse = new(4e-8f, 0, 0) }));
 
         PhysicsIntent written = own;
         sum.WriteInto(ref written);

@@ -1,6 +1,4 @@
-using System.Numerics;
 using Tertius.Simulation;
-using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -22,33 +20,41 @@ public partial class NumericFrameStickOutGhostTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void ARockThatPassesACrateThatSticksOutOfAParkedStationLeavesTheSystemOfSpaceWhenItCanNoLongerTouchTheCratesGhost(bool numericFrames)
+    public void
+        ARockThatPassesACrateThatSticksOutOfAParkedStationLeavesTheSystemOfSpaceWhenItCanNoLongerTouchTheCratesGhost(
+            bool numericFrames)
     {
         using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
         Scene scene = Build(world, Layout.StationAndFastRock, rockOffset: 2);
         world.Tick();
-        world.PhysicsHomeOf(scene.Rock).Should().Be(scene.Space, "the rock may touch the ghost of the crate, which is fixed in the system of space");
+        world.PhysicsHomeOf(scene.Rock).Should().Be(scene.Space,
+            "the rock may touch the ghost of the crate, which is fixed in the system of space");
         for (int tick = 0; tick < 400; tick++)
         {
             world.Tick();
-            faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow($"after tick {world.TickNumber}");
-            faults.Jolt.GhostCount(scene.Crate).Should().Be(1, $"after tick {world.TickNumber} the crate has its one ghost, in the station's tree parent");
+            faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should()
+                .NotThrow($"after tick {world.TickNumber}");
+            faults.Jolt.GhostCount(scene.Crate).Should().Be(1,
+                $"after tick {world.TickNumber} the crate has its one ghost, in the station's tree parent");
             faults.Jolt.HasGhostIn(scene.Crate, scene.Space).Should().BeTrue();
         }
 
         FrameHandle home = world.PhysicsHomeOf(scene.Rock);
         if (numericFrames)
         {
-            world.Frames.Numeric(home).Should().Be(NumericMode.Falling, "the rock thrusts at 60 m/s, 300 m past the ghost of the crate");
+            world.Frames.Numeric(home).Should().Be(NumericMode.Falling,
+                "the rock thrusts at 60 m/s, 300 m past the ghost of the crate");
             world.Frames.SemanticOf(home).Should().Be(scene.Space);
         }
         else
         {
             home.Should().Be(scene.Space);
         }
+
         scene.RockLog.NewsOf(scene.Crate).Should().BeEmpty("the rock passes above the crate");
         // In 431 ticks, 7.2 s, the gentle thrust of 1e-4 m/s² changes the rock's velocity by at most 0.72 mm/s.
-        (world.VelocityIn(scene.Rock, scene.Space) - new Double3(-60, 0, 0)).Length.Should().BeLessThan(1e-3, "nothing but its gentle thrust touched the rock");
+        (world.VelocityIn(scene.Rock, scene.Space) - new Double3(-60, 0, 0)).Length.Should()
+            .BeLessThan(1e-3, "nothing but its gentle thrust touched the rock");
         world.Errors.Should().BeEmpty();
     }
 }

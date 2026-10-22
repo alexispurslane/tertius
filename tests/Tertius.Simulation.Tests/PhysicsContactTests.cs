@@ -27,10 +27,14 @@ public class PhysicsContactTests
         {
             Test = TestWorld.OnJolt(out FaultInjectingBackend faults);
             Faults = faults;
-            FirstLog = new Recorder(EventMask.Of<Collision>());
-            SecondLog = new Recorder(EventMask.Of<Collision>());
-            First = Test.World.Spawn(new SpawnDesc { Frame = Test.Root, Pose = TestWorld.At(0), Body = WorldTesting.Ball(), Components = [FirstLog] });
-            Second = Test.World.Spawn(new SpawnDesc { Frame = Test.Root, Pose = TestWorld.At(Distance), Body = WorldTesting.Ball(), Components = [SecondLog] });
+            FirstLog = new(EventMask.Of<Collision>());
+            SecondLog = new(EventMask.Of<Collision>());
+            First = Test.World.Spawn(new()
+                { Frame = Test.Root, Pose = TestWorld.At(0), Body = WorldTesting.Ball(), Components = [FirstLog] });
+            Second = Test.World.Spawn(new()
+            {
+                Frame = Test.Root, Pose = TestWorld.At(Distance), Body = WorldTesting.Ball(), Components = [SecondLog]
+            });
         }
 
         public FaultInjectingBackend Faults { get; }
@@ -101,7 +105,7 @@ public class PhysicsContactTests
         ContactStarted contact = scene.Contact;
         PoseChecks.AssertNear(contact.Normal, Vector3.UnitX, 0.01f);
         contact.Point.X.Should().BeInRange(0, Distance, "the balls touch between their centers");
-        Collision forFirst = scene.FirstLog.Seen.Single().Event.As<Collision>();
+        var forFirst = scene.FirstLog.Seen.Single().Event.As<Collision>();
         forFirst.Point.Should().Be(contact.Point);
         forFirst.Normal.Should().Be(contact.Normal);
     }
@@ -114,7 +118,7 @@ public class PhysicsContactTests
         scene.Test.Run(2);
 
         ContactStarted contact = scene.Contact;
-        Collision forSecond = scene.SecondLog.Seen.Single().Event.As<Collision>();
+        var forSecond = scene.SecondLog.Seen.Single().Event.As<Collision>();
         forSecond.Point.Should().Be(contact.Point);
         forSecond.Normal.Should().Be(-contact.Normal);
     }
@@ -126,22 +130,25 @@ public class PhysicsContactTests
     [Fact]
     public void ABodyInAnotherFrameHearsThePointAndNormalInItsOwnFrame()
     {
-        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
-        var shipPose = new DPose(new Double3(100, 0, 0), PoseChecks.QuarterTurnAboutY);
-        var deck = new CompoundShapeDesc([new CompoundChild(new BoxShapeDesc(new Vector3(5, 0.25f, 5)), new Pose(new Vector3(0, -2.25f, 0), Quaternion.Identity))]);
+        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        var shipPose = new DPose(new(100, 0, 0), PoseChecks.QuarterTurnAboutY);
+        var deck = new CompoundShapeDesc([
+            new(new BoxShapeDesc(new(5, 0.25f, 5)), new(new(0, -2.25f, 0), Quaternion.Identity))
+        ]);
         var ownerLog = new Recorder(EventMask.Of<Collision>());
         var crateLog = new Recorder(EventMask.Of<Collision>());
-        Entity owner = test.World.Spawn(new SpawnDesc
+        Entity owner = test.World.Spawn(new()
         {
             Frame = test.Root,
             Pose = shipPose,
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 5)), BodyMotion.Static, InteriorShape: deck),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(30), GravityField.Uniform(new Vector3(0, -9.81f, 0))),
-            Components = [ownerLog],
+            Body = new(new BoxShapeDesc(new(5, 3, 5)), BodyMotion.Static, InteriorShape: deck),
+            AsFrame = new(FrameBounds.Sphere(30), GravityField.Uniform(new(0, -9.81f, 0))),
+            Components = [ownerLog]
         });
         FrameHandle ship = test.World.GetOwnedFrame(owner);
-        var crateBody = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), LinearDamping: 0, AngularDamping: 0);
-        Entity crate = test.World.Spawn(new SpawnDesc { Frame = ship, Pose = TestWorld.At(0, 0, 0), Body = crateBody, Components = [crateLog] });
+        var crateBody = new BodyDesc(new BoxShapeDesc(new(0.5f)), LinearDamping: 0, AngularDamping: 0);
+        Entity crate = test.World.Spawn(new()
+            { Frame = ship, Pose = TestWorld.At(0, 0, 0), Body = crateBody, Components = [crateLog] });
 
         test.Run(90);
 
@@ -151,10 +158,10 @@ public class PhysicsContactTests
         contact.B.Should().Be(crate);
         // The crate is in the frame of the contact, so it hears the contact as it is, with the normal flipped. The owner is
         // in the root, so it hears the point and the normal turned and moved from the ship into the root.
-        Collision forCrate = crateLog.Seen.Single().Event.As<Collision>();
+        var forCrate = crateLog.Seen.Single().Event.As<Collision>();
         forCrate.Point.Should().Be(contact.Point);
         forCrate.Normal.Should().Be(-contact.Normal);
-        Collision forOwner = ownerLog.Seen.Single().Event.As<Collision>();
+        var forOwner = ownerLog.Seen.Single().Event.As<Collision>();
         PoseChecks.AssertNear(forOwner.Point, shipPose.Position + shipPose.Rotation.Rotate(contact.Point), 1e-6);
         PoseChecks.AssertNear(forOwner.Normal, shipPose.Rotation.Rotate(contact.Normal), 1e-5f);
         PoseChecks.AssertNear(contact.Normal, Vector3.UnitY, 0.01f);
@@ -169,9 +176,9 @@ public class PhysicsContactTests
     {
         using var scene = new Scene();
         scene.Faults.EditOutput = output =>
-            output.Contacts.Add(new ContactStarted(scene.First, scene.Second, FrameHandle.Null, new Double3(1, 2, 3), Vector3.UnitX, 5));
+            output.Contacts.Add(new(scene.First, scene.Second, FrameHandle.Null, new(1, 2, 3), Vector3.UnitX, 5));
 
-        Action tick = () => scene.Test.World.Tick();
+        Action tick = scene.Test.World.Tick;
 
         tick.Should().Throw<ContractException>();
     }
@@ -183,9 +190,9 @@ public class PhysicsContactTests
         FrameHandle gone = scene.Test.SpawnStaticFrame(TestWorld.At(0, 0, 5000), radius: 10);
         scene.Test.World.Destroy(gone.Entity);
         scene.Faults.EditOutput = output =>
-            output.Contacts.Add(new ContactStarted(scene.First, scene.Second, gone, new Double3(1, 2, 3), Vector3.UnitX, 5));
+            output.Contacts.Add(new(scene.First, scene.Second, gone, new(1, 2, 3), Vector3.UnitX, 5));
 
-        Action tick = () => scene.Test.World.Tick();
+        Action tick = scene.Test.World.Tick;
 
         tick.Should().Throw<ContractException>();
     }
@@ -194,12 +201,13 @@ public class PhysicsContactTests
     public void AContactWithAnEntityThatNoLongerExistsBreaksAContract()
     {
         using var scene = new Scene();
-        Entity gone = scene.Test.World.Spawn(new SpawnDesc { Frame = scene.Test.Root, Pose = TestWorld.At(0, 50), Body = WorldTesting.Ball() });
+        Entity gone = scene.Test.World.Spawn(new()
+            { Frame = scene.Test.Root, Pose = TestWorld.At(0, 50), Body = WorldTesting.Ball() });
         scene.Test.World.Destroy(gone);
         scene.Faults.EditOutput = output =>
-            output.Contacts.Add(new ContactStarted(gone, scene.Second, scene.Test.Root, new Double3(1, 2, 3), Vector3.UnitX, 5));
+            output.Contacts.Add(new(gone, scene.Second, scene.Test.Root, new(1, 2, 3), Vector3.UnitX, 5));
 
-        Action tick = () => scene.Test.World.Tick();
+        Action tick = scene.Test.World.Tick;
 
         tick.Should().Throw<ContractException>();
     }
@@ -208,11 +216,11 @@ public class PhysicsContactTests
     public void AContactWithAnEntityWithoutABodyBreaksAContract()
     {
         using var scene = new Scene();
-        Entity bodiless = scene.Test.SpawnAt(new Double3(3, 0, 0));
+        Entity bodiless = scene.Test.SpawnAt(new(3, 0, 0));
         scene.Faults.EditOutput = output =>
-            output.Contacts.Add(new ContactStarted(scene.First, bodiless, scene.Test.Root, new Double3(1, 2, 3), Vector3.UnitX, 5));
+            output.Contacts.Add(new(scene.First, bodiless, scene.Test.Root, new(1, 2, 3), Vector3.UnitX, 5));
 
-        Action tick = () => scene.Test.World.Tick();
+        Action tick = scene.Test.World.Tick;
 
         tick.Should().Throw<ContractException>();
     }
@@ -222,9 +230,9 @@ public class PhysicsContactTests
     {
         using var scene = new Scene();
         scene.Faults.EditOutput = output =>
-            output.Contacts.Add(new ContactStarted(scene.First, scene.First, scene.Test.Root, new Double3(1, 2, 3), Vector3.UnitX, 5));
+            output.Contacts.Add(new(scene.First, scene.First, scene.Test.Root, new(1, 2, 3), Vector3.UnitX, 5));
 
-        Action tick = () => scene.Test.World.Tick();
+        Action tick = scene.Test.World.Tick;
 
         tick.Should().Throw<ContractException>().WithMessage($"*{scene.First} cannot touch itself*");
     }
@@ -271,7 +279,8 @@ public class PhysicsContactTests
         using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
         var log = new Recorder(EventMask.Of<Collision>());
         Entity gone = test.World.Spawn(new SpawnDesc { Frame = test.Root, Body = WorldTesting.Ball() });
-        Entity survivor = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(0, 5), Body = WorldTesting.Ball(), Components = [log] });
+        Entity survivor = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(0, 5), Body =
+ WorldTesting.Ball(), Components = [log] });
         test.World.Destroy(gone);
         faults.EditOutputOfTick(0, output =>
             output.Contacts.Add(new ContactStarted(gone, survivor, test.Root, new Double3(1, 2, 3), Vector3.UnitX, 5)));
@@ -355,15 +364,16 @@ public class PhysicsContactTests
     [Fact]
     public void ABodyThatDestroysItselfInTheTickOfTheContactDoesNotStopItsPartnerFromHearingIt()
     {
-        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
         var log = new Recorder(EventMask.Of<Collision>());
-        Entity doomed = test.World.Spawn(new SpawnDesc
+        Entity doomed = test.World.Spawn(new()
         {
             Frame = test.Root,
             Body = WorldTesting.Ball(),
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy())],
+            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy())]
         });
-        Entity partner = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(Distance), Body = WorldTesting.Ball(), Components = [log] });
+        Entity partner = test.World.Spawn(new()
+            { Frame = test.Root, Pose = TestWorld.At(Distance), Body = WorldTesting.Ball(), Components = [log] });
 
         test.Run(2);
 

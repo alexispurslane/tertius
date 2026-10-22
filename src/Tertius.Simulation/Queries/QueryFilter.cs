@@ -43,17 +43,27 @@ internal readonly record struct WhereFilter(EntityPredicate Predicate);
 [Union]
 internal readonly struct QueryFilter : IEquatable<QueryFilter>
 {
-    private const byte KindNone = 0, KindIn = 1, KindNearAsker = 2, KindNearEntity = 3, KindNearPoint = 4, KindWhere = 5;
+    private const byte KindNone = 0,
+        KindIn = 1,
+        KindNearAsker = 2,
+        KindNearEntity = 3,
+        KindNearPoint = 4,
+        KindWhere = 5;
 
     private readonly byte kind;
+
     /// <summary>The frame of <see cref="InFilter"/> and of <see cref="NearPoint"/>.</summary>
     private readonly FrameHandle frame;
+
     /// <summary>The center of <see cref="NearEntity"/>.</summary>
     private readonly Entity centerEntity;
+
     /// <summary>The center of <see cref="NearPoint"/>, in <see cref="frame"/>.</summary>
     private readonly Double3 point;
+
     /// <summary>The radius of the three Near cases, in meters.</summary>
     private readonly double radius;
+
     private readonly EntityPredicate? predicate;
 
     // Every way to build a filter goes through these five constructors, so they check the invariants that the case
@@ -103,14 +113,24 @@ internal readonly struct QueryFilter : IEquatable<QueryFilter>
         predicate = filter.Predicate;
     }
 
+    /// <summary>False for the empty filter, which passes every entity.</summary>
+    public bool HasValue => kind != KindNone;
+
+    public object? Value => kind switch
+    {
+        KindIn => new InFilter(frame),
+        KindNearAsker => new NearAsker(radius),
+        KindNearEntity => new NearEntity(centerEntity, radius),
+        KindNearPoint => new NearPoint(frame, point, radius),
+        KindWhere => new WhereFilter(predicate!),
+        _ => null
+    };
+
     public static implicit operator QueryFilter(InFilter filter) => new(filter);
     public static implicit operator QueryFilter(NearAsker filter) => new(filter);
     public static implicit operator QueryFilter(NearEntity filter) => new(filter);
     public static implicit operator QueryFilter(NearPoint filter) => new(filter);
     public static implicit operator QueryFilter(WhereFilter filter) => new(filter);
-
-    /// <summary>False for the empty filter, which passes every entity.</summary>
-    public bool HasValue => kind != KindNone;
 
     public bool TryGetValue(out InFilter value)
     {
@@ -142,23 +162,14 @@ internal readonly struct QueryFilter : IEquatable<QueryFilter>
         return kind == KindWhere;
     }
 
-    public object? Value => kind switch
-    {
-        KindIn => new InFilter(frame),
-        KindNearAsker => new NearAsker(radius),
-        KindNearEntity => new NearEntity(centerEntity, radius),
-        KindNearPoint => new NearPoint(frame, point, radius),
-        KindWhere => new WhereFilter(predicate!),
-        _ => null,
-    };
-
     public static QueryFilter In(FrameHandle frame) => new(new InFilter(frame));
 
     public static QueryFilter Near(double radius) => new(new NearAsker(radius));
 
     public static QueryFilter Near(Entity other, double radius) => new(new NearEntity(other, radius));
 
-    public static QueryFilter Near(FrameHandle frame, Double3 point, double radius) => new(new NearPoint(frame, point, radius));
+    public static QueryFilter Near(FrameHandle frame, Double3 point, double radius) =>
+        new(new NearPoint(frame, point, radius));
 
     public static QueryFilter Where(EntityPredicate predicate) => new(new WhereFilter(predicate));
 
@@ -204,18 +215,21 @@ internal readonly struct QueryFilter : IEquatable<QueryFilter>
         NearEntity(var center, var distance) => IsWithinRadiusOfEntity(snapshot, center, row, distance),
         NearPoint(var pointFrame, var center, var distance) =>
             snapshot.World.Frames.IsAlive(pointFrame) && IsWithin(row, pointFrame, center, distance),
-        null => true,
+        null => true
     };
 
-    /// <summary>True if the row is in the frame of the live entity <paramref name="center"/>, within <paramref name="distance"/> meters of it.</summary>
-    private static bool IsWithinRadiusOfEntity(in Snapshot snapshot, Entity center, in TransformRow row, double distance) =>
+    /// <summary>True if the row is in the frame of the live entity <paramref name="center"/>, within
+    /// <paramref name="distance"/> meters of it.</summary>
+    private static bool IsWithinRadiusOfEntity(in Snapshot snapshot, Entity center, in TransformRow row,
+        double distance) =>
         TryCenterOfEntity(snapshot, center, out FrameHandle centerFrame, out Double3 centerPoint)
         && IsWithin(row, centerFrame, centerPoint, distance);
 
     private static bool IsWithin(in TransformRow row, FrameHandle centerFrame, Double3 centerPoint, double distance) =>
         row.Frame == centerFrame && (row.Pose.Position - centerPoint).LengthSquared <= distance * distance;
 
-    private static bool TryCenterOfEntity(in Snapshot snapshot, Entity center, out FrameHandle centerFrame, out Double3 centerPoint)
+    private static bool TryCenterOfEntity(in Snapshot snapshot, Entity center, out FrameHandle centerFrame,
+        out Double3 centerPoint)
     {
         EntityTable entities = snapshot.World.Entities;
         if (!entities.IsAlive(center))
@@ -224,6 +238,7 @@ internal readonly struct QueryFilter : IEquatable<QueryFilter>
             centerPoint = default;
             return false;
         }
+
         ref readonly TransformRow row = ref entities.FrontRow(center);
         centerFrame = row.Frame;
         centerPoint = row.Pose.Position;
@@ -233,7 +248,8 @@ internal readonly struct QueryFilter : IEquatable<QueryFilter>
     private static double CheckRadius(double radius) =>
         radius >= 0 && double.IsFinite(radius)
             ? radius
-            : throw new ArgumentOutOfRangeException(nameof(radius), radius, "A Near radius must be finite and zero or more.");
+            : throw new ArgumentOutOfRangeException(nameof(radius), radius,
+                "A Near radius must be finite and zero or more.");
 
     // The held case alone decides equality: the fields of the other cases are not compared.
     public bool Equals(QueryFilter other) => kind == other.kind && kind switch
@@ -243,7 +259,7 @@ internal readonly struct QueryFilter : IEquatable<QueryFilter>
         KindNearEntity => centerEntity == other.centerEntity && radius == other.radius,
         KindNearPoint => frame == other.frame && point == other.point && radius == other.radius,
         KindWhere => predicate == other.predicate,
-        _ => true,
+        _ => true
     };
 
     public override bool Equals(object? obj) => obj is QueryFilter filter && Equals(filter);
@@ -255,7 +271,7 @@ internal readonly struct QueryFilter : IEquatable<QueryFilter>
         KindNearEntity => HashCode.Combine(kind, centerEntity, radius),
         KindNearPoint => HashCode.Combine(kind, frame, point, radius),
         KindWhere => HashCode.Combine(kind, predicate),
-        _ => 0,
+        _ => 0
     };
 
     public static bool operator ==(QueryFilter a, QueryFilter b) => a.Equals(b);
@@ -268,6 +284,6 @@ internal readonly struct QueryFilter : IEquatable<QueryFilter>
         NearEntity f => $"QueryFilter({f})",
         NearPoint f => $"QueryFilter({f})",
         WhereFilter f => $"QueryFilter({f})",
-        null => "QueryFilter(none)",
+        null => "QueryFilter(none)"
     };
 }

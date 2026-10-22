@@ -21,17 +21,19 @@ public sealed class CaptureTests : IDisposable
     /// Runs the script on a fresh world and a fresh validating renderer, with its dumps and its images in
     /// <paramref name="output"/>, and checks that validation stayed silent.
     /// </summary>
-    private static RunResult Run(string json, Func<World> newWorld, Func<World, IRenderResources, SceneInstance> build, string output)
+    private static RunResult Run(string json, Func<World> newWorld, Func<World, IRenderResources, SceneInstance> build,
+        string output)
     {
         using World world = newWorld();
-        return Run(json, world, build, output, new PngFolder(output));
+        return Run(json, world, build, output, new(output));
     }
 
     /// <summary>
     /// Runs the script on the given world and a fresh validating renderer, with its dumps in <paramref name="output"/> and
     /// its images in <paramref name="images"/>, and checks that validation stayed silent.
     /// </summary>
-    private static RunResult Run(string json, World world, Func<World, IRenderResources, SceneInstance> build, string? output, PngFolder images)
+    private static RunResult Run(string json, World world, Func<World, IRenderResources, SceneInstance> build,
+        string? output, PngFolder images)
     {
         Script script = Script.Parse(json);
         // A small renderer: the runner resizes it to the script's window.
@@ -51,7 +53,8 @@ public sealed class CaptureTests : IDisposable
     [Fact]
     public void ACaptureWritesAPngOfTheScriptsWindowSizeIntoTheOutputFolder()
     {
-        RunResult result = Run("""{ "scene": "lit-box", "window": { "width": 320, "height": 180 }, "steps": [ { "do": "capture", "name": "front" } ] }""",
+        RunResult result = Run(
+            """{ "scene": "lit-box", "window": { "width": 320, "height": 180 }, "steps": [ { "do": "capture", "name": "front" } ] }""",
             NewWorld, LitBox, folder);
 
         result.Captures.Should().Equal("front");
@@ -72,7 +75,8 @@ public sealed class CaptureTests : IDisposable
     [Fact]
     public void ACaptureShowsTheSceneThroughTheCamera()
     {
-        Run("""{ "scene": "lit-box", "window": { "width": 320, "height": 180 }, "steps": [ { "do": "capture", "name": "front" } ] }""",
+        Run(
+            """{ "scene": "lit-box", "window": { "width": 320, "height": 180 }, "steps": [ { "do": "capture", "name": "front" } ] }""",
             NewWorld, LitBox, folder);
 
         Png image = Png.Load(Path.Combine(folder, "front.png"));
@@ -89,7 +93,8 @@ public sealed class CaptureTests : IDisposable
             """, NewWorld, LitBox, folder);
 
         Png.Load(Path.Combine(folder, "before.png")).IsRed(160, 90).Should().BeTrue();
-        Png.Load(Path.Combine(folder, "after.png")).IsRed(160, 90).Should().BeFalse("the away camera looks away from the box");
+        Png.Load(Path.Combine(folder, "after.png")).IsRed(160, 90).Should()
+            .BeFalse("the away camera looks away from the box");
     }
 
     [Fact]
@@ -113,15 +118,16 @@ public sealed class CaptureTests : IDisposable
     public void TheSameScriptCapturesByteIdenticalImagesInTwoRuns()
     {
         const string script = """
-            { "scene": "lit-drop", "window": { "width": 320, "height": 180 },
-              "steps": [ { "do": "run", "ticks": 40 }, { "do": "capture", "name": "falling" } ] }
-            """;
+                              { "scene": "lit-drop", "window": { "width": 320, "height": 180 },
+                                "steps": [ { "do": "run", "ticks": 40 }, { "do": "capture", "name": "falling" } ] }
+                              """;
         string second = Path.Combine(folder, "second");
 
         Run(script, NewJoltWorld, LitDrop, folder);
         Run(script, NewJoltWorld, LitDrop, second);
 
-        File.ReadAllBytes(Path.Combine(second, "falling.png")).Should().Equal(File.ReadAllBytes(Path.Combine(folder, "falling.png")));
+        File.ReadAllBytes(Path.Combine(second, "falling.png")).Should()
+            .Equal(File.ReadAllBytes(Path.Combine(folder, "falling.png")));
     }
 
     [Fact]
@@ -130,10 +136,12 @@ public sealed class CaptureTests : IDisposable
         using World world = NewWorld();
         string images = Path.Combine(folder, "images");
 
-        Run("""{ "scene": "lit-box", "window": { "width": 32, "height": 32 }, "steps": [ { "do": "capture", "name": "now" } ] }""",
-            world, LitBox, output: null, new PngFolder(images));
+        Run(
+            """{ "scene": "lit-box", "window": { "width": 32, "height": 32 }, "steps": [ { "do": "capture", "name": "now" } ] }""",
+            world, LitBox, output: null, new(images));
 
-        File.Exists(Path.Combine(images, "now.png")).Should().BeTrue("the target names the folder, and the PNG sink makes it");
+        File.Exists(Path.Combine(images, "now.png")).Should()
+            .BeTrue("the target names the folder, and the PNG sink makes it");
     }
 
     [Theory]
@@ -173,7 +181,8 @@ public sealed class CaptureTests : IDisposable
     [Theory]
     [InlineData("video.mkv", 1)]
     [InlineData("runs/VIDEO.MKV", 240)]
-    public void AVideoTargetTakesAMatroskaFileInAnyCaseAndARateFrom1To240FramesPerSecond(string path, int framesPerSecond)
+    public void AVideoTargetTakesAMatroskaFileInAnyCaseAndARateFrom1To240FramesPerSecond(string path,
+        int framesPerSecond)
     {
         var video = new VideoFile(path, framesPerSecond);
 
@@ -185,15 +194,18 @@ public sealed class CaptureTests : IDisposable
     {
         using World world = NewWorld();
 
-        Action run = () => Run("""{ "scene": "lit-box", "window": { "width": 32, "height": 32 }, "steps": [ { "do": "run", "ticks": 2 }, { "do": "capture", "name": "now" } ] }""",
-            world, (w, resources) =>
-            {
-                SceneInstance scene = LitBox(w, resources);
-                w.AddComponent(scene["front"], new DestroysItselfOnFirstTick());
-                return scene;
-            }, folder, new PngFolder(folder));
+        Action run = () =>
+            Run(
+                """{ "scene": "lit-box", "window": { "width": 32, "height": 32 }, "steps": [ { "do": "run", "ticks": 2 }, { "do": "capture", "name": "now" } ] }""",
+                world, (w, resources) =>
+                {
+                    SceneInstance scene = LitBox(w, resources);
+                    w.AddComponent(scene["front"], new DestroysItselfOnFirstTick());
+                    return scene;
+                }, folder, new(folder));
 
-        run.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 2").And.Contain("camera").And.Contain("not alive");
+        run.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 2").And.Contain("camera").And
+            .Contain("not alive");
         File.Exists(Path.Combine(folder, "now.png")).Should().BeFalse("an image of nothing is not written");
     }
 }

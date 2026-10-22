@@ -1,6 +1,5 @@
 using System.Numerics;
 using Tertius.Frames.Rails;
-using Tertius;
 
 namespace Tertius.Core.Tests;
 
@@ -9,25 +8,25 @@ public class FrameTests
     [Fact]
     public void SphereBoundsDistances()
     {
-        var b = FrameBounds.Sphere(100);
+        FrameBounds b = FrameBounds.Sphere(100);
         Assert.Equal(-100, b.SignedDistance(Double3.Zero));
-        Assert.Equal(50, b.SignedDistance(new Double3(150, 0, 0)), 9);
-        Assert.True(b.Touches(new Double3(105, 0, 0), 6));
-        Assert.False(b.Touches(new Double3(107, 0, 0), 6));
+        Assert.Equal(50, b.SignedDistance(new(150, 0, 0)), 9);
+        Assert.True(b.Touches(new(105, 0, 0), 6));
+        Assert.False(b.Touches(new(107, 0, 0), 6));
         // Exit margin is max(2% of 100, radius 6) = 6.
         Assert.Equal(6, b.ExitMargin(6));
-        Assert.True(b.FullyOutside(new Double3(112.5, 0, 0), 6, b.ExitMargin(6)));
-        Assert.False(b.FullyOutside(new Double3(111, 0, 0), 6, b.ExitMargin(6)));
+        Assert.True(b.FullyOutside(new(112.5, 0, 0), 6, b.ExitMargin(6)));
+        Assert.False(b.FullyOutside(new(111, 0, 0), 6, b.ExitMargin(6)));
     }
 
     [Fact]
     public void EllipsoidBoundsAlongAxes()
     {
-        var b = new FrameBounds(new Vector3(100, 50, 20));
-        Assert.Equal(0, b.SignedDistance(new Double3(100, 0, 0)), 9);
-        Assert.Equal(0, b.SignedDistance(new Double3(0, 50, 0)), 9);
-        Assert.Equal(10, b.SignedDistance(new Double3(0, 0, 30)), 9);
-        Assert.True(b.SignedDistance(new Double3(0, 0, 10)) < 0);
+        var b = new FrameBounds(new(100, 50, 20));
+        Assert.Equal(0, b.SignedDistance(new(100, 0, 0)), 9);
+        Assert.Equal(0, b.SignedDistance(new(0, 50, 0)), 9);
+        Assert.Equal(10, b.SignedDistance(new(0, 0, 30)), 9);
+        Assert.True(b.SignedDistance(new(0, 0, 10)) < 0);
     }
 
     [Fact]
@@ -40,30 +39,30 @@ public class FrameTests
     [Fact]
     public void PointGravityIsInverseSquare()
     {
-        var g = GravityField.Point(3.986004418e14);
-        Vector3 surface = g.At(new Double3(0, 6.371e6, 0));
+        GravityField g = GravityField.Point(3.986004418e14);
+        Vector3 surface = g.At(new(0, 6.371e6, 0));
         Assert.Equal(-9.82, surface.Y, 2);
-        Vector3 twice = g.At(new Double3(0, 2 * 6.371e6, 0));
+        Vector3 twice = g.At(new(0, 2 * 6.371e6, 0));
         Assert.Equal(surface.Y / 4, twice.Y, 3);
     }
 
     [Fact]
     public void UniformGravityRespectsRegion()
     {
-        var g = GravityField.Uniform(new Vector3(0, -9.81f, 0), new BoundingBox(new Vector3(-10), new Vector3(10)));
-        Assert.Equal(-9.81f, g.At(new Double3(0, 0, 0)).Y);
-        Assert.Equal(0, g.At(new Double3(0, 20, 0)).Y);
+        GravityField g = GravityField.Uniform(new(0, -9.81f, 0), new BoundingBox(new(-10), new(10)));
+        Assert.Equal(-9.81f, g.At(new(0, 0, 0)).Y);
+        Assert.Equal(0, g.At(new(0, 20, 0)).Y);
     }
 
     [Fact]
     public void CircularOrbitKeepsRadiusAndSpeed()
     {
         const double mu = 3.986004418e14, r = 7e6;
-        var orbit = KeplerOrbit.Circular(r);
+        KeplerOrbit orbit = KeplerOrbit.Circular(r);
         double speed = Math.Sqrt(mu / r);
         for (double t = 0; t < orbit.Period(mu); t += orbit.Period(mu) / 17)
         {
-            var (p, v) = orbit.StateAt(t, mu);
+            (Double3 p, Double3 v) = orbit.StateAt(t, mu);
             Assert.Equal(r, p.Length, 3);
             Assert.Equal(speed, v.Length, 6);
             Assert.True(Math.Abs(Double3.Dot(p, v)) < 1e-3 * r * speed);
@@ -77,14 +76,15 @@ public class FrameTests
         var orbit = new KeplerOrbit(1e7, 0.6, 0.4, 1.0, 0.5, 0.3, 0, DQuaternion.Identity, 0, 0);
         const double mu = 3.986004418e14;
         double energy = -mu / (2 * orbit.SemiMajorAxis);
-        var (p0, _) = orbit.StateAt(0, mu);
+        (Double3 p0, _) = orbit.StateAt(0, mu);
         for (double t = 0; t < orbit.Period(mu); t += orbit.Period(mu) / 23)
         {
-            var (p, v) = orbit.StateAt(t, mu);
+            (Double3 p, Double3 v) = orbit.StateAt(t, mu);
             double e = v.LengthSquared / 2 - mu / p.Length;
             Assert.True(Math.Abs((e - energy) / energy) < 1e-9, $"energy drift at t={t}");
         }
-        var (p1, _) = orbit.StateAt(orbit.Period(mu), mu);
+
+        (Double3 p1, _) = orbit.StateAt(orbit.Period(mu), mu);
         Assert.True((p1 - p0).Length < 1e-3);
     }
 
@@ -93,9 +93,9 @@ public class FrameTests
     {
         var orbit = new KeplerOrbit(2e7, 0.3, 0.2, 0.1, 1.1, 0, 0, DQuaternion.Identity, 0, 0);
         const double mu = 3.986004418e14, t = 1234.5, h = 1e-3;
-        var (pa, _) = orbit.StateAt(t - h, mu);
-        var (pb, _) = orbit.StateAt(t + h, mu);
-        var (_, v) = orbit.StateAt(t, mu);
+        (Double3 pa, _) = orbit.StateAt(t - h, mu);
+        (Double3 pb, _) = orbit.StateAt(t + h, mu);
+        (_, Double3 v) = orbit.StateAt(t, mu);
         Double3 numeric = (pb - pa) / (2 * h);
         Assert.True((numeric - v).Length < 1e-3, $"{numeric} vs {v}");
     }
@@ -104,7 +104,7 @@ public class FrameTests
     public void SpinRotatesAboutLocalY()
     {
         const double mu = 3.986004418e14;
-        var orbit = KeplerOrbit.Circular(0, spinRate: Math.PI / 2);
+        KeplerOrbit orbit = KeplerOrbit.Circular(0, spinRate: Math.PI / 2);
         DQuaternion q = orbit.RotationAt(1, mu);
         Double3 x = q.Rotate(Double3.UnitX);
         Assert.True((x - new Double3(0, 0, -1)).Length < 1e-12);
@@ -115,10 +115,11 @@ public class FrameTests
     public void FrameTreeVelocityConversionIncludesSpin()
     {
         var frames = new FrameTree();
-        FrameHandle root = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e12f));
-        FrameHandle station = frames.Create(new Entity(2, 1), root, new DPose(new Double3(1000, 0, 0), DQuaternion.Identity), FrameBounds.Sphere(200));
-        frames.SetTreeLinearVelocity(station, new Double3(0, 0, 50));
-        frames.SetAngularVelocity(station, new Vector3(0, 0.1f, 0));
+        FrameHandle root = frames.Create(new(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e12f));
+        FrameHandle station = frames.Create(new(2, 1), root, new(new(1000, 0, 0), DQuaternion.Identity),
+            FrameBounds.Sphere(200));
+        frames.SetTreeLinearVelocity(station, new(0, 0, 50));
+        frames.SetAngularVelocity(station, new(0, 0.1f, 0));
         frames.Update();
 
         // A point at rest on the station rim, 100 m out along +X.
@@ -135,11 +136,13 @@ public class FrameTests
     public void FrameTreeReparentKeepsPose()
     {
         var frames = new FrameTree();
-        FrameHandle root = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
-        FrameHandle carrier = frames.Create(new Entity(2, 1), root, new DPose(new Double3(5000, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, 0.5)), FrameBounds.Sphere(400));
-        FrameHandle fighter = frames.Create(new Entity(3, 1), root, new DPose(new Double3(5100, 10, 0), DQuaternion.Identity), FrameBounds.Sphere(15));
-        frames.SetTreeLinearVelocity(carrier, new Double3(10, 0, 0));
-        frames.SetTreeLinearVelocity(fighter, new Double3(12, 0, 0));
+        FrameHandle root = frames.Create(new(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
+        FrameHandle carrier = frames.Create(new(2, 1), root,
+            new(new(5000, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, 0.5)), FrameBounds.Sphere(400));
+        FrameHandle fighter = frames.Create(new(3, 1), root, new(new(5100, 10, 0), DQuaternion.Identity),
+            FrameBounds.Sphere(15));
+        frames.SetTreeLinearVelocity(carrier, new(10, 0, 0));
+        frames.SetTreeLinearVelocity(fighter, new(12, 0, 0));
         frames.Update();
 
         DPose before = frames.Relative(fighter, root);
@@ -157,11 +160,11 @@ public class FrameTests
     public void FrameTreeRejectsStaleHandles()
     {
         var frames = new FrameTree();
-        FrameHandle root = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(10));
-        FrameHandle child = frames.Create(new Entity(2, 1), root, DPose.Identity, FrameBounds.Sphere(1));
+        FrameHandle root = frames.Create(new(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(10));
+        FrameHandle child = frames.Create(new(2, 1), root, DPose.Identity, FrameBounds.Sphere(1));
         frames.Destroy(child);
         Assert.False(frames.IsAlive(child));
         Assert.Throws<InvalidOperationException>(() => frames.LocalPose(child));
-        Assert.False(frames.TryGetFrame(new Entity(2, 1), out _));
+        Assert.False(frames.TryGetFrame(new(2, 1), out _));
     }
 }

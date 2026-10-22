@@ -82,7 +82,7 @@ public class MessagingPostTests
         Topic topic = Topics.Get("tests.messagingpost.topic");
         var subscriber = new Recorder();
         var bystander = new Recorder();
-        t.World.Spawn(new SpawnDesc { Frame = t.Root, Components = [subscriber], Subscriptions = [topic] });
+        t.World.Spawn(new() { Frame = t.Root, Components = [subscriber], Subscriptions = [topic] });
         t.SpawnWith(bystander);
 
         t.World.Post(Message(topic, new Ping { Value = 1 }));

@@ -24,7 +24,8 @@ namespace Tertius.Demo;
 /// once when it must shorten, and with the time constant <see cref="ArmTime"/> when it can grow back.</item>
 /// <item>The look: along the heading, with the camera's up as the view's up, pitched toward the point
 /// <paramref name="ahead"/> meters ahead of the eye along the heading, and lowered as far as the subject's whole
-/// body needs to stay in the picture: the pitch is held where every corner of the subject's box, <paramref name="subjectHalf"/>,
+/// body needs to stay in the picture: the pitch is held where every corner of the subject's box,
+/// <paramref name="subjectHalf"/>,
 /// lies within <see cref="FrameMargin"/> of the half picture's height from the middle of the picture, in the
 /// <paramref name="verticalFov"/> of the view. When the arm shortens, the point ahead comes nearer in proportion. When the
 /// box is too tall for the picture, as with a wall close behind the subject, the top of the box stays in the picture and
@@ -49,8 +50,10 @@ namespace Tertius.Demo;
 /// <param name="above">How far above the subject's eye the camera keeps, along the camera's up, in meters.</param>
 /// <param name="ahead">How far ahead of the subject's eye the camera looks, along the heading, in meters.</param>
 /// <param name="subjectHalf">The half extents of a box round the drawn subject, around its center, in its axes, in meters.</param>
-/// <param name="verticalFov">The vertical angle of the view through the camera, in radians: the world's <see cref="World.VerticalFov"/>.</param>
-public sealed class ChaseCamera(double behind, double above, double ahead, Vector3 subjectHalf, double verticalFov) : IComponent
+/// <param name="verticalFov">The vertical angle of the view through the camera, in radians: the world's
+/// <see cref="World.VerticalFov"/>.</param>
+public sealed class ChaseCamera(double behind, double above, double ahead, Vector3 subjectHalf, double verticalFov)
+    : IComponent
 {
     /// <summary>The time constant with which the camera's up turns toward the subject's up, in seconds.</summary>
     public const double TurnTime = 0.5;
@@ -83,20 +86,29 @@ public sealed class ChaseCamera(double behind, double above, double ahead, Vecto
     private const int RayTag = 0x43_48_41_53;
 
     private readonly double behind = behind, above = above, ahead = ahead;
-    private readonly Double3 subjectHalf = (Double3)subjectHalf;
+
+    // The half size of the subject's box, in meters, in double precision. The name differs from the parameter's, because
+    // ReSharper's cleanup turns a field initializer that reads a parameter of the same name into a read of the field.
+    private readonly Double3 subjectBoxHalf = subjectHalf;
+
     // The largest angle from the view's axis, up or down, at which a corner of the subject's box may lie.
     private readonly double halfFrameAngle = Math.Atan(FrameMargin * Math.Tan(verticalFov / 2));
 
     // False until the first tick, which takes the heading from the offset at the spawn.
     private bool started;
+
     // The frame whose axes hold the vectors below: the camera's frame at the last tick.
     private FrameHandle frame;
+
     // The subject's position at the last tick, in the frame, and its velocity over the step before it, from positions.
     private Double3 lastPosition, subjectVelocity;
+
     // The camera's up, which follows the subject's up, and the heading, a unit vector across it.
     private Double3 up, heading;
+
     // How fast the heading swings about the up, in radians per second, positive counterclockwise seen from above.
     private double swingRate;
+
     // The length of the arm, in meters, and the free distance along it that the last answered ray measured.
     private double arm, free = double.PositiveInfinity;
 
@@ -138,6 +150,7 @@ public sealed class ChaseCamera(double behind, double above, double ahead, Vecto
             Double3 target = way.Normalized();
             error = Math.Atan2(Double3.Dot(up, Double3.Cross(heading, target)), Double3.Dot(heading, target));
         }
+
         double rate = 1 / SwingTime;
         swingRate += (rate * rate * error - 2 * rate * swingRate) * dt;
         heading = DQuaternion.FromAxisAngle(up, swingRate * dt).Rotate(heading).Normalized();
@@ -154,7 +167,8 @@ public sealed class ChaseCamera(double behind, double above, double ahead, Vecto
         double pitch = Pitch(eye + heading * (ahead * arm / length) - camera, pose.Rotation, camera);
         Double3 forward = heading * Math.Cos(pitch) + up * Math.Sin(pitch);
         DQuaternion toSubject = pose.Rotation.Conjugate();
-        self.AttachOffset = new Pose(toSubject.Rotate(camera).ToVector3(), View(toSubject.Rotate(forward), toSubject.Rotate(up)));
+        self.AttachOffset = new(toSubject.Rotate(camera).ToVector3(),
+            View(toSubject.Rotate(forward), toSubject.Rotate(up)));
 
         // The free distance along the whole arm, from the eye where the step that runs now ends.
         self.Physics.CastRayAll(pose.Position + subjectVelocity * dt + eye, back, length + WallGap, default, RayTag);
@@ -173,14 +187,16 @@ public sealed class ChaseCamera(double behind, double above, double ahead, Vecto
         bool inFront = true;
         for (int corner = 0; corner < 8; corner++)
         {
-            var local = new Double3((corner & 1) == 0 ? -subjectHalf.X : subjectHalf.X, (corner & 2) == 0 ? -subjectHalf.Y : subjectHalf.Y,
-                (corner & 4) == 0 ? -subjectHalf.Z : subjectHalf.Z);
+            var local = new Double3((corner & 1) == 0 ? -subjectBoxHalf.X : subjectBoxHalf.X,
+                (corner & 2) == 0 ? -subjectBoxHalf.Y : subjectBoxHalf.Y,
+                (corner & 4) == 0 ? -subjectBoxHalf.Z : subjectBoxHalf.Z);
             Double3 seen = rotation.Rotate(local) - camera;
             double along = Double3.Dot(seen, heading), pitch = Math.Atan2(Double3.Dot(seen, up), along);
             inFront &= along > 0;
             lowest = Math.Min(lowest, pitch);
             highest = Math.Max(highest, pitch);
         }
+
         double toward = Math.Atan2(Double3.Dot(aim, up), Double3.Dot(aim, heading));
         return inFront ? Math.Max(Math.Min(toward, lowest + halfFrameAngle), highest - halfFrameAngle) : toward;
     }
@@ -194,13 +210,14 @@ public sealed class ChaseCamera(double behind, double above, double ahead, Vecto
         {
             if (!events[i].Is<RayHit>())
                 continue;
-            RayHit hit = events[i].As<RayHit>();
+            var hit = events[i].As<RayHit>();
             if (hit.Tag != RayTag)
                 continue;
             answered = true;
             if (hit.IsHit && hit.Entity != subject)
                 nearest = Math.Min(nearest, hit.Distance);
         }
+
         if (answered)
             free = nearest;
     }
@@ -213,8 +230,12 @@ public sealed class ChaseCamera(double behind, double above, double ahead, Vecto
     {
         up = pose.Rotation.Rotate(Double3.UnitY);
         Double3 offset = Across(pose.Rotation.Rotate((Double3)self.AttachOffset.Position), up);
-        heading = offset.Length > 1e-9 ? -offset.Normalized() : Across(pose.Rotation.Rotate(-Double3.UnitZ), up).Normalized();
-        subjectVelocity = snapshot.TryGetVelocityIn(subject, self.Frame, out Double3 velocity) ? velocity : Double3.Zero;
+        heading = offset.Length > 1e-9
+            ? -offset.Normalized()
+            : Across(pose.Rotation.Rotate(-Double3.UnitZ), up).Normalized();
+        subjectVelocity = snapshot.TryGetVelocityIn(subject, self.Frame, out Double3 velocity)
+            ? velocity
+            : Double3.Zero;
         lastPosition = pose.Position - subjectVelocity * self.DeltaTime;
         arm = Math.Sqrt(behind * behind + above * above);
         swingRate = 0;
@@ -252,22 +273,27 @@ public sealed class ChaseCamera(double behind, double above, double ahead, Vecto
         return DQuaternion.FromAxisAngle(axis, Math.Atan2(sine, cosine) * share).Rotate(from).Normalized();
     }
 
-    /// <summary><paramref name="v"/> turned by the shortest turn that takes the unit vector <paramref name="from"/> to the unit vector <paramref name="to"/>.</summary>
+    /// <summary><paramref name="v"/> turned by the shortest turn that takes the unit vector <paramref name="from"/> to the unit vector
+    /// <paramref name="to"/>.</summary>
     private static Double3 Turn(Double3 v, Double3 from, Double3 to)
     {
         Double3 axis = Double3.Cross(from, to);
         double sine = axis.Length;
-        return sine < 1e-12 ? v : DQuaternion.FromAxisAngle(axis / sine, Math.Atan2(sine, Double3.Dot(from, to))).Rotate(v);
+        return sine < 1e-12
+            ? v
+            : DQuaternion.FromAxisAngle(axis / sine, Math.Atan2(sine, Double3.Dot(from, to))).Rotate(v);
     }
 
-    /// <summary>The turn of a view that looks along the unit vector <paramref name="forward"/>, with its up toward <paramref name="up"/>: a view with no turn looks along -Z, with +Y up.</summary>
+    /// <summary>The turn of a view that looks along the unit vector <paramref name="forward"/>, with its up toward
+    /// <paramref name="up"/>: a view with no turn looks along -Z, with +Y up.</summary>
     internal static Quaternion View(Double3 forward, Double3 up)
     {
         Double3 z = -forward;
         Double3 x = Double3.Cross(up, z).Normalized();
         Double3 y = Double3.Cross(z, x);
         // System.Numerics puts the turned axes in the rows.
-        var axes = new Matrix4x4((float)x.X, (float)x.Y, (float)x.Z, 0, (float)y.X, (float)y.Y, (float)y.Z, 0, (float)z.X, (float)z.Y, (float)z.Z, 0, 0, 0, 0, 1);
+        var axes = new Matrix4x4((float)x.X, (float)x.Y, (float)x.Z, 0, (float)y.X, (float)y.Y, (float)y.Z, 0,
+            (float)z.X, (float)z.Y, (float)z.Z, 0, 0, 0, 0, 1);
         return Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(axes));
     }
 }

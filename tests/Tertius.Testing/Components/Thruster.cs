@@ -4,14 +4,16 @@ using Tertius.Simulation;
 namespace Tertius.Testing;
 
 /// <summary>
-/// Pushes its entity's dynamic body with a steady force on every tick while <see cref="On"/> is true: <paramref name="mass"/>
+/// Pushes its entity's dynamic body with a steady force on every tick while <see cref="On"/> is true:
+/// <paramref name="mass"/>
 /// times <see cref="Acceleration"/> along <see cref="Direction"/>. The force of a tick acts in the physics step of the next
 /// tick.
 /// <para>
 /// A test uses it to make a body thrust under the default membership rules of numeric frames, where a group with a body
 /// that thrusts gets a falling frame from a lower speed (see <see cref="NumericFrameOptions.ThrustCreateSpeed"/>). The body
 /// counts as one that thrusts only after <see cref="NumericFrameOptions.ThrustOnset"/> (0.5 s) of thrust, so a test starts
-/// the thrust that long before the frame matters. The body keeps counting for <see cref="NumericFrameOptions.ThrustWindow"/>
+/// the thrust that long before the frame matters. The body keeps counting for
+/// <see cref="NumericFrameOptions.ThrustWindow"/>
 /// (20 s) after its last tick of thrust.
 /// </para>
 /// </summary>

@@ -13,5 +13,6 @@ internal sealed class FullThrottle : IComponent
 
     public EventMask Wants => EventMask.Of<Tick>();
 
-    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) => events.Add(new Throttle { Value = 1 });
+    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
+        events.Add(new Throttle { Value = 1 });
 }

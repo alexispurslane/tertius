@@ -27,7 +27,8 @@ public readonly ref struct EventsOf<T> where T : unmanaged, IEventPayload
     public EventsOf<T> Where(RefPredicate<T> predicate) => new(buffer, query.Where(predicate));
 
     /// <summary>Keeps the events whose payload passes <paramref name="predicate"/>, which gets <paramref name="state"/> as its second argument.</summary>
-    public EventsOf<T, TState> Where<TState>(TState state, RefPredicate<T, TState> predicate) => new(buffer, query.Where(state, predicate));
+    public EventsOf<T, TState> Where<TState>(TState state, RefPredicate<T, TState> predicate) =>
+        new(buffer, query.Where(state, predicate));
 
     /// <summary>Returns the enumerator that <c>foreach</c> uses.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -51,11 +52,10 @@ public readonly ref struct EventsOf<T> where T : unmanaged, IEventPayload
         private EventCursor<EventQuery<T>> cursor;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal Enumerator(EventBuffer buffer, EventQuery<T> query) => cursor = new(buffer, query);
-
-        /// <summary>Moves to the next matching event. Throws if the list changed.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool MoveNext() => cursor.MoveNext();
+        internal Enumerator(EventBuffer buffer, EventQuery<T> query)
+        {
+            cursor = new(buffer, query);
+        }
 
         /// <summary>A reference to the current payload. Writes go straight into the list.</summary>
         public readonly ref T Current
@@ -63,6 +63,10 @@ public readonly ref struct EventsOf<T> where T : unmanaged, IEventPayload
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => ref Unsafe.As<PayloadBytes, T>(ref cursor.Current.Payload);
         }
+
+        /// <summary>Moves to the next matching event. Throws if the list changed.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool MoveNext() => cursor.MoveNext();
     }
 }
 
@@ -106,11 +110,10 @@ public readonly ref struct EventsOf<T, TState> where T : unmanaged, IEventPayloa
         private EventCursor<EventQuery<T, TState>> cursor;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal Enumerator(EventBuffer buffer, EventQuery<T, TState> query) => cursor = new(buffer, query);
-
-        /// <summary>Moves to the next matching event. Throws if the list changed.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool MoveNext() => cursor.MoveNext();
+        internal Enumerator(EventBuffer buffer, EventQuery<T, TState> query)
+        {
+            cursor = new(buffer, query);
+        }
 
         /// <summary>A reference to the current payload. Writes go straight into the list.</summary>
         public readonly ref T Current
@@ -118,6 +121,10 @@ public readonly ref struct EventsOf<T, TState> where T : unmanaged, IEventPayloa
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => ref Unsafe.As<PayloadBytes, T>(ref cursor.Current.Payload);
         }
+
+        /// <summary>Moves to the next matching event. Throws if the list changed.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool MoveNext() => cursor.MoveNext();
     }
 }
 
@@ -165,11 +172,10 @@ public readonly ref struct EventsOfAnyType
         private EventCursor<AnyTypeFilter> cursor;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal Enumerator(EventBuffer buffer, AnyTypeFilter filter) => cursor = new(buffer, filter);
-
-        /// <summary>Moves to the next matching event. Throws if the list changed.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool MoveNext() => cursor.MoveNext();
+        internal Enumerator(EventBuffer buffer, AnyTypeFilter filter)
+        {
+            cursor = new(buffer, filter);
+        }
 
         /// <summary>A reference to the current event. Writes go straight into the list.</summary>
         public readonly ref Event Current
@@ -177,6 +183,10 @@ public readonly ref struct EventsOfAnyType
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => ref cursor.Current;
         }
+
+        /// <summary>Moves to the next matching event. Throws if the list changed.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool MoveNext() => cursor.MoveNext();
     }
 }
 
@@ -185,7 +195,9 @@ internal ref struct EventCursor<TFilter> where TFilter : struct, IEventFilter
 {
     private readonly EventBuffer buffer;
     private readonly Span<Event> items;
+
     private readonly int version;
+
     // Not readonly: a call on a readonly field of a generic struct type would copy the filter first.
     private TFilter filter;
     private int index;
@@ -198,6 +210,12 @@ internal ref struct EventCursor<TFilter> where TFilter : struct, IEventFilter
         items = filter.MayMatch(buffer.Mask) ? buffer.Items.AsSpan(0, buffer.Count) : default;
         version = buffer.Version;
         index = -1;
+    }
+
+    public readonly ref Event Current
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => ref items[index];
     }
 
     /// <summary>Moves to the next matching event. Throws if the list changed.</summary>
@@ -213,13 +231,8 @@ internal ref struct EventCursor<TFilter> where TFilter : struct, IEventFilter
         return false;
     }
 
-    public readonly ref Event Current
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => ref items[index];
-    }
-
     [DoesNotReturn]
     private static void ThrowModified() =>
-        throw new InvalidOperationException("The event list changed during enumeration. Use Where(...).Remove() to remove events by payload.");
+        throw new InvalidOperationException(
+            "The event list changed during enumeration. Use Where(...).Remove() to remove events by payload.");
 }

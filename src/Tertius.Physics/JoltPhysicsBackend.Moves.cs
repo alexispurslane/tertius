@@ -5,18 +5,26 @@ namespace Tertius.Physics;
 
 public sealed partial class JoltPhysicsBackend
 {
+    // Scratch for a batch of moves.
+    private readonly List<PendingMove> pendingMoves = [];
+
+    // Scratch for MoveGhostsThatStickOut: the ghosts in the old home of a moved hull.
+    private readonly List<BodyID> stickOutScratch = [];
+
     /// <summary>
     /// A body of a move batch, with its state read before any body of the batch left its system. <see cref="Offset"/> is
     /// the old home's origin in the new home, and <see cref="HomeVelocity"/> the old home's velocity relative to the new
     /// home, which the body's state gains.
     /// </summary>
-    private readonly record struct PendingMove(BodyRecord Record, FrameHandle To, DPose Pose, Vector3 Linear, Vector3 Angular, bool Awake,
-        Double3 Offset, Double3 HomeVelocity);
-
-    // Scratch for a batch of moves.
-    private readonly List<PendingMove> pendingMoves = new();
-    // Scratch for MoveGhostsThatStickOut: the ghosts in the old home of a moved hull.
-    private readonly List<BodyID> stickOutScratch = new();
+    private readonly record struct PendingMove(
+        BodyRecord Record,
+        FrameHandle To,
+        DPose Pose,
+        Vector3 Linear,
+        Vector3 Angular,
+        bool Awake,
+        Double3 Offset,
+        Double3 HomeVelocity);
 
     /// <summary>
     /// Applies the <see cref="PhysicsChanges.BodiesMoved"/> of a batch: each body leaves the system of its physics home for
@@ -48,11 +56,14 @@ public sealed partial class JoltPhysicsBackend
         foreach (BodyMove move in moves)
         {
             if (Find(move.Entity) is not { HasPrimary: true } record || !frames.IsAlive(move.To) ||
-                frames.SemanticOf(move.To) != frames.SemanticOf(record.Frame) || (record.IsHull && frames.TreeParent(record.OwnedFrame) != move.To))
+                frames.SemanticOf(move.To) != frames.SemanticOf(record.Frame) ||
+                (record.IsHull && frames.TreeParent(record.OwnedFrame) != move.To))
             {
-                ReportBug($"Physics: cannot move the body of {move.Entity} into {move.To}. Only a bug sends such a move, so it was skipped.");
+                ReportBug(
+                    $"Physics: cannot move the body of {move.Entity} into {move.To}. Only a bug sends such a move, so it was skipped.");
                 continue;
             }
+
             if (record.Frame == move.To)
                 continue;
             FrameHandle semantic = frames.SemanticOf(move.To);
@@ -63,9 +74,10 @@ public sealed partial class JoltPhysicsBackend
             BodySnapshot s = ReadPrimary(record);
             // A sleeping body has no velocity in its old home, so it has the homes' difference in the new one. It sleeps
             // on only when that is zero: else Jolt would carry it along with the new home.
-            bool awake = record.Character is not null || record.World!.Bodies.IsActive(record.Body) || velocity != Double3.Zero;
-            pendingMoves.Add(new PendingMove(record, move.To, new DPose(s.Pose.Position + offset, s.Pose.Rotation),
-                ((Double3)s.Linear + velocity).ToVector3(), s.Angular, awake, offset, velocity));
+            bool awake = record.Character is not null || record.World!.Bodies.IsActive(record.Body) ||
+                         velocity != Double3.Zero;
+            pendingMoves.Add(new(record, move.To, new(s.Pose.Position + offset, s.Pose.Rotation),
+                (s.Linear + velocity).ToVector3(), s.Angular, awake, offset, velocity));
         }
 
         for (int i = 0; i < pendingMoves.Count; i++)
@@ -83,7 +95,8 @@ public sealed partial class JoltPhysicsBackend
             // The body's velocity shadow moves with it, as its state does.
             VelocityShadow shadow = record.Shadow;
             RemovePrimary(record);
-            CreatePrimary(record, move.To, move.Pose, move.Linear, move.Angular, upFromGravity: record.Standing, awake: move.Awake);
+            CreatePrimary(record, move.To, move.Pose, move.Linear, move.Angular, upFromGravity: record.Standing,
+                awake: move.Awake);
             record.Shadow = shadow.Moved(move.Offset, move.HomeVelocity);
             if (record.Character is { } character)
                 character.RefreshContacts(PrimaryLayer(record), record.World!.System);
@@ -105,7 +118,8 @@ public sealed partial class JoltPhysicsBackend
     /// which takes the moved one's state. The contacts of a moved ghost wait for the next ghost pass, as those of a moved
     /// body do (see <see cref="ResolveLooseContacts"/>). Visits every ghost in the old home's system.
     /// </summary>
-    private void MoveGhostsThatStickOut(FrameHandle frame, FrameWorld from, FrameHandle to, Double3 offset, Double3 velocity)
+    private void MoveGhostsThatStickOut(FrameHandle frame, FrameWorld from, FrameHandle to, Double3 offset,
+        Double3 velocity)
     {
         stickOutScratch.Clear();
         from.CopyGhosts(stickOutScratch);
@@ -127,11 +141,13 @@ public sealed partial class JoltPhysicsBackend
             var pose = new DPose(position.ToDouble3() + offset, bodies.GetRotation(body).ToDouble());
             BodyLayer role = ghosts[index].Role;
             RemoveGhostAt(ghosts, index);
-            WantGhost(record, to, pose, (Double3)linear + velocity, angular, role);
+            WantGhost(record, to, pose, linear + velocity, angular, role);
         }
+
         stickOutScratch.Clear();
     }
 
     /// <summary>The ID of the body that stands for a record in contact pairs: its rigid body, or its character's inner body.</summary>
-    private static BodyID PrimaryId(BodyRecord record) => record.Character is { } character ? character.InnerBodyID : record.Body;
+    private static BodyID PrimaryId(BodyRecord record) =>
+        record.Character is { } character ? character.InnerBodyID : record.Body;
 }

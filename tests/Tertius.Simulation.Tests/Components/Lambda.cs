@@ -16,11 +16,11 @@ public delegate void HandleFn(Self self, scoped ref EventList events, scoped ref
 /// <param name="priority">Its place in the entity's pipeline. Lower runs first.</param>
 public sealed class Lambda(EventMask wants, HandleFn handle, int priority = 0) : IComponent
 {
-    public int Priority => priority;
-    public EventMask Wants => wants;
-
     /// <summary>How many times the scheduler has run it.</summary>
     public int Runs;
+
+    public int Priority => priority;
+    public EventMask Wants => wants;
 
     /// <summary>A lambda that runs on every tick: it wants <see cref="Tick"/>, which the scheduler sends to every entity that wants it.</summary>
     public static Lambda OnTick(HandleFn handle, int priority = 0) => new(EventMask.Of<Tick>(), handle, priority);

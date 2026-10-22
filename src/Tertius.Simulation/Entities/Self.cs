@@ -37,6 +37,33 @@ public readonly ref struct Self
     /// <summary>Simulation time at the start of this tick, in seconds.</summary>
     public double Time => world.Time;
 
+    /// <summary>The frame that this entity owns, or null when it owns none.</summary>
+    public FrameHandle OwnedFrame => world.Entities.OwnedFrame(Entity);
+
+    /// <summary>A proxy over this entity's physics intent for this tick. Physics receives it in the next step.</summary>
+    public BodyHandle Body => new(world, Entity);
+
+    /// <summary>This entity's physics queries, such as ray casts. Each answer arrives as an event in the next tick.</summary>
+    public PhysicsQueries Physics => new(world, chunk, Entity);
+
+    /// <summary>This entity's own render row (back buffer). Changes reach the renderer after the sync point.</summary>
+    public ref RenderData Render => ref world.Entities.WritableRender(Entity);
+
+    /// <summary>
+    /// The offset from the attachment parent, for writing. The new offset takes effect at the sync point.
+    /// Throws <see cref="InvalidOperationException"/> if the entity is not attached.
+    /// </summary>
+    public ref Pose AttachOffset => ref world.Attachments.WritableOffset(Entity);
+
+    /// <summary>The attachment parent, or null.</summary>
+    public Entity AttachedTo => world.Attachments.ParentOf(Entity);
+
+    /// <summary>
+    /// A read-only view of the front snapshot, for reading other entities. Its entity queries run around this entity,
+    /// for <see cref="EntityQuery.Near(double)"/>.
+    /// </summary>
+    public Snapshot Snapshot => new(world, Entity);
+
     /// <summary>
     /// The simulation time at the start of tick <paramref name="tick"/>, in seconds: the same double that
     /// <see cref="World.Time"/> holds during that tick. Use it for a time in another tick, because a sum such as
@@ -44,9 +71,6 @@ public readonly ref struct Self
     /// at <c>TimeAt(Tick + 2)</c>.
     /// </summary>
     public double TimeAt(long tick) => world.TimeAt(tick);
-
-    /// <summary>The frame that this entity owns, or null when it owns none.</summary>
-    public FrameHandle OwnedFrame => world.Entities.OwnedFrame(Entity);
 
     /// <summary>
     /// This entity's pose in <paramref name="frame"/>, from the front snapshot (the end of the previous tick). Throws
@@ -83,9 +107,6 @@ public readonly ref struct Self
     /// </summary>
     public DPose PoseAtNextStepStartIn(FrameHandle frame) => world.PoseAtNextStepStartIn(Entity, frame);
 
-    /// <summary>A proxy over this entity's physics intent for this tick. Physics receives it in the next step.</summary>
-    public BodyHandle Body => new(world, Entity);
-
     /// <summary>
     /// Writes <paramref name="sample"/>, the full motion of this entity over the next physics step, as the motion intent of
     /// that step (see <see cref="MotionSample"/>): the step in which this tick's intents act, which ends at
@@ -108,7 +129,7 @@ public readonly ref struct Self
     /// refuses an end pose, as <see cref="MoveOnRails"/> does.
     /// </summary>
     public void MoveKinematic(in DPose endPose) =>
-        world.WriteMotionIntent(Entity, nameof(MoveKinematic), new MotionIntent(new EndPose(endPose)));
+        world.WriteMotionIntent(Entity, nameof(MoveKinematic), new(new EndPose(endPose)));
 
     /// <summary>
     /// The reason that this entity refuses the case of <paramref name="intent"/> in the next step, or null when it takes it
@@ -123,27 +144,6 @@ public readonly ref struct Self
     /// allocates nothing, and a rails component asks it in every tick and reads the reason only for its one log line.
     /// </summary>
     public bool TakesMotionIntent(in MotionIntent intent) => world.TakesMotionIntent(Entity, intent);
-
-    /// <summary>This entity's physics queries, such as ray casts. Each answer arrives as an event in the next tick.</summary>
-    public PhysicsQueries Physics => new(world, chunk, Entity);
-
-    /// <summary>This entity's own render row (back buffer). Changes reach the renderer after the sync point.</summary>
-    public ref RenderData Render => ref world.Entities.WritableRender(Entity);
-
-    /// <summary>
-    /// The offset from the attachment parent, for writing. The new offset takes effect at the sync point.
-    /// Throws <see cref="InvalidOperationException"/> if the entity is not attached.
-    /// </summary>
-    public ref Pose AttachOffset => ref world.Attachments.WritableOffset(Entity);
-
-    /// <summary>The attachment parent, or null.</summary>
-    public Entity AttachedTo => world.Attachments.ParentOf(Entity);
-
-    /// <summary>
-    /// A read-only view of the front snapshot, for reading other entities. Its entity queries run around this entity,
-    /// for <see cref="EntityQuery.Near(double)"/>.
-    /// </summary>
-    public Snapshot Snapshot => new(world, Entity);
 
     /// <summary>Creates an entity. The handle is final and valid at once. The entity becomes live at the sync point and runs from the next tick.</summary>
     public Entity Spawn(SpawnDesc desc) => world.SpawnDuringTick(chunk, Entity, desc);
@@ -162,33 +162,35 @@ public readonly ref struct Self
     public void AddComponent(IComponent component)
     {
         ArgumentNullException.ThrowIfNull(component);
-        chunk.ComponentChanges.Add(new ComponentChange(Entity, component, true));
+        chunk.ComponentChanges.Add(new(Entity, component, true));
     }
 
     /// <summary>Removes a component after this run.</summary>
     public void RemoveComponent(IComponent component)
     {
         ArgumentNullException.ThrowIfNull(component);
-        chunk.ComponentChanges.Add(new ComponentChange(Entity, component, false));
+        chunk.ComponentChanges.Add(new(Entity, component, false));
     }
 
     /// <summary>The first of this entity's components that is a <typeparamref name="T"/>, or null. Components added during this run are not visible yet.</summary>
-    public T? GetComponent<T>() where T : class, IComponent => World.FindComponent<T>(world.Entities.Components(Entity));
+    public T? GetComponent<T>() where T : class, IComponent =>
+        World.FindComponent<T>(world.Entities.Components(Entity));
 
     /// <summary>Subscribes to a topic at the sync point. Messages sent to the topic during this tick already reach the entity.</summary>
-    public void Subscribe(Topic topic) => chunk.SubscriptionChanges.Add(new SubscriptionChange(Entity, topic, true));
+    public void Subscribe(Topic topic) => chunk.SubscriptionChanges.Add(new(Entity, topic, true));
 
     /// <summary>Unsubscribes from a topic at the sync point. The automatic frame topic cannot be removed.</summary>
-    public void Unsubscribe(Topic topic) => chunk.SubscriptionChanges.Add(new SubscriptionChange(Entity, topic, false));
+    public void Unsubscribe(Topic topic) => chunk.SubscriptionChanges.Add(new(Entity, topic, false));
 
     /// <summary>Writes a message to <see cref="World.Log"/> at the sync point.</summary>
-    public void Log(string message) => chunk.Messages.Add(new ChunkMessage($"tick {world.TickNumber}: {Entity}: {message}", false));
+    public void Log(string message) => chunk.Messages.Add(new($"tick {world.TickNumber}: {Entity}: {message}", false));
 }
 
 /// <summary>
 /// A proxy over the running entity's physics intent. All vectors are in frame axes. Forces, torques and impulses add
 /// up during the tick. Velocity changes, the motion intent (an end pose or a steer target), teleports, character moves
-/// and jumps keep the last value written. Physics applies the intent in the next step. Every method throws <see cref="InvalidOperationException"/>
+/// and jumps keep the last value written. Physics applies the intent in the next step. Every method throws
+/// <see cref="InvalidOperationException"/>
 /// when the entity has no body, except the four that push: <see cref="AddForce"/>, <see cref="AddTorque"/>,
 /// <see cref="AddImpulse"/> and <see cref="AddAngularImpulse"/>. Those also work on a part, an attached entity whose chain
 /// root has a body (docs/plans/parts.md): the part writes its own push, and the sync point after the tick carries it to
@@ -231,6 +233,10 @@ public readonly ref struct BodyHandle
 
     /// <summary>The intent written so far during this tick.</summary>
     public PhysicsIntent Pending => world.Entities.PendingIntent(entity);
+
+    private ref PhysicsIntent Intent => ref world.WritableIntent(entity);
+
+    private ref PhysicsIntent PushIntent => ref world.WritablePush(entity);
 
     /// <summary>
     /// Adds a force for the next step, in newtons. On a part, the force acts on the body of the part's chain root at the
@@ -287,7 +293,7 @@ public readonly ref struct BodyHandle
     /// refuses a steer target: only a dynamic body takes one.
     /// </summary>
     public void SteerTo(in DPose target) =>
-        world.WriteMotionIntent(entity, nameof(SteerTo), new MotionIntent(new SteerTarget(target)));
+        world.WriteMotionIntent(entity, nameof(SteerTo), new(new SteerTarget(target)));
 
     /// <summary>
     /// Puts the body at <paramref name="pose"/> before the next step, without sweeping. It is separate from the motion
@@ -362,8 +368,4 @@ public readonly ref struct BodyHandle
     /// motion for a hull without mass, or any motion but static for a hull whose shape is or holds a mesh.
     /// </exception>
     public void SetMotion(BodyMotion motion) => world.WriteHullMotion(entity, motion);
-
-    private ref PhysicsIntent Intent => ref world.WritableIntent(entity);
-
-    private ref PhysicsIntent PushIntent => ref world.WritablePush(entity);
 }

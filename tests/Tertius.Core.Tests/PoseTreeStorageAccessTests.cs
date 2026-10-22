@@ -1,6 +1,5 @@
 using System.Reflection;
 using AwesomeAssertions;
-using Tertius;
 
 namespace Tertius.Core.Tests;
 
@@ -12,8 +11,8 @@ namespace Tertius.Core.Tests;
 public class PoseTreeStorageAccessTests
 {
     [Theory]
-    [InlineData(nameof(PoseTree<Pose>.IdsDense))]
-    [InlineData(nameof(PoseTree<Pose>.Generations))]
+    [InlineData(nameof(PoseTree<>.IdsDense))]
+    [InlineData(nameof(PoseTree<>.Generations))]
     public void APoseTreeShowsItsStorageOnlyInsideTheCoreModule(string member)
     {
         PropertyInfo? property = typeof(PoseTree<Pose>).GetProperty(member,

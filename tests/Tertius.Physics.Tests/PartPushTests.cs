@@ -1,5 +1,4 @@
 using System.Numerics;
-using Tertius.Frames.Rails;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
 
@@ -23,18 +22,21 @@ public class PartPushTests
     private const float CrateMass = 50;
 
     /// <summary>A dynamic box of 2 m by 1 m by 4 m and 50 kg that nothing slows down, centered on its origin.</summary>
-    private static readonly BodyDesc Crate = new(new BoxShapeDesc(new Vector3(1, 0.5f, 2)), Mass: CrateMass, LinearDamping: 0, AngularDamping: 0);
+    private static readonly BodyDesc Crate = new(new BoxShapeDesc(new(1, 0.5f, 2)), Mass: CrateMass, LinearDamping: 0,
+        AngularDamping: 0);
 
     private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
 
     private static readonly DQuaternion Tilted = DQuaternion.FromAxisAngle(new Double3(0.3, 1, 0.2).Normalized(), 0.6);
 
-    private static FrameHandle Space(World world) => world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+    private static FrameHandle Space(World world) => world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
 
-    private static Pose Offset(double x, double y, double z) => new(new Vector3((float)x, (float)y, (float)z), Quaternion.Identity);
+    private static Pose Offset(double x, double y, double z) =>
+        new(new((float)x, (float)y, (float)z), Quaternion.Identity);
 
     private static Entity Attach(World world, Entity parent, Pose offset, params IComponent[] components) =>
-        world.Spawn(new SpawnDesc { Frame = world.GetFrame(parent), AttachTo = parent, AttachOffset = offset, Components = components });
+        world.Spawn(new()
+            { Frame = world.GetFrame(parent), AttachTo = parent, AttachOffset = offset, Components = components });
 
     // ---- Components ----
 
@@ -64,7 +66,8 @@ public class PartPushTests
                 self.Destroy();
         }
 
-        public static void Write(BodyHandle body, Vector3 force, Vector3 torque, Vector3 impulse, Vector3 angularImpulse)
+        public static void Write(BodyHandle body, Vector3 force, Vector3 torque, Vector3 impulse,
+            Vector3 angularImpulse)
         {
             if (force != Vector3.Zero)
                 body.AddForce(force);
@@ -105,11 +108,12 @@ public class PartPushTests
                 Jet.Write(self.Body, OwnForce, Vector3.Zero, Vector3.Zero, Vector3.Zero);
                 return;
             }
+
             DQuaternion q = self.PoseIn(self.Frame).Rotation;
             Double3 lever = q.Rotate(PlaceAt(self.Tick) - centerOfMass);
-            Vector3 force = ((Double3)OwnForce + (Double3)Force).ToVector3();
-            Vector3 torque = (Double3.Zero + ((Double3)Torque + Double3.Cross(lever, Force))).ToVector3();
-            Vector3 angular = (Double3.Zero + ((Double3)AngularImpulse + Double3.Cross(lever, Impulse))).ToVector3();
+            var force = (OwnForce + (Double3)Force).ToVector3();
+            var torque = (Double3.Zero + (Torque + Double3.Cross(lever, Force))).ToVector3();
+            var angular = (Double3.Zero + (AngularImpulse + Double3.Cross(lever, Impulse))).ToVector3();
             Jet.Write(self.Body, force, torque, Impulse, angular);
         }
     }
@@ -145,7 +149,13 @@ public class PartPushTests
     // ---- Comparing two runs ----
 
     /// <summary>The state of one live entity after a tick, in its own frame, in doubles.</summary>
-    private readonly record struct Row(long Tick, Entity Entity, FrameHandle Frame, DPose Pose, Double3 Velocity, Vector3 AngularVelocity);
+    private readonly record struct Row(
+        long Tick,
+        Entity Entity,
+        FrameHandle Frame,
+        DPose Pose,
+        Double3 Velocity,
+        Vector3 AngularVelocity);
 
     /// <summary>A scene: it spawns into a new world, and the flag says whether a part pushes (true) or the root does (false).</summary>
     private delegate void Scene(World world, bool partPushes);
@@ -172,9 +182,11 @@ public class PartPushTests
                 FrameHandle frame = world.GetFrame(entity);
                 if (frame.IsNull)
                     continue;
-                rows.Add(new Row(tick, entity, frame, world.PoseIn(entity, frame), world.VelocityIn(entity, frame), world.AngularVelocityIn(entity, frame)));
+                rows.Add(new(tick, entity, frame, world.PoseIn(entity, frame), world.VelocityIn(entity, frame),
+                    world.AngularVelocityIn(entity, frame)));
             }
         }
+
         world.Errors.Should().BeEmpty();
         inspect?.Invoke(faults);
         return rows;
@@ -191,7 +203,8 @@ public class PartPushTests
         List<Row> withOwn = Run(scene, partPushes: false, ticks, configure);
         withPart.Count.Should().Be(withOwn.Count);
         int differs = Enumerable.Range(0, withPart.Count).FirstOrDefault(i => withPart[i] != withOwn[i], -1);
-        differs.Should().Be(-1, "the runs differ first at {0}:\n{1}\n{2}", differs, differs < 0 ? "" : withPart[differs], differs < 0 ? "" : withOwn[differs]);
+        differs.Should().Be(-1, "the runs differ first at {0}:\n{1}\n{2}", differs,
+            differs < 0 ? "" : withPart[differs], differs < 0 ? "" : withOwn[differs]);
         return withPart;
     }
 
@@ -202,7 +215,8 @@ public class PartPushTests
     /// <paramref name="place"/>, which pushes with <paramref name="jet"/> when <paramref name="partPushes"/>. Otherwise the
     /// crate's <see cref="OwnJet"/> pushes the same. Returns the crate.
     /// </summary>
-    private static Entity CrateWithPart(World world, bool partPushes, DQuaternion rotation, Double3 place, Jet jet, Vector3 ownForce = default,
+    private static Entity CrateWithPart(World world, bool partPushes, DQuaternion rotation, Double3 place, Jet jet,
+        Vector3 ownForce = default,
         BodyDesc? body = null, FrameHandle frame = default, Double3 position = default, Double3 velocity = default)
     {
         FrameHandle into = frame.IsNull ? Space(world) : frame;
@@ -212,16 +226,17 @@ public class PartPushTests
             : new OwnJet(Vector3.Zero)
             {
                 // The part's offset is a float pose, so its place in the body is the place narrowed and widened again.
-                PlaceAt = _ => (Double3)Offset(place.X, place.Y, place.Z).Position, Force = jet.Force, Torque = jet.Torque, Impulse = jet.Impulse, AngularImpulse = jet.AngularImpulse,
-                OwnForce = ownForce, From = jet.From, Until = jet.Until,
+                PlaceAt = _ => Offset(place.X, place.Y, place.Z).Position, Force = jet.Force, Torque = jet.Torque,
+                Impulse = jet.Impulse, AngularImpulse = jet.AngularImpulse,
+                OwnForce = ownForce, From = jet.From, Until = jet.Until
             };
-        Entity crate = world.Spawn(new SpawnDesc
+        Entity crate = world.Spawn(new()
         {
             Frame = into,
-            Pose = new DPose(position, rotation),
+            Pose = new(position, rotation),
             LinearVelocity = velocity,
             Body = crateBody,
-            Components = [root],
+            Components = [root]
         });
         Attach(world, crate, Offset(place.X, place.Y, place.Z), partPushes ? [jet] : []);
         return crate;
@@ -234,7 +249,9 @@ public class PartPushTests
     {
         Entity crate = default;
         List<Row> rows = ShouldMatchBitForBit((world, part) =>
-            crate = CrateWithPart(world, part, DQuaternion.Identity, new Double3(0, 0, -2), new Jet { Force = new Vector3(0, 0, 40) }), 30);
+                crate = CrateWithPart(world, part, DQuaternion.Identity, new(0, 0, -2),
+                    new() { Force = new(0, 0, 40) }),
+            30);
 
         Row last = Last(rows, crate);
         last.Velocity.Z.Should().BeGreaterThan(0.3, "40 N on 50 kg for half a second");
@@ -246,7 +263,7 @@ public class PartPushTests
     {
         Entity crate = default;
         List<Row> rows = ShouldMatchBitForBit((world, part) =>
-            crate = CrateWithPart(world, part, Tilted, new Double3(1, 0.5, -2), new Jet { Force = new Vector3(5, 0, 40) }), 30);
+            crate = CrateWithPart(world, part, Tilted, new(1, 0.5, -2), new() { Force = new(5, 0, 40) }), 30);
 
         Last(rows, crate).AngularVelocity.Length().Should().BeGreaterThan(0.05f, "the force misses the center of mass");
     }
@@ -258,19 +275,22 @@ public class PartPushTests
         using (world)
         {
             FrameHandle space = Space(world);
-            var offsetBox = new CompoundShapeDesc([new CompoundChild(new BoxShapeDesc(new Vector3(1, 0.5f, 2)), new Pose(new Vector3(1.5f, -1, 2), Quaternion.Identity))]);
+            var offsetBox = new CompoundShapeDesc([
+                new(new BoxShapeDesc(new(1, 0.5f, 2)), new(new(1.5f, -1, 2), Quaternion.Identity))
+            ]);
             Vector3 centerOfMass = backend.ShapeCenterOfMass(offsetBox);
             centerOfMass.Length().Should().BeGreaterThan(2, "the box sits well off the body's origin");
-            Entity crate = world.Spawn(new SpawnDesc
+            Entity crate = world.Spawn(new()
             {
                 Frame = space,
-                Body = new BodyDesc(offsetBox, Mass: CrateMass, LinearDamping: 0, AngularDamping: 0),
+                Body = new(offsetBox, Mass: CrateMass, LinearDamping: 0, AngularDamping: 0)
             });
-            Attach(world, crate, new Pose(centerOfMass, Quaternion.Identity), new Jet { Force = new Vector3(0, 30, 40) });
+            Attach(world, crate, new(centerOfMass, Quaternion.Identity), new Jet { Force = new(0, 30, 40) });
 
             Tick(world, 30);
 
-            world.AngularVelocityIn(crate, space).Should().Be(Vector3.Zero, "the part sits at the center of mass, so its lever is zero");
+            world.AngularVelocityIn(crate, space).Should()
+                .Be(Vector3.Zero, "the part sits at the center of mass, so its lever is zero");
             world.VelocityIn(crate, space).Z.Should().BeGreaterThan(0.3);
             world.Errors.Should().BeEmpty();
         }
@@ -281,9 +301,9 @@ public class PartPushTests
     {
         using World world = NewWorld(out _);
         FrameHandle space = Space(world);
-        Entity crate = world.Spawn(new SpawnDesc { Frame = space, Body = Crate });
-        Attach(world, crate, Offset(1, 0, 0), new Jet { Force = new Vector3(0, 0, 10) });
-        Attach(world, crate, Offset(-1, 0, 0), new Jet { Force = new Vector3(0, 0, -10) });
+        Entity crate = world.Spawn(new() { Frame = space, Body = Crate });
+        Attach(world, crate, Offset(1, 0, 0), new Jet { Force = new(0, 0, 10) });
+        Attach(world, crate, Offset(-1, 0, 0), new Jet { Force = new(0, 0, -10) });
 
         Tick(world, 30);
 
@@ -299,7 +319,8 @@ public class PartPushTests
     {
         Entity crate = default;
         List<Row> rows = ShouldMatchBitForBit((world, part) =>
-            crate = CrateWithPart(world, part, Tilted, new Double3(0, 0, 1), new Jet { Force = new Vector3(0, 5, 0) }, ownForce: new Vector3(10, 0, 0)), 30);
+            crate = CrateWithPart(world, part, Tilted, new(0, 0, 1), new() { Force = new(0, 5, 0) },
+                ownForce: new(10, 0, 0)), 30);
 
         Last(rows, crate).Velocity.X.Should().BeGreaterThan(0.08, "the root's own 10 N acts too");
     }
@@ -309,10 +330,11 @@ public class PartPushTests
     {
         Entity crate = default;
         List<Row> rows = ShouldMatchBitForBit((world, part) =>
-            crate = CrateWithPart(world, part, Tilted, new Double3(2, 0, 0), new Jet { Torque = new Vector3(0, 3, 0) }), 30);
+            crate = CrateWithPart(world, part, Tilted, new(2, 0, 0), new() { Torque = new(0, 3, 0) }), 30);
 
         Last(rows, crate).AngularVelocity.Length().Should().BeGreaterThan(0.01f);
-        Last(rows, crate).Velocity.Should().Be(Double3.Zero, "a torque is a free vector, so the part's place adds no force");
+        Last(rows, crate).Velocity.Should()
+            .Be(Double3.Zero, "a torque is a free vector, so the part's place adds no force");
     }
 
     [Fact]
@@ -320,30 +342,31 @@ public class PartPushTests
     {
         Entity crate = default;
         List<Row> rows = ShouldMatchBitForBit((world, part) =>
-            crate = CrateWithPart(world, part, Tilted, new Double3(0, 1, 0), new Jet { Impulse = new Vector3(2, 0, 0), Until = 0 }), 10);
+            crate = CrateWithPart(world, part, Tilted, new(0, 1, 0), new() { Impulse = new(2, 0, 0), Until = 0 }), 10);
 
-        Last(rows, crate).AngularVelocity.Length().Should().BeGreaterThan(0.01f, "the impulse misses the center of mass");
+        Last(rows, crate).AngularVelocity.Length().Should()
+            .BeGreaterThan(0.01f, "the impulse misses the center of mass");
     }
 
     [Fact]
     public void AGrandchildPushesTheChainRootAtTheGrandchildsPlace()
     {
-        var first = new Pose(new Vector3(1, 0, 0), Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2));
+        var first = new Pose(new(1, 0, 0), Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2));
         Pose second = Offset(0, 0, 2);
         Double3 place = DPose.Compose(first.ToDPose(), second.ToDPose()).Position;
         // The quarter turn takes the grandchild's 2 m along +Z to 2 m along +X.
         (place - new Double3(3, 0, 0)).Length.Should().BeLessThan(1e-6);
-        var jet = new Jet { Force = new Vector3(0, 10, 0) };
+        var jet = new Jet { Force = new(0, 10, 0) };
         Entity crate = default;
 
         List<Row> rows = ShouldMatchBitForBit((world, part) =>
         {
-            crate = world.Spawn(new SpawnDesc
+            crate = world.Spawn(new()
             {
                 Frame = Space(world),
-                Pose = new DPose(Double3.Zero, Tilted),
+                Pose = new(Double3.Zero, Tilted),
                 Body = Crate,
-                Components = part ? [] : [new OwnJet(Vector3.Zero) { PlaceAt = _ => place, Force = jet.Force }],
+                Components = part ? [] : [new OwnJet(Vector3.Zero) { PlaceAt = _ => place, Force = jet.Force }]
             });
             Entity child = Attach(world, crate, first);
             Attach(world, child, second, part ? [jet] : []);
@@ -356,17 +379,23 @@ public class PartPushTests
     public void APartPushesFromTheOffsetThatItWroteInTheSameTick()
     {
         Pose before = Offset(0, 0, -1), after = Offset(0, 0, 3);
-        var jet = new Jet { Force = new Vector3(0, 10, 0) };
+        var jet = new Jet { Force = new(0, 10, 0) };
         Entity crate = default;
 
         ShouldMatchBitForBit((world, part) =>
         {
-            crate = world.Spawn(new SpawnDesc
+            crate = world.Spawn(new()
             {
                 Frame = Space(world),
-                Pose = new DPose(Double3.Zero, Tilted),
+                Pose = new(Double3.Zero, Tilted),
                 Body = Crate,
-                Components = part ? [] : [new OwnJet(Vector3.Zero) { PlaceAt = tick => tick < 5 ? new Double3(0, 0, -1) : new Double3(0, 0, 3), Force = jet.Force }],
+                Components = part
+                    ? []
+                    :
+                    [
+                        new OwnJet(Vector3.Zero)
+                            { PlaceAt = tick => tick < 5 ? new(0, 0, -1) : new Double3(0, 0, 3), Force = jet.Force }
+                    ]
             });
             Attach(world, crate, before, part ? [new OffsetChange(5, after), jet] : [new OffsetChange(5, after)]);
         }, 20);
@@ -377,8 +406,8 @@ public class PartPushTests
     {
         using World world = NewWorld(out _);
         FrameHandle space = Space(world);
-        Entity crate = world.Spawn(new SpawnDesc { Frame = space, Body = Crate });
-        Attach(world, crate, Offset(0, 0, -2), new Jet { Impulse = new Vector3(0, 0, 5), Until = 0 });
+        Entity crate = world.Spawn(new() { Frame = space, Body = Crate });
+        Attach(world, crate, Offset(0, 0, -2), new Jet { Impulse = new(0, 0, 5), Until = 0 });
 
         world.Tick();
         world.VelocityIn(crate, space).Should().Be(Double3.Zero, "the push of tick 0 acts in the step of tick 1");
@@ -395,8 +424,9 @@ public class PartPushTests
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
-        Entity crate = world.Spawn(new SpawnDesc { Frame = space, Pose = new DPose(new Double3(1, 2, 3), Tilted), Body = Crate with { Motion = motion } });
-        Attach(world, crate, Offset(1, 0, -2), new Jet { Force = new Vector3(0, 0, 40), Impulse = new Vector3(3, 0, 0) });
+        Entity crate = world.Spawn(new()
+            { Frame = space, Pose = new(new(1, 2, 3), Tilted), Body = Crate with { Motion = motion } });
+        Attach(world, crate, Offset(1, 0, -2), new Jet { Force = new(0, 0, 40), Impulse = new(3, 0, 0) });
         // Physics keeps a rotation in floats, so the crate's first step rounds its rotation once.
         world.Tick();
         DPose first = world.PoseIn(crate, space);
@@ -407,7 +437,8 @@ public class PartPushTests
         (first.Position - new Double3(1, 2, 3)).Length.Should().BeLessThan(1e-6);
         world.VelocityIn(crate, space).Should().Be(Double3.Zero);
         world.AngularVelocityIn(crate, space).Should().Be(Vector3.Zero);
-        faults.Intents.Should().Contain(record => record.Entity == crate && record.Intent.Force == new Vector3(0, 0, 40),
+        faults.Intents.Should().Contain(
+            record => record.Entity == crate && record.Intent.Force == new Vector3(0, 0, 40),
             "the sum stays in the root's intent, and physics ignores it");
         world.Errors.Should().BeEmpty();
     }
@@ -431,27 +462,31 @@ public class PartPushTests
     {
         // Step 4 of the sync point of tick 3 plans the hull's change of motion, and step 5 adds the part's push to the
         // hull's intent after it. The push still acts in step 4, in which the hull is dynamic.
-        var jet = new Jet { Force = new Vector3(40, 0, 300), From = 3 };
+        var jet = new Jet { Force = new(40, 0, 300), From = 3 };
         Entity hull = default;
         FrameHandle space = default;
         List<Row> rows = ShouldMatchBitForBit((world, part) =>
         {
             space = Space(world);
-            IComponent own = part ? new Jet() : new OwnJet(Vector3.Zero) { PlaceAt = _ => new Double3(1, 0, -3), Force = jet.Force, From = 3 };
-            hull = world.Spawn(new SpawnDesc
+            IComponent own = part
+                ? new Jet()
+                : new OwnJet(Vector3.Zero) { PlaceAt = _ => new(1, 0, -3), Force = jet.Force, From = 3 };
+            hull = world.Spawn(new()
             {
                 Frame = space,
-                Pose = new DPose(Double3.Zero, Tilted),
-                Body = new BodyDesc(new BoxShapeDesc(new Vector3(2, 1, 3)), BodyMotion.Kinematic, Mass: 1000, LinearDamping: 0, AngularDamping: 0),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
-                Components = [own, new MotionAt(3, BodyMotion.Dynamic)],
+                Pose = new(Double3.Zero, Tilted),
+                Body = new(new BoxShapeDesc(new(2, 1, 3)), BodyMotion.Kinematic, Mass: 1000, LinearDamping: 0,
+                    AngularDamping: 0),
+                AsFrame = new(FrameBounds.Sphere(10)),
+                Components = [own, new MotionAt(3, BodyMotion.Dynamic)]
             });
             Attach(world, hull, Offset(1, 0, -3), part ? [jet] : []);
         }, 8);
 
         rows.Where(row => row.Entity == hull && row.Tick <= 3).Should().OnlyContain(row => row.Velocity == Double3.Zero,
             "the hull is kinematic until step 4");
-        Last(rows, hull).Velocity.Length.Should().BeGreaterThan(0.01, "a push of about 300 N on 1,000 kg moves the hull from step 4 on");
+        Last(rows, hull).Velocity.Length.Should()
+            .BeGreaterThan(0.01, "a push of about 300 N on 1,000 kg moves the hull from step 4 on");
         Last(rows, hull).AngularVelocity.Length().Should().BeGreaterThan(1e-3f, "the part's lever turns the hull");
     }
 
@@ -466,14 +501,15 @@ public class PartPushTests
         List<Row> rows = ShouldMatchBitForBit((world, part) =>
         {
             FrameHandle frame = form == "walking" ? Ground(world, 9.81f) : Space(world);
-            person = world.Spawn(new SpawnDesc
+            person = world.Spawn(new()
             {
                 Frame = frame,
                 Pose = At(0, 20, 0),
                 Body = Person,
-                Components = part ? [] : [new Jet { Force = force }],
+                Components = part ? [] : [new Jet { Force = force }]
             });
-            Attach(world, person, Offset(0.2, 0.5, -0.3), part ? [new Jet { Force = force, Torque = new Vector3(0, 7, 0) }] : []);
+            Attach(world, person, Offset(0.2, 0.5, -0.3),
+                part ? [new Jet { Force = force, Torque = new(0, 7, 0) }] : []);
         }, 30);
 
         Last(rows, person).Velocity.X.Should().BeGreaterThan(0.1, "30 N on 70 kg for half a second");
@@ -481,7 +517,8 @@ public class PartPushTests
 
     // ---- What a part cannot do ----
 
-    /// <summary>Tries every write of <c>Writes</c> in its entity's first tick, and counts the ones that throw <see cref="InvalidOperationException"/>.</summary>
+    /// <summary>Tries every write of <c>Writes</c> in its entity's first tick, and counts the ones that throw
+    /// <see cref="InvalidOperationException"/>.</summary>
     private sealed class Attempts(params string[] writes) : IComponent
     {
         public List<string> Refused { get; } = [];
@@ -496,7 +533,6 @@ public class PartPushTests
                 return;
             DPose here = self.PoseIn(self.Frame);
             foreach (string write in writes)
-            {
                 try
                 {
                     switch (write)
@@ -510,11 +546,15 @@ public class PartPushTests
                         case "Teleport": self.Body.Teleport(here); break;
                         case "MoveCharacter": self.Body.MoveCharacter(Vector3.UnitX); break;
                         case "Jump": self.Body.Jump(1); break;
-                        case "SetCollision": self.Body.SetCollision(CollisionGroups.Of(CollisionGroup.Solid), CollisionMask.Empty.InAny(CollisionGroup.Solid)); break;
+                        case "SetCollision":
+                            self.Body.SetCollision(CollisionGroups.Of(CollisionGroup.Solid),
+                                CollisionMask.Empty.InAny(CollisionGroup.Solid)); break;
                         case "SetMotion": self.Body.SetMotion(BodyMotion.Static); break;
                         case "SteerTo": self.Body.SteerTo(here); break;
                         case "MoveKinematic": self.MoveKinematic(here); break;
-                        case "MoveOnRails": self.MoveOnRails(new MotionSample(here, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero)); break;
+                        case "MoveOnRails":
+                            self.MoveOnRails(new(here, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero,
+                                Double3.Zero)); break;
                         default: throw new ArgumentOutOfRangeException(nameof(writes), write, null);
                     }
                 }
@@ -522,7 +562,7 @@ public class PartPushTests
                 {
                     Refused.Add(write);
                 }
-            }
+
             if (Refused.Count == 0)
                 Refused.Add("none");
         }
@@ -533,12 +573,12 @@ public class PartPushTests
     {
         using World world = NewWorld(out _);
         FrameHandle space = Space(world);
-        Entity marker = world.Spawn(new SpawnDesc { Frame = space });
+        Entity marker = world.Spawn(new() { Frame = space });
         string[] pushes = ["AddForce", "AddTorque", "AddImpulse", "AddAngularImpulse"];
         var onPart = new Attempts(pushes);
         var onLoose = new Attempts(pushes);
         Attach(world, marker, Offset(1, 0, 0), onPart);
-        world.Spawn(new SpawnDesc { Frame = space, Pose = At(5), Components = [onLoose] });
+        world.Spawn(new() { Frame = space, Pose = At(5), Components = [onLoose] });
 
         world.Tick();
 
@@ -552,8 +592,12 @@ public class PartPushTests
     {
         using World world = NewWorld(out _);
         FrameHandle space = Space(world);
-        Entity crate = world.Spawn(new SpawnDesc { Frame = space, Body = Crate });
-        string[] exclusive = ["SetVelocity", "SetAngularVelocity", "Teleport", "MoveCharacter", "Jump", "SetCollision", "SetMotion", "SteerTo", "MoveKinematic", "MoveOnRails"];
+        Entity crate = world.Spawn(new() { Frame = space, Body = Crate });
+        string[] exclusive =
+        [
+            "SetVelocity", "SetAngularVelocity", "Teleport", "MoveCharacter", "Jump", "SetCollision", "SetMotion",
+            "SteerTo", "MoveKinematic", "MoveOnRails"
+        ];
         var attempts = new Attempts([.. exclusive, "AddForce"]);
         Attach(world, crate, Offset(1, 0, 0), attempts);
 
@@ -570,8 +614,9 @@ public class PartPushTests
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
-        Entity crate = world.Spawn(new SpawnDesc { Frame = space, Body = Crate });
-        Entity part = Attach(world, crate, Offset(0, 0, -2), new Jet { Impulse = new Vector3(0, 0, 5), From = 3, Until = 3, DestroyAt = 3 });
+        Entity crate = world.Spawn(new() { Frame = space, Body = Crate });
+        Entity part = Attach(world, crate, Offset(0, 0, -2),
+            new Jet { Impulse = new(0, 0, 5), From = 3, Until = 3, DestroyAt = 3 });
 
         Tick(world, 10);
 
@@ -586,9 +631,9 @@ public class PartPushTests
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
-        Entity crate = world.Spawn(new SpawnDesc { Frame = space, Body = Crate });
+        Entity crate = world.Spawn(new() { Frame = space, Body = Crate });
         Entity bracket = Attach(world, crate, Offset(0, 0, -2), new DestroyAt(3));
-        Entity part = Attach(world, bracket, Offset(0, 1, 0), new Jet { Impulse = new Vector3(0, 0, 5), From = 3, Until = 3 });
+        Entity part = Attach(world, bracket, Offset(0, 1, 0), new Jet { Impulse = new(0, 0, 5), From = 3, Until = 3 });
 
         Tick(world, 10);
 
@@ -606,25 +651,28 @@ public class PartPushTests
         Entity crate = default;
         List<Row> rows = ShouldMatchBitForBit((world, part) =>
         {
-            crate = world.Spawn(new SpawnDesc { Frame = Space(world), Pose = new DPose(Double3.Zero, Tilted), Body = Crate });
+            crate = world.Spawn(new() { Frame = Space(world), Pose = new(Double3.Zero, Tilted), Body = Crate });
             Entity bracket = Attach(world, crate, Offset(1, 0, 0), new DestroyAt(3));
-            Attach(world, bracket, Offset(0, 1, 0), part ? [new Jet { Impulse = new Vector3(0, 0, 5), From = 3, Until = 3 }] : []);
-            Attach(world, crate, Offset(0, 1, 0), new Jet { Impulse = new Vector3(2, 0, 0), From = 3, Until = 3 });
+            Attach(world, bracket, Offset(0, 1, 0),
+                part ? [new Jet { Impulse = new(0, 0, 5), From = 3, Until = 3 }] : []);
+            Attach(world, crate, Offset(0, 1, 0), new Jet { Impulse = new(2, 0, 0), From = 3, Until = 3 });
         }, 10);
 
-        Last(rows, crate).Velocity.X.Should().BeApproximately(0.04, 1e-6, "2 N·s on 50 kg, from the part that survives");
+        Last(rows, crate).Velocity.X.Should()
+            .BeApproximately(0.04, 1e-6, "2 N·s on 50 kg, from the part that survives");
         Last(rows, crate).Velocity.Z.Should().Be(0);
     }
 
     [Fact]
     public void APartThatTheGameDestroysOutsideATickAfterItsPushFlowedStillPushesInTheNextStep()
     {
-        Double3 VelocityAfter(bool destroy)
+        static Double3 VelocityAfter(bool destroy)
         {
             using World world = NewWorld(out _);
             FrameHandle space = Space(world);
-            Entity crate = world.Spawn(new SpawnDesc { Frame = space, Body = Crate });
-            Entity part = Attach(world, crate, Offset(0, 0, -2), new Jet { Impulse = new Vector3(0, 0, 5), From = 3, Until = 3 });
+            Entity crate = world.Spawn(new() { Frame = space, Body = Crate });
+            Entity part = Attach(world, crate, Offset(0, 0, -2),
+                new Jet { Impulse = new(0, 0, 5), From = 3, Until = 3 });
             Tick(world, 4);
             if (destroy)
                 world.Destroy(part).Should().BeTrue();
@@ -642,18 +690,18 @@ public class PartPushTests
     // ---- Changes of frame ----
 
     /// <summary>A frame without a body in <paramref name="space"/> at (100, 0, 0), turned by <see cref="Tilted"/>, with a bubble of 10 m.</summary>
-    private static Entity Bay(World world, FrameHandle space, params IComponent[] components) => world.Spawn(new SpawnDesc
+    private static Entity Bay(World world, FrameHandle space, params IComponent[] components) => world.Spawn(new()
     {
         Frame = space,
-        Pose = new DPose(new Double3(100, 0, 0), Tilted),
-        AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
-        Components = components,
+        Pose = new(new(100, 0, 0), Tilted),
+        AsFrame = new(FrameBounds.Sphere(10)),
+        Components = components
     });
 
     [Fact]
     public void APartsPushInTheTickOfItsRootsHandOffConvertsWithTheRootsOwnForce()
     {
-        var jet = new Jet { Force = new Vector3(0, 3, 0), Impulse = new Vector3(0, 0, 0.01f) };
+        var jet = new Jet { Force = new(0, 3, 0), Impulse = new(0, 0, 0.01f) };
         Entity ball = default;
         FrameHandle bay = default;
         List<Row> rows = ShouldMatchBitForBit((world, part) =>
@@ -661,24 +709,25 @@ public class PartPushTests
             FrameHandle space = Space(world);
             bay = world.GetOwnedFrame(Bay(world, space));
             Scenes.Approach approach = Scenes.ApproachToBubble(world, bay, tick: 5);
-            ball = CrateWithPart(world, part, DQuaternion.Identity, new Double3(0.3, 0, 0), jet, body: Ball(), frame: space,
+            ball = CrateWithPart(world, part, DQuaternion.Identity, new(0.3, 0, 0), jet, body: Ball(), frame: space,
                 position: approach.Pose.Position, velocity: approach.Velocity);
         }, 12);
 
-        rows.First(row => row.Entity == ball && row.Frame == bay).Tick.Should().Be(5, "Jolt hands the ball off in the step of tick 5");
+        rows.First(row => row.Entity == ball && row.Frame == bay).Tick.Should()
+            .Be(5, "Jolt hands the ball off in the step of tick 5");
     }
 
     [Fact]
     public void APartsPushInTheTickThatItsRootsFrameDiesConvertsIntoTheSurvivingAncestor()
     {
-        var jet = new Jet { Force = new Vector3(0, 3, 1) };
+        var jet = new Jet { Force = new(0, 3, 1) };
         Entity crate = default;
         FrameHandle space = default;
         List<Row> rows = ShouldMatchBitForBit((world, part) =>
         {
             space = Space(world);
             FrameHandle bay = world.GetOwnedFrame(Bay(world, space, new DestroyAt(4)));
-            crate = CrateWithPart(world, part, Tilted, new Double3(1, 0, -2), jet, frame: bay, position: new Double3(2, 0, 0));
+            crate = CrateWithPart(world, part, Tilted, new(1, 0, -2), jet, frame: bay, position: new(2, 0, 0));
         }, 10);
 
         Last(rows, crate).Frame.Should().Be(space, "the crate moved out of the bay when the bay died");
@@ -690,7 +739,7 @@ public class PartPushTests
         // In one tick, Jolt hands the ball into the bay and the bay dies, so step 2 moves the root into the bay and step 5
         // rehomes it into space. The part's push still names the front frame of the chain at the flow, so it sums with
         // the root's own push in that frame and converts with it.
-        var jet = new Jet { Force = new Vector3(0, 3, 0), Torque = new Vector3(0.1f, 0, 0) };
+        var jet = new Jet { Force = new(0, 3, 0), Torque = new(0.1f, 0, 0) };
         Entity ball = default, bayOwner = default;
         FrameHandle space = default, bay = default;
         List<HandOff> handOffsInTick5 = [];
@@ -700,7 +749,7 @@ public class PartPushTests
             bayOwner = Bay(world, space, new DestroyAt(5));
             bay = world.GetOwnedFrame(bayOwner);
             Scenes.Approach approach = Scenes.ApproachToBubble(world, bay, tick: 5);
-            ball = CrateWithPart(world, part, DQuaternion.Identity, new Double3(0.3, 0, 0), jet, body: Ball(), frame: space,
+            ball = CrateWithPart(world, part, DQuaternion.Identity, new(0.3, 0, 0), jet, body: Ball(), frame: space,
                 position: approach.Pose.Position, velocity: approach.Velocity);
         }, 10, inspect: faults =>
         {
@@ -710,7 +759,8 @@ public class PartPushTests
 
         // The premise: the output of the step of tick 5, which the sync point of tick 5 applies, hands the ball into the bay,
         // and the bay dies at that same sync point.
-        handOffsInTick5.Should().ContainSingle(handOff => handOff.Entity == ball && handOff.From == space && handOff.To == bay,
+        handOffsInTick5.Should().ContainSingle(
+            handOff => handOff.Entity == ball && handOff.From == space && handOff.To == bay,
             "Jolt hands the ball into the bay in the step of tick 5");
         rows.Last(row => row.Entity == bayOwner).Tick.Should().Be(4, "the bay destroys itself in tick 5");
         rows.Where(row => row.Entity == ball).Should().OnlyContain(row => row.Frame == space);
@@ -721,20 +771,21 @@ public class PartPushTests
     {
         // A part takes its root's physics home, so a part in the intent list would break the assertion of the frameless
         // movers in every Debug sync point after a push. The world runs its debug checks in every tick.
-        var jet = new Jet { Force = new Vector3(50, 0, 400) };
+        var jet = new Jet { Force = new(50, 0, 400) };
         Entity hull = default;
         FrameHandle space = default;
+
         void Scene(World world, bool part)
         {
             space = Space(world);
-            hull = world.Spawn(new SpawnDesc
+            hull = world.Spawn(new()
             {
                 Frame = space,
-                Pose = new DPose(Double3.Zero, Tilted),
-                LinearVelocity = new Double3(1500, 0, 0),
-                Body = new BodyDesc(new BoxShapeDesc(new Vector3(2, 1, 3)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
-                Components = part ? [] : [new OwnJet(Vector3.Zero) { PlaceAt = _ => new Double3(1, 0, -3), Force = jet.Force }],
+                Pose = new(Double3.Zero, Tilted),
+                LinearVelocity = new(1500, 0, 0),
+                Body = new(new BoxShapeDesc(new(2, 1, 3)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+                AsFrame = new(FrameBounds.Sphere(10)),
+                Components = part ? [] : [new OwnJet(Vector3.Zero) { PlaceAt = _ => new(1, 0, -3), Force = jet.Force }]
             });
             Attach(world, hull, Offset(1, 0, -3), part ? [jet] : []);
         }
@@ -751,7 +802,7 @@ public class PartPushTests
     [Fact]
     public void APartsPushInASpinningStationTakesTheTurnOfTheStepAsTheRootsOwnForceDoes()
     {
-        var jet = new Jet { Force = new Vector3(0, 2, 3) };
+        var jet = new Jet { Force = new(0, 2, 3) };
         Entity crate = default;
         List<Row> rows = ShouldMatchBitForBit((world, part) =>
         {
@@ -759,10 +810,12 @@ public class PartPushTests
             Entity station = world.Spawn(new SpawnDesc
             {
                 Frame = space,
-                Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), BodyMotion.Kinematic, InteriorShape: new SphereShapeDesc(1)),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
-            }.Spinning(world, new FrameSpin(DQuaternion.Identity, 0.5)));
-            crate = CrateWithPart(world, part, Tilted, new Double3(1, 0, -2), jet, frame: world.GetOwnedFrame(station), position: new Double3(10, 0, 0));
+                Body = new(new BoxShapeDesc(new(5, 3, 15)), BodyMotion.Kinematic,
+                    InteriorShape: new SphereShapeDesc(1)),
+                AsFrame = new(FrameBounds.Sphere(50))
+            }.Spinning(world, new(DQuaternion.Identity, 0.5)));
+            crate = CrateWithPart(world, part, Tilted, new(1, 0, -2), jet, frame: world.GetOwnedFrame(station),
+                position: new(10, 0, 0));
         }, 30);
 
         Last(rows, crate).AngularVelocity.Length().Should().BeGreaterThan(0.01f);
@@ -775,28 +828,32 @@ public class PartPushTests
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
-        Entity quiet = world.Spawn(new SpawnDesc { Frame = space, Body = Crate });
-        Entity pushing = world.Spawn(new SpawnDesc { Frame = space, Pose = At(10), Body = Crate, Components = [new Jet { Force = new Vector3(1, 0, 0) }] });
-        Entity quietPart = Attach(world, quiet, Offset(0, 0, -2), new Jet { Force = new Vector3(0, 0, 4) });
-        Entity pushingPart = Attach(world, pushing, Offset(0, 0, -2), new Jet { Force = new Vector3(0, 0, 4) });
+        Entity quiet = world.Spawn(new() { Frame = space, Body = Crate });
+        Entity pushing = world.Spawn(new()
+            { Frame = space, Pose = At(10), Body = Crate, Components = [new Jet { Force = new(1, 0, 0) }] });
+        Entity quietPart = Attach(world, quiet, Offset(0, 0, -2), new Jet { Force = new(0, 0, 4) });
+        Entity pushingPart = Attach(world, pushing, Offset(0, 0, -2), new Jet { Force = new(0, 0, 4) });
 
         Tick(world, 5);
 
         faults.Intents.Should().NotContain(record => record.Entity == quietPart || record.Entity == pushingPart);
         foreach (IGrouping<long, IntentRecord> step in faults.Intents.GroupBy(record => record.Tick))
-            step.Select(record => record.Entity).Should().Equal([pushing, quiet], "the root that wrote nothing joins the list after the writers");
-        faults.Intents.Where(record => record.Entity == quiet).Should().OnlyContain(record => record.Intent.Frame == space && record.Intent.Force == new Vector3(0, 0, 4));
-        faults.Intents.Where(record => record.Entity == pushing).Should().OnlyContain(record => record.Intent.Force == new Vector3(1, 0, 4));
+            step.Select(record => record.Entity).Should().Equal([pushing, quiet],
+                "the root that wrote nothing joins the list after the writers");
+        faults.Intents.Where(record => record.Entity == quiet).Should().OnlyContain(record =>
+            record.Intent.Frame == space && record.Intent.Force == new Vector3(0, 0, 4));
+        faults.Intents.Where(record => record.Entity == pushing).Should()
+            .OnlyContain(record => record.Intent.Force == new Vector3(1, 0, 4));
         world.Errors.Should().BeEmpty();
     }
 
     [Fact]
     public void WithoutABackendAPartsPushIsClearedAndNoRootGetsAnIntent()
     {
-        using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = true });
+        using var world = new World(new() { MaxDegreeOfParallelism = 1, DebugChecks = true });
         FrameHandle space = Space(world);
-        Entity crate = world.Spawn(new SpawnDesc { Frame = space, Body = Crate });
-        Entity part = Attach(world, crate, Offset(0, 0, -2), new Jet { Force = new Vector3(0, 0, 4) });
+        Entity crate = world.Spawn(new() { Frame = space, Body = Crate });
+        Entity part = Attach(world, crate, Offset(0, 0, -2), new Jet { Force = new(0, 0, 4) });
 
         Tick(world, 3);
 
@@ -809,14 +866,14 @@ public class PartPushTests
     [Fact]
     public void TheThrustClockCountsThePushOfAPartAsTheRootsOwnForce()
     {
-        List<NumericMode> Modes(bool part)
+        static List<NumericMode> Modes(bool part)
         {
             using World world = NewWorld(out _);
             FrameHandle space = Space(world);
             var thruster = new Thruster(CrateMass);
-            Entity crate = world.Spawn(new SpawnDesc
+            Entity crate = world.Spawn(new()
             {
-                Frame = space, LinearVelocity = new Double3(60, 0, 0), Body = Crate, Components = part ? [] : [thruster],
+                Frame = space, LinearVelocity = new(60, 0, 0), Body = Crate, Components = part ? [] : [thruster]
             });
             Attach(world, crate, Offset(-1, 0, 0), part ? [thruster] : []);
             var modes = new List<NumericMode>();
@@ -825,6 +882,7 @@ public class PartPushTests
                 world.Tick();
                 modes.Add(world.Frames.Numeric(world.PhysicsHomeOf(crate)));
             }
+
             world.Errors.Should().BeEmpty();
             return modes;
         }
@@ -832,7 +890,8 @@ public class PartPushTests
         List<NumericMode> withPart = Modes(part: true);
 
         withPart.Should().Equal(Modes(part: false));
-        withPart.IndexOf(NumericMode.Falling).Should().Be(29, "the crate thrusts from the sync point of its thirtieth tick of thrust");
+        withPart.IndexOf(NumericMode.Falling).Should()
+            .Be(29, "the crate thrusts from the sync point of its thirtieth tick of thrust");
     }
 
     [Fact]
@@ -840,22 +899,23 @@ public class PartPushTests
     {
         using World world = NewWorld(out _);
         FrameHandle space = Space(world);
-        Entity ship = world.Spawn(new SpawnDesc
+        Entity ship = world.Spawn(new()
         {
             Frame = space,
-            Pose = new DPose(Double3.Zero, Tilted),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2, 0.5f, 2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
+            Pose = new(Double3.Zero, Tilted),
+            Body = new(new BoxShapeDesc(new(2, 0.5f, 2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+            AsFrame = new(FrameBounds.Sphere(10))
         });
         // Two engines on the line through the center of mass, pushing along the hull's +Z with 300 N and 200 N.
-        Vector3 forward = Tilted.Rotate(Double3.UnitZ).ToVector3();
+        var forward = Tilted.Rotate(Double3.UnitZ).ToVector3();
         Attach(world, ship, Offset(0, 0, -2), new Jet { Force = forward * 300 });
         Attach(world, ship, Offset(0, 0, 2), new Jet { Force = forward * 200 });
 
         Tick(world, 5);
 
         Vector3 felt = world.Frames.ProperAcceleration(world.GetOwnedFrame(ship));
-        Vector3.Distance(felt, new Vector3(0, 0, 0.5f)).Should().BeLessThan(1e-4f, "500 N on 1,000 kg along the hull's +Z, in the frame's axes: {0}", felt);
+        Vector3.Distance(felt, new(0, 0, 0.5f)).Should().BeLessThan(1e-4f,
+            "500 N on 1,000 kg along the hull's +Z, in the frame's axes: {0}", felt);
         world.Errors.Should().BeEmpty();
     }
 
@@ -874,7 +934,8 @@ public class PartPushTests
             FrameHandle space = Space(world);
             for (int i = 0; i < 24; i++)
             {
-                Entity crate = world.Spawn(new SpawnDesc { Frame = space, Pose = new DPose(new Double3(i * 10, 0, 0), Tilted), Body = Crate });
+                Entity crate = world.Spawn(new()
+                    { Frame = space, Pose = new(new(i * 10, 0, 0), Tilted), Body = Crate });
                 for (int j = 0; j < 3; j++)
                 {
                     // Forces whose sizes differ, so that a sum in another order would round otherwise.
@@ -882,6 +943,7 @@ public class PartPushTests
                     Attach(world, crate, Offset(j - 1, 0.3 * j, -1), new Jet { Force = force, Torque = force * 0.01f });
                 }
             }
+
             Tick(world, 20);
             world.Errors.Should().BeEmpty();
             return ([.. faults.Intents], WorldHash.Of(world));
@@ -900,16 +962,16 @@ public class PartPushTests
         using World world = NewWorld(out _);
         FrameHandle space = Space(world);
         // The spare slot goes to the part, so the part runs before its root in every tick.
-        Entity spare = world.Spawn(new SpawnDesc { Frame = space });
+        Entity spare = world.Spawn(new() { Frame = space });
         var seen = new List<Vector3>();
-        Entity crate = world.Spawn(new SpawnDesc
+        Entity crate = world.Spawn(new()
         {
             Frame = space,
             Body = Crate,
-            Components = [new Jet { Force = new Vector3(1, 0, 0) }, new PendingReader(seen)],
+            Components = [new Jet { Force = new(1, 0, 0) }, new PendingReader(seen)]
         });
         world.Destroy(spare);
-        Entity part = Attach(world, crate, Offset(0, 0, -2), new Jet { Force = new Vector3(0, 0, 4) });
+        Entity part = Attach(world, crate, Offset(0, 0, -2), new Jet { Force = new(0, 0, 4) });
         part.Index.Should().BeLessThan(crate.Index);
 
         Tick(world, 5);
@@ -925,7 +987,8 @@ public class PartPushTests
 
         public EventMask Wants => EventMask.Of<Tick>();
 
-        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) => seen.Add(self.Body.Pending.Force);
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
+            seen.Add(self.Body.Pending.Force);
     }
 
     [Fact]
@@ -935,10 +998,12 @@ public class PartPushTests
         FrameHandle space = Space(world);
         for (int i = 0; i < 100; i++)
         {
-            Entity crate = world.Spawn(new SpawnDesc { Frame = space, Pose = At(i * 10), Body = Crate });
+            Entity crate = world.Spawn(new() { Frame = space, Pose = At(i * 10), Body = Crate });
             for (int j = 0; j < 3; j++)
-                Attach(world, crate, Offset(j - 1, 0, -1), new Jet { Force = new Vector3(0, 0.1f, 1), Impulse = new Vector3(1e-3f, 0, 0) });
+                Attach(world, crate, Offset(j - 1, 0, -1),
+                    new Jet { Force = new(0, 0.1f, 1), Impulse = new(1e-3f, 0, 0) });
         }
+
         Tick(world, 60);
 
         long before = GC.GetAllocatedBytesForCurrentThread();
@@ -958,7 +1023,8 @@ public class PartPushTests
 
         public EventMask Wants => EventMask.Of<Tick>();
 
-        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) => seen.Add(self.PoseIn(self.Frame).Rotation);
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
+            seen.Add(self.PoseIn(self.Frame).Rotation);
     }
 
     /// <summary>Pushes along its own -Z with <paramref name="thrust"/> newtons, and records each force that it writes.</summary>
@@ -970,7 +1036,7 @@ public class PartPushTests
 
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
-            Vector3 force = (self.PoseIn(self.Frame).Rotation.Rotate(-Double3.UnitZ) * thrust).ToVector3();
+            var force = (self.PoseIn(self.Frame).Rotation.Rotate(-Double3.UnitZ) * thrust).ToVector3();
             self.Body.AddForce(force);
             written.Add(force);
         }
@@ -983,9 +1049,9 @@ public class PartPushTests
         FrameHandle space = Space(world);
         var rotations = new List<DQuaternion>();
         var forces = new List<Vector3>();
-        Entity crate = world.Spawn(new SpawnDesc
+        Entity crate = world.Spawn(new()
         {
-            Frame = space, Body = Crate, AngularVelocity = new Vector3(0, 3, 0), Components = [new RotationReader(rotations)],
+            Frame = space, Body = Crate, AngularVelocity = new(0, 3, 0), Components = [new RotationReader(rotations)]
         });
         var place = new Double3(1, 0, 0);
         Attach(world, crate, Offset(place.X, place.Y, place.Z), new Nozzle(20, forces));
@@ -998,11 +1064,14 @@ public class PartPushTests
         {
             Vector3 force = forces[tick];
             applied[tick].Intent.Force.Should().Be(force);
-            Vector3 read = Double3.Cross(rotations[tick].Rotate(place), force).ToVector3();
-            Vector3 atStart = Double3.Cross(rotations[tick + 1].Rotate(place), force).ToVector3();
-            applied[tick].Intent.Torque.Should().Be(read, "the lever turns by the rotation that the jet read in tick {0}", tick);
-            Vector3.Distance(read, atStart).Should().BeGreaterThan(1e-3f, "at 3 rad/s the root turns by 0.05 rad in a step");
+            var read = Double3.Cross(rotations[tick].Rotate(place), force).ToVector3();
+            var atStart = Double3.Cross(rotations[tick + 1].Rotate(place), force).ToVector3();
+            applied[tick].Intent.Torque.Should()
+                .Be(read, "the lever turns by the rotation that the jet read in tick {0}", tick);
+            Vector3.Distance(read, atStart).Should()
+                .BeGreaterThan(1e-3f, "at 3 rad/s the root turns by 0.05 rad in a step");
         }
+
         world.Errors.Should().BeEmpty();
     }
 }

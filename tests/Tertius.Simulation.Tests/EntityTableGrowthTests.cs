@@ -14,19 +14,22 @@ public class EntityTableGrowthTests
     /// <summary>How many more entities than the table's first allocation each test creates, so that it grows at least once.</summary>
     private const int Beyond = 200;
 
-    private static readonly FrameHandle OwnedFrame = new(new Entity(900, 1), 3, 1);
+    private static readonly FrameHandle OwnedFrame = new(new(900, 1), 3, 1);
 
     /// <summary>
     /// Makes <paramref name="count"/> live entities with distinct data: entity i is at x = i with a render scale of
     /// i + 1, has a Recorder that wants Ping, and has a body if i is odd and an owned frame if i is a multiple of three.
     /// </summary>
-    private static Entity[] SpawnDistinct(EntityTable table, int count) => [.. Enumerable.Range(0, count).Select(i =>
-    {
-        Entity entity = table.Reserve();
-        table.Activate(entity, RowAt(i), new RenderData { Scale = new Vector3(i + 1) }, [new Recorder()], [EventMask.Of<Ping>()],
-            i % 2 == 1 ? TestWorld.Ball : null, Vector3.Zero, i % 3 == 0 ? OwnedFrame : FrameHandle.Null);
-        return entity;
-    })];
+    private static Entity[] SpawnDistinct(EntityTable table, int count) =>
+    [
+        .. Enumerable.Range(0, count).Select(i =>
+        {
+            Entity entity = table.Reserve();
+            table.Activate(entity, RowAt(i), new() { Scale = new(i + 1) }, [new Recorder()], [EventMask.Of<Ping>()],
+                i % 2 == 1 ? TestWorld.Ball : null, Vector3.Zero, i % 3 == 0 ? OwnedFrame : FrameHandle.Null);
+            return entity;
+        })
+    ];
 
     [Fact]
     public void GrowingTheTablesKeepsEveryRowOfEveryEntity()
@@ -51,6 +54,7 @@ public class EntityTableGrowthTests
             (table.Body(entity) != null).Should().Be(i % 2 == 1);
             table.OwnedFrame(entity).Should().Be(i % 3 == 0 ? OwnedFrame : FrameHandle.Null);
         }
+
         table.LiveCount.Should().Be(10 + Beyond);
         table.AssertInvariants();
     }
@@ -97,6 +101,7 @@ public class EntityTableGrowthTests
             names[early[i]].Should().Be($"name {i}");
             lists[early[i]].Should().Equal(i, i * 2);
         }
+
         numbers.AsSpan().Length.Should().Be(table.Capacity);
         names.AsSpan().Length.Should().Be(table.Capacity);
         lists.AsSpan().Length.Should().Be(table.Capacity);
@@ -126,8 +131,8 @@ public class EntityTableGrowthTests
         EntityTable table = TableSupport.NewTable();
         Entity a = table.SpawnLiveWith(TestWorld.Ball), b = table.SpawnLiveWith(TestWorld.Ball);
         table.BeginTick(spawnPoolSize: 0);
-        table.WritableIntent(a).Force = new Vector3(1, 0, 0);
-        table.WritableIntent(b).Force = new Vector3(2, 0, 0);
+        table.WritableIntent(a).Force = new(1, 0, 0);
+        table.WritableIntent(b).Force = new(2, 0, 0);
         table.EndGameplay();
         table.SwapIntents(keep: true);
         table.EndTick();
@@ -154,8 +159,8 @@ public class EntityTableGrowthTests
         // Gameplay writes the rows and the intent first, then spawns past the pool so that the tables must grow.
         table.BeginTick(spawnPoolSize: 0);
         table.WritableTransform(entities[0]) = TestWorld.At(5);
-        table.WritableRender(entities[1]).Scale = new Vector3(4);
-        table.WritableIntent(bodied).Force = new Vector3(0, 9, 0);
+        table.WritableRender(entities[1]).Scale = new(4);
+        table.WritableIntent(bodied).Force = new(0, 9, 0);
         Entity[] spawned = [.. Enumerable.Range(0, Beyond).Select(_ => table.ReserveForSpawn(entities[2]))];
         table.EndGameplay().Should().Be(Beyond);
 
@@ -163,7 +168,7 @@ public class EntityTableGrowthTests
         table.PendingIntent(bodied).Force.Should().Be(new Vector3(0, 9, 0));
         table.AssertInvariants();
         foreach (Entity entity in spawned)
-            table.Activate(entity, default, new RenderData(), [], [], null, Vector3.Zero, FrameHandle.Null);
+            table.Activate(entity, default, new(), [], [], null, Vector3.Zero, FrameHandle.Null);
         table.SwapIntents(keep: true);
         table.CopyDirtyRows();
         table.EndTick();

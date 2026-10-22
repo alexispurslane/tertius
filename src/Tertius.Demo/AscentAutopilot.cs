@@ -51,13 +51,39 @@ public readonly struct AscentState : IEquatable<AscentState>
     private readonly double launchRadius;
     private readonly byte kind;
 
-    public AscentState(Parked parked) { kind = KindParked; }
-    public AscentState(Ramp ramp) { kind = KindRamp; guidance = ramp.Guidance; launchRadius = ramp.LaunchRadius; }
-    public AscentState(Climb climb) { kind = KindClimb; guidance = climb.Guidance; }
-    public AscentState(Orbit orbit) { kind = KindOrbit; }
+    public AscentState(Parked parked)
+    {
+        kind = KindParked;
+    }
+
+    public AscentState(Ramp ramp)
+    {
+        kind = KindRamp;
+        guidance = ramp.Guidance;
+        launchRadius = ramp.LaunchRadius;
+    }
+
+    public AscentState(Climb climb)
+    {
+        kind = KindClimb;
+        guidance = climb.Guidance;
+    }
+
+    public AscentState(Orbit orbit)
+    {
+        kind = KindOrbit;
+    }
 
     /// <summary>Always true: every value is a state, and the default value is <see cref="Parked"/>.</summary>
     public bool HasValue => true;
+
+    public object Value => kind switch
+    {
+        KindRamp => new Ramp(guidance, launchRadius),
+        KindClimb => new Climb(guidance),
+        KindOrbit => new Orbit(),
+        _ => new Parked()
+    };
 
     public bool TryGetValue(out Parked value)
     {
@@ -67,13 +93,13 @@ public readonly struct AscentState : IEquatable<AscentState>
 
     public bool TryGetValue(out Ramp value)
     {
-        value = new Ramp(guidance, launchRadius);
+        value = new(guidance, launchRadius);
         return kind == KindRamp;
     }
 
     public bool TryGetValue(out Climb value)
     {
-        value = new Climb(guidance);
+        value = new(guidance);
         return kind == KindClimb;
     }
 
@@ -83,15 +109,9 @@ public readonly struct AscentState : IEquatable<AscentState>
         return kind == KindOrbit;
     }
 
-    public object Value => kind switch
-    {
-        KindRamp => new Ramp(guidance, launchRadius),
-        KindClimb => new Climb(guidance),
-        KindOrbit => new Orbit(),
-        _ => new Parked(),
-    };
+    public bool Equals(AscentState other) =>
+        kind == other.kind && guidance == other.guidance && launchRadius.Equals(other.launchRadius);
 
-    public bool Equals(AscentState other) => kind == other.kind && guidance == other.guidance && launchRadius.Equals(other.launchRadius);
     public override bool Equals(object? obj) => obj is AscentState other && Equals(other);
     public override int GetHashCode() => HashCode.Combine(kind, guidance, launchRadius);
     public static bool operator ==(AscentState a, AscentState b) => a.Equals(b);
@@ -103,7 +123,8 @@ public readonly struct AscentState : IEquatable<AscentState>
 /// <summary>
 /// Flies a parked shuttle up its ramp and to a circular orbit of radius <paramref name="orbitRadius"/>, round the point
 /// gravity of the frame of <paramref name="plane"/>, in that plane. It reads every state in the plane's frame, which does
-/// not turn, so its two-body math holds there whatever frame the shuttle is in, such as a turning ground. In every tick it adds a <see cref="Throttle"/> for its entity's
+/// not turn, so its two-body math holds there whatever frame the shuttle is in, such as a turning ground. In every tick it adds a
+/// <see cref="Throttle"/> for its entity's
 /// <see cref="MainEngine"/> and an <see cref="AttitudeTarget"/> for its entity's <see cref="AttitudeAutopilot"/> to the
 /// entity's events, which those components read after it (see <see cref="Priority"/>). It is the first layer of the
 /// shuttle's flight program, so a layer that runs after it overrides what it adds. It plans with
@@ -142,14 +163,16 @@ public readonly struct AscentState : IEquatable<AscentState>
 /// The orbit's plane: the frame in which the autopilot reads, and the plane's prograde normal, a unit vector in that frame's
 /// axes (see <see cref="AscentGuidance.PlaneNormal"/>). The ramp should lead the shuttle into that plane.
 /// </param>
-public sealed class AscentAutopilot(double maxThrust, double orbitRadius, double climbHeight, LaunchPlane plane) : IComponent
+public sealed class AscentAutopilot(double maxThrust, double orbitRadius, double climbHeight, LaunchPlane plane)
+    : IComponent
 {
-    private readonly Double3 planeNormal = Math.Abs(plane.Normal.Length - 1) < 1e-9
-        ? plane.Normal
-        : throw new ArgumentException($"The normal of the orbit's plane must be a unit vector, not {plane.Normal}.", nameof(plane));
-
     /// <summary>Below this speed, in m/s, the ramp gives no attitude target, because the velocity has no direction yet.</summary>
     public const double SteerSpeed = 1;
+
+    private readonly Double3 planeNormal = Math.Abs(plane.Normal.Length - 1) < 1e-9
+        ? plane.Normal
+        : throw new ArgumentException($"The normal of the orbit's plane must be a unit vector, not {plane.Normal}.",
+            nameof(plane));
 
     /// <summary>What the autopilot does now. It starts <see cref="Parked"/>.</summary>
     public AscentState State { get; private set; } = new Parked();
@@ -174,12 +197,15 @@ public sealed class AscentAutopilot(double maxThrust, double orbitRadius, double
             double mu = KeplerOrbit.MuFrom(self.Snapshot.Frames.Gravity(plane.Frame));
             if (mu <= 0 || !self.Snapshot.TryGetBody(self.Entity, out BodyFacts body) || body.Mass <= 0)
             {
-                self.Log("AscentAutopilot stays parked: the frame of its plane has no point gravity to climb in, or its hull has no mass.");
+                self.Log(
+                    "AscentAutopilot stays parked: the frame of its plane has no point gravity to climb in, or its hull has no mass.");
                 return;
             }
+
             self.Body.SetMotion(BodyMotion.Dynamic);
-            State = new Ramp(new AscentGuidance(mu, orbitRadius, maxThrust / body.Mass, planeNormal), position.Length);
+            State = new Ramp(new(mu, orbitRadius, maxThrust / body.Mass, planeNormal), position.Length);
         }
+
         if (State is Ramp ramp && position.Length - ramp.LaunchRadius > climbHeight)
             State = new Climb(ramp.Guidance);
         if (State is Climb climb && climb.Guidance.Reached(position, velocity))
@@ -189,18 +215,30 @@ public sealed class AscentAutopilot(double maxThrust, double orbitRadius, double
             case Ramp:
                 events.Add(new Throttle { Value = 1 });
                 if (velocity.Length > SteerSpeed)
-                    events.Add(new AttitudeTarget { Rotation = intoFrame * AttitudeAutopilot.Facing(velocity, pose), MaxTurnRate = AttitudeAutopilot.MaxTurnRate });
+                    events.Add(new AttitudeTarget
+                    {
+                        Rotation = intoFrame * AttitudeAutopilot.Facing(velocity, pose),
+                        MaxTurnRate = AttitudeAutopilot.MaxTurnRate
+                    });
                 break;
             case Climb { Guidance: var guidance }:
                 Double3 acceleration = guidance.Acceleration(position, velocity);
                 events.Add(new Throttle { Value = (float)Math.Min(1, acceleration.Length / guidance.MaxAcceleration) });
-                events.Add(new AttitudeTarget { Rotation = intoFrame * AttitudeAutopilot.Facing(acceleration, pose), MaxTurnRate = AttitudeAutopilot.MaxTurnRate });
+                events.Add(new AttitudeTarget
+                {
+                    Rotation = intoFrame * AttitudeAutopilot.Facing(acceleration, pose),
+                    MaxTurnRate = AttitudeAutopilot.MaxTurnRate
+                });
                 break;
             // The law of the nose along the velocity and the roof away from the planet means something only while the hull is
             // in a frame with point gravity, such as earth, where it flew its orbit. In the docking station's frame, which
             // has no field, the docking autopilot steers, and this layer adds nothing.
             case Orbit when KeplerOrbit.MuFrom(self.Snapshot.Frames.Gravity(self.Frame)) > 0:
-                events.Add(new AttitudeTarget { Rotation = intoFrame * AttitudeAutopilot.Facing(velocity, pose), MaxTurnRate = AttitudeAutopilot.MaxTurnRate });
+                events.Add(new AttitudeTarget
+                {
+                    Rotation = intoFrame * AttitudeAutopilot.Facing(velocity, pose),
+                    MaxTurnRate = AttitudeAutopilot.MaxTurnRate
+                });
                 break;
         }
     }

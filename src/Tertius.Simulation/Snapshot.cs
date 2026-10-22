@@ -14,49 +14,55 @@ namespace Tertius.Simulation;
 /// </remarks>
 public readonly struct Snapshot
 {
-    private readonly World world;
-    private readonly Entity asker;
-
-    internal Snapshot(World world) => this.world = world;
+    internal Snapshot(World world)
+    {
+        World = world;
+    }
 
     internal Snapshot(World world, Entity asker)
     {
-        this.world = world;
-        this.asker = asker;
+        World = world;
+        Asker = asker;
     }
 
-    internal World World => world;
+    internal World World { get; }
 
     /// <summary>The entity that reads this snapshot, or null for the snapshot of the world.</summary>
-    internal Entity Asker => asker;
+    internal Entity Asker { get; }
 
     /// <summary>The tick number of the state that this snapshot shows.</summary>
-    public long Tick => world.TickNumber;
+    public long Tick => World.TickNumber;
 
     /// <summary>The world's camera. Only code between ticks changes it, so it holds for the whole tick.</summary>
-    public Entity Camera => world.Camera;
+    public Entity Camera => World.Camera;
 
     /// <summary>The frame tree. It does not change during a tick.</summary>
-    public FrameTree Frames => world.Frames;
+    public FrameTree Frames => World.Frames;
+
+    /// <summary>
+    /// Every live entity, the start of the shorthand chain, such as <c>Entities.With&lt;Flammable&gt;().Near(5)</c>. Its words
+    /// build the same query as <see cref="EntityQuery"/>'s and run it, and it allocates nothing.
+    /// </summary>
+    public FoundEntities Entities => new(this, default, default);
 
     /// <summary>True if the entity was live at the end of the previous tick.</summary>
-    public bool IsAlive(Entity entity) => world.IsAlive(entity);
+    public bool IsAlive(Entity entity) => World.IsAlive(entity);
 
     /// <summary>The frame the entity is in. Null for the owner of a root frame.</summary>
-    public FrameHandle FrameOf(Entity entity) => world.Entities.FrontRow(entity).Frame;
+    public FrameHandle FrameOf(Entity entity) => World.Entities.FrontRow(entity).Frame;
 
     /// <summary>The entity's render row.</summary>
-    public RenderData RenderOf(Entity entity) => world.Entities.FrontRender(entity);
+    public RenderData RenderOf(Entity entity) => World.Entities.FrontRender(entity);
 
     /// <summary>True if the entity has a physics body.</summary>
-    public bool HasBody(Entity entity) => world.Entities.Body(entity) != null;
+    public bool HasBody(Entity entity) => World.Entities.Body(entity) != null;
 
     /// <summary>
     /// True if the entity had a <typeparamref name="T"/> component at the end of the previous tick. False for an entity
     /// that is not live: a dead entity has no components.
     /// </summary>
     public bool HasComponent<T>(Entity entity) where T : IComponent =>
-        world.Entities.IsAlive(entity) && world.Entities.FrontComponents(entity).Contains(ComponentType<T>.Id);
+        World.Entities.IsAlive(entity) && World.Entities.FrontComponents(entity).Contains(ComponentType<T>.Id);
 
     /// <summary>
     /// The physics facts of the entity's body: its motion, mass, shape kind, bounding radius, center of mass, collision groups and mask,
@@ -65,14 +71,16 @@ public readonly struct Snapshot
     /// </summary>
     public bool TryGetBody(Entity entity, out BodyFacts facts)
     {
-        EntityTable entities = world.Entities;
+        EntityTable entities = World.Entities;
         if (!entities.IsAlive(entity) || entities.Body(entity) is not { } body)
         {
             facts = default;
             return false;
         }
+
         ref readonly BodyCollision collision = ref entities.FrontCollision(entity);
-        facts = new BodyFacts(MotionOf(body, entities.OwnedFrame(entity)), body.Mass, body.Shape.Kind, entities.BodyBoundingRadius(entity),
+        facts = new(MotionOf(body, entities.OwnedFrame(entity)), body.Mass, body.Shape.Kind,
+            entities.BodyBoundingRadius(entity),
             entities.BodyCenterOfMass(entity), collision.Groups, collision.Mask, body.IsSensor);
         return true;
     }
@@ -84,7 +92,7 @@ public readonly struct Snapshot
     /// worker may read it.
     /// </summary>
     private BodyMotion MotionOf(BodyDesc body, FrameHandle ownedFrame) =>
-        ownedFrame.IsNull ? body.Motion : world.Frames.HullMotion(ownedFrame) ?? BodyMotion.Static;
+        ownedFrame.IsNull ? body.Motion : World.Frames.HullMotion(ownedFrame) ?? BodyMotion.Static;
 
     /// <summary>
     /// Binds a stored query to this snapshot. An ending such as <c>foreach</c> or <see cref="FoundEntities.Count"/> runs
@@ -97,19 +105,14 @@ public readonly struct Snapshot
     /// tick and passes every filter of the query, as a run of <see cref="Find"/> would find it. False for an entity that
     /// was not live. It allocates nothing.
     /// </summary>
-    public bool Matches(in EntityQuery query, Entity entity) => world.Entities.IsAlive(entity) && query.Matches(this, entity, default);
-
-    /// <summary>
-    /// Every live entity, the start of the shorthand chain, such as <c>Entities.With&lt;Flammable&gt;().Near(5)</c>. Its words
-    /// build the same query as <see cref="EntityQuery"/>'s and run it, and it allocates nothing.
-    /// </summary>
-    public FoundEntities Entities => new(this, default, default);
+    public bool Matches(in EntityQuery query, Entity entity) =>
+        World.Entities.IsAlive(entity) && query.Matches(this, entity, default);
 
     /// <summary>
     /// True if physics stood the character on walkable ground under gravity in its last step. False for a character in
     /// the air, on steep ground or weightless, for any other body, and for an entity without a body.
     /// </summary>
-    public bool IsStanding(Entity entity) => world.IsStanding(entity);
+    public bool IsStanding(Entity entity) => World.IsStanding(entity);
 
     /// <summary>The entity's pose in <paramref name="frame"/>, through the frame tree. False if either handle is stale.</summary>
     public bool TryGetPoseIn(Entity entity, FrameHandle frame, out DPose pose)
@@ -119,7 +122,8 @@ public readonly struct Snapshot
             pose = default;
             return false;
         }
-        pose = FrameReads.PoseIn(world.Frames, entity, world.Entities.FrontRow(entity), frame);
+
+        pose = FrameReads.PoseIn(World.Frames, entity, World.Entities.FrontRow(entity), frame);
         return true;
     }
 
@@ -134,7 +138,8 @@ public readonly struct Snapshot
             velocity = default;
             return false;
         }
-        velocity = FrameReads.VelocityIn(world.Frames, entity, world.Entities.FrontRow(entity), frame);
+
+        velocity = FrameReads.VelocityIn(World.Frames, entity, World.Entities.FrontRow(entity), frame);
         return true;
     }
 
@@ -148,11 +153,12 @@ public readonly struct Snapshot
             angularVelocity = default;
             return false;
         }
-        angularVelocity = FrameReads.AngularVelocityIn(world.Frames, entity, world.Entities.FrontRow(entity), frame);
+
+        angularVelocity = FrameReads.AngularVelocityIn(World.Frames, entity, World.Entities.FrontRow(entity), frame);
         return true;
     }
 
-    private bool Live(Entity entity, FrameHandle frame) => world.IsAlive(entity) && world.Frames.IsAlive(frame);
+    private bool Live(Entity entity, FrameHandle frame) => World.IsAlive(entity) && World.Frames.IsAlive(frame);
 
     /// <summary>
     /// Clears <paramref name="results"/>, then adds every live entity in <paramref name="frame"/> whose position is
@@ -160,5 +166,5 @@ public readonly struct Snapshot
     /// grid only narrows the search.
     /// </summary>
     public void QueryRadius(FrameHandle frame, Double3 center, double radius, List<Entity> results) =>
-        world.QueryRadius(frame, center, radius, results);
+        World.QueryRadius(frame, center, radius, results);
 }

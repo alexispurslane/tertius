@@ -40,9 +40,6 @@ namespace Tertius.Simulation;
 /// </remarks>
 internal sealed class Router
 {
-    /// <summary>An entity's inbox: <see cref="Count"/> deliveries from <see cref="Start"/> in <see cref="sortedDeliveries"/>.</summary>
-    private readonly record struct InboxRange(int Start, int Count);
-
     /// <summary>
     /// The default of <see cref="ParallelThreshold"/>. Measured on ter-sn28 with all workers (Apple M1 Max, 10 cores,
     /// busy with other builds), in the tick benchmark with one message per entity: the workers lose at 3,000 to 4,000
@@ -60,7 +57,7 @@ internal sealed class Router
     // Message sources, in routing order. Engine events are the ones that the sync point itself sends: FrameChanged and
     // Collision. Timers hold delayed sends by due tick, each bucket in send order.
     private readonly RefList<Event> engineEvents = new(16);
-    private readonly Dictionary<long, RefList<Event>> timers = new();
+    private readonly Dictionary<long, RefList<Event>> timers = [];
     private readonly Stack<RefList<Event>> spareTimerLists = new();
     private readonly ConcurrentQueue<Event> posted = new();
 
@@ -77,6 +74,8 @@ internal sealed class Router
     private int[] outboxStarts = new int[16];
     private int[] blockChunks = new int[2];
     private readonly Action<int> fillBlock, sortRange;
+
+    private int parallelThreshold = DefaultParallelThreshold;
 
     /// <param name="entities">The entity table whose chunks hold the outboxes, and whose slots the inboxes follow.</param>
     /// <param name="topics">The topic sets that a topic message expands into.</param>
@@ -106,8 +105,6 @@ internal sealed class Router
         }
     }
 
-    private int parallelThreshold = DefaultParallelThreshold;
-
     /// <summary>
     /// How many blocks a routing on the workers cuts the chunks into, and the most slot ranges it cuts the slots into.
     /// More work items than workers lets a fast worker take the work of a slow one. Any count gives the same result.
@@ -123,6 +120,9 @@ internal sealed class Router
 
     /// <summary>Inbox entries written at the last <see cref="Route"/>.</summary>
     public int DeliveryCount => cells.Count;
+
+    /// <summary>An entity's inbox: <see cref="Count"/> deliveries from <see cref="Start"/> in <see cref="sortedDeliveries"/>.</summary>
+    private readonly record struct InboxRange(int Start, int Count);
 
     /// <summary>Queues an event that the sync point sends. It joins the next routing, ahead of every outbox.</summary>
     public void AddEngineEvent(in Event e) => engineEvents.Add(e);
@@ -150,6 +150,7 @@ internal sealed class Router
         {
             cells.ShapeOne(entities.SlotCount);
         }
+
         PlaceBlocks();
         JoinSyncSources(outboxEnd, due);
         Run(cells.BlockCount, fillBlock);
@@ -191,6 +192,7 @@ internal sealed class Router
                 Contract.Invariant(range == default);
                 continue;
             }
+
             Contract.Invariant(range.Count > 0 && range.Start >= previousEnd && range.Start + range.Count <= total);
             previousEnd = range.Start + range.Count;
             int previousEvent = -1;
@@ -220,6 +222,7 @@ internal sealed class Router
             outboxStarts[c] = end;
             end += chunk.Outbox.Count;
         }
+
         outboxStarts[chunkCount] = end;
         return end;
     }
@@ -237,8 +240,10 @@ internal sealed class Router
                 bucketDue = d.Due;
                 bucket = TimerBucket(bucketDue);
             }
+
             bucket.Add(d.Event);
         }
+
         delayed.Clear();
     }
 
@@ -247,9 +252,10 @@ internal sealed class Router
     {
         if (!timers.TryGetValue(tick, out RefList<Event>? bucket))
         {
-            bucket = spareTimerLists.Count > 0 ? spareTimerLists.Pop() : new RefList<Event>(8);
+            bucket = spareTimerLists.Count > 0 ? spareTimerLists.Pop() : new(8);
             timers.Add(tick, bucket);
         }
+
         return bucket;
     }
 
@@ -278,8 +284,10 @@ internal sealed class Router
                 else
                     high = mid;
             }
+
             blockChunks[b] = low;
         }
+
         blockChunks[blockCount] = chunkCount;
     }
 
@@ -295,6 +303,7 @@ internal sealed class Router
             Parallel.For(0, count, workers!, body);
             return;
         }
+
         for (int i = 0; i < count; i++)
             body(i);
     }
@@ -317,6 +326,7 @@ internal sealed class Router
             due.Clear();
             spareTimerLists.Push(due);
         }
+
         while (posted.TryDequeue(out Event e))
             routed.Add(e);
     }
@@ -372,7 +382,7 @@ internal sealed class Router
     {
         // Every mask contains Destroy, so a Destroy always gets through.
         if (entities.Accepts(recipient, type))
-            mine.Add(new Delivery(recipient.Index, eventIndex));
+            mine.Add(new(recipient.Index, eventIndex));
     }
 
     /// <summary>
@@ -388,13 +398,11 @@ internal sealed class Router
         ranges.Clear();
         int blockCount = cells.BlockCount;
         for (int b = 0; b < blockCount; b++)
-        {
             foreach (Delivery d in cells.Cell(b, range))
             {
                 ref InboxRange slot = ref ranges[(int)d.Recipient - firstSlot];
                 slot = slot with { Count = slot.Count + 1 };
             }
-        }
 
         int start = cells.RangeStart(range);
         foreach (ref InboxRange slot in ranges)
@@ -402,19 +410,17 @@ internal sealed class Router
             int count = slot.Count;
             if (count == 0)
                 continue;
-            slot = new InboxRange(start, 0);
+            slot = new(start, 0);
             start += count;
         }
 
         Delivery[] sorted = sortedDeliveries;
         for (int b = 0; b < blockCount; b++)
-        {
             foreach (Delivery d in cells.Cell(b, range))
             {
                 ref InboxRange slot = ref ranges[(int)d.Recipient - firstSlot];
                 sorted[slot.Start + slot.Count] = d;
                 slot = slot with { Count = slot.Count + 1 };
             }
-        }
     }
 }

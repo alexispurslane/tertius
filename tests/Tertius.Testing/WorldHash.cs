@@ -36,8 +36,10 @@ public static class WorldHash
             foreach (IComponent component in world.GetComponents(e))
                 hash = mixComponent(hash, component);
         }
+
         if (!world.RenderSnapshots.TryAcquireLatest(out RenderSnapshot snapshot))
-            throw new InvalidOperationException("The sync point publishes a render snapshot every tick, so the world has ticked at least once.");
+            throw new InvalidOperationException(
+                "The sync point publishes a render snapshot every tick, so the world has ticked at least once.");
         foreach (RenderInstance instance in snapshot.Instances)
             hash = Mix(Mix(Mix(hash, instance.EntityIndex), instance.Position), instance.PreviousPosition);
         return Mix(hash, (ulong)world.Errors.Count);
@@ -57,14 +59,15 @@ public static class WorldHash
         // Each field of each look, because the hash code of a union mixes with a seed that changes from process to process.
         foreach (PuffLook look in snapshot.PuffLooks)
         {
-            hash = Mix(Mix(Mix(Mix(hash, Bits(look.Life)), Bits(look.StartRadius)), Bits(look.EndRadius)), Bits(look.TemperatureRatio));
-            if (look.Shading.TryGetValue(out GlowPuffs glow))
-                hash = Mix(Mix(hash, 1UL), glow.Radiance);
-            else if (look.Shading.TryGetValue(out LitPuffs lit))
-                hash = Mix(Mix(hash, 2UL), lit.Albedo);
-            else
-                hash = Mix(hash, 0UL);
+            hash = Mix(Mix(Mix(Mix(hash, Bits(look.Life)), Bits(look.StartRadius)), Bits(look.EndRadius)),
+                Bits(look.TemperatureRatio));
+            hash = look.Shading.TryGetValue(out GlowPuffs glow)
+                ? Mix(Mix(hash, 1UL), glow.Radiance)
+                : look.Shading.TryGetValue(out LitPuffs lit)
+                    ? Mix(Mix(hash, 2UL), lit.Albedo)
+                    : Mix(hash, 0UL);
         }
+
         return hash;
     }
 

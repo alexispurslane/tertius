@@ -59,7 +59,7 @@ internal sealed class TimedPlayback(IPlayback inner, TimedRenderer? renderer = n
     public double Seconds { get; private set; }
 
     /// <summary>The times of each capture, in order.</summary>
-    public List<CaptureTime> Frames { get; } = new();
+    public List<CaptureTime> Frames { get; } = [];
 
     public bool WaitForTick() => inner.WaitForTick();
 
@@ -70,7 +70,7 @@ internal sealed class TimedPlayback(IPlayback inner, TimedRenderer? renderer = n
         long end = Stopwatch.GetTimestamp();
         double capture = TimedRenderer.Seconds(end - start);
         Seconds += capture;
-        Frames.Add(new CaptureTime(name, TimedRenderer.Seconds(start - last), capture, renderer?.LastSinkSeconds ?? 0));
+        Frames.Add(new(name, TimedRenderer.Seconds(start - last), capture, renderer?.LastSinkSeconds ?? 0));
         last = end;
         return captured;
     }

@@ -25,7 +25,10 @@ public sealed class FlightLayerTests : IDisposable
     private readonly FrameHandle space;
     private Entity shuttle;
 
-    public FlightLayerTests() => space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+    public FlightLayerTests()
+    {
+        space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
+    }
 
     public void Dispose() => world.Dispose();
 
@@ -71,7 +74,8 @@ public sealed class FlightLayerTests : IDisposable
     public void TheActuatorsRunAfterEveryLayer()
     {
         Launch(
-            new Layer(priority: 2, target: QuarterTurn, throttle: 0.5f, translation: new Double3(0, Shuttle.TranslationThrust, 0)));
+            new Layer(priority: 2, target: QuarterTurn, throttle: 0.5f,
+                translation: new Double3(0, Shuttle.TranslationThrust, 0)));
 
         Tick(world, 1200);
 
@@ -85,7 +89,8 @@ public sealed class FlightLayerTests : IDisposable
     /// and, when <paramref name="throttle"/> or <paramref name="translation"/> is set, a <see cref="Throttle"/> or a
     /// <see cref="Translation"/> of it, to its entity's events.
     /// </summary>
-    private sealed class Layer(int priority, DQuaternion target, float? throttle = null, Double3? translation = null) : IComponent
+    private sealed class Layer(int priority, DQuaternion target, float? throttle = null, Double3? translation = null)
+        : IComponent
     {
         public int Priority => priority;
 

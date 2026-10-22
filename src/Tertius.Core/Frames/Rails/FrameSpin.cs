@@ -19,11 +19,14 @@ public record struct FrameSpin(DQuaternion Tilt, double Rate, double PhaseAtEpoc
         double.IsFinite(Rate) && double.IsFinite(PhaseAtEpoch) && double.IsFinite(Epoch) &&
         double.IsFinite(Tilt.X) && double.IsFinite(Tilt.Y) && double.IsFinite(Tilt.Z) && double.IsFinite(Tilt.W);
 
-    /// <summary>The frame's rotation relative to its parent at <paramref name="time"/>.</summary>
-    public readonly DQuaternion RotationAt(double time) => Leaning * DQuaternion.FromAxisAngle(Double3.UnitY, PhaseAtEpoch + Rate * (time - Epoch));
-
     /// <summary>The frame's angular velocity in parent axes, in radians per second: <see cref="Rate"/> about the pole.</summary>
     public readonly Double3 AngularVelocity => Leaning.Rotate(Double3.UnitY) * Rate;
+
+    private readonly DQuaternion Leaning => Tilt.LengthSquared == 0 ? DQuaternion.Identity : Tilt.Normalized();
+
+    /// <summary>The frame's rotation relative to its parent at <paramref name="time"/>.</summary>
+    public readonly DQuaternion RotationAt(double time) =>
+        Leaning * DQuaternion.FromAxisAngle(Double3.UnitY, PhaseAtEpoch + Rate * (time - Epoch));
 
     /// <summary>
     /// The frame's motion over the physics step that ends at <paramref name="stepEnd"/>: it stands at
@@ -33,7 +36,5 @@ public record struct FrameSpin(DQuaternion Tilt, double Rate, double PhaseAtEpoc
     /// depend on it. It keeps the signature the same as <see cref="KeplerOrbit.Sample"/>.
     /// </summary>
     public readonly MotionSample Sample(Double3 place, double stepEnd, double step) =>
-        new(new DPose(place, RotationAt(stepEnd)), Double3.Zero, Double3.Zero, Double3.Zero, AngularVelocity, Double3.Zero);
-
-    private readonly DQuaternion Leaning => Tilt.LengthSquared == 0 ? DQuaternion.Identity : Tilt.Normalized();
+        new(new(place, RotationAt(stepEnd)), Double3.Zero, Double3.Zero, Double3.Zero, AngularVelocity, Double3.Zero);
 }

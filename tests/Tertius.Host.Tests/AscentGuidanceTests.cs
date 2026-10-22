@@ -29,7 +29,7 @@ public sealed class AscentGuidanceTests
     [InlineData(60)]
     public void AShipWithNoSpeedAlongTheTrackIsToldToGainItInTheLaunchPlane(double climb)
     {
-        Double3 a = Guidance.Acceleration(new Double3(0, 6.371e6, 0), new Double3(0, climb, 0));
+        Double3 a = Guidance.Acceleration(new(0, 6.371e6, 0), new(0, climb, 0));
 
         a.Y.Should().BeGreaterThan(0, "the ship climbs");
         a.Z.Should().BeLessThan(0, "the ship gains speed along the track");
@@ -44,7 +44,7 @@ public sealed class AscentGuidanceTests
     [Fact]
     public void NearTheEndTheThrustTakesTheSpeedThatIsLeftInTheTrimTime()
     {
-        Double3 a = Guidance.Acceleration(new Double3(0, OrbitRadius, 0), new Double3(0, 0, -(7788.488 - 2)));
+        Double3 a = Guidance.Acceleration(new(0, OrbitRadius, 0), new(0, 0, -(7788.488 - 2)));
 
         a.Z.Should().BeApproximately(-0.5, 1e-3);
         a.Y.Should().BeApproximately(0.00474, 1e-5);
@@ -64,7 +64,7 @@ public sealed class AscentGuidanceTests
     [InlineData(OrbitRadius, 0, -7700, -300)]
     public void TheThrustNeverExceedsFullThrottle(double radius, double climb, double alongTrack, double acrossSpeed)
     {
-        Double3 a = Guidance.Acceleration(new Double3(0, radius, 0), new Double3(acrossSpeed, climb, alongTrack));
+        Double3 a = Guidance.Acceleration(new(0, radius, 0), new(acrossSpeed, climb, alongTrack));
 
         a.Length.Should().BeLessThanOrEqualTo(Full + 1e-9);
         a.Length.Should().BeGreaterThan(0);
@@ -77,7 +77,7 @@ public sealed class AscentGuidanceTests
     [Fact]
     public void AShipBelowTheCircleIsToldToClimb()
     {
-        Double3 a = Guidance.Acceleration(new Double3(0, 6.55e6, 0), new Double3(0, 0, -2000));
+        Double3 a = Guidance.Acceleration(new(0, 6.55e6, 0), new(0, 0, -2000));
 
         a.Y.Should().BeGreaterThan(9.29);
         a.Z.Should().BeLessThan(0, "the rest of the thrust goes along the track");
@@ -91,7 +91,7 @@ public sealed class AscentGuidanceTests
     [Fact]
     public void AShipThatDriftsAcrossTheLaunchPlaneIsToldToPushBackTowardIt()
     {
-        Double3 a = Guidance.Acceleration(new Double3(0, OrbitRadius, 0), new Double3(5, 0, -7700));
+        Double3 a = Guidance.Acceleration(new(0, OrbitRadius, 0), new(5, 0, -7700));
 
         a.X.Should().BeApproximately(-2.5, 1e-9);
     }
@@ -122,14 +122,16 @@ public sealed class AscentGuidanceTests
     [InlineData(6.55e6, 0, 2000, 10)]
     [InlineData(OrbitRadius, 0, 7700, 1000)]
     [InlineData(6.56e6, 20, 7000, -50)]
-    public void ThePushAcrossThePlaneNeverTakesThrustFromTheClimb(double radius, double climb, double alongTrack, double across)
+    public void ThePushAcrossThePlaneNeverTakesThrustFromTheClimb(double radius, double climb, double alongTrack,
+        double across)
     {
         (Double3 position, Double3 velocity) = OnTheTrack(radius, across, climb, alongTrack);
         (Double3 twinPosition, Double3 twinVelocity) = OnTheTrack(radius, across: 0, climb, alongTrack);
 
         Double3 a = Guidance.Acceleration(position, velocity), twin = Guidance.Acceleration(twinPosition, twinVelocity);
 
-        Double3.Dot(a, position.Normalized()).Should().BeApproximately(Double3.Dot(twin, twinPosition.Normalized()), 1e-9);
+        Double3.Dot(a, position.Normalized()).Should()
+            .BeApproximately(Double3.Dot(twin, twinPosition.Normalized()), 1e-9);
     }
 
     /// <summary>
@@ -137,7 +139,8 @@ public sealed class AscentGuidanceTests
     /// side of +X, the side away from its normal, that climbs at <paramref name="climb"/> and moves along its track at
     /// <paramref name="alongTrack"/>, with no speed across the plane.
     /// </summary>
-    private static (Double3 Position, Double3 Velocity) OnTheTrack(double radius, double across, double climb, double alongTrack)
+    private static (Double3 Position, Double3 Velocity) OnTheTrack(double radius, double across, double climb,
+        double alongTrack)
     {
         var position = new Double3(across, Math.Sqrt(radius * radius - across * across), 0);
         Double3 up = position.Normalized(), track = Double3.Cross(PlaneNormal, up).Normalized();
@@ -153,6 +156,7 @@ public sealed class AscentGuidanceTests
     [InlineData(0.4, 7788.488, true)]
     [InlineData(-0.6, 7788.488, false)]
     [InlineData(0.6, 7788.488, false)]
-    public void TheClimbIsDoneOnceTheSpeedAlongTheTrackAndTheVerticalSpeedAreThoseOfTheCircle(double climb, double alongTrack, bool done) =>
-        Guidance.Reached(new Double3(0, OrbitRadius, 0), new Double3(0, climb, -alongTrack)).Should().Be(done);
+    public void TheClimbIsDoneOnceTheSpeedAlongTheTrackAndTheVerticalSpeedAreThoseOfTheCircle(double climb,
+        double alongTrack, bool done) =>
+        Guidance.Reached(new(0, OrbitRadius, 0), new(0, climb, -alongTrack)).Should().Be(done);
 }

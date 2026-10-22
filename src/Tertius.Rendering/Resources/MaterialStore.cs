@@ -15,8 +15,10 @@ internal sealed unsafe class MaterialStore : IDisposable
 {
     /// <summary>The slot of the default material.</summary>
     public const uint DefaultSlot = 0;
+
     /// <summary>The slots the default material takes, before the first material that the renderer hands out.</summary>
     public const int BuiltInCount = 1;
+
     private const int InitialCapacity = 256;
 
     private readonly VulkanDevice device;
@@ -66,11 +68,12 @@ internal sealed unsafe class MaterialStore : IDisposable
         Gloss = Math.Clamp(desc.Gloss, 0f, 1f),
         AlbedoTexture = TextureStore.Resolve(desc.Albedo, TextureStore.White),
         NormalTexture = TextureStore.Resolve(desc.Normal, TextureStore.FlatNormal),
-        SpecularGlossTexture = TextureStore.Resolve(desc.SpecularGloss, TextureStore.DefaultSpecularGloss),
+        SpecularGlossTexture = TextureStore.Resolve(desc.SpecularGloss, TextureStore.DefaultSpecularGloss)
     };
 
     /// <summary>Records the upload of queued materials, creating the default on the first call.</summary>
-    public void Upload(CommandBuffer commandBuffer, List<(MaterialId Id, MaterialDesc Desc)> pending, StagingArena staging,
+    public void Upload(CommandBuffer commandBuffer, List<(MaterialId Id, MaterialDesc Desc)> pending,
+        StagingArena staging,
         BarrierBatch barriers, DeferredReleases releases, long frame)
     {
         int first = Count;
@@ -92,6 +95,7 @@ internal sealed unsafe class MaterialStore : IDisposable
                 var copy = new BufferCopy(0, 0, (ulong)Count * (ulong)sizeof(GpuMaterial));
                 device.Vk.CmdCopyBuffer(commandBuffer, Buffer.Handle, replacement.Handle, 1, &copy);
             }
+
             releases.Retire(Buffer, frame);
             Buffer = replacement;
             capacity = grown;
@@ -102,7 +106,7 @@ internal sealed unsafe class MaterialStore : IDisposable
         Span<GpuMaterial> staged = MemoryMarshal.Cast<byte, GpuMaterial>(stage.Bytes);
         int cursor = 0;
         if (Count == 0)
-            staged[cursor++] = ToGpu(new MaterialDesc(Vector4.One));
+            staged[cursor++] = ToGpu(new(Vector4.One));
         foreach ((MaterialId id, MaterialDesc desc) in pending)
         {
             // The upload queue hands out dense ids under one lock and drains them in order, so each id names the next
@@ -118,8 +122,10 @@ internal sealed unsafe class MaterialStore : IDisposable
         Count += added;
     }
 
-    private GpuBuffer Create(int materials) => GpuBuffer.Create(device, allocator, (ulong)materials * (ulong)sizeof(GpuMaterial),
-        BufferUsageFlags.StorageBufferBit | BufferUsageFlags.TransferDstBit | BufferUsageFlags.TransferSrcBit, MemoryUsage.GpuOnly, "materials");
+    private GpuBuffer Create(int materials) => GpuBuffer.Create(device, allocator,
+        (ulong)materials * (ulong)sizeof(GpuMaterial),
+        BufferUsageFlags.StorageBufferBit | BufferUsageFlags.TransferDstBit | BufferUsageFlags.TransferSrcBit,
+        MemoryUsage.GpuOnly, "materials");
 
     public void Dispose() => Buffer.Dispose();
 }

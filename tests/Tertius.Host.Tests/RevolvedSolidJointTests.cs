@@ -18,19 +18,10 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class RevolvedSolidJointTests
 {
-    public enum Floor
-    {
-        Hulls,
-        Mesh,
-    }
-
     private const int RingSegments = 256;
     private const float RingInner = 20;
     private const int TorusSegments = 64, TorusSides = 24;
     private const float TorusMajor = 3, TorusMinor = 1;
-
-    private static readonly RevolvedSolid Ring = RevolvedSolid.Ring(RingInner, 20.5f, 2, RingSegments);
-    private static readonly RevolvedSolid Torus = RevolvedSolid.Torus(TorusMajor, TorusMinor, TorusSegments, TorusSides);
 
     private const float BallRadius = 0.25f;
 
@@ -44,6 +35,17 @@ public sealed class RevolvedSolidJointTests
     /// 0.01 mm. So 0.5 mm is a margin.
     /// </summary>
     private const double Sideways = 0.0005;
+
+    private static readonly RevolvedSolid Ring = RevolvedSolid.Ring(RingInner, 20.5f, 2, RingSegments);
+
+    private static readonly RevolvedSolid
+        Torus = RevolvedSolid.Torus(TorusMajor, TorusMinor, TorusSegments, TorusSides);
+
+    public enum Floor
+    {
+        Hulls,
+        Mesh
+    }
 
     private static ShapeDesc ShapeOf(RevolvedSolid solid, Floor floor)
     {
@@ -69,10 +71,15 @@ public sealed class RevolvedSolidJointTests
     private static double Landing(RevolvedSolid solid, Floor floor, Double3 point, Double3 down, Double3 away)
     {
         using World world = NewWorld(out _);
-        FrameHandle frame = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), GravityField.Uniform((9.81 * down).ToVector3())));
-        world.Spawn(new SpawnDesc { Frame = frame, Body = new BodyDesc(ShapeOf(solid, floor), BodyMotion.Static) });
+        FrameHandle frame =
+            world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), GravityField.Uniform((9.81 * down).ToVector3())));
+        world.Spawn(new() { Frame = frame, Body = new(ShapeOf(solid, floor), BodyMotion.Static) });
         Double3 rest = point - BallRadius * down;
-        Entity ball = world.Spawn(new SpawnDesc { Frame = frame, Pose = new DPose(rest - 0.1 * down, DQuaternion.Identity), Body = new BodyDesc(new SphereShapeDesc(BallRadius), Mass: 1) });
+        Entity ball = world.Spawn(new()
+        {
+            Frame = frame, Pose = new(rest - 0.1 * down, DQuaternion.Identity),
+            Body = new(new SphereShapeDesc(BallRadius), Mass: 1)
+        });
         Tick(world, 180);
         world.Errors.Should().BeEmpty();
         return Double3.Dot(world.PoseIn(ball, frame).Position - rest, away);
@@ -92,7 +99,8 @@ public sealed class RevolvedSolidJointTests
 
         double side = Landing(Torus, floor, point, -Double3.UnitY, Along(theta));
 
-        side.Should().BeInRange(-Sideways, Sideways, "the top is flat across the joint, and edge removal drops the contact with the neighbor segment's edge");
+        side.Should().BeInRange(-Sideways, Sideways,
+            "the top is flat across the joint, and edge removal drops the contact with the neighbor segment's edge");
     }
 
     /// <summary>
@@ -111,7 +119,8 @@ public sealed class RevolvedSolidJointTests
 
         double side = Landing(Ring, floor, point, Radial(Math.PI / RingSegments), along);
 
-        side.Should().BeInRange(-Sideways, Sideways, "the facet is level, and edge removal drops the contact with the neighbor facet's edge");
+        side.Should().BeInRange(-Sideways, Sideways,
+            "the facet is level, and edge removal drops the contact with the neighbor facet's edge");
     }
 
     /// <summary>
@@ -122,7 +131,7 @@ public sealed class RevolvedSolidJointTests
     {
         public int Priority => 0;
 
-        public EventMask Wants => EventMask.Of<Tertius.Tick>();
+        public EventMask Wants => EventMask.Of<Tick>();
 
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
@@ -149,25 +158,27 @@ public sealed class RevolvedSolidJointTests
         const double half = 0.2, rounding = ShapeDesc.DefaultConvexRadius, step = Math.Tau / RingSegments;
         double apothem = RingInner * Math.Cos(Math.PI / RingSegments);
         using World world = NewWorld(out _);
-        FrameHandle frame = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), GravityField.Uniform(new Vector3(9.81f, 0, 0))));
-        world.Spawn(new SpawnDesc { Frame = frame, Body = new BodyDesc(ShapeOf(Ring, Floor.Hulls), BodyMotion.Static) });
+        FrameHandle frame =
+            world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(9.81f, 0, 0))));
+        world.Spawn(new() { Frame = frame, Body = new(ShapeOf(Ring, Floor.Hulls), BodyMotion.Static) });
         double start = -5.5 * step;
         // The box's up, its local +Y, faces the axis; its local +X runs along the axis.
-        DQuaternion turn = DQuaternion.FromAxisAngle(Double3.UnitY, start) * DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2);
+        DQuaternion turn = DQuaternion.FromAxisAngle(Double3.UnitY, start) *
+                           DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2);
         (turn.Rotate(Double3.UnitY) + Radial(start)).Length.Should().BeLessThan(1e-9, "the box's up faces the axis");
-        Entity box = world.Spawn(new SpawnDesc
+        Entity box = world.Spawn(new()
         {
             Frame = frame,
-            Pose = new DPose((apothem - half - 0.0002) * Radial(start), turn),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3((float)half)), Mass: 10),
-            Components = [new Pusher()],
+            Pose = new((apothem - half - 0.0002) * Radial(start), turn),
+            Body = new(new BoxShapeDesc(new((float)half)), Mass: 10),
+            Components = [new Pusher()]
         });
 
         // The height of a point above the facet under it, toward the axis.
         double Height(Double3 point)
         {
             double middle = (Math.Floor(Math.Atan2(-point.Z, point.X) / step) + 0.5) * step;
-            return apothem - Double3.Dot(new Double3(point.X, 0, point.Z), Radial(middle));
+            return apothem - Double3.Dot(new(point.X, 0, point.Z), Radial(middle));
         }
 
         double lift = double.MinValue, pitch = 0, theta = start;
@@ -177,19 +188,24 @@ public sealed class RevolvedSolidJointTests
             DPose pose = world.PoseIn(box, frame);
             Double3 p = pose.Position;
             theta = Math.Atan2(-p.Z, p.X);
-            Double3 up = pose.Rotation.Rotate(Double3.UnitY), x = pose.Rotation.Rotate(Double3.UnitX), z = pose.Rotation.Rotate(Double3.UnitZ);
+            Double3 up = pose.Rotation.Rotate(Double3.UnitY),
+                x = pose.Rotation.Rotate(Double3.UnitX),
+                z = pose.Rotation.Rotate(Double3.UnitZ);
             double lowest = double.MaxValue;
             // The bottom face is flat out to the rounding of its edges.
             foreach (double sx in new[] { -1.0, 1.0 })
-                foreach (double sz in new[] { -1.0, 1.0 })
-                    lowest = Math.Min(lowest, Height(p - half * up + sx * (half - rounding) * x + sz * (half - rounding) * z));
+            foreach (double sz in new[] { -1.0, 1.0 })
+                lowest = Math.Min(lowest,
+                    Height(p - half * up + sx * (half - rounding) * x + sz * (half - rounding) * z));
             lift = Math.Max(lift, lowest);
-            pitch = Math.Max(pitch, Math.Abs(Math.Atan2(Double3.Dot(up, Along(theta)), -Double3.Dot(up, Radial(theta)))));
+            pitch = Math.Max(pitch,
+                Math.Abs(Math.Atan2(Double3.Dot(up, Along(theta)), -Double3.Dot(up, Radial(theta)))));
         }
 
         theta.Should().BeGreaterThanOrEqualTo(4.5 * step, "the box has crossed the ten joints");
         lift.Should().BeLessThan(0.001, "the box never leaves the floor");
-        (pitch * 180 / Math.PI).Should().BeLessThan(180.0 / RingSegments + 0.5, "the box tilts only with the facets under it");
+        (pitch * 180 / Math.PI).Should()
+            .BeLessThan(180.0 / RingSegments + 0.5, "the box tilts only with the facets under it");
         world.Errors.Should().BeEmpty();
     }
 
@@ -200,10 +216,10 @@ public sealed class RevolvedSolidJointTests
 
         public int Priority => 0;
 
-        public EventMask Wants => EventMask.Of<Tertius.Tick>();
+        public EventMask Wants => EventMask.Of<Tick>();
 
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
-            self.Body.MoveCharacter(Walking ? new Vector3(0, 0, -PersonControl.WalkSpeed) : Vector3.Zero);
+            self.Body.MoveCharacter(Walking ? new(0, 0, -PersonControl.WalkSpeed) : Vector3.Zero);
     }
 
     /// <summary>
@@ -229,18 +245,19 @@ public sealed class RevolvedSolidJointTests
         const double step = Math.Tau / RingSegments;
         double apothem = RingInner * Math.Cos(Math.PI / RingSegments);
         using World world = NewWorld(out _);
-        FrameHandle frame = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), GravityField.Uniform(new Vector3(9.81f, 0, 0))));
-        world.Spawn(new SpawnDesc { Frame = frame, Body = new BodyDesc(ShapeOf(Ring, floor), BodyMotion.Static) });
+        FrameHandle frame =
+            world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(9.81f, 0, 0))));
+        world.Spawn(new() { Frame = frame, Body = new(ShapeOf(Ring, floor), BodyMotion.Static) });
         double start = -5.5 * step;
         // The person's up, its local +Y, is -X, and its lower sphere starts 1 cm above the middle of facet 250.
         Double3 lowerCenter = (apothem - radius - 0.01) * Radial(start);
         var walker = new Walker();
-        Entity person = world.Spawn(new SpawnDesc
+        Entity person = world.Spawn(new()
         {
             Frame = frame,
-            Pose = new DPose(lowerCenter - halfHeight * Double3.UnitX, DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2)),
-            Body = new BodyDesc(new CapsuleShapeDesc(halfHeight, radius), BodyMotion.Character, Mass: 70),
-            Components = [walker],
+            Pose = new(lowerCenter - halfHeight * Double3.UnitX, DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2)),
+            Body = new(new CapsuleShapeDesc(halfHeight, radius), BodyMotion.Character, Mass: 70),
+            Components = [walker]
         });
 
         // The lift of the lower sphere of a person at the pose, from the facet before its own to the one after.
@@ -249,7 +266,8 @@ public sealed class RevolvedSolidJointTests
             Double3 center = pose.Position - halfHeight * pose.Rotation.Rotate(Double3.UnitY);
             double k = Math.Floor(Math.Atan2(-center.Z, center.X) / step), distance = double.MaxValue;
             for (double j = k - 1; j <= k + 1; j++)
-                distance = Math.Min(distance, apothem - Double3.Dot(new Double3(center.X, 0, center.Z), Radial((j + 0.5) * step)));
+                distance = Math.Min(distance,
+                    apothem - Double3.Dot(new(center.X, 0, center.Z), Radial((j + 0.5) * step)));
             return distance - radius;
         }
 
@@ -275,7 +293,8 @@ public sealed class RevolvedSolidJointTests
 
         theta.Should().BeGreaterThanOrEqualTo(4.5 * step, "the person has crossed the ten joints");
         (lift - standing).Should().BeLessThan(0.001, "the person is never lifted off the floor at a joint");
-        (dip - standing).Should().BeGreaterThan(-0.0015, "the person dips into the crease at a joint by about 1 mm at most");
+        (dip - standing).Should()
+            .BeGreaterThan(-0.0015, "the person dips into the crease at a joint by about 1 mm at most");
         slowest.Should().BeGreaterThan(0.95 * PersonControl.WalkSpeed, "a joint never slows the walk");
         world.Errors.Should().BeEmpty();
     }

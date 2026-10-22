@@ -14,6 +14,7 @@ public sealed class RevolvedSolidGapTests
 {
     /// <summary>A ring like the ceiling's middle band, small enough to test fast: 20 m to 20.5 m from the axis, 4 m wide, in 32 segments.</summary>
     private const float Inner = 20, Outer = 20.5f, HalfWidth = 2;
+
     private const int Segments = 32;
 
     /// <summary>The segment left out: segment 16 spans θ from 180 to 191.25 degrees.</summary>
@@ -66,7 +67,8 @@ public sealed class RevolvedSolidGapTests
         Crossings(mesh, In(Gap + 1), Out(Gap + 1)).Should().Be(2, "the segment after the gap is closed");
         // A short chord in the ring's wall, from just before the gap to just after it, crosses the two caps at the cut
         // ends. Its sag inward, 0.12 m, keeps it inside the wall, 0.5 m thick.
-        Vector3 before = InTheWall(Math.Tau * (Gap - 0.05) / Segments), after = InTheWall(Math.Tau * (Gap + 1.05) / Segments);
+        Vector3 before = InTheWall(Math.Tau * (Gap - 0.05) / Segments),
+            after = InTheWall(Math.Tau * (Gap + 1.05) / Segments);
         Crossings(mesh, before, after).Should().Be(2, "each cut end is capped");
     }
 
@@ -74,11 +76,12 @@ public sealed class RevolvedSolidGapTests
     [Fact]
     public void ItsMeshFacesOutOfTheRingWithTheGap()
     {
-        bool Inside(Vector3 p)
+        static bool Inside(Vector3 p)
         {
             float rho = MathF.Sqrt(p.X * p.X + p.Z * p.Z);
             return rho >= Inner && rho <= Outer && MathF.Abs(p.Y) <= HalfWidth && !InSegment(p, Gap);
         }
+
         // The facets lie up to 0.1 m inside the outer circle, 20.5 m (1 - cos(π / 32)), so the probe looks 0.15 m off each face.
         ExpectFacingOut(Ring().Mesh(), Inside, probe: 0.15f, maxNormalAngle: MathF.PI / 12);
     }
@@ -91,6 +94,7 @@ public sealed class RevolvedSolidGapTests
             .Should().Throw<ArgumentOutOfRangeException>();
         FluentActions.Invoking(() => RevolvedSolid.Ring(Inner, Outer, HalfWidth, Segments).LeavingOut(-1))
             .Should().Throw<ArgumentOutOfRangeException>();
-        FluentActions.Invoking(() => RevolvedSolid.Cylinder(1, 1, 32).LeavingOut(0)).Should().Throw<InvalidOperationException>();
+        FluentActions.Invoking(() => RevolvedSolid.Cylinder(1, 1, 32).LeavingOut(0)).Should()
+            .Throw<InvalidOperationException>();
     }
 }

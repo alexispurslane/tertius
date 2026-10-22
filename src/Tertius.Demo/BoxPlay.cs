@@ -49,8 +49,16 @@ public readonly record struct BoxThrow(Entity Box, Double3 Aim);
 /// <param name="body">The person's capsule, which a thrown box starts clear of.</param>
 /// <param name="floor">The station's floor, in its axes.</param>
 /// <param name="rate">The station's steady spin rate about its +Y, in rad/s.</param>
-public sealed class BoxPlay(FrameHandle station, IReadOnlyList<Waypoint> shove, IReadOnlyList<Waypoint> toStand, IReadOnlyList<BoxThrow> throws,
-    double walkSpeed, float throwSpeed, CapsuleShapeDesc body, WheelFloor floor, double rate) : IComponent
+public sealed class BoxPlay(
+    FrameHandle station,
+    IReadOnlyList<Waypoint> shove,
+    IReadOnlyList<Waypoint> toStand,
+    IReadOnlyList<BoxThrow> throws,
+    double walkSpeed,
+    float throwSpeed,
+    CapsuleShapeDesc body,
+    WheelFloor floor,
+    double rate) : IComponent
 {
     /// <summary>How long the person holds a box still before it throws it, in ticks: half a second.</summary>
     public const int AimTicks = 30;
@@ -63,9 +71,12 @@ public sealed class BoxPlay(FrameHandle station, IReadOnlyList<Waypoint> shove, 
 
     private readonly FrameHandle station = station;
     private readonly Waypoint[] shove = [.. shove], toStand = [.. toStand];
+
     private readonly BoxThrow[] throws = throws.Count == BoxPlayState.Throws
         ? [.. throws]
-        : throw new ArgumentException($"A box play has {BoxPlayState.Throws} throws, not {throws.Count}.", nameof(throws));
+        : throw new ArgumentException($"A box play has {BoxPlayState.Throws} throws, not {throws.Count}.",
+            nameof(throws));
+
     private readonly double walkSpeed = walkSpeed, rate = rate;
     private readonly float throwSpeed = throwSpeed;
     private readonly CapsuleShapeDesc body = body ?? throw new ArgumentNullException(nameof(body));
@@ -93,6 +104,7 @@ public sealed class BoxPlay(FrameHandle station, IReadOnlyList<Waypoint> shove, 
             else if (e.Is<CrateOffer>() && State.TryGetValue(out Taking taking) && e.Sender == throws[taking.Throw].Box)
                 Apply(self, Take(self, outbox, taking.Throw, e.Sender, e.As<CrateOffer>().Crate));
         }
+
         BoxPlayEvent? report = null;
         switch (State)
         {
@@ -116,6 +128,7 @@ public sealed class BoxPlay(FrameHandle station, IReadOnlyList<Waypoint> shove, 
                 State = watching;
                 break;
         }
+
         Apply(self, report);
     }
 
@@ -142,6 +155,7 @@ public sealed class BoxPlay(FrameHandle station, IReadOnlyList<Waypoint> shove, 
             self.Log($"BoxPlay halts: the box of throw {index} is gone.");
             return new BoxGone();
         }
+
         outbox.Send(box, new Use { User = self.Entity });
         return null;
     }
@@ -158,7 +172,7 @@ public sealed class BoxPlay(FrameHandle station, IReadOnlyList<Waypoint> shove, 
         taken[index] = offered;
         Pose view = self.Render.ViewOffset;
         (Vector3 aim, Quaternion turn) = AimInPerson(self, index, offered);
-        var grip = Pose.Compose(view.Inverse(), new Pose(Carry.ThrowStart(body, offered, view.Position, aim), turn));
+        var grip = Pose.Compose(view.Inverse(), new(Carry.ThrowStart(body, offered, view.Position, aim), turn));
         outbox.Send(box, new CrateTaken());
         return new Took(self.Spawn(offered.HeldCopy(self.Frame, self.Entity, view, grip)));
     }
@@ -176,7 +190,8 @@ public sealed class BoxPlay(FrameHandle station, IReadOnlyList<Waypoint> shove, 
             return null;
         CrateSpec box = taken[aiming.Throw];
         (Vector3 aim, Quaternion turn) = AimInPerson(self, aiming.Throw, box);
-        thrown.Add(Carry.Release(self, outbox, box, aiming.Copy, body, self.Render.ViewOffset.Position, aim, turn, throwSpeed,
+        thrown.Add(Carry.Release(self, outbox, box, aiming.Copy, body, self.Render.ViewOffset.Position, aim, turn,
+            throwSpeed,
             new FlightRecorder(station, floor, rate, box.HalfExtents.Y)));
         return new Thrown();
     }
@@ -202,8 +217,8 @@ public sealed class BoxPlay(FrameHandle station, IReadOnlyList<Waypoint> shove, 
     {
         DPose person = self.PoseIn(station);
         DQuaternion toPerson = person.Rotation.Conjugate();
-        Vector3 aim = toPerson.Rotate(throws[index].Aim).ToVector3();
-        Double3 start = person.TransformPoint((Double3)Carry.ThrowStart(body, box, self.Render.ViewOffset.Position, aim));
+        var aim = toPerson.Rotate(throws[index].Aim).ToVector3();
+        Double3 start = person.TransformPoint(Carry.ThrowStart(body, box, self.Render.ViewOffset.Position, aim));
         var release = new ThrowRelease(start, self.VelocityIn(station) + throws[index].Aim * throwSpeed);
         int facet = floor.FacetIndex(release.Landing(rate, floor, box.HalfExtents.Y).Place);
         return (aim, (toPerson * floor.FacetTurn(facet)).ToQuaternion());

@@ -19,24 +19,24 @@ public class CharacterFormNumericFrameTests
 {
     private const float PersonMass = 70;
 
-    /// <summary>A person: a capsule of half height 0.6 m and radius 0.3 m, so a bounding sphere of 0.9 m, and 70 kg.</summary>
-    private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: PersonMass);
-
     /// <summary>The radius of the bounding sphere of <see cref="Person"/>, in meters.</summary>
     private const float PersonRadius = 0.9f;
 
-    private static World NewWorld(bool numericFrames, out FaultInjectingBackend faults) =>
-        NewWorldWithFaults(out faults, configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
+    // ---- A character that drifts out of a Kepler station ----------------------------------------------------------
+
+    /// <summary>The station's bubble, a sphere of 16 m.</summary>
+    private const float StationRadius = 16;
+
+    /// <summary>A person: a capsule of half height 0.6 m and radius 0.3 m, so a bounding sphere of 0.9 m, and 70 kg.</summary>
+    private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character,
+        Mass: PersonMass);
 
     /// <summary>A circular low orbit of 6,800 km round earth, at about 7.66 km/s, whose frame keeps the axes of earth. The pull there is 8.6 m/s².</summary>
     private static readonly KeplerOrbit LowOrbit = KeplerOrbit.Circular(6.8e6, phase: 0.4);
 
-    /// <summary>Earth with its point gravity.</summary>
-    private static FrameHandle Earth(World world) =>
-        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(Scenes.EarthMu)));
-
     /// <summary>A kinematic hull that its frame's Kepler orbit moves: a box of 4 m.</summary>
-    private static readonly BodyDesc Core = new(new BoxShapeDesc(new Vector3(2)), BodyMotion.Kinematic, Mass: 1e4f, Restitution: 0);
+    private static readonly BodyDesc Core = new(new BoxShapeDesc(new(2)), BodyMotion.Kinematic, Mass: 1e4f,
+        Restitution: 0);
 
     /// <summary>
     /// A kinematic hull that its frame's Kepler orbit moves: <see cref="Core"/>, and a plate of 16 m by 0.5 m by 16 m across the +Y
@@ -44,22 +44,32 @@ public class CharacterFormNumericFrameTests
     /// that the merge test links the hull to a body near the bubble of 16 m, as in <see cref="NumericFrameOrbitTests"/>.
     /// </summary>
     private static readonly BodyDesc StationHull = new(new CompoundShapeDesc([
-        new CompoundChild(new BoxShapeDesc(new Vector3(2)), new Pose(Vector3.Zero, Quaternion.Identity)),
-        new CompoundChild(new BoxShapeDesc(new Vector3(8, 0.25f, 8)), new Pose(new Vector3(0, 20, 0), Quaternion.Identity)),
+        new(new BoxShapeDesc(new(2)), new(Vector3.Zero, Quaternion.Identity)),
+        new(new BoxShapeDesc(new(8, 0.25f, 8)), new(new(0, 20, 0), Quaternion.Identity))
     ]), BodyMotion.Kinematic, Mass: 1e5f, Restitution: 0);
 
+    // ---- Intent conversion and a switch of form ------------------------------------------------------------------
+
+    /// <summary>A turn that moves every axis: 90 degrees about Z, then 90 degrees about the new X.</summary>
+    private static DQuaternion Turned => DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2) *
+                                         DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2);
+
+    private static World NewWorld(bool numericFrames, out FaultInjectingBackend faults) =>
+        NewWorldWithFaults(out faults,
+            configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
+
+    /// <summary>Earth with its point gravity.</summary>
+    private static FrameHandle Earth(World world) =>
+        world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(Scenes.EarthMu)));
+
     /// <summary>What a test sees of a character at the end of a tick: the kind of its physics home and its form.</summary>
-    private static string State(World world, JoltPhysicsBackend backend, Entity person, FrameHandle station, FrameHandle earth)
+    private static string State(World world, JoltPhysicsBackend backend, Entity person, FrameHandle station,
+        FrameHandle earth)
     {
         FrameHandle home = world.PhysicsHomeOf(person);
         string kind = home == station ? "station" : home == earth ? "earth" : world.Frames.Numeric(home).ToString();
         return $"{kind} {(backend.HasRigidForm(person) ? "rigid" : "walking")}";
     }
-
-    // ---- Intent conversion and a switch of form ------------------------------------------------------------------
-
-    /// <summary>A turn that moves every axis: 90 degrees about Z, then 90 degrees about the new X.</summary>
-    private static DQuaternion Turned => DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2) * DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2);
 
     /// <summary>
     /// Space has no gravity, so a character there has the rigid form. It flies along +X at 12 m/s into the bubble of a ship
@@ -73,33 +83,38 @@ public class CharacterFormNumericFrameTests
     /// half of it.
     /// </summary>
     [Fact]
-    public void AnImpulseAddedInTheTickOfAWeightlessCharactersHandOffIntoAShipWithGravityPushesTheWalkingFormAlongTheAxesOfTheFrameThatGameplayNamed()
+    public void
+        AnImpulseAddedInTheTickOfAWeightlessCharactersHandOffIntoAShipWithGravityPushesTheWalkingFormAlongTheAxesOfTheFrameThatGameplayNamed()
     {
         using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
-        Entity hull = world.Spawn(new SpawnDesc
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
+        Entity hull = world.Spawn(new()
         {
             Frame = space,
-            Pose = new DPose(new Double3(30, 0, 0), Turned),
-            LinearVelocity = new Double3(0, 0.5, 0),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(20), GravityField.Uniform(new Vector3(0, -9.81f, 0))),
+            Pose = new(new(30, 0, 0), Turned),
+            LinearVelocity = new(0, 0.5, 0),
+            Body = new(new BoxShapeDesc(new(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+            AsFrame = new(FrameBounds.Sphere(20), GravityField.Uniform(new(0, -9.81f, 0)))
         });
         FrameHandle ship = world.GetOwnedFrame(hull);
         var pilot = new Pilot();
         Scenes.Approach approach = Scenes.ApproachToBubble(world, ship, tick: 30, ballRadius: PersonRadius);
-        Entity person = world.Spawn(new SpawnDesc { Frame = space, Pose = approach.Pose, LinearVelocity = approach.Velocity, Body = Person, Components = [pilot] });
+        Entity person = world.Spawn(new()
+        {
+            Frame = space, Pose = approach.Pose, LinearVelocity = approach.Velocity, Body = Person, Components = [pilot]
+        });
         Tick(world, 30);
         world.GetFrame(person).Should().Be(space);
         faults.Jolt.HasRigidForm(person).Should().BeTrue("space has no gravity, so the character is weightless");
         Double3 before = world.VelocityIn(person, space);
 
-        pilot.Once = body => body.AddImpulse(new Vector3(0, 2 * PersonMass, 0));
+        pilot.Once = body => body.AddImpulse(new(0, 2 * PersonMass, 0));
         world.Tick();
         world.GetFrame(person).Should().Be(ship, "the step of tick 30 handed the character into the ship");
         faults.Jolt.HasRigidForm(person).Should().BeTrue("a hand-off keeps the form");
         world.Tick();
-        faults.Jolt.HasRigidForm(person).Should().BeFalse("the ship's gravity of 9.81 m/s² gives the character the walking form");
+        faults.Jolt.HasRigidForm(person).Should()
+            .BeFalse("the ship's gravity of 9.81 m/s² gives the character the walking form");
 
         Double3 down = world.PoseIn(hull, space).Rotation.Rotate(new Double3(0, -1, 0));
         (down - new Double3(0, 0, -1)).Length.Should().BeLessThan(1e-9, "the ship's -Y is space's -Z");
@@ -108,7 +123,8 @@ public class CharacterFormNumericFrameTests
         Double3 across = change - down * fall;
         (across - new Double3(0, 2, 0)).Length.Should().BeLessThan(1e-4,
             $"the impulse of 140 N·s along space's +Y gives the character of 70 kg 2 m/s along it, not {change}");
-        fall.Should().BeInRange(0, 9.81 * world.DeltaTime, "the ship's gravity pulled the character along space's -Z for one step");
+        fall.Should().BeInRange(0, 9.81 * world.DeltaTime,
+            "the ship's gravity pulled the character along space's -Z for one step");
         world.Errors.Should().BeEmpty();
     }
 
@@ -128,17 +144,22 @@ public class CharacterFormNumericFrameTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void ACharacterAtRestBesideAKeplerHullIsRigidInTheHullsFollowingFrameAndWalksInEarthsOwnSystemAndStaysBesideTheHull(bool numericFrames)
+    public void
+        ACharacterAtRestBesideAKeplerHullIsRigidInTheHullsFollowingFrameAndWalksInEarthsOwnSystemAndStaysBesideTheHull(
+            bool numericFrames)
     {
         using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
         FrameHandle earth = Earth(world);
         Entity hull = world.Spawn(new SpawnDesc
         {
-            Frame = earth, Body = Core, AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
+            Frame = earth, Body = Core, AsFrame = new(FrameBounds.Sphere(0.01f))
         }.OnKeplerOrbit(world, LowOrbit, firstMove: true));
         (Double3 place, Double3 velocity) = LowOrbit.StateAt(world.Time, Scenes.EarthMu);
         var offset = new Double3(0, -3.5, 0);
-        Entity person = world.Spawn(new SpawnDesc { Frame = earth, Pose = new DPose(place + offset, DQuaternion.Identity), LinearVelocity = velocity, Body = Person });
+        Entity person = world.Spawn(new()
+        {
+            Frame = earth, Pose = new(place + offset, DQuaternion.Identity), LinearVelocity = velocity, Body = Person
+        });
         world.Tick();
 
         FrameHandle home = world.PhysicsHomeOf(person);
@@ -146,19 +167,22 @@ public class CharacterFormNumericFrameTests
         {
             world.Frames.Numeric(home).Should().Be(NumericMode.Following);
             home.Should().Be(world.PhysicsHomeOf(hull), "the character shares the hull's following frame");
-            faults.Jolt.HasRigidForm(person).Should().BeTrue("the following frame falls with the hull, so only the tidal pull acts in it");
+            faults.Jolt.HasRigidForm(person).Should()
+                .BeTrue("the following frame falls with the hull, so only the tidal pull acts in it");
         }
         else
         {
             home.Should().Be(earth);
             faults.Jolt.HasRigidForm(person).Should().BeFalse("earth's own system has the full pull of 8.6 m/s²");
         }
+
         Tick(world, 59);
 
         faults.Jolt.HasRigidForm(person).Should().Be(numericFrames, "the character keeps its form for the second");
         world.Snapshot.IsStanding(person).Should().BeFalse("nothing stands the character, which falls freely");
         Double3 drift = world.PoseIn(person, earth).Position - world.PoseIn(hull, earth).Position - offset;
-        drift.Length.Should().BeLessThan(numericFrames ? 1e-5 : 0.02, $"the character falls with the hull, 7.66 km in the second, and drifted {drift}");
+        drift.Length.Should().BeLessThan(numericFrames ? 1e-5 : 0.02,
+            $"the character falls with the hull, 7.66 km in the second, and drifted {drift}");
         world.Errors.Should().BeEmpty();
     }
 
@@ -181,30 +205,31 @@ public class CharacterFormNumericFrameTests
         FrameHandle earth = Earth(world);
         Entity hull = world.Spawn(new SpawnDesc
         {
-            Frame = earth, Body = Core, AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
+            Frame = earth, Body = Core, AsFrame = new(FrameBounds.Sphere(0.01f))
         }.OnKeplerOrbit(world, LowOrbit, firstMove: true));
         (Double3 place, Double3 velocity) = LowOrbit.StateAt(world.Time, Scenes.EarthMu);
-        Entity person = world.Spawn(new SpawnDesc { Frame = earth, Pose = new DPose(place + new Double3(0, -3.5, 0), DQuaternion.Identity), LinearVelocity = velocity, Body = Person });
+        Entity person = world.Spawn(new()
+        {
+            Frame = earth, Pose = new(place + new Double3(0, -3.5, 0), DQuaternion.Identity), LinearVelocity = velocity,
+            Body = Person
+        });
 
         var forms = new List<string>();
         for (int step = 1; step <= 4; step++)
         {
             world.Tick();
             FrameHandle home = world.PhysicsHomeOf(person);
-            home.Should().Be(world.PhysicsHomeOf(hull), $"the character shares the hull's following frame in step {step}");
+            home.Should().Be(world.PhysicsHomeOf(hull),
+                $"the character shares the hull's following frame in step {step}");
             forms.Add(faults.Jolt.HasRigidForm(person) ? "rigid" : "walking");
             world.Frames.EffectiveGravity(home, world.PoseIn(person, home).Position).Length.Should().BeLessThan(1e-3,
                 $"the following frame falls with the pull in step {step}, so its system shows only the tidal pull of about 1e-5 m/s² and the pull's change over a step, 1.6e-4 m/s²");
         }
 
-        forms.Should().Equal(["rigid", "rigid", "rigid", "rigid"], "the gravity in the following frame is the tidal pull in every step");
+        forms.Should().Equal(["rigid", "rigid", "rigid", "rigid"],
+            "the gravity in the following frame is the tidal pull in every step");
         world.Errors.Should().BeEmpty();
     }
-
-    // ---- A character that drifts out of a Kepler station ----------------------------------------------------------
-
-    /// <summary>The station's bubble, a sphere of 16 m.</summary>
-    private const float StationRadius = 16;
 
     /// <summary>
     /// A station on <see cref="LowOrbit"/>, whose hull is <see cref="StationHull"/> when <paramref name="plate"/> is true
@@ -225,17 +250,19 @@ public class CharacterFormNumericFrameTests
     [InlineData(true, true)]
     [InlineData(true, false)]
     [InlineData(false, true)]
-    public void ARigidCharacterThatDriftsOutOfAKeplerStationHasAGhostInTheStationsTreeParentWhileItSticksOutAndTakesTheFormThatTheGravityOfItsNewHomeAsksFor(
-        bool numericFrames, bool plate)
+    public void
+        ARigidCharacterThatDriftsOutOfAKeplerStationHasAGhostInTheStationsTreeParentWhileItSticksOutAndTakesTheFormThatTheGravityOfItsNewHomeAsksFor(
+            bool numericFrames, bool plate)
     {
         using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
         FrameHandle earth = Earth(world);
         Entity owner = world.Spawn(new SpawnDesc
         {
-            Frame = earth, Body = plate ? StationHull : Core, AsFrame = new FrameSpec(FrameBounds.Sphere(StationRadius)),
+            Frame = earth, Body = plate ? StationHull : Core, AsFrame = new(FrameBounds.Sphere(StationRadius))
         }.OnKeplerOrbit(world, LowOrbit, firstMove: true));
         FrameHandle station = world.GetOwnedFrame(owner);
-        Entity person = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 10), LinearVelocity = new Double3(0, 1, 0), Body = Person });
+        Entity person = world.Spawn(new()
+            { Frame = station, Pose = At(0, 10), LinearVelocity = new(0, 1, 0), Body = Person });
 
         var states = new List<string>();
         bool ghostWhileRigid = false;
@@ -246,18 +273,23 @@ public class CharacterFormNumericFrameTests
             if (states.Count == 0 || states[^1] != state)
                 states.Add(state);
             FrameHandle parent = world.Frames.TreeParent(station);
-            if (world.PhysicsHomeOf(person) == station && faults.Jolt.HasRigidForm(person) && faults.Jolt.HasGhostIn(person, parent))
+            if (world.PhysicsHomeOf(person) == station && faults.Jolt.HasRigidForm(person) &&
+                faults.Jolt.HasGhostIn(person, parent))
                 ghostWhileRigid = true;
             if (parent != earth)
-                faults.Jolt.HasGhostIn(person, earth).Should().BeFalse($"after tick {tick} no body of earth may touch the character's ghost in K");
+                faults.Jolt.HasGhostIn(person, earth).Should()
+                    .BeFalse($"after tick {tick} no body of earth may touch the character's ghost in K");
         }
 
         states.Should().Equal(!numericFrames ? ["station rigid", "earth rigid", "earth walking"]
             : plate ? ["station rigid", "Following rigid"]
-            : ["station rigid", "Falling rigid"], "a hand-off keeps the form, and the next step takes the form of the new home's gravity");
-        ghostWhileRigid.Should().BeTrue("a rigid character that sticks out of the bubble is partly in the station's tree parent");
+            : ["station rigid", "Falling rigid"],
+            "a hand-off keeps the form, and the next step takes the form of the new home's gravity");
+        ghostWhileRigid.Should()
+            .BeTrue("a rigid character that sticks out of the bubble is partly in the station's tree parent");
         world.GetFrame(person).Should().Be(earth);
-        (world.PoseIn(person, station).Position - new Double3(0, 18, 0)).Length.Should().BeLessThan(numericFrames ? 1e-6 : 1e-3,
+        (world.PoseIn(person, station).Position - new Double3(0, 18, 0)).Length.Should().BeLessThan(
+            numericFrames ? 1e-6 : 1e-3,
             "the character drifts on at 1 m/s relative to the station");
         world.Errors.Should().BeEmpty();
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();

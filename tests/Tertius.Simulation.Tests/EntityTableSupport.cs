@@ -1,4 +1,5 @@
 using System.Numerics;
+
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
@@ -15,10 +16,12 @@ internal static class EntityTableSupport
         table.SpawnLiveAt(0, body, components);
 
     /// <summary>Reserves a slot and makes it live at position (<paramref name="x"/>, 0, 0), with this body and these components.</summary>
-    public static Entity SpawnLiveAt(this EntityTable table, double x, BodyDesc? body = null, params IComponent[] components)
+    public static Entity SpawnLiveAt(this EntityTable table, double x, BodyDesc? body = null,
+        params IComponent[] components)
     {
         Entity entity = table.Reserve();
-        table.Activate(entity, RowAt(x), new RenderData(), components, [.. components.Select(c => c.Wants)], body, Vector3.Zero, FrameHandle.Null);
+        table.Activate(entity, RowAt(x), new(), components, [.. components.Select(c => c.Wants)], body, Vector3.Zero,
+            FrameHandle.Null);
         return entity;
     }
 

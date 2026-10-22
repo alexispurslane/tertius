@@ -10,6 +10,9 @@ namespace Tertius.Host.Scripting;
 /// </summary>
 internal sealed class EventPayloads
 {
+    private readonly Dictionary<string, List<Candidate>> byName = [with(StringComparer.Ordinal)];
+    private readonly Dictionary<Type, PayloadType> bound = [];
+
     /// <summary>One payload type, with its two generic calls bound once.</summary>
     public sealed class PayloadType(Type type, Func<Target, object, Event> create, Func<Event, object> box)
     {
@@ -24,9 +27,6 @@ internal sealed class EventPayloads
 
     /// <summary>A type that implements <see cref="IEventPayload"/>, and why an event cannot hold it, or null if it can.</summary>
     private readonly record struct Candidate(Type Type, string? Problem);
-
-    private readonly Dictionary<string, List<Candidate>> byName = new(StringComparer.Ordinal);
-    private readonly Dictionary<Type, PayloadType> bound = new();
 
     /// <summary>
     /// Finds every payload type in the assemblies that are loaded now: the core assembly that declares
@@ -46,8 +46,9 @@ internal sealed class EventPayloads
                 continue;
             foreach (Type type in assembly.GetTypes())
                 if (type.IsValueType && !type.ContainsGenericParameters && typeof(IEventPayload).IsAssignableFrom(type))
-                    payloads.Add(new Candidate(type, ProblemOf(type)));
+                    payloads.Add(new(type, ProblemOf(type)));
         }
+
         return payloads;
     }
 
@@ -60,21 +61,23 @@ internal sealed class EventPayloads
     {
         if (type.IsByRefLike)
             return "it is a ref struct";
-        (bool hasReferences, int size) = ((bool, int))typeof(EventPayloads).GetMethod(nameof(Layout), BindingFlags.NonPublic | BindingFlags.Static)!
-            .MakeGenericMethod(type).Invoke(null, null)!;
-        if (hasReferences)
-            return "it has a field that holds a reference";
-        if (size > EventTypeRegistry.MaxPayloadSize)
-            return $"it is {size} bytes, and a payload holds at most {EventTypeRegistry.MaxPayloadSize}";
-        return null;
+        (bool hasReferences, int size) =
+            ((bool, int))typeof(EventPayloads).GetMethod(nameof(Layout), BindingFlags.NonPublic | BindingFlags.Static)!
+                .MakeGenericMethod(type).Invoke(null, null)!;
+        return hasReferences
+            ? "it has a field that holds a reference"
+            : size > EventTypeRegistry.MaxPayloadSize
+                ? $"it is {size} bytes, and a payload holds at most {EventTypeRegistry.MaxPayloadSize}"
+                : null;
     }
 
-    private static (bool HasReferences, int Size) Layout<T>() => (RuntimeHelpers.IsReferenceOrContainsReferences<T>(), Unsafe.SizeOf<T>());
+    private static (bool HasReferences, int Size) Layout<T>() =>
+        (RuntimeHelpers.IsReferenceOrContainsReferences<T>(), Unsafe.SizeOf<T>());
 
     private void Add(Candidate candidate)
     {
         if (!byName.TryGetValue(candidate.Type.Name, out List<Candidate>? candidates))
-            byName.Add(candidate.Type.Name, candidates = new List<Candidate>());
+            byName.Add(candidate.Type.Name, candidates = []);
         candidates.Add(candidate);
     }
 
@@ -86,16 +89,20 @@ internal sealed class EventPayloads
             problem = $"no loaded payload type is named '{name}'.";
             return null;
         }
+
         if (candidates.Count > 1)
         {
-            problem = $"the name '{name}' is ambiguous: it names {string.Join(", ", candidates.Select(c => c.Type.FullName).Order(StringComparer.Ordinal))}. Rename one of them.";
+            problem =
+                $"the name '{name}' is ambiguous: it names {string.Join(", ", candidates.Select(c => c.Type.FullName).Order(StringComparer.Ordinal))}. Rename one of them.";
             return null;
         }
+
         if (candidates[0].Problem is { } why)
         {
             problem = $"{candidates[0].Type.FullName} ({name}) cannot be an event payload: {why}.";
             return null;
         }
+
         problem = null;
         return Of(candidates[0].Type);
     }
@@ -105,11 +112,17 @@ internal sealed class EventPayloads
     {
         if (!bound.TryGetValue(type, out PayloadType? payload))
         {
-            MethodInfo create = typeof(EventPayloads).GetMethod(nameof(CreateEvent), BindingFlags.NonPublic | BindingFlags.Static)!.MakeGenericMethod(type);
-            MethodInfo box = typeof(EventPayloads).GetMethod(nameof(BoxPayload), BindingFlags.NonPublic | BindingFlags.Static)!.MakeGenericMethod(type);
-            payload = new PayloadType(type, create.CreateDelegate<Func<Target, object, Event>>(), box.CreateDelegate<Func<Event, object>>());
+            MethodInfo create =
+                typeof(EventPayloads).GetMethod(nameof(CreateEvent), BindingFlags.NonPublic | BindingFlags.Static)!
+                    .MakeGenericMethod(type);
+            MethodInfo box =
+                typeof(EventPayloads).GetMethod(nameof(BoxPayload), BindingFlags.NonPublic | BindingFlags.Static)!
+                    .MakeGenericMethod(type);
+            payload = new(type, create.CreateDelegate<Func<Target, object, Event>>(),
+                box.CreateDelegate<Func<Event, object>>());
             bound.Add(type, payload);
         }
+
         return payload;
     }
 

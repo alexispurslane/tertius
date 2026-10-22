@@ -14,7 +14,8 @@ internal static class StaleTables
     /// Releases a live entity and spawns <paramref name="successor"/>, which takes the released slot. Returns the
     /// released entity's handle, which is now stale.
     /// </summary>
-    public static Entity ReuseSlot(this EntityTable table, out Entity successor, BodyDesc? body = null, params IComponent[] components)
+    public static Entity ReuseSlot(this EntityTable table, out Entity successor, BodyDesc? body = null,
+        params IComponent[] components)
     {
         Entity stale = table.SpawnLiveWith(body);
         table.Release(stale);
@@ -27,6 +28,42 @@ internal static class StaleTables
 /// <summary>What the entity table does with a stale handle, member by member.</summary>
 public class StaleHandleTests
 {
+    // ---- Every kind of handle, every kind of member ---------------------------------------------------------------
+    // A handle names no live entity in six ways. The table has to give the documented answer to all of them, for every
+    // member that takes a handle: throw StaleEntityException where it reads or writes the entity's data, answer false where
+    // the goal already holds, and never list a dead entity in a query.
+
+    private static readonly string[] NamesNoLiveEntity =
+        ["null", "never issued", "from the future", "reserved, not live yet", "released", "released and reused"];
+
+    /// <summary>The members that throw for a handle that names no live entity, and can be called outside a tick.</summary>
+    private static readonly Dictionary<string, Action<EntityTable, Entity>> ThrowOutsideATick = new()
+    {
+        [nameof(EntityTable.FrontRow)] = (table, entity) => _ = table.FrontRow(entity).Pose,
+        [nameof(EntityTable.BackRow)] = (table, entity) => _ = table.BackRow(entity).Pose,
+        [nameof(EntityTable.FrontRender)] = (table, entity) => _ = table.FrontRender(entity).Scale,
+        [nameof(EntityTable.Components)] = (table, entity) => _ = table.Components(entity).Length,
+        [nameof(EntityTable.ComponentWants)] = (table, entity) => _ = table.ComponentWants(entity).Length,
+        [nameof(EntityTable.Body)] = (table, entity) => _ = table.Body(entity),
+        [nameof(EntityTable.OwnedFrame)] = (table, entity) => _ = table.OwnedFrame(entity),
+        [nameof(EntityTable.Accepts)] = (table, entity) => _ = table.Accepts(entity, EventType<Destroy>.Id),
+        [nameof(EntityTable.PendingIntent)] = (table, entity) => _ = table.PendingIntent(entity),
+        [nameof(EntityTable.GameplayWroteTransform)] = (table, entity) => _ = table.GameplayWroteTransform(entity),
+        [nameof(EntityTable.TakeFirstTick)] = (table, entity) => _ = table.TakeFirstTick(entity),
+        [nameof(EntityTable.SetBackTransform)] = (table, entity) => table.SetBackTransform(entity, RowAt(5)),
+        [nameof(EntityTable.AddComponent)] = (table, entity) => table.AddComponent(entity, new Recorder()),
+        ["Column indexer"] = (table, entity) => _ = table.AddColumn<int>()[entity]
+    };
+
+    /// <summary>The members that throw for a handle that names no live entity, and can be called only during the gameplay part of a tick.</summary>
+    private static readonly Dictionary<string, Action<EntityTable, Entity>> ThrowDuringATick = new()
+    {
+        [nameof(EntityTable.WritableTransform)] = (table, entity) => table.WritableTransform(entity) = TestWorld.At(9),
+        [nameof(EntityTable.WritableRender)] = (table, entity) => table.WritableRender(entity).Scale = new(9),
+        [nameof(EntityTable.WritableIntent)] = (table, entity) => table.WritableIntent(entity).Force = new(9, 0, 0),
+        [nameof(EntityTable.ReserveForSpawn)] = (table, entity) => _ = table.ReserveForSpawn(entity)
+    };
+
     private static TransformRow RowAt(double x) => new() { Pose = TestWorld.At(x) };
 
     /// <summary>One read of an entity's data through the table.</summary>
@@ -43,7 +80,7 @@ public class StaleHandleTests
         nameof(EntityTable.PendingIntent) => () => _ = table.PendingIntent(entity),
         nameof(EntityTable.GameplayWroteTransform) => () => _ = table.GameplayWroteTransform(entity),
         nameof(EntityTable.TakeFirstTick) => () => _ = table.TakeFirstTick(entity),
-        _ => throw new ArgumentOutOfRangeException(nameof(member), member, null),
+        _ => throw new ArgumentOutOfRangeException(nameof(member), member, null)
     };
 
     [Theory]
@@ -82,8 +119,8 @@ public class StaleHandleTests
         Action write = member switch
         {
             nameof(EntityTable.WritableTransform) => () => table.WritableTransform(stale) = TestWorld.At(9),
-            nameof(EntityTable.WritableRender) => () => table.WritableRender(stale).Scale = new Vector3(9),
-            _ => () => table.WritableIntent(stale).Force = new Vector3(9, 0, 0),
+            nameof(EntityTable.WritableRender) => () => table.WritableRender(stale).Scale = new(9),
+            _ => () => table.WritableIntent(stale).Force = new(9, 0, 0)
         };
         write.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(stale);
 
@@ -174,7 +211,8 @@ public class StaleHandleTests
         table.Release(reservation);
         Entity next = table.Reserve();
 
-        Action activate = () => table.Activate(reservation, default, new RenderData(), [], [], null, Vector3.Zero, FrameHandle.Null);
+        Action activate = () =>
+            table.Activate(reservation, default, new(), [], [], null, Vector3.Zero, FrameHandle.Null);
 
         activate.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(reservation);
         table.IsAlive(next).Should().BeFalse();
@@ -188,9 +226,10 @@ public class StaleHandleTests
         EntityTable table = TableSupport.NewTable();
         Entity live = table.SpawnLive();
 
-        Action activate = () => table.Activate(live, RowAt(9), new RenderData(), [], [], null, Vector3.Zero, FrameHandle.Null);
+        Action activate = () => table.Activate(live, RowAt(9), new(), [], [], null, Vector3.Zero, FrameHandle.Null);
 
-        activate.Should().ThrowExactly<InvalidOperationException>().WithMessage($"*{live}*does not name a reservation*");
+        activate.Should().ThrowExactly<InvalidOperationException>()
+            .WithMessage($"*{live}*does not name a reservation*");
         table.LiveCount.Should().Be(1);
         table.FrontRow(live).Pose.Position.X.Should().Be(0);
         table.AssertInvariants();
@@ -232,7 +271,7 @@ public class StaleHandleTests
         Live(table.LiveEntitiesOfChunk(0)).Should().Equal(a, c);
         Live(table.LiveEntities).Should().Equal(a, c);
 
-        table.Activate(reserved, default, new RenderData(), [], [], null, Vector3.Zero, FrameHandle.Null);
+        table.Activate(reserved, default, new(), [], [], null, Vector3.Zero, FrameHandle.Null);
         Live(table.LiveEntitiesOfChunk(0)).Should().Equal(a, reserved, c);
         Live(table.LiveEntitiesIn(1, 3)).Should().Equal(reserved, c);
     }
@@ -281,14 +320,6 @@ public class StaleHandleTests
         numbers[successor].Should().Be(0);
     }
 
-    // ---- Every kind of handle, every kind of member ---------------------------------------------------------------
-    // A handle names no live entity in six ways. The table has to give the documented answer to all of them, for every
-    // member that takes a handle: throw StaleEntityException where it reads or writes the entity's data, answer false where
-    // the goal already holds, and never list a dead entity in a query.
-
-    private static readonly string[] NamesNoLiveEntity =
-        ["null", "never issued", "from the future", "reserved, not live yet", "released", "released and reused"];
-
     /// <summary>A table with one live entity in slot 0, and a handle of the named kind.</summary>
     private static (EntityTable Table, Entity Handle) TableWithHandle(string kind)
     {
@@ -297,13 +328,13 @@ public class StaleHandleTests
         Entity handle = kind switch
         {
             "null" => Entity.Null,
-            "never issued" => new Entity(100_000, 1),
+            "never issued" => new(100_000, 1),
             // The slot is live, but its generation is lower than the handle's.
-            "from the future" => new Entity(bystander.Index, bystander.Generation + 5),
+            "from the future" => new(bystander.Index, bystander.Generation + 5),
             "reserved, not live yet" => table.Reserve(),
             "released" => ReleasedHandle(table),
             "released and reused" => table.ReuseSlot(out _),
-            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
         };
         return (table, handle);
     }
@@ -315,44 +346,17 @@ public class StaleHandleTests
         return entity;
     }
 
-    /// <summary>The members that throw for a handle that names no live entity, and can be called outside a tick.</summary>
-    private static readonly Dictionary<string, Action<EntityTable, Entity>> ThrowOutsideATick = new()
-    {
-        [nameof(EntityTable.FrontRow)] = (table, entity) => _ = table.FrontRow(entity).Pose,
-        [nameof(EntityTable.BackRow)] = (table, entity) => _ = table.BackRow(entity).Pose,
-        [nameof(EntityTable.FrontRender)] = (table, entity) => _ = table.FrontRender(entity).Scale,
-        [nameof(EntityTable.Components)] = (table, entity) => _ = table.Components(entity).Length,
-        [nameof(EntityTable.ComponentWants)] = (table, entity) => _ = table.ComponentWants(entity).Length,
-        [nameof(EntityTable.Body)] = (table, entity) => _ = table.Body(entity),
-        [nameof(EntityTable.OwnedFrame)] = (table, entity) => _ = table.OwnedFrame(entity),
-        [nameof(EntityTable.Accepts)] = (table, entity) => _ = table.Accepts(entity, EventType<Destroy>.Id),
-        [nameof(EntityTable.PendingIntent)] = (table, entity) => _ = table.PendingIntent(entity),
-        [nameof(EntityTable.GameplayWroteTransform)] = (table, entity) => _ = table.GameplayWroteTransform(entity),
-        [nameof(EntityTable.TakeFirstTick)] = (table, entity) => _ = table.TakeFirstTick(entity),
-        [nameof(EntityTable.SetBackTransform)] = (table, entity) => table.SetBackTransform(entity, RowAt(5)),
-        [nameof(EntityTable.AddComponent)] = (table, entity) => table.AddComponent(entity, new Recorder()),
-        ["Column indexer"] = (table, entity) => _ = table.AddColumn<int>()[entity],
-    };
-
-    /// <summary>The members that throw for a handle that names no live entity, and can be called only during the gameplay part of a tick.</summary>
-    private static readonly Dictionary<string, Action<EntityTable, Entity>> ThrowDuringATick = new()
-    {
-        [nameof(EntityTable.WritableTransform)] = (table, entity) => table.WritableTransform(entity) = TestWorld.At(9),
-        [nameof(EntityTable.WritableRender)] = (table, entity) => table.WritableRender(entity).Scale = new Vector3(9),
-        [nameof(EntityTable.WritableIntent)] = (table, entity) => table.WritableIntent(entity).Force = new Vector3(9, 0, 0),
-        [nameof(EntityTable.ReserveForSpawn)] = (table, entity) => _ = table.ReserveForSpawn(entity),
-    };
-
     private static TheoryData<string, string> Cross(IEnumerable<string> members, IEnumerable<string> kinds)
     {
         var data = new TheoryData<string, string>();
         foreach (string member in members)
-            foreach (string kind in kinds)
-                data.Add(member, kind);
+        foreach (string kind in kinds)
+            data.Add(member, kind);
         return data;
     }
 
-    public static TheoryData<string, string> ThrowOutsideATickCases() => Cross(ThrowOutsideATick.Keys, NamesNoLiveEntity);
+    public static TheoryData<string, string> ThrowOutsideATickCases() =>
+        Cross(ThrowOutsideATick.Keys, NamesNoLiveEntity);
 
     public static TheoryData<string, string> ThrowDuringATickCases() => Cross(ThrowDuringATick.Keys, NamesNoLiveEntity);
 
@@ -392,7 +396,7 @@ public class StaleHandleTests
     {
         (EntityTable table, Entity handle) = TableWithHandle(kind);
 
-        Action activate = () => table.Activate(handle, default, new RenderData(), [], [], null, Vector3.Zero, FrameHandle.Null);
+        Action activate = () => table.Activate(handle, default, new(), [], [], null, Vector3.Zero, FrameHandle.Null);
 
         activate.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(handle);
         table.AssertInvariants();
@@ -440,7 +444,7 @@ public class StaleHandleTests
         table.RemoveComponent(handle, new Recorder()).Should().BeFalse();
     }
 
-    public static TheoryData<string> NamesNoLiveEntityData() => new(NamesNoLiveEntity);
+    public static TheoryData<string> NamesNoLiveEntityData() => [with(NamesNoLiveEntity)];
 
     [Fact]
     public void AHandleFromTheFutureDoesNotReleaseTheLiveEntityInItsSlot()

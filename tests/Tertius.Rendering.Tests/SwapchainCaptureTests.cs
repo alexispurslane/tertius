@@ -1,5 +1,4 @@
 using Silk.NET.Vulkan;
-using Tertius.Rendering;
 
 namespace Tertius.Rendering.Tests;
 

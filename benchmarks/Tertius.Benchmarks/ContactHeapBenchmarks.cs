@@ -1,5 +1,5 @@
-using System.Numerics;
 using BenchmarkDotNet.Attributes;
+using JoltPhysicsSharp;
 using Tertius.Physics;
 using Tertius.Simulation;
 
@@ -26,31 +26,29 @@ public class ContactHeapBenchmarks
     private const int Columns = 20;
     private const int Rows = 15;
 
-    [Params(false, true)]
-    public bool PendingPair;
+    [Params(false, true)] public bool PendingPair;
 
-    [Params(0f, 0.5f)]
-    public float Restitution;
+    [Params(0f, 0.5f)] public float Restitution;
 
     private World world = null!;
 
     [GlobalSetup]
     public void Setup()
     {
-        var backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 });
-        world = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DisposePhysics = true }, backend);
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f),
-            GravityField.Uniform(new Vector3(0, -9.81f, 0))));
+        var backend = new JoltPhysicsBackend(new() { WorkerThreads = 2 });
+        world = new(new() { MaxDegreeOfParallelism = 1, DisposePhysics = true }, backend);
+        FrameHandle ground = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f),
+            GravityField.Uniform(new(0, -9.81f, 0))));
         // A kinematic body moves only by its motion intents, so the floor's Conveyor writes its end pose in every tick, and
         // its first motion intent moves it in its first step.
         DPose floor = At(0, -0.5, 0);
-        world.Spawn(new SpawnDesc
+        world.Spawn(new()
         {
             Frame = ground,
             Pose = floor,
-            FirstMove = new MotionIntent(new EndPose(Conveyor.After(floor, world.DeltaTime))),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(60, 0.5f, 60)), BodyMotion.Kinematic),
-            Components = [new Conveyor()],
+            FirstMove = new(new EndPose(Conveyor.After(floor, world.DeltaTime))),
+            Body = new(new BoxShapeDesc(new(60, 0.5f, 60)), BodyMotion.Kinematic),
+            Components = [new Conveyor()]
         });
         var boxes = new List<Entity>();
         for (int i = 0; i < Columns * Rows; i++)
@@ -58,13 +56,14 @@ public class ContactHeapBenchmarks
             double x = i % Columns - Columns / 2;
             if (PendingPair && i == 0)
                 x -= 0.01;
-            boxes.Add(world.Spawn(new SpawnDesc
+            boxes.Add(world.Spawn(new()
             {
                 Frame = ground,
                 Pose = At(x, 0.5, (i / Columns - Rows / 2) * 1.05),
-                Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10, Restitution: Restitution),
+                Body = new(new BoxShapeDesc(new(0.5f)), Mass: 10, Restitution: Restitution)
             }));
         }
+
         // Two seconds: every box has the speed of the floor.
         for (int i = 0; i < 120; i++)
             world.Tick();
@@ -73,12 +72,12 @@ public class ContactHeapBenchmarks
         if (pending != (PendingPair ? 1 : 0))
             throw new InvalidOperationException($"The scene has {pending} pending pairs.");
         List<JoltPhysicsBackend.BodyFacts> facts = backend.BodiesIn(ground);
-        int awake = facts.Count(body => body.Active && body.Motion == JoltPhysicsSharp.MotionType.Dynamic);
+        int awake = facts.Count(body => body.Active && body.Motion == MotionType.Dynamic);
         if (awake != boxes.Count)
             throw new InvalidOperationException($"Only {awake} of {boxes.Count} boxes are awake.");
     }
 
-    private static DPose At(double x, double y, double z) => new(new Double3(x, y, z), DQuaternion.Identity);
+    private static DPose At(double x, double y, double z) => new(new(x, y, z), DQuaternion.Identity);
 
     /// <summary>Moves the kinematic floor along +X at 1 m/s: in every tick, the end pose one step on from where it starts the next step.</summary>
     private sealed class Conveyor : IComponent
@@ -88,7 +87,8 @@ public class ContactHeapBenchmarks
         public EventMask Wants => EventMask.Of<Tick>();
 
         /// <summary>The pose one step of <paramref name="step"/> seconds along +X at 1 m/s from <paramref name="start"/>.</summary>
-        public static DPose After(DPose start, double step) => new(start.Position + new Double3(step, 0, 0), start.Rotation);
+        public static DPose After(DPose start, double step) =>
+            new(start.Position + new Double3(step, 0, 0), start.Rotation);
 
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
             self.MoveKinematic(After(self.PoseAtNextStepStartIn(self.Frame), self.DeltaTime));

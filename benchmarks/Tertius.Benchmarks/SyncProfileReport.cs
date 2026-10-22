@@ -29,16 +29,19 @@ internal sealed class SyncProfileReport
             Console.WriteLine($"SYNCPROFILE|{scene}|no step laps: build with -p:SyncProfile=true to record them");
             return;
         }
+
         long[] totals = world.Profile.Totals;
         double sum = 0;
-        var means = new double[totals.Length];
+        double[] means = new double[totals.Length];
         for (int i = 0; i < totals.Length; i++)
         {
             means[i] = (totals[i] - totalsAtMark[i]) * 1e6 / Stopwatch.Frequency / syncs;
             sum += means[i];
         }
+
         for (int i = 0; i < totals.Length; i++)
-            Console.WriteLine($"SYNCPROFILE|{scene}|{SyncProfile.Names[i]}|{means[i]:F2}|{(sum == 0 ? 0 : 100 * means[i] / sum):F1}");
+            Console.WriteLine(
+                $"SYNCPROFILE|{scene}|{SyncProfile.Names[i]}|{means[i]:F2}|{(sum == 0 ? 0 : 100 * means[i] / sum):F1}");
         Console.WriteLine($"SYNCPROFILE|{scene}|total over {syncs} ticks|{sum:F2}|100.0");
     }
 }

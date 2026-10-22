@@ -23,56 +23,65 @@ public class PuffRenderBenchmarks
     private VulkanRenderer renderer = null!;
     private RenderSnapshot snapshot = null!;
 
-    [Params(0, 100, 1000, 4096)]
-    public int Puffs;
+    [Params(0, 100, 1000, 4096)] public int Puffs;
 
-    [Params(false, true)]
-    public bool FillTheScreen;
+    [Params(false, true)] public bool FillTheScreen;
 
     [GlobalSetup]
     public void Setup()
     {
-        renderer = VulkanRenderer.CreateHeadless(new RendererOptions
+        renderer = VulkanRenderer.CreateHeadless(new()
         {
             Validation = false,
             Width = 1280,
             Height = 720,
             FramesInFlight = 1,
-            Impostors = false,
+            Impostors = false
         });
-        MeshId box = renderer.CreateMesh(Primitives.Box(new Vector3(0.5f)));
+        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
         MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
-        MaterialId gray = renderer.CreateMaterial(MaterialDesc.Color(new Vector4(0.55f, 0.55f, 0.55f, 1), gloss: 0.3f));
-        snapshot = new RenderSnapshot
+        MaterialId gray = renderer.CreateMaterial(MaterialDesc.Color(new(0.55f, 0.55f, 0.55f, 1), gloss: 0.3f));
+        snapshot = new()
         {
-            Camera = new RenderCamera { Rotation = Quaternion.Identity, PreviousRotation = Quaternion.Identity, VerticalFov = MathF.PI / 3 },
-            Sun = new RenderSun { Direction = Vector3.Normalize(new Vector3(0.4f, 0.8f, 0.5f)), Color = Vector3.One, Intensity = 3, AngularRadius = 0.00467f },
-            Ambient = new AmbientLight { SkyColor = new Vector3(0.09f, 0.11f, 0.15f), GroundColor = new Vector3(0.05f), Intensity = 1 },
+            Camera = new()
+                { Rotation = Quaternion.Identity, PreviousRotation = Quaternion.Identity, VerticalFov = MathF.PI / 3 },
+            Sun = new()
+            {
+                Direction = Vector3.Normalize(new(0.4f, 0.8f, 0.5f)), Color = Vector3.One, Intensity = 3,
+                AngularRadius = 0.00467f
+            },
+            Ambient = new() { SkyColor = new(0.09f, 0.11f, 0.15f), GroundColor = new(0.05f), Intensity = 1 }
         };
         HemisphereUp up = HemisphereUp.Along(Vector3.UnitY);
-        snapshot.Instances.Add(RenderInstance.Create(plane, gray, new Vector3(0, -2, -200), Quaternion.Identity, new Vector3(250, 1, 250), 0, up,
+        snapshot.Instances.Add(RenderInstance.Create(plane, gray, new(0, -2, -200), Quaternion.Identity,
+            new(250, 1, 250), 0, up,
             RenderFlags.Visible | RenderFlags.CastsShadow));
         var random = new Random(7);
         for (int i = 0; i < 100; i++)
         {
             float depth = 10 + 190 * random.NextSingle();
             var position = new Vector3((random.NextSingle() * 2 - 1) * depth, -1, -depth);
-            snapshot.Instances.Add(RenderInstance.Create(box, gray, position, Quaternion.CreateFromYawPitchRoll(random.NextSingle() * 3, 0, 0),
-                new Vector3(2), 0, up, RenderFlags.Visible | RenderFlags.CastsShadow, (uint)i + 1));
+            snapshot.Instances.Add(RenderInstance.Create(box, gray, position,
+                Quaternion.CreateFromYawPitchRoll(random.NextSingle() * 3, 0, 0),
+                new(2), 0, up, RenderFlags.Visible | RenderFlags.CastsShadow, (uint)i + 1));
         }
 
         float radius = FillTheScreen ? 8f : 0.2f;
-        snapshot.PuffLooks.Add(new PuffLook(Life: 2f, StartRadius: radius, EndRadius: FillTheScreen ? 8f : 1f, TemperatureRatio: 3f,
-            Shading: PuffShading.Glow(new Vector3(0.02f, 0.008f, 0.002f))));
+        snapshot.PuffLooks.Add(new(Life: 2f, StartRadius: radius, EndRadius: FillTheScreen ? 8f : 1f,
+            TemperatureRatio: 3f,
+            Shading: PuffShading.Glow(new(0.02f, 0.008f, 0.002f))));
         snapshot.PuffAgeStep = 1f / 60;
         for (int i = 0; i < Puffs; i++)
         {
             float depth = FillTheScreen ? 3 + random.NextSingle() : 5 + 95 * random.NextSingle();
-            var position = FillTheScreen
-                ? new Vector3(random.NextSingle() - 0.5f, random.NextSingle() - 0.5f, -depth)
-                : new Vector3((random.NextSingle() * 2 - 1) * depth * 0.9f, (random.NextSingle() * 2 - 1) * depth * 0.5f, -depth);
-            snapshot.Puffs.Add(new RenderPuff { Position = position, PreviousPosition = position, Age = 1.9f * random.NextSingle(), Look = 0 });
+            Vector3 position = FillTheScreen
+                ? new(random.NextSingle() - 0.5f, random.NextSingle() - 0.5f, -depth)
+                : new Vector3((random.NextSingle() * 2 - 1) * depth * 0.9f,
+                    (random.NextSingle() * 2 - 1) * depth * 0.5f, -depth);
+            snapshot.Puffs.Add(new()
+                { Position = position, PreviousPosition = position, Age = 1.9f * random.NextSingle(), Look = 0 });
         }
+
         // The first frames upload the meshes and the materials and grow the buffers.
         for (int i = 0; i < 4; i++)
             renderer.Render(snapshot, 1f);

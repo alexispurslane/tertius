@@ -63,6 +63,7 @@ public struct RayHit : IEventPayload
 {
     /// <summary>The entity hit, or null for a miss.</summary>
     public Entity Entity;
+
     public Double3 Point;
     public float Distance;
     public int Tag;
@@ -94,6 +95,7 @@ public struct ShapeHit : IEventPayload
 {
     /// <summary>The entity that the shape touched, or null for a miss.</summary>
     public Entity Entity;
+
     public Double3 Point;
     public float Distance;
     public int Tag;
@@ -120,6 +122,7 @@ public struct OverlapHit : IEventPayload
 {
     /// <summary>An entity that overlaps the shape, or null when none does.</summary>
     public Entity Entity;
+
     public int Tag;
 
     /// <summary>True when the answer names an entity.</summary>
@@ -137,14 +140,16 @@ internal static class OctahedralNormal
     public static Vector2 Encode(Vector3 n)
     {
         n /= MathF.Abs(n.X) + MathF.Abs(n.Y) + MathF.Abs(n.Z);
-        return n.Z >= 0 ? new Vector2(n.X, n.Y) : new Vector2((1 - MathF.Abs(n.Y)) * SignNotZero(n.X), (1 - MathF.Abs(n.X)) * SignNotZero(n.Y));
+        return n.Z >= 0
+            ? new(n.X, n.Y)
+            : new Vector2((1 - MathF.Abs(n.Y)) * SignNotZero(n.X), (1 - MathF.Abs(n.X)) * SignNotZero(n.Y));
     }
 
     public static Vector3 Decode(Vector2 e)
     {
         var n = new Vector3(e.X, e.Y, 1 - MathF.Abs(e.X) - MathF.Abs(e.Y));
         if (n.Z < 0)
-            n = new Vector3((1 - MathF.Abs(e.Y)) * SignNotZero(e.X), (1 - MathF.Abs(e.X)) * SignNotZero(e.Y), n.Z);
+            n = new((1 - MathF.Abs(e.Y)) * SignNotZero(e.X), (1 - MathF.Abs(e.X)) * SignNotZero(e.Y), n.Z);
         return Vector3.Normalize(n);
     }
 

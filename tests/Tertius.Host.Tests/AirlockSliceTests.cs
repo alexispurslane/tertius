@@ -73,7 +73,8 @@ public sealed class AirlockSliceTests(AirlockRun run) : IClassFixture<AirlockRun
         outside.Y.Should().BeApproximately(OnTheSill, 0.02);
         outside.Z.Should().BeApproximately(10, 0.01);
         drift.X.Should().BeLessThan(-2.9f, "it walked out at 3 m/s and thrust on for a moment");
-        drift.Y.Should().BeInRange(0, 0.01f, "a standing person has no velocity into the floor, and the sill's edge pushed it up a little");
+        drift.Y.Should().BeInRange(0, 0.01f,
+            "a standing person has no velocity into the floor, and the sill's edge pushed it up a little");
         drift.Z.Should().BeApproximately(0, 1e-4f);
     }
 
@@ -84,7 +85,7 @@ public sealed class AirlockSliceTests(AirlockRun run) : IClassFixture<AirlockRun
 
         // The two dumps are 60 ticks, one second, apart.
         Vector3.Distance(VelocityAt("drifting"), drift).Should().BeLessThan(1e-4f);
-        Double3.Distance(PersonAt("drifting"), PersonAt("outside") + (Double3)drift).Should().BeLessThan(0.01);
+        Double3.Distance(PersonAt("drifting"), PersonAt("outside") + drift).Should().BeLessThan(0.01);
     }
 
     [Fact]
@@ -98,7 +99,8 @@ public sealed class AirlockSliceTests(AirlockRun run) : IClassFixture<AirlockRun
         // thrust adds 0.025 m/s, so the margin counts the ticks exactly.
         (VelocityAt("turned-back").X - VelocityAt("drifting").X).Should().BeApproximately(238 * 1.5f / 60, 1e-3f);
         ExpectInTheChamber(PersonAt("returned"));
-        new Vector2(VelocityAt("returned").X, VelocityAt("returned").Z).Length().Should().BeLessThan(1e-3f, "the person landed and stands still");
+        new Vector2(VelocityAt("returned").X, VelocityAt("returned").Z).Length().Should()
+            .BeLessThan(1e-3f, "the person landed and stands still");
     }
 
     /// <summary>
@@ -125,7 +127,8 @@ public sealed class AirlockSliceTests(AirlockRun run) : IClassFixture<AirlockRun
     [Fact]
     public void ThePersonStaysInTheShipsFrameAndTheRunReportsNoError()
     {
-        foreach (string name in new[] { "standing", "in-chamber", "outside", "drifting", "turned-back", "returned", "home" })
+        foreach (string name in new[]
+                     { "standing", "in-chamber", "outside", "drifting", "turned-back", "returned", "home" })
             Dump(name).Entity("person").Pose.Frame.Should().Be("ship",
                 $"the person has not left the ship's frame in {name}, so its center is less than 2 m outside the ship's bubble, an ellipsoid with radii of about 20.8, 10.4 and 55.4 m");
         Dump("home").Errors.Should().BeEmpty();
@@ -134,7 +137,8 @@ public sealed class AirlockSliceTests(AirlockRun run) : IClassFixture<AirlockRun
     }
 
     private static void ExpectOrange((int R, int G, int B) color, string what) =>
-        (color.R > color.G + 20 && color.G > color.B + 10).Should().BeTrue($"{what} is the orange of a door, not {color}");
+        (color.R > color.G + 20 && color.G > color.B + 10).Should()
+        .BeTrue($"{what} is the orange of a door, not {color}");
 
     [Fact]
     public void FromTheCabinThePersonSeesTheShutHatchThroughTheOpenInnerDoor()
@@ -149,7 +153,8 @@ public sealed class AirlockSliceTests(AirlockRun run) : IClassFixture<AirlockRun
         ExpectOrange(run.Capture("hatch-shut").Average(640, 400), "the shut hatch");
         Png open = run.Capture("hatch-open");
         (int r, int g, int b) space = open.Average(640, 300), earth = open.Average(640, 680);
-        (space.r + space.g + space.b).Should().BeLessThan(60, $"black space with a few stars shows through the hatch, not {space}");
+        (space.r + space.g + space.b).Should()
+            .BeLessThan(60, $"black space with a few stars shows through the hatch, not {space}");
         (earth.b > earth.r + 60).Should().BeTrue($"Earth's blue shows low in the hatch, not {earth}");
     }
 
@@ -162,8 +167,11 @@ public sealed class AirlockSliceTests(AirlockRun run) : IClassFixture<AirlockRun
         // the chamber's walls and its shut inner door. Each probe sits well inside its region: the hull ends at row 596, above
         // Earth, and the chamber floor spans rows 479 to 512 and columns 584 to 695.
         Png hull = run.Capture("hull");
-        (int r, int g, int b) earth = hull.Average(640, 690), floor = hull.Average(640, 495), side = hull.Average(640, 200);
+        (int r, int g, int b) earth = hull.Average(640, 690),
+            floor = hull.Average(640, 495),
+            side = hull.Average(640, 200);
         (earth.b > earth.r + 60).Should().BeTrue($"Earth's blue shows below the hull, not {earth}");
-        (floor.r + floor.g + floor.b).Should().BeGreaterThan(side.r + side.g + side.b + 100, $"the lamp-lit chamber floor {floor} is brighter than the hull's port face {side}");
+        (floor.r + floor.g + floor.b).Should().BeGreaterThan(side.r + side.g + side.b + 100,
+            $"the lamp-lit chamber floor {floor} is brighter than the hull's port face {side}");
     }
 }

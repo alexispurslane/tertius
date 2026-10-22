@@ -51,54 +51,67 @@ namespace Tertius;
 /// </summary>
 public sealed partial class FrameTree
 {
+    /// <summary>
+    /// Below this effective gravity, in m/s², physics never stands a character, so the character is weightless: it
+    /// keeps its momentum and its last up, and only forces, the weak gravity and what it touches change its velocity. The
+    /// physics backend then makes it a rigid body that cannot turn, until the gravity at it reaches twice this value, or
+    /// this value while it touches something. At or above it, physics stands a character only on walkable ground. A
+    /// character in the air is weightless there too, because it falls freely. Physics reports which characters it stood,
+    /// so the components that steer characters agree with it.
+    /// </summary>
+    public const float ZeroGravityThreshold = 0.05f;
+
+    private static readonly Comparer<FrameHandle> ByIndex =
+        Comparer<FrameHandle>.Create((a, b) => a.Index.CompareTo(b.Index));
+
     private readonly PoseTree<DPose> poses = new(64);
-    private readonly Dictionary<Entity, FrameHandle> byOwner = new();
+    private readonly Dictionary<Entity, FrameHandle> byOwner = [];
 
     private Entity[] owner = new Entity[64];
+
     private FrameBounds[] bounds = new FrameBounds[64];
+
     // The stored motion of each frame's hull, the motion of the last finished step, or null for a frame without a hull
     // (see HullMotion).
     private BodyMotion?[] hullMotion = new BodyMotion?[64];
+
     private GravityField[] gravity = new GravityField[64];
+
     // The medium of each frame, beside its gravity field (see Medium). A numeric frame has none.
     private MediumField[] medium = new MediumField[64];
     private Double3[] linearVelocity = new Double3[64];
     private Vector3[] angularVelocity = new Vector3[64];
+
     private Vector3[] properAcceleration = new Vector3[64];
+
     // Each frame's proper acceleration as the last finished step found it, the value that physics used for the frame's
     // bodies during that step: TakeStepRecords copies the rows here before it writes the new values, and a new frame has
     // zero. It is valid from step 2 to the next step 2 (see FieldTheStepFound).
     private Vector3[] properAccelerationTheStepFound = new Vector3[64];
+
     // What made the record that each frame took at the last sync point (see Followed).
     private FollowKind[] followKind = new FollowKind[64];
+
     // Numeric frames: the mode, and the acceleration that a falling frame keeps for the current step, relative to its
     // parent. A semantic frame has the mode None and no step acceleration.
     private NumericMode[] numeric = new NumericMode[64];
+
     private Double3[] stepAcceleration = new Double3[64];
+
     // For a following frame, the step record of its anchor for the current step in the anchor's semantic frame: the record
     // of its motion intent, or without one the record of a kinematic body that holds still where the step starts
     // (PhysicsIntent.StepRecordOrStill). It is the step plan, which lands the following frame and which the sync point
     // reads (see BeginStep). Null for every other frame.
     private MotionSample?[] stepPlan = new MotionSample?[64];
+
     // How long the members of each numeric frame have been apart, in seconds, and the number of bodies whose physics home
     // it was at the end of the last UpdateNumericFrames.
     private double[] apartTime = new double[64];
+
     private int[] numericBodies = new int[64];
+
     // The number of changes of the state that an owner view reads (see OwnerViewStamp). Only the writers of the section
     // "Writes that an owner view reads" increase it.
-    private long ownerViewStamp;
-
-    /// <summary>
-    /// How <paramref name="frame"/> followed its owner at the last sync point, which the frame's row stores beside the record
-    /// of the step that ended (see "The follow kind" in docs/plans/rails-components.md): <see cref="FollowKind.Rails"/> when
-    /// it took a full sample that its owner wrote, <see cref="FollowKind.Kinematic"/> when it took an end pose,
-    /// <see cref="FollowKind.Physics"/> when it took the move that physics made of its dynamic hull, and
-    /// <see cref="FollowKind.Static"/> otherwise: a teleport, a write of its owner's transform, or no record. The motion of
-    /// its hull in the step that ended counts, not a change of motion that the next step applies (see
-    /// <see cref="FollowKindInStep"/>). A new frame has followed nothing. Throws <see cref="InvalidOperationException"/> for
-    /// a stale frame.
-    /// </summary>
-    public FollowKind Followed(FrameHandle frame) => followKind[Node(frame).Id];
 
     /// <summary>How many frames the tree holds, numeric frames included.</summary>
     internal int Count => poses.Count;
@@ -125,7 +138,22 @@ public sealed partial class FrameTree
     /// such as a following frame that a hull leaves falling (see <see cref="PlanHullMotion"/>). The World compares it with its
     /// value at the World's last pass over every owner view, to skip a pass that would change no row.
     /// </summary>
-    internal long OwnerViewStamp => ownerViewStamp;
+    internal long OwnerViewStamp { get; private set; }
+
+    /// <summary>The local poses of all frames, by dense index. Copy it to keep a tick's poses.</summary>
+    internal ReadOnlySpan<DPose> LocalPosesDense => poses.LocalPoses;
+
+    /// <summary>
+    /// How <paramref name="frame"/> followed its owner at the last sync point, which the frame's row stores beside the record
+    /// of the step that ended (see "The follow kind" in docs/plans/rails-components.md): <see cref="FollowKind.Rails"/> when
+    /// it took a full sample that its owner wrote, <see cref="FollowKind.Kinematic"/> when it took an end pose,
+    /// <see cref="FollowKind.Physics"/> when it took the move that physics made of its dynamic hull, and
+    /// <see cref="FollowKind.Static"/> otherwise: a teleport, a write of its owner's transform, or no record. The motion of
+    /// its hull in the step that ended counts, not a change of motion that the next step applies (see
+    /// <see cref="FollowKindInStep"/>). A new frame has followed nothing. Throws <see cref="InvalidOperationException"/> for
+    /// a stale frame.
+    /// </summary>
+    public FollowKind Followed(FrameHandle frame) => followKind[Node(frame).Id];
 
     public FrameHandle Create(
         Entity frameOwner,
@@ -173,7 +201,7 @@ public sealed partial class FrameTree
         turns[node.Id] = NoTurns;
         angularAcceleration[node.Id] = Double3.Zero;
         withoutLastTurn[node.Id] = mode == NumericMode.None;
-        return new FrameHandle(frameOwner, node.Id, node.Generation);
+        return new(frameOwner, node.Id, node.Generation);
     }
 
     /// <summary>Destroys a frame. Its child frames move to its parent and keep their poses and velocities.</summary>
@@ -194,12 +222,10 @@ public sealed partial class FrameTree
         // Reparent converts each child's velocity into the new parent's axes. A child of a root frame becomes a root. A
         // numeric child that moved would keep the rotation and the spin of the frame that died, which no numeric frame has.
         foreach (FrameHandle child in children)
-        {
             if (IsNumeric(child))
                 Dissolve(child, parent, dissolved);
             else
                 Reparent(child, Heir(parent));
-        }
         RemoveNode(frame, node);
     }
 
@@ -226,12 +252,10 @@ public sealed partial class FrameTree
         var children = new List<FrameHandle>();
         GetTreeChildren(frame, children);
         foreach (FrameHandle child in children)
-        {
             if (IsNumeric(child))
                 Dissolve(child, target, dissolved);
             else
                 Reparent(child, Heir(target));
-        }
         dissolved?.Add(frame);
         RemoveNode(frame, Node(frame));
     }
@@ -276,7 +300,8 @@ public sealed partial class FrameTree
             return;
         // Refuse a cycle before the velocities below are converted: a refused move must leave the frame as it was.
         if (!newParent.IsNull && (newParent == frame || IsAncestorOf(frame, newParent)))
-            throw new InvalidOperationException($"Cannot move frame {frame} under itself or its own descendant {newParent}.");
+            throw new InvalidOperationException(
+                $"Cannot move frame {frame} under itself or its own descendant {newParent}.");
 
         if (InFollowingFrame(frame))
             LeaveFollowingFrame(oldParent);
@@ -288,15 +313,17 @@ public sealed partial class FrameTree
         Double3 w = angularVelocity[node.Id];
         DQuaternion oldToNew = RootPose(newParent).Rotation.Conjugate() * RootPose(oldParent).Rotation;
         Double3 relativeSpin = AngularVelocityRelative(oldParent, newParent);
-        var oldParentInNew = new FrameMotion(new DPose(Double3.Zero, oldToNew), Double3.Zero, relativeSpin, Double3.Zero,
+        var oldParentInNew = new FrameMotion(new(Double3.Zero, oldToNew), Double3.Zero, relativeSpin, Double3.Zero,
             AngularAccelerationRelative(oldParent, newParent));
         angularAcceleration[node.Id] = oldParentInNew.AngularAccelerationToParent(angularAcceleration[node.Id], w);
-        LinearVelocityForWrite(node.Id) = ConvertVelocity(oldParent, newParent, oldPose.Position, linearVelocity[node.Id]);
+        LinearVelocityForWrite(node.Id) =
+            ConvertVelocity(oldParent, newParent, oldPose.Position, linearVelocity[node.Id]);
         AngularVelocityForWrite(node.Id) = (oldToNew.Rotate(w) + relativeSpin).ToVector3();
         MoveNode(node, newParent.IsNull ? PoseNode.Null : Node(newParent), keepWorldPose: true);
     }
 
-    public bool IsAlive(FrameHandle frame) => !frame.IsNull && poses.IsAlive(new PoseNode(frame.Index, frame.Generation)) && owner[frame.Index] == frame.Entity;
+    public bool IsAlive(FrameHandle frame) => !frame.IsNull && poses.IsAlive(new(frame.Index, frame.Generation)) &&
+                                              owner[frame.Index] == frame.Entity;
 
     public bool TryGetFrame(Entity frameOwner, out FrameHandle frame) => byOwner.TryGetValue(frameOwner, out frame);
 
@@ -336,7 +363,8 @@ public sealed partial class FrameTree
     /// <summary>How a frame moves as a numeric frame: <see cref="NumericMode.None"/> for a semantic frame.</summary>
     internal NumericMode Numeric(FrameHandle frame) => numeric[Node(frame).Id];
 
-    public bool IsAncestorOf(FrameHandle ancestor, FrameHandle frame) => poses.IsAncestorOf(Node(ancestor), Node(frame));
+    public bool IsAncestorOf(FrameHandle ancestor, FrameHandle frame) =>
+        poses.IsAncestorOf(Node(ancestor), Node(frame));
 
     /// <summary>
     /// Adds the semantic children of a frame to <paramref name="children"/>: its children in the tree, with each numeric
@@ -350,19 +378,15 @@ public sealed partial class FrameTree
         children.Sort(first, children.Count - first, ByIndex);
     }
 
-    private static readonly Comparer<FrameHandle> ByIndex = Comparer<FrameHandle>.Create((a, b) => a.Index.CompareTo(b.Index));
-
     private void AddSemanticChildren(FrameHandle frame, List<FrameHandle> children)
     {
         var tree = new List<FrameHandle>();
         GetTreeChildren(frame, tree);
         foreach (FrameHandle child in tree)
-        {
             if (IsNumeric(child))
                 AddSemanticChildren(child, children);
             else
                 children.Add(child);
-        }
     }
 
     /// <summary>Adds the children of a frame in the tree as it is stored, numeric frames included.</summary>
@@ -382,8 +406,9 @@ public sealed partial class FrameTree
     {
         DPose local = TreeLocalPose(frame);
         FrameHandle treeParent = TreeParent(frame);
-        return treeParent.IsNull || !IsNumeric(treeParent) ? local
-            : new DPose(InSemantic(treeParent, SemanticOf(treeParent), local.Position), local.Rotation);
+        return treeParent.IsNull || !IsNumeric(treeParent)
+            ? local
+            : new(InSemantic(treeParent, SemanticOf(treeParent), local.Position), local.Rotation);
     }
 
     /// <summary>The pose of the frame in its tree parent, as it is stored.</summary>
@@ -400,13 +425,13 @@ public sealed partial class FrameTree
         ReadOnlySpan<DPose> locals = poses.LocalPoses;
         ReadOnlySpan<int> ids = poses.IdsDense;
         ReadOnlySpan<uint> generations = poses.Generations;
-        long stamp = ownerViewStamp;
+        long stamp = OwnerViewStamp;
         for (int dense = 0; dense < ids.Length; dense++)
         {
             if (numeric[ids[dense]] != NumericMode.None)
                 continue;
             visitor.Visit(OwnerViewAt(dense, parents, locals, ids, generations));
-            Contract.Assert(ownerViewStamp == stamp, "An owner view visitor changed the frame tree during the walk.");
+            Contract.Assert(OwnerViewStamp == stamp, "An owner view visitor changed the frame tree during the walk.");
         }
     }
 
@@ -418,7 +443,8 @@ public sealed partial class FrameTree
     {
         PoseNode node = Node(frame);
         Contract.Requires(numeric[node.Id] == NumericMode.None);
-        return OwnerViewAt(poses.DenseIndex(node), poses.ParentsDense, poses.LocalPoses, poses.IdsDense, poses.Generations);
+        return OwnerViewAt(poses.DenseIndex(node), poses.ParentsDense, poses.LocalPoses, poses.IdsDense,
+            poses.Generations);
     }
 
     /// <summary>
@@ -428,7 +454,8 @@ public sealed partial class FrameTree
     /// distance.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private FrameOwnerView OwnerViewAt(int dense, ReadOnlySpan<int> parents, ReadOnlySpan<DPose> locals, ReadOnlySpan<int> ids,
+    private FrameOwnerView OwnerViewAt(int dense, ReadOnlySpan<int> parents, ReadOnlySpan<DPose> locals,
+        ReadOnlySpan<int> ids,
         ReadOnlySpan<uint> generations)
     {
         int id = ids[dense];
@@ -445,12 +472,15 @@ public sealed partial class FrameTree
                 position += locals[s].Position;
                 s = parents[s];
             }
+
             semantic = s == p ? home : HandleOf(ids[s], generations);
         }
-        return new FrameOwnerView(HandleOf(id, generations), home, semantic, local, position, linearVelocity[id], angularVelocity[id]);
+
+        return new(HandleOf(id, generations), home, semantic, local, position, linearVelocity[id], angularVelocity[id]);
     }
 
-    /// <summary>The handle of the live frame with stable index <paramref name="id"/>, with its generation from <paramref name="generations"/>.</summary>
+    /// <summary>The handle of the live frame with stable index <paramref name="id"/>, with its generation from
+    /// <paramref name="generations"/>.</summary>
     private FrameHandle HandleOf(int id, ReadOnlySpan<uint> generations) => new(owner[id], id, generations[id]);
 
     /// <summary>
@@ -461,8 +491,9 @@ public sealed partial class FrameTree
     public void SetLocalPose(FrameHandle frame, in DPose pose)
     {
         FrameHandle treeParent = TreeParent(frame);
-        SetTreeLocalPose(frame, treeParent.IsNull || !IsNumeric(treeParent) ? pose
-            : new DPose(pose.Position - HomeOffset(treeParent, SemanticOf(treeParent)), pose.Rotation));
+        SetTreeLocalPose(frame, treeParent.IsNull || !IsNumeric(treeParent)
+            ? pose
+            : new(pose.Position - HomeOffset(treeParent, SemanticOf(treeParent)), pose.Rotation));
     }
 
     /// <summary>Sets the pose of the frame in its tree parent, as it is stored. The rotation must be unit length.</summary>
@@ -548,7 +579,8 @@ public sealed partial class FrameTree
     /// (see <see cref="SetHullMotion"/>). Only a kinematic hull hangs at the origin of a following frame. So a hull that is not
     /// kinematic in the next step leaves its following frame falling: a frame with a dynamic hull may hang in a falling frame,
     /// and the numeric update moves any other one, with its hull, into its semantic parent. The World drops the motion intent
-    /// that the hull's motion in that step refuses (see <c>World.ApplyMotionChanges</c>). It changes no velocity of the frame, and not <see cref="Version"/>. Throws
+    /// that the hull's motion in that step refuses (see <c>World.ApplyMotionChanges</c>). It changes no velocity of the frame, and not
+    /// <see cref="Version"/>. Throws
     /// <see cref="InvalidOperationException"/> for a stale frame.
     /// </summary>
     /// <remarks>
@@ -611,7 +643,7 @@ public sealed partial class FrameTree
     internal void AssertInvariants(ReadOnlySpan<PhysicsIntent> stepIntents)
     {
         ReadOnlySpan<DPose> locals = poses.LocalPoses;
-        var holdsFrame = new bool[owner.Length];
+        bool[] holdsFrame = new bool[owner.Length];
         for (int i = 0; i < poses.Count; i++)
             if (poses.Parent(poses.NodeAt(i)) is { IsNull: false } parentNode)
                 holdsFrame[parentNode.Id] = true;
@@ -635,7 +667,8 @@ public sealed partial class FrameTree
                 // hull hangs in its semantic parent or at the origin of its following frame, in the step that the numeric frames
                 // are for. So a frame in any other numeric frame has a dynamic hull in that step.
                 if (parentMode == NumericMode.Following && anchor[parent.Index] == frame.Entity)
-                    Contract.Invariant(HullMotionInStep(frame, stepIntents) == BodyMotion.Kinematic && locals[i].Position == Double3.Zero);
+                    Contract.Invariant(HullMotionInStep(frame, stepIntents) == BodyMotion.Kinematic &&
+                                       locals[i].Position == Double3.Zero);
                 else if (parentMode != NumericMode.None)
                     Contract.Invariant(HullMotionInStep(frame, stepIntents) == BodyMotion.Dynamic);
                 // Only a frame with a hull hangs in a numeric frame.
@@ -643,15 +676,18 @@ public sealed partial class FrameTree
                 {
                     if (hulls is null)
                     {
-                        hulls = new HashSet<FrameHandle>();
+                        hulls = [];
                         foreach (NumericBody body in sortedBodies)
                             if (!body.OwnedFrame.IsNull)
                                 hulls.Add(body.OwnedFrame);
                     }
+
                     Contract.Invariant(hulls.Contains(frame));
                 }
+
                 continue;
             }
+
             numericFrames++;
             Contract.Invariant(owner[id].IsNull && !parent.IsNull && bounds[id] == default);
             Contract.Invariant(locals[i].Rotation == DQuaternion.Identity && angularVelocity[id] == Vector3.Zero);
@@ -659,7 +695,8 @@ public sealed partial class FrameTree
             // A numeric frame never turns: it reads its semantic frame's turns, and keeps none of its own.
             Contract.Invariant(turns[id] == NoTurns && angularAcceleration[id] == Double3.Zero && !withoutLastTurn[id]);
             if (numeric[id] is NumericMode.Resting or NumericMode.Nesting)
-                Contract.Invariant(linearVelocity[id] == Double3.Zero && stepAcceleration[id] == Double3.Zero && stepPlan[id] is null);
+                Contract.Invariant(linearVelocity[id] == Double3.Zero && stepAcceleration[id] == Double3.Zero &&
+                                   stepPlan[id] is null);
             // Only a following frame has an anchor: a hull whose frame hangs in it, or a plain body of the last update whose
             // home it is.
             if (numeric[id] == NumericMode.Following)
@@ -671,11 +708,15 @@ public sealed partial class FrameTree
                     Contract.Invariant(IsPlainAnchorOfTheLastUpdate(anchor[id], frame));
             }
             else
+            {
                 Contract.Invariant(anchor[id].IsNull);
+            }
+
             // The chain of tree parents ends at a semantic frame: a falling or resting frame lies in one or in a nesting
             // frame, a following frame lies in one, and a nesting frame lies in one, on an exact grid point.
             if (numeric[id] == NumericMode.Nesting)
-                Contract.Invariant(parentMode == NumericMode.None && NumericFrameRules.OnGrid(locals[i].Position, NumericOptions.NestGrid));
+                Contract.Invariant(parentMode == NumericMode.None &&
+                                   NumericFrameRules.OnGrid(locals[i].Position, NumericOptions.NestGrid));
             else if (numeric[id] == NumericMode.Following)
                 Contract.Invariant(parentMode == NumericMode.None);
             else
@@ -687,6 +728,7 @@ public sealed partial class FrameTree
             else
                 Contract.Invariant(numericBodies[id] > 0 || holdsFrame[id]);
         }
+
         Contract.Invariant(NumericCount == numericFrames);
         foreach (NumericGhost ghost in anchorGhosts)
         {
@@ -694,6 +736,7 @@ public sealed partial class FrameTree
             Contract.Invariant(!following.IsNull && IsAlive(ghost.Frame));
             Contract.Invariant(ghost.Frame != following && SemanticOf(ghost.Frame) == TreeParent(following));
         }
+
         if (thrustClocks.Count > 0)
         {
             // Only a body that is not static has a thrust clock. A frame owner has two bodies, its interior, which is static,
@@ -708,6 +751,7 @@ public sealed partial class FrameTree
                 Contract.Invariant(thrustTime > 0 && quietTime >= 0 && quietTime < NumericOptions.ThrustWindow);
             }
         }
+
         if (leaveClocks.Count == 0)
             return;
         // Only a body that is not an anchor has a clock. A frame owner has two bodies, its interior, an anchor, and its hull.
@@ -719,7 +763,8 @@ public sealed partial class FrameTree
         {
             bool known = lastBodies.TryGetValue(entity, out NumericBody body);
             Contract.Invariant(apart >= 0 && known);
-            Contract.Invariant(!NumericFrameRules.IsAnchor(body, NumericOptions) && body.Home == body.Semantic && NumericFrameRules.BodyMode(body, NumericOptions) != NumericMode.None);
+            Contract.Invariant(!NumericFrameRules.IsAnchor(body, NumericOptions) && body.Home == body.Semantic &&
+                               NumericFrameRules.BodyMode(body, NumericOptions) != NumericMode.None);
         }
     }
 
@@ -745,6 +790,7 @@ public sealed partial class FrameTree
             if (numeric[id] == NumericMode.Following && anchor[id] == entity)
                 return AtDense(i);
         }
+
         return FrameHandle.Null;
     }
 
@@ -756,14 +802,18 @@ public sealed partial class FrameTree
     {
         Double3 velocity = linearVelocity[Node(frame).Id];
         FrameHandle treeParent = TreeParent(frame);
-        return treeParent.IsNull || !IsNumeric(treeParent) ? velocity : velocity + HomeVelocity(treeParent, SemanticOf(treeParent));
+        return treeParent.IsNull || !IsNumeric(treeParent)
+            ? velocity
+            : velocity + HomeVelocity(treeParent, SemanticOf(treeParent));
     }
 
     /// <summary>Linear velocity of the frame origin relative to its tree parent, in its axes, as it is stored.</summary>
     internal Double3 TreeLinearVelocity(FrameHandle frame) => linearVelocity[Node(frame).Id];
 
-    /// <summary>Sets the linear velocity of the frame origin relative to its tree parent, in its axes (see <see cref="TreeLinearVelocity"/>).</summary>
-    internal void SetTreeLinearVelocity(FrameHandle frame, Double3 velocity) => LinearVelocityForWrite(Node(frame).Id) = velocity;
+    /// <summary>Sets the linear velocity of the frame origin relative to its tree parent, in its axes (see
+    /// <see cref="TreeLinearVelocity"/>).</summary>
+    internal void SetTreeLinearVelocity(FrameHandle frame, Double3 velocity) =>
+        LinearVelocityForWrite(Node(frame).Id) = velocity;
 
     /// <summary>
     /// Angular velocity of the frame relative to the parent, in parent axes. A numeric frame between them has the axes of
@@ -771,8 +821,10 @@ public sealed partial class FrameTree
     /// </summary>
     public Vector3 AngularVelocity(FrameHandle frame) => angularVelocity[Node(frame).Id];
 
-    /// <summary>Sets the angular velocity of the frame relative to its parent, in parent axes (see <see cref="AngularVelocity"/>).</summary>
-    internal void SetAngularVelocity(FrameHandle frame, Vector3 velocity) => AngularVelocityForWrite(Node(frame).Id) = velocity;
+    /// <summary>Sets the angular velocity of the frame relative to its parent, in parent axes (see
+    /// <see cref="AngularVelocity"/>).</summary>
+    internal void SetAngularVelocity(FrameHandle frame, Vector3 velocity) =>
+        AngularVelocityForWrite(Node(frame).Id) = velocity;
 
     /// <summary>
     /// What an accelerometer at the frame origin reads over the last finished step, in m/s², in frame axes: the frame's
@@ -805,8 +857,9 @@ public sealed partial class FrameTree
     /// </summary>
     public Double3 FeltGravity(FrameHandle frame, Double3 position)
     {
-        Double3 linear = gravity[Node(frame).Id].AtPrecise(position) - (Double3)ProperAcceleration(frame);
-        Double3 omega = AngularVelocityRelative(frame, FrameHandle.Null), alpha = AngularAccelerationRelative(frame, FrameHandle.Null);
+        Double3 linear = gravity[Node(frame).Id].AtPrecise(position) - ProperAcceleration(frame);
+        Double3 omega = AngularVelocityRelative(frame, FrameHandle.Null),
+            alpha = AngularAccelerationRelative(frame, FrameHandle.Null);
         if (omega == Double3.Zero && alpha == Double3.Zero)
             return linear;
         DPose inRoot = RootPose(frame);
@@ -819,7 +872,8 @@ public sealed partial class FrameTree
     public DPose Relative(FrameHandle of, FrameHandle to) => poses.Relative(Node(of), Node(to));
 
     /// <summary>Writes every frame's pose relative to <paramref name="reference"/> into <paramref name="result"/>, by dense index.</summary>
-    internal void ComputeRelativeTo(FrameHandle reference, Span<DPose> result) => poses.ComputeRelativeTo(Node(reference), result);
+    internal void ComputeRelativeTo(FrameHandle reference, Span<DPose> result) =>
+        poses.ComputeRelativeTo(Node(reference), result);
 
     /// <summary>
     /// Like <see cref="ComputeRelativeTo(FrameHandle, Span{DPose})"/>, but with the local poses taken from
@@ -828,25 +882,12 @@ public sealed partial class FrameTree
     internal void ComputeRelativeTo(FrameHandle reference, ReadOnlySpan<DPose> localPoses, Span<DPose> result) =>
         poses.ComputeRelativeTo(Node(reference), localPoses, result);
 
-    /// <summary>The local poses of all frames, by dense index. Copy it to keep a tick's poses.</summary>
-    internal ReadOnlySpan<DPose> LocalPosesDense => poses.LocalPoses;
-
     internal int DenseIndex(FrameHandle frame) => poses.DenseIndex(Node(frame));
 
     internal FrameHandle AtDense(int dense) => Handle(poses.NodeAt(dense));
 
     /// <summary>Restores order and recomputes root-relative poses. Call it at the end of every sync point.</summary>
     public void Update() => poses.UpdateWorld();
-
-    /// <summary>
-    /// Below this effective gravity, in m/s², physics never stands a character, so the character is weightless: it
-    /// keeps its momentum and its last up, and only forces, the weak gravity and what it touches change its velocity. The
-    /// physics backend then makes it a rigid body that cannot turn, until the gravity at it reaches twice this value, or
-    /// this value while it touches something. At or above it, physics stands a character only on walkable ground. A
-    /// character in the air is weightless there too, because it falls freely. Physics reports which characters it stood,
-    /// so the components that steer characters agree with it.
-    /// </summary>
-    public const float ZeroGravityThreshold = 0.05f;
 
     /// <summary>
     /// The linear gravity on a body at <paramref name="position"/> in the frame <paramref name="frame"/>, which holds the
@@ -883,7 +924,8 @@ public sealed partial class FrameTree
     /// <see cref="FeltGravity"/>, which describes the last finished step.
     /// </para>
     /// </summary>
-    internal Double3 EffectiveGravity(FrameHandle frame, Double3 position) => AddRotationTerms(frame, position, LinearGravity(frame, position));
+    internal Double3 EffectiveGravity(FrameHandle frame, Double3 position) =>
+        AddRotationTerms(frame, position, LinearGravity(frame, position));
 
     /// <summary>
     /// The effective gravity on a body at <paramref name="position"/> in the frame <paramref name="frame"/> (see
@@ -899,7 +941,9 @@ public sealed partial class FrameTree
         if (numeric[id] == NumericMode.None)
             return WithRotationTerms(linear, id, position);
         FrameHandle semantic = SemanticOf(frame);
-        return turns[semantic.Index].Turns ? WithRotationTerms(linear, semantic.Index, position + HomeOffset(frame, semantic)) : linear;
+        return turns[semantic.Index].Turns
+            ? WithRotationTerms(linear, semantic.Index, position + HomeOffset(frame, semantic))
+            : linear;
     }
 
     /// <summary>
@@ -938,7 +982,7 @@ public sealed partial class FrameTree
     }
 
     /// <summary>The field of the semantic frame with index <paramref name="id"/> minus its proper acceleration, in doubles.</summary>
-    private Double3 FieldOf(int id, Double3 position) => gravity[id].AtPrecise(position) - (Double3)properAcceleration[id];
+    private Double3 FieldOf(int id, Double3 position) => gravity[id].AtPrecise(position) - properAcceleration[id];
 
     /// <summary>
     /// Like <see cref="FieldOf"/>, but with the frame's proper acceleration as the last finished step found it: the gravity at
@@ -949,7 +993,7 @@ public sealed partial class FrameTree
     /// <see cref="TakeStepRecords"/> copies every row's value before it writes the new ones.
     /// </summary>
     private Double3 FieldTheStepFound(int id, Double3 position) =>
-        gravity[id].AtPrecise(position) - (Double3)properAccelerationTheStepFound[id];
+        gravity[id].AtPrecise(position) - properAccelerationTheStepFound[id];
 
     /// <summary>
     /// The acceleration of the origin of <paramref name="home"/> relative to <paramref name="semantic"/>, which is the home
@@ -979,6 +1023,7 @@ public sealed partial class FrameTree
             int id = Node(f).Id;
             offset += TreeLocalPose(f).Position + (linearVelocity[id] + stepAcceleration[id] * dt) * dt;
         }
+
         return offset;
     }
 
@@ -999,6 +1044,7 @@ public sealed partial class FrameTree
             int id = Node(f).Id;
             move += (linearVelocity[id] + stepAcceleration[id] * dt) * dt;
         }
+
         return move;
     }
 
@@ -1039,6 +1085,7 @@ public sealed partial class FrameTree
             int id = Node(f).Id;
             excess += stepPlan[id] is { } plan ? plan.Velocity - plan.ChordVelocity : stepAcceleration[id] * (0.5 * dt);
         }
+
         return excess;
     }
 
@@ -1087,17 +1134,23 @@ public sealed partial class FrameTree
 
     /// <summary>Velocity of a point in the parent (see <see cref="Parent"/>): R·v + v_frame + ω × (R·p).</summary>
     public Double3 VelocityToParent(FrameHandle frame, Double3 positionInFrame, Double3 velocityInFrame) =>
-        VelocityToParent(LocalPose(frame), LinearVelocity(frame), AngularVelocity(frame), positionInFrame, velocityInFrame);
+        VelocityToParent(LocalPose(frame), LinearVelocity(frame), AngularVelocity(frame), positionInFrame,
+            velocityInFrame);
 
     /// <summary>Velocity of a point in the frame, from the parent (see <see cref="Parent"/>): R⁻¹(v − v_frame − ω × (p − origin)).</summary>
     public Double3 VelocityFromParent(FrameHandle frame, Double3 positionInParent, Double3 velocityInParent) =>
-        VelocityFromParent(LocalPose(frame), LinearVelocity(frame), AngularVelocity(frame), positionInParent, velocityInParent);
+        VelocityFromParent(LocalPose(frame), LinearVelocity(frame), AngularVelocity(frame), positionInParent,
+            velocityInParent);
 
-    private static Double3 VelocityToParent(in DPose pose, Double3 velocity, Double3 angular, Double3 positionInFrame, Double3 velocityInFrame) =>
-        pose.TransformDirection(velocityInFrame) + velocity + Double3.Cross(angular, pose.TransformDirection(positionInFrame));
+    private static Double3 VelocityToParent(in DPose pose, Double3 velocity, Double3 angular, Double3 positionInFrame,
+        Double3 velocityInFrame) =>
+        pose.TransformDirection(velocityInFrame) + velocity +
+        Double3.Cross(angular, pose.TransformDirection(positionInFrame));
 
-    private static Double3 VelocityFromParent(in DPose pose, Double3 velocity, Double3 angular, Double3 positionInParent, Double3 velocityInParent) =>
-        pose.InverseTransformDirection(velocityInParent - velocity - Double3.Cross(angular, positionInParent - pose.Position));
+    private static Double3 VelocityFromParent(in DPose pose, Double3 velocity, Double3 angular,
+        Double3 positionInParent, Double3 velocityInParent) =>
+        pose.InverseTransformDirection(velocityInParent - velocity -
+                                       Double3.Cross(angular, positionInParent - pose.Position));
 
     /// <summary>
     /// Adds every live semantic frame, parents before children: the root frames in the order of their indices, each
@@ -1134,9 +1187,9 @@ public sealed partial class FrameTree
     private PoseNode Node(FrameHandle frame)
     {
         var node = new PoseNode(frame.Index, frame.Generation);
-        if (!poses.IsAlive(node) || owner[frame.Index] != frame.Entity)
-            throw new InvalidOperationException($"Stale or null frame {frame}.");
-        return node;
+        return !poses.IsAlive(node) || owner[frame.Index] != frame.Entity
+            ? throw new InvalidOperationException($"Stale or null frame {frame}.")
+            : node;
     }
 
     private FrameHandle Handle(PoseNode node) => new(owner[node.Id], node.Id, node.Generation);
@@ -1171,6 +1224,7 @@ public sealed partial class FrameTree
             p = pose.TransformPoint(p);
             x = TreeParent(x);
         }
+
         if (x == to)
             return vel;
         // x is now an ancestor of 'to' (or the virtual root). Descend along the path to 'to'.
@@ -1185,6 +1239,7 @@ public sealed partial class FrameTree
             vel = VelocityFromParent(pose, linearVelocity[id], angularVelocity[id], p, vel);
             p = pose.InverseTransformPoint(p);
         }
+
         return vel;
     }
 
@@ -1240,6 +1295,7 @@ public sealed partial class FrameTree
             omega = TreeLocalPose(x).TransformDirection(omega) + angularVelocity[Node(x).Id];
             x = parent;
         }
+
         if (x == to)
             return omega;
         var path = new Stack<FrameHandle>();
@@ -1250,6 +1306,7 @@ public sealed partial class FrameTree
             FrameHandle child = path.Pop();
             omega = TreeLocalPose(child).InverseTransformDirection(omega - angularVelocity[Node(child).Id]);
         }
+
         return omega;
     }
 
@@ -1262,26 +1319,26 @@ public sealed partial class FrameTree
 
     private PoseNode AddNode(PoseNode parent, in DPose localPose)
     {
-        ownerViewStamp++;
+        OwnerViewStamp++;
         return poses.Add(parent, localPose);
     }
 
     private void RemovePoseNode(PoseNode node)
     {
-        ownerViewStamp++;
+        OwnerViewStamp++;
         poses.Remove(node);
     }
 
     private void MoveNode(PoseNode node, PoseNode newParent, bool keepWorldPose)
     {
-        ownerViewStamp++;
+        OwnerViewStamp++;
         poses.Reparent(node, newParent, keepWorldPose);
     }
 
     /// <summary>The local pose of <paramref name="node"/>, to write.</summary>
     private ref DPose LocalForWrite(PoseNode node)
     {
-        ownerViewStamp++;
+        OwnerViewStamp++;
         return ref poses.Local(node);
     }
 
@@ -1292,21 +1349,21 @@ public sealed partial class FrameTree
     /// </summary>
     private Span<DPose> LocalPosesForWrite()
     {
-        ownerViewStamp++;
+        OwnerViewStamp++;
         return poses.LocalPosesForWrite;
     }
 
     /// <summary>The linear velocity of the frame with stable index <paramref name="id"/>, to write.</summary>
     private ref Double3 LinearVelocityForWrite(int id)
     {
-        ownerViewStamp++;
+        OwnerViewStamp++;
         return ref linearVelocity[id];
     }
 
     /// <summary>The angular velocity of the frame with stable index <paramref name="id"/>, to write.</summary>
     private ref Vector3 AngularVelocityForWrite(int id)
     {
-        ownerViewStamp++;
+        OwnerViewStamp++;
         return ref angularVelocity[id];
     }
 
@@ -1337,13 +1394,20 @@ public sealed partial class FrameTree
 }
 
 /// <summary>
-/// The state of <see cref="Frame"/> that the transform row of its owner mirrors (see <see cref="FrameTree.VisitOwnerViews"/>):
+/// The state of <see cref="Frame"/> that the transform row of its owner mirrors (see
+/// <see cref="FrameTree.VisitOwnerViews"/>):
 /// its tree parent <see cref="Home"/>, which holds its hull and is the owner's physics home; the semantic frame of that
 /// parent, or null for a root frame; its pose in the tree parent; the position of its origin in that semantic frame,
 /// summed as <see cref="FrameTree.InSemantic"/> sums it; and its velocities relative to the tree parent.
 /// </summary>
-internal readonly record struct FrameOwnerView(FrameHandle Frame, FrameHandle Home, FrameHandle Semantic, DPose LocalPose,
-    Double3 PositionInSemantic, Double3 LinearVelocity, Vector3 AngularVelocity);
+internal readonly record struct FrameOwnerView(
+    FrameHandle Frame,
+    FrameHandle Home,
+    FrameHandle Semantic,
+    DPose LocalPose,
+    Double3 PositionInSemantic,
+    Double3 LinearVelocity,
+    Vector3 AngularVelocity);
 
 /// <summary>Takes the owner view of each frame in <see cref="FrameTree.VisitOwnerViews"/>.</summary>
 internal interface IOwnerViewVisitor

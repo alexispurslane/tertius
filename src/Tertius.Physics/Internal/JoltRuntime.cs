@@ -26,7 +26,8 @@ internal static class JoltRuntime
             if (initialized)
                 return;
             if (!Foundation.Init(doublePrecision: true))
-                throw new InvalidOperationException("Jolt failed to initialize. Check that libjoltc_double is next to the executable.");
+                throw new InvalidOperationException(
+                    "Jolt failed to initialize. Check that libjoltc_double is next to the executable.");
             ContactListener.InstallCallbacks();
             initialized = true;
         }

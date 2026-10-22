@@ -32,7 +32,8 @@ public class SoakTests(ITestOutputHelper output)
         for (int i = 0; i < seeds; i++)
         {
             int seed = FirstSeed + i;
-            using var workload = new ChaoticWorkload(seed, chunkSize: ChunkSizes[i % ChunkSizes.Length], maxDegreeOfParallelism: workers);
+            using var workload = new ChaoticWorkload(seed, chunkSize: ChunkSizes[i % ChunkSizes.Length],
+                maxDegreeOfParallelism: workers);
             try
             {
                 workload.Run(ticksPerSeed);
@@ -42,13 +43,16 @@ public class SoakTests(ITestOutputHelper output)
                 // Run puts the seed and the tick in the message. The soak goes on with the next seed, so that one report shows every failure.
                 failures.Add(ex.Message);
             }
+
             ticks += workload.World.TickNumber;
             entityTicks += workload.Tally.EntityTicks;
         }
 
         // With no failure, the mean time between failures is at least a third of the exposure, with 95 percent confidence.
         string mtbf = failures.Count == 0 ? $"> {ticks / 3} ticks" : $"{ticks / failures.Count} ticks";
-        output.WriteLine($"soak: {seeds} seeds on {workers} workers, {ticks} ticks, {entityTicks} entity-ticks, {failures.Count} failures, MTBF {mtbf}");
-        failures.Should().BeEmpty("exposure was {0} ticks over seeds {1} to {2}", ticks, FirstSeed, FirstSeed + seeds - 1);
+        output.WriteLine(
+            $"soak: {seeds} seeds on {workers} workers, {ticks} ticks, {entityTicks} entity-ticks, {failures.Count} failures, MTBF {mtbf}");
+        failures.Should().BeEmpty("exposure was {0} ticks over seeds {1} to {2}", ticks, FirstSeed,
+            FirstSeed + seeds - 1);
     }
 }

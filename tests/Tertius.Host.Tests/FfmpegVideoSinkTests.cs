@@ -12,13 +12,12 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class FfmpegVideoSinkTests : IDisposable
 {
-    private readonly string folder = NewFolder();
-
-    public void Dispose() => Directory.Delete(folder, recursive: true);
-
     private const int Width = 8, Height = 6;
 
     private static readonly ScriptWindow Size = new(Width, Height);
+    private readonly string folder = NewFolder();
+
+    public void Dispose() => Directory.Delete(folder, recursive: true);
 
     /// <summary>
     /// The RGBA pixels of frame <paramref name="number"/>: a pattern of its own in red, green and blue, and a fourth byte of
@@ -26,7 +25,7 @@ public sealed class FfmpegVideoSinkTests : IDisposable
     /// </summary>
     private static byte[] Frame(int number, int width = Width, int height = Height)
     {
-        var rgba = new byte[width * height * 4];
+        byte[] rgba = new byte[width * height * 4];
         for (int pixel = 0; pixel < width * height; pixel++)
         {
             rgba[pixel * 4] = (byte)(pixel * 7 + number * 40);
@@ -34,11 +33,12 @@ public sealed class FfmpegVideoSinkTests : IDisposable
             rgba[pixel * 4 + 2] = (byte)(pixel * number * 11);
             rgba[pixel * 4 + 3] = (byte)(pixel * 37 + 5);
         }
+
         return rgba;
     }
 
     private static void Take(FfmpegVideoSink sink, byte[] rgba, int width = Width, int height = Height) =>
-        sink.Take(new CapturedImage(rgba, width, height));
+        sink.Take(new(rgba, width, height));
 
     private string VideoPath(string name = "video.mkv") => Path.Combine(folder, name);
 
@@ -46,7 +46,7 @@ public sealed class FfmpegVideoSinkTests : IDisposable
     public void AVideoHoldsEveryFrameItTookInOrderPixelForPixel()
     {
         string path = VideoPath();
-        using (FfmpegVideoSink sink = FfmpegVideoSink.Start(new VideoFile(path, 30), Size))
+        using (FfmpegVideoSink sink = FfmpegVideoSink.Start(new(path, 30), Size))
         {
             for (int number = 0; number < 3; number++)
                 Take(sink, Frame(number));
@@ -57,14 +57,15 @@ public sealed class FfmpegVideoSinkTests : IDisposable
 
         frames.Should().HaveCount(3);
         for (int number = 0; number < 3; number++)
-            frames[number].Should().Equal(Rgb(Frame(number)), "frame {0} is kept exactly, without its fourth bytes", number);
+            frames[number].Should().Equal(Rgb(Frame(number)), "frame {0} is kept exactly, without its fourth bytes",
+                number);
     }
 
     [Fact]
     public void AVideoPlaysAtItsFrameRate()
     {
         string path = VideoPath();
-        using (FfmpegVideoSink sink = FfmpegVideoSink.Start(new VideoFile(path, 24), Size))
+        using (FfmpegVideoSink sink = FfmpegVideoSink.Start(new(path, 24), Size))
         {
             Take(sink, Frame(0));
             sink.Finish();
@@ -77,14 +78,14 @@ public sealed class FfmpegVideoSinkTests : IDisposable
     public void AVideoReplacesAnOlderLongerVideoAtTheSamePath()
     {
         string path = VideoPath();
-        using (FfmpegVideoSink longer = FfmpegVideoSink.Start(new VideoFile(path, 30), Size))
+        using (FfmpegVideoSink longer = FfmpegVideoSink.Start(new(path, 30), Size))
         {
             for (int number = 0; number < 3; number++)
                 Take(longer, Frame(number));
             longer.Finish();
         }
 
-        using (FfmpegVideoSink shorter = FfmpegVideoSink.Start(new VideoFile(path, 30), Size))
+        using (FfmpegVideoSink shorter = FfmpegVideoSink.Start(new(path, 30), Size))
         {
             Take(shorter, Frame(5));
             shorter.Finish();
@@ -97,7 +98,7 @@ public sealed class FfmpegVideoSinkTests : IDisposable
     public void AVideoMakesTheFolderOfItsFile()
     {
         string path = Path.Combine(folder, "runs", "danube", "video.mkv");
-        using (FfmpegVideoSink sink = FfmpegVideoSink.Start(new VideoFile(path, 30), Size))
+        using (FfmpegVideoSink sink = FfmpegVideoSink.Start(new(path, 30), Size))
         {
             Take(sink, Frame(0));
             sink.Finish();
@@ -111,7 +112,7 @@ public sealed class FfmpegVideoSinkTests : IDisposable
     {
         string path = VideoPath();
 
-        FfmpegVideoSink.Start(new VideoFile(path, 30), Size).Dispose();
+        FfmpegVideoSink.Start(new(path, 30), Size).Dispose();
 
         File.Exists(path).Should().BeFalse("ffmpeg writes a video with no frame, and the sink deletes it");
     }
@@ -121,7 +122,7 @@ public sealed class FfmpegVideoSinkTests : IDisposable
     {
         string path = VideoPath();
 
-        using (FfmpegVideoSink sink = FfmpegVideoSink.Start(new VideoFile(path, 30), Size))
+        using (FfmpegVideoSink sink = FfmpegVideoSink.Start(new(path, 30), Size))
         {
             Take(sink, Frame(0));
             Take(sink, Frame(1));
@@ -136,7 +137,7 @@ public sealed class FfmpegVideoSinkTests : IDisposable
         // A folder at the path of the video: ffmpeg reads the first frame, cannot open its output, and exits.
         string path = VideoPath("folder.mkv");
         Directory.CreateDirectory(path);
-        using FfmpegVideoSink sink = FfmpegVideoSink.Start(new VideoFile(path, 30), Size);
+        using FfmpegVideoSink sink = FfmpegVideoSink.Start(new(path, 30), Size);
         int taken = 0;
 
         // The pipe holds some frames that ffmpeg never reads, so a later frame meets the closed pipe.
@@ -150,7 +151,8 @@ public sealed class FfmpegVideoSinkTests : IDisposable
         failure.ExitCode.Should().NotBe(0);
         failure.FramesWritten.Should().Be(taken, "the frames before the failed one went into the pipe");
         failure.ErrorLines.Should().Contain(line => line.Contains("Is a directory"));
-        failure.Message.Should().Contain($"exit code {failure.ExitCode}").And.Contain("Is a directory").And.Contain(path);
+        failure.Message.Should().Contain($"exit code {failure.ExitCode}").And.Contain("Is a directory").And
+            .Contain(path);
     }
 
     [Fact]
@@ -158,7 +160,7 @@ public sealed class FfmpegVideoSinkTests : IDisposable
     {
         string path = VideoPath("folder.mkv");
         Directory.CreateDirectory(path);
-        using FfmpegVideoSink sink = FfmpegVideoSink.Start(new VideoFile(path, 30), Size);
+        using FfmpegVideoSink sink = FfmpegVideoSink.Start(new(path, 30), Size);
         // One small frame fits in the pipe, so its write succeeds whatever ffmpeg does with it.
         Take(sink, Frame(0));
 
@@ -179,7 +181,7 @@ public sealed class FfmpegVideoSinkTests : IDisposable
         string program = Path.Combine(folder, "noisy-ffmpeg");
         File.WriteAllText(program, "#!/bin/sh\nfor i in $(seq 1 25); do echo \"line $i\" >&2; done\nexit 3\n");
         File.SetUnixFileMode(program, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-        using FfmpegVideoSink sink = FfmpegVideoSink.Start(new VideoFile(VideoPath(), 30), Size, program);
+        using FfmpegVideoSink sink = FfmpegVideoSink.Start(new(VideoPath(), 30), Size, program);
 
         VideoStreamException failure = sink.Invoking(s => s.Finish()).Should().Throw<VideoStreamException>().Which;
 
@@ -191,7 +193,7 @@ public sealed class FfmpegVideoSinkTests : IDisposable
     public void TakingAFrameAllocatesNothing()
     {
         byte[] rgba = Frame(0);
-        using FfmpegVideoSink sink = FfmpegVideoSink.Start(new VideoFile(VideoPath(), 30), Size);
+        using FfmpegVideoSink sink = FfmpegVideoSink.Start(new(VideoPath(), 30), Size);
         // The first frames warm up the path of the write.
         for (int number = 0; number < 5; number++)
             Take(sink, rgba);
@@ -202,13 +204,14 @@ public sealed class FfmpegVideoSinkTests : IDisposable
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         sink.Finish();
 
-        allocated.Should().Be(0, "an 18,000-frame run writes each frame into ffmpeg's input with no copy and no allocation");
+        allocated.Should().Be(0,
+            "an 18,000-frame run writes each frame into ffmpeg's input with no copy and no allocation");
     }
 
     [Fact]
     public void AFrameOfAnotherSizeThanTheVideoIsRefused()
     {
-        using FfmpegVideoSink sink = FfmpegVideoSink.Start(new VideoFile(VideoPath(), 30), Size);
+        using FfmpegVideoSink sink = FfmpegVideoSink.Start(new(VideoPath(), 30), Size);
 
         Action take = () => Take(sink, Frame(0, Width * 2, Height), Width * 2, Height);
 

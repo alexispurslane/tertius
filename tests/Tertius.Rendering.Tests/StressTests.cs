@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Numerics;
-using Tertius.Rendering;
 
 namespace Tertius.Rendering.Tests;
 
@@ -10,30 +9,29 @@ public sealed class StressTests(ITestOutputHelper output)
     /// <summary>A 200 x 100 field of objects on a gentle wave, from 4 m to 400 m in front of the camera.</summary>
     private static RenderSnapshot Field(VulkanRenderer renderer, RenderFlags flags, Vector3? sun = null)
     {
-        MeshId box = renderer.CreateMesh(Primitives.Box(new Vector3(0.5f)));
+        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
         MeshId sphere = renderer.CreateMesh(Primitives.Sphere(0.5f, 16, 8));
         MaterialId[] materials =
         [
-            renderer.CreateMaterial(MaterialDesc.Color(new Vector4(0.8f, 0.2f, 0.2f, 1), gloss: 0.7f)),
-            renderer.CreateMaterial(MaterialDesc.Color(new Vector4(0.2f, 0.7f, 0.3f, 1), gloss: 0.3f)),
-            renderer.CreateMaterial(MaterialDesc.Color(new Vector4(0.2f, 0.3f, 0.8f, 1), gloss: 0.5f)),
-            renderer.CreateMaterial(MaterialDesc.Color(new Vector4(0.8f, 0.7f, 0.2f, 1), gloss: 0.9f)),
+            renderer.CreateMaterial(MaterialDesc.Color(new(0.8f, 0.2f, 0.2f, 1), gloss: 0.7f)),
+            renderer.CreateMaterial(MaterialDesc.Color(new(0.2f, 0.7f, 0.3f, 1), gloss: 0.3f)),
+            renderer.CreateMaterial(MaterialDesc.Color(new(0.2f, 0.3f, 0.8f, 1), gloss: 0.5f)),
+            renderer.CreateMaterial(MaterialDesc.Color(new(0.8f, 0.7f, 0.2f, 1), gloss: 0.9f))
         ];
         RenderSnapshot snapshot = Gpu.Snapshot(sun ?? new Vector3(0.4f, 0.8f, 0.45f));
         const int columns = 200, rows = 100;
         for (int row = 0; row < rows; row++)
+        for (int column = 0; column < columns; column++)
         {
-            for (int column = 0; column < columns; column++)
-            {
-                int i = row * columns + column;
-                float x = (column - columns / 2) * 2.2f;
-                float z = -4f - row * 4f;
-                float y = -3f + MathF.Sin(column * 0.3f) * MathF.Cos(row * 0.2f);
-                RenderInstance instance = Gpu.Instance(i % 3 == 0 ? sphere : box, materials[i % 4], new Vector3(x, y, z),
-                    new Vector3(1.4f), Quaternion.CreateFromYawPitchRoll(i * 0.37f, i * 0.11f, 0), flags, entity: (uint)i);
-                snapshot.Instances.Add(instance);
-            }
+            int i = row * columns + column;
+            float x = (column - columns / 2) * 2.2f;
+            float z = -4f - row * 4f;
+            float y = -3f + MathF.Sin(column * 0.3f) * MathF.Cos(row * 0.2f);
+            RenderInstance instance = Gpu.Instance(i % 3 == 0 ? sphere : box, materials[i % 4], new(x, y, z),
+                new(1.4f), Quaternion.CreateFromYawPitchRoll(i * 0.37f, i * 0.11f, 0), flags, entity: (uint)i);
+            snapshot.Instances.Add(instance);
         }
+
         return snapshot;
     }
 
@@ -59,15 +57,15 @@ public sealed class StressTests(ITestOutputHelper output)
             // A large part of the lower half of the screen is covered by objects.
             int covered = 0, samples = 0;
             for (int y = height / 2 + 20; y < height; y += 4)
+            for (int x = 0; x < width; x += 4)
             {
-                for (int x = 0; x < width; x += 4)
-                {
-                    samples++;
-                    if (image.Luma(x, y) > 0.08f)
-                        covered++;
-                }
+                samples++;
+                if (image.Luma(x, y) > 0.08f)
+                    covered++;
             }
-            covered.Should().BeGreaterThan(samples / 3, "the field covers much of the lower half ({0} samples)", samples);
+
+            covered.Should().BeGreaterThan(samples / 3, "the field covers much of the lower half ({0} samples)",
+                samples);
 
             // Steady-state frame time, for information; correctness does not depend on it.
             var clock = Stopwatch.StartNew();
@@ -100,8 +98,10 @@ public sealed class StressTests(ITestOutputHelper output)
             for (int i = 1; i < 16; i++)
             {
                 renderer.Render(snapshot, 1f);
-                renderer.LastFrameStats.ImpostorCaptures.Should().Be(4, "the budget is used in full while tiles are free (frame {0})", i);
+                renderer.LastFrameStats.ImpostorCaptures.Should()
+                    .Be(4, "the budget is used in full while tiles are free (frame {0})", i);
             }
+
             Capture impostors = Gpu.RenderAndCapture(renderer, snapshot, "twenty-thousand-impostors");
             RenderStats stats = renderer.LastFrameStats;
             output.WriteLine($"atlas full: {stats}");
@@ -111,25 +111,27 @@ public sealed class StressTests(ITestOutputHelper output)
 
             double sum = 0;
             for (int y = 0; y < height; y += 2)
+            for (int x = 0; x < width; x += 2)
             {
-                for (int x = 0; x < width; x += 2)
-                {
-                    Vector3 d = Vector3.Abs(geometry.Color(x, y) - impostors.Color(x, y));
-                    sum += (d.X + d.Y + d.Z) / 3f;
-                }
+                Vector3 d = Vector3.Abs(geometry.Color(x, y) - impostors.Color(x, y));
+                sum += (d.X + d.Y + d.Z) / 3f;
             }
+
             float mean = (float)(sum / (width / 2 * (height / 2)));
             output.WriteLine($"mean |Δ| against the first frame {mean * 255:0.000} / 255");
-            (mean * 255).Should().BeLessThan(0.5f, "64 impostors among 20,000 objects change the frame by less than half a step of 1/255");
+            (mean * 255).Should().BeLessThan(0.5f,
+                "64 impostors among 20,000 objects change the frame by less than half a step of 1/255");
 
             var clock = Stopwatch.StartNew();
             const int frames = 20;
             for (int i = 0; i < frames; i++)
                 renderer.Render(snapshot, i / (float)frames);
-            output.WriteLine($"{clock.Elapsed.TotalMilliseconds / frames:F2} ms per frame with validation and impostors");
+            output.WriteLine(
+                $"{clock.Elapsed.TotalMilliseconds / frames:F2} ms per frame with validation and impostors");
 
             // The CPU cost of the impostor decisions alone: batching the same snapshot with and without the manager.
             MeshInfo[] meshes = [new(0, 36, 0, MathF.Sqrt(0.75f)), new(36, 3000, 24, 0.5f)];
+
             double Batch(bool withManager)
             {
                 var batcher = new SceneBatcher();
@@ -143,8 +145,10 @@ public sealed class StressTests(ITestOutputHelper output)
                     batcher.Prepare(snapshot, 1f, width, height, meshes, 8, scene);
                 return timer.Elapsed.TotalMilliseconds / 50;
             }
+
             double without = Batch(false), with = Batch(true);
-            output.WriteLine($"CPU batching of 20,000 instances: {without:F2} ms without impostors, {with:F2} ms with (Debug build)");
+            output.WriteLine(
+                $"CPU batching of 20,000 instances: {without:F2} ms without impostors, {with:F2} ms with (Debug build)");
         }
         finally
         {
@@ -162,14 +166,16 @@ public sealed class StressTests(ITestOutputHelper output)
             // The sun is low in front and to the right, and the field stands on a ground plane, so the shadows show.
             RenderSnapshot snapshot = Field(renderer, RenderFlags.CastsShadow, new Vector3(0.6f, 0.45f, -0.5f));
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
-            MaterialId ground = renderer.CreateMaterial(MaterialDesc.Color(new Vector4(0.5f, 0.5f, 0.5f, 1), gloss: 0.2f));
-            snapshot.Instances.Add(Gpu.Instance(plane, ground, new Vector3(0, -5f, -200f), new Vector3(450f, 1f, 450f), flags: RenderFlags.CastsShadow));
+            MaterialId ground = renderer.CreateMaterial(MaterialDesc.Color(new(0.5f, 0.5f, 0.5f, 1), gloss: 0.2f));
+            snapshot.Instances.Add(Gpu.Instance(plane, ground, new(0, -5f, -200f), new(450f, 1f, 450f),
+                flags: RenderFlags.CastsShadow));
             Capture image = Gpu.RenderAndCapture(renderer, snapshot, "twenty-thousand-shadows");
             RenderStats stats = renderer.LastFrameStats;
             output.WriteLine($"{stats}");
             stats.ShadowCasters.Should().Be(20_001);
             stats.ShadowCascades.Should().Be(4);
-            stats.ShadowInstances.Should().BeGreaterThanOrEqualTo(stats.ShadowCasters, "every caster is in at least one cascade");
+            stats.ShadowInstances.Should()
+                .BeGreaterThanOrEqualTo(stats.ShadowCasters, "every caster is in at least one cascade");
             // Three meshes: at most three commands per cascade, and one multi-draw per cascade plus the near range.
             stats.ShadowCommands.Should().BeInRange(ShadowCascades.Count, 3 * ShadowCascades.Count);
             stats.IndirectDrawCalls.Should().Be(1 + ShadowCascades.Count);
@@ -181,17 +187,18 @@ public sealed class StressTests(ITestOutputHelper output)
                 instance.Flags = RenderFlags.Visible;
                 snapshot.Instances[i] = instance;
             }
+
             Capture unshadowed = Gpu.RenderAndCapture(renderer, snapshot, "twenty-thousand-without-shadow-maps");
-            double Mean(Capture capture)
+
+            static double Mean(Capture capture)
             {
                 double sum = 0;
                 for (int y = height / 2 + 20; y < height; y += 2)
-                {
-                    for (int x = 0; x < width; x += 2)
-                        sum += capture.Luma(x, y);
-                }
+                for (int x = 0; x < width; x += 2)
+                    sum += capture.Luma(x, y);
                 return sum;
             }
+
             Mean(image).Should().BeLessThan(0.85 * Mean(unshadowed), "shadows darken the field");
 
             for (int i = 0; i < snapshot.Instances.Count; i++)
@@ -200,11 +207,13 @@ public sealed class StressTests(ITestOutputHelper output)
                 instance.Flags = RenderFlags.Visible | RenderFlags.CastsShadow;
                 snapshot.Instances[i] = instance;
             }
+
             var clock = Stopwatch.StartNew();
             const int frames = 20;
             for (int i = 0; i < frames; i++)
                 renderer.Render(snapshot, i / (float)frames);
-            output.WriteLine($"{clock.Elapsed.TotalMilliseconds / frames:F2} ms per frame with validation, all casting shadows");
+            output.WriteLine(
+                $"{clock.Elapsed.TotalMilliseconds / frames:F2} ms per frame with validation, all casting shadows");
         }
         finally
         {

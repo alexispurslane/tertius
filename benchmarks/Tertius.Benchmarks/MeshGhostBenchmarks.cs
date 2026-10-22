@@ -1,4 +1,3 @@
-using System.Numerics;
 using BenchmarkDotNet.Attributes;
 using JoltPhysicsSharp;
 using Tertius.Physics;
@@ -20,48 +19,53 @@ namespace Tertius.Benchmarks;
 [MemoryDiagnoser]
 public class MeshGhostBenchmarks
 {
+    [Params(false, true)] public bool ShipShuttles;
+
+    private World world = null!;
+
     /// <summary>Sets the velocity of its entity's body to ±0.5 m/s along X, and turns it every 120 ticks.</summary>
     private sealed class Shuttle : IComponent
     {
         public int Priority => 0;
-        public EventMask Wants => EventMask.Of<Tertius.Tick>();
+        public EventMask Wants => EventMask.Of<Tick>();
 
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
             if (self.Tick % 120 == 0)
-                self.Body.SetVelocity(new Double3(self.Tick / 120 % 2 == 0 ? 0.5 : -0.5, 0, 0));
+                self.Body.SetVelocity(new(self.Tick / 120 % 2 == 0 ? 0.5 : -0.5, 0, 0));
         }
     }
-
-    [Params(false, true)]
-    public bool ShipShuttles;
-
-    private World world = null!;
 
     [GlobalSetup]
     public void Setup()
     {
-        var backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 });
-        world = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DisposePhysics = true }, backend);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
-        var hull = new MeshShapeDesc([new(-20, 0, -20), new(20, 0, -20), new(20, 0, 20), new(-20, 0, 20)], [0, 2, 1, 0, 3, 2]);
-        Entity station = world.Spawn(new SpawnDesc
+        var backend = new JoltPhysicsBackend(new() { WorkerThreads = 2 });
+        world = new(new() { MaxDegreeOfParallelism = 1, DisposePhysics = true }, backend);
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
+        var hull = new MeshShapeDesc([new(-20, 0, -20), new(20, 0, -20), new(20, 0, 20), new(-20, 0, 20)],
+            [0, 2, 1, 0, 3, 2]);
+        Entity station = world.Spawn(new()
         {
             Frame = space,
-            Body = new BodyDesc(hull, BodyMotion.Static, InteriorShape: new SphereShapeDesc(1)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(3)),
+            Body = new(hull, BodyMotion.Static, InteriorShape: new SphereShapeDesc(1)),
+            AsFrame = new(FrameBounds.Sphere(3))
         });
-        Entity shipOwner = world.Spawn(new SpawnDesc
+        Entity shipOwner = world.Spawn(new()
         {
             Frame = space,
             Pose = At(12, 20, 0),
-            Body = new BodyDesc(new SphereShapeDesc(2), Mass: 1000, LinearDamping: 0, AngularDamping: 0, InteriorShape: new SphereShapeDesc(1)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(30), GravityField.Uniform(new Vector3(0, -9.81f, 0))),
-            Components = ShipShuttles ? [new Shuttle()] : [],
+            Body = new(new SphereShapeDesc(2), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
+                InteriorShape: new SphereShapeDesc(1)),
+            AsFrame = new(FrameBounds.Sphere(30), GravityField.Uniform(new(0, -9.81f, 0))),
+            Components = ShipShuttles ? [new Shuttle()] : []
         });
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
         for (int i = 0; i < 100; i++)
-            world.Spawn(new SpawnDesc { Frame = ship, Pose = At(i % 10 * 1.5 - 7, -19.5, i / 10 * 1.5 - 7), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10) });
+            world.Spawn(new()
+            {
+                Frame = ship, Pose = At(i % 10 * 1.5 - 7, -19.5, i / 10 * 1.5 - 7),
+                Body = new(new BoxShapeDesc(new(0.5f)), Mass: 10)
+            });
         // Three seconds: the boxes settle, and on the still ghost they fall asleep.
         for (int i = 0; i < 180; i++)
             world.Tick();
@@ -74,7 +78,7 @@ public class MeshGhostBenchmarks
         Console.WriteLine($"// The ghost of the hull is {ghost}, and {awake} of 100 boxes are awake.");
     }
 
-    private static DPose At(double x, double y, double z) => new(new Double3(x, y, z), DQuaternion.Identity);
+    private static DPose At(double x, double y, double z) => new(new(x, y, z), DQuaternion.Identity);
 
     [Benchmark]
     public void Tick() => world.Tick();

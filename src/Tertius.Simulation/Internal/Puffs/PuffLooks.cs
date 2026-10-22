@@ -16,13 +16,16 @@ namespace Tertius.Simulation;
 internal sealed class PuffLooks
 {
     private PuffLook[] looks = new PuffLook[4];
+
     private int[] users = new int[4];
+
     // Scratch of IsCoherent: the number of rows that name each entry. It grows with the table.
     private int[] rowsNaming = new int[4];
+
     // The entries from 0 to end have been used. The free ones among them are on the stack.
     private int end;
     private readonly Stack<int> free = new();
-    private readonly Dictionary<PuffLook, int> index = new();
+    private readonly Dictionary<PuffLook, int> index = [];
 
     /// <summary>The looks by index, with the free entries, which are the default look.</summary>
     public ReadOnlySpan<PuffLook> All => looks.AsSpan(0, end);
@@ -30,11 +33,11 @@ internal sealed class PuffLooks
     /// <summary>The look of entry <paramref name="entry"/>.</summary>
     public ref readonly PuffLook this[int entry] => ref looks[entry];
 
-    /// <summary>The number of puffs that use entry <paramref name="entry"/>, 0 for a free entry.</summary>
-    public int UsersOf(int entry) => (uint)entry < (uint)end ? users[entry] : 0;
-
     /// <summary>The number of entries in use.</summary>
     public int InUse => index.Count;
+
+    /// <summary>The number of puffs that use entry <paramref name="entry"/>, 0 for a free entry.</summary>
+    public int UsersOf(int entry) => (uint)entry < (uint)end ? users[entry] : 0;
 
     /// <summary>
     /// The index of the entry of <paramref name="look"/>, which a valid look must be, after <paramref name="puffs"/> more
@@ -55,9 +58,11 @@ internal sealed class PuffLooks
                     Array.Resize(ref rowsNaming, rowsNaming.Length * 2);
                 }
             }
+
             looks[entry] = look;
             index.Add(look, entry);
         }
+
         users[entry] += puffs;
         return entry;
     }
@@ -90,6 +95,7 @@ internal sealed class PuffLooks
                 return false;
             named[row.Look]++;
         }
+
         // A free entry is marked by -1 in place of the count of rows that name it, which must be 0.
         foreach (int entry in free)
         {
@@ -97,6 +103,7 @@ internal sealed class PuffLooks
                 return false;
             named[entry] = -1;
         }
+
         int inUse = 0;
         for (int entry = 0; entry < end; entry++)
         {
@@ -106,12 +113,14 @@ internal sealed class PuffLooks
                     return false;
                 continue;
             }
+
             inUse++;
             if (users[entry] != named[entry] || users[entry] == 0 || !looks[entry].IsValid)
                 return false;
             if (!index.TryGetValue(looks[entry], out int found) || found != entry)
                 return false;
         }
+
         return index.Count == inUse;
     }
 }

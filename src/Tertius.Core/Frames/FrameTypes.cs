@@ -8,11 +8,10 @@ namespace Tertius;
 /// </summary>
 public record struct FrameBounds(Vector3 Radii)
 {
-    public static FrameBounds Sphere(float radius) => new(new Vector3(radius));
-
     public readonly float MaxRadius => MathF.Max(Radii.X, MathF.Max(Radii.Y, Radii.Z));
     public readonly float MinRadius => MathF.Min(Radii.X, MathF.Min(Radii.Y, Radii.Z));
     public readonly bool IsSphere => Radii.X == Radii.Y && Radii.Y == Radii.Z;
+    public static FrameBounds Sphere(float radius) => new(new(radius));
 
     /// <summary>
     /// The distance from the bubble surface to a point in frame coordinates: negative inside. For a sphere it
@@ -24,18 +23,17 @@ public record struct FrameBounds(Vector3 Radii)
         double length = point.Length;
         if (IsSphere)
             return length - Radii.X;
-        var q = point / (Double3)Radii;
+        Double3 q = point / Radii;
         double k = q.Length;
-        if (k == 0)
-            return -MinRadius;
-        return length * (k - 1) / k;
+        return k == 0 ? -MinRadius : length * (k - 1) / k;
     }
 
     /// <summary>True when a sphere at <paramref name="center"/> touches or overlaps the bubble.</summary>
     public readonly bool Touches(Double3 center, double radius) => SignedDistance(center) <= radius;
 
     /// <summary>True when a sphere is fully outside the bubble by more than <paramref name="margin"/>.</summary>
-    public readonly bool FullyOutside(Double3 center, double radius, double margin) => SignedDistance(center) > radius + margin;
+    public readonly bool FullyOutside(Double3 center, double radius, double margin) =>
+        SignedDistance(center) > radius + margin;
 
     /// <summary>The hand-off margin for an object of the given radius: the larger of 2% of the bubble and the radius.</summary>
     public readonly double ExitMargin(double objectRadius) => Math.Max(0.02 * MaxRadius, objectRadius);
@@ -62,6 +60,7 @@ public record struct FrameBounds(Vector3 Radii)
             entry = exit = 0;
             return false;
         }
+
         // The form that never subtracts two nearly equal numbers: q has the sign of b, and the roots are q/a and c/q.
         double q = -0.5 * (b + (b >= 0 ? Math.Sqrt(discriminant) : -Math.Sqrt(discriminant)));
         double t0 = q / a, t1 = q != 0 ? c / q : -t0;

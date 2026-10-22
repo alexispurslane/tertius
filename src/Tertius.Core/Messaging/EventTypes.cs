@@ -30,14 +30,17 @@ public static class EventTypeRegistry
     public static int Register<T>() where T : unmanaged, IEventPayload => EventType<T>.Id;
 
     public static Type TypeOf(int id) =>
-        (uint)id < (uint)Count ? Types[id] : throw new ArgumentOutOfRangeException(nameof(id), id, "unknown event type id");
+        (uint)id < (uint)Count
+            ? Types[id]
+            : throw new ArgumentOutOfRangeException(nameof(id), id, "unknown event type id");
 
     public static string NameOf(int id) => (uint)id < (uint)Count ? Types[id].Name : $"event:{id}";
 
     internal static int Register(Type type, int size)
     {
         if (size > MaxPayloadSize)
-            throw new InvalidOperationException($"Payload {type.Name} is {size} bytes. The limit is {MaxPayloadSize}. Put large or managed data in Event.Extra.");
+            throw new InvalidOperationException(
+                $"Payload {type.Name} is {size} bytes. The limit is {MaxPayloadSize}. Put large or managed data in Event.Extra.");
         lock (Gate)
         {
             for (int i = 0; i < count; i++)

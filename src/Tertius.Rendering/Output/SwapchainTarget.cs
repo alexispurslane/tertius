@@ -15,7 +15,7 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
     private readonly KhrSwapchain api;
     private readonly KhrSurface surfaceApi;
     private readonly bool vsync;
-    private readonly List<Semaphore> renderFinished = new();
+    private readonly List<Semaphore> renderFinished = [];
     private readonly SurfaceFormatKHR surfaceFormat;
     private SwapchainKHR swapchain;
     private GpuImage[] images = [];
@@ -36,10 +36,17 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
 
     public Format Format => surfaceFormat.Format;
     public Extent2D Extent { get; private set; }
-    public bool EncodeSrgbInShader => Format is Format.B8G8R8A8Unorm or Format.R8G8B8A8Unorm or Format.A2B10G10R10UnormPack32;
+
+    public bool EncodeSrgbInShader =>
+        Format is Format.B8G8R8A8Unorm or Format.R8G8B8A8Unorm or Format.A2B10G10R10UnormPack32;
+
     public bool BgraOrder => Format is Format.B8G8R8A8Srgb or Format.B8G8R8A8Unorm;
+
     /// <summary>The number of times the swapchain was created, including the first. A test hook.</summary>
     public int Generation { get; private set; }
+
+    /// <summary>The swapchain images can be captured, so <see cref="VulkanRenderer.CaptureNextFrame"/> works.</summary>
+    public bool CanCapture { get; private set; }
 
     public GpuImage? Acquire(FrameResources frame)
     {
@@ -48,13 +55,15 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
         if (swapchain.Handle == 0)
             return null;
         uint index;
-        Result result = api.AcquireNextImage(device.Device, swapchain, ulong.MaxValue, frame.ImageAvailable, default, &index);
+        Result result = api.AcquireNextImage(device.Device, swapchain, ulong.MaxValue, frame.ImageAvailable, default,
+            &index);
         if (result == Result.ErrorOutOfDateKhr)
         {
             // The semaphore was not signaled, so it can be used again next frame.
             stale = true;
             return null;
         }
+
         if (result == Result.SuboptimalKhr)
             stale = true;
         else
@@ -63,7 +72,7 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
         GpuImage image = images[index];
         // The previous contents do not matter. The barrier out of this state waits for the acquire semaphore,
         // which the submit waits on at the color attachment output stage.
-        image.State = new ResourceState(ImageLayout.Undefined, PipelineStageFlags2.ColorAttachmentOutputBit, AccessFlags2.None);
+        image.State = new(ImageLayout.Undefined, PipelineStageFlags2.ColorAttachmentOutputBit, AccessFlags2.None);
         return image;
     }
 
@@ -76,7 +85,8 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
     public void SubmitAndPresent(FrameResources frame)
     {
         Semaphore finished = renderFinished[(int)imageIndex];
-        QueueSubmission.Submit(device, frame, frame.ImageAvailable, PipelineStageFlags2.ColorAttachmentOutputBit, finished);
+        QueueSubmission.Submit(device, frame, frame.ImageAvailable, PipelineStageFlags2.ColorAttachmentOutputBit,
+            finished);
         SwapchainKHR target = swapchain;
         uint index = imageIndex;
         var present = new PresentInfoKHR
@@ -86,7 +96,7 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
             PWaitSemaphores = &finished,
             SwapchainCount = 1,
             PSwapchains = &target,
-            PImageIndices = &index,
+            PImageIndices = &index
         };
         Result result = api.QueuePresent(device.Queue, &present);
         if (result is Result.ErrorOutOfDateKhr or Result.SuboptimalKhr)
@@ -110,11 +120,12 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
     private void Create()
     {
         stale = false;
-        surfaceApi.GetPhysicalDeviceSurfaceCapabilities(device.PhysicalDevice, device.Surface, out SurfaceCapabilitiesKHR capabilities)
+        surfaceApi.GetPhysicalDeviceSurfaceCapabilities(device.PhysicalDevice, device.Surface,
+                out SurfaceCapabilitiesKHR capabilities)
             .Check("vkGetPhysicalDeviceSurfaceCapabilitiesKHR");
         Extent2D extent = capabilities.CurrentExtent.Width != uint.MaxValue
             ? capabilities.CurrentExtent
-            : new Extent2D(
+            : new(
                 Math.Clamp(requested.Width, capabilities.MinImageExtent.Width, capabilities.MaxImageExtent.Width),
                 Math.Clamp(requested.Height, capabilities.MinImageExtent.Height, capabilities.MaxImageExtent.Height));
 
@@ -134,14 +145,15 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
         uint imageCount = capabilities.MinImageCount + 1;
         if (capabilities.MaxImageCount > 0)
             imageCount = Math.Min(imageCount, capabilities.MaxImageCount);
-        ImageUsageFlags usage = ImageUsageFlags.ColorAttachmentBit;
+        var usage = ImageUsageFlags.ColorAttachmentBit;
         // Captures copy out of the swapchain image.
         if ((capabilities.SupportedUsageFlags & ImageUsageFlags.TransferSrcBit) != 0)
             usage |= ImageUsageFlags.TransferSrcBit;
         CanCapture = CanCaptureImages(usage, surfaceFormat.Format);
         CompositeAlphaFlagsKHR alpha = (capabilities.SupportedCompositeAlpha & CompositeAlphaFlagsKHR.OpaqueBitKhr) != 0
             ? CompositeAlphaFlagsKHR.OpaqueBitKhr
-            : (CompositeAlphaFlagsKHR)((uint)capabilities.SupportedCompositeAlpha & (uint)-(int)capabilities.SupportedCompositeAlpha);
+            : (CompositeAlphaFlagsKHR)((uint)capabilities.SupportedCompositeAlpha &
+                                       (uint)-(int)capabilities.SupportedCompositeAlpha);
 
         var info = new SwapchainCreateInfoKHR
         {
@@ -158,7 +170,7 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
             CompositeAlpha = alpha,
             PresentMode = ChoosePresentMode(),
             Clipped = true,
-            OldSwapchain = old,
+            OldSwapchain = old
         };
         api.CreateSwapchain(device.Device, &info, null, out SwapchainKHR created).Check("vkCreateSwapchainKHR");
         if (old.Handle != 0)
@@ -171,21 +183,22 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
         api.GetSwapchainImages(device.Device, swapchain, &count, null).Check("vkGetSwapchainImagesKHR");
         var handles = new Image[count];
         fixed (Image* p = handles)
+        {
             api.GetSwapchainImages(device.Device, swapchain, &count, p).Check("vkGetSwapchainImagesKHR");
+        }
+
         images = new GpuImage[count];
         for (int i = 0; i < count; i++)
             images[i] = GpuImage.Wrap(device, handles[i], surfaceFormat.Format, extent, $"swapchain image {i}");
         var semaphoreInfo = new SemaphoreCreateInfo { SType = StructureType.SemaphoreCreateInfo };
         while (renderFinished.Count < count)
         {
-            device.Vk.CreateSemaphore(device.Device, &semaphoreInfo, null, out Semaphore semaphore).Check("vkCreateSemaphore");
+            device.Vk.CreateSemaphore(device.Device, &semaphoreInfo, null, out Semaphore semaphore)
+                .Check("vkCreateSemaphore");
             device.SetName(ObjectType.Semaphore, semaphore.Handle, $"render finished {renderFinished.Count}");
             renderFinished.Add(semaphore);
         }
     }
-
-    /// <summary>The swapchain images can be captured, so <see cref="VulkanRenderer.CaptureNextFrame"/> works.</summary>
-    public bool CanCapture { get; private set; }
 
     /// <summary>
     /// Whether swapchain images of <paramref name="usage"/> and <paramref name="format"/> can be captured. The capture
@@ -200,21 +213,24 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
     private SurfaceFormatKHR ChooseFormat()
     {
         uint count = 0;
-        surfaceApi.GetPhysicalDeviceSurfaceFormats(device.PhysicalDevice, device.Surface, &count, null).Check("vkGetPhysicalDeviceSurfaceFormatsKHR");
+        surfaceApi.GetPhysicalDeviceSurfaceFormats(device.PhysicalDevice, device.Surface, &count, null)
+            .Check("vkGetPhysicalDeviceSurfaceFormatsKHR");
         var formats = new SurfaceFormatKHR[count];
         fixed (SurfaceFormatKHR* p = formats)
-            surfaceApi.GetPhysicalDeviceSurfaceFormats(device.PhysicalDevice, device.Surface, &count, p).Check("vkGetPhysicalDeviceSurfaceFormatsKHR");
+        {
+            surfaceApi.GetPhysicalDeviceSurfaceFormats(device.PhysicalDevice, device.Surface, &count, p)
+                .Check("vkGetPhysicalDeviceSurfaceFormatsKHR");
+        }
+
         if (count == 0)
             throw new NotSupportedException("The surface reports no formats.");
         // An sRGB format lets the hardware apply the transfer curve; UNORM falls back to the shader.
-        foreach (Format preferred in (Format[])[Format.B8G8R8A8Srgb, Format.R8G8B8A8Srgb, Format.B8G8R8A8Unorm, Format.R8G8B8A8Unorm])
-        {
-            foreach (SurfaceFormatKHR format in formats)
-            {
-                if (format.Format == preferred && format.ColorSpace == ColorSpaceKHR.SpaceSrgbNonlinearKhr)
-                    return format;
-            }
-        }
+        foreach (Format preferred in (Format[])
+                 [Format.B8G8R8A8Srgb, Format.R8G8B8A8Srgb, Format.B8G8R8A8Unorm, Format.R8G8B8A8Unorm])
+        foreach (SurfaceFormatKHR format in formats)
+            if (format.Format == preferred && format.ColorSpace == ColorSpaceKHR.SpaceSrgbNonlinearKhr)
+                return format;
+
         return formats[0];
     }
 
@@ -223,15 +239,20 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
         if (vsync)
             return PresentModeKHR.FifoKhr;
         uint count = 0;
-        surfaceApi.GetPhysicalDeviceSurfacePresentModes(device.PhysicalDevice, device.Surface, &count, null).Check("vkGetPhysicalDeviceSurfacePresentModesKHR");
+        surfaceApi.GetPhysicalDeviceSurfacePresentModes(device.PhysicalDevice, device.Surface, &count, null)
+            .Check("vkGetPhysicalDeviceSurfacePresentModesKHR");
         var modes = new PresentModeKHR[count];
         fixed (PresentModeKHR* p = modes)
-            surfaceApi.GetPhysicalDeviceSurfacePresentModes(device.PhysicalDevice, device.Surface, &count, p).Check("vkGetPhysicalDeviceSurfacePresentModesKHR");
-        if (modes.Contains(PresentModeKHR.MailboxKhr))
-            return PresentModeKHR.MailboxKhr;
-        if (modes.Contains(PresentModeKHR.ImmediateKhr))
-            return PresentModeKHR.ImmediateKhr;
-        return PresentModeKHR.FifoKhr;
+        {
+            surfaceApi.GetPhysicalDeviceSurfacePresentModes(device.PhysicalDevice, device.Surface, &count, p)
+                .Check("vkGetPhysicalDeviceSurfacePresentModesKHR");
+        }
+
+        return modes.Contains(PresentModeKHR.MailboxKhr)
+            ? PresentModeKHR.MailboxKhr
+            : modes.Contains(PresentModeKHR.ImmediateKhr)
+                ? PresentModeKHR.ImmediateKhr
+                : PresentModeKHR.FifoKhr;
     }
 
     private void DestroyViews()

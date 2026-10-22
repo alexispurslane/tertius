@@ -49,9 +49,20 @@ internal static class MovingPair
     /// <param name="RearCollisions">The Collision events about the front body that the rear body heard so far.</param>
     /// <param name="FrontCollisions">The Collision events about the rear body that the front body heard so far.</param>
     /// <param name="RearEnded">The CollisionEnded events about the front body that the rear body heard so far.</param>
-    private readonly record struct PairReport(double GapError, double LargestGapError, double Across, double LargestAcross,
-        double RelativeAlong, double RelativeAcross, double LargestRelative, double LargestRearChange, double LargestFrontChange,
-        double LargestFrontTilt, int RearCollisions, int FrontCollisions, int RearEnded);
+    private readonly record struct PairReport(
+        double GapError,
+        double LargestGapError,
+        double Across,
+        double LargestAcross,
+        double RelativeAlong,
+        double RelativeAcross,
+        double LargestRelative,
+        double LargestRearChange,
+        double LargestFrontChange,
+        double LargestFrontTilt,
+        int RearCollisions,
+        int FrontCollisions,
+        int RearEnded);
 
     /// <param name="FirstCollisionTick">The first tick in which either body heard a Collision about the other, or -1.</param>
     private sealed record PairRun(PairReport[] Reports, long FirstCollisionTick, double LargestDistance, int Warnings);
@@ -85,32 +96,32 @@ internal static class MovingPair
         float dt = 1f / 60;
         double runTime = Ticks * (double)dt;
         foreach (Direction direction in Directions)
+        foreach (double speed in Speeds)
+        foreach (double gap in Gaps)
         {
-            foreach (double speed in Speeds)
-            {
-                foreach (double gap in Gaps)
-                {
-                    // The path passes the origin at the middle of the run.
-                    PairRun run = Run(rear, front, speed, direction.Unit, direction.Unit * (-speed * runTime / 2), gap);
-                    Write(csv, "speed", direction, speed, speed * dt, gap, run);
-                    if (speed == 0)
-                        continue;
-                    PairRun control = Run(rear, front, 0, direction.Unit, direction.Unit * run.LargestDistance, gap);
-                    Write(csv, "distance-control", direction, 0, 0, gap, control);
-                }
-            }
+            // The path passes the origin at the middle of the run.
+            PairRun run = Run(rear, front, speed, direction.Unit, direction.Unit * (-speed * runTime / 2), gap);
+            Write(csv, "speed", direction, speed, speed * dt, gap, run);
+            if (speed == 0)
+                continue;
+            PairRun control = Run(rear, front, 0, direction.Unit, direction.Unit * run.LargestDistance, gap);
+            Write(csv, "distance-control", direction, 0, 0, gap, control);
         }
+
         return csv;
     }
 
-    private static void Write(Csv csv, string kind, Direction direction, double speed, double sweep, double gap, PairRun run)
+    private static void Write(Csv csv, string kind, Direction direction, double speed, double sweep, double gap,
+        PairRun run)
     {
         for (int r = 0; r < ReportTicks.Length; r++)
         {
             PairReport at = run.Reports[r];
             csv.Add(kind, direction.Name, speed, sweep, run.LargestDistance, gap, ReportTicks[r] / 60.0,
-                at.GapError, at.LargestGapError, at.Across, at.LargestAcross, at.RelativeAlong, at.RelativeAcross, at.LargestRelative,
-                at.LargestRearChange, at.LargestFrontChange, at.LargestFrontTilt, at.RearCollisions, at.FrontCollisions, at.RearEnded,
+                at.GapError, at.LargestGapError, at.Across, at.LargestAcross, at.RelativeAlong, at.RelativeAcross,
+                at.LargestRelative,
+                at.LargestRearChange, at.LargestFrontChange, at.LargestFrontTilt, at.RearCollisions, at.FrontCollisions,
+                at.RearEnded,
                 run.FirstCollisionTick, run.Warnings);
         }
     }
@@ -129,26 +140,31 @@ internal static class MovingPair
         double reaches = rear.Reach(direction) + front.Reach(direction);
         var rearLog = new CollisionLog();
         var frontLog = new CollisionLog();
-        Entity rearBody = world.Spawn(new SpawnDesc
+        Entity rearBody = world.Spawn(new()
         {
             Frame = space,
-            Pose = new DPose(origin, rear.TurnsOntoD ? turn : DQuaternion.Identity),
+            Pose = new(origin, rear.TurnsOntoD ? turn : DQuaternion.Identity),
             LinearVelocity = velocity,
             Body = rear.Body,
-            Components = [rearLog],
+            Components = [rearLog]
         });
         DQuaternion frontStart = front.TurnsOntoD ? turn : DQuaternion.Identity;
-        Entity frontBody = world.Spawn(new SpawnDesc
+        Entity frontBody = world.Spawn(new()
         {
             Frame = space,
-            Pose = new DPose(origin + direction * (reaches + gap), frontStart),
+            Pose = new(origin + direction * (reaches + gap), frontStart),
             LinearVelocity = velocity,
             Body = front.Body,
-            Components = [frontLog],
+            Components = [frontLog]
         });
 
         double largestDistance = (origin + direction * (reaches + gap)).Length;
-        double largestGapError = 0, largestAcross = 0, largestRelative = 0, largestRearChange = 0, largestFrontChange = 0, largestTilt = 0;
+        double largestGapError = 0,
+            largestAcross = 0,
+            largestRelative = 0,
+            largestRearChange = 0,
+            largestFrontChange = 0,
+            largestTilt = 0;
         var reports = new List<PairReport>();
         for (int tick = 1; tick <= Ticks; tick++)
         {
@@ -169,12 +185,19 @@ internal static class MovingPair
             largestTilt = Math.Max(largestTilt, AngleOf(frontStart.Conjugate() * frontPose.Rotation));
             if (Array.IndexOf(ReportTicks, tick) < 0)
                 continue;
-            reports.Add(new PairReport(gapError, largestGapError, across, largestAcross, relativeAlong, relativeAcross, largestRelative,
+            reports.Add(new(gapError, largestGapError, across, largestAcross, relativeAlong, relativeAcross,
+                largestRelative,
                 largestRearChange, largestFrontChange, largestTilt,
-                rearLog.CountWith(frontBody), frontLog.CountWith(rearBody), rearLog.Ended.Count(ended => ended.Other == frontBody)));
+                rearLog.CountWith(frontBody), frontLog.CountWith(rearBody),
+                rearLog.Ended.Count(ended => ended.Other == frontBody)));
         }
-        long[] firstTicks = [.. rearLog.Seen.Where(seen => seen.Other == frontBody).Select(seen => seen.Tick),
-            .. frontLog.Seen.Where(seen => seen.Other == rearBody).Select(seen => seen.Tick)];
-        return new PairRun([.. reports], firstTicks.Length > 0 ? firstTicks.Min() : -1, largestDistance, warnings.Count + world.Errors.Count);
+
+        long[] firstTicks =
+        [
+            .. rearLog.Seen.Where(seen => seen.Other == frontBody).Select(seen => seen.Tick),
+            .. frontLog.Seen.Where(seen => seen.Other == rearBody).Select(seen => seen.Tick)
+        ];
+        return new([.. reports], firstTicks.Length > 0 ? firstTicks.Min() : -1, largestDistance,
+            warnings.Count + world.Errors.Count);
     }
 }

@@ -24,25 +24,8 @@ public static class ComponentTypes
     private static readonly Lock Gate = new();
     private static ComponentTypeRegistry? registry;
 
-    /// <summary>
-    /// Scans the loaded assemblies for component types, once per process. The <see cref="World"/> constructor calls it.
-    /// Throws <see cref="InvalidOperationException"/> when they define more than <see cref="Capacity"/> component types
-    /// or a generic one, and again on each later call.
-    /// </summary>
-    public static void ScanLoadedAssemblies() => _ = Registry;
-
     /// <summary>How many component types have an id.</summary>
     public static int Count => Registry.Count;
-
-    /// <summary>
-    /// The id of a concrete component type. A type whose assembly was not scanned yet scans that assembly first. Throws
-    /// <see cref="ArgumentException"/> for a type that is not a concrete component type or is generic, and
-    /// <see cref="InvalidOperationException"/> for a type whose assembly failed its scan, or that would pass the cap.
-    /// </summary>
-    public static int IdOf(Type type) => Registry.IdOf(type);
-
-    /// <summary>The short name of the type with id <paramref name="id"/>, or a placeholder for an id that no type has.</summary>
-    public static string NameOf(int id) => Registry.NameOf(id);
 
     internal static ComponentTypeRegistry Registry
     {
@@ -54,11 +37,28 @@ public static class ComponentTypes
             lock (Gate)
             {
                 // A failed scan leaves the field null, so that each later call fails with the same clear error.
-                registry ??= new ComponentTypeRegistry(MayDefineComponents(AppDomain.CurrentDomain.GetAssemblies()));
+                registry ??= new(MayDefineComponents(AppDomain.CurrentDomain.GetAssemblies()));
                 return registry;
             }
         }
     }
+
+    /// <summary>
+    /// Scans the loaded assemblies for component types, once per process. The <see cref="World"/> constructor calls it.
+    /// Throws <see cref="InvalidOperationException"/> when they define more than <see cref="Capacity"/> component types
+    /// or a generic one, and again on each later call.
+    /// </summary>
+    public static void ScanLoadedAssemblies() => _ = Registry;
+
+    /// <summary>
+    /// The id of a concrete component type. A type whose assembly was not scanned yet scans that assembly first. Throws
+    /// <see cref="ArgumentException"/> for a type that is not a concrete component type or is generic, and
+    /// <see cref="InvalidOperationException"/> for a type whose assembly failed its scan, or that would pass the cap.
+    /// </summary>
+    public static int IdOf(Type type) => Registry.IdOf(type);
+
+    /// <summary>The short name of the type with id <paramref name="id"/>, or a placeholder for an id that no type has.</summary>
+    public static string NameOf(int id) => Registry.NameOf(id);
 
     /// <summary>
     /// The assemblies that can define a component type: Tertius.Simulation, and every assembly that references one of
@@ -70,14 +70,15 @@ public static class ComponentTypes
         Assembly simulation = typeof(IComponent).Assembly;
         var names = new HashSet<string>(StringComparer.Ordinal) { simulation.GetName().Name! };
         var result = new List<Assembly> { simulation };
-        var rest = loaded.Where(a => !a.IsDynamic && a != simulation).ToList();
+        List<Assembly> rest = [.. loaded.Where(a => !a.IsDynamic && a != simulation)];
         bool grew = true;
         while (grew)
         {
             grew = false;
             for (int i = rest.Count - 1; i >= 0; i--)
             {
-                if (!rest[i].GetReferencedAssemblies().Any(reference => reference.Name is { } name && names.Contains(name)))
+                if (!rest[i].GetReferencedAssemblies()
+                        .Any(reference => reference.Name is { } name && names.Contains(name)))
                     continue;
                 names.Add(rest[i].GetName().Name!);
                 result.Add(rest[i]);
@@ -85,6 +86,7 @@ public static class ComponentTypes
                 grew = true;
             }
         }
+
         return result;
     }
 }
@@ -108,6 +110,7 @@ internal static class ComponentType<T> where T : IComponent
                 value = ComponentTypes.IdOf(typeof(T));
                 Volatile.Write(ref id, value);
             }
+
             return value;
         }
     }
@@ -122,11 +125,14 @@ internal static class ComponentType<T> where T : IComponent
 internal sealed class ComponentTypeRegistry
 {
     private readonly Lock gate = new();
+
     // Read without the lock, written under it.
     private readonly ConcurrentDictionary<Type, int> ids = new();
-    private readonly List<Type> types = new();
+
+    private readonly List<Type> types = [];
+
     // Every scanned assembly, with the reason that its scan failed, or null when it added its types.
-    private readonly Dictionary<Assembly, string?> scanned = new();
+    private readonly Dictionary<Assembly, string?> scanned = [];
 
     /// <summary>
     /// The startup scan: the concrete component types of every assembly of <paramref name="assemblies"/> that is not
@@ -146,6 +152,7 @@ internal sealed class ComponentTypeRegistry
             Collect(assembly, found, generic);
             scannedNow.Add(assembly);
         }
+
         if (generic.Count > 0)
             throw new InvalidOperationException(GenericProblem(generic));
         if (found.Count > ComponentTypes.Capacity)
@@ -161,7 +168,9 @@ internal sealed class ComponentTypeRegistry
         get
         {
             lock (gate)
+            {
                 return types.Count;
+            }
         }
     }
 
@@ -172,7 +181,9 @@ internal sealed class ComponentTypeRegistry
         if (ids.TryGetValue(type, out int id))
             return id;
         if (!IsConcreteComponent(type))
-            throw new ArgumentException($"{type.FullName} is not a concrete component type: a class or struct that implements IComponent.", nameof(type));
+            throw new ArgumentException(
+                $"{type.FullName} is not a concrete component type: a class or struct that implements IComponent.",
+                nameof(type));
         if (IsGeneric(type))
             throw new ArgumentException(GenericProblem([type]), nameof(type));
         lock (gate)
@@ -189,18 +200,21 @@ internal sealed class ComponentTypeRegistry
                 if (ids.TryGetValue(type, out id))
                     return id;
             }
+
             // A type of a dynamic assembly, or one that the scan could not load.
-            if (types.Count == ComponentTypes.Capacity)
-                throw new InvalidOperationException(
-                    $"{type.FullName} cannot get a component type id: a process can have at most {ComponentTypes.Capacity} component types, and every id is taken.");
-            return Add(type);
+            return types.Count == ComponentTypes.Capacity
+                ? throw new InvalidOperationException(
+                    $"{type.FullName} cannot get a component type id: a process can have at most {ComponentTypes.Capacity} component types, and every id is taken.")
+                : Add(type);
         }
     }
 
     public string NameOf(int id)
     {
         lock (gate)
+        {
             return (uint)id < (uint)types.Count ? types[id].Name : $"component:{id}";
+        }
     }
 
     /// <summary>Checks every invariant in the class comment.</summary>
@@ -228,10 +242,11 @@ internal sealed class ComponentTypeRegistry
         Collect(assembly, found, generic);
         found.RemoveAll(ids.ContainsKey);
         string? problem =
-            generic.Count > 0 ? GenericProblem(generic)
-            : types.Count + found.Count > ComponentTypes.Capacity
-                ? $"The assembly {assembly.GetName().Name} defines {found.Count} component types. With the {types.Count} that have ids, that passes the cap of {ComponentTypes.Capacity} component types in a process, so none of its types can be used."
-            : null;
+            generic.Count > 0
+                ? GenericProblem(generic)
+                : types.Count + found.Count > ComponentTypes.Capacity
+                    ? $"The assembly {assembly.GetName().Name} defines {found.Count} component types. With the {types.Count} that have ids, that passes the cap of {ComponentTypes.Capacity} component types in a process, so none of its types can be used."
+                    : null;
         if (problem == null)
             AddSorted(found);
         scanned.Add(assembly, problem);
@@ -264,6 +279,7 @@ internal sealed class ComponentTypeRegistry
         {
             all = ex.Types;
         }
+
         foreach (Type? type in all)
             if (type != null && IsConcreteComponent(type))
                 (IsGeneric(type) ? generic : found).Add(type);

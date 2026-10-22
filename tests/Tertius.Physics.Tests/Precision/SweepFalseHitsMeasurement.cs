@@ -1,5 +1,3 @@
-using System.Numerics;
-
 namespace Tertius.Physics.Tests.Precision;
 
 /// <summary>
@@ -17,7 +15,7 @@ public sealed class SweepFalseHitsMeasurement
     /// rotation. Along the unit vector d its surface reaches the radius plus 0.6 m times the part of d along Y.
     /// </summary>
     private static readonly MovingPair.Member Character = new(
-        new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
+        new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
         d => 0.3 + 0.6 * Math.Abs(d.Y),
         TurnsOntoD: false);
 
@@ -26,7 +24,7 @@ public sealed class SweepFalseHitsMeasurement
     /// the character's whole outline along the diagonal too.
     /// </summary>
     private static readonly MovingPair.Member Crate = new(
-        new BodyDesc(new BoxShapeDesc(new Vector3(0.5f, 1, 1)), Mass: 10, LinearDamping: 0, AngularDamping: 0),
+        new(new BoxShapeDesc(new(0.5f, 1, 1)), Mass: 10, LinearDamping: 0, AngularDamping: 0),
         _ => 0.5,
         TurnsOntoD: true);
 

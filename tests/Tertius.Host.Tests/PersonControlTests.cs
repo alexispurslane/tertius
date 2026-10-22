@@ -13,6 +13,11 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class PersonControlTests : IDisposable
 {
+    private const float Mass = 70;
+
+    /// <summary>The acceleration of the thrusters, in m/s².</summary>
+    private const float Thrust = PersonControl.ThrustForce / Mass;
+
     private static readonly Vector3 Eye = new(0, 0.75f, 0);
 
     private readonly World world = NewJoltWorld();
@@ -24,26 +29,28 @@ public sealed class PersonControlTests : IDisposable
         world.Camera = person;
     }
 
+    private Quaternion View => world.Snapshot.RenderOf(person).ViewOffset.Rotation;
+
     /// <summary>
     /// Makes the room's gravity pull along -<paramref name="up"/>, puts a floor under the origin across that direction, and
     /// stands a person on it with the identity rotation. Physics then turns the person's +Y to <paramref name="up"/>.
     /// </summary>
     private Entity StandOnAFloor(Vector3 up)
     {
-        FrameHandle room = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f), GravityField.Uniform(-9.81f * up)));
-        world.Spawn(new SpawnDesc
+        FrameHandle room = world.CreateRootFrame(new(FrameBounds.Sphere(1e4f), GravityField.Uniform(-9.81f * up)));
+        world.Spawn(new()
         {
             Frame = room,
-            Pose = new DPose(new Double3(-0.5 * up.X, -0.5 * up.Y, -0.5 * up.Z), DQuaternion.Identity),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(50) - 49.5f * Vector3.Abs(up)), BodyMotion.Static),
+            Pose = new(new(-0.5 * up.X, -0.5 * up.Y, -0.5 * up.Z), DQuaternion.Identity),
+            Body = new(new BoxShapeDesc(new Vector3(50) - 49.5f * Vector3.Abs(up)), BodyMotion.Static)
         });
-        Entity standing = world.Spawn(new SpawnDesc
+        Entity standing = world.Spawn(new()
         {
             Frame = room,
-            Pose = new DPose(new Double3(0.95 * up.X, 0.95 * up.Y, 0.95 * up.Z), DQuaternion.Identity),
-            Body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
+            Pose = new(new(0.95 * up.X, 0.95 * up.Y, 0.95 * up.Z), DQuaternion.Identity),
+            Body = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
             Components = [new PersonControl(Eye)],
-            Subscriptions = [Topics.Input],
+            Subscriptions = [Topics.Input]
         });
         // The person lands on the floor.
         Ticks(30);
@@ -62,24 +69,19 @@ public sealed class PersonControlTests : IDisposable
     /// </summary>
     private Entity FloatInSpace(DQuaternion rotation)
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f)));
-        Entity floating = world.Spawn(new SpawnDesc
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e4f)));
+        Entity floating = world.Spawn(new()
         {
             Frame = space,
-            Pose = new DPose(Double3.Zero, rotation),
-            Body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: Mass),
+            Pose = new(Double3.Zero, rotation),
+            Body = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: Mass),
             Components = [new PersonControl(Eye)],
-            Subscriptions = [Topics.Input],
+            Subscriptions = [Topics.Input]
         });
         world.Camera = floating;
         Ticks(3);
         return floating;
     }
-
-    private const float Mass = 70;
-
-    /// <summary>The acceleration of the thrusters, in m/s².</summary>
-    private const float Thrust = PersonControl.ThrustForce / Mass;
 
     /// <summary>The velocity that the posted input adds to <paramref name="floating"/> in half a second, once it acts.</summary>
     private Vector3 GainInHalfASecond(Entity floating)
@@ -102,7 +104,7 @@ public sealed class PersonControlTests : IDisposable
 
     private void Press(Key key) => Post(InputEvent.KeyDown((int)key));
 
-    private void MoveMouse(float right, float down) => Post(InputEvent.MouseMove(new Vector2(right, down)));
+    private void MoveMouse(float right, float down) => Post(InputEvent.MouseMove(new(right, down)));
 
     /// <summary>
     /// The velocity along the floor, in the room's axes, after the posted input has acted for a while. The part along
@@ -113,11 +115,10 @@ public sealed class PersonControlTests : IDisposable
         // A post joins the routing at the end of the next tick, the person handles it in the tick after that, and physics
         // moves the person in the step of the third tick.
         Ticks(10);
-        Vector3 velocity = world.Snapshot.VelocityInOwnFrame(walker.IsNull ? person : walker), along = up ?? Vector3.UnitY;
+        Vector3 velocity = world.Snapshot.VelocityInOwnFrame(walker.IsNull ? person : walker),
+            along = up ?? Vector3.UnitY;
         return velocity - Vector3.Dot(velocity, along) * along;
     }
-
-    private Quaternion View => world.Snapshot.RenderOf(person).ViewOffset.Rotation;
 
     private static void ExpectNear(Vector3 actual, Vector3 expected, float tolerance) =>
         Vector3.Distance(actual, expected).Should().BeLessThan(tolerance, $"{actual} is not {expected}");
@@ -141,7 +142,7 @@ public sealed class PersonControlTests : IDisposable
         Press(Key.W);
         Press(Key.D);
 
-        ExpectNear(WalkingVelocity(), Vector3.Normalize(new Vector3(1, 0, -1)) * PersonControl.WalkSpeed, 0.05f);
+        ExpectNear(WalkingVelocity(), Vector3.Normalize(new(1, 0, -1)) * PersonControl.WalkSpeed, 0.05f);
     }
 
     [Theory]
@@ -178,7 +179,7 @@ public sealed class PersonControlTests : IDisposable
         Ticks(3);
 
         // The tilt is about the turned view's own side, not about the room's +X, which would roll the view.
-        ExpectNear(Vector3.Transform(-Vector3.UnitZ, View), new Vector3(MathF.Cos(0.8f), -MathF.Sin(0.8f), 0), 1e-4f);
+        ExpectNear(Vector3.Transform(-Vector3.UnitZ, View), new(MathF.Cos(0.8f), -MathF.Sin(0.8f), 0), 1e-4f);
     }
 
     [Fact]
@@ -187,7 +188,8 @@ public sealed class PersonControlTests : IDisposable
         // In a second room, gravity pulls along -X, so physics turns the person's +Y to +X: a quarter turn about -Z.
         Entity sideways = StandOnAFloor(Vector3.UnitX);
         world.Camera = sideways;
-        world.Post(Event.Create(sideways, Entity.Null, InputEvent.MouseMove(new Vector2(-MathF.PI / 2 / PersonControl.TurnPerPixel, 0))));
+        world.Post(Event.Create(sideways, Entity.Null,
+            InputEvent.MouseMove(new(-MathF.PI / 2 / PersonControl.TurnPerPixel, 0))));
         world.Post(Event.Create(sideways, Entity.Null, InputEvent.KeyDown((int)Key.W)));
 
         // The view's quarter turn left takes forward from -Z to -X in the person's axes, and the body's turn takes -X to
@@ -224,8 +226,8 @@ public sealed class PersonControlTests : IDisposable
     [Fact]
     public void TheEmptyEventAScrollAndAMouseButtonNeitherTurnTheViewNorWalkThePerson()
     {
-        Post(default(InputEvent));
-        Post(InputEvent.Scroll(new Vector2(300, 200)));
+        Post(default);
+        Post(InputEvent.Scroll(new(300, 200)));
         Post(InputEvent.MouseDown((int)MouseButton.Left));
         Post(InputEvent.MouseUp((int)MouseButton.Left));
 
@@ -236,7 +238,7 @@ public sealed class PersonControlTests : IDisposable
     [Fact]
     public void WhileAnotherViewIsOnThePersonIgnoresTheKeysAndTheMouse()
     {
-        world.Camera = world.Spawn(new SpawnDesc { Frame = world.Snapshot.FrameOf(person), Render = new RenderData() });
+        world.Camera = world.Spawn(new() { Frame = world.Snapshot.FrameOf(person), Render = new RenderData() });
         MoveMouse(300, 200);
         Press(Key.W);
 
@@ -249,7 +251,7 @@ public sealed class PersonControlTests : IDisposable
     {
         Press(Key.W);
         Ticks(10);
-        Entity other = world.Spawn(new SpawnDesc { Frame = world.Snapshot.FrameOf(person), Render = new RenderData() });
+        Entity other = world.Spawn(new() { Frame = world.Snapshot.FrameOf(person), Render = new RenderData() });
         world.Camera = other;
         Vector3 away = WalkingVelocity();
         world.Camera = person;
@@ -326,7 +328,8 @@ public sealed class PersonControlTests : IDisposable
         Ticks(10);
         Post(InputEvent.KeyUp((int)Key.W));
         world.Snapshot.IsStanding(person).Should().BeFalse("the person jumped");
-        world.Snapshot.VelocityInOwnFrame(person).Z.Should().BeLessThan(-PersonControl.WalkSpeed, "the person keeps its walk in the air, and W thrusts it on");
+        world.Snapshot.VelocityInOwnFrame(person).Z.Should().BeLessThan(-PersonControl.WalkSpeed,
+            "the person keeps its walk in the air, and W thrusts it on");
         int ticks = 0;
         while (!world.Snapshot.IsStanding(person) && ticks++ < 120)
             Ticks(1);
@@ -397,8 +400,16 @@ public sealed class PersonControlTests : IDisposable
         FrameHandle room = world.Snapshot.FrameOf(person);
         Double3 at = world.Snapshot.PoseInOwnFrame(person).Position;
         Probe near = new(EventMask.Of<Use>()), far = new(EventMask.Of<Use>());
-        world.Spawn(new SpawnDesc { Frame = room, Pose = new DPose(at + new Double3(PersonControl.Reach - 0.1, 0, 0), DQuaternion.Identity), Components = [near] });
-        world.Spawn(new SpawnDesc { Frame = room, Pose = new DPose(at + new Double3(0, 0, PersonControl.Reach + 0.1), DQuaternion.Identity), Components = [far] });
+        world.Spawn(new()
+        {
+            Frame = room, Pose = new(at + new Double3(PersonControl.Reach - 0.1, 0, 0), DQuaternion.Identity),
+            Components = [near]
+        });
+        world.Spawn(new()
+        {
+            Frame = room, Pose = new(at + new Double3(0, 0, PersonControl.Reach + 0.1), DQuaternion.Identity),
+            Components = [far]
+        });
         Ticks(1);
         Press(Key.E);
         Ticks(10);
@@ -413,7 +424,7 @@ public sealed class PersonControlTests : IDisposable
     {
         FrameHandle room = world.Snapshot.FrameOf(person);
         Probe near = new(EventMask.Of<Use>());
-        world.Spawn(new SpawnDesc { Frame = room, Pose = world.Snapshot.PoseInOwnFrame(person), Components = [near] });
+        world.Spawn(new() { Frame = room, Pose = world.Snapshot.PoseInOwnFrame(person), Components = [near] });
         Ticks(1);
         // The person handles all three events in one tick, in the order of the posts. The press that comes second must
         // not cancel the first one, and the two presses make one use between them.
@@ -430,8 +441,11 @@ public sealed class PersonControlTests : IDisposable
     public void WhileAnotherViewIsOnPressingETellsNoOne()
     {
         Probe near = new(EventMask.Of<Use>());
-        world.Spawn(new SpawnDesc { Frame = world.Snapshot.FrameOf(person), Pose = world.Snapshot.PoseInOwnFrame(person), Components = [near] });
-        world.Camera = world.Spawn(new SpawnDesc { Frame = world.Snapshot.FrameOf(person), Render = new RenderData() });
+        world.Spawn(new()
+        {
+            Frame = world.Snapshot.FrameOf(person), Pose = world.Snapshot.PoseInOwnFrame(person), Components = [near]
+        });
+        world.Camera = world.Spawn(new() { Frame = world.Snapshot.FrameOf(person), Render = new RenderData() });
         Ticks(1);
         Press(Key.E);
         Ticks(10);
@@ -455,8 +469,10 @@ public sealed class PersonControlTests : IDisposable
         world.GetComponent<BackJet>(jet).Should().NotBeNull();
         FrameHandle frame = world.GetFrame(floating);
         DPose body = world.PoseIn(floating, frame), pose = world.PoseIn(jet, frame);
-        (pose.Position - body.TransformPoint((Double3)BackJet.Place)).Length.Should().BeLessThan(1e-5, "the jet sits on the person's back");
-        body.Rotation.AngularVelocityTo(pose.Rotation, 1).Length.Should().BeLessThan(1e-6, "the jet keeps the person's rotation");
+        (pose.Position - body.TransformPoint(BackJet.Place)).Length.Should()
+            .BeLessThan(1e-5, "the jet sits on the person's back");
+        body.Rotation.AngularVelocityTo(pose.Rotation, 1).Length.Should()
+            .BeLessThan(1e-6, "the jet keeps the person's rotation");
     }
 
     /// <summary>
@@ -468,12 +484,13 @@ public sealed class PersonControlTests : IDisposable
     {
         Entity floating = FloatInSpace();
         Entity jet = world.GetComponent<PersonControl>(floating)!.BackJetPart;
-        world.AddComponent(floating, new SendJetForce(jet, new JetForce { Force = new Vector3(float.NaN, 0, 10) }));
+        world.AddComponent(floating, new SendJetForce(jet, new() { Force = new(float.NaN, 0, 10) }));
 
         Ticks(30);
 
         world.Snapshot.VelocityInOwnFrame(floating).Should().Be(Vector3.Zero);
-        world.Errors.Should().Contain(error => error.Contains(nameof(BackJet)) && error.Contains("A jet's force is finite"));
+        world.Errors.Should()
+            .Contain(error => error.Contains(nameof(BackJet)) && error.Contains("A jet's force is finite"));
     }
 
     /// <summary>
@@ -505,7 +522,8 @@ public sealed class PersonControlTests : IDisposable
         MoveMouse(0, -0.5f / PersonControl.TurnPerPixel);
         Press(Key.W);
 
-        ExpectNear(GainInHalfASecond(floating), new Vector3(0, MathF.Sin(0.5f), -MathF.Cos(0.5f)) * Thrust * 0.5f, 1e-3f);
+        ExpectNear(GainInHalfASecond(floating), new Vector3(0, MathF.Sin(0.5f), -MathF.Cos(0.5f)) * Thrust * 0.5f,
+            1e-3f);
     }
 
     [Theory]
@@ -539,7 +557,7 @@ public sealed class PersonControlTests : IDisposable
         Press(Key.W);
         Press(Key.Space);
 
-        ExpectNear(GainInHalfASecond(floating), Vector3.Normalize(new Vector3(0, 1, -1)) * Thrust * 0.5f, 1e-3f);
+        ExpectNear(GainInHalfASecond(floating), Vector3.Normalize(new(0, 1, -1)) * Thrust * 0.5f, 1e-3f);
     }
 
     [Fact]
@@ -575,7 +593,8 @@ public sealed class PersonControlTests : IDisposable
 
         // The view's turn of 0.6 rad to the right takes forward from -Z to (sin 0.6, 0, -cos 0.6) in the person's axes.
         // The body's quarter turn about +Z then takes the person's +X to the room's +Y, and keeps -Z where it is.
-        ExpectNear(GainInHalfASecond(floating), new Vector3(0, MathF.Sin(0.6f), -MathF.Cos(0.6f)) * Thrust * 0.5f, 1e-3f);
+        ExpectNear(GainInHalfASecond(floating), new Vector3(0, MathF.Sin(0.6f), -MathF.Cos(0.6f)) * Thrust * 0.5f,
+            1e-3f);
     }
 
     [Theory]
@@ -586,7 +605,7 @@ public sealed class PersonControlTests : IDisposable
         Entity floating = FloatInSpace();
         Press(key);
         Ticks(10);
-        world.Camera = world.Spawn(new SpawnDesc { Frame = world.Snapshot.FrameOf(floating), Render = new RenderData() });
+        world.Camera = world.Spawn(new() { Frame = world.Snapshot.FrameOf(floating), Render = new RenderData() });
         // The person lets go in its next tick. A force that it added in the tick before can still act in that tick's step.
         Ticks(3);
         Vector3 drift = world.Snapshot.VelocityInOwnFrame(floating);
@@ -636,7 +655,8 @@ public sealed class PersonControlTests : IDisposable
 
             // The person falls freely, so it is weightless, and its thrusters push it: W along the view, Space and C along
             // its up.
-            Vector3.Distance((velocity - last) / world.DeltaTime, acceleration).Should().BeLessThan(0.05f, $"at sample {sample}");
+            Vector3.Distance((velocity - last) / world.DeltaTime, acceleration).Should()
+                .BeLessThan(0.05f, $"at sample {sample}");
             last = velocity;
         }
     }
@@ -651,6 +671,7 @@ public sealed class PersonControlTests : IDisposable
             Ticks(1);
             top = Math.Max(top, world.Snapshot.PoseInOwnFrame(person).Position.Y);
         }
+
         double landed = world.Snapshot.PoseInOwnFrame(person).Position.Y;
         Post(InputEvent.KeyUp((int)Key.Space));
         Ticks(3 + 10);
@@ -671,6 +692,7 @@ public sealed class PersonControlTests : IDisposable
 
         public EventMask Wants => EventMask.Of<Tick>();
 
-        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) => outbox.Send(target, force);
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
+            outbox.Send(target, force);
     }
 }

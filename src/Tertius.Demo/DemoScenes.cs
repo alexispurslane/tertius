@@ -11,8 +11,6 @@ namespace Tertius.Demo;
 /// </summary>
 public static partial class DemoScenes
 {
-    public static IReadOnlyList<Scene> All { get; } = [new Scene("drop-box", DropBox), new Scene("orbit", Orbit), new Scene("orbit-cluster", OrbitCluster), new Scene("surface-yard", SurfaceYard), new Scene("deep-yard", DeepYard.Build), new Scene("doorway", Doorway), new Scene("station", Station.Build), new Scene("weightless-push", WeightlessPush), new Scene("demo-meshes", DemoMeshes), new Scene("demo-shuttle", DemoShuttle), new Scene("demo-surface", DemoSurface.Build), new Scene("spin-station", SpinStation.Build), new Scene("earth-system", EarthSystem.Build), new Scene("demo-exit", DemoExit.Build), new Scene("puff-yard", PuffYard)];
-
     /// <summary>Earth's mean radius, in meters.</summary>
     public const double EarthRadius = 6.371e6;
 
@@ -40,13 +38,6 @@ public static partial class DemoScenes
     /// <summary>The tilt of the ship's orbit to Earth's equator, as the ISS flies: 51.64 degrees, in radians.</summary>
     public const double OrbitInclination = 51.64 * Math.PI / 180;
 
-    /// <summary>
-    /// The circle that the ship of the orbit scene starts on, in earth: radius <see cref="OrbitRadius"/>, tilted by
-    /// <see cref="OrbitInclination"/>. Its state at the world's time places the ship. The ship faces Earth with its belly
-    /// and turns once per orbit, so its axes stay those of the orbit: +Y up from Earth, -Z along the motion.
-    /// </summary>
-    public static KeplerOrbit ShipOrbit { get; } = KeplerOrbit.Circular(OrbitRadius) with { Inclination = OrbitInclination, Attitude = KeplerAttitude.FacesParent };
-
     /// <summary>The sun's G·M, in m³/s².</summary>
     public const double SunMu = 1.32712440018e20;
 
@@ -69,6 +60,47 @@ public static partial class DemoScenes
     public const double MoonInclination = 5.145 * Math.PI / 180;
 
     /// <summary>
+    /// The margin, in meters, of the box that the ship's bubble holds: the hull box grown by this much on each side.
+    /// The bubble is the smallest ellipsoid that holds that box (see <see cref="ShipBubble"/>), so it reaches past the box.
+    /// It reaches about 10.8, 6.4 and 25.4 m past the hull along its axes. Its surface is at least this far from the hull
+    /// everywhere, because the box holds every point that is this near the hull. It touches the box only at the box's
+    /// corners, which are about 3.5 m from the hull's corners. In earth, the hull is on the layer
+    /// <see cref="BodyLayer.FrameHull"/>, and loose bodies do not collide with it. A loose body in earth has its center
+    /// outside the bubble, so at least this far from the hull, and a body up to 2 m in radius cannot touch the hull from
+    /// earth.
+    /// </summary>
+    private const float BubbleShell = 2;
+
+    /// <summary>The thickness of the hull's floor, roof and walls, in meters.</summary>
+    private const float HullWall = 0.5f;
+
+    /// <summary>How far aft of the ship's center the airlock stands, in meters: level with the person's start.</summary>
+    private const float AirlockZ = 10;
+
+    /// <summary>The thickness of the chamber's walls, in meters.</summary>
+    private const float ChamberWall = 0.2f;
+
+    public static IReadOnlyList<Scene> All { get; } =
+    [
+        new("drop-box", DropBox), new("orbit", Orbit), new("orbit-cluster", OrbitCluster),
+        new("surface-yard", SurfaceYard), new("deep-yard", DeepYard.Build), new("doorway", Doorway),
+        new("station", Station.Build), new("weightless-push", WeightlessPush), new("demo-meshes", DemoMeshes),
+        new("demo-shuttle", DemoShuttle), new("demo-surface", DemoSurface.Build),
+        new("spin-station", SpinStation.Build), new("earth-system", EarthSystem.Build),
+        new("demo-exit", DemoExit.Build), new("puff-yard", PuffYard)
+    ];
+
+    /// <summary>
+    /// The circle that the ship of the orbit scene starts on, in earth: radius <see cref="OrbitRadius"/>, tilted by
+    /// <see cref="OrbitInclination"/>. Its state at the world's time places the ship. The ship faces Earth with its belly
+    /// and turns once per orbit, so its axes stay those of the orbit: +Y up from Earth, -Z along the motion.
+    /// </summary>
+    public static KeplerOrbit ShipOrbit { get; } = KeplerOrbit.Circular(OrbitRadius) with
+    {
+        Inclination = OrbitInclination, Attitude = KeplerAttitude.FacesParent
+    };
+
+    /// <summary>
     /// The Moon's mean orbit round Earth, in earth's axes: semi-major axis 384,400 km, eccentricity 0.0549, tilted
     /// <see cref="MoonInclination"/> to the ecliptic. Its ascending node on the ecliptic lies on the March equinox direction,
     /// earth's +X, as at the major lunar standstill of 2024 and 2025. Earth's axes lean from the ecliptic by
@@ -79,8 +111,74 @@ public static partial class DemoScenes
     /// turn. The Moon has no gravity of its own: only Earth's pulls in earth, so the orbit takes earth's G·M,
     /// <see cref="EarthMu"/>.
     /// </summary>
-    public static KeplerOrbit MoonOrbit { get; } = new(SemiMajorAxis: 3.844e8, Eccentricity: 0.0549, Inclination: Obliquity + MoonInclination,
-        LongitudeOfAscendingNode: 0, ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: MeanAnomaly(Math.PI / 4, 0.0549), Epoch: 0, AxialTilt: DQuaternion.Identity, SpinRate: 0, SpinPhaseAtEpoch: 0);
+    public static KeplerOrbit MoonOrbit { get; } = new(SemiMajorAxis: 3.844e8, Eccentricity: 0.0549,
+        Inclination: Obliquity + MoonInclination,
+        LongitudeOfAscendingNode: 0, ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: MeanAnomaly(Math.PI / 4, 0.0549),
+        Epoch: 0, AxialTilt: DQuaternion.Identity, SpinRate: 0, SpinPhaseAtEpoch: 0);
+
+    /// <summary>The half extents of the ship's hull, in meters: 20 m wide, 8 m high and 60 m long.</summary>
+    private static readonly Vector3 Hull = new(10, 4, 30);
+
+    /// <summary>
+    /// The radii of the ship's bubble along the ship's axes, in meters: about 20.8, 10.4 and 55.4. The smallest ellipsoid
+    /// that holds a box has the box's half extents times sqrt(3), and touches the box at its corners. So this ellipsoid
+    /// holds the hull with a shell of <see cref="BubbleShell"/> around it.
+    /// </summary>
+    private static readonly Vector3 ShipBubble = (Hull + new Vector3(BubbleShell)) * MathF.Sqrt(3);
+
+    /// <summary>The half extents of the cabin, in meters: the hull less its walls.</summary>
+    private static readonly Vector3 Cabin = Hull - new Vector3(HullWall);
+
+    /// <summary>The airlock's chamber, in the ship's axes: against the port wall, 3 m deep and 3 m wide, as tall as the cabin.</summary>
+    private static readonly BoundingBox Chamber = new(new(-Cabin.X, -Cabin.Y, AirlockZ - 1.5f),
+        new(-Cabin.X + 3, Cabin.Y, AirlockZ + 1.5f));
+
+    /// <summary>
+    /// The hatch through the hull's port wall, from the airlock's chamber to the outside, in the ship's axes, in meters:
+    /// a doorway as thick as the hull's wall. The door <c>airlock-outer</c> closes it.
+    /// </summary>
+    public static BoundingBox Hatch { get; } = Doorway(-Hull.X, -Cabin.X);
+
+    /// <summary>
+    /// The doorway through the chamber's inner wall, from the cabin into the airlock's chamber, in the ship's axes, in
+    /// meters: a doorway as thick as the chamber's wall. The door <c>airlock-inner</c> closes it.
+    /// </summary>
+    public static BoundingBox InnerDoorway { get; } = Doorway(Chamber.Max.X, Chamber.Max.X + ChamberWall);
+
+    /// <summary>The chamber's two side walls, from the port wall to the cabin side of its inner wall.</summary>
+    private static readonly BoundingBox[] ChamberSides =
+    [
+        new(new(-Cabin.X, -Cabin.Y, Chamber.Min.Z - ChamberWall), new(InnerDoorway.Max.X, Cabin.Y, Chamber.Min.Z)),
+        new(new(-Cabin.X, -Cabin.Y, Chamber.Max.Z), new(InnerDoorway.Max.X, Cabin.Y, Chamber.Max.Z + ChamberWall))
+    ];
+
+    /// <summary>The chamber's inner wall, between its side walls, which the inner doorway goes through.</summary>
+    private static readonly BoundingBox ChamberInnerWall = new(new(InnerDoorway.Min.X, -Cabin.Y, Chamber.Min.Z),
+        new(InnerDoorway.Max.X, Cabin.Y, Chamber.Max.Z));
+
+    /// <summary>
+    /// The places of the windows along each side wall, in meters along the ship's Z: one every 6 m from 24 m ahead of the
+    /// ship's center to 24 m aft of it. A pane's scene id numbers its place from the nose, from 1 to 9.
+    /// </summary>
+    private static readonly float[] SideWindowZ = [-24, -18, -12, -6, 0, 6, 12, 18, 24];
+
+    /// <summary>
+    /// The windows through the hull, in the ship's axes, with the scene ids of their panes: a row in each side wall, and
+    /// one window in the nose wall, 6 m wide and 2 m tall, centered at eye height. The port wall leaves out the window that
+    /// would cut into the airlock's chamber or its walls, 12 m aft. Physics keeps the walls solid, so the interior shape
+    /// has no hole at a window, and the glass blocks a person as a wall does.
+    /// </summary>
+    public static IReadOnlyList<(string Pane, Opening Window)> Windows { get; } =
+    [
+        .. SideWindowZ.Select((z, i) =>
+                (Pane: $"pane-port-{i + 1}", Window: Opening.ThroughX(SideWindow(-Hull.X, -Cabin.X, z))))
+            .Where(port => port.Window.Bounds.Max.Z < ChamberSides[0].Min.Z ||
+                           port.Window.Bounds.Min.Z > ChamberSides[1].Max.Z),
+        .. SideWindowZ.Select((z, i) =>
+            (Pane: $"pane-starboard-{i + 1}", Window: Opening.ThroughX(SideWindow(Cabin.X, Hull.X, z)))),
+        (Pane: "pane-nose",
+            Window: Opening.ThroughZ(new(new(-3, -Cabin.Y + 0.65f, -Hull.Z), new(3, -Cabin.Y + 2.65f, -Cabin.Z))))
+    ];
 
     /// <summary>
     /// The vertical slice's first scene: a ship falls freely round an Earth that goes round the sun, at the March equinox.
@@ -147,25 +245,30 @@ public static partial class DemoScenes
         // The circle that the ship starts on gives its state at the world's time. From there, gravity alone moves it. The
         // circle takes the G·M of earth's own field, which is the G·M that pulls the ship.
         // Stryker disable once String : the scene gives earth point gravity above, so nothing reaches this guard of its own construction.
-        double earthMu = world.Frames.Gravity(earth) is PointGravity { Mu: var mu } ? mu : throw new InvalidOperationException("Earth has no point gravity.");
+        double earthMu = world.Frames.Gravity(earth) is PointGravity { Mu: var mu }
+            ? mu
+            : throw new InvalidOperationException("Earth has no point gravity.");
         KeplerOrbit start = ShipOrbit;
         (Double3 position, Double3 velocity) = start.StateAt(world.Time, earthMu);
-        Entity ship = world.Spawn(new SpawnDesc
+        Entity ship = world.Spawn(new()
         {
             Frame = earth,
-            Pose = new DPose(position, start.RotationAt(world.Time, earthMu)),
+            Pose = new(position, start.RotationAt(world.Time, earthMu)),
             LinearVelocity = velocity,
             AngularVelocity = start.AngularVelocityAt(world.Time, earthMu).ToVector3(),
             // In Earth's frame the hull is a solid box. Inside the ship's own frame it is hollow: the person walks on its
             // floor, and goes out through the airlock along its outer faces.
-            Body = new BodyDesc(new BoxShapeDesc(Hull), BodyMotion.Dynamic, Mass: 1e5f, LinearDamping: 0, AngularDamping: 0,
-                InteriorShape: new CompoundShapeDesc([.. ShipInterior().Select(box => new CompoundChild(new BoxShapeDesc(box.Extents), new Pose(box.Center, Quaternion.Identity)))])),
+            Body = new(new BoxShapeDesc(Hull), BodyMotion.Dynamic, Mass: 1e5f, LinearDamping: 0, AngularDamping: 0,
+                InteriorShape: new CompoundShapeDesc([
+                    .. ShipInterior().Select(box =>
+                        new CompoundChild(new BoxShapeDesc(box.Extents), new(box.Center, Quaternion.Identity)))
+                ])),
             // The bubble is the smallest ellipsoid that holds the hull grown by 2 m (see ShipBubble), so a person or a crate
             // that leaves the ship passes into earth near it. The ship falls freely, so only its own field acts inside it: one standard gravity toward its
             // belly, in the cabin alone.
-            AsFrame = new FrameSpec(new FrameBounds(ShipBubble),
-                GravityField.Uniform(new Vector3(0, -9.81f, 0), new BoundingBox(-Cabin, Cabin))),
-            Render = Drawn(resources, HullMesh(), new Vector4(0.8f, 0.8f, 0.82f, 1), boundingRadius: 32),
+            AsFrame = new(new(ShipBubble),
+                GravityField.Uniform(new(0, -9.81f, 0), new BoundingBox(-Cabin, Cabin))),
+            Render = Drawn(resources, HullMesh(), new(0.8f, 0.8f, 0.82f, 1), boundingRadius: 32)
         });
         scene.Add("ship", ship);
         FrameHandle shipFrame = world.GetOwnedFrame(ship);
@@ -174,27 +277,29 @@ public static partial class DemoScenes
         // windows when the sun stands on their side. Point lights cast no shadows yet, so a lamp also lights faces that a
         // wall hides from it, such as the inside of the airlock's chamber and the top of the hatch's sill. Each lamp is a
         // glowing panel, with its light just below.
-        MeshId lampMesh = resources.CreateMesh(Primitives.Box(new Vector3(0.6f, 0.05f, 0.6f)));
-        MaterialId lampMaterial = resources.CreateMaterial(new MaterialDesc(new Vector4(0, 0, 0, 1), SpecularIntensity: 0, Emissive: new Vector3(6, 5.4f, 4.5f)));
+        MeshId lampMesh = resources.CreateMesh(Primitives.Box(new(0.6f, 0.05f, 0.6f)));
+        MaterialId lampMaterial =
+            resources.CreateMaterial(new(new(0, 0, 0, 1), SpecularIntensity: 0, Emissive: new(6, 5.4f, 4.5f)));
         for (int i = -2; i <= 2; i++)
-            world.Spawn(new SpawnDesc
+            world.Spawn(new()
             {
                 Frame = shipFrame,
-                Pose = new DPose(new Double3(0, Cabin.Y - 0.05, 12 * i), DQuaternion.Identity),
+                Pose = new(new(0, Cabin.Y - 0.05, 12 * i), DQuaternion.Identity),
                 Render = new RenderData
                 {
                     Mesh = lampMesh,
                     Material = lampMaterial,
                     BoundingRadius = 0.85f,
                     Flags = RenderFlags.Visible,
-                    Light = new PointLightData(new Pose(new Vector3(0, -0.1f, 0), Quaternion.Identity), new Vector3(1, 0.9f, 0.75f), Intensity: 100, Range: 20),
-                },
+                    Light = new PointLightData(new(new(0, -0.1f, 0), Quaternion.Identity), new(1, 0.9f, 0.75f),
+                        Intensity: 100, Range: 20)
+                }
             });
 
         // A pane of glass in each window: mostly clear, with a slight blue tint. It casts no shadow, so sunlight comes in
         // through a window when the sun stands on its side. It has no body, because the walls of the interior shape are
         // solid at the windows.
-        MaterialId glass = resources.CreateMaterial(new MaterialDesc(new Vector4(0.45f, 0.65f, 1, 0.2f), SpecularIntensity: 1, Gloss: 0.9f));
+        MaterialId glass = resources.CreateMaterial(new(new(0.45f, 0.65f, 1, 0.2f), SpecularIntensity: 1, Gloss: 0.9f));
         var paneMeshes = new Dictionary<Vector3, MeshId>();
         foreach ((string pane, Opening window) in Windows)
             scene.Add(pane, world.Spawn(PaneIn(shipFrame, window, glass, paneMeshes, resources)));
@@ -205,53 +310,58 @@ public static partial class DemoScenes
         scene.Add("airlock-inner", innerDoor);
         scene.Add("airlock-outer", outerDoor);
         // A person uses the airlock within reach of the chamber's center, at the height of a standing person's center.
-        scene.Add("airlock", world.Spawn(new SpawnDesc
+        scene.Add("airlock", world.Spawn(new()
         {
             Frame = shipFrame,
-            Pose = new DPose(new Double3(Chamber.Center.X, -Cabin.Y + 0.95, AirlockZ), DQuaternion.Identity),
-            Components = [new Airlock(innerDoor, outerDoor, cycleSeconds: 3)],
+            Pose = new(new(Chamber.Center.X, -Cabin.Y + 0.95, AirlockZ), DQuaternion.Identity),
+            Components = [new Airlock(innerDoor, outerDoor, cycleSeconds: 3)]
         }));
 
         // The person stands on the cabin floor, 10 m aft of the ship's center, and faces the nose. The capsule is 1.8 m
         // tall, and its center rests 0.9 m above the floor. The eye is 1.65 m above the floor.
         var capsule = new CapsuleShapeDesc(0.6f, 0.3f);
-        scene.Add("person", world.Spawn(new SpawnDesc
+        scene.Add("person", world.Spawn(new()
         {
             Frame = shipFrame,
-            Pose = new DPose(new Double3(0, -Cabin.Y + 0.95, AirlockZ), DQuaternion.Identity),
-            Body = new BodyDesc(capsule, BodyMotion.Character, Mass: 70),
-            Render = Drawn(resources, Primitives.Box(new Vector3(0.3f, 0.9f, 0.3f)), new Vector4(0.2f, 0.45f, 0.8f, 1), boundingRadius: 1),
-            Components = [new PersonControl(new Vector3(0, 0.75f, 0)), new Carry(capsule)],
-            Subscriptions = [Topics.Input],
+            Pose = new(new(0, -Cabin.Y + 0.95, AirlockZ), DQuaternion.Identity),
+            Body = new(capsule, BodyMotion.Character, Mass: 70),
+            Render = Drawn(resources, Primitives.Box(new(0.3f, 0.9f, 0.3f)), new(0.2f, 0.45f, 0.8f, 1),
+                boundingRadius: 1),
+            Components = [new PersonControl(new(0, 0.75f, 0)), new Carry(capsule)],
+            Subscriptions = [Topics.Input]
         }));
 
         // Green crates, 0.4 m on a side and of 5 kg, which the person can carry and throw. Three lie loose on the cabin
         // floor, aft of the person and to starboard, away from its ways in the other scripts and out of its reach where it
         // presses E. One lies in the airlock's chamber, in the corner by the hatch on the aft side, beside the person's way
         // in. The person presses E in the middle of the chamber, so it reaches that crate and the airlock with one press.
-        var crate = new CrateSpec(new Vector3(0.2f), 5, resources.CreateMesh(Primitives.Box(new Vector3(0.2f))),
-            resources.CreateMaterial(MaterialDesc.Color(new Vector4(0.3f, 0.6f, 0.25f, 1))));
+        var crate = new CrateSpec(new(0.2f), 5, resources.CreateMesh(Primitives.Box(new(0.2f))),
+            resources.CreateMaterial(MaterialDesc.Color(new(0.3f, 0.6f, 0.25f, 1))));
         double onTheFloor = -Cabin.Y + crate.HalfExtents.Y;
-        DPose OnTheFloor(double x, double z, double turn) => new(new Double3(x, onTheFloor, z), DQuaternion.FromAxisAngle(Double3.UnitY, turn));
+
+        DPose OnTheFloor(double x, double z, double turn) =>
+            new(new(x, onTheFloor, z), DQuaternion.FromAxisAngle(Double3.UnitY, turn));
+
         scene.Add("crate-1", world.Spawn(crate.Spawn(shipFrame, OnTheFloor(3, 14, 0), Vector3.Zero)));
         scene.Add("crate-2", world.Spawn(crate.Spawn(shipFrame, OnTheFloor(3.6, 14.5, 0.4), Vector3.Zero)));
         scene.Add("crate-3", world.Spawn(crate.Spawn(shipFrame, OnTheFloor(3.1, 15.2, -0.6), Vector3.Zero)));
-        scene.Add("chamber-crate", world.Spawn(crate.Spawn(shipFrame, OnTheFloor(Chamber.Min.X + 0.6, Chamber.Max.Z - 0.5, 0), Vector3.Zero)));
+        scene.Add("chamber-crate",
+            world.Spawn(crate.Spawn(shipFrame, OnTheFloor(Chamber.Min.X + 0.6, Chamber.Max.Z - 0.5, 0), Vector3.Zero)));
 
-        Entity chase = world.Spawn(new SpawnDesc
+        Entity chase = world.Spawn(new()
         {
             Frame = shipFrame,
-            Pose = new DPose(new Double3(0, 12, 70), DQuaternion.FromAxisAngle(new Double3(1, 0, 0), -Math.Atan2(12, 70))),
-            Render = new RenderData(),
+            Pose = new(new(0, 12, 70), DQuaternion.FromAxisAngle(new(1, 0, 0), -Math.Atan2(12, 70))),
+            Render = new RenderData()
         });
         scene.Add("chase", chase);
 
-        Entity far = world.Spawn(new SpawnDesc
+        Entity far = world.Spawn(new()
         {
             Frame = earth,
-            Pose = new DPose(new Double3(0, 3 * EarthRadius * Math.Sin(Math.PI / 6), 3 * EarthRadius * Math.Cos(Math.PI / 6)),
-                DQuaternion.FromAxisAngle(new Double3(1, 0, 0), -Math.PI / 6)),
-            Render = new RenderData(),
+            Pose = new(new(0, 3 * EarthRadius * Math.Sin(Math.PI / 6), 3 * EarthRadius * Math.Cos(Math.PI / 6)),
+                DQuaternion.FromAxisAngle(new(1, 0, 0), -Math.PI / 6)),
+            Render = new RenderData()
         });
         scene.Add("far", far);
         scene.AddView("chase");
@@ -275,12 +385,6 @@ public static partial class DemoScenes
     /// </param>
     public readonly record struct EarthDate(double Longitude, double GroundTurn)
     {
-        /// <summary>
-        /// The spin of <c>earth-surface</c> in <c>earth</c>: the turn <see cref="GroundTurn"/> about +Y at the world's time 0,
-        /// and from there the sidereal turn, <see cref="SiderealRate"/>, about +Y.
-        /// </summary>
-        public FrameSpin Ground => new(DQuaternion.Identity, SiderealRate, PhaseAtEpoch: GroundTurn);
-
         /// <summary>The March equinox: Earth at longitude 180 degrees, on the Sun's -X, so the Sun stands toward +X from Earth, over the equator.</summary>
         public static EarthDate MarchEquinox => new(Math.PI, 0);
 
@@ -289,6 +393,12 @@ public static partial class DemoScenes
         /// way the north pole leans, 23.44 degrees north of the equator. At the north pole it stands that high all day.
         /// </summary>
         public static EarthDate JuneSolstice => new(3 * Math.PI / 2, 0);
+
+        /// <summary>
+        /// The spin of <c>earth-surface</c> in <c>earth</c>: the turn <see cref="GroundTurn"/> about +Y at the world's time 0,
+        /// and from there the sidereal turn, <see cref="SiderealRate"/>, about +Y.
+        /// </summary>
+        public FrameSpin Ground => new(DQuaternion.Identity, SiderealRate, PhaseAtEpoch: GroundTurn);
     }
 
     /// <summary>
@@ -303,7 +413,7 @@ public static partial class DemoScenes
         DQuaternion obliquity = DQuaternion.FromAxisAngle(Double3.UnitX, -Obliquity);
         const double eccentricity = 0.01671123, perihelion = 102.93768193 * Math.PI / 180;
         double meanAnomaly = MeanAnomaly(date.Longitude - perihelion, eccentricity);
-        return new KeplerOrbit(1.00000261 * AstronomicalUnit, eccentricity, 0, 0, perihelion, meanAnomaly, 0, obliquity, 0, 0);
+        return new(1.00000261 * AstronomicalUnit, eccentricity, 0, 0, perihelion, meanAnomaly, 0, obliquity, 0, 0);
     }
 
     /// <summary>
@@ -316,22 +426,23 @@ public static partial class DemoScenes
     private static FrameHandle SunAndEarth(World world, IRenderResources resources, SceneInstance scene, EarthDate date)
     {
         FrameHandle sun = world.CreateRootFrame(
-            new FrameSpec(FrameBounds.Sphere(1e13f), GravityField.Point(SunMu)),
+            new(FrameBounds.Sphere(1e13f), GravityField.Point(SunMu)),
             new RenderData
             {
                 Mesh = resources.CreateMesh(Primitives.Sphere((float)SunRadius, 64, 32)),
                 // Black, so that only the emission shows: the sun lights the scene through world.SunFrame, not through
                 // its sphere.
-                Material = resources.CreateMaterial(new MaterialDesc(new Vector4(0, 0, 0, 1), SpecularIntensity: 0, Emissive: new Vector3(60, 55, 45))),
+                Material = resources.CreateMaterial(new(new(0, 0, 0, 1), SpecularIntensity: 0,
+                    Emissive: new(60, 55, 45))),
                 BoundingRadius = (float)SunRadius,
-                Flags = RenderFlags.Visible | RenderFlags.Celestial,
+                Flags = RenderFlags.Visible | RenderFlags.Celestial
             });
         scene.Add("sun", sun.Entity);
         world.SunFrame = sun;
         // Sunlight above the atmosphere is bright. Space has no sky and no ground, so a face that the sun does not reach gets
         // the same dim light from every direction.
         world.SunIntensity = 2.5f;
-        world.Ambient = new AmbientLight { SkyColor = new Vector3(0.03f), GroundColor = new Vector3(0.03f), Intensity = 1 };
+        world.Ambient = new() { SkyColor = new(0.03f), GroundColor = new(0.03f), Intensity = 1 };
 
         KeplerOrbit earthOrbit = EarthOrbit(date);
         // Earth starts on its orbit at the world's time. Its first motion intent moves it along the orbit in the step of the
@@ -341,13 +452,13 @@ public static partial class DemoScenes
         // the velocities of its first step.
         Double3 earthPlace = earthOrbit.StateAt(world.Time, SunMu).Position;
         double firstStepEnd = world.TimeAt(world.TickNumber + 1);
-        Entity earthOwner = world.Spawn(new SpawnDesc
+        Entity earthOwner = world.Spawn(new()
         {
             Frame = sun,
-            Pose = new DPose(earthPlace, earthOrbit.RotationAt(world.Time, SunMu)),
-            FirstMove = new MotionIntent(earthOrbit.Sample(SunMu, firstStepEnd, world.DeltaTime)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(9.25e8f), GravityField.Point(EarthMu)),
-            Components = [new KeplerMotion { Orbit = earthOrbit }],
+            Pose = new(earthPlace, earthOrbit.RotationAt(world.Time, SunMu)),
+            FirstMove = new(earthOrbit.Sample(SunMu, firstStepEnd, world.DeltaTime)),
+            AsFrame = new(FrameBounds.Sphere(9.25e8f), GravityField.Point(EarthMu)),
+            Components = [new KeplerMotion { Orbit = earthOrbit }]
         });
         scene.Add("earth", earthOwner);
         FrameHandle earth = world.GetOwnedFrame(earthOwner);
@@ -355,136 +466,59 @@ public static partial class DemoScenes
         // The ground turns with the sidereal day, from the date's ground turn at time 0, and from its first step, as every
         // frame on rails in these scenes moves from its first step.
         FrameSpin turning = date.Ground;
-        scene.Add("earth-surface", world.Spawn(new SpawnDesc
+        scene.Add("earth-surface", world.Spawn(new()
         {
             Frame = earth,
-            Pose = new DPose(Double3.Zero, turning.RotationAt(world.Time)),
-            FirstMove = new MotionIntent(turning.Sample(Double3.Zero, firstStepEnd, world.DeltaTime)),
+            Pose = new(Double3.Zero, turning.RotationAt(world.Time)),
+            FirstMove = new(turning.Sample(Double3.Zero, firstStepEnd, world.DeltaTime)),
             // The bubble ends at the stratopause, so that a shuttle that climbs out of it leaves it below its parking orbit.
-            AsFrame = new FrameSpec(FrameBounds.Sphere((float)(EarthRadius + GroundBubbleTop)), GravityField.Point(EarthMu), Air.Earth),
+            AsFrame = new(FrameBounds.Sphere((float)(EarthRadius + GroundBubbleTop)), GravityField.Point(EarthMu),
+                Air.Earth),
             Components = [new SpinMotion { Spin = turning }],
             Render = new RenderData
             {
                 Mesh = resources.CreateMesh(Primitives.Sphere((float)EarthRadius, 256, 128)),
-                Material = resources.CreateMaterial(new MaterialDesc(Vector4.One, SpecularIntensity: 0.1f, Albedo: resources.CreateTexture(EarthGrid()))),
+                Material = resources.CreateMaterial(new(Vector4.One, SpecularIntensity: 0.1f,
+                    Albedo: resources.CreateTexture(EarthGrid()))),
                 BoundingRadius = (float)EarthRadius,
-                Flags = RenderFlags.Visible | RenderFlags.Celestial | RenderFlags.CastsShadow,
-            },
+                Flags = RenderFlags.Visible | RenderFlags.Celestial | RenderFlags.CastsShadow
+            }
         }));
 
         // The Moon goes round Earth from its place at the world's time, and from its first step, as earth does. It has no
         // body and no frame, the least that a KeplerMotion moves, so only its motion intents move it, and it spawns with no
         // velocity, as earth does.
         Double3 moonPlace = MoonOrbit.StateAt(world.Time, EarthMu).Position;
-        scene.Add("moon", world.Spawn(new SpawnDesc
+        scene.Add("moon", world.Spawn(new()
         {
             Frame = earth,
-            Pose = new DPose(moonPlace, MoonOrbit.RotationAt(world.Time, EarthMu)),
-            FirstMove = new MotionIntent(MoonOrbit.Sample(EarthMu, firstStepEnd, world.DeltaTime)),
+            Pose = new(moonPlace, MoonOrbit.RotationAt(world.Time, EarthMu)),
+            FirstMove = new(MoonOrbit.Sample(EarthMu, firstStepEnd, world.DeltaTime)),
             Components = [new KeplerMotion { Orbit = MoonOrbit }],
             Render = new RenderData
             {
                 Mesh = resources.CreateMesh(Primitives.Sphere((float)MoonRadius, 128, 64)),
-                Material = resources.CreateMaterial(new MaterialDesc(new Vector4(0.55f, 0.55f, 0.53f, 1), SpecularIntensity: 0.05f)),
+                Material = resources.CreateMaterial(new(new(0.55f, 0.55f, 0.53f, 1), SpecularIntensity: 0.05f)),
                 BoundingRadius = (float)MoonRadius,
-                Flags = RenderFlags.Visible | RenderFlags.Celestial,
-            },
+                Flags = RenderFlags.Visible | RenderFlags.Celestial
+            }
         }));
         return earth;
     }
-
-    /// <summary>The half extents of the ship's hull, in meters: 20 m wide, 8 m high and 60 m long.</summary>
-    private static readonly Vector3 Hull = new(10, 4, 30);
-
-    /// <summary>
-    /// The margin, in meters, of the box that the ship's bubble holds: the hull box grown by this much on each side.
-    /// The bubble is the smallest ellipsoid that holds that box (see <see cref="ShipBubble"/>), so it reaches past the box.
-    /// It reaches about 10.8, 6.4 and 25.4 m past the hull along its axes. Its surface is at least this far from the hull
-    /// everywhere, because the box holds every point that is this near the hull. It touches the box only at the box's
-    /// corners, which are about 3.5 m from the hull's corners. In earth, the hull is on the layer
-    /// <see cref="BodyLayer.FrameHull"/>, and loose bodies do not collide with it. A loose body in earth has its center
-    /// outside the bubble, so at least this far from the hull, and a body up to 2 m in radius cannot touch the hull from
-    /// earth.
-    /// </summary>
-    private const float BubbleShell = 2;
-
-    /// <summary>
-    /// The radii of the ship's bubble along the ship's axes, in meters: about 20.8, 10.4 and 55.4. The smallest ellipsoid
-    /// that holds a box has the box's half extents times sqrt(3), and touches the box at its corners. So this ellipsoid
-    /// holds the hull with a shell of <see cref="BubbleShell"/> around it.
-    /// </summary>
-    private static readonly Vector3 ShipBubble = (Hull + new Vector3(BubbleShell)) * MathF.Sqrt(3);
-
-    /// <summary>The thickness of the hull's floor, roof and walls, in meters.</summary>
-    private const float HullWall = 0.5f;
-
-    /// <summary>The half extents of the cabin, in meters: the hull less its walls.</summary>
-    private static readonly Vector3 Cabin = Hull - new Vector3(HullWall);
-
-    /// <summary>How far aft of the ship's center the airlock stands, in meters: level with the person's start.</summary>
-    private const float AirlockZ = 10;
-
-    /// <summary>The airlock's chamber, in the ship's axes: against the port wall, 3 m deep and 3 m wide, as tall as the cabin.</summary>
-    private static readonly BoundingBox Chamber = new(new Vector3(-Cabin.X, -Cabin.Y, AirlockZ - 1.5f), new Vector3(-Cabin.X + 3, Cabin.Y, AirlockZ + 1.5f));
-
-    /// <summary>The thickness of the chamber's walls, in meters.</summary>
-    private const float ChamberWall = 0.2f;
-
-    /// <summary>
-    /// The hatch through the hull's port wall, from the airlock's chamber to the outside, in the ship's axes, in meters:
-    /// a doorway as thick as the hull's wall. The door <c>airlock-outer</c> closes it.
-    /// </summary>
-    public static BoundingBox Hatch { get; } = Doorway(-Hull.X, -Cabin.X);
-
-    /// <summary>
-    /// The doorway through the chamber's inner wall, from the cabin into the airlock's chamber, in the ship's axes, in
-    /// meters: a doorway as thick as the chamber's wall. The door <c>airlock-inner</c> closes it.
-    /// </summary>
-    public static BoundingBox InnerDoorway { get; } = Doorway(Chamber.Max.X, Chamber.Max.X + ChamberWall);
 
     /// <summary>
     /// A doorway of the airlock through a wall across X, from <paramref name="x0"/> to <paramref name="x1"/>: 1.2 m wide and
     /// 2.1 m tall, with a sill 0.2 m high that the person steps over.
     /// </summary>
     private static BoundingBox Doorway(float x0, float x1) =>
-        new(new Vector3(x0, -Cabin.Y + 0.2f, AirlockZ - 0.6f), new Vector3(x1, -Cabin.Y + 2.3f, AirlockZ + 0.6f));
-
-    /// <summary>The chamber's two side walls, from the port wall to the cabin side of its inner wall.</summary>
-    private static readonly BoundingBox[] ChamberSides =
-    [
-        new(new Vector3(-Cabin.X, -Cabin.Y, Chamber.Min.Z - ChamberWall), new Vector3(InnerDoorway.Max.X, Cabin.Y, Chamber.Min.Z)),
-        new(new Vector3(-Cabin.X, -Cabin.Y, Chamber.Max.Z), new Vector3(InnerDoorway.Max.X, Cabin.Y, Chamber.Max.Z + ChamberWall)),
-    ];
-
-    /// <summary>The chamber's inner wall, between its side walls, which the inner doorway goes through.</summary>
-    private static readonly BoundingBox ChamberInnerWall = new(new Vector3(InnerDoorway.Min.X, -Cabin.Y, Chamber.Min.Z), new Vector3(InnerDoorway.Max.X, Cabin.Y, Chamber.Max.Z));
-
-    /// <summary>
-    /// The places of the windows along each side wall, in meters along the ship's Z: one every 6 m from 24 m ahead of the
-    /// ship's center to 24 m aft of it. A pane's scene id numbers its place from the nose, from 1 to 9.
-    /// </summary>
-    private static readonly float[] SideWindowZ = [-24, -18, -12, -6, 0, 6, 12, 18, 24];
+        new(new(x0, -Cabin.Y + 0.2f, AirlockZ - 0.6f), new(x1, -Cabin.Y + 2.3f, AirlockZ + 0.6f));
 
     /// <summary>
     /// A window through a side wall across X, from <paramref name="x0"/> to <paramref name="x1"/>, centered on
     /// <paramref name="z"/>: 2 m wide and 1.2 m tall, centered at the eye height of a person on the floor, 1.65 m.
     /// </summary>
     private static BoundingBox SideWindow(float x0, float x1, float z) =>
-        new(new Vector3(x0, -Cabin.Y + 1.05f, z - 1), new Vector3(x1, -Cabin.Y + 2.25f, z + 1));
-
-    /// <summary>
-    /// The windows through the hull, in the ship's axes, with the scene ids of their panes: a row in each side wall, and
-    /// one window in the nose wall, 6 m wide and 2 m tall, centered at eye height. The port wall leaves out the window that
-    /// would cut into the airlock's chamber or its walls, 12 m aft. Physics keeps the walls solid, so the interior shape
-    /// has no hole at a window, and the glass blocks a person as a wall does.
-    /// </summary>
-    public static IReadOnlyList<(string Pane, Opening Window)> Windows { get; } =
-    [
-        .. SideWindowZ.Select((z, i) => (Pane: $"pane-port-{i + 1}", Window: Opening.ThroughX(SideWindow(-Hull.X, -Cabin.X, z))))
-            .Where(port => port.Window.Bounds.Max.Z < ChamberSides[0].Min.Z || port.Window.Bounds.Min.Z > ChamberSides[1].Max.Z),
-        .. SideWindowZ.Select((z, i) => (Pane: $"pane-starboard-{i + 1}", Window: Opening.ThroughX(SideWindow(Cabin.X, Hull.X, z)))),
-        (Pane: "pane-nose", Window: Opening.ThroughZ(new BoundingBox(new Vector3(-3, -Cabin.Y + 0.65f, -Hull.Z), new Vector3(3, -Cabin.Y + 2.65f, -Cabin.Z)))),
-    ];
+        new(new(x0, -Cabin.Y + 1.05f, z - 1), new(x1, -Cabin.Y + 2.25f, z + 1));
 
     /// <summary>
     /// The boxes of the hull's interior shape, which physics uses inside the ship's own frame, in the ship's axes, in
@@ -496,12 +530,13 @@ public static partial class DemoScenes
     {
         var hull = new BoundingBox(-Hull, Hull);
         yield return hull with { Max = Hull with { Y = -Cabin.Y } };
-        yield return hull with { Min = (-Hull) with { Y = Cabin.Y } };
-        yield return new BoundingBox(new Vector3(Cabin.X, -Cabin.Y, -Hull.Z), new Vector3(Hull.X, Cabin.Y, Hull.Z));
-        foreach (BoundingBox part in AroundDoorway(new BoundingBox(new Vector3(-Hull.X, -Cabin.Y, -Hull.Z), new Vector3(-Cabin.X, Cabin.Y, Hull.Z)), Hatch))
+        yield return hull with { Min = -Hull with { Y = Cabin.Y } };
+        yield return new(new(Cabin.X, -Cabin.Y, -Hull.Z), new(Hull.X, Cabin.Y, Hull.Z));
+        foreach (BoundingBox part in AroundDoorway(new(new(-Hull.X, -Cabin.Y, -Hull.Z), new(-Cabin.X, Cabin.Y, Hull.Z)),
+                     Hatch))
             yield return part;
-        yield return new BoundingBox(new Vector3(-Cabin.X, -Cabin.Y, -Hull.Z), new Vector3(Cabin.X, Cabin.Y, -Cabin.Z));
-        yield return new BoundingBox(new Vector3(-Cabin.X, -Cabin.Y, Cabin.Z), new Vector3(Cabin.X, Cabin.Y, Hull.Z));
+        yield return new(new(-Cabin.X, -Cabin.Y, -Hull.Z), new(Cabin.X, Cabin.Y, -Cabin.Z));
+        yield return new(new(-Cabin.X, -Cabin.Y, Cabin.Z), new(Cabin.X, Cabin.Y, Hull.Z));
         foreach (BoundingBox side in ChamberSides)
             yield return side;
         foreach (BoundingBox part in AroundDoorway(ChamberInnerWall, InnerDoorway))
@@ -517,7 +552,7 @@ public static partial class DemoScenes
         wall with { Max = wall.Max with { Z = doorway.Min.Z } },
         wall with { Min = wall.Min with { Z = doorway.Max.Z } },
         new(wall.Min with { Y = doorway.Max.Y, Z = doorway.Min.Z }, wall.Max with { Z = doorway.Max.Z }),
-        new(wall.Min with { Z = doorway.Min.Z }, wall.Max with { Y = doorway.Min.Y, Z = doorway.Max.Z }),
+        new(wall.Min with { Z = doorway.Min.Z }, wall.Max with { Y = doorway.Min.Y, Z = doorway.Max.Z })
     ];
 
     /// <summary>
@@ -528,13 +563,13 @@ public static partial class DemoScenes
     {
         Opening[] openings = [Opening.ThroughX(Hatch), .. Windows.Select(window => window.Window)];
         BoxMesh mesh = new BoxMesh()
-            .Box(new BoundingBox(-Hull, Hull), openings: openings)
-            .Box(new BoundingBox(-Cabin, Cabin), inward: true, openings: openings);
+            .Box(new(-Hull, Hull), openings: openings)
+            .Box(new(-Cabin, Cabin), inward: true, openings: openings);
         foreach (Opening opening in openings)
             mesh.Sides(opening);
         foreach (BoundingBox side in ChamberSides)
             mesh.Box(side);
-        var innerDoorway = Opening.ThroughX(InnerDoorway);
+        Opening innerDoorway = Opening.ThroughX(InnerDoorway);
         return mesh.Box(ChamberInnerWall, openings: innerDoorway).Sides(innerDoorway).Build();
     }
 
@@ -546,13 +581,13 @@ public static partial class DemoScenes
     private static SpawnDesc DoorIn(FrameHandle frame, BoundingBox doorway, IRenderResources resources)
     {
         Vector3 half = doorway.Extents with { X = 0.05f };
-        return new SpawnDesc
+        return new()
         {
             Frame = frame,
-            Pose = new DPose(doorway.Center, DQuaternion.Identity),
-            Body = new BodyDesc(new BoxShapeDesc(half), BodyMotion.Kinematic),
-            Render = Drawn(resources, Primitives.Box(half), new Vector4(0.85f, 0.45f, 0.1f, 1), boundingRadius: half.Length()),
-            Components = [new Door(new Vector3(0, 2 * doorway.Extents.Y + 0.1f, 0), openSeconds: 1.5f)],
+            Pose = new(doorway.Center, DQuaternion.Identity),
+            Body = new(new BoxShapeDesc(half), BodyMotion.Kinematic),
+            Render = Drawn(resources, Primitives.Box(half), new(0.85f, 0.45f, 0.1f, 1), boundingRadius: half.Length()),
+            Components = [new Door(new(0, 2 * doorway.Extents.Y + 0.1f, 0), openSeconds: 1.5f)]
         };
     }
 
@@ -561,27 +596,29 @@ public static partial class DemoScenes
     /// than the window on each side, so that its edges hide in the wall and do not share a plane with the window's sides.
     /// It is transparent and casts no shadow. Panes of one size share a mesh in <paramref name="meshes"/>.
     /// </summary>
-    private static SpawnDesc PaneIn(FrameHandle frame, Opening window, MaterialId glass, Dictionary<Vector3, MeshId> meshes, IRenderResources resources)
+    private static SpawnDesc PaneIn(FrameHandle frame, Opening window, MaterialId glass,
+        Dictionary<Vector3, MeshId> meshes, IRenderResources resources)
     {
         Vector3 half = window.Bounds.Extents + new Vector3(0.01f);
         half = window.Through == Vector3.UnitX ? half with { X = 0.01f } : half with { Z = 0.01f };
         if (!meshes.TryGetValue(half, out MeshId mesh))
             meshes[half] = mesh = resources.CreateMesh(Primitives.Box(half));
-        return new SpawnDesc
+        return new()
         {
             Frame = frame,
-            Pose = new DPose(window.Bounds.Center, DQuaternion.Identity),
+            Pose = new(window.Bounds.Center, DQuaternion.Identity),
             Render = new RenderData
             {
                 Mesh = mesh,
                 Material = glass,
                 BoundingRadius = half.Length(),
-                Flags = RenderFlags.Visible | RenderFlags.Transparent,
-            },
+                Flags = RenderFlags.Visible | RenderFlags.Transparent
+            }
         };
     }
 
-    /// <summary>The mean anomaly of an orbit with eccentricity <paramref name="e"/> at true anomaly <paramref name="trueAnomaly"/>.</summary>
+    /// <summary>The mean anomaly of an orbit with eccentricity <paramref name="e"/> at true anomaly
+    /// <paramref name="trueAnomaly"/>.</summary>
     private static double MeanAnomaly(double trueAnomaly, double e)
     {
         double eccentric = 2 * Math.Atan(Math.Sqrt((1 - e) / (1 + e)) * Math.Tan(trueAnomaly / 2));
@@ -597,17 +634,18 @@ public static partial class DemoScenes
         const int width = 1024, height = 512;
         const double halfWidth = 0.35;
         static bool OnLine(double degrees) => Math.Abs(degrees - 10 * Math.Round(degrees / 10)) < halfWidth;
-        var rgba = new byte[width * height * 4];
+        byte[] rgba = new byte[width * height * 4];
         for (int y = 0; y < height; y++)
+        for (int x = 0; x < width; x++)
         {
-            for (int x = 0; x < width; x++)
-            {
-                bool line = OnLine((x + 0.5) * 360.0 / width) || OnLine((y + 0.5) * 180.0 / height);
-                int i = (y * width + x) * 4;
-                (rgba[i], rgba[i + 1], rgba[i + 2], rgba[i + 3]) = line ? ((byte)190, (byte)210, (byte)240, (byte)255) : ((byte)35, (byte)85, (byte)170, (byte)255);
-            }
+            bool line = OnLine((x + 0.5) * 360.0 / width) || OnLine((y + 0.5) * 180.0 / height);
+            int i = (y * width + x) * 4;
+            (rgba[i], rgba[i + 1], rgba[i + 2], rgba[i + 3]) = line
+                ? ((byte)190, (byte)210, (byte)240, (byte)255)
+                : ((byte)35, (byte)85, (byte)170, (byte)255);
         }
-        return new TextureData(width, height, rgba);
+
+        return new(width, height, rgba);
     }
 
     /// <summary>
@@ -619,47 +657,50 @@ public static partial class DemoScenes
     private static SceneInstance DropBox(World world, IRenderResources resources)
     {
         var scene = new SceneInstance();
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), GravityField.Uniform(new Vector3(0, -9.81f, 0))));
+        FrameHandle ground =
+            world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(0, -9.81f, 0))));
         scene.Add("ground", ground);
-        scene.Add("floor", world.Spawn(new SpawnDesc
+        scene.Add("floor", world.Spawn(new()
         {
             Frame = ground,
-            Pose = new DPose(new Double3(0, -0.5, 0), DQuaternion.Identity),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(50, 0.5f, 50)), BodyMotion.Static),
-            Render = Drawn(resources, Primitives.Box(new Vector3(50, 0.5f, 50)), new Vector4(0.35f, 0.35f, 0.35f, 1), boundingRadius: 71),
+            Pose = new(new(0, -0.5, 0), DQuaternion.Identity),
+            Body = new(new BoxShapeDesc(new(50, 0.5f, 50)), BodyMotion.Static),
+            Render = Drawn(resources, Primitives.Box(new(50, 0.5f, 50)), new(0.35f, 0.35f, 0.35f, 1),
+                boundingRadius: 71)
         }));
-        scene.Add("box", world.Spawn(new SpawnDesc
+        scene.Add("box", world.Spawn(new()
         {
             Frame = ground,
-            Pose = new DPose(new Double3(0, 3, 0), DQuaternion.Identity),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10),
-            Render = Drawn(resources, Primitives.Box(new Vector3(0.5f)), new Vector4(1, 0.45f, 0.1f, 1), boundingRadius: 0.87f),
+            Pose = new(new(0, 3, 0), DQuaternion.Identity),
+            Body = new(new BoxShapeDesc(new(0.5f)), Mass: 10),
+            Render = Drawn(resources, Primitives.Box(new(0.5f)), new(1, 0.45f, 0.1f, 1), boundingRadius: 0.87f)
         }));
-        Entity camera = world.Spawn(new SpawnDesc
+        Entity camera = world.Spawn(new()
         {
             Frame = ground,
-            Pose = new DPose(new Double3(0, 2.5, 9), DQuaternion.FromAxisAngle(new Double3(1, 0, 0), -Math.Atan(1.0 / 9))),
-            Render = new RenderData(),
+            Pose = new(new(0, 2.5, 9), DQuaternion.FromAxisAngle(new(1, 0, 0), -Math.Atan(1.0 / 9))),
+            Render = new RenderData()
         });
         scene.Add("camera", camera);
         world.Camera = camera;
         // The sun frame's origin is where the light comes from: up, to the right and in front of the box.
-        Entity sun = world.Spawn(new SpawnDesc
+        Entity sun = world.Spawn(new()
         {
             Frame = ground,
-            Pose = new DPose(new Double3(30, 50, 40), DQuaternion.Identity),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1)),
+            Pose = new(new(30, 50, 40), DQuaternion.Identity),
+            AsFrame = new(FrameBounds.Sphere(1))
         });
         scene.Add("sun", sun);
         world.SunFrame = world.GetOwnedFrame(sun);
         return scene;
     }
 
-    private static RenderData Drawn(IRenderResources resources, MeshData mesh, Vector4 color, float boundingRadius) => new()
-    {
-        Mesh = resources.CreateMesh(mesh),
-        Material = resources.CreateMaterial(MaterialDesc.Color(color)),
-        BoundingRadius = boundingRadius,
-        Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
-    };
+    private static RenderData Drawn(IRenderResources resources, MeshData mesh, Vector4 color, float boundingRadius) =>
+        new()
+        {
+            Mesh = resources.CreateMesh(mesh),
+            Material = resources.CreateMaterial(MaterialDesc.Color(color)),
+            BoundingRadius = boundingRadius,
+            Flags = RenderFlags.Visible | RenderFlags.CastsShadow
+        };
 }

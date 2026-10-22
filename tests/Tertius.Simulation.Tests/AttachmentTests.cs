@@ -10,21 +10,21 @@ namespace Tertius.Simulation.Tests;
 /// </summary>
 public class AttachmentTests
 {
-    private static Pose Offset(float x, float y, float z = 0) => new(new Vector3(x, y, z), Quaternion.Identity);
+    private static Pose Offset(float x, float y, float z = 0) => new(new(x, y, z), Quaternion.Identity);
 
     /// <summary>A parent at (10, 0, 0) turned a quarter turn about +Y that moves 1 m along +X each tick, a child 2 m along its +Z, and a grandchild 1 m above the child.</summary>
     private sealed class MovingChain
     {
         public MovingChain(TestWorld test)
         {
-            Parent = test.World.Spawn(new SpawnDesc
+            Parent = test.World.Spawn(new()
             {
                 Frame = test.Root,
-                Pose = new DPose(new Double3(10, 0, 0), PoseChecks.QuarterTurnAboutY),
-                Components = [new Mover(new Double3(1, 0, 0))],
+                Pose = new(new(10, 0, 0), PoseChecks.QuarterTurnAboutY),
+                Components = [new Mover(new(1, 0, 0))]
             });
-            Child = test.World.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = Parent, AttachOffset = Offset(0, 0, 2) });
-            Grandchild = test.World.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = Child, AttachOffset = Offset(0, 1) });
+            Child = test.World.Spawn(new() { Frame = test.Root, AttachTo = Parent, AttachOffset = Offset(0, 0, 2) });
+            Grandchild = test.World.Spawn(new() { Frame = test.Root, AttachTo = Child, AttachOffset = Offset(0, 1) });
         }
 
         public Entity Parent { get; }
@@ -42,8 +42,8 @@ public class AttachmentTests
         var chain = new MovingChain(test);
 
         // The quarter turn maps the parent's +Z to the frame's +X, so the child is 2 m along +X from (10, 0, 0).
-        PoseChecks.AssertNear(test.World.PoseInOwnFrame(chain.Child).Position, new Double3(12, 0, 0), 1e-6);
-        PoseChecks.AssertNear(test.World.PoseInOwnFrame(chain.Grandchild).Position, new Double3(12, 1, 0), 1e-6);
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(chain.Child).Position, new(12, 0, 0), 1e-6);
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(chain.Grandchild).Position, new(12, 1, 0), 1e-6);
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public class AttachmentTests
         test.Run(3);
 
         // The parent is at (13, 0, 0) now. Its turn has not changed, so the child is still 2 m along +X from it.
-        PoseChecks.AssertNear(test.World.PoseInOwnFrame(chain.Child).Position, new Double3(15, 0, 0), 1e-6);
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(chain.Child).Position, new(15, 0, 0), 1e-6);
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public class AttachmentTests
 
         test.Run(3);
 
-        PoseChecks.AssertNear(test.World.PoseInOwnFrame(chain.Grandchild).Position, new Double3(15, 1, 0), 1e-6);
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(chain.Grandchild).Position, new(15, 1, 0), 1e-6);
     }
 
     [Fact]
@@ -77,7 +77,8 @@ public class AttachmentTests
 
         test.Run(3);
 
-        PoseChecks.AssertSameRotation(test.World.PoseInOwnFrame(chain.Child).Rotation, PoseChecks.QuarterTurnAboutY, 1e-6);
+        PoseChecks.AssertSameRotation(test.World.PoseInOwnFrame(chain.Child).Rotation, PoseChecks.QuarterTurnAboutY,
+            1e-6);
     }
 
     [Fact]
@@ -96,32 +97,32 @@ public class AttachmentTests
     public void AChildSwingsRoundWhenItsParentTurnsDuringATick()
     {
         using var test = new TestWorld();
-        Entity parent = test.SpawnAt(new Double3(10, 0, 0), Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+        Entity parent = test.SpawnAt(new(10, 0, 0), Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
             self.SetTransform(self.PoseInOwnFrame() with { Rotation = PoseChecks.QuarterTurnAboutY })));
-        Entity child = test.World.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = parent, AttachOffset = Offset(0, 0, 2) });
-        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new Double3(10, 0, 2), 1e-6);
+        Entity child = test.World.Spawn(new() { Frame = test.Root, AttachTo = parent, AttachOffset = Offset(0, 0, 2) });
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new(10, 0, 2), 1e-6);
 
         test.Run(1);
 
         // The parent turned in tick 0, and the sync point of that tick derived the child from the turned parent.
-        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new Double3(12, 0, 0), 1e-6);
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new(12, 0, 0), 1e-6);
     }
 
     [Fact]
     public void AnOffsetWithAZeroedRotationMeansNoRotation()
     {
         using var test = new TestWorld();
-        Entity parent = test.SpawnAt(new Double3(10, 0, 0));
+        Entity parent = test.SpawnAt(new(10, 0, 0));
 
         // A defaulted Pose has the quaternion (0, 0, 0, 0), which is not a rotation.
-        Entity child = test.World.Spawn(new SpawnDesc
+        Entity child = test.World.Spawn(new()
         {
             Frame = test.Root,
             AttachTo = parent,
-            AttachOffset = new Pose(new Vector3(1, 0, 0), default),
+            AttachOffset = new(new(1, 0, 0), default)
         });
 
-        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new Double3(11, 0, 0));
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new(11, 0, 0));
         PoseChecks.AssertSameRotation(test.World.PoseInOwnFrame(child).Rotation, DQuaternion.Identity);
     }
 
@@ -131,14 +132,15 @@ public class AttachmentTests
     public void AnAttachedEntityCanReadItsParent()
     {
         using var test = new TestWorld();
-        Entity parent = test.SpawnAt(new Double3(10, 0, 0));
+        Entity parent = test.SpawnAt(new(10, 0, 0));
         var seenByChild = new List<Entity>();
-        test.World.Spawn(new SpawnDesc
+        test.World.Spawn(new()
         {
             Frame = test.Root,
             AttachTo = parent,
             AttachOffset = Offset(1, 0),
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => seenByChild.Add(self.AttachedTo))],
+            Components =
+                [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => seenByChild.Add(self.AttachedTo))]
         });
 
         test.Run(2);
@@ -162,36 +164,42 @@ public class AttachmentTests
     public void ANewOffsetMovesTheChildAtTheEndOfTheTickInWhichItWasWritten()
     {
         using var test = new TestWorld();
-        Entity parent = test.SpawnAt(new Double3(10, 0, 0));
-        Entity child = test.World.Spawn(new SpawnDesc
+        Entity parent = test.SpawnAt(new(10, 0, 0));
+        Entity child = test.World.Spawn(new()
         {
             Frame = test.Root,
             AttachTo = parent,
             AttachOffset = Offset(1, 0),
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            {
-                if (self.Tick == 0)
-                    self.AttachOffset = Offset(4, 0);
-            })],
+            Components =
+            [
+                Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 0)
+                        self.AttachOffset = Offset(4, 0);
+                })
+            ]
         });
 
         test.Run(1);
 
-        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new Double3(14, 0, 0));
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new(14, 0, 0));
     }
 
     [Fact]
     public void AnAttachedEntityCannotWriteItsTransformBecauseItsParentOwnsIt()
     {
         using var test = new TestWorld();
-        Entity parent = test.SpawnAt(new Double3(10, 0, 0));
-        var writer = Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.SetTransform(TestWorld.At(0)));
-        Entity child = test.World.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = parent, AttachOffset = Offset(1, 0), Components = [writer] });
+        Entity parent = test.SpawnAt(new(10, 0, 0));
+        Lambda writer =
+            Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.SetTransform(TestWorld.At(0)));
+        Entity child = test.World.Spawn(new()
+            { Frame = test.Root, AttachTo = parent, AttachOffset = Offset(1, 0), Components = [writer] });
 
         test.Run(2);
 
-        test.World.Errors.Should().HaveCount(2).And.OnlyContain(e => e.Contains(child.ToString()) && e.Contains("attached"));
-        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new Double3(11, 0, 0));
+        test.World.Errors.Should().HaveCount(2).And
+            .OnlyContain(e => e.Contains(child.ToString()) && e.Contains("attached"));
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new(11, 0, 0));
         writer.Runs.Should().Be(2, "the refused write does not stop the entity");
     }
 
@@ -199,7 +207,8 @@ public class AttachmentTests
     public void AnEntityThatIsNotAttachedCannotWriteAnOffset()
     {
         using var test = new TestWorld();
-        Entity loner = test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.AttachOffset = Pose.Identity));
+        Entity loner = test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+            self.AttachOffset = Pose.Identity));
 
         test.Run(1);
 
@@ -218,14 +227,14 @@ public class AttachmentTests
         {
             if (self.Tick != 0)
                 return;
-            parent = self.Spawn(new SpawnDesc { Frame = self.Frame, Pose = TestWorld.At(7) });
-            child = self.Spawn(new SpawnDesc { Frame = self.Frame, AttachTo = parent, AttachOffset = Offset(0, 3) });
+            parent = self.Spawn(new() { Frame = self.Frame, Pose = TestWorld.At(7) });
+            child = self.Spawn(new() { Frame = self.Frame, AttachTo = parent, AttachOffset = Offset(0, 3) });
         }));
 
         test.Run(1);
 
         test.World.IsAlive(child).Should().BeTrue();
-        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new Double3(7, 3, 0));
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new(7, 3, 0));
     }
 
     [Fact]
@@ -233,13 +242,14 @@ public class AttachmentTests
     {
         using var test = new TestWorld();
         FrameHandle other = test.SpawnStaticFrame(TestWorld.At(500), radius: 10);
-        Entity parent = test.World.SpawnAt(other, new Double3(1, 0, 0));
+        Entity parent = test.World.SpawnAt(other, new(1, 0, 0));
         var frameChanges = new Recorder(EventMask.Of<FrameChanged>());
 
-        Entity child = test.World.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = parent, AttachOffset = Offset(0, 3), Components = [frameChanges] });
+        Entity child = test.World.Spawn(new()
+            { Frame = test.Root, AttachTo = parent, AttachOffset = Offset(0, 3), Components = [frameChanges] });
 
         test.World.GetFrame(child).Should().Be(other);
-        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new Double3(1, 3, 0));
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new(1, 3, 0));
         test.Run(2);
         frameChanges.Seen.Should().BeEmpty("the child was never in the frame that it named");
     }
@@ -249,19 +259,20 @@ public class AttachmentTests
     {
         using var test = new TestWorld();
         FrameHandle other = test.SpawnStaticFrame(TestWorld.At(500), radius: 10);
-        Entity parent = test.World.SpawnAt(other, new Double3(1, 0, 0));
+        Entity parent = test.World.SpawnAt(other, new(1, 0, 0));
         Entity child = default;
         var frameChanges = new Recorder(EventMask.Of<FrameChanged>());
         test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
         {
             if (self.Tick == 0)
-                child = self.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = parent, AttachOffset = Offset(0, 3), Components = [frameChanges] });
+                child = self.Spawn(new()
+                    { Frame = test.Root, AttachTo = parent, AttachOffset = Offset(0, 3), Components = [frameChanges] });
         }));
 
         test.Run(3);
 
         test.World.GetFrame(child).Should().Be(other);
-        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new Double3(1, 3, 0));
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new(1, 3, 0));
         frameChanges.Seen.Should().BeEmpty("the child was never in the frame that it named");
         test.World.Errors.Should().BeEmpty();
     }
@@ -273,7 +284,7 @@ public class AttachmentTests
     {
         using var test = new TestWorld();
         FrameHandle other = test.SpawnStaticFrame(TestWorld.At(500), radius: 10);
-        Entity parent = test.World.SpawnAt(other, new Double3(1, 0, 0));
+        Entity parent = test.World.SpawnAt(other, new(1, 0, 0));
         var desc = new SpawnDesc { AttachTo = parent, AttachOffset = Offset(0, 3) };
         Entity child = default;
         if (duringATick)
@@ -291,7 +302,7 @@ public class AttachmentTests
         }
 
         test.World.GetFrame(child).Should().Be(other);
-        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new Double3(1, 3, 0));
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new(1, 3, 0));
         test.World.Errors.Should().BeEmpty();
     }
 
@@ -300,26 +311,33 @@ public class AttachmentTests
     {
         using var test = new TestWorld();
         // The ship is 100 m along +X, and it destroys itself in tick 0. Its contents then move to the root.
-        Entity shipOwner = test.World.Spawn(new SpawnDesc
+        Entity shipOwner = test.World.Spawn(new()
         {
             Frame = test.Root,
             Pose = TestWorld.At(100),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy())],
+            AsFrame = new(FrameBounds.Sphere(10)),
+            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy())]
         });
         FrameHandle ship = test.World.GetOwnedFrame(shipOwner);
         Entity child = default;
         var frameChanges = new Recorder(EventMask.Of<FrameChanged>());
         // The person sees itself in the ship during tick 0, and it names the ship as its child's frame, as Carry does.
-        Entity person = test.World.Spawn(new SpawnDesc
+        Entity person = test.World.Spawn(new()
         {
             Frame = ship,
             Pose = TestWorld.At(1),
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            {
-                if (self.Tick == 0)
-                    child = self.Spawn(new SpawnDesc { Frame = self.Frame, AttachTo = self.Entity, AttachOffset = Offset(0, 3), Components = [frameChanges] });
-            })],
+            Components =
+            [
+                Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 0)
+                        child = self.Spawn(new()
+                        {
+                            Frame = self.Frame, AttachTo = self.Entity, AttachOffset = Offset(0, 3),
+                            Components = [frameChanges]
+                        });
+                })
+            ]
         });
 
         test.Run(3);
@@ -327,7 +345,7 @@ public class AttachmentTests
         test.World.IsAlive(child).Should().BeTrue();
         test.World.GetFrame(person).Should().Be(test.Root);
         test.World.GetFrame(child).Should().Be(test.Root);
-        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new Double3(101, 3, 0));
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new(101, 3, 0));
         frameChanges.Seen.Should().BeEmpty("the child was never in the ship");
         test.World.Errors.Should().BeEmpty();
     }
@@ -341,13 +359,14 @@ public class AttachmentTests
         test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
         {
             if (self.Tick == 0)
-                child = self.Spawn(new SpawnDesc { Frame = self.Frame, AttachTo = parent });
+                child = self.Spawn(new() { Frame = self.Frame, AttachTo = parent });
         }));
 
         test.Run(1);
 
         test.World.IsAlive(child).Should().BeFalse();
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain(child.ToString()).And.Contain($"{parent} is not live");
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain(child.ToString()).And
+            .Contain($"{parent} is not live");
     }
 
     [Fact]
@@ -358,7 +377,7 @@ public class AttachmentTests
         test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
         {
             if (self.Tick == 0)
-                child = self.Spawn(new SpawnDesc { AttachTo = test.Root.Entity });
+                child = self.Spawn(new() { AttachTo = test.Root.Entity });
         }));
 
         test.Run(1);
@@ -379,10 +398,10 @@ public class AttachmentTests
                 return;
             // Only a bug makes such a loop: the first spawn names a handle that it guessed for the second. The slots of a
             // new chunk pool come in order, so the guess is two slots past a probe.
-            Entity probe = self.Spawn(new SpawnDesc { Frame = self.Frame });
-            forged = new Entity(probe.Index + 2, probe.Generation);
-            first = self.Spawn(new SpawnDesc { Frame = self.Frame, AttachTo = forged });
-            second = self.Spawn(new SpawnDesc { Frame = self.Frame, AttachTo = first });
+            Entity probe = self.Spawn(new() { Frame = self.Frame });
+            forged = new(probe.Index + 2, probe.Generation);
+            first = self.Spawn(new() { Frame = self.Frame, AttachTo = forged });
+            second = self.Spawn(new() { Frame = self.Frame, AttachTo = first });
         }));
 
         // The second tick shows that the world goes on with its invariants whole.
@@ -403,8 +422,8 @@ public class AttachmentTests
     {
         using var test = new TestWorld();
         Entity parent = test.SpawnWith();
-        Entity child = test.World.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = parent });
-        Entity grandchild = test.World.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = child });
+        Entity child = test.World.Spawn(new() { Frame = test.Root, AttachTo = parent });
+        Entity grandchild = test.World.Spawn(new() { Frame = test.Root, AttachTo = child });
 
         test.World.Destroy(parent);
 
@@ -417,8 +436,8 @@ public class AttachmentTests
     {
         using var test = new TestWorld();
         Entity parent = test.SpawnWith();
-        Entity child = test.World.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = parent });
-        Entity sibling = test.World.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = parent });
+        Entity child = test.World.Spawn(new() { Frame = test.Root, AttachTo = parent });
+        Entity sibling = test.World.Spawn(new() { Frame = test.Root, AttachTo = parent });
 
         test.World.Destroy(child);
 
@@ -431,8 +450,8 @@ public class AttachmentTests
     {
         using var test = new TestWorld();
         Entity root = test.SpawnWith();
-        Entity middle = test.World.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = root });
-        Entity leaf = test.World.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = middle });
+        Entity middle = test.World.Spawn(new() { Frame = test.Root, AttachTo = root });
+        Entity leaf = test.World.Spawn(new() { Frame = test.Root, AttachTo = middle });
 
         test.World.Destroy(middle);
 
@@ -445,8 +464,8 @@ public class AttachmentTests
     {
         using var test = new TestWorld();
         Entity parent = test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy()));
-        Entity child = test.World.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = parent });
-        Entity grandchild = test.World.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = child });
+        Entity child = test.World.Spawn(new() { Frame = test.Root, AttachTo = parent });
+        Entity grandchild = test.World.Spawn(new() { Frame = test.Root, AttachTo = child });
 
         test.Run(1);
 
@@ -460,7 +479,7 @@ public class AttachmentTests
     {
         using var test = new TestWorld();
         Entity parent = test.SpawnWith();
-        Entity child = test.World.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = parent });
+        Entity child = test.World.Spawn(new() { Frame = test.Root, AttachTo = parent });
         test.SpawnWith(SendOnce.Of(parent, new Destroy()));
 
         test.Run(2);
@@ -474,15 +493,15 @@ public class AttachmentTests
     {
         using var test = new TestWorld();
         Entity parent = test.SpawnWith();
-        Entity child = test.World.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = parent });
+        Entity child = test.World.Spawn(new() { Frame = test.Root, AttachTo = parent });
         test.World.Destroy(parent);
 
-        Entity again = test.SpawnAt(new Double3(5, 0, 0));
-        Entity follower = test.World.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = again, AttachOffset = Offset(0, 1) });
+        Entity again = test.SpawnAt(new(5, 0, 0));
+        Entity follower = test.World.Spawn(new() { Frame = test.Root, AttachTo = again, AttachOffset = Offset(0, 1) });
         test.Run(1);
 
         test.World.IsAlive(child).Should().BeFalse();
-        PoseChecks.AssertNear(test.World.PoseInOwnFrame(follower).Position, new Double3(5, 1, 0));
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(follower).Position, new(5, 1, 0));
     }
 }
 
@@ -503,23 +522,27 @@ public class SpatialQueryTests
         var points = new List<(Entity Entity, Double3 Position)> { (other.Entity, Double3.Zero) };
         for (int i = 0; i < 400; i++)
         {
-            var p = new Double3(random.NextDouble() * 400 - 200, random.NextDouble() * 400 - 200, random.NextDouble() * 400 - 200);
+            var p = new Double3(random.NextDouble() * 400 - 200, random.NextDouble() * 400 - 200,
+                random.NextDouble() * 400 - 200);
             points.Add((test.SpawnAt(p), p));
             test.World.SpawnAt(other, p);
         }
-        Entity onEdge = test.SpawnAt(new Double3(50, 0, 0));
-        points.Add((onEdge, new Double3(50, 0, 0)));
+
+        Entity onEdge = test.SpawnAt(new(50, 0, 0));
+        points.Add((onEdge, new(50, 0, 0)));
         var results = new List<Entity>();
 
         foreach (double radius in new[] { 0.0, 10, 50, 75, 150, 1e6 })
         {
             test.World.Snapshot.QueryRadius(test.Root, Double3.Zero, radius, results);
 
-            List<Entity> expected = points
-                .Where(p => p.Position.LengthSquared <= radius * radius)
-                .Select(p => p.Entity)
-                .OrderBy(e => e.Index)
-                .ToList();
+            List<Entity> expected =
+            [
+                .. points
+                    .Where(p => p.Position.LengthSquared <= radius * radius)
+                    .Select(p => p.Entity)
+                    .OrderBy(e => e.Index)
+            ];
             results.Should().Equal(expected, $"for radius {radius}");
         }
     }
@@ -528,7 +551,7 @@ public class SpatialQueryTests
     public void ARadiusQueryIncludesAnEntityExactlyOnTheEdge()
     {
         using var test = new TestWorld();
-        Entity onEdge = test.SpawnAt(new Double3(50, 0, 0));
+        Entity onEdge = test.SpawnAt(new(50, 0, 0));
         var results = new List<Entity>();
 
         test.World.Snapshot.QueryRadius(test.Root, Double3.Zero, 50, results);
@@ -541,8 +564,8 @@ public class SpatialQueryTests
     {
         using var test = new TestWorld();
         FrameHandle other = test.SpawnStaticFrame(TestWorld.At(0), radius: 1000);
-        Entity inRoot = test.SpawnAt(new Double3(1, 0, 0));
-        Entity inOther = test.World.SpawnAt(other, new Double3(1, 0, 0));
+        Entity inRoot = test.SpawnAt(new(1, 0, 0));
+        Entity inOther = test.World.SpawnAt(other, new(1, 0, 0));
         var results = new List<Entity>();
 
         test.World.Snapshot.QueryRadius(other, Double3.Zero, 10, results);
@@ -569,7 +592,7 @@ public class SpatialQueryTests
     {
         using var test = new TestWorld();
 
-        Action query = () => test.World.Snapshot.QueryRadius(FrameHandle.Null, Double3.Zero, 1, new List<Entity>());
+        Action query = () => test.World.Snapshot.QueryRadius(FrameHandle.Null, Double3.Zero, 1, []);
 
         query.Should().Throw<InvalidOperationException>();
     }
@@ -579,7 +602,7 @@ public class SpatialQueryTests
     {
         using var test = new TestWorld();
 
-        Action query = () => test.World.Snapshot.QueryRadius(test.Root, Double3.Zero, -1, new List<Entity>());
+        Action query = () => test.World.Snapshot.QueryRadius(test.Root, Double3.Zero, -1, []);
 
         query.Should().Throw<ArgumentOutOfRangeException>();
     }
@@ -588,12 +611,12 @@ public class SpatialQueryTests
     public void TheGridFollowsAnEntityThatMovesFarEachTick()
     {
         using var test = new TestWorld();
-        Entity runner = test.SpawnWith(new Mover(new Double3(40, 0, 0)));
+        Entity runner = test.SpawnWith(new Mover(new(40, 0, 0)));
         var results = new List<Entity>();
 
         for (int tick = 0; tick < 8; tick++)
         {
-            test.World.Snapshot.QueryRadius(test.Root, new Double3(40 * tick, 0, 0), 1, results);
+            test.World.Snapshot.QueryRadius(test.Root, new(40 * tick, 0, 0), 1, results);
 
             results.Should().Equal(runner);
             test.Run(1);
@@ -604,14 +627,14 @@ public class SpatialQueryTests
     public void TheGridForgetsAnEntityThatIsDestroyed()
     {
         using var test = new TestWorld();
-        Entity post = test.SpawnAt(new Double3(200, 50, 0));
+        Entity post = test.SpawnAt(new(200, 50, 0));
         var results = new List<Entity>();
-        test.World.Snapshot.QueryRadius(test.Root, new Double3(200, 50, 0), 1, results);
+        test.World.Snapshot.QueryRadius(test.Root, new(200, 50, 0), 1, results);
         results.Should().Equal(post);
 
         test.World.Destroy(post);
 
-        test.World.Snapshot.QueryRadius(test.Root, new Double3(200, 50, 0), 1, results);
+        test.World.Snapshot.QueryRadius(test.Root, new(200, 50, 0), 1, results);
         results.Should().BeEmpty();
     }
 
@@ -620,20 +643,23 @@ public class SpatialQueryTests
     {
         // This is one of the few tests that use several threads: the point is that the query is safe on workers.
         using var test = new TestWorld(maxDegreeOfParallelism: 8, chunkSize: 4);
-        var counts = new int[64];
+        int[] counts = new int[64];
         for (int i = 0; i < 64; i++)
         {
             int index = i;
-            test.World.Spawn(new SpawnDesc
+            test.World.Spawn(new()
             {
                 Frame = test.Root,
                 Pose = TestWorld.At(i * 10),
-                Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-                {
-                    var found = new List<Entity>();
-                    self.Snapshot.QueryRadius(self.Frame, self.PoseInOwnFrame().Position, 15, found);
-                    counts[index] = found.Count;
-                })],
+                Components =
+                [
+                    Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+                    {
+                        var found = new List<Entity>();
+                        self.Snapshot.QueryRadius(self.Frame, self.PoseInOwnFrame().Position, 15, found);
+                        counts[index] = found.Count;
+                    })
+                ]
             });
         }
 

@@ -28,7 +28,8 @@ internal sealed class JsonCase<TUnion>(string name, Type type, Func<object, TUni
 /// <summary>Makes the <see cref="JsonCase{TUnion}"/> of a union.</summary>
 internal static class JsonCase
 {
-    /// <summary>The case <typeparamref name="TCase"/> of <typeparamref name="TUnion"/>, which scripts call <paramref name="name"/>.</summary>
+    /// <summary>The case <typeparamref name="TCase"/> of <typeparamref name="TUnion"/>, which scripts call
+    /// <paramref name="name"/>.</summary>
     public static JsonCase<TUnion> Of<TCase, TUnion>(string name, Func<TCase, TUnion> wrap) where TCase : class =>
         new(name, typeof(TCase), held => wrap((TCase)held));
 }
@@ -60,6 +61,9 @@ internal sealed class JsonCases<TUnion>(string key, string what, params JsonCase
 {
     private readonly byte[] keyUtf8 = Encoding.UTF8.GetBytes(key);
 
+    private string KindsMessage =>
+        $"The kinds of {what} are {string.Join(", ", cases.SkipLast(1).Select(c => c.Name))} and {cases[^1].Name}.";
+
     /// <summary>
     /// Reads the object at the reader as one case of the union. Throws <see cref="JsonException"/> for a value that is not an
     /// object, an object without the key or with it twice, a value of the key that is not a string or names no case, and
@@ -70,7 +74,8 @@ internal sealed class JsonCases<TUnion>(string key, string what, params JsonCase
         if (reader.TokenType != JsonTokenType.StartObject)
             throw new UnionJsonException($"The JSON value could not be converted to {typeToConvert}.");
         JsonCase<TUnion> found = FindCase(reader);
-        object held = JsonSerializer.Deserialize(ref reader, InfoOf(found, options)) ?? throw new UnionJsonException($"The {what} is null.");
+        object held = JsonSerializer.Deserialize(ref reader, InfoOf(found, options)) ??
+                      throw new UnionJsonException($"The {what} is null.");
         return found.Wrap(held);
     }
 
@@ -112,9 +117,13 @@ internal sealed class JsonCases<TUnion>(string key, string what, params JsonCase
                     throw new UnionJsonException($"The \"{key}\" key must be a string, such as \"{cases[0].Name}\".");
                 found = CaseNamed(ref reader);
             }
+
             reader.Skip();
         }
-        return found ?? throw new UnionJsonException($"{(IsVowel(what[0]) ? "An" : "A")} {what} needs a \"{key}\" key. {KindsMessage}");
+
+        return found ??
+               throw new UnionJsonException(
+                   $"{(IsVowel(what[0]) ? "An" : "A")} {what} needs a \"{key}\" key. {KindsMessage}");
     }
 
     private JsonCase<TUnion> CaseNamed(ref Utf8JsonReader reader)
@@ -144,15 +153,15 @@ internal sealed class JsonCases<TUnion>(string key, string what, params JsonCase
         for (int i = 0; i < properties.Count; i++)
             if (properties[i].Name == key)
                 return info;
-        throw new InvalidOperationException($"The options give {found.Type.Name} no \"{key}\" member, so a {what} would lose its kind. Use the options of ScriptJson.");
+        throw new InvalidOperationException(
+            $"The options give {found.Type.Name} no \"{key}\" member, so a {what} would lose its kind. Use the options of ScriptJson.");
     }
-
-    private string KindsMessage => $"The kinds of {what} are {string.Join(", ", cases.SkipLast(1).Select(c => c.Name))} and {cases[^1].Name}.";
 
     private static bool IsVowel(char letter) => "aeiou".Contains(letter);
 }
 
-/// <summary>The JSON form of a <see cref="ScriptStep"/>: an object whose <c>do</c> key names the case. See <see cref="JsonCases{TUnion}"/>.</summary>
+/// <summary>The JSON form of a <see cref="ScriptStep"/>: an object whose <c>do</c> key names the case. See
+/// <see cref="JsonCases{TUnion}"/>.</summary>
 internal sealed class ScriptStepJsonConverter : JsonConverter<ScriptStep>
 {
     internal static readonly JsonCases<ScriptStep> Cases = new("do", "step",
@@ -178,7 +187,8 @@ internal sealed class ScriptStepJsonConverter : JsonConverter<ScriptStep>
     }
 }
 
-/// <summary>The JSON form of a <see cref="MessageTarget"/>: an object whose <c>kind</c> key names the case. See <see cref="JsonCases{TUnion}"/>.</summary>
+/// <summary>The JSON form of a <see cref="MessageTarget"/>: an object whose <c>kind</c> key names the case. See
+/// <see cref="JsonCases{TUnion}"/>.</summary>
 internal sealed class MessageTargetJsonConverter : JsonConverter<MessageTarget>
 {
     internal static readonly JsonCases<MessageTarget> Cases = new("kind", "event target",
@@ -189,7 +199,9 @@ internal sealed class MessageTargetJsonConverter : JsonConverter<MessageTarget>
 
     // System.Text.Json gives a null to the converter of a struct. A post needs a target, so a null is an error here.
     public override MessageTarget Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
-        reader.TokenType == JsonTokenType.Null ? throw new UnionJsonException("An event target cannot be null.") : Cases.Read(ref reader, typeToConvert, options);
+        reader.TokenType == JsonTokenType.Null
+            ? throw new UnionJsonException("An event target cannot be null.")
+            : Cases.Read(ref reader, typeToConvert, options);
 
     public override void Write(Utf8JsonWriter writer, MessageTarget value, JsonSerializerOptions options)
     {

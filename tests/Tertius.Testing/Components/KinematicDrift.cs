@@ -6,7 +6,8 @@ namespace Tertius.Testing;
 /// Moves a kinematic body along a straight line at a constant <see cref="Velocity"/> in its frame, with no turn. A kinematic
 /// body moves only by its motion intents and teleports, and holds still in a step without one, so a spawn velocity no longer
 /// drifts it (docs/plans/rails-components.md, "The flow per kind of entity"). In every tick the component writes the end pose
-/// one step further along the line from where the body starts the next step (see <see cref="Self.PoseAtNextStepStartIn"/>).
+/// one step further along the line from where the body starts the next step (see <see cref="Self.PoseAtNextStepStartIn"/>
+/// ).
 /// The component first runs in the tick after the spawn, so a spawn through <see cref="Drifting"/> also carries the end pose
 /// of the body's first step as its first motion intent, and the body moves from its first step on, as a spawn velocity moved
 /// it.
@@ -23,7 +24,7 @@ public sealed class KinematicDrift(Double3 velocity) : IComponent
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
         DPose start = self.PoseAtNextStepStartIn(self.Frame);
-        self.MoveKinematic(new DPose(start.Position + velocity * self.DeltaTime, start.Rotation));
+        self.MoveKinematic(new(start.Position + velocity * self.DeltaTime, start.Rotation));
     }
 
     /// <summary>
@@ -36,13 +37,13 @@ public sealed class KinematicDrift(Double3 velocity) : IComponent
     {
         Frame = desc.Frame,
         Pose = desc.Pose,
-        FirstMove = new MotionIntent(new EndPose(new DPose(desc.Pose.Position + velocity * world.DeltaTime, desc.Pose.Rotation))),
+        FirstMove = new(new EndPose(new(desc.Pose.Position + velocity * world.DeltaTime, desc.Pose.Rotation))),
         Body = desc.Body,
         Render = desc.Render,
         Components = [new KinematicDrift(velocity), .. desc.Components ?? []],
         AsFrame = desc.AsFrame,
         AttachTo = desc.AttachTo,
         AttachOffset = desc.AttachOffset,
-        Subscriptions = desc.Subscriptions,
+        Subscriptions = desc.Subscriptions
     };
 }

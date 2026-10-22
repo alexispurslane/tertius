@@ -32,32 +32,14 @@ namespace Tertius.Simulation;
 /// </remarks>
 internal sealed class Attachments
 {
-    /// <summary>One entity's place in the attachment chains.</summary>
-    private struct Link
-    {
-        public Entity Parent;
-        /// <summary>
-        /// The chain root: the one entity of the chain that is not attached, or null for an entity that is not attached. It
-        /// never changes, because an entity is attached only at its spawn and dies with its parent.
-        /// </summary>
-        public Entity Root;
-        /// <summary>
-        /// For a chain root while <see cref="CarryPushes"/> runs: one more than the index of its sum in the scratch of the
-        /// flow, or 0 when it has none yet. 0 outside the call.
-        /// </summary>
-        public int SumSlot;
-        /// <summary>The offset from the parent. The entity itself may change it during its run.</summary>
-        public Pose Offset;
-        /// <summary>This entity's node in the tree, if it is attached or has attached children.</summary>
-        public PoseNode Node;
-        /// <summary>Attached children, sorted by slot.</summary>
-        public List<Entity>? Children;
-    }
-
     private readonly EntityTable entities;
     private readonly EntityTable.Column<Link> links;
     private readonly PoseTree<DPose> tree = new(16);
     private readonly EntitySet attached = new();
+
+    // The scratch of CarryPushes: the sum of each root in doubles, in the order of its first part. Each root's link holds
+    // the place of its sum here (see Link.SumSlot). Empty outside the call.
+    private readonly List<(Entity Root, Push Sum)> sums = [];
 
     public Attachments(EntityTable entities)
     {
@@ -67,6 +49,33 @@ internal sealed class Attachments
 
     /// <summary>The attached entities, in slot order. Never a dead entity.</summary>
     public ReadOnlySpan<Entity> Attached => attached.Items;
+
+    /// <summary>One entity's place in the attachment chains.</summary>
+    private struct Link
+    {
+        public Entity Parent;
+
+        /// <summary>
+        /// The chain root: the one entity of the chain that is not attached, or null for an entity that is not attached. It
+        /// never changes, because an entity is attached only at its spawn and dies with its parent.
+        /// </summary>
+        public Entity Root;
+
+        /// <summary>
+        /// For a chain root while <see cref="CarryPushes"/> runs: one more than the index of its sum in the scratch of the
+        /// flow, or 0 when it has none yet. 0 outside the call.
+        /// </summary>
+        public int SumSlot;
+
+        /// <summary>The offset from the parent. The entity itself may change it during its run.</summary>
+        public Pose Offset;
+
+        /// <summary>This entity's node in the tree, if it is attached or has attached children.</summary>
+        public PoseNode Node;
+
+        /// <summary>Attached children, sorted by slot.</summary>
+        public List<Entity>? Children;
+    }
 
     /// <summary>
     /// The attachment parent, or null if the entity is not attached. Throws <see cref="StaleEntityException"/> for a
@@ -125,7 +134,7 @@ internal sealed class Attachments
         Contract.Requires(link.Parent.IsNull && ChainRoot(parent) != child);
         if (parentLink.Node.IsNull)
             parentLink.Node = tree.Add(PoseNode.Null, entities.BackRow(parent).HomePose);
-        List<Entity> children = parentLink.Children ??= new List<Entity>(2);
+        List<Entity> children = parentLink.Children ??= [with(2)];
         int at = children.BinarySearch(child);
         children.Insert(at < 0 ? ~at : at, child);
 
@@ -154,6 +163,7 @@ internal sealed class Attachments
             if (parentLink.Parent.IsNull)
                 tree.Local(parentLink.Node) = entities.BackRow(link.Parent).HomePose;
         }
+
         tree.UpdateWorld();
 
         foreach (Entity child in children)
@@ -162,14 +172,16 @@ internal sealed class Attachments
             // The chain is placed in the root's physics home, where positions near the root stay exact.
             DPose inHome = tree.World(links[child].Node);
             Double3 lever = inHome.Position - rootRow.HomePose.Position;
-            entities.SetBackTransform(child, new TransformRow
+            entities.SetBackTransform(child, new()
             {
                 Frame = rootRow.Frame,
                 PhysicsHome = rootRow.PhysicsHome,
-                Pose = rootRow.PhysicsHome == rootRow.Frame ? inHome : new DPose(rootRow.Pose.Position + lever, inHome.Rotation),
+                Pose = rootRow.PhysicsHome == rootRow.Frame
+                    ? inHome
+                    : new(rootRow.Pose.Position + lever, inHome.Rotation),
                 HomePosition = inHome.Position,
                 LinearVelocity = rootRow.LinearVelocity + Double3.Cross(rootRow.AngularVelocity, lever).ToVector3(),
-                AngularVelocity = rootRow.AngularVelocity,
+                AngularVelocity = rootRow.AngularVelocity
             });
         }
     }
@@ -211,6 +223,7 @@ internal sealed class Attachments
                 entities.ClearPush(part);
                 continue;
             }
+
             Entity root = links[part].Root;
             ref readonly TransformRow rootRow = ref entities.FrontRow(root);
             Contract.Requires(pushed.Frame == rootRow.Frame);
@@ -220,6 +233,7 @@ internal sealed class Attachments
                 entities.ClearPush(part);
                 continue;
             }
+
             Double3 lever = Push.Lever(rootRow.Pose.Rotation, PlaceInBody(part), entities.BodyCenterOfMass(root));
             Push contribution = Push.Of(in pushed).At(lever);
             ref int slot = ref links[root].SumSlot;
@@ -228,20 +242,24 @@ internal sealed class Attachments
                 sums.Add((root, Push.Of(in intents[(int)root.Index])));
                 slot = sums.Count;
             }
+
             ref (Entity Root, Push Sum) sum = ref CollectionsMarshal.AsSpan(sums)[slot - 1];
             sum.Sum = sum.Sum.Plus(in contribution);
             entities.ClearPush(part);
         }
+
         foreach ((Entity root, Push sum) in sums)
         {
             entities.AddPush(root, in sum);
             links[root].SumSlot = 0;
         }
+
         sums.Clear();
         Contract.Ensures(sums.Count == 0 && AllLivePushesCleared(parts));
     }
 
-    /// <summary>True if the front intent of every live entity of <paramref name="parts"/> is empty. For the postcondition of <see cref="CarryPushes"/>.</summary>
+    /// <summary>True if the front intent of every live entity of <paramref name="parts"/> is empty. For the postcondition of
+    /// <see cref="CarryPushes"/>.</summary>
     private bool AllLivePushesCleared(ReadOnlySpan<Entity> parts)
     {
         foreach (Entity part in parts)
@@ -249,10 +267,6 @@ internal sealed class Attachments
                 return false;
         return true;
     }
-
-    // The scratch of CarryPushes: the sum of each root in doubles, in the order of its first part. Each root's link holds
-    // the place of its sum here (see Link.SumSlot). Empty outside the call.
-    private readonly List<(Entity Root, Push Sum)> sums = new();
 
     /// <summary>
     /// The place of <paramref name="part"/> in the body of its chain root, in meters in the root body's own axes: the
@@ -265,7 +279,7 @@ internal sealed class Attachments
         // A child of the root is at its offset's position, which widens exactly, with no rotation to compose.
         if (link.Parent == link.Root)
             return link.Offset.Position;
-        DPose place = Poses.Safe(link.Offset).ToDPose();
+        var place = Poses.Safe(link.Offset).ToDPose();
         for (Entity parent = link.Parent; parent != link.Root; parent = links[parent].Parent)
             place = DPose.Compose(Poses.Safe(links[parent].Offset).ToDPose(), place);
         return place.Position;
@@ -300,6 +314,7 @@ internal sealed class Attachments
                 Contract.Invariant(tree.IsAlive(link.Node));
                 nodes++;
             }
+
             if (!link.Parent.IsNull)
             {
                 attachedCount++;
@@ -311,17 +326,17 @@ internal sealed class Attachments
             }
             else
             {
-                Contract.Invariant(link.Node.IsNull == (link.Children is not { Count: > 0 }));
+                Contract.Invariant(link.Node.IsNull == link.Children is not { Count: > 0 });
             }
+
             if (link.Children is { } children)
-            {
                 for (int i = 0; i < children.Count; i++)
                 {
                     Contract.Invariant(i == 0 || children[i - 1].CompareTo(children[i]) < 0);
                     Contract.Invariant(entities.IsAlive(children[i]) && links[children[i]].Parent == entity);
                 }
-            }
         }
+
         Contract.Invariant(attachedEntities.Length == attachedCount && tree.Count == nodes);
 
         foreach (Entity entity in attachedEntities)
@@ -329,6 +344,7 @@ internal sealed class Attachments
             Entity root = links[entity].Root;
             Contract.Invariant(root == ChainRoot(entity) && entities.IsAlive(root));
         }
+
         var pushers = new List<Entity>();
         entities.CollectPushers(pushers);
         foreach (Entity pusher in entities.FrontPushers)
@@ -364,6 +380,7 @@ internal sealed class Attachments
                 }
             }
         }
+
         if (!link.Node.IsNull)
             tree.Remove(link.Node);
     }

@@ -1,4 +1,3 @@
-using System.Numerics;
 using System.Runtime.InteropServices;
 
 namespace Tertius.Simulation;
@@ -51,14 +50,17 @@ internal sealed partial class RenderSnapshotBuilder
             DPose previous = relPrevious[dense];
             foreach (ref readonly Puff row in rows.Slice(range.Start, range.Count))
             {
-                Vector3 position = (current.TransformPoint(row.Place) - origin).ToVector3();
+                var position = (current.TransformPoint(row.Place) - origin).ToVector3();
                 ref RenderPuff puff = ref placed[count++];
                 puff.Position = position;
-                puff.PreviousPosition = followsTick ? (previous.TransformPoint(row.Place - row.Chord * step) - origin).ToVector3() : position;
+                puff.PreviousPosition = followsTick
+                    ? (previous.TransformPoint(row.Place - row.Chord * step) - origin).ToVector3()
+                    : position;
                 puff.Age = row.Age;
                 puff.Look = row.Look;
             }
         }
+
         CollectionsMarshal.SetCount(snapshot.Puffs, count);
     }
 }

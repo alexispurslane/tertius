@@ -14,7 +14,8 @@ namespace Tertius.Rendering;
 /// coverage (1 inside the silhouette, 0 outside). Premultiplied, so that the mip chain and bilinear filtering
 /// average color only over covered texels; the billboard divides by coverage again.</description></item>
 /// <item><term>depth offset</term><description>R16_SFLOAT: the surface's offset from the bounding sphere's center
-/// toward the eye, in units of the capture extent ([-1, 1]), premultiplied by coverage like the color.</description></item>
+/// toward the eye, in units of the capture extent ([-1, 1]), premultiplied by coverage like the color.</description>
+/// </item>
 /// </list>
 /// <para>Layers instead of one large 2D image: a capture renders straight into its tile with the 512 × 512 depth
 /// buffer (attachments must cover the render area), and filtering at low mip levels never mixes neighboring
@@ -27,13 +28,16 @@ internal sealed unsafe class ImpostorAtlas : IDisposable
     public const Format ColorFormat = Format.R16G16B16A16Sfloat;
     public const Format DepthOffsetFormat = Format.R16Sfloat;
     public const Format CaptureDepthFormat = Format.D32Sfloat;
+
     /// <summary>A full mip chain of a 512 × 512 tile.</summary>
     public const uint MipLevels = 10;
+
     /// <summary>The default number of tiles: the 64 tiles of a 4096 × 4096 atlas.</summary>
     public const int DefaultTiles = 64;
 
     private const FormatFeatureFlags RequiredFeatures =
-        FormatFeatureFlags.ColorAttachmentBit | FormatFeatureFlags.SampledImageBit | FormatFeatureFlags.SampledImageFilterLinearBit |
+        FormatFeatureFlags.ColorAttachmentBit | FormatFeatureFlags.SampledImageBit |
+        FormatFeatureFlags.SampledImageFilterLinearBit |
         FormatFeatureFlags.BlitSrcBit | FormatFeatureFlags.BlitDstBit;
 
     private readonly VulkanDevice device;
@@ -47,10 +51,9 @@ internal sealed unsafe class ImpostorAtlas : IDisposable
         if (tiles < 1 || tiles > maxLayers)
             throw new ArgumentOutOfRangeException(nameof(tiles), $"The impostor atlas needs 1 to {maxLayers} tiles.");
         foreach (Format format in (ReadOnlySpan<Format>)[ColorFormat, DepthOffsetFormat])
-        {
             if ((device.FormatProperties(format).OptimalTilingFeatures & RequiredFeatures) != RequiredFeatures)
-                throw new NotSupportedException($"{format} cannot be a filtered, blittable impostor atlas on {device.DeviceName}.");
-        }
+                throw new NotSupportedException(
+                    $"{format} cannot be a filtered, blittable impostor atlas on {device.DeviceName}.");
 
         Tiles = tiles;
         colorViews = new ImageView[tiles];
@@ -60,14 +63,18 @@ internal sealed unsafe class ImpostorAtlas : IDisposable
                                       ImageUsageFlags.TransferSrcBit | ImageUsageFlags.TransferDstBit;
         try
         {
-            Color = GpuImage.Create(device, allocator, extent, ColorFormat, usage, MipLevels, "impostor atlas color", (uint)tiles, arrayView: true);
-            DepthOffset = GpuImage.Create(device, allocator, extent, DepthOffsetFormat, usage, MipLevels, "impostor atlas depth offset", (uint)tiles, arrayView: true);
-            CaptureDepth = GpuImage.Create(device, allocator, extent, CaptureDepthFormat, ImageUsageFlags.DepthStencilAttachmentBit, 1, "impostor capture depth");
+            Color = GpuImage.Create(device, allocator, extent, ColorFormat, usage, MipLevels, "impostor atlas color",
+                (uint)tiles, arrayView: true);
+            DepthOffset = GpuImage.Create(device, allocator, extent, DepthOffsetFormat, usage, MipLevels,
+                "impostor atlas depth offset", (uint)tiles, arrayView: true);
+            CaptureDepth = GpuImage.Create(device, allocator, extent, CaptureDepthFormat,
+                ImageUsageFlags.DepthStencilAttachmentBit, 1, "impostor capture depth");
             for (int i = 0; i < tiles; i++)
             {
                 colorViews[i] = Color.CreateLayerView((uint)i);
                 depthOffsetViews[i] = DepthOffset.CreateLayerView((uint)i);
             }
+
             // The pool frees the set when the descriptor layouts are disposed.
             Set = layouts.AllocateAtlasSet();
             layouts.WriteImage(Set, 0, 0, Color);
@@ -82,10 +89,13 @@ internal sealed unsafe class ImpostorAtlas : IDisposable
 
     /// <summary>The number of tiles (array layers).</summary>
     public int Tiles { get; }
+
     public GpuImage Color { get; } = null!;
     public GpuImage DepthOffset { get; } = null!;
+
     /// <summary>The depth buffer of a capture: D32, reversed (1 nearest the eye).</summary>
     public GpuImage CaptureDepth { get; } = null!;
+
     /// <summary>Set 3 of <see cref="DescriptorLayouts.ImpostorLayout"/>: both arrays and the atlas sampler.</summary>
     public DescriptorSet Set { get; }
 
@@ -104,6 +114,7 @@ internal sealed unsafe class ImpostorAtlas : IDisposable
             if (depthOffsetViews[i].Handle != 0)
                 device.Vk.DestroyImageView(device.Device, depthOffsetViews[i], null);
         }
+
         Array.Clear(colorViews);
         Array.Clear(depthOffsetViews);
         CaptureDepth?.Dispose();

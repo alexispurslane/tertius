@@ -25,8 +25,16 @@ namespace Tertius.Demo;
 /// <param name="Felt">The length of the felt gravity at the person's place (see <see cref="FrameTree.FeltGravity"/>), in m/s².</param>
 /// <param name="FirstThrow">The coda's first throw, from the first capture after its release on, or null.</param>
 /// <param name="SecondThrow">The coda's second throw, from the first capture after its release on, or null.</param>
-public readonly record struct ReadoutRow(string Frame, long Tick, Double3 Position, double Speed, double ToStation, double Axis, double Felt,
-    ThrowReadout? FirstThrow = null, ThrowReadout? SecondThrow = null);
+public readonly record struct ReadoutRow(
+    string Frame,
+    long Tick,
+    Double3 Position,
+    double Speed,
+    double ToStation,
+    double Axis,
+    double Felt,
+    ThrowReadout? FirstThrow = null,
+    ThrowReadout? SecondThrow = null);
 
 /// <summary>
 /// One throw of the coda, as the <see cref="FlightRecorder"/> of its box records it, in the station's own frame: its origin
@@ -46,15 +54,18 @@ public sealed class ReadoutLog : IPlayback
     /// <summary>The header line of the log's CSV.</summary>
     public const string Header = "frame,tick,x,y,z,speed,station,axis,felt," + ThrowColumns1 + "," + ThrowColumns2;
 
-    private const string ThrowColumns1 = "throw1_x,throw1_y,throw1_z,throw1_vx,throw1_vy,throw1_vz,throw1_time,throw1_land_x,throw1_land_y,throw1_land_z";
-    private const string ThrowColumns2 = "throw2_x,throw2_y,throw2_z,throw2_vx,throw2_vy,throw2_vz,throw2_time,throw2_land_x,throw2_land_y,throw2_land_z";
+    private const string ThrowColumns1 =
+        "throw1_x,throw1_y,throw1_z,throw1_vx,throw1_vy,throw1_vz,throw1_time,throw1_land_x,throw1_land_y,throw1_land_z";
+
+    private const string ThrowColumns2 =
+        "throw2_x,throw2_y,throw2_z,throw2_vx,throw2_vy,throw2_vz,throw2_time,throw2_land_x,throw2_land_y,throw2_land_z";
 
     // The cells of a row: nine for the person, then ten for each of the two throws.
     private const int Cells = 29;
 
     private readonly Entity person, station;
     private readonly FrameHandle earth;
-    private readonly List<ReadoutRow> rows = new();
+    private readonly List<ReadoutRow> rows = [];
 
     /// <summary>A log of the <c>person</c>, the <c>station</c> and the frame <c>earth</c> of <paramref name="scene"/>.</summary>
     public ReadoutLog(World world, SceneInstance scene)
@@ -80,8 +91,9 @@ public sealed class ReadoutLog : IPlayback
         // The station's axis is its +Y through its center. The part of the offset along the axis leaves the part across it.
         DPose stationPose = world.PoseIn(station, earth);
         Double3 offset = position - stationPose.Position, axis = stationPose.Rotation.Rotate(Double3.UnitY);
-        rows.Add(new ReadoutRow(name, world.TickNumber, position, world.VelocityIn(person, earth).Length,
-            offset.Length, (offset - axis * Double3.Dot(offset, axis)).Length, felt.Length, ThrowOf(world, 0), ThrowOf(world, 1)));
+        rows.Add(new(name, world.TickNumber, position, world.VelocityIn(person, earth).Length,
+            offset.Length, (offset - axis * Double3.Dot(offset, axis)).Length, felt.Length, ThrowOf(world, 0),
+            ThrowOf(world, 1)));
         return true;
     }
 
@@ -93,7 +105,7 @@ public sealed class ReadoutLog : IPlayback
     {
         if (world.GetComponent<BoxPlay>(person) is not { } play || index >= play.Thrown.Count)
             return null;
-        FlightRecorder? recorder = world.GetComponent<FlightRecorder>(play.Thrown[index]);
+        var recorder = world.GetComponent<FlightRecorder>(play.Thrown[index]);
         return recorder?.Release is { } release ? new ThrowReadout(release, recorder.Landing) : null;
     }
 
@@ -106,8 +118,9 @@ public sealed class ReadoutLog : IPlayback
     {
         ArgumentNullException.ThrowIfNull(script);
         ArgumentNullException.ThrowIfNull(scenes);
-        Scene scene = scenes.SingleOrDefault(s => s.Name == script.Scene) ?? throw new ScriptException($"No scene is named '{script.Scene}'.");
-        using var world = new World(new WorldOptions { DisposePhysics = true }, new JoltPhysicsBackend());
+        Scene scene = scenes.SingleOrDefault(s => s.Name == script.Scene) ??
+                      throw new ScriptException($"No scene is named '{script.Scene}'.");
+        using var world = new World(new() { DisposePhysics = true }, new JoltPhysicsBackend());
         SceneInstance instance = scene.Build(world, RenderResources.None);
         var log = new ReadoutLog(world, instance);
         ScriptRunner.Run(script, world, instance, outputFolder: null, log);
@@ -118,14 +131,16 @@ public sealed class ReadoutLog : IPlayback
     public static string ToCsv(IReadOnlyList<ReadoutRow> rows)
     {
         ArgumentNullException.ThrowIfNull(rows);
-        var text = new StringBuilder(Header).Append('\n');
+        StringBuilder text = new StringBuilder(Header).Append('\n');
         foreach (ReadoutRow row in rows)
         {
-            text.Append(CultureInfo.InvariantCulture, $"{row.Frame},{row.Tick},{row.Position.X:R},{row.Position.Y:R},{row.Position.Z:R},{row.Speed:R},{row.ToStation:R},{row.Axis:R},{row.Felt:R}");
+            text.Append(CultureInfo.InvariantCulture,
+                $"{row.Frame},{row.Tick},{row.Position.X:R},{row.Position.Y:R},{row.Position.Z:R},{row.Speed:R},{row.ToStation:R},{row.Axis:R},{row.Felt:R}");
             AppendThrow(text, row.FirstThrow);
             AppendThrow(text, row.SecondThrow);
             text.Append('\n');
         }
+
         return text.ToString();
     }
 
@@ -136,8 +151,9 @@ public sealed class ReadoutLog : IPlayback
         ThrowLanding? landing = readout?.Landing;
         foreach (double? value in new[]
                  {
-                     release?.Place.X, release?.Place.Y, release?.Place.Z, release?.Velocity.X, release?.Velocity.Y, release?.Velocity.Z,
-                     landing?.Time, landing?.Place.X, landing?.Place.Y, landing?.Place.Z,
+                     release?.Place.X, release?.Place.Y, release?.Place.Z, release?.Velocity.X, release?.Velocity.Y,
+                     release?.Velocity.Z,
+                     landing?.Time, landing?.Place.X, landing?.Place.Y, landing?.Place.Z
                  })
             text.Append(CultureInfo.InvariantCulture, $",{value:R}");
     }
@@ -156,9 +172,11 @@ public sealed class ReadoutLog : IPlayback
             if (cells.Length != Cells)
                 throw new FormatException($"Line {i + 1} of the readout log has {cells.Length} cells, not {Cells}.");
             double Number(int cell) => double.Parse(cells[cell], NumberStyles.Float, CultureInfo.InvariantCulture);
-            rows.Add(new ReadoutRow(cells[0], long.Parse(cells[1], CultureInfo.InvariantCulture), new Double3(Number(2), Number(3), Number(4)), Number(5), Number(6), Number(7), Number(8),
+            rows.Add(new(cells[0], long.Parse(cells[1], CultureInfo.InvariantCulture),
+                new(Number(2), Number(3), Number(4)), Number(5), Number(6), Number(7), Number(8),
                 ReadThrow(cells, 9), ReadThrow(cells, 19)));
         }
+
         return rows;
     }
 
@@ -168,8 +186,10 @@ public sealed class ReadoutLog : IPlayback
         double Number(int cell) => double.Parse(cells[start + cell], NumberStyles.Float, CultureInfo.InvariantCulture);
         if (cells[start] == "")
             return null;
-        var release = new ThrowRelease(new Double3(Number(0), Number(1), Number(2)), new Double3(Number(3), Number(4), Number(5)));
-        ThrowLanding? landing = cells[start + 6] == "" ? null : new ThrowLanding(Number(6), new Double3(Number(7), Number(8), Number(9)));
+        var release = new ThrowRelease(new(Number(0), Number(1), Number(2)), new(Number(3), Number(4), Number(5)));
+        ThrowLanding? landing = cells[start + 6] == ""
+            ? null
+            : new ThrowLanding(Number(6), new(Number(7), Number(8), Number(9)));
         return new ThrowReadout(release, landing);
     }
 }

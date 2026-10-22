@@ -79,8 +79,8 @@ public sealed class Boxed : IComponent
 /// <summary>A component that is a struct, not a class.</summary>
 public struct ValueComponent : IComponent
 {
-    public int Priority => 0;
-    public EventMask Wants => default;
+    public readonly int Priority => 0;
+    public readonly EventMask Wants => default;
 
     public readonly void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
@@ -108,15 +108,15 @@ public sealed class HiddenConstructor : IComponent
 /// </summary>
 public sealed class Labelled : IComponent
 {
+    public const int Limit = 9;
+    public static int Counter;
     public string? Label = "default label";
     public int? Level = 5;
     public int[]? Marks;
+    internal int Internal = 2;
 
     public int Computed => 7;
     public int Locked { get; private set; } = 1;
-    public const int Limit = 9;
-    public static int Counter;
-    internal int Internal = 2;
 
     public int Priority => 0;
     public EventMask Wants => default;
@@ -143,19 +143,19 @@ internal static class BlueprintSamples
     public static Blueprints Soldiers(Blueprints? into = null)
     {
         Blueprints blueprints = into ?? new Blueprints();
-        blueprints.Register(new Blueprint(
+        blueprints.Register(new(
             "soldier",
             [
-                new ComponentSpec(typeof(Health), Fields(("Max", 120), ("Current", 120f), ("Side", "Rebel"))),
-                new ComponentSpec(typeof(Weapon), Fields(("Damage", 5.0), ("Range", 30))),
+                new(typeof(Health), Fields(("Max", 120), ("Current", 120f), ("Side", "Rebel"))),
+                new(typeof(Weapon), Fields(("Damage", 5.0), ("Range", 30)))
             ],
             Body: TestWorld.Ball,
-            Render: new RenderData { Mesh = new MeshId(4), Flags = RenderFlags.Visible }));
-        blueprints.Register(new Blueprint(
+            Render: new RenderData { Mesh = new(4), Flags = RenderFlags.Visible }));
+        blueprints.Register(new(
             "officer",
             [
-                new ComponentSpec(typeof(Radio)),
-                new ComponentSpec(typeof(Health), Fields(("Max", 150f), ("Name", "Boss"), ("Armor", 3))),
+                new(typeof(Radio)),
+                new(typeof(Health), Fields(("Max", 150f), ("Name", "Boss"), ("Armor", 3)))
             ],
             Parent: "soldier"));
         return blueprints;

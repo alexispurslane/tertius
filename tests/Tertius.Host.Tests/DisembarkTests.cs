@@ -1,3 +1,4 @@
+using System.Numerics;
 using Tertius.Demo;
 using Tertius.Physics;
 using Tertius.Simulation;
@@ -23,8 +24,22 @@ namespace Tertius.Host.Tests;
 /// <param name="ChuteView">The pose in the station's frame of the camera that films the section <c>chute</c>.</param>
 /// <param name="ChuteViewClear">True when a ray from that camera to the person's center meets no body but the person's.</param>
 /// <param name="Facing">The way that the person faces, the -Z of its view, in the station's axes.</param>
-public sealed record ExitSample(long Tick, bool InCabin, bool InStation, Double3 Position, Double3 InCabinAxes, Double3 Velocity, bool Standing,
-    DisembarkState Exit, PassengerState Belt, double FeltGravity, bool CopyHeld, DQuaternion Rotation, DPose ChuteView, bool ChuteViewClear, Double3 Facing);
+public sealed record ExitSample(
+    long Tick,
+    bool InCabin,
+    bool InStation,
+    Double3 Position,
+    Double3 InCabinAxes,
+    Double3 Velocity,
+    bool Standing,
+    DisembarkState Exit,
+    PassengerState Belt,
+    double FeltGravity,
+    bool CopyHeld,
+    DQuaternion Rotation,
+    DPose ChuteView,
+    bool ChuteViewClear,
+    Double3 Facing);
 
 /// <summary>
 /// One run of the scene <c>demo-exit</c> from the docking's end state: the order <see cref="LeaveShip"/> before the first
@@ -35,16 +50,9 @@ public sealed class ExitRun : IDisposable
 {
     private readonly JoltPhysicsBackend backend = new();
 
-    public World World { get; }
-    public SceneInstance Scene { get; }
-    public FrameHandle Station { get; }
-    public FrameHandle Cabin { get; }
-    public List<ExitSample> Samples { get; } = [];
-    public List<string> Log { get; } = [];
-
     public ExitRun()
     {
-        World = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = false, DisposePhysics = true }, backend);
+        World = new(new() { MaxDegreeOfParallelism = 1, DebugChecks = false, DisposePhysics = true }, backend);
         World.Log += Log.Add;
         Scene = DemoScenes.DemoExit.Build(World, RenderResources.None);
         Station = World.GetOwnedFrame(Scene["station"]);
@@ -65,6 +73,13 @@ public sealed class ExitRun : IDisposable
         }
     }
 
+    public World World { get; }
+    public SceneInstance Scene { get; }
+    public FrameHandle Station { get; }
+    public FrameHandle Cabin { get; }
+    public List<ExitSample> Samples { get; } = [];
+    public List<string> Log { get; } = [];
+
     /// <summary>The state before the order and before the first tick.</summary>
     public ExitSample Start { get; }
 
@@ -74,20 +89,27 @@ public sealed class ExitRun : IDisposable
         FrameHandle frame = World.GetFrame(person);
         DPose pose = World.PoseIn(person, Station);
         Double3 position = pose.Position;
-        DPose view = World.PoseIn(Scene[BlueDanube.ExitSections.Single(section => section.Name == "chute").Camera], Station);
+        DPose view = World.PoseIn(Scene[BlueDanube.ExitSections.Single(section => section.Name == "chute").Camera],
+            Station);
         Double3 sight = position - view.Position;
         var hits = new List<RayCastHit>();
-        backend.CastRay(Station, view.Position, sight.Normalized(), 0, sight.Length, new AllBut(person), RayCastKind.Nearest, hits);
+        backend.CastRay(Station, view.Position, sight.Normalized(), 0, sight.Length, new AllBut(person),
+            RayCastKind.Nearest, hits);
         Entity copy = World.GetComponent<Passenger>(person)!.State.Value switch
         {
             Strapped strapped => strapped.Copy,
             Unstrapped unstrapped => unstrapped.Copy,
-            _ => Entity.Null,
+            _ => Entity.Null
         };
-        return new ExitSample(tick, frame == Cabin, frame == Station, position, World.PoseIn(person, Cabin).Position, World.VelocityIn(person, Station),
-            World.IsStanding(person), World.GetComponent<Disembark>(person)!.State, World.GetComponent<Passenger>(person)!.State,
-            World.Frames.FeltGravity(Station, position).Length, !copy.IsNull && World.IsAlive(copy) && World.Attachments.ParentOf(copy) == person,
-            pose.Rotation, view, hits.Count == 0, pose.Rotation.Rotate((Double3)System.Numerics.Vector3.Transform(-System.Numerics.Vector3.UnitZ, World.GetRender(person).ViewOffset.Rotation)));
+        return new(tick, frame == Cabin, frame == Station, position, World.PoseIn(person, Cabin).Position,
+            World.VelocityIn(person, Station),
+            World.IsStanding(person), World.GetComponent<Disembark>(person)!.State,
+            World.GetComponent<Passenger>(person)!.State,
+            World.Frames.FeltGravity(Station, position).Length,
+            !copy.IsNull && World.IsAlive(copy) && World.Attachments.ParentOf(copy) == person,
+            pose.Rotation, view, hits.Count == 0,
+            pose.Rotation.Rotate(
+                (Double3)Vector3.Transform(-Vector3.UnitZ, World.GetRender(person).ViewOffset.Rotation)));
     }
 
     private sealed class AllBut(Entity left) : IPhysicsQueryFilter
@@ -120,14 +142,16 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
     public void ThePersonFacesItsWayOnTheWalkOutAndTheStroll()
     {
         List<double> angles = [];
-        foreach (ExitSample sample in run.Samples.Where(sample => sample.Standing && sample.Exit.Value is Walking or Strolling))
+        foreach (ExitSample sample in run.Samples.Where(sample =>
+                     sample.Standing && sample.Exit.Value is Walking or Strolling))
         {
             Double3 up = sample.Rotation.Rotate(Double3.UnitY);
             Double3 across = sample.Velocity - up * Double3.Dot(sample.Velocity, up);
             if (across.Length < 0.9)
                 continue;
             Double3 facing = sample.Facing - up * Double3.Dot(sample.Facing, up);
-            angles.Add(Math.Acos(Math.Clamp(Double3.Dot(across.Normalized(), facing.Normalized()), -1, 1)) * 180 / Math.PI);
+            angles.Add(Math.Acos(Math.Clamp(Double3.Dot(across.Normalized(), facing.Normalized()), -1, 1)) * 180 /
+                       Math.PI);
         }
 
         angles.Should().HaveCountGreaterThan(600, "the walk out and the stroll take more than 10 s at 1 m/s");
@@ -148,14 +172,19 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
         world.GetFrame(shuttle).Should().Be(run.Station);
         world.Frames.Parent(run.Cabin).Should().Be(run.Station, "the cabin's frame is a child of the station's");
         world.Frames.HullMotion(run.Cabin).Should().Be(BodyMotion.Static, "the docked hull is static");
-        (world.PoseIn(shuttle, run.Station).Position - DemoStation.ParkedPose.Position).Length.Should().BeLessThan(1e-6);
+        (world.PoseIn(shuttle, run.Station).Position - DemoStation.ParkedPose.Position).Length.Should()
+            .BeLessThan(1e-6);
         ExitSample start = run.Start;
         start.InCabin.Should().BeTrue();
         Double3 felt = world.Frames.FeltGravity(run.Cabin, Shuttle.SeatStand);
-        (start.InCabinAxes - DemoScenes.DemoExit.StandAtSeat.Position).Length.Should().BeLessThan(0.01, "the person stands at its seat");
-        (DemoScenes.DemoExit.FeltAtSeat - felt).Length.Should().BeLessThan(1e-3, "the scene's felt gravity at the seat is the frame tree's");
-        Double3 up = start.Rotation.Rotate(Double3.UnitY), inCabin = world.Frames.Relative(run.Station, run.Cabin).Rotation.Rotate(up);
-        (inCabin + felt.Normalized()).Length.Should().BeLessThan(0.01, "the person's up stands against the felt gravity");
+        (start.InCabinAxes - DemoScenes.DemoExit.StandAtSeat.Position).Length.Should()
+            .BeLessThan(0.01, "the person stands at its seat");
+        (DemoScenes.DemoExit.FeltAtSeat - felt).Length.Should()
+            .BeLessThan(1e-3, "the scene's felt gravity at the seat is the frame tree's");
+        Double3 up = start.Rotation.Rotate(Double3.UnitY),
+            inCabin = world.Frames.Relative(run.Station, run.Cabin).Rotation.Rotate(up);
+        (inCabin + felt.Normalized()).Length.Should()
+            .BeLessThan(0.01, "the person's up stands against the felt gravity");
         start.Belt.Value.Should().BeOfType<Strapped>();
         start.CopyHeld.Should().BeTrue("the person holds the pen");
         start.Exit.Value.Should().Be(new Aboard());
@@ -191,9 +220,12 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
         Double3 from = Shuttle.SeatStand, to = Shuttle.InsideHatch;
         Double3 line = new Double3(to.X - from.X, 0, to.Z - from.Z).Normalized();
         int start = run.Samples.FindIndex(s => s.Exit.Value is Walking);
-        ExitSample[] walk = [.. run.Samples.Skip(start).TakeWhile(s => Double3.Distance(s.InCabinAxes, to) > Walker.ArrivalRadius)];
+        ExitSample[] walk =
+            [.. run.Samples.Skip(start).TakeWhile(s => Double3.Distance(s.InCabinAxes, to) > Walker.ArrivalRadius)];
         ExitSample[] leg = [.. walk.Where(s => s.Tick > 15)];
-        walk.Take(15).Should().OnlyContain(s => Math.Abs(s.InCabinAxes.Y - DemoScenes.DemoExit.StandAtSeat.Position.Y) < 0.01, "the capsule settles by a few millimeters");
+        walk.Take(15).Should()
+            .OnlyContain(s => Math.Abs(s.InCabinAxes.Y - DemoScenes.DemoExit.StandAtSeat.Position.Y) < 0.01,
+                "the capsule settles by a few millimeters");
         leg.Length.Should().BeGreaterThan(200, "the walk aft takes about 6 s");
         foreach (ExitSample s in leg)
         {
@@ -203,11 +235,17 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
             felt.X.Should().BeNegative($"the floor feels tilted toward port at tick {s.Tick}");
             s.Standing.Should().BeTrue($"the person stands on the floor at tick {s.Tick}");
             Double3 across = new(s.InCabinAxes.X - from.X, 0, s.InCabinAxes.Z - from.Z);
-            (across - line * Double3.Dot(across, line)).Length.Should().BeLessThan(0.25, $"the person keeps to the leg's line at tick {s.Tick}");
-            double floor = from.Y - 0.9, stand = floor + StationExit.PersonRadius + DemoScenes.DemoExit.CapsuleHalfHeight * -felt.Y / felt.Length;
-            s.InCabinAxes.Y.Should().BeApproximately(stand, 0.03, $"the person's capsule, tipped with its up, stands on the floor at tick {s.Tick}");
+            (across - line * Double3.Dot(across, line)).Length.Should()
+                .BeLessThan(0.25, $"the person keeps to the leg's line at tick {s.Tick}");
+            double floor = from.Y - 0.9,
+                stand = floor + StationExit.PersonRadius +
+                        DemoScenes.DemoExit.CapsuleHalfHeight * -felt.Y / felt.Length;
+            s.InCabinAxes.Y.Should().BeApproximately(stand, 0.03,
+                $"the person's capsule, tipped with its up, stands on the floor at tick {s.Tick}");
         }
-        run.Samples[start + walk.Length].InCabinAxes.Z.Should().BeApproximately(to.Z, Walker.ArrivalRadius + 0.05, "the walk aft reaches the doorway's line");
+
+        run.Samples[start + walk.Length].InCabinAxes.Z.Should().BeApproximately(to.Z, Walker.ArrivalRadius + 0.05,
+            "the walk aft reaches the doorway's line");
     }
 
     /// <summary>
@@ -221,7 +259,8 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
         ExitSample outside = First(s => s.InCabinAxes.X > Shuttle.Hull.X);
         ExitSample inside = run.Samples[run.Samples.IndexOf(outside) - 1];
         inside.InCabinAxes.X.Should().BeLessThanOrEqualTo(Shuttle.Hull.X);
-        outside.InCabinAxes.Z.Should().BeInRange(hatch.Min.Z + 0.3, hatch.Max.Z - 0.3, "the capsule fits the doorway's width");
+        outside.InCabinAxes.Z.Should()
+            .BeInRange(hatch.Min.Z + 0.3, hatch.Max.Z - 0.3, "the capsule fits the doorway's width");
         outside.Exit.Value.Should().BeOfType<Walking>();
     }
 
@@ -232,18 +271,27 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
     [Fact]
     public void ThePersonWalksAlongTheDeckToTheChutesTop()
     {
-        ExitSample[] deck = [.. run.Samples.Where(s => s.Exit.Value is Walking && s.Position.Z > -1.5 && s.Position.Y < 4.5 && s.Position.X > DemoStation.Deck)];
+        ExitSample[] deck =
+        [
+            .. run.Samples.Where(s =>
+                s.Exit.Value is Walking && s.Position.Z > -1.5 && s.Position.Y < 4.5 && s.Position.X > DemoStation.Deck)
+        ];
         deck.Should().NotBeEmpty();
-        ExitSample[] along = [.. deck.Where(s => s.Position.Y > 0.3)], toward = [.. deck.Where(s => s.Position.Y <= 0.3 && s.Position.Z < 0.4 && s.Standing)];
+        ExitSample[] along =
+                [.. deck.Where(s => s.Position.Y > 0.3)],
+            toward = [.. deck.Where(s => s.Position.Y <= 0.3 && s.Position.Z < 0.4 && s.Standing)];
         along.Should().NotBeEmpty();
         toward.Should().NotBeEmpty();
         foreach (ExitSample s in along)
         {
             s.Standing.Should().BeTrue($"the person stands on the deck at tick {s.Tick}");
-            Math.Abs(s.Position.Z - 0.6).Should().BeLessThan(0.25, $"the walk along the axis keeps to z = 0.6 m at tick {s.Tick}");
+            Math.Abs(s.Position.Z - 0.6).Should()
+                .BeLessThan(0.25, $"the walk along the axis keeps to z = 0.6 m at tick {s.Tick}");
         }
+
         foreach (ExitSample s in toward)
-            Math.Abs(s.Position.Y).Should().BeLessThan(0.25, $"the walk into the chute's top keeps to y = 0 at tick {s.Tick}");
+            Math.Abs(s.Position.Y).Should()
+                .BeLessThan(0.25, $"the walk into the chute's top keeps to y = 0 at tick {s.Tick}");
     }
 
     /// <summary>
@@ -254,10 +302,14 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
     [Fact]
     public void TheStepIntoTheChutesTopGoesAtTheStepInSpeedFromItsFirstTick()
     {
-        ExitSample[] deck = [.. run.Samples.Where(s => s.Exit.Value is Walking && s.Standing && s.InCabinAxes.X > DemoScenes.Shuttle.Hull.X + 0.5)];
+        ExitSample[] deck =
+        [
+            .. run.Samples.Where(s => s.Exit.Value is Walking && s.Standing && s.InCabinAxes.X > Shuttle.Hull.X + 0.5)
+        ];
         deck.Should().NotBeEmpty();
         ExitSample fastest = deck.MaxBy(s => -s.Velocity.Z)!;
-        (-fastest.Velocity.Z).Should().BeLessThan(StationExit.StepInSpeed + 0.05, $"the person steps toward the chute's top at tick {fastest.Tick}, at {fastest.Position}");
+        (-fastest.Velocity.Z).Should().BeLessThan(StationExit.StepInSpeed + 0.05,
+            $"the person steps toward the chute's top at tick {fastest.Tick}, at {fastest.Position}");
     }
 
     /// <summary>The person goes off its feet over the chute's top, and the exit starts its slide.</summary>
@@ -266,7 +318,8 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
     {
         ExitSample sliding = First(s => s.Exit.Value is Sliding);
         Math.Abs(sliding.Position.Y).Should().BeLessThan(Chute.HalfWidth, "the person is between the rails");
-        sliding.Position.Z.Should().BeInRange(Chute.BackFace, Chute.BackFace + Chute.Depth, "the person is over the chute's top");
+        sliding.Position.Z.Should().BeInRange(Chute.BackFace, Chute.BackFace + Chute.Depth,
+            "the person is over the chute's top");
         sliding.Standing.Should().BeFalse();
     }
 
@@ -279,8 +332,10 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
     {
         ExitSample entry = First(s => s.InStation);
         entry.Exit.Value.Should().BeOfType<Sliding>();
-        entry.Position.X.Should().BeInRange(-DemoStation.CeilingRadius, DemoStation.Deck - 0.5, "the person enters the station's frame in the spoke");
-        run.Samples.Skip(run.Samples.IndexOf(entry)).Should().OnlyContain(s => s.InStation, "the person stays in the station's frame");
+        entry.Position.X.Should().BeInRange(-DemoStation.CeilingRadius, DemoStation.Deck - 0.5,
+            "the person enters the station's frame in the spoke");
+        run.Samples.Skip(run.Samples.IndexOf(entry)).Should()
+            .OnlyContain(s => s.InStation, "the person stays in the station's frame");
         run.Samples.Should().OnlyContain(s => s.InCabin || s.InStation, "no numeric frame takes the person");
     }
 
@@ -292,12 +347,20 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
     [Fact]
     public void TheCoriolisForceHoldsThePersonOnTheBackPlate()
     {
-        ExitSample[] spoke = [.. run.Samples.Where(s => s.Exit.Value is Sliding && s.Position.X < DemoStation.Deck - 3 && s.Position.X > -DemoStation.CeilingRadius)];
+        ExitSample[] spoke =
+        [
+            .. run.Samples.Where(s =>
+                s.Exit.Value is Sliding && s.Position.X < DemoStation.Deck - 3 &&
+                s.Position.X > -DemoStation.CeilingRadius)
+        ];
         spoke.Length.Should().BeGreaterThan(60, "the slide down the spoke takes many ticks");
         foreach (ExitSample s in spoke)
         {
-            (s.Position.Z - Chute.BackFace).Should().BeInRange(StationExit.PersonRadius, StationExit.PersonRadius + Chute.ContactMargin, $"the person lies on the back plate at tick {s.Tick}, x = {s.Position.X:F2} m");
-            Math.Abs(s.Position.Y).Should().BeLessThanOrEqualTo(Chute.HalfWidth - StationExit.PersonRadius + 0.01, $"the person lies between the rails at tick {s.Tick}");
+            (s.Position.Z - Chute.BackFace).Should().BeInRange(StationExit.PersonRadius,
+                StationExit.PersonRadius + Chute.ContactMargin,
+                $"the person lies on the back plate at tick {s.Tick}, x = {s.Position.X:F2} m");
+            Math.Abs(s.Position.Y).Should().BeLessThanOrEqualTo(Chute.HalfWidth - StationExit.PersonRadius + 0.01,
+                $"the person lies between the rails at tick {s.Tick}");
         }
     }
 
@@ -321,7 +384,12 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
     [Fact]
     public void TheChuteFilmSeesThePersonSlideDownTheOpenTrough()
     {
-        ExitSample[] film = [.. run.Samples.Where(s => s.Exit.Value is Sliding && s.Position.X < DemoStation.Deck - 10 && s.Position.X > -(DemoStation.CeilingRadius - 10))];
+        ExitSample[] film =
+        [
+            .. run.Samples.Where(s =>
+                s.Exit.Value is Sliding && s.Position.X < DemoStation.Deck - 10 &&
+                s.Position.X > -(DemoStation.CeilingRadius - 10))
+        ];
         film.Length.Should().BeGreaterThan(600, "the slide down the spoke takes many ticks");
         double inside = DemoStation.SpokeHalfWidth - DemoStation.SpokeWall - 0.2;
         foreach (ExitSample s in film)
@@ -329,17 +397,23 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
             Double3 camera = s.ChuteView.Position;
             Math.Abs(camera.Y).Should().BeLessThan(inside, $"the camera is in the spoke at tick {s.Tick}");
             Math.Abs(camera.Z).Should().BeLessThan(inside, $"the camera is in the spoke at tick {s.Tick}");
-            camera.Z.Should().BeGreaterThan(Chute.BackFace + StationExit.RailDepth, $"the camera is above the trough's open side at tick {s.Tick}");
-            Double3.Distance(camera, s.Position).Should().BeInRange(1.5, 4, $"the camera keeps its distance at tick {s.Tick}");
-            double cover = Picture.Cover(s.ChuteView, new DPose(s.Position, s.Rotation), (Double3)DemoScenes.DemoSurface.PersonHalf, run.World.VerticalFov);
+            camera.Z.Should().BeGreaterThan(Chute.BackFace + StationExit.RailDepth,
+                $"the camera is above the trough's open side at tick {s.Tick}");
+            Double3.Distance(camera, s.Position).Should()
+                .BeInRange(1.5, 4, $"the camera keeps its distance at tick {s.Tick}");
+            double cover = Picture.Cover(s.ChuteView, new(s.Position, s.Rotation), DemoScenes.DemoSurface.PersonHalf,
+                run.World.VerticalFov);
             cover.Should().BeInRange(0.01, 0.3, $"the person fills part of the picture at tick {s.Tick}");
             for (int corner = 0; corner < 8; corner++)
             {
-                Double3 half = (Double3)DemoScenes.DemoSurface.PersonHalf;
-                var local = new Double3((corner & 1) == 0 ? -half.X : half.X, (corner & 2) == 0 ? -half.Y : half.Y, (corner & 4) == 0 ? -half.Z : half.Z);
-                Picture.Contains(Picture.Project(s.ChuteView, new DPose(s.Position, s.Rotation).TransformPoint(local), run.World.VerticalFov))
+                var half = (Double3)DemoScenes.DemoSurface.PersonHalf;
+                var local = new Double3((corner & 1) == 0 ? -half.X : half.X, (corner & 2) == 0 ? -half.Y : half.Y,
+                    (corner & 4) == 0 ? -half.Z : half.Z);
+                Picture.Contains(Picture.Project(s.ChuteView, new DPose(s.Position, s.Rotation).TransformPoint(local),
+                        run.World.VerticalFov))
                     .Should().BeTrue($"the person's whole box is in the picture at tick {s.Tick}");
             }
+
             s.ChuteViewClear.Should().BeTrue($"nothing hides the person at tick {s.Tick}");
         }
     }
@@ -348,7 +422,8 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
     [Fact]
     public void TheBrakeRunSlowsThePersonBeforeTheFloor()
     {
-        ExitSample[] last = [.. run.Samples.Where(s => s.Exit.Value is Sliding && s.Position.X < -(DemoStation.FloorRadius - 1.5))];
+        ExitSample[] last =
+            [.. run.Samples.Where(s => s.Exit.Value is Sliding && s.Position.X < -(DemoStation.FloorRadius - 1.5))];
         last.Should().NotBeEmpty("the person slides down to the floor");
         last.Max(s => s.Velocity.Length).Should().BeLessThan(3.5);
     }
@@ -366,7 +441,8 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
         landed.Exit.Value.Should().BeOfType<Sliding>();
         landed.Standing.Should().BeTrue();
         double radius = Math.Sqrt(landed.Position.X * landed.Position.X + landed.Position.Z * landed.Position.Z);
-        radius.Should().BeInRange(DemoStation.FloorRadius - 1, DemoStation.FloorRadius, "the person stands on the floor");
+        radius.Should().BeInRange(DemoStation.FloorRadius - 1, DemoStation.FloorRadius,
+            "the person stands on the floor");
         Math.Abs(landed.Position.Y).Should().BeLessThan(Chute.HalfWidth, "the person lands between the rails");
     }
 
@@ -397,7 +473,8 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
         stroll[^1].Position.Z.Should().BeGreaterThan(stroll[0].Position.Z + 4, "the person walks spinward, toward +Z");
         ExitSample last = run.Samples[^1];
         (last.Position - end).Length.Should().BeLessThan(0.1, "the person stops at the stroll's end");
-        run.Samples.TakeLast(30).Should().OnlyContain(s => s.Velocity.Length < 0.05, "the person stands still at the end");
+        run.Samples.TakeLast(30).Should()
+            .OnlyContain(s => s.Velocity.Length < 0.05, "the person stands still at the end");
     }
 
     /// <summary>The pen's copy stays in the person's hand from the seat to the floor.</summary>
@@ -420,7 +497,9 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
 /// </summary>
 public sealed class DisembarkShortRunTests : IDisposable
 {
-    private readonly World world = new(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = false, DisposePhysics = true }, new JoltPhysicsBackend());
+    private readonly World world = new(new() { MaxDegreeOfParallelism = 1, DebugChecks = false, DisposePhysics = true },
+        new JoltPhysicsBackend());
+
     private readonly List<string> log = [];
     private readonly SceneInstance scene;
     private readonly FrameHandle cabin;
@@ -432,9 +511,9 @@ public sealed class DisembarkShortRunTests : IDisposable
         cabin = world.GetOwnedFrame(scene["shuttle"]);
     }
 
-    public void Dispose() => world.Dispose();
-
     private Entity Person => scene["person"];
+
+    public void Dispose() => world.Dispose();
 
     /// <summary>
     /// Without the order the person stays strapped at its seat, aboard, for 2 s. Its capsule, which starts with its up
@@ -451,7 +530,8 @@ public sealed class DisembarkShortRunTests : IDisposable
         world.GetComponent<Disembark>(Person)!.State.Value.Should().Be(new Aboard());
         world.GetComponent<Passenger>(Person)!.State.Value.Should().BeOfType<Strapped>();
         Double3 end = world.PoseIn(Person, cabin).Position;
-        (end - DemoScenes.DemoExit.StandAtSeat.Position).Length.Should().BeLessThan(0.02, "the person stays at its seat");
+        (end - DemoScenes.DemoExit.StandAtSeat.Position).Length.Should()
+            .BeLessThan(0.02, "the person stays at its seat");
         (end - settled).Length.Should().BeLessThan(0.01, "the person holds still");
         log.Should().BeEmpty();
     }
@@ -471,16 +551,18 @@ public sealed class DisembarkShortRunTests : IDisposable
             world.Tick();
         world.GetComponent<Disembark>(Person)!.State.Value.Should().BeOfType<Sliding>();
         world.GetFrame(Person).Should().Be(cabin, "the person drops in the cabin's frame");
-        Double3 onTheDeck = world.Frames.Relative(station, cabin).TransformPoint(new Double3(DemoStation.Deck + 0.9, 3, 0.6));
-        world.AddComponent(Person, new PutOnce(new DPose(onTheDeck, world.PoseIn(Person, cabin).Rotation)));
+        Double3 onTheDeck = world.Frames.Relative(station, cabin).TransformPoint(new(DemoStation.Deck + 0.9, 3, 0.6));
+        world.AddComponent(Person, new PutOnce(new(onTheDeck, world.PoseIn(Person, cabin).Rotation)));
         for (int i = 0; i < 60; i++)
             world.Tick();
         Double3 settled = world.PoseIn(Person, station).Position;
         for (int i = 0; i < 60; i++)
             world.Tick();
         world.IsStanding(Person).Should().BeTrue("the person stands on the deck");
-        world.GetComponent<Disembark>(Person)!.State.Value.Should().BeOfType<Sliding>("a person on the deck has not landed");
-        (world.PoseIn(Person, station).Position - settled).Length.Should().BeLessThan(0.02, "the slide asks for no walk");
+        world.GetComponent<Disembark>(Person)!.State.Value.Should()
+            .BeOfType<Sliding>("a person on the deck has not landed");
+        (world.PoseIn(Person, station).Position - settled).Length.Should()
+            .BeLessThan(0.02, "the slide asks for no walk");
     }
 
     /// <summary>A test component that teleports its entity to a pose in its frame once, in its first tick.</summary>
@@ -512,7 +594,9 @@ public sealed class DisembarkShortRunTests : IDisposable
     public void TheExitHaltsWhenTheStationIsGone(string during)
     {
         world.Post(Event.Create(Person, Entity.Null, new LeaveShip()));
-        for (int i = 0; i < 120 * 60 && world.GetComponent<Disembark>(Person)!.State.Value.GetType().Name != during; i++)
+        for (int i = 0;
+             i < 120 * 60 && world.GetComponent<Disembark>(Person)!.State.Value.GetType().Name != during;
+             i++)
             world.Tick();
         world.GetComponent<Disembark>(Person)!.State.Value.GetType().Name.Should().Be(during);
         world.Destroy(scene["station"]).Should().BeTrue();

@@ -22,15 +22,24 @@ public readonly struct ClipState : IEquatable<ClipState>
     private readonly bool released;
     private readonly int weightlessTicks;
 
-    public ClipState(Clipped clipped) { weightlessTicks = clipped.WeightlessTicks; }
-    public ClipState(Released released) { this.released = true; }
+    public ClipState(Clipped clipped)
+    {
+        weightlessTicks = clipped.WeightlessTicks;
+    }
+
+    public ClipState(Released released)
+    {
+        this.released = true;
+    }
 
     /// <summary>Always true: every value is a state.</summary>
     public bool HasValue => true;
 
+    public object Value => released ? new Released() : new Clipped(weightlessTicks);
+
     public bool TryGetValue(out Clipped value)
     {
-        value = new Clipped(weightlessTicks);
+        value = new(weightlessTicks);
         return !released;
     }
 
@@ -39,8 +48,6 @@ public readonly struct ClipState : IEquatable<ClipState>
         value = default;
         return released;
     }
-
-    public object Value => released ? new Released() : new Clipped(weightlessTicks);
 
     public bool Equals(ClipState other) => released == other.released && weightlessTicks == other.weightlessTicks;
     public override bool Equals(object? obj) => obj is ClipState other && Equals(other);
@@ -105,6 +112,7 @@ public sealed class Clip(DPose place, Double3 push, Vector3 spin) : IComponent
             self.Body.SetAngularVelocity(spin);
             return;
         }
+
         State = new Clipped(weightlessTicks);
         self.Body.SteerTo(place);
     }

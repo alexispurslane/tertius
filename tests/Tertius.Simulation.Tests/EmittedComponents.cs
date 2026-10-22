@@ -27,6 +27,11 @@ internal static class EmittedComponents
 {
     private static int assemblies;
 
+    private static readonly Lazy<Type> openGeneric = new(() => TypeNamed(LoadLater(0, withGeneric: true), "G`1"));
+
+    /// <summary>An open generic component type, <c>G&lt;T&gt;</c>, in an assembly of its own.</summary>
+    public static Type OpenGeneric => openGeneric.Value;
+
     /// <summary>
     /// Builds an assembly with <paramref name="plainTypes"/> sealed component types, named <c>{namespace}.C{i}</c> with i
     /// from 0 unless <paramref name="nameOf"/> names them, and, if <paramref name="withGeneric"/>, a generic one named
@@ -43,7 +48,7 @@ internal static class EmittedComponents
     {
         ComponentTypes.ScanLoadedAssemblies();
         string name = $"Tertius.Emitted{Interlocked.Increment(ref assemblies)}";
-        var builder = new PersistedAssemblyBuilder(new AssemblyName(name), typeof(object).Assembly);
+        var builder = new PersistedAssemblyBuilder(new(name), typeof(object).Assembly);
         ModuleBuilder module = builder.DefineDynamicModule(name);
         for (int i = 0; i < plainTypes; i++)
             Define(module, $"{name}.{nameOf?.Invoke(i) ?? $"C{i}"}", generic: false);
@@ -62,16 +67,11 @@ internal static class EmittedComponents
     public static Type InDynamicAssembly()
     {
         string name = $"Tertius.Dynamic{Interlocked.Increment(ref assemblies)}";
-        AssemblyBuilder builder = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName(name), AssemblyBuilderAccess.Run);
+        AssemblyBuilder builder = AssemblyBuilder.DefineDynamicAssembly(new(name), AssemblyBuilderAccess.Run);
         ModuleBuilder module = builder.DefineDynamicModule(name);
         Define(module, $"{name}.D", generic: false);
         return builder.GetType($"{name}.D", throwOnError: true)!;
     }
-
-    private static readonly Lazy<Type> openGeneric = new(() => TypeNamed(LoadLater(0, withGeneric: true), "G`1"));
-
-    /// <summary>An open generic component type, <c>G&lt;T&gt;</c>, in an assembly of its own.</summary>
-    public static Type OpenGeneric => openGeneric.Value;
 
     /// <summary>The type named <paramref name="name"/> in <paramref name="assembly"/>, without the namespace.</summary>
     public static Type TypeNamed(Assembly assembly, string name) =>
@@ -83,13 +83,16 @@ internal static class EmittedComponents
 
     private static void Define(ModuleBuilder module, string fullName, bool generic)
     {
-        TypeBuilder type = module.DefineType(fullName, TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.Class, typeof(EmittedComponent));
+        TypeBuilder type = module.DefineType(fullName,
+            TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.Class, typeof(EmittedComponent));
         if (generic)
             type.DefineGenericParameters("T");
-        ConstructorBuilder constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        ConstructorBuilder constructor =
+            type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
         ILGenerator il = constructor.GetILGenerator();
         il.Emit(OpCodes.Ldarg_0);
-        il.Emit(OpCodes.Call, typeof(EmittedComponent).GetConstructor(BindingFlags.NonPublic | BindingFlags.Instance, Type.EmptyTypes)!);
+        il.Emit(OpCodes.Call,
+            typeof(EmittedComponent).GetConstructor(BindingFlags.NonPublic | BindingFlags.Instance, Type.EmptyTypes)!);
         il.Emit(OpCodes.Ret);
         type.CreateType();
     }

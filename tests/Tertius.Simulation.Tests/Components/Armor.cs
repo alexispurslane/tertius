@@ -23,6 +23,7 @@ public sealed class Armor(float rating = 1, int priority = -10) : IComponent
             damage.Amount -= taken;
             Absorbed += taken;
         }
-        events.Of<Damage>().Where(static (ref Damage damage) => damage.Amount <= 0).Remove();
+
+        events.Of<Damage>().Where(static (ref damage) => damage.Amount <= 0).Remove();
     }
 }

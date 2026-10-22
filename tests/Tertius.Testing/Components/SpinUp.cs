@@ -24,10 +24,12 @@ public sealed class SpinUp(double angularAcceleration, double startTime) : IComp
     public EventMask Wants => EventMask.Of<Tick>();
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
-        self.MoveOnRails(SampleAt(self.PoseAtNextStepStartIn(self.Frame).Position, self.TimeAt(self.Tick + 2), self.DeltaTime));
+        self.MoveOnRails(SampleAt(self.PoseAtNextStepStartIn(self.Frame).Position, self.TimeAt(self.Tick + 2),
+            self.DeltaTime));
 
     /// <summary>The entity's rotation in its parent at <paramref name="time"/>.</summary>
-    public DQuaternion RotationAt(double time) => DQuaternion.FromAxisAngle(Double3.UnitY, 0.5 * angularAcceleration * Since(time) * Since(time));
+    public DQuaternion RotationAt(double time) =>
+        DQuaternion.FromAxisAngle(Double3.UnitY, 0.5 * angularAcceleration * Since(time) * Since(time));
 
     /// <summary>The entity's angular velocity in its parent's axes at <paramref name="time"/>, in rad/s.</summary>
     public Double3 AngularVelocityAt(double time) => new(0, angularAcceleration * Since(time), 0);
@@ -37,7 +39,7 @@ public sealed class SpinUp(double angularAcceleration, double startTime) : IComp
     /// <paramref name="place"/>: the rotation and the angular velocity there, and the mean angular acceleration over the step.
     /// </summary>
     public MotionSample SampleAt(Double3 place, double stepEnd, double step) =>
-        new(new DPose(place, RotationAt(stepEnd)), Double3.Zero, Double3.Zero, Double3.Zero, AngularVelocityAt(stepEnd),
+        new(new(place, RotationAt(stepEnd)), Double3.Zero, Double3.Zero, Double3.Zero, AngularVelocityAt(stepEnd),
             (AngularVelocityAt(stepEnd) - AngularVelocityAt(stepEnd - step)) / step);
 
     private double Since(double time) => Math.Max(0, time - startTime);
@@ -45,24 +47,25 @@ public sealed class SpinUp(double angularAcceleration, double startTime) : IComp
     /// <summary>
     /// A copy of <paramref name="desc"/>, for a spawn outside a tick in <paramref name="world"/>, whose entity spins up at
     /// <paramref name="angularAcceleration"/> from the world's time now: a <see cref="SpinUp"/> comes before the other
-    /// components, and the first motion intent is the sample of the entity's first step (see <see cref="SpawnDesc.FirstMove"/>),
+    /// components, and the first motion intent is the sample of the entity's first step (see <see cref="SpawnDesc.FirstMove"/>
+    /// ),
     /// so the entity turns from its first step on. The spawn takes no velocities: only the samples turn the entity.
     /// </summary>
     public static SpawnDesc Spawning(SpawnDesc desc, World world, double angularAcceleration)
     {
         var spin = new SpinUp(angularAcceleration, world.Time);
-        return new SpawnDesc
+        return new()
         {
             Frame = desc.Frame,
-            Pose = new DPose(desc.Pose.Position, spin.RotationAt(world.Time)),
-            FirstMove = new MotionIntent(spin.SampleAt(desc.Pose.Position, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
+            Pose = new(desc.Pose.Position, spin.RotationAt(world.Time)),
+            FirstMove = new(spin.SampleAt(desc.Pose.Position, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
             Body = desc.Body,
             Render = desc.Render,
             Components = [spin, .. desc.Components ?? []],
             AsFrame = desc.AsFrame,
             AttachTo = desc.AttachTo,
             AttachOffset = desc.AttachOffset,
-            Subscriptions = desc.Subscriptions,
+            Subscriptions = desc.Subscriptions
         };
     }
 }

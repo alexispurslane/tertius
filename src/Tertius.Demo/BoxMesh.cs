@@ -14,12 +14,6 @@ public readonly record struct Opening
         Through = through;
     }
 
-    /// <summary>An opening through a wall across X.</summary>
-    public static Opening ThroughX(BoundingBox bounds) => new(bounds, Vector3.UnitX);
-
-    /// <summary>An opening through a wall across Z.</summary>
-    public static Opening ThroughZ(BoundingBox bounds) => new(bounds, Vector3.UnitZ);
-
     public BoundingBox Bounds { get; }
 
     /// <summary>
@@ -27,6 +21,12 @@ public readonly record struct Opening
     /// opening has none.
     /// </summary>
     public Vector3 Through { get; }
+
+    /// <summary>An opening through a wall across X.</summary>
+    public static Opening ThroughX(BoundingBox bounds) => new(bounds, Vector3.UnitX);
+
+    /// <summary>An opening through a wall across Z.</summary>
+    public static Opening ThroughZ(BoundingBox bounds) => new(bounds, Vector3.UnitZ);
 }
 
 /// <summary>
@@ -42,10 +42,11 @@ public readonly record struct Opening
 /// </summary>
 public sealed class BoxMesh
 {
-    private static readonly Vector3[] Normals = [Vector3.UnitX, -Vector3.UnitX, Vector3.UnitY, -Vector3.UnitY, Vector3.UnitZ, -Vector3.UnitZ];
+    private static readonly Vector3[] Normals =
+        [Vector3.UnitX, -Vector3.UnitX, Vector3.UnitY, -Vector3.UnitY, Vector3.UnitZ, -Vector3.UnitZ];
 
-    private readonly List<Vertex> vertices = new();
-    private readonly List<uint> indices = new();
+    private readonly List<Vertex> vertices = [];
+    private readonly List<uint> indices = [];
 
     /// <summary>
     /// Adds the six faces of <paramref name="box"/>, facing out of it, or into it if <paramref name="inward"/>. A face
@@ -58,11 +59,11 @@ public sealed class BoxMesh
     {
         // Every face's holes, found and checked before any face is added, so that a wrong opening adds nothing.
         var holes = new List<BoundingBox>[Normals.Length];
-        var cut = new bool[openings.Length];
+        bool[] cut = new bool[openings.Length];
         for (int face = 0; face < Normals.Length; face++)
         {
             Vector3 side = Normals[face];
-            holes[face] = new List<BoundingBox>();
+            holes[face] = [];
             for (int i = 0; i < openings.Length; i++)
             {
                 // Only a face across the opening's axis. The default opening has no axis and cuts no face.
@@ -70,27 +71,28 @@ public sealed class BoxMesh
                 if (Vector3.Dot(side, axis) == 0)
                     continue;
                 float plane = Vector3.Dot(Vector3.Dot(side, axis) > 0 ? box.Max : box.Min, axis);
-                if (plane >= Vector3.Dot(openings[i].Bounds.Min, axis) && plane <= Vector3.Dot(openings[i].Bounds.Max, axis))
+                if (plane >= Vector3.Dot(openings[i].Bounds.Min, axis) &&
+                    plane <= Vector3.Dot(openings[i].Bounds.Max, axis))
                 {
                     holes[face].Add(openings[i].Bounds);
                     cut[i] = true;
                 }
             }
+
             CheckHoles(box, side, holes[face]);
         }
+
         for (int i = 0; i < openings.Length; i++)
-        {
             if (!cut[i])
-                throw new ArgumentException($"The opening {openings[i].Bounds} through {openings[i].Through} cuts no face of the box {box}.", nameof(openings));
-        }
+                throw new ArgumentException(
+                    $"The opening {openings[i].Bounds} through {openings[i].Through} cuts no face of the box {box}.",
+                    nameof(openings));
 
         for (int face = 0; face < Normals.Length; face++)
-        {
             if (holes[face].Count == 0)
                 Face(box, Normals[face], inward);
             else
                 HoledFace(box, Normals[face], inward, holes[face]);
-        }
         return this;
     }
 
@@ -101,12 +103,12 @@ public sealed class BoxMesh
     public BoxMesh Sides(Opening opening)
     {
         if (opening.Through == Vector3.Zero)
-            throw new ArgumentException("The opening goes through no axis. Make it with Opening.ThroughX or Opening.ThroughZ.", nameof(opening));
+            throw new ArgumentException(
+                "The opening goes through no axis. Make it with Opening.ThroughX or Opening.ThroughZ.",
+                nameof(opening));
         foreach (Vector3 normal in Normals)
-        {
             if (Vector3.Dot(normal, opening.Through) == 0)
                 Face(opening.Bounds, normal, inward: true);
-        }
         return this;
     }
 
@@ -130,12 +132,17 @@ public sealed class BoxMesh
         for (int i = 0; i < holes.Count; i++)
         {
             BoundingBox hole = holes[i];
-            bool inside = start < Along(side, hole.Min) && Along(side, hole.Min) < Along(side, hole.Max) && Along(side, hole.Max) < end
-                && box.Min.Y < hole.Min.Y && hole.Min.Y < hole.Max.Y && hole.Max.Y < box.Max.Y;
+            bool inside = start < Along(side, hole.Min) && Along(side, hole.Min) < Along(side, hole.Max) &&
+                          Along(side, hole.Max) < end
+                          && box.Min.Y < hole.Min.Y && hole.Min.Y < hole.Max.Y && hole.Max.Y < box.Max.Y;
             if (!inside)
-                throw new ArgumentException($"The opening {hole} must lie inside the face {side} of the box {box}, clear of its edges.", "openings");
+                throw new ArgumentException(
+                    $"The opening {hole} must lie inside the face {side} of the box {box}, clear of its edges.",
+                    "openings");
             if (i > 0 && Along(side, holes[i - 1].Max) >= Along(side, hole.Min))
-                throw new ArgumentException($"The openings {holes[i - 1]} and {hole} overlap along the face {side} of the box {box}. Openings in one face must stand in a row.", "openings");
+                throw new ArgumentException(
+                    $"The openings {holes[i - 1]} and {hole} overlap along the face {side} of the box {box}. Openings in one face must stand in a row.",
+                    "openings");
         }
     }
 
@@ -168,10 +175,11 @@ public sealed class BoxMesh
     {
         Vector3 normal = inward ? -side : side;
         bool acrossX = side.X != 0;
-        float plane = acrossX ? (side.X > 0 ? box.Max.X : box.Min.X) : (side.Z > 0 ? box.Max.Z : box.Min.Z);
-        Vector3 At(float h, float y) => acrossX ? new Vector3(plane, y, h) : new Vector3(h, y, plane);
+        float plane = acrossX ? side.X > 0 ? box.Max.X : box.Min.X : side.Z > 0 ? box.Max.Z : box.Min.Z;
+        Vector3 At(float h, float y) => acrossX ? new(plane, y, h) : new Vector3(h, y, plane);
 
         float bottom = holes.Min(hole => hole.Min.Y), top = holes.Max(hole => hole.Max.Y);
+
         // The points on the line across h at one side of a hole, from the band's bottom to its top.
         Vector3[] Column(float h, BoundingBox hole)
         {
@@ -183,8 +191,12 @@ public sealed class BoxMesh
             points.Add(At(h, top));
             return [.. points];
         }
+
         // The points on the band's bottom or top: every hole's start and end.
-        Vector3[] Row(float y) => [.. holes.SelectMany(hole => new[] { At(Along(side, hole.Min), y), At(Along(side, hole.Max), y) })];
+        Vector3[] Row(float y) =>
+        [
+            .. holes.SelectMany(hole => new[] { At(Along(side, hole.Min), y), At(Along(side, hole.Max), y) })
+        ];
 
         float start = Along(side, box.Min), end = Along(side, box.Max);
         Strip(normal, [At(start, box.Min.Y), At(start, box.Max.Y)], Column(Along(side, holes[0].Min), holes[0]));
@@ -196,9 +208,11 @@ public sealed class BoxMesh
             BoundingBox hole = holes[i];
             float holeStart = Along(side, hole.Min), holeEnd = Along(side, hole.Max);
             if (hole.Min.Y > bottom)
-                Strip(normal, [At(holeStart, bottom), At(holeStart, hole.Min.Y)], [At(holeEnd, bottom), At(holeEnd, hole.Min.Y)]);
+                Strip(normal, [At(holeStart, bottom), At(holeStart, hole.Min.Y)],
+                    [At(holeEnd, bottom), At(holeEnd, hole.Min.Y)]);
             if (hole.Max.Y < top)
-                Strip(normal, [At(holeStart, hole.Max.Y), At(holeStart, top)], [At(holeEnd, hole.Max.Y), At(holeEnd, top)]);
+                Strip(normal, [At(holeStart, hole.Max.Y), At(holeStart, top)],
+                    [At(holeEnd, hole.Max.Y), At(holeEnd, top)]);
             if (i + 1 < holes.Count)
                 Strip(normal, Column(holeEnd, hole), Column(Along(side, holes[i + 1].Min), holes[i + 1]));
         }
@@ -220,7 +234,8 @@ public sealed class BoxMesh
         int i = 0, j = 0;
         while (i < a.Length - 1 || j < b.Length - 1)
         {
-            bool alongA = j == b.Length - 1 || (i < a.Length - 1 && Vector3.Dot(a[i + 1], direction) <= Vector3.Dot(b[j + 1], direction));
+            bool alongA = j == b.Length - 1 ||
+                          (i < a.Length - 1 && Vector3.Dot(a[i + 1], direction) <= Vector3.Dot(b[j + 1], direction));
             if (alongA)
             {
                 Triangle(normal, a[i], a[i + 1], b[j]);
@@ -251,7 +266,8 @@ public sealed class BoxMesh
             // Each coordinate is the box's own minimum or maximum, never a sum, so faces that share a corner share it to
             // the bit.
             Vector3 sign = side + s * tangent + t * bitangent;
-            var corner = new Vector3(sign.X > 0 ? box.Max.X : box.Min.X, sign.Y > 0 ? box.Max.Y : box.Min.Y, sign.Z > 0 ? box.Max.Z : box.Min.Z);
+            var corner = new Vector3(sign.X > 0 ? box.Max.X : box.Min.X, sign.Y > 0 ? box.Max.Y : box.Min.Y,
+                sign.Z > 0 ? box.Max.Z : box.Min.Z);
             // Inward, the order runs backward, so it winds counterclockwise around the inward normal.
             corners[inward ? 3 - i : i] = corner;
         }
@@ -266,17 +282,18 @@ public sealed class BoxMesh
         if (Vector3.Dot(Vector3.Cross(b - a, c - a), normal) < 0)
             (b, c) = (c, b);
         // The texture runs along the face in meters, with u along the tangent and v against the bitangent.
-        Vector3 tangent = Vector3.Normalize(Vector3.Cross(MathF.Abs(normal.Y) > 0.5f ? Vector3.UnitX : Vector3.UnitY, normal));
+        Vector3 tangent =
+            Vector3.Normalize(Vector3.Cross(MathF.Abs(normal.Y) > 0.5f ? Vector3.UnitX : Vector3.UnitY, normal));
         Vector3 bitangent = Vector3.Cross(normal, tangent);
         foreach (Vector3 corner in (ReadOnlySpan<Vector3>)[a, b, c])
         {
             indices.Add((uint)vertices.Count);
-            vertices.Add(new Vertex
+            vertices.Add(new()
             {
                 Position = corner,
                 Normal = normal,
-                Tangent = new Vector4(tangent, 1),
-                TexCoord = new Vector2(Vector3.Dot(corner, tangent), -Vector3.Dot(corner, bitangent)),
+                Tangent = new(tangent, 1),
+                TexCoord = new(Vector3.Dot(corner, tangent), -Vector3.Dot(corner, bitangent))
             });
         }
     }

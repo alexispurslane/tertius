@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Reflection;
 using AwesomeAssertions;
 using static Tertius.Simulation.Tests.EntityTableSupport;
 
@@ -30,7 +31,8 @@ public class EntityTableTests
         EntityTable table = TableSupport.NewTable();
         Entity entity = table.Reserve();
 
-        table.Activate(entity, RowAt(2), new RenderData(), [new Recorder()], [EventMask.Of<Ping>()], null, Vector3.Zero, FrameHandle.Null);
+        table.Activate(entity, RowAt(2), new(), [new Recorder()], [EventMask.Of<Ping>()], null, Vector3.Zero,
+            FrameHandle.Null);
 
         table.IsAlive(entity).Should().BeTrue();
         table.LiveCount.Should().Be(1);
@@ -291,7 +293,7 @@ public class EntityTableTests
         table.TakeFirstTick(entity).Should().BeTrue();
         table.TakeFirstTick(entity).Should().BeFalse();
         table.WritableTransform(entity) = TestWorld.At(3);
-        table.WritableRender(entity).Scale = new Vector3(2);
+        table.WritableRender(entity).Scale = new(2);
         table.FrontRow(entity).Pose.Position.X.Should().Be(0);
         table.EndGameplay().Should().Be(0);
         table.GameplayWroteTransform(entity).Should().BeTrue();
@@ -331,8 +333,8 @@ public class EntityTableTests
         Entity a = table.SpawnLiveWith(TestWorld.Ball);
         Entity b = table.SpawnLiveWith(TestWorld.Ball);
         table.BeginTick(spawnPoolSize: 0);
-        table.WritableIntent(b).Force = new Vector3(2, 0, 0);
-        table.WritableIntent(a).Force = new Vector3(1, 0, 0);
+        table.WritableIntent(b).Force = new(2, 0, 0);
+        table.WritableIntent(a).Force = new(1, 0, 0);
         table.WritableIntent(b).Force += new Vector3(0, 5, 0);
         table.PendingIntent(a).Force.Should().Be(new Vector3(1, 0, 0));
         table.EndGameplay();
@@ -384,7 +386,7 @@ public class EntityTableTests
         EntityTable table = TableSupport.NewTable();
         Entity a = table.SpawnLiveWith(TestWorld.Ball);
         table.BeginTick(spawnPoolSize: 0);
-        table.WritableIntent(a).Force = new Vector3(1, 0, 0);
+        table.WritableIntent(a).Force = new(1, 0, 0);
         table.EndGameplay();
 
         table.SwapIntents(keep: false);
@@ -401,8 +403,8 @@ public class EntityTableTests
         Entity doomed = table.SpawnLiveWith(TestWorld.Ball);
         Entity survivor = table.SpawnLiveWith(TestWorld.Ball);
         table.BeginTick(spawnPoolSize: 0);
-        table.WritableIntent(doomed).Force = new Vector3(1, 0, 0);
-        table.WritableIntent(survivor).Force = new Vector3(2, 0, 0);
+        table.WritableIntent(doomed).Force = new(1, 0, 0);
+        table.WritableIntent(survivor).Force = new(2, 0, 0);
         table.EndGameplay();
         table.Release(doomed);
 
@@ -421,7 +423,7 @@ public class EntityTableTests
         EntityTable table = TableSupport.NewTable();
         Entity writer = table.SpawnLiveWith(TestWorld.Ball);
         table.BeginTick(spawnPoolSize: 0);
-        table.WritableIntent(writer).Force = new Vector3(1, 0, 0);
+        table.WritableIntent(writer).Force = new(1, 0, 0);
         table.EndGameplay();
         table.Release(writer);
         Entity successor = table.SpawnLiveWith(TestWorld.Ball);
@@ -441,7 +443,7 @@ public class EntityTableTests
         EntityTable table = TableSupport.NewTable();
         Entity writer = table.SpawnLiveWith(TestWorld.Ball);
         table.BeginTick(spawnPoolSize: 0);
-        table.WritableIntent(writer).Force = new Vector3(1, 0, 0);
+        table.WritableIntent(writer).Force = new(1, 0, 0);
         table.EndGameplay();
 
         table.Release(writer);
@@ -496,7 +498,9 @@ public class EntityTableTests
 
     private static void SetGeneration(EntityTable table, uint slot, uint generation)
     {
-        var generations = (uint[])typeof(EntityTable).GetField("generation", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(table)!;
+        uint[] generations =
+            (uint[])typeof(EntityTable).GetField("generation", BindingFlags.NonPublic | BindingFlags.Instance)!
+                .GetValue(table)!;
         generations[slot] = generation;
     }
 
@@ -541,6 +545,17 @@ public class EntityTableTests
         table.Chunks.Length.Should().Be(3);
     }
 
+    /// <summary>One tick in which the given entities write an intent, then the swap that makes the intents the physics input.</summary>
+    private static void WriteIntents(EntityTable table, params Entity[] writers)
+    {
+        table.BeginTick(spawnPoolSize: 0);
+        foreach (Entity writer in writers)
+            table.WritableIntent(writer).Force = new(1, 0, 0);
+        table.EndGameplay();
+        table.SwapIntents(keep: true);
+        table.EndTick();
+    }
+
 #if TERTIUS_CONTRACTS
     [Fact]
     public void LifecycleStepsOutOfOrderBreakAContract()
@@ -566,23 +581,12 @@ public class EntityTableTests
         EntityTable table = TableSupport.NewTable();
         Entity writer = table.SpawnLiveWith(TestWorld.Ball);
         table.BeginTick(spawnPoolSize: 0);
-        table.WritableIntent(writer).Force = new Vector3(1, 0, 0);
+        table.WritableIntent(writer).Force = new(1, 0, 0);
         table.EndGameplay();
 
-        Action endTick = () => table.EndTick();
+        Action endTick = table.EndTick;
 
         endTick.Should().Throw<ContractException>();
     }
 #endif
-
-    /// <summary>One tick in which the given entities write an intent, then the swap that makes the intents the physics input.</summary>
-    private static void WriteIntents(EntityTable table, params Entity[] writers)
-    {
-        table.BeginTick(spawnPoolSize: 0);
-        foreach (Entity writer in writers)
-            table.WritableIntent(writer).Force = new Vector3(1, 0, 0);
-        table.EndGameplay();
-        table.SwapIntents(keep: true);
-        table.EndTick();
-    }
 }

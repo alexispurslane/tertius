@@ -1,4 +1,3 @@
-using System.Numerics;
 using Tertius.Demo;
 using Tertius.Simulation;
 using static Tertius.Host.Tests.HostTesting;
@@ -17,28 +16,30 @@ public sealed class LaunchTests : IDisposable
 
     public LaunchTests()
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
-        Entity ship = world.Spawn(new SpawnDesc
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
+        Entity ship = world.Spawn(new()
         {
             Frame = space,
-            LinearVelocity = new Double3(20, 0, 0),
-            Body = new BodyDesc(new SphereShapeDesc(0.5f), Mass: 1000, LinearDamping: 0, AngularDamping: 0, InteriorShape: new SphereShapeDesc(0.05f)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
+            LinearVelocity = new(20, 0, 0),
+            Body = new(new SphereShapeDesc(0.5f), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
+                InteriorShape: new SphereShapeDesc(0.05f)),
+            AsFrame = new(FrameBounds.Sphere(100))
         });
         frame = world.GetOwnedFrame(ship);
-        crate = world.Spawn(new SpawnDesc
+        crate = world.Spawn(new()
         {
             Frame = frame,
-            Pose = new DPose(new Double3(0, 0, 10), DQuaternion.Identity),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.2f)), Mass: 5, LinearDamping: 0, AngularDamping: 0),
-            Components = [new Launchable()],
+            Pose = new(new(0, 0, 10), DQuaternion.Identity),
+            Body = new(new BoxShapeDesc(new(0.2f)), Mass: 5, LinearDamping: 0, AngularDamping: 0),
+            Components = [new Launchable()]
         });
         world.Tick();
     }
 
     public void Dispose() => world.Dispose();
 
-    private void Launch(Double3 velocity) => world.Post(Event.Create(crate, Entity.Null, new Launch { Velocity = velocity }));
+    private void Launch(Double3 velocity) =>
+        world.Post(Event.Create(crate, Entity.Null, new Launch { Velocity = velocity }));
 
     private void Ticks(int count)
     {
@@ -49,19 +50,19 @@ public sealed class LaunchTests : IDisposable
     [Fact]
     public void ALaunchSetsTheBodysVelocityRelativeToItsFrame()
     {
-        Launch(new Double3(0, 0, -60));
+        Launch(new(0, 0, -60));
         Ticks(3);
 
-        Double3.Distance(world.VelocityIn(crate, frame), new Double3(0, 0, -60)).Should().BeLessThan(1e-4);
+        Double3.Distance(world.VelocityIn(crate, frame), new(0, 0, -60)).Should().BeLessThan(1e-4);
     }
 
     [Fact]
     public void TheLastLaunchOfATickCounts()
     {
-        Launch(new Double3(0, 0, -60));
-        Launch(new Double3(0, 5, 0));
+        Launch(new(0, 0, -60));
+        Launch(new(0, 5, 0));
         Ticks(3);
 
-        Double3.Distance(world.VelocityIn(crate, frame), new Double3(0, 5, 0)).Should().BeLessThan(1e-4);
+        Double3.Distance(world.VelocityIn(crate, frame), new(0, 5, 0)).Should().BeLessThan(1e-4);
     }
 }

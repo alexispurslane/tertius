@@ -58,7 +58,9 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
 
     // The crate that the person carries, and its drawn copy. The hands are free while the copy is null.
     private CrateSpec carried;
+
     private Entity copy;
+
     // Whether the left mouse button charges a throw, and the tick that handled its press.
     private bool charging;
     private long chargeStart;
@@ -88,7 +90,8 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
                 // The left button charges a throw when it goes down with a crate in hand, and throws when it goes up.
                 switch (e.As<InputEvent>())
                 {
-                    case MouseButtonChanged(var button, true) when (MouseButton)button == MouseButton.Left && !copy.IsNull:
+                    case MouseButtonChanged(var button, true)
+                        when (MouseButton)button == MouseButton.Left && !copy.IsNull:
                         charging = true;
                         chargeStart = self.Tick;
                         break;
@@ -105,16 +108,19 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
     {
         carried = spec;
         outbox.Send(crate, new CrateTaken());
-        copy = self.Spawn(spec.HeldCopy(self.Frame, self.Entity, self.Render.ViewOffset, new Pose(Hold, Quaternion.Identity)));
+        copy = self.Spawn(
+            spec.HeldCopy(self.Frame, self.Entity, self.Render.ViewOffset, new(Hold, Quaternion.Identity)));
     }
 
     private void Throw(Self self, Outbox outbox)
     {
         // Stryker disable once Arithmetic : while ChargeSeconds is 1, dividing by it and multiplying by it give the same speed.
-        float speed = MathF.Min(MaxThrowSpeed, MaxThrowSpeed * (self.Tick - chargeStart) * self.DeltaTime / ChargeSeconds);
+        float speed = MathF.Min(MaxThrowSpeed,
+            MaxThrowSpeed * (self.Tick - chargeStart) * self.DeltaTime / ChargeSeconds);
         // The view and its direction, in the person's axes.
         Pose view = self.Render.ViewOffset;
-        Release(self, outbox, carried, copy, body, view.Position, Vector3.Transform(-Vector3.UnitZ, view.Rotation), view.Rotation, speed);
+        Release(self, outbox, carried, copy, body, view.Position, Vector3.Transform(-Vector3.UnitZ, view.Rotation),
+            view.Rotation, speed);
         copy = Entity.Null;
     }
 
@@ -137,7 +143,8 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
     /// tick's step, before the new crate becomes live at the end of the tick. So the crate starts from where the
     /// thrower's velocity takes it in one tick. Returns the new crate.
     /// </summary>
-    public static Entity Release(Self self, Outbox outbox, CrateSpec carried, Entity copy, CapsuleShapeDesc body, Vector3 eye, Vector3 aim, Quaternion turn,
+    public static Entity Release(Self self, Outbox outbox, CrateSpec carried, Entity copy, CapsuleShapeDesc body,
+        Vector3 eye, Vector3 aim, Quaternion turn,
         float speed, params IComponent[] more)
     {
         // The thrower's pose at the end of this tick's step, as far as its velocity tells.
@@ -161,7 +168,7 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
     private static float Clearance(Vector3 eye, Vector3 aim, float halfHeight, float radius)
     {
         // Stryker disable once Equality : only an eye at exactly the clearance from the capsule reaches the boundary, and a view away from the capsule gets 0 there too.
-        if (Vector3.Distance(eye, new Vector3(0, Math.Clamp(eye.Y, -halfHeight, halfHeight), 0)) >= radius)
+        if (Vector3.Distance(eye, new(0, Math.Clamp(eye.Y, -halfHeight, halfHeight), 0)) >= radius)
             return 0;
         // The aim leaves the capsule through its round side, the cylinder about Y, if the point where it leaves the
         // cylinder lies between the ends of the segment.
@@ -176,6 +183,7 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
                 return side;
             end = MathF.Sign(y) * halfHeight;
         }
+
         // Otherwise it leaves through the rounded end on that side, a sphere about that end of the segment.
         Vector3 fromEnd = eye - new Vector3(0, end, 0);
         float along = Vector3.Dot(aim, fromEnd);

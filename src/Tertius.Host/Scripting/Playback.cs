@@ -30,7 +30,9 @@ public interface IPlayback
 public sealed class HeadlessPlayback : IPlayback, IDisposable
 {
     private readonly IRenderer renderer;
+
     private readonly CaptureTarget target;
+
     // The sink of the video target for the whole run, or null for a PNG folder.
     private readonly FfmpegVideoSink? video;
 
@@ -40,7 +42,8 @@ public sealed class HeadlessPlayback : IPlayback, IDisposable
     /// folder of the video cannot be made.
     /// </summary>
     /// <exception cref="ArgumentException"><paramref name="target"/> is the default value, which holds no case.</exception>
-    public HeadlessPlayback(IRenderer renderer, ScriptWindow size, CaptureTarget target) : this(renderer, size, target, FfmpegVideoSink.Start)
+    public HeadlessPlayback(IRenderer renderer, ScriptWindow size, CaptureTarget target) : this(renderer, size, target,
+        FfmpegVideoSink.Start)
     {
     }
 
@@ -48,7 +51,8 @@ public sealed class HeadlessPlayback : IPlayback, IDisposable
     /// <see cref="HeadlessPlayback(IRenderer, ScriptWindow, CaptureTarget)"/> with the function that starts the video's
     /// ffmpeg, so that the command can take it from a test.
     /// </summary>
-    internal HeadlessPlayback(IRenderer renderer, ScriptWindow size, CaptureTarget target, Func<VideoFile, ScriptWindow, FfmpegVideoSink> startVideo)
+    internal HeadlessPlayback(IRenderer renderer, ScriptWindow size, CaptureTarget target,
+        Func<VideoFile, ScriptWindow, FfmpegVideoSink> startVideo)
     {
         ArgumentNullException.ThrowIfNull(renderer);
         ArgumentNullException.ThrowIfNull(size);
@@ -74,7 +78,7 @@ public sealed class HeadlessPlayback : IPlayback, IDisposable
         {
             PngFolder folder => new PngCaptureSink(folder.PathOf(name)),
             VideoFile => video!,
-            _ => throw new InvalidOperationException($"The headless playback has no sink for the target {target}."),
+            _ => throw new InvalidOperationException($"The headless playback has no sink for the target {target}.")
         };
         world.PublishRenderSnapshot();
         // A snapshot was published just now, so the latest one is that one.

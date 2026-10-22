@@ -8,8 +8,11 @@ namespace Tertius.Rendering;
 /// <list type="table">
 /// <item><term>set 0, frame</term><description>frame constants, instances, materials, lights, occluders, material sampler,
 /// frame outlines, puffs. One per frame in flight.</description></item>
-/// <item><term>set 1, textures</term><description>the bindless texture array: variable count, partially bound, update-after-bind. One per frame in flight.</description></item>
-/// <item><term>set 2, G-buffer</term><description>the G-buffer targets for the lighting and transparent passes (rewritten on resize),
+/// <item><term>set 1, textures</term>
+/// <description>the bindless texture array: variable count, partially bound, update-after-bind. One per frame in flight.</description>
+/// </item>
+/// <item><term>set 2, G-buffer</term>
+/// <description>the G-buffer targets for the lighting and transparent passes (rewritten on resize),
 /// the sun shadow cascades (binding 5) and their comparison sampler (binding 6, immutable), which the vertex stage also reads
 /// for the lit puffs. One.</description></item>
 /// <item><term>set 3, impostor atlas</term><description>the impostor atlas's color and depth-offset arrays and their
@@ -39,22 +42,25 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             new(4, DescriptorType.StorageBuffer, 1, graphics),
             new(5, DescriptorType.Sampler, 1, graphics),
             new(6, DescriptorType.StorageBuffer, 1, graphics),
-            new(7, DescriptorType.StorageBuffer, 1, graphics),
+            new(7, DescriptorType.StorageBuffer, 1, graphics)
         ];
         FrameSet = CreateLayout(frame, "frame set");
 
         // Textures live in their own set because only update-after-bind layouts may hold more than
         // maxPerStageDescriptorSampledImages (256 on MoltenVK) descriptors.
-        Span<DescriptorSetLayoutBinding> textures = [new(0, DescriptorType.SampledImage, (uint)TextureStore.Capacity, ShaderStageFlags.FragmentBit)];
-        DescriptorBindingFlags textureFlags = DescriptorBindingFlags.PartiallyBoundBit | DescriptorBindingFlags.VariableDescriptorCountBit |
+        Span<DescriptorSetLayoutBinding> textures =
+            [new(0, DescriptorType.SampledImage, TextureStore.Capacity, ShaderStageFlags.FragmentBit)];
+        DescriptorBindingFlags textureFlags = DescriptorBindingFlags.PartiallyBoundBit |
+                                              DescriptorBindingFlags.VariableDescriptorCountBit |
                                               DescriptorBindingFlags.UpdateAfterBindBit;
         var bindingFlags = new DescriptorSetLayoutBindingFlagsCreateInfo
         {
             SType = StructureType.DescriptorSetLayoutBindingFlagsCreateInfo,
             BindingCount = 1,
-            PBindingFlags = &textureFlags,
+            PBindingFlags = &textureFlags
         };
-        TextureSet = CreateLayout(textures, "texture set", &bindingFlags, DescriptorSetLayoutCreateFlags.UpdateAfterBindPoolBit);
+        TextureSet = CreateLayout(textures, "texture set", &bindingFlags,
+            DescriptorSetLayoutCreateFlags.UpdateAfterBindPoolBit);
 
         ShadowSampler = CreateShadowSampler();
         // The comparison sampler is immutable: portability implementations may not allow updating comparison
@@ -69,7 +75,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             new(4, DescriptorType.SampledImage, 1, ShaderStageFlags.FragmentBit),
             // The vertex shader of the lit puffs samples the cascades once per puff, at its center.
             new(5, DescriptorType.SampledImage, 1, graphics),
-            new(6, DescriptorType.Sampler, 1, graphics, &shadowSampler),
+            new(6, DescriptorType.Sampler, 1, graphics, &shadowSampler)
         ];
         GBufferSet = CreateLayout(gbuffer, "g-buffer set");
 
@@ -82,7 +88,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         [
             new(0, DescriptorType.SampledImage, 1, ShaderStageFlags.FragmentBit),
             new(1, DescriptorType.SampledImage, 1, ShaderStageFlags.FragmentBit),
-            new(2, DescriptorType.Sampler, 1, ShaderStageFlags.FragmentBit, &atlasSampler),
+            new(2, DescriptorType.Sampler, 1, ShaderStageFlags.FragmentBit, &atlasSampler)
         ];
         AtlasSet = CreateLayout(atlas, "impostor atlas set");
 
@@ -90,9 +96,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         DescriptorSetLayout* sceneSets = stackalloc[] { FrameSet, TextureSet, GBufferSet, AtlasSet };
         SceneLayout = CreatePipelineLayout(sceneSets, 3, drawPush, "scene layout");
         ImpostorLayout = CreatePipelineLayout(sceneSets, 4, drawPush, "impostor layout");
-        OverlayLayout = CreatePipelineLayout(sceneSets, 3, new PushConstantRange(ShaderStageFlags.FragmentBit, 0, (uint)Unsafe.SizeOf<OutlinePushConstants>()), "overlay layout");
+        OverlayLayout = CreatePipelineLayout(sceneSets, 3,
+            new(ShaderStageFlags.FragmentBit, 0, (uint)Unsafe.SizeOf<OutlinePushConstants>()), "overlay layout");
         DescriptorSetLayout* postSets = stackalloc[] { PostSet };
-        PostLayout = CreatePipelineLayout(postSets, 1, new PushConstantRange(ShaderStageFlags.FragmentBit, 0, (uint)Unsafe.SizeOf<ToneMapPushConstants>()), "post layout");
+        PostLayout = CreatePipelineLayout(postSets, 1,
+            new(ShaderStageFlags.FragmentBit, 0, (uint)Unsafe.SizeOf<ToneMapPushConstants>()), "post layout");
 
         uint frames = (uint)framesInFlight;
         Span<DescriptorPoolSize> sizes =
@@ -101,39 +109,47 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             new(DescriptorType.StorageBuffer, 6 * frames),
             // One per frame set, and the immutable samplers of the G-buffer and atlas sets.
             new(DescriptorType.Sampler, frames + 2),
-            new(DescriptorType.SampledImage, 16),
+            new(DescriptorType.SampledImage, 16)
         ];
         pool = CreatePool(sizes, frames + 3, 0, "descriptor pool");
-        Span<DescriptorPoolSize> textureSizes = [new(DescriptorType.SampledImage, frames * (uint)TextureStore.Capacity)];
-        texturePool = CreatePool(textureSizes, frames, DescriptorPoolCreateFlags.UpdateAfterBindBit, "texture descriptor pool");
+        Span<DescriptorPoolSize> textureSizes = [new(DescriptorType.SampledImage, frames * TextureStore.Capacity)];
+        texturePool = CreatePool(textureSizes, frames, DescriptorPoolCreateFlags.UpdateAfterBindBit,
+            "texture descriptor pool");
     }
 
     public DescriptorSetLayout FrameSet { get; }
     public DescriptorSetLayout TextureSet { get; }
     public DescriptorSetLayout GBufferSet { get; }
     public DescriptorSetLayout PostSet { get; }
+
     /// <summary>
     /// The shadow map sampler: hardware PCF (linear filtering of GREATER_OR_EQUAL comparisons, so a receiver at least
     /// as near the sun as the stored caster is lit), clamped to the edge.
     /// </summary>
     public Sampler ShadowSampler { get; }
+
     /// <summary>The impostor atlas: color and depth offset (2D arrays) and <see cref="AtlasSampler"/>.</summary>
     public DescriptorSetLayout AtlasSet { get; }
+
     /// <summary>Trilinear filtering, clamped to the edge, for the impostor atlas.</summary>
     public Sampler AtlasSampler { get; }
+
     /// <summary>Sets 0 to 2 plus <see cref="DrawPushConstants"/> for the vertex and fragment stages.</summary>
     public PipelineLayout SceneLayout { get; }
+
     /// <summary>
     /// <see cref="SceneLayout"/> plus the atlas set as set 3, for impostor billboards. The two have the same push
     /// constants and sets 0 to 2, so binding set 3 with this layout keeps the scene sets bound.
     /// </summary>
     public PipelineLayout ImpostorLayout { get; }
+
     /// <summary>
     /// Sets 0 to 2, as in <see cref="SceneLayout"/>, plus <see cref="OutlinePushConstants"/> for the fragment stage, for
     /// the outline pass. Its push constants differ, so it is not compatible with <see cref="SceneLayout"/>: the pass binds
     /// the scene sets again with it.
     /// </summary>
     public PipelineLayout OverlayLayout { get; }
+
     /// <summary>The post set plus <see cref="ToneMapPushConstants"/>.</summary>
     public PipelineLayout PostLayout { get; }
 
@@ -149,7 +165,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         {
             SType = StructureType.DescriptorSetVariableDescriptorCountAllocateInfo,
             DescriptorSetCount = 1,
-            PDescriptorCounts = &count,
+            PDescriptorCounts = &count
         };
         return Allocate(texturePool, TextureSet, &variable);
     }
@@ -164,7 +180,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             DstBinding = binding,
             DescriptorCount = 1,
             DescriptorType = type,
-            PBufferInfo = &info,
+            PBufferInfo = &info
         };
         device.Vk.UpdateDescriptorSets(device.Device, 1, &write, 0, null);
     }
@@ -179,7 +195,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             DstBinding = binding,
             DescriptorCount = 1,
             DescriptorType = DescriptorType.Sampler,
-            PImageInfo = &info,
+            PImageInfo = &info
         };
         device.Vk.UpdateDescriptorSets(device.Device, 1, &write, 0, null);
     }
@@ -196,7 +212,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             DstArrayElement = arrayElement,
             DescriptorCount = 1,
             DescriptorType = DescriptorType.SampledImage,
-            PImageInfo = &info,
+            PImageInfo = &info
         };
         device.Vk.UpdateDescriptorSets(device.Device, 1, &write, 0, null);
     }
@@ -215,7 +231,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             CompareEnable = true,
             CompareOp = CompareOp.GreaterOrEqual,
             MinLod = 0f,
-            MaxLod = 0f,
+            MaxLod = 0f
         };
         device.Vk.CreateSampler(device.Device, &info, null, out Sampler sampler).Check("vkCreateSampler");
         device.SetName(ObjectType.Sampler, sampler.Handle, "shadow comparison sampler");
@@ -234,7 +250,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             AddressModeV = SamplerAddressMode.ClampToEdge,
             AddressModeW = SamplerAddressMode.ClampToEdge,
             MinLod = 0f,
-            MaxLod = Vk.LodClampNone,
+            MaxLod = Vk.LodClampNone
         };
         device.Vk.CreateSampler(device.Device, &info, null, out Sampler sampler).Check("vkCreateSampler");
         device.SetName(ObjectType.Sampler, sampler.Handle, "impostor atlas sampler");
@@ -252,15 +268,17 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 PNext = next,
                 Flags = flags,
                 BindingCount = (uint)bindings.Length,
-                PBindings = p,
+                PBindings = p
             };
-            device.Vk.CreateDescriptorSetLayout(device.Device, &info, null, out DescriptorSetLayout layout).Check("vkCreateDescriptorSetLayout");
+            device.Vk.CreateDescriptorSetLayout(device.Device, &info, null, out DescriptorSetLayout layout)
+                .Check("vkCreateDescriptorSetLayout");
             device.SetName(ObjectType.DescriptorSetLayout, layout.Handle, name);
             return layout;
         }
     }
 
-    private PipelineLayout CreatePipelineLayout(DescriptorSetLayout* sets, uint count, PushConstantRange push, string name)
+    private PipelineLayout CreatePipelineLayout(DescriptorSetLayout* sets, uint count, PushConstantRange push,
+        string name)
     {
         var info = new PipelineLayoutCreateInfo
         {
@@ -268,14 +286,16 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             SetLayoutCount = count,
             PSetLayouts = sets,
             PushConstantRangeCount = 1,
-            PPushConstantRanges = &push,
+            PPushConstantRanges = &push
         };
-        device.Vk.CreatePipelineLayout(device.Device, &info, null, out PipelineLayout layout).Check("vkCreatePipelineLayout");
+        device.Vk.CreatePipelineLayout(device.Device, &info, null, out PipelineLayout layout)
+            .Check("vkCreatePipelineLayout");
         device.SetName(ObjectType.PipelineLayout, layout.Handle, name);
         return layout;
     }
 
-    private DescriptorPool CreatePool(Span<DescriptorPoolSize> sizes, uint maxSets, DescriptorPoolCreateFlags flags, string name)
+    private DescriptorPool CreatePool(Span<DescriptorPoolSize> sizes, uint maxSets, DescriptorPoolCreateFlags flags,
+        string name)
     {
         fixed (DescriptorPoolSize* p = sizes)
         {
@@ -285,9 +305,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 Flags = flags,
                 MaxSets = maxSets,
                 PoolSizeCount = (uint)sizes.Length,
-                PPoolSizes = p,
+                PPoolSizes = p
             };
-            device.Vk.CreateDescriptorPool(device.Device, &info, null, out DescriptorPool created).Check("vkCreateDescriptorPool");
+            device.Vk.CreateDescriptorPool(device.Device, &info, null, out DescriptorPool created)
+                .Check("vkCreateDescriptorPool");
             device.SetName(ObjectType.DescriptorPool, created.Handle, name);
             return created;
         }
@@ -301,7 +322,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             PNext = next,
             DescriptorPool = from,
             DescriptorSetCount = 1,
-            PSetLayouts = &layout,
+            PSetLayouts = &layout
         };
         device.Vk.AllocateDescriptorSets(device.Device, &info, out DescriptorSet set).Check("vkAllocateDescriptorSets");
         return set;

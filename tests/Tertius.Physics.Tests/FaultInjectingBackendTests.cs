@@ -17,10 +17,15 @@ public class FaultInjectingBackendTests
     /// </summary>
     private static ulong RunShipWithContactAndHandOff(World world)
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         Scenes.ShipScene ship = Scenes.ShipWithInterior(world, space);
-        world.Spawn(new SpawnDesc { Frame = ship.Interior, Pose = At(-3, Scenes.DeckTop + 1), LinearVelocity = new Vector3(0, -4, 0), Body = Ball() });
-        world.Spawn(new SpawnDesc { Frame = ship.Interior, Pose = At(3), LinearVelocity = new Vector3(0, 0, 12), Body = Ball() });
+        world.Spawn(new()
+        {
+            Frame = ship.Interior, Pose = At(-3, Scenes.DeckTop + 1), LinearVelocity = new Vector3(0, -4, 0),
+            Body = Ball()
+        });
+        world.Spawn(
+            new() { Frame = ship.Interior, Pose = At(3), LinearVelocity = new Vector3(0, 0, 12), Body = Ball() });
 
         Tick(world, 360);
 
@@ -32,7 +37,9 @@ public class FaultInjectingBackendTests
     {
         ulong onBareJolt;
         using (World world = NewWorld(out _))
+        {
             onBareJolt = RunShipWithContactAndHandOff(world);
+        }
 
         ulong onTheWrapper;
         FaultInjectingBackend faults;
@@ -42,8 +49,10 @@ public class FaultInjectingBackendTests
             world.Errors.Should().BeEmpty();
         }
 
-        faults.Outputs.SelectMany(output => output.Contacts).Should().NotBeEmpty("the scene must make a contact, or the equal hashes prove less");
-        faults.Outputs.SelectMany(output => output.HandOffs).Should().NotBeEmpty("the scene must hand a body off, or the equal hashes prove less");
+        faults.Outputs.SelectMany(output => output.Contacts).Should()
+            .NotBeEmpty("the scene must make a contact, or the equal hashes prove less");
+        faults.Outputs.SelectMany(output => output.HandOffs).Should()
+            .NotBeEmpty("the scene must hand a body off, or the equal hashes prove less");
         onTheWrapper.Should().Be(onBareJolt);
     }
 
@@ -57,7 +66,8 @@ public class FaultInjectingBackendTests
 
         faults.Outputs.Should().HaveCount(30, "the World steps physics once in every tick");
         BodyState sent = faults.Outputs[^1].Bodies.Single(body => body.Entity == scene.Ball);
-        world.PoseInOwnFrame(scene.Ball).Should().Be(sent.Pose, "the World takes the pose of the body from the output that Jolt sent");
+        world.PoseInOwnFrame(scene.Ball).Should().Be(sent.Pose,
+            "the World takes the pose of the body from the output that Jolt sent");
         world.VelocityInOwnFrame(scene.Ball).Should().Be(sent.LinearVelocity);
     }
 
@@ -68,11 +78,11 @@ public class FaultInjectingBackendTests
         Scenes.FloorAndBall scene = Scenes.FloorWithBall(world);
 
         world.Tick();
-        Entity second = world.Spawn(new SpawnDesc { Frame = scene.Ground, Pose = At(5, 3), Body = Ball() });
+        Entity second = world.Spawn(new() { Frame = scene.Ground, Pose = At(5, 3), Body = Ball() });
         world.Tick();
         Tick(world, 5);
 
-        List<PhysicsChanges> withChanges = faults.AppliedChanges.Where(HoldsAChange).ToList();
+        List<PhysicsChanges> withChanges = [.. faults.AppliedChanges.Where(HoldsAChange)];
         withChanges.Should().HaveCount(2, "the World sends a batch that holds a change only when it has one");
         withChanges[0].FramesCreated.Should().Equal(scene.Ground);
         withChanges[0].BodiesCreated.Select(create => create.Entity).Should().BeEquivalentTo([scene.Floor, scene.Ball]);
@@ -83,7 +93,8 @@ public class FaultInjectingBackendTests
 
     /// <summary>True when <paramref name="batch"/> holds a structural change. A batch that holds none is the last batch of a numeric update.</summary>
     private static bool HoldsAChange(PhysicsChanges batch) =>
-        batch.FramesCreated.Count > 0 || batch.BodiesDestroyed.Count > 0 || batch.FramesDestroyed.Count > 0 || batch.FramesShifted.Count > 0 ||
+        batch.FramesCreated.Count > 0 || batch.BodiesDestroyed.Count > 0 || batch.FramesDestroyed.Count > 0 ||
+        batch.FramesShifted.Count > 0 ||
         batch.BodiesMoved.Count > 0 || batch.BodiesCreated.Count > 0;
 
     /// <summary>The ball is released 0.5 m above the floor, so it lands in 0.32 s, and then lies on the floor.</summary>
@@ -104,13 +115,16 @@ public class FaultInjectingBackendTests
     [Fact]
     public void AnEditOfTheOutputReachesTheWorldAndTheRecordInEveryStep()
     {
-        CollisionLog withoutEdit = ContactsHeardByABallOnTheFloor(removeContacts: false, out List<PhysicsStepOutput> unedited);
-        CollisionLog withEdit = ContactsHeardByABallOnTheFloor(removeContacts: true, out List<PhysicsStepOutput> edited);
+        CollisionLog withoutEdit =
+            ContactsHeardByABallOnTheFloor(removeContacts: false, out List<PhysicsStepOutput> unedited);
+        CollisionLog withEdit =
+            ContactsHeardByABallOnTheFloor(removeContacts: true, out List<PhysicsStepOutput> edited);
 
         withoutEdit.Seen.Should().NotBeEmpty("the ball landed on the floor");
         unedited.SelectMany(output => output.Contacts).Should().NotBeEmpty();
         withEdit.Seen.Should().BeEmpty("the edit took every contact out of the output before the World saw it");
-        edited.SelectMany(output => output.Contacts).Should().BeEmpty("the record holds the output as the World received it");
+        edited.SelectMany(output => output.Contacts).Should()
+            .BeEmpty("the record holds the output as the World received it");
     }
 
     [Fact]
@@ -122,10 +136,10 @@ public class FaultInjectingBackendTests
         Tick(world, 10);
         faults.Outputs.SelectMany(output => output.ContactsEnded).Should().BeEmpty("the ball rests on the floor");
 
-        pilot.Once = body => body.SetVelocity(new Double3(0, 3, 0));
+        pilot.Once = body => body.SetVelocity(new(0, 3, 0));
         Tick(world, 10);
 
-        faults.Outputs.SelectMany(output => output.ContactsEnded).Should().Equal([new ContactEnded(scene.Floor, scene.Ball)],
+        faults.Outputs.SelectMany(output => output.ContactsEnded).Should().Equal([new(scene.Floor, scene.Ball)],
             "the ball left the floor once, and the record keeps the ended contact as the World received it");
     }
 
@@ -139,7 +153,8 @@ public class FaultInjectingBackendTests
         world.Tick();
         Tick(world, 5);
 
-        world.Errors.Should().ContainSingle().Which.Should().Contain("the physics step failed").And.Contain("the step broke");
+        world.Errors.Should().ContainSingle().Which.Should().Contain("the physics step failed").And
+            .Contain("the step broke");
         faults.ThrowFromStep.Should().BeNull("the exception is thrown once");
         faults.Outputs.Should().HaveCount(5, "the step that threw has no entry");
     }
@@ -152,12 +167,14 @@ public class FaultInjectingBackendTests
         faults.ThrowFromApplyChanges = new InvalidOperationException("the batch broke");
 
         world.Tick();
-        Entity ball = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 5), Body = Ball() });
+        Entity ball = world.Spawn(new() { Frame = ground, Pose = At(0, 5), Body = Ball() });
         world.Tick();
 
-        world.Errors.Should().ContainSingle().Which.Should().Contain("failed to apply changes").And.Contain("the batch broke");
+        world.Errors.Should().ContainSingle().Which.Should().Contain("failed to apply changes").And
+            .Contain("the batch broke");
         faults.ThrowFromApplyChanges.Should().BeNull("the exception is thrown once");
-        faults.AppliedChanges.Where(HoldsAChange).Should().ContainSingle("the batch that threw has no entry, and the next batch applied").Which
+        faults.AppliedChanges.Where(HoldsAChange).Should()
+            .ContainSingle("the batch that threw has no entry, and the next batch applied").Which
             .BodiesCreated.Select(create => create.Entity).Should().Equal(ball);
         faults.Jolt.TryGetBodyFrame(ball, out FrameHandle frame).Should().BeTrue();
         frame.Should().Be(ground);
@@ -166,14 +183,16 @@ public class FaultInjectingBackendTests
     [Fact]
     public void EveryStepIsRecordedWithItsTickItsTimeAndTheThreadThatRanIt()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, configure: options => options.TickRate = 64);
+        using World world =
+            NewWorldWithFaults(out FaultInjectingBackend faults, configure: options => options.TickRate = 64);
         Scenes.FloorWithBall(world);
 
         Tick(world, 3);
 
         faults.Steps.Select(step => step.Tick).Should().Equal(0L, 1, 2);
         faults.Steps.Select(step => step.Time).Should().Equal(0, 1.0 / 64, 2.0 / 64);
-        faults.Steps.Select(step => step.ThreadId).Distinct().Should().ContainSingle().Which.Should().NotBe(Environment.CurrentManagedThreadId, "the World steps physics on a thread of its own");
+        faults.Steps.Select(step => step.ThreadId).Distinct().Should().ContainSingle().Which.Should()
+            .NotBe(Environment.CurrentManagedThreadId, "the World steps physics on a thread of its own");
     }
 
     [Fact]
@@ -193,12 +212,14 @@ public class FaultInjectingBackendTests
     public void TheIntentOfAnEntityIsRecordedInTheStepAfterTheTickThatWroteItAsACopy()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        var pilot = new Pilot { EveryTick = body => body.AddForce(new Vector3(0, 0, 4)) };
+        var pilot = new Pilot { EveryTick = body => body.AddForce(new(0, 0, 4)) };
         Scenes.FloorAndBall scene = Scenes.FloorWithBall(world, ballComponents: pilot);
 
         Tick(world, 4);
 
-        faults.Intents.Select(record => (record.Tick, record.Entity)).Should().Equal((1L, scene.Ball), (2L, scene.Ball), (3L, scene.Ball));
-        faults.Intents.Should().OnlyContain(record => record.Intent.Force == new Vector3(0, 0, 4), "the intent of one tick does not pile up on the next");
+        faults.Intents.Select(record => (record.Tick, record.Entity)).Should()
+            .Equal((1L, scene.Ball), (2L, scene.Ball), (3L, scene.Ball));
+        faults.Intents.Should().OnlyContain(record => record.Intent.Force == new Vector3(0, 0, 4),
+            "the intent of one tick does not pile up on the next");
     }
 }

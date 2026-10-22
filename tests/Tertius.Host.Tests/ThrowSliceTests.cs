@@ -1,4 +1,3 @@
-using System.Numerics;
 using Tertius.Demo;
 using Tertius.Host.Scripting;
 
@@ -21,31 +20,32 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
     // 1.85 m below it. The cabin's gravity changes a velocity by 9.81 m/s² / 60 = 0.1635 m/s in a tick.
     private const double CrateOnTheFloor = -3.3, Eye = -1.85;
     private const float GravityPerTick = 9.81f / 60;
-
-    // A method call, because an expression tree cannot hold the conversion of a case to its union.
-    private static MessageTarget EntityTarget(string id) => new ToEntity(id);
+    private const double HandOffTolerance = 0.25;
 
     // How far outside the ship's bubble the crate's center lies when the crate passes into earth, in meters, measured along
     // the ray from the ship's center: the radius of the crate's bounding sphere, 0.35 m, and the margin of 1.11 m, 2 percent
     // of the bubble's largest radius, which is larger than that sphere. The dumps around the hand-off lie within
     // HandOffTolerance of it.
     private static readonly double HandOffDistance = 0.2 * Math.Sqrt(3) + ShipBubble.Margin;
-    private const double HandOffTolerance = 0.25;
 
     // The dumps of the run after the throw, grouped by the frame that the thrown crate is in.
     private static readonly string[] InShip = ["thrown", "flying", "leaving"];
     private static readonly string[] InEarth = ["in-earth", "beside-the-ship"];
-
-    private StateDump Dump(string name) => run.Result.Dump(name);
-
-    /// <summary>The ids in the dump that the dump "in-chamber" does not have: the entities that the person spawned since then.</summary>
-    private IEnumerable<string> NewIn(string name) => Dump(name).Entities.Select(e => e.Id).Except(Dump("in-chamber").Entities.Select(e => e.Id));
 
     /// <summary>The id of the drawn copy, the one entity that the person spawned when it took the crate.</summary>
     private string Copy => NewIn("carrying").Should().ContainSingle().Which;
 
     /// <summary>The id of the thrown crate, the one entity that the throw spawned.</summary>
     private string Thrown => NewIn("thrown").Should().ContainSingle().Which;
+
+    // A method call, because an expression tree cannot hold the conversion of a case to its union.
+    private static MessageTarget EntityTarget(string id) => new ToEntity(id);
+
+    private StateDump Dump(string name) => run.Result.Dump(name);
+
+    /// <summary>The ids in the dump that the dump "in-chamber" does not have: the entities that the person spawned since then.</summary>
+    private IEnumerable<string> NewIn(string name) =>
+        Dump(name).Entities.Select(e => e.Id).Except(Dump("in-chamber").Entities.Select(e => e.Id));
 
     /// <summary>
     /// The thrown crate's position and velocity relative to the ship, in the ship's axes, in <paramref name="name"/>, as
@@ -63,7 +63,8 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
         crate.Pose.Frame.Should().Be("earth");
         ship.Pose.Frame.Should().Be("earth");
         Double3 offset = crate.Pose.Position - ship.Pose.Position;
-        Double3 crateVelocity = (Double3)crate.Velocity + GravityField.Point(DemoScenes.EarthMu).AtPrecise(crate.Pose.Position) * (0.5 / 60);
+        Double3 crateVelocity = crate.Velocity +
+                                GravityField.Point(DemoScenes.EarthMu).AtPrecise(crate.Pose.Position) * (0.5 / 60);
         Double3 velocity = crateVelocity - ship.Velocity - Double3.Cross(ship.AngularVelocity, offset);
         DQuaternion toShip = ship.Pose.Rotation.Conjugate();
         return (toShip.Rotate(offset), toShip.Rotate(velocity));
@@ -76,15 +77,18 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
     public void PressingEInTheChamberPicksUpItsCrateAndADrawnCopyRidesInFrontOfThePersonsEye()
     {
         Dump("in-chamber").Entity("chamber-crate").Pose.Position.Y.Should().BeApproximately(CrateOnTheFloor, 0.005);
-        Dump("carrying").Entities.Should().NotContain(e => e.Id == "chamber-crate", "the crate went when the person took it");
-        Dump("carrying").Events.Should().Contain(e => e.Event == nameof(CrateOffer) && e.From == "chamber-crate" && e.To == EntityTarget("person"));
-        Dump("carrying").Events.Should().Contain(e => e.Event == nameof(CrateTaken) && e.From == "person" && e.To == EntityTarget("chamber-crate"));
+        Dump("carrying").Entities.Should()
+            .NotContain(e => e.Id == "chamber-crate", "the crate went when the person took it");
+        Dump("carrying").Events.Should().Contain(e =>
+            e.Event == nameof(CrateOffer) && e.From == "chamber-crate" && e.To == EntityTarget("person"));
+        Dump("carrying").Events.Should().Contain(e =>
+            e.Event == nameof(CrateTaken) && e.From == "person" && e.To == EntityTarget("chamber-crate"));
 
         // The person faces the ship's -X, so its right is the ship's -Z. The copy rides 0.35 m to the right of the eye,
         // 0.5 m below it and 0.9 m ahead. The eye is 0.75 m above the person's center.
         EntityRecord person = Dump("carrying").Entity("person"), copy = Dump("carrying").Entity(Copy);
         copy.Pose.Frame.Should().Be("ship");
-        ExpectNear(copy.Pose.Position - person.Pose.Position, new Double3(-0.9, 0.75 - 0.5, -0.35), 1e-4);
+        ExpectNear(copy.Pose.Position - person.Pose.Position, new(-0.9, 0.75 - 0.5, -0.35), 1e-4);
     }
 
     [Fact]
@@ -92,7 +96,8 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
     {
         string copy = Copy;
 
-        Dump("thrown").Events.Should().Contain(e => e.Event == "Destroy" && e.From == "person" && e.To == EntityTarget(copy));
+        Dump("thrown").Events.Should()
+            .Contain(e => e.Event == "Destroy" && e.From == "person" && e.To == EntityTarget(copy));
         Dump("thrown").Entities.Should().NotContain(e => e.Id == copy);
     }
 
@@ -102,13 +107,13 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
         // The person stands still and faces the ship's -X. The floor holds a standing person against the cabin's gravity,
         // so its velocity is zero, and the crate starts with the person's velocity. The dump comes after the crate's first
         // step, in which the cabin's gravity pulls it for one tick.
-        Vector3 person = Dump("carrying").Entity("person").Velocity.ToVector3();
+        var person = Dump("carrying").Entity("person").Velocity.ToVector3();
         EntityRecord crate = Dump("thrown").Entity(Thrown);
 
         person.Length().Should().BeLessThan(1e-6f, "the floor holds the standing person");
         crate.Pose.Frame.Should().Be("ship");
         // The throw is an instant velocity, and the velocity after the step is the chord of the step: half a tick of gravity on.
-        ExpectNear(crate.Velocity - person, new Double3(-Carry.MaxThrowSpeed, -GravityPerTick / 2, 0), 1e-3);
+        ExpectNear(crate.Velocity - person, new(-Carry.MaxThrowSpeed, -GravityPerTick / 2, 0), 1e-3);
         // It starts on the view, level with the eye and in the middle of the hatch's width, 10 m aft of the ship's center.
         crate.Pose.Position.Z.Should().BeApproximately(10, 1e-4);
         crate.Pose.Position.Y.Should().BeApproximately(Eye, 0.01);
@@ -117,7 +122,9 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
     [Fact]
     public void TheThrowPushesTheStandingPersonBackForOneStep()
     {
-        EntityRecord before = Dump("carrying").Entity("person"), thrown = Dump("thrown").Entity("person"), after = Dump("flying").Entity("person");
+        EntityRecord before = Dump("carrying").Entity("person"),
+            thrown = Dump("thrown").Entity("person"),
+            after = Dump("flying").Entity("person");
 
         // 5 kg thrown at 12 m/s along the ship's -X pushes 70 kg back along +X at 5 · 12 / 70 = 0.857 m/s. The person
         // stands, so in its next step physics gives it its walk again, which is none: it moved back 1.4 cm and stopped.
@@ -134,8 +141,10 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
         string crate = Thrown;
 
         foreach (string name in InShip.Concat(InEarth))
-            Dump(name).Events.Should().NotContain(e => e.Event == "Collision" && e.To == EntityTarget(crate), $"nothing touched the crate before {name}");
-        RelativeToShip("leaving").Position.X.Should().BeLessThan(-10, "the crate is out of the hull, whose port face is at x = -10 m");
+            Dump(name).Events.Should().NotContain(e => e.Event == "Collision" && e.To == EntityTarget(crate),
+                $"nothing touched the crate before {name}");
+        RelativeToShip("leaving").Position.X.Should()
+            .BeLessThan(-10, "the crate is out of the hull, whose port face is at x = -10 m");
     }
 
     [Fact]
@@ -150,9 +159,12 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
         // tick. The script dumps "leaving" one tick before the hand-off, 0.08 m inside the hand-off distance, and
         // "in-earth" in the tick of the hand-off, 0.13 m outside it. So the hand-off distance, and with it the margin, is
         // known to within 0.25 m.
-        double leavingDistance = ShipBubble.Outside(RelativeToShip("leaving").Position), inEarthDistance = ShipBubble.Outside(RelativeToShip("in-earth").Position);
-        leavingDistance.Should().BeInRange(HandOffDistance - HandOffTolerance, HandOffDistance, "the crate is still in the ship's frame");
-        inEarthDistance.Should().BeInRange(HandOffDistance, HandOffDistance + HandOffTolerance, "the crate has just passed into earth");
+        double leavingDistance = ShipBubble.Outside(RelativeToShip("leaving").Position),
+            inEarthDistance = ShipBubble.Outside(RelativeToShip("in-earth").Position);
+        leavingDistance.Should().BeInRange(HandOffDistance - HandOffTolerance, HandOffDistance,
+            "the crate is still in the ship's frame");
+        inEarthDistance.Should().BeInRange(HandOffDistance, HandOffDistance + HandOffTolerance,
+            "the crate has just passed into earth");
         Dump("in-earth").Events.Should().ContainSingle(e => e.Event == "FrameChanged" && e.To == EntityTarget(Thrown));
         // So the crate passes into earth within 25 m of the ship's center.
         RelativeToShip("in-earth").Position.Length.Should().BeLessThan(25);
@@ -174,7 +186,9 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
     [Fact]
     public void InEarthTheCrateFallsFreelyBesideTheShipAndKeepsItsMotionRelativeToTheShip()
     {
-        (Double3 Position, Double3 Velocity) leaving = RelativeToShip("leaving"), inEarth = RelativeToShip("in-earth"), beside = RelativeToShip("beside-the-ship");
+        (Double3 Position, Double3 Velocity) leaving = RelativeToShip("leaving"),
+            inEarth = RelativeToShip("in-earth"),
+            beside = RelativeToShip("beside-the-ship");
         double seconds = Dump("beside-the-ship").Time - Dump("in-earth").Time;
 
         // Out of the cabin, the crate moves at the 12 m/s of the throw along the ship's -X. It took the velocity of the
@@ -212,7 +226,8 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
     }
 
     private static void ExpectGreen((int R, int G, int B) color, string what) =>
-        (color.G > color.R + 20 && color.G > color.B + 20).Should().BeTrue($"{what} is the green of a crate, not {color}");
+        (color.G > color.R + 20 && color.G > color.B + 20).Should()
+        .BeTrue($"{what} is the green of a crate, not {color}");
 
     [Fact]
     public void ThePersonSeesTheCarriedCrateLowOnTheRightAndThenTheThrownCrateInTheHatch()
@@ -227,6 +242,7 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
         ExpectGreen(aim.Average(950, 680), "the front of the carried crate");
         (space.r + space.g + space.b).Should().BeLessThan(30, $"black space shows through the hatch, not {space}");
         ExpectGreen(thrown.Average(640, 380), "the thrown crate in the hatch");
-        (wall.r > wall.g && wall.g > wall.b).Should().BeTrue($"the chamber's warm gray wall shows where the copy was, not {wall}");
+        (wall.r > wall.g && wall.g > wall.b).Should()
+            .BeTrue($"the chamber's warm gray wall shows where the copy was, not {wall}");
     }
 }

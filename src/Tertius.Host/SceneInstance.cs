@@ -13,9 +13,18 @@ namespace Tertius.Host;
 /// </remarks>
 public sealed class SceneInstance
 {
-    private readonly Dictionary<string, Entity> entities = new(StringComparer.Ordinal);
-    private readonly Dictionary<Entity, string> ids = new();
-    private readonly List<string> views = new();
+    private readonly Dictionary<string, Entity> entities = [with(StringComparer.Ordinal)];
+    private readonly Dictionary<Entity, string> ids = [];
+    private readonly List<string> views = [];
+
+    /// <summary>The entity with the scene id. Throws <see cref="KeyNotFoundException"/> for an unknown id.</summary>
+    public Entity this[string id] =>
+        entities.TryGetValue(id, out Entity entity)
+            ? entity
+            : throw new KeyNotFoundException($"The scene has no entity with the id '{id}'.");
+
+    /// <summary>The scene ids of the entities that the window's view key cycles through as the camera, in order.</summary>
+    public IReadOnlyList<string> Views => views;
 
     /// <summary>
     /// Gives <paramref name="entity"/> the scene id <paramref name="id"/>. Throws <see cref="ArgumentException"/> for an id
@@ -25,7 +34,9 @@ public sealed class SceneInstance
     {
         ArgumentNullException.ThrowIfNull(id);
         if (!IsSceneId(id))
-            throw new ArgumentException($"'{id}' is not a scene id. Use lowercase letters, digits, '_', '.' and '-', start with a letter or a digit, and write at most 64 characters.", nameof(id));
+            throw new ArgumentException(
+                $"'{id}' is not a scene id. Use lowercase letters, digits, '_', '.' and '-', start with a letter or a digit, and write at most 64 characters.",
+                nameof(id));
         if (entity.IsNull)
             throw new ArgumentException($"The null entity cannot have the scene id '{id}'.", nameof(entity));
         if (entities.TryGetValue(id, out Entity holder))
@@ -36,18 +47,12 @@ public sealed class SceneInstance
         ids.Add(entity, id);
     }
 
-    /// <summary>The entity with the scene id. Throws <see cref="KeyNotFoundException"/> for an unknown id.</summary>
-    public Entity this[string id] =>
-        entities.TryGetValue(id, out Entity entity) ? entity : throw new KeyNotFoundException($"The scene has no entity with the id '{id}'.");
-
     /// <summary>The entity with the scene id, or false for an unknown id.</summary>
     public bool TryGetEntity(string id, out Entity entity) => entities.TryGetValue(id, out entity);
 
     /// <summary>The scene id of the entity, or its debug form <c>#index.generation</c> if it has none.</summary>
-    public string IdOf(Entity entity) => ids.TryGetValue(entity, out string? id) ? id : $"#{entity.Index}.{entity.Generation}";
-
-    /// <summary>The scene ids of the entities that the window's view key cycles through as the camera, in order.</summary>
-    public IReadOnlyList<string> Views => views;
+    public string IdOf(Entity entity) =>
+        ids.TryGetValue(entity, out string? id) ? id : $"#{entity.Index}.{entity.Generation}";
 
     /// <summary>
     /// Makes the entity with the scene id one of the views. Throws <see cref="KeyNotFoundException"/> for an unknown id,
@@ -84,7 +89,7 @@ public sealed class SceneInstance
         return true;
     }
 
-    private static bool IsLowercaseLetterOrDigit(char c) => c is (>= 'a' and <= 'z') or (>= '0' and <= '9');
+    private static bool IsLowercaseLetterOrDigit(char c) => c is >= 'a' and <= 'z' or >= '0' and <= '9';
 }
 
 /// <summary>

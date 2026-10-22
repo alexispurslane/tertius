@@ -14,20 +14,25 @@ internal sealed unsafe class TextureStore : IDisposable
 {
     /// <summary>The size of the bindless array. The descriptor binding has a variable count of this many.</summary>
     public const int Capacity = 4096;
+
     /// <summary>The slot of opaque white in sRGB: the default albedo.</summary>
     public const int White = 0;
+
     /// <summary>The slot of (0.5, 0.5, 1) in UNORM: the default normal map, a tangent-space normal of +Z.</summary>
     public const int FlatNormal = 1;
+
     /// <summary>The slot of (1, 1) in UNORM: the default specular-gloss map, which leaves the material's scalars as they are.</summary>
     public const int DefaultSpecularGloss = 2;
+
     /// <summary>The slots the built-in defaults take, before the first texture that the renderer hands out.</summary>
     public const int BuiltInCount = 3;
+
     /// <summary>The most textures that <see cref="VulkanRenderer.CreateTexture"/> can create.</summary>
     public const int UserCapacity = Capacity - BuiltInCount;
 
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
-    private readonly List<GpuImage> images = new();
+    private readonly List<GpuImage> images = [];
 
     public TextureStore(VulkanDevice device, DeviceAllocator allocator)
     {
@@ -46,7 +51,7 @@ internal sealed unsafe class TextureStore : IDisposable
             AnisotropyEnable = anisotropy > 1f,
             MaxAnisotropy = anisotropy,
             MinLod = 0f,
-            MaxLod = Vk.LodClampNone,
+            MaxLod = Vk.LodClampNone
         };
         device.Vk.CreateSampler(device.Device, &info, null, out Sampler sampler).Check("vkCreateSampler");
         device.SetName(ObjectType.Sampler, sampler.Handle, "material sampler");
@@ -72,18 +77,21 @@ internal sealed unsafe class TextureStore : IDisposable
     /// <see cref="TextureId.None"/>, and the texture's own slot otherwise. The upload queue has already rejected ids
     /// it did not hand out, and it queues a texture no later than the materials that use it.
     /// </summary>
-    public static uint Resolve(TextureId texture, int fallback) => texture.IsNone ? (uint)fallback : (uint)Slot(texture);
+    public static uint Resolve(TextureId texture, int fallback) =>
+        texture.IsNone ? (uint)fallback : (uint)Slot(texture);
 
     /// <summary>Records the upload of queued textures, creating the built-in defaults on the first call.</summary>
-    public void Upload(CommandBuffer commandBuffer, List<(TextureId Id, TextureData Data)> pending, StagingArena staging, BarrierBatch barriers)
+    public void Upload(CommandBuffer commandBuffer, List<(TextureId Id, TextureData Data)> pending,
+        StagingArena staging, BarrierBatch barriers)
     {
         if (images.Count == 0)
         {
             // In slot order: White, FlatNormal, DefaultSpecularGloss.
-            Add(commandBuffer, new TextureData(1, 1, [255, 255, 255, 255], Srgb: true), "default white", staging, barriers);
-            Add(commandBuffer, new TextureData(1, 1, [128, 128, 255, 255], Srgb: false), "default normal", staging, barriers);
-            Add(commandBuffer, new TextureData(1, 1, [255, 255, 0, 255], Srgb: false), "default specular-gloss", staging, barriers);
+            Add(commandBuffer, new(1, 1, [255, 255, 255, 255], Srgb: true), "default white", staging, barriers);
+            Add(commandBuffer, new(1, 1, [128, 128, 255, 255], Srgb: false), "default normal", staging, barriers);
+            Add(commandBuffer, new(1, 1, [255, 255, 0, 255], Srgb: false), "default specular-gloss", staging, barriers);
         }
+
         foreach ((TextureId id, TextureData data) in pending)
         {
             // The upload queue hands out dense ids under one lock and drains them in order, so each id names the next
@@ -93,15 +101,17 @@ internal sealed unsafe class TextureStore : IDisposable
         }
     }
 
-    private void Add(CommandBuffer commandBuffer, TextureData data, string name, StagingArena staging, BarrierBatch barriers)
+    private void Add(CommandBuffer commandBuffer, TextureData data, string name, StagingArena staging,
+        BarrierBatch barriers)
     {
         Format format = data.Srgb ? Format.R8G8B8A8Srgb : Format.R8G8B8A8Unorm;
         FormatFeatureFlags features = device.FormatProperties(format).OptimalTilingFeatures;
-        const FormatFeatureFlags blitFeatures = FormatFeatureFlags.BlitSrcBit | FormatFeatureFlags.BlitDstBit | FormatFeatureFlags.SampledImageFilterLinearBit;
+        const FormatFeatureFlags blitFeatures = FormatFeatureFlags.BlitSrcBit | FormatFeatureFlags.BlitDstBit |
+                                                FormatFeatureFlags.SampledImageFilterLinearBit;
         bool mips = (features & blitFeatures) == blitFeatures;
         uint levels = mips ? (uint)BitOperations.Log2((uint)Math.Max(data.Width, data.Height)) + 1 : 1;
         var extent = new Extent2D((uint)data.Width, (uint)data.Height);
-        GpuImage image = GpuImage.Create(device, allocator, extent, format,
+        var image = GpuImage.Create(device, allocator, extent, format,
             ImageUsageFlags.SampledBit | ImageUsageFlags.TransferDstBit | ImageUsageFlags.TransferSrcBit, levels, name);
         images.Add(image);
 
@@ -110,44 +120,49 @@ internal sealed unsafe class TextureStore : IDisposable
 
         Vk vk = device.Vk;
         barriers.ImageLevels(image, 0, levels, ImageLayout.Undefined, ImageLayout.TransferDstOptimal,
-            PipelineStageFlags2.None, AccessFlags2.None, PipelineStageFlags2.AllTransferBit, AccessFlags2.TransferWriteBit);
+            PipelineStageFlags2.None, AccessFlags2.None, PipelineStageFlags2.AllTransferBit,
+            AccessFlags2.TransferWriteBit);
         barriers.Flush(vk, commandBuffer);
         var region = new BufferImageCopy
         {
             BufferOffset = stage.Offset,
-            ImageSubresource = new ImageSubresourceLayers(ImageAspectFlags.ColorBit, 0, 0, 1),
-            ImageExtent = new Extent3D(extent.Width, extent.Height, 1),
+            ImageSubresource = new(ImageAspectFlags.ColorBit, 0, 0, 1),
+            ImageExtent = new(extent.Width, extent.Height, 1)
         };
-        vk.CmdCopyBufferToImage(commandBuffer, stage.Buffer.Handle, image.Handle, ImageLayout.TransferDstOptimal, 1, &region);
+        vk.CmdCopyBufferToImage(commandBuffer, stage.Buffer.Handle, image.Handle, ImageLayout.TransferDstOptimal, 1,
+            &region);
 
         // Each level is blitted from the one above it, which first becomes a transfer source.
         int width = data.Width, height = data.Height;
         for (uint level = 1; level < levels; level++)
         {
             barriers.ImageLevels(image, level - 1, 1, ImageLayout.TransferDstOptimal, ImageLayout.TransferSrcOptimal,
-                PipelineStageFlags2.AllTransferBit, AccessFlags2.TransferWriteBit, PipelineStageFlags2.AllTransferBit, AccessFlags2.TransferReadBit);
+                PipelineStageFlags2.AllTransferBit, AccessFlags2.TransferWriteBit, PipelineStageFlags2.AllTransferBit,
+                AccessFlags2.TransferReadBit);
             barriers.Flush(vk, commandBuffer);
             int nextWidth = Math.Max(1, width / 2), nextHeight = Math.Max(1, height / 2);
             var blit = new ImageBlit
             {
-                SrcSubresource = new ImageSubresourceLayers(ImageAspectFlags.ColorBit, level - 1, 0, 1),
-                DstSubresource = new ImageSubresourceLayers(ImageAspectFlags.ColorBit, level, 0, 1),
+                SrcSubresource = new(ImageAspectFlags.ColorBit, level - 1, 0, 1),
+                DstSubresource = new(ImageAspectFlags.ColorBit, level, 0, 1)
             };
-            blit.SrcOffsets[1] = new Offset3D(width, height, 1);
-            blit.DstOffsets[1] = new Offset3D(nextWidth, nextHeight, 1);
-            vk.CmdBlitImage(commandBuffer, image.Handle, ImageLayout.TransferSrcOptimal, image.Handle, ImageLayout.TransferDstOptimal, 1, &blit, Filter.Linear);
+            blit.SrcOffsets[1] = new(width, height, 1);
+            blit.DstOffsets[1] = new(nextWidth, nextHeight, 1);
+            vk.CmdBlitImage(commandBuffer, image.Handle, ImageLayout.TransferSrcOptimal, image.Handle,
+                ImageLayout.TransferDstOptimal, 1, &blit, Filter.Linear);
             width = nextWidth;
             height = nextHeight;
         }
 
         // Every level but the last is a transfer source now; the last is still a transfer destination.
         if (levels > 1)
-        {
-            barriers.ImageLevels(image, 0, levels - 1, ImageLayout.TransferSrcOptimal, ImageLayout.ShaderReadOnlyOptimal,
-                PipelineStageFlags2.AllTransferBit, AccessFlags2.TransferReadBit, PipelineStageFlags2.FragmentShaderBit, AccessFlags2.ShaderSampledReadBit);
-        }
+            barriers.ImageLevels(image, 0, levels - 1, ImageLayout.TransferSrcOptimal,
+                ImageLayout.ShaderReadOnlyOptimal,
+                PipelineStageFlags2.AllTransferBit, AccessFlags2.TransferReadBit, PipelineStageFlags2.FragmentShaderBit,
+                AccessFlags2.ShaderSampledReadBit);
         barriers.ImageLevels(image, levels - 1, 1, ImageLayout.TransferDstOptimal, ImageLayout.ShaderReadOnlyOptimal,
-            PipelineStageFlags2.AllTransferBit, AccessFlags2.TransferWriteBit, PipelineStageFlags2.FragmentShaderBit, AccessFlags2.ShaderSampledReadBit);
+            PipelineStageFlags2.AllTransferBit, AccessFlags2.TransferWriteBit, PipelineStageFlags2.FragmentShaderBit,
+            AccessFlags2.ShaderSampledReadBit);
         barriers.Flush(vk, commandBuffer);
         image.State = ResourceUses.Describe(ImageUse.SampledFragment);
     }

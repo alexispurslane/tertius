@@ -33,10 +33,13 @@ internal static class DepthRanges
 
     /// <summary>The camera near plane: 5 cm.</summary>
     public const float NearPlane = 0.05f;
+
     /// <summary>The boundary between the near and middle ranges: 2 km.</summary>
     public const float NearMiddle = 2_000f;
+
     /// <summary>The boundary between the middle and far ranges: 2,000 km.</summary>
     public const float MiddleFar = 2_000_000f;
+
     /// <summary>How far each slab reaches past a boundary, as a fraction of the boundary distance.</summary>
     public const float Overlap = 0.01f;
 
@@ -46,7 +49,7 @@ internal static class DepthRanges
         Near => NearPlane,
         Middle => NearMiddle * (1 - Overlap),
         Far => MiddleFar * (1 - Overlap),
-        _ => throw new ArgumentOutOfRangeException(nameof(range)),
+        _ => throw new ArgumentOutOfRangeException(nameof(range))
     };
 
     /// <summary>The far boundary of a range. The far range is infinite.</summary>
@@ -55,7 +58,7 @@ internal static class DepthRanges
         Near => NearMiddle * (1 + Overlap),
         Middle => MiddleFar * (1 + Overlap),
         Far => float.PositiveInfinity,
-        _ => throw new ArgumentOutOfRangeException(nameof(range)),
+        _ => throw new ArgumentOutOfRangeException(nameof(range))
     };
 
     /// <summary>
@@ -97,6 +100,7 @@ internal static class DepthRanges
             if (max <= far)
                 break;
         }
+
         return mask;
     }
 
@@ -121,7 +125,8 @@ internal static class DepthRanges
             a = near / (far - near);
             b = near * far / (far - near);
         }
-        return new Matrix4x4(
+
+        return new(
             sx, 0, 0, 0,
             0, -sy, 0, 0,
             0, 0, a, -1,

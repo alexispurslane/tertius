@@ -12,18 +12,22 @@ namespace Tertius.Rendering;
 internal sealed unsafe class ValidationLog
 {
     private readonly Lock gate = new();
-    private readonly List<string> messages = new();
+    private readonly List<string> messages = [];
 
     public IReadOnlyList<string> Snapshot()
     {
         lock (gate)
-            return messages.ToArray();
+        {
+            return [.. messages];
+        }
     }
 
     public void Add(string message)
     {
         lock (gate)
+        {
             messages.Add(message);
+        }
     }
 
     /// <summary>
@@ -33,11 +37,12 @@ internal sealed unsafe class ValidationLog
     public static DebugUtilsMessengerCreateInfoEXT CreateInfo(GCHandle self) => new()
     {
         SType = StructureType.DebugUtilsMessengerCreateInfoExt,
-        MessageSeverity = DebugUtilsMessageSeverityFlagsEXT.WarningBitExt | DebugUtilsMessageSeverityFlagsEXT.ErrorBitExt,
+        MessageSeverity = DebugUtilsMessageSeverityFlagsEXT.WarningBitExt |
+                          DebugUtilsMessageSeverityFlagsEXT.ErrorBitExt,
         MessageType = DebugUtilsMessageTypeFlagsEXT.GeneralBitExt | DebugUtilsMessageTypeFlagsEXT.ValidationBitExt |
                       DebugUtilsMessageTypeFlagsEXT.PerformanceBitExt,
-        PfnUserCallback = new PfnDebugUtilsMessengerCallbackEXT(&OnMessage),
-        PUserData = (void*)GCHandle.ToIntPtr(self),
+        PfnUserCallback = new(&OnMessage),
+        PUserData = (void*)GCHandle.ToIntPtr(self)
     };
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
@@ -56,6 +61,7 @@ internal sealed unsafe class ValidationLog
                 : "info";
             log.Add($"[{level}, {types}] {id}: {text}");
         }
+
         return Vk.False;
     }
 }

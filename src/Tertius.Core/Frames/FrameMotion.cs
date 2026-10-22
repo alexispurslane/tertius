@@ -15,8 +15,12 @@ namespace Tertius;
 /// <param name="AngularVelocity">ω, the frame's angular velocity relative to the parent, in the parent's axes, in rad/s.</param>
 /// <param name="Acceleration">A, the acceleration of the frame's origin in the parent, in the parent's axes, in m/s².</param>
 /// <param name="AngularAcceleration">α, the frame's angular acceleration relative to the parent, in the parent's axes, in rad/s².</param>
-internal readonly record struct FrameMotion(DPose Pose, Double3 Velocity, Double3 AngularVelocity,
-    Double3 Acceleration, Double3 AngularAcceleration)
+internal readonly record struct FrameMotion(
+    DPose Pose,
+    Double3 Velocity,
+    Double3 AngularVelocity,
+    Double3 Acceleration,
+    Double3 AngularAcceleration)
 {
     public DPose PoseToParent(in DPose local) => DPose.Compose(Pose, local);
 
@@ -53,11 +57,13 @@ internal readonly record struct FrameMotion(DPose Pose, Double3 Velocity, Double
 
     /// <summary>The velocity in the parent of a point that moves with <paramref name="velocity"/> in the frame.</summary>
     public Double3 VelocityToParent(Double3 pointInFrame, Double3 velocity) =>
-        Pose.TransformDirection(velocity) + Velocity + Double3.Cross(AngularVelocity, Pose.TransformDirection(pointInFrame));
+        Pose.TransformDirection(velocity) + Velocity +
+        Double3.Cross(AngularVelocity, Pose.TransformDirection(pointInFrame));
 
     /// <summary>The velocity in the frame of a point that moves with <paramref name="velocity"/> in the parent.</summary>
     public Double3 VelocityFromParent(Double3 pointInParent, Double3 velocity) =>
-        Pose.InverseTransformDirection(velocity - Velocity - Double3.Cross(AngularVelocity, pointInParent - Pose.Position));
+        Pose.InverseTransformDirection(velocity - Velocity -
+                                       Double3.Cross(AngularVelocity, pointInParent - Pose.Position));
 
     /// <summary>
     /// The acceleration in the parent of a point at <paramref name="pointInFrame"/> that moves with
@@ -98,7 +104,8 @@ internal readonly record struct FrameMotion(DPose Pose, Double3 Velocity, Double
     /// time, α' = R α_b + α + ω × (R ω_b).
     /// </summary>
     public Double3 AngularAccelerationToParent(Double3 alpha, Double3 angularVelocity) =>
-        Pose.TransformDirection(alpha) + AngularAcceleration + Double3.Cross(AngularVelocity, Pose.TransformDirection(angularVelocity));
+        Pose.TransformDirection(alpha) + AngularAcceleration +
+        Double3.Cross(AngularVelocity, Pose.TransformDirection(angularVelocity));
 
     /// <summary>
     /// The angular acceleration in the frame of a body that turns at <paramref name="angularVelocity"/> and spins up at

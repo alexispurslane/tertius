@@ -14,14 +14,17 @@ public sealed class RevolvedSolidMeshTests
 {
     /// <summary>A cylinder 1 m in radius and 1.5 m tall, in 48 segments.</summary>
     private const float CylinderRadius = 1, CylinderHalfHeight = 0.75f;
+
     private const int CylinderSegments = 48;
 
     /// <summary>A ring like a station floor: 20 m to 20.5 m from the axis and 4 m wide along it, in 256 segments.</summary>
     private const float RingInner = 20, RingOuter = 20.5f, RingHalfWidth = 2;
+
     private const int RingSegments = 256;
 
     /// <summary>A torus whose tube, 1 m in radius, goes round a circle 3 m in radius, in 64 segments of 24 sides each.</summary>
     private const float TorusMajor = 3, TorusMinor = 1;
+
     private const int TorusSegments = 64, TorusSides = 24;
 
     /// <summary>
@@ -31,7 +34,8 @@ public sealed class RevolvedSolidMeshTests
     /// </summary>
     private const float Probe = 0.05f;
 
-    private static MeshData Cylinder() => RevolvedSolid.Cylinder(CylinderRadius, CylinderHalfHeight, CylinderSegments).Mesh();
+    private static MeshData Cylinder() =>
+        RevolvedSolid.Cylinder(CylinderRadius, CylinderHalfHeight, CylinderSegments).Mesh();
 
     private static MeshData Ring() => RevolvedSolid.Ring(RingInner, RingOuter, RingHalfWidth, RingSegments).Mesh();
 
@@ -41,13 +45,15 @@ public sealed class RevolvedSolidMeshTests
     private static float Rho(Vector3 p) => MathF.Sqrt(p.X * p.X + p.Z * p.Z);
 
     /// <summary>The unit vector from the Y axis out to <paramref name="p"/>, across the axis.</summary>
-    private static Vector3 Out(Vector3 p) => Vector3.Normalize(new Vector3(p.X, 0, p.Z));
+    private static Vector3 Out(Vector3 p) => Vector3.Normalize(new(p.X, 0, p.Z));
 
     private static bool InCylinder(Vector3 p) => Rho(p) <= CylinderRadius && MathF.Abs(p.Y) <= CylinderHalfHeight;
 
-    private static bool InRing(Vector3 p) => Rho(p) >= RingInner && Rho(p) <= RingOuter && MathF.Abs(p.Y) <= RingHalfWidth;
+    private static bool InRing(Vector3 p) =>
+        Rho(p) >= RingInner && Rho(p) <= RingOuter && MathF.Abs(p.Y) <= RingHalfWidth;
 
-    private static bool InTorus(Vector3 p) => (Rho(p) - TorusMajor) * (Rho(p) - TorusMajor) + p.Y * p.Y <= TorusMinor * TorusMinor;
+    private static bool InTorus(Vector3 p) =>
+        (Rho(p) - TorusMajor) * (Rho(p) - TorusMajor) + p.Y * p.Y <= TorusMinor * TorusMinor;
 
     /// <summary>
     /// Each triangle has an area, winds counterclockwise around each of its corners' normals, which are within 15 degrees
@@ -59,7 +65,8 @@ public sealed class RevolvedSolidMeshTests
 
     /// <summary>A vertex of a cylinder's cap is the cap's center, on the axis, or on its rim.</summary>
     private static void ExpectCenterOrRim(Vector3 p) =>
-        (Rho(p) == 0 || MathF.Abs(Rho(p) - CylinderRadius) < 1e-5f).Should().BeTrue($"a vertex of a cap is its center or on its rim, not {p}");
+        (Rho(p) == 0 || MathF.Abs(Rho(p) - CylinderRadius) < 1e-5f).Should()
+        .BeTrue($"a vertex of a cap is its center or on its rim, not {p}");
 
     private static void ExpectUnit(Vector3 normal) => normal.Length().Should().BeApproximately(1, 1e-5f);
 
@@ -117,6 +124,7 @@ public sealed class RevolvedSolidMeshTests
                 ExpectNear(v.Normal, Out(v.Position), "the side's normal points straight out from the axis");
             }
         }
+
         (top, bottom, side).Should().Be((2 * CylinderSegments, 2 * CylinderSegments, 2 * CylinderSegments));
     }
 
@@ -127,9 +135,10 @@ public sealed class RevolvedSolidMeshTests
 
         // The segments' edges are at the angles 2π k / 48 from +X, turning from +X toward -Z, so the solid's facets are
         // where a scene expects them.
-        var angles = cylinder.Vertices.Where(v => Rho(v.Position) > 0.5f)
+        IOrderedEnumerable<int> angles = cylinder.Vertices.Where(v => Rho(v.Position) > 0.5f)
             .Select(v => MathF.Atan2(-v.Position.Z, v.Position.X))
-            .Select(angle => (int)MathF.Round((angle < -1e-4f ? angle + MathF.Tau : angle) / (MathF.Tau / CylinderSegments)))
+            .Select(angle =>
+                (int)MathF.Round((angle < -1e-4f ? angle + MathF.Tau : angle) / (MathF.Tau / CylinderSegments)))
             .Distinct().Order();
         angles.Should().Equal(Enumerable.Range(0, CylinderSegments));
         cylinder.Vertices.Should().Contain(v => v.Position == new Vector3(CylinderRadius, CylinderHalfHeight, 0));
@@ -184,11 +193,14 @@ public sealed class RevolvedSolidMeshTests
             else
             {
                 inner++;
-                Rho(v.Position).Should().BeApproximately(RingInner, 2e-5f, "the inner face, the floor, is at the inner radius");
+                Rho(v.Position).Should()
+                    .BeApproximately(RingInner, 2e-5f, "the inner face, the floor, is at the inner radius");
                 ExpectNear(v.Normal, -Out(v.Position), "the floor's normal points straight at the axis");
             }
         }
-        (top, bottom, outer, inner).Should().Be((2 * RingSegments, 2 * RingSegments, 2 * RingSegments, 2 * RingSegments));
+
+        (top, bottom, outer, inner).Should()
+            .Be((2 * RingSegments, 2 * RingSegments, 2 * RingSegments, 2 * RingSegments));
     }
 
     [Fact]
@@ -245,7 +257,8 @@ public sealed class RevolvedSolidMeshTests
     [InlineData(1f, 1f, 2)]
     [InlineData(float.NaN, 1f, 8)]
     [InlineData(1f, 1f, 129)]
-    public void ACylinderWithoutARadiusAHeightOrFrom3To128SegmentsIsAnError(float radius, float halfHeight, int segments)
+    public void ACylinderWithoutARadiusAHeightOrFrom3To128SegmentsIsAnError(float radius, float halfHeight,
+        int segments)
     {
         Action build = () => RevolvedSolid.Cylinder(radius, halfHeight, segments);
 
@@ -258,7 +271,8 @@ public sealed class RevolvedSolidMeshTests
     [InlineData(2f, 1f, 1f, 8)]
     [InlineData(1f, 2f, 0f, 8)]
     [InlineData(1f, 2f, 1f, 2)]
-    public void ARingWithoutAHoleAThicknessAWidthOrThreeSegmentsIsAnError(float inner, float outer, float halfWidth, int segments)
+    public void ARingWithoutAHoleAThicknessAWidthOrThreeSegmentsIsAnError(float inner, float outer, float halfWidth,
+        int segments)
     {
         Action build = () => RevolvedSolid.Ring(inner, outer, halfWidth, segments);
 
@@ -271,7 +285,8 @@ public sealed class RevolvedSolidMeshTests
     [InlineData(3f, 1f, 2, 8)]
     [InlineData(3f, 1f, 8, 2)]
     [InlineData(3f, 1f, 8, 129)]
-    public void ATorusWithoutAHoleATubeThreeSegmentsOrAtMost128SidesIsAnError(float major, float minor, int segments, int sides)
+    public void ATorusWithoutAHoleATubeThreeSegmentsOrAtMost128SidesIsAnError(float major, float minor, int segments,
+        int sides)
     {
         // A segment's hull has two corners for each side, and Jolt keeps at most 256 points in a convex hull.
         Action build = () => RevolvedSolid.Torus(major, minor, segments, sides);

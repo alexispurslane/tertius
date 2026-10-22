@@ -19,63 +19,16 @@ namespace Tertius.Simulation;
 /// </remarks>
 internal sealed class SpatialIndex
 {
-    /// <summary>The case of a <see cref="Placement"/> of an entity that a grid lists.</summary>
-    /// <param name="Frame">The index of the frame whose grid lists the entity.</param>
-    /// <param name="Cell">The cell of that grid that lists the entity.</param>
-    private readonly record struct InCell(int Frame, CellKey Cell);
-
-    /// <summary>
-    /// Where one entity is in the grids: <see cref="InCell"/>, or in no grid. The empty value is <see cref="NotInGrid"/>,
-    /// the all-zero default, so the row that the entity table clears for a released slot is in no grid.
-    /// This is a custom C# 15 union. <see cref="HasValue"/> and the <c>TryGetValue</c> method let the compiler
-    /// pattern-match it without boxing. <see cref="Value"/> boxes, so use it only for debugging.
-    /// </summary>
-    [Union]
-    private readonly struct Placement : IEquatable<Placement>
-    {
-        private const byte KindNotInGrid = 0, KindInCell = 1;
-
-        private readonly byte kind;
-        private readonly int frame;
-        private readonly CellKey cell;
-
-        public Placement(InCell inCell) { kind = KindInCell; frame = inCell.Frame; cell = inCell.Cell; }
-
-        public static implicit operator Placement(InCell inCell) => new(inCell);
-
-        /// <summary>In no grid.</summary>
-        public static Placement NotInGrid => default;
-
-        /// <summary>False for <see cref="NotInGrid"/>.</summary>
-        public bool HasValue => kind != KindNotInGrid;
-
-        public bool TryGetValue(out InCell value)
-        {
-            value = kind == KindInCell ? new InCell(frame, cell) : default;
-            return kind == KindInCell;
-        }
-
-        public object? Value => kind == KindInCell ? new InCell(frame, cell) : null;
-
-        // The fields of NotInGrid are always zero, so comparing every field compares the cases.
-        public bool Equals(Placement other) => kind == other.kind && frame == other.frame && cell == other.cell;
-        public override bool Equals(object? obj) => obj is Placement other && Equals(other);
-        public override int GetHashCode() => HashCode.Combine(kind, frame, cell);
-        public static bool operator ==(Placement a, Placement b) => a.Equals(b);
-        public static bool operator !=(Placement a, Placement b) => !a.Equals(b);
-
-        public override string ToString() => this switch
-        {
-            InCell at => $"Placement({at})",
-            _ => "Placement(not in a grid)",
-        };
-    }
-
-    /// <summary>A moved entity and the placement that <see cref="Update"/> found for it, before the grids change.</summary>
-    private readonly record struct Move(Entity Entity, Placement To);
-
     /// <summary>The number of work items of an update on the workers, which share the moved entities in equal ranges.</summary>
     private const int ParallelItems = 32;
+
+    /// <summary>
+    /// The default of <see cref="ParallelThreshold"/>. Measured with SpatialUpdateBenchmarks on an M1 Max: while the rows
+    /// that an update reads fit in the caches of the sync thread, up to about 50,000 moved entities, the workers save
+    /// nothing. From 65,536 on they save 8 to 10 percent there, and a third to a half of step 8c in the 100,000-entity
+    /// tick benchmark.
+    /// </summary>
+    internal const int DefaultParallelThreshold = 65_536;
 
     private readonly EntityTable entities;
     private readonly FrameTree frames;
@@ -93,6 +46,8 @@ internal sealed class SpatialIndex
     private int movedCount;
     private Action<int>? findItemMoves;
 
+    private int parallelThreshold = DefaultParallelThreshold;
+
     /// <param name="entities">The entity table whose front rows the grids index.</param>
     /// <param name="frames">The frame tree whose frames have the grids.</param>
     /// <param name="workers">
@@ -108,14 +63,6 @@ internal sealed class SpatialIndex
     }
 
     /// <summary>
-    /// The default of <see cref="ParallelThreshold"/>. Measured with SpatialUpdateBenchmarks on an M1 Max: while the rows
-    /// that an update reads fit in the caches of the sync thread, up to about 50,000 moved entities, the workers save
-    /// nothing. From 65,536 on they save 8 to 10 percent there, and a third to a half of step 8c in the 100,000-entity
-    /// tick benchmark.
-    /// </summary>
-    internal const int DefaultParallelThreshold = 65_536;
-
-    /// <summary>
     /// The fewest moved entities for which <see cref="Update"/> finds their new cells on the workers. 1 or more. Both
     /// paths end in the same grids, so only tests change it: at 1, every update with a moved entity takes the workers.
     /// </summary>
@@ -129,7 +76,58 @@ internal sealed class SpatialIndex
         }
     }
 
-    private int parallelThreshold = DefaultParallelThreshold;
+    /// <summary>The case of a <see cref="Placement"/> of an entity that a grid lists.</summary>
+    /// <param name="Frame">The index of the frame whose grid lists the entity.</param>
+    /// <param name="Cell">The cell of that grid that lists the entity.</param>
+    private readonly record struct InCell(int Frame, CellKey Cell);
+
+    /// <summary>
+    /// Where one entity is in the grids: <see cref="InCell"/>, or in no grid. The empty value is <see cref="NotInGrid"/>,
+    /// the all-zero default, so the row that the entity table clears for a released slot is in no grid.
+    /// This is a custom C# 15 union. <see cref="HasValue"/> and the <c>TryGetValue</c> method let the compiler
+    /// pattern-match it without boxing. <see cref="Value"/> boxes, so use it only for debugging.
+    /// </summary>
+    [Union]
+    private readonly struct Placement(InCell inCell) : IEquatable<Placement>
+    {
+        private const byte KindNotInGrid = 0, KindInCell = 1;
+
+        /// <summary>In no grid.</summary>
+        public static Placement NotInGrid => default;
+
+        private readonly byte kind = KindInCell;
+        private readonly int frame = inCell.Frame;
+        private readonly CellKey cell = inCell.Cell;
+
+        /// <summary>False for <see cref="NotInGrid"/>.</summary>
+        public bool HasValue => kind != KindNotInGrid;
+
+        public object? Value => kind == KindInCell ? new InCell(frame, cell) : null;
+
+        public static implicit operator Placement(InCell inCell) => new(inCell);
+
+        public bool TryGetValue(out InCell value)
+        {
+            value = kind == KindInCell ? new InCell(frame, cell) : default;
+            return kind == KindInCell;
+        }
+
+        // The fields of NotInGrid are always zero, so comparing every field compares the cases.
+        public bool Equals(Placement other) => kind == other.kind && frame == other.frame && cell == other.cell;
+        public override bool Equals(object? obj) => obj is Placement other && Equals(other);
+        public override int GetHashCode() => HashCode.Combine(kind, frame, cell);
+        public static bool operator ==(Placement a, Placement b) => a.Equals(b);
+        public static bool operator !=(Placement a, Placement b) => !a.Equals(b);
+
+        public override string ToString() => this switch
+        {
+            InCell at => $"Placement({at})",
+            _ => "Placement(not in a grid)"
+        };
+    }
+
+    /// <summary>A moved entity and the placement that <see cref="Update"/> found for it, before the grids change.</summary>
+    private readonly record struct Move(Entity Entity, Placement To);
 
     /// <summary>
     /// Moves each entity whose front transform changed since the last update into its current cell. With workers and at
@@ -181,19 +179,15 @@ internal sealed class SpatialIndex
 
         CellBox box = new(center, radius);
         if (box.CellCount > grid.CellCount)
-        {
             // A large radius: visiting the occupied cells is cheaper than visiting the box.
             foreach (KeyValuePair<CellKey, List<Entity>> cell in grid.Cells)
                 CollectWithin(cell.Value, center, radius * radius, results);
-        }
         else
-        {
             for (long x = box.X0; x <= box.X1; x++)
-                for (long y = box.Y0; y <= box.Y1; y++)
-                    for (long z = box.Z0; z <= box.Z1; z++)
-                        if (grid.TryGetCell(new CellKey(x, y, z), out List<Entity>? cell))
-                            CollectWithin(cell, center, radius * radius, results);
-        }
+            for (long y = box.Y0; y <= box.Y1; y++)
+            for (long z = box.Z0; z <= box.Z1; z++)
+                if (grid.TryGetCell(new(x, y, z), out List<Entity>? cell))
+                    CollectWithin(cell, center, radius * radius, results);
         results.Sort();
     }
 
@@ -212,10 +206,10 @@ internal sealed class SpatialIndex
             return -1;
         int count = 0;
         for (long x = box.X0; x <= box.X1; x++)
-            for (long y = box.Y0; y <= box.Y1; y++)
-                for (long z = box.Z0; z <= box.Z1; z++)
-                    if (grid.TryGetCell(new CellKey(x, y, z), out List<Entity>? cell))
-                        count += cell.Count;
+        for (long y = box.Y0; y <= box.Y1; y++)
+        for (long z = box.Z0; z <= box.Z1; z++)
+            if (grid.TryGetCell(new(x, y, z), out List<Entity>? cell))
+                count += cell.Count;
         return count;
     }
 
@@ -233,12 +227,12 @@ internal sealed class SpatialIndex
         CellBox box = new(center, radius);
         int count = 0;
         for (long x = box.X0; x <= box.X1; x++)
-            for (long y = box.Y0; y <= box.Y1; y++)
-                for (long z = box.Z0; z <= box.Z1; z++)
-                    if (grid.TryGetCell(new CellKey(x, y, z), out List<Entity>? cell))
-                        foreach (Entity entity in cell)
-                            if ((entities.FrontRow(entity).Pose.Position - center).LengthSquared <= r2)
-                                into[count++] = entity;
+        for (long y = box.Y0; y <= box.Y1; y++)
+        for (long z = box.Z0; z <= box.Z1; z++)
+            if (grid.TryGetCell(new(x, y, z), out List<Entity>? cell))
+                foreach (Entity entity in cell)
+                    if ((entities.FrontRow(entity).Pose.Position - center).LengthSquared <= r2)
+                        into[count++] = entity;
         return count;
     }
 
@@ -255,8 +249,10 @@ internal sealed class SpatialIndex
                 continue;
             placed++;
             Contract.Invariant(at.Frame == row.Frame.Index && at.Cell == SpatialGrid.CellOf(row.Pose.Position));
-            Contract.Invariant(grids[at.Frame] is { } grid && grid.TryGetCell(at.Cell, out List<Entity>? cell) && cell.Contains(entity));
+            Contract.Invariant(grids[at.Frame] is { } grid && grid.TryGetCell(at.Cell, out List<Entity>? cell) &&
+                               cell.Contains(entity));
         }
+
         int listed = 0;
         for (int frame = 0; frame < grids.Length; frame++)
         {
@@ -273,6 +269,7 @@ internal sealed class SpatialIndex
                 }
             }
         }
+
         Contract.Invariant(listed == placed);
     }
 
@@ -287,10 +284,13 @@ internal sealed class SpatialIndex
         foreach (Entity entity in moved)
         {
             ref readonly TransformRow row = ref entities.FrontRow(entity);
-            Placement to = row.Frame.IsNull ? Placement.NotInGrid : new InCell(row.Frame.Index, SpatialGrid.CellOf(row.Pose.Position));
+            Placement to = row.Frame.IsNull
+                ? Placement.NotInGrid
+                : new InCell(row.Frame.Index, SpatialGrid.CellOf(row.Pose.Position));
             if (placements[entity] != to)
-                into[count++] = new Move(entity, to);
+                into[count++] = new(entity, to);
         }
+
         return count;
     }
 
@@ -317,7 +317,7 @@ internal sealed class SpatialIndex
                     // Within one grid: one lookup per cell.
                     GridAt(to.Frame).Move(from.Cell, to.Cell, move.Entity);
                     break;
-                case (var from, var to):
+                case var (from, to):
                     // Into the grid of another frame, out of every grid, or into a grid from none.
                     if (from is InCell left)
                         grids[left.Frame]?.Remove(left.Cell, move.Entity);
@@ -325,6 +325,7 @@ internal sealed class SpatialIndex
                         GridAt(entered.Frame).Add(entered.Cell, move.Entity);
                     break;
             }
+
             placement = move.To;
         }
     }
@@ -340,7 +341,7 @@ internal sealed class SpatialIndex
     {
         if (frame >= grids.Length)
             Array.Resize(ref grids, Math.Max(frame + 1, grids.Length * 2));
-        return grids[frame] ??= new SpatialGrid();
+        return grids[frame] ??= new();
     }
 
     private void CollectWithin(List<Entity> cell, Double3 center, double r2, List<Entity> results)
@@ -352,24 +353,14 @@ internal sealed class SpatialIndex
 }
 
 /// <summary>The cells of a <see cref="SpatialGrid"/> that the axis-aligned box around a sphere covers, from corner to corner.</summary>
-internal readonly struct CellBox
+internal readonly struct CellBox(Double3 center, double radius)
 {
-    public CellBox(Double3 center, double radius)
-    {
-        X0 = SpatialGrid.Coordinate(center.X - radius);
-        X1 = SpatialGrid.Coordinate(center.X + radius);
-        Y0 = SpatialGrid.Coordinate(center.Y - radius);
-        Y1 = SpatialGrid.Coordinate(center.Y + radius);
-        Z0 = SpatialGrid.Coordinate(center.Z - radius);
-        Z1 = SpatialGrid.Coordinate(center.Z + radius);
-    }
-
-    public long X0 { get; }
-    public long X1 { get; }
-    public long Y0 { get; }
-    public long Y1 { get; }
-    public long Z0 { get; }
-    public long Z1 { get; }
+    public long X0 { get; } = SpatialGrid.Coordinate(center.X - radius);
+    public long X1 { get; } = SpatialGrid.Coordinate(center.X + radius);
+    public long Y0 { get; } = SpatialGrid.Coordinate(center.Y - radius);
+    public long Y1 { get; } = SpatialGrid.Coordinate(center.Y + radius);
+    public long Z0 { get; } = SpatialGrid.Coordinate(center.Z - radius);
+    public long Z1 { get; } = SpatialGrid.Coordinate(center.Z + radius);
 
     /// <summary>The number of cells, as a double, because a large box has more than a long can count.</summary>
     public double CellCount => (double)(X1 - X0 + 1) * (Y1 - Y0 + 1) * (Z1 - Z0 + 1);

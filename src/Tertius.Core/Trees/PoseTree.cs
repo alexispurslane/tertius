@@ -20,7 +20,8 @@ public readonly record struct PoseNode(int Id, uint Generation)
 /// <see cref="UpdateWorld"/> after mutations to leave it clean.
 /// <para>
 /// The tree stores each local pose as it is given, and <see cref="Local"/> hands out a reference to it, so the caller writes
-/// the pose. The tree does not check the rotation of a <see cref="DPose"/> that the caller writes. <see cref="DPose.Compose"/>
+/// the pose. The tree does not check the rotation of a <see cref="DPose"/> that the caller writes.
+/// <see cref="DPose.Compose"/>
 /// and <see cref="DPose.Inverse"/> normalize the rotation that they use, so a rotation that is a little off, such as a float
 /// quaternion from Jolt, still gives consistent answers for the poses that the tree computes from it. The world pose of a root
 /// is the exception, because it is the local pose as it is.
@@ -35,19 +36,18 @@ public readonly record struct PoseNode(int Id, uint Generation)
 public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
 {
     // Dense arrays, indexed by dense position.
-    private int[] parent;        // dense index of the parent, or -1 for a root
+    private int[] parent; // dense index of the parent, or -1 for a root
     private TPose[] local;
     private TPose[] world;
-    private int[] idAt;          // stable id of the node at each dense position
+    private int[] idAt; // stable id of the node at each dense position
 
     // Stable arrays, indexed by stable id.
-    private int[] denseOf;       // dense position of each id, or -1 for a free id
+    private int[] denseOf; // dense position of each id, or -1 for a free id
     private uint[] generation;
     private int[] freeIds;
     private int freeCount;
     private int idCount;
 
-    private int count;
     private bool orderDirty;
     private bool worldDirty;
 
@@ -63,18 +63,81 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
         freeIds = new int[capacity];
     }
 
-    public int Count => count;
+    public int Count { get; private set; }
 
     /// <summary>Increments on every structural change: add, remove or reparent.</summary>
     public int Version { get; private set; }
 
+    /// <summary>Dense parent indices. Valid until the next structural change.</summary>
+    public ReadOnlySpan<int> ParentsDense
+    {
+        get
+        {
+            EnsureOrder();
+            return parent.AsSpan(0, Count);
+        }
+    }
+
+    /// <summary>
+    /// The stable id of the node at each dense index. Valid until the next structural change. Internal, like
+    /// <see cref="Generations"/>: with both, code could build a live <see cref="PoseNode"/> for any index without the
+    /// generation check, so only the frame tree's walks in this module read them.
+    /// </summary>
+    internal ReadOnlySpan<int> IdsDense
+    {
+        get
+        {
+            EnsureOrder();
+            return idAt.AsSpan(0, Count);
+        }
+    }
+
+    /// <summary>The generation of each stable id. Internal, see <see cref="IdsDense"/>.</summary>
+    internal ReadOnlySpan<uint> Generations => generation.AsSpan(0, idCount);
+
+    public ReadOnlySpan<TPose> LocalPoses
+    {
+        get
+        {
+            EnsureOrder();
+            return local.AsSpan(0, Count);
+        }
+    }
+
+    /// <summary>
+    /// The local poses by dense index, to write, for a pass over many nodes. Writing them makes world poses stale until
+    /// <see cref="UpdateWorld"/>, as <see cref="Local"/> does. Valid until the next structural change.
+    /// </summary>
+    internal Span<TPose> LocalPosesForWrite
+    {
+        get
+        {
+            EnsureOrder();
+            worldDirty = true;
+            return local.AsSpan(0, Count);
+        }
+    }
+
+    /// <summary>World poses by dense index, as of the last <see cref="UpdateWorld"/>.</summary>
+    public ReadOnlySpan<TPose> WorldPoses
+    {
+        get
+        {
+            EnsureOrder();
+            return world.AsSpan(0, Count);
+        }
+    }
+
+    public bool WorldIsStale => worldDirty || orderDirty;
+
     public bool IsAlive(PoseNode node) =>
-        (uint)node.Id < (uint)idCount && node.Generation != 0 && generation[node.Id] == node.Generation && denseOf[node.Id] >= 0;
+        (uint)node.Id < (uint)idCount && node.Generation != 0 && generation[node.Id] == node.Generation &&
+        denseOf[node.Id] >= 0;
 
     public PoseNode Add(PoseNode parentNode, in TPose localPose)
     {
         int parentDense = parentNode.IsNull ? -1 : Dense(parentNode);
-        EnsureCapacity(count + 1);
+        EnsureCapacity(Count + 1);
 
         int id;
         if (freeCount > 0)
@@ -86,11 +149,12 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
             id = idCount++;
             generation[id] = 0;
         }
+
         generation[id]++;
         if (generation[id] == 0)
             generation[id] = 1;
 
-        int dense = count++;
+        int dense = Count++;
         parent[dense] = parentDense;
         local[dense] = localPose;
         world[dense] = parentDense < 0 ? localPose : TPose.Compose(world[parentDense], localPose);
@@ -98,7 +162,7 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
         denseOf[id] = dense;
         // Appending never breaks parent-before-child order, because the parent already exists.
         Version++;
-        return new PoseNode(id, generation[id]);
+        return new(id, generation[id]);
     }
 
     /// <summary>
@@ -110,17 +174,15 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
         int newParent = parent[dense];
         TPose removedLocal = local[dense];
 
-        for (int i = dense + 1; i < count; i++)
-        {
+        for (int i = dense + 1; i < Count; i++)
             if (parent[i] == dense)
             {
                 local[i] = TPose.Compose(removedLocal, local[i]);
                 parent[i] = newParent;
             }
-        }
 
         // Shift everything after the node down by one. Order is preserved, so no reorder is needed.
-        int tail = count - dense - 1;
+        int tail = Count - dense - 1;
         if (tail > 0)
         {
             Array.Copy(parent, dense + 1, parent, dense, tail);
@@ -128,8 +190,9 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
             Array.Copy(world, dense + 1, world, dense, tail);
             Array.Copy(idAt, dense + 1, idAt, dense, tail);
         }
-        count--;
-        for (int i = dense; i < count; i++)
+
+        Count--;
+        for (int i = dense; i < Count; i++)
         {
             if (parent[i] > dense)
                 parent[i]--;
@@ -200,61 +263,21 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
     {
         EnsureOrder();
         int id = idAt[dense];
-        return new PoseNode(id, generation[id]);
-    }
-
-    /// <summary>Dense parent indices. Valid until the next structural change.</summary>
-    public ReadOnlySpan<int> ParentsDense
-    {
-        get { EnsureOrder(); return parent.AsSpan(0, count); }
-    }
-
-    /// <summary>
-    /// The stable id of the node at each dense index. Valid until the next structural change. Internal, like
-    /// <see cref="Generations"/>: with both, code could build a live <see cref="PoseNode"/> for any index without the
-    /// generation check, so only the frame tree's walks in this module read them.
-    /// </summary>
-    internal ReadOnlySpan<int> IdsDense
-    {
-        get { EnsureOrder(); return idAt.AsSpan(0, count); }
-    }
-
-    /// <summary>The generation of each stable id. Internal, see <see cref="IdsDense"/>.</summary>
-    internal ReadOnlySpan<uint> Generations => generation.AsSpan(0, idCount);
-
-    public ReadOnlySpan<TPose> LocalPoses
-    {
-        get { EnsureOrder(); return local.AsSpan(0, count); }
-    }
-
-    /// <summary>
-    /// The local poses by dense index, to write, for a pass over many nodes. Writing them makes world poses stale until
-    /// <see cref="UpdateWorld"/>, as <see cref="Local"/> does. Valid until the next structural change.
-    /// </summary>
-    internal Span<TPose> LocalPosesForWrite
-    {
-        get { EnsureOrder(); worldDirty = true; return local.AsSpan(0, count); }
-    }
-
-    /// <summary>World poses by dense index, as of the last <see cref="UpdateWorld"/>.</summary>
-    public ReadOnlySpan<TPose> WorldPoses
-    {
-        get { EnsureOrder(); return world.AsSpan(0, count); }
+        return new(id, generation[id]);
     }
 
     /// <summary>Restores parent-before-child order if needed, then recomputes every world pose in one pass.</summary>
     public void UpdateWorld()
     {
         EnsureOrder();
-        for (int i = 0; i < count; i++)
+        for (int i = 0; i < Count; i++)
         {
             int p = parent[i];
             world[i] = p < 0 ? local[i] : TPose.Compose(world[p], local[i]);
         }
+
         worldDirty = false;
     }
-
-    public bool WorldIsStale => worldDirty || orderDirty;
 
     /// <summary>
     /// The pose of <paramref name="of"/> expressed in the space of <paramref name="to"/>. The result composes local
@@ -277,7 +300,7 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
     public void ComputeRelativeTo(PoseNode reference, Span<TPose> result)
     {
         EnsureOrder();
-        ComputeRelativeTo(reference, local.AsSpan(0, count), result);
+        ComputeRelativeTo(reference, local.AsSpan(0, Count), result);
     }
 
     /// <summary>
@@ -288,14 +311,14 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
     public void ComputeRelativeTo(PoseNode reference, ReadOnlySpan<TPose> localPoses, Span<TPose> result)
     {
         EnsureOrder();
-        if (result.Length < count)
+        if (result.Length < Count)
             throw new ArgumentException("Result span is shorter than the node count.", nameof(result));
-        if (localPoses.Length < count)
+        if (localPoses.Length < Count)
             throw new ArgumentException("Local pose span is shorter than the node count.", nameof(localPoses));
 
         int r = Dense(reference);
-        int[]? rented = count > 256 ? ArrayPool<int>.Shared.Rent(count) : null;
-        Span<int> onPath = rented is null ? stackalloc int[count] : rented.AsSpan(0, count);
+        int[]? rented = Count > 256 ? ArrayPool<int>.Shared.Rent(Count) : null;
+        Span<int> onPath = rented is null ? stackalloc int[Count] : rented.AsSpan(0, Count);
         try
         {
             onPath.Clear();
@@ -311,9 +334,10 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
                 onPath[p] = 1;
                 x = p;
             }
+
             TPose virtualRoot = TPose.Compose(result[x], localPoses[x].Inverse());
 
-            for (int i = 0; i < count; i++)
+            for (int i = 0; i < Count; i++)
             {
                 if (onPath[i] != 0)
                     continue;
@@ -332,7 +356,7 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
     public void GetChildren(PoseNode node, List<PoseNode> children)
     {
         int dense = Dense(node);
-        for (int i = 0; i < count; i++)
+        for (int i = 0; i < Count; i++)
             if (parent[i] == dense)
                 children.Add(NodeAt(i));
     }
@@ -349,7 +373,8 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
         return denseOf[node.Id];
     }
 
-    private static void ThrowStale(PoseNode node) => throw new InvalidOperationException($"Stale or null pose node {node}.");
+    private static void ThrowStale(PoseNode node) =>
+        throw new InvalidOperationException($"Stale or null pose node {node}.");
 
     private bool IsAncestorOrSelf(int ancestor, int dense)
     {
@@ -385,22 +410,22 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
         orderDirty = false;
 
         // Stable topological order: roots in their current order, each followed by its subtree depth-first.
-        var childStart = new int[count + 1];
-        for (int i = 0; i < count; i++)
+        int[] childStart = new int[Count + 1];
+        for (int i = 0; i < Count; i++)
             if (parent[i] >= 0)
                 childStart[parent[i] + 1]++;
-        for (int i = 0; i < count; i++)
+        for (int i = 0; i < Count; i++)
             childStart[i + 1] += childStart[i];
-        var children = new int[count];
-        var fill = (int[])childStart.Clone();
-        for (int i = 0; i < count; i++)
+        int[] children = new int[Count];
+        int[] fill = (int[])childStart.Clone();
+        for (int i = 0; i < Count; i++)
             if (parent[i] >= 0)
                 children[fill[parent[i]]++] = i;
 
-        var order = new int[count];
+        int[] order = new int[Count];
         var stack = new Stack<int>();
         int n = 0;
-        for (int root = 0; root < count; root++)
+        for (int root = 0; root < Count; root++)
         {
             if (parent[root] >= 0)
                 continue;
@@ -414,15 +439,15 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
             }
         }
 
-        var newDense = new int[count];
-        for (int i = 0; i < count; i++)
+        int[] newDense = new int[Count];
+        for (int i = 0; i < Count; i++)
             newDense[order[i]] = i;
 
-        var newParent = new int[parent.Length];
+        int[] newParent = new int[parent.Length];
         var newLocal = new TPose[local.Length];
         var newWorld = new TPose[world.Length];
-        var newIdAt = new int[idAt.Length];
-        for (int i = 0; i < count; i++)
+        int[] newIdAt = new int[idAt.Length];
+        for (int i = 0; i < Count; i++)
         {
             int old = order[i];
             newParent[i] = parent[old] < 0 ? -1 : newDense[parent[old]];
@@ -431,6 +456,7 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
             newIdAt[i] = idAt[old];
             denseOf[idAt[old]] = i;
         }
+
         parent = newParent;
         local = newLocal;
         world = newWorld;
@@ -448,6 +474,7 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
             Array.Resize(ref world, size);
             Array.Resize(ref idAt, size);
         }
+
         if (idCount + 1 > denseOf.Length)
         {
             int size = Math.Max(idCount + 1, denseOf.Length * 2);

@@ -31,7 +31,8 @@ internal static class PuffBirths
     /// <paramref name="dt"/>, with s = (<paramref name="index"/> − <paramref name="phase"/>) / (<paramref name="rate"/> ·
     /// <paramref name="dt"/>) the share of the step at which it is born, in (0, 1]. A share that rounds past 1 gives the age 0.
     /// </summary>
-    public static double AgeAt(long index, double phase, float rate, double dt) => Math.Max(0, (1 - (index - phase) / (rate * dt)) * dt);
+    public static double AgeAt(long index, double phase, float rate, double dt) =>
+        Math.Max(0, (1 - (index - phase) / (rate * dt)) * dt);
 
     /// <summary>
     /// The index of the oldest of the <paramref name="count"/> newborns of a step that lives at the end of the step, from 1,
@@ -57,6 +58,7 @@ internal static class PuffBirths
             else
                 low = middle + 1;
         }
+
         return low;
     }
 
@@ -92,7 +94,7 @@ internal static class PuffBirths
         double cos = 1 - first * (1 - Math.Cos(spread));
         double sin = Math.Sqrt(Math.Max(0, 1 - cos * cos));
         double phi = 2 * Math.PI * second;
-        return new Double3(sin * Math.Cos(phi), sin * Math.Sin(phi), -cos);
+        return new(sin * Math.Cos(phi), sin * Math.Sin(phi), -cos);
     }
 
     /// <summary>
@@ -106,11 +108,13 @@ internal static class PuffBirths
     /// <param name="emitterPose">The pose of the emitter's entity in the frame at the end of the step.</param>
     /// <param name="emitterVelocity">The velocity of the emitter's entity in the frame at the end of the step, in m/s.</param>
     /// <param name="emitter">The emitter.</param>
-    /// <param name="direction">The ejection direction, a unit vector in the emitter's local axes (see <see cref="Direction"/>).</param>
+    /// <param name="direction">The ejection direction, a unit vector in the emitter's local axes (see <see cref="Direction"/>
+    /// ).</param>
     /// <param name="age">The newborn's age at the end of the step, in s (see <see cref="AgeAt"/>).</param>
     /// <param name="look">The index of the newborn's look in the look table.</param>
     /// <param name="dt">The length of the step, in s.</param>
-    public static Puff Newborn(in LooseBodyStep step, in DPose emitterPose, Double3 emitterVelocity, in PuffEmitter emitter,
+    public static Puff Newborn(in LooseBodyStep step, in DPose emitterPose, Double3 emitterVelocity,
+        in PuffEmitter emitter,
         Double3 direction, double age, int look, double dt)
     {
         Double3 place = emitterPose.Position;
@@ -125,6 +129,6 @@ internal static class PuffBirths
         Double3 push = lift == 0 ? linear : linear - step.EffectiveGravity(at, linear) * lift;
         Double3 behind = instant - (push - instant * drag) * (0.5 * dt);
         Double3 chord = step.Turns.Turns ? step.Turns.Step.ChordBehind(at, behind, dt) : behind;
-        return new Puff { Place = at, Chord = chord, Age = (float)age, Look = look };
+        return new() { Place = at, Chord = chord, Age = (float)age, Look = look };
     }
 }

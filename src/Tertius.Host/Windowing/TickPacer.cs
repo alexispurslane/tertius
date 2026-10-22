@@ -10,7 +10,8 @@ public sealed class TickPacer
     public TickPacer(double tickSeconds, double speed)
     {
         if (!(double.IsFinite(tickSeconds) && tickSeconds > 0))
-            throw new ArgumentOutOfRangeException(nameof(tickSeconds), tickSeconds, "The tick length must be positive and finite.");
+            throw new ArgumentOutOfRangeException(nameof(tickSeconds), tickSeconds,
+                "The tick length must be positive and finite.");
         if (!(double.IsFinite(speed) && speed > 0))
             throw new ArgumentOutOfRangeException(nameof(speed), speed, "The speed must be positive and finite.");
         SecondsPerTick = tickSeconds / speed;

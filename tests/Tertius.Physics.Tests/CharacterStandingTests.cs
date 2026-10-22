@@ -14,10 +14,12 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public class CharacterStandingTests
 {
-    private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
-
     // The capsule center rests 0.9 m above the floor, plus Jolt's character padding.
     private const double StandingHeight = 0.9;
+    private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
+
+    /// <summary>The largest angle, in radians, by which up turns in one step of 1/60 s in the air, at the default air rate.</summary>
+    private static float AirUpTurnPerStep => new JoltBackendOptions().CharacterAirUpTurnRate / 60f;
 
     private static BodyDesc StaticBox(Vector3 halfExtents) => new(new BoxShapeDesc(halfExtents), BodyMotion.Static);
 
@@ -41,14 +43,15 @@ public class CharacterStandingTests
     }
 
     private static Entity SpawnPerson(World world, FrameHandle frame, DPose pose, Pilot? pilot = null) =>
-        world.Spawn(new SpawnDesc { Frame = frame, Pose = pose, Body = Person, Components = pilot is null ? [] : [pilot] });
+        world.Spawn(new() { Frame = frame, Pose = pose, Body = Person, Components = pilot is null ? [] : [pilot] });
 
-    private static Vector3 UpOf(World world, Entity entity) => world.PoseInOwnFrame(entity).Rotation.Rotate(Vector3.UnitY);
+    private static Vector3 UpOf(World world, Entity entity) =>
+        world.PoseInOwnFrame(entity).Rotation.Rotate(Vector3.UnitY);
 
     [Fact]
     public void ACharacterOnAFloorUnderGravityStands()
     {
-        var (world, ground) = WorldWithFloor();
+        (World world, FrameHandle ground) = WorldWithFloor();
         using (world)
         {
             Entity person = SpawnPerson(world, ground, At(0, StandingHeight + 0.02, 0));
@@ -62,7 +65,7 @@ public class CharacterStandingTests
     [Fact]
     public void ACharacterThatJumpsDoesNotStandInTheAirAndStandsAgainOnceItLands()
     {
-        var (world, ground) = WorldWithFloor();
+        (World world, FrameHandle ground) = WorldWithFloor();
         using (world)
         {
             var pilot = new Pilot();
@@ -71,7 +74,8 @@ public class CharacterStandingTests
             Send(world, pilot, body => body.Jump(5));
             Tick(world, 10);
 
-            world.PoseInOwnFrame(person).Position.Y.Should().BeGreaterThan(StandingHeight + 0.3, "the character is in the air");
+            world.PoseInOwnFrame(person).Position.Y.Should()
+                .BeGreaterThan(StandingHeight + 0.3, "the character is in the air");
             world.Snapshot.IsStanding(person).Should().BeFalse();
 
             // v / g = 0.51 s up and as long down.
@@ -85,17 +89,18 @@ public class CharacterStandingTests
     public void ACharacterThatAForcePressesOntoAFloorInZeroGravityDoesNotStand()
     {
         using World world = NewWorld(out _);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         Floor(world, space);
         // 70 N on 70 kg presses the character onto the floor at 1 m/s², so Jolt finds the floor under it in every
         // update, as it does under gravity. The force of tick i acts in the step of tick i + 1, so 31 ticks hold 30 steps
         // with a force.
-        var pilot = new Pilot { EveryTick = body => body.AddForce(new Vector3(0, -70, 0)) };
+        var pilot = new Pilot { EveryTick = body => body.AddForce(new(0, -70, 0)) };
         Entity person = SpawnPerson(world, space, At(0, StandingHeight + 0.01, 0), pilot);
 
         Tick(world, 31);
 
-        world.PoseInOwnFrame(person).Position.Y.Should().BeApproximately(StandingHeight, 0.03, "the character rests on the floor");
+        world.PoseInOwnFrame(person).Position.Y.Should()
+            .BeApproximately(StandingHeight, 0.03, "the character rests on the floor");
         world.Snapshot.IsStanding(person).Should().BeFalse();
         world.Errors.Should().BeEmpty();
     }
@@ -107,12 +112,15 @@ public class CharacterStandingTests
         FrameHandle ground = Ground(world, 9.81f);
         // A slab tilted 60 degrees about +Z, steeper than the 50 degrees that a character can stand on. Its upper face
         // passes through the origin and faces up and toward -X.
-        var tilt = DQuaternion.FromAxisAngle(Double3.UnitZ, 60 * Math.PI / 180);
-        world.Spawn(new SpawnDesc { Frame = ground, Pose = new DPose(tilt.Rotate(new Double3(0, -0.5, 0)), tilt), Body = StaticBox(new Vector3(20, 0.5f, 20)) });
+        DQuaternion tilt = DQuaternion.FromAxisAngle(Double3.UnitZ, 60 * Math.PI / 180);
+        world.Spawn(new()
+        {
+            Frame = ground, Pose = new(tilt.Rotate(new Double3(0, -0.5, 0)), tilt), Body = StaticBox(new(20, 0.5f, 20))
+        });
         // The lower end of the capsule's axis is 0.3 m nearer the face than its center, so the capsule's side clears the
         // face by 2 cm.
         Vector3 normal = tilt.Rotate(Vector3.UnitY);
-        Entity person = SpawnPerson(world, ground, new DPose((Double3)(normal * 0.62f), DQuaternion.Identity));
+        Entity person = SpawnPerson(world, ground, new(normal * 0.62f, DQuaternion.Identity));
         Tick(world, 45);
 
         world.Snapshot.IsStanding(person).Should().BeFalse();
@@ -138,18 +146,23 @@ public class CharacterStandingTests
         using (world)
         {
             // The upper face passes through the origin, faces up and toward −X, and rises toward +X.
-            var tilt = DQuaternion.FromAxisAngle(Double3.UnitZ, 20 * Math.PI / 180);
-            world.Spawn(new SpawnDesc { Frame = ground, Pose = new DPose(tilt.Rotate(new Double3(0, -0.5, 0)), tilt), Body = StaticBox(new Vector3(40, 0.5f, 20)) });
+            DQuaternion tilt = DQuaternion.FromAxisAngle(Double3.UnitZ, 20 * Math.PI / 180);
+            world.Spawn(new()
+            {
+                Frame = ground, Pose = new(tilt.Rotate(new Double3(0, -0.5, 0)), tilt),
+                Body = StaticBox(new(40, 0.5f, 20))
+            });
             Double3 normal = tilt.Rotate(Double3.UnitY);
             Double3 along = tilt.Rotate(Double3.UnitX) * direction;
             // The upright capsule's lower sphere, 0.6 m below its center, clears the face by 2 cm.
             var pilot = new Pilot();
-            Entity person = SpawnPerson(world, ground, new DPose(normal * (0.32 + 0.6 * Math.Cos(20 * Math.PI / 180)), DQuaternion.Identity), pilot);
+            Entity person = SpawnPerson(world, ground,
+                new(normal * (0.32 + 0.6 * Math.Cos(20 * Math.PI / 180)), DQuaternion.Identity), pilot);
             Tick(world, 30);
             world.Snapshot.IsStanding(person).Should().BeTrue("the slope is gentle enough to stand on");
             double height = Double3.Dot(world.PoseInOwnFrame(person).Position, normal);
 
-            pilot.EveryTick = body => body.MoveCharacter(new Vector3(3 * direction, 0, 0));
+            pilot.EveryTick = body => body.MoveCharacter(new(3 * direction, 0, 0));
             // The tick writes the walk, and the step of the next tick applies it.
             Tick(world, 2);
             Double3 last = world.PoseInOwnFrame(person).Position;
@@ -170,9 +183,10 @@ public class CharacterStandingTests
             }
 
             standing.Should().OnlyContain(s => s, "the character stands in every step of its walk");
-            speeds.Should().OnlyContain(s => Math.Abs(s - 3) < 0.03, "the walk moves the character along the face at the speed that it asks for");
+            speeds.Should().OnlyContain(s => Math.Abs(s - 3) < 0.03,
+                "the walk moves the character along the face at the speed that it asks for");
             offPlane.Max().Should().BeLessThan(0.03, "the walk stays in the ground plane, along the line of the walk");
-            heights.Select(Math.Abs).Max().Should().BeLessThan(5e-3, "the character keeps its height above the face");
+            heights.Max(Math.Abs).Should().BeLessThan(5e-3, "the character keeps its height above the face");
             world.Errors.Should().BeEmpty();
         }
     }
@@ -191,25 +205,27 @@ public class CharacterStandingTests
         using World world = NewWorld(out _);
         FrameHandle ground = Ground(world, 9.81f);
         double slope = 40 * Math.PI / 180;
-        var tilt = DQuaternion.FromAxisAngle(Double3.UnitZ, slope);
+        DQuaternion tilt = DQuaternion.FromAxisAngle(Double3.UnitZ, slope);
         Double3 normal = tilt.Rotate(Double3.UnitY);
         Double3 downhill = -tilt.Rotate(Double3.UnitX);
         // The slab's upper face passes through the origin, and the plate, 0.2 m thick, lies on it.
-        world.Spawn(new SpawnDesc
+        world.Spawn(new()
         {
             Frame = ground,
-            Pose = new DPose(tilt.Rotate(new Double3(0, -0.5, 0)), tilt),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(40, 0.5f, 10)), BodyMotion.Static, Friction: 0),
+            Pose = new(tilt.Rotate(new Double3(0, -0.5, 0)), tilt),
+            Body = new(new BoxShapeDesc(new(40, 0.5f, 10)), BodyMotion.Static, Friction: 0)
         });
-        Entity plate = world.Spawn(new SpawnDesc
+        Entity plate = world.Spawn(new()
         {
             Frame = ground,
-            Pose = new DPose(normal * 0.1, tilt),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2, 0.1f, 2)), Mass: 700, Friction: 0, LinearDamping: 0, AngularDamping: 0),
+            Pose = new(normal * 0.1, tilt),
+            Body = new(new BoxShapeDesc(new(2, 0.1f, 2)), Mass: 700, Friction: 0, LinearDamping: 0, AngularDamping: 0)
         });
         // The upright capsule's lower sphere, 0.6 m below its center, starts 1 cm above the plate.
-        Entity person = SpawnPerson(world, ground, new DPose(normal * (0.2 + 0.31 + 0.6 * Math.Cos(slope)), DQuaternion.Identity));
-        TickUntil(world, () => world.Snapshot.IsStanding(person), 30).Should().BeLessThan(30, "the person lands on the plate and stands on it");
+        Entity person = SpawnPerson(world, ground,
+            new(normal * (0.2 + 0.31 + 0.6 * Math.Cos(slope)), DQuaternion.Identity));
+        TickUntil(world, () => world.Snapshot.IsStanding(person), 30).Should()
+            .BeLessThan(30, "the person lands on the plate and stands on it");
 
         var places = new List<double> { Double3.Dot(world.PoseInOwnFrame(plate).Position, downhill) };
         for (int tick = 0; tick < 30; tick++)
@@ -221,7 +237,8 @@ public class CharacterStandingTests
 
         double rate = world.Options.TickRate;
         for (int n = 2; n < places.Count; n++)
-            ((places[n] - 2 * places[n - 1] + places[n - 2]) * rate * rate).Should().BeApproximately(9.81 * Math.Sin(slope), 0.05,
+            ((places[n] - 2 * places[n - 1] + places[n - 2]) * rate * rate).Should().BeApproximately(
+                9.81 * Math.Sin(slope), 0.05,
                 $"the person presses the plate along its normal, so the plate slides as it would alone, in step {n}");
         world.Errors.Should().BeEmpty();
     }
@@ -236,11 +253,11 @@ public class CharacterStandingTests
     [Fact]
     public void AStandingCharacterThatWalksIntoAStairClimbsByTheStairsHeightOnly()
     {
-        var (world, ground) = WorldWithFloor();
+        (World world, FrameHandle ground) = WorldWithFloor();
         using (world)
         {
-            world.Spawn(new SpawnDesc { Frame = ground, Pose = At(8, 0.15), Body = StaticBox(new Vector3(5, 0.15f, 5)) });
-            var pilot = new Pilot { EveryTick = body => body.MoveCharacter(new Vector3(3, 0, 0)) };
+            world.Spawn(new() { Frame = ground, Pose = At(8, 0.15), Body = StaticBox(new(5, 0.15f, 5)) });
+            var pilot = new Pilot { EveryTick = body => body.MoveCharacter(new(3, 0, 0)) };
             Entity person = SpawnPerson(world, ground, At(0, StandingHeight + 0.02, 0), pilot);
             double highest = 0, last = 0;
             for (int tick = 0; tick < 150; tick++)
@@ -253,15 +270,14 @@ public class CharacterStandingTests
 
             world.PoseInOwnFrame(person).Position.X.Should().BeGreaterThan(5, "the character walked onto the stair");
             last.Should().BeApproximately(0.3 + StandingHeight, 0.03, "the character stands on the stair");
-            highest.Should().BeLessThan(0.3 + StandingHeight + 0.03, "the climb lifts the character by the stair's height only");
+            highest.Should().BeLessThan(0.3 + StandingHeight + 0.03,
+                "the climb lifts the character by the stair's height only");
             world.Errors.Should().BeEmpty();
         }
     }
 
-    /// <summary>The largest angle, in radians, by which up turns in one step of 1/60 s in the air, at the default air rate.</summary>
-    private static float AirUpTurnPerStep => new JoltBackendOptions().CharacterAirUpTurnRate / 60f;
-
-    private static float AngleBetween(Vector3 a, Vector3 b) => MathF.Acos(Math.Clamp(Vector3.Dot(Vector3.Normalize(a), Vector3.Normalize(b)), -1f, 1f));
+    private static float AngleBetween(Vector3 a, Vector3 b) =>
+        MathF.Acos(Math.Clamp(Vector3.Dot(Vector3.Normalize(a), Vector3.Normalize(b)), -1f, 1f));
 
     /// <summary>
     /// Changed on purpose by ter-1b21 (docs/plans/spin-gravity.md, "Characters", fork F5): up follows the gravity in the
@@ -273,7 +289,7 @@ public class CharacterStandingTests
     [Fact]
     public void UnderASteadyGravityACharacterInTheAirTurnsItsUpAtTheAirRateUntilItIsAgainstTheGravityAndLandsUpright()
     {
-        var (world, ground) = WorldWithFloor();
+        (World world, FrameHandle ground) = WorldWithFloor();
         using (world)
         {
             Entity person = SpawnPerson(world, ground, At(0, 5, 0));
@@ -295,14 +311,17 @@ public class CharacterStandingTests
             for (int n = 1; n < gaps.Count; n++)
             {
                 float expected = Math.Max(0, gaps[n - 1] - AirUpTurnPerStep);
-                gaps[n].Should().BeApproximately(expected, 2e-4f, $"in step {n} up turns by the air rate times the step, until it is aligned");
+                gaps[n].Should().BeApproximately(expected, 2e-4f,
+                    $"in step {n} up turns by the air rate times the step, until it is aligned");
             }
+
             gaps.Count(g => g > AirUpTurnPerStep).Should().BeGreaterThan(5, "a turn of 20 degrees takes several steps");
             gaps[^1].Should().BeLessThan(1e-3f, "under gravity, up turns against it in the air too");
 
             Tick(world, 60);
             world.Snapshot.IsStanding(person).Should().BeTrue("it landed on the floor");
-            Vector3.Distance(UpOf(world, person), -tilted).Should().BeLessThan(1e-3f, "it keeps its up against the gravity");
+            Vector3.Distance(UpOf(world, person), -tilted).Should()
+                .BeLessThan(1e-3f, "it keeps its up against the gravity");
             world.Errors.Should().BeEmpty();
         }
     }
@@ -317,14 +336,14 @@ public class CharacterStandingTests
     [Fact]
     public void ACharacterInTheAirThatTheGameTeleportsToATiltedRotationTurnsUprightAtTheAirRate()
     {
-        var (world, ground) = WorldWithFloor();
+        (World world, FrameHandle ground) = WorldWithFloor();
         using (world)
         {
             var pilot = new Pilot();
             Entity person = SpawnPerson(world, ground, At(0, 200, 0), pilot);
             Tick(world, 5);
             double tilt = 60 * Math.PI / 180;
-            var tilted = new DPose(new Double3(0, 190, 0), DQuaternion.FromAxisAngle(new Double3(0, 0, 1), tilt));
+            var tilted = new DPose(new(0, 190, 0), DQuaternion.FromAxisAngle(new(0, 0, 1), tilt));
             Send(world, pilot, body => body.Teleport(tilted));
             // The step of this tick teleports the character, and its update turns it once.
             world.Tick();
@@ -336,12 +355,15 @@ public class CharacterStandingTests
                 gaps.Add(AngleBetween(UpOf(world, person), Vector3.UnitY));
             }
 
-            gaps[0].Should().BeGreaterThan((float)tilt - AirUpTurnPerStep - 1e-3f, "the teleport's step turns the body by the air rate at most");
+            gaps[0].Should().BeGreaterThan((float)tilt - AirUpTurnPerStep - 1e-3f,
+                "the teleport's step turns the body by the air rate at most");
             for (int n = 1; n < gaps.Count; n++)
             {
                 float expected = Math.Max(0, gaps[n - 1] - AirUpTurnPerStep);
-                gaps[n].Should().BeApproximately(expected, 2e-4f, $"in step {n} up turns by the air rate times the step, until it is aligned");
+                gaps[n].Should().BeApproximately(expected, 2e-4f,
+                    $"in step {n} up turns by the air rate times the step, until it is aligned");
             }
+
             gaps[^1].Should().BeLessThan(1e-3f, "under gravity, up turns against it in the air");
             world.PoseInOwnFrame(person).Position.Y.Should().BeGreaterThan(100, "the character is still in the air");
             world.Errors.Should().BeEmpty();
@@ -357,7 +379,7 @@ public class CharacterStandingTests
     [Fact]
     public void AWeightlessCharacterThatTheGameTeleportsToATiltedRotationTurnsUprightAtTheAirRateOnceGravityReturns()
     {
-        var (world, ground) = WorldWithFloor();
+        (World world, FrameHandle ground) = WorldWithFloor();
         using (world)
         {
             var pilot = new Pilot();
@@ -365,11 +387,13 @@ public class CharacterStandingTests
             world.SetFrameGravity(ground, GravityField.Uniform(Vector3.Zero));
             Tick(world, 5);
             double tilt = 60 * Math.PI / 180;
-            Send(world, pilot, body => body.Teleport(new DPose(new Double3(0, 190, 0), DQuaternion.FromAxisAngle(new Double3(0, 0, 1), tilt))));
+            Send(world, pilot,
+                body => body.Teleport(new(new(0, 190, 0), DQuaternion.FromAxisAngle(new(0, 0, 1), tilt))));
             Tick(world, 3);
-            AngleBetween(UpOf(world, person), Vector3.UnitY).Should().BeApproximately((float)tilt, 1e-3f, "a weightless character keeps the teleport's rotation");
+            AngleBetween(UpOf(world, person), Vector3.UnitY).Should().BeApproximately((float)tilt, 1e-3f,
+                "a weightless character keeps the teleport's rotation");
 
-            world.SetFrameGravity(ground, GravityField.Uniform(new Vector3(0, -9.81f, 0)));
+            world.SetFrameGravity(ground, GravityField.Uniform(new(0, -9.81f, 0)));
             var gaps = new List<float> { AngleBetween(UpOf(world, person), Vector3.UnitY) };
             for (int tick = 0; tick < 70; tick++)
             {
@@ -378,7 +402,8 @@ public class CharacterStandingTests
             }
 
             for (int n = 1; n < gaps.Count; n++)
-                gaps[n].Should().BeGreaterThan(gaps[n - 1] - AirUpTurnPerStep - 2e-4f, $"in step {n} up turns by the air rate at most");
+                gaps[n].Should().BeGreaterThan(gaps[n - 1] - AirUpTurnPerStep - 2e-4f,
+                    $"in step {n} up turns by the air rate at most");
             gaps[^1].Should().BeLessThan(1e-3f, "under gravity, up turns against it in the air");
             world.Errors.Should().BeEmpty();
         }
@@ -393,9 +418,10 @@ public class CharacterStandingTests
     [Theory]
     [InlineData(90)]
     [InlineData(180)]
-    public void AFloatingCharacterWhoseGravityFlipsForOneStepTurnsItsUpByAtMostTheAirRateTimesTheStep(double flipDegrees)
+    public void AFloatingCharacterWhoseGravityFlipsForOneStepTurnsItsUpByAtMostTheAirRateTimesTheStep(
+        double flipDegrees)
     {
-        var (world, ground) = WorldWithFloor();
+        (World world, FrameHandle ground) = WorldWithFloor();
         using (world)
         {
             Entity person = SpawnPerson(world, ground, At(0, 200, 0));
@@ -406,15 +432,17 @@ public class CharacterStandingTests
             world.SetFrameGravity(ground, GravityField.Uniform(9.81f * flipped));
             world.Tick();
             var turns = new List<float> { AngleBetween(UpOf(world, person), Vector3.UnitY) };
-            world.SetFrameGravity(ground, GravityField.Uniform(new Vector3(0, -9.81f, 0)));
+            world.SetFrameGravity(ground, GravityField.Uniform(new(0, -9.81f, 0)));
             for (int tick = 0; tick < 5; tick++)
             {
                 world.Tick();
                 turns.Add(AngleBetween(UpOf(world, person), Vector3.UnitY));
             }
 
-            turns.Max().Should().BeLessThanOrEqualTo(AirUpTurnPerStep * 1.001f, "one step turns up by at most the air rate times the step");
-            turns.Max().Should().BeGreaterThan(AirUpTurnPerStep * 0.99f, "up starts to turn toward the flipped gravity");
+            turns.Max().Should().BeLessThanOrEqualTo(AirUpTurnPerStep * 1.001f,
+                "one step turns up by at most the air rate times the step");
+            turns.Max().Should()
+                .BeGreaterThan(AirUpTurnPerStep * 0.99f, "up starts to turn toward the flipped gravity");
             turns[^1].Should().BeLessThan(1e-4f, "up turns back once the gravity is back");
             world.Errors.Should().BeEmpty();
         }
@@ -434,18 +462,18 @@ public class CharacterStandingTests
     {
         using World world = NewWorld(out _);
         // The frame has no gravity yet, so physics creates the character with the tilt of its pose.
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        FrameHandle ground = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         Floor(world, ground);
         double tilt = tiltDegrees * Math.PI / 180;
-        var rotation = DQuaternion.FromAxisAngle(Double3.UnitZ, tilt);
+        DQuaternion rotation = DQuaternion.FromAxisAngle(Double3.UnitZ, tilt);
         // The lowest point of the tilted capsule is 0.6 m · |cos tilt| + 0.3 m below its center. It starts 5 cm above
         // the floor, so it falls for about 0.1 s, or 6 steps.
         double lowest = 0.6 * Math.Abs(Math.Cos(tilt)) + 0.3;
-        Entity person = SpawnPerson(world, ground, new DPose(new Double3(0, lowest + 0.05, 0), rotation));
+        Entity person = SpawnPerson(world, ground, new(new(0, lowest + 0.05, 0), rotation));
         world.Tick();
         Vector3 tilted = rotation.Rotate(Vector3.UnitY);
         Vector3.Distance(UpOf(world, person), tilted).Should().BeLessThan(1e-5f, "the character starts tilted");
-        world.SetFrameGravity(ground, GravityField.Uniform(new Vector3(0, -9.81f, 0)));
+        world.SetFrameGravity(ground, GravityField.Uniform(new(0, -9.81f, 0)));
 
         int steps = TickUntil(world, () => world.Snapshot.IsStanding(person), 60);
 
@@ -457,11 +485,11 @@ public class CharacterStandingTests
     [Fact]
     public void UnderGravityACharacterThatJumpsIntoALowCeilingLosesItsUpwardMotionThere()
     {
-        var (world, ground) = WorldWithFloor();
+        (World world, FrameHandle ground) = WorldWithFloor();
         using (world)
         {
             // The ceiling's lower face is at y = 2.3, 0.5 m above the head of the person who stands on the floor.
-            world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 2.8, 0), Body = StaticBox(new Vector3(50, 0.5f, 50)) });
+            world.Spawn(new() { Frame = ground, Pose = At(0, 2.8, 0), Body = StaticBox(new(50, 0.5f, 50)) });
             var pilot = new Pilot();
             Entity person = SpawnPerson(world, ground, At(0, StandingHeight + 0.02, 0), pilot);
             Tick(world, 20);
@@ -474,7 +502,8 @@ public class CharacterStandingTests
             int rising = TickUntil(world, () => world.VelocityInOwnFrame(person).Y <= 0, 60);
 
             rising.Should().BeLessThan(10);
-            world.PoseInOwnFrame(person).Position.Y.Should().BeLessThan(2.3 - StandingHeight, "the head stays below the ceiling");
+            world.PoseInOwnFrame(person).Position.Y.Should()
+                .BeLessThan(2.3 - StandingHeight, "the head stays below the ceiling");
             world.Errors.Should().BeEmpty();
         }
     }
@@ -486,21 +515,22 @@ public class CharacterStandingTests
     /// returned <see cref="FaultInjectingBackend"/> holds the output of every step, which is how a test reads what Jolt
     /// reported about the walker.
     /// </summary>
-    private static (World World, FaultInjectingBackend Faults, FrameHandle Ground, Entity Walker) WalkOutOfABuilding(double leanDegrees)
+    private static (World World, FaultInjectingBackend Faults, FrameHandle Ground, Entity Walker) WalkOutOfABuilding(
+        double leanDegrees)
     {
         World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         double lean = leanDegrees * Math.PI / 180;
         var down = new Vector3((float)Math.Sin(lean), -(float)Math.Cos(lean), 0);
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), GravityField.Uniform(9.81f * down)));
-        world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, -0.5, 0), Body = StaticBox(new Vector3(100, 0.5f, 100)) });
-        Entity buildingOwner = world.Spawn(new SpawnDesc
+        FrameHandle ground = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), GravityField.Uniform(9.81f * down)));
+        world.Spawn(new() { Frame = ground, Pose = At(0, -0.5, 0), Body = StaticBox(new(100, 0.5f, 100)) });
+        Entity buildingOwner = world.Spawn(new()
         {
             Frame = ground,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), GravityField.Uniform(new Vector3(0, -9.81f, 0))),
+            AsFrame = new(FrameBounds.Sphere(10), GravityField.Uniform(new(0, -9.81f, 0)))
         });
         FrameHandle building = world.GetOwnedFrame(buildingOwner);
-        world.Spawn(new SpawnDesc { Frame = building, Pose = At(0, -0.5, 0), Body = StaticBox(new Vector3(15, 0.5f, 15)) });
-        var pilot = new Pilot { Once = body => body.MoveCharacter(new Vector3(4, 0, 0)) };
+        world.Spawn(new() { Frame = building, Pose = At(0, -0.5, 0), Body = StaticBox(new(15, 0.5f, 15)) });
+        var pilot = new Pilot { Once = body => body.MoveCharacter(new(4, 0, 0)) };
         Entity walker = SpawnPerson(world, building, At(0, StandingHeight + 0.05, 0), pilot);
         bool HandedOff() => faults.Outputs.Count > 0 && faults.Outputs[^1].HandOffs.Count > 0;
         try
@@ -512,13 +542,14 @@ public class CharacterStandingTests
             world.Dispose();
             throw;
         }
+
         return (world, faults, ground, walker);
     }
 
     [Fact]
     public void AStandingCharacterThatWalksIntoAnotherFrameTakesItsUpFromThatFramesGravity()
     {
-        var (world, _, ground, walker) = WalkOutOfABuilding(leanDegrees: 10);
+        (World world, _, FrameHandle ground, Entity walker) = WalkOutOfABuilding(leanDegrees: 10);
         using (world)
         {
             world.GetFrame(walker).Should().Be(ground);
@@ -532,7 +563,8 @@ public class CharacterStandingTests
     [Fact]
     public void AHandOffCarriesTheRotationThatPhysicsCreatedTheCharacterWithInItsNewFrame()
     {
-        var (world, faults, ground, walker) = WalkOutOfABuilding(leanDegrees: 10);
+        (World world, FaultInjectingBackend faults, FrameHandle ground, Entity walker) =
+            WalkOutOfABuilding(leanDegrees: 10);
         using (world)
         {
             // The sync point applies the state of a hand-off after the body states of the step, so the transform table
@@ -543,8 +575,10 @@ public class CharacterStandingTests
             BodyState created = faults.Outputs[^1].Bodies.Single(state => state.Entity == walker);
             created.Frame.Should().Be(ground);
             handOff.Pose.Rotation.Should().Be(created.Pose.Rotation);
-            Vector3.Distance(created.Pose.Rotation.Rotate(Vector3.UnitY), Vector3.UnitY).Should().BeGreaterThan(0.1f, "physics turned the character away from the building's up");
-            world.PoseInOwnFrame(walker).Should().Be(handOff.Pose, "the World holds the pose that the hand-off carried");
+            Vector3.Distance(created.Pose.Rotation.Rotate(Vector3.UnitY), Vector3.UnitY).Should()
+                .BeGreaterThan(0.1f, "physics turned the character away from the building's up");
+            world.PoseInOwnFrame(walker).Should()
+                .Be(handOff.Pose, "the World holds the pose that the hand-off carried");
             world.Errors.Should().BeEmpty();
         }
     }
@@ -559,19 +593,21 @@ public class CharacterStandingTests
     [Fact]
     public void ACharacterThatWalksIntoAnotherFrameOnAContinuousFloorStandsInEveryStepButTheStepOfTheHandOff()
     {
-        var (world, faults, ground, walker) = WalkOutOfABuilding(leanDegrees: 0);
+        (World world, FaultInjectingBackend faults, FrameHandle ground, Entity walker) =
+            WalkOutOfABuilding(leanDegrees: 0);
         using (world)
         {
             // About 0.5 m, or 8 steps, into the ground.
             Tick(world, 8);
 
             world.GetFrame(walker).Should().Be(ground);
-            List<bool> standing = faults.Outputs.Select(output => output.Characters.Single().Standing).ToList();
+            List<bool> standing = [.. faults.Outputs.Select(output => output.Characters.Single().Standing)];
             int handOffStep = faults.Outputs.FindIndex(output => output.HandOffs.Count > 0);
             int settled = standing.IndexOf(true);
             settled.Should().BeInRange(0, 10, "the walker starts 5 cm above the floor of the building");
             handOffStep.Should().BeGreaterThan(settled);
-            IEnumerable<bool> expected = Enumerable.Range(settled, standing.Count - settled).Select(step => step != handOffStep);
+            IEnumerable<bool> expected =
+                Enumerable.Range(settled, standing.Count - settled).Select(step => step != handOffStep);
             standing.Skip(settled).Should().Equal(expected);
             world.Errors.Should().BeEmpty();
         }
@@ -580,11 +616,13 @@ public class CharacterStandingTests
     [Fact]
     public void ACharacterDoesNotStandInTheStepThatHandsItToAnotherFrame()
     {
-        var (world, faults, ground, walker) = WalkOutOfABuilding(leanDegrees: 0);
+        (World world, FaultInjectingBackend faults, FrameHandle ground, Entity walker) =
+            WalkOutOfABuilding(leanDegrees: 0);
         using (world)
         {
             world.GetFrame(walker).Should().Be(ground);
-            faults.Outputs[^1].Characters.Single().Standing.Should().BeFalse("Jolt reports the character not standing in the step of its hand-off");
+            faults.Outputs[^1].Characters.Single().Standing.Should()
+                .BeFalse("Jolt reports the character not standing in the step of its hand-off");
             world.Snapshot.IsStanding(walker).Should().BeFalse("in its new frame, nothing has stood the character yet");
             world.Errors.Should().BeEmpty();
         }

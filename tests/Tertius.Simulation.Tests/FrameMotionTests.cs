@@ -1,6 +1,5 @@
 using System.Numerics;
 using AwesomeAssertions;
-using Tertius.Frames.Rails;
 
 namespace Tertius.Simulation.Tests;
 
@@ -14,11 +13,11 @@ public class FrameMotionTests
     public void AStaticFrameMovesWhenItsOwnerWritesItsTransform()
     {
         using var test = new TestWorld();
-        Entity owner = test.World.Spawn(new SpawnDesc
+        Entity owner = test.World.Spawn(new()
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
-            Components = [new Mover(new Double3(0, 2, 0))],
+            AsFrame = new(FrameBounds.Sphere(10)),
+            Components = [new Mover(new(0, 2, 0))]
         });
         FrameHandle frame = test.World.GetOwnedFrame(owner);
 
@@ -32,13 +31,13 @@ public class FrameMotionTests
     public void AnEntityInAMovingStaticFrameKeepsItsLocalPoseAndMovesWithTheFrame()
     {
         using var test = new TestWorld();
-        FrameHandle frame = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
+        FrameHandle frame = test.World.GetOwnedFrame(test.World.Spawn(new()
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
-            Components = [new Mover(new Double3(0, 2, 0))],
+            AsFrame = new(FrameBounds.Sphere(10)),
+            Components = [new Mover(new(0, 2, 0))]
         }));
-        Entity passenger = test.World.SpawnAt(frame, new Double3(1, 0, 0));
+        Entity passenger = test.World.SpawnAt(frame, new(1, 0, 0));
 
         test.Run(3);
 
@@ -51,21 +50,24 @@ public class FrameMotionTests
     public void AnEntityInAStaticFrameTurnsWithTheFrameWhenItsOwnerWritesARotation()
     {
         using var test = new TestWorld();
-        FrameHandle frame = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
+        FrameHandle frame = test.World.GetOwnedFrame(test.World.Spawn(new()
         {
             Frame = test.Root,
             Pose = TestWorld.At(10),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-                self.SetTransform(self.PoseInOwnFrame() with { Rotation = PoseChecks.QuarterTurnAboutY }))],
+            AsFrame = new(FrameBounds.Sphere(10)),
+            Components =
+            [
+                Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+                    self.SetTransform(self.PoseInOwnFrame() with { Rotation = PoseChecks.QuarterTurnAboutY }))
+            ]
         }));
-        Entity passenger = test.World.SpawnAt(frame, new Double3(1, 0, 0));
+        Entity passenger = test.World.SpawnAt(frame, new(1, 0, 0));
 
         test.Run(1);
 
         // The quarter turn about +Y maps the frame's +X to the root's -Z.
         test.World.Snapshot.TryGetPoseIn(passenger, test.Root, out DPose inRoot).Should().BeTrue();
-        PoseChecks.AssertNear(inRoot.Position, new Double3(10, 0, -1));
+        PoseChecks.AssertNear(inRoot.Position, new(10, 0, -1));
         PoseChecks.AssertSameRotation(inRoot.Rotation, PoseChecks.QuarterTurnAboutY);
     }
 
@@ -73,21 +75,21 @@ public class FrameMotionTests
     public void AFrameInsideAMovingFrameMovesWithItAndCarriesItsOwnEntities()
     {
         using var test = new TestWorld();
-        FrameHandle outer = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
+        FrameHandle outer = test.World.GetOwnedFrame(test.World.Spawn(new()
         {
             Frame = test.Root,
             Pose = TestWorld.At(100),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1000)),
-            Components = [new Mover(new Double3(1, 0, 0))],
+            AsFrame = new(FrameBounds.Sphere(1000)),
+            Components = [new Mover(new(1, 0, 0))]
         }));
         FrameHandle inner = test.World.SpawnStaticFrame(outer, TestWorld.At(0, 10), radius: 10);
-        Entity passenger = test.World.SpawnAt(inner, new Double3(0, 0, 5));
+        Entity passenger = test.World.SpawnAt(inner, new(0, 0, 5));
 
         test.Run(3);
 
         // 100 + 3 m for the outer frame, 10 m for the inner frame inside it, 5 m for the passenger inside that.
         test.World.Snapshot.TryGetPoseIn(passenger, test.Root, out DPose inRoot).Should().BeTrue();
-        PoseChecks.AssertNear(inRoot.Position, new Double3(103, 10, 5));
+        PoseChecks.AssertNear(inRoot.Position, new(103, 10, 5));
         test.World.Frames.LocalPose(inner).Position.Should().Be(new Double3(0, 10, 0));
     }
 
@@ -107,7 +109,7 @@ public class FrameMotionTests
     public void TheOwnerOfAFramesPoseIsTheFramesLocalPose()
     {
         using var test = new TestWorld();
-        FrameHandle station = test.SpawnStaticFrame(new DPose(new Double3(50, 6, 7), PoseChecks.QuarterTurnAboutY));
+        FrameHandle station = test.SpawnStaticFrame(new(new(50, 6, 7), PoseChecks.QuarterTurnAboutY));
 
         test.World.PoseInOwnFrame(station.Entity).Should().Be(test.World.Frames.LocalPose(station));
         test.World.PoseInOwnFrame(station.Entity).Position.Should().Be(new Double3(50, 6, 7));
@@ -119,23 +121,26 @@ public class FrameMotionTests
     public void AFrameWithoutABodyFollowsItsOwnersWriteAtTheSyncPointOfTheTickAndTakesItAsItsStepRecord()
     {
         using var test = new TestWorld();
-        var written = new DPose(new Double3(3, 4, 5), PoseChecks.QuarterTurnAboutY);
-        FrameHandle frame = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
+        var written = new DPose(new(3, 4, 5), PoseChecks.QuarterTurnAboutY);
+        FrameHandle frame = test.World.GetOwnedFrame(test.World.Spawn(new()
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            {
-                if (self.Tick == 1)
-                    self.SetTransform(written);
-            })],
+            AsFrame = new(FrameBounds.Sphere(10)),
+            Components =
+            [
+                Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 1)
+                        self.SetTransform(written);
+                })
+            ]
         }));
 
         test.Run(2);
 
         test.World.Frames.LocalPose(frame).Should().Be(written);
         test.World.Frames.LinearVelocity(frame).Should().Be(Double3.Zero, "a write moves the frame with no velocity");
-        test.World.Frames.AngularVelocity(frame).Should().Be(System.Numerics.Vector3.Zero);
+        test.World.Frames.AngularVelocity(frame).Should().Be(Vector3.Zero);
         test.World.Frames.Followed(frame).Should().Be(FollowKind.Static);
     }
 
@@ -143,28 +148,34 @@ public class FrameMotionTests
     public void WhenItsParentDiesAtTheSameSyncPointAFrameWithoutABodyStillFollowsItsOwnersWrite()
     {
         using var test = new TestWorld();
-        var dockPose = new DPose(new Double3(100, 0, 0), PoseChecks.QuarterTurnAboutY);
-        FrameHandle dock = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
+        var dockPose = new DPose(new(100, 0, 0), PoseChecks.QuarterTurnAboutY);
+        FrameHandle dock = test.World.GetOwnedFrame(test.World.Spawn(new()
         {
             Frame = test.Root,
             Pose = dockPose,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            {
-                if (self.Tick == 1)
-                    self.Destroy();
-            })],
+            AsFrame = new(FrameBounds.Sphere(50)),
+            Components =
+            [
+                Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 1)
+                        self.Destroy();
+                })
+            ]
         }));
-        var written = new DPose(new Double3(3, 4, 5), DQuaternion.Identity);
-        FrameHandle room = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
+        var written = new DPose(new(3, 4, 5), DQuaternion.Identity);
+        FrameHandle room = test.World.GetOwnedFrame(test.World.Spawn(new()
         {
             Frame = dock,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            {
-                if (self.Tick == 1)
-                    self.SetTransform(written);
-            })],
+            AsFrame = new(FrameBounds.Sphere(5)),
+            Components =
+            [
+                Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 1)
+                        self.SetTransform(written);
+                })
+            ]
         }));
 
         test.Run(2);

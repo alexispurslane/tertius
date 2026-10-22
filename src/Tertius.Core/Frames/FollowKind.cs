@@ -19,5 +19,5 @@ public enum FollowKind : byte
     Physics = 2,
 
     /// <summary>The frame followed an end pose that its owner wrote with <c>Self.MoveKinematic</c>.</summary>
-    Kinematic = 3,
+    Kinematic = 3
 }

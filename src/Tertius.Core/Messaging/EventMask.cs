@@ -8,15 +8,26 @@ public struct EventMask : IEquatable<EventMask>
     public const int Capacity = 512;
     private const int Words = Capacity / 64;
 
+    public static EventMask None => default;
+
+    private Bits bits;
+
+    public readonly bool IsEmpty
+    {
+        get
+        {
+            for (int i = 0; i < Words; i++)
+                if (bits[i] != 0)
+                    return false;
+            return true;
+        }
+    }
+
     [InlineArray(Words)]
     private struct Bits
     {
         private ulong word;
     }
-
-    private Bits bits;
-
-    public static EventMask None => default;
 
     public static EventMask Of<T>() where T : unmanaged, IEventPayload => default(EventMask).And<T>();
 
@@ -51,17 +62,6 @@ public struct EventMask : IEquatable<EventMask>
         return false;
     }
 
-    public readonly bool IsEmpty
-    {
-        get
-        {
-            for (int i = 0; i < Words; i++)
-                if (bits[i] != 0)
-                    return false;
-            return true;
-        }
-    }
-
     public void UnionWith(in EventMask other)
     {
         for (int i = 0; i < Words; i++)
@@ -84,9 +84,9 @@ public struct EventMask : IEquatable<EventMask>
         return true;
     }
 
-    public override readonly bool Equals(object? obj) => obj is EventMask other && Equals(other);
+    public readonly override bool Equals(object? obj) => obj is EventMask other && Equals(other);
 
-    public override readonly int GetHashCode()
+    public readonly override int GetHashCode()
     {
         HashCode hash = default;
         for (int i = 0; i < Words; i++)
@@ -97,7 +97,7 @@ public struct EventMask : IEquatable<EventMask>
     public static bool operator ==(EventMask a, EventMask b) => a.Equals(b);
     public static bool operator !=(EventMask a, EventMask b) => !a.Equals(b);
 
-    public override readonly string ToString()
+    public readonly override string ToString()
     {
         var names = new List<string>();
         for (int id = 0; id < Capacity; id++)

@@ -1,6 +1,7 @@
 namespace Tertius.Simulation;
 
-/// <summary>A <see cref="Simulation.Sensor"/> relays that <see cref="Other"/> started to touch the entity <see cref="Sensor"/>.</summary>
+/// <summary>A <see cref="Simulation.Sensor"/> relays that <see cref="Other"/> started to touch the entity
+/// <see cref="Sensor"/>.</summary>
 public struct Entered : IEventPayload
 {
     public Entity Sensor;
@@ -44,7 +45,7 @@ public sealed class Sensor : IComponent
 {
     // For each entity whose Entered this sensor relayed and whose Left it has not: the number of its contacts with the
     // sensor's entity that started and have not ended.
-    private readonly Dictionary<Entity, int> openContacts = new();
+    private readonly Dictionary<Entity, int> openContacts = [];
     private string? topic;
     private Target recipients = new Broadcast();
 
@@ -76,20 +77,25 @@ public sealed class Sensor : IComponent
         {
             Entity other = collision.Other;
             if (openContacts.TryGetValue(other, out int open))
+            {
                 openContacts[other] = open + 1;
+            }
             else if (snapshot.Matches(Filter, other))
             {
                 openContacts.Add(other, 1);
                 outbox.Send(recipients, new Entered { Sensor = self.Entity, Other = other });
             }
         }
+
         foreach (ref CollisionEnded ended in events.Of<CollisionEnded>())
         {
             Entity other = ended.Other;
             if (!openContacts.TryGetValue(other, out int open))
                 continue;
             if (open > 1)
+            {
                 openContacts[other] = open - 1;
+            }
             else
             {
                 openContacts.Remove(other);

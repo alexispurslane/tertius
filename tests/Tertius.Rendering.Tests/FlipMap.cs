@@ -12,12 +12,12 @@ internal sealed class FlipMap
     /// </summary>
     private static readonly (float Error, Vector3 Color)[] HeatStops =
     [
-        (0f, new Vector3(0.001f, 0.000f, 0.014f)),
-        (0.25f, new Vector3(0.232f, 0.060f, 0.438f)),
-        (0.5f, new Vector3(0.550f, 0.161f, 0.506f)),
-        (0.75f, new Vector3(0.869f, 0.288f, 0.409f)),
-        (0.9f, new Vector3(0.993f, 0.553f, 0.384f)),
-        (1f, new Vector3(0.987f, 0.991f, 0.750f)),
+        (0f, new(0.001f, 0.000f, 0.014f)),
+        (0.25f, new(0.232f, 0.060f, 0.438f)),
+        (0.5f, new(0.550f, 0.161f, 0.506f)),
+        (0.75f, new(0.869f, 0.288f, 0.409f)),
+        (0.9f, new(0.993f, 0.553f, 0.384f)),
+        (1f, new(0.987f, 0.991f, 0.750f))
     ];
 
     private readonly float[] values;
@@ -25,7 +25,8 @@ internal sealed class FlipMap
     public FlipMap(int width, int height, float[] values)
     {
         if (values.Length != width * height)
-            throw new ArgumentException($"A {width}×{height} map needs {width * height} values, not {values.Length}.", nameof(values));
+            throw new ArgumentException($"A {width}×{height} map needs {width * height} values, not {values.Length}.",
+                nameof(values));
         Width = width;
         Height = height;
         this.values = values;
@@ -47,7 +48,7 @@ internal sealed class FlipMap
     /// <summary>The map as an image: each pixel's error as a color of the heat ramp.</summary>
     public Capture HeatMap()
     {
-        var rgba = new byte[values.Length * 4];
+        byte[] rgba = new byte[values.Length * 4];
         for (int i = 0; i < values.Length; i++)
         {
             Vector3 color = HeatColor(values[i]);
@@ -56,6 +57,7 @@ internal sealed class FlipMap
             rgba[4 * i + 2] = (byte)MathF.Round(color.Z * 255);
             rgba[4 * i + 3] = 255;
         }
+
         return Capture.FromRgba(Width, Height, rgba);
     }
 

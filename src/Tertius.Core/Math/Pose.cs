@@ -7,7 +7,8 @@ public interface IPose<TSelf> where TSelf : struct, IPose<TSelf>
 {
     static abstract TSelf Identity { get; }
 
-    /// <summary>The pose of a child in its grandparent's space: <paramref name="parent"/> applied after <paramref name="local"/>.</summary>
+    /// <summary>The pose of a child in its grandparent's space: <paramref name="parent"/> applied after
+    /// <paramref name="local"/>.</summary>
     static abstract TSelf Compose(in TSelf parent, in TSelf local);
 
     TSelf Inverse();
@@ -30,8 +31,12 @@ public record struct Pose(Vector3 Position, Quaternion Rotation) : IPose<Pose>
 
     public readonly Vector3 TransformPoint(Vector3 point) => Position + Vector3.Transform(point, Rotation);
     public readonly Vector3 TransformDirection(Vector3 direction) => Vector3.Transform(direction, Rotation);
-    public readonly Vector3 InverseTransformPoint(Vector3 point) => Vector3.Transform(point - Position, Quaternion.Conjugate(Rotation));
-    public readonly Vector3 InverseTransformDirection(Vector3 direction) => Vector3.Transform(direction, Quaternion.Conjugate(Rotation));
+
+    public readonly Vector3 InverseTransformPoint(Vector3 point) =>
+        Vector3.Transform(point - Position, Quaternion.Conjugate(Rotation));
+
+    public readonly Vector3 InverseTransformDirection(Vector3 direction) =>
+        Vector3.Transform(direction, Quaternion.Conjugate(Rotation));
 
     public static Pose Lerp(in Pose a, in Pose b, float t) =>
         new(Vector3.Lerp(a.Position, b.Position, t), Quaternion.Slerp(a.Rotation, b.Rotation, t));
@@ -46,9 +51,11 @@ public record struct Pose(Vector3 Position, Quaternion Rotation) : IPose<Pose>
 /// <summary>A double-precision rigid transform. Used for reference frames relative to their parents.</summary>
 /// <remarks>
 /// <see cref="Compose"/> and <see cref="Inverse"/> normalize the rotation that they use, so they stay exact for a rotation that
-/// is a little off unit length, such as a float quaternion from Jolt. <see cref="TransformPoint"/>, <see cref="TransformDirection"/>
+/// is a little off unit length, such as a float quaternion from Jolt. <see cref="TransformPoint"/>,
+/// <see cref="TransformDirection"/>
 /// and the two inverse transforms use the rotation as it is, for speed. They need a unit rotation, which the frame tree keeps
-/// for the local pose of every frame (see <see cref="FrameTree.AssertInvariants()"/>), and which <see cref="Compose"/> gives.
+/// for the local pose of every frame (see <see cref="FrameTree.AssertInvariants()"/>), and which <see cref="Compose"/>
+/// gives.
 /// <see cref="ComposeUnitParent"/> is <see cref="Compose"/> without the normalization of the parent's rotation, for a hot
 /// path where the parent is unit length already.
 /// <para>
@@ -58,13 +65,13 @@ public record struct Pose(Vector3 Position, Quaternion Rotation) : IPose<Pose>
 /// </remarks>
 public record struct DPose(Double3 Position, DQuaternion Rotation) : IPose<DPose>
 {
+    public static DPose Identity => new(Double3.Zero, DQuaternion.Identity);
+
     /// <summary>A pose at the origin with the identity rotation.</summary>
     public DPose()
         : this(Double3.Zero, DQuaternion.Identity)
     {
     }
-
-    public static DPose Identity => new(Double3.Zero, DQuaternion.Identity);
 
     /// <summary>
     /// True when the position is finite and the rotation can be normalized: the square of its length is finite and not zero.
@@ -85,11 +92,13 @@ public record struct DPose(Double3 Position, DQuaternion Rotation) : IPose<DPose
         (parent.Rotation * local.Rotation).Normalized());
 
     /// <summary>
-    /// <see cref="Compose"/> for a <paramref name="parent"/> whose rotation is unit length (see <see cref="DQuaternion.IsUnit"/>).
+    /// <see cref="Compose"/> for a <paramref name="parent"/> whose rotation is unit length (see
+    /// <see cref="DQuaternion.IsUnit"/>).
     /// It rotates the position of the child by the rotation of the parent as it is, and so it skips the division that
     /// <see cref="Compose"/> needs to normalize that rotation. Use it on a hot path where the parent is unit length because of
     /// where it came from, such as a pose that <see cref="Compose"/> gave, or the local pose of a frame. The rotation of the
-    /// result is normalized, as for <see cref="Compose"/>, so it is unit length whatever the rotation of <paramref name="local"/>.
+    /// result is normalized, as for <see cref="Compose"/>, so it is unit length whatever the rotation of
+    /// <paramref name="local"/>.
     /// <para>
     /// A parent that is within <see cref="DQuaternion.UnitTolerance"/> of unit length counts as unit length. The position of the
     /// result then differs from that of <see cref="Compose"/> by at most the length of the child's position times that
@@ -116,7 +125,8 @@ public record struct DPose(Double3 Position, DQuaternion Rotation) : IPose<DPose
     }
 
     /// <summary>
-    /// This pose with its rotation normalized, unless the rotation is unit length already (see <see cref="DQuaternion.IsUnit"/>).
+    /// This pose with its rotation normalized, unless the rotation is unit length already (see
+    /// <see cref="DQuaternion.IsUnit"/>).
     /// A rotation that is unit length stays as it is, bit for bit, so a pose that needs no change does not change by rounding.
     /// A zero rotation becomes the identity.
     /// </summary>
@@ -134,10 +144,10 @@ public record struct DPose(Double3 Position, DQuaternion Rotation) : IPose<DPose
 /// <summary>An axis-aligned box.</summary>
 public record struct BoundingBox(Vector3 Min, Vector3 Max)
 {
+    public readonly Vector3 Center => (Min + Max) * 0.5f;
+    public readonly Vector3 Extents => (Max - Min) * 0.5f;
+
     public readonly bool Contains(Vector3 point) =>
         point.X >= Min.X && point.Y >= Min.Y && point.Z >= Min.Z &&
         point.X <= Max.X && point.Y <= Max.Y && point.Z <= Max.Z;
-
-    public readonly Vector3 Center => (Min + Max) * 0.5f;
-    public readonly Vector3 Extents => (Max - Min) * 0.5f;
 }

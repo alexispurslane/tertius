@@ -1,4 +1,3 @@
-using System.Numerics;
 using System.Runtime.CompilerServices;
 using JoltPhysicsSharp;
 using Tertius.Frames.Rails;
@@ -22,18 +21,20 @@ public class WorldBugOnlyTests
     [Fact]
     public void ACreationThatFailsInTheBackendIsABugAndTheRestOfTheBatchStillApplies()
     {
-        var faults = new FaultInjectingBackend(new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 }));
-        using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true }, faults);
+        var faults = new FaultInjectingBackend(new(new() { WorkerThreads = 2 }));
+        using var world = new World(new() { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true },
+            faults);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         world.Tick();
         var stranger = new Entity(999, 1);
         faults.EditNextChanges = changes => changes.BodiesCreated.Insert(0,
-            new BodyCreate(stranger, ground, new BodyDesc(new SphereShapeDesc(1), Mass: 0), At(5, 5), default, default));
-        Entity ball = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 5), Body = new BodyDesc(new SphereShapeDesc(0.5f), Mass: 1) });
+            new(stranger, ground, new(new SphereShapeDesc(1), Mass: 0), At(5, 5), default, default));
+        Entity ball = world.Spawn(new()
+            { Frame = ground, Pose = At(0, 5), Body = new(new SphereShapeDesc(0.5f), Mass: 1) });
 
 #if TERTIUS_CONTRACTS
-        Action tick = () => world.Tick();
+        Action tick = world.Tick;
 
         tick.Should().Throw<ContractException>().WithMessage($"*{stranger}*");
 #else
@@ -50,10 +51,10 @@ public class WorldBugOnlyTests
     /// <summary>Casts one ray along +X from its own position on tick <paramref name="onTick"/>, and keeps the answers.</summary>
     private sealed class RayOnTick(long onTick) : IComponent
     {
-        public List<RayHit> Answers { get; } = new();
+        public List<RayHit> Answers { get; } = [];
 
         public int Priority => 0;
-        public EventMask Wants => EventMask.Of<Tertius.Tick>().And<RayHit>();
+        public EventMask Wants => EventMask.Of<Tick>().And<RayHit>();
 
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
@@ -77,15 +78,17 @@ public class WorldBugOnlyTests
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle ground = Ground(world, 0);
         var asker = new RayOnTick(onTick: 1);
-        world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0), Components = [asker] });
-        Entity dead = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(10), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Static) });
-        Entity beyond = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(20), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Static) });
+        world.Spawn(new() { Frame = ground, Pose = At(0), Components = [asker] });
+        Entity dead = world.Spawn(new()
+            { Frame = ground, Pose = At(10), Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static) });
+        Entity beyond = world.Spawn(new()
+            { Frame = ground, Pose = At(20), Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static) });
         world.Tick();
         faults.EditNextChanges = changes => changes.BodiesDestroyed.Remove(dead);
         world.Destroy(dead);
 
 #if TERTIUS_CONTRACTS
-        Action tick = () => world.Tick();
+        Action tick = world.Tick;
 
         tick.Should().Throw<ContractException>().WithMessage($"*{dead}*which is not live*");
 #else
@@ -108,23 +111,25 @@ public class WorldBugOnlyTests
     [InlineData("full sample", BodyMotion.Dynamic)]
     [InlineData("steer target", BodyMotion.Kinematic)]
     [InlineData("end pose", BodyMotion.Static)]
-    public void AMotionIntentWhoseCaseTheBodysMotionRefusesIsABugAndAReleaseBuildIgnoresIt(string write, BodyMotion motion)
+    public void AMotionIntentWhoseCaseTheBodysMotionRefusesIsABugAndAReleaseBuildIgnoresIt(string write,
+        BodyMotion motion)
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
-        Entity body = world.Spawn(new SpawnDesc { Frame = space, Pose = At(0), Body = Ball() with { Motion = motion } });
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
+        Entity body = world.Spawn(new() { Frame = space, Pose = At(0), Body = Ball() with { Motion = motion } });
         Tick(world, 2);
         DPose end = At(1);
         MotionIntent move = write switch
         {
-            "end pose" => new MotionIntent(new EndPose(end)),
-            "full sample" => new MotionIntent(new MotionSample(end, new Double3(60, 0, 0), new Double3(60, 0, 0), Double3.Zero, Double3.Zero, Double3.Zero)),
-            _ => new MotionIntent(new SteerTarget(end)),
+            "end pose" => new(new EndPose(end)),
+            "full sample" => new(new MotionSample(end, new(60, 0, 0), new(60, 0, 0), Double3.Zero, Double3.Zero,
+                Double3.Zero)),
+            _ => new(new SteerTarget(end))
         };
-        faults.EditNextIntents = intents => intents.Add((body, new PhysicsIntent { Frame = space, Move = move }));
+        faults.EditNextIntents = intents => intents.Add((body, new() { Frame = space, Move = move }));
 
 #if TERTIUS_CONTRACTS
-        Action tick = () => world.Tick();
+        Action tick = world.Tick;
 
         tick.Should().Throw<ContractException>().WithMessage($"*{body}*");
 #else
@@ -139,7 +144,8 @@ public class WorldBugOnlyTests
     private static extern BodyRecord? RecordOf(JoltPhysicsBackend backend, Entity entity);
 
     [UnsafeAccessor(UnsafeAccessorKind.Method, Name = "WantGhost")]
-    private static extern void WantGhost(JoltPhysicsBackend backend, BodyRecord record, FrameHandle frame, in DPose pose, Double3 linearVelocity,
+    private static extern void WantGhost(JoltPhysicsBackend backend, BodyRecord record, FrameHandle frame,
+        in DPose pose, Double3 linearVelocity,
         Double3 angularVelocity, BodyLayer role);
 
     /// <summary>
@@ -154,22 +160,27 @@ public class WorldBugOnlyTests
     public void AGhostThatIsWantedAgainInAnotherRoleComesOnlyFromABugAndKeepsItsRole()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
-        FrameHandle dock = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = space, Pose = At(43), AsFrame = new FrameSpec(FrameBounds.Sphere(20)) }));
-        Entity shuttle = world.Spawn(new SpawnDesc
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
+        FrameHandle dock = world.GetOwnedFrame(world.Spawn(new()
+            { Frame = space, Pose = At(43), AsFrame = new(FrameBounds.Sphere(20)) }));
+        Entity shuttle = world.Spawn(new()
         {
             Frame = space,
             Pose = At(19),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2.5f)), BodyMotion.Static, InteriorShape: new SphereShapeDesc(0.1f)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(11)),
+            Body = new(new BoxShapeDesc(new(2.5f)), BodyMotion.Static, InteriorShape: new SphereShapeDesc(0.1f)),
+            AsFrame = new(FrameBounds.Sphere(11))
         });
         world.Tick();
+
         JoltPhysicsBackend.BodyFacts GhostInDock() =>
-            faults.Jolt.BodiesIn(dock).Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, shuttle));
+            faults.Jolt.BodiesIn(dock).Single(facts =>
+                BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, shuttle));
+
         JoltPhysicsBackend.BodyFacts kept = GhostInDock();
         BodyRecord record = RecordOf(faults.Jolt, shuttle)!;
 
-        Action want = () => WantGhost(faults.Jolt, record, dock, new DPose(kept.Position, DQuaternion.Identity), default, default, BodyLayer.FrameHull);
+        Action want = () => WantGhost(faults.Jolt, record, dock, new(kept.Position, DQuaternion.Identity), default,
+            default, BodyLayer.FrameHull);
 
 #if TERTIUS_CONTRACTS
         want.Should().Throw<ContractException>().WithMessage($"*{shuttle}*{dock}*Only a bug*");
@@ -199,25 +210,28 @@ public class WorldBugOnlyTests
     public void AGhostWithoutAContactMotionThatThePairTestFindsComesOnlyFromABug()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults, debugChecks: false);
-        var gravity = GravityField.Uniform(new Vector3(0, -9.81f, 0));
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), gravity));
-        Entity slab = world.Spawn(new SpawnDesc
+        GravityField gravity = GravityField.Uniform(new(0, -9.81f, 0));
+        FrameHandle ground = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), gravity));
+        Entity slab = world.Spawn(new()
         {
-            Frame = ground, Pose = At(0, -0.5), Body = new BodyDesc(new BoxShapeDesc(new Vector3(20, 0.5f, 20)), BodyMotion.Static),
+            Frame = ground, Pose = At(0, -0.5), Body = new(new BoxShapeDesc(new(20, 0.5f, 20)), BodyMotion.Static)
         });
-        FrameHandle home = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 5), AsFrame = new FrameSpec(FrameBounds.Sphere(20), gravity) }));
+        FrameHandle home = world.GetOwnedFrame(world.Spawn(new()
+            { Frame = ground, Pose = At(0, 5), AsFrame = new(FrameBounds.Sphere(20), gravity) }));
         var podLog = new CollisionLog();
-        Entity pod = world.Spawn(new SpawnDesc
+        Entity pod = world.Spawn(new()
         {
             Frame = home,
             Pose = At(0, -2),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 100, Restitution: 0, InteriorShape: new SphereShapeDesc(0.1f)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1.5f), gravity),
-            Components = [podLog],
+            Body = new(new BoxShapeDesc(new(0.5f)), Mass: 100, Restitution: 0,
+                InteriorShape: new SphereShapeDesc(0.1f)),
+            AsFrame = new(FrameBounds.Sphere(1.5f), gravity),
+            Components = [podLog]
         });
         Tick(world, 180);
         podLog.NewsOf(slab).Should().Equal(Started);
-        BodyID ghost = faults.Jolt.BodiesIn(home).Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, slab)).Id;
+        BodyID ghost = faults.Jolt.BodiesIn(home).Single(facts =>
+            BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, slab)).Id;
         ContactMotionsOf(SystemOf(faults.Jolt, home)!).Remove(ghost).Should().BeTrue();
         world.SetMotionNextTick(pod, BodyMotion.Static);
 

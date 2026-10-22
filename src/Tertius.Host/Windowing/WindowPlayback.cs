@@ -13,13 +13,22 @@ namespace Tertius.Host.Windowing;
 /// <param name="folder">Where the captures go, or null for free play, which captures nothing.</param>
 /// <param name="secondsSinceStart">The wall clock: seconds since the run started.</param>
 /// <param name="stop">Fires when the window closes.</param>
-public sealed class WindowPlayback(TickPacer pacer, CaptureMailbox captures, PngFolder? folder, Func<double> secondsSinceStart, CancellationToken stop) : IPlayback
+public sealed class WindowPlayback(
+    TickPacer pacer,
+    CaptureMailbox captures,
+    PngFolder? folder,
+    Func<double> secondsSinceStart,
+    CancellationToken stop) : IPlayback
 {
     private readonly TickPacer pacer = pacer;
     private readonly PngFolder? folder = folder;
     private readonly CaptureMailbox captures = captures;
     private readonly CancellationToken stop = stop;
     private readonly Func<double> secondsSinceStart = secondsSinceStart;
+
+    // The ticks that this playback let run, and how far stalls moved the schedule, in wall-clock seconds.
+    private long ticks;
+    private double slip;
 
     /// <summary>
     /// Waits until the next tick's start time. A tick late by less than one tick runs at once and keeps the schedule. A
@@ -39,15 +48,13 @@ public sealed class WindowPlayback(TickPacer pacer, CaptureMailbox captures, Png
                 ticks++;
                 return true;
             }
+
             // In slices of at most a second: the loop reads the clock again, and a very slow speed's wait fits a timeout.
             stop.WaitHandle.WaitOne(TimeSpan.FromSeconds(Math.Min(-late, 1)));
         }
+
         return false;
     }
-
-    // The ticks that this playback let run, and how far stalls moved the schedule, in wall-clock seconds.
-    private long ticks;
-    private double slip;
 
     /// <summary>
     /// Publishes the current state, hands the render thread a <see cref="PngCaptureSink"/> for the PNG file of
@@ -58,7 +65,8 @@ public sealed class WindowPlayback(TickPacer pacer, CaptureMailbox captures, Png
     public bool Capture(World world, string name)
     {
         if (folder is null)
-            throw new InvalidOperationException("Free play captures nothing, so its playback has no folder for captures.");
+            throw new InvalidOperationException(
+                "Free play captures nothing, so its playback has no folder for captures.");
         // The simulation thread publishes, and the render thread, the triple buffer's one reader, draws it.
         world.PublishRenderSnapshot();
         try

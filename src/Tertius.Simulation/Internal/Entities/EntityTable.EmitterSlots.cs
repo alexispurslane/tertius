@@ -4,6 +4,21 @@ namespace Tertius.Simulation;
 
 internal sealed partial class EntityTable
 {
+    // The slots whose front render row holds an emitter that can make puffs.
+    private readonly EmitterSlots emitterSlots = new();
+
+    // The entities that a spawn made live since the last CopyDirtyRows with an emitter that can make puffs. A spawn writes
+    // both render rows, so no copy would set their bits. The next copy sets them, so between a spawn of step 6 and step 8 a new
+    // entity's bit is clear: it was not in the step that the sync point closes. One that died since is skipped.
+    private readonly List<Entity> newEmitters = [];
+
+    /// <summary>
+    /// The live entities whose front render row holds an emitter that can make puffs, in slot order, as handles: the set bits
+    /// of the table's emitter slots, a word of 64 slots at a time. Use it with <c>foreach</c>. It allocates nothing. Nothing
+    /// may release or make live an entity while it runs. Outside the gameplay part of a tick.
+    /// </summary>
+    public EmitterEntityEnumerator EmitterEntities => new(this);
+
     /// <summary>
     /// The set of the slots whose front render row holds an emitter that can make puffs (see
     /// <see cref="PuffEmitter.CanMakePuffs"/>), one bit per slot: bit (slot % 64) of word slot / 64. The births of the puffs
@@ -47,21 +62,6 @@ internal sealed partial class EntityTable
         private static ulong Bit(uint slot) => 1UL << (int)(slot % 64);
     }
 
-    // The slots whose front render row holds an emitter that can make puffs.
-    private readonly EmitterSlots emitterSlots = new();
-
-    // The entities that a spawn made live since the last CopyDirtyRows with an emitter that can make puffs. A spawn writes
-    // both render rows, so no copy would set their bits. The next copy sets them, so between a spawn of step 6 and step 8 a new
-    // entity's bit is clear: it was not in the step that the sync point closes. One that died since is skipped.
-    private readonly List<Entity> newEmitters = new();
-
-    /// <summary>
-    /// The live entities whose front render row holds an emitter that can make puffs, in slot order, as handles: the set bits
-    /// of the table's emitter slots, a word of 64 slots at a time. Use it with <c>foreach</c>. It allocates nothing. Nothing
-    /// may release or make live an entity while it runs. Outside the gameplay part of a tick.
-    /// </summary>
-    public EmitterEntityEnumerator EmitterEntities => new(this);
-
     /// <summary>The enumerator of <see cref="EmitterEntities"/>.</summary>
     public struct EmitterEntityEnumerator
     {
@@ -69,7 +69,6 @@ internal sealed partial class EntityTable
         private readonly int words;
         private int word;
         private ulong bits;
-        private Entity current;
 
         internal EmitterEntityEnumerator(EntityTable table)
         {
@@ -77,12 +76,12 @@ internal sealed partial class EntityTable
             words = BodySlots.WordsFor(table.SlotCount);
             word = -1;
             bits = 0;
-            current = default;
+            Current = default;
         }
 
-        public readonly EmitterEntityEnumerator GetEnumerator() => this;
+        public Entity Current { get; private set; }
 
-        public readonly Entity Current => current;
+        public readonly EmitterEntityEnumerator GetEnumerator() => this;
 
         public bool MoveNext()
         {
@@ -92,14 +91,16 @@ internal sealed partial class EntityTable
                     return false;
                 bits = table!.emitterSlots.Word(word);
             }
+
             uint slot = (uint)(word * 64 + BitOperations.TrailingZeroCount(bits));
             bits &= bits - 1;
-            current = new Entity(slot, table!.generation[slot]);
+            Current = new(slot, table!.generation[slot]);
             return true;
         }
     }
 
-    /// <summary>Sets the emitter bits of the entities that spawns made live since the last copy. Part of <see cref="CopyDirtyRows"/>.</summary>
+    /// <summary>Sets the emitter bits of the entities that spawns made live since the last copy. Part of
+    /// <see cref="CopyDirtyRows"/>.</summary>
     private void SetNewEmitterSlots()
     {
         foreach (Entity entity in newEmitters)
@@ -114,12 +115,12 @@ internal sealed partial class EntityTable
     /// </summary>
     private void AssertEmitterInvariants()
     {
-        Contract.Invariant(emitterSlots.WordCount == BodySlots.WordsFor(capacity));
-        var waiting = new bool[capacity];
+        Contract.Invariant(emitterSlots.WordCount == BodySlots.WordsFor(Capacity));
+        bool[] waiting = new bool[Capacity];
         foreach (Entity entity in newEmitters)
             if (IsAlive(entity))
                 waiting[entity.Index] = true;
-        for (int slot = 0; slot < capacity; slot++)
+        for (int slot = 0; slot < Capacity; slot++)
         {
             bool emits = state[slot] == SlotState.Live && !waiting[slot] && frontRender[slot].Emitter.CanMakePuffs;
             Contract.Invariant(emitterSlots.Contains((uint)slot) == emits);

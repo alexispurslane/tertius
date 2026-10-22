@@ -13,7 +13,7 @@ public class MessagingTopicTests
     private static Topic Named(string name) => Topics.Get($"tests.messagingtopic.{name}");
 
     private static Entity SpawnSubscribed(TestWorld t, Topic topic, params IComponent[] components) =>
-        t.World.Spawn(new SpawnDesc { Frame = t.Root, Components = components, Subscriptions = [topic] });
+        t.World.Spawn(new() { Frame = t.Root, Components = components, Subscriptions = [topic] });
 
     // ---- Named topics ---------------------------------------------------------------------------------------------
 
@@ -44,8 +44,9 @@ public class MessagingTopicTests
         Topic first = Named("first");
         Topic second = Named("second");
         var inbox = new Recorder();
-        t.World.Spawn(new SpawnDesc { Frame = t.Root, Components = [inbox], Subscriptions = [first, second] });
-        t.SpawnWith(SendOnce.Of(first, new Ping { Value = 1 }), SendOnce.Of(second, new Ping { Value = 2 }), SendOnce.Of(first, new Ping { Value = 3 }));
+        t.World.Spawn(new() { Frame = t.Root, Components = [inbox], Subscriptions = [first, second] });
+        t.SpawnWith(SendOnce.Of(first, new Ping { Value = 1 }), SendOnce.Of(second, new Ping { Value = 2 }),
+            SendOnce.Of(first, new Ping { Value = 3 }));
 
         t.Run(2);
 
@@ -78,7 +79,7 @@ public class MessagingTopicTests
         Topic first = Named("twice-first");
         Topic second = Named("twice-second");
         var inbox = new Recorder();
-        Entity e = t.World.Spawn(new SpawnDesc { Frame = t.Root, Components = [inbox], Subscriptions = [first, first] });
+        Entity e = t.World.Spawn(new() { Frame = t.Root, Components = [inbox], Subscriptions = [first, first] });
         t.World.Subscribe(e, first);
         t.World.Subscribe(e, second);
         t.World.Unsubscribe(e, first);
@@ -214,9 +215,9 @@ public class MessagingTopicTests
         FrameHandle bay = t.SpawnStaticFrame(TestWorld.At(0), radius: 50);
         var observer = new Recorder();
         var member = new Recorder();
-        t.World.Spawn(new SpawnDesc { Frame = t.Root, Components = [observer], Subscriptions = [bay.Topic] });
+        t.World.Spawn(new() { Frame = t.Root, Components = [observer], Subscriptions = [bay.Topic] });
         // Subscribing to its own frame's topic is allowed and changes nothing.
-        t.World.Spawn(new SpawnDesc { Frame = bay, Components = [member], Subscriptions = [bay.Topic] });
+        t.World.Spawn(new() { Frame = bay, Components = [member], Subscriptions = [bay.Topic] });
         t.SpawnWith(SendOnce.Of(bay.Topic, new Ping { Value = 9 }));
 
         t.Run(2);
@@ -232,7 +233,8 @@ public class MessagingTopicTests
         FrameHandle bay = t.SpawnStaticFrame(TestWorld.At(0), radius: 50);
         var inbox = new Recorder();
         // Membership is the entity's, and a subscription is an extra. Unsubscribing removes only the extra.
-        t.World.SpawnWith(bay, inbox, Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Unsubscribe(self.Frame.Topic)));
+        t.World.SpawnWith(bay, inbox,
+            Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Unsubscribe(self.Frame.Topic)));
         t.SpawnWith(SendEvery.Of(bay.Topic, tick => new Ping { Value = (int)tick }));
 
         t.Run(4);
@@ -243,23 +245,25 @@ public class MessagingTopicTests
     [Fact]
     public void ABodyHandedOffToAnotherFrameHearsTheNewFramesTopicFromThatSyncPointOn()
     {
-        using var t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld t = TestWorld.OnJolt(out FaultInjectingBackend faults);
         FrameHandle a = t.Root;
         FrameHandle b = t.SpawnStaticFrame(TestWorld.At(1000), radius: 50);
         var traveller = new Recorder(EventMask.Of<Ping>().And<FrameChanged>());
         // Jolt hands the traveller off from the root into the frame b in the step of tick 1. The stayer rests in the root.
         Entity body = Scenes.BallApproachingBubble(t.World, a, b, tick: 1, traveller);
         var stayer = new Recorder(EventMask.Of<Ping>());
-        t.World.Spawn(new SpawnDesc { Frame = a, Pose = TestWorld.At(0, 20), Body = WorldTesting.Ball(), Components = [stayer] });
+        t.World.Spawn(
+            new() { Frame = a, Pose = TestWorld.At(0, 20), Body = WorldTesting.Ball(), Components = [stayer] });
         // Every tick: a message to frame A with the value tick * 10, and one to frame B with the value tick * 10 + 1.
-        t.SpawnWith(SendEvery.Of(a.Topic, tick => new Ping { Value = (int)tick * 10 }), SendEvery.Of(b.Topic, tick => new Ping { Value = (int)tick * 10 + 1 }));
+        t.SpawnWith(SendEvery.Of(a.Topic, tick => new Ping { Value = (int)tick * 10 }),
+            SendEvery.Of(b.Topic, tick => new Ping { Value = (int)tick * 10 + 1 }));
 
         t.Run(4);
 
         HandOff handOff = faults.Outputs[1].HandOffs.Should().ContainSingle().Subject;
         handOff.Entity.Should().Be(body);
         t.World.GetFrame(body).Should().Be(b);
-        PoseChecks.AssertNear(handOff.LinearVelocity, new Vector3(12, 0, 0));
+        PoseChecks.AssertNear(handOff.LinearVelocity, new(12, 0, 0));
         BodyState latest = faults.Outputs[^1].Bodies.Single(state => state.Entity == body);
         latest.Frame.Should().Be(b);
         t.World.PoseInOwnFrame(body).Should().Be(latest.Pose, "the ball kept flying in the frame b after the hand-off");
@@ -274,7 +278,7 @@ public class MessagingTopicTests
     [Fact]
     public void FrameChangedIsDeliveredToAMovedEntityOnlyIfItWantsIt()
     {
-        using var t = TestWorld.OnJolt(out _);
+        using TestWorld t = TestWorld.OnJolt(out _);
         FrameHandle a = t.Root;
         FrameHandle b = t.SpawnStaticFrame(TestWorld.At(1000), radius: 50);
         var wants = new Recorder(EventMask.Of<FrameChanged>());
@@ -282,7 +286,11 @@ public class MessagingTopicTests
         // Jolt hands both balls off from the root into the frame b in the step of tick 1. They fly side by side.
         Entity moved = Scenes.BallApproachingBubble(t.World, a, b, tick: 1, wants);
         Scenes.Approach beside = Scenes.ApproachToBubble(t.World, b, tick: 1, lateral: 5);
-        t.World.Spawn(new SpawnDesc { Frame = a, Pose = beside.Pose, LinearVelocity = beside.Velocity, Body = WorldTesting.Ball(), Components = [deaf] });
+        t.World.Spawn(new()
+        {
+            Frame = a, Pose = beside.Pose, LinearVelocity = beside.Velocity, Body = WorldTesting.Ball(),
+            Components = [deaf]
+        });
 
         t.Run(4);
 
@@ -351,16 +359,17 @@ public class MessagingTopicTests
         {
             FrameHandle frame = t.SpawnStaticFrame(TestWorld.At(i * 1000), radius: 100);
             var recorder = new Recorder();
-            t.World.Spawn(new SpawnDesc
+            t.World.Spawn(new()
             {
                 Frame = frame,
                 Pose = TestWorld.At(1, 2, 3),
                 Components = [recorder],
-                Render = new RenderData { Mesh = new MeshId(i), Flags = RenderFlags.Visible },
+                Render = new RenderData { Mesh = new(i), Flags = RenderFlags.Visible }
             });
             frames.Add(frame);
             recorders.Add(recorder);
         }
+
         t.World.Camera = t.SpawnWith();
         // One message to each frame's topic, with the frame's number as the value.
         for (int i = 0; i < frames.Count; i++)
@@ -373,7 +382,7 @@ public class MessagingTopicTests
         for (int i = 0; i < frames.Count; i++)
             recorders[i].PingValues().Should().Equal(i);
         var found = new List<Entity>();
-        t.World.Snapshot.QueryRadius(frames[^1], new Double3(1, 2, 3), 0.5, found);
+        t.World.Snapshot.QueryRadius(frames[^1], new(1, 2, 3), 0.5, found);
         found.Should().HaveCount(1);
         t.World.RenderSnapshots.TryAcquireLatest(out RenderSnapshot snapshot).Should().BeTrue();
         snapshot.Instances.Count.Should().Be(40);
@@ -389,7 +398,8 @@ public class MessagingTopicTests
         using var t = new TestWorld();
         Topic topic = Named("inherited");
         FrameHandle bay = t.SpawnStaticFrame(TestWorld.At(0), radius: 50);
-        Entity old = t.World.Spawn(new SpawnDesc { Frame = bay, Components = [new Recorder()], Subscriptions = [topic, t.Root.Topic] });
+        Entity old = t.World.Spawn(new()
+            { Frame = bay, Components = [new Recorder()], Subscriptions = [topic, t.Root.Topic] });
         t.World.Destroy(old);
         var heir = new Recorder();
         Entity reused = t.SpawnWith(heir);

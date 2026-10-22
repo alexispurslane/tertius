@@ -45,7 +45,8 @@ public class RouterOnWorkersTests
         FrameHandle bay = RouterHarness.Frame(index: 0, generation: 1);
         foreach (RouterHarness h in both)
             h.Topics.AddFrame(bay);
-        EventMask[] masks = [EventMask.None, EventMask.Of<Ping>(), EventMask.Of<Heal>(), EventMask.Of<Ping>().And<Heal>()];
+        EventMask[] masks =
+            [EventMask.None, EventMask.Of<Ping>(), EventMask.Of<Heal>(), EventMask.Of<Ping>().And<Heal>()];
         var everyone = new List<Entity>();
         int value = 0;
 
@@ -63,6 +64,7 @@ public class RouterOnWorkersTests
                 if (watchesBay)
                     h.Subscribe(spawned, bay.Topic);
             }
+
             everyone.Add(spawned);
         }
 
@@ -82,7 +84,7 @@ public class RouterOnWorkersTests
                     7 => Entity.Null,
                     8 or 9 => Squad,
                     10 => bay.Topic,
-                    _ => new Broadcast(),
+                    _ => new Broadcast()
                 };
                 int source = random.Next(10), kind = random.Next(8), delay = random.Next(0, 3);
                 int v = ++value;
@@ -92,7 +94,7 @@ public class RouterOnWorkersTests
                     {
                         < 4 => Event.Create(target, Entity.Null, new Ping { Value = v }),
                         < 7 => Event.Create(target, Entity.Null, new Heal { Amount = v }),
-                        _ => Event.Create(target, Entity.Null, new Destroy()),
+                        _ => Event.Create(target, Entity.Null, new Destroy())
                     };
                     switch (source)
                     {
@@ -100,7 +102,7 @@ public class RouterOnWorkersTests
                             h.Entities.Chunks[chunk].Outbox.Add(e);
                             break;
                         case < 8:
-                            h.Entities.Chunks[chunk].Delayed.Add(new DelayedEvent { Due = tick + delay, Event = e });
+                            h.Entities.Chunks[chunk].Delayed.Add(new() { Due = tick + delay, Event = e });
                             break;
                         case 8:
                             h.Router.AddEngineEvent(e);
@@ -118,11 +120,10 @@ public class RouterOnWorkersTests
             {
                 Entity doomed = everyone[random.Next(everyone.Count)];
                 foreach (RouterHarness h in both)
-                {
                     if (h.Entities.IsAlive(doomed))
                         h.Entities.Release(doomed);
-                }
             }
+
             int spawns = random.Next(0, 6);
             for (int n = 0; n < spawns; n++)
                 Spawn();
@@ -130,17 +131,20 @@ public class RouterOnWorkersTests
             foreach (RouterHarness h in both)
                 h.Route(tick);
 
-            Describe(wide.Router.Routed).Should().Equal(Describe(serial.Router.Routed), $"routing {tick} joins the same events in the same order");
+            Describe(wide.Router.Routed).Should().Equal(Describe(serial.Router.Routed),
+                $"routing {tick} joins the same events in the same order");
             wide.Router.DeliveryCount.Should().Be(serial.Router.DeliveryCount);
             foreach (Entity entity in everyone)
             {
                 if (!serial.Entities.IsAlive(entity))
                     continue;
-                Describe(wide.Inbox(entity)).Should().Equal(Describe(serial.Inbox(entity)), $"routing {tick} fills the inbox of {entity} in the same order");
+                Describe(wide.Inbox(entity)).Should().Equal(Describe(serial.Inbox(entity)),
+                    $"routing {tick} fills the inbox of {entity} in the same order");
             }
         }
 
-        serial.Router.DeliveryCount.Should().BeGreaterThan(0, "the script must deliver something, or the equality proves nothing");
+        serial.Router.DeliveryCount.Should()
+            .BeGreaterThan(0, "the script must deliver something, or the equality proves nothing");
         wide.TasksQueued.Should().BeGreaterThan(0, "the routings must really run on the workers");
     }
 
@@ -159,12 +163,10 @@ public class RouterOnWorkersTests
         {
             bool subscribed = round % 2 == 0;
             foreach (Entity s in subscribers)
-            {
                 if (subscribed)
                     h.Subscribe(s, Squad);
                 else
                     h.Topics.Unsubscribe(s, Squad).Should().BeTrue();
-            }
             for (int m = 0; m < 64; m++)
                 h.Send(m, Squad, new Ping { Value = m });
 
@@ -175,6 +177,7 @@ public class RouterOnWorkersTests
             h.Pings(subscribers[^1]).Should().HaveCount(expected);
             h.Router.DeliveryCount.Should().Be(expected * subscribers.Count);
         }
+
         h.TasksQueued.Should().BeGreaterThan(0);
     }
 
@@ -217,6 +220,7 @@ public class RouterOnWorkersTests
             for (int i = 0; i < 300; i++)
                 previous = t.SpawnWith(new Talker(previous));
         }
+
         foreach (Entity entity in serial.World.Entities.LiveEntities)
             everyone.Add(entity);
 
@@ -225,14 +229,15 @@ public class RouterOnWorkersTests
             serial.World.Tick();
             wide.World.Tick();
 
-            Describe(wide.World.RoutedEvents).Should().Equal(Describe(serial.World.RoutedEvents), $"tick {tick} routes the same events");
+            Describe(wide.World.RoutedEvents).Should().Equal(Describe(serial.World.RoutedEvents),
+                $"tick {tick} routes the same events");
             wide.World.Stats.Should().Be(serial.World.Stats);
             foreach (Entity entity in everyone)
-            {
                 if (serial.World.Entities.IsAlive(entity))
-                    Describe(InboxOf(wide.World, entity)).Should().Equal(Describe(InboxOf(serial.World, entity)), $"tick {tick} fills the inbox of {entity} alike");
-            }
+                    Describe(InboxOf(wide.World, entity)).Should().Equal(Describe(InboxOf(serial.World, entity)),
+                        $"tick {tick} fills the inbox of {entity} alike");
         }
+
         serial.World.Stats.LiveEntities.Should().BeLessThan(300, "the talkers must destroy some of their neighbors");
     }
 
@@ -331,7 +336,7 @@ public class RouterOnWorkersTests
         return described;
     }
 
-    private static List<string> Describe(List<Event> events) => events.Select(Describe).ToList();
+    private static List<string> Describe(List<Event> events) => [.. events.Select(Describe)];
 
     private static string Describe(Event e) =>
         e.Is<Ping>() ? $"{e.Target} ping {e.As<Ping>().Value}"

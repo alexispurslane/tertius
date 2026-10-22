@@ -6,14 +6,14 @@ namespace Tertius.Rendering;
 /// </summary>
 internal sealed class FreeList
 {
-    private readonly List<Range> free = new();
+    private readonly List<Range> free = [];
 
     public FreeList(ulong capacity)
     {
         ArgumentOutOfRangeException.ThrowIfZero(capacity);
         Capacity = capacity;
         FreeBytes = capacity;
-        free.Add(new Range(0, capacity));
+        free.Add(new(0, capacity));
     }
 
     public ulong Capacity { get; }
@@ -43,25 +43,27 @@ internal sealed class FreeList
             ulong back = end - (aligned + size);
             if (front > 0 && back > 0)
             {
-                free[i] = new Range(range.Offset, front);
-                free.Insert(i + 1, new Range(aligned + size, back));
+                free[i] = new(range.Offset, front);
+                free.Insert(i + 1, new(aligned + size, back));
             }
             else if (front > 0)
             {
-                free[i] = new Range(range.Offset, front);
+                free[i] = new(range.Offset, front);
             }
             else if (back > 0)
             {
-                free[i] = new Range(aligned + size, back);
+                free[i] = new(aligned + size, back);
             }
             else
             {
                 free.RemoveAt(i);
             }
+
             FreeBytes -= size;
             offset = aligned;
             return true;
         }
+
         offset = 0;
         return false;
     }
@@ -82,6 +84,7 @@ internal sealed class FreeList
             else
                 hi = mid;
         }
+
         int next = lo;
         bool mergePrevious = next > 0 && free[next - 1].Offset + free[next - 1].Size == offset;
         bool mergeNext = next < free.Count && offset + size == free[next].Offset;
@@ -92,22 +95,23 @@ internal sealed class FreeList
         if (mergePrevious && mergeNext)
         {
             Range previous = free[next - 1];
-            free[next - 1] = new Range(previous.Offset, previous.Size + size + free[next].Size);
+            free[next - 1] = new(previous.Offset, previous.Size + size + free[next].Size);
             free.RemoveAt(next);
         }
         else if (mergePrevious)
         {
             Range previous = free[next - 1];
-            free[next - 1] = new Range(previous.Offset, previous.Size + size);
+            free[next - 1] = new(previous.Offset, previous.Size + size);
         }
         else if (mergeNext)
         {
-            free[next] = new Range(offset, size + free[next].Size);
+            free[next] = new(offset, size + free[next].Size);
         }
         else
         {
-            free.Insert(next, new Range(offset, size));
+            free.Insert(next, new(offset, size));
         }
+
         FreeBytes += size;
     }
 

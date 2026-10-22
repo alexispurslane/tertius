@@ -48,17 +48,53 @@ public readonly struct InputEvent : IEventPayload, IEquatable<InputEvent>
     private const byte KindNone = 0, KindKey = 1, KindButton = 2, KindMove = 3, KindScroll = 4;
 
     private readonly byte kind;
+
     /// <summary>Whether the key or the button of <see cref="KeyChanged"/> and of <see cref="MouseButtonChanged"/> went down.</summary>
     private readonly bool isDown;
+
     /// <summary>The key or the button of <see cref="KeyChanged"/> and of <see cref="MouseButtonChanged"/>.</summary>
     private readonly int code;
+
     /// <summary>The movement or the scroll amount of <see cref="MouseMoved"/> and of <see cref="Scrolled"/>.</summary>
     private readonly Vector2 delta;
 
-    public InputEvent(KeyChanged key) { kind = KindKey; code = key.Code; isDown = key.IsDown; }
-    public InputEvent(MouseButtonChanged button) { kind = KindButton; code = button.Code; isDown = button.IsDown; }
-    public InputEvent(MouseMoved moved) { kind = KindMove; delta = moved.Delta; }
-    public InputEvent(Scrolled scrolled) { kind = KindScroll; delta = scrolled.Delta; }
+    public InputEvent(KeyChanged key)
+    {
+        kind = KindKey;
+        code = key.Code;
+        isDown = key.IsDown;
+    }
+
+    public InputEvent(MouseButtonChanged button)
+    {
+        kind = KindButton;
+        code = button.Code;
+        isDown = button.IsDown;
+    }
+
+    public InputEvent(MouseMoved moved)
+    {
+        kind = KindMove;
+        delta = moved.Delta;
+    }
+
+    public InputEvent(Scrolled scrolled)
+    {
+        kind = KindScroll;
+        delta = scrolled.Delta;
+    }
+
+    /// <summary>False for the default value, which holds no case.</summary>
+    public bool HasValue => kind != KindNone;
+
+    public object? Value => kind switch
+    {
+        KindKey => new KeyChanged(code, isDown),
+        KindButton => new MouseButtonChanged(code, isDown),
+        KindMove => new MouseMoved(delta),
+        KindScroll => new Scrolled(delta),
+        _ => null
+    };
 
     public static implicit operator InputEvent(KeyChanged key) => new(key);
     public static implicit operator InputEvent(MouseButtonChanged button) => new(button);
@@ -82,9 +118,6 @@ public readonly struct InputEvent : IEventPayload, IEquatable<InputEvent>
 
     /// <summary>The scroll moved by <paramref name="delta"/>.</summary>
     public static InputEvent Scroll(Vector2 delta) => new(new Scrolled(delta));
-
-    /// <summary>False for the default value, which holds no case.</summary>
-    public bool HasValue => kind != KindNone;
 
     public bool TryGetValue(out KeyChanged value)
     {
@@ -110,15 +143,6 @@ public readonly struct InputEvent : IEventPayload, IEquatable<InputEvent>
         return kind == KindScroll;
     }
 
-    public object? Value => kind switch
-    {
-        KindKey => new KeyChanged(code, isDown),
-        KindButton => new MouseButtonChanged(code, isDown),
-        KindMove => new MouseMoved(delta),
-        KindScroll => new Scrolled(delta),
-        _ => null,
-    };
-
     // The held case alone decides equality: the fields of the other cases are not compared. Vector2.Equals, not the operator
     // ==, which follows IEEE 754 and calls a NaN unequal to itself: Equals treats a NaN as equal to a NaN, which agrees with
     // GetHashCode, so an event that holds a NaN equals itself.
@@ -126,7 +150,7 @@ public readonly struct InputEvent : IEventPayload, IEquatable<InputEvent>
     {
         KindKey or KindButton => code == other.code && isDown == other.isDown,
         KindMove or KindScroll => delta.Equals(other.delta),
-        _ => true,
+        _ => true
     };
 
     public override bool Equals(object? obj) => obj is InputEvent other && Equals(other);
@@ -135,7 +159,7 @@ public readonly struct InputEvent : IEventPayload, IEquatable<InputEvent>
     {
         KindKey or KindButton => HashCode.Combine(kind, code, isDown),
         KindMove or KindScroll => HashCode.Combine(kind, delta),
-        _ => 0,
+        _ => 0
     };
 
     public static bool operator ==(InputEvent a, InputEvent b) => a.Equals(b);
@@ -147,6 +171,6 @@ public readonly struct InputEvent : IEventPayload, IEquatable<InputEvent>
         MouseButtonChanged c => $"InputEvent({c})",
         MouseMoved c => $"InputEvent({c})",
         Scrolled c => $"InputEvent({c})",
-        null => "InputEvent(none)",
+        null => "InputEvent(none)"
     };
 }

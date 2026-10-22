@@ -1,6 +1,5 @@
 using System.Numerics;
 using StbImageSharp;
-using Tertius.Rendering;
 
 namespace Tertius.Rendering.Tests;
 
@@ -18,9 +17,9 @@ public sealed class CaptureSinkTests
     private static VulkanRenderer Offscreen(out TestOutput output, bool bgra = false, bool canCapture = true)
     {
         TestOutput? made = null;
-        VulkanRenderer renderer = VulkanRenderer.CreateOffscreen(
-            new RendererOptions { Validation = true, Width = Width, Height = Height, Impostors = false },
-            (device, allocator, extent) => made = new TestOutput(device, allocator, extent, bgra) { CanCapture = canCapture });
+        var renderer = VulkanRenderer.CreateOffscreen(
+            new() { Validation = true, Width = Width, Height = Height, Impostors = false },
+            (device, allocator, extent) => made = new(device, allocator, extent, bgra) { CanCapture = canCapture });
         output = made!;
         return renderer;
     }
@@ -135,7 +134,7 @@ public sealed class CaptureSinkTests
     [Fact]
     public void ABgraOutputHandsItsSinkThePixelsOfAnRgbaOutputInRgbaOrder()
     {
-        Capture Draw(bool bgra)
+        static Capture Draw(bool bgra)
         {
             VulkanRenderer renderer = Offscreen(out _, bgra);
             try
@@ -154,8 +153,8 @@ public sealed class CaptureSinkTests
         Vector3 red = rgba.Color(Gpu.Project(TestScene.RedSphere, Width, Height));
         red.X.Should().BeGreaterThan(2 * red.Z, "the scene has a red sphere, so a missed swap of red and blue shows");
         for (int y = 0; y < Height; y++)
-            for (int x = 0; x < Width; x++)
-                bgra.Color(x, y).Should().Be(rgba.Color(x, y), "pixel ({0}, {1}) is the same in both outputs", x, y);
+        for (int x = 0; x < Width; x++)
+            bgra.Color(x, y).Should().Be(rgba.Color(x, y), "pixel ({0}, {1}) is the same in both outputs", x, y);
     }
 
     [Fact]
@@ -175,7 +174,7 @@ public sealed class CaptureSinkTests
             ImageResult png = ImageResult.FromMemory(File.ReadAllBytes(path), ColorComponents.RedGreenBlueAlpha);
             png.Width.Should().Be(Width);
             png.Height.Should().Be(Height);
-            byte[] expected = memory.Image!.Rgba.ToArray();
+            byte[] expected = [.. memory.Image!.Rgba];
             for (int i = 3; i < expected.Length; i += 4)
                 expected[i] = 255;
             png.Data.Should().Equal(expected);
@@ -229,7 +228,8 @@ public sealed class CaptureSinkTests
         VulkanRenderer renderer = Offscreen(out _, canCapture: false);
         try
         {
-            FluentActions.Invoking(() => renderer.CaptureNextFrame(new MemorySink())).Should().Throw<NotSupportedException>();
+            FluentActions.Invoking(() => renderer.CaptureNextFrame(new MemorySink())).Should()
+                .Throw<NotSupportedException>();
         }
         finally
         {
@@ -243,6 +243,7 @@ public sealed class CaptureSinkTests
         VulkanRenderer renderer = Gpu.Headless(Width, Height);
         Gpu.DisposeAndAssertClean(renderer);
 
-        FluentActions.Invoking(() => renderer.CaptureNextFrame(new MemorySink())).Should().Throw<ObjectDisposedException>();
+        FluentActions.Invoking(() => renderer.CaptureNextFrame(new MemorySink())).Should()
+            .Throw<ObjectDisposedException>();
     }
 }

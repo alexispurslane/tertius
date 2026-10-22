@@ -23,13 +23,17 @@ namespace Tertius.Demo;
 /// True for an airlock that opens to the outside when it starts, such as one that lets cargo drift out. A use then
 /// cycles it to the inner door.
 /// </param>
-public sealed class Airlock(Entity innerDoor, Entity outerDoor, float cycleSeconds, bool outerOpenAtStart = false) : IComponent
+public sealed class Airlock(Entity innerDoor, Entity outerDoor, float cycleSeconds, bool outerOpenAtStart = false)
+    : IComponent
 {
     private readonly float cycleSeconds = cycleSeconds > 0 && float.IsFinite(cycleSeconds)
         ? cycleSeconds
-        : throw new ArgumentOutOfRangeException(nameof(cycleSeconds), cycleSeconds, "The cycle time must be positive and finite.");
+        : throw new ArgumentOutOfRangeException(nameof(cycleSeconds), cycleSeconds,
+            "The cycle time must be positive and finite.");
+
     // True while the outer door is the open one, or the one that the current cycle opens.
     private bool outerOpen = outerOpenAtStart;
+
     // The first tick at which a use starts a new cycle. By then the open order of the last cycle reached its door, so a
     // new close order never reaches that door in the same tick as the open order.
     private long cycleEnd;
@@ -41,7 +45,6 @@ public sealed class Airlock(Entity innerDoor, Entity outerDoor, float cycleSecon
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
         for (int i = 0; i < events.Count; i++)
-        {
             if (events[i].Is<Spawned>())
             {
                 outbox.Send(outerOpen ? outerDoor : innerDoor, new OpenDoor());
@@ -56,6 +59,5 @@ public sealed class Airlock(Entity innerDoor, Entity outerDoor, float cycleSecon
                 outbox.SendAfter(cycleTicks, outerOpen ? outerDoor : innerDoor, new OpenDoor());
                 cycleEnd = self.Tick + cycleTicks + 1;
             }
-        }
     }
 }

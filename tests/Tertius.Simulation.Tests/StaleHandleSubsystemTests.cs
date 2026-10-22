@@ -77,7 +77,7 @@ public class StaleHandleTopicSetsTests
     {
         EntityTable table = TableSupport.NewTable();
         var topics = new TopicSets(table);
-        var bay = new FrameHandle(new Entity(7, 1), 0, 1);
+        var bay = new FrameHandle(new(7, 1), 0, 1);
         topics.AddFrame(bay);
         Entity stale = table.ReuseSlot(out Entity successor);
         topics.MoveMember(successor, bay, out _);
@@ -131,7 +131,7 @@ public class StaleHandleTopicSetsTests
     {
         EntityTable table = TableSupport.NewTable();
         var topics = new TopicSets(table);
-        var bay = new FrameHandle(new Entity(7, 1), 0, 1);
+        var bay = new FrameHandle(new(7, 1), 0, 1);
         topics.AddFrame(bay);
         Entity stale = table.ReuseSlot(out _);
 
@@ -145,7 +145,7 @@ public class StaleHandleTopicSetsTests
 /// <summary>What the attachment chains do with a stale handle.</summary>
 public class StaleHandleAttachmentsTests
 {
-    private static readonly Pose Offset = new(new Vector3(1, 0, 0), Quaternion.Identity);
+    private static readonly Pose Offset = new(new(1, 0, 0), Quaternion.Identity);
 
     [Fact]
     public void AStaleHandleCannotBeAttached()

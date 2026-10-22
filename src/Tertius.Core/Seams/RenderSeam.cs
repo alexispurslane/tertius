@@ -1,17 +1,22 @@
 using System.Numerics;
+using System.Runtime.InteropServices;
 
 namespace Tertius;
 
 /// <summary>A renderer mesh handle. <c>default</c> is <see cref="None"/>.</summary>
 public readonly record struct MeshId
 {
+    public static MeshId None => default;
+
     // Stored as value + 1, so that a zeroed struct means "none" rather than id 0.
     private readonly int raw;
 
-    public MeshId(int value) => raw = value + 1;
+    public MeshId(int value)
+    {
+        raw = value + 1;
+    }
 
     public int Value => raw - 1;
-    public static MeshId None => default;
     public bool IsNone => raw == 0;
 
     public override string ToString() => IsNone ? "MeshId(none)" : $"MeshId({Value})";
@@ -20,13 +25,17 @@ public readonly record struct MeshId
 /// <summary>A renderer material handle. <c>default</c> is <see cref="None"/>.</summary>
 public readonly record struct MaterialId
 {
+    public static MaterialId None => default;
+
     // Stored as value + 1, so that a zeroed struct means "none" rather than id 0.
     private readonly int raw;
 
-    public MaterialId(int value) => raw = value + 1;
+    public MaterialId(int value)
+    {
+        raw = value + 1;
+    }
 
     public int Value => raw - 1;
-    public static MaterialId None => default;
     public bool IsNone => raw == 0;
 
     public override string ToString() => IsNone ? "MaterialId(none)" : $"MaterialId({Value})";
@@ -35,13 +44,17 @@ public readonly record struct MaterialId
 /// <summary>A renderer texture handle. <c>default</c> is <see cref="None"/>.</summary>
 public readonly record struct TextureId
 {
+    public static TextureId None => default;
+
     // Stored as value + 1, so that a zeroed struct means "none" rather than id 0.
     private readonly int raw;
 
-    public TextureId(int value) => raw = value + 1;
+    public TextureId(int value)
+    {
+        raw = value + 1;
+    }
 
     public int Value => raw - 1;
-    public static TextureId None => default;
     public bool IsNone => raw == 0;
 
     public override string ToString() => IsNone ? "TextureId(none)" : $"TextureId({Value})";
@@ -52,6 +65,7 @@ public enum RenderFlags : uint
 {
     None = 0,
     Visible = 1 << 0,
+
     /// <summary>
     /// Casts shadows from the sun, whether or not the instance is <see cref="Visible"/>, and onto objects in any frame. A
     /// caster whose bounding sphere comes within 2 km of the camera casts shadow-map shadows, which have its real shape, onto
@@ -60,15 +74,18 @@ public enum RenderFlags : uint
     /// shadows itself. Leave it off the sun itself.
     /// </summary>
     CastsShadow = 1 << 1,
+
     /// <summary>Alpha-blended with <see cref="MaterialDesc.BaseColor"/>.W as opacity. Never an impostor.</summary>
     Transparent = 1 << 2,
+
     /// <summary>
     /// Never replace this object with an impostor. Use it for objects that must receive shadow-map shadows or that
     /// change every frame.
     /// </summary>
     NoImpostor = 1 << 3,
+
     /// <summary>A sky object such as a star or planet. It is never an impostor.</summary>
-    Celestial = 1 << 4,
+    Celestial = 1 << 4
 }
 
 /// <summary>
@@ -82,8 +99,10 @@ public struct RenderInstance
 {
     /// <summary>The entity slot. With <see cref="Part"/>, it identifies the object from tick to tick.</summary>
     public uint EntityIndex;
+
     /// <summary>Which of the entity's render parts this is, 0 for the first. The renderer keys impostor state on (EntityIndex, Part, Mesh, Material), so a part that changes its mesh or material gets a new capture.</summary>
     public ushort Part;
+
     public MeshId Mesh;
     public MaterialId Material;
     public RenderFlags Flags;
@@ -92,8 +111,10 @@ public struct RenderInstance
     public Vector3 Scale;
     public Vector3 PreviousPosition;
     public Quaternion PreviousRotation;
+
     /// <summary>The world-space radius around <see cref="Position"/>, scale included. 0 means "derive it from the mesh".</summary>
     public float BoundingRadius;
+
     /// <summary>
     /// Which way is up for the object's hemisphere ambient light. The simulation takes it from the gravity of the object's
     /// own frame, so it does not depend on the frame that the camera rides in. It is not interpolated.
@@ -124,7 +145,7 @@ public struct RenderInstance
         PreviousPosition = position,
         PreviousRotation = rotation,
         BoundingRadius = boundingRadius,
-        Hemisphere = hemisphere,
+        Hemisphere = hemisphere
     };
 }
 
@@ -135,6 +156,7 @@ public struct RenderCamera
     public Quaternion Rotation;
     public Vector3 PreviousPosition;
     public Quaternion PreviousRotation;
+
     /// <summary>Vertical field of view in radians.</summary>
     public float VerticalFov;
 }
@@ -144,10 +166,13 @@ public struct RenderSun
 {
     /// <summary>From the camera toward the sun. It need not be normalized, but it must not be zero.</summary>
     public Vector3 Direction;
+
     /// <summary>Linear RGB.</summary>
     public Vector3 Color;
+
     /// <summary>Irradiance. Zero or less disables the sun, including its shadow pass.</summary>
     public float Intensity;
+
     /// <summary>The sun's apparent angular radius, in radians. It sets the softness of eclipse edges.</summary>
     public float AngularRadius;
 }
@@ -164,38 +189,49 @@ public sealed class RenderSnapshot
 {
     public long Tick;
     public double Time;
+
     /// <summary>The <see cref="System.Diagnostics.Stopwatch"/> timestamp at publication. The render thread uses it to interpolate.</summary>
     public long PublishedAt;
+
     public RenderCamera Camera;
+
     /// <summary>
     /// The render origin (the camera position at this tick) in the coordinates of the camera's reference frame.
     /// The renderer anchors world-fixed grids, such as the shadow texel grid, to the frame's origin.
     /// </summary>
     public Double3 OriginInFrame;
+
     /// <summary>An opaque id of the camera's reference frame. It changes when the camera changes frame.</summary>
     public long OriginFrameId;
+
     public RenderSun Sun;
     public AmbientLight Ambient;
+
     /// <summary>
     /// The axes of the root frame of the camera's frame tree, in the axes of the camera's frame: it turns a direction
     /// in root axes into world axes. The star field is fixed to the root's axes. Identity without a camera.
     /// </summary>
     public Quaternion RootRotation;
+
     /// <summary>
     /// <see cref="RootRotation"/> at the previous snapshot, for interpolation, or the same rotation when the camera
     /// changed frame or did not interpolate.
     /// </summary>
     public Quaternion PreviousRootRotation;
-    public readonly List<RenderInstance> Instances = new();
-    public readonly List<RenderLight> Lights = new();
-    public readonly List<FrameOutline> Outlines = new();
+
+    public readonly List<RenderInstance> Instances = [];
+    public readonly List<RenderLight> Lights = [];
+    public readonly List<FrameOutline> Outlines = [];
+
     /// <summary>The live puffs, in the order of the rows of the simulation's puff table.</summary>
-    public readonly List<RenderPuff> Puffs = new();
+    public readonly List<RenderPuff> Puffs = [];
+
     /// <summary>
     /// The look table at the build, by index, with its free entries. <see cref="RenderPuff.Look"/> indexes it. A free
     /// entry is one that no live puff uses.
     /// </summary>
-    public readonly List<PuffLook> PuffLooks = new();
+    public readonly List<PuffLook> PuffLooks = [];
+
     /// <summary>
     /// The age, in s, that every puff gained since the previous build: the step when this build interpolates and the
     /// previous build was of the tick before, and 0 otherwise. A puff's age at the previous build is its
@@ -215,12 +251,17 @@ public sealed class RenderSnapshot
     }
 }
 
+// The renderer copies vertices into a GPU buffer, so the field order is the memory layout. The cleanup's member layout
+// leaves a type with StructLayout alone.
+[StructLayout(LayoutKind.Sequential)]
 public struct Vertex
 {
     public Vector3 Position;
     public Vector3 Normal;
+
     /// <summary>Tangent in xyz, bitangent sign in w.</summary>
     public Vector4 Tangent;
+
     public Vector2 TexCoord;
 }
 

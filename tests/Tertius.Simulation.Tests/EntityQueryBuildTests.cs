@@ -37,17 +37,19 @@ public class EntityQueryBuildTests
         CollisionGroup wall = registry.Register("Wall");
         CollisionGroup person = registry.Register("Person");
 
-        EntityQuery query = EntityQuery.With<Crew>().Without<Dead>().InAll(CollisionGroup.Solid).InNone(wall).InAny(wall).InAny(person);
+        EntityQuery query = EntityQuery.With<Crew>().Without<Dead>().InAll(CollisionGroup.Solid).InNone(wall)
+            .InAny(wall).InAny(person);
 
         query.Components.With.Should().Be(ComponentFlags.Of([new Crew()]));
         query.Components.Without.Should().Be(ComponentFlags.Of([new Dead()]));
-        query.Collision.Should().Be(CollisionMask.Empty.InAll(CollisionGroup.Solid).InNone(wall).InAny(wall).InAny(person));
+        query.Collision.Should()
+            .Be(CollisionMask.Empty.InAll(CollisionGroup.Solid).InNone(wall).InAny(wall).InAny(person));
     }
 
     [Fact]
     public void OneInOneNearAndOneWhereSitInlineWithNoHeapPart()
     {
-        EntityQuery query = EntityQuery.In(new FrameHandle(new Entity(1, 1), 0, 1)).Near(3).Where(static (s, e) => true);
+        EntityQuery query = EntityQuery.In(new(new(1, 1), 0, 1)).Near(3).Where(static (s, e) => true);
 
         query.Extras.Should().BeNull();
         query.InFrame.IsNull.Should().BeFalse();
@@ -58,11 +60,12 @@ public class EntityQueryBuildTests
     [Fact]
     public void ASecondInNearOrWhereGoesIntoTheHeapPartInTheOrderOfTheCalls()
     {
-        var frame = new FrameHandle(new Entity(1, 1), 0, 1);
+        var frame = new FrameHandle(new(1, 1), 0, 1);
 
-        EntityQuery query = EntityQuery.Where(Always).Near(3).In(frame).Where(Always).Near(new Entity(2, 1), 4).In(frame);
+        EntityQuery query = EntityQuery.Where(Always).Near(3).In(frame).Where(Always).Near(new(2, 1), 4).In(frame);
 
-        query.Extras!.Filters.ToArray().Should().Equal(QueryFilter.Where(Always), QueryFilter.Near(new Entity(2, 1), 4), QueryFilter.In(frame));
+        query.Extras!.Filters.ToArray().Should().Equal(QueryFilter.Where(Always), QueryFilter.Near(new(2, 1), 4),
+            QueryFilter.In(frame));
     }
 
     [Fact]
@@ -73,7 +76,7 @@ public class EntityQueryBuildTests
         Action nan = () => EntityQuery.Near(double.NaN);
         Action nullEntity = () => EntityQuery.Near(Entity.Null, 1);
         Action nullFrame = () => EntityQuery.Near(FrameHandle.Null, default, 1);
-        Action badPoint = () => EntityQuery.Near(new FrameHandle(new Entity(1, 1), 0, 1), new Double3(double.NaN, 0, 0), 1);
+        Action badPoint = () => EntityQuery.Near(new(new(1, 1), 0, 1), new(double.NaN, 0, 0), 1);
 
         negative.Should().Throw<ArgumentOutOfRangeException>();
         infinite.Should().Throw<ArgumentOutOfRangeException>();
@@ -150,7 +153,8 @@ public class EntityQueryBuildTests
         Entity entity = t.SpawnWith(new BrokenStatics());
 
         t.World.IsAlive(entity).Should().BeTrue();
-        t.World.Errors.Should().ContainSingle().Which.Should().Contain("class constructor").And.Contain(nameof(BrokenStatics));
+        t.World.Errors.Should().ContainSingle().Which.Should().Contain("class constructor").And
+            .Contain(nameof(BrokenStatics));
     }
 
     [Fact]
@@ -177,7 +181,8 @@ public class EntityQueryBuildTests
         public int Priority => 0;
         public EventMask Wants => EventMask.Of<Tick>();
 
-        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) => Found = self.Snapshot.Find(CrewTwice).Count();
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
+            Found = self.Snapshot.Find(CrewTwice).Count();
     }
 
     /// <summary>The same as <see cref="CountsCrewTwice"/>, as a second type whose class constructor has not run yet.</summary>
@@ -189,7 +194,8 @@ public class EntityQueryBuildTests
         public int Priority => 0;
         public EventMask Wants => EventMask.Of<Tick>();
 
-        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) => Found = self.Snapshot.Find(CrewTwice).Count();
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
+            Found = self.Snapshot.Find(CrewTwice).Count();
     }
 
     [Fact]

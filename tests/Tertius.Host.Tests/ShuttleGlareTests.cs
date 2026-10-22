@@ -16,6 +16,9 @@ namespace Tertius.Host.Tests;
 [Collection(GpuCollection.Name)]
 public sealed class ShuttleGlareTests : IDisposable
 {
+    /// <summary>How far above and below the highlight the test samples the glass beside it, in pixels.</summary>
+    private const int Beside = 80;
+
     private readonly string folder = NewFolder();
 
     public void Dispose() => Directory.Delete(folder, recursive: true);
@@ -32,31 +35,34 @@ public sealed class ShuttleGlareTests : IDisposable
     [InlineData("window-camera", "pane-nose", "lamp-port-fore")]
     [InlineData("window-camera", "pane-nose", "lamp-starboard-fore")]
     [InlineData("port-window-camera", "pane-port-7", "lamp-starboard-aft")]
-    public void ALampsHighlightInTheGlassThatAWindowFilmLooksThroughStaysFaint(string camera, string paneId, string lampId)
+    public void ALampsHighlightInTheGlassThatAWindowFilmLooksThroughStaysFaint(string camera, string paneId,
+        string lampId)
     {
         HullPane pane = Shuttle.Glass.Single(p => p.Id == paneId);
-        var lamp = Shuttle.Lamps.Single(l => l.Id == lampId);
+        (string Id, BoundingBox Panel) lamp = Shuttle.Lamps.Single(l => l.Id == lampId);
         // The lamp's light lies 0.3 m in front of its panel, toward the cabin's middle. The pane's inner face lies 1 cm
         // inside the middle of its wall.
-        Double3 light = (Double3)lamp.Panel.Center + new Double3(-Math.Sign(lamp.Panel.Center.X) * 0.3, 0, 0);
-        Double3 normal = PaneChecks.Normal(pane), face = (Double3)pane.Center - normal * 0.01;
+        Double3 light = lamp.Panel.Center + new Double3(-Math.Sign(lamp.Panel.Center.X) * 0.3, 0, 0);
+        Double3 normal = PaneChecks.Normal(pane), face = pane.Center - normal * 0.01;
         Double3 mirror = light - normal * (2 * Double3.Dot(light - face, normal));
 
         (Png lit, DPose view, double verticalFov) = Render(camera, withLamps: true);
         (Png dark, _, _) = Render(camera, withLamps: false);
 
-        PaneChecks.CrossesTheHole(pane.Inner, view.Position, mirror).Should().BeTrue($"the mirror image of {lampId} lies behind {paneId} as {camera} sees it");
+        PaneChecks.CrossesTheHole(pane.Inner, view.Position, mirror).Should()
+            .BeTrue($"the mirror image of {lampId} lies behind {paneId} as {camera} sees it");
         Double3 projected = Picture.Project(view, mirror, verticalFov);
         Picture.Contains(projected).Should().BeTrue($"{camera} sees the mirror image of {lampId}");
-        int x = (int)Math.Round((1 + projected.X) / 2 * lit.Width), y = (int)Math.Round((1 - projected.Y) / 2 * lit.Height);
-        int peak = Added(lit, dark, x, y), beside = (Added(lit, dark, x, y - Beside) + Added(lit, dark, x, y + Beside)) / 2;
-        (peak - beside).Should().BeLessThan(64, $"the highlight of {lampId} in {paneId} at ({x}, {y}) is faint: the lamps add {peak} there and {beside} beside it");
+        int x = (int)Math.Round((1 + projected.X) / 2 * lit.Width),
+            y = (int)Math.Round((1 - projected.Y) / 2 * lit.Height);
+        int peak = Added(lit, dark, x, y),
+            beside = (Added(lit, dark, x, y - Beside) + Added(lit, dark, x, y + Beside)) / 2;
+        (peak - beside).Should().BeLessThan(64,
+            $"the highlight of {lampId} in {paneId} at ({x}, {y}) is faint: the lamps add {peak} there and {beside} beside it");
     }
 
-    /// <summary>How far above and below the highlight the test samples the glass beside it, in pixels.</summary>
-    private const int Beside = 80;
-
-    /// <summary>How much the lamps add to the brightest channel at a pixel: <paramref name="lit"/> with them against <paramref name="dark"/> without them.</summary>
+    /// <summary>How much the lamps add to the brightest channel at a pixel: <paramref name="lit"/> with them against
+    /// <paramref name="dark"/> without them.</summary>
     private static int Added(Png lit, Png dark, int x, int y)
     {
         (int R, int G, int B) a = lit.Average(x, y), b = dark.Average(x, y);
@@ -72,9 +78,9 @@ public sealed class ShuttleGlareTests : IDisposable
     {
         string name = withLamps ? "lit" : "dark";
         Script script = Script.Parse($$"""
-            { "scene": "demo-surface", "window": { "width": {{BlueDanube.Window.Width}}, "height": {{BlueDanube.Window.Height}} },
-              "steps": [ { "do": "camera", "entity": "{{camera}}" }, { "do": "run", "ticks": 1 }, { "do": "capture", "name": "{{name}}" } ] }
-            """);
+                                       { "scene": "demo-surface", "window": { "width": {{BlueDanube.Window.Width}}, "height": {{BlueDanube.Window.Height}} },
+                                         "steps": [ { "do": "camera", "entity": "{{camera}}" }, { "do": "run", "ticks": 1 }, { "do": "capture", "name": "{{name}}" } ] }
+                                       """);
         using World world = NewJoltWorld();
         VulkanRenderer renderer = GpuTesting.Headless(16, 16);
         DPose view;
@@ -83,11 +89,10 @@ public sealed class ShuttleGlareTests : IDisposable
         {
             SceneInstance scene = All.Single(s => s.Name == "demo-surface").Build(world, renderer);
             if (!withLamps)
-            {
                 foreach ((string id, _) in Shuttle.Lamps)
                     world.Destroy(scene[id]);
-            }
-            ScriptRunner.Run(script, world, scene, folder, new HeadlessPlayback(renderer, script.Window, new PngFolder(folder)));
+            ScriptRunner.Run(script, world, scene, folder,
+                new HeadlessPlayback(renderer, script.Window, new PngFolder(folder)));
             view = world.PoseIn(scene[camera], world.GetOwnedFrame(scene["shuttle"]));
             verticalFov = world.VerticalFov;
         }
@@ -96,6 +101,7 @@ public sealed class ShuttleGlareTests : IDisposable
             renderer.Dispose();
             renderer.ValidationMessages.Should().BeEmpty();
         }
+
         return (Png.Load(Path.Combine(folder, name + ".png")), view, verticalFov);
     }
 }

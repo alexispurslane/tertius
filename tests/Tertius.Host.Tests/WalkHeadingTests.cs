@@ -19,14 +19,15 @@ public sealed class WalkHeadingTests : IDisposable
 
     public void Dispose() => world.Dispose();
 
-    private Entity Person(FrameHandle frame, Double3 position, Double3 velocity = default, params IComponent[] components) => world.Spawn(new SpawnDesc
+    private Entity Person(FrameHandle frame, Double3 position, Double3 velocity = default,
+        params IComponent[] components) => world.Spawn(new()
     {
         Frame = frame,
-        Pose = new DPose(position, DQuaternion.Identity),
-        Body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
+        Pose = new(position, DQuaternion.Identity),
+        Body = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
         LinearVelocity = velocity.ToVector3(),
-        Render = new RenderData { ViewOffset = new Pose(Eye, Quaternion.Identity) },
-        Components = [.. components, new WalkHeading()],
+        Render = new RenderData { ViewOffset = new(Eye, Quaternion.Identity) },
+        Components = [.. components, new WalkHeading()]
     });
 
     /// <summary>A root frame with 9.81 m/s² of gravity and a floor whose top is at 0.</summary>
@@ -39,7 +40,8 @@ public sealed class WalkHeadingTests : IDisposable
 
     /// <summary>The way that <paramref name="person"/> faces, the view's -Z, in <paramref name="frame"/>.</summary>
     private Double3 Facing(Entity person, FrameHandle frame) =>
-        world.PoseIn(person, frame).Rotation.Rotate((Double3)Vector3.Transform(-Vector3.UnitZ, world.GetRender(person).ViewOffset.Rotation));
+        world.PoseIn(person, frame).Rotation
+            .Rotate((Double3)Vector3.Transform(-Vector3.UnitZ, world.GetRender(person).ViewOffset.Rotation));
 
     /// <summary>The heading's angle about +Y from -Z, in radians, counterclockwise seen from above.</summary>
     private double Yaw(Entity person, FrameHandle frame)
@@ -48,13 +50,14 @@ public sealed class WalkHeadingTests : IDisposable
         return Math.Atan2(-facing.X, -facing.Z);
     }
 
-    private static double Degrees(Double3 a, Double3 b) => Math.Acos(Math.Clamp(Double3.Dot(a.Normalized(), b.Normalized()), -1, 1)) * 180 / Math.PI;
+    private static double Degrees(Double3 a, Double3 b) =>
+        Math.Acos(Math.Clamp(Double3.Dot(a.Normalized(), b.Normalized()), -1, 1)) * 180 / Math.PI;
 
     [Fact]
     public void ThePersonTurnsToFaceTheWayItWalks()
     {
         FrameHandle ground = OnTheGround();
-        Entity person = Person(ground, new Double3(0, 0.95, 0), components: new SteadyWalk(new Vector3(2, 0, 0), ticks: 600));
+        Entity person = Person(ground, new(0, 0.95, 0), components: new SteadyWalk(new(2, 0, 0), ticks: 600));
 
         Tick(world, 120);
 
@@ -70,7 +73,7 @@ public sealed class WalkHeadingTests : IDisposable
     public void ThePersonTurnsTheShortWayRoundAtALimitedRate()
     {
         FrameHandle ground = OnTheGround();
-        Entity person = Person(ground, new Double3(0, 0.95, 0), components: new SteadyWalk(new Vector3(2, 0, 0), ticks: 600));
+        Entity person = Person(ground, new(0, 0.95, 0), components: new SteadyWalk(new(2, 0, 0), ticks: 600));
 
         List<double> yaws = [];
         for (int t = 0; t < 120; t++)
@@ -80,8 +83,10 @@ public sealed class WalkHeadingTests : IDisposable
         }
 
         double step = WalkHeading.TurnRate / 60;
-        yaws.Zip(yaws.Skip(1), (a, b) => b - a).Should().AllSatisfy(change => change.Should().BeInRange(-step - 1e-6, 1e-6, "the heading turns clockwise, a tick of the rate at most"));
-        yaws.Take(23).Should().AllSatisfy(yaw => yaw.Should().BeGreaterThan(-Math.PI / 2 + 0.01, "a quarter turn takes 24 ticks at least"));
+        yaws.Zip(yaws.Skip(1), (a, b) => b - a).Should().AllSatisfy(change =>
+            change.Should().BeInRange(-step - 1e-6, 1e-6, "the heading turns clockwise, a tick of the rate at most"));
+        yaws.Take(23).Should().AllSatisfy(yaw =>
+            yaw.Should().BeGreaterThan(-Math.PI / 2 + 0.01, "a quarter turn takes 24 ticks at least"));
         yaws[^1].Should().BeApproximately(-Math.PI / 2, 0.02);
     }
 
@@ -93,13 +98,13 @@ public sealed class WalkHeadingTests : IDisposable
     public void ThePersonTurnsTowardItsWalkWhenItsHeadingWasAddedBeforeItsWalker()
     {
         FrameHandle ground = OnTheGround();
-        Entity person = world.Spawn(new SpawnDesc
+        Entity person = world.Spawn(new()
         {
             Frame = ground,
-            Pose = new DPose(new Double3(0, 0.95, 0), DQuaternion.Identity),
-            Body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
-            Render = new RenderData { ViewOffset = new Pose(Eye, Quaternion.Identity) },
-            Components = [new WalkHeading(), new SteadyWalk(new Vector3(2, 0, 0), ticks: 600)],
+            Pose = new(new(0, 0.95, 0), DQuaternion.Identity),
+            Body = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
+            Render = new RenderData { ViewOffset = new(Eye, Quaternion.Identity) },
+            Components = [new WalkHeading(), new SteadyWalk(new(2, 0, 0), ticks: 600)]
         });
 
         Tick(world, 120);
@@ -111,13 +116,13 @@ public sealed class WalkHeadingTests : IDisposable
     public void ThePersonHoldsItsHeadingWhenItStopsWalking()
     {
         FrameHandle ground = OnTheGround();
-        Entity person = Person(ground, new Double3(0, 0.95, 0), components: new SteadyWalk(new Vector3(2, 0, 2), ticks: 60));
+        Entity person = Person(ground, new(0, 0.95, 0), components: new SteadyWalk(new(2, 0, 2), ticks: 60));
         Tick(world, 63);
         Double3 stopped = Facing(person, ground);
 
         Tick(world, 120);
 
-        Degrees(stopped, new Double3(1, 0, 1)).Should().BeLessThan(5, "the person faced its walk when it stopped");
+        Degrees(stopped, new(1, 0, 1)).Should().BeLessThan(5, "the person faced its walk when it stopped");
         Degrees(Facing(person, ground), stopped).Should().BeLessThan(0.01, "the person holds its heading");
     }
 
@@ -129,7 +134,7 @@ public sealed class WalkHeadingTests : IDisposable
     public void ThePersonHoldsItsHeadingWhileItCreepsSlowerThanTheTurnSpeed()
     {
         FrameHandle ground = OnTheGround();
-        Entity person = Person(ground, new Double3(0, 0.95, 0), components: new SteadyWalk(new Vector3(0.2f, 0, 0), ticks: 600));
+        Entity person = Person(ground, new(0, 0.95, 0), components: new SteadyWalk(new(0.2f, 0, 0), ticks: 600));
 
         Tick(world, 120);
 
@@ -146,7 +151,7 @@ public sealed class WalkHeadingTests : IDisposable
     public void ThePersonHoldsItsHeadingWhileAPushMovesItWithoutAWalk()
     {
         FrameHandle ground = OnTheGround();
-        Entity person = Person(ground, new Double3(0, 0.95, 0), components: new SteadyPush(new Vector3(70 * 40, 0, 0)));
+        Entity person = Person(ground, new(0, 0.95, 0), components: new SteadyPush(new(70 * 40, 0, 0)));
         Tick(world, 10);
         bool standing = world.IsStanding(person);
         double speed = world.VelocityIn(person, ground).X;
@@ -167,7 +172,8 @@ public sealed class WalkHeadingTests : IDisposable
     public void ThePersonHoldsItsHeadingWhileItFloats()
     {
         FrameHandle space = Ground(world, 0);
-        Entity person = Person(space, Double3.Zero, velocity: Double3.UnitX, components: new SteadyWalk(new Vector3(2, 0, 0), ticks: 600));
+        Entity person = Person(space, Double3.Zero, velocity: Double3.UnitX,
+            components: new SteadyWalk(new(2, 0, 0), ticks: 600));
 
         Tick(world, 120);
 
@@ -180,7 +186,7 @@ public sealed class WalkHeadingTests : IDisposable
     public void TheTurnKeepsTheEyeInItsPlace()
     {
         FrameHandle ground = OnTheGround();
-        Entity person = Person(ground, new Double3(0, 0.95, 0), components: new SteadyWalk(new Vector3(2, 0, 0), ticks: 600));
+        Entity person = Person(ground, new(0, 0.95, 0), components: new SteadyWalk(new(2, 0, 0), ticks: 600));
 
         Tick(world, 60);
 
@@ -188,7 +194,8 @@ public sealed class WalkHeadingTests : IDisposable
     }
 }
 
-/// <summary>A test component that asks for one walk, <paramref name="velocity"/> in m/s in its entity's axes, for <paramref name="ticks"/> ticks, and then for no walk.</summary>
+/// <summary>A test component that asks for one walk, <paramref name="velocity"/> in m/s in its entity's axes, for
+/// <paramref name="ticks"/> ticks, and then for no walk.</summary>
 internal sealed class SteadyWalk(Vector3 velocity, int ticks) : IComponent
 {
     private int left = ticks;

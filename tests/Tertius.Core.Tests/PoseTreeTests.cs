@@ -1,12 +1,11 @@
 using System.Numerics;
-using Tertius;
 
 namespace Tertius.Core.Tests;
 
 public class PoseTreeTests
 {
     private static Pose At(float x, float y = 0, float z = 0, float yaw = 0) =>
-        new(new Vector3(x, y, z), Quaternion.CreateFromAxisAngle(Vector3.UnitY, yaw));
+        new(new(x, y, z), Quaternion.CreateFromAxisAngle(Vector3.UnitY, yaw));
 
     private static void Near(Vector3 expected, Vector3 actual, float eps = 1e-4f) =>
         Assert.True(Vector3.Distance(expected, actual) < eps, $"expected {expected}, got {actual}");
@@ -19,9 +18,9 @@ public class PoseTreeTests
         PoseNode child = tree.Add(root, At(1, yaw: MathF.PI / 2));
         PoseNode grandchild = tree.Add(child, At(1));
         tree.UpdateWorld();
-        Near(new Vector3(10, 0, 0), tree.World(root).Position);
-        Near(new Vector3(11, 0, 0), tree.World(child).Position);
-        Near(new Vector3(11, 0, -1), tree.World(grandchild).Position);
+        Near(new(10, 0, 0), tree.World(root).Position);
+        Near(new(11, 0, 0), tree.World(child).Position);
+        Near(new(11, 0, -1), tree.World(grandchild).Position);
     }
 
     [Fact]
@@ -82,9 +81,9 @@ public class PoseTreeTests
     {
         var tree = new PoseTree<DPose>();
         PoseNode sun = tree.Add(PoseNode.Null, DPose.Identity);
-        PoseNode planet = tree.Add(sun, new DPose(new Double3(1.5e11, 0, 0), DQuaternion.Identity));
-        PoseNode shipA = tree.Add(planet, new DPose(new Double3(7e6, 0, 0), DQuaternion.Identity));
-        PoseNode shipB = tree.Add(planet, new DPose(new Double3(7e6, 0.001, 0), DQuaternion.Identity));
+        PoseNode planet = tree.Add(sun, new(new(1.5e11, 0, 0), DQuaternion.Identity));
+        PoseNode shipA = tree.Add(planet, new(new(7e6, 0, 0), DQuaternion.Identity));
+        PoseNode shipB = tree.Add(planet, new(new(7e6, 0.001, 0), DQuaternion.Identity));
         tree.UpdateWorld();
 
         DPose bInA = tree.Relative(shipB, shipA);
@@ -96,11 +95,11 @@ public class PoseTreeTests
     public void ComputeRelativeToMatchesPairwiseRelative()
     {
         var tree = new PoseTree<DPose>();
-        PoseNode r = tree.Add(PoseNode.Null, new DPose(new Double3(1, 2, 3), DQuaternion.FromAxisAngle(Double3.UnitZ, 0.4)));
-        PoseNode a = tree.Add(r, new DPose(new Double3(10, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, 1.2)));
-        PoseNode b = tree.Add(a, new DPose(new Double3(0, 5, 0), DQuaternion.Identity));
-        PoseNode c = tree.Add(r, new DPose(new Double3(-3, 0, 7), DQuaternion.FromAxisAngle(Double3.UnitX, -0.7)));
-        PoseNode other = tree.Add(PoseNode.Null, new DPose(new Double3(100, 0, 0), DQuaternion.Identity));
+        PoseNode r = tree.Add(PoseNode.Null, new(new(1, 2, 3), DQuaternion.FromAxisAngle(Double3.UnitZ, 0.4)));
+        PoseNode a = tree.Add(r, new(new(10, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, 1.2)));
+        PoseNode b = tree.Add(a, new(new(0, 5, 0), DQuaternion.Identity));
+        PoseNode c = tree.Add(r, new(new(-3, 0, 7), DQuaternion.FromAxisAngle(Double3.UnitX, -0.7)));
+        PoseNode other = tree.Add(PoseNode.Null, new(new(100, 0, 0), DQuaternion.Identity));
         tree.UpdateWorld();
 
         var result = new DPose[tree.Count];
@@ -109,7 +108,8 @@ public class PoseTreeTests
         {
             DPose expected = tree.Relative(n, b);
             DPose actual = result[tree.DenseIndex(n)];
-            Assert.True((expected.Position - actual.Position).Length < 1e-9, $"{n}: {expected.Position} vs {actual.Position}");
+            Assert.True((expected.Position - actual.Position).Length < 1e-9,
+                $"{n}: {expected.Position} vs {actual.Position}");
         }
     }
 

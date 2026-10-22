@@ -7,15 +7,13 @@ namespace Tertius.Simulation;
 /// Reusable storage for an <see cref="EventList"/>. The scheduler keeps one per worker thread. Once the buffer has
 /// grown to the longest list it has held, filling it again never allocates.
 /// </summary>
-public sealed class EventBuffer
+/// <remarks>Creates a buffer for <paramref name="capacity"/> events. It grows when needed.</remarks>
+public sealed class EventBuffer(int capacity = 32)
 {
-    internal Event[] Items;
+    internal Event[] Items = new Event[Math.Max(capacity, 4)];
     internal int Count;
     internal EventMask Mask;
     internal int Version;
-
-    /// <summary>Creates a buffer for <paramref name="capacity"/> events. It grows when needed.</summary>
-    public EventBuffer(int capacity = 32) => Items = new Event[Math.Max(capacity, 4)];
 
     /// <summary>The number of events the buffer holds before it grows.</summary>
     public int Capacity => Items.Length;
@@ -24,7 +22,7 @@ public sealed class EventBuffer
     public EventList Begin(Entity owner = default)
     {
         Clear();
-        return new EventList(this, owner);
+        return new(this, owner);
     }
 
     /// <summary>A list over the events already in the buffer, without clearing them. For benchmarks and tests.</summary>
@@ -117,6 +115,7 @@ public sealed class EventBuffer
         {
             Compact(count, read, write);
         }
+
         return count - Count;
     }
 
@@ -132,6 +131,7 @@ public sealed class EventBuffer
             Count = newCount;
             RecomputeMask();
         }
+
         Version++;
     }
 
@@ -155,22 +155,21 @@ public sealed class EventBuffer
 /// events.Of&lt;Damage&gt;().Where(static (ref Damage d) =&gt; d.Amount == 0).Remove();
 /// </code>
 /// </summary>
-public ref struct EventList
+public readonly ref struct EventList
 {
     private readonly EventBuffer buffer;
-    private readonly Entity owner;
 
     internal EventList(EventBuffer buffer, Entity owner)
     {
         this.buffer = buffer;
-        this.owner = owner;
+        Owner = owner;
     }
 
     /// <summary>The number of events in the list.</summary>
     public readonly int Count => buffer.Count;
 
     /// <summary>The running entity. Events that <see cref="Add{T}"/> creates target it.</summary>
-    public readonly Entity Owner => owner;
+    public Entity Owner { get; }
 
     /// <summary>
     /// A conservative superset of the event types in the list. Adds set bits, and removals recompute it, so after
@@ -201,7 +200,7 @@ public ref struct EventList
         int type = EventType<T>.Id;
         ref Event e = ref buffer.Append();
         e = default;
-        e.Target = owner;
+        e.Target = Owner;
         e.Sender = sender;
         e.Type = type;
         Unsafe.As<PayloadBytes, T>(ref e.Payload) = payload;
@@ -242,11 +241,13 @@ public ref struct EventList
     public readonly EventsOf<T> Find<T>(EventQuery<T> query) where T : unmanaged, IEventPayload => new(buffer, query);
 
     /// <summary>The events that a stored query with a state predicate matches.</summary>
-    public readonly EventsOf<T, TState> Find<T, TState>(EventQuery<T, TState> query) where T : unmanaged, IEventPayload =>
+    public readonly EventsOf<T, TState> Find<T, TState>(EventQuery<T, TState> query)
+        where T : unmanaged, IEventPayload =>
         new(buffer, query);
 
     /// <summary>The events of every type that pass <paramref name="predicate"/>. Use a static lambda, so that it allocates nothing.</summary>
-    public readonly EventsOfAnyType Where(RefPredicate<Event> predicate) => new(buffer, new AnyTypeFilter().Where(predicate));
+    public readonly EventsOfAnyType Where(RefPredicate<Event> predicate) =>
+        new(buffer, new AnyTypeFilter().Where(predicate));
 
     /// <summary>The events of every type that <paramref name="sender"/> sent. <see cref="Entity.Null"/> keeps the events without a sender.</summary>
     public readonly EventsOfAnyType From(Entity sender) => new(buffer, new AnyTypeFilter().From(sender));

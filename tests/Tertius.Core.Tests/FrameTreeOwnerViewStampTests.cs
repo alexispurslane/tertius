@@ -1,4 +1,3 @@
-using System.Numerics;
 using AwesomeAssertions;
 using Tertius.Frames.Rails;
 
@@ -19,8 +18,8 @@ public class FrameTreeOwnerViewStampTests
 
     public FrameTreeOwnerViewStampTests()
     {
-        ground = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
-        ship = frames.Create(new Entity(2, 1), ground, new DPose(X(100), DQuaternion.Identity), FrameBounds.Sphere(50));
+        ground = frames.Create(new(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
+        ship = frames.Create(new(2, 1), ground, new(X(100), DQuaternion.Identity), FrameBounds.Sphere(50));
         frames.SetHullMotion(ship, BodyMotion.Dynamic);
     }
 
@@ -44,12 +43,13 @@ public class FrameTreeOwnerViewStampTests
         FrameHandle physicsHome = home.IsNull ? ground : home;
         var body = new NumericBody
         {
-            Entity = owned.IsNull ? new Entity(10, 1) : owned.Entity, Semantic = ground, Home = physicsHome, Position = X(x),
-            HomePosition = X(x) - frames.HomeOffset(physicsHome, ground), Velocity = X(vx), Radius = 1, Mass = 1, Character = true,
-            OwnedFrame = owned,
+            Entity = owned.IsNull ? new(10, 1) : owned.Entity, Semantic = ground, Home = physicsHome, Position = X(x),
+            HomePosition = X(x) - frames.HomeOffset(physicsHome, ground), Velocity = X(vx), Radius = 1, Mass = 1,
+            Character = true,
+            OwnedFrame = owned
         };
         FrameHandle after = physicsHome;
-        frames.UpdateNumericFrames([body], 0.1, 0.1, new PhysicsChanges(), moves =>
+        frames.UpdateNumericFrames([body], 0.1, 0.1, new(), moves =>
         {
             foreach (NumericMove move in moves)
                 after = move.To;
@@ -60,7 +60,7 @@ public class FrameTreeOwnerViewStampTests
 
     [Fact]
     public void A_new_frame_changes_the_stamp() =>
-        StampChanges(() => frames.Create(new Entity(3, 1), ground, DPose.Identity, FrameBounds.Sphere(5)))
+        StampChanges(() => frames.Create(new(3, 1), ground, DPose.Identity, FrameBounds.Sphere(5)))
             .Should().BeTrue();
 
     [Fact]
@@ -70,13 +70,14 @@ public class FrameTreeOwnerViewStampTests
     [Fact]
     public void A_frame_that_moves_under_another_parent_changes_the_stamp()
     {
-        FrameHandle dock = frames.Create(new Entity(3, 1), ground, new DPose(X(-100), DQuaternion.Identity), FrameBounds.Sphere(500));
+        FrameHandle dock =
+            frames.Create(new(3, 1), ground, new(X(-100), DQuaternion.Identity), FrameBounds.Sphere(500));
         StampChanges(() => frames.Reparent(ship, dock)).Should().BeTrue();
     }
 
     [Fact]
     public void A_new_local_pose_changes_the_stamp() =>
-        StampChanges(() => frames.SetLocalPose(ship, new DPose(X(200), DQuaternion.Identity))).Should().BeTrue();
+        StampChanges(() => frames.SetLocalPose(ship, new(X(200), DQuaternion.Identity))).Should().BeTrue();
 
     [Fact]
     public void A_new_linear_velocity_changes_the_stamp() =>
@@ -84,13 +85,15 @@ public class FrameTreeOwnerViewStampTests
 
     [Fact]
     public void A_new_angular_velocity_changes_the_stamp() =>
-        StampChanges(() => frames.SetAngularVelocity(ship, new Vector3(0, 0.1f, 0))).Should().BeTrue();
+        StampChanges(() => frames.SetAngularVelocity(ship, new(0, 0.1f, 0))).Should().BeTrue();
 
     [Fact]
     public void A_frame_that_takes_its_step_record_changes_the_stamp()
     {
-        var record = new MotionSample(new DPose(X(101), DQuaternion.Identity), X(60), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
-        StampChanges(() => frames.TakeStepRecords([], 1.0 / 60, new StepOwners().WithHullRecord(ship, record))).Should().BeTrue();
+        var record = new MotionSample(new(X(101), DQuaternion.Identity), X(60), Double3.Zero, Double3.Zero,
+            Double3.Zero, Double3.Zero);
+        StampChanges(() => frames.TakeStepRecords([], 1.0 / 60, new StepOwners().WithHullRecord(ship, record))).Should()
+            .BeTrue();
     }
 
     [Fact]
@@ -149,7 +152,8 @@ public class FrameTreeOwnerViewStampTests
 
     [Fact]
     public void A_numeric_update_that_changes_no_frame_leaves_the_stamp_as_it_is() =>
-        StampChanges(() => Update(x: 100, vx: 0)).Should().BeFalse("a slow body near the origin of its frame needs no numeric frame");
+        StampChanges(() => Update(x: 100, vx: 0)).Should()
+            .BeFalse("a slow body near the origin of its frame needs no numeric frame");
 
     [Fact]
     public void Reads_leave_the_stamp_as_it_is()

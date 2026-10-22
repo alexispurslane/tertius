@@ -30,7 +30,8 @@ internal static class JsonVectors
     }
 
     /// <summary>Writes <paramref name="value"/> as an array of its 2 numbers on one line.</summary>
-    public static void WriteVector2(Utf8JsonWriter writer, Vector2 value) => WriteArray(writer, Number(value.X), Number(value.Y));
+    public static void WriteVector2(Utf8JsonWriter writer, Vector2 value) =>
+        WriteArray(writer, Number(value.X), Number(value.Y));
 
     // A vector reads from an array with its exact count of numbers: StartArray, then Next once per number, then EndArray.
 
@@ -42,20 +43,16 @@ internal static class JsonVectors
     }
 
     /// <summary>Reads the next value of the array, which must be a finite float.</summary>
-    public static float NextSingle(ref Utf8JsonReader reader, string form)
-    {
-        if (!reader.Read() || reader.TokenType != JsonTokenType.Number)
-            throw new JsonException($"Expected {form}.");
-        return Finite(reader.GetSingle());
-    }
+    public static float NextSingle(ref Utf8JsonReader reader, string form) =>
+        !reader.Read() || reader.TokenType != JsonTokenType.Number
+            ? throw new JsonException($"Expected {form}.")
+            : Finite(reader.GetSingle());
 
     /// <summary>Reads the next value of the array, which must be a finite double.</summary>
-    public static double NextDouble(ref Utf8JsonReader reader, string form)
-    {
-        if (!reader.Read() || reader.TokenType != JsonTokenType.Number)
-            throw new JsonException($"Expected {form}.");
-        return Finite(reader.GetDouble());
-    }
+    public static double NextDouble(ref Utf8JsonReader reader, string form) =>
+        !reader.Read() || reader.TokenType != JsonTokenType.Number
+            ? throw new JsonException($"Expected {form}.")
+            : Finite(reader.GetDouble());
 
     /// <summary>Reads the end of the array, which must come after its last number.</summary>
     public static void EndArray(ref Utf8JsonReader reader, string form)
@@ -81,9 +78,13 @@ internal static class JsonVectors
     /// same text. A value that JSON cannot hold, such as NaN, becomes a string.
     /// </summary>
     public static string Number(float value) =>
-        float.IsFinite(value) ? (value + 0f).ToString("R", CultureInfo.InvariantCulture) : $"\"{value.ToString(CultureInfo.InvariantCulture)}\"";
+        float.IsFinite(value)
+            ? (value + 0f).ToString("R", CultureInfo.InvariantCulture)
+            : $"\"{value.ToString(CultureInfo.InvariantCulture)}\"";
 
     /// <inheritdoc cref="Number(float)"/>
     public static string Number(double value) =>
-        double.IsFinite(value) ? (value + 0.0).ToString("R", CultureInfo.InvariantCulture) : $"\"{value.ToString(CultureInfo.InvariantCulture)}\"";
+        double.IsFinite(value)
+            ? (value + 0.0).ToString("R", CultureInfo.InvariantCulture)
+            : $"\"{value.ToString(CultureInfo.InvariantCulture)}\"";
 }

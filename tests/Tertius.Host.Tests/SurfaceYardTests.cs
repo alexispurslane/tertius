@@ -1,5 +1,4 @@
 using System.Numerics;
-using Tertius.Demo;
 using Tertius.Simulation;
 
 namespace Tertius.Host.Tests;
@@ -15,14 +14,14 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class SurfaceYardRun : CheckedInRun
 {
-    public SurfaceYardRun() : this(new YardRecord())
+    public SurfaceYardRun() : this(new())
     {
     }
 
     private SurfaceYardRun(YardRecord record) : base("surface-yard", record.Take)
     {
         Record = record;
-        Measured = new YardMeasurements(this, record);
+        Measured = new(this, record);
     }
 
     /// <summary>The state of the yard's bodies after every tick of the run.</summary>
@@ -41,7 +40,12 @@ public sealed class SurfaceYardRun : CheckedInRun
 /// <param name="AngularVelocity">The body's angular velocity in earth-surface's axes, in rad/s.</param>
 /// <param name="Home">The frame whose Jolt system holds the body: earth-surface, or a numeric frame below it.</param>
 /// <param name="HomeMode">How the home moves as a numeric frame, or <see cref="NumericMode.None"/> for earth-surface.</param>
-internal readonly record struct BodySample(DPose Pose, Double3 Velocity, Vector3 AngularVelocity, FrameHandle Home, NumericMode HomeMode);
+internal readonly record struct BodySample(
+    DPose Pose,
+    Double3 Velocity,
+    Vector3 AngularVelocity,
+    FrameHandle Home,
+    NumericMode HomeMode);
 
 /// <summary>The yard after one tick.</summary>
 /// <param name="Tick">The number of ticks run so far: 0 for the scene as built.</param>
@@ -50,18 +54,24 @@ internal readonly record struct BodySample(DPose Pose, Double3 Velocity, Vector3
 /// <param name="PersonStanding">True if physics stood the person on walkable ground in the tick's step.</param>
 /// <param name="NumericFrames">How many numeric frames the frame tree holds.</param>
 /// <param name="Errors">How many errors <see cref="World.Errors"/> holds.</param>
-internal sealed record TickSample(long Tick, double Time, BodySample[] Bodies, bool PersonStanding, int NumericFrames, int Errors);
+internal sealed record TickSample(
+    long Tick,
+    double Time,
+    BodySample[] Bodies,
+    bool PersonStanding,
+    int NumericFrames,
+    int Errors);
 
 /// <summary>Samples the yard's bodies after every tick. The run calls <see cref="Take"/> once per tick, in tick order.</summary>
 internal sealed class YardRecord
 {
+    public const int Floor = 0, BottomCrate = 1, MiddleCrate = 2, TopCrate = 3, Person = 4;
+
     /// <summary>The scene ids of the bodies that the record samples, in the order of <see cref="TickSample.Bodies"/>.</summary>
     public static readonly string[] Bodies = ["floor", "bottom-crate", "middle-crate", "top-crate", "person"];
 
-    public const int Floor = 0, BottomCrate = 1, MiddleCrate = 2, TopCrate = 3, Person = 4;
-
     /// <summary>The samples, one per tick, where the sample at index i is the state after tick i.</summary>
-    public List<TickSample> Ticks { get; } = new();
+    public List<TickSample> Ticks { get; } = [];
 
     public void Take(World world, SceneInstance scene)
     {
@@ -71,10 +81,13 @@ internal sealed class YardRecord
         {
             Entity entity = scene[Bodies[i]];
             FrameHandle home = world.PhysicsHomeOf(entity);
-            bodies[i] = new BodySample(world.PoseIn(entity, surface), world.VelocityIn(entity, surface),
-                world.AngularVelocityIn(entity, surface), home, home.IsNull ? NumericMode.None : world.Frames.Numeric(home));
+            bodies[i] = new(world.PoseIn(entity, surface), world.VelocityIn(entity, surface),
+                world.AngularVelocityIn(entity, surface), home,
+                home.IsNull ? NumericMode.None : world.Frames.Numeric(home));
         }
-        Ticks.Add(new TickSample(world.TickNumber, world.Time, bodies, world.IsStanding(scene["person"]), world.Frames.NumericCount, world.Errors.Count));
+
+        Ticks.Add(new(world.TickNumber, world.Time, bodies, world.IsStanding(scene["person"]),
+            world.Frames.NumericCount, world.Errors.Count));
     }
 }
 
@@ -88,7 +101,8 @@ public sealed class SurfaceYardTests(SurfaceYardRun run) : IClassFixture<Surface
     {
         foreach (StackedCrate crate in Measured.Stacked)
         {
-            crate.AsleepWhenTheWalkStarts.Should().BeTrue($"the {crate.Id} has rested on the stack since the start, 2 s before the walk");
+            crate.AsleepWhenTheWalkStarts.Should()
+                .BeTrue($"the {crate.Id} has rested on the stack since the start, 2 s before the walk");
             crate.AsleepAtTheEnd.Should().BeTrue($"the {crate.Id} rests on the stack at the end");
             crate.LargestMove.Should().BeLessThan(YardMeasurements.StackDriftLimit,
                 $"the {crate.Id} stays where it rests, from {Measured.SettledTime:F2} s to {Measured.EndTime:F2} s, a span of 60 s, through the push");
@@ -107,10 +121,12 @@ public sealed class SurfaceYardTests(SurfaceYardRun run) : IClassFixture<Surface
         walk.TicksNotStanding.Should().BeEmpty("physics stands the person on the floor at every tick of both walks");
         walk.LargestHeightError.Should().BeLessThan(YardMeasurements.StandingHeightTolerance,
             "a standing person's center stays 0.9 m above the floor, half its capsule's height");
-        walk.LargestVerticalSpeed.Should().BeLessThan(YardMeasurements.StandingVerticalSpeedLimit, "a standing person neither sinks nor bounces");
+        walk.LargestVerticalSpeed.Should().BeLessThan(YardMeasurements.StandingVerticalSpeedLimit,
+            "a standing person neither sinks nor bounces");
         walk.LargestReportedVerticalSpeed.Should().BeLessThan(YardMeasurements.StandingVerticalSpeedLimit,
             "the floor holds a standing person against gravity, so the world reports no vertical velocity for it");
-        walk.FirstWalkDistance.Should().BeApproximately(YardMeasurements.WalkDistance, YardMeasurements.WalkDistanceTolerance,
+        walk.FirstWalkDistance.Should().BeApproximately(YardMeasurements.WalkDistance,
+            YardMeasurements.WalkDistanceTolerance,
             "W held for 200 ticks walks the person 200 ticks times 3 m/s, 10 m, toward the stack");
     }
 
@@ -130,11 +146,13 @@ public sealed class SurfaceYardTests(SurfaceYardRun run) : IClassFixture<Surface
             "the person pushes the top crate off the stack, and it falls clear of the stack and the floor for most of 27 ticks");
         foreach (FreeFlightTick tick in fall.FreeFlightTicks)
         {
-            tick.AccelerationError.Should().BeLessThan(YardMeasurements.FreeFallRelativeTolerance * tick.ExpectedGravity,
+            tick.AccelerationError.Should().BeLessThan(
+                YardMeasurements.FreeFallRelativeTolerance * tick.ExpectedGravity,
                 $"in the step of tick {tick.Tick}, the crate touches nothing, so its velocity changes by μ/r² toward Earth's center times the step");
             tick.AngularVelocityChange.Should().BeLessThan(YardMeasurements.SpinChangeLimit,
                 $"in the step of tick {tick.Tick}, nothing turns the crate, a cube, so its spin stays");
         }
+
         fall.LeaveTick.Should().NotBeNull("the crate leaves the stack");
         fall.FloorTick.Should().NotBeNull("the crate reaches the floor");
         fall.PredictedFallTime.Should().NotBeNull("a free fall from where the crate left the stack reaches the floor");
@@ -151,7 +169,8 @@ public sealed class SurfaceYardTests(SurfaceYardRun run) : IClassFixture<Surface
         {
             PushCollision? first = Measured.PushCollisions.FirstOrDefault(collision => collision.To == hearer);
             first.Should().NotBeNull($"the {hearer} hears the push");
-            first!.Tick.Should().BeInRange(fall.PushTick!.Value - 1, fall.PushTick.Value + 1, "the contact starts in the step in which the crate starts to move");
+            first!.Tick.Should().BeInRange(fall.PushTick!.Value - 1, fall.PushTick.Value + 1,
+                "the contact starts in the step in which the crate starts to move");
             first.Impulse.Should().BeGreaterThan(0, "the person walks into the resting crate");
             first.Impulse.Should().BeLessThanOrEqualTo((float)(YardMeasurements.HeadOnPushImpulse * 1.001),
                 "the approach along the contact's normal is at most the walk speed");
@@ -165,7 +184,8 @@ public sealed class SurfaceYardTests(SurfaceYardRun run) : IClassFixture<Surface
         {
             body.LargestStep.Should().BeLessThan(YardMeasurements.JitterStepLimit,
                 $"the {body.Id} rests from {Measured.RestFromTime:F2} s to the end, so no tick moves it");
-            body.LargestMove.Should().BeLessThan(YardMeasurements.RestDriftLimit, $"the {body.Id} rests from {Measured.RestFromTime:F2} s to the end");
+            body.LargestMove.Should().BeLessThan(YardMeasurements.RestDriftLimit,
+                $"the {body.Id} rests from {Measured.RestFromTime:F2} s to the end");
             if (body.Id != "person")
                 body.AsleepAtTheEnd.Should().BeTrue($"the {body.Id} rests on the floor or the stack at the end");
         }
@@ -181,7 +201,8 @@ public sealed class SurfaceYardTests(SurfaceYardRun run) : IClassFixture<Surface
     [Fact]
     public void NoNumericFrameHoldsTheYardsBodiesAndTheyRestInTheJoltSystemOfEarthSurfaceItself()
     {
-        Measured.MostNumericFrames.Should().Be(0, "no group of the yard is fast or 8,389 km from the origin of earth-surface");
+        Measured.MostNumericFrames.Should()
+            .Be(0, "no group of the yard is fast or 8,389 km from the origin of earth-surface");
         foreach (BodyHomes homes in Measured.Homes)
             homes.TicksNotInEarthSurface.Should().Be(0,
                 $"the Jolt system of earth-surface holds the {homes.Id} after every tick (the first ticks in another home: {string.Join(", ", homes.FirstTicksNotInEarthSurface)})");

@@ -1,4 +1,3 @@
-using System.Numerics;
 using AwesomeAssertions;
 
 namespace Tertius.Core.Tests;
@@ -15,12 +14,15 @@ public class RotateNormalizingTests
 
     public static TheoryData<string, DQuaternion> Rotations => new()
     {
-        { "a rotation about an axis, of unit length", DQuaternion.FromAxisAngle(new Double3(1, 2, 3), 0.9) },
-        { "a rotation that came out of a float quaternion", DQuaternion.FromQuaternion(new Quaternion(0.18257418f, 0.36514837f, 0.5477226f, 0.73029685f)) },
-        { "a rotation that is too short", new DQuaternion(0, 0.1, 0, 0.1) },
-        { "a rotation that is too long", new DQuaternion(2, -3, 1, 5) },
-        { "a rotation by half a turn", new DQuaternion(0, 1, 0, 0) },
-        { "a rotation that is very short", new DQuaternion(0, 1e-100, 0, 1e-100) },
+        { "a rotation about an axis, of unit length", DQuaternion.FromAxisAngle(new(1, 2, 3), 0.9) },
+        {
+            "a rotation that came out of a float quaternion",
+            DQuaternion.FromQuaternion(new(0.18257418f, 0.36514837f, 0.5477226f, 0.73029685f))
+        },
+        { "a rotation that is too short", new(0, 0.1, 0, 0.1) },
+        { "a rotation that is too long", new(2, -3, 1, 5) },
+        { "a rotation by half a turn", new(0, 1, 0, 0) },
+        { "a rotation that is very short", new(0, 1e-100, 0, 1e-100) }
     };
 
     [Theory]

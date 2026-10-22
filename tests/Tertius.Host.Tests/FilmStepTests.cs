@@ -24,7 +24,8 @@ public sealed class FilmStepTests : IDisposable
     /// </summary>
     private static RunResult Run(string steps, Func<World, IRenderResources, SceneInstance> build, string output)
     {
-        Script script = Script.Parse($$"""{ "scene": "film", "window": { "width": 160, "height": 90 }, "steps": [ {{steps}} ] }""");
+        Script script =
+            Script.Parse($$"""{ "scene": "film", "window": { "width": 160, "height": 90 }, "steps": [ {{steps}} ] }""");
         using World world = NewJoltWorld();
         // A small renderer: the runner resizes it to the script's window.
         VulkanRenderer renderer = Headless(16, 16);
@@ -55,8 +56,10 @@ public sealed class FilmStepTests : IDisposable
             """, LitDrop, expanded);
 
         foreach (string frame in frames)
-            File.ReadAllBytes(Path.Combine(filmed, frame)).Should().Equal(File.ReadAllBytes(Path.Combine(expanded, frame)), frame);
-        File.ReadAllBytes(Path.Combine(filmed, frames[0])).Should().NotEqual(File.ReadAllBytes(Path.Combine(filmed, frames[2])),
+            File.ReadAllBytes(Path.Combine(filmed, frame)).Should()
+                .Equal(File.ReadAllBytes(Path.Combine(expanded, frame)), frame);
+        File.ReadAllBytes(Path.Combine(filmed, frames[0])).Should().NotEqual(
+            File.ReadAllBytes(Path.Combine(filmed, frames[2])),
             "the box falls between the first frame and the last, so the frames are not all one image");
     }
 
@@ -66,7 +69,8 @@ public sealed class FilmStepTests : IDisposable
         string filmed = Path.Combine(folder, "filmed");
         string ran = Path.Combine(folder, "ran");
 
-        Run("""{ "do": "film", "name": "drop", "frames": 3, "every": 20 }, { "do": "dump", "name": "end" }""", LitDrop, filmed);
+        Run("""{ "do": "film", "name": "drop", "frames": 3, "every": 20 }, { "do": "dump", "name": "end" }""", LitDrop,
+            filmed);
         Run("""{ "do": "run", "ticks": 60 }, { "do": "dump", "name": "end" }""", LitDrop, ran);
 
         string filmedDump = File.ReadAllText(Path.Combine(filmed, "end.json"));
@@ -86,8 +90,10 @@ public sealed class FilmStepTests : IDisposable
         }, folder);
 
         run.Should().Throw<ScriptException>().Which.Message.Should()
-            .Contain("step 1 (film)").And.Contain("frame 1").And.Contain("tick 4").And.Contain("camera 'front'").And.Contain("not alive");
-        File.Exists(Path.Combine(folder, "box-000000.png")).Should().BeTrue("the frame before the camera died stays on disk");
+            .Contain("step 1 (film)").And.Contain("frame 1").And.Contain("tick 4").And.Contain("camera 'front'").And
+            .Contain("not alive");
+        File.Exists(Path.Combine(folder, "box-000000.png")).Should()
+            .BeTrue("the frame before the camera died stays on disk");
         File.Exists(Path.Combine(folder, "box-000001.png")).Should().BeFalse("an image of nothing is not written");
     }
 }

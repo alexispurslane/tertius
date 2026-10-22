@@ -13,7 +13,8 @@ namespace Tertius.Simulation;
 /// <remarks>
 /// <para>
 /// An entity that refuses a full sample in the next step, the one that applies the sample, gets nothing from the component,
-/// and the component logs the guard's reason once (see <see cref="Self.MotionIntentProblem"/>), to <see cref="World.Log"/>,
+/// and the component logs the guard's reason once (see <see cref="Self.MotionIntentProblem"/>), to <see cref="World.Log"/>
+/// ,
 /// never to <see cref="World.Errors"/>. With its first sample, the component teleports its entity's body to the spin's pose
 /// at the start of the step when the body is kinematic in that step (see <see cref="BodyHandle.NextStepMotion"/>). An entity
 /// without a body, and the owner of a root frame, need no teleport. A new component on the same entity teleports again.
@@ -39,7 +40,9 @@ public sealed class SpinMotion : IComponent
         init
         {
             if (!value.IsValid)
-                throw new ArgumentException($"A SpinMotion needs a spin that it can follow, and {value} is not valid (see FrameSpin.IsValid).", nameof(value));
+                throw new ArgumentException(
+                    $"A SpinMotion needs a spin that it can follow, and {value} is not valid (see FrameSpin.IsValid).",
+                    nameof(value));
             spin = value;
         }
     }
@@ -57,12 +60,14 @@ public sealed class SpinMotion : IComponent
         {
             // The reason allocates, so the component words it only for its one log line.
             if (!loggedRefusal)
-                self.Log($"SpinMotion writes no sample for {RailsLog.Mover(self)}: {self.Entity} {self.MotionIntentProblem(move)}.");
+                self.Log(
+                    $"SpinMotion writes no sample for {RailsLog.Mover(self)}: {self.Entity} {self.MotionIntentProblem(move)}.");
             loggedRefusal = true;
             return;
         }
+
         if (!started && self.Body.NextStepMotion == BodyMotion.Kinematic)
-            self.Body.Teleport(new DPose(place, spin.RotationAt(self.TimeAt(self.Tick + 1))));
+            self.Body.Teleport(new(place, spin.RotationAt(self.TimeAt(self.Tick + 1))));
         started = true;
         self.MoveOnRails(sample);
     }

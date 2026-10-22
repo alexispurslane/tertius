@@ -23,12 +23,13 @@ public sealed class ThrowReleaseTests
     private static readonly Double3 Eye = Circle.OnFacet(Circle.Segments / 2, 1.65, 0);
 
     /// <summary>8 m/s at 30 degrees above the floor at the eye, spinward for 1 and antispinward for -1.</summary>
-    private static Double3 Throw(int way) => WheelFloor.UpAt(Eye) * (8 * Math.Sin(Math.PI / 6)) + WheelFloor.SpinwardAt(Eye) * (way * 8 * Math.Cos(Math.PI / 6));
+    private static Double3 Throw(int way) => WheelFloor.UpAt(Eye) * (8 * Math.Sin(Math.PI / 6)) +
+                                             WheelFloor.SpinwardAt(Eye) * (way * 8 * Math.Cos(Math.PI / 6));
 
     [Fact]
     public void ABoxDroppedFromRestLandsAntispinwardOfThePointUnderIt()
     {
-        var release = new ThrowRelease(new Double3(-99, 0, 0), Double3.Zero);
+        var release = new ThrowRelease(new(-99, 0, 0), Double3.Zero);
 
         ThrowLanding landing = release.Landing(Rate, Circle, 0);
 
@@ -65,13 +66,14 @@ public sealed class ThrowReleaseTests
     [Fact]
     public void ABoxLandsWhenItsCenterComesDownToItsHalfSizeAboveTheFacet()
     {
-        var release = new ThrowRelease(new Double3(-99, 0, 0), Double3.Zero);
+        var release = new ThrowRelease(new(-99, 0, 0), Double3.Zero);
         var floor = new WheelFloor(100, 256);
 
         ThrowLanding landing = release.Landing(Rate, floor, 0.25);
 
         floor.Height(landing.Place).Should().BeApproximately(0.25, 1e-9);
-        floor.Height(release.PlaceAt(landing.Time - 1e-3, Rate)).Should().BeGreaterThan(0.25, "the box is still in the air just before");
+        floor.Height(release.PlaceAt(landing.Time - 1e-3, Rate)).Should()
+            .BeGreaterThan(0.25, "the box is still in the air just before");
     }
 
     [Fact]
@@ -80,14 +82,15 @@ public sealed class ThrowReleaseTests
         var release = new ThrowRelease(Eye, Throw(1));
 
         release.PlaceAt(0, Rate).Should().Be(Eye);
-        ((release.PlaceAt(1e-6, Rate) - release.PlaceAt(-1e-6, Rate)) / 2e-6 - Throw(1)).Length.Should().BeLessThan(1e-6,
+        ((release.PlaceAt(1e-6, Rate) - release.PlaceAt(-1e-6, Rate)) / 2e-6 - Throw(1)).Length.Should().BeLessThan(
+            1e-6,
             "the velocity relative to the turning axes at the release is the release velocity");
     }
 
     [Fact]
     public void AFlatFieldLandsABoxThatStartsAtItsHalfSizeAtOnceWithoutAVerticalSpeed()
     {
-        var release = new ThrowRelease(new Double3(-99.75, 0, 0), new Double3(0, 0, 3));
+        var release = new ThrowRelease(new(-99.75, 0, 0), new(0, 0, 3));
 
         (double time, double spinward) = release.FlatLanding(9.81, Circle, 0.25);
 

@@ -22,7 +22,8 @@ public class TouchRuleTests
     public void BodiesOneCentimeterApartAtRestDoNotTouch() => FrameWorld.Touches(-0.01f, 0, Step).Should().BeFalse();
 
     [Fact]
-    public void BodiesThatCloseTheirGapWithinTheStepTouch() => FrameWorld.Touches(-0.01f, -1f, Step).Should().BeTrue("1 m/s closes 1.7 cm in a step");
+    public void BodiesThatCloseTheirGapWithinTheStepTouch() =>
+        FrameWorld.Touches(-0.01f, -1f, Step).Should().BeTrue("1 m/s closes 1.7 cm in a step");
 
     [Fact]
     public void BodiesThatApproachTooSlowlyToCloseTheirGapInTheStepDoNotTouch() =>

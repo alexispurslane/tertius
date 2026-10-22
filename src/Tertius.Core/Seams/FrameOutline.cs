@@ -50,7 +50,8 @@ public readonly record struct FollowingOutline(Vector3 Center, float Radius);
 /// The outline sphere of a frame is the smallest sphere centred on its origin that holds its outline: the largest radius of
 /// the bubble for a semantic frame, and the contents sphere for a numeric frame.
 /// <para>
-/// This is a custom C# 15 union, as <see cref="RenderLight"/> is. <see cref="HasValue"/> and the <c>TryGetValue</c> methods
+/// This is a custom C# 15 union, as <see cref="RenderLight"/> is. <see cref="HasValue"/> and the <c>TryGetValue</c>
+/// methods
 /// let the compiler pattern-match it without boxing. <see cref="Value"/> boxes, so use it only for debugging. An outline
 /// reads only the fields of its own case, so the fields of the cases that it does not hold may hold anything and never
 /// matter. Every case keeps its center in the same place, and the four sphere cases keep their radius in the same place. It
@@ -61,15 +62,24 @@ public readonly record struct FollowingOutline(Vector3 Center, float Radius);
 [Union]
 public readonly struct FrameOutline : IEquatable<FrameOutline>
 {
-    private const byte KindNone = 0, KindSemantic = 1, KindFalling = 2, KindResting = 3, KindNesting = 4, KindFollowing = 5;
+    private const byte KindNone = 0,
+        KindSemantic = 1,
+        KindFalling = 2,
+        KindResting = 3,
+        KindNesting = 4,
+        KindFollowing = 5;
 
     private readonly byte kind;
+
     /// <summary>The center of every case.</summary>
     private readonly Vector3 center;
+
     /// <summary>The rotation of <see cref="SemanticOutline"/>.</summary>
     private readonly Quaternion rotation;
+
     /// <summary>The radii of <see cref="SemanticOutline"/>.</summary>
     private readonly Vector3 radii;
+
     /// <summary>The radius of the four sphere cases.</summary>
     private readonly float radius;
 
@@ -81,13 +91,21 @@ public readonly struct FrameOutline : IEquatable<FrameOutline>
         radii = outline.Radii;
     }
 
-    public FrameOutline(FallingOutline outline) : this(KindFalling, outline.Center, outline.Radius) { }
+    public FrameOutline(FallingOutline outline) : this(KindFalling, outline.Center, outline.Radius)
+    {
+    }
 
-    public FrameOutline(RestingOutline outline) : this(KindResting, outline.Center, outline.Radius) { }
+    public FrameOutline(RestingOutline outline) : this(KindResting, outline.Center, outline.Radius)
+    {
+    }
 
-    public FrameOutline(NestingOutline outline) : this(KindNesting, outline.Center, outline.Radius) { }
+    public FrameOutline(NestingOutline outline) : this(KindNesting, outline.Center, outline.Radius)
+    {
+    }
 
-    public FrameOutline(FollowingOutline outline) : this(KindFollowing, outline.Center, outline.Radius) { }
+    public FrameOutline(FollowingOutline outline) : this(KindFollowing, outline.Center, outline.Radius)
+    {
+    }
 
     /// <summary>A sphere case.</summary>
     private FrameOutline(byte kind, Vector3 center, float radius)
@@ -97,14 +115,24 @@ public readonly struct FrameOutline : IEquatable<FrameOutline>
         this.radius = radius;
     }
 
+    /// <summary>False for the default value, which holds no outline.</summary>
+    public bool HasValue => kind != KindNone;
+
+    public object? Value => kind switch
+    {
+        KindSemantic => new SemanticOutline(center, rotation, radii),
+        KindFalling => new FallingOutline(center, radius),
+        KindResting => new RestingOutline(center, radius),
+        KindNesting => new NestingOutline(center, radius),
+        KindFollowing => new FollowingOutline(center, radius),
+        _ => null
+    };
+
     public static implicit operator FrameOutline(SemanticOutline outline) => new(outline);
     public static implicit operator FrameOutline(FallingOutline outline) => new(outline);
     public static implicit operator FrameOutline(RestingOutline outline) => new(outline);
     public static implicit operator FrameOutline(NestingOutline outline) => new(outline);
     public static implicit operator FrameOutline(FollowingOutline outline) => new(outline);
-
-    /// <summary>False for the default value, which holds no outline.</summary>
-    public bool HasValue => kind != KindNone;
 
     public bool TryGetValue(out SemanticOutline value)
     {
@@ -136,16 +164,6 @@ public readonly struct FrameOutline : IEquatable<FrameOutline>
         return kind == KindFollowing;
     }
 
-    public object? Value => kind switch
-    {
-        KindSemantic => new SemanticOutline(center, rotation, radii),
-        KindFalling => new FallingOutline(center, radius),
-        KindResting => new RestingOutline(center, radius),
-        KindNesting => new NestingOutline(center, radius),
-        KindFollowing => new FollowingOutline(center, radius),
-        _ => null,
-    };
-
     // Equals on the fields, not the operator ==. The operator follows IEEE 754, so it calls a NaN unequal to itself, and an
     // outline that holds a NaN would not equal itself. Equals treats a NaN as equal to a NaN, which agrees with GetHashCode.
     // The held case alone decides equality: the fields of the other cases are not compared.
@@ -153,7 +171,7 @@ public readonly struct FrameOutline : IEquatable<FrameOutline>
     {
         KindNone => true,
         KindSemantic => center.Equals(other.center) && rotation.Equals(other.rotation) && radii.Equals(other.radii),
-        _ => center.Equals(other.center) && radius.Equals(other.radius),
+        _ => center.Equals(other.center) && radius.Equals(other.radius)
     };
 
     public override bool Equals(object? obj) => obj is FrameOutline other && Equals(other);
@@ -162,7 +180,7 @@ public readonly struct FrameOutline : IEquatable<FrameOutline>
     {
         KindNone => 0,
         KindSemantic => HashCode.Combine(kind, center, rotation, radii),
-        _ => HashCode.Combine(kind, center, radius),
+        _ => HashCode.Combine(kind, center, radius)
     };
 
     public static bool operator ==(FrameOutline a, FrameOutline b) => a.Equals(b);
@@ -176,6 +194,6 @@ public readonly struct FrameOutline : IEquatable<FrameOutline>
         RestingOutline outline => $"FrameOutline({outline})",
         NestingOutline outline => $"FrameOutline({outline})",
         FollowingOutline outline => $"FrameOutline({outline})",
-        null => "FrameOutline(none)",
+        null => "FrameOutline(none)"
     };
 }

@@ -12,8 +12,9 @@ public sealed class EditSubtitlesTests
 {
     private static readonly Script Films = new("scene",
     [
-        new(new CameraStep("one")), new(new FilmStep("a", 100, 1)), new(new OutlinesStep(true)), new(new FilmStep("b", 120, 4)),
-        new(new OutlinesStep(false)), new(new FilmStep("c", 80, 1)),
+        new(new CameraStep("one")), new(new FilmStep("a", 100, 1)), new(new OutlinesStep(true)),
+        new(new FilmStep("b", 120, 4)),
+        new(new OutlinesStep(false)), new(new FilmStep("c", 80, 1))
     ]);
 
     private static IReadOnlyList<ScriptFilm> FilmsOf => ScriptFilm.Of(Films);
@@ -22,13 +23,16 @@ public sealed class EditSubtitlesTests
     private static IReadOnlyList<ReadoutRow> Rows =>
     [
         .. FilmsOf.SelectMany(film => Enumerable.Range(0, film.Frames).Select(k => (film, k)))
-            .Select((frame, index) => new ReadoutRow($"{frame.film.Name}-{frame.k:000000}", frame.film.FirstTick + (frame.k + 1L) * frame.film.Every,
-                new Double3(DemoScenes.EarthRadius + 200e3, 0, 0), 1000 + index, 2e6, 0, 0)),
+            .Select((frame, index) => new ReadoutRow($"{frame.film.Name}-{frame.k:000000}",
+                frame.film.FirstTick + (frame.k + 1L) * frame.film.Every,
+                new(DemoScenes.EarthRadius + 200e3, 0, 0), 1000 + index, 2e6, 0, 0))
     ];
 
-    private static readonly TitleCard Card = new(2, [new CardLine("Tertius", 96), new CardLine("", 24), new CardLine("A {gray} line", 24, Gray: true)]);
+    private static readonly TitleCard Card = new(2,
+        [new("Tertius", 96), new("", 24), new("A {gray} line", 24, Gray: true)]);
 
-    private static CutList Cuts(IReadOnlyList<EditTrim>? trims = null, IReadOnlyList<EditPart>? parts = null, IReadOnlyList<PanelSpan>? panels = null) =>
+    private static CutList Cuts(IReadOnlyList<EditTrim>? trims = null, IReadOnlyList<EditPart>? parts = null,
+        IReadOnlyList<PanelSpan>? panels = null) =>
         new(parts ?? [], trims ?? [], panels ?? [], Card, Card);
 
     private static string Subtitles(CutList cuts) => EditSubtitles.Film(Stretch.Of(FilmsOf, cuts.Trims), Rows, cuts);
@@ -39,7 +43,7 @@ public sealed class EditSubtitlesTests
         .. ass.Split('\n').Where(line => line.StartsWith("Dialogue: ", StringComparison.Ordinal))
             .Select(line => line["Dialogue: ".Length..].Split(',', 10))
             .Where(cells => cells[3] == style)
-            .Select(cells => (cells[1], cells[2], cells[9])),
+            .Select(cells => (cells[1], cells[2], cells[9]))
     ];
 
     [Theory]
@@ -58,10 +62,11 @@ public sealed class EditSubtitlesTests
     [Fact]
     public void TheFilmHasOneReadoutEventForEachKeptFrameFromItsTimeToTheNextFramesTime()
     {
-        List<(string Start, string End, string Text)> readouts = Events(Subtitles(Cuts([new EditTrim("b", 10, 0)])), "Readout");
+        List<(string Start, string End, string Text)> readouts = Events(Subtitles(Cuts([new("b", 10, 0)])), "Readout");
 
         int[] kept = [.. Enumerable.Range(0, 100), .. Enumerable.Range(110, 110), .. Enumerable.Range(220, 80)];
-        readouts.Select(e => (e.Start, e.End)).Should().Equal(kept.Select(k => (EditSubtitles.Time(k), EditSubtitles.Time(k + 1))));
+        readouts.Select(e => (e.Start, e.End)).Should()
+            .Equal(kept.Select(k => (EditSubtitles.Time(k), EditSubtitles.Time(k + 1))));
     }
 
     [Fact]
@@ -69,7 +74,8 @@ public sealed class EditSubtitlesTests
     {
         List<(string Start, string End, string Text)> readouts = Events(Subtitles(Cuts()), "Readout");
 
-        readouts[150].Text.Should().Contain("SPEED").And.Contain("1,150.0\\hm/s").And.Contain("200.00\\hkm").And.Contain("2,000.0\\hkm").And.Contain("0.00\\hg");
+        readouts[150].Text.Should().Contain("SPEED").And.Contain("1,150.0\\hm/s").And.Contain("200.00\\hkm").And
+            .Contain("2,000.0\\hkm").And.Contain("0.00\\hg");
         readouts[150].Text.Split("\\N").Should().HaveCount(4);
     }
 
@@ -97,7 +103,7 @@ public sealed class EditSubtitlesTests
     [Fact]
     public void APartsTitleShowsForFourSecondsFromTheFirstKeptFrameOfItsFirstFilm()
     {
-        string ass = Subtitles(Cuts(trims: [new EditTrim("b", 10, 0)], parts: [new EditPart("b", "The launch", "Up the ramp.")]));
+        string ass = Subtitles(Cuts(trims: [new("b", 10, 0)], parts: [new("b", "The launch", "Up the ramp.")]));
 
         List<(string Start, string End, string Text)> titles = Events(ass, "Title");
 
@@ -110,9 +116,10 @@ public sealed class EditSubtitlesTests
     [Fact]
     public void ACheckPanelShowsOverTheKeptFramesFromItsFirstFilmThroughItsLastFilm()
     {
-        CheckPanel panel = (first, row) => [$"from {first.Frame} at {row.Frame}"];
+        static string[] panel(ReadoutRow first, ReadoutRow row) => [$"from {first.Frame} at {row.Frame}"];
 
-        List<(string Start, string End, string Text)> panels = Events(Subtitles(Cuts(trims: [new EditTrim("b", 10, 0)], panels: [new PanelSpan("b", "c", panel)])), "Panel");
+        List<(string Start, string End, string Text)> panels =
+            Events(Subtitles(Cuts(trims: [new("b", 10, 0)], panels: [new("b", "c", panel)])), "Panel");
 
         panels.Should().HaveCount(110 + 80);
         panels[0].Start.Should().Be(EditSubtitles.Time(110));
@@ -124,7 +131,7 @@ public sealed class EditSubtitlesTests
     [Fact]
     public void TheLegendOfTheFramesShowsOverTheStretchesOfTheFilmsWithOutlines()
     {
-        List<(string Start, string End, string Text)> legends = Events(Subtitles(Cuts([new EditTrim("b", 10, 0)])), "Legend");
+        List<(string Start, string End, string Text)> legends = Events(Subtitles(Cuts([new("b", 10, 0)])), "Legend");
 
         legends.Should().ContainSingle();
         legends[0].Start.Should().Be(EditSubtitles.Time(110));
@@ -163,7 +170,7 @@ public sealed class EditSubtitlesTests
     [Fact]
     public void TheEditRefusesAPartOfAFilmThatTheScriptDoesNotHave()
     {
-        Action subtitles = () => Subtitles(Cuts(parts: [new EditPart("d", "Title", "Subtitle")]));
+        Action subtitles = () => Subtitles(Cuts(parts: [new("d", "Title", "Subtitle")]));
 
         subtitles.Should().Throw<ArgumentException>().WithMessage("*'d'*");
     }
@@ -171,9 +178,9 @@ public sealed class EditSubtitlesTests
     [Fact]
     public void TheEditRefusesAPanelOfAFilmThatTheScriptDoesNotHave()
     {
-        CheckPanel panel = (_, _) => ["x"];
+        static string[] panel(ReadoutRow _1, ReadoutRow _2) => ["x"];
 
-        Action subtitles = () => Subtitles(Cuts(panels: [new PanelSpan("a", "d", panel)]));
+        Action subtitles = () => Subtitles(Cuts(panels: [new("a", "d", panel)]));
 
         subtitles.Should().Throw<ArgumentException>().WithMessage("*'d'*");
     }

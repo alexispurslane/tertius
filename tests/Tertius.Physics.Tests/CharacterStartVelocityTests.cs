@@ -27,16 +27,20 @@ public class CharacterStartVelocityTests
     {
         Vector3 chord = InstantStart.Jump(Jump).FloatChordBehind(HalfStep);
 
-        chord.Should().Be(Jump - HalfStep, "a jump keeps the float rule of before, which never added the home's excess");
+        chord.Should().Be(Jump - HalfStep,
+            "a jump keeps the float rule of before, which never added the home's excess");
     }
 
     [Fact]
-    public void AVelocityThatTheGameGaveLosesHalfAStepOfGravityAndTheHomesExcessToTheBitOfTheRuleBeforeTheRotationTerms()
+    public void
+        AVelocityThatTheGameGaveLosesHalfAStepOfGravityAndTheHomesExcessToTheBitOfTheRuleBeforeTheRotationTerms()
     {
         InstantStart start = InstantStart.Given(Jump, Over);
 
-        start.FloatChordBehind(HalfStep).Should().Be(Jump - (HalfStep + Over), "the float rule of before took both in one subtraction");
-        start.Local.Should().Be((Double3)Jump - (Double3)Over, "the exact rule takes the velocity relative to the home's instant velocity");
+        start.FloatChordBehind(HalfStep).Should().Be(Jump - (HalfStep + Over),
+            "the float rule of before took both in one subtraction");
+        start.Local.Should().Be(Jump - (Double3)Over,
+            "the exact rule takes the velocity relative to the home's instant velocity");
     }
 
     [Fact]
@@ -70,9 +74,10 @@ public class CharacterPressedWeightTests
     [Fact]
     public void AStandingCharacterHandsJoltThePartOfItsWeightAlongUpAlongTheGroundsNormal()
     {
-        var normal = Vector3.Normalize(new Vector3(-0.94f, 0, 0.342f));
+        Vector3 normal = Vector3.Normalize(new(-0.94f, 0, 0.342f));
 
-        JoltPhysicsBackend.PressedWeight(Weight, standing: true, Up, normal).Should().Be(Vector3.Dot(Weight, Up) * normal,
+        JoltPhysicsBackend.PressedWeight(Weight, standing: true, Up, normal).Should().Be(
+            Vector3.Dot(Weight, Up) * normal,
             "the ground holds the rest of a standing character's weight");
     }
 }

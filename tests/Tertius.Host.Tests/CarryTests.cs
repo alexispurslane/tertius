@@ -14,21 +14,21 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class CarryTests : IDisposable
 {
+    private const float PersonMass = 70;
     private static readonly Vector3 Eye = new(0, 0.75f, 0);
     private static readonly CapsuleShapeDesc Capsule = new(0.6f, 0.3f);
-    private const float PersonMass = 70;
 
     /// <summary>
     /// A crate 0.4 m on a side, of 5 kg. The world has no renderer, so the mesh and the material are only numbers, which
     /// the drawn copy and a thrown crate must keep.
     /// </summary>
-    private static readonly CrateSpec Spec = new(new Vector3(0.2f), 5, new MeshId(7), new MaterialId(3));
+    private static readonly CrateSpec Spec = new(new(0.2f), 5, new(7), new(3));
 
     /// <summary>
     /// A turn of 1.1 rad about the axis (1, 2, 2) / 3, which lines up with none of the frame's axes, so a vector that
     /// is turned wrongly, or not at all, lands far from where the right turn puts it.
     /// </summary>
-    private static readonly DQuaternion Tumbled = DQuaternion.FromAxisAngle(new Double3(1.0 / 3, 2.0 / 3, 2.0 / 3), 1.1);
+    private static readonly DQuaternion Tumbled = DQuaternion.FromAxisAngle(new(1.0 / 3, 2.0 / 3, 2.0 / 3), 1.1);
 
     private readonly World world = NewJoltWorld();
 
@@ -45,16 +45,17 @@ public sealed class CarryTests : IDisposable
     /// <paramref name="capsule"/>, or <see cref="Eye"/> and <see cref="Capsule"/> if the test gives none. Its view is the
     /// world's camera.
     /// </summary>
-    private Entity SpawnPerson(FrameHandle frame, DPose pose, Vector3 velocity, Vector3? eye = null, CapsuleShapeDesc? capsule = null)
+    private Entity SpawnPerson(FrameHandle frame, DPose pose, Vector3 velocity, Vector3? eye = null,
+        CapsuleShapeDesc? capsule = null)
     {
-        Entity person = world.Spawn(new SpawnDesc
+        Entity person = world.Spawn(new()
         {
             Frame = frame,
             Pose = pose,
             LinearVelocity = velocity,
-            Body = new BodyDesc(capsule ?? Capsule, BodyMotion.Character, Mass: PersonMass),
+            Body = new(capsule ?? Capsule, BodyMotion.Character, Mass: PersonMass),
             Components = [new PersonControl(eye ?? Eye), new Carry(capsule ?? Capsule)],
-            Subscriptions = [Topics.Input],
+            Subscriptions = [Topics.Input]
         });
         world.Camera = person;
         return person;
@@ -66,14 +67,15 @@ public sealed class CarryTests : IDisposable
     /// </summary>
     private (FrameHandle Room, Entity Person) StandInARoom()
     {
-        FrameHandle room = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f), GravityField.Uniform(new Vector3(0, -9.81f, 0))));
-        world.Spawn(new SpawnDesc
+        FrameHandle room =
+            world.CreateRootFrame(new(FrameBounds.Sphere(1e4f), GravityField.Uniform(new(0, -9.81f, 0))));
+        world.Spawn(new()
         {
             Frame = room,
-            Pose = new DPose(new Double3(0, -0.5, 0), DQuaternion.Identity),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(50, 0.5f, 50)), BodyMotion.Static),
+            Pose = new(new(0, -0.5, 0), DQuaternion.Identity),
+            Body = new(new BoxShapeDesc(new(50, 0.5f, 50)), BodyMotion.Static)
         });
-        Entity person = SpawnPerson(room, new DPose(new Double3(0, 0.95, 0), DQuaternion.Identity), Vector3.Zero);
+        Entity person = SpawnPerson(room, new(new(0, 0.95, 0), DQuaternion.Identity), Vector3.Zero);
         // The person lands on the floor.
         Ticks(30);
         return (room, person);
@@ -89,7 +91,7 @@ public sealed class CarryTests : IDisposable
     private (FrameHandle Space, Entity Person) FloatInSpace(Vector3 eye, CapsuleShapeDesc capsule)
     {
         FrameHandle space = NewSpace();
-        Entity person = SpawnPerson(space, new DPose(Double3.Zero, DQuaternion.Identity), Vector3.Zero, eye, capsule);
+        Entity person = SpawnPerson(space, new(Double3.Zero, DQuaternion.Identity), Vector3.Zero, eye, capsule);
         Ticks(3);
         return (space, person);
     }
@@ -101,25 +103,26 @@ public sealed class CarryTests : IDisposable
     private (FrameHandle Space, Entity Person) FloatLooking(Quaternion look)
     {
         FrameHandle space = NewSpace();
-        Entity person = world.Spawn(new SpawnDesc
+        Entity person = world.Spawn(new()
         {
             Frame = space,
-            Pose = new DPose(Double3.Zero, DQuaternion.Identity),
-            Body = new BodyDesc(Capsule, BodyMotion.Character, Mass: PersonMass),
-            Render = new RenderData { ViewOffset = new Pose(Eye, look) },
+            Pose = new(Double3.Zero, DQuaternion.Identity),
+            Body = new(Capsule, BodyMotion.Character, Mass: PersonMass),
+            Render = new RenderData { ViewOffset = new(Eye, look) },
             Components = [new Carry(Capsule)],
-            Subscriptions = [Topics.Input],
+            Subscriptions = [Topics.Input]
         });
         world.Camera = person;
         Ticks(3);
         return (space, person);
     }
 
-    /// <summary>A room with no gravity, with a person at the origin, turned by <paramref name="rotation"/>, that moves at <paramref name="velocity"/>.</summary>
+    /// <summary>A room with no gravity, with a person at the origin, turned by <paramref name="rotation"/>, that moves at
+    /// <paramref name="velocity"/>.</summary>
     private (FrameHandle Space, Entity Person) FloatInSpace(DQuaternion rotation, Vector3 velocity)
     {
         FrameHandle space = NewSpace();
-        Entity person = SpawnPerson(space, new DPose(Double3.Zero, rotation), velocity);
+        Entity person = SpawnPerson(space, new(Double3.Zero, rotation), velocity);
         Ticks(3);
         return (space, person);
     }
@@ -136,10 +139,10 @@ public sealed class CarryTests : IDisposable
         return (space, first, second);
     }
 
-    private FrameHandle NewSpace() => world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f)));
+    private FrameHandle NewSpace() => world.CreateRootFrame(new(FrameBounds.Sphere(1e4f)));
 
     private Entity SpawnCrate(FrameHandle frame, Double3 at, Vector3 velocity = default) =>
-        world.Spawn(Spec.Spawn(frame, new DPose(at, DQuaternion.Identity), velocity));
+        world.Spawn(Spec.Spawn(frame, new(at, DQuaternion.Identity), velocity));
 
     private void Post(InputEvent e) => world.Post(Event.Create(Topics.Input, Entity.Null, e));
 
@@ -160,14 +163,14 @@ public sealed class CarryTests : IDisposable
 
     private void ButtonUp() => Post(InputEvent.MouseUp((int)MouseButton.Left));
 
-    private void MoveMouse(float right, float down) => Post(InputEvent.MouseMove(new Vector2(right, down)));
+    private void MoveMouse(float right, float down) => Post(InputEvent.MouseMove(new(right, down)));
 
     /// <summary>Every live entity that has a component of type <typeparamref name="T"/>, in slot order.</summary>
     private List<Entity> With<T>() where T : class, IComponent
     {
         var live = new List<Entity>();
         world.CopyLiveEntities(live);
-        return live.Where(entity => world.GetComponent<T>(entity) != null).ToList();
+        return [.. live.Where(entity => world.GetComponent<T>(entity) != null)];
     }
 
     /// <summary>
@@ -175,7 +178,8 @@ public sealed class CarryTests : IDisposable
     /// person's eye plus <see cref="Carry.Hold"/>, in the person's axes. The persons of a test stand 2 m apart.
     /// </summary>
     private bool HeldBy(Entity copy, Entity person) =>
-        Double3.Distance(world.PoseInOwnFrame(copy).Position - world.PoseInOwnFrame(person).Position, (Double3)(Eye + Carry.Hold)) < 1e-3;
+        Double3.Distance(world.PoseInOwnFrame(copy).Position - world.PoseInOwnFrame(person).Position,
+            Eye + Carry.Hold) < 1e-3;
 
     /// <summary>
     /// Puts a crate 1 m in front of the person, which moves with it at <paramref name="velocity"/>, and presses E. A
@@ -219,12 +223,13 @@ public sealed class CarryTests : IDisposable
     /// <paramref name="eye"/> along the unit vector <paramref name="aim"/>, in front of the eye, with its bounding sphere
     /// clear of <paramref name="capsule"/> by <see cref="Carry.ThrowGap"/>.
     /// </summary>
-    private static void ExpectStartsOnTheViewClearOfTheCapsule(Vector3 at, Vector3 eye, Vector3 aim, CapsuleShapeDesc capsule)
+    private static void ExpectStartsOnTheViewClearOfTheCapsule(Vector3 at, Vector3 eye, Vector3 aim,
+        CapsuleShapeDesc capsule)
     {
         Vector3.Cross(at - eye, aim).Length().Should().BeLessThan(1e-4f, "the crate starts on the view");
         Vector3.Dot(at - eye, aim).Should().BePositive("the crate starts in front of the eye");
         // The distance of the crate's center, in the person's axes, from the axis of the person's capsule.
-        float distance = Vector3.Distance(at, new Vector3(0, Math.Clamp(at.Y, -capsule.HalfHeight, capsule.HalfHeight), 0));
+        float distance = Vector3.Distance(at, new(0, Math.Clamp(at.Y, -capsule.HalfHeight, capsule.HalfHeight), 0));
         distance.Should().BeApproximately(capsule.Radius + Spec.BoundingRadius + Carry.ThrowGap, 1e-4f);
     }
 
@@ -232,9 +237,10 @@ public sealed class CarryTests : IDisposable
     public void AUsedCrateOffersItselfToTheUserWithItsSizeMassMeshAndMaterial()
     {
         (FrameHandle room, _) = StandInARoom();
-        Entity crate = SpawnCrate(room, new Double3(3, 0.2, 0));
+        Entity crate = SpawnCrate(room, new(3, 0.2, 0));
         Probe user = new(EventMask.Of<CrateOffer>());
-        Entity userEntity = world.Spawn(new SpawnDesc { Frame = room, Pose = new DPose(new Double3(-3, 1, 0), DQuaternion.Identity), Components = [user] });
+        Entity userEntity = world.Spawn(new()
+            { Frame = room, Pose = new(new(-3, 1, 0), DQuaternion.Identity), Components = [user] });
         world.Post(Event.Create(crate, Entity.Null, new Use { User = userEntity }));
         Ticks(3);
 
@@ -248,9 +254,10 @@ public sealed class CarryTests : IDisposable
     public void ACrateThatIsTakenGoesAndOffersItselfToNoOneInThatTick()
     {
         (FrameHandle room, _) = StandInARoom();
-        Entity crate = SpawnCrate(room, new Double3(3, 0.2, 0));
+        Entity crate = SpawnCrate(room, new(3, 0.2, 0));
         Probe user = new(EventMask.Of<CrateOffer>());
-        Entity userEntity = world.Spawn(new SpawnDesc { Frame = room, Pose = new DPose(new Double3(-3, 1, 0), DQuaternion.Identity), Components = [user] });
+        Entity userEntity = world.Spawn(new()
+            { Frame = room, Pose = new(new(-3, 1, 0), DQuaternion.Identity), Components = [user] });
         world.Post(Event.Create(crate, Entity.Null, new Use { User = userEntity }));
         world.Post(Event.Create(crate, Entity.Null, new CrateTaken()));
         Ticks(3);
@@ -268,7 +275,7 @@ public sealed class CarryTests : IDisposable
     public void PressingENearACrateTakesItAndADrawnCopyRidesInFrontOfTheEyeLowAndToTheRight()
     {
         (FrameHandle room, Entity person) = StandInARoom();
-        Entity crate = SpawnCrate(room, new Double3(0, 0.2, -1));
+        Entity crate = SpawnCrate(room, new(0, 0.2, -1));
         Ticks(1);
         PressE();
         Ticks(8);
@@ -281,7 +288,7 @@ public sealed class CarryTests : IDisposable
         world.GetFrame(copy).Should().Be(room);
         // The person looks along -Z from its eye, and its body is not turned. Low and to the right is -Y and +X.
         Double3 held = world.PoseInOwnFrame(copy).Position - world.PoseInOwnFrame(person).Position;
-        Double3.Distance(held, (Double3)(Eye + Carry.Hold)).Should().BeLessThan(1e-4);
+        Double3.Distance(held, Eye + Carry.Hold).Should().BeLessThan(1e-4);
         Carry.Hold.X.Should().BePositive();
         Carry.Hold.Y.Should().BeNegative();
         Carry.Hold.Z.Should().BeNegative();
@@ -291,7 +298,7 @@ public sealed class CarryTests : IDisposable
     public void TheDrawnCopyRidesAtItsPlaceFromItsFirstTick()
     {
         (FrameHandle room, Entity person) = StandInARoom();
-        SpawnCrate(room, new Double3(0, 0.2, -1));
+        SpawnCrate(room, new(0, 0.2, -1));
         Ticks(1);
         PressE();
         int ticks = 0;
@@ -301,19 +308,20 @@ public sealed class CarryTests : IDisposable
         // The copy reads the view in its own ticks, which start after the tick that makes it live. The take places it.
         Entity copy = With<HeldInView>().Should().ContainSingle().Which;
         Double3 held = world.PoseInOwnFrame(copy).Position - world.PoseInOwnFrame(person).Position;
-        Double3.Distance(held, (Double3)(Eye + Carry.Hold)).Should().BeLessThan(1e-4);
+        Double3.Distance(held, Eye + Carry.Hold).Should().BeLessThan(1e-4);
     }
 
     [Fact]
     public void OfTwoCratesInReachThePersonTakesOneAndTheOtherStays()
     {
         (FrameHandle room, _) = StandInARoom();
-        Entity left = SpawnCrate(room, new Double3(-0.6, 0.2, -1)), right = SpawnCrate(room, new Double3(0.6, 0.2, -1));
+        Entity left = SpawnCrate(room, new(-0.6, 0.2, -1)), right = SpawnCrate(room, new(0.6, 0.2, -1));
         Ticks(1);
         PressE();
         Ticks(8);
 
-        new[] { left, right }.Count(world.IsAlive).Should().Be(1, "both offered in one tick, and the hands were full after the first");
+        new[] { left, right }.Count(world.IsAlive).Should()
+            .Be(1, "both offered in one tick, and the hands were full after the first");
         With<HeldInView>().Should().ContainSingle();
     }
 
@@ -321,10 +329,10 @@ public sealed class CarryTests : IDisposable
     public void ACrateThatGetsTwoUsesInOneTickOffersItselfToTheFirstUserOnly()
     {
         FrameHandle space = NewSpace();
-        Entity crate = SpawnCrate(space, new Double3(3, 0, 0));
+        Entity crate = SpawnCrate(space, new(3, 0, 0));
         Probe first = new(EventMask.Of<CrateOffer>()), second = new(EventMask.Of<CrateOffer>());
-        Entity firstUser = world.Spawn(new SpawnDesc { Frame = space, Components = [first] });
-        Entity secondUser = world.Spawn(new SpawnDesc { Frame = space, Components = [second] });
+        Entity firstUser = world.Spawn(new() { Frame = space, Components = [first] });
+        Entity secondUser = world.Spawn(new() { Frame = space, Components = [second] });
         UseCrate(crate, firstUser);
         UseCrate(crate, secondUser);
         Ticks(6);
@@ -337,10 +345,10 @@ public sealed class CarryTests : IDisposable
     public void ACrateIgnoresUsesWhileItsOfferIsOnTheWayAndOffersAgainWhenTheRoundTripHasPassedWithNoAnswer()
     {
         FrameHandle space = NewSpace();
-        Entity crate = SpawnCrate(space, new Double3(3, 0, 0));
+        Entity crate = SpawnCrate(space, new(3, 0, 0));
         // This user never answers, as a person with full hands does not.
         Probe user = new(EventMask.Of<CrateOffer>());
-        Entity userEntity = world.Spawn(new SpawnDesc { Frame = space, Components = [user] });
+        Entity userEntity = world.Spawn(new() { Frame = space, Components = [user] });
         // Three uses, in three ticks in a row. The crate gets them on the ticks x, x + 1 and x + 2. It offers on x, and
         // the offer reaches the user on x + 1. The answer would reach the crate on x + 2.
         UseCrate(crate, userEntity);
@@ -350,7 +358,8 @@ public sealed class CarryTests : IDisposable
         UseCrate(crate, userEntity);
         Ticks(8);
 
-        user.Seen.Should().HaveCount(2, "the use on x + 1 came before the answer could, and the use on x + 2 came after the silence");
+        user.Seen.Should().HaveCount(2,
+            "the use on x + 1 came before the answer could, and the use on x + 2 came after the silence");
         (user.Seen[1].Tick - user.Seen[0].Tick).Should().Be(2);
     }
 
@@ -358,7 +367,7 @@ public sealed class CarryTests : IDisposable
     public void ACrateThatGetsAUseAndADestroyInOneTickIsNotCarried()
     {
         (FrameHandle space, Entity person) = FloatInSpace();
-        Entity crate = SpawnCrate(space, new Double3(0, 0, -1));
+        Entity crate = SpawnCrate(space, new(0, 0, -1));
         Ticks(1);
         UseCrate(crate, person);
         world.Post(Event.Create(crate, Entity.Null, new Destroy()));
@@ -381,7 +390,7 @@ public sealed class CarryTests : IDisposable
         // that reaches the crate on x or x + 1 comes while the offer is out. One that reaches it on x + 2 meets the news
         // that the crate is taken, and one on x + 3 reaches no one.
         (FrameHandle space, Entity first, Entity second) = FloatTwoInSpace();
-        Entity crate = SpawnCrate(space, new Double3(0, 0, -1));
+        Entity crate = SpawnCrate(space, new(0, 0, -1));
         Probe news = new(EventMask.Of<CrateTaken>());
         world.AddComponent(crate, news);
         Ticks(1);
@@ -401,11 +410,11 @@ public sealed class CarryTests : IDisposable
     public void ACrateThatThePersonWithFullHandsDeclinedGoesToAnotherPersonAfterTheRoundTrip()
     {
         (FrameHandle space, Entity first, Entity second) = FloatTwoInSpace();
-        Entity carried = SpawnCrate(space, new Double3(-1, 0, -1));
+        Entity carried = SpawnCrate(space, new(-1, 0, -1));
         Ticks(1);
         UseCrate(carried, first);
         Ticks(8);
-        Entity crate = SpawnCrate(space, new Double3(0, 0, -1));
+        Entity crate = SpawnCrate(space, new(0, 0, -1));
         Ticks(1);
         // The first person has full hands, so it declines. The second person uses the crate some ticks later.
         UseCrate(crate, first);
@@ -416,7 +425,8 @@ public sealed class CarryTests : IDisposable
         world.IsAlive(crate).Should().BeFalse("the second person took the crate that the first one declined");
         List<Entity> copies = With<HeldInView>();
         copies.Should().HaveCount(2);
-        copies.Count(copy => HeldBy(copy, first)).Should().Be(1, "the first person still carries the crate that it took before");
+        copies.Count(copy => HeldBy(copy, first)).Should()
+            .Be(1, "the first person still carries the crate that it took before");
         copies.Count(copy => HeldBy(copy, second)).Should().Be(1);
     }
 
@@ -425,7 +435,7 @@ public sealed class CarryTests : IDisposable
     {
         (FrameHandle room, Entity person) = StandInARoom();
         TakeACrate(room, person);
-        Entity second = SpawnCrate(room, new Double3(0, 0.2, -1));
+        Entity second = SpawnCrate(room, new(0, 0.2, -1));
         Ticks(1);
         PressE();
         Ticks(8);
@@ -444,10 +454,13 @@ public sealed class CarryTests : IDisposable
         Ticks(4);
 
         Pose view = world.GetRender(person).ViewOffset;
-        Vector3.Transform(-Vector3.UnitZ, view.Rotation).Y.Should().BeApproximately(MathF.Sin(0.4f), 1e-4f, "the view looks 0.4 rad up");
+        Vector3.Transform(-Vector3.UnitZ, view.Rotation).Y.Should()
+            .BeApproximately(MathF.Sin(0.4f), 1e-4f, "the view looks 0.4 rad up");
         DPose personPose = world.PoseInOwnFrame(person), held = world.PoseInOwnFrame(copy);
-        Double3.Distance(held.Position - personPose.Position, (Double3)(view.Position + Vector3.Transform(Carry.Hold, view.Rotation))).Should().BeLessThan(1e-4);
-        Quaternion.Dot(held.Rotation.ToQuaternion(), view.Rotation).Should().BeApproximately(1, 1e-5f, "the copy turns with the view");
+        Double3.Distance(held.Position - personPose.Position,
+            view.Position + Vector3.Transform(Carry.Hold, view.Rotation)).Should().BeLessThan(1e-4);
+        Quaternion.Dot(held.Rotation.ToQuaternion(), view.Rotation).Should()
+            .BeApproximately(1, 1e-5f, "the copy turns with the view");
     }
 
     [Theory]
@@ -455,7 +468,8 @@ public sealed class CarryTests : IDisposable
     [InlineData(30, 6f)]
     [InlineData(60, 12f)]
     [InlineData(120, 12f)]
-    public void HoldingTheLeftButtonChargesTheThrowFromZeroToTwelveMetersPerSecondInOneSecond(int ticksHeld, float speed)
+    public void HoldingTheLeftButtonChargesTheThrowFromZeroToTwelveMetersPerSecondInOneSecond(int ticksHeld,
+        float speed)
     {
         (FrameHandle space, Entity person) = FloatInSpace();
         TakeACrate(space, person);
@@ -463,7 +477,7 @@ public sealed class CarryTests : IDisposable
         Entity thrown = Throw(ticksHeld);
 
         // The person looks along -Z. A tick of charge adds 12 m/s / 60 = 0.2 m/s.
-        ExpectNear(world.Snapshot.VelocityInOwnFrame(thrown), new Vector3(0, 0, -speed), 1e-3f);
+        ExpectNear(world.Snapshot.VelocityInOwnFrame(thrown), new(0, 0, -speed), 1e-3f);
     }
 
     [Fact]
@@ -471,8 +485,8 @@ public sealed class CarryTests : IDisposable
     {
         // The person is turned a quarter turn about +Z, which takes its +X to +Y. It drifts at (1, 0.5, -2) m/s.
         DQuaternion turn = DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2);
-        (FrameHandle space, Entity person) = FloatInSpace(turn, new Vector3(1, 0.5f, -2));
-        TakeACrate(space, person, new Vector3(1, 0.5f, -2));
+        (FrameHandle space, Entity person) = FloatInSpace(turn, new(1, 0.5f, -2));
+        TakeACrate(space, person, new(1, 0.5f, -2));
         MoveMouse(0.6f / PersonControl.TurnPerPixel, -0.3f / PersonControl.TurnPerPixel);
         Ticks(3);
         Vector3 drift = world.Snapshot.VelocityInOwnFrame(person);
@@ -481,22 +495,25 @@ public sealed class CarryTests : IDisposable
 
         // The view turns 0.6 rad right and tilts 0.3 rad up, in the person's axes. The body's turn takes that into the room's.
         var view = new Vector3(MathF.Cos(0.3f) * MathF.Sin(0.6f), MathF.Sin(0.3f), -MathF.Cos(0.3f) * MathF.Cos(0.6f));
-        ExpectNear(world.Snapshot.VelocityInOwnFrame(thrown), drift + Vector3.Transform(view, turn.ToQuaternion()) * Carry.MaxThrowSpeed, 1e-3f);
+        ExpectNear(world.Snapshot.VelocityInOwnFrame(thrown),
+            drift + Vector3.Transform(view, turn.ToQuaternion()) * Carry.MaxThrowSpeed, 1e-3f);
     }
 
     [Fact]
     public void AThrownCrateStartsTurnedAsTheCarriedCopyWas()
     {
-        (FrameHandle space, Entity person) = FloatInSpace(DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2), Vector3.Zero);
+        (FrameHandle space, Entity person) =
+            FloatInSpace(DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2), Vector3.Zero);
         Entity copy = TakeACrate(space, person);
         MoveMouse(0.6f / PersonControl.TurnPerPixel, -0.3f / PersonControl.TurnPerPixel);
         Ticks(4);
-        Quaternion held = world.PoseInOwnFrame(copy).Rotation.ToQuaternion();
+        var held = world.PoseInOwnFrame(copy).Rotation.ToQuaternion();
 
         // A click throws at no speed, and the crate does not turn in flight.
         Entity thrown = Throw(0);
 
-        MathF.Abs(Quaternion.Dot(world.PoseInOwnFrame(thrown).Rotation.ToQuaternion(), held)).Should().BeApproximately(1, 1e-5f);
+        MathF.Abs(Quaternion.Dot(world.PoseInOwnFrame(thrown).Rotation.ToQuaternion(), held)).Should()
+            .BeApproximately(1, 1e-5f);
     }
 
     [Theory]
@@ -517,8 +534,9 @@ public sealed class CarryTests : IDisposable
         // A click throws at no speed, so the crate stays where it starts.
         Entity thrown = Throw(0);
 
-        Vector3 at = (world.Snapshot.PoseInOwnFrame(thrown).Position - world.Snapshot.PoseInOwnFrame(person).Position).ToVector3();
-        ExpectStartsOnTheViewClearOfTheCapsule(at, Eye, new Vector3(0, MathF.Sin(pitch), -MathF.Cos(pitch)), Capsule);
+        var at = (world.Snapshot.PoseInOwnFrame(thrown).Position - world.Snapshot.PoseInOwnFrame(person).Position)
+            .ToVector3();
+        ExpectStartsOnTheViewClearOfTheCapsule(at, Eye, new(0, MathF.Sin(pitch), -MathF.Cos(pitch)), Capsule);
     }
 
     [Fact]
@@ -526,8 +544,8 @@ public sealed class CarryTests : IDisposable
     {
         // At 30 m/s the person moves 0.5 m in a tick. Physics moves it in the tick of the throw, and the crate becomes live
         // at the end of that tick.
-        (FrameHandle space, Entity person) = FloatInSpace(DQuaternion.Identity, new Vector3(30, 0, 0));
-        TakeACrate(space, person, new Vector3(30, 0, 0));
+        (FrameHandle space, Entity person) = FloatInSpace(DQuaternion.Identity, new(30, 0, 0));
+        TakeACrate(space, person, new(30, 0, 0));
 
         Entity thrown = Throw(0);
 
@@ -546,7 +564,8 @@ public sealed class CarryTests : IDisposable
         Throw(60);
 
         // 5 kg thrown at 12 m/s along -Z pushes 70 kg back along +Z at 5 · 12 / 70 = 0.857 m/s.
-        ExpectNear(world.Snapshot.VelocityInOwnFrame(person) - before, new Vector3(0, 0, Spec.Mass * Carry.MaxThrowSpeed / PersonMass), 1e-4f);
+        ExpectNear(world.Snapshot.VelocityInOwnFrame(person) - before,
+            new(0, 0, Spec.Mass * Carry.MaxThrowSpeed / PersonMass), 1e-4f);
     }
 
     [Fact]
@@ -563,7 +582,8 @@ public sealed class CarryTests : IDisposable
         Vector3 along = Vector3.Transform(LookDirection(0.6f, 0.3f), Tumbled.ToQuaternion());
         ExpectNear(world.Snapshot.VelocityInOwnFrame(thrown), along * Carry.MaxThrowSpeed, 1e-3f);
         // The person was at rest, so its velocity is the recoil: 5 kg · 12 m/s / 70 kg = 0.857 m/s against the throw.
-        ExpectNear(world.Snapshot.VelocityInOwnFrame(person), -along * (Spec.Mass * Carry.MaxThrowSpeed / PersonMass), 1e-4f);
+        ExpectNear(world.Snapshot.VelocityInOwnFrame(person), -along * (Spec.Mass * Carry.MaxThrowSpeed / PersonMass),
+            1e-4f);
     }
 
     [Fact]
@@ -580,7 +600,8 @@ public sealed class CarryTests : IDisposable
 
         // Where the crate is, in the person's axes: its offset from the person in the frame's axes, turned back by the
         // body's turn.
-        Double3 offset = world.Snapshot.PoseInOwnFrame(thrown).Position - world.Snapshot.PoseInOwnFrame(person).Position;
+        Double3 offset = world.Snapshot.PoseInOwnFrame(thrown).Position -
+                         world.Snapshot.PoseInOwnFrame(person).Position;
         Vector3 at = Vector3.Transform(offset.ToVector3(), Quaternion.Inverse(Tumbled.ToQuaternion()));
         ExpectStartsOnTheViewClearOfTheCapsule(at, Eye, LookDirection(0.6f, -0.5f), Capsule);
     }
@@ -614,21 +635,24 @@ public sealed class CarryTests : IDisposable
         // A click throws at no speed, so the crate stays where it starts.
         Entity thrown = Throw(0);
 
-        Vector3 at = (world.Snapshot.PoseInOwnFrame(thrown).Position - world.Snapshot.PoseInOwnFrame(person).Position).ToVector3();
+        var at = (world.Snapshot.PoseInOwnFrame(thrown).Position - world.Snapshot.PoseInOwnFrame(person).Position)
+            .ToVector3();
         ExpectStartsOnTheViewClearOfTheCapsule(at, eye, LookDirection(yaw, pitch), capsule);
     }
 
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void AThrownCrateFromAViewStraightUpOrDownStartsOnTheViewWhereItsBoundingSphereClearsTheCapsuleByTheGap(bool up)
+    public void AThrownCrateFromAViewStraightUpOrDownStartsOnTheViewWhereItsBoundingSphereClearsTheCapsuleByTheGap(
+        bool up)
     {
         // PersonControl never lets the view reach straight up or down. A person that has only a Carry can have such a
         // view, and the aim then has no part across the capsule's axis, so it leaves through the top or the bottom. The
         // quaternions turn the view a quarter turn about +X, which takes -Z to +Y or -Y, and then a quarter turn about +Y,
         // which leaves that direction where it is. Their components are exact in a float, so the aim is exact too.
-        (FrameHandle space, Entity person) = FloatLooking(up ? new Quaternion(0.5f, 0.5f, -0.5f, 0.5f) : new Quaternion(-0.5f, 0.5f, 0.5f, 0.5f));
-        Entity crate = SpawnCrate(space, new Double3(0, 0, -1));
+        (FrameHandle space, Entity person) =
+            FloatLooking(up ? new(0.5f, 0.5f, -0.5f, 0.5f) : new Quaternion(-0.5f, 0.5f, 0.5f, 0.5f));
+        Entity crate = SpawnCrate(space, new(0, 0, -1));
         Ticks(1);
         UseCrate(crate, person);
         Ticks(8);
@@ -638,7 +662,8 @@ public sealed class CarryTests : IDisposable
         Entity thrown = Throw(0);
 
         world.Errors.Should().BeEmpty();
-        Vector3 at = (world.Snapshot.PoseInOwnFrame(thrown).Position - world.Snapshot.PoseInOwnFrame(person).Position).ToVector3();
+        var at = (world.Snapshot.PoseInOwnFrame(thrown).Position - world.Snapshot.PoseInOwnFrame(person).Position)
+            .ToVector3();
         ExpectStartsOnTheViewClearOfTheCapsule(at, Eye, up ? Vector3.UnitY : -Vector3.UnitY, Capsule);
     }
 
@@ -680,7 +705,8 @@ public sealed class CarryTests : IDisposable
     [Theory]
     [InlineData(MouseButton.Right)]
     [InlineData(MouseButton.Middle)]
-    public void OnlyTheLeftButtonThrows_AReleaseOfAnotherButtonWhileTheLeftIsHeldThrowsNothingAndKeepsTheCharge(MouseButton other)
+    public void OnlyTheLeftButtonThrows_AReleaseOfAnotherButtonWhileTheLeftIsHeldThrowsNothingAndKeepsTheCharge(
+        MouseButton other)
     {
         (FrameHandle space, Entity person) = FloatInSpace();
         TakeACrate(space, person);
@@ -695,7 +721,7 @@ public sealed class CarryTests : IDisposable
 
         // The charge ran from the press of the left button to its release: 30 ticks of 0.2 m/s.
         Entity thrown = With<Crate>().Should().ContainSingle().Which;
-        ExpectNear(world.Snapshot.VelocityInOwnFrame(thrown), new Vector3(0, 0, -6), 1e-3f);
+        ExpectNear(world.Snapshot.VelocityInOwnFrame(thrown), new(0, 0, -6), 1e-3f);
     }
 
     [Fact]
@@ -707,7 +733,8 @@ public sealed class CarryTests : IDisposable
         Entity thrown = Throw(0);
 
         With<HeldInView>().Should().BeEmpty("the throw let go of the drawn copy");
-        world.GetBody(thrown).Should().Be(new BodyDesc(new BoxShapeDesc(Spec.HalfExtents), Mass: Spec.Mass, LinearDamping: 0, AngularDamping: 0));
+        world.GetBody(thrown).Should().Be(new BodyDesc(new BoxShapeDesc(Spec.HalfExtents), Mass: Spec.Mass,
+            LinearDamping: 0, AngularDamping: 0));
         world.GetRender(thrown).Mesh.Should().Be(Spec.Mesh);
         world.GetRender(thrown).Material.Should().Be(Spec.Material);
         PressE();
@@ -729,7 +756,8 @@ public sealed class CarryTests : IDisposable
         Ticks(4);
 
         With<Crate>().Should().ContainSingle().Which.Should().Be(first, "the second release threw nothing");
-        world.Snapshot.VelocityInOwnFrame(person).Should().Be(afterTheThrow, "a throw that did not happen gives the person no recoil");
+        world.Snapshot.VelocityInOwnFrame(person).Should()
+            .Be(afterTheThrow, "a throw that did not happen gives the person no recoil");
         world.Errors.Should().BeEmpty();
         // The first crate flies on at 12 m/s, out of the person's reach, so that the person takes the next one. A press
         // charges the new throw from zero: 15 ticks throw at 3 m/s, relative to the person.
@@ -763,7 +791,7 @@ public sealed class CarryTests : IDisposable
     {
         (FrameHandle space, Entity person) = FloatInSpace();
         TakeACrate(space, person);
-        Post(default(InputEvent));
+        Post(default);
         Ticks(30);
         // The release of the left button throws only a throw that a press of the left button charged.
         ButtonUp();
@@ -772,7 +800,7 @@ public sealed class CarryTests : IDisposable
 
         ButtonDown();
         Ticks(15);
-        Post(default(InputEvent));
+        Post(default);
         Ticks(15);
         With<Crate>().Should().BeEmpty("the empty event threw nothing");
         ButtonUp();
@@ -780,7 +808,7 @@ public sealed class CarryTests : IDisposable
 
         // The charge ran from the press of the left button to its release: 30 ticks of 0.2 m/s.
         Entity thrown = With<Crate>().Should().ContainSingle().Which;
-        ExpectNear(world.Snapshot.VelocityInOwnFrame(thrown), new Vector3(0, 0, -6), 1e-3f);
+        ExpectNear(world.Snapshot.VelocityInOwnFrame(thrown), new(0, 0, -6), 1e-3f);
     }
 
     [Fact]
@@ -790,7 +818,7 @@ public sealed class CarryTests : IDisposable
         TakeACrate(space, person);
         ButtonDown();
         Ticks(30);
-        world.Camera = world.Spawn(new SpawnDesc { Frame = space, Render = new RenderData() });
+        world.Camera = world.Spawn(new() { Frame = space, Render = new RenderData() });
         Ticks(5);
         world.Camera = person;
         ButtonUp();
@@ -799,7 +827,7 @@ public sealed class CarryTests : IDisposable
         With<Crate>().Should().BeEmpty("the release came after the charge was dropped");
         With<HeldInView>().Should().ContainSingle("the person keeps the crate");
         // A new press charges from zero: 15 ticks throw at 3 m/s.
-        ExpectNear(world.Snapshot.VelocityInOwnFrame(Throw(15)), new Vector3(0, 0, -3), 1e-3f);
+        ExpectNear(world.Snapshot.VelocityInOwnFrame(Throw(15)), new(0, 0, -3), 1e-3f);
     }
 
     [Fact]
@@ -807,7 +835,7 @@ public sealed class CarryTests : IDisposable
     {
         (FrameHandle space, Entity person) = FloatInSpace();
         TakeACrate(space, person);
-        world.Camera = world.Spawn(new SpawnDesc { Frame = space, Render = new RenderData() });
+        world.Camera = world.Spawn(new() { Frame = space, Render = new RenderData() });
         ButtonDown();
         // The person handles the press in the second tick, the last one before its view comes back on.
         Ticks(2);
@@ -831,9 +859,10 @@ public sealed class CarryTests : IDisposable
     [InlineData(0.2f, float.PositiveInfinity)]
     public void ACrateRefusesASizeOrAMassThatIsNotPositiveAndFinite(float halfHeight, float mass)
     {
-        Action create = () => _ = new Crate(Spec with { HalfExtents = new Vector3(0.2f, halfHeight, 0.2f), Mass = mass });
+        Action create = () => _ = new Crate(Spec with { HalfExtents = new(0.2f, halfHeight, 0.2f), Mass = mass });
 
-        create.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("spec").WithMessage("*size and mass*positive and finite*");
+        create.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("spec")
+            .WithMessage("*size and mass*positive and finite*");
     }
 
     [Fact]

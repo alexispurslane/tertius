@@ -83,19 +83,21 @@ public class KeplerFrameWithLooseBodyTests
         double radial = Double3.Dot(error, away);
         double sideways = (error - away * radial).Length;
         radial.Should().BeInRange(-inward, outward,
-            "the body falls on the G·M of the planet's field, which is also the G·M of the frame's orbit. Jolt's step puts it nearer to the planet by up to {0} m", inward);
-        sideways.Should().BeLessThan(across, "the body does not drift along the track or out of the plane of the orbit");
+            "the body falls on the G·M of the planet's field, which is also the G·M of the frame's orbit. Jolt's step puts it nearer to the planet by up to {0} m",
+            inward);
+        sideways.Should()
+            .BeLessThan(across, "the body does not drift along the track or out of the plane of the orbit");
     }
 
     /// <summary>A planet with the G·M of Earth, and a frame on a circular orbit around it whose bubble is 50 m in radius.</summary>
     private static (World World, FrameHandle Planet, FrameHandle Ship) PlanetWithShip()
     {
         World world = NewWorld(out _);
-        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(PlanetMu)));
+        FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(PlanetMu)));
         FrameHandle ship = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = planet,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
+            AsFrame = new(FrameBounds.Sphere(50))
         }.OnKeplerOrbit(world, KeplerOrbit.Circular(OrbitRadius, phase: 0.7))));
         Tick(world, 5);
         return (world, planet, ship);
@@ -116,12 +118,12 @@ public class KeplerFrameWithLooseBodyTests
         using (world)
         {
             double released = world.Time;
-            Entity ball = world.Spawn(new SpawnDesc
+            Entity ball = world.Spawn(new()
             {
                 Frame = ship,
                 Pose = At(30),
                 LinearVelocity = new Vector3(2, 0, 0),
-                Body = new BodyDesc(new SphereShapeDesc(0.5f), Mass: 1, LinearDamping: 0),
+                Body = new(new SphereShapeDesc(0.5f), Mass: 1, LinearDamping: 0)
             });
             TickUntil(world, () => world.GetFrame(ball) == planet, 2000);
             world.GetFrame(ball).Should().Be(planet, "the ball left the bubble of the frame");
@@ -153,12 +155,12 @@ public class KeplerFrameWithLooseBodyTests
             DQuaternion arc = DQuaternion.FromAxisAngle(Double3.UnitY, 200 / OrbitRadius);
             Double3 ballStart = arc.Rotate(shipStart);
             Double3 ahead = ballStart - shipStart;
-            Entity ball = world.Spawn(new SpawnDesc
+            Entity ball = world.Spawn(new()
             {
                 Frame = planet,
-                Pose = new DPose(ballStart, DQuaternion.Identity),
+                Pose = new(ballStart, DQuaternion.Identity),
                 LinearVelocity = arc.Rotate(world.Frames.LinearVelocity(ship)).ToVector3(),
-                Body = new BodyDesc(new SphereShapeDesc(0.5f), Mass: 1, LinearDamping: 0),
+                Body = new(new SphereShapeDesc(0.5f), Mass: 1, LinearDamping: 0)
             });
 
             Tick(world, (int)(Seconds / Dt));
@@ -166,7 +168,8 @@ public class KeplerFrameWithLooseBodyTests
             world.GetFrame(ball).Should().Be(planet, "200 m is outside the 50 m bubble of the frame");
             Double3 shipNow = world.Frames.LocalPose(ship).Position;
             double turned = AngleAround(shipNow) - AngleAround(shipStart);
-            Double3 offset = DQuaternion.FromAxisAngle(Double3.UnitY, -turned).Rotate(world.PoseInOwnFrame(ball).Position - shipNow);
+            Double3 offset = DQuaternion.FromAxisAngle(Double3.UnitY, -turned)
+                .Rotate(world.PoseInOwnFrame(ball).Position - shipNow);
             AssertKeepsPace(offset - ahead, shipStart.Normalized(), 200);
             world.Errors.Should().BeEmpty();
         }
@@ -174,7 +177,8 @@ public class KeplerFrameWithLooseBodyTests
 
     /// <summary>
     /// The bound has to be tight enough to mean something. If the field of the planet and the G·M of the orbit differed by one
-    /// part in a thousand, the pull would differ by <c>g / 1000</c>, and that moves the body by <c>g / 1000 · seconds² / 2</c>.
+    /// part in a thousand, the pull would differ by <c>g / 1000</c>, and that moves the body by <c>g / 1000 · seconds² / 2</c>
+    /// .
     /// </summary>
     [Fact]
     public void TheBoundIsSmallerThanTheEffectOfAnErrorOfOnePartInAThousandInTheGM()

@@ -1,4 +1,3 @@
-using System.Numerics;
 using BenchmarkDotNet.Attributes;
 using JoltPhysicsSharp;
 using Tertius.Physics;
@@ -22,48 +21,11 @@ namespace Tertius.Benchmarks;
 [MemoryDiagnoser]
 public class StaticBodyGhostBenchmarks
 {
-    [Params(0, 2000)]
-    public int Props;
+    [Params(0, 2000)] public int Props;
 
-    [Params(0, 3)]
-    public int DockedShips;
+    [Params(0, 3)] public int DockedShips;
 
     private World world = null!;
-
-    [GlobalSetup]
-    public void Setup()
-    {
-        var backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 });
-        world = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DisposePhysics = true }, backend);
-        var gravity = GravityField.Uniform(new Vector3(0, -9.81f, 0));
-        FrameHandle station = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), gravity));
-        world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, -0.5, 0), Body = new BodyDesc(new BoxShapeDesc(new Vector3(100, 0.5f, 80)), BodyMotion.Static) });
-        var prop = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Static);
-        for (int i = 0; i < Props; i++)
-            world.Spawn(new SpawnDesc { Frame = station, Pose = At(i % 50 * 4 - 98, 0.5, i / 50 * 4 - 78), Body = prop });
-        var ships = new FrameHandle[DockedShips];
-        for (int s = 0; s < DockedShips; s++)
-            ships[s] = world.GetOwnedFrame(world.Spawn(new SpawnDesc
-            {
-                Frame = station,
-                Pose = At(s * 48 - 50, 2, 0),
-                Body = new BodyDesc(new BoxShapeDesc(new Vector3(2, 1, 5)), BodyMotion.Static, InteriorShape: new BoxShapeDesc(new Vector3(1.8f, 0.1f, 4.8f))),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(10), gravity),
-            }));
-        // One second: the first ghost pass makes the ghosts, and the later ones find them in place.
-        for (int i = 0; i < 60; i++)
-            world.Tick();
-
-        foreach (FrameHandle ship in ships)
-        {
-            List<JoltPhysicsBackend.BodyFacts> ghosts = [.. backend.BodiesIn(ship).Where(body => BodyUserData.Kind(body.UserData) == BodyKind.Ghost)];
-            if (ghosts.Count != GhostsPerShip || ghosts.Any(ghost => ghost.Motion != MotionType.Static))
-                throw new InvalidOperationException($"A ship holds {ghosts.Count} ghosts, not {GhostsPerShip} static ones.");
-        }
-        Console.WriteLine(DockedShips == 0
-            ? "// No ship is docked, so the station has no child bubble."
-            : $"// Each of {DockedShips} ships holds {GhostsPerShip} static ghost{(GhostsPerShip == 1 ? "" : "s")} of the station's static bodies.");
-    }
 
     /// <summary>
     /// The ghosts in each ship: the slab's, and those of the props whose bounding spheres, of radius 0.87 m, reach the ship's
@@ -72,7 +34,49 @@ public class StaticBodyGhostBenchmarks
     /// </summary>
     private int GhostsPerShip => Props == 0 ? 1 : 23;
 
-    private static DPose At(double x, double y, double z) => new(new Double3(x, y, z), DQuaternion.Identity);
+    [GlobalSetup]
+    public void Setup()
+    {
+        var backend = new JoltPhysicsBackend(new() { WorkerThreads = 2 });
+        world = new(new() { MaxDegreeOfParallelism = 1, DisposePhysics = true }, backend);
+        GravityField gravity = GravityField.Uniform(new(0, -9.81f, 0));
+        FrameHandle station = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), gravity));
+        world.Spawn(new()
+        {
+            Frame = station, Pose = At(0, -0.5, 0), Body = new(new BoxShapeDesc(new(100, 0.5f, 80)), BodyMotion.Static)
+        });
+        var prop = new BodyDesc(new BoxShapeDesc(new(0.5f)), BodyMotion.Static);
+        for (int i = 0; i < Props; i++)
+            world.Spawn(new() { Frame = station, Pose = At(i % 50 * 4 - 98, 0.5, i / 50 * 4 - 78), Body = prop });
+        var ships = new FrameHandle[DockedShips];
+        for (int s = 0; s < DockedShips; s++)
+            ships[s] = world.GetOwnedFrame(world.Spawn(new()
+            {
+                Frame = station,
+                Pose = At(s * 48 - 50, 2, 0),
+                Body = new(new BoxShapeDesc(new(2, 1, 5)), BodyMotion.Static,
+                    InteriorShape: new BoxShapeDesc(new(1.8f, 0.1f, 4.8f))),
+                AsFrame = new(FrameBounds.Sphere(10), gravity)
+            }));
+        // One second: the first ghost pass makes the ghosts, and the later ones find them in place.
+        for (int i = 0; i < 60; i++)
+            world.Tick();
+
+        foreach (FrameHandle ship in ships)
+        {
+            List<JoltPhysicsBackend.BodyFacts> ghosts =
+                [.. backend.BodiesIn(ship).Where(body => BodyUserData.Kind(body.UserData) == BodyKind.Ghost)];
+            if (ghosts.Count != GhostsPerShip || ghosts.Any(ghost => ghost.Motion != MotionType.Static))
+                throw new InvalidOperationException(
+                    $"A ship holds {ghosts.Count} ghosts, not {GhostsPerShip} static ones.");
+        }
+
+        Console.WriteLine(DockedShips == 0
+            ? "// No ship is docked, so the station has no child bubble."
+            : $"// Each of {DockedShips} ships holds {GhostsPerShip} static ghost{(GhostsPerShip == 1 ? "" : "s")} of the station's static bodies.");
+    }
+
+    private static DPose At(double x, double y, double z) => new(new(x, y, z), DQuaternion.Identity);
 
     [Benchmark]
     public void Tick() => world.Tick();

@@ -23,7 +23,8 @@ internal readonly record struct StepPoses(DPose Start, DPose End)
     public Double3 ChordToParent(Double3 pointInFrame, Double3 chord, double dt) =>
         // The move of the frame's origin comes first, so that a frame far from its parent's origin adds no rounding of its
         // place to the turn of the body's coordinates.
-        (End.Position - Start.Position + End.Rotation.Rotate(pointInFrame) - Start.Rotation.Rotate(pointInFrame - chord * dt)) / dt;
+        (End.Position - Start.Position + End.Rotation.Rotate(pointInFrame) -
+         Start.Rotation.Rotate(pointInFrame - chord * dt)) / dt;
 
     /// <summary>
     /// The chord in the frame of a body that ends the step at <paramref name="pointInParent"/> with the chord
@@ -45,10 +46,12 @@ internal readonly record struct StepPoses(DPose Start, DPose End)
     public Double3 AngularChordToParent(Double3 chord, double dt) =>
         DQuaternion.Identity.AngularVelocityTo(End.Rotation * Turn(chord, dt) * Start.Rotation.Conjugate(), dt);
 
-    /// <summary>The inverse of <see cref="AngularChordToParent"/>: Jolt's angular velocity in the frame of a body that turned by <paramref name="chord"/> over the step in the parent.</summary>
+    /// <summary>The inverse of <see cref="AngularChordToParent"/>: Jolt's angular velocity in the frame of a body that turned by
+    /// <paramref name="chord"/> over the step in the parent.</summary>
     public Double3 AngularChordFromParent(Double3 chord, double dt) =>
         DQuaternion.Identity.AngularVelocityTo(End.Rotation.Conjugate() * Turn(chord, dt) * Start.Rotation, dt);
 
-    /// <summary>The turn of a body by Jolt's angular velocity <paramref name="chord"/> over a step of <paramref name="dt"/> seconds.</summary>
+    /// <summary>The turn of a body by Jolt's angular velocity <paramref name="chord"/> over a step of <paramref name="dt"/>
+    /// seconds.</summary>
     private static DQuaternion Turn(Double3 chord, double dt) => DQuaternion.FromAxisAngle(chord, chord.Length * dt);
 }

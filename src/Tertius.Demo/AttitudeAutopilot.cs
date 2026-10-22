@@ -68,6 +68,16 @@ public sealed class AttitudeAutopilot(PrincipalInertia inertia) : IComponent
     /// <summary>The time in which the torque brings the body's angular velocity to the rate asked for, in seconds.</summary>
     public const double RateTime = 1.0 / 3;
 
+    private readonly Double3 moments = inertia.Moments;
+
+    /// <summary>The rotation that turns the body's own axes into its principal axes.</summary>
+    private readonly DQuaternion axes = DQuaternion.FromQuaternion(inertia.Axes).Normalized();
+
+    // After every layer of the flight program, priorities 0 to 2, which add the target in the same tick.
+    public int Priority => 10;
+
+    public EventMask Wants => EventMask.Of<AttitudeTarget>();
+
     /// <summary>
     /// The most torque about each of the body's own axes that the autopilot asks for while the body turns within its cap,
     /// in N·m, for a body of <paramref name="inertia"/>. The rate that it asks for lies within <see cref="MaxTurnRate"/> of
@@ -83,20 +93,11 @@ public sealed class AttitudeAutopilot(PrincipalInertia inertia) : IComponent
         double acceleration = 2 * MaxTurnRate / RateTime;
         DQuaternion axes = DQuaternion.FromQuaternion(inertia.Axes).Normalized();
         Double3 moments = inertia.Moments;
+
         // The tensor is symmetric, so its row for an axis is its column, the torque of a unit acceleration about the axis.
         double Row(Double3 axis) => axes.Rotate(axes.Conjugate().Rotate(axis) * moments).Length * acceleration;
-        return new Double3(Row(Double3.UnitX), Row(Double3.UnitY), Row(Double3.UnitZ));
+        return new(Row(Double3.UnitX), Row(Double3.UnitY), Row(Double3.UnitZ));
     }
-
-    private readonly Double3 moments = inertia.Moments;
-
-    /// <summary>The rotation that turns the body's own axes into its principal axes.</summary>
-    private readonly DQuaternion axes = DQuaternion.FromQuaternion(inertia.Axes).Normalized();
-
-    // After every layer of the flight program, priorities 0 to 2, which add the target in the same tick.
-    public int Priority => 10;
-
-    public EventMask Wants => EventMask.Of<AttitudeTarget>();
 
     /// <summary>
     /// The rotation whose nose, its -Z, points along <paramref name="nose"/>, and whose roof, its +Y, points as near to
@@ -111,7 +112,8 @@ public sealed class AttitudeAutopilot(PrincipalInertia inertia) : IComponent
         Double3 z = -nose.Normalized();
         Double3 across = roof - z * Double3.Dot(roof, z);
         if (across.Length < 1e-9 * roof.Length)
-            throw new ArgumentException($"The roof {roof} lies along the nose {nose}, so it gives no turn about the nose.");
+            throw new ArgumentException(
+                $"The roof {roof} lies along the nose {nose}, so it gives no turn about the nose.");
         Double3 y = across.Normalized();
         Double3 x = Double3.Cross(y, z);
         return FromAxes(x, y, z);
@@ -137,9 +139,12 @@ public sealed class AttitudeAutopilot(PrincipalInertia inertia) : IComponent
         foreach (ref AttitudeTarget each in events.Of<AttitudeTarget>())
             target = each;
         if (target.MaxTurnRate is not >= 0)
-            throw new ArgumentOutOfRangeException(nameof(AttitudeTarget.MaxTurnRate), target.MaxTurnRate, "A turn rate lies from 0 up.");
-        if (!float.IsFinite(target.FeedForward.X) || !float.IsFinite(target.FeedForward.Y) || !float.IsFinite(target.FeedForward.Z))
-            throw new ArgumentOutOfRangeException(nameof(AttitudeTarget.FeedForward), target.FeedForward, "A feed-forward is finite.");
+            throw new ArgumentOutOfRangeException(nameof(AttitudeTarget.MaxTurnRate), target.MaxTurnRate,
+                "A turn rate lies from 0 up.");
+        if (!float.IsFinite(target.FeedForward.X) || !float.IsFinite(target.FeedForward.Y) ||
+            !float.IsFinite(target.FeedForward.Z))
+            throw new ArgumentOutOfRangeException(nameof(AttitudeTarget.FeedForward), target.FeedForward,
+                "A feed-forward is finite.");
         DPose pose = self.PoseIn(self.Frame);
         // The turn that is left, as a rotation vector in the frame's axes, and the correction toward it that the autopilot
         // asks for. The cap takes only the correction: the feed-forward is the target's own turn, which needs none.
@@ -147,15 +152,16 @@ public sealed class AttitudeAutopilot(PrincipalInertia inertia) : IComponent
         double maxRate = Math.Min(MaxTurnRate, target.MaxTurnRate);
         if (correction.Length > maxRate)
             correction *= maxRate / correction.Length;
-        Double3 rate = (Double3)target.FeedForward + correction;
-        Double3 angularAcceleration = (rate - (Double3)self.AngularVelocityIn(self.Frame)) / RateTime;
+        Double3 rate = target.FeedForward + correction;
+        Double3 angularAcceleration = (rate - self.AngularVelocityIn(self.Frame)) / RateTime;
         // The principal axes in the frame's axes: the torque about each is its moment times the acceleration about it.
         DQuaternion principal = pose.Rotation * axes;
         Double3 inPrincipal = principal.Conjugate().Rotate(angularAcceleration);
         events.Add(new Torque { Value = principal.Rotate(inPrincipal * moments) });
     }
 
-    /// <summary>The rotation that turns the unit axes X, Y and Z into the orthonormal, right-handed <paramref name="x"/>, <paramref name="y"/> and <paramref name="z"/>.</summary>
+    /// <summary>The rotation that turns the unit axes X, Y and Z into the orthonormal, right-handed <paramref name="x"/>,
+    /// <paramref name="y"/> and <paramref name="z"/>.</summary>
     private static DQuaternion FromAxes(Double3 x, Double3 y, Double3 z)
     {
         // The rotation matrix has the axes as its columns. Its quaternion comes from the largest of the four diagonal sums,
@@ -166,16 +172,19 @@ public sealed class AttitudeAutopilot(PrincipalInertia inertia) : IComponent
             double s = 2 * Math.Sqrt(trace + 1);
             return new DQuaternion((y.Z - z.Y) / s, (z.X - x.Z) / s, (x.Y - y.X) / s, s / 4).Normalized();
         }
+
         if (x.X > y.Y && x.X > z.Z)
         {
             double s = 2 * Math.Sqrt(1 + x.X - y.Y - z.Z);
             return new DQuaternion(s / 4, (y.X + x.Y) / s, (z.X + x.Z) / s, (y.Z - z.Y) / s).Normalized();
         }
+
         if (y.Y > z.Z)
         {
             double s = 2 * Math.Sqrt(1 + y.Y - x.X - z.Z);
             return new DQuaternion((y.X + x.Y) / s, s / 4, (z.Y + y.Z) / s, (z.X - x.Z) / s).Normalized();
         }
+
         double t = 2 * Math.Sqrt(1 + z.Z - x.X - y.Y);
         return new DQuaternion((z.X + x.Z) / t, (z.Y + y.Z) / t, t / 4, (x.Y - y.X) / t).Normalized();
     }

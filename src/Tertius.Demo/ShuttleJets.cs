@@ -1,4 +1,3 @@
-using Tertius.Simulation;
 using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
 
 namespace Tertius.Demo;
@@ -80,16 +79,21 @@ public sealed class ShuttleJets
 
     public ShuttleJets(Double3 centerOfMass, PrincipalInertia inertia, double translationThrust)
     {
-        if (!(Math.Abs(centerOfMass.X) < 0.5 && Math.Abs(centerOfMass.Y) < 1.2 && Math.Abs(centerOfMass.Z) < TranslationRib))
-            throw new ArgumentOutOfRangeException(nameof(centerOfMass), centerOfMass, "The jets reach a center of mass within |x| < 0.5 m, |y| < 1.2 m and |z| < 3 m.");
+        if (!(Math.Abs(centerOfMass.X) < 0.5 && Math.Abs(centerOfMass.Y) < 1.2 &&
+              Math.Abs(centerOfMass.Z) < TranslationRib))
+            throw new ArgumentOutOfRangeException(nameof(centerOfMass), centerOfMass,
+                "The jets reach a center of mass within |x| < 0.5 m, |y| < 1.2 m and |z| < 3 m.");
         if (!(translationThrust > 0 && double.IsFinite(translationThrust)))
-            throw new ArgumentOutOfRangeException(nameof(translationThrust), translationThrust, "The thrust of a translation pair must be positive and finite.");
-        if (!(inertia.Moments.X > 0 && inertia.Moments.Y > 0 && inertia.Moments.Z > 0 && float.IsFinite(inertia.Moments.X + inertia.Moments.Y + inertia.Moments.Z)))
-            throw new ArgumentOutOfRangeException(nameof(inertia), inertia, "The moments of inertia must be positive and finite.");
+            throw new ArgumentOutOfRangeException(nameof(translationThrust), translationThrust,
+                "The thrust of a translation pair must be positive and finite.");
+        if (!(inertia.Moments.X > 0 && inertia.Moments.Y > 0 && inertia.Moments.Z > 0 &&
+              float.IsFinite(inertia.Moments.X + inertia.Moments.Y + inertia.Moments.Z)))
+            throw new ArgumentOutOfRangeException(nameof(inertia), inertia,
+                "The moments of inertia must be positive and finite.");
         CenterOfMass = centerOfMass;
         this.translationThrust = translationThrust;
         coupleTorque = AttitudeAutopilot.MostTorque(inertia);
-        MainEnginePlace = new Double3(centerOfMass.X, centerOfMass.Y, Shuttle.NozzleZ);
+        MainEnginePlace = new(centerOfMass.X, centerOfMass.Y, Shuttle.NozzleZ);
 
         Double3 c = centerOfMass;
         double side = Shuttle.Hull.X, roof = Shuttle.Hull.Y, tail = Shuttle.Hull.Z;
@@ -98,20 +102,20 @@ public sealed class ShuttleJets
         [
             // The couples, in the order of Couple(axis, negative). Pitch and yaw push across Z at the nose's ring and the
             // tail's ring, 12.5 m apart. Roll pushes across X between the belly and the roof, 4 m apart.
-            Couple("pitch-up", new Double3(0, -roof, NoseRing), new Double3(0, roof, TailRing), y, x),
-            Couple("pitch-down", new Double3(0, -roof, TailRing), new Double3(0, roof, NoseRing), y, -x),
-            Couple("yaw-port", new Double3(-side, LowerSide, TailRing), new Double3(side, LowerSide, NoseRing), x, y),
-            Couple("yaw-starboard", new Double3(-side, LowerSide, NoseRing), new Double3(side, LowerSide, TailRing), x, -y),
-            Couple("roll-port", new Double3(RollSpan, -roof, TailRing), new Double3(-RollSpan, roof, TailRing), y, z),
-            Couple("roll-starboard", new Double3(-RollSpan, -roof, NoseRing), new Double3(RollSpan, roof, NoseRing), y, -z),
+            Couple("pitch-up", new(0, -roof, NoseRing), new(0, roof, TailRing), y, x),
+            Couple("pitch-down", new(0, -roof, TailRing), new(0, roof, NoseRing), y, -x),
+            Couple("yaw-port", new(-side, LowerSide, TailRing), new(side, LowerSide, NoseRing), x, y),
+            Couple("yaw-starboard", new(-side, LowerSide, NoseRing), new(side, LowerSide, TailRing), x, -y),
+            Couple("roll-port", new(RollSpan, -roof, TailRing), new(-RollSpan, roof, TailRing), y, z),
+            Couple("roll-starboard", new(-RollSpan, -roof, NoseRing), new(RollSpan, roof, NoseRing), y, -z),
             // The translation pairs, in the order of Translation(axis, negative). Each pair's two places differ along one
             // axis across its push, and both take the center of mass's value on the other.
-            Translation("move-starboard", new Double3(-side, c.Y, -TranslationRib), new Double3(-side, c.Y, TranslationRib), x, c.Z),
-            Translation("move-port", new Double3(side, c.Y, -TranslationRib), new Double3(side, c.Y, TranslationRib), -x, c.Z),
-            Translation("move-up", new Double3(c.X, -roof, -TranslationRib), new Double3(c.X, -roof, TranslationRib), y, c.Z),
-            Translation("move-down", new Double3(c.X, roof, -TranslationRib), new Double3(c.X, roof, TranslationRib), -y, c.Z),
-            Translation("move-aft", new Double3(-side, c.Y, NoseRing), new Double3(side, c.Y, NoseRing), z, c.X),
-            Translation("move-forward", new Double3(c.X - TailSpread, c.Y, tail), new Double3(c.X + TailSpread, c.Y, tail), -z, c.X),
+            Translation("move-starboard", new(-side, c.Y, -TranslationRib), new(-side, c.Y, TranslationRib), x, c.Z),
+            Translation("move-port", new(side, c.Y, -TranslationRib), new(side, c.Y, TranslationRib), -x, c.Z),
+            Translation("move-up", new(c.X, -roof, -TranslationRib), new(c.X, -roof, TranslationRib), y, c.Z),
+            Translation("move-down", new(c.X, roof, -TranslationRib), new(c.X, roof, TranslationRib), -y, c.Z),
+            Translation("move-aft", new(-side, c.Y, NoseRing), new(side, c.Y, NoseRing), z, c.X),
+            Translation("move-forward", new(c.X - TailSpread, c.Y, tail), new(c.X + TailSpread, c.Y, tail), -z, c.X)
         ];
     }
 
@@ -122,7 +126,8 @@ public sealed class ShuttleJets
     public Double3 MainEnginePlace { get; }
 
     /// <summary>
-    /// The twelve pairs: the couples at <see cref="Couple(int, bool)"/>, then the translation pairs at <see cref="Translation(int, bool)"/>.
+    /// The twelve pairs: the couples at <see cref="Couple(int, bool)"/>, then the translation pairs at
+    /// <see cref="Translation(int, bool)"/>.
     /// <see cref="Allocate"/> writes one throttle for each, which both of its jets take.
     /// </summary>
     public IReadOnlyList<JetPair> Pairs { get; }
@@ -156,10 +161,13 @@ public sealed class ShuttleJets
         if (!IsFinite(force))
             throw new ArgumentOutOfRangeException(nameof(force), force, "A force is finite.");
         if (throttles.Length != PairCount)
-            throw new ArgumentException($"The throttles take {PairCount} values, one for each pair, not {throttles.Length}.", nameof(throttles));
+            throw new ArgumentException(
+                $"The throttles take {PairCount} values, one for each pair, not {throttles.Length}.",
+                nameof(throttles));
         for (int axis = 0; axis < 3; axis++)
         {
-            double turn = Along(torque, axis) / Along(coupleTorque, axis), push = Along(force, axis) / translationThrust;
+            double turn = Along(torque, axis) / Along(coupleTorque, axis),
+                push = Along(force, axis) / translationThrust;
             throttles[Couple(axis, false)] = (float)Math.Clamp(turn, 0, 1);
             throttles[Couple(axis, true)] = (float)Math.Clamp(-turn, 0, 1);
             throttles[Translation(axis, false)] = (float)Math.Clamp(push, 0, 1);
@@ -176,9 +184,10 @@ public sealed class ShuttleJets
     {
         // A couple's torque does not depend on the point that it is taken about: it is (first - second) × push per newton.
         double perNewton = Double3.Dot(Double3.Cross(first - second, push), turn);
-        double most = Double3.Dot(coupleTorque, new Double3(Math.Abs(turn.X), Math.Abs(turn.Y), Math.Abs(turn.Z)));
+        double most = Double3.Dot(coupleTorque, new(Math.Abs(turn.X), Math.Abs(turn.Y), Math.Abs(turn.Z)));
         double thrust = most / perNewton;
-        return new JetPair(name, new Jet($"jet-{name}-first", first, push, thrust), new Jet($"jet-{name}-second", second, -push, thrust));
+        return new(name, new($"jet-{name}-first", first, push, thrust),
+            new($"jet-{name}-second", second, -push, thrust));
     }
 
     /// <summary>
@@ -192,8 +201,8 @@ public sealed class ShuttleJets
         Double3 span = second - first;
         int axis = Math.Abs(span.X) > 0 ? 0 : Math.Abs(span.Y) > 0 ? 1 : 2;
         double firstShare = (Along(second, axis) - center) / Along(span, axis);
-        return new JetPair(name, new Jet($"jet-{name}-first", first, push, firstShare * translationThrust),
-            new Jet($"jet-{name}-second", second, push, (1 - firstShare) * translationThrust));
+        return new(name, new($"jet-{name}-first", first, push, firstShare * translationThrust),
+            new($"jet-{name}-second", second, push, (1 - firstShare) * translationThrust));
     }
 
     private static double Along(Double3 v, int axis) => axis switch { 0 => v.X, 1 => v.Y, _ => v.Z };

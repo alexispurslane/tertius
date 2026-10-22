@@ -11,8 +11,8 @@ public class ShapeDescFactsTests
 {
     private static readonly CompoundShapeDesc SphereAndTurnedCube = new(
     [
-        new CompoundChild(new SphereShapeDesc(1), new Pose(new Vector3(3, 0, 0), Quaternion.Identity)),
-        new CompoundChild(new BoxShapeDesc(new Vector3(1)), new Pose(new Vector3(0, -3, 0), Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 4))),
+        new(new SphereShapeDesc(1), new(new(3, 0, 0), Quaternion.Identity)),
+        new(new BoxShapeDesc(new(1)), new(new(0, -3, 0), Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 4)))
     ]);
 
     public static TheoryData<string, ShapeKind> Shapes() => new()
@@ -22,18 +22,18 @@ public class ShapeDescFactsTests
         { "capsule", ShapeKind.Capsule },
         { "convex hull", ShapeKind.ConvexHull },
         { "mesh", ShapeKind.Mesh },
-        { "compound", ShapeKind.Compound },
+        { "compound", ShapeKind.Compound }
     };
 
     private static ShapeDesc Shape(string name) => name switch
     {
-        "box" => new BoxShapeDesc(new Vector3(1)),
+        "box" => new BoxShapeDesc(new(1)),
         "sphere" => new SphereShapeDesc(1),
         "capsule" => new CapsuleShapeDesc(1, 0.5f),
         "convex hull" => new ConvexHullShapeDesc([new(1, 0, 0), new(-1, 0, 0), new(0, 2, 0), new(0, 0, -3)]),
         "mesh" => new MeshShapeDesc([new(0, 0, 0), new(1, 0, 0), new(0, 1, 0)], [0, 1, 2]),
         "compound" => SphereAndTurnedCube,
-        _ => throw new ArgumentOutOfRangeException(nameof(name)),
+        _ => throw new ArgumentOutOfRangeException(nameof(name))
     };
 
     [Theory]
@@ -46,7 +46,7 @@ public class ShapeDescFactsTests
     [Fact]
     public void TheBoundingRadiusOfABoxReachesItsCorners()
     {
-        new BoxShapeDesc(new Vector3(1, 2, 2)).BoundingRadius().Should().BeApproximately(3f, 5e-6f);
+        new BoxShapeDesc(new(1, 2, 2)).BoundingRadius().Should().BeApproximately(3f, 5e-6f);
     }
 
     [Fact]
@@ -89,16 +89,18 @@ public class ShapeDescFactsTests
     [Fact]
     public void TheBoundingRadiusOfNestedCompoundsComposesTheirPoses()
     {
-        var nested = new CompoundShapeDesc([new CompoundChild(SphereAndTurnedCube, new Pose(new Vector3(0, 0, 10), Quaternion.Identity))]);
+        var nested = new CompoundShapeDesc([new(SphereAndTurnedCube, new(new(0, 0, 10), Quaternion.Identity))]);
 
-        ((double)nested.BoundingRadius()).Should().BeApproximately(Math.Sqrt((3 + Math.Sqrt(2)) * (3 + Math.Sqrt(2)) + 121), 5e-5);
+        ((double)nested.BoundingRadius()).Should()
+            .BeApproximately(Math.Sqrt((3 + Math.Sqrt(2)) * (3 + Math.Sqrt(2)) + 121), 5e-5);
     }
 
     [Fact]
     public void TheBoundingRadiusRoundsUpSoThatTheFloatStillHoldsTheShape()
     {
-        var box = new BoxShapeDesc(new Vector3(0.1f, 0.2f, 0.3f));
+        var box = new BoxShapeDesc(new(0.1f, 0.2f, 0.3f));
 
-        ((double)box.BoundingRadius()).Should().BeGreaterThanOrEqualTo(Math.Sqrt(0.1f * 0.1f + 0.2f * 0.2f + 0.3f * 0.3f));
+        ((double)box.BoundingRadius()).Should()
+            .BeGreaterThanOrEqualTo(Math.Sqrt(0.1f * 0.1f + 0.2f * 0.2f + 0.3f * 0.3f));
     }
 }

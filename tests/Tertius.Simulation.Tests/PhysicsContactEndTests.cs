@@ -22,31 +22,31 @@ public class PhysicsContactEndTests
     /// </summary>
     private sealed class Scene : IDisposable
     {
+        public static EventMask Wants => EventMask.Of<Collision>() | EventMask.Of<CollisionEnded>();
+
         public Scene(float speedApart = 0)
         {
             Test = TestWorld.OnJolt(out FaultInjectingBackend faults);
             Faults = faults;
-            FirstLog = new Recorder(Wants);
-            SecondLog = new Recorder(Wants);
-            First = Test.World.Spawn(new SpawnDesc
+            FirstLog = new(Wants);
+            SecondLog = new(Wants);
+            First = Test.World.Spawn(new()
             {
                 Frame = Test.Root,
                 Pose = TestWorld.At(0),
                 LinearVelocity = new Vector3(-speedApart, 0, 0),
                 Body = WorldTesting.Ball(),
-                Components = [FirstLog],
+                Components = [FirstLog]
             });
-            Second = Test.World.Spawn(new SpawnDesc
+            Second = Test.World.Spawn(new()
             {
                 Frame = Test.Root,
                 Pose = TestWorld.At(1),
                 LinearVelocity = new Vector3(speedApart, 0, 0),
                 Body = WorldTesting.Ball(),
-                Components = [SecondLog],
+                Components = [SecondLog]
             });
         }
-
-        public static EventMask Wants => EventMask.Of<Collision>() | EventMask.Of<CollisionEnded>();
 
         public FaultInjectingBackend Faults { get; }
         public TestWorld Test { get; }
@@ -63,7 +63,12 @@ public class PhysicsContactEndTests
         {
             get
             {
-                var ends = Faults.Outputs.Zip(Faults.Steps, (output, step) => (step.Tick, output.ContactsEnded)).Where(step => step.ContactsEnded.Count > 0).ToList();
+                List<(long Tick, List<ContactEnded> ContactsEnded)> ends =
+                [
+                    .. Faults.Outputs
+                        .Zip(Faults.Steps, (output, step) => (step.Tick, output.ContactsEnded))
+                        .Where(step => step.ContactsEnded.Count > 0)
+                ];
                 ends.Should().ContainSingle();
                 ends[0].ContactsEnded.Should().Equal(new ContactEnded(First, Second));
                 return ends[0].Tick;
@@ -75,7 +80,10 @@ public class PhysicsContactEndTests
 
     /// <summary>The ticks at which a recorder heard a <see cref="CollisionEnded"/>, with what it heard.</summary>
     private static List<(long Tick, CollisionEnded Ended)> EndsHeard(Recorder log) =>
-        log.Seen.Where(seen => seen.Event.Is<CollisionEnded>()).Select(seen => (seen.Tick, seen.Event.As<CollisionEnded>())).ToList();
+    [
+        .. log.Seen.Where(seen => seen.Event.Is<CollisionEnded>())
+            .Select(seen => (seen.Tick, seen.Event.As<CollisionEnded>()))
+    ];
 
     [Fact]
     public void AnEndedContactSendsOneCollisionEndedToEachBodyOnTheNextTick()
@@ -97,7 +105,8 @@ public class PhysicsContactEndTests
 
         scene.Test.Run(8);
 
-        scene.TickOfEnd.Should().BeGreaterThan(0, "the contact started in the first step, so it can end only in a later one");
+        scene.TickOfEnd.Should()
+            .BeGreaterThan(0, "the contact started in the first step, so it can end only in a later one");
         EndsHeard(scene.FirstLog).Single().Ended.Other.Should().Be(scene.Second);
         EndsHeard(scene.SecondLog).Single().Ended.Other.Should().Be(scene.First);
     }
@@ -115,25 +124,25 @@ public class PhysicsContactEndTests
     [Fact]
     public void AContactThatStartsAndEndsInOneStepArrivesAsTheStartAndThenTheEnd()
     {
-        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
         // The bubble's edge toward the balls lies at x = 400 m. At 180 m/s the first ball flies 3 m in a step.
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
         var firstLog = new Recorder(Scene.Wants);
         var secondLog = new Recorder(Scene.Wants);
-        Entity first = test.World.Spawn(new SpawnDesc
+        Entity first = test.World.Spawn(new()
         {
             Frame = test.Root,
             Pose = TestWorld.At(398),
             LinearVelocity = new Vector3(180, 0, 0),
             Body = WorldTesting.Ball(),
-            Components = [firstLog],
+            Components = [firstLog]
         });
-        Entity second = test.World.Spawn(new SpawnDesc
+        Entity second = test.World.Spawn(new()
         {
             Frame = test.Root,
             Pose = TestWorld.At(397.1),
             Body = WorldTesting.Ball(),
-            Components = [secondLog],
+            Components = [secondLog]
         });
 
         test.Run(2);
@@ -164,9 +173,11 @@ public class PhysicsContactEndTests
 
         scene.Test.Run(2);
 
-        scene.Faults.Outputs.SelectMany(output => output.ContactsEnded).Should().Equal(new ContactEnded(scene.First, scene.Second));
+        scene.Faults.Outputs.SelectMany(output => output.ContactsEnded).Should()
+            .Equal(new ContactEnded(scene.First, scene.Second));
         EndsHeard(scene.SecondLog).Single().Ended.Other.Should().Be(scene.First);
-        scene.FirstLog.Seen.Select(s => s.Event.Type).Should().Equal([EventType<Collision>.Id], "the destroyed ball hears no end");
+        scene.FirstLog.Seen.Select(s => s.Event.Type).Should()
+            .Equal([EventType<Collision>.Id], "the destroyed ball hears no end");
         scene.Test.World.Errors.Should().BeEmpty("a destroyed body ends its contacts, so the end names it");
     }
 
@@ -175,9 +186,9 @@ public class PhysicsContactEndTests
     public void AnEndOfABodyWithItselfBreaksAContract()
     {
         using var scene = new Scene();
-        scene.Faults.EditNextOutput = output => output.ContactsEnded.Add(new ContactEnded(scene.First, scene.First));
+        scene.Faults.EditNextOutput = output => output.ContactsEnded.Add(new(scene.First, scene.First));
 
-        Action tick = () => scene.Test.World.Tick();
+        Action tick = scene.Test.World.Tick;
 
         tick.Should().Throw<ContractException>().WithMessage($"*{scene.First} cannot touch itself*");
     }

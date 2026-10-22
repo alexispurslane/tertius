@@ -14,16 +14,18 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public class WorldSensorTests
 {
+    /// <summary>The length of a step, in seconds, at the world's 60 ticks a second.</summary>
+    private const double StepSeconds = 1.0 / 60;
+
     private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
 
     /// <summary>A static sensor box with the half extents <paramref name="half"/>.</summary>
-    private static BodyDesc SensorBox(Vector3 half) => new(new BoxShapeDesc(half), BodyMotion.Static) { IsSensor = true };
+    private static BodyDesc SensorBox(Vector3 half) =>
+        new(new BoxShapeDesc(half), BodyMotion.Static) { IsSensor = true };
 
     /// <summary>A ball with a radius of 0.25 m and a mass of 1 kg that nothing slows down.</summary>
-    private static BodyDesc SmallBall(BodyMotion motion) => new(new SphereShapeDesc(0.25f), motion, Mass: 1, LinearDamping: 0, AngularDamping: 0);
-
-    /// <summary>The length of a step, in seconds, at the world's 60 ticks a second.</summary>
-    private const double StepSeconds = 1.0 / 60;
+    private static BodyDesc SmallBall(BodyMotion motion) => new(new SphereShapeDesc(0.25f), motion, Mass: 1,
+        LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>
     /// With no gravity, a ball with a radius of 0.25 m flies at 3 m/s along +X, 0.05 m in each step, through a sensor cube
@@ -35,7 +37,8 @@ public class WorldSensorTests
     [Theory]
     [InlineData(BodyMotion.Dynamic)]
     [InlineData(BodyMotion.Kinematic)]
-    public void ABodyThatFliesThroughASensorKeepsItsSpeedAndEachHearsOneStartAtTheOverlapAndOneEndAfterIt(BodyMotion motion)
+    public void ABodyThatFliesThroughASensorKeepsItsSpeedAndEachHearsOneStartAtTheOverlapAndOneEndAfterIt(
+        BodyMotion motion)
     {
         const double x0 = -1.02, speed = 3, reach = 0.5 + 0.25;
         int firstOverlap = (int)Math.Ceiling((-reach - x0) / (speed * StepSeconds));
@@ -43,24 +46,30 @@ public class WorldSensorTests
         using World world = NewWorld(out _);
         FrameHandle space = Ground(world, 0);
         var sensorLog = new CollisionLog();
-        Entity sensor = world.Spawn(new SpawnDesc { Frame = space, Body = SensorBox(new Vector3(0.5f)), Components = [sensorLog] });
+        Entity sensor = world.Spawn(new() { Frame = space, Body = SensorBox(new(0.5f)), Components = [sensorLog] });
         var ballLog = new CollisionLog();
         var flyer = new SpawnDesc
         {
-            Frame = space, Pose = At(x0), LinearVelocity = new Vector3((float)speed, 0, 0), Body = SmallBall(motion), Components = [ballLog],
+            Frame = space, Pose = At(x0), LinearVelocity = new Vector3((float)speed, 0, 0), Body = SmallBall(motion),
+            Components = [ballLog]
         };
         // A kinematic body moves only by its motion intents, so it drifts by end poses.
-        Entity ball = world.Spawn(motion == BodyMotion.Kinematic ? KinematicDrift.Drifting(flyer, world, flyer.LinearVelocity) : flyer);
+        Entity ball = world.Spawn(motion == BodyMotion.Kinematic
+            ? KinematicDrift.Drifting(flyer, world, flyer.LinearVelocity)
+            : flyer);
 
         Tick(world, 60);
 
         sensorLog.NewsOf(ball).Should().Equal(Started, Ended);
         ballLog.NewsOf(sensor).Should().Equal(Started, Ended);
-        sensorLog.Seen.Single().Tick.Should().Be(firstOverlap + 1, "the touch starts in the first step that begins with an overlap");
-        sensorLog.Ended.Single().Tick.Should().Be(firstClear + 1, "the touch ends in the first step that begins without one");
+        sensorLog.Seen.Single().Tick.Should().Be(firstOverlap + 1,
+            "the touch starts in the first step that begins with an overlap");
+        sensorLog.Ended.Single().Tick.Should()
+            .Be(firstClear + 1, "the touch ends in the first step that begins without one");
         ballLog.Seen.Single().Tick.Should().Be(firstOverlap + 1);
         ballLog.Ended.Single().Tick.Should().Be(firstClear + 1);
-        world.VelocityInOwnFrame(ball).X.Should().BeApproximately((float)speed, 1e-5f, "the sensor did not slow the ball");
+        world.VelocityInOwnFrame(ball).X.Should()
+            .BeApproximately((float)speed, 1e-5f, "the sensor did not slow the ball");
         world.PoseInOwnFrame(ball).Position.X.Should().BeApproximately(x0 + 60 * speed * StepSeconds, 1e-4);
         world.Errors.Should().BeEmpty();
     }
@@ -75,11 +84,12 @@ public class WorldSensorTests
         using World world = NewWorld(out _);
         FrameHandle space = Ground(world, 0);
         var sensorLog = new CollisionLog();
-        world.Spawn(new SpawnDesc { Frame = space, Body = SensorBox(new Vector3(0.5f)), Components = [sensorLog] });
+        world.Spawn(new() { Frame = space, Body = SensorBox(new(0.5f)), Components = [sensorLog] });
         var ballLog = new CollisionLog();
-        world.Spawn(new SpawnDesc
+        world.Spawn(new()
         {
-            Frame = space, Pose = At(-1.02), LinearVelocity = new Vector3(3, 0, 0), Body = SmallBall(BodyMotion.Dynamic), Components = [ballLog],
+            Frame = space, Pose = At(-1.02), LinearVelocity = new Vector3(3, 0, 0),
+            Body = SmallBall(BodyMotion.Dynamic), Components = [ballLog]
         });
 
         Tick(world, 20);
@@ -101,18 +111,21 @@ public class WorldSensorTests
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         var sensorLog = new CollisionLog();
-        Entity sensor = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 1), Body = SensorBox(new Vector3(0.5f, 1, 0.5f)), Components = [sensorLog] });
+        Entity sensor = world.Spawn(new()
+            { Frame = ground, Pose = At(0, 1), Body = SensorBox(new(0.5f, 1, 0.5f)), Components = [sensorLog] });
         var pilot = new Pilot();
         var personLog = new CollisionLog();
-        Entity person = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(-2, 0.95), Body = Person, Components = [pilot, personLog] });
+        Entity person = world.Spawn(new()
+            { Frame = ground, Pose = At(-2, 0.95), Body = Person, Components = [pilot, personLog] });
         Tick(world, 30);
         world.Snapshot.IsStanding(person).Should().BeTrue("the character stands on the floor");
         double start = world.PoseInOwnFrame(person).Position.X;
 
-        pilot.EveryTick = body => body.MoveCharacter(new Vector3(1.5f, 0, 0));
+        pilot.EveryTick = body => body.MoveCharacter(new(1.5f, 0, 0));
         Tick(world, 180);
 
-        world.PoseInOwnFrame(person).Position.X.Should().BeApproximately(start + 1.5 * 179 * StepSeconds, 0.01, "the sensor did not stop the character");
+        world.PoseInOwnFrame(person).Position.X.Should().BeApproximately(start + 1.5 * 179 * StepSeconds, 0.01,
+            "the sensor did not stop the character");
         sensorLog.NewsOf(person).Should().Equal(Started, Ended);
         personLog.NewsOf(sensor).Should().Equal(Started, Ended);
         personLog.Seen.Single(seen => seen.Other == sensor).Impulse.Should().Be(0, "a sensor pushes nothing");
@@ -133,25 +146,31 @@ public class WorldSensorTests
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         if (systemKeepsStepping)
-            world.Spawn(KinematicDrift.Drifting(new SpawnDesc { Frame = ground, Pose = At(-40, 20), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Kinematic) },
-                world, new Double3(0, 0, 0.1)));
+            world.Spawn(KinematicDrift.Drifting(
+                new()
+                {
+                    Frame = ground, Pose = At(-40, 20), Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Kinematic)
+                },
+                world, new(0, 0, 0.1)));
         var sensorLog = new CollisionLog();
-        Entity sensor = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 1), Body = SensorBox(new Vector3(2, 1, 2)), Components = [sensorLog] });
+        Entity sensor = world.Spawn(new()
+            { Frame = ground, Pose = At(0, 1), Body = SensorBox(new(2, 1, 2)), Components = [sensorLog] });
         var boxLog = new CollisionLog();
         var pilot = new Pilot();
-        Entity box = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 0.5), Body = Cube(), Components = [boxLog, pilot] });
+        Entity box = world.Spawn(new()
+            { Frame = ground, Pose = At(0, 0.5), Body = Cube(), Components = [boxLog, pilot] });
         Tick(world, 1);
         TickUntil(world, () => !IsAwake(backend, ground, box), 600);
         IsAwake(backend, ground, box).Should().BeFalse("the box rests on the floor, so it falls asleep");
         Tick(world, 30);
 
-        pilot.Once = body => body.AddImpulse(new Vector3(0.5f, 0, 0));
+        pilot.Once = body => body.AddImpulse(new(0.5f, 0, 0));
         Tick(world, 5);
         IsAwake(backend, ground, box).Should().BeTrue("the push woke the box");
         Tick(world, 30);
 
         sensorLog.NewsOf(box).Should().Equal([Started], "the box never left the sensor");
-        boxLog.NewsOf(sensor).Should().Equal([Started]);
+        boxLog.NewsOf(sensor).Should().Equal(Started);
         world.Errors.Should().BeEmpty();
     }
 
@@ -168,24 +187,27 @@ public class WorldSensorTests
     public void ASensorHearsTheTouchOfABodysGhostOnceAndNoSecondTouchWhenTheBodyFollowsIt()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
-        FrameHandle bubble = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = space, AsFrame = new FrameSpec(FrameBounds.Sphere(10)) }));
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
+        FrameHandle bubble =
+            world.GetOwnedFrame(world.Spawn(new() { Frame = space, AsFrame = new(FrameBounds.Sphere(10)) }));
         var sensorLog = new CollisionLog();
-        Entity sensor = world.Spawn(new SpawnDesc { Frame = space, Pose = At(12.3), Body = SensorBox(new Vector3(2.2f, 1, 1)), Components = [sensorLog] });
+        Entity sensor = world.Spawn(new()
+            { Frame = space, Pose = At(12.3), Body = SensorBox(new(2.2f, 1, 1)), Components = [sensorLog] });
         var blockLog = new CollisionLog();
-        Entity block = world.Spawn(KinematicDrift.Drifting(new SpawnDesc
+        Entity block = world.Spawn(KinematicDrift.Drifting(new()
         {
             Frame = bubble, Pose = At(9.5),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Kinematic), Components = [blockLog],
-        }, world, new Double3(2, 0, 0)));
+            Body = new(new BoxShapeDesc(new(1)), BodyMotion.Kinematic), Components = [blockLog]
+        }, world, new(2, 0, 0)));
         world.Tick();
         faults.Jolt.HasGhostIn(block, space).Should().BeTrue("the block sticks out of its bubble");
 
         TickUntil(world, () => world.GetFrame(block) == space, 300);
         world.GetFrame(block).Should().Be(space, "the block left its bubble");
         long handOff = world.TickNumber;
-        sensorLog.NewsOf(block).Should().Equal([Started], "the ghost touched the sensor while the block was in its bubble");
-        blockLog.NewsOf(sensor).Should().Equal([Started]);
+        sensorLog.NewsOf(block).Should()
+            .Equal([Started], "the ghost touched the sensor while the block was in its bubble");
+        blockLog.NewsOf(sensor).Should().Equal(Started);
         sensorLog.Seen.Single().Tick.Should().BeLessThan(handOff);
         Tick(world, 120);
 

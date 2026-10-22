@@ -27,6 +27,9 @@ internal readonly record struct HeldStart(Vector3 Velocity);
 /// </param>
 internal readonly record struct InstantStart(Vector3 Velocity, Vector3 Over)
 {
+    /// <summary>The instant velocity relative to the home's instant velocity where the step starts, in m/s, which the exact rule takes.</summary>
+    public Double3 Local => Velocity - (Double3)Over;
+
     /// <summary>A jump off the ground: the ground's velocity plus the walk plus the jump along up, in m/s.</summary>
     public static InstantStart Jump(Vector3 velocity) => new(velocity, Vector3.Zero);
 
@@ -35,9 +38,6 @@ internal readonly record struct InstantStart(Vector3 Velocity, Vector3 Over)
     /// instant velocity where the step starts exceeds its frame velocity by <paramref name="over"/>.
     /// </summary>
     public static InstantStart Given(Vector3 velocity, Vector3 over) => new(velocity, over);
-
-    /// <summary>The instant velocity relative to the home's instant velocity where the step starts, in m/s, which the exact rule takes.</summary>
-    public Double3 Local => (Double3)Velocity - (Double3)Over;
 
     /// <summary>
     /// The chord of the step that ended, by the float rule of before the rotation terms, in m/s: the velocity less
@@ -68,37 +68,31 @@ internal readonly struct CharacterStartVelocity
 
     // The three cases share it. The held and the instant case widen their float, which narrows back exactly.
     private readonly Double3 velocity;
+
     // The instant case's excess of the home's instant velocity (see InstantStart.Over). Zero for the other cases.
     private readonly Vector3 over;
     private readonly byte kind;
 
-    public CharacterStartVelocity(HeldStart held) { kind = KindHeld; velocity = held.Velocity; }
-    public CharacterStartVelocity(InstantStart instant) { kind = KindInstant; velocity = instant.Velocity; over = instant.Over; }
-    public CharacterStartVelocity(ChordStart chord) { kind = KindChord; velocity = chord.Velocity; }
+    public CharacterStartVelocity(HeldStart held)
+    {
+        kind = KindHeld;
+        velocity = held.Velocity;
+    }
 
-    public static implicit operator CharacterStartVelocity(HeldStart held) => new(held);
-    public static implicit operator CharacterStartVelocity(InstantStart instant) => new(instant);
-    public static implicit operator CharacterStartVelocity(ChordStart chord) => new(chord);
+    public CharacterStartVelocity(InstantStart instant)
+    {
+        kind = KindInstant;
+        velocity = instant.Velocity;
+        over = instant.Over;
+    }
+
+    public CharacterStartVelocity(ChordStart chord)
+    {
+        kind = KindChord;
+        velocity = chord.Velocity;
+    }
 
     public bool HasValue => kind != KindNone;
-
-    public bool TryGetValue(out HeldStart held)
-    {
-        held = new HeldStart(velocity.ToVector3());
-        return kind == KindHeld;
-    }
-
-    public bool TryGetValue(out InstantStart instant)
-    {
-        instant = new InstantStart(velocity.ToVector3(), over);
-        return kind == KindInstant;
-    }
-
-    public bool TryGetValue(out ChordStart chord)
-    {
-        chord = new ChordStart(velocity);
-        return kind == KindChord;
-    }
 
     /// <summary>The case as an object. It boxes, so use it only for debugging.</summary>
     public object? Value => kind switch
@@ -106,8 +100,31 @@ internal readonly struct CharacterStartVelocity
         KindHeld => new HeldStart(velocity.ToVector3()),
         KindInstant => new InstantStart(velocity.ToVector3(), over),
         KindChord => new ChordStart(velocity),
-        _ => null,
+        _ => null
     };
 
-    public override string ToString() => Value is { } value ? $"CharacterStartVelocity({value})" : "CharacterStartVelocity(none)";
+    public static implicit operator CharacterStartVelocity(HeldStart held) => new(held);
+    public static implicit operator CharacterStartVelocity(InstantStart instant) => new(instant);
+    public static implicit operator CharacterStartVelocity(ChordStart chord) => new(chord);
+
+    public bool TryGetValue(out HeldStart held)
+    {
+        held = new(velocity.ToVector3());
+        return kind == KindHeld;
+    }
+
+    public bool TryGetValue(out InstantStart instant)
+    {
+        instant = new(velocity.ToVector3(), over);
+        return kind == KindInstant;
+    }
+
+    public bool TryGetValue(out ChordStart chord)
+    {
+        chord = new(velocity);
+        return kind == KindChord;
+    }
+
+    public override string ToString() =>
+        Value is { } value ? $"CharacterStartVelocity({value})" : "CharacterStartVelocity(none)";
 }

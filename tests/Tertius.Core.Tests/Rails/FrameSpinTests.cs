@@ -1,4 +1,3 @@
-using System.Numerics;
 using AwesomeAssertions;
 using Tertius.Frames.Rails;
 
@@ -10,8 +9,14 @@ namespace Tertius.Core.Tests;
 /// </summary>
 public class FrameSpinTests
 {
-    private static readonly DQuaternion Obliquity = DQuaternion.FromAxisAngle(new Double3(0, 0, 1), -23.44 * Math.PI / 180);
+    private const double Tick = 1.0 / 60;
+    private static readonly DQuaternion Obliquity = DQuaternion.FromAxisAngle(new(0, 0, 1), -23.44 * Math.PI / 180);
     private static readonly Double3 Pole = new(Math.Sin(23.44 * Math.PI / 180), Math.Cos(23.44 * Math.PI / 180), 0);
+
+    // ---- The sample of a spin over a step ----------------------------------------------------------------------
+
+    private static readonly FrameSpin Turning = new(Obliquity, 0.25, PhaseAtEpoch: 0.7, Epoch: 3);
+    private static readonly Double3 Place = new(5, -6, 7e6);
 
     private static void ExpectNear(Double3 actual, Double3 expected, double tolerance = 1e-12) =>
         Double3.Distance(actual, expected).Should().BeLessThan(tolerance, $"{actual} is not {expected}");
@@ -33,7 +38,7 @@ public class FrameSpinTests
         var spin = new FrameSpin(DQuaternion.Identity, 3, PhaseAtEpoch: Math.PI / 2, Epoch: 40);
 
         // A quarter turn about +Y, counterclockwise seen from above, takes +X to -Z.
-        ExpectNear(spin.RotationAt(40).Rotate(new Double3(1, 0, 0)), new Double3(0, 0, -1));
+        ExpectNear(spin.RotationAt(40).Rotate(new Double3(1, 0, 0)), new(0, 0, -1));
     }
 
     [Fact]
@@ -56,7 +61,7 @@ public class FrameSpinTests
     [Fact]
     public void ATiltThatIsNotUnitLengthLeansTheFrameByItsDirectionAlone()
     {
-        var spin = new FrameSpin(new DQuaternion(Obliquity.X * 1.5, Obliquity.Y * 1.5, Obliquity.Z * 1.5, Obliquity.W * 1.5), 0.25);
+        var spin = new FrameSpin(new(Obliquity.X * 1.5, Obliquity.Y * 1.5, Obliquity.Z * 1.5, Obliquity.W * 1.5), 0.25);
 
         ExpectNear(spin.RotationAt(3).Rotate(new Double3(0, 1, 0)), Pole);
         ExpectNear(spin.AngularVelocity, Pole * 0.25);
@@ -85,24 +90,18 @@ public class FrameSpinTests
     {
         FrameSpin spin = which switch
         {
-            "rate NaN" => new FrameSpin(DQuaternion.Identity, double.NaN),
-            "rate infinite" => new FrameSpin(DQuaternion.Identity, double.PositiveInfinity),
-            "phase NaN" => new FrameSpin(DQuaternion.Identity, 1, PhaseAtEpoch: double.NaN),
-            "epoch infinite" => new FrameSpin(DQuaternion.Identity, 1, Epoch: double.NegativeInfinity),
-            "tilt NaN" => new FrameSpin(new DQuaternion(double.NaN, 0, 0, 1), 1),
-            "tilt Y NaN" => new FrameSpin(new DQuaternion(0, double.NaN, 0, 1), 1),
-            "tilt Z infinite" => new FrameSpin(new DQuaternion(0, 0, double.PositiveInfinity, 1), 1),
-            _ => new FrameSpin(new DQuaternion(0, 0, 0, double.PositiveInfinity), 1),
+            "rate NaN" => new(DQuaternion.Identity, double.NaN),
+            "rate infinite" => new(DQuaternion.Identity, double.PositiveInfinity),
+            "phase NaN" => new(DQuaternion.Identity, 1, PhaseAtEpoch: double.NaN),
+            "epoch infinite" => new(DQuaternion.Identity, 1, Epoch: double.NegativeInfinity),
+            "tilt NaN" => new(new(double.NaN, 0, 0, 1), 1),
+            "tilt Y NaN" => new(new(0, double.NaN, 0, 1), 1),
+            "tilt Z infinite" => new(new(0, 0, double.PositiveInfinity, 1), 1),
+            _ => new(new(0, 0, 0, double.PositiveInfinity), 1)
         };
 
         spin.IsValid.Should().BeFalse();
     }
-
-    // ---- The sample of a spin over a step ----------------------------------------------------------------------
-
-    private static readonly FrameSpin Turning = new(Obliquity, 0.25, PhaseAtEpoch: 0.7, Epoch: 3);
-    private static readonly Double3 Place = new(5, -6, 7e6);
-    private const double Tick = 1.0 / 60;
 
     [Fact]
     public void A_spin_sample_stands_at_its_place_with_the_rotation_of_the_spin_at_the_end_of_its_step()

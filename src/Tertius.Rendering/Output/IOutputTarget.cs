@@ -8,10 +8,13 @@ internal interface IOutputTarget : IDisposable
 {
     Format Format { get; }
     Extent2D Extent { get; }
+
     /// <summary>The format is UNORM, so the tone mapper must apply the sRGB curve itself.</summary>
     bool EncodeSrgbInShader { get; }
+
     /// <summary>Pixels are stored as BGRA, so a capture must swap red and blue.</summary>
     bool BgraOrder { get; }
+
     /// <summary>The images allow transfer reads, so the capture pass can copy them.</summary>
     bool CanCapture { get; }
 
@@ -31,16 +34,22 @@ internal interface IOutputTarget : IDisposable
 internal static unsafe class QueueSubmission
 {
     /// <summary>One vkQueueSubmit2 of a frame's command buffer with optional wait and signal semaphores.</summary>
-    public static void Submit(VulkanDevice device, FrameResources frame, Semaphore wait, PipelineStageFlags2 waitStages, Semaphore signal)
+    public static void Submit(VulkanDevice device, FrameResources frame, Semaphore wait, PipelineStageFlags2 waitStages,
+        Semaphore signal)
     {
         var commandBuffer = new CommandBufferSubmitInfo
         {
             SType = StructureType.CommandBufferSubmitInfo,
-            CommandBuffer = frame.CommandBuffer,
+            CommandBuffer = frame.CommandBuffer
         };
-        var waitInfo = new SemaphoreSubmitInfo { SType = StructureType.SemaphoreSubmitInfo, Semaphore = wait, StageMask = waitStages };
+        var waitInfo = new SemaphoreSubmitInfo
+            { SType = StructureType.SemaphoreSubmitInfo, Semaphore = wait, StageMask = waitStages };
         // The signal waits for everything, including the final layout transition to PRESENT_SRC.
-        var signalInfo = new SemaphoreSubmitInfo { SType = StructureType.SemaphoreSubmitInfo, Semaphore = signal, StageMask = PipelineStageFlags2.AllCommandsBit };
+        var signalInfo = new SemaphoreSubmitInfo
+        {
+            SType = StructureType.SemaphoreSubmitInfo, Semaphore = signal,
+            StageMask = PipelineStageFlags2.AllCommandsBit
+        };
         var submit = new SubmitInfo2
         {
             SType = StructureType.SubmitInfo2,
@@ -49,7 +58,7 @@ internal static unsafe class QueueSubmission
             CommandBufferInfoCount = 1,
             PCommandBufferInfos = &commandBuffer,
             SignalSemaphoreInfoCount = signal.Handle != 0 ? 1u : 0u,
-            PSignalSemaphoreInfos = &signalInfo,
+            PSignalSemaphoreInfos = &signalInfo
         };
         device.Vk.QueueSubmit2(device.Queue, 1, &submit, frame.Fence).Check("vkQueueSubmit2");
     }

@@ -1,4 +1,3 @@
-using System.Numerics;
 using Tertius.Host;
 using Tertius.Simulation;
 
@@ -27,49 +26,54 @@ public static partial class DemoScenes
     private static SceneInstance PuffYard(World world, IRenderResources resources)
     {
         var scene = new SceneInstance();
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), GravityField.Uniform(new Vector3(0, -9.81f, 0)),
+        FrameHandle ground = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f),
+            GravityField.Uniform(new(0, -9.81f, 0)),
             MediumField.Uniform(1.225f, 1.5f)));
         scene.Add("ground", ground);
-        scene.Add("floor", world.Spawn(new SpawnDesc
+        scene.Add("floor", world.Spawn(new()
         {
             Frame = ground,
-            Pose = new DPose(new Double3(0, -0.5, 0), DQuaternion.Identity),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(50, 0.5f, 50)), BodyMotion.Static),
-            Render = Drawn(resources, Primitives.Box(new Vector3(50, 0.5f, 50)), new Vector4(0.3f, 0.3f, 0.32f, 1), boundingRadius: 71),
+            Pose = new(new(0, -0.5, 0), DQuaternion.Identity),
+            Body = new(new BoxShapeDesc(new(50, 0.5f, 50)), BodyMotion.Static),
+            Render = Drawn(resources, Primitives.Box(new(50, 0.5f, 50)), new(0.3f, 0.3f, 0.32f, 1), boundingRadius: 71)
         }));
 
-        var flame = new PuffLook(Life: 3, StartRadius: 0.25f, EndRadius: 1.2f, TemperatureRatio: 3, PuffShading.Glow(new Vector3(1.5f, 0.6f, 0.15f)));
-        var blue = new PuffLook(Life: 2.5f, StartRadius: 0.15f, EndRadius: 0.8f, TemperatureRatio: 1.6f, PuffShading.Glow(new Vector3(0.25f, 0.5f, 1.5f)));
-        var cold = new PuffLook(Life: 4, StartRadius: 0.2f, EndRadius: 1f, TemperatureRatio: 0.8f, PuffShading.Glow(new Vector3(0.15f, 0.6f, 0.2f)));
-        scene.Add("flame", Nozzle(world, resources, ground, new Double3(-6, 0, 0), Double3.UnitY, new PuffEmitter(60, 6, 0.15f, flame)));
-        scene.Add("blue-jet", Nozzle(world, resources, ground, new Double3(0, 0, 0), new Double3(Math.Cos(Math.PI / 6), Math.Sin(Math.PI / 6), 0),
-            new PuffEmitter(80, 12, 0.08f, blue)));
-        scene.Add("cold-jet", Nozzle(world, resources, ground, new Double3(6, 0, 0), Double3.UnitY, new PuffEmitter(50, 5, 0.25f, cold)));
+        var flame = new PuffLook(Life: 3, StartRadius: 0.25f, EndRadius: 1.2f, TemperatureRatio: 3,
+            PuffShading.Glow(new(1.5f, 0.6f, 0.15f)));
+        var blue = new PuffLook(Life: 2.5f, StartRadius: 0.15f, EndRadius: 0.8f, TemperatureRatio: 1.6f,
+            PuffShading.Glow(new(0.25f, 0.5f, 1.5f)));
+        var cold = new PuffLook(Life: 4, StartRadius: 0.2f, EndRadius: 1f, TemperatureRatio: 0.8f,
+            PuffShading.Glow(new(0.15f, 0.6f, 0.2f)));
+        scene.Add("flame", Nozzle(world, resources, ground, new(-6, 0, 0), Double3.UnitY, new(60, 6, 0.15f, flame)));
+        scene.Add("blue-jet", Nozzle(world, resources, ground, new(0, 0, 0),
+            new(Math.Cos(Math.PI / 6), Math.Sin(Math.PI / 6), 0),
+            new(80, 12, 0.08f, blue)));
+        scene.Add("cold-jet", Nozzle(world, resources, ground, new(6, 0, 0), Double3.UnitY, new(50, 5, 0.25f, cold)));
 
-        RenderData box = Drawn(resources, Primitives.Box(new Vector3(0.5f)), new Vector4(1, 0.45f, 0.1f, 1), boundingRadius: 0.87f);
-        box.Emitter = new PuffEmitter(90, 1, MathF.PI / 2, flame with { Life = 2, EndRadius = 0.8f });
-        scene.Add("tossed-box", world.Spawn(new SpawnDesc
+        RenderData box = Drawn(resources, Primitives.Box(new(0.5f)), new(1, 0.45f, 0.1f, 1), boundingRadius: 0.87f);
+        box.Emitter = new(90, 1, MathF.PI / 2, flame with { Life = 2, EndRadius = 0.8f });
+        scene.Add("tossed-box", world.Spawn(new()
         {
             Frame = ground,
-            Pose = new DPose(new Double3(-12, 2, -6), DQuaternion.Identity),
-            LinearVelocity = new Double3(7, 9, 2),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10),
-            Render = box,
+            Pose = new(new(-12, 2, -6), DQuaternion.Identity),
+            LinearVelocity = new(7, 9, 2),
+            Body = new(new BoxShapeDesc(new(0.5f)), Mass: 10),
+            Render = box
         }));
 
-        Entity camera = world.Spawn(new SpawnDesc
+        Entity camera = world.Spawn(new()
         {
             Frame = ground,
-            Pose = new DPose(new Double3(0, 4, 22), DQuaternion.FromAxisAngle(new Double3(1, 0, 0), -0.08)),
-            Render = new RenderData(),
+            Pose = new(new(0, 4, 22), DQuaternion.FromAxisAngle(new(1, 0, 0), -0.08)),
+            Render = new RenderData()
         });
         scene.Add("camera", camera);
         world.Camera = camera;
-        Entity sun = world.Spawn(new SpawnDesc
+        Entity sun = world.Spawn(new()
         {
             Frame = ground,
-            Pose = new DPose(new Double3(30, 50, 40), DQuaternion.Identity),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1)),
+            Pose = new(new(30, 50, 40), DQuaternion.Identity),
+            AsFrame = new(FrameBounds.Sphere(1))
         });
         scene.Add("sun", sun);
         world.SunFrame = world.GetOwnedFrame(sun);
@@ -82,23 +86,27 @@ public static partial class DemoScenes
     /// <paramref name="direction"/>, a unit vector in the frame's axes. A jet blows along its entity's -Z, so the post turns
     /// its -Z onto the direction.
     /// </summary>
-    private static Entity Nozzle(World world, IRenderResources resources, FrameHandle frame, Double3 place, Double3 direction, PuffEmitter emitter)
+    private static Entity Nozzle(World world, IRenderResources resources, FrameHandle frame, Double3 place,
+        Double3 direction, PuffEmitter emitter)
     {
         var minusZ = new Double3(0, 0, -1);
         Double3 axis = Double3.Cross(minusZ, direction);
-        DQuaternion aim = axis.Length < 1e-9 ? DQuaternion.Identity
-            : DQuaternion.FromAxisAngle(axis.Normalized(), Math.Acos(Math.Clamp(Double3.Dot(minusZ, direction), -1, 1)));
-        world.Spawn(new SpawnDesc
+        DQuaternion aim = axis.Length < 1e-9
+            ? DQuaternion.Identity
+            : DQuaternion.FromAxisAngle(axis.Normalized(),
+                Math.Acos(Math.Clamp(Double3.Dot(minusZ, direction), -1, 1)));
+        world.Spawn(new()
         {
             Frame = frame,
-            Pose = new DPose(place + new Double3(0, 0.3, 0), DQuaternion.Identity),
-            Render = Drawn(resources, Primitives.Box(new Vector3(0.15f, 0.3f, 0.15f)), new Vector4(0.12f, 0.12f, 0.12f, 1), boundingRadius: 0.4f),
+            Pose = new(place + new Double3(0, 0.3, 0), DQuaternion.Identity),
+            Render = Drawn(resources, Primitives.Box(new(0.15f, 0.3f, 0.15f)), new(0.12f, 0.12f, 0.12f, 1),
+                boundingRadius: 0.4f)
         });
-        return world.Spawn(new SpawnDesc
+        return world.Spawn(new()
         {
             Frame = frame,
-            Pose = new DPose(place + new Double3(0, 0.65, 0), aim),
-            Render = new RenderData { Emitter = emitter },
+            Pose = new(place + new Double3(0, 0.65, 0), aim),
+            Render = new RenderData { Emitter = emitter }
         });
     }
 }

@@ -46,6 +46,7 @@ public sealed class Gait(Vector3 center) : IComponent
     public const double RiseTime = 0.1;
 
     private readonly Vector3 center = center;
+
     // The distance walked since the last step length, in meters, and the bob's weight, from 0 to 1.
     private double walked, weight;
 
@@ -67,9 +68,12 @@ public sealed class Gait(Vector3 center) : IComponent
             walked = (walked + speed * dt) % StepLength;
             target = Math.Min(1, speed / FullRiseSpeed);
         }
+
         weight += (target - weight) * (1 - Math.Exp(-dt / RiseTime));
         double sine = Math.Sin(Math.PI * walked / StepLength);
-        var turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, (float)WalkHeading.Yaw(snapshot.RenderOf(person).ViewOffset.Rotation));
-        self.AttachOffset = new Pose(Vector3.Transform(center, turn) + new Vector3(0, (float)(StepRise * weight * sine * sine), 0), turn);
+        var turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY,
+            (float)WalkHeading.Yaw(snapshot.RenderOf(person).ViewOffset.Rotation));
+        self.AttachOffset =
+            new(Vector3.Transform(center, turn) + new Vector3(0, (float)(StepRise * weight * sine * sine), 0), turn);
     }
 }

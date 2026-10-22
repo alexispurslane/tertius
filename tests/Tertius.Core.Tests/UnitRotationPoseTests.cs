@@ -1,4 +1,3 @@
-using System.Numerics;
 using AwesomeAssertions;
 
 namespace Tertius.Core.Tests;
@@ -16,13 +15,15 @@ public class UnitRotationPoseTests
     /// A rotation that came out of a float quaternion, as Jolt gives it. The float quaternion is (1, 2, 3, 4) / sqrt(30), with
     /// its last component one step of a float too long, so the square of its length is 1.7E-7 above 1.
     /// </summary>
-    private static readonly DQuaternion Widened = DQuaternion.FromQuaternion(new Quaternion(0.18257418f, 0.36514837f, 0.5477226f, 0.73029685f));
+    private static readonly DQuaternion Widened =
+        DQuaternion.FromQuaternion(new(0.18257418f, 0.36514837f, 0.5477226f, 0.73029685f));
 
     /// <summary>The place of a ship in a low orbit round Earth, in Earth's axes, 6.77E6 m from the center.</summary>
     private static readonly Double3 InOrbit = new(4.2e6, -3.9e6, 3.6e6);
 
     private static void ExpectNear(Double3 actual, Double3 expected, double metres) =>
-        Double3.Distance(actual, expected).Should().BeLessThan(metres, $"{actual} should be within {metres} m of {expected}");
+        Double3.Distance(actual, expected).Should()
+            .BeLessThan(metres, $"{actual} should be within {metres} m of {expected}");
 
     private static void ExpectSameComponents(DQuaternion actual, DQuaternion expected, double tolerance)
     {
@@ -43,7 +44,7 @@ public class UnitRotationPoseTests
     public void ComposeMovesAPositionByTheNormalizedRotationOfItsParent()
     {
         var parent = new DPose(InOrbit, Widened);
-        var local = new DPose(new Double3(3000, 2000, -4000), DQuaternion.Identity);
+        var local = new DPose(new(3000, 2000, -4000), DQuaternion.Identity);
 
         DPose composed = DPose.Compose(parent, local);
 
@@ -55,7 +56,7 @@ public class UnitRotationPoseTests
     [Fact]
     public void ComposeGivesARotationOfUnitLength()
     {
-        DPose composed = DPose.Compose(new DPose(InOrbit, Widened), new DPose(Double3.Zero, Widened));
+        DPose composed = DPose.Compose(new(InOrbit, Widened), new(Double3.Zero, Widened));
 
         (composed.Rotation.LengthSquared - 1).Should().BeApproximately(0, 1e-14);
     }
@@ -116,9 +117,9 @@ public class UnitRotationPoseTests
     [Fact]
     public void AFloatPoseBecomesADoublePoseWhoseRotationIsOfUnitLength()
     {
-        var pose = new Pose(new Vector3(1, 2, 3), new Quaternion(0.18257418f, 0.36514837f, 0.5477226f, 0.73029685f));
+        var pose = new Pose(new(1, 2, 3), new(0.18257418f, 0.36514837f, 0.5477226f, 0.73029685f));
 
-        DPose widened = pose.ToDPose();
+        var widened = pose.ToDPose();
 
         (widened.Rotation.LengthSquared - 1).Should().BeApproximately(0, 1e-14);
         widened.Position.Should().Be(new Double3(1, 2, 3));
@@ -133,9 +134,9 @@ public class UnitRotationPoseTests
         // Earth, the ship in it with the rotation that Jolt gives, and a crate in Earth 30 m from the ship.
         var tree = new PoseTree<DPose>();
         PoseNode earth = tree.Add(PoseNode.Null, DPose.Identity);
-        PoseNode ship = tree.Add(earth, new DPose(InOrbit, Widened));
+        PoseNode ship = tree.Add(earth, new(InOrbit, Widened));
         Double3 crateFromShip = new(30, 20, 10);
-        PoseNode crate = tree.Add(earth, new DPose(InOrbit + crateFromShip, DQuaternion.Identity));
+        PoseNode crate = tree.Add(earth, new(InOrbit + crateFromShip, DQuaternion.Identity));
         tree.UpdateWorld();
         var relative = new DPose[tree.Count];
 
@@ -151,8 +152,8 @@ public class UnitRotationPoseTests
     {
         var tree = new PoseTree<DPose>();
         PoseNode root = tree.Add(PoseNode.Null, DPose.Identity);
-        PoseNode turned = tree.Add(root, new DPose(Double3.Zero, Widened));
-        PoseNode far = tree.Add(turned, new DPose(InOrbit, DQuaternion.Identity));
+        PoseNode turned = tree.Add(root, new(Double3.Zero, Widened));
+        PoseNode far = tree.Add(turned, new(InOrbit, DQuaternion.Identity));
         tree.UpdateWorld();
 
         DPose inRoot = tree.Relative(far, root);

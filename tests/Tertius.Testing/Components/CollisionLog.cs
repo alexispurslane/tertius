@@ -6,7 +6,7 @@ namespace Tertius.Testing;
 public enum ContactNews
 {
     Started,
-    Ended,
+    Ended
 }
 
 /// <summary>
@@ -15,13 +15,13 @@ public enum ContactNews
 /// </summary>
 public sealed class CollisionLog : IComponent
 {
-    private readonly List<(Entity Other, ContactNews News)> heard = new();
+    private readonly List<(Entity Other, ContactNews News)> heard = [];
 
     /// <summary>Every Collision, in the order heard.</summary>
-    public List<(long Tick, Entity Other, float Impulse)> Seen { get; } = new();
+    public List<(long Tick, Entity Other, float Impulse)> Seen { get; } = [];
 
     /// <summary>Every CollisionEnded, in the order heard.</summary>
-    public List<(long Tick, Entity Other)> Ended { get; } = new();
+    public List<(long Tick, Entity Other)> Ended { get; } = [];
 
     public int Priority => 0;
 
@@ -30,24 +30,22 @@ public sealed class CollisionLog : IComponent
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
         for (int i = 0; i < events.Count; i++)
-        {
             if (events[i].Is<Collision>())
             {
-                Collision collision = events[i].As<Collision>();
+                var collision = events[i].As<Collision>();
                 Seen.Add((self.Tick, collision.Other, collision.Impulse));
                 heard.Add((collision.Other, ContactNews.Started));
             }
             else if (events[i].Is<CollisionEnded>())
             {
-                CollisionEnded ended = events[i].As<CollisionEnded>();
+                var ended = events[i].As<CollisionEnded>();
                 Ended.Add((self.Tick, ended.Other));
                 heard.Add((ended.Other, ContactNews.Ended));
             }
-        }
     }
 
     public int CountWith(Entity other) => Seen.Count(seen => seen.Other == other);
 
     /// <summary>The starts and ends of the contacts with <paramref name="other"/>, in the order heard.</summary>
-    public List<ContactNews> NewsOf(Entity other) => heard.Where(h => h.Other == other).Select(h => h.News).ToList();
+    public List<ContactNews> NewsOf(Entity other) => [.. heard.Where(h => h.Other == other).Select(h => h.News)];
 }

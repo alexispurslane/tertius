@@ -33,19 +33,42 @@ public readonly struct PuffShading : IEquatable<PuffShading>
 
     /// <summary>The radiance of <see cref="GlowPuffs"/> or the albedo of <see cref="LitPuffs"/>.</summary>
     private readonly Vector3 color;
+
     private readonly byte kind;
 
-    public PuffShading(GlowPuffs glow) { kind = KindGlow; color = glow.Radiance; }
-    public PuffShading(LitPuffs lit) { kind = KindLit; color = lit.Albedo; }
+    public PuffShading(GlowPuffs glow)
+    {
+        kind = KindGlow;
+        color = glow.Radiance;
+    }
+
+    public PuffShading(LitPuffs lit)
+    {
+        kind = KindLit;
+        color = lit.Albedo;
+    }
+
+    /// <summary>False for the default value, which holds no case.</summary>
+    public bool HasValue => kind != KindNone;
+
+    public object? Value => kind switch
+    {
+        KindGlow => new GlowPuffs(color),
+        KindLit => new LitPuffs(color),
+        _ => null
+    };
+
+    /// <summary>
+    /// Whether the shading holds a case, and every channel of its color is finite and 0 or more. An emitter whose look has
+    /// a shading that is not valid makes no puffs.
+    /// </summary>
+    public bool IsValid => kind != KindNone && IsChannel(color.X) && IsChannel(color.Y) && IsChannel(color.Z);
 
     /// <summary>Glow puffs that emit <paramref name="radiance"/> at their birth, in linear RGB, in HDR units.</summary>
     public static PuffShading Glow(Vector3 radiance) => new(new GlowPuffs(radiance));
 
     /// <summary>Lit puffs that scatter the share <paramref name="albedo"/> of the light that reaches them, in linear RGB.</summary>
     public static PuffShading Lit(Vector3 albedo) => new(new LitPuffs(albedo));
-
-    /// <summary>False for the default value, which holds no case.</summary>
-    public bool HasValue => kind != KindNone;
 
     public bool TryGetValue(out GlowPuffs value)
     {
@@ -58,19 +81,6 @@ public readonly struct PuffShading : IEquatable<PuffShading>
         value = kind == KindLit ? new LitPuffs(color) : default;
         return kind == KindLit;
     }
-
-    public object? Value => kind switch
-    {
-        KindGlow => new GlowPuffs(color),
-        KindLit => new LitPuffs(color),
-        _ => null,
-    };
-
-    /// <summary>
-    /// Whether the shading holds a case, and every channel of its color is finite and 0 or more. An emitter whose look has
-    /// a shading that is not valid makes no puffs.
-    /// </summary>
-    public bool IsValid => kind != KindNone && IsChannel(color.X) && IsChannel(color.Y) && IsChannel(color.Z);
 
     /// <summary>Whether a channel is finite and 0 or more. A NaN fails the comparison, and the finite check leaves out an infinity.</summary>
     private static bool IsChannel(float channel) => channel >= 0 && float.IsFinite(channel);
@@ -88,7 +98,7 @@ public readonly struct PuffShading : IEquatable<PuffShading>
     {
         GlowPuffs glow => $"PuffShading({glow})",
         LitPuffs lit => $"PuffShading({lit})",
-        null => "PuffShading(none)",
+        null => "PuffShading(none)"
     };
 }
 
@@ -119,7 +129,8 @@ public readonly record struct PuffLook(
     /// more, and <see cref="Shading"/> is valid. An emitter whose look is not valid makes no puffs, without an error, as a
     /// light whose range or intensity is zero or less is left out.
     /// </summary>
-    public bool IsValid => IsPositive(Life) && IsPositive(TemperatureRatio) && IsRadius(StartRadius) && IsRadius(EndRadius) && Shading.IsValid;
+    public bool IsValid => IsPositive(Life) && IsPositive(TemperatureRatio) && IsRadius(StartRadius) &&
+                           IsRadius(EndRadius) && Shading.IsValid;
 
     // A NaN fails each comparison, and the finite check leaves out an infinity.
     private static bool IsPositive(float value) => value > 0 && float.IsFinite(value);
@@ -134,13 +145,16 @@ public struct RenderPuff
 {
     /// <summary>The puff's place relative to the render origin, in the axes of the camera's frame, in m.</summary>
     public Vector3 Position;
+
     /// <summary>
     /// The puff's place at the previous build, relative to the same origin, in m. It equals <see cref="Position"/> when the
     /// build gives no motion.
     /// </summary>
     public Vector3 PreviousPosition;
+
     /// <summary>The puff's age at the snapshot's tick, in s.</summary>
     public float Age;
+
     /// <summary>The index of the puff's look in <see cref="RenderSnapshot.PuffLooks"/>.</summary>
     public int Look;
 }

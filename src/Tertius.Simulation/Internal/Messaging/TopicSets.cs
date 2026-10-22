@@ -30,15 +30,6 @@ namespace Tertius.Simulation;
 /// </remarks>
 internal sealed class TopicSets
 {
-    /// <summary>One entity's place in the sets.</summary>
-    private struct EntityTopics
-    {
-        /// <summary>The frame whose member set holds the entity, or null.</summary>
-        public FrameHandle Member;
-        /// <summary>The topics the entity subscribed to explicitly.</summary>
-        public List<Topic>? Subscriptions;
-    }
-
     private readonly EntityTable entities;
     private readonly EntityTable.Column<EntityTopics> byEntity;
 
@@ -47,7 +38,9 @@ internal sealed class TopicSets
     private EntitySet?[] frameMembers = new EntitySet?[16];
     private EntitySet?[] frameSubscribers = new EntitySet?[16];
     private FrameHandle[] frameAt = new FrameHandle[16];
-    private readonly List<EntitySet?> named = new();
+
+    private readonly List<EntitySet?> named = [];
+
     // Subscription lists of released entities, for the next entity that subscribes: churn then allocates nothing.
     private readonly Stack<List<Topic>> spareSubscriptionLists = new();
 
@@ -55,6 +48,28 @@ internal sealed class TopicSets
     {
         this.entities = entities;
         byEntity = entities.AddColumn<EntityTopics>(Forget);
+    }
+
+    /// <summary>True when no member set has a queued change.</summary>
+    public bool MembersSettled
+    {
+        get
+        {
+            foreach (EntitySet? members in frameMembers)
+                if (members is { HasQueuedChanges: true })
+                    return false;
+            return true;
+        }
+    }
+
+    /// <summary>One entity's place in the sets.</summary>
+    private struct EntityTopics
+    {
+        /// <summary>The frame whose member set holds the entity, or null.</summary>
+        public FrameHandle Member;
+
+        /// <summary>The topics the entity subscribed to explicitly.</summary>
+        public List<Topic>? Subscriptions;
     }
 
     /// <summary>Makes a new frame's topic resolvable. Its index must be free.</summary>
@@ -68,6 +83,7 @@ internal sealed class TopicSets
             Array.Resize(ref frameMembers, size);
             Array.Resize(ref frameSubscribers, size);
         }
+
         Contract.Requires(frameAt[index].IsNull);
         frameAt[index] = frame;
     }
@@ -87,6 +103,7 @@ internal sealed class TopicSets
                 byEntity[subscriber].Subscriptions?.Remove(topic);
             subscribers.Clear();
         }
+
         frameMembers[index]?.Clear();
         frameAt[index] = FrameHandle.Null;
     }
@@ -118,21 +135,9 @@ internal sealed class TopicSets
         if (IsLive(from))
             frameMembers[from.Index]?.Queue(entity, false);
         if (!to.IsNull)
-            (frameMembers[to.Index] ??= new EntitySet()).Queue(entity, true);
+            (frameMembers[to.Index] ??= new()).Queue(entity, true);
         entry.Member = to;
         return true;
-    }
-
-    /// <summary>True when no member set has a queued change.</summary>
-    public bool MembersSettled
-    {
-        get
-        {
-            foreach (EntitySet? members in frameMembers)
-                if (members is { HasQueuedChanges: true })
-                    return false;
-            return true;
-        }
     }
 
     /// <summary>
@@ -174,7 +179,8 @@ internal sealed class TopicSets
         EntitySet? set = SetOf(topic, create: true);
         if (set == null)
             return false;
-        (entry.Subscriptions ??= spareSubscriptionLists.Count > 0 ? spareSubscriptionLists.Pop() : new List<Topic>(2)).Add(topic);
+        (entry.Subscriptions ??= spareSubscriptionLists.Count > 0 ? spareSubscriptionLists.Pop() : [with(2)])
+            .Add(topic);
         set.Queue(entity, true);
         return true;
     }
@@ -205,15 +211,15 @@ internal sealed class TopicSets
         int index = topic.FrameIndex;
         ReadOnlySpan<Entity> members = frameMembers[index] is { } m ? m.Items : default;
         ReadOnlySpan<Entity> subscribers = frameSubscribers[index] is { } s ? s.Items : default;
-        return new Recipients(members, subscribers);
+        return new(members, subscribers);
     }
 
     /// <summary>Checks every invariant in the class comment. O(capacity + set sizes).</summary>
     internal void AssertInvariants()
     {
         int capacity = entities.Capacity;
-        var memberSets = new int[capacity];
-        var subscriberSets = new int[capacity];
+        int[] memberSets = new int[capacity];
+        int[] subscriberSets = new int[capacity];
         for (int index = 0; index < frameAt.Length; index++)
         {
             FrameHandle frame = frameAt[index];
@@ -228,17 +234,20 @@ internal sealed class TopicSets
                     memberSets[member.Index]++;
                 }
             }
+
             if (frameSubscribers[index] is { } subscribers)
             {
                 subscribers.AssertInvariants();
                 Contract.Invariant(!frame.IsNull || subscribers.Items.IsEmpty);
                 foreach (Entity subscriber in subscribers.Items)
                 {
-                    Contract.Invariant(entities.IsAlive(subscriber) && byEntity[subscriber].Subscriptions?.Contains(frame.Topic) == true);
+                    Contract.Invariant(entities.IsAlive(subscriber) &&
+                                       byEntity[subscriber].Subscriptions?.Contains(frame.Topic) == true);
                     subscriberSets[subscriber.Index]++;
                 }
             }
         }
+
         for (int id = 0; id < named.Count; id++)
         {
             if (named[id] is not { } subscribers)
@@ -246,7 +255,8 @@ internal sealed class TopicSets
             subscribers.AssertInvariants();
             foreach (Entity subscriber in subscribers.Items)
             {
-                Contract.Invariant(entities.IsAlive(subscriber) && byEntity[subscriber].Subscriptions?.Contains(new Topic(id)) == true);
+                Contract.Invariant(entities.IsAlive(subscriber) &&
+                                   byEntity[subscriber].Subscriptions?.Contains(new(id)) == true);
                 subscriberSets[subscriber.Index]++;
             }
         }
@@ -255,7 +265,9 @@ internal sealed class TopicSets
         {
             ref readonly EntityTopics entry = ref byEntity[entity];
             uint slot = entity.Index;
-            Contract.Invariant(entry.Member.IsNull ? memberSets[slot] == 0 : IsLive(entry.Member) && memberSets[slot] == 1);
+            Contract.Invariant(entry.Member.IsNull
+                ? memberSets[slot] == 0
+                : IsLive(entry.Member) && memberSets[slot] == 1);
             List<Topic>? subscriptions = entry.Subscriptions;
             int subscribed = subscriptions?.Count ?? 0;
             Contract.Invariant(subscriberSets[slot] == subscribed);
@@ -286,7 +298,8 @@ internal sealed class TopicSets
     private bool IsLive(Topic frameTopic)
     {
         int index = frameTopic.FrameIndex;
-        return (uint)index < (uint)frameAt.Length && !frameAt[index].IsNull && frameAt[index].Generation == frameTopic.Generation;
+        return (uint)index < (uint)frameAt.Length && !frameAt[index].IsNull &&
+               frameAt[index].Generation == frameTopic.Generation;
     }
 
     /// <summary>The explicit subscriber set of a topic. Null for the topic of a frame that is not alive.</summary>
@@ -297,14 +310,15 @@ internal sealed class TopicSets
             if (!IsLive(topic))
                 return null;
             int index = topic.FrameIndex;
-            return create ? frameSubscribers[index] ??= new EntitySet() : frameSubscribers[index];
+            return create ? frameSubscribers[index] ??= new() : frameSubscribers[index];
         }
+
         int id = topic.Id;
         if (!create)
             return id < named.Count ? named[id] : null;
         if (id >= named.Count)
             CollectionsMarshal.SetCount(named, id + 1);
-        return named[id] ??= new EntitySet();
+        return named[id] ??= new();
     }
 
     /// <summary>
@@ -318,7 +332,6 @@ internal sealed class TopicSets
         private readonly ReadOnlySpan<Entity> b;
         private int i;
         private int j;
-        private Entity current;
 
         internal Recipients(ReadOnlySpan<Entity> a, ReadOnlySpan<Entity> b)
         {
@@ -326,9 +339,9 @@ internal sealed class TopicSets
             this.b = b;
         }
 
-        public readonly Recipients GetEnumerator() => this;
+        public Entity Current { get; private set; }
 
-        public readonly Entity Current => current;
+        public readonly Recipients GetEnumerator() => this;
 
         public bool MoveNext()
         {
@@ -340,26 +353,30 @@ internal sealed class TopicSets
                     int order = x.CompareTo(y);
                     if (order <= 0)
                     {
-                        current = x;
+                        Current = x;
                         i++;
                         if (order == 0)
                             j++;
                     }
                     else
                     {
-                        current = y;
+                        Current = y;
                         j++;
                     }
+
                     return true;
                 }
-                current = a[i++];
+
+                Current = a[i++];
                 return true;
             }
+
             if (j < b.Length)
             {
-                current = b[j++];
+                Current = b[j++];
                 return true;
             }
+
             return false;
         }
     }

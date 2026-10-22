@@ -17,32 +17,34 @@ public class WorldContactEndTests
     private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
 
     /// <summary>A heavy box, which a character cannot push: friction holds 0.5 · 500 kg · g, and a character pushes with 100 N.</summary>
-    private static readonly BodyDesc HeavyBox = new(new BoxShapeDesc(new Vector3(0.5f)), Mass: 500);
+    private static readonly BodyDesc HeavyBox = new(new BoxShapeDesc(new(0.5f)), Mass: 500);
 
     /// <summary>The floor of <see cref="Floor"/>, with <paramref name="log"/> on it.</summary>
-    private static Entity LoggedFloor(World world, FrameHandle frame, CollisionLog log) => world.Spawn(new SpawnDesc
+    private static Entity LoggedFloor(World world, FrameHandle frame, CollisionLog log) => world.Spawn(new()
     {
         Frame = frame,
         Pose = At(0, -0.5),
-        Body = new BodyDesc(new BoxShapeDesc(new Vector3(50, 0.5f, 50)), BodyMotion.Static),
-        Components = [log],
+        Body = new(new BoxShapeDesc(new(50, 0.5f, 50)), BodyMotion.Static),
+        Components = [log]
     });
 
     /// <summary>A kinematic block high above the far end of the floor, which touches nothing and keeps the system stepping.</summary>
-    private static void KeepStepping(World world, FrameHandle frame) => world.Spawn(KinematicDrift.Drifting(new SpawnDesc
+    private static void KeepStepping(World world, FrameHandle frame) => world.Spawn(KinematicDrift.Drifting(new()
     {
         Frame = frame,
         Pose = At(-40, 20),
-        Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Kinematic),
-    }, world, new Double3(0, 0, 0.1)));
+        Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Kinematic)
+    }, world, new(0, 0, 0.1)));
 
-    /// <summary>A frame with no body and a bubble of radius 5 m at <paramref name="x"/> on the X axis of <paramref name="parent"/>.</summary>
-    private static FrameHandle Bubble(World world, FrameHandle parent, double x) => world.GetOwnedFrame(world.Spawn(new SpawnDesc
-    {
-        Frame = parent,
-        Pose = At(x),
-        AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
-    }));
+    /// <summary>A frame with no body and a bubble of radius 5 m at <paramref name="x"/> on the X axis of
+    /// <paramref name="parent"/>.</summary>
+    private static FrameHandle Bubble(World world, FrameHandle parent, double x) => world.GetOwnedFrame(world.Spawn(
+        new()
+        {
+            Frame = parent,
+            Pose = At(x),
+            AsFrame = new(FrameBounds.Sphere(5))
+        }));
 
     [Fact]
     public void ABoxThatJumpsOffTheFloorAndTheFloorEachHearTheEndAndTheNextLanding()
@@ -53,11 +55,12 @@ public class WorldContactEndTests
         Entity floor = LoggedFloor(world, ground, floorLog);
         var boxLog = new CollisionLog();
         var pilot = new Pilot();
-        Entity box = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 0.5), Body = Cube(), Components = [boxLog, pilot] });
+        Entity box = world.Spawn(new()
+            { Frame = ground, Pose = At(0, 0.5), Body = Cube(), Components = [boxLog, pilot] });
         Tick(world, 30);
         boxLog.NewsOf(floor).Should().Equal([Started], "the box rests on the floor");
 
-        pilot.Once = body => body.SetVelocity(new Double3(0, 3, 0));
+        pilot.Once = body => body.SetVelocity(new(0, 3, 0));
         Tick(world, 10);
 
         boxLog.NewsOf(floor).Should().Equal(Started, Ended);
@@ -83,19 +86,20 @@ public class WorldContactEndTests
             KeepStepping(world, ground);
         var boxLog = new CollisionLog();
         var pilot = new Pilot();
-        Entity box = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 0.5), Body = Cube(), Components = [boxLog, pilot] });
+        Entity box = world.Spawn(new()
+            { Frame = ground, Pose = At(0, 0.5), Body = Cube(), Components = [boxLog, pilot] });
         Tick(world, 1);
         TickUntil(world, () => !IsAwake(backend, ground, box), 600);
         IsAwake(backend, ground, box).Should().BeFalse("the box rests on the floor, so it falls asleep");
         Tick(world, 30);
 
-        pilot.Once = body => body.AddImpulse(new Vector3(0.5f, 0, 0));
+        pilot.Once = body => body.AddImpulse(new(0.5f, 0, 0));
         Tick(world, 5);
         IsAwake(backend, ground, box).Should().BeTrue("the push woke the box");
         Tick(world, 30);
 
         boxLog.NewsOf(floor).Should().Equal([Started], "the box never left the floor");
-        floorLog.NewsOf(box).Should().Equal([Started]);
+        floorLog.NewsOf(box).Should().Equal(Started);
         world.Errors.Should().BeEmpty();
     }
 
@@ -111,7 +115,7 @@ public class WorldContactEndTests
         var floorLog = new CollisionLog();
         LoggedFloor(world, space, floorLog);
         var boxLog = new CollisionLog();
-        Entity box = world.Spawn(new SpawnDesc { Frame = space, Pose = At(0, 0.51), Body = Cube(), Components = [boxLog] });
+        Entity box = world.Spawn(new() { Frame = space, Pose = At(0, 0.51), Body = Cube(), Components = [boxLog] });
 
         Tick(world, 60);
 
@@ -132,10 +136,11 @@ public class WorldContactEndTests
         LoggedFloor(world, space, floorLog);
         var boxLog = new CollisionLog();
         var pilot = new Pilot();
-        Entity box = world.Spawn(new SpawnDesc { Frame = space, Pose = At(0, 0.51), Body = Cube(), Components = [boxLog, pilot] });
+        Entity box = world.Spawn(new()
+            { Frame = space, Pose = At(0, 0.51), Body = Cube(), Components = [boxLog, pilot] });
         Tick(world, 10);
 
-        pilot.Once = body => body.SetVelocity(new Double3(0, 1, 0));
+        pilot.Once = body => body.SetVelocity(new(0, 1, 0));
         Tick(world, 10);
 
         world.PoseInOwnFrame(box).Position.Y.Should().BeGreaterThan(0.6, "the box flew off");
@@ -150,9 +155,9 @@ public class WorldContactEndTests
     {
         using World world = NewWorld(out _);
         FrameHandle space = Ground(world, 0);
-        Entity doomed = world.Spawn(new SpawnDesc { Frame = space, Body = Cube() });
+        Entity doomed = world.Spawn(new() { Frame = space, Body = Cube() });
         var log = new CollisionLog();
-        world.Spawn(new SpawnDesc { Frame = space, Pose = At(1.01), Body = Cube(), Components = [log] });
+        world.Spawn(new() { Frame = space, Pose = At(1.01), Body = Cube(), Components = [log] });
         Tick(world, 10);
 
         world.Destroy(doomed);
@@ -171,21 +176,24 @@ public class WorldContactEndTests
     public void ABallNearAWallThroughAGrowthHearsTheWallWhenItTouches()
     {
         var warnings = new List<string>();
-        var backend = new JoltPhysicsBackend(new JoltBackendOptions { MaxBodiesPerFrame = 8, WorkerThreads = 2, Log = warnings.Add });
-        using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true }, backend);
+        var backend = new JoltPhysicsBackend(new() { MaxBodiesPerFrame = 8, WorkerThreads = 2, Log = warnings.Add });
+        using var world = new World(new() { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true },
+            backend);
         FrameHandle space = Ground(world, 0);
-        Entity wall = world.Spawn(new SpawnDesc { Frame = space, Pose = At(1.01), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Static) });
+        Entity wall = world.Spawn(new()
+            { Frame = space, Pose = At(1.01), Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static) });
         var log = new CollisionLog();
         var pilot = new Pilot();
-        world.Spawn(new SpawnDesc { Frame = space, Body = Ball(), Components = [log, pilot] });
+        world.Spawn(new() { Frame = space, Body = Ball(), Components = [log, pilot] });
         Tick(world, 10);
         for (int i = 0; i < 15; i++)
-            world.Spawn(new SpawnDesc { Frame = space, Pose = At(3 * i, -100), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Static) });
+            world.Spawn(new()
+                { Frame = space, Pose = At(3 * i, -100), Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static) });
         Tick(world, 10);
         warnings.Count(warning => warning.Contains("so it grew")).Should().Be(2);
         log.Seen.Should().BeEmpty("the ball has not touched the wall yet");
 
-        pilot.Once = body => body.SetVelocity(new Double3(0.5, 0, 0));
+        pilot.Once = body => body.SetVelocity(new(0.5, 0, 0));
         Tick(world, 10);
 
         log.Seen.Should().ContainSingle().Which.Other.Should().Be(wall);
@@ -202,9 +210,10 @@ public class WorldContactEndTests
     {
         using World world = NewWorld(out _);
         FrameHandle space = Ground(world, 0);
-        world.Spawn(new SpawnDesc { Frame = space, Pose = At(1.055), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Static) });
+        world.Spawn(new()
+            { Frame = space, Pose = At(1.055), Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static) });
         var log = new CollisionLog();
-        world.Spawn(new SpawnDesc { Frame = space, LinearVelocity = new Vector3(1, 0, 0), Body = Ball(), Components = [log] });
+        world.Spawn(new() { Frame = space, LinearVelocity = new Vector3(1, 0, 0), Body = Ball(), Components = [log] });
 
         Tick(world, 10);
 
@@ -223,12 +232,12 @@ public class WorldContactEndTests
         using World world = NewWorld(out _);
         FrameHandle space = Ground(world, 0);
         var plateAndWall = new CompoundShapeDesc([
-            new CompoundChild(new BoxShapeDesc(new Vector3(3, 0.1f, 3)), new Pose(new Vector3(0, -0.61f, 0), Quaternion.Identity)),
-            new CompoundChild(new BoxShapeDesc(new Vector3(0.5f, 1, 1)), new Pose(new Vector3(1.055f, 0, 0), Quaternion.Identity)),
+            new(new BoxShapeDesc(new(3, 0.1f, 3)), new(new(0, -0.61f, 0), Quaternion.Identity)),
+            new(new BoxShapeDesc(new(0.5f, 1, 1)), new(new(1.055f, 0, 0), Quaternion.Identity))
         ]);
-        Entity body = world.Spawn(new SpawnDesc { Frame = space, Body = new BodyDesc(plateAndWall, BodyMotion.Static) });
+        Entity body = world.Spawn(new() { Frame = space, Body = new(plateAndWall, BodyMotion.Static) });
         var log = new CollisionLog();
-        world.Spawn(new SpawnDesc { Frame = space, LinearVelocity = new Vector3(1, 0, 0), Body = Ball(), Components = [log] });
+        world.Spawn(new() { Frame = space, LinearVelocity = new Vector3(1, 0, 0), Body = Ball(), Components = [log] });
 
         Tick(world, 10);
 
@@ -250,7 +259,7 @@ public class WorldContactEndTests
         var floorLog = new CollisionLog();
         Entity floor = LoggedFloor(world, ground, floorLog);
         var boxLog = new CollisionLog();
-        Entity box = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 0.5), Body = Cube(), Components = [boxLog] });
+        Entity box = world.Spawn(new() { Frame = ground, Pose = At(0, 0.5), Body = Cube(), Components = [boxLog] });
         Tick(world, 3);
         boxLog.NewsOf(floor).Should().Equal(Started);
 
@@ -276,9 +285,11 @@ public class WorldContactEndTests
     {
         using World world = NewWorld(out _);
         FrameHandle space = Ground(world, 0);
-        Entity wall = world.Spawn(new SpawnDesc { Frame = space, Pose = At(1.0508), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Static) });
+        Entity wall = world.Spawn(new()
+            { Frame = space, Pose = At(1.0508), Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static) });
         var log = new CollisionLog();
-        world.Spawn(new SpawnDesc { Frame = space, LinearVelocity = new Vector3(0.1f, 0, 0), Body = Ball(), Components = [log] });
+        world.Spawn(
+            new() { Frame = space, LinearVelocity = new Vector3(0.1f, 0, 0), Body = Ball(), Components = [log] });
 
         Tick(world, 60);
 
@@ -299,13 +310,13 @@ public class WorldContactEndTests
         FrameHandle ground = Ground(world, 9.81f);
         var floorLog = new CollisionLog();
         LoggedFloor(world, ground, floorLog);
-        Entity lower = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1, 0.5), Body = HeavyBox });
+        Entity lower = world.Spawn(new() { Frame = ground, Pose = At(1, 0.5), Body = HeavyBox });
         var upperLog = new CollisionLog();
-        world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1, 1.5), Body = Cube(), Components = [upperLog] });
+        world.Spawn(new() { Frame = ground, Pose = At(1, 1.5), Body = Cube(), Components = [upperLog] });
         var pilot = new Pilot();
         var personLog = new CollisionLog();
-        world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 0.95), Body = Person, Components = [pilot, personLog] });
-        pilot.EveryTick = body => body.MoveCharacter(new Vector3(0.5f, 0, 0));
+        world.Spawn(new() { Frame = ground, Pose = At(0, 0.95), Body = Person, Components = [pilot, personLog] });
+        pilot.EveryTick = body => body.MoveCharacter(new(0.5f, 0, 0));
         Tick(world, 120);
         pilot.EveryTick = body => body.MoveCharacter(Vector3.Zero);
         Tick(world, 5);
@@ -330,10 +341,10 @@ public class WorldContactEndTests
         var floorLog = new CollisionLog();
         LoggedFloor(world, ground, floorLog);
         var boxLog = new CollisionLog();
-        world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1, 0.5), Body = HeavyBox, Components = [boxLog] });
+        world.Spawn(new() { Frame = ground, Pose = At(1, 0.5), Body = HeavyBox, Components = [boxLog] });
         var pilot = new Pilot();
-        Entity person = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 0.95), Body = Person, Components = [pilot] });
-        pilot.EveryTick = body => body.MoveCharacter(new Vector3(0.5f, 0, 0));
+        Entity person = world.Spawn(new() { Frame = ground, Pose = At(0, 0.95), Body = Person, Components = [pilot] });
+        pilot.EveryTick = body => body.MoveCharacter(new(0.5f, 0, 0));
         Tick(world, 120);
         floorLog.NewsOf(person).Should().Equal([Started], "the character stands on the floor");
         boxLog.NewsOf(person).Should().Equal([Started], "the character walked against the box");
@@ -363,42 +374,45 @@ public class WorldContactEndTests
         if (systemKeepsStepping)
             KeepStepping(world, ground);
         var boxLog = new CollisionLog();
-        Entity box = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1, 0.5), Body = HeavyBox, Components = [boxLog] });
+        Entity box = world.Spawn(new() { Frame = ground, Pose = At(1, 0.5), Body = HeavyBox, Components = [boxLog] });
         var pilot = new Pilot();
         var personLog = new CollisionLog();
-        Entity person = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 0.95), Body = Person, Components = [pilot, personLog] });
+        Entity person = world.Spawn(new()
+            { Frame = ground, Pose = At(0, 0.95), Body = Person, Components = [pilot, personLog] });
 
-        pilot.EveryTick = body => body.MoveCharacter(new Vector3(0.5f, 0, 0));
+        pilot.EveryTick = body => body.MoveCharacter(new(0.5f, 0, 0));
         Tick(world, 120);
         pilot.EveryTick = body => body.MoveCharacter(Vector3.Zero);
         Tick(world, 60);
         IsAwake(backend, ground, box).Should().BeFalse("the box fell asleep while the character stood against it");
         personLog.NewsOf(box).Should().Equal(Started);
 
-        pilot.EveryTick = body => body.MoveCharacter(new Vector3(-1.5f, 0, 0));
+        pilot.EveryTick = body => body.MoveCharacter(new(-1.5f, 0, 0));
         Tick(world, 120);
 
         world.PoseInOwnFrame(person).Position.X.Should().BeLessThan(-2, "the character walked 3 m away");
         personLog.NewsOf(box).Should().Equal(Started, Ended);
         boxLog.NewsOf(person).Should().Equal(Started, Ended);
         personLog.NewsOf(floor).Should().Equal([Started], "the character stood on the floor the whole time");
-        floorLog.NewsOf(person).Should().Equal([Started]);
+        floorLog.NewsOf(person).Should().Equal(Started);
         world.Errors.Should().BeEmpty();
     }
 
     /// <summary>A block that owns a frame, with no gravity, whose interior has the block's own shape, and a crate at rest on the interior.</summary>
-    private static (Entity Owner, Entity Crate) CrateOnInterior(World world, CollisionLog ownerLog, params IComponent[] crateComponents)
+    private static (Entity Owner, Entity Crate) CrateOnInterior(World world, CollisionLog ownerLog,
+        params IComponent[] crateComponents)
     {
         FrameHandle space = Ground(world, 0);
-        var block = new BoxShapeDesc(new Vector3(1));
-        Entity owner = world.Spawn(new SpawnDesc
+        var block = new BoxShapeDesc(new(1));
+        Entity owner = world.Spawn(new()
         {
             Frame = space,
-            Body = new BodyDesc(block, Mass: 1000, LinearDamping: 0, AngularDamping: 0, InteriorShape: block),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(3)),
-            Components = [ownerLog],
+            Body = new(block, Mass: 1000, LinearDamping: 0, AngularDamping: 0, InteriorShape: block),
+            AsFrame = new(FrameBounds.Sphere(3)),
+            Components = [ownerLog]
         });
-        Entity crate = world.Spawn(new SpawnDesc { Frame = world.GetOwnedFrame(owner), Pose = At(0, 1.5), Body = Cube(), Components = crateComponents });
+        Entity crate = world.Spawn(new()
+            { Frame = world.GetOwnedFrame(owner), Pose = At(0, 1.5), Body = Cube(), Components = crateComponents });
         return (owner, crate);
     }
 
@@ -415,7 +429,7 @@ public class WorldContactEndTests
         crateLog.NewsOf(owner).Should().Equal(Started);
         ownerLog.NewsOf(crate).Should().Equal(Started);
 
-        pilot.Once = body => body.SetVelocity(new Double3(0, 1, 0));
+        pilot.Once = body => body.SetVelocity(new(0, 1, 0));
         Tick(world, 10);
 
         crateLog.NewsOf(owner).Should().Equal(Started, Ended);
@@ -429,7 +443,7 @@ public class WorldContactEndTests
     {
         using World world = NewWorld(out _);
         var crateLog = new CollisionLog();
-        (Entity owner, Entity crate) = CrateOnInterior(world, new CollisionLog(), crateLog);
+        (Entity owner, Entity crate) = CrateOnInterior(world, new(), crateLog);
         Tick(world, 30);
         crateLog.NewsOf(owner).Should().Equal(Started);
 
@@ -453,8 +467,16 @@ public class WorldContactEndTests
         FrameHandle inside = Bubble(world, space, 20);
         var firstLog = new CollisionLog();
         var secondLog = new CollisionLog();
-        Entity first = world.Spawn(new SpawnDesc { Frame = space, Pose = At(13, 0.5), LinearVelocity = new Vector3(2, 0, 0), Body = Cube(), Components = [firstLog] });
-        Entity second = world.Spawn(new SpawnDesc { Frame = space, Pose = At(13, -0.5), LinearVelocity = new Vector3(2, 0, 0), Body = Cube(), Components = [secondLog] });
+        Entity first = world.Spawn(new()
+        {
+            Frame = space, Pose = At(13, 0.5), LinearVelocity = new Vector3(2, 0, 0), Body = Cube(),
+            Components = [firstLog]
+        });
+        Entity second = world.Spawn(new()
+        {
+            Frame = space, Pose = At(13, -0.5), LinearVelocity = new Vector3(2, 0, 0), Body = Cube(),
+            Components = [secondLog]
+        });
 
         Tick(world, 90);
 
@@ -482,8 +504,14 @@ public class WorldContactEndTests
         FrameHandle inside = Bubble(world, space, 20);
         var frontLog = new CollisionLog();
         var backLog = new CollisionLog();
-        var frontSpawn = new SpawnDesc { Frame = space, Pose = At(14), LinearVelocity = new Vector3(2, 0, 0), Body = Cube(), Components = [frontLog] };
-        var backSpawn = new SpawnDesc { Frame = space, Pose = At(13), LinearVelocity = new Vector3(2, 0, 0), Body = Cube(), Components = [backLog] };
+        var frontSpawn = new SpawnDesc
+        {
+            Frame = space, Pose = At(14), LinearVelocity = new Vector3(2, 0, 0), Body = Cube(), Components = [frontLog]
+        };
+        var backSpawn = new SpawnDesc
+        {
+            Frame = space, Pose = At(13), LinearVelocity = new Vector3(2, 0, 0), Body = Cube(), Components = [backLog]
+        };
         Entity front = frontFirst ? world.Spawn(frontSpawn) : Entity.Null;
         Entity back = world.Spawn(backSpawn);
         if (!frontFirst)
@@ -493,8 +521,9 @@ public class WorldContactEndTests
 
         world.GetFrame(front).Should().Be(inside);
         world.GetFrame(back).Should().Be(inside);
-        frontLog.NewsOf(back).Should().Equal([Started], "the back crate touched the front crate's ghost until it entered too");
-        backLog.NewsOf(front).Should().Equal([Started]);
+        frontLog.NewsOf(back).Should()
+            .Equal([Started], "the back crate touched the front crate's ghost until it entered too");
+        backLog.NewsOf(front).Should().Equal(Started);
         world.Errors.Should().BeEmpty();
     }
 
@@ -511,22 +540,24 @@ public class WorldContactEndTests
     {
         using World world = NewWorld(out _);
         FrameHandle ground = Ground(world, 9.81f);
-        FrameHandle inside = !acrossFrames ? ground : world.GetOwnedFrame(world.Spawn(new SpawnDesc
-        {
-            Frame = ground,
-            Pose = At(20, 0.5),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(5), GravityField.Uniform(new Vector3(0, -9.81f, 0))),
-        }));
+        FrameHandle inside = !acrossFrames
+            ? ground
+            : world.GetOwnedFrame(world.Spawn(new()
+            {
+                Frame = ground,
+                Pose = At(20, 0.5),
+                AsFrame = new(FrameBounds.Sphere(5), GravityField.Uniform(new(0, -9.81f, 0)))
+            }));
         var floorLog = new CollisionLog();
         Entity floor = LoggedFloor(world, ground, floorLog);
         var crateLog = new CollisionLog();
-        Entity crate = world.Spawn(new SpawnDesc
+        Entity crate = world.Spawn(new()
         {
             Frame = ground,
             Pose = At(13, 0.5),
             LinearVelocity = new Vector3(2, 0, 0),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10, Friction: 0, LinearDamping: 0, AngularDamping: 0),
-            Components = [crateLog],
+            Body = new(new BoxShapeDesc(new(0.5f)), Mass: 10, Friction: 0, LinearDamping: 0, AngularDamping: 0),
+            Components = [crateLog]
         });
 
         Tick(world, 60);
@@ -546,18 +577,24 @@ public class WorldContactEndTests
     public void ABallThatRollsOnTheFloorThroughTwoGrowthsOfItsSystemHearsNoEnd()
     {
         var warnings = new List<string>();
-        var backend = new JoltPhysicsBackend(new JoltBackendOptions { MaxBodiesPerFrame = 8, WorkerThreads = 2, Log = warnings.Add });
-        using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true }, backend);
+        var backend = new JoltPhysicsBackend(new() { MaxBodiesPerFrame = 8, WorkerThreads = 2, Log = warnings.Add });
+        using var world = new World(new() { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true },
+            backend);
         FrameHandle ground = Ground(world, 9.81f);
         var floorLog = new CollisionLog();
         Entity floor = LoggedFloor(world, ground, floorLog);
         var ballLog = new CollisionLog();
-        Entity ball = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 0.5), LinearVelocity = new Vector3(1, 0, 0), Body = Ball(), Components = [ballLog] });
+        Entity ball = world.Spawn(new()
+        {
+            Frame = ground, Pose = At(0, 0.5), LinearVelocity = new Vector3(1, 0, 0), Body = Ball(),
+            Components = [ballLog]
+        });
         Tick(world, 30);
 
         // One batch of 15 static crates far below the floor grows the ground's system twice.
         for (int i = 0; i < 15; i++)
-            world.Spawn(new SpawnDesc { Frame = ground, Pose = At(3 * i, -100), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Static) });
+            world.Spawn(new()
+                { Frame = ground, Pose = At(3 * i, -100), Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static) });
         Tick(world, 10);
 
         warnings.Count(warning => warning.Contains("so it grew")).Should().Be(2);

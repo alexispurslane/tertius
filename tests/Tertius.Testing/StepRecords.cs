@@ -1,5 +1,4 @@
 using System.Numerics;
-using Tertius.Frames.Rails;
 
 namespace Tertius.Testing;
 
@@ -12,7 +11,8 @@ public static class StepRecords
     /// acceleration, and <paramref name="measured"/> as the proper acceleration that physics measured, which only a dynamic
     /// hull has.
     /// </summary>
-    public static FrameStepRecord Of(FrameHandle frame, in DPose pose, Double3 velocity = default, Vector3 angularVelocity = default,
+    public static FrameStepRecord Of(FrameHandle frame, in DPose pose, Double3 velocity = default,
+        Vector3 angularVelocity = default,
         Vector3? measured = null) =>
-        new(frame, new MotionSample(pose, velocity, velocity, Double3.Zero, angularVelocity, Double3.Zero), measured);
+        new(frame, new(pose, velocity, velocity, Double3.Zero, angularVelocity, Double3.Zero), measured);
 }

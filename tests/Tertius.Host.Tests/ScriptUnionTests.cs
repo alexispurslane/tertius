@@ -14,13 +14,33 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public class ScriptUnionTests
 {
+    private const string NotValid = "The script is not valid JSON of a script: ";
+    private const string KindsOfStep = "The kinds of step are run, post, dump, capture, camera, film and outlines.";
+    private const string KindsOfTarget = "The kinds of event target are entity, topic, frame and broadcast.";
+
+    // One sample of every case. A new case without a sample fails the two tests that compare the samples with the cases.
+    private static readonly ScriptStep[] StepSamples =
+    [
+        new RunStep(3), new PostStep(new ToEntity("probe"), "Nudge"), new DumpStep("a"), new CaptureStep("b"),
+        new CameraStep("c"), new FilmStep("d", 3, 2), new OutlinesStep(true)
+    ];
+
+    private static readonly MessageTarget[] TargetSamples =
+        [new ToEntity("probe"), new ToTopic("input"), new ToFrame("ship"), new ToEveryone()];
+
+    public static TheoryData<int> StepSampleNumbers => [.. Enumerable.Range(0, StepSamples.Length)];
+
+    public static TheoryData<int> TargetSampleNumbers => [.. Enumerable.Range(0, TargetSamples.Length)];
+
     /// <summary>The types of the cases of a custom union: the parameter types of its constructors that take one case.</summary>
-    private static string[] CasesOf(Type union) => union
-        .GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-        .Where(constructor => constructor.GetParameters().Length == 1)
-        .Select(constructor => constructor.GetParameters()[0].ParameterType.Name)
-        .Order(StringComparer.Ordinal)
-        .ToArray();
+    private static string[] CasesOf(Type union) =>
+    [
+        .. union
+            .GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+            .Where(constructor => constructor.GetParameters().Length == 1)
+            .Select(constructor => constructor.GetParameters()[0].ParameterType.Name)
+            .Order(StringComparer.Ordinal)
+    ];
 
     private static void ShouldBeACustomUnionOf(Type union, params string[] cases)
     {
@@ -31,37 +51,32 @@ public class ScriptUnionTests
 
     [Fact]
     public void AScriptStepIsACustomUnionOfTheSevenStepRecords() =>
-        ShouldBeACustomUnionOf(typeof(ScriptStep), nameof(RunStep), nameof(PostStep), nameof(DumpStep), nameof(CaptureStep), nameof(CameraStep), nameof(FilmStep), nameof(OutlinesStep));
+        ShouldBeACustomUnionOf(typeof(ScriptStep), nameof(RunStep), nameof(PostStep), nameof(DumpStep),
+            nameof(CaptureStep), nameof(CameraStep), nameof(FilmStep), nameof(OutlinesStep));
 
     [Fact]
     public void AMessageTargetIsACustomUnionOfTheFourTargetRecords() =>
-        ShouldBeACustomUnionOf(typeof(MessageTarget), nameof(ToEntity), nameof(ToTopic), nameof(ToFrame), nameof(ToEveryone));
+        ShouldBeACustomUnionOf(typeof(MessageTarget), nameof(ToEntity), nameof(ToTopic), nameof(ToFrame),
+            nameof(ToEveryone));
 
     [Fact]
     public void TheRunnersReadyStepIsACustomUnionOfItsSevenReadyRecords()
     {
         Type ready = typeof(ScriptRunner).GetNestedType("ReadyStep", BindingFlags.NonPublic)!;
 
-        ShouldBeACustomUnionOf(ready, "ReadyRun", "ReadyPost", "ReadyCamera", "ReadyDump", "ReadyCapture", "ReadyFilm", "ReadyOutlines");
+        ShouldBeACustomUnionOf(ready, "ReadyRun", "ReadyPost", "ReadyCamera", "ReadyDump", "ReadyCapture", "ReadyFilm",
+            "ReadyOutlines");
     }
-
-    // One sample of every case. A new case without a sample fails the two tests that compare the samples with the cases.
-    private static readonly ScriptStep[] StepSamples =
-        [new RunStep(3), new PostStep(new ToEntity("probe"), "Nudge"), new DumpStep("a"), new CaptureStep("b"), new CameraStep("c"), new FilmStep("d", 3, 2), new OutlinesStep(true)];
-
-    private static readonly MessageTarget[] TargetSamples = [new ToEntity("probe"), new ToTopic("input"), new ToFrame("ship"), new ToEveryone()];
-
-    public static TheoryData<int> StepSampleNumbers => [.. Enumerable.Range(0, StepSamples.Length)];
-
-    public static TheoryData<int> TargetSampleNumbers => [.. Enumerable.Range(0, TargetSamples.Length)];
 
     [Fact]
     public void EveryCaseOfTheStepUnionHasASample() =>
-        StepSamples.Select(step => step.Value!.GetType().Name).Order(StringComparer.Ordinal).Should().Equal(CasesOf(typeof(ScriptStep)));
+        StepSamples.Select(step => step.Value!.GetType().Name).Order(StringComparer.Ordinal).Should()
+            .Equal(CasesOf(typeof(ScriptStep)));
 
     [Fact]
     public void EveryCaseOfTheTargetUnionHasASample() =>
-        TargetSamples.Select(target => target.Value!.GetType().Name).Order(StringComparer.Ordinal).Should().Equal(CasesOf(typeof(MessageTarget)));
+        TargetSamples.Select(target => target.Value!.GetType().Name).Order(StringComparer.Ordinal).Should()
+            .Equal(CasesOf(typeof(MessageTarget)));
 
     [Fact]
     public void AStepHoldsExactlyTheCaseItWasMadeFrom()
@@ -202,16 +217,19 @@ public class ScriptUnionTests
 
         Action run = () => ScriptRunner.Run(script, world, scene);
 
-        run.Should().Throw<ScriptException>().Which.Message.Should().Be("step 2 (post): an event target cannot be null.");
+        run.Should().Throw<ScriptException>().Which.Message.Should()
+            .Be("step 2 (post): an event target cannot be null.");
         world.TickNumber.Should().Be(0);
     }
 
     [Fact]
     public void ThePostStepOfANullTargetIsRefusedWhenItIsRead()
     {
-        Action parse = () => Script.Parse("""{ "scene": "probes", "steps": [ { "do": "post", "to": null, "event": "Nudge" } ] }""");
+        Action parse = () =>
+            Script.Parse("""{ "scene": "probes", "steps": [ { "do": "post", "to": null, "event": "Nudge" } ] }""");
 
-        parse.Should().Throw<ScriptException>().Which.Message.Should().StartWith("The script is not valid JSON of a script: An event target cannot be null. Path: $.to");
+        parse.Should().Throw<ScriptException>().Which.Message.Should()
+            .StartWith("The script is not valid JSON of a script: An event target cannot be null. Path: $.to");
     }
 
     // Each makes the options from a world that the test disposes. Only the payload options use it.
@@ -219,20 +237,24 @@ public class ScriptUnionTests
     [
         [(Func<World, JsonSerializerOptions>)(_ => ScriptJson.Scripts)],
         [(Func<World, JsonSerializerOptions>)(_ => ScriptJson.Recordings)],
-        [(Func<World, JsonSerializerOptions>)(_ => ScriptJson.Dumps(new SceneInstance()))],
-        [(Func<World, JsonSerializerOptions>)(world => ScriptJson.Payloads(world, new SceneInstance()))],
+        [(Func<World, JsonSerializerOptions>)(_ => ScriptJson.Dumps(new()))],
+        [(Func<World, JsonSerializerOptions>)(world => ScriptJson.Payloads(world, new()))]
     ];
 
     [Theory]
     [MemberData(nameof(OptionsOfTheScriptFormat))]
-    public void EveryOptionsObjectOfTheScriptFormatWritesTheDiscriminatorsFirst(Func<World, JsonSerializerOptions> options)
+    public void EveryOptionsObjectOfTheScriptFormatWritesTheDiscriminatorsFirst(
+        Func<World, JsonSerializerOptions> options)
     {
         using World world = HostTesting.NewWorld();
 
-        using JsonDocument step = JsonDocument.Parse(JsonSerializer.Serialize<ScriptStep>(new PostStep(new ToTopic("input"), "Nudge"), options(world)));
+        using JsonDocument step =
+            JsonDocument.Parse(JsonSerializer.Serialize<ScriptStep>(new PostStep(new ToTopic("input"), "Nudge"),
+                options(world)));
 
         step.RootElement.EnumerateObject().Select(member => member.Name).Should().Equal("do", "to", "event", "payload");
-        step.RootElement.GetProperty("to").EnumerateObject().Select(member => member.Name).Should().Equal("kind", "name");
+        step.RootElement.GetProperty("to").EnumerateObject().Select(member => member.Name).Should()
+            .Equal("kind", "name");
     }
 
     /// <summary>The bytes that the current thread allocates while it runs <paramref name="action"/> 100 times, after 10 runs that warm it up.</summary>
@@ -260,6 +282,7 @@ public class ScriptUnionTests
         ScriptStep step = run;
         MessageTarget target = topic;
         JsonTypeInfo runInfo = options.GetTypeInfo<RunStep>(), topicInfo = options.GetTypeInfo<ToTopic>();
+
         Action Writing(Action<Utf8JsonWriter> write) => () =>
         {
             buffer.ResetWrittenCount();
@@ -281,14 +304,18 @@ public class ScriptUnionTests
     public void ReadingAStepOrATargetAllocatesNothingBeyondTheReadOfItsCaseRecord()
     {
         JsonSerializerOptions options = ScriptJson.Scripts;
-        byte[] run = """{"do":"run","ticks":3}"""u8.ToArray(), topic = """{"kind":"topic","name":"input"}"""u8.ToArray();
+        byte[] run = """{"do":"run","ticks":3}"""u8.ToArray(),
+            topic = """{"kind":"topic","name":"input"}"""u8.ToArray();
         JsonTypeInfo runInfo = options.GetTypeInfo<RunStep>(), topicInfo = options.GetTypeInfo<ToTopic>();
-        Action Reading(byte[] json, Action<Utf8JsonReader> read) => () => read(new Utf8JsonReader(json));
+        Action Reading(byte[] json, Action<Utf8JsonReader> read) => () => read(new(json));
 
         long runRecord = BytesAllocatedBy(Reading(run, reader => JsonSerializer.Deserialize(ref reader, runInfo)));
-        long runStep = BytesAllocatedBy(Reading(run, reader => JsonSerializer.Deserialize<ScriptStep>(ref reader, options)));
-        long topicRecord = BytesAllocatedBy(Reading(topic, reader => JsonSerializer.Deserialize(ref reader, topicInfo)));
-        long topicTarget = BytesAllocatedBy(Reading(topic, reader => JsonSerializer.Deserialize<MessageTarget>(ref reader, options)));
+        long runStep =
+            BytesAllocatedBy(Reading(run, reader => JsonSerializer.Deserialize<ScriptStep>(ref reader, options)));
+        long topicRecord =
+            BytesAllocatedBy(Reading(topic, reader => JsonSerializer.Deserialize(ref reader, topicInfo)));
+        long topicTarget = BytesAllocatedBy(Reading(topic,
+            reader => JsonSerializer.Deserialize<MessageTarget>(ref reader, options)));
 
         runStep.Should().Be(runRecord);
         topicTarget.Should().Be(topicRecord);
@@ -305,16 +332,13 @@ public class ScriptUnionTests
     [Fact]
     public void OptionsThatAreNotOfTheScriptFormatCannotReadAStepEither()
     {
-        Action read = () => JsonSerializer.Deserialize<ScriptStep>("""{ "do": "run", "ticks": 1 }""", new JsonSerializerOptions());
+        Action read = () =>
+            JsonSerializer.Deserialize<ScriptStep>("""{ "do": "run", "ticks": 1 }""", new JsonSerializerOptions());
 
         read.Should().Throw<InvalidOperationException>().Which.Message.Should().Contain("do");
     }
 
     private static Script ScriptWith(string step) => Script.Parse($$"""{ "scene": "probes", "steps": [ {{step}} ] }""");
-
-    private const string NotValid = "The script is not valid JSON of a script: ";
-    private const string KindsOfStep = "The kinds of step are run, post, dump, capture, camera, film and outlines.";
-    private const string KindsOfTarget = "The kinds of event target are entity, topic, frame and broadcast.";
 
     [Theory]
     [InlineData("""{ "ticks": 1 }""", "A step needs a \"do\" key. " + KindsOfStep)]
@@ -351,13 +375,16 @@ public class ScriptUnionTests
     {
         Action parse = () => ScriptWith("""{ "do": "jump" }""");
 
-        parse.Should().Throw<ScriptException>().Which.Message.Should().EndWith("Path: $.steps[0] | LineNumber: 0 | BytePositionInLine: 33.");
+        parse.Should().Throw<ScriptException>().Which.Message.Should()
+            .EndWith("Path: $.steps[0] | LineNumber: 0 | BytePositionInLine: 33.");
     }
 
     [Fact]
     public void TheDoKeyIsFoundBeyondMembersThatHoldObjectsAndArrays()
     {
-        Script script = ScriptWith("""{ "event": "Nudge", "payload": { "do": "dump", "deep": [ { "do": "x" }, 1 ] }, "to": { "id": "probe", "kind": "entity" }, "do": "post" }""");
+        Script script =
+            ScriptWith(
+                """{ "event": "Nudge", "payload": { "do": "dump", "deep": [ { "do": "x" }, 1 ] }, "to": { "id": "probe", "kind": "entity" }, "do": "post" }""");
 
         script.Steps[0].TryGetValue(out PostStep? post).Should().BeTrue();
         post!.Payload!.Value.GetProperty("do").GetString().Should().Be("dump");

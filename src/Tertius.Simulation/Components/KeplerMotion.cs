@@ -49,7 +49,9 @@ public sealed class KeplerMotion : IComponent
         init
         {
             if (!value.IsValid)
-                throw new ArgumentException($"A KeplerMotion needs an orbit that it can follow, and {value} is not valid (see KeplerOrbit.IsValid).", nameof(value));
+                throw new ArgumentException(
+                    $"A KeplerMotion needs an orbit that it can follow, and {value} is not valid (see KeplerOrbit.IsValid).",
+                    nameof(value));
             orbit = value;
         }
     }
@@ -64,33 +66,40 @@ public sealed class KeplerMotion : IComponent
         if (!orbit.IsValid)
         {
             if (!loggedNoOrbit)
-                self.Log($"KeplerMotion holds {RailsLog.Mover(self)} still: it has no orbit that it can follow (see KeplerOrbit.IsValid).");
+                self.Log(
+                    $"KeplerMotion holds {RailsLog.Mover(self)} still: it has no orbit that it can follow (see KeplerOrbit.IsValid).");
             loggedNoOrbit = true;
             return;
         }
+
         double mu = self.Frame.IsNull ? 0 : KeplerOrbit.MuFrom(self.Snapshot.Frames.Gravity(self.Frame));
         if (!(mu > 0))
         {
             if (!loggedNoGM)
-                self.Log($"KeplerMotion holds {RailsLog.Mover(self)} still: its parent {self.Frame} has no point gravity with a G·M above 0 to orbit.");
+                self.Log(
+                    $"KeplerMotion holds {RailsLog.Mover(self)} still: its parent {self.Frame} has no point gravity with a G·M above 0 to orbit.");
             loggedNoGM = true;
             return;
         }
+
         MotionSample sample = orbit.Sample(mu, self.TimeAt(self.Tick + 2), self.DeltaTime);
         var move = new MotionIntent(sample);
         if (!self.TakesMotionIntent(move))
         {
             // The reason allocates, so the component words it only for its one log line.
             if (!loggedRefusal)
-                self.Log($"KeplerMotion writes no sample for {RailsLog.Mover(self)}: {self.Entity} {self.MotionIntentProblem(move)}.");
+                self.Log(
+                    $"KeplerMotion writes no sample for {RailsLog.Mover(self)}: {self.Entity} {self.MotionIntentProblem(move)}.");
             loggedRefusal = true;
             return;
         }
+
         if (!started && self.Body.NextStepMotion == BodyMotion.Kinematic)
         {
             double stepStart = self.TimeAt(self.Tick + 1);
-            self.Body.Teleport(new DPose(orbit.StateAt(stepStart, mu).Position, orbit.RotationAt(stepStart, mu)));
+            self.Body.Teleport(new(orbit.StateAt(stepStart, mu).Position, orbit.RotationAt(stepStart, mu)));
         }
+
         started = true;
         self.MoveOnRails(sample);
     }
@@ -100,5 +109,6 @@ public sealed class KeplerMotion : IComponent
 internal static class RailsLog
 {
     /// <summary>What the rails component of <paramref name="self"/> moves: the frame that the entity owns, or else the entity.</summary>
-    public static string Mover(Self self) => self.OwnedFrame.IsNull ? self.Entity.ToString() : self.OwnedFrame.ToString();
+    public static string Mover(Self self) =>
+        self.OwnedFrame.IsNull ? self.Entity.ToString() : self.OwnedFrame.ToString();
 }

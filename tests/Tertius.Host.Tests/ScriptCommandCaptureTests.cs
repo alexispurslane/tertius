@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Tertius.Demo;
 using Tertius.Rendering;
 using static Tertius.Host.Tests.GpuTesting;
 using static Tertius.Host.Tests.HostTesting;
@@ -13,9 +14,9 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     private readonly StringWriter output = new();
     private readonly StringWriter error = new();
 
-    public void Dispose() => Directory.Delete(folder, recursive: true);
-
     private string Out => Path.Combine(folder, "out");
+
+    public void Dispose() => Directory.Delete(folder, recursive: true);
 
     private string ScriptFile(string json)
     {
@@ -28,28 +29,32 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     public void TheCommandCapturesWithAHeadlessRendererAndWritesThePathOfEveryFile()
     {
         string script = ScriptFile("""
-            { "scene": "lit-box", "window": { "width": 160, "height": 90 },
-              "steps": [ { "do": "capture", "name": "front" }, { "do": "dump", "name": "state" } ] }
-            """);
+                                   { "scene": "lit-box", "window": { "width": 160, "height": 90 },
+                                     "steps": [ { "do": "capture", "name": "front" }, { "do": "dump", "name": "state" } ] }
+                                   """);
 
         int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out], [LitBoxScene], output, error);
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
-        Png.Load(Path.Combine(Out, "front.png")).IsRed(80, 45).Should().BeTrue("the scene gets the renderer's resources, so its box has a mesh");
+        Png.Load(Path.Combine(Out, "front.png")).IsRed(80, 45).Should()
+            .BeTrue("the scene gets the renderer's resources, so its box has a mesh");
         output.ToString().Should().Contain(Path.Combine(Out, "front.png")).And.Contain(Path.Combine(Out, "state.json"));
     }
 
     [Fact]
     public void AScriptThatOnlyCapturesGetsOneHeadlessRendererWithoutImpostors()
     {
-        string script = ScriptFile("""{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }""");
+        string script =
+            ScriptFile(
+                """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }""");
         var made = new List<VulkanRenderer>();
 
-        int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out], [LitBoxScene], output, error, options =>
-        {
-            made.Add(VulkanRenderer.CreateHeadless(options));
-            return made[^1];
-        });
+        int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out], [LitBoxScene], output, error,
+            options =>
+            {
+                made.Add(VulkanRenderer.CreateHeadless(options));
+                return made[^1];
+            });
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
         made.Should().ContainSingle();
@@ -63,14 +68,18 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     [Fact]
     public void AScriptThatOnlyFilmsGetsAHeadlessRendererAndWritesThePathOfEveryFrame()
     {
-        string script = ScriptFile("""{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "film", "name": "box", "frames": 2, "every": 1 } ] }""");
+        string script =
+            ScriptFile(
+                """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "film", "name": "box", "frames": 2, "every": 1 } ] }""");
 
         int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out], [LitBoxScene], output, error);
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
-        Png.Load(Path.Combine(Out, "box-000000.png")).IsRed(80, 45).Should().BeTrue("the scene gets the renderer's resources, so its box has a mesh");
+        Png.Load(Path.Combine(Out, "box-000000.png")).IsRed(80, 45).Should()
+            .BeTrue("the scene gets the renderer's resources, so its box has a mesh");
         Png.Load(Path.Combine(Out, "box-000001.png")).IsRed(80, 45).Should().BeTrue();
-        output.ToString().Should().Contain(Path.Combine(Out, "box-000000.png")).And.Contain(Path.Combine(Out, "box-000001.png"));
+        output.ToString().Should().Contain(Path.Combine(Out, "box-000000.png")).And
+            .Contain(Path.Combine(Out, "box-000001.png"));
     }
 
     [Fact]
@@ -91,13 +100,17 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     {
         string root = RepositoryRoot();
 
-        int code = ScriptCommand.Run(["--script", Path.Combine(root, "scripts", "drop-box.json"), "--headless", "--out", Out], Tertius.Demo.DemoScenes.All, output, error);
+        int code = ScriptCommand.Run(
+            ["--script", Path.Combine(root, "scripts", "drop-box.json"), "--headless", "--out", Out], DemoScenes.All,
+            output, error);
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
         using JsonDocument landed = JsonDocument.Parse(File.ReadAllText(Path.Combine(Out, "landed.json")));
         landed.RootElement.GetProperty("camera").GetString().Should().Be("camera");
-        JsonElement box = landed.RootElement.GetProperty("entities").EnumerateArray().Single(e => e.GetProperty("id").GetString() == "box");
-        box.GetProperty("pose").GetProperty("position")[1].GetDouble().Should().BeApproximately(0.5, 0.02, "the 1 m box rests on the floor whose top is at y = 0");
+        JsonElement box = landed.RootElement.GetProperty("entities").EnumerateArray()
+            .Single(e => e.GetProperty("id").GetString() == "box");
+        box.GetProperty("pose").GetProperty("position")[1].GetDouble().Should()
+            .BeApproximately(0.5, 0.02, "the 1 m box rests on the floor whose top is at y = 0");
         // The camera at (0, 2.5, 9), tilted down 6.3 degrees, sees the box's center at y = 3 on row 256 and at y = 0.5 on
         // row 428 of the 720 rows.
         Png start = Png.Load(Path.Combine(Out, "start.png"));

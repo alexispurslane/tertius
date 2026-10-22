@@ -24,15 +24,22 @@ namespace Tertius.Demo;
 /// <param name="FinalRate">The wanted speed near the target per meter of distance, in 1/s.</param>
 /// <param name="VelocityTime">The time in which the correction takes the error of the velocity, in seconds.</param>
 /// <param name="MaxAcceleration">The longest correction, in m/s².</param>
-public readonly record struct ApproachGuidance(double BrakeAcceleration, double SpeedCap, double FinalRate, double VelocityTime, double MaxAcceleration)
+public readonly record struct ApproachGuidance(
+    double BrakeAcceleration,
+    double SpeedCap,
+    double FinalRate,
+    double VelocityTime,
+    double MaxAcceleration)
 {
     /// <summary>
     /// The law of the brake, which stops the shuttle at the arrival point with the main engine, and the translation
-    /// thrusters for the rest. Its curve brakes at 2.4 m/s², 80 percent of the burn's <see cref="TransferGuidance.BurnAcceleration"/>,
+    /// thrusters for the rest. Its curve brakes at 2.4 m/s², 80 percent of the burn's
+    /// <see cref="TransferGuidance.BurnAcceleration"/>,
     /// so the law has room to follow its curve. It has no speed cap. It takes the error of the velocity in 0.5 s.
     /// </summary>
     public static ApproachGuidance ForBrake() =>
-        new(0.8 * TransferGuidance.BurnAcceleration, double.PositiveInfinity, 0.5, 0.5, TransferGuidance.BurnAcceleration);
+        new(0.8 * TransferGuidance.BurnAcceleration, double.PositiveInfinity, 0.5, 0.5,
+            TransferGuidance.BurnAcceleration);
 
     /// <summary>
     /// The law of the glide and the hold, which flies the shuttle along the axis to the hold point on the translation
@@ -63,7 +70,8 @@ public readonly record struct ApproachGuidance(double BrakeAcceleration, double 
     /// caller turns into the axes. The turn must be steady, so it has no Euler term. With no turn, it is the difference of
     /// gravity alone.
     /// </summary>
-    public static Double3 FreeAcceleration(Double3 rate, Double3 centerOfMass, Double3 velocity, Double3 gravityDifference) =>
+    public static Double3 FreeAcceleration(Double3 rate, Double3 centerOfMass, Double3 velocity,
+        Double3 gravityDifference) =>
         -Double3.Cross(rate, Double3.Cross(rate, centerOfMass)) - 2 * Double3.Cross(rate, velocity) + gravityDifference;
 
     /// <summary>

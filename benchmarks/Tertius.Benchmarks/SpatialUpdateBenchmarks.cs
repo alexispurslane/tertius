@@ -16,49 +16,54 @@ namespace Tertius.Benchmarks;
 /// </summary>
 public class SpatialUpdateBenchmarks
 {
-    public enum UpdateMode
-    {
-        /// <summary>Writes and copies the rows, and leaves the index as it is.</summary>
-        CopyOnly,
-        /// <summary>Writes and copies the rows, and takes the moved list from the entity table, as an update does first.</summary>
-        TakeOnly,
-        /// <summary>Updates the index on this thread alone.</summary>
-        OneThread,
-        /// <summary>Updates the index with the workers, however few entities moved.</summary>
-        Workers,
-    }
-
     private EntityTable entities = null!;
     private SpatialIndex spatial = null!;
     private Entity[] movers = [];
     private bool shifted;
 
-    [Params(16384, 32768, 65536, 98304)]
-    public int Moved { get; set; }
+    [Params(16384, 32768, 65536, 98304)] public int Moved { get; set; }
 
     [Params(UpdateMode.CopyOnly, UpdateMode.TakeOnly, UpdateMode.OneThread, UpdateMode.Workers)]
     public UpdateMode Mode { get; set; }
 
-    [Params(false, true)]
-    public bool ChangeCells { get; set; }
+    [Params(false, true)] public bool ChangeCells { get; set; }
+
+    public enum UpdateMode
+    {
+        /// <summary>Writes and copies the rows, and leaves the index as it is.</summary>
+        CopyOnly,
+
+        /// <summary>Writes and copies the rows, and takes the moved list from the entity table, as an update does first.</summary>
+        TakeOnly,
+
+        /// <summary>Updates the index on this thread alone.</summary>
+        OneThread,
+
+        /// <summary>Updates the index with the workers, however few entities moved.</summary>
+        Workers
+    }
 
     [GlobalSetup]
     public void Setup()
     {
-        entities = new EntityTable(chunkSize: 64, initialCapacity: Moved + 64);
+        entities = new(chunkSize: 64, initialCapacity: Moved + 64);
         var frames = new FrameTree();
-        ParallelOptions? workers = Mode == UpdateMode.Workers ? new ParallelOptions { MaxDegreeOfParallelism = -1 } : null;
-        spatial = new SpatialIndex(entities, frames, workers) { ParallelThreshold = 1 };
+        ParallelOptions? workers =
+            Mode == UpdateMode.Workers ? new ParallelOptions { MaxDegreeOfParallelism = -1 } : null;
+        spatial = new(entities, frames, workers) { ParallelThreshold = 1 };
         // The owner of the root is a handle that the table never hands out, so it is in no grid.
-        FrameHandle root = frames.Create(new Entity((uint)Moved + 1000, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e12f));
+        FrameHandle root = frames.Create(new((uint)Moved + 1000, 1), FrameHandle.Null, DPose.Identity,
+            FrameBounds.Sphere(1e12f));
         double spacing = ChangeCells ? 40 : 2;
         movers = new Entity[Moved];
         for (int i = 0; i < Moved; i++)
         {
             movers[i] = entities.Reserve();
-            var row = new TransformRow { Frame = root, Pose = new DPose(new Double3(i % 300 * spacing, i / 300 * spacing, 0), DQuaternion.Identity) };
-            entities.Activate(movers[i], row, new RenderData(), [], [], null, Vector3.Zero, FrameHandle.Null);
+            var row = new TransformRow
+                { Frame = root, Pose = new(new(i % 300 * spacing, i / 300 * spacing, 0), DQuaternion.Identity) };
+            entities.Activate(movers[i], row, new(), [], [], null, Vector3.Zero, FrameHandle.Null);
         }
+
         entities.CopyDirtyRows();
         spatial.Update();
     }
@@ -75,6 +80,7 @@ public class SpatialUpdateBenchmarks
             row.Pose = row.Pose with { Position = row.Pose.Position + new Double3(step, 0, 0) };
             entities.SetBackTransform(mover, row);
         }
+
         entities.CopyDirtyRows();
         if (Mode == UpdateMode.TakeOnly)
             entities.TakeMoved();

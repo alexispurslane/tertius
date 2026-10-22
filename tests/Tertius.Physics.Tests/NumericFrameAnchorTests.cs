@@ -1,5 +1,4 @@
 using System.Numerics;
-using Tertius.Frames.Rails;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
 using static Tertius.Testing.NumericFrameTesting;
@@ -16,7 +15,8 @@ namespace Tertius.Physics.Tests;
 /// runs with the default numeric frames and without numeric frames, and it must give the same events and the same motion
 /// either way. Under the default rules, a group with a body that thrusts gets a falling numeric frame from 50 m/s relative
 /// to its frame, a group of free bodies only from 1,000 m/s, and a slow group 2^23 m (8,389 km) or more from its frame's
-/// origin gets a resting one. So the body that flies in each scene thrusts gently from its spawn on (see <see cref="Along"/>
+/// origin gets a resting one. So the body that flies in each scene thrusts gently from its spawn on (see
+/// <see cref="Along"/>
 /// and <see cref="Across"/>): it counts as a body that thrusts from its thirtieth tick on, and from then on it falls when no
 /// anchor holds it. Each scene gives the same thruster to its body in the run without numeric frames.
 /// </summary>
@@ -28,6 +28,42 @@ public class NumericFrameAnchorTests
     /// point of this tick on.
     /// </summary>
     private const int OnsetTicks = 30;
+
+    // ---- A group that links two static anchors -------------------------------------------------------------------
+
+    /// <summary>
+    /// The distance from its frame's origin, in meters, from which a slow group gets a resting frame under the default rules
+    /// (see <see cref="NumericFrameOptions.CreateDistance"/>): 2^23 m, about 8,389 km. The scenes of resting frames put their
+    /// bodies a few meters on either side of it.
+    /// </summary>
+    private const double RestingDistance = 1 << 23;
+
+    /// <summary>A static wall 10 cm thick, 10 m by 10 m, across the X axis.</summary>
+    private static readonly BodyDesc ThinWall = new(new BoxShapeDesc(new(0.05f, 5, 5)), BodyMotion.Static);
+
+    /// <summary>A static mesh wall without thickness, 10 m by 10 m, across the X axis, whose two triangles face -X.</summary>
+    private static readonly BodyDesc ThinMeshWall = new(new MeshShapeDesc(
+        [new(0, -5, -5), new(0, -5, 5), new(0, 5, 5), new(0, 5, -5)], [0, 1, 2, 0, 2, 3]), BodyMotion.Static, Mass: 0);
+
+    /// <summary>A crate of 2 kg, a box of 20 cm that nothing slows down on its own and that does not bounce.</summary>
+    private static readonly BodyDesc SmallCrate = new(new BoxShapeDesc(new(0.1f)), Mass: 2, Restitution: 0,
+        LinearDamping: 0, AngularDamping: 0);
+
+    /// <summary>A ball of 1 kg with a radius of 0.5 m that nothing slows down on its own and that does not bounce.</summary>
+    private static readonly BodyDesc FlyingBall = new(new SphereShapeDesc(0.5f), Mass: 1, Restitution: 0,
+        LinearDamping: 0, AngularDamping: 0);
+
+    /// <summary>A static rock, a sphere with a radius of 1 m.</summary>
+    private static readonly BodyDesc Rock = new(new SphereShapeDesc(1), BodyMotion.Static);
+
+    // ---- A fast crate thrown at a kinematic door ------------------------------------------------------------------
+
+    /// <summary>A crate of 25 kg, a box of 50 cm that nothing slows down on its own and that does not bounce.</summary>
+    private static readonly BodyDesc HeavyCrate = new(new BoxShapeDesc(new(0.25f)), Mass: 25, Restitution: 0,
+        LinearDamping: 0, AngularDamping: 0);
+
+    /// <summary>A kinematic door of 1 kg, 10 cm thick, 10 m by 10 m, across the X axis.</summary>
+    private static readonly BodyDesc ThinDoor = new(new BoxShapeDesc(new(0.05f, 5, 5)), BodyMotion.Kinematic, Mass: 1);
 
     /// <summary>
     /// A gentle thruster (see <see cref="Thruster"/>) for a body of <paramref name="mass"/> kg that pushes it along +X, the
@@ -54,11 +90,11 @@ public class NumericFrameAnchorTests
     /// </summary>
     private static World NewWorld(bool numericFrames, int threads, out FaultInjectingBackend faults)
     {
-        faults = new FaultInjectingBackend(new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = threads }));
+        faults = new(new(new() { WorkerThreads = threads }));
         var options = new WorldOptions { MaxDegreeOfParallelism = threads, DebugChecks = true, DisposePhysics = true };
         if (!numericFrames)
             options.NumericFrames = WithoutNumericFrames;
-        return new World(options, faults);
+        return new(options, faults);
     }
 
     /// <summary>
@@ -67,28 +103,12 @@ public class NumericFrameAnchorTests
     /// </summary>
     private static FrameHandle Station(World world, float radius = 1000)
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
-        return world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
+        return world.GetOwnedFrame(world.Spawn(new()
         {
-            Frame = space, Pose = At(0), AsFrame = new FrameSpec(FrameBounds.Sphere(radius)),
+            Frame = space, Pose = At(0), AsFrame = new(FrameBounds.Sphere(radius))
         }));
     }
-
-    /// <summary>A static wall 10 cm thick, 10 m by 10 m, across the X axis.</summary>
-    private static readonly BodyDesc ThinWall = new(new BoxShapeDesc(new Vector3(0.05f, 5, 5)), BodyMotion.Static);
-
-    /// <summary>A static mesh wall without thickness, 10 m by 10 m, across the X axis, whose two triangles face -X.</summary>
-    private static readonly BodyDesc ThinMeshWall = new(new MeshShapeDesc(
-        [new Vector3(0, -5, -5), new Vector3(0, -5, 5), new Vector3(0, 5, 5), new Vector3(0, 5, -5)], [0, 1, 2, 0, 2, 3]), BodyMotion.Static, Mass: 0);
-
-    /// <summary>A crate of 2 kg, a box of 20 cm that nothing slows down on its own and that does not bounce.</summary>
-    private static readonly BodyDesc SmallCrate = new(new BoxShapeDesc(new Vector3(0.1f)), Mass: 2, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
-
-    /// <summary>A ball of 1 kg with a radius of 0.5 m that nothing slows down on its own and that does not bounce.</summary>
-    private static readonly BodyDesc FlyingBall = new(new SphereShapeDesc(0.5f), Mass: 1, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
-
-    /// <summary>A static rock, a sphere with a radius of 1 m.</summary>
-    private static readonly BodyDesc Rock = new(new SphereShapeDesc(1), BodyMotion.Static);
 
     /// <summary>The bodies of a scene: the station, the body that flies, and the anchor that it meets.</summary>
     private sealed record Scene(FrameHandle Station, Entity Mover, Entity Anchor);
@@ -98,18 +118,24 @@ public class NumericFrameAnchorTests
     /// that it heard, and each change of its physics home: the tick, the kind of the new home (the station's own system,
     /// or the mode of a numeric frame), and its distance from the anchor's center then, in meters.
     /// </summary>
-    private sealed record Flight(string Name, Double3 Position, Double3 Velocity, List<(long Tick, Entity Other, float Impulse)> Seen,
-        List<(long Tick, Entity Other)> Ended, List<(long Tick, string Home, double Distance)> Homes)
+    private sealed record Flight(
+        string Name,
+        Double3 Position,
+        Double3 Velocity,
+        List<(long Tick, Entity Other, float Impulse)> Seen,
+        List<(long Tick, Entity Other)> Ended,
+        List<(long Tick, string Home, double Distance)> Homes)
     {
         /// <summary>The kinds of the homes, in order.</summary>
-        public List<string> HomeKinds => Homes.Select(change => change.Home).ToList();
+        public List<string> HomeKinds => [.. Homes.Select(change => change.Home)];
     }
 
     /// <summary>
     /// Builds a scene with <paramref name="build"/>, runs it for <paramref name="ticks"/> ticks, and calls
     /// <paramref name="watch"/> after each tick, when it is given. The mover carries <c>log</c>.
     /// </summary>
-    private static Flight Fly(bool numericFrames, int threads, Func<World, CollisionLog, Scene> build, int ticks, Action<World, Scene>? watch = null)
+    private static Flight Fly(bool numericFrames, int threads, Func<World, CollisionLog, Scene> build, int ticks,
+        Action<World, Scene>? watch = null)
     {
         using World world = NewWorld(numericFrames, threads, out FaultInjectingBackend faults);
         var log = new CollisionLog();
@@ -122,28 +148,36 @@ public class NumericFrameAnchorTests
             FrameHandle home = world.PhysicsHomeOf(scene.Mover);
             if (home != last)
             {
-                double distance = (world.PoseIn(scene.Mover, scene.Station).Position - world.PoseIn(scene.Anchor, scene.Station).Position).Length;
-                homes.Add((world.TickNumber, home == scene.Station ? "station" : world.Frames.Numeric(home).ToString(), distance));
+                double distance = (world.PoseIn(scene.Mover, scene.Station).Position -
+                                   world.PoseIn(scene.Anchor, scene.Station).Position).Length;
+                homes.Add((world.TickNumber, home == scene.Station ? "station" : world.Frames.Numeric(home).ToString(),
+                    distance));
                 last = home;
             }
+
             watch?.Invoke(world, scene);
         }
+
         world.Errors.Should().BeEmpty();
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
-        return new Flight(numericFrames ? "with numeric frames" : "without numeric frames", world.PoseIn(scene.Mover, scene.Station).Position,
+        return new(numericFrames ? "with numeric frames" : "without numeric frames",
+            world.PoseIn(scene.Mover, scene.Station).Position,
             world.VelocityIn(scene.Mover, scene.Station), log.Seen, log.Ended, homes);
     }
 
     /// <summary>Checks that two runs of one scene, with and without numeric frames, heard the same events and moved alike.</summary>
     private static void ShouldMatch(Flight with, Flight without, double tolerance)
     {
-        with.Seen.Select(s => (s.Tick, s.Other)).Should().Equal(without.Seen.Select(s => (s.Tick, s.Other)), "the body hears the same Collisions");
+        with.Seen.Select(s => (s.Tick, s.Other)).Should().Equal(without.Seen.Select(s => (s.Tick, s.Other)),
+            "the body hears the same Collisions");
         with.Ended.Should().Equal(without.Ended, "the body hears the same CollisionEnded events");
         for (int i = 0; i < with.Seen.Count; i++)
-            with.Seen[i].Impulse.Should().BeApproximately(without.Seen[i].Impulse, Math.Abs(without.Seen[i].Impulse) * 0.02f + 1e-3f);
+            with.Seen[i].Impulse.Should()
+                .BeApproximately(without.Seen[i].Impulse, Math.Abs(without.Seen[i].Impulse) * 0.02f + 1e-3f);
         (with.Position - without.Position).Length.Should().BeLessThan(tolerance, "the body moves alike");
         (with.Velocity - without.Velocity).Length.Should().BeLessThan(tolerance, "the body moves alike");
-        without.HomeKinds.Should().Equal(["station"], "without numeric frames the body stays in the station's own system");
+        without.HomeKinds.Should()
+            .Equal(["station"], "without numeric frames the body stays in the station's own system");
     }
 
     // ---- A crate thrown at a thin wall ---------------------------------------------------------------------------
@@ -158,12 +192,13 @@ public class NumericFrameAnchorTests
     private static Scene ThrowAtAWall(World world, CollisionLog log, BodyDesc wall)
     {
         FrameHandle station = Station(world);
-        Entity anchor = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0), Body = wall });
-        Entity crate = world.Spawn(new SpawnDesc
+        Entity anchor = world.Spawn(new() { Frame = station, Pose = At(0), Body = wall });
+        Entity crate = world.Spawn(new()
         {
-            Frame = station, Pose = At(-200.5), LinearVelocity = new Vector3(60, 0, 0), Body = SmallCrate, Components = [log, Along(SmallCrate.Mass)],
+            Frame = station, Pose = At(-200.5), LinearVelocity = new Vector3(60, 0, 0), Body = SmallCrate,
+            Components = [log, Along(SmallCrate.Mass)]
         });
-        return new Scene(station, crate, anchor);
+        return new(station, crate, anchor);
     }
 
     /// <summary>
@@ -177,23 +212,30 @@ public class NumericFrameAnchorTests
     [Theory]
     [InlineData(false, 0.05)]
     [InlineData(true, 0.0)]
-    public void ACrateThrownAtAThinStaticWallJoinsTheWallsHomeAndStopsAtItAsItDoesWithoutNumericFrames(bool mesh, double face)
+    public void ACrateThrownAtAThinStaticWallJoinsTheWallsHomeAndStopsAtItAsItDoesWithoutNumericFrames(bool mesh,
+        double face)
     {
         BodyDesc wall = mesh ? ThinMeshWall : ThinWall;
-        Flight without = Fly(numericFrames: false, threads: 1, (world, log) => ThrowAtAWall(world, log, wall), ticks: 230);
+        Flight without = Fly(numericFrames: false, threads: 1, (world, log) => ThrowAtAWall(world, log, wall),
+            ticks: 230);
         Flight with = Fly(numericFrames: true, threads: 1, (world, log) => ThrowAtAWall(world, log, wall), ticks: 230);
 
         foreach (Flight run in new[] { without, with })
         {
-            run.Position.X.Should().BeApproximately(-face - 0.1, 0.03, "the crate stops with its front at the wall's face {0}", run.Name);
+            run.Position.X.Should().BeApproximately(-face - 0.1, 0.03,
+                "the crate stops with its front at the wall's face {0}", run.Name);
             run.Velocity.Length.Should().BeLessThan(0.05, "the crate stopped at the wall {0}", run.Name);
             run.Seen.Should().ContainSingle("the crate hears one Collision with the wall {0}", run.Name);
         }
+
         with.HomeKinds.Should().Equal(["station", "Falling", "station"],
             "the crate falls once it thrusts, until the merge test reaches the wall, then joins its home");
-        with.Homes[1].Tick.Should().Be(OnsetTicks, "the crate thrusts from the sync point of its thirtieth tick of thrust");
-        with.Homes[2].Distance.Should().BeInRange(126, 128, "the merge test reaches the wall 2 s ahead: 120 m plus the bounding radii");
-        with.Homes[2].Tick.Should().BeLessThan(with.Seen[0].Tick, "the crate joins the wall's home before it hits the wall");
+        with.Homes[1].Tick.Should()
+            .Be(OnsetTicks, "the crate thrusts from the sync point of its thirtieth tick of thrust");
+        with.Homes[2].Distance.Should().BeInRange(126, 128,
+            "the merge test reaches the wall 2 s ahead: 120 m plus the bounding radii");
+        with.Homes[2].Tick.Should()
+            .BeLessThan(with.Seen[0].Tick, "the crate joins the wall's home before it hits the wall");
         ShouldMatch(with, without, tolerance: 0.01);
     }
 
@@ -205,20 +247,21 @@ public class NumericFrameAnchorTests
     /// </summary>
     private static Scene ThrowAtAnInteriorWall(World world, CollisionLog log)
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
-        Entity owner = world.Spawn(new SpawnDesc
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
+        Entity owner = world.Spawn(new()
         {
             Frame = space,
             Pose = At(0),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static, InteriorShape: ThinWall.Shape),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1000)),
+            Body = new(new BoxShapeDesc(new(1)), BodyMotion.Static, InteriorShape: ThinWall.Shape),
+            AsFrame = new(FrameBounds.Sphere(1000))
         });
         FrameHandle station = world.GetOwnedFrame(owner);
-        Entity crate = world.Spawn(new SpawnDesc
+        Entity crate = world.Spawn(new()
         {
-            Frame = station, Pose = At(-200.5), LinearVelocity = new Vector3(60, 0, 0), Body = SmallCrate, Components = [log, Along(SmallCrate.Mass)],
+            Frame = station, Pose = At(-200.5), LinearVelocity = new Vector3(60, 0, 0), Body = SmallCrate,
+            Components = [log, Along(SmallCrate.Mass)]
         });
-        return new Scene(station, crate, owner);
+        return new(station, crate, owner);
     }
 
     /// <summary>
@@ -230,32 +273,30 @@ public class NumericFrameAnchorTests
     /// of the interior, and passed through every wall of the cabin.
     /// </summary>
     [Fact]
-    public void ACrateThrownAtAThinWallOfItsFramesInteriorJoinsTheFramesOwnSystemAndStopsAtItAsItDoesWithoutNumericFrames()
+    public void
+        ACrateThrownAtAThinWallOfItsFramesInteriorJoinsTheFramesOwnSystemAndStopsAtItAsItDoesWithoutNumericFrames()
     {
         Flight without = Fly(numericFrames: false, threads: 1, ThrowAtAnInteriorWall, ticks: 230);
         Flight with = Fly(numericFrames: true, threads: 1, ThrowAtAnInteriorWall, ticks: 230);
 
         foreach (Flight run in new[] { without, with })
         {
-            run.Position.X.Should().BeApproximately(-0.15, 0.03, "the crate stops with its front at the wall's face {0}", run.Name);
+            run.Position.X.Should().BeApproximately(-0.15, 0.03,
+                "the crate stops with its front at the wall's face {0}", run.Name);
             run.Velocity.Length.Should().BeLessThan(0.05, "the crate stopped at the wall {0}", run.Name);
             run.Seen.Should().ContainSingle("the crate hears one Collision with the station's owner {0}", run.Name);
         }
+
         with.HomeKinds.Should().Equal(["station", "Falling", "station"],
             "the crate falls once it thrusts, until the merge test reaches the interior, then joins its home");
-        with.Homes[1].Tick.Should().Be(OnsetTicks, "the crate thrusts from the sync point of its thirtieth tick of thrust");
-        with.Homes[2].Distance.Should().BeInRange(126, 128, "the merge test reaches the interior 2 s ahead: 120 m plus the bounding radii");
-        with.Homes[2].Tick.Should().BeLessThan(with.Seen[0].Tick, "the crate joins the interior's home before it hits the wall");
+        with.Homes[1].Tick.Should()
+            .Be(OnsetTicks, "the crate thrusts from the sync point of its thirtieth tick of thrust");
+        with.Homes[2].Distance.Should().BeInRange(126, 128,
+            "the merge test reaches the interior 2 s ahead: 120 m plus the bounding radii");
+        with.Homes[2].Tick.Should()
+            .BeLessThan(with.Seen[0].Tick, "the crate joins the interior's home before it hits the wall");
         ShouldMatch(with, without, tolerance: 0.01);
     }
-
-    // ---- A fast crate thrown at a kinematic door ------------------------------------------------------------------
-
-    /// <summary>A crate of 25 kg, a box of 50 cm that nothing slows down on its own and that does not bounce.</summary>
-    private static readonly BodyDesc HeavyCrate = new(new BoxShapeDesc(new Vector3(0.25f)), Mass: 25, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
-
-    /// <summary>A kinematic door of 1 kg, 10 cm thick, 10 m by 10 m, across the X axis.</summary>
-    private static readonly BodyDesc ThinDoor = new(new BoxShapeDesc(new Vector3(0.05f, 5, 5)), BodyMotion.Kinematic, Mass: 1);
 
     /// <summary>
     /// The crate of 25 kg with a gentle thruster (see <see cref="Along"/>) flies along +X at 60 m/s, 1 m per step, at a shut
@@ -265,12 +306,13 @@ public class NumericFrameAnchorTests
     private static Scene ThrowAtADoor(World world, CollisionLog log)
     {
         FrameHandle station = Station(world);
-        Entity door = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0), Body = ThinDoor });
-        Entity crate = world.Spawn(new SpawnDesc
+        Entity door = world.Spawn(new() { Frame = station, Pose = At(0), Body = ThinDoor });
+        Entity crate = world.Spawn(new()
         {
-            Frame = station, Pose = At(-200.5), LinearVelocity = new Vector3(60, 0, 0), Body = HeavyCrate, Components = [log, Along(HeavyCrate.Mass)],
+            Frame = station, Pose = At(-200.5), LinearVelocity = new Vector3(60, 0, 0), Body = HeavyCrate,
+            Components = [log, Along(HeavyCrate.Mass)]
         });
-        return new Scene(station, crate, door);
+        return new(station, crate, door);
     }
 
     /// <summary>
@@ -289,14 +331,18 @@ public class NumericFrameAnchorTests
 
         foreach (Flight run in new[] { without, with })
         {
-            run.Position.X.Should().BeApproximately(-0.3, 0.03, "the crate stops with its front at the door's face {0}", run.Name);
+            run.Position.X.Should().BeApproximately(-0.3, 0.03, "the crate stops with its front at the door's face {0}",
+                run.Name);
             run.Velocity.Length.Should().BeLessThan(0.05, "the crate stopped at the door {0}", run.Name);
             run.Seen.Should().ContainSingle("the crate hears one Collision with the door {0}", run.Name);
         }
+
         with.HomeKinds.Should().Equal(["station", "Falling", "station"],
             "the crate falls once it thrusts, until the merge test reaches the door, then joins its system");
-        with.Homes[1].Tick.Should().Be(OnsetTicks, "the crate thrusts from the sync point of its thirtieth tick of thrust");
-        with.Homes[2].Distance.Should().BeInRange(126, 129, "the merge test reaches the door 2 s ahead: 120 m plus the bounding radii");
+        with.Homes[1].Tick.Should()
+            .Be(OnsetTicks, "the crate thrusts from the sync point of its thirtieth tick of thrust");
+        with.Homes[2].Distance.Should().BeInRange(126, 129,
+            "the merge test reaches the door 2 s ahead: 120 m plus the bounding radii");
         ShouldMatch(with, without, tolerance: 0.01);
     }
 
@@ -310,13 +356,13 @@ public class NumericFrameAnchorTests
     private static Scene GrazeARock(World world, CollisionLog log)
     {
         FrameHandle station = Station(world);
-        Entity rock = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0), Body = Rock });
-        Entity ball = world.Spawn(new SpawnDesc
+        Entity rock = world.Spawn(new() { Frame = station, Pose = At(0), Body = Rock });
+        Entity ball = world.Spawn(new()
         {
             Frame = station, Pose = At(-300, 1.4), LinearVelocity = new Vector3(80, 0, 0), Body = FlyingBall,
-            Components = [log, Across(FlyingBall.Mass)],
+            Components = [log, Across(FlyingBall.Mass)]
         });
-        return new Scene(station, ball, rock);
+        return new(station, ball, rock);
     }
 
     /// <summary>
@@ -334,8 +380,9 @@ public class NumericFrameAnchorTests
 
         with.Seen.Should().ContainSingle("the ball grazes the rock once");
         with.Ended.Should().ContainSingle();
-        with.HomeKinds.Should().Equal(["station", "Falling", "station", "Falling"]);
-        with.Homes[1].Tick.Should().Be(OnsetTicks, "the ball thrusts from the sync point of its thirtieth tick of thrust");
+        with.HomeKinds.Should().Equal("station", "Falling", "station", "Falling");
+        with.Homes[1].Tick.Should()
+            .Be(OnsetTicks, "the ball thrusts from the sync point of its thirtieth tick of thrust");
         with.Homes[2].Distance.Should().BeInRange(160, 162, "the merge test reaches the rock 2 s ahead");
         with.Homes[2].Tick.Should().BeLessThan(with.Seen[0].Tick);
         with.Homes[3].Tick.Should().BeGreaterThan(with.Ended[0].Tick);
@@ -350,7 +397,8 @@ public class NumericFrameAnchorTests
 
     /// <summary>
     /// A frame that turns in place at the station's origin with a <see cref="SpinMotion"/>: a kinematic box hull of 10 m by
-    /// 6 m by 30 m that turns at 0.5 rad/s about Y, inside a bubble of radius 20 m. A ball of radius 0.5 m with a gentle thruster (see <see cref="Across"/>) flies past
+    /// 6 m by 30 m that turns at 0.5 rad/s about Y, inside a bubble of radius 20 m. A ball of radius 0.5 m with a gentle thruster (see
+    /// <see cref="Across"/>) flies past
     /// along +X at 80 m/s, 30 m to the side of the hull's center, outside the bubble, so that it neither enters the frame
     /// nor touches the hull. It thrusts from tick 30 on, 260 m before the hull.
     /// </summary>
@@ -361,15 +409,15 @@ public class NumericFrameAnchorTests
         {
             Frame = station,
             Pose = At(0),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), BodyMotion.Kinematic),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
-        }.Spinning(world, new FrameSpin(DQuaternion.Identity, 0.5)));
-        Entity ball = world.Spawn(new SpawnDesc
+            Body = new(new BoxShapeDesc(new(5, 3, 15)), BodyMotion.Kinematic),
+            AsFrame = new(FrameBounds.Sphere(20))
+        }.Spinning(world, new(DQuaternion.Identity, 0.5)));
+        Entity ball = world.Spawn(new()
         {
             Frame = station, Pose = At(-300, 30), LinearVelocity = new Vector3(80, 0, 0), Body = FlyingBall,
-            Components = [log, Across(FlyingBall.Mass)],
+            Components = [log, Across(FlyingBall.Mass)]
         });
-        return new Scene(station, ball, turntable);
+        return new(station, ball, turntable);
     }
 
     /// <summary>
@@ -383,20 +431,12 @@ public class NumericFrameAnchorTests
         Flight without = Fly(numericFrames: false, threads: 1, PassATurntable, ticks: 480);
         Flight with = Fly(numericFrames: true, threads: 1, PassATurntable, ticks: 480);
 
-        with.HomeKinds.Should().Equal(["station", "Falling", "station", "Falling"]);
-        with.Homes[1].Tick.Should().Be(OnsetTicks, "the ball thrusts from the sync point of its thirtieth tick of thrust");
+        with.HomeKinds.Should().Equal("station", "Falling", "station", "Falling");
+        with.Homes[1].Tick.Should()
+            .Be(OnsetTicks, "the ball thrusts from the sync point of its thirtieth tick of thrust");
         with.Seen.Should().BeEmpty("the ball passes outside the turntable's bubble");
         ShouldMatch(with, without, tolerance: 1e-3);
     }
-
-    // ---- A group that links two static anchors -------------------------------------------------------------------
-
-    /// <summary>
-    /// The distance from its frame's origin, in meters, from which a slow group gets a resting frame under the default rules
-    /// (see <see cref="NumericFrameOptions.CreateDistance"/>): 2^23 m, about 8,389 km. The scenes of resting frames put their
-    /// bodies a few meters on either side of it.
-    /// </summary>
-    private const double RestingDistance = 1 << 23;
 
     /// <summary>The rocks of <see cref="FlyBetweenTwoRocks"/>.</summary>
     private sealed record TwoRocks(Entity Near, Entity Far);
@@ -412,15 +452,16 @@ public class NumericFrameAnchorTests
     private static Scene FlyBetweenTwoRocks(World world, CollisionLog log, out TwoRocks rocks)
     {
         FrameHandle station = Station(world, radius: 9e6f);
-        Entity near = world.Spawn(new SpawnDesc { Frame = station, Pose = At(RestingDistance - 30), Body = Rock });
-        Entity far = world.Spawn(new SpawnDesc { Frame = station, Pose = At(RestingDistance + 10), Body = Rock });
-        Entity ball = world.Spawn(new SpawnDesc
+        Entity near = world.Spawn(new() { Frame = station, Pose = At(RestingDistance - 30), Body = Rock });
+        Entity far = world.Spawn(new() { Frame = station, Pose = At(RestingDistance + 10), Body = Rock });
+        Entity ball = world.Spawn(new()
         {
-            Frame = station, Pose = At(RestingDistance - 10, -300), LinearVelocity = new Vector3(0, 80, 0), Body = FlyingBall,
-            Components = [log, Across(FlyingBall.Mass)],
+            Frame = station, Pose = At(RestingDistance - 10, -300), LinearVelocity = new Vector3(0, 80, 0),
+            Body = FlyingBall,
+            Components = [log, Across(FlyingBall.Mass)]
         });
-        rocks = new TwoRocks(near, far);
-        return new Scene(station, ball, far);
+        rocks = new(near, far);
+        return new(station, ball, far);
     }
 
     /// <summary>
@@ -435,27 +476,34 @@ public class NumericFrameAnchorTests
         TwoRocks rocks = null!;
         FrameHandle farHome = FrameHandle.Null;
         int sharedTicks = 0;
-        Flight without = Fly(numericFrames: false, threads: 1, (world, log) => FlyBetweenTwoRocks(world, log, out _), ticks: 480);
-        Flight with = Fly(numericFrames: true, threads: 1, (world, log) => FlyBetweenTwoRocks(world, log, out rocks), ticks: 480, (world, scene) =>
-        {
-            if (farHome.IsNull)
+        Flight without = Fly(numericFrames: false, threads: 1, (world, log) => FlyBetweenTwoRocks(world, log, out _),
+            ticks: 480);
+        Flight with = Fly(numericFrames: true, threads: 1, (world, log) => FlyBetweenTwoRocks(world, log, out rocks),
+            ticks: 480, (world, scene) =>
             {
-                farHome = world.PhysicsHomeOf(rocks.Far);
-                world.Frames.Numeric(farHome).Should().Be(NumericMode.Resting, "the far rock lies 10 m beyond the resting distance");
-                world.PhysicsHomeOf(rocks.Near).Should().Be(scene.Station, "the near rock lies 30 m within the resting distance");
-            }
-            FrameHandle ball = world.PhysicsHomeOf(scene.Mover);
-            if (ball == world.PhysicsHomeOf(rocks.Far))
-            {
-                ball.Should().Be(farHome, "the group takes the resting frame that holds a static body");
-                world.PhysicsHomeOf(rocks.Near).Should().Be(farHome, "the near rock joins its group's home");
-                sharedTicks++;
-            }
-        });
+                if (farHome.IsNull)
+                {
+                    farHome = world.PhysicsHomeOf(rocks.Far);
+                    world.Frames.Numeric(farHome).Should().Be(NumericMode.Resting,
+                        "the far rock lies 10 m beyond the resting distance");
+                    world.PhysicsHomeOf(rocks.Near).Should().Be(scene.Station,
+                        "the near rock lies 30 m within the resting distance");
+                }
 
-        with.HomeKinds.Should().Equal(["station", "Falling", "Resting", "Falling"]);
-        with.Homes[1].Tick.Should().Be(OnsetTicks, "the ball thrusts from the sync point of its thirtieth tick of thrust");
-        sharedTicks.Should().BeGreaterThan(200, "the ball shares the rocks' home while it is within the reach of either");
+                FrameHandle ball = world.PhysicsHomeOf(scene.Mover);
+                if (ball == world.PhysicsHomeOf(rocks.Far))
+                {
+                    ball.Should().Be(farHome, "the group takes the resting frame that holds a static body");
+                    world.PhysicsHomeOf(rocks.Near).Should().Be(farHome, "the near rock joins its group's home");
+                    sharedTicks++;
+                }
+            });
+
+        with.HomeKinds.Should().Equal("station", "Falling", "Resting", "Falling");
+        with.Homes[1].Tick.Should()
+            .Be(OnsetTicks, "the ball thrusts from the sync point of its thirtieth tick of thrust");
+        sharedTicks.Should()
+            .BeGreaterThan(200, "the ball shares the rocks' home while it is within the reach of either");
         with.Seen.Should().BeEmpty();
         ShouldMatch(with, without, tolerance: 1e-3);
     }
@@ -472,24 +520,25 @@ public class NumericFrameAnchorTests
     /// </summary>
     private static Scene FlyBetweenTheInteriorAndARock(World world, CollisionLog log, out Planetoid planetoid)
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
-        Entity owner = world.Spawn(new SpawnDesc
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
+        Entity owner = world.Spawn(new()
         {
             Frame = space,
             Pose = At(0),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static,
+            Body = new(new BoxShapeDesc(new(1)), BodyMotion.Static,
                 InteriorShape: new SphereShapeDesc((float)(RestingDistance - 10))),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(9e6f)),
+            AsFrame = new(FrameBounds.Sphere(9e6f))
         });
         FrameHandle frame = world.GetOwnedFrame(owner);
-        Entity rock = world.Spawn(new SpawnDesc { Frame = frame, Pose = At(RestingDistance + 20), Body = Rock });
-        Entity ball = world.Spawn(new SpawnDesc
+        Entity rock = world.Spawn(new() { Frame = frame, Pose = At(RestingDistance + 20), Body = Rock });
+        Entity ball = world.Spawn(new()
         {
-            Frame = frame, Pose = At(RestingDistance + 5, -300), LinearVelocity = new Vector3(0, 80, 0), Body = FlyingBall,
-            Components = [log, Across(FlyingBall.Mass)],
+            Frame = frame, Pose = At(RestingDistance + 5, -300), LinearVelocity = new Vector3(0, 80, 0),
+            Body = FlyingBall,
+            Components = [log, Across(FlyingBall.Mass)]
         });
-        planetoid = new Planetoid(owner, rock);
-        return new Scene(frame, ball, rock);
+        planetoid = new(owner, rock);
+        return new(frame, ball, rock);
     }
 
     /// <summary>
@@ -506,21 +555,27 @@ public class NumericFrameAnchorTests
         Planetoid planetoid = null!;
         FrameHandle rockHome = FrameHandle.Null;
         int sharedTicks = 0;
-        Flight without = Fly(numericFrames: false, threads: 1, (world, log) => FlyBetweenTheInteriorAndARock(world, log, out _), ticks: 480);
-        Flight with = Fly(numericFrames: true, threads: 1, (world, log) => FlyBetweenTheInteriorAndARock(world, log, out planetoid), ticks: 480, (world, scene) =>
-        {
-            if (rockHome.IsNull)
+        Flight without = Fly(numericFrames: false, threads: 1,
+            (world, log) => FlyBetweenTheInteriorAndARock(world, log, out _), ticks: 480);
+        Flight with = Fly(numericFrames: true, threads: 1,
+            (world, log) => FlyBetweenTheInteriorAndARock(world, log, out planetoid), ticks: 480, (world, scene) =>
             {
-                rockHome = world.PhysicsHomeOf(planetoid.Rock);
-                world.Frames.Numeric(rockHome).Should().Be(NumericMode.Resting, "the rock lies 20 m beyond the resting distance");
-            }
-            world.PhysicsHomeOf(planetoid.Owner).Should().Be(world.Frames.TreeParent(scene.Station), "the hull stays in space");
-            if (world.PhysicsHomeOf(planetoid.Rock) == scene.Station)
-                sharedTicks++;
-        });
+                if (rockHome.IsNull)
+                {
+                    rockHome = world.PhysicsHomeOf(planetoid.Rock);
+                    world.Frames.Numeric(rockHome).Should().Be(NumericMode.Resting,
+                        "the rock lies 20 m beyond the resting distance");
+                }
+
+                world.PhysicsHomeOf(planetoid.Owner).Should()
+                    .Be(world.Frames.TreeParent(scene.Station), "the hull stays in space");
+                if (world.PhysicsHomeOf(planetoid.Rock) == scene.Station)
+                    sharedTicks++;
+            });
 
         with.HomeKinds.Should().Equal(["station"], "the interior keeps the ball in the frame's own system");
-        sharedTicks.Should().BeGreaterThan(200, "the rock joins the interior's home while the ball is within its reach");
+        sharedTicks.Should()
+            .BeGreaterThan(200, "the rock joins the interior's home while the ball is within its reach");
         with.Seen.Should().BeEmpty();
         ShouldMatch(with, without, tolerance: 1e-3);
     }
@@ -538,9 +593,9 @@ public class NumericFrameAnchorTests
     public void AShipsHullThatAStaticRockKeepsInTheSystemOfSpaceHasALeaveClockThatTheInvariantsFindOnTheHull()
     {
         using World world = NewWorld(numericFrames: true, threads: 1, out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
-        Entity rock = world.Spawn(new SpawnDesc { Frame = space, Pose = At(RestingDistance - 10), Body = Rock });
-        Scenes.ShipScene ship = Scenes.ShipWithInterior(world, space, new Double3(RestingDistance + 5, 0, 0));
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
+        Entity rock = world.Spawn(new() { Frame = space, Pose = At(RestingDistance - 10), Body = Rock });
+        Scenes.ShipScene ship = Scenes.ShipWithInterior(world, space, new(RestingDistance + 5, 0, 0));
 
         Tick(world, 3);
 
@@ -551,8 +606,10 @@ public class NumericFrameAnchorTests
         world.Destroy(rock);
         TickUntil(world, () => world.PhysicsHomeOf(ship.Hull) != space, 120);
 
-        world.Frames.Numeric(world.PhysicsHomeOf(ship.Hull)).Should().Be(NumericMode.Resting, "without the rock the hull rests in a numeric frame");
-        world.TickNumber.Should().Be(63, "the hull's clock holds it in the system of space for 60 sync points after the rock went");
+        world.Frames.Numeric(world.PhysicsHomeOf(ship.Hull)).Should().Be(NumericMode.Resting,
+            "without the rock the hull rests in a numeric frame");
+        world.TickNumber.Should().Be(63,
+            "the hull's clock holds it in the system of space for 60 sync points after the rock went");
         world.Errors.Should().BeEmpty();
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
     }
@@ -576,8 +633,9 @@ public class NumericFrameAnchorTests
     {
         using World world = NewWorld(numericFrames: true, threads: 1, out FaultInjectingBackend faults);
         FrameHandle space = Scenes.AsteroidSpace(world);
-        Entity hull = Scenes.FastKeplerHull(world, space, new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Kinematic, Mass: 1, LinearDamping: 0, AngularDamping: 0));
-        world.Spawn(new SpawnDesc { Frame = space, Pose = At(5_008, 0, -100), Body = Rock });
+        Entity hull = Scenes.FastKeplerHull(world, space,
+            new(new BoxShapeDesc(new(1)), BodyMotion.Kinematic, Mass: 1, LinearDamping: 0, AngularDamping: 0));
+        world.Spawn(new() { Frame = space, Pose = At(5_008, 0, -100), Body = Rock });
         Tick(world, 2);
         FrameHandle orbit = world.PhysicsHomeOf(hull);
         world.Frames.Numeric(orbit).Should().Be(NumericMode.Following);
@@ -605,14 +663,18 @@ public class NumericFrameAnchorTests
     private static List<string> TraceOfTheAnchorScenes(int threads)
     {
         var lines = new List<string>();
-        foreach (Func<World, CollisionLog, Scene> build in new Func<World, CollisionLog, Scene>[] { (world, log) => ThrowAtAWall(world, log, ThinWall), GrazeARock })
+        foreach (Func<World, CollisionLog, Scene> build in new[]
+                     { (world, log) => ThrowAtAWall(world, log, ThinWall), GrazeARock })
         {
             Flight run = Fly(numericFrames: true, threads, build, ticks: 420);
             lines.AddRange(run.Seen.Select(s => $"{s.Tick} collision {s.Other} {s.Impulse:R}"));
             lines.AddRange(run.Ended.Select(e => $"{e.Tick} ended {e.Other}"));
-            lines.AddRange(run.Homes.Select(h => $"{h.Tick} home {h.Home} {BitConverter.DoubleToInt64Bits(h.Distance)}"));
-            lines.Add($"end {BitConverter.DoubleToInt64Bits(run.Position.X)} {BitConverter.DoubleToInt64Bits(run.Position.Y)} {BitConverter.DoubleToInt64Bits(run.Velocity.X)}");
+            lines.AddRange(
+                run.Homes.Select(h => $"{h.Tick} home {h.Home} {BitConverter.DoubleToInt64Bits(h.Distance)}"));
+            lines.Add(
+                $"end {BitConverter.DoubleToInt64Bits(run.Position.X)} {BitConverter.DoubleToInt64Bits(run.Position.Y)} {BitConverter.DoubleToInt64Bits(run.Velocity.X)}");
         }
+
         return lines;
     }
 

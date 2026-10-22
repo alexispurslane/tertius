@@ -74,10 +74,11 @@ public static partial class DemoScenes
             Vector3 up = Up.ToVector3(), normal = new(0, (float)Math.Cos(Angle), (float)Math.Sin(Angle));
             return
             [
-                new CompoundChild(new BoxShapeDesc(new Vector3(Width / 2, Thickness / 2, bedLength / 2), ConvexRadius: 0),
-                    new Pose(new Vector3(0, -Thickness / 2, bedLength / 2), Quaternion.Identity)),
-                new CompoundChild(new BoxShapeDesc(new Vector3(Width / 2, Thickness / 2, Length / 2), ConvexRadius: 0),
-                    new Pose(up * (Length / 2) - normal * (Thickness / 2), Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Angle))),
+                new(new BoxShapeDesc(new(Width / 2, Thickness / 2, bedLength / 2), ConvexRadius: 0),
+                    new(new(0, -Thickness / 2, bedLength / 2), Quaternion.Identity)),
+                new(new BoxShapeDesc(new(Width / 2, Thickness / 2, Length / 2), ConvexRadius: 0),
+                    new(up * (Length / 2) - normal * (Thickness / 2),
+                        Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Angle)))
             ];
         }
 
@@ -93,16 +94,18 @@ public static partial class DemoScenes
             Vector2[] outline = [new(0, 0), new(h, -d), new(-Sink, -d), new(-Sink, 0)];
             var vertices = new List<Vertex>();
             var indices = new List<uint>();
+
             void Face(params Vector3[] corners)
             {
                 Vector3 n = Vector3.Normalize(Vector3.Cross(corners[1] - corners[0], corners[2] - corners[0]));
                 Vector3 tangent = Vector3.Normalize(corners[1] - corners[0]);
                 uint start = (uint)vertices.Count;
                 foreach (Vector3 corner in corners)
-                    vertices.Add(new Vertex { Position = corner, Normal = n, Tangent = new Vector4(tangent, 1) });
+                    vertices.Add(new() { Position = corner, Normal = n, Tangent = new(tangent, 1) });
                 for (uint i = 1; i + 1 < corners.Length; i++)
                     indices.AddRange([start, start + i, start + i + 1]);
             }
+
             Vector3 Left(Vector2 p) => new(-w, p.X, p.Y);
             Vector3 Right(Vector2 p) => new(w, p.X, p.Y);
             Face([.. outline.Select(Right).Reverse()]);
@@ -112,16 +115,17 @@ public static partial class DemoScenes
                 Vector2 a = outline[i], b = outline[(i + 1) % outline.Length];
                 Face(Right(a), Right(b), Left(b), Left(a));
             }
-            return new MeshData([.. vertices], [.. indices]);
+
+            return new([.. vertices], [.. indices]);
         }
 
         /// <summary>Spawns the ramp in <paramref name="surface"/>, drawn with <paramref name="render"/>.</summary>
-        public static Entity Spawn(World world, FrameHandle surface, RenderData? render = null) => world.Spawn(new SpawnDesc
+        public static Entity Spawn(World world, FrameHandle surface, RenderData? render = null) => world.Spawn(new()
         {
             Frame = surface,
-            Pose = new DPose(Foot, DQuaternion.Identity),
-            Body = new BodyDesc(new CompoundShapeDesc(Shape()), BodyMotion.Static, Friction: 0),
-            Render = render,
+            Pose = new(Foot, DQuaternion.Identity),
+            Body = new(new CompoundShapeDesc(Shape()), BodyMotion.Static, Friction: 0),
+            Render = render
         });
     }
 }

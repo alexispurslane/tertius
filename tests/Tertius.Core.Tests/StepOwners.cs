@@ -11,11 +11,12 @@ namespace Tertius.Core.Tests;
 /// </summary>
 internal readonly struct StepOwners() : IFrameOwnerFacts
 {
-    public Dictionary<FrameHandle, FrameStepRecord> HullRecords { get; } = new();
-    public HashSet<FrameHandle> Skipped { get; } = new();
-    public Dictionary<FrameHandle, DPose> Writes { get; } = new();
+    public Dictionary<FrameHandle, FrameStepRecord> HullRecords { get; } = [];
+    public HashSet<FrameHandle> Skipped { get; } = [];
+    public Dictionary<FrameHandle, DPose> Writes { get; } = [];
 
-    public bool TryGetHullRecord(FrameHandle frame, out FrameStepRecord record) => HullRecords.TryGetValue(frame, out record);
+    public bool TryGetHullRecord(FrameHandle frame, out FrameStepRecord record) =>
+        HullRecords.TryGetValue(frame, out record);
 
     public bool IsSkipped(FrameHandle frame) => Skipped.Contains(frame);
 
@@ -24,7 +25,7 @@ internal readonly struct StepOwners() : IFrameOwnerFacts
     /// <summary>A step record that physics released for the hull of <paramref name="frame"/>, with no measured proper acceleration.</summary>
     public StepOwners WithHullRecord(FrameHandle frame, in MotionSample record, Vector3? measured = null)
     {
-        HullRecords[frame] = new FrameStepRecord(frame, record, measured);
+        HullRecords[frame] = new(frame, record, measured);
         return this;
     }
 }

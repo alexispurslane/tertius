@@ -17,11 +17,9 @@ namespace Tertius.Benchmarks;
 [MemoryDiagnoser]
 public class NumericFrameUpdateBenchmarks
 {
-    [Params(10, 100)]
-    public int Rocks;
+    [Params(10, 100)] public int Rocks;
 
-    [Params(10, 100)]
-    public int Bubbles;
+    [Params(10, 100)] public int Bubbles;
 
     private readonly FrameTree frames = new();
     private readonly PhysicsChanges changes = new();
@@ -32,51 +30,57 @@ public class NumericFrameUpdateBenchmarks
     public void Setup()
     {
         uint next = 1;
-        FrameHandle space = frames.Create(new Entity(next++, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
+        FrameHandle space = frames.Create(new(next++, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
         var list = new List<NumericBody>();
         for (int r = 0; r < Rocks; r++)
         {
             var position = new Double3(100 * r, 0, 0);
-            list.Add(new NumericBody
+            list.Add(new()
             {
-                Entity = new Entity(next++, 1),
+                Entity = new(next++, 1),
                 Semantic = space,
                 Home = space,
                 Position = position,
                 HomePosition = position,
-                Velocity = new Double3(60, 0, 0),
+                Velocity = new(60, 0, 0),
                 Radius = 1,
                 Mass = 1,
-                Character = true,
+                Character = true
             });
         }
+
         for (int b = 0; b < Bubbles; b++)
         {
-            FrameHandle station = frames.Create(new Entity(next++, 1), space, new DPose(new Double3(100 * b, 50, 0), DQuaternion.Identity),
+            FrameHandle station = frames.Create(new(next++, 1), space, new(new(100 * b, 50, 0), DQuaternion.Identity),
                 FrameBounds.Sphere(40));
             for (int c = 0; c < 10; c++)
             {
                 var position = new Double3(3 * c - 15, 0, 0);
-                list.Add(new NumericBody
+                list.Add(new()
                 {
-                    Entity = new Entity(next++, 1),
+                    Entity = new(next++, 1),
                     Semantic = station,
                     Home = station,
                     Position = position,
                     HomePosition = position,
                     Radius = 1,
-                    Mass = 1,
+                    Mass = 1
                 });
             }
         }
-        bodies = list.ToArray();
+
+        bodies = [.. list];
         // Each move puts a body in its new home, at the same place in its semantic frame.
         applyMoves = moves =>
         {
             foreach (NumericMove move in moves)
                 for (int i = 0; i < bodies.Length; i++)
                     if (bodies[i].Entity == move.Entity)
-                        bodies[i] = bodies[i] with { Home = move.To, HomePosition = bodies[i].Position - frames.HomeOffset(move.To, bodies[i].Semantic) };
+                        bodies[i] = bodies[i] with
+                        {
+                            Home = move.To,
+                            HomePosition = bodies[i].Position - frames.HomeOffset(move.To, bodies[i].Semantic)
+                        };
         };
         Update();
         Update();
@@ -95,7 +99,8 @@ public class NumericFrameUpdateBenchmarks
 
 /// <summary>
 /// The cost of the places of ghosts in one <see cref="FrameTree.UpdateNumericFrames"/> (ter-4psc): the scan of the bodies of
-/// a semantic frame's parent and siblings for each semantic frame whose update runs. Space holds <see cref="ParentBodies"/>
+/// a semantic frame's parent and siblings for each semantic frame whose update runs. Space holds
+/// <see cref="ParentBodies"/>
 /// rocks of radius 1 m on a grid 40 m apart that fills a box around a row of 10 parked ships. Each rock drifts at 5 m/s in
 /// one of six directions, so a rock near a ship can touch its bubble before the next update, and no rock needs a numeric
 /// frame. The ships hang 80 m apart along X, so their bubbles of radius 40 m touch. Each ship has 6 crates of radius 1 m
@@ -111,8 +116,10 @@ public class NumericFramePlaceBenchmarks
 {
     private const int Ships = 10;
 
-    [Params(1_000, 10_000)]
-    public int ParentBodies;
+    private static readonly Double3[] Axes =
+        [new(1, 0, 0), new(-1, 0, 0), new(0, 1, 0), new(0, -1, 0), new(0, 0, 1), new(0, 0, -1)];
+
+    [Params(1_000, 10_000)] public int ParentBodies;
 
     private readonly FrameTree frames = new();
     private readonly PhysicsChanges changes = new();
@@ -123,57 +130,58 @@ public class NumericFramePlaceBenchmarks
     public void Setup()
     {
         uint next = 1;
-        FrameHandle space = frames.Create(new Entity(next++, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
+        FrameHandle space = frames.Create(new(next++, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
         var list = new List<NumericBody>();
         var ships = new Double3[Ships];
         for (int s = 0; s < Ships; s++)
         {
-            ships[s] = new Double3(80 * s, 0, 0);
-            FrameHandle ship = frames.Create(new Entity(next++, 1), space, new DPose(ships[s], DQuaternion.Identity), FrameBounds.Sphere(40));
-            list.Add(Body(next++, ship, Double3.Zero, new Double3(60, 0, 0)) with { Character = true });
+            ships[s] = new(80 * s, 0, 0);
+            FrameHandle ship = frames.Create(new(next++, 1), space, new(ships[s], DQuaternion.Identity),
+                FrameBounds.Sphere(40));
+            list.Add(Body(next++, ship, Double3.Zero, new(60, 0, 0)) with { Character = true });
             foreach (Double3 axis in Axes)
                 list.Add(Body(next++, ship, axis * 39.5, Double3.Zero));
         }
+
         // A grid 40 m apart around the row of ships, outside every bubble, as many points as asked: 2 * Ships + 8 columns
         // along X, from 160 m before the first ship to 120 m after the last, and as many rows along Y and Z as the count needs.
         int columns = 2 * Ships + 8;
         int side = (int)Math.Ceiling((Math.Sqrt(ParentBodies / (double)columns) - 1) / 2);
         int rocks = 0;
         for (int x = -4; rocks < ParentBodies; x++)
-            for (int y = -side; y <= side && rocks < ParentBodies; y++)
-                for (int z = -side; z <= side && rocks < ParentBodies; z++)
-                {
-                    var position = new Double3(40 * x, 40 * y + 20, 40 * z + 20);
-                    bool inBubble = false;
-                    foreach (Double3 ship in ships)
-                        inBubble |= (position - ship).Length < 42;
-                    if (inBubble)
-                        continue;
-                    list.Add(Body(next++, space, position, Axes[rocks % Axes.Length] * 5));
-                    rocks++;
-                }
-        bodies = list.ToArray();
+        for (int y = -side; y <= side && rocks < ParentBodies; y++)
+        for (int z = -side; z <= side && rocks < ParentBodies; z++)
+        {
+            var position = new Double3(40 * x, 40 * y + 20, 40 * z + 20);
+            bool inBubble = false;
+            foreach (Double3 ship in ships)
+                inBubble |= (position - ship).Length < 42;
+            if (inBubble)
+                continue;
+            list.Add(Body(next++, space, position, Axes[rocks % Axes.Length] * 5));
+            rocks++;
+        }
+
+        bodies = [.. list];
         int moved = 0;
         applyMoves = moves => moved += moves.Count;
         Update();
         if (moved != 0 || frames.NumericCount != 0)
-            throw new InvalidOperationException($"Expected a steady state without numeric frames, found {moved} moves and {frames.NumericCount} frames.");
+            throw new InvalidOperationException(
+                $"Expected a steady state without numeric frames, found {moved} moves and {frames.NumericCount} frames.");
         Console.WriteLine($"// {rocks} rocks.");
     }
 
-    private static readonly Double3[] Axes =
-        [new(1, 0, 0), new(-1, 0, 0), new(0, 1, 0), new(0, -1, 0), new(0, 0, 1), new(0, 0, -1)];
-
     private static NumericBody Body(uint id, FrameHandle frame, Double3 position, Double3 velocity) => new()
     {
-        Entity = new Entity(id, 1),
+        Entity = new(id, 1),
         Semantic = frame,
         Home = frame,
         Position = position,
         HomePosition = position,
         Velocity = velocity,
         Radius = 1,
-        Mass = 1,
+        Mass = 1
     };
 
     [Benchmark]

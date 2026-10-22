@@ -29,23 +29,39 @@ public readonly struct HemisphereUp : IEquatable<HemisphereUp>
 {
     private const byte KindEven = 0, KindAlong = 1, KindAwayFrom = 2;
 
+    /// <summary>No way is up.</summary>
+    public static HemisphereUp Even => default;
+
     private readonly Vector3 vector;
     private readonly byte kind;
 
-    public HemisphereUp(UpAlong along) { kind = KindAlong; vector = along.Direction; }
-    public HemisphereUp(UpAwayFrom away) { kind = KindAwayFrom; vector = away.Center; }
+    public HemisphereUp(UpAlong along)
+    {
+        kind = KindAlong;
+        vector = along.Direction;
+    }
 
-    /// <summary>No way is up.</summary>
-    public static HemisphereUp Even => default;
+    public HemisphereUp(UpAwayFrom away)
+    {
+        kind = KindAwayFrom;
+        vector = away.Center;
+    }
+
+    /// <summary>False for <see cref="Even"/>.</summary>
+    public bool HasValue => kind != KindEven;
+
+    public object? Value => kind switch
+    {
+        KindAlong => new UpAlong(vector),
+        KindAwayFrom => new UpAwayFrom(vector),
+        _ => null
+    };
 
     /// <summary>Up is <paramref name="direction"/>, a unit vector in the axes of the camera's frame.</summary>
     public static HemisphereUp Along(Vector3 direction) => new(new UpAlong(direction));
 
     /// <summary>Up leads away from <paramref name="center"/>, relative to the instance's position.</summary>
     public static HemisphereUp AwayFrom(Vector3 center) => new(new UpAwayFrom(center));
-
-    /// <summary>False for <see cref="Even"/>.</summary>
-    public bool HasValue => kind != KindEven;
 
     public bool TryGetValue(out UpAlong value)
     {
@@ -59,13 +75,6 @@ public readonly struct HemisphereUp : IEquatable<HemisphereUp>
         return kind == KindAwayFrom;
     }
 
-    public object? Value => kind switch
-    {
-        KindAlong => new UpAlong(vector),
-        KindAwayFrom => new UpAwayFrom(vector),
-        _ => null,
-    };
-
     // Vector3.Equals, not the operator ==. The operator follows IEEE 754, so it calls a NaN unequal to itself, and an up that
     // holds a NaN would not equal itself. Equals treats a NaN as equal to a NaN, which agrees with GetHashCode.
     public bool Equals(HemisphereUp other) => kind == other.kind && vector.Equals(other.vector);
@@ -78,6 +87,6 @@ public readonly struct HemisphereUp : IEquatable<HemisphereUp>
     {
         UpAlong a => $"HemisphereUp({a})",
         UpAwayFrom a => $"HemisphereUp({a})",
-        _ => "HemisphereUp(even)",
+        _ => "HemisphereUp(even)"
     };
 }

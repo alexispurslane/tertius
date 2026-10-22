@@ -21,7 +21,7 @@ internal static class NumericFrameTesting
         ThrustCreateSpeed = double.PositiveInfinity,
         ThrustLeaveSpeed = double.PositiveInfinity,
         CreateDistance = double.PositiveInfinity,
-        LeaveDistance = double.PositiveInfinity,
+        LeaveDistance = double.PositiveInfinity
     };
 
     /// <summary>
@@ -34,7 +34,7 @@ internal static class NumericFrameTesting
         CreateSpeed = 0,
         LeaveSpeed = 0,
         ThrustCreateSpeed = 0,
-        ThrustLeaveSpeed = 0,
+        ThrustLeaveSpeed = 0
     };
 
     /// <summary>
@@ -45,6 +45,6 @@ internal static class NumericFrameTesting
     internal static readonly NumericFrameOptions EverySlowGroupRests = new()
     {
         CreateDistance = 0,
-        LeaveDistance = 0,
+        LeaveDistance = 0
     };
 }

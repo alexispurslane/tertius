@@ -59,41 +59,6 @@ public sealed class ShuttleJetControl : IComponent
         this.jetParts = jetParts;
     }
 
-    /// <summary>
-    /// Spawns the main engine and the jets as parts of <paramref name="hull"/>, placed for its center of mass, and adds
-    /// their control to it, outside a tick. The main engine gives <paramref name="mainThrust"/> at full throttle, the
-    /// couples are sized for <paramref name="inertia"/>, and each translation pair gives
-    /// <paramref name="translationThrust"/>. Throws <see cref="ArgumentException"/> for a hull that is not live or has no
-    /// body, <see cref="ArgumentOutOfRangeException"/> for a thrust that is not positive and finite and as
-    /// <see cref="ShuttleJets"/> does, and <see cref="InvalidOperationException"/> during a tick.
-    /// </summary>
-    public static ShuttleJetControl Fit(World world, Entity hull, float mainThrust, PrincipalInertia inertia, double translationThrust)
-    {
-        if (!(mainThrust > 0 && float.IsFinite(mainThrust)))
-            throw new ArgumentOutOfRangeException(nameof(mainThrust), mainThrust, "The thrust of an engine must be positive and finite.");
-        if (!world.Snapshot.TryGetBody(hull, out BodyFacts body))
-            throw new ArgumentException($"The jets need a live hull with a body, whose center of mass they are placed for, not {hull}.", nameof(hull));
-        var layout = new ShuttleJets((Double3)body.CenterOfMass, inertia, translationThrust);
-        // Each part's -Z, along which its puffs leave, points against its push.
-        Entity Part(Double3 place, Double3 exhaust, IComponent component) => world.Spawn(new SpawnDesc
-        {
-            AttachTo = hull,
-            AttachOffset = Plume.AimedOffset(place.ToVector3(), exhaust),
-            Components = [component],
-        });
-        Entity mainEngine = Part(layout.MainEnginePlace, Double3.UnitZ, new MainEngine(mainThrust));
-        var jets = new Entity[2 * ShuttleJets.PairCount];
-        for (int pair = 0; pair < ShuttleJets.PairCount; pair++)
-        {
-            JetPair each = layout.Pairs[pair];
-            jets[PartIndex(pair, false)] = Part(each.First.Place, -each.First.Push, new JetThruster(each.First));
-            jets[PartIndex(pair, true)] = Part(each.Second.Place, -each.Second.Push, new JetThruster(each.Second));
-        }
-        var control = new ShuttleJetControl(layout, mainEngine, jets);
-        world.AddComponent(hull, control);
-        return control;
-    }
-
     /// <summary>The jets, placed for the hull's center of mass.</summary>
     public ShuttleJets Layout { get; }
 
@@ -103,16 +68,58 @@ public sealed class ShuttleJetControl : IComponent
     /// <summary>The jets' parts, at <see cref="PartIndex"/> for each jet of each pair.</summary>
     public IReadOnlyList<Entity> JetParts => jetParts;
 
+    // After the attitude autopilot at 10, which adds the torque, and after every layer of the flight program.
+    public int Priority => 20;
+
+    public EventMask Wants => EventMask.Of<Throttle>().And<Torque>().And<Translation>();
+
+    /// <summary>
+    /// Spawns the main engine and the jets as parts of <paramref name="hull"/>, placed for its center of mass, and adds
+    /// their control to it, outside a tick. The main engine gives <paramref name="mainThrust"/> at full throttle, the
+    /// couples are sized for <paramref name="inertia"/>, and each translation pair gives
+    /// <paramref name="translationThrust"/>. Throws <see cref="ArgumentException"/> for a hull that is not live or has no
+    /// body, <see cref="ArgumentOutOfRangeException"/> for a thrust that is not positive and finite and as
+    /// <see cref="ShuttleJets"/> does, and <see cref="InvalidOperationException"/> during a tick.
+    /// </summary>
+    public static ShuttleJetControl Fit(World world, Entity hull, float mainThrust, PrincipalInertia inertia,
+        double translationThrust)
+    {
+        if (!(mainThrust > 0 && float.IsFinite(mainThrust)))
+            throw new ArgumentOutOfRangeException(nameof(mainThrust), mainThrust,
+                "The thrust of an engine must be positive and finite.");
+        if (!world.Snapshot.TryGetBody(hull, out BodyFacts body))
+            throw new ArgumentException(
+                $"The jets need a live hull with a body, whose center of mass they are placed for, not {hull}.",
+                nameof(hull));
+        var layout = new ShuttleJets(body.CenterOfMass, inertia, translationThrust);
+
+        // Each part's -Z, along which its puffs leave, points against its push.
+        Entity Part(Double3 place, Double3 exhaust, IComponent component) => world.Spawn(new()
+        {
+            AttachTo = hull,
+            AttachOffset = Plume.AimedOffset(place.ToVector3(), exhaust),
+            Components = [component]
+        });
+
+        Entity mainEngine = Part(layout.MainEnginePlace, Double3.UnitZ, new MainEngine(mainThrust));
+        var jets = new Entity[2 * ShuttleJets.PairCount];
+        for (int pair = 0; pair < ShuttleJets.PairCount; pair++)
+        {
+            JetPair each = layout.Pairs[pair];
+            jets[PartIndex(pair, false)] = Part(each.First.Place, -each.First.Push, new JetThruster(each.First));
+            jets[PartIndex(pair, true)] = Part(each.Second.Place, -each.Second.Push, new JetThruster(each.Second));
+        }
+
+        var control = new ShuttleJetControl(layout, mainEngine, jets);
+        world.AddComponent(hull, control);
+        return control;
+    }
+
     /// <summary>
     /// The index in <see cref="JetParts"/> of the part of the first jet of pair <paramref name="pair"/> of
     /// <see cref="ShuttleJets.Pairs"/>, or of its second jet when <paramref name="second"/>.
     /// </summary>
     public static int PartIndex(int pair, bool second) => 2 * pair + (second ? 1 : 0);
-
-    // After the attitude autopilot at 10, which adds the torque, and after every layer of the flight program.
-    public int Priority => 20;
-
-    public EventMask Wants => EventMask.Of<Throttle>().And<Torque>().And<Translation>();
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {

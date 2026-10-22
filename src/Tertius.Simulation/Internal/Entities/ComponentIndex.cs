@@ -62,5 +62,5 @@ internal sealed class ComponentIndex
         Contract.Ensures(IsSettled);
     }
 
-    private void Queue(int typeId, Entity entity, bool member) => (sets[typeId] ??= new EntitySet()).Queue(entity, member);
+    private void Queue(int typeId, Entity entity, bool member) => (sets[typeId] ??= new()).Queue(entity, member);
 }

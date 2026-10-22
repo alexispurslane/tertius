@@ -24,7 +24,12 @@ public readonly record struct PointLightData(Pose Offset, Vector3 Color, float I
 /// <param name="InnerConeAngle">Half-angle of the full-intensity cone, in radians.</param>
 /// <param name="OuterConeAngle">Half-angle of the outer cone, in radians. The light fades to zero between the two angles.</param>
 public readonly record struct SpotLightData(
-    Pose Offset, Vector3 Color, float Intensity, float Range, float InnerConeAngle, float OuterConeAngle);
+    Pose Offset,
+    Vector3 Color,
+    float Intensity,
+    float Range,
+    float InnerConeAngle,
+    float OuterConeAngle);
 
 /// <summary>
 /// The dynamic light that an entity carries: a <see cref="PointLightData"/> or a <see cref="SpotLightData"/>. The default
@@ -44,13 +49,17 @@ public readonly struct LightData : IEquatable<LightData>
     private const byte KindNone = 0, KindPoint = 1, KindSpot = 2;
 
     private readonly byte kind;
+
     /// <summary>The offset of both cases.</summary>
     private readonly Pose offset;
+
     private readonly Vector3 color;
     private readonly float intensity;
     private readonly float range;
+
     /// <summary>The inner cone angle of <see cref="SpotLightData"/>.</summary>
     private readonly float innerConeAngle;
+
     /// <summary>The outer cone angle of <see cref="SpotLightData"/>.</summary>
     private readonly float outerConeAngle;
 
@@ -74,11 +83,18 @@ public readonly struct LightData : IEquatable<LightData>
         outerConeAngle = light.OuterConeAngle;
     }
 
-    public static implicit operator LightData(PointLightData light) => new(light);
-    public static implicit operator LightData(SpotLightData light) => new(light);
-
     /// <summary>False for the default value, which holds no light.</summary>
     public bool HasValue => kind != KindNone;
+
+    public object? Value => kind switch
+    {
+        KindPoint => new PointLightData(offset, color, intensity, range),
+        KindSpot => new SpotLightData(offset, color, intensity, range, innerConeAngle, outerConeAngle),
+        _ => null
+    };
+
+    public static implicit operator LightData(PointLightData light) => new(light);
+    public static implicit operator LightData(SpotLightData light) => new(light);
 
     public bool TryGetValue(out PointLightData value)
     {
@@ -88,26 +104,23 @@ public readonly struct LightData : IEquatable<LightData>
 
     public bool TryGetValue(out SpotLightData value)
     {
-        value = kind == KindSpot ? new SpotLightData(offset, color, intensity, range, innerConeAngle, outerConeAngle) : default;
+        value = kind == KindSpot
+            ? new SpotLightData(offset, color, intensity, range, innerConeAngle, outerConeAngle)
+            : default;
         return kind == KindSpot;
     }
-
-    public object? Value => kind switch
-    {
-        KindPoint => new PointLightData(offset, color, intensity, range),
-        KindSpot => new SpotLightData(offset, color, intensity, range, innerConeAngle, outerConeAngle),
-        _ => null,
-    };
 
     // Equals on the fields, not the operator ==. The operator follows IEEE 754, so it calls a NaN unequal to itself, and a
     // light that holds a NaN would not equal itself. Equals treats a NaN as equal to a NaN, which agrees with GetHashCode.
     // The held case alone decides equality: the fields of the other case are not compared.
     public bool Equals(LightData other) => kind == other.kind && kind switch
     {
-        KindPoint => offset.Equals(other.offset) && color.Equals(other.color) && intensity.Equals(other.intensity) && range.Equals(other.range),
-        KindSpot => offset.Equals(other.offset) && color.Equals(other.color) && intensity.Equals(other.intensity) && range.Equals(other.range)
-            && innerConeAngle.Equals(other.innerConeAngle) && outerConeAngle.Equals(other.outerConeAngle),
-        _ => true,
+        KindPoint => offset.Equals(other.offset) && color.Equals(other.color) && intensity.Equals(other.intensity) &&
+                     range.Equals(other.range),
+        KindSpot => offset.Equals(other.offset) && color.Equals(other.color) && intensity.Equals(other.intensity) &&
+                    range.Equals(other.range)
+                    && innerConeAngle.Equals(other.innerConeAngle) && outerConeAngle.Equals(other.outerConeAngle),
+        _ => true
     };
 
     public override bool Equals(object? obj) => obj is LightData other && Equals(other);
@@ -116,7 +129,7 @@ public readonly struct LightData : IEquatable<LightData>
     {
         KindPoint => HashCode.Combine(kind, offset, color, intensity, range),
         KindSpot => HashCode.Combine(kind, offset, color, intensity, range, innerConeAngle, outerConeAngle),
-        _ => 0,
+        _ => 0
     };
 
     public static bool operator ==(LightData a, LightData b) => a.Equals(b);
@@ -127,6 +140,6 @@ public readonly struct LightData : IEquatable<LightData>
     {
         PointLightData light => $"LightData({light})",
         SpotLightData light => $"LightData({light})",
-        null => "LightData(none)",
+        null => "LightData(none)"
     };
 }

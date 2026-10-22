@@ -39,8 +39,7 @@ public class EventQueryBenchmarks
     private EventBuffer buffer = null!;
     private Event[] events = null!;
 
-    [Params(64, 4096)]
-    public int Count;
+    [Params(64, 4096)] public int Count;
 
     [GlobalSetup]
     public void Setup()
@@ -50,7 +49,7 @@ public class EventQueryBenchmarks
         EventTypeRegistry.Register<Heal>();
         EventTypeRegistry.Register<Note>();
         events = new Event[Count];
-        buffer = new EventBuffer(Count);
+        buffer = new(Count);
         EventList list = buffer.Begin(Owner);
         for (int i = 0; i < Count; i++)
         {
@@ -58,7 +57,7 @@ public class EventQueryBenchmarks
             {
                 0 or 2 => Event.Create(Owner, Owner, new Damage { Amount = i % 17, Kind = i % 3 }),
                 1 => Event.Create(Owner, Owner, new Heal { Amount = 1 }),
-                _ => Event.Create(Owner, Owner, new Note { Value = i }),
+                _ => Event.Create(Owner, Owner, new Note { Value = i })
             };
             list.Add(events[i]);
         }
@@ -91,12 +90,14 @@ public class EventQueryBenchmarks
     [Benchmark(Description = "LINQ Select edited copies .ToArray()")]
     [BenchmarkCategory("Edit")]
     public Event[] EditLinqCopy() =>
-        events.Select(static e =>
+    [
+        .. events.Select(static e =>
         {
             if (e.Is<Damage>())
                 e.As<Damage>().Amount -= 1f;
             return e;
-        }).ToArray();
+        })
+    ];
 
     // ---- Read-only reduction ---------------------------------------------------------------------------------------
 
@@ -123,6 +124,7 @@ public class EventQueryBenchmarks
             if (e.Is<Damage>())
                 sum += e.As<Damage>().Amount;
         }
+
         return sum;
     }
 
@@ -140,5 +142,5 @@ public class EventQueryBenchmarks
     [Benchmark(Description = "LINQ Where/Select/Sum")]
     [BenchmarkCategory("Sum")]
     public float SumLinq() =>
-        events.Where(static e => e.Is<Damage>()).Select(static e => e.As<Damage>().Amount).Sum();
+        events.Where(static e => e.Is<Damage>()).Sum(static e => e.As<Damage>().Amount);
 }

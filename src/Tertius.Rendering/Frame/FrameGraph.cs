@@ -11,23 +11,32 @@ internal sealed class FrameContext
     public required GeometryStore Geometry { get; init; }
     public required MaterialStore Materials { get; init; }
     public required BarrierBatch Barriers { get; init; }
+
     /// <summary>The sun shadow cascades. Passes that shade with the sun sample them.</summary>
     public required ShadowMap Shadows { get; init; }
 
     public FrameResources Frame { get; set; } = null!;
+
     /// <summary>The snapshot being drawn, unculled. A shadow pass selects casters from it, including ones outside the view.</summary>
     public RenderSnapshot Snapshot { get; set; } = null!;
+
     /// <summary>The interpolation factor of this frame.</summary>
     public float Alpha { get; set; }
+
     public PreparedScene Scene { get; set; } = null!;
+
     /// <summary>The final image: a swapchain image or the headless output.</summary>
     public GpuImage Output { get; set; } = null!;
+
     public long Number { get; set; }
     public float Exposure { get; set; } = 1f;
+
     /// <summary>The output format stores linear values and the tone mapper must apply the sRGB curve.</summary>
     public bool EncodeSrgb { get; set; }
+
     /// <summary>Set when this frame must also be copied to the capture buffer.</summary>
     public GpuBuffer? CaptureBuffer { get; set; }
+
     /// <summary>vkCmdDrawIndexedIndirect calls recorded this frame.</summary>
     public int IndirectDrawCalls { get; set; }
 
@@ -55,7 +64,8 @@ internal sealed class FrameContext
 /// <summary>
 /// One step of the frame, in two phases. <see cref="Prepare"/> runs on the CPU after batching and before the frame's
 /// buffers are written, so a pass can append its own GPU instances and indirect commands to
-/// <see cref="FrameContext.Scene"/> (<see cref="PreparedScene.AppendInstance"/>, <see cref="PreparedScene.AppendCommand"/>).
+/// <see cref="FrameContext.Scene"/> (<see cref="PreparedScene.AppendInstance"/>, <see cref="PreparedScene.AppendCommand"/>
+/// ).
 /// <see cref="Record"/> then records GPU work. Passes declare the images and buffers they touch through
 /// <see cref="FrameContext.Barriers"/> before they record, so the barriers between passes come from the uses.
 /// </summary>
@@ -86,6 +96,10 @@ internal abstract class RenderPass : IDisposable
 /// </summary>
 internal sealed class FrameGraph : IDisposable
 {
+    private readonly List<(Stage Stage, int Order, RenderPass Pass)> passes = [];
+
+    public IEnumerable<RenderPass> Passes => passes.Select(p => p.Pass);
+
     public enum Stage
     {
         ShadowMaps,
@@ -94,14 +108,11 @@ internal sealed class FrameGraph : IDisposable
         Lighting,
         Transparent,
         ToneMap,
+
         /// <summary>Debug drawing over the tone-mapped image, such as frame outlines, before the readback so a capture holds it.</summary>
         Overlay,
-        Readback,
+        Readback
     }
-
-    private readonly List<(Stage Stage, int Order, RenderPass Pass)> passes = new();
-
-    public IEnumerable<RenderPass> Passes => passes.Select(p => p.Pass);
 
     public void Add(Stage stage, RenderPass pass)
     {

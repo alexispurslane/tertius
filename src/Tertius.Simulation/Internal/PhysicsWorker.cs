@@ -22,7 +22,7 @@ internal sealed class PhysicsWorker : IDisposable
     {
         this.backend = backend;
         this.output = output;
-        thread = new Thread(Loop) { IsBackground = true, Name = "Tertius physics" };
+        thread = new(Loop) { IsBackground = true, Name = "Tertius physics" };
         thread.Start();
     }
 
@@ -68,6 +68,7 @@ internal sealed class PhysicsWorker : IDisposable
             {
                 error = ExceptionDispatchInfo.Capture(ex);
             }
+
             done.Set();
         }
     }

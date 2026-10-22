@@ -28,7 +28,7 @@ internal readonly record struct ShadowTracking(Double3 Chord, Double3 Place, Vec
     public bool Matches(Vector3 velocity)
     {
         var target = (Double3)JoltTarget;
-        return Double3.Distance((Double3)velocity, target) <= RoundingShare * (target.Length + 1);
+        return Double3.Distance(velocity, target) <= RoundingShare * (target.Length + 1);
     }
 
     /// <summary>
@@ -38,7 +38,7 @@ internal readonly record struct ShadowTracking(Double3 Chord, Double3 Place, Vec
     /// own velocity does when it moves.
     /// </summary>
     public ShadowTracking Moved(Double3 offset, Double3 velocity) =>
-        new(Chord + velocity, Place + offset, ((Double3)JoltTarget + velocity).ToVector3(), Step);
+        new(Chord + velocity, Place + offset, (JoltTarget + velocity).ToVector3(), Step);
 }
 
 /// <summary>
@@ -49,31 +49,24 @@ internal readonly record struct ShadowTracking(Double3 Chord, Double3 Place, Vec
 /// without boxing. <see cref="Value"/> boxes, so use it only for debugging.
 /// </summary>
 [Union]
-internal readonly struct VelocityShadow
+internal readonly struct VelocityShadow(ShadowTracking tracking)
 {
-    private readonly ShadowTracking tracking;
-    private readonly bool hasValue;
+    private readonly ShadowTracking tracking = tracking;
 
-    public VelocityShadow(ShadowTracking tracking)
-    {
-        this.tracking = tracking;
-        hasValue = true;
-    }
+    public bool HasValue { get; } = true;
 
-    public bool HasValue => hasValue;
+    /// <summary>The case as an object. It boxes, so use it only for debugging.</summary>
+    public object? Value => HasValue ? tracking : null;
 
     public bool TryGetValue(out ShadowTracking value)
     {
         value = tracking;
-        return hasValue;
+        return HasValue;
     }
-
-    /// <summary>The case as an object. It boxes, so use it only for debugging.</summary>
-    public object? Value => hasValue ? tracking : null;
 
     /// <summary>The shadow carried into another home, as <see cref="ShadowTracking.Moved"/> says, or none for none.</summary>
     public VelocityShadow Moved(Double3 offset, Double3 velocity) =>
-        hasValue ? new VelocityShadow(tracking.Moved(offset, velocity)) : default;
+        HasValue ? new VelocityShadow(tracking.Moved(offset, velocity)) : default;
 
-    public override string ToString() => hasValue ? $"VelocityShadow({tracking})" : "VelocityShadow(none)";
+    public override string ToString() => HasValue ? $"VelocityShadow({tracking})" : "VelocityShadow(none)";
 }

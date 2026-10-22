@@ -1,4 +1,3 @@
-using System.Numerics;
 using Tertius.Frames.Rails;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
@@ -8,7 +7,8 @@ namespace Tertius.Physics.Tests;
 /// <summary>
 /// The hull of a frame's owner and the system of its interior, on the World and the real backend: how they follow the
 /// frame tree, and what happens to them when a frame is destroyed or moved. The World rewrites the owner's state from the
-/// frame state, so a test reads the hull that Jolt reported in the outputs that <see cref="FaultInjectingBackend"/> records.
+/// frame state, so a test reads the hull that Jolt reported in the outputs that <see cref="FaultInjectingBackend"/>
+/// records.
 /// </summary>
 public class FrameHullTests
 {
@@ -16,18 +16,20 @@ public class FrameHullTests
 
     /// <summary>A dynamic box with sides of 2 · <paramref name="half"/> m that nothing slows down on its own and that does not bounce.</summary>
     private static BodyDesc BoxBody(float half, float mass) =>
-        new(new BoxShapeDesc(new Vector3(half)), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
+        new(new BoxShapeDesc(new(half)), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
 
     private static FrameHandle SpaceFrame(World world) =>
-        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
 
     /// <summary>A frame with no body, with a bubble of <paramref name="radius"/> m.</summary>
     private static FrameHandle EmptyFrame(World world, FrameHandle parent, DPose pose, float radius) =>
-        world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = parent, Pose = pose, AsFrame = new FrameSpec(FrameBounds.Sphere(radius)) }));
+        world.GetOwnedFrame(
+            world.Spawn(new() { Frame = parent, Pose = pose, AsFrame = new(FrameBounds.Sphere(radius)) }));
 
     /// <summary>The latest body state of <paramref name="entity"/> that Jolt sent, or null when Jolt never sent one.</summary>
     private static BodyState? LastReport(FaultInjectingBackend faults, Entity entity) =>
-        faults.Outputs.SelectMany(output => output.Bodies).Where(state => state.Entity == entity).Cast<BodyState?>().LastOrDefault();
+        faults.Outputs.SelectMany(output => output.Bodies).Where(state => state.Entity == entity).Cast<BodyState?>()
+            .LastOrDefault();
 
     /// <summary>
     /// The kinematic hull of a frame whose Kepler orbit moves it at 7.5 km/s rests in a following frame of its own (ter-dhkf,
@@ -47,13 +49,13 @@ public class FrameHullTests
     public void TheKinematicHullOfAKeplerFrameFollowsTheTreePoseInTheFollowingFrameWhereItRests()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
-        var orbit = KeplerOrbit.Circular(7_000_000, phase: 1.0, spinRate: 0.05);
+        FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
+        KeplerOrbit orbit = KeplerOrbit.Circular(7_000_000, phase: 1.0, spinRate: 0.05);
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = planet,
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(10)), BodyMotion.Kinematic),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
+            Body = new(new BoxShapeDesc(new(10)), BodyMotion.Kinematic),
+            AsFrame = new(FrameBounds.Sphere(100))
         }.OnKeplerOrbit(world, orbit));
         FrameHandle station = world.GetOwnedFrame(owner);
         const int ticksBeforeTheHullIsOnItsRails = 2;
@@ -69,13 +71,17 @@ public class FrameHullTests
             world.Frames.Numeric(followingFrame).Should().Be(NumericMode.Following);
             hull.Frame.Should().Be(followingFrame, "the hull rests in the following frame");
             tree.Position.Should().Be(Double3.Zero);
-            (hull.Pose.Position - tree.Position).Length.Should().BeLessThan(1e-3, "the hull is at the tree pose after tick {0}", i + ticksBeforeTheHullIsOnItsRails);
+            (hull.Pose.Position - tree.Position).Length.Should().BeLessThan(1e-3,
+                "the hull is at the tree pose after tick {0}", i + ticksBeforeTheHullIsOnItsRails);
             Math.Abs(Dot(hull.Pose.Rotation, tree.Rotation)).Should().BeGreaterThan(1 - 1e-6);
             // The kinematic velocity in the following frame and the following frame's own are chords over one step, close to the
             // orbital velocity together.
-            ((Double3)hull.LinearVelocity + world.Frames.LinearVelocity(followingFrame) - world.Frames.LinearVelocity(station)).Length.Should().BeLessThan(0.1);
-            world.PoseIn(owner, planet).Should().Be(world.Frames.LocalPose(station), "the World rewrites the owner's state from the frame, not from the hull");
+            (hull.LinearVelocity + world.Frames.LinearVelocity(followingFrame) - world.Frames.LinearVelocity(station))
+                .Length.Should().BeLessThan(0.1);
+            world.PoseIn(owner, planet).Should().Be(world.Frames.LocalPose(station),
+                "the World rewrites the owner's state from the frame, not from the hull");
         }
+
         faults.Outputs.SelectMany(output => output.HandOffs).Should().BeEmpty();
         world.Errors.Should().BeEmpty();
     }
@@ -85,12 +91,12 @@ public class FrameHullTests
     {
         using World world = NewWorld(out JoltPhysicsBackend backend);
         FrameHandle space = SpaceFrame(world);
-        Entity ship = world.Spawn(new SpawnDesc
+        Entity ship = world.Spawn(new()
         {
             Frame = space,
             Pose = At(10),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(3)), Mass: 100),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(30)),
+            Body = new(new BoxShapeDesc(new(3)), Mass: 100),
+            AsFrame = new(FrameBounds.Sphere(30))
         });
         world.Tick();
 
@@ -100,10 +106,10 @@ public class FrameHullTests
         backend.SystemCount.Should().Be(2);
 
         // A root frame has no parent, so its owner only has the interior.
-        Entity root = world.Spawn(new SpawnDesc
+        Entity root = world.Spawn(new()
         {
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
+            Body = new(new BoxShapeDesc(new(1)), BodyMotion.Static),
+            AsFrame = new(FrameBounds.Sphere(5))
         });
         world.Tick();
         backend.TryGetBodyFrame(root, out _).Should().BeFalse();
@@ -122,16 +128,16 @@ public class FrameHullTests
         var warnings = new List<string>();
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults, warnings);
         FrameHandle space = SpaceFrame(world);
-        Entity ship = world.Spawn(new SpawnDesc
+        Entity ship = world.Spawn(new()
         {
             Frame = space,
             Pose = At(10),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(3)), Mass: 100, InteriorShape: new BoxShapeDesc(new Vector3(0.5f))),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(30)),
+            Body = new(new BoxShapeDesc(new(3)), Mass: 100, InteriorShape: new BoxShapeDesc(new(0.5f))),
+            AsFrame = new(FrameBounds.Sphere(30))
         });
         FrameHandle shipFrame = world.GetOwnedFrame(ship);
-        Entity crate = world.Spawn(new SpawnDesc { Frame = shipFrame, Pose = At(0, 2), Body = BoxBody(0.25f, 1) });
-        Entity stray = world.Spawn(new SpawnDesc { Frame = shipFrame, Pose = At(0, -2), Body = BoxBody(0.25f, 1) });
+        Entity crate = world.Spawn(new() { Frame = shipFrame, Pose = At(0, 2), Body = BoxBody(0.25f, 1) });
+        Entity stray = world.Spawn(new() { Frame = shipFrame, Pose = At(0, -2), Body = BoxBody(0.25f, 1) });
         Tick(world, 5);
 
         // The simulation destroys the crate and the ship, but the batch of the ship forgets the stray box.
@@ -158,25 +164,26 @@ public class FrameHullTests
     {
         using World world = NewWorld(out JoltPhysicsBackend backend);
         FrameHandle space = SpaceFrame(world);
-        Entity carrier = world.Spawn(new SpawnDesc
+        Entity carrier = world.Spawn(new()
         {
             Frame = space,
             Pose = At(100),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(20)), BodyMotion.Static, InteriorShape: new BoxShapeDesc(new Vector3(1))),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(200)),
+            Body = new(new BoxShapeDesc(new(20)), BodyMotion.Static, InteriorShape: new BoxShapeDesc(new(1))),
+            AsFrame = new(FrameBounds.Sphere(200))
         });
         FrameHandle carrierFrame = world.GetOwnedFrame(carrier);
-        Entity fighter = world.Spawn(new SpawnDesc
+        Entity fighter = world.Spawn(new()
         {
             Frame = carrierFrame,
             Pose = At(0, 50),
-            LinearVelocity = new Double3(1, 0, 0),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, LinearDamping: 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
+            LinearVelocity = new(1, 0, 0),
+            Body = new(new BoxShapeDesc(new(2)), Mass: 1000, LinearDamping: 0),
+            AsFrame = new(FrameBounds.Sphere(10))
         });
         FrameHandle fighterFrame = world.GetOwnedFrame(fighter);
         Tick(world, 3);
-        Double3 fighterInSpace = world.Frames.PointToParent(carrierFrame, world.Frames.LocalPose(fighterFrame).Position);
+        Double3 fighterInSpace =
+            world.Frames.PointToParent(carrierFrame, world.Frames.LocalPose(fighterFrame).Position);
 
         world.Destroy(carrier);
         world.Tick();
@@ -196,26 +203,28 @@ public class FrameHullTests
         FrameHandle space = SpaceFrame(world);
         // A drifting, spinning carrier with a fighter inside that flies and spins on its own. Sphere hulls keep their
         // spin constant and nothing is damped, so every velocity stays exact.
-        var carrierHull = new BodyDesc(new SphereShapeDesc(20), Mass: 1e6f, LinearDamping: 0, AngularDamping: 0, InteriorShape: new SphereShapeDesc(1));
-        Entity carrier = world.Spawn(new SpawnDesc
+        var carrierHull = new BodyDesc(new SphereShapeDesc(20), Mass: 1e6f, LinearDamping: 0, AngularDamping: 0,
+            InteriorShape: new SphereShapeDesc(1));
+        Entity carrier = world.Spawn(new()
         {
             Frame = space,
             Pose = At(100),
-            LinearVelocity = new Double3(0, 0, 20),
-            AngularVelocity = new Vector3(0, 0.2f, 0),
+            LinearVelocity = new(0, 0, 20),
+            AngularVelocity = new(0, 0.2f, 0),
             Body = carrierHull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(200)),
+            AsFrame = new(FrameBounds.Sphere(200))
         });
         FrameHandle carrierFrame = world.GetOwnedFrame(carrier);
-        var fighterHull = new BodyDesc(new SphereShapeDesc(2), Mass: 1000, LinearDamping: 0, AngularDamping: 0, InteriorShape: new SphereShapeDesc(0.5f));
-        Entity fighter = world.Spawn(new SpawnDesc
+        var fighterHull = new BodyDesc(new SphereShapeDesc(2), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
+            InteriorShape: new SphereShapeDesc(0.5f));
+        Entity fighter = world.Spawn(new()
         {
             Frame = carrierFrame,
             Pose = At(60),
-            LinearVelocity = new Double3(1, 0, 0),
-            AngularVelocity = new Vector3(0, 0, 0.5f),
+            LinearVelocity = new(1, 0, 0),
+            AngularVelocity = new(0, 0, 0.5f),
             Body = fighterHull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
+            AsFrame = new(FrameBounds.Sphere(10))
         });
         FrameHandle fighterFrame = world.GetOwnedFrame(fighter);
         Tick(world, 10);
@@ -225,8 +234,9 @@ public class FrameHullTests
         Double3 carrierSpin = world.Frames.AngularVelocity(carrierFrame);
         Double3 inCarrier = world.Frames.LocalPose(fighterFrame).Position;
         Double3 position = carrierPose.TransformPoint(inCarrier);
-        Double3 velocity = carrierPose.TransformDirection(world.Frames.LinearVelocity(fighterFrame)) + world.Frames.LinearVelocity(carrierFrame) +
-            Double3.Cross(carrierSpin, carrierPose.TransformDirection(inCarrier));
+        Double3 velocity = carrierPose.TransformDirection(world.Frames.LinearVelocity(fighterFrame)) +
+                           world.Frames.LinearVelocity(carrierFrame) +
+                           Double3.Cross(carrierSpin, carrierPose.TransformDirection(inCarrier));
         Double3 spin = carrierPose.TransformDirection(world.Frames.AngularVelocity(fighterFrame)) + carrierSpin;
 
         world.Destroy(carrier);
@@ -240,8 +250,9 @@ public class FrameHullTests
         hullFrame.Should().Be(space);
         world.Frames.Parent(fighterFrame).Should().Be(space);
         (world.Frames.LinearVelocity(fighterFrame) - velocity).Length.Should().BeLessThan(1e-4 * velocity.Length);
-        ((Double3)world.Frames.AngularVelocity(fighterFrame) - spin).Length.Should().BeLessThan(1e-5);
-        (world.Frames.LocalPose(fighterFrame).Position - (position + velocity * (double)world.DeltaTime)).Length.Should().BeLessThan(1e-3);
+        (world.Frames.AngularVelocity(fighterFrame) - spin).Length.Should().BeLessThan(1e-5);
+        (world.Frames.LocalPose(fighterFrame).Position - (position + velocity * world.DeltaTime)).Length.Should()
+            .BeLessThan(1e-3);
         world.Frames.ProperAcceleration(fighterFrame).Length().Should().BeLessThan(1e-6f);
         world.Errors.Should().BeEmpty();
     }
@@ -258,19 +269,19 @@ public class FrameHullTests
         var warnings = new List<string>();
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults, warnings);
         FrameHandle space = SpaceFrame(world);
-        Entity shipOwner = world.Spawn(new SpawnDesc
+        Entity shipOwner = world.Spawn(new()
         {
             Frame = space,
             Pose = At(10),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(3)), Mass: 100),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(30)),
+            Body = new(new BoxShapeDesc(new(3)), Mass: 100),
+            AsFrame = new(FrameBounds.Sphere(30))
         });
-        Entity towerOwner = world.Spawn(new SpawnDesc
+        Entity towerOwner = world.Spawn(new()
         {
             Frame = space,
             Pose = At(-50),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Static),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
+            Body = new(new BoxShapeDesc(new(2)), BodyMotion.Static),
+            AsFrame = new(FrameBounds.Sphere(20))
         });
         world.Tick();
         faults.Jolt.HasInterior(shipOwner).Should().BeTrue();
@@ -282,6 +293,7 @@ public class FrameHullTests
             faults.EditNextChanges = changes => changes.BodiesDestroyed.Remove(owner);
             world.Destroy(owner);
         }
+
         Tick(world, 3);
 
         faults.Jolt.TryGetBodyFrame(shipOwner, out _).Should().BeFalse();
@@ -305,17 +317,18 @@ public class FrameHullTests
         var warnings = new List<string>();
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults, warnings);
         FrameHandle space = SpaceFrame(world);
-        Entity bubbleOwner = world.Spawn(new SpawnDesc { Frame = space, Pose = At(50), AsFrame = new FrameSpec(FrameBounds.Sphere(20)) });
+        Entity bubbleOwner = world.Spawn(new() { Frame = space, Pose = At(50), AsFrame = new(FrameBounds.Sphere(20)) });
         FrameHandle bubble = world.GetOwnedFrame(bubbleOwner);
         // The ball sticks out of the bubble, so space holds a ghost of it.
-        Entity ball = world.Spawn(new SpawnDesc { Frame = bubble, Pose = At(19.8), Body = Ball() });
+        Entity ball = world.Spawn(new() { Frame = bubble, Pose = At(19.8), Body = Ball() });
         world.Tick();
         faults.Jolt.HasGhostIn(ball, space).Should().BeTrue();
 
         // A batch names a frame that the tree still has. Physics keeps following the tree. The World sends a batch only when
         // it holds a change, so the test spawns a box far away to make one.
         faults.EditNextChanges = changes => changes.FramesDestroyed.Add(bubble);
-        world.Spawn(new SpawnDesc { Frame = space, Pose = At(0, -1000), Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static) });
+        world.Spawn(new()
+            { Frame = space, Pose = At(0, -1000), Body = new(new BoxShapeDesc(new(1)), BodyMotion.Static) });
         world.Tick();
         warnings.Should().Contain(w => w.Contains(bubble.ToString()) && w.Contains("still in the frame tree"));
         faults.Jolt.TryGetBodyFrame(ball, out FrameHandle ballFrame).Should().BeTrue();
@@ -343,12 +356,12 @@ public class FrameHullTests
         FrameHandle space = SpaceFrame(world);
         // The shuttle's bubble does not fit in the station's, so it never enters on its own.
         FrameHandle station = EmptyFrame(world, space, At(500), 15);
-        Entity shuttleOwner = world.Spawn(new SpawnDesc
+        Entity shuttleOwner = world.Spawn(new()
         {
             Frame = space,
             Pose = At(505),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
+            Body = new(new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+            AsFrame = new(FrameBounds.Sphere(10))
         });
         FrameHandle shuttle = world.GetOwnedFrame(shuttleOwner);
         world.Tick();
@@ -380,14 +393,14 @@ public class FrameHullTests
         // The shuttle's bubble does not fit in the station's, so it never enters on its own.
         FrameHandle station = EmptyFrame(world, space, At(500), 15);
         var pilot = new Pilot();
-        Entity shuttleOwner = world.Spawn(new SpawnDesc
+        Entity shuttleOwner = world.Spawn(new()
         {
             Frame = hangar,
             Pose = At(25),
-            LinearVelocity = new Double3(10, 0, 0),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
-            Components = [pilot],
+            LinearVelocity = new(10, 0, 0),
+            Body = new(new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+            AsFrame = new(FrameBounds.Sphere(10)),
+            Components = [pilot]
         });
         FrameHandle shuttle = world.GetOwnedFrame(shuttleOwner);
 
@@ -408,7 +421,7 @@ public class FrameHullTests
         // reads the backend after the tick that applies the batch and runs the step.
         world.Frames.Reparent(shuttle, station);
         // Cargo for the station, outside the shuttle's bubble.
-        world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 12), Body = BoxBody(0.25f, 1) });
+        world.Spawn(new() { Frame = station, Pose = At(0, 12), Body = BoxBody(0.25f, 1) });
         world.Tick();
         faults.Jolt.TryGetBodyFrame(shuttleOwner, out FrameHandle hullFrame).Should().BeTrue();
         hullFrame.Should().Be(station);

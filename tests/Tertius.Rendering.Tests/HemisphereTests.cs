@@ -1,5 +1,4 @@
 using System.Numerics;
-using Tertius.Rendering;
 
 namespace Tertius.Rendering.Tests;
 
@@ -18,21 +17,24 @@ public sealed class HemisphereTests
     private static Vector2 Toward(Vector3 side) => Gpu.Project(Center + 0.8f * side, Width, Height);
 
     /// <summary>Renders the sphere and returns its color at the right, the left and the top.</summary>
-    private static (Vector3 Right, Vector3 Left, Vector3 Top) Render(HemisphereUp up, string name, RenderFlags flags = RenderFlags.None, bool impostors = false)
+    private static (Vector3 Right, Vector3 Left, Vector3 Top) Render(HemisphereUp up, string name,
+        RenderFlags flags = RenderFlags.None, bool impostors = false)
     {
         VulkanRenderer renderer = Gpu.Headless(Width, Height, impostors: impostors);
         try
         {
             MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f, 64, 32));
-            MaterialId white = renderer.CreateMaterial(new MaterialDesc(Vector4.One, SpecularIntensity: 0));
+            MaterialId white = renderer.CreateMaterial(new(Vector4.One, SpecularIntensity: 0));
             RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
-            snapshot.Ambient = new AmbientLight { SkyColor = new Vector3(0.6f, 0, 0), GroundColor = new Vector3(0, 0, 0.6f), Intensity = 1 };
-            snapshot.Instances.Add(RenderInstance.Create(sphere, white, Center, Quaternion.Identity, Vector3.One, 1f, up,
+            snapshot.Ambient = new() { SkyColor = new(0.6f, 0, 0), GroundColor = new(0, 0, 0.6f), Intensity = 1 };
+            snapshot.Instances.Add(RenderInstance.Create(sphere, white, Center, Quaternion.Identity, Vector3.One, 1f,
+                up,
                 RenderFlags.Visible | flags, entityIndex: 1));
             Capture image = Gpu.RenderAndCapture(renderer, snapshot, name);
             if (impostors)
                 renderer.LastFrameStats.Impostors.Should().Be(1, "the sphere is 78 px tall, below 200");
-            return (image.Color(Toward(Vector3.UnitX)), image.Color(Toward(-Vector3.UnitX)), image.Color(Toward(Vector3.UnitY)));
+            return (image.Color(Toward(Vector3.UnitX)), image.Color(Toward(-Vector3.UnitX)),
+                image.Color(Toward(Vector3.UnitY)));
         }
         finally
         {
@@ -44,10 +46,12 @@ public sealed class HemisphereTests
         (color.X > color.Z + 0.15f).Should().BeTrue($"the {side} faces up, so the red sky lights it, not {color}");
 
     private static void ExpectGroundward(Vector3 color, string side) =>
-        (color.Z > color.X + 0.15f).Should().BeTrue($"the {side} faces down, so the blue ground lights it, not {color}");
+        (color.Z > color.X + 0.15f).Should()
+        .BeTrue($"the {side} faces down, so the blue ground lights it, not {color}");
 
     private static void ExpectEven(Vector3 color, string side) =>
-        MathF.Abs(color.X - color.Z).Should().BeLessThan(0.03f, $"the {side} faces sideways, so sky and ground mix evenly, not {color}");
+        MathF.Abs(color.X - color.Z).Should()
+            .BeLessThan(0.03f, $"the {side} faces sideways, so sky and ground mix evenly, not {color}");
 
     [Fact]
     public void WithUpAlongTheCameraFramesXTheRightFacesTheSkyAndTheTopFacesSideways()
@@ -83,7 +87,8 @@ public sealed class HemisphereTests
     public void FarAboveThePointUpIsTheSameDirectionAcrossTheWholeObject()
     {
         // 100 m above the point, up leans at most 0.6 degrees from +Y across the sphere, as on a planet's ground.
-        (Vector3 right, Vector3 left, Vector3 top) = Render(HemisphereUp.AwayFrom(new Vector3(0, -100, 0)), "hemisphere-away-far");
+        (Vector3 right, Vector3 left, Vector3 top) =
+            Render(HemisphereUp.AwayFrom(new(0, -100, 0)), "hemisphere-away-far");
 
         ExpectEven(right, "right");
         ExpectEven(left, "left");
@@ -93,7 +98,8 @@ public sealed class HemisphereTests
     [Fact]
     public void ATransparentObjectTakesItsUpFromItsInstanceToo()
     {
-        (Vector3 right, Vector3 left, Vector3 top) = Render(HemisphereUp.Along(Vector3.UnitX), "hemisphere-transparent", RenderFlags.Transparent);
+        (Vector3 right, Vector3 left, Vector3 top) = Render(HemisphereUp.Along(Vector3.UnitX), "hemisphere-transparent",
+            RenderFlags.Transparent);
 
         ExpectSkyward(right, "right");
         ExpectGroundward(left, "left");
@@ -103,7 +109,8 @@ public sealed class HemisphereTests
     [Fact]
     public void AnImpostorBakesItsInstancesUpIntoItsCapture()
     {
-        (Vector3 right, Vector3 left, Vector3 top) = Render(HemisphereUp.Along(Vector3.UnitX), "hemisphere-impostor", impostors: true);
+        (Vector3 right, Vector3 left, Vector3 top) =
+            Render(HemisphereUp.Along(Vector3.UnitX), "hemisphere-impostor", impostors: true);
 
         ExpectSkyward(right, "right");
         ExpectGroundward(left, "left");

@@ -179,8 +179,10 @@ public class PipelineComponentTests
     {
         using var t = new TestWorld();
         var order = new List<string>();
+
         Lambda Named(string name, int priority) =>
             new(EventMask.Of<Tick>(), (self, scoped ref events, scoped ref outbox) => order.Add(name), priority);
+
         Entity e = t.SpawnWith(Named("a0", 0), Named("b10", 10));
 
         t.World.AddComponent(e, Named("c5", 5));
@@ -198,7 +200,7 @@ public class PipelineComponentTests
         using var t = new TestWorld();
         var shared = new Recorder();
 
-        Action spawn = () => t.World.Spawn(new SpawnDesc { Frame = t.Root, Components = [shared, shared] });
+        Action spawn = () => t.World.Spawn(new() { Frame = t.Root, Components = [shared, shared] });
 
         spawn.Should().Throw<ArgumentException>();
     }
@@ -209,7 +211,8 @@ public class PipelineComponentTests
     public void AComponentThatThrowsDoesNotStopTheComponentsAfterItOrTheOtherEntities()
     {
         using var t = new TestWorld();
-        var thrower = Lambda.OnTick((self, scoped ref events, scoped ref outbox) => throw new InvalidOperationException("kaboom"));
+        Lambda thrower = Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+            throw new InvalidOperationException("kaboom"));
         var later = new Recorder(EventMask.Of<Tick>(), priority: 1);
         Entity bad = t.SpawnWith(thrower, later);
         var bystander = new Recorder(EventMask.Of<Tick>());
@@ -228,12 +231,14 @@ public class PipelineComponentTests
         using var t = new TestWorld();
         var logged = new List<string>();
         t.World.Log += logged.Add;
-        Entity bad = t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) => throw new InvalidOperationException("kaboom")));
+        Entity bad = t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+            throw new InvalidOperationException("kaboom")));
 
         t.Run(2);
 
         t.World.Errors.Should().HaveCount(2);
-        t.World.Errors[0].Should().Contain(bad.ToString()).And.Contain(typeof(Lambda).FullName!).And.Contain("kaboom").And.Contain("tick 0");
+        t.World.Errors[0].Should().Contain(bad.ToString()).And.Contain(typeof(Lambda).FullName!).And.Contain("kaboom")
+            .And.Contain("tick 0");
         t.World.Errors[1].Should().Contain("tick 1");
         logged.Count(line => line.Contains("kaboom")).Should().Be(2);
     }
@@ -244,7 +249,8 @@ public class PipelineComponentTests
         using var t = new TestWorld();
         var log = new List<string>();
         t.World.Log += log.Add;
-        Entity e = t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Log($"hello {self.Tick}")));
+        Entity e = t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+            self.Log($"hello {self.Tick}")));
 
         t.Run(3);
 
@@ -258,7 +264,8 @@ public class PipelineComponentTests
     public void TheErrorListKeepsOnlyTheNewestUpToMaxErrorsAndCanBeCleared()
     {
         using var t = new TestWorld(configure: options => options.MaxErrors = 3);
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) => throw new InvalidOperationException($"failure {self.Tick}")));
+        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+            throw new InvalidOperationException($"failure {self.Tick}")));
 
         t.Run(5);
 
@@ -286,7 +293,7 @@ public class PipelineComponentTests
     public void AComponentThatThrowsFromWantsFailsOnlyTheSpawnInsideATickNotTheTick()
     {
         using var t = new TestWorld();
-        t.SpawnWith(OnTick(0, self => self.Spawn(new SpawnDesc { Frame = self.Frame, Components = [new BrokenWants()] })));
+        t.SpawnWith(OnTick(0, self => self.Spawn(new() { Frame = self.Frame, Components = [new BrokenWants()] })));
 
         t.Run(2);
 

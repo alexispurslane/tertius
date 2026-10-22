@@ -1,5 +1,4 @@
 using Tertius.Demo;
-using Tertius.Simulation;
 using SpinStation = Tertius.Demo.DemoScenes.SpinStation;
 using WheelCoda = Tertius.Demo.DemoScenes.WheelCoda;
 
@@ -28,7 +27,8 @@ public sealed class BlueDanubeCodaTests(BlueDanubeRendezvousRun run)
         (string Id, DPose Pose)[] stack = [.. WheelCoda.Stack()];
         run.StackAtFloor.Should().HaveCount(stack.Length);
         for (int i = 0; i < stack.Length; i++)
-            Double3.Distance(run.StackAtFloor[i], stack[i].Pose.Position).Should().BeLessThan(0.01, $"{stack[i].Id} rests where it spawned");
+            Double3.Distance(run.StackAtFloor[i], stack[i].Pose.Position).Should()
+                .BeLessThan(0.01, $"{stack[i].Id} rests where it spawned");
     }
 
     /// <summary>
@@ -40,17 +40,20 @@ public sealed class BlueDanubeCodaTests(BlueDanubeRendezvousRun run)
     public void TheLongRunPlaysTheCodaToItsEnd()
     {
         run.Ticks.Where(tick => tick.Tick <= run.FloorTick).Should().OnlyContain(tick => tick.Play.Value is Idle);
-        Coda.Select(tick => tick.Play.Value).OfType<Aiming>().Select(aiming => aiming.Throw).Distinct().Should().Equal(0, 1);
+        Coda.Select(tick => tick.Play.Value).OfType<Aiming>().Select(aiming => aiming.Throw).Distinct().Should()
+            .Equal(0, 1);
         Coda[^1].Play.Value.Should().Be(new Played());
 
-        BoxPlay play = run.World.GetComponent<BoxPlay>(run.Scene["person"])!;
+        var play = run.World.GetComponent<BoxPlay>(run.Scene["person"])!;
         play.Thrown.Should().HaveCount(BoxPlayState.Throws);
         foreach (Entity box in play.Thrown)
         {
-            FlightRecorder flight = run.World.GetComponent<FlightRecorder>(box)!;
-            ThrowLanding line = flight.Release!.Value.Landing(SpinStation.Rate, DemoScenes.DemoStation.WheelFloor, WheelCoda.BoxHalf);
+            var flight = run.World.GetComponent<FlightRecorder>(box)!;
+            ThrowLanding line = flight.Release!.Value.Landing(SpinStation.Rate, DemoScenes.DemoStation.WheelFloor,
+                WheelCoda.BoxHalf);
             Double3.Distance(flight.Landing!.Value.Place, line.Place).Should().BeLessThan(1e-3);
         }
+
         run.World.Errors.Should().BeEmpty();
         run.Logged.Should().NotContain(line => line.Contains(nameof(BoxPlay)));
     }
@@ -64,7 +67,8 @@ public sealed class BlueDanubeCodaTests(BlueDanubeRendezvousRun run)
     {
         (string Id, DPose Pose)[] stack = [.. WheelCoda.Stack()];
         foreach (int moved in new[] { 1, 3, 4, 5 })
-            Double3.Distance(run.World.PoseIn(run.Scene[stack[moved].Id], run.StationFrame).Position, stack[moved].Pose.Position)
+            Double3.Distance(run.World.PoseIn(run.Scene[stack[moved].Id], run.StationFrame).Position,
+                    stack[moved].Pose.Position)
                 .Should().BeGreaterThan(0.3, $"{stack[moved].Id} is knocked away");
     }
 }

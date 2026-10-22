@@ -14,8 +14,13 @@ internal sealed unsafe class GpuImage : IDisposable
     private readonly bool ownsImage;
     private bool disposed;
 
-    private GpuImage(VulkanDevice device, DeviceAllocator? allocator, MemoryAllocation memory, bool ownsImage, Image image,
-        ImageView view, Format format, Extent2D extent, uint mipLevels, uint arrayLayers, ImageAspectFlags aspect, string name)
+    /// <summary>The layout and last synchronized use of every mip level and layer. See <see cref="BarrierBatch"/>.</summary>
+    public ResourceState State;
+
+    private GpuImage(VulkanDevice device, DeviceAllocator? allocator, MemoryAllocation memory, bool ownsImage,
+        Image image,
+        ImageView view, Format format, Extent2D extent, uint mipLevels, uint arrayLayers, ImageAspectFlags aspect,
+        string name)
     {
         this.device = device;
         this.allocator = allocator;
@@ -40,8 +45,6 @@ internal sealed unsafe class GpuImage : IDisposable
     public uint ArrayLayers { get; }
     public ImageAspectFlags Aspect { get; }
     public string Name { get; }
-    /// <summary>The layout and last synchronized use of every mip level and layer. See <see cref="BarrierBatch"/>.</summary>
-    public ResourceState State;
 
     /// <summary>
     /// Creates an image with its own memory. Its view is a 2D array view when it has more than one layer or when
@@ -59,14 +62,14 @@ internal sealed unsafe class GpuImage : IDisposable
             SType = StructureType.ImageCreateInfo,
             ImageType = ImageType.Type2D,
             Format = format,
-            Extent = new Extent3D(extent.Width, extent.Height, 1),
+            Extent = new(extent.Width, extent.Height, 1),
             MipLevels = mipLevels,
             ArrayLayers = arrayLayers,
             Samples = SampleCountFlags.Count1Bit,
             Tiling = ImageTiling.Optimal,
             Usage = usage,
             SharingMode = SharingMode.Exclusive,
-            InitialLayout = ImageLayout.Undefined,
+            InitialLayout = ImageLayout.Undefined
         };
         device.Vk.CreateImage(device.Device, &info, null, out Image image).Check("vkCreateImage");
         MemoryAllocation memory = default;
@@ -81,7 +84,8 @@ internal sealed unsafe class GpuImage : IDisposable
             ImageView view = CreateView(device, image, format, aspect, viewType, 0, mipLevels, 0, arrayLayers);
             device.SetName(ObjectType.Image, image.Handle, name);
             device.SetName(ObjectType.ImageView, view.Handle, name);
-            return new GpuImage(device, allocator, memory, true, image, view, format, extent, mipLevels, arrayLayers, aspect, name);
+            return new(device, allocator, memory, true, image, view, format, extent, mipLevels, arrayLayers, aspect,
+                name);
         }
         catch
         {
@@ -97,7 +101,7 @@ internal sealed unsafe class GpuImage : IDisposable
     {
         ImageView view = CreateView(device, image, format, ImageAspectFlags.ColorBit, ImageViewType.Type2D, 0, 1, 0, 1);
         device.SetName(ObjectType.ImageView, view.Handle, name);
-        return new GpuImage(device, null, default, false, image, view, format, extent, 1, 1, ImageAspectFlags.ColorBit, name);
+        return new(device, null, default, false, image, view, format, extent, 1, 1, ImageAspectFlags.ColorBit, name);
     }
 
     /// <summary>
@@ -114,9 +118,11 @@ internal sealed unsafe class GpuImage : IDisposable
     }
 
     public static bool IsDepth(Format format) =>
-        format is Format.D32Sfloat or Format.D16Unorm or Format.D24UnormS8Uint or Format.D32SfloatS8Uint or Format.X8D24UnormPack32;
+        format is Format.D32Sfloat or Format.D16Unorm or Format.D24UnormS8Uint or Format.D32SfloatS8Uint
+            or Format.X8D24UnormPack32;
 
-    private static ImageView CreateView(VulkanDevice device, Image image, Format format, ImageAspectFlags aspect, ImageViewType type,
+    private static ImageView CreateView(VulkanDevice device, Image image, Format format, ImageAspectFlags aspect,
+        ImageViewType type,
         uint baseMip, uint mipLevels, uint baseLayer, uint layers)
     {
         var info = new ImageViewCreateInfo
@@ -125,7 +131,7 @@ internal sealed unsafe class GpuImage : IDisposable
             Image = image,
             ViewType = type,
             Format = format,
-            SubresourceRange = new ImageSubresourceRange(aspect, baseMip, mipLevels, baseLayer, layers),
+            SubresourceRange = new(aspect, baseMip, mipLevels, baseLayer, layers)
         };
         device.Vk.CreateImageView(device.Device, &info, null, out ImageView view).Check("vkCreateImageView");
         return view;

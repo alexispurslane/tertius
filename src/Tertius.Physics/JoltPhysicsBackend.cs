@@ -26,47 +26,59 @@ namespace Tertius.Physics;
 /// </remarks>
 public sealed partial class JoltPhysicsBackend : IPhysicsBackend
 {
+    private static readonly List<FrameHandle> EmptyChildren = [];
     private readonly JoltBackendOptions options;
     private readonly Action<string> log;
     private readonly JobSystemThreadPool jobs;
     private readonly ShapeCache shapes = new();
+
     private readonly ConcurrentDictionary<ShapeDesc, float> radii = new(ReferenceEqualityComparer.Instance);
+
     // The answer of ShapeProblem for each shape description that it was asked about: null when Jolt can build the shape.
     private readonly ConcurrentDictionary<ShapeDesc, string?> shapeProblems = new(ReferenceEqualityComparer.Instance);
+
     // The answer of ShapeCenterOfMass for each shape description that it was asked about.
     private readonly ConcurrentDictionary<ShapeDesc, Vector3> centersOfMass = new(ReferenceEqualityComparer.Instance);
 
     // Physics systems by frame index, and the same worlds as a list for iteration.
     private FrameWorld?[] worlds = new FrameWorld?[16];
-    private readonly List<FrameWorld> worldList = new();
+    private readonly List<FrameWorld> worldList = [];
 
     // Body records by entity slot index.
     private BodyRecord?[] records = new BodyRecord?[256];
-    private readonly List<BodyRecord> frameOwners = new();
+    private readonly List<BodyRecord> frameOwners = [];
 
     // Frames that a hand-off moved to a new parent during the current step. The frame tree is read-only during a step,
     // so these stand in for the tree until the step ends. The sync point then applies or refuses each hand-off, and
     // ReconcileFrames drops them all, so none survives into the next step.
-    private readonly Dictionary<int, (FrameHandle Frame, FrameHandle Parent)> parentOverrides = new();
+    private readonly Dictionary<int, (FrameHandle Frame, FrameHandle Parent)> parentOverrides = [];
     private List<FrameHandle>[] childLists = [];
-    private readonly List<int> usedChildLists = new();
-    private readonly List<FrameHandle> frameScratch = new();
+    private readonly List<int> usedChildLists = [];
+
+    private readonly List<FrameHandle> frameScratch = [];
+
     // Systems whose frames left the tree. They are collected first, because disposing them changes the world list.
-    private readonly List<FrameWorld> lostWorlds = new();
+    private readonly List<FrameWorld> lostWorlds = [];
     private int reconciledFrameVersion = -1;
 
     // The step record at the end of the step of each frame without a dynamic hull, by frame index, valid for one step (see
     // StepRecordOf).
     private MotionSample[] predicted = new MotionSample[16];
+
     // Steps count from 1, so a fresh entry of 0 never counts as cached. Only Step uses the cache.
     private long[] predictedStep = new long[16];
 
     private FrameTree frames = null!;
+
     // The intents that the current step applies, by entity slot (see PhysicsStepContext.Intents). Valid during a step only.
     private ReadOnlyMemory<PhysicsIntent> stepIntents;
     private long stepIndex;
     private float stepDt;
     private bool disposed;
+
+    // The list that takes the messages of ReportBug: the errors of the change batch or of the step output that the backend
+    // is filling now.
+    private List<string>? bugReport;
 
     /// <summary>Creates a backend. Initializes Jolt in double precision on first use in the process.</summary>
     public JoltPhysicsBackend(JoltBackendOptions? options = null)
@@ -75,9 +87,14 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         log = this.options.Log ?? (static message => Trace.TraceWarning(message));
         JoltRuntime.EnsureInitialized();
         jobs = NativeOwnership.Owned(this.options.WorkerThreads > 0
-            ? new JobSystemThreadPool(new JobSystemThreadPoolConfig { numThreads = this.options.WorkerThreads })
+            ? new(new() { numThreads = this.options.WorkerThreads })
             : new JobSystemThreadPool());
     }
+
+    // ---- Diagnostics for tests ----
+
+    /// <summary>The number of physics systems that exist.</summary>
+    internal int SystemCount => worldList.Count;
 
     /// <summary>
     /// Applies the structural changes of one sync point in the order that <see cref="PhysicsChanges"/> documents:
@@ -131,7 +148,6 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             this.frames = frames;
             bugReport = changes.Errors;
             foreach (Entity entity in changes.BodiesDestroyed)
-            {
                 try
                 {
                     DestroyRecord(entity);
@@ -140,9 +156,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 {
                     ChangeFailed($"destroy the body of {entity}", ex);
                 }
-            }
+
             foreach (FrameHandle frame in changes.FramesDestroyed)
-            {
                 try
                 {
                     DestroyWorld(frame);
@@ -151,7 +166,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 {
                     ChangeFailed($"destroy the system of {frame}", ex);
                 }
-            }
+
             ApplyShifts(changes.FramesShifted);
             // Moves come before the reconcile: the tree already has each moved hull's frame under its new home, and the
             // move keeps the hull's state, which a reconcile would take from the tree.
@@ -159,7 +174,6 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             ReconcileFrames();
             DropWithdrawnAnchorGhosts();
             foreach (BodyCreate create in changes.BodiesCreated)
-            {
                 try
                 {
                     CreateRecord(create);
@@ -168,17 +182,13 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 {
                     ChangeFailed($"create the body of {create.Entity}", ex);
                 }
-            }
         }
     }
 
     /// <summary>One change of a batch failed. Only a bug sends such a change. <see cref="ApplyChanges"/> goes on with the next one.</summary>
     private void ChangeFailed(string change, Exception ex) =>
-        ReportBug($"Physics could not {change}: {ex.GetType().Name}: {ex.Message} Only a bug sends such a change, so it was skipped.");
-
-    // The list that takes the messages of ReportBug: the errors of the change batch or of the step output that the backend
-    // is filling now.
-    private List<string>? bugReport;
+        ReportBug(
+            $"Physics could not {change}: {ex.GetType().Name}: {ex.Message} Only a bug sends such a change, so it was skipped.");
 
     /// <summary>
     /// Reports a state that only a bug produces, which the backend found and skipped. It breaks a contract in a Debug build.
@@ -281,7 +291,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(context.Frames);
         if (!(context.DeltaTime > 0))
-            throw new ArgumentOutOfRangeException(nameof(context), context.DeltaTime, "The step needs a positive delta time.");
+            throw new ArgumentOutOfRangeException(nameof(context), context.DeltaTime,
+                "The step needs a positive delta time.");
 
         lock (JoltRuntime.NativeGate)
         {
@@ -365,7 +376,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     private Vector3 ReadCenterOfMass(ShapeDesc shape)
     {
         lock (JoltRuntime.NativeGate)
+        {
             return shapes.Get(shape).CenterOfMass;
+        }
     }
 
     /// <summary>Builds the native shape of <paramref name="shape"/>, or returns why Jolt cannot build it.</summary>
@@ -411,11 +424,6 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         }
     }
 
-    // ---- Diagnostics for tests ----
-
-    /// <summary>The number of physics systems that exist.</summary>
-    internal int SystemCount => worldList.Count;
-
     /// <summary>The frame whose system holds the entity's primary body or character.</summary>
     internal bool TryGetBodyFrame(Entity entity, out FrameHandle frame)
     {
@@ -444,7 +452,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// True when <paramref name="entity"/> is a character in its rigid form: its body is a dynamic Jolt body, not a Jolt
     /// character. Tests check which form a character has.
     /// </summary>
-    internal bool HasRigidForm(Entity entity) => Find(entity) is { Desc.Motion: BodyMotion.Character, Character: null, HasPrimary: true };
+    internal bool HasRigidForm(Entity entity) => Find(entity) is
+        { Desc.Motion: BodyMotion.Character, Character: null, HasPrimary: true };
 
     /// <summary>The physics system of <paramref name="frame"/>, or null when the frame has none. Tests check that the backend frees it.</summary>
     internal PhysicsSystem? SystemOf(FrameHandle frame) => ExistingWorld(frame)?.System;
@@ -487,7 +496,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     internal VelocityShadow ShadowOf(Entity entity)
     {
         lock (JoltRuntime.NativeGate)
+        {
             return Find(entity)?.Shadow ?? default;
+        }
     }
 
     /// <summary>Every body in the system of <paramref name="frame"/>, in the order of its ID, as Jolt holds it.</summary>
@@ -501,7 +512,10 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             uint count = world.System.BodiesCount;
             var ids = new BodyID[count];
             fixed (BodyID* first = ids)
+            {
                 world.System.GetBodies(first, count);
+            }
+
             BodyInterface bodies = world.Bodies;
             BodyLockInterface locks = world.System.BodyLockInterface;
             foreach (BodyID id in ids)
@@ -525,13 +539,17 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                         angularDamping = motion.AngularDamping;
                     }
                 }
+
                 locks.UnlockRead(read);
-                facts.Add(new BodyFacts(id, bodies.GetUserData(id), bodies.GetMotionType(id), bodies.GetObjectLayer(id),
-                    bodies.GetShape(id)?.Handle ?? 0, bodies.GetMotionQuality(id), position.ToDouble3(), bodies.GetRotation(id),
-                    linear, angular, bodies.IsActive(id), bodies.GetFriction(id), bodies.GetRestitution(id), inverseMass,
+                facts.Add(new(id, bodies.GetUserData(id), bodies.GetMotionType(id), bodies.GetObjectLayer(id),
+                    bodies.GetShape(id)?.Handle ?? 0, bodies.GetMotionQuality(id), position.ToDouble3(),
+                    bodies.GetRotation(id),
+                    linear, angular, bodies.IsActive(id), bodies.GetFriction(id), bodies.GetRestitution(id),
+                    inverseMass,
                     inverseInertia, inertiaRotation, linearDamping, angularDamping, edgeRemoval));
             }
         }
+
         facts.Sort(static (a, b) => a.Id.Index.CompareTo(b.Id.Index));
         return facts;
     }
@@ -551,17 +569,14 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         Find(frame.Entity) is { } record && record.OwnedFrame == frame ? record : null;
 
     /// <summary>The parent of a frame, including the hand-offs of the current step, which the frame tree does not show yet.</summary>
-    private FrameHandle ParentOf(FrameHandle frame)
-    {
-        if (parentOverrides.TryGetValue(frame.Index, out var link) && link.Frame == frame)
-            return link.Parent;
-        return frames.TreeParent(frame);
-    }
+    private FrameHandle ParentOf(FrameHandle frame) =>
+        parentOverrides.TryGetValue(frame.Index, out (FrameHandle Frame, FrameHandle Parent) link) &&
+        link.Frame == frame
+            ? link.Parent
+            : frames.TreeParent(frame);
 
     private List<FrameHandle> ChildrenOf(FrameHandle frame) =>
         frame.Index < childLists.Length && childLists[frame.Index] is { } list ? list : EmptyChildren;
-
-    private static readonly List<FrameHandle> EmptyChildren = new();
 
     /// <summary>Rebuilds the child lists of every frame from the tree and the pending hand-offs. Allocates nothing once warm.</summary>
     private void RefreshFrameStructure()
@@ -579,7 +594,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 continue;
             if (parent.Index >= childLists.Length)
                 Array.Resize(ref childLists, Math.Max(parent.Index + 1, childLists.Length * 2));
-            List<FrameHandle> list = childLists[parent.Index] ??= new List<FrameHandle>();
+            List<FrameHandle> list = childLists[parent.Index] ??= [];
             if (list.Count == 0)
                 usedChildLists.Add(parent.Index);
             list.Add(frame);
@@ -626,7 +641,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             // Re-homing a hull out of an earlier system can already have replaced this one at the same index.
             if (ExistingWorld(world.Frame) != world)
                 continue;
-            log($"Physics: {world.Frame} left the frame tree, but no FramesDestroyed change came with it. Its system is removed.");
+            log(
+                $"Physics: {world.Frame} left the frame tree, but no FramesDestroyed change came with it. Its system is removed.");
             DisposeWorld(world);
         }
 
@@ -704,6 +720,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             Contract.Invariant(frames.IsAlive(world.Frame) && ExistingWorld(world.Frame) == world);
             AssertCharacterCounts(world);
         }
+
         int hulls = 0;
         int recordGhosts = 0;
         foreach (BodyRecord? record in records)
@@ -715,12 +732,14 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             if (record.IsHull)
             {
                 hulls++;
-                Contract.Invariant(record.InteriorBody.IsValid && record.InteriorWorld == ExistingWorld(record.OwnedFrame));
+                Contract.Invariant(record.InteriorBody.IsValid &&
+                                   record.InteriorWorld == ExistingWorld(record.OwnedFrame));
             }
             else
             {
                 Contract.Invariant(record.HasPrimary && record.World == ExistingWorld(record.Frame));
             }
+
             if (record.World is { } home)
             {
                 Contract.Invariant(record.Character is not null || record.Body.IsValid);
@@ -728,11 +747,13 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 BodyID primary = record.Character?.InnerBodyID ?? record.Body;
                 Contract.Invariant(home.Bodies.GetObjectLayer(primary) == PrimaryLayer(record));
             }
+
             if (record.InteriorWorld is { } interior)
             {
                 Contract.Invariant(interior.Bodies.GetObjectLayer(record.InteriorBody) == InteriorLayer(record));
                 Contract.Invariant(interior.Bodies.GetMotionType(record.InteriorBody) == InteriorMotion(record));
             }
+
             if (record.Ghosts is not { } ghosts)
                 continue;
             foreach (GhostBody ghost in ghosts)
@@ -745,8 +766,10 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                     ? ghost.World.Bodies.GetMotionType(ghost.Body) == MotionType.Kinematic
                     : ghost.World.CanMove(ghost.Body));
             }
+
             recordGhosts += ghosts.Count;
         }
+
         Contract.Invariant(hulls == frameOwners.Count);
         AssertContactInvariants();
         // Every ghost of a record is in its system's ghosts, and each is a body of its own, so the systems hold as many
@@ -781,10 +804,12 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             return world;
         if (world is not null)
         {
-            log($"Physics: {world.Frame} was replaced by {frame} without a FramesDestroyed change. Its system is discarded.");
+            log(
+                $"Physics: {world.Frame} was replaced by {frame} without a FramesDestroyed change. Its system is discarded.");
             DisposeWorld(world);
         }
-        world = new FrameWorld(frame, options, ReportBug);
+
+        world = new(frame, options, ReportBug);
         worlds[frame.Index] = world;
         worldList.Add(world);
         return world;
@@ -801,9 +826,11 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     {
         if (frames.IsAlive(frame))
         {
-            log($"Physics: {frame} is in FramesDestroyed but still in the frame tree. Its system stays until the frame leaves the tree.");
+            log(
+                $"Physics: {frame} is in FramesDestroyed but still in the frame tree. Its system stays until the frame leaves the tree.");
             return;
         }
+
         if (ExistingWorld(frame) is { } world)
             DisposeWorld(world);
     }
@@ -853,7 +880,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             }
             else
             {
-                log($"Physics: {member.Entity} was still in {frame} when the frame was destroyed. Its body is removed.");
+                log(
+                    $"Physics: {member.Entity} was still in {frame} when the frame was destroyed. Its body is removed.");
                 DestroyRecord(member.Entity);
             }
         }
@@ -898,6 +926,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             Array.Resize(ref predicted, size);
             Array.Resize(ref predictedStep, size);
         }
+
         if (predictedStep[index] == stepIndex)
             return predicted[index];
         record = PredictRecord(frame);
@@ -906,34 +935,38 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         return record;
     }
 
-    /// <summary>The step record of a frame without a dynamic hull at the end of the current step (see <see cref="StepRecordOf"/>).</summary>
+    /// <summary>The step record of a frame without a dynamic hull at the end of the current step (see
+    /// <see cref="StepRecordOf"/>).</summary>
     private MotionSample PredictRecord(FrameHandle frame)
     {
         BodyRecord? hull = OwnerRecord(frame);
-        if ((hull is null || hull.Motion == BodyMotion.Kinematic) && frames.StepRecordInStep(frame, stepIntents.Span, stepDt, out MotionSample move))
+        if ((hull is null || hull.Motion == BodyMotion.Kinematic) &&
+            frames.StepRecordInStep(frame, stepIntents.Span, stepDt, out MotionSample move))
         {
             if (hull is { HasPrimary: true } && frames.InFollowingFrame(frame))
             {
                 DPose target = KinematicTarget(hull, move.Pose.Position, move.Pose.Rotation);
                 return move with
                 {
-                    Pose = new DPose(target.Position, move.Pose.Rotation),
+                    Pose = new(target.Position, move.Pose.Rotation),
                     ChordVelocity = Double3.Zero,
                     Velocity = Double3.Zero,
-                    Acceleration = Double3.Zero,
+                    Acceleration = Double3.Zero
                 };
             }
+
             // A frame with a kinematic hull or without a body hangs in its semantic parent, which its motion intent is
             // relative to, unless it hangs at the origin of its following frame (see FrameTree). The assertion takes no message
             // of its own, which a Debug build would build in every step.
             Contract.Assert(frames.TreeParent(frame) == frames.Parent(frame));
             return move;
         }
+
         // A static hull, or a kinematic hull without a motion intent, that teleported in the step stands at the teleport's
         // pose in its home, the frame's tree parent, at rest.
-        if (hull is { HasPrimary: true } && hull.TeleportStep == stepIndex)
-            return new MotionSample(hull.TeleportPose, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
-        return new MotionSample(frames.TreeLocalPose(frame), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
+        return hull is { HasPrimary: true } && hull.TeleportStep == stepIndex
+            ? new(hull.TeleportPose, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero)
+            : new(frames.TreeLocalPose(frame), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
     }
 
     /// <summary>
@@ -944,7 +977,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     private FrameMotion MotionOf(FrameHandle frame)
     {
         MotionSample record = StepRecordOf(frame);
-        return new FrameMotion(record.Pose, record.ChordVelocity, record.AngularVelocity, record.Acceleration, record.AngularAcceleration);
+        return new(record.Pose, record.ChordVelocity, record.AngularVelocity, record.Acceleration,
+            record.AngularAcceleration);
     }
 
     /// <summary>
@@ -968,7 +1002,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         {
             BodySnapshot s = ReadPrimary(hull);
             // Jolt's velocity is at the center of mass. The frame origin is the body origin.
-            Double3 chord = (Double3)s.Linear + Double3.Cross(s.Angular, s.Pose.Position - s.CenterOfMass);
+            Double3 chord = s.Linear + Double3.Cross(s.Angular, s.Pose.Position - s.CenterOfMass);
             Double3 acceleration = hull.StepAcceleration;
             // An awake hull took its home's linear gravity, so its chord plus half a step of its acceleration is relative
             // to the home's instant velocity in Jolt's stepping, and the record is relative to the one of every hand-off (see
@@ -983,11 +1017,14 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 // InstantVelocity), in place of half a step of the rotation terms that the update gave it. The acceleration
                 // of a hand-off holds that turn's part already (see HandedOffVelocities).
                 if (hull.HandOffStep != stepIndex && StepEnd(hull.Frame) is { } moment)
-                    velocity += moment.InstantAtEndChange(s.Pose.Position, chord, stepDt) - (Double3)hull.FrameAcceleration.Turning * half;
+                    velocity += moment.InstantAtEndChange(s.Pose.Position, chord, stepDt) -
+                                (Double3)hull.FrameAcceleration.Turning * half;
             }
-            record = new MotionSample(s.Pose, chord, velocity, acceleration, s.Angular, hull.AngularAcceleration);
+
+            record = new(s.Pose, chord, velocity, acceleration, s.Angular, hull.AngularAcceleration);
             return true;
         }
+
         record = default;
         return false;
     }

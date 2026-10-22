@@ -44,15 +44,15 @@ public class QueryShapeUnionTests
         QuerySphere(var radius) => $"sphere {radius}",
         QueryBox(var halfExtents) => $"box {halfExtents.X} {halfExtents.Y} {halfExtents.Z}",
         QueryCapsule(var halfHeight, var radius) => $"capsule {halfHeight} {radius}",
-        _ => "none",
+        _ => "none"
     };
 
     /// <summary>One shape of each case.</summary>
     private static QueryShape[] OneOfEachCase() =>
     [
-        new QueryShape(new QuerySphere(5)),
-        new QueryShape(new QueryBox(Half)),
-        new QueryShape(new QueryCapsule(3, 0.5f)),
+        new(new QuerySphere(5)),
+        new(new QueryBox(Half)),
+        new(new QueryCapsule(3, 0.5f))
     ];
 
     // ---- The default value ---------------------------------------------------------------------------------------
@@ -123,10 +123,10 @@ public class QueryShapeUnionTests
     public void ATryGetValueThatAnswersFalseHandsOutTheDefaultValueNotTheFieldsOfAnotherCase()
     {
         // A sphere and a capsule share the radius, so a case that read it without checking the kind would show it.
-        Views(new QueryShape(new QuerySphere(5))).Should().Be((new QuerySphere(5), default(QueryBox), default(QueryCapsule)));
-        Views(new QueryShape(new QueryBox(Half))).Should().Be((default(QuerySphere), new QueryBox(Half), default(QueryCapsule)));
-        Views(new QueryShape(new QueryCapsule(3, 0.5f))).Should().Be((default(QuerySphere), default(QueryBox), new QueryCapsule(3, 0.5f)));
-        Views(default).Should().Be((default(QuerySphere), default(QueryBox), default(QueryCapsule)));
+        Views(new(new QuerySphere(5))).Should().Be((new(5), default, default));
+        Views(new(new QueryBox(Half))).Should().Be((default, new(Half), default));
+        Views(new(new QueryCapsule(3, 0.5f))).Should().Be((default, default, new(3, 0.5f)));
+        Views(default).Should().Be((default, default, default));
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public class QueryShapeUnionTests
     {
         // The case records and the constructors do not check sizes. Problem does, and the World calls it on every query.
         QueryShape zero = new QuerySphere(0);
-        QueryShape notANumber = new QueryBox(new Vector3(1, float.NaN, 1));
+        QueryShape notANumber = new QueryBox(new(1, float.NaN, 1));
         QueryShape negative = new QueryCapsule(-1, 1);
 
         zero.HasValue.Should().BeTrue();
@@ -182,9 +182,9 @@ public class QueryShapeUnionTests
     [Fact]
     public void ASwitchOverAShapeTakesTheArmOfTheCaseItHoldsAndTheLastArmForTheDefault()
     {
-        ArmOf(new QueryShape(new QuerySphere(5))).Should().Be("sphere 5");
-        ArmOf(new QueryShape(new QueryBox(Half))).Should().Be("box 1 2 3");
-        ArmOf(new QueryShape(new QueryCapsule(3, 0.5f))).Should().Be("capsule 3 0.5");
+        ArmOf(new(new QuerySphere(5))).Should().Be("sphere 5");
+        ArmOf(new(new QueryBox(Half))).Should().Be("box 1 2 3");
+        ArmOf(new(new QueryCapsule(3, 0.5f))).Should().Be("capsule 3 0.5");
         ArmOf(default).Should().Be("none");
     }
 
@@ -204,6 +204,7 @@ public class QueryShapeUnionTests
             (first[i] != second[i]).Should().BeFalse($"case {i} by !=");
             first[i].GetHashCode().Should().Be(second[i].GetHashCode(), $"case {i}");
         }
+
         default(QueryShape).Should().Be(default(QueryShape));
         default(QueryShape).GetHashCode().Should().Be(default(QueryShape).GetHashCode());
     }
@@ -216,9 +217,9 @@ public class QueryShapeUnionTests
         var capsule = new QueryShape(new QueryCapsule(3, 0.5f));
 
         sphere.Should().NotBe(new QueryShape(new QuerySphere(5.5f)));
-        box.Should().NotBe(new QueryShape(new QueryBox(new Vector3(1.5f, 2, 3))), "another X");
-        box.Should().NotBe(new QueryShape(new QueryBox(new Vector3(1, 2.5f, 3))), "another Y");
-        box.Should().NotBe(new QueryShape(new QueryBox(new Vector3(1, 2, 3.5f))), "another Z");
+        box.Should().NotBe(new QueryShape(new QueryBox(new(1.5f, 2, 3))), "another X");
+        box.Should().NotBe(new QueryShape(new QueryBox(new(1, 2.5f, 3))), "another Y");
+        box.Should().NotBe(new QueryShape(new QueryBox(new(1, 2, 3.5f))), "another Z");
         capsule.Should().NotBe(new QueryShape(new QueryCapsule(3.5f, 0.5f)), "another half height");
         capsule.Should().NotBe(new QueryShape(new QueryCapsule(3, 0.75f)), "another radius");
         (sphere != new QueryShape(new QuerySphere(5.5f))).Should().BeTrue();
@@ -260,7 +261,8 @@ public class QueryShapeUnionTests
     public void ToStringNamesTheCaseAndItsFieldsAndSaysNoneForTheDefault()
     {
         default(QueryShape).ToString().Should().Be("QueryShape(none)");
-        new QueryShape(new QuerySphere(5)).ToString().Should().StartWith("QueryShape(").And.Contain(nameof(QuerySphere)).And.Contain("5");
+        new QueryShape(new QuerySphere(5)).ToString().Should().StartWith("QueryShape(").And.Contain(nameof(QuerySphere))
+            .And.Contain("5");
         new QueryShape(new QueryBox(Half)).ToString().Should().Contain(nameof(QueryBox)).And.Contain("2");
         new QueryShape(new QueryCapsule(3, 0.5f)).ToString().Should().Contain(nameof(QueryCapsule)).And.Contain("0.5");
     }

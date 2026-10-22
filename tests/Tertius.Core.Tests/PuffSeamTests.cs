@@ -17,7 +17,8 @@ public class PuffSeamTests
     private static readonly Vector3 Pale = new(0.8f, 0.85f, 0.9f);
 
     /// <summary>A valid hot exhaust look: every number differs from the others, so a swap of two shows.</summary>
-    private static readonly PuffLook Exhaust = new(Life: 2, StartRadius: 0.5f, EndRadius: 3, TemperatureRatio: 3, PuffShading.Glow(Orange));
+    private static readonly PuffLook Exhaust = new(Life: 2, StartRadius: 0.5f, EndRadius: 3, TemperatureRatio: 3,
+        PuffShading.Glow(Orange));
 
     /// <summary>The names of the cases whose <c>TryGetValue</c> answers true for the shading.</summary>
     private static string[] CasesHeld(PuffShading shading)
@@ -48,12 +49,12 @@ public class PuffSeamTests
 
         CasesHeld(glow).Should().Equal(nameof(GlowPuffs));
         CasesHeld(lit).Should().Equal(nameof(LitPuffs));
-        Views(glow).Should().Be((new GlowPuffs(Orange), default(LitPuffs)), "the radiance does not leak out as an albedo");
-        Views(lit).Should().Be((default(GlowPuffs), new LitPuffs(Pale)), "the albedo does not leak out as a radiance");
+        Views(glow).Should().Be((new(Orange), default), "the radiance does not leak out as an albedo");
+        Views(lit).Should().Be((default, new(Pale)), "the albedo does not leak out as a radiance");
 
         // A pattern match reads the color of the case in place. Boxing the case, as Value does, would allocate.
         // The red channels are exact in binary, so the sum is exact.
-        PuffShading[] shadings = [glow, PuffShading.Lit(new Vector3(0.5f, 0.85f, 0.9f)), default];
+        PuffShading[] shadings = [glow, PuffShading.Lit(new(0.5f, 0.85f, 0.9f)), default];
         float total = 0;
         foreach (PuffShading shading in shadings)
             total += RedOf(shading);
@@ -64,20 +65,18 @@ public class PuffSeamTests
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
         allocated.Should().Be(0);
-        total.Should().Be((6 + 0.5f + 100) * 101, "a glow of red 6, an albedo of red 0.5 and the empty shading's 100, over 101 rounds");
+        total.Should().Be((6 + 0.5f + 100) * 101,
+            "a glow of red 6, an albedo of red 0.5 and the empty shading's 100, over 101 rounds");
     }
 
     private static float RedOf(in PuffShading shading)
     {
-        switch (shading)
+        return shading switch
         {
-            case GlowPuffs(var radiance):
-                return radiance.X;
-            case LitPuffs(var albedo):
-                return albedo.X;
-            default:
-                return 100;
-        }
+            GlowPuffs(var radiance) => radiance.X,
+            LitPuffs(var albedo) => albedo.X,
+            _ => 100
+        };
     }
 
     [Fact]
@@ -88,7 +87,7 @@ public class PuffSeamTests
         shading.HasValue.Should().BeFalse();
         shading.Value.Should().BeNull();
         CasesHeld(shading).Should().BeEmpty();
-        Views(shading).Should().Be((default(GlowPuffs), default(LitPuffs)));
+        Views(shading).Should().Be((default, default));
     }
 
     [Fact]
@@ -138,6 +137,7 @@ public class PuffSeamTests
             (first[i] != second[i]).Should().BeFalse($"case {i} by !=");
             first[i].GetHashCode().Should().Be(second[i].GetHashCode(), $"case {i}");
         }
+
         PuffShading.Glow(Orange).Should().NotBe(PuffShading.Glow(Orange with { Z = 2 }), "another radiance");
         PuffShading.Lit(Pale).Should().NotBe(PuffShading.Lit(Pale with { Y = 0.5f }), "another albedo");
         PuffShading.Glow(Orange).Equals(null).Should().BeFalse();
@@ -154,11 +154,14 @@ public class PuffSeamTests
 
         foreach (PuffShading shading in shadings)
         {
-            PuffShading copy = shading.TryGetValue(out GlowPuffs glow) ? PuffShading.Glow(glow.Radiance) : PuffShading.Lit(((LitPuffs)shading.Value!).Albedo);
+            PuffShading copy = shading.TryGetValue(out GlowPuffs glow)
+                ? PuffShading.Glow(glow.Radiance)
+                : PuffShading.Lit(((LitPuffs)shading.Value!).Albedo);
 
             shading.Equals(shading).Should().BeTrue($"{shading} equals itself");
             (shading == copy).Should().BeTrue($"{shading} equals a copy of itself");
-            shading.GetHashCode().Should().Be(copy.GetHashCode(), $"{shading} and its copy are equal, so they hash the same");
+            shading.GetHashCode().Should()
+                .Be(copy.GetHashCode(), $"{shading} and its copy are equal, so they hash the same");
         }
     }
 
@@ -166,8 +169,10 @@ public class PuffSeamTests
     public void ToStringNamesTheCaseAndItsColorAndSaysNoneForTheDefault()
     {
         default(PuffShading).ToString().Should().Be("PuffShading(none)");
-        PuffShading.Glow(Orange).ToString().Should().StartWith("PuffShading(").And.Contain(nameof(GlowPuffs)).And.Contain("Radiance");
-        PuffShading.Lit(Pale).ToString().Should().StartWith("PuffShading(").And.Contain(nameof(LitPuffs)).And.Contain("Albedo");
+        PuffShading.Glow(Orange).ToString().Should().StartWith("PuffShading(").And.Contain(nameof(GlowPuffs)).And
+            .Contain("Radiance");
+        PuffShading.Lit(Pale).ToString().Should().StartWith("PuffShading(").And.Contain(nameof(LitPuffs)).And
+            .Contain("Albedo");
     }
 
     [Fact]
@@ -188,9 +193,11 @@ public class PuffSeamTests
         Type union = typeof(PuffShading);
 
         union.GetFields(publicInstance).Should().BeEmpty();
-        union.GetProperties(publicInstance).Select(property => property.PropertyType).Should().OnlyContain(type => type == typeof(bool) || type == typeof(object));
+        union.GetProperties(publicInstance).Select(property => property.PropertyType).Should()
+            .OnlyContain(type => type == typeof(bool) || type == typeof(object));
         union.GetConstructors().Select(constructor => constructor.GetParameters().Single().ParameterType)
-            .Should().BeEquivalentTo([typeof(GlowPuffs), typeof(LitPuffs)], "a shading is made from one case and nothing else");
+            .Should().BeEquivalentTo([typeof(GlowPuffs), typeof(LitPuffs)],
+                "a shading is made from one case and nothing else");
     }
 
     // ---- Validity ------------------------------------------------------------------------------------------------
@@ -202,26 +209,29 @@ public class PuffSeamTests
         PuffShading.Lit(Pale).IsValid.Should().BeTrue();
         PuffShading.Glow(Vector3.Zero).IsValid.Should().BeTrue("a glow of black is dark, not wrong");
         PuffShading.Lit(Vector3.Zero).IsValid.Should().BeTrue("a black albedo scatters nothing, but it is a color");
-        PuffShading.Glow(new Vector3(-0f, 0, 0)).IsValid.Should().BeTrue("negative zero is zero");
+        PuffShading.Glow(new(-0f, 0, 0)).IsValid.Should().BeTrue("negative zero is zero");
         default(PuffShading).IsValid.Should().BeFalse("the empty shading says nothing about how a puff shows");
 
         foreach (int channel in new[] { 0, 1, 2 })
-            foreach (float bad in new[] { -0.01f, float.NaN, float.PositiveInfinity, float.NegativeInfinity })
-            {
-                Vector3 color = Pale;
-                color[channel] = bad;
-                PuffShading.Glow(color).IsValid.Should().BeFalse($"a radiance of {bad} in channel {channel}");
-                PuffShading.Lit(color).IsValid.Should().BeFalse($"an albedo of {bad} in channel {channel}");
-            }
+        foreach (float bad in new[] { -0.01f, float.NaN, float.PositiveInfinity, float.NegativeInfinity })
+        {
+            Vector3 color = Pale;
+            color[channel] = bad;
+            PuffShading.Glow(color).IsValid.Should().BeFalse($"a radiance of {bad} in channel {channel}");
+            PuffShading.Lit(color).IsValid.Should().BeFalse($"an albedo of {bad} in channel {channel}");
+        }
     }
 
     [Fact]
     public void ALookIsValidOnlyWithAPositiveLifeAndTemperatureRatioFiniteRadiiAndAShading()
     {
         Exhaust.IsValid.Should().BeTrue();
-        (Exhaust with { StartRadius = 0, EndRadius = 0 }).IsValid.Should().BeTrue("a puff of no size is invisible, not wrong");
-        (Exhaust with { Shading = PuffShading.Lit(Pale), TemperatureRatio = 0.75f }).IsValid.Should().BeTrue("cold gas");
-        (Exhaust with { Life = float.Epsilon, TemperatureRatio = float.Epsilon }).IsValid.Should().BeTrue("the least numbers above 0");
+        (Exhaust with { StartRadius = 0, EndRadius = 0 }).IsValid.Should()
+            .BeTrue("a puff of no size is invisible, not wrong");
+        (Exhaust with { Shading = PuffShading.Lit(Pale), TemperatureRatio = 0.75f }).IsValid.Should()
+            .BeTrue("cold gas");
+        (Exhaust with { Life = float.Epsilon, TemperatureRatio = float.Epsilon }).IsValid.Should()
+            .BeTrue("the least numbers above 0");
 
         float[] notFinite = [float.NaN, float.PositiveInfinity, float.NegativeInfinity];
         foreach (float bad in notFinite.Concat([0f, -0f, -1f]))
@@ -229,13 +239,16 @@ public class PuffSeamTests
             (Exhaust with { Life = bad }).IsValid.Should().BeFalse($"a life of {bad}");
             (Exhaust with { TemperatureRatio = bad }).IsValid.Should().BeFalse($"a temperature ratio of {bad}");
         }
+
         foreach (float bad in notFinite.Concat([-0.01f]))
         {
             (Exhaust with { StartRadius = bad }).IsValid.Should().BeFalse($"a start radius of {bad}");
             (Exhaust with { EndRadius = bad }).IsValid.Should().BeFalse($"an end radius of {bad}");
         }
+
         (Exhaust with { Shading = default }).IsValid.Should().BeFalse("a look without a shading");
-        (Exhaust with { Shading = PuffShading.Glow(new Vector3(1, float.NaN, 1)) }).IsValid.Should().BeFalse("a shading that is not valid");
+        (Exhaust with { Shading = PuffShading.Glow(new(1, float.NaN, 1)) }).IsValid.Should()
+            .BeFalse("a shading that is not valid");
         default(PuffLook).IsValid.Should().BeFalse("the default look, of the default emitter, makes no puffs");
     }
 
@@ -245,7 +258,7 @@ public class PuffSeamTests
     public void ClearEmptiesThePuffsAndTheirLooksAndTheAgeStep()
     {
         var snapshot = new RenderSnapshot();
-        snapshot.Puffs.Add(new RenderPuff { Position = Vector3.One, PreviousPosition = Vector3.Zero, Age = 0.5f, Look = 0 });
+        snapshot.Puffs.Add(new() { Position = Vector3.One, PreviousPosition = Vector3.Zero, Age = 0.5f, Look = 0 });
         snapshot.PuffLooks.Add(Exhaust);
         snapshot.PuffAgeStep = 1 / 60f;
 

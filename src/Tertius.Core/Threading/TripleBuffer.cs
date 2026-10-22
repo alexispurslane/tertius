@@ -5,18 +5,13 @@ namespace Tertius;
 /// <see cref="WriteBuffer"/> and calls <see cref="Publish"/>. The reader calls <see cref="TryAcquireLatest"/>.
 /// Neither side ever waits for the other.
 /// </summary>
-public sealed class TripleBuffer<T> where T : class
+public sealed class TripleBuffer<T>(Func<T> factory) where T : class
 {
     private const int FreshBit = 4;
-    private readonly T[] buffers;
+    private readonly T[] buffers = [factory(), factory(), factory()];
     private int writeIndex;
     private int readIndex = 1;
     private int middle = 2;
-
-    public TripleBuffer(Func<T> factory)
-    {
-        buffers = [factory(), factory(), factory()];
-    }
 
     /// <summary>The buffer the writer owns. Valid until <see cref="Publish"/>.</summary>
     public T WriteBuffer => buffers[writeIndex];
@@ -38,6 +33,7 @@ public sealed class TripleBuffer<T> where T : class
             latest = buffers[readIndex];
             return false;
         }
+
         int previous = Interlocked.Exchange(ref middle, readIndex);
         readIndex = previous & 3;
         latest = buffers[readIndex];

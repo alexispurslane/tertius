@@ -40,31 +40,60 @@ namespace Tertius.Physics;
 /// </remarks>
 public sealed partial class JoltPhysicsBackend
 {
-    private readonly List<RawContact> rawContacts = new();
-    private readonly List<RawEnd> rawEnds = new();
+    /// <summary>
+    /// The order of <see cref="bodyPairStarts"/>: by entities, then by frame index. One system holds at most one body pair
+    /// of an entity pair, so the frame index tells the starts of one pair apart. The point tells them apart too, so that
+    /// the order is total.
+    /// </summary>
+    private static readonly Comparison<ContactStarted> ByEntitiesThenFrame = static (x, y) =>
+    {
+        int c = x.A.CompareTo(y.A);
+        if (c != 0) return c;
+        c = x.B.CompareTo(y.B);
+        if (c != 0) return c;
+        c = x.Frame.Index.CompareTo(y.Frame.Index);
+        if (c != 0) return c;
+        c = x.Point.X.CompareTo(y.Point.X);
+        if (c != 0) return c;
+        c = x.Point.Y.CompareTo(y.Point.Y);
+        return c != 0 ? c : x.Point.Z.CompareTo(y.Point.Z);
+    };
+
+    private readonly List<RawContact> rawContacts = [];
+
+    private readonly List<RawEnd> rawEnds = [];
+
     // The body pairs that started in this step, in every system, as contacts of their entities, before the ledger decides
     // which of them the step reports.
-    private readonly List<ContactStarted> bodyPairStarts = new();
+    private readonly List<ContactStarted> bodyPairStarts = [];
+
     // The contacts that ended since the last step's report, until WriteEndedContacts reports them.
-    private readonly List<ContactEnded> endedContacts = new();
+    private readonly List<ContactEnded> endedContacts = [];
+
     // The started contacts of the bodies that left their systems since the last ResolveLooseContacts, by entities in
     // canonical order, once for each body pair. A ghost that goes leaves its system too.
-    private readonly List<(Entity A, Entity B)> looseContacts = new();
+    private readonly List<(Entity A, Entity B)> looseContacts = [];
+
     // The entities whose body a hand-off of this step moved to another frame. ResolveLooseContacts reads and clears them at
     // the end of the step.
-    private readonly HashSet<Entity> handedOff = new();
+    private readonly HashSet<Entity> handedOff = [];
+
     // The loose contacts that the last ResolveLooseContacts let wait for the next one, by entities in canonical order:
     // contacts of an entity that a hand-off moved, with a body or a ghost in a numeric frame, which no system took over
     // (see ResolveLooseContacts). Each keeps its count in the ledger until then.
-    private readonly List<(Entity A, Entity B)> waitingContacts = new();
+    private readonly List<(Entity A, Entity B)> waitingContacts = [];
+
     // The contact ledger: for each pair of entities in contact, in canonical order, the number of body pairs that hold the
     // contact as started in every system, plus its loose and its waiting contacts. See the remarks of this file.
-    private readonly Dictionary<(Entity A, Entity B), int> contactCounts = new();
+    private readonly Dictionary<(Entity A, Entity B), int> contactCounts = [];
+
     // Scratch for AssertContactInvariants.
-    private readonly Dictionary<(Entity A, Entity B), int> countScratch = new();
-    private readonly List<RawEnd> pairScratch = new();
+    private readonly Dictionary<(Entity A, Entity B), int> countScratch = [];
+
+    private readonly List<RawEnd> pairScratch = [];
+
     // Scratch for EndPairsThatCannotTouch: the other bodies of the started pairs of one body.
-    private readonly List<BodyID> partnerScratch = new();
+    private readonly List<BodyID> partnerScratch = [];
 
     // ---- Contacts ----
 
@@ -102,9 +131,11 @@ public sealed partial class JoltPhysicsBackend
                     (a, b) = (b, a);
                     normal = -normal;
                 }
-                bodyPairStarts.Add(new ContactStarted(a, b, world.Frame, raw.Point, normal, impulse));
+
+                bodyPairStarts.Add(new(a, b, world.Frame, raw.Point, normal, impulse));
             }
         }
+
         // The body pairs of one entity pair lie next to each other, the one of the lowest frame index first.
         bodyPairStarts.Sort(ByEntitiesThenFrame);
         foreach (ContactStarted start in bodyPairStarts)
@@ -113,30 +144,12 @@ public sealed partial class JoltPhysicsBackend
             if (count++ == 0)
                 output.Contacts.Add(start);
         }
+
         foreach (RawEnd raw in rawEnds)
             if (EntityPair(raw) is { } pair)
                 Recount(pair, -1);
         rawEnds.Clear();
     }
-
-    /// <summary>
-    /// The order of <see cref="bodyPairStarts"/>: by entities, then by frame index. One system holds at most one body pair
-    /// of an entity pair, so the frame index tells the starts of one pair apart. The point tells them apart too, so that
-    /// the order is total.
-    /// </summary>
-    private static readonly Comparison<ContactStarted> ByEntitiesThenFrame = static (x, y) =>
-    {
-        int c = x.A.CompareTo(y.A);
-        if (c != 0) return c;
-        c = x.B.CompareTo(y.B);
-        if (c != 0) return c;
-        c = x.Frame.Index.CompareTo(y.Frame.Index);
-        if (c != 0) return c;
-        c = x.Point.X.CompareTo(y.Point.X);
-        if (c != 0) return c;
-        c = x.Point.Y.CompareTo(y.Point.Y);
-        return c != 0 ? c : x.Point.Z.CompareTo(y.Point.Z);
-    };
 
     /// <summary>
     /// Changes the count of <paramref name="pair"/> in the ledger by <paramref name="change"/>, and ends the contact when
@@ -147,15 +160,17 @@ public sealed partial class JoltPhysicsBackend
         ref int count = ref CollectionsMarshal.GetValueRefOrNullRef(contactCounts, pair);
         if (Unsafe.IsNullRef(ref count))
         {
-            ReportBug($"Physics: the contact of {pair.A} and {pair.B} ended, but it had not started. Only a bug ends such a contact, so the end was skipped.");
+            ReportBug(
+                $"Physics: the contact of {pair.A} and {pair.B} ended, but it had not started. Only a bug ends such a contact, so the end was skipped.");
             return;
         }
+
         count += change;
         Contract.Assert(count >= 0);
         if (count > 0)
             return;
         contactCounts.Remove(pair);
-        endedContacts.Add(new ContactEnded(pair.A, pair.B));
+        endedContacts.Add(new(pair.A, pair.B));
     }
 
     /// <summary>
@@ -207,16 +222,18 @@ public sealed partial class JoltPhysicsBackend
         BodyInterface bodies = world.Bodies;
         foreach (BodyID other in partnerScratch)
         {
-            (Entity A, Entity B)? pair = EntityPair(new RawEnd(bodies.GetUserData(body), bodies.GetUserData(other)));
+            (Entity A, Entity B)? pair = EntityPair(new(bodies.GetUserData(body), bodies.GetUserData(other)));
             if (pair is not null && world.CanTouch(body, other))
                 continue;
             world.DropPair(body, other);
             if (pair is { } ended)
                 Recount(ended, -1);
             else
-                ReportBug($"Physics: the system of {world.Frame} held a started pair of {body} and {other}, which is no contact of two entities. " +
-                          "Only a bug starts such a pair, so it was dropped.");
+                ReportBug(
+                    $"Physics: the system of {world.Frame} held a started pair of {body} and {other}, which is no contact of two entities. " +
+                    "Only a bug starts such a pair, so it was dropped.");
         }
+
         partnerScratch.Clear();
     }
 
@@ -269,7 +286,8 @@ public sealed partial class JoltPhysicsBackend
     {
         // The contacts that waited since the last call, now that a sync point and a step have passed.
         foreach ((Entity A, Entity B) pair in waitingContacts)
-            Recount(pair, (Find(pair.A) is { } first && Find(pair.B) is { } second ? CarryContact(first, second) : 0) - 1);
+            Recount(pair,
+                (Find(pair.A) is { } first && Find(pair.B) is { } second ? CarryContact(first, second) : 0) - 1);
         waitingContacts.Clear();
         foreach ((Entity A, Entity B) pair in looseContacts)
         {
@@ -278,12 +296,15 @@ public sealed partial class JoltPhysicsBackend
                 Recount(pair, -1);
                 continue;
             }
+
             int taken = CarryContact(first, second);
-            if (taken == 0 && (handedOff.Contains(pair.A) || handedOff.Contains(pair.B)) && (InNumericFrame(first) || InNumericFrame(second)))
+            if (taken == 0 && (handedOff.Contains(pair.A) || handedOff.Contains(pair.B)) &&
+                (InNumericFrame(first) || InNumericFrame(second)))
                 waitingContacts.Add(pair);
             else
                 Recount(pair, taken - 1);
         }
+
         looseContacts.Clear();
         handedOff.Clear();
     }
@@ -341,7 +362,7 @@ public sealed partial class JoltPhysicsBackend
             foreach (GhostBody ghost in ghosts)
                 if (ghost.World == world)
                     return ghost;
-        return new GhostBody { Body = BodyID.Invalid };
+        return new() { Body = BodyID.Invalid };
     }
 
     /// <summary>
@@ -352,12 +373,13 @@ public sealed partial class JoltPhysicsBackend
     private static MotionType GhostContactMotion(BodyRecord record) => ToMotionType(record.Motion);
 
     /// <summary>The two entities of a contact, in canonical order, or null when the contact is not reported.</summary>
-    private (Entity A, Entity B)? EntityPair(in RawEnd raw)
-    {
-        if (ContactEntity(raw.UserData1, out _) is not { } a || ContactEntity(raw.UserData2, out _) is not { } b || a == b)
-            return null;
-        return b.CompareTo(a) < 0 ? (b, a) : (a, b);
-    }
+    private (Entity A, Entity B)? EntityPair(in RawEnd raw) =>
+        ContactEntity(raw.UserData1, out _) is not { } a || ContactEntity(raw.UserData2, out _) is not { } b ||
+        a == b
+            ? null
+            : b.CompareTo(a) < 0
+                ? (b, a)
+                : (a, b);
 
     /// <summary>
     /// The entity behind a body in a contact, and the inverse mass to use for the impulse estimate. A ghost stands for its
@@ -399,6 +421,7 @@ public sealed partial class JoltPhysicsBackend
                 if (EntityPair(raw) is { } pair)
                     CollectionsMarshal.GetValueRefOrAddDefault(countScratch, pair, out _)++;
         }
+
         foreach ((Entity A, Entity B) pair in looseContacts)
             CollectionsMarshal.GetValueRefOrAddDefault(countScratch, pair, out _)++;
         foreach ((Entity A, Entity B) pair in waitingContacts)

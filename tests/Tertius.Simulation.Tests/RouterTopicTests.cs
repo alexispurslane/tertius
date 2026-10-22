@@ -8,10 +8,10 @@ namespace Tertius.Simulation.Tests;
 /// </summary>
 public class RouterTopicTests
 {
+    private static readonly Topic Squad = Topics.Get("tests.routertopic.squad");
+
     /// <summary>The harness that every test of this class routes in. A subclass runs the same tests on the workers.</summary>
     private protected virtual RouterHarness NewHarness() => new();
-
-    private static readonly Topic Squad = Topics.Get("tests.routertopic.squad");
 
     [Fact]
     public void AFrameTopicReachesTheMembersOfThatFrameAndNobodyInAnotherFrame()
@@ -181,7 +181,7 @@ public class RouterTopicTests
         Entity a = h.Spawn(EventMask.Of<Ping>());
         int[] ids = [Squad.Id + 3, Squad.Id + 4, Squad.Id + 1, Squad.Id];
         foreach (int id in ids)
-            h.Subscribe(a, new Topic(id));
+            h.Subscribe(a, new(id));
         foreach (int id in ids)
             h.Send(0, new Topic(id), new Ping { Value = id });
 

@@ -14,15 +14,19 @@ namespace Tertius.Simulation.Tests;
 /// <param name="onTick">The first tick on which it spawns. Its default of 0 means the first tick the entity runs.</param>
 /// <param name="every">The number of ticks between two spawns. 0 means it spawns once.</param>
 /// <param name="priority">Its place in the entity's pipeline. Lower runs first.</param>
-public sealed class Spawner(Func<IComponent[]>? childComponents = null, int count = 1, long onTick = 0, int every = 0, int priority = 0) : IComponent
+public sealed class Spawner(
+    Func<IComponent[]>? childComponents = null,
+    int count = 1,
+    long onTick = 0,
+    int every = 0,
+    int priority = 0) : IComponent
 {
+    private bool spawnedOnce;
     public int Priority => priority;
     public EventMask Wants => EventMask.Of<Tick>();
 
     /// <summary>The handle of every child it has spawned, in spawn order. A child is live from the tick after it was spawned.</summary>
-    public List<Entity> Children { get; } = new();
-
-    private bool spawnedOnce;
+    public List<Entity> Children { get; } = [];
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
@@ -30,22 +34,15 @@ public sealed class Spawner(Func<IComponent[]>? childComponents = null, int coun
             return;
         spawnedOnce = true;
         for (int i = 0; i < count; i++)
-        {
-            Children.Add(self.Spawn(new SpawnDesc
+            Children.Add(self.Spawn(new()
             {
                 Frame = self.Frame,
                 Pose = self.PoseInOwnFrame(),
-                Components = childComponents?.Invoke() ?? [],
+                Components = childComponents?.Invoke() ?? []
             }));
-        }
     }
 
     // A spawner with every == 0 spawns on the first tick it runs at or after onTick. Testing the tick number and not a
     // count of runs keeps a spawner that starts late on the same schedule as one that started early.
-    private bool SpawnsOn(long tick)
-    {
-        if (tick < onTick)
-            return false;
-        return every > 0 ? (tick - onTick) % every == 0 : !spawnedOnce;
-    }
+    private bool SpawnsOn(long tick) => tick >= onTick && (every > 0 ? (tick - onTick) % every == 0 : !spawnedOnce);
 }
