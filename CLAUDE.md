@@ -72,6 +72,7 @@ ARCHITECTURE.md is the binding design. This file records what the user prefers, 
 
 - Prefer declarative code that states its intent. The user expected deferred LINQ to be as fast as loops. The benchmark showed LINQ is 5 to 26 times slower on hot paths. So give hot paths LINQ-like APIs that allocate nothing, such as `EventList.Of<T>()`, and use normal LINQ elsewhere.
 - Name each piece of state for what it holds, and remove variables that only exist as scratch for another variable.
+- A switch over a closed set (an enum, a custom `[Union]` struct or a `closed` record) has no discard arm, so a new member fails the build. A union switch ends in a `null` arm. ARCHITECTURE.md, "Switches over closed sets", has the rule and its three build settings.
 - When the user asks how something works, show the real code, with elisions marked `...` and a `where` list for every name in it.
 
 ## Contracts

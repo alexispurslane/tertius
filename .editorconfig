@@ -31,7 +31,7 @@ resharper_csharp_default_private_modifier = explicit
 resharper_csharp_parentheses_redundancy_style = remove_if_not_clarifies_precedence
 resharper_csharp_accessor_declaration_body = expression_body
 # Modern syntax that ReSharper's cleanup does not write. tools/cleanup.sh applies these Roslyn fixes with dotnet format
-# style before jb cleanupcode. Builds do not report them, because EnforceCodeStyleInBuild is off. Rider shows them as
+# style before jb cleanupcode. Builds do not report them, because a build reports only warnings and errors. Rider shows them as
 # suggestions. tools/cleanup.sh reads its list of rules from the dotnet_diagnostic.IDE lines here.
 dotnet_style_prefer_collection_expression = when_types_loosely_match
 # collection initializers and expressions

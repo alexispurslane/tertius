@@ -69,7 +69,7 @@ public class RenderSnapshotOutlineTests
         RestingOutline(var center, _) => ("resting", center),
         NestingOutline(var center, _) => ("nesting", center),
         FollowingOutline(var center, _) => ("following", center),
-        _ => ("none", default)
+        null => ("none", default)
     };
 
     /// <summary>The radius of an outline's outline sphere: the largest radius of a bubble, or the radius of a contents sphere.</summary>
@@ -80,7 +80,7 @@ public class RenderSnapshotOutlineTests
         RestingOutline(_, var radius) => radius,
         NestingOutline(_, var radius) => radius,
         FollowingOutline(_, var radius) => radius,
-        _ => float.NaN
+        null => float.NaN
     };
 
     private static string KindOf(World world, FrameHandle frame) => world.Frames.Numeric(frame) switch

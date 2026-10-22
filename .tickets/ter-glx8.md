@@ -1,6 +1,6 @@
 ---
 id: ter-glx8
-status: in_progress
+status: closed
 deps: [ter-uucg]
 links: []
 created: 2026-10-11T20:28:58Z
@@ -96,3 +96,7 @@ ter-ru5u removed World.SetFrameDriver and BodyDesc.FrameHullProblem, with the Mo
 **2026-10-19T11:39:20Z**
 
 Change to step 3 (2026-10-19): ter-q8ge makes ScriptStep, MessageTarget and the runner's ReadyStep custom [Union] structs, not record hierarchies. So step 3 applies only to ShapeDesc. A switch expression over a union already gets the compiler's check for every case, with a null arm for the empty union (as step 4 says for Target). The runner's switch statements over the step union keep a throw for the empty union.
+
+**2026-10-22T12:43:25Z**
+
+Done on 2026-10-22. CS8524 off, EnforceCodeStyleInBuild on with AnalysisModeStyle=None, IDE0010 at error and no other IDE rule in the build (code-quality-tooling decision 14, ARCHITECTURE.md 'Switches over closed sets'). Check of step 7: one new member or case at a time fails the build at every switch expression over it (CS8509) and every enum switch statement (IDE0010). BodyMotion: 6 sites. BodyLayer: 1. FollowKind: 3. NumericMode: 2. KeplerAttitude: 4 (its equality tests became switch expressions). MotionIntentRefusal: 1. BodyKind: 3. QueryIndex: 1. MemoryUsage, VertexInput, BlendMode, ImageUse, BufferUse: 1 each. GravityField: 4. HemisphereUp: 3. Target: 3 (Router.Expand stays a statement that throws). MediumField: 5. PhysicsQuestion: 11. ShapeDesc (closed record): 3. ShapeKind has no switch. Union switch statements that stay name their quiet cases and throw UnreachableException in the default case. Open sets keep a discard arm: strings, ints, Silk.NET keys (PersonControl.Hold suppresses IDE0010 with a reason), flat state machine transitions, and the private kind tag inside each union struct, which the union generator (ter-nn6z) will write.

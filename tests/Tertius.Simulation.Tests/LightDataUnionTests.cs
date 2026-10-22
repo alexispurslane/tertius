@@ -48,7 +48,7 @@ public class LightDataUnionTests
     {
         PointLightData(_, _, var intensity, var range) => $"point {intensity} {range}",
         SpotLightData(_, _, _, _, var inner, var outer) => $"spot {inner} {outer}",
-        _ => "none"
+        null => "none"
     };
 
     // ---- The default value ---------------------------------------------------------------------------------------
@@ -192,7 +192,7 @@ public class LightDataUnionTests
         {
             PointLightData(_, _, _, var range) => range,
             SpotLightData(_, _, _, var range, _, _) => range,
-            _ => 0
+            null => 0
         };
     }
 

@@ -160,7 +160,7 @@ public class HemisphereUpTests
         {
             UpAlong { Direction: var direction } => $"along {direction.X}",
             UpAwayFrom { Center: var center } => $"away from {center.Y}",
-            _ => "even"
+            null => "even"
         };
 
         Describe(HemisphereUp.Along(Sideways)).Should().Be("along 1");

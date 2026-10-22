@@ -44,7 +44,7 @@ public class QueryShapeUnionTests
         QuerySphere(var radius) => $"sphere {radius}",
         QueryBox(var halfExtents) => $"box {halfExtents.X} {halfExtents.Y} {halfExtents.Z}",
         QueryCapsule(var halfHeight, var radius) => $"capsule {halfHeight} {radius}",
-        _ => "none"
+        null => "none"
     };
 
     /// <summary>One shape of each case.</summary>

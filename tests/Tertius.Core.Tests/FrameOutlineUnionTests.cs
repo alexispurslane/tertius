@@ -78,7 +78,7 @@ public class FrameOutlineUnionTests
         RestingOutline(_, var radius) => $"resting {radius}",
         NestingOutline(_, var radius) => $"nesting {radius}",
         FollowingOutline(_, var radius) => $"following {radius}",
-        _ => "none"
+        null => "none"
     };
 
     // ---- The default value ---------------------------------------------------------------------------------------
@@ -198,7 +198,7 @@ public class FrameOutlineUnionTests
             RestingOutline(_, var radius) => radius,
             NestingOutline(_, var radius) => radius,
             FollowingOutline(_, var radius) => radius,
-            _ => 0
+            null => 0
         };
     }
 

@@ -181,7 +181,7 @@ public class GravityFieldTests
             UniformGravity { Region: null } => "uniform everywhere",
             UniformGravity => "uniform in a region",
             PointGravity => "point",
-            _ => "none"
+            null => "none"
         };
 
         Describe(GravityField.Uniform(Down)).Should().Be("uniform everywhere");
