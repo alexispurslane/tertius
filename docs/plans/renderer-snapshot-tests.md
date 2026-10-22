@@ -14,6 +14,13 @@ Catch visual regressions in the renderer. A snapshot test renders a scene headle
 - Some agents add or re-approve a reference image, or see a snapshot failure. Each such agent opens the reference, the actual image and the heat map with the Read tool. Its report describes what it saw.
 - The first approval of a reference image is a real review against the scene description, because a snapshot only proves that nothing changed.
 - One switch in `RendererOptions` makes rendering deterministic for tests: interpolation alpha 1, fixed seeds, impostor captures forced or off, and no temporal effects.
+- A snapshot test locks in a look, so it comes after the look is what we want. A snapshot cannot drive red-green TDD, because its reference image exists only after the feature works. So this epic waits for the rendering features that change the look:
+  - The light shadows, with lights instead of one sun (`ter-s9cv`).
+  - Automatic exposure (`ter-zzyr`).
+  - The tone curve (`ter-2t5o`).
+  - Bloom (`ter-63wr`).
+- The user decided this order on 2026-10-21.
+- Automatic exposure comes first, so the deterministic switch also turns it off, and every other temporal effect that lands before this epic.
 
 ## Steps
 
@@ -21,7 +28,7 @@ Catch visual regressions in the renderer. A snapshot test renders a scene headle
 2. Add FLIP. Prefer a C# port or a small native build from the dev shell. Check the license first.
    Built in ticket `ter-721k`: `Flip` in `tests/Tertius.Rendering.Tests`, a C# port written from the paper. It uses no code from NVIDIA's reference implementation.
 3. Write a snapshot test helper: render a scene description, compare, write the failure files, and honor the approval variable.
-   Built in ticket `ter-721k`: `ReferenceImages.Verify`. It fails when any pixel's FLIP value is above the tolerance, 0.1 by default, and `TERTIUS_APPROVE_SNAPSHOTS=1` approves. ARCHITECTURE.md, "Snapshot tests", gives the details.
+   Built in ticket `ter-721k`: `ReferenceImages.Verify`. If any pixel's FLIP value is above the tolerance, 0.1 by default, it fails. `TERTIUS_APPROVE_SNAPSHOTS=1` approves. ARCHITECTURE.md, "Snapshot tests", gives the details.
 4. Write the first scenes. Each scene tests one feature:
    - A sun-lit cube with cascaded shadows.
    - An eclipse.

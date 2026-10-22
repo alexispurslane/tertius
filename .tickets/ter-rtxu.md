@@ -1,7 +1,7 @@
 ---
 id: ter-rtxu
 status: open
-deps: [ter-tanj]
+deps: [ter-tanj, ter-s9cv, ter-zzyr, ter-2t5o, ter-63wr]
 links: []
 created: 2026-10-11T13:52:12Z
 type: epic

@@ -207,7 +207,7 @@ Built from scratch around "a light is a property of an entity, in physical units
 
 1. Write CPU tests first: ranking, the budget, cache hits and misses, and culling.
 2. Add the atlas, the shadow pass for local lights and the sampling in the lighting pass.
-3. Add snapshot scenes: a spot light over a box, and a point light in a room.
+3. Add demo scenes: a spot light over a box, and a point light in a room. Review them by eye in headless screenshots. The snapshot tests epic (`ter-rtxu`) comes after this epic and turns them into reference images.
 4. Measure the cost with GPU timestamps for 4, 16 and 64 shadowed lights. Report the numbers. Keep the feature switchable.
 5. Lights instead of one sun (`ter-bpvl`), after automatic exposure (`ter-zzyr`) is merged. Write its tests first: `IsFar`, the reach, the ranking of far lights, the shadow slots, the occluder lists, the interpolation of lights and the impostor signature. Then replace the special-cased sun, and move the scenes to SI units.
 6. Measure the cost of one, two and four far lights, with and without cascade sets. Report the numbers.
