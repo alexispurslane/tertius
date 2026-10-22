@@ -1,6 +1,6 @@
 ---
 id: ter-a4s2
-status: in_progress
+status: closed
 deps: [ter-3oer]
 links: []
 created: 2026-10-22T01:57:47Z
