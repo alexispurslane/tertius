@@ -1,6 +1,6 @@
 ---
 id: ter-yzk1
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-22T00:45:58Z
