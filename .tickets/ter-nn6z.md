@@ -13,3 +13,9 @@ tags: [tooling, analyzers]
 
 An analyzer that steers closed sets of types to the right form: a custom [Union] struct for hot paths, a built-in union or sealed records elsewhere. It flags tagged structs (a Kind enum plus per-kind fields) and closed hierarchies. A source generator that writes a custom [Union] struct (kind tag, storage, constructors, implicit conversions, HasValue, TryGetValue) from a list of record types. First step: a design doc in docs/plans/ with two designs for the user to choose between (how the analyzer knows a type is hot, and how the generator stores the cases).
 
+
+## Notes
+
+**2026-10-22T12:58:26Z**
+
+Design doc: docs/plans/union-tooling.md. The user chose on 2026-10-22: the form of a closed set follows from the shape of its cases (struct cases: generated union struct; class cases: built-in union), the generator stores record cases by fields shared by name and type, and the epic converts all 32 unions. Order: ter-qfxn, then the conversions ter-07e3 ter-297a ter-mh11 ter-asoh ter-kx3k ter-m0db, then ter-c3rf. Follow-ups outside the epic: ter-5k4t ter-7oi8.
