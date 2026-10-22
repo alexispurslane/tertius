@@ -23,3 +23,9 @@ Per the project rules, it is a temporal effect, so the deterministic switch in R
 
 With automatic exposure on, a camera that moves from the orbit scene's day side into Earth's shadow sees the image brighten over a few seconds of real time until the dark side shows detail. Back in sunlight, it sees the image overexposed at first, then settle. The rates and the exposure range are settings, the effect is switchable and off in deterministic tests, and its cost is measured.
 
+
+## Notes
+
+**2026-10-22T00:09:45Z**
+
+The lights design (ter-bpvl, docs/plans/local-light-shadows.md, "Exposure and the HDR image" and "Reach") depends on this ticket and adds two needs. First, lights move to SI units, so scene brightness spans from about 1,361 W/m² in sunlight down to about 0.01 W/m² in dim rooms. The HDR and emissive targets are half floats (largest value 65,504) and the Sun's disc is about 2e7 W/(m²·sr), so every pass that writes them writes pre-exposed radiance: radiance times the exposure of the previous rendered frame, clamped to 65,504. This ticket owns that exposure value and gives it to those passes, and tone mapping then multiplies by no exposure. Second, the lower clamp of the exposure sets E_cut, the irradiance below which a light is culled: a white matte surface at the brightest allowed exposure turns E_cut into 1/256 of output white.

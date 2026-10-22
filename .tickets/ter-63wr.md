@@ -21,3 +21,9 @@ Design to decide (two designs, then the user chooses): where bloom runs in the f
 
 With bloom on, the sun in the orbit scene shows a glow several times its disc, and other emissive things glow by their brightness. The disc itself keeps its true size. Bloom is a RendererOptions switch, its cost is measured and recorded, and the snapshot tests run with it off unless a test turns it on.
 
+
+## Notes
+
+**2026-10-22T00:09:45Z**
+
+After the lights design (ter-bpvl), the HDR image holds pre-exposed radiance in SI units (radiance times the exposure of the previous frame, clamped to 65,504). Bloom works on those values.
