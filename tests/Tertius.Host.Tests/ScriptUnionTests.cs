@@ -4,14 +4,16 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using Tertius.Host.Scripting;
+using Tertius.Rendering;
 using Tertius.Simulation;
 using Tertius.Testing;
 
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The closed sets of the script format and the runner are custom C# 15 unions, as <c>Target</c> is: a script step, an
-/// event target, and the runner's step after its checks. See docs/plans/blue-danube-demo.md, "Engine changes for the demo".
+/// The closed sets of the script format and the runner are built-in C# 15 unions, because their cases are classes: a script
+/// step, an event target, the capture target of a run, and the runner's step after its checks. See
+/// docs/plans/blue-danube-demo.md, "Engine changes for the demo", and docs/plans/union-tooling.md, decision 1.
 /// </summary>
 public class ScriptUnionTests
 {
@@ -33,7 +35,7 @@ public class ScriptUnionTests
 
     public static TheoryData<int> TargetSampleNumbers => [.. Enumerable.Range(0, TargetSamples.Length)];
 
-    /// <summary>The types of the cases of a custom union: the parameter types of its constructors that take one case.</summary>
+    /// <summary>The types of the cases of a union: the parameter types of its constructors that take one case.</summary>
     private static string[] CasesOf(Type union) =>
     [
         .. union
@@ -43,29 +45,39 @@ public class ScriptUnionTests
             .Order(StringComparer.Ordinal)
     ];
 
-    private static void ShouldBeACustomUnionOf(Type union, params string[] cases)
+    // The compiler marks a built-in union with the [Union] attribute and the IUnion interface. A hand-written [Union] struct
+    // carries the attribute only.
+    private static void ShouldBeABuiltInUnionOf(Type union, params string[] cases)
     {
-        union.IsValueType.Should().BeTrue($"{union.Name} is a struct, like Target");
+        union.IsValueType.Should().BeTrue($"{union.Name} is a struct");
         union.GetCustomAttribute<UnionAttribute>().Should().NotBeNull($"{union.Name} carries the [Union] attribute");
+        union.GetInterfaces().Should().Contain(typeof(IUnion), $"the compiler declares {union.Name} as a union");
+        union.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+            .Select(field => field.FieldType).Should()
+            .Equal([typeof(object)], $"{union.Name} holds its case as one reference, so it allocates nothing beyond it");
         CasesOf(union).Should().Equal(cases.Order(StringComparer.Ordinal));
     }
 
     [Fact]
-    public void AScriptStepIsACustomUnionOfTheSevenStepRecords() =>
-        ShouldBeACustomUnionOf(typeof(ScriptStep), nameof(RunStep), nameof(PostStep), nameof(DumpStep),
+    public void AScriptStepIsABuiltInUnionOfTheSevenStepRecords() =>
+        ShouldBeABuiltInUnionOf(typeof(ScriptStep), nameof(RunStep), nameof(PostStep), nameof(DumpStep),
             nameof(CaptureStep), nameof(CameraStep), nameof(FilmStep), nameof(OutlinesStep));
 
     [Fact]
-    public void AMessageTargetIsACustomUnionOfTheFourTargetRecords() =>
-        ShouldBeACustomUnionOf(typeof(MessageTarget), nameof(ToEntity), nameof(ToTopic), nameof(ToFrame),
+    public void AMessageTargetIsABuiltInUnionOfTheFourTargetRecords() =>
+        ShouldBeABuiltInUnionOf(typeof(MessageTarget), nameof(ToEntity), nameof(ToTopic), nameof(ToFrame),
             nameof(ToEveryone));
 
     [Fact]
-    public void TheRunnersReadyStepIsACustomUnionOfItsSevenReadyRecords()
+    public void ACaptureTargetIsABuiltInUnionOfAFolderAndAVideo() =>
+        ShouldBeABuiltInUnionOf(typeof(CaptureTarget), nameof(PngFolder), nameof(VideoFile));
+
+    [Fact]
+    public void TheRunnersReadyStepIsABuiltInUnionOfItsSevenReadyRecords()
     {
         Type ready = typeof(ScriptRunner).GetNestedType("ReadyStep", BindingFlags.NonPublic)!;
 
-        ShouldBeACustomUnionOf(ready, "ReadyRun", "ReadyPost", "ReadyCamera", "ReadyDump", "ReadyCapture", "ReadyFilm",
+        ShouldBeABuiltInUnionOf(ready, "ReadyRun", "ReadyPost", "ReadyCamera", "ReadyDump", "ReadyCapture", "ReadyFilm",
             "ReadyOutlines");
     }
 
@@ -82,14 +94,13 @@ public class ScriptUnionTests
     [Fact]
     public void AStepHoldsExactlyTheCaseItWasMadeFrom()
     {
-        ScriptStep step = new RunStep(3);
+        var made = new RunStep(3);
+        ScriptStep step = made;
 
-        step.HasValue.Should().BeTrue();
-        step.TryGetValue(out RunStep? run).Should().BeTrue();
-        run!.Ticks.Should().Be(3);
-        step.TryGetValue(out PostStep? post).Should().BeFalse();
-        post.Should().BeNull();
-        step.Value.Should().BeSameAs(run);
+        (step is null).Should().BeFalse();
+        (step is RunStep { Ticks: 3 }).Should().BeTrue();
+        (step is PostStep).Should().BeFalse();
+        step.Value.Should().BeSameAs(made);
     }
 
     [Fact]
@@ -97,11 +108,9 @@ public class ScriptUnionTests
     {
         MessageTarget target = new ToFrame("ship");
 
-        target.HasValue.Should().BeTrue();
-        target.TryGetValue(out ToFrame? frame).Should().BeTrue();
-        frame!.Id.Should().Be("ship");
-        target.TryGetValue(out ToEntity? entity).Should().BeFalse();
-        entity.Should().BeNull();
+        (target is null).Should().BeFalse();
+        (target is ToFrame { Id: "ship" }).Should().BeTrue();
+        (target is ToEntity).Should().BeFalse();
     }
 
     [Fact]
@@ -110,22 +119,57 @@ public class ScriptUnionTests
         ScriptStep step = default;
         MessageTarget target = default;
 
-        step.HasValue.Should().BeFalse();
+        (step is null).Should().BeTrue();
         step.Value.Should().BeNull();
-        step.TryGetValue(out RunStep? _).Should().BeFalse();
-        target.HasValue.Should().BeFalse();
+        (step is RunStep).Should().BeFalse();
+        (target is null).Should().BeTrue();
         target.Value.Should().BeNull();
-        target.TryGetValue(out ToEveryone? _).Should().BeFalse();
+        (target is ToEveryone).Should().BeFalse();
+    }
+
+    // A built-in union lets no constructor of a case refuse a null case (CS9374), so a null case makes the default value.
+    // The nullable analysis reports a case that may be null at build time, and the checks that refuse the default value
+    // refuse it at run time.
+    [Fact]
+    public void AStepATargetOrACaptureTargetMadeFromANullCaseHoldsNoCase()
+    {
+        var step = new ScriptStep((RunStep)null!);
+        var target = new MessageTarget((ToEveryone)null!);
+        var capture = new CaptureTarget((PngFolder)null!);
+
+        (step is null).Should().BeTrue();
+        step.Should().Be(default(ScriptStep));
+        (target is null).Should().BeTrue();
+        target.Should().Be(default(MessageTarget));
+        (capture is null).Should().BeTrue();
+        capture.Should().Be(default(CaptureTarget));
     }
 
     [Fact]
-    public void AStepOrATargetCannotBeMadeFromANullCase()
+    public void AScriptBuiltWithAStepMadeFromANullCaseIsRefusedAtItsStepNumberBeforeAnythingRuns()
     {
-        Action step = () => _ = new ScriptStep((RunStep)null!);
-        Action target = () => _ = new MessageTarget((ToEveryone)null!);
+        using World world = HostTesting.NewWorld();
+        SceneInstance scene = HostTesting.Probes(world);
+        var script = new Script("probes", [new RunStep(1), (DumpStep)null!]);
 
-        step.Should().Throw<ArgumentNullException>();
-        target.Should().Throw<ArgumentNullException>();
+        Action run = () => ScriptRunner.Run(script, world, scene);
+
+        run.Should().Throw<ScriptException>().Which.Message.Should().Be("step 2: a step cannot be null.");
+        world.TickNumber.Should().Be(0);
+    }
+
+    [Fact]
+    public void AHeadlessPlaybackRefusesACaptureTargetThatHoldsNoCase()
+    {
+        using VulkanRenderer renderer = GpuTesting.Headless(16, 16);
+
+        Action empty = () => _ = new HeadlessPlayback(renderer, ScriptWindow.Default, default);
+        Action nullCase = () => _ = new HeadlessPlayback(renderer, ScriptWindow.Default, (PngFolder)null!);
+
+        empty.Should().Throw<ArgumentException>().Which.Message.Should()
+            .StartWith("A headless playback needs a capture target.");
+        nullCase.Should().Throw<ArgumentException>().Which.Message.Should()
+            .StartWith("A headless playback needs a capture target.");
     }
 
     [Fact]
@@ -193,7 +237,7 @@ public class ScriptUnionTests
     {
         JsonSerializer.Serialize(default(ScriptStep), ScriptJson.Recordings).Should().Be("null");
         JsonSerializer.Serialize(default(MessageTarget), ScriptJson.Recordings).Should().Be("null");
-        JsonSerializer.Deserialize<ScriptStep>("null", ScriptJson.Scripts).HasValue.Should().BeFalse();
+        (JsonSerializer.Deserialize<ScriptStep>("null", ScriptJson.Scripts) is null).Should().BeTrue();
     }
 
     [Fact]
@@ -388,7 +432,7 @@ public class ScriptUnionTests
             ScriptWith(
                 """{ "event": "Nudge", "payload": { "do": "dump", "deep": [ { "do": "x" }, 1 ] }, "to": { "id": "probe", "kind": "entity" }, "do": "post" }""");
 
-        script.Steps[0].TryGetValue(out PostStep? post).Should().BeTrue();
-        post!.Payload!.Value.GetProperty("do").GetString().Should().Be("dump");
+        PostStep post = script.Steps[0].Value.Should().BeOfType<PostStep>().Which;
+        post.Payload!.Value.GetProperty("do").GetString().Should().Be("dump");
     }
 }

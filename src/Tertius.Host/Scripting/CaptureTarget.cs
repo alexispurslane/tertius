@@ -1,6 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-using System.Runtime.CompilerServices;
-
 namespace Tertius.Host.Scripting;
 
 /// <summary>
@@ -8,42 +5,21 @@ namespace Tertius.Host.Scripting;
 /// or a <see cref="VideoFile"/>, which makes each capture the next frame of one video. A run names its outputs by the names
 /// of its steps, so the playback gets the name of each capture and its target makes the output. See
 /// docs/plans/blue-danube-demo.md, change 1.
-/// This is a custom C# 15 union, like <see cref="ScriptStep"/>, and like it its cases are classes, so <see cref="Value"/>
-/// does not box. The default value holds no case, and <see cref="HeadlessPlayback"/> refuses it.
+/// This is a built-in C# 15 union, like <see cref="ScriptStep"/>: its cases are classes, so it is a struct around one
+/// reference and allocates nothing beyond its case. The default value holds no case and matches the <c>null</c> pattern.
+/// A null case makes the default value too, and <see cref="HeadlessPlayback"/> refuses it.
 /// </summary>
-[Union]
-public readonly struct CaptureTarget : IEquatable<CaptureTarget>
+public union CaptureTarget(PngFolder, VideoFile) : IEquatable<CaptureTarget>
 {
-    // The held case, or null for the default value.
-
-    public CaptureTarget(PngFolder folder)
-    {
-        ArgumentNullException.ThrowIfNull(folder);
-        Value = folder;
-    }
-
-    public CaptureTarget(VideoFile video)
-    {
-        ArgumentNullException.ThrowIfNull(video);
-        Value = video;
-    }
-
-    /// <summary>False for the default value, which holds no case.</summary>
-    public bool HasValue => Value != null;
-
-    /// <summary>The held case, or null for the default value.</summary>
-    public object? Value { get; }
-
-    public bool TryGetValue([NotNullWhen(true)] out PngFolder? value) => (value = Value as PngFolder) != null;
-    public bool TryGetValue([NotNullWhen(true)] out VideoFile? value) => (value = Value as VideoFile) != null;
-
     // The held case decides equality, by the value equality of its record. Two cases of different types are never equal.
+    // The built-in union has only the equality of ValueType, which reads the field by reflection, and no == operator.
     public bool Equals(CaptureTarget other) => Equals(Value, other.Value);
     public override bool Equals(object? obj) => obj is CaptureTarget other && Equals(other);
     public override int GetHashCode() => Value?.GetHashCode() ?? 0;
     public static bool operator ==(CaptureTarget a, CaptureTarget b) => a.Equals(b);
     public static bool operator !=(CaptureTarget a, CaptureTarget b) => !a.Equals(b);
 
+    // The built-in union's ToString gives only the name of the union.
     public override string ToString() => Value?.ToString() ?? "CaptureTarget(none)";
 }
 
