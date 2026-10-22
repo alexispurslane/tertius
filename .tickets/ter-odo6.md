@@ -1,6 +1,6 @@
 ---
 id: ter-odo6
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-12T13:55:44Z
@@ -39,3 +39,7 @@ Every allocation test measures per call or per tick, or warms up past the runtim
 **2026-10-21T20:42:26Z**
 
 2026-10-21: under tools/coverage/run.sh on the branch of ter-6u2m, ScriptUnionTests.ReadingAStepOrATargetAllocatesNothingBeyondTheReadOfItsCaseRecord (Host Debug) and PuffTableTests.AStepAndABirthAllocateNothingAfterWarmUp (Simulation Release) also failed once. Both pass without coverage in Debug and Release.
+
+**2026-10-22T12:15:53Z**
+
+2026-10-22, ter-a4s2: every test that measures GC.GetAllocatedBytesForCurrentThread now goes through Allocations.Fewest (tests/Tertius.Testing/Allocations.cs): the fewest bytes of up to three windows, with the reason in its doc comment. The per-call and per-tick divisions are gone, and the tests demand exactly 0 bytes again. A loop of 40 suite runs under load found the one-time allocation in one window only (7,400 bytes, then 0 and 0), also with tiered compilation off. Not covered: the ContactAllocationTests, which count every thread and keep their own two windows, and the failures under the coverage collector, which are a tool artifact.
