@@ -16,6 +16,7 @@
     {
       packages = forAllSystems (pkgs: {
         joltc-double = pkgs.callPackage ./native/joltc.nix { };
+        jscpd = pkgs.callPackage ./native/jscpd.nix { };
         # The dev shell's SDK, so that tools/rider.sh can keep a stable link to it (.nix/dotnet-sdk) for Rider.
         dotnet-sdk = pkgs.dotnet-sdk_11;
       });
@@ -25,6 +26,7 @@
         let
           dotnet = pkgs.dotnet-sdk_11;
           joltc = pkgs.callPackage ./native/joltc.nix { };
+          jscpd = pkgs.callPackage ./native/jscpd.nix { };
           vulkanLibs = [
             pkgs.vulkan-loader
           ]
@@ -39,6 +41,8 @@
               pkgs.cmake
               pkgs.ninja
               pkgs.git
+              # The duplicate-code report, tools/duplicates.sh.
+              jscpd
               # The coverage and Stryker helpers in tools/ are Python.
               pkgs.python3
               pkgs.shaderc
