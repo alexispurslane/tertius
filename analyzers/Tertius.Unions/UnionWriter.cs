@@ -29,11 +29,20 @@ internal static class UnionWriter
 
     private static void Body(StringBuilder text, UnionModel union)
     {
-        string name = union.Name;
-        string none = union.HasZeroCase ? "" : "KindNone = 0, ";
         text.AppendLine("[global::System.Runtime.CompilerServices.Union]");
-        text.AppendLine($"{(union.IsReadOnly ? "readonly " : "")}partial struct {name} : global::System.IEquatable<{name}>");
+        text.AppendLine($"{(union.IsReadOnly ? "readonly " : "")}partial struct {union.Name} : global::System.IEquatable<{union.Name}>");
         text.AppendLine("{");
+        Fields(text, union);
+        Constructors(text, union);
+        Reads(text, union);
+        Equality(text, union);
+        text.AppendLine("}");
+    }
+
+    /// <summary>The kind constants, the slots and the kind.</summary>
+    private static void Fields(StringBuilder text, UnionModel union)
+    {
+        string none = union.HasZeroCase ? "" : "KindNone = 0, ";
         text.AppendLine($"    private const byte {none}{string.Join(", ", union.Cases.Select(c => $"{c.KindName} = {c.Kind}"))};");
         text.AppendLine();
         for (int i = 0; i < union.Slots.Count; i++)
@@ -43,6 +52,12 @@ internal static class UnionWriter
         }
 
         text.AppendLine("    private readonly byte kind;");
+    }
+
+    /// <summary>The constructor and the implicit conversion of each case.</summary>
+    private static void Constructors(StringBuilder text, UnionModel union)
+    {
+        string name = union.Name;
         foreach (CaseModel c in union.Cases)
         {
             text.AppendLine();
@@ -58,6 +73,11 @@ internal static class UnionWriter
             text.AppendLine($"    public static implicit operator {name}({c.Type} value) => new(value);");
         }
 
+    }
+
+    /// <summary><c>HasValue</c>, <c>Value</c> and the <c>TryGetValue</c> of each case.</summary>
+    private static void Reads(StringBuilder text, UnionModel union)
+    {
         text.AppendLine();
         text.AppendLine("    /// <summary>False only for the empty value, which holds no case.</summary>");
         text.AppendLine($"    public bool HasValue => {(union.HasZeroCase ? "true" : "kind != KindNone")};");
@@ -80,6 +100,12 @@ internal static class UnionWriter
             text.AppendLine("    }");
         }
 
+    }
+
+    /// <summary>Equality, the hash, the operators and <c>ToString</c>.</summary>
+    private static void Equality(StringBuilder text, UnionModel union)
+    {
+        string name = union.Name;
         text.AppendLine();
         text.AppendLine("    /// <summary>True when both values hold the same case with equal values, or both are empty.</summary>");
         text.AppendLine($"    public bool Equals({name} other) => kind == other.kind && kind switch");
@@ -113,7 +139,6 @@ internal static class UnionWriter
         text.AppendLine();
         text.AppendLine("    // Each value compares with its own Equals, as a record compares its fields, so NaN equals NaN.");
         text.AppendLine("    private static bool SlotEquals<T>(T a, T b) => global::System.Collections.Generic.EqualityComparer<T>.Default.Equals(a, b);");
-        text.AppendLine("}");
     }
 
     /// <summary>The expression that builds case <paramref name="c"/> from its slots.</summary>
