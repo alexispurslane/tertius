@@ -1,6 +1,6 @@
 # Tools
 
-These helpers run every test project in one command, start JetBrains Rider inside the dev shell, and run code coverage and Stryker.NET mutation testing on the lines that a branch changed. For the rules on which helper to run, read the Testing section of CLAUDE.md. The scripts are tool code: they never ship, so they skip polish.
+These helpers run every test project in one command, start JetBrains Rider inside the dev shell, run code coverage and Stryker.NET mutation testing on the lines that a branch changed, and report duplicated code. For the rules on which helper to run, read the Testing section of CLAUDE.md. The scripts are tool code: they never ship, so they skip polish.
 
 Run every command in the dev shell, from the repository root. The build copies the Jolt library and the Vulkan loader next to each output, so the tests need no `DYLD_*` variable. Outside the dev shell, the GPU tests cannot find `libvulkan`, and the scripts stop with a message. Write the output to a folder outside the repository, for example `/tmp/tertius-coverage`.
 
@@ -105,3 +105,19 @@ These cost time on the vertical slice, so the scripts handle them:
 - The progress bar shows only on a terminal. The `-L` flag writes the log to `out/logs`, so that you can follow a run in the background.
 
 Do not run two Stryker runs at once, and do not run Stryker in subagents. Two runs compete for the CPU, and their tests time out.
+
+## Duplicate code
+
+`tools/duplicates.sh` reports duplicated C# code with jscpd. jscpd 5 is a Rust program, and `native/jscpd.nix` builds it from crates.io for the dev shell. A scan of `src/` takes less than a second. The report never fails, so it is a guide for refactoring and not a gate.
+
+```bash
+nix develop --command bash -c 'bash tools/duplicates.sh'
+```
+
+The script prints each clone with its two places, then a table with the share of duplicated lines and tokens. A clone is a block of at least 70 tokens, about seven lines, that occurs twice. The options:
+
+- `-t` scans `tests/` and `benchmarks/` too. The default is `src/` only.
+- `-r` also reports renamed copies: blocks that differ only in names and literals.
+- `-s` also reports near-miss methods: methods whose syntax trees are at least 80 percent alike.
+- `-o <folder>` also writes an HTML report to `<folder>/jscpd-report.html`.
+- Everything after `--` goes to jscpd unchanged, for example `-- --min-tokens 50`.
