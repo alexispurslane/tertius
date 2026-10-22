@@ -190,6 +190,8 @@ public class GrowthTests
                 faults.Jolt.TryGetBodyFrame(heldBack.Value.Entity, out FrameHandle holdHullFrame).Should().BeTrue();
                 holdHullFrame.Should().Be(space);
                 break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(kind), kind, null);
         }
 
         faults.Jolt.CapacityOf(full).Should().Be(16);

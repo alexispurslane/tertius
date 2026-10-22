@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Tertius.Frames.Rails;
 
 namespace Tertius;
@@ -107,9 +108,11 @@ public sealed partial class FrameTree
                 end = InTreeParent(treeParent, parent, HullPrediction(id, treeParent, parent, start, step), stepIntents,
                     step);
                 break;
-            default:
+            case FollowKind.Static:
                 end = new(start, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
                 break;
+            default:
+                throw new UnreachableException($"A frame has the follow kind {kind}, which is not a member.");
         }
 
         return (now with { Pose = start }, end);

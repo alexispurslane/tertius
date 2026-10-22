@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Silk.NET.Vulkan;
@@ -100,7 +101,6 @@ internal sealed class OutlinePass : RenderPass
     internal static void Collect(RenderSnapshot snapshot, PreparedScene scene)
     {
         foreach (ref readonly FrameOutline outline in CollectionsMarshal.AsSpan(snapshot.Outlines))
-            // The default outline holds no case, so no arm takes it.
             switch (outline)
             {
                 case SemanticOutline(var center, var rotation, var radii):
@@ -121,6 +121,11 @@ internal sealed class OutlinePass : RenderPass
                 case FollowingOutline(var center, var radius):
                     AddSphere(scene, center, radius, OutlineColors.Following);
                     break;
+                case null:
+                    // The default outline holds no case, so it draws nothing.
+                    break;
+                default:
+                    throw new UnreachableException($"The outline {outline} has a case that the pass does not draw.");
             }
     }
 

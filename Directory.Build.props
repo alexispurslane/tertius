@@ -11,6 +11,16 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <!-- CS1591, a public member without a doc comment, stays off until the doc comment rewrite (ter-9yg8). -->
     <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!--
+      Switches over closed sets (docs/plans/code-quality-tooling.md, decision 14). CS8524 reports an enum switch expression
+      that names every member but not unnamed values such as (E)7. Off, so such a switch needs no discard arm, and the
+      compiler reports a missing member with CS8509. An unnamed value throws SwitchExpressionException. The build runs the
+      IDE analyzers for IDE0010 only. AnalysisModeStyle=None turns off the style rules that latest-recommended turns on,
+      and .editorconfig sets every other IDE rule to suggestion, which a build does not report.
+    -->
+    <NoWarn>$(NoWarn);CS8524</NoWarn>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisModeStyle>None</AnalysisModeStyle>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <InvariantGlobalization>true</InvariantGlobalization>
     <TieredPGO>true</TieredPGO>

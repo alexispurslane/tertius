@@ -96,7 +96,7 @@ internal sealed class GraphicsPipelineDesc
                 AlphaBlendOp = BlendOp.Add,
                 ColorWriteMask = allChannels
             },
-            _ => new() { BlendEnable = false, ColorWriteMask = allChannels }
+            BlendMode.None => new() { BlendEnable = false, ColorWriteMask = allChannels }
         };
     }
 
@@ -136,7 +136,7 @@ internal sealed class GraphicsPipelineDesc
             VertexBindingDescriptionCount = hasVertices ? 1u : 0u,
             PVertexBindingDescriptions = hasVertices ? &binding : null,
             VertexAttributeDescriptionCount =
-                VertexInput switch { VertexInput.Mesh => 4u, VertexInput.PositionOnly => 1u, _ => 0u },
+                VertexInput switch { VertexInput.Mesh => 4u, VertexInput.PositionOnly => 1u, VertexInput.None => 0u },
             PVertexAttributeDescriptions = hasVertices ? attributes : null
         };
         var inputAssembly = new PipelineInputAssemblyStateCreateInfo

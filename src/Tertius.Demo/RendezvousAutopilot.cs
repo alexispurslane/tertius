@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Tertius.Frames.Rails;
 using Tertius.Simulation;
@@ -430,6 +431,10 @@ public sealed class RendezvousAutopilot(Entity station, RendezvousPlan plan, dou
                 events.Add(new Translation
                     { Force = guidance.Push(position, relative, holdPoint, gravityDifference) * mass });
                 break;
+            case Standby or Phasing or Halted or null:
+                break;
+            default:
+                throw new UnreachableException($"The rendezvous state {State} has a case that the autopilot does not fly.");
         }
     }
 

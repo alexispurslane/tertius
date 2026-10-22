@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
 namespace Tertius.Simulation;
@@ -190,10 +191,12 @@ internal readonly struct QueryFilter : IEquatable<QueryFilter>
                 frame = pointFrame;
                 point = center;
                 return snapshot.World.Frames.IsAlive(frame);
-            default:
+            case InFilter or WhereFilter or null:
                 frame = default;
                 point = default;
                 return false;
+            default:
+                throw new UnreachableException($"The query filter {this} has a case that has no center here.");
         }
     }
 

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 using Tertius.Simulation;
 
@@ -127,6 +128,10 @@ public sealed class BoxPlay(
                 report = Watch(self, ref watching);
                 State = watching;
                 break;
+            case Idle or Played or Halted or null:
+                break;
+            default:
+                throw new UnreachableException($"The box play state {State} has a case that the play does not run.");
         }
 
         Apply(self, report);

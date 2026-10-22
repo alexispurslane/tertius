@@ -98,7 +98,7 @@ internal sealed class DumpRecorder(World world, SceneInstance scene, EventPayloa
         FollowKind.Rails => "rails",
         FollowKind.Kinematic => "kinematic",
         FollowKind.Physics => "physics",
-        _ => "static"
+        FollowKind.Static => "static"
     };
 
     private FrameHandle RootOf(FrameHandle frame)
@@ -114,7 +114,7 @@ internal sealed class DumpRecorder(World world, SceneInstance scene, EventPayloa
         Topic { IsFrameTopic: true } topic => new ToFrame(FrameOwnerId(topic)),
         Topic topic => new ToTopic(Topics.NameOf(topic)),
         Broadcast => new ToEveryone(),
-        _ => throw new InvalidOperationException("A routed event has a target with no value.")
+        null => throw new InvalidOperationException("A routed event has a target with no value.")
     };
 
     /// <summary>The scene id of the owner of a frame topic's frame, or the topic's name if that frame is gone.</summary>

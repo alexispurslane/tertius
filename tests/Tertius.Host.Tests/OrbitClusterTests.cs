@@ -765,6 +765,9 @@ public sealed class OrbitClusterTests(OrbitClusterRun run) : IClassFixture<Orbit
                 case CaptureStep capture:
                     yield return (capture.Name, tick, camera);
                     break;
+                default:
+                    // The other steps move neither the tick nor the camera.
+                    break;
             }
     }
 

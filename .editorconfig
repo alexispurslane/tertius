@@ -212,6 +212,12 @@ dotnet_diagnostic.CA2208.severity = none
 dotnet_diagnostic.CA1716.severity = none
 # Type names that end in Flags: the [Flags] enums say what they hold, such as RenderFlags and IntentFlags.
 dotnet_diagnostic.CA1711.severity = none
+# Switches over closed sets (docs/plans/code-quality-tooling.md, decision 14). IDE0010 fails the build at an enum switch
+# statement that does not name every member, and at any switch statement without a default case. The only IDE rule that
+# the build reports. IDE0072 stays off: it demands a discard arm on enum switch expressions, and that arm hides a missing
+# member from CS8509.
+dotnet_diagnostic.IDE0010.severity = error
+dotnet_diagnostic.IDE0072.severity = none
 
 [src/Tertius.Rendering/Passes/**.cs]
 # Overrides of Dispose that skip base.Dispose(): RenderPass.Dispose is an empty hook that owns nothing.

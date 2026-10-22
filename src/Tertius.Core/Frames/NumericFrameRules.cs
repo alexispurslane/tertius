@@ -241,7 +241,7 @@ internal static class NumericFrameRules
             NumericMode.Falling or NumericMode.Following when !anchored && speed >= leaveSpeed => NumericMode.Falling,
             NumericMode.Falling or NumericMode.Resting or NumericMode.Following =>
                 fast ? NumericMode.Falling : distance >= options.LeaveDistance ? NumericMode.Resting : NumericMode.None,
-            _ => fast ? NumericMode.Falling :
+            NumericMode.None or NumericMode.Nesting => fast ? NumericMode.Falling :
                 distance >= options.CreateDistance ? NumericMode.Resting : NumericMode.None
         };
     }

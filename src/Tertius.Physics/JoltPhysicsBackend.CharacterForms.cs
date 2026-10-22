@@ -100,7 +100,7 @@ public sealed partial class JoltPhysicsBackend
     {
         BodyMotion.Character when gravity < RigidBelow => BodyMotion.Dynamic,
         BodyMotion.Dynamic when gravity >= WalkingFrom || (touches && gravity >= RigidBelow) => BodyMotion.Character,
-        _ => current
+        BodyMotion.Static or BodyMotion.Kinematic or BodyMotion.Dynamic or BodyMotion.Character => current
     };
 
     /// <summary>The mass of a character in kg: its description's, or 1 kg for a description without one, in both forms.</summary>

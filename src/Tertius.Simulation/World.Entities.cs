@@ -308,17 +308,19 @@ public sealed partial class World
         if (desc.LinearVelocity == Double3.Zero && desc.AngularVelocity == Vector3.Zero)
             return null;
         bool ownsFrame = desc.AsFrame is not null;
-        string? mover = desc.Body?.Motion switch
-        {
-            _ when !desc.AttachTo.IsNull => "An attached entity moves with its parent",
-            null => "An entity without a body moves only by its motion intents and transform writes",
-            _ when ownsFrame && desc.Frame.IsNull =>
-                "The owner of a root frame has no hull, so only its motion intents move it",
-            BodyMotion.Static => "A static body moves only by its teleports",
-            BodyMotion.Kinematic when !ownsFrame =>
-                "A kinematic body that owns no frame moves only by its motion intents and teleports",
-            _ => null
-        };
+        string? mover = !desc.AttachTo.IsNull
+            ? "An attached entity moves with its parent"
+            : desc.Body is not { } body
+                ? "An entity without a body moves only by its motion intents and transform writes"
+                : ownsFrame && desc.Frame.IsNull
+                    ? "The owner of a root frame has no hull, so only its motion intents move it"
+                    : body.Motion switch
+                    {
+                        BodyMotion.Static => "A static body moves only by its teleports",
+                        BodyMotion.Kinematic when !ownsFrame =>
+                            "A kinematic body that owns no frame moves only by its motion intents and teleports",
+                        BodyMotion.Kinematic or BodyMotion.Dynamic or BodyMotion.Character => null
+                    };
         if (mover is null)
             return null;
         string velocity = desc.LinearVelocity != Double3.Zero

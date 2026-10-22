@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -120,6 +121,8 @@ internal sealed class InputEventJsonConverter : JsonConverter<InputEvent>
             case null:
                 writer.WriteNullValue();
                 break;
+            default:
+                throw new UnreachableException($"The input event {value} has a case that the converter does not write.");
         }
     }
 

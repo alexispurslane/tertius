@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 
 namespace Tertius.Simulation;
@@ -95,7 +96,11 @@ internal static class QueryPlanner
             case NearPoint(_, _, var radius):
                 ConsiderNear(ref best, snapshot, filter, radius);
                 break;
-            // Where and the empty filter have no index.
+            case WhereFilter or null:
+                // Where and the empty filter have no index.
+                break;
+            default:
+                throw new UnreachableException($"The query filter {filter} has a case that the planner does not know.");
         }
     }
 

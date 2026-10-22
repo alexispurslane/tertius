@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Tertius.Frames.Rails;
 using Tertius.Simulation;
@@ -504,12 +505,14 @@ public sealed class DockingAutopilot(Entity station) : IComponent
                        FromTheAxis(pose.Position) <= EntryEndDistance
                     ? new EntryEnded()
                     : null;
-            default:
+            case MoveOut:
                 if (RestsAtTheParkedPose(pose, velocity, turn))
                     return new Landed();
                 Steer(self, ref events, frames, stationFrame, inside, body, pose, velocity, rate,
                     DemoStation.DockedRotation, 0, LandingPoint, ApproachGuidance.ForMoveOut());
                 return null;
+            default:
+                throw new UnreachableException($"Fly returns at once in the docking state {State}.");
         }
     }
 

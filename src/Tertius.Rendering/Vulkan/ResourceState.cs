@@ -72,8 +72,7 @@ internal static class ResourceUses
         ImageUse.TransferDestination => new(ImageLayout.TransferDstOptimal, PipelineStageFlags2.AllTransferBit,
             AccessFlags2.TransferWriteBit),
         // The present engine waits on a semaphore, so the barrier has no second scope of its own.
-        ImageUse.Present => new(ImageLayout.PresentSrcKhr, PipelineStageFlags2.None, AccessFlags2.None),
-        _ => throw new ArgumentOutOfRangeException(nameof(use))
+        ImageUse.Present => new(ImageLayout.PresentSrcKhr, PipelineStageFlags2.None, AccessFlags2.None)
     };
 
     public static ResourceState Describe(BufferUse use) => use switch
@@ -88,8 +87,7 @@ internal static class ResourceUses
             AccessFlags2.TransferReadBit),
         BufferUse.TransferDestination => new(ImageLayout.Undefined, PipelineStageFlags2.AllTransferBit,
             AccessFlags2.TransferWriteBit),
-        BufferUse.HostRead => new(ImageLayout.Undefined, PipelineStageFlags2.HostBit, AccessFlags2.HostReadBit),
-        _ => throw new ArgumentOutOfRangeException(nameof(use))
+        BufferUse.HostRead => new(ImageLayout.Undefined, PipelineStageFlags2.HostBit, AccessFlags2.HostReadBit)
     };
 
     public static bool Writes(AccessFlags2 access) => (access & WriteMask) != 0;

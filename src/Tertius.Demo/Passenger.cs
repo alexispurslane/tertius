@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Tertius.Simulation;
@@ -398,9 +399,11 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
                 return;
             case PenAway:
                 return;
-            default:
+            case Stopped or null:
                 Steer(self, outbox, Double3.Zero, mass);
                 return;
+            default:
+                throw new UnreachableException($"The passenger state {State} has a case that the passenger does not run.");
         }
     }
 

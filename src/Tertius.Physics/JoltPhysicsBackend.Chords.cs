@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 using JoltPhysicsSharp;
 using Tertius.Frames.Rails;
@@ -299,8 +300,10 @@ public sealed partial class JoltPhysicsBackend
                 if (StepEnd(record.Frame) is { } moment)
                     instant += moment.InstantAtEndChange(s.CenterOfMass, chord, stepDt);
                 return instant;
-            default:
+            case BodyMotion.Static or BodyMotion.Kinematic or BodyMotion.Dynamic:
                 return chord;
+            default:
+                throw new UnreachableException($"A body has the motion {record.Motion}, which is not a member.");
         }
     }
 

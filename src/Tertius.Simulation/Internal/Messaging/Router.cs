@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 
 namespace Tertius.Simulation;
 
@@ -374,6 +375,9 @@ internal sealed class Router
                     foreach (Entity recipient in entities.LiveEntities)
                         AddDelivery(mine, recipient, i, type);
                     break;
+                default:
+                    // World.Post, Outbox.Send and Outbox.SendAfter refuse a target with no value.
+                    throw new UnreachableException($"A routed event has the target {e.Target}, which names no recipient.");
             }
         }
     }

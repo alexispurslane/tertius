@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 
 namespace Tertius.Simulation;
@@ -242,15 +243,17 @@ internal sealed class PhysicsQueryRunner(
         }
 
         filter.Skip(Entity.Null);
-        switch (question)
+        // The hits of a ray or a shape cast are in order along the line. An overlap's hits have no order.
+        bool alongLine = question switch
         {
-            case RayQuestion or ShapeCastQuestion:
-                hits.AsSpan().Sort(ByDistanceThenEntity);
-                break;
-            case OverlapQuestion:
-                KeepEachEntityOnce();
-                break;
-        }
+            RayQuestion or ShapeCastQuestion => true,
+            OverlapQuestion => false,
+            null => false
+        };
+        if (alongLine)
+            hits.AsSpan().Sort(ByDistanceThenEntity);
+        else
+            KeepEachEntityOnce();
     }
 
     /// <summary>The farthest distance at which a hit can still count: the first hit so far, or the end of the query,
@@ -325,6 +328,8 @@ internal sealed class PhysicsQueryRunner(
                 foreach (Entity found in overlapped)
                     hits.Add(new(found, 0, default, default));
                 return;
+            default:
+                throw new UnreachableException("Run refuses a request without a question before it walks.");
         }
 
         if (request.Question.FirstHitOnly && hits.Count > 1)
@@ -375,52 +380,43 @@ internal sealed class PhysicsQueryRunner(
             ref Hit hit = ref hits[i];
             Double3 point = convert ? toAsker.TransformPoint(hit.Point) : hit.Point;
             Vector3 normal = convert ? toAsker.Rotation.Rotate(hit.Normal) : hit.Normal;
-            switch (question)
+            router.AddEngineEvent(question switch
             {
-                case RayQuestion:
-                    Send(request.Asker,
-                        new RayHit
-                        {
-                            Entity = hit.Entity, Point = point, Distance = (float)hit.Distance, Tag = request.Tag,
-                            Normal = normal
-                        });
-                    break;
-                case ShapeCastQuestion:
-                    Send(request.Asker,
-                        new ShapeHit
-                        {
-                            Entity = hit.Entity, Point = point, Distance = (float)hit.Distance, Tag = request.Tag,
-                            Normal = normal
-                        });
-                    break;
-                case OverlapQuestion:
-                    Send(request.Asker, new OverlapHit { Entity = hit.Entity, Tag = request.Tag });
-                    break;
-            }
+                RayQuestion => AnswerTo(request.Asker,
+                    new RayHit
+                    {
+                        Entity = hit.Entity, Point = point, Distance = (float)hit.Distance, Tag = request.Tag,
+                        Normal = normal
+                    }),
+                ShapeCastQuestion => AnswerTo(request.Asker,
+                    new ShapeHit
+                    {
+                        Entity = hit.Entity, Point = point, Distance = (float)hit.Distance, Tag = request.Tag,
+                        Normal = normal
+                    }),
+                OverlapQuestion => AnswerTo(request.Asker, new OverlapHit { Entity = hit.Entity, Tag = request.Tag }),
+                null => throw new UnreachableException("Run refuses a request without a question before it answers.")
+            });
         }
 
         if (count > 0)
             return;
         Double3 end = question.Origin + question.Direction * question.Length;
         Double3 missPoint = !frameAlive ? default : convert ? toAsker.TransformPoint(end) : end;
-        switch (question)
+        router.AddEngineEvent(question switch
         {
-            case RayQuestion:
-                Send(request.Asker,
-                    new RayHit { Point = missPoint, Distance = (float)question.Length, Tag = request.Tag });
-                break;
-            case ShapeCastQuestion:
-                Send(request.Asker,
-                    new ShapeHit { Point = missPoint, Distance = (float)question.Length, Tag = request.Tag });
-                break;
-            case OverlapQuestion:
-                Send(request.Asker, new OverlapHit { Tag = request.Tag });
-                break;
-        }
+            RayQuestion => AnswerTo(request.Asker,
+                new RayHit { Point = missPoint, Distance = (float)question.Length, Tag = request.Tag }),
+            ShapeCastQuestion => AnswerTo(request.Asker,
+                new ShapeHit { Point = missPoint, Distance = (float)question.Length, Tag = request.Tag }),
+            OverlapQuestion => AnswerTo(request.Asker, new OverlapHit { Tag = request.Tag }),
+            null => throw new UnreachableException("Run refuses a request without a question before it answers.")
+        });
     }
 
-    private void Send<T>(Entity asker, in T answer) where T : unmanaged, IEventPayload =>
-        router.AddEngineEvent(Event.Create(new(asker), Entity.Null, answer));
+    /// <summary>The engine event that brings <paramref name="answer"/> to <paramref name="asker"/>.</summary>
+    private static Event AnswerTo<T>(Entity asker, in T answer) where T : unmanaged, IEventPayload =>
+        Event.Create(new(asker), Entity.Null, answer);
 
     /// <summary>
     /// The filter of the request that runs: the request's entity query on the snapshot, around the asker, which it never

@@ -1,6 +1,6 @@
 ---
 id: ter-glx8
-status: open
+status: in_progress
 deps: [ter-uucg]
 links: []
 created: 2026-10-11T20:28:58Z

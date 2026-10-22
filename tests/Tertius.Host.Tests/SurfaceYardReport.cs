@@ -436,6 +436,9 @@ internal static class SurfaceYardReport
                         $"| {capture.Name} | {tick} | {F(sample.Time, 3)} | {camera} | {V(sample.Bodies[YardRecord.TopCrate].Pose.Position, 3)} "
                         + $"| {V(sample.Bodies[YardRecord.Person].Pose.Position, 3)} | {CaptureMustShow.GetValueOrDefault(capture.Name, "(no description)")} |");
                     break;
+                default:
+                    // The other steps move neither the tick nor the camera.
+                    break;
             }
 
         Line(text);

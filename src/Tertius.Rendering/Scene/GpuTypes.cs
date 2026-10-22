@@ -57,7 +57,7 @@ internal struct GpuInstance
                 UpAlong { Direction: var direction } => new(direction, 1),
                 // The center moves with the instance, so it is exact wherever the instance is interpolated to.
                 UpAwayFrom { Center: var center } => new(position + center, 2),
-                _ => Vector4.Zero
+                null => Vector4.Zero
             }
         };
     }

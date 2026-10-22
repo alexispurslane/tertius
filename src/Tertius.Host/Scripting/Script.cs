@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -133,6 +134,11 @@ public sealed record Script(
                 case FilmStep film:
                     filmSteps.Add(film.Name, (film, number));
                     break;
+                case PostStep or RunStep or CameraStep or OutlinesStep:
+                    // A valid post or run step, and every camera and outlines step: nothing to check across steps.
+                    break;
+                default:
+                    throw new UnreachableException($"Step {number} has a case that the check does not know.");
             }
         }
     }

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Tertius.Simulation;
 
 namespace Tertius.Demo;
@@ -74,6 +75,10 @@ public sealed class Disembark(
                 report = Stroll(self, ref strolling);
                 State = strolling;
                 break;
+            case Aboard or Arrived or Halted or null:
+                break;
+            default:
+                throw new UnreachableException($"The disembark state {State} has a case that the walk does not run.");
         }
 
         Apply(self, report);

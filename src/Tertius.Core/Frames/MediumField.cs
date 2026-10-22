@@ -82,7 +82,7 @@ public readonly struct MediumField : IEquatable<MediumField>
         PlanetMedium { Radius: var radius, SurfaceDensity: var surface, ScaleHeight: var scale, Drag: var drag } =>
             double.IsFinite(radius) && radius >= 0 && NotNegative(surface) && float.IsFinite(scale) && scale > 0 &&
             NotNegative(drag),
-        _ => true
+        null => true
     };
 
     /// <summary>The medium's drag, in 1/s, and 0 in vacuum.</summary>
@@ -90,7 +90,7 @@ public readonly struct MediumField : IEquatable<MediumField>
     {
         UniformMedium { Drag: var drag } => drag,
         PlanetMedium { Drag: var drag } => drag,
-        _ => 0
+        null => 0
     };
 
     /// <summary>A uniform medium. Without a <paramref name="region"/>, it fills the whole frame.</summary>
@@ -135,7 +135,7 @@ public readonly struct MediumField : IEquatable<MediumField>
         UniformMedium { Density: var density, Region: var region } =>
             density > 0 && (region is not { } box || box.Contains(place.ToVector3())),
         PlanetMedium { SurfaceDensity: var surface } => surface > 0,
-        _ => false
+        null => false
     };
 
     /// <summary>
@@ -150,7 +150,7 @@ public readonly struct MediumField : IEquatable<MediumField>
             region is { } box && !box.Contains(place.ToVector3()) ? 0 : density,
         PlanetMedium { Radius: var radius, SurfaceDensity: var surface, ScaleHeight: var scale } =>
             surface * Math.Exp(-Math.Max(0, place.Length - radius) / scale),
-        _ => 0
+        null => 0
     };
 
     public bool Equals(MediumField other) => kind == other.kind && kind switch
@@ -176,6 +176,6 @@ public readonly struct MediumField : IEquatable<MediumField>
     {
         UniformMedium u => $"MediumField({u})",
         PlanetMedium p => $"MediumField({p})",
-        _ => "MediumField(none)"
+        null => "MediumField(none)"
     };
 }

@@ -513,6 +513,8 @@ public class RailsMotionIntentTests
             case MotionSample sample:
                 self.MoveOnRails(sample);
                 break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(kind), kind, "no writer for this case");
         }
     }
 

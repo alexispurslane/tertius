@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.InteropServices;
 
@@ -360,7 +361,7 @@ internal sealed class SceneBatcher
     {
         CameraView camera = scene.Camera;
         foreach (ref readonly RenderLight light in CollectionsMarshal.AsSpan(snapshot.Lights))
-            // The default light holds no case, so no arm takes it. A light of either case is left out when it cannot reach
+            // The default light holds no case, so it adds no light. A light of either case is left out when it cannot reach
             // a visible surface (see Reaches).
             switch (light)
             {
@@ -396,6 +397,10 @@ internal sealed class SceneBatcher
                     });
                     break;
                 }
+                case null:
+                    break;
+                default:
+                    throw new UnreachableException($"The light {light} has a case that the batcher does not draw.");
             }
     }
 

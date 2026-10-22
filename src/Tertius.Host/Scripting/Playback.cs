@@ -78,7 +78,7 @@ public sealed class HeadlessPlayback : IPlayback, IDisposable
         {
             PngFolder folder => new PngCaptureSink(folder.PathOf(name)),
             VideoFile => video!,
-            _ => throw new InvalidOperationException($"The headless playback has no sink for the target {target}.")
+            null => throw new InvalidOperationException("The headless playback has no capture target.")
         };
         world.PublishRenderSnapshot();
         // A snapshot was published just now, so the latest one is that one.

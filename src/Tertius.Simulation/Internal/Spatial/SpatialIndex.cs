@@ -122,7 +122,7 @@ internal sealed class SpatialIndex
         public override string ToString() => this switch
         {
             InCell at => $"Placement({at})",
-            _ => "Placement(not in a grid)"
+            null => "Placement(not in a grid)"
         };
     }
 
@@ -311,19 +311,18 @@ internal sealed class SpatialIndex
         foreach (ref readonly Move move in found)
         {
             ref Placement placement = ref placements[move.Entity];
-            switch (placement, move.To)
+            if (placement is InCell from && move.To is InCell to && from.Frame == to.Frame)
             {
-                case (InCell from, InCell to) when from.Frame == to.Frame:
-                    // Within one grid: one lookup per cell.
-                    GridAt(to.Frame).Move(from.Cell, to.Cell, move.Entity);
-                    break;
-                case var (from, to):
-                    // Into the grid of another frame, out of every grid, or into a grid from none.
-                    if (from is InCell left)
-                        grids[left.Frame]?.Remove(left.Cell, move.Entity);
-                    if (to is InCell entered)
-                        GridAt(entered.Frame).Add(entered.Cell, move.Entity);
-                    break;
+                // Within one grid: one lookup per cell.
+                GridAt(to.Frame).Move(from.Cell, to.Cell, move.Entity);
+            }
+            else
+            {
+                // Into the grid of another frame, out of every grid, or into a grid from none.
+                if (placement is InCell left)
+                    grids[left.Frame]?.Remove(left.Cell, move.Entity);
+                if (move.To is InCell entered)
+                    GridAt(entered.Frame).Add(entered.Cell, move.Entity);
             }
 
             placement = move.To;

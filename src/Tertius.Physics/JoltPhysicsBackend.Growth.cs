@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 using JoltPhysicsSharp;
 
@@ -87,7 +88,10 @@ public sealed partial class JoltPhysicsBackend
                 BodyKind.Primary => PrimarySpec(record),
                 BodyKind.Interior => InteriorSpec(record),
                 // A ghost keeps its layer, the layer of its role (see GhostBody.Role), and its motion.
-                _ => GhostSpec(record, from.GetMotionType(id), from.GetObjectLayer(id))
+                BodyKind.Ghost => GhostSpec(record, from.GetMotionType(id), from.GetObjectLayer(id)),
+                // The loop skips a character's inner body above, and the engine gives every body that it makes a kind.
+                BodyKind.CharacterInner or BodyKind.None => throw new UnreachableException(
+                    $"Physics: {id} has the body kind {kind}, which the growth of a system does not copy.")
             };
             from.GetRPosition(id, out RVector3 position);
             from.GetLinearAndAngularVelocity(id, out Vector3 linear, out Vector3 angular);
