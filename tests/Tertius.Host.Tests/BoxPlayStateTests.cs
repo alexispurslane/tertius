@@ -1,4 +1,5 @@
 using Tertius.Demo;
+using Tertius.Testing;
 
 namespace Tertius.Host.Tests;
 
@@ -109,14 +110,16 @@ public sealed class BoxPlayStateTests
         foreach (BoxPlayState state in States)
         foreach (BoxPlayEvent change in Events)
             rows += BoxPlayState.Next(state, change).HasValue ? 1 : 0;
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int round = 0; round < 1000; round++)
-            foreach (BoxPlayState state in States)
-            foreach (BoxPlayEvent change in Events)
-                rows += BoxPlayState.Next(state, change).HasValue ? 1 : 0;
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        long allocated = Allocations.Fewest(() =>
+        {
+            rows = 0;
+            for (int round = 0; round < 1000; round++)
+                foreach (BoxPlayState state in States)
+                foreach (BoxPlayEvent change in Events)
+                    rows += BoxPlayState.Next(state, change).HasValue ? 1 : 0;
+        });
         allocated.Should().Be(0);
-        rows.Should().Be(27 * 1001);
+        rows.Should().Be(27 * 1000);
     }
 
     /// <summary>The default state is <see cref="Idle"/>, and states with the same case and data are equal.</summary>

@@ -10,7 +10,6 @@ namespace Tertius.Host.Tests;
 /// Capture steps on the real headless renderer: the image files, what they show, the camera step, and their stability
 /// from run to run. See docs/plans/host-and-scripted-runs.md, "Captures and the camera".
 /// </summary>
-[Collection(GpuCollection.Name)]
 public sealed class CaptureTests : IDisposable
 {
     private readonly string folder = NewFolder();

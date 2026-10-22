@@ -1,5 +1,6 @@
 using System.Numerics;
 using Tertius.Simulation;
+using Tertius.Testing;
 using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
@@ -1006,11 +1007,9 @@ public class PartPushTests
 
         Tick(world, 60);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        Tick(world, 100);
-        long perTick = (GC.GetAllocatedBytesForCurrentThread() - before) / 100;
+        long allocated = Allocations.Fewest(() => Tick(world, 100));
 
-        perTick.Should().Be(0, "a sync point with parts that push allocates nothing");
+        allocated.Should().Be(0, "a sync point with parts that push allocates nothing");
         world.Errors.Should().BeEmpty();
     }
 

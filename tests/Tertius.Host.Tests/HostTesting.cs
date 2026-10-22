@@ -243,7 +243,8 @@ public static class HostTesting
 
     /// <summary>A world on the real Jolt backend, which it owns, with one gameplay thread and the invariant checks of every tick.</summary>
     public static World NewJoltWorld() =>
-        new(new() { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true }, new JoltPhysicsBackend());
+        new(new() { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true },
+            new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
 
     private static FrameHandle Space(World world) =>
         world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));

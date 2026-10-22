@@ -1,5 +1,6 @@
 using AwesomeAssertions;
 using Tertius.Frames.Rails;
+using Tertius.Testing;
 
 namespace Tertius.Core.Tests;
 
@@ -1085,9 +1086,7 @@ public class FrameTreeGhostPlaceTests
 
         frames.UpdateNumericFrames(bodies, 0.1, 0.1, changes, ignore);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        frames.UpdateNumericFrames(bodies, 0.1, 0.1, changes, ignore);
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        long allocated = Allocations.Fewest(() => frames.UpdateNumericFrames(bodies, 0.1, 0.1, changes, ignore));
 
         allocated.Should().Be(0);
     }

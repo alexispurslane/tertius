@@ -13,7 +13,6 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class ThrowRun() : CheckedInRun("throw");
 
-[Collection(GpuCollection.Name)]
 public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
 {
     // In the ship's axes, a crate's center lies 3.3 m below the ship's center on the floor, and a standing person's eye

@@ -36,7 +36,6 @@ internal static class ShipBubble
     public static double Outside(Double3 position) => position.Length * (1 - 1 / (position / Radii).Length);
 }
 
-[Collection(GpuCollection.Name)]
 public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<SpacewalkRun>
 {
     // In the ship's axes, a person's center is 2.6 m below the ship's center when it stands on the chamber floor, and 2.4 m

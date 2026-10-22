@@ -12,7 +12,6 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class AirlockRun() : CheckedInRun("airlock");
 
-[Collection(GpuCollection.Name)]
 public sealed class AirlockSliceTests(AirlockRun run) : IClassFixture<AirlockRun>
 {
     // In the ship's axes, a person's center stands 2.6 m below the ship's center on the cabin floor, and 2.4 m below it on

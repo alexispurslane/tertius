@@ -60,7 +60,7 @@ if [[ ${#files[@]} -gt 0 ]]; then
     fi
     if ! git diff --quiet -- "${files[@]}"; then
         log="${TMPDIR:-/tmp}/tertius-pre-push-build.log"
-        if ! dotnet build Tertius.slnx -v quiet -nologo -clp:ErrorsOnly > "$log" 2>&1; then
+        if ! dotnet build Tertius.slnx -c Checked -v quiet -nologo -clp:ErrorsOnly > "$log" 2>&1; then
             grep -E ': error ' "$log" | sort -u | head -40 >&2
             echo "pre-push: the cleaned code does not build, so the push stopped. The changes stay uncommitted." >&2
             exit 1

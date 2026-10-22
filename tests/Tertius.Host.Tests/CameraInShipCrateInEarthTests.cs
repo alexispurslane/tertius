@@ -33,7 +33,7 @@ public sealed class CameraInShipCrateInEarthTests : IDisposable
     private static readonly Double3[] CrateOffsets = [new(0, 12, 104), new(8, 20, 115)];
 
     private readonly World world = new(new() { MaxDegreeOfParallelism = 1, DisposePhysics = true },
-        new JoltPhysicsBackend());
+        new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
 
     private readonly SceneInstance scene;
     private readonly FrameHandle earth, ship;

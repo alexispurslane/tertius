@@ -49,7 +49,7 @@ public static class WorldTesting
                     warnings.Add(message);
                 }
             };
-        return new(new() { WorkerThreads = 2, Log = log });
+        return new(JoltBackendOptions.Unpaced with { Log = log });
     }
 
     private static WorldOptions NewOptions(bool debugChecks, Action<WorldOptions>? configure)

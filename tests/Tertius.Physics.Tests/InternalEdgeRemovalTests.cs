@@ -315,7 +315,7 @@ public class InternalEdgeRemovalTests
             Components = [walker]
         });
         world.Tick();
-        lock (JoltRuntime.NativeGate)
+        lock (backend.Gate)
         {
             CharacterVirtual character = backend.CharacterOf(person) ??
                                          throw new InvalidOperationException("The person is not a walking character.");

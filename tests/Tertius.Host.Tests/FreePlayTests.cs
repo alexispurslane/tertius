@@ -492,13 +492,18 @@ public sealed class FreePlayTests : IDisposable
         using (world)
         {
             var freePlay = new FreePlay(world, scene, new(RecordPath, "input-probe", Size));
-            // The main thread of the window posts while the simulation thread ticks.
+            // The main thread of the window posts while the simulation thread ticks. After each 100 events, the poster
+            // waits until the world ticks again, as a window posts across frames. A sleep alone let a busy machine run
+            // the whole poster within one tick.
             Task poster = Task.Run(() =>
             {
                 for (int code = 0; code < 1500; code++)
                 {
                     freePlay.Post(InputEvent.KeyDown(code));
-                    if (code % 100 == 99)
+                    if (code % 100 != 99)
+                        continue;
+                    long tick = world.TickNumber;
+                    while (world.TickNumber == tick)
                         Thread.Sleep(1);
                 }
             }, TestContext.Current.CancellationToken);

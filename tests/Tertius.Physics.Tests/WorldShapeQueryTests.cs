@@ -1,5 +1,6 @@
 using System.Numerics;
 using Tertius.Simulation;
+using Tertius.Testing;
 using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
@@ -870,23 +871,24 @@ public class WorldShapeQueryTests
 
         Tick(world, 60);
 
-        // As for rays: each window collects garbage every 10 ticks, and the test takes the smaller window, because one
-        // compilation of a hot method can land on this thread during one window.
+        // As for rays: each window collects garbage every 10 ticks.
         const int Ticks = 200;
         int heardBefore = probes.Sum(p => p.Heard);
-        long first = BytesPerRequest(world, Ticks, Askers * 2);
-        long second = BytesPerRequest(world, Ticks, Askers * 2);
+        int windows = 0;
+        long allocated = Allocations.Fewest(() =>
+        {
+            windows++;
+            TickAndCollect(world, Ticks);
+        });
 
-        Math.Min(first, second).Should().Be(0,
-            $"a shape request must not allocate once the world is warm (the windows gave {first} and {second} bytes per request)");
+        allocated.Should().Be(0, "a shape request must not allocate once the world is warm");
         // One cast answer and the 7 boxes from x = 5 to x = 59 in the overlap, for each asker on each tick: real queries.
-        (probes.Sum(p => p.Heard) - heardBefore).Should().Be(2 * Ticks * Askers * 8);
+        (probes.Sum(p => p.Heard) - heardBefore).Should().Be(windows * Ticks * Askers * 8);
         world.Errors.Should().BeEmpty();
     }
 
-    private static long BytesPerRequest(World world, int ticks, int requestsPerTick)
+    private static void TickAndCollect(World world, int ticks)
     {
-        long before = GC.GetAllocatedBytesForCurrentThread();
         for (int t = 1; t <= ticks; t++)
         {
             world.Tick();
@@ -896,7 +898,5 @@ public class WorldShapeQueryTests
                 GC.WaitForPendingFinalizers();
             }
         }
-
-        return (GC.GetAllocatedBytesForCurrentThread() - before) / (ticks * requestsPerTick);
     }
 }

@@ -21,7 +21,7 @@ in
 stdenv.mkDerivation {
   pname = "joltc-double";
   # joltc has no release tags, so the version names the Jolt release and the joltc commit date.
-  version = "5.6.0-unstable-2026-07-13";
+  version = "5.6.0-unstable-2026-07-13-tertius1";
 
   # The joltc revision that matches JoltPhysicsSharp 2.23.0.
   src = fetchFromGitHub {
@@ -30,6 +30,10 @@ stdenv.mkDerivation {
     rev = "886e088675bae3a086f8318c7803f8ee962c2f2c";
     hash = "sha256-dhFvgdYCJreWoaxqUQrAR9gB9dIZn9EdFV3JF2PHFO4=";
   };
+
+  # One temp allocator per calling thread instead of one per process, so that two physics backends in one process,
+  # such as two tests, can step at the same time on different threads. native/build-joltc.sh applies it too.
+  patches = [ ./joltc-thread-temp-allocator.patch ];
 
   nativeBuildInputs = [
     cmake

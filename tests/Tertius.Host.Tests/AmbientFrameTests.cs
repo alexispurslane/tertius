@@ -11,7 +11,6 @@ namespace Tertius.Host.Tests;
 /// frame whose gravity pulls along -Y, lit only by a red sky and a blue ground. Two cameras see it from the same place
 /// and in the same direction: one in the root frame, one in a frame that is turned against it.
 /// </summary>
-[Collection(GpuCollection.Name)]
 public sealed class AmbientFrameTests : IDisposable
 {
     private readonly string folder = NewFolder();

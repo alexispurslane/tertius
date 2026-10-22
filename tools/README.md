@@ -6,7 +6,7 @@ Run every command in the dev shell, from the repository root. The build copies t
 
 ## Every test project in one command
 
-`tools/test-all.sh` builds the solution once per build configuration. Then it runs every test project in that configuration with `--no-build`. It works from any folder in the repository:
+`tools/test-all.sh` builds the solution once per build configuration. Then it runs every test project in every configuration with `--no-build`, all at the same time, one process each. Each process also runs its own test classes in parallel. The script works from any folder in the repository:
 
 ```bash
 nix develop --command bash -c 'bash tools/test-all.sh'
@@ -15,19 +15,20 @@ nix develop --command bash -c 'bash tools/test-all.sh'
 For each configuration and module, the script prints one line with the counts, and one indented line for each failed test:
 
 ```
-Debug Core: total 512, failed 1, succeeded 511, skipped 0, exit code 2
+Checked Core: total 512, failed 1, succeeded 511, skipped 0, exit code 2
     failed: Tertius.Core.Tests.FrameTreeTests.Some_test
 ```
 
 The options:
 
-- `-c Debug,Release` gives the build configurations, separated by commas. The default is both.
+- `-c Checked,Release` gives the build configurations, separated by commas. The default is Checked and Release. Checked has the contracts of Debug and the optimized code of Release (`Directory.Build.targets`). The tests run about five times faster in Checked than in Debug, and Debug stays unoptimized for the debugger.
 - `-m Core,Physics` gives the test modules, separated by commas. The default is all five: Core, Simulation, Physics, Rendering and Host.
+- `-j <runs>` gives the most test processes that run at once. The default, 0, runs every configuration and module at once.
 - `-o <folder>` gives the folder for the logs. The default is a new temporary folder, and the first line of the output names it. The script writes `<folder>/<configuration>/build.log` and one `<folder>/<configuration>/<module>.log` with the full test output of each module.
 - Everything after `--` goes to each `dotnet test` command unchanged, for example a filter:
 
   ```bash
-  nix develop --command bash -c 'bash tools/test-all.sh -c Debug -m Core,Physics -- --filter-class "*FrameTree*"'
+  nix develop --command bash -c 'bash tools/test-all.sh -c Checked -m Core,Physics -- --filter-class "*FrameTree*"'
   ```
 
 The exit code is 1 when a build fails, a test fails, or a test run ends without its summary. A module in which no test matches the filter is not a failure: its line ends with "(no tests ran)". When a build fails, the script prints the first compiler errors and skips the tests of that configuration. The exit code is 2 when an option is wrong or names a module that has no test project.
@@ -148,7 +149,7 @@ The pre-commit hook runs on every commit that stages C# files or projects. A com
 
 1. It builds the projects that the commit changes and the test projects that test them, incrementally. The build runs every analyzer, and an error stops the commit.
 2. It prints a report for the changed lines only: the duplicated blocks (jscpd) and the methods over the complexity limit (CA1502) or the length limit (MA0051). The report never stops the commit.
-3. It runs the tests of the changed code in Debug, one process per test project, in parallel. A failed test stops the commit.
+3. It runs the tests of the changed code in Checked, one process per test project, in parallel. A failed test stops the commit.
 
 The tests of the changed code are:
 

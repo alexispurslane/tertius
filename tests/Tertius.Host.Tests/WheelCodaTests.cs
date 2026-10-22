@@ -37,7 +37,7 @@ public sealed class CodaRun : IDisposable
     public CodaRun()
     {
         World = new(new() { MaxDegreeOfParallelism = 1, DebugChecks = false, DisposePhysics = true },
-            new JoltPhysicsBackend());
+            new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
         World.Log += Log.Add;
         Scene = DemoScenes.DemoExit.Build(World, RenderResources.None);
         Station = World.GetOwnedFrame(Scene["station"]);

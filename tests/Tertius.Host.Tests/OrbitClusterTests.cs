@@ -165,7 +165,6 @@ internal sealed class ClusterLog
     }
 }
 
-[Collection(GpuCollection.Name)]
 public sealed class OrbitClusterTests(OrbitClusterRun run) : IClassFixture<OrbitClusterRun>
 {
     // The spacewalker's mass in the scene, in kg. Its thrusters push with PersonControl.ThrustForce, 1.5 m/s² on it.

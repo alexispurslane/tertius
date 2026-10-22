@@ -29,7 +29,7 @@ public class RenderSnapshotNumericFrameTests
     [Fact]
     public void TheCameraKeepsItsMotionInTheBuildWhereAMergeTakesAwayItsNumericFrame()
     {
-        using var test = new TestWorld(new JoltPhysicsBackend(), configure: options => options.DisposePhysics = true);
+        using var test = new TestWorld(new JoltPhysicsBackend(JoltBackendOptions.Unpaced), configure: options => options.DisposePhysics = true);
         var heavyVelocity = new Double3(0, 0, 60);
         Entity heavy = test.World.Spawn(new()
         {

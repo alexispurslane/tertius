@@ -3,9 +3,10 @@
 The pre-commit hook runs it after the build. It never fails the commit: it is a report.
 
 - Duplicates: jscpd scans src/ and tests/. The script prints each clone with a copy that holds a changed line.
-- Complexity and length: every compile writes its diagnostics to obj/Debug/<framework>/analyzers.sarif
-  (Directory.Build.targets). The script reads CA1502 (cyclomatic complexity) and MA0051 (method length) from the
-  projects of the staged files and prints each one whose method holds a changed line.
+- Complexity and length: every compile writes its diagnostics to obj/<configuration>/<framework>/analyzers.sarif
+  (Directory.Build.targets), and the pre-commit hook builds Checked. The script reads CA1502 (cyclomatic complexity)
+  and MA0051 (method length) from the projects of the staged files and prints each one whose method holds a changed
+  line.
 
 A changed line is a line that the staged diff adds or edits. A deletion counts as a change of the line after it.
 """
@@ -142,7 +143,7 @@ def report_metrics(changed):
                 break
     found = []
     for project in sorted(projects):
-        for sarif in project.glob("obj/Debug/*/analyzers.sarif"):
+        for sarif in project.glob("obj/Checked/*/analyzers.sarif"):
             for result in json.loads(sarif.read_text())["runs"][0].get("results", []):
                 if result["ruleId"] not in RULES:
                     continue

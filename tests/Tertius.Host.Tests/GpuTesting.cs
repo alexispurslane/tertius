@@ -6,11 +6,14 @@ using static Tertius.Host.Tests.HostTesting;
 
 namespace Tertius.Host.Tests;
 
-/// <summary>GPU tests run one at a time: they share one physical device.</summary>
-[CollectionDefinition(Name)]
-public sealed class GpuCollection
+/// <summary>
+/// The cost measurements run alone, after every other test, so that no other test shares the cores and the GPU while they
+/// time. The other GPU tests run in parallel: each makes its own headless renderer with its own Vulkan device.
+/// </summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class MeasurementCollection
 {
-    public const string Name = "GPU";
+    public const string Name = "Cost measurements";
 }
 
 /// <summary>One decoded RGBA image.</summary>

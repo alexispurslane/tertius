@@ -147,7 +147,6 @@ internal sealed class LaunchLog
     }
 }
 
-[Collection(GpuCollection.Name)]
 public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunchRun>
 {
     /// <summary>The normal of the incline's surface, up and toward the foot.</summary>

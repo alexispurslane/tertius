@@ -10,7 +10,6 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class WalkRun() : CheckedInRun("walk");
 
-[Collection(GpuCollection.Name)]
 public sealed class WalkSliceTests(WalkRun run) : IClassFixture<WalkRun>
 {
     // The cabin floor is at y = -3.5 m in the ship's axes, and the person's capsule center rests 0.9 m above it. The

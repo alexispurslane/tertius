@@ -91,7 +91,6 @@ internal sealed class YardRecord
     }
 }
 
-[Collection(GpuCollection.Name)]
 public sealed class SurfaceYardTests(SurfaceYardRun run) : IClassFixture<SurfaceYardRun>
 {
     private YardMeasurements Measured => run.Measured;

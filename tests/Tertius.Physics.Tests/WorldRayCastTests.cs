@@ -1,5 +1,6 @@
 using System.Numerics;
 using Tertius.Simulation;
+using Tertius.Testing;
 using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
@@ -809,24 +810,24 @@ public class WorldRayCastTests
         Tick(world, 60);
 
         // Each window of the measure collects garbage every 10 ticks: an object that a cast needs and that only a weak
-        // reference holds would be made again after each collection. An allocation in the cast shows in both windows. The
-        // runtime can compile a hot method again during one window, and that one compilation lands on this thread, but in
-        // one window at most, so the test takes the smaller window.
+        // reference holds would be made again after each collection, so it shows in every window.
         const int Ticks = 200;
         int heardBefore = askers.Sum(a => a.Heard);
-        long first = BytesPerRequest(world, Ticks, Askers * 2);
-        long second = BytesPerRequest(world, Ticks, Askers * 2);
+        int windows = 0;
+        long allocated = Allocations.Fewest(() =>
+        {
+            windows++;
+            TickAndCollect(world, Ticks);
+        });
 
-        Math.Min(first, second).Should().Be(0,
-            $"a ray request must not allocate once the world is warm (the windows gave {first} and {second} bytes per request)");
+        allocated.Should().Be(0, "a ray request must not allocate once the world is warm");
         // One nearest answer and 17 hits of the other ray, for each asker on each tick: the measure covers real casts.
-        (askers.Sum(a => a.Heard) - heardBefore).Should().Be(2 * Ticks * Askers * 18);
+        (askers.Sum(a => a.Heard) - heardBefore).Should().Be(windows * Ticks * Askers * 18);
         world.Errors.Should().BeEmpty();
     }
 
-    private static long BytesPerRequest(World world, int ticks, int requestsPerTick)
+    private static void TickAndCollect(World world, int ticks)
     {
-        long before = GC.GetAllocatedBytesForCurrentThread();
         for (int t = 1; t <= ticks; t++)
         {
             world.Tick();
@@ -836,7 +837,5 @@ public class WorldRayCastTests
                 GC.WaitForPendingFinalizers();
             }
         }
-
-        return (GC.GetAllocatedBytesForCurrentThread() - before) / (ticks * requestsPerTick);
     }
 }

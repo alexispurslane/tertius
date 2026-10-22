@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using AwesomeAssertions;
+using Tertius.Testing;
 
 namespace Tertius.Core.Tests;
 
@@ -175,15 +176,17 @@ public class FrameOutlineUnionTests
         float total = 0;
         foreach (FrameOutline outline in outlines)
             total += Reach(outline);
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int round = 0; round < 100; round++)
-            foreach (FrameOutline outline in outlines)
-                total += Reach(outline);
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        long allocated = Allocations.Fewest(() =>
+        {
+            total = 0;
+            for (int round = 0; round < 100; round++)
+                foreach (FrameOutline outline in outlines)
+                    total += Reach(outline);
+        });
 
         allocated.Should().Be(0);
-        total.Should().Be((50 + 4 * 7) * 101,
-            "a bubble of largest radius 50 and four spheres of radius 7, over 101 rounds");
+        total.Should().Be((50 + 4 * 7) * 100,
+            "a bubble of largest radius 50 and four spheres of radius 7, over 100 rounds");
     }
 
     private static float Reach(in FrameOutline outline)

@@ -14,7 +14,9 @@ if [ ! -d "$work/joltc" ]; then
   git clone --quiet https://github.com/amerkoleci/joltc "$work/joltc"
 fi
 git -C "$work/joltc" fetch --quiet origin "$JOLTC_REV" || true
-git -C "$work/joltc" checkout --quiet "$JOLTC_REV"
+git -C "$work/joltc" checkout --quiet --force "$JOLTC_REV"
+# The same patches as native/joltc.nix: one joltc temp allocator per calling thread.
+git -C "$work/joltc" apply "$here/joltc-thread-temp-allocator.patch"
 
 if [ ! -d "$work/JoltPhysics" ]; then
   git clone --quiet --depth 1 --branch "$JOLT_TAG" https://github.com/jrouwe/JoltPhysics "$work/JoltPhysics"

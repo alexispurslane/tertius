@@ -20,7 +20,7 @@ namespace Tertius.Host.Tests;
 /// It drives the objects of a headless run as the command makes them, with validation off, and times them through a
 /// renderer and a playback that forward every call.
 /// </summary>
-[Collection(GpuCollection.Name)]
+[Collection(MeasurementCollection.Name)]
 public sealed class VideoCostMeasurement
 {
     public const string Variable = "TERTIUS_VIDEO_COST";

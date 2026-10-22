@@ -1,6 +1,7 @@
 using System.Numerics;
 using AwesomeAssertions;
 using Tertius.Physics;
+using Tertius.Testing;
 
 namespace Tertius.Simulation.Tests;
 
@@ -370,17 +371,15 @@ public class BodyFactsTests
                 if (world.Snapshot.TryGetBody(entity, out BodyFacts facts))
                     total += facts.Mass;
 
-        const int rounds = 10_000;
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < rounds; i++)
-            foreach (Entity entity in bodies)
-                if (world.Snapshot.TryGetBody(entity, out BodyFacts facts))
-                    total += facts.BoundingRadius;
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        long allocated = Allocations.Fewest(() =>
+        {
+            for (int i = 0; i < 10_000; i++)
+                foreach (Entity entity in bodies)
+                    if (world.Snapshot.TryGetBody(entity, out BodyFacts facts))
+                        total += facts.BoundingRadius;
+        });
 
-        // Per call, as in GravityAllocationTests: a single compilation of a hot method during the loop does not fail the test.
-        long perCall = allocated / (rounds * bodies.Length);
-        perCall.Should().Be(0, "a component may read the facts of every entity near it on every tick");
+        allocated.Should().Be(0, "a component may read the facts of every entity near it on every tick");
         total.Should().BeGreaterThan(0, "the loop did read facts");
     }
 

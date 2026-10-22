@@ -193,7 +193,7 @@ public sealed class EarthSystemTests : IDisposable
                 MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true,
                 StartTime = Math.PI / 2 / DemoScenes.SiderealRate
             },
-            new JoltPhysicsBackend());
+            new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
         SceneInstance laterScene =
             DemoScenes.All.Single(s => s.Name == "earth-system").Build(later, RenderResources.None);
 

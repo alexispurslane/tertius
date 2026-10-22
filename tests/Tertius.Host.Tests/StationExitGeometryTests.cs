@@ -15,7 +15,7 @@ namespace Tertius.Host.Tests;
 public sealed class StationExitGeometryTests : IDisposable
 {
     private static Chute Chute => StationExit.Chute;
-    private readonly JoltPhysicsBackend backend = new();
+    private readonly JoltPhysicsBackend backend = new(JoltBackendOptions.Unpaced);
     private readonly World world;
     private readonly SceneInstance scene = new();
     private readonly FrameHandle frame;

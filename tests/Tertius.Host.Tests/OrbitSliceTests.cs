@@ -32,7 +32,7 @@ public sealed class OrbitRun : IDisposable
     public OrbitRun()
     {
         World = new(new() { MaxDegreeOfParallelism = 1, DisposePhysics = true, StartTime = Math.PI / MeanMotion - 10 },
-            new JoltPhysicsBackend());
+            new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
         Scene = DemoScenes.All.Single(s => s.Name == "orbit").Build(World, RenderResources.None);
         Result = ScriptRunner.Run(Script.Parse("""
                                                { "scene": "orbit", "steps": [ { "do": "dump", "name": "before" }, { "do": "run", "ticks": 1200 }, { "do": "dump", "name": "after" } ] }
@@ -287,7 +287,6 @@ public sealed class OrbitStartTests
 }
 
 /// <summary>The start images of the orbit scene, from both views, on the real headless renderer.</summary>
-[Collection(GpuCollection.Name)]
 public sealed class OrbitSliceImageTests : IDisposable
 {
     private readonly string folder = NewFolder();
@@ -300,7 +299,7 @@ public sealed class OrbitSliceImageTests : IDisposable
         double period = 2 * Math.PI / OrbitRun.MeanMotion;
         using var world =
             new World(new() { MaxDegreeOfParallelism = 1, DisposePhysics = true, StartTime = degrees / 360 * period },
-                new JoltPhysicsBackend());
+                new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
         Script script =
             Script.Parse(
                 $$"""{ "scene": "orbit", "window": { "width": 1280, "height": 720 }, "steps": [ { "do": "capture", "name": "{{name}}" } ] }""");

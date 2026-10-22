@@ -76,7 +76,7 @@ public sealed class TurningGroundHandOffRun : IDisposable
     {
         World = new(
             new() { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true, StartTime = StartTime },
-            new JoltPhysicsBackend());
+            new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
         Scene = DemoScenes.All.Single(s => s.Name == "earth-system").Build(World, RenderResources.None);
         Earth = World.GetOwnedFrame(Scene["earth"]);
         Surface = World.GetOwnedFrame(Scene["earth-surface"]);

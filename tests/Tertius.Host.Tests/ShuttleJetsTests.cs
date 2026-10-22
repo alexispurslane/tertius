@@ -1,6 +1,7 @@
 using System.Numerics;
 using Tertius.Demo;
 using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
+using Tertius.Testing;
 
 namespace Tertius.Host.Tests;
 
@@ -273,12 +274,15 @@ public sealed class ShuttleJetsTests
     public void TheAllocationAllocatesNothing()
     {
         ShuttleJets jets = DemoJets();
-        Span<float> throttles = stackalloc float[ShuttleJets.PairCount];
-        jets.Allocate(new(1, 2, 3), new(4, 5, 6), throttles);
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 100; i++)
-            jets.Allocate(new(i, -i, 2 * i), new(-i, i, 3 * i), throttles);
-        (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0);
+        Span<float> warm = stackalloc float[ShuttleJets.PairCount];
+        jets.Allocate(new(1, 2, 3), new(4, 5, 6), warm);
+        long allocated = Allocations.Fewest(() =>
+        {
+            Span<float> throttles = stackalloc float[ShuttleJets.PairCount];
+            for (int i = 0; i < 100; i++)
+                jets.Allocate(new(i, -i, 2 * i), new(-i, i, 3 * i), throttles);
+        });
+        allocated.Should().Be(0);
     }
 
     [Theory]

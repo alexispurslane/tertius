@@ -1,5 +1,6 @@
 using System.Runtime.Versioning;
 using Tertius.Host.Scripting;
+using Tertius.Testing;
 using static Tertius.Host.Tests.HostTesting;
 using static Tertius.Host.Tests.VideoTesting;
 
@@ -198,10 +199,11 @@ public sealed class FfmpegVideoSinkTests : IDisposable
         for (int number = 0; number < 5; number++)
             Take(sink, rgba);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int number = 0; number < 200; number++)
-            Take(sink, rgba);
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        long allocated = Allocations.Fewest(() =>
+        {
+            for (int number = 0; number < 200; number++)
+                Take(sink, rgba);
+        });
         sink.Finish();
 
         allocated.Should().Be(0,

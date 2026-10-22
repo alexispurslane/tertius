@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -786,10 +787,11 @@ public sealed class ImpostorManagerTests
         // 16 impostors drawn with current captures, 24 waiting with no tile to take.
         harness.Manager.Draws.Length.Should().Be(16);
         harness.Manager.Waiting.Should().Be(24);
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 50; i++)
-            harness.Run(snapshot);
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        long allocated = Allocations.Fewest(() =>
+        {
+            for (int i = 0; i < 50; i++)
+                harness.Run(snapshot);
+        });
         allocated.Should().Be(0, "a steady state allocates nothing");
     }
 }

@@ -10,7 +10,6 @@ namespace Tertius.Host.Tests;
 /// The command line with <c>--video</c>: a headless run whose captures go into one video, which the real ffmpeg of the
 /// dev shell encodes, and the failures of ffmpeg. See docs/plans/blue-danube-demo.md, change 1.
 /// </summary>
-[Collection(GpuCollection.Name)]
 public sealed class ScriptCommandVideoTests : IDisposable
 {
     private const int Width = 160, Height = 90;

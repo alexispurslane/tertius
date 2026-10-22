@@ -17,6 +17,8 @@
     <ServerGarbageCollector>false</ServerGarbageCollector>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
     <RootNamespace>$(MSBuildProjectName)</RootNamespace>
+    <!-- Checked is Release's optimized code with Debug's contracts, for the test runs (Directory.Build.targets). -->
+    <Configurations>Debug;Checked;Release</Configurations>
   </PropertyGroup>
   <!--
     Complexity and length reports. CA1502 (cyclomatic complexity, limit in CodeMetricsConfig.txt) and Meziantou's MA0051

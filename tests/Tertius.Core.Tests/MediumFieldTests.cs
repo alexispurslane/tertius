@@ -1,5 +1,6 @@
 using System.Numerics;
 using AwesomeAssertions;
+using Tertius.Testing;
 
 namespace Tertius.Core.Tests;
 
@@ -157,14 +158,16 @@ public class MediumFieldTests
         double total = 0;
         foreach (MediumField medium in media)
             total += ReadDrag(medium);
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int round = 0; round < 100; round++)
-            foreach (MediumField medium in media)
-                total += ReadDrag(medium);
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        long allocated = Allocations.Fewest(() =>
+        {
+            total = 0;
+            for (int round = 0; round < 100; round++)
+                foreach (MediumField medium in media)
+                    total += ReadDrag(medium);
+        });
 
         allocated.Should().Be(0);
-        total.Should().Be((2 + 3) * 101, "a uniform medium of drag 2 and a planet medium of drag 3, over 101 rounds");
+        total.Should().Be((2 + 3) * 100, "a uniform medium of drag 2 and a planet medium of drag 3, over 100 rounds");
     }
 
     private static float ReadDrag(in MediumField medium) => medium switch

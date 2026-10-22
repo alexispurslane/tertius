@@ -36,7 +36,7 @@ public sealed partial class JoltPhysicsBackend
         ArgumentNullException.ThrowIfNull(hits);
         if (!(end > start) || ExistingWorld(frame) is not { } world)
             return;
-        lock (JoltRuntime.NativeGate)
+        lock (Gate)
         {
             QueryBodyFilter bodyFilter = queryBodyFilter ??= NativeOwnership.Owned(new QueryBodyFilter(this));
             double length = end - start;
@@ -86,7 +86,7 @@ public sealed partial class JoltPhysicsBackend
             throw new ArgumentException($"The shape {problem}.", nameof(shape));
         if (!(endDistance > startDistance) || ExistingWorld(frame) is not { } world)
             return;
-        lock (JoltRuntime.NativeGate)
+        lock (Gate)
         {
             QueryBodyFilter bodyFilter = queryBodyFilter ??= NativeOwnership.Owned(new QueryBodyFilter(this));
             ShapeCastSettings settings = shapeCastSettings ??= ShapeCastSettingsOfQueries();
@@ -132,7 +132,7 @@ public sealed partial class JoltPhysicsBackend
             throw new ArgumentException($"The shape {problem}.", nameof(shape));
         if (ExistingWorld(frame) is not { } world)
             return;
-        lock (JoltRuntime.NativeGate)
+        lock (Gate)
         {
             QueryBodyFilter bodyFilter = queryBodyFilter ??= NativeOwnership.Owned(new QueryBodyFilter(this));
             collideResults.Clear();

@@ -12,7 +12,6 @@ namespace Tertius.Host.Tests;
 /// and captures with outlines stay the same from run to run. See docs/plans/blue-danube-demo.md, change 3, "Who turns
 /// outlines on".
 /// </summary>
-[Collection(GpuCollection.Name)]
 public sealed class OutlinesStepTests : IDisposable
 {
     /// <summary>The bubble of the ship, as the camera <c>front</c> sees it: 4 m ahead, in the axes of space, with radius 2 m.</summary>

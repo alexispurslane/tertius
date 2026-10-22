@@ -79,7 +79,6 @@ internal sealed record StationBody(Double3 InStation, Double3 VelocityInStation,
     }
 }
 
-[Collection(GpuCollection.Name)]
 public sealed class StationSliceTests(StationRun run) : IClassFixture<StationRun>
 {
     private const double TicksPerSecond = 60;

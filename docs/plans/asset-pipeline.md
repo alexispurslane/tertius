@@ -945,7 +945,7 @@ Physics:
 ```csharp
 namespace Tertius.Physics;
 
-/// <summary>Jolt work for tools. Every native call runs under JoltRuntime.NativeGate.</summary>
+/// <summary>Jolt work for tools. Every native call runs under the Gate of its backend.</summary>
 public static class ShapeCooker
 {
     /// <summary>The points of the hull that Jolt builds from these points: at most 256, in the space of the input.</summary>
@@ -956,7 +956,7 @@ public static class ShapeCooker
 }
 ```
 
-`JoltPhysicsBackend.Prepare` builds the shape into the existing `ShapeCache` and the radius cache, under `JoltRuntime.NativeGate`.
+`JoltPhysicsBackend.Prepare` builds the shape into the existing `ShapeCache` and the radius cache, under the backend's `Gate`.
 
 ### Interfaces in content formats and in content packages and mods
 

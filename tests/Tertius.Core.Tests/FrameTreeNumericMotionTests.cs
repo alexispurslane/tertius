@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Tertius.Testing;
 
 namespace Tertius.Core.Tests;
 
@@ -113,9 +114,7 @@ public class FrameTreeNumericMotionTests
         FrameHandle pod = FrameFor(X(OrbitRadius), new(0, 0, OrbitSpeed));
         frames.MotionRelativeInStep(pod, earth, [], Dt);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        frames.MotionRelativeInStep(pod, earth, [], Dt);
-        (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0);
+        Allocations.Fewest(() => frames.MotionRelativeInStep(pod, earth, [], Dt)).Should().Be(0);
     }
 
     [Fact]
@@ -124,9 +123,7 @@ public class FrameTreeNumericMotionTests
         FrameHandle pod = FrameFor(X(OrbitRadius), new(0, 0, OrbitSpeed));
         frames.AngularVelocityRelative(pod, earth);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        frames.AngularVelocityRelative(pod, earth);
-        (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0);
+        Allocations.Fewest(() => frames.AngularVelocityRelative(pod, earth)).Should().Be(0);
     }
 
     [Fact]

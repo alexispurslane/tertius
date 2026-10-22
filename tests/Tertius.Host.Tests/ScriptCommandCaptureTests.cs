@@ -7,7 +7,6 @@ using static Tertius.Host.Tests.HostTesting;
 namespace Tertius.Host.Tests;
 
 /// <summary>The command line with scripts that capture images, which makes it create a headless renderer.</summary>
-[Collection(GpuCollection.Name)]
 public sealed class ScriptCommandCaptureTests : IDisposable
 {
     private readonly string folder = NewFolder();

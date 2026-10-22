@@ -81,7 +81,6 @@ internal sealed record SpinStationSample(
 /// never from the turns that the engine derives. Angles follow <see cref="RevolvedSolid"/>: θ runs from +X toward -Z, the
 /// way the station turns, so spinward is the way of growing θ.
 /// </summary>
-[Collection(GpuCollection.Name)]
 public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<SpinStationRun>
 {
     /// <summary>

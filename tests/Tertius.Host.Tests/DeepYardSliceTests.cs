@@ -250,7 +250,6 @@ internal static class DeepYardExpectations
     }
 }
 
-[Collection(GpuCollection.Name)]
 public sealed class DeepYardSliceTests(DeepYardRun run) : IClassFixture<DeepYardRun>
 {
     private IReadOnlyList<YardSample> Samples => run.Samples;
