@@ -17,3 +17,9 @@ On 2026-10-11 the user folded a second goal into this epic: the sun stops being 
 
 On performance, the doc's plan holds for local lights: one shared atlas, a tile budget ranked by importance, cached tiles for lights and casters that do not move, culling by range and cone, and GPU timings for 4, 16 and 64 shadowed lights. Far lights add four cascades each, so only the brightest one or two get them.
 
+
+## Notes
+
+**2026-10-22T00:09:45Z**
+
+2026-10-21: the user chose the design of the part "Lights instead of one sun" from two designs: SI units, one light list for the renderer, a reach derived from the power. It is now ticket ter-bpvl, which waits for automatic exposure (ter-zzyr). The design doc holds the full design, with every reader and writer.
