@@ -4,7 +4,7 @@ namespace Tertius.Simulation.Tests;
 
 /// <summary>
 /// Queries over an inbox: <see cref="EventList.Of{T}"/> picks a payload type, <c>From</c> picks a sender, <c>Where</c>
-/// tests the payload, and the endings <c>foreach</c>, <c>Count</c>, <c>Any</c>, <c>TryFirst</c> and <c>Remove</c> run
+/// tests the payload, and the endings <c>foreach</c>, <c>Count</c>, <c>Any</c>, <c>First</c> and <c>Remove</c> run
 /// the query. A stored <see cref="EventQuery{T}"/> runs through <see cref="EventList.Find{T}(EventQuery{T})"/> with the
 /// same words. No query allocates.
 /// </summary>
@@ -48,25 +48,24 @@ public sealed class EventQueryTests
     }
 
     [Fact]
-    public void TryFirstCopiesThePayloadOfTheFirstMatchInInboxOrder()
+    public void FirstCopiesThePayloadOfTheFirstMatchInInboxOrder()
     {
         var buffer = new EventBuffer();
         EventList list = MixedInbox(buffer);
 
-        list.Of<Damage>().Where(static (ref d) => d.Amount > 1).TryFirst(out Damage first).Should().BeTrue();
+        Damage? first = list.Of<Damage>().Where(static (ref d) => d.Amount > 1).First();
 
-        first.Amount.Should().Be(2);
+        first.Should().NotBeNull();
+        first.GetValueOrDefault().Amount.Should().Be(2);
     }
 
     [Fact]
-    public void TryFirstWithoutAMatchReturnsFalseAndADefaultPayload()
+    public void FirstWithoutAMatchReturnsNull()
     {
         var buffer = new EventBuffer();
         EventList list = MixedInbox(buffer);
 
-        list.Of<Damage>().Where(static (ref d) => d.Amount > 100).TryFirst(out Damage first).Should().BeFalse();
-
-        first.Should().Be(default(Damage));
+        list.Of<Damage>().Where(static (ref d) => d.Amount > 100).First().Should().BeNull();
     }
 
     [Fact]
@@ -143,9 +142,10 @@ public sealed class EventQueryTests
         var buffer = new EventBuffer();
         EventList list = MixedInbox(buffer);
 
-        list.Of<Damage>().From(Entity.Null).TryFirst(out Damage unsent).Should().BeTrue();
+        Damage? unsent = list.Of<Damage>().From(Entity.Null).First();
 
-        unsent.Amount.Should().Be(4);
+        unsent.Should().NotBeNull();
+        unsent.GetValueOrDefault().Amount.Should().Be(4);
         list.Of<Damage>().From(Entity.Null).Count().Should().Be(1);
     }
 
@@ -287,8 +287,9 @@ public sealed class EventQueryTests
             .Count()
             .Should()
             .Be(list.Of<Damage>().From(Alice).Where(static (ref d) => d.Amount > 1).Count());
-        list.Find(query).TryFirst(out Damage first).Should().BeTrue();
-        first.Amount.Should().Be(3);
+        Damage? first = list.Find(query).First();
+        first.Should().NotBeNull();
+        first.GetValueOrDefault().Amount.Should().Be(3);
     }
 
     [Fact]
@@ -334,8 +335,9 @@ public sealed class EventQueryTests
 
         list.Find(query).Count().Should().Be(1);
         list.Find(query).Any().Should().BeTrue();
-        list.Find(query).TryFirst(out Damage first).Should().BeTrue();
-        first.Amount.Should().Be(3);
+        Damage? first = list.Find(query).First();
+        first.Should().NotBeNull();
+        first.GetValueOrDefault().Amount.Should().Be(3);
     }
 
     [Fact]
@@ -368,18 +370,14 @@ public sealed class EventQueryTests
 
         bool any = list.Of<Damage>().Where(4f, static (ref d, limit) => d.Amount >= limit).Any();
         bool none = list.Of<Damage>().Where(5f, static (ref d, limit) => d.Amount >= limit).Any();
-        list.Of<Damage>()
-            .Where(3f, static (ref d, limit) => d.Amount >= limit)
-            .TryFirst(out Damage first)
-            .Should()
-            .BeTrue();
+        Damage? first = list.Of<Damage>().Where(3f, static (ref d, limit) => d.Amount >= limit).First();
         int removed = list.Of<Damage>().Where(3f, static (ref d, limit) => d.Amount >= limit).Remove();
 
         visited.Should().Equal(2, 3, 4);
         list[2].As<Damage>().Kind.Should().Be(1, "the enumerator yields references into the inbox");
         any.Should().BeTrue();
         none.Should().BeFalse();
-        first.Amount.Should().Be(3);
+        first.GetValueOrDefault().Amount.Should().Be(3);
         removed.Should().Be(2);
         Amounts(list).Should().Equal(1, 2);
     }
@@ -406,7 +404,7 @@ public sealed class EventQueryTests
         visited.Should().Be(0);
         list.Of<Heal>().Count().Should().Be(0);
         list.Of<Heal>().Any().Should().BeFalse();
-        list.Of<Heal>().TryFirst(out _).Should().BeFalse();
+        list.Of<Heal>().First().Should().BeNull();
         list.Find(new EventQuery<Heal>().Where(1, static (ref _, _) => true)).Count().Should().Be(0);
         list.Of<Heal>().Remove().Should().Be(0);
         list.Count.Should().Be(1);
@@ -464,16 +462,15 @@ public sealed class EventQueryTests
             e.As<Damage>().Kind = 8;
         bool any = list.From(Alice).Where(static (ref e) => e.Is<Heal>()).Any();
         bool none = list.From(Bob).Where(static (ref e) => e.Is<Heal>()).Any();
-        list.Where(static (ref e) => e.Is<Heal>()).TryFirst(out Event heal).Should().BeTrue();
-        list.Where(static (ref e) => e.Is<Note>()).TryFirst(out Event missing).Should().BeFalse();
+        Event? heal = list.Where(static (ref e) => e.Is<Heal>()).First();
+        Event? missing = list.Where(static (ref e) => e.Is<Note>()).First();
         int removed = list.Where(static (ref e) => e.Is<Damage>()).From(Alice).Remove();
 
         list[1].As<Damage>().Kind.Should().Be(8, "the enumerator yields references into the inbox");
         any.Should().BeTrue();
         none.Should().BeFalse();
-        heal.As<Heal>().Amount.Should().Be(10);
-        missing.Type.Should().Be(default(Event).Type);
-        missing.Sender.Should().Be(Entity.Null);
+        heal.GetValueOrDefault().As<Heal>().Amount.Should().Be(10);
+        missing.Should().BeNull();
         removed.Should().Be(2);
         Amounts(list).Should().Equal(2, 4);
     }
@@ -544,8 +541,8 @@ public sealed class EventQueryTests
                 + list.Find(stored).Count()
                 + list.Find(storedWithState).Count();
             _ = list.Of<Note>().Any() || list.Find(stored).Any() || list.Where(static (ref e) => e.Is<Note>()).Any();
-            _ = list.Of<Damage>().Where(limit, static (ref d, limit) => d.Amount > limit).TryFirst(out Damage _);
-            _ = list.From(Bob).TryFirst(out Event _);
+            _ = list.Of<Damage>().Where(limit, static (ref d, limit) => d.Amount > limit).First();
+            _ = list.From(Bob).First();
             _ = list.Of<Damage>().From(Bob).Remove();
             _ = list.Find(storedWithState).From(Entity.Null).Remove();
             _ = list.Where(static (ref e) => e.Is<Heal>()).Remove();

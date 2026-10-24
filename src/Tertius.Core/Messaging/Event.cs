@@ -49,18 +49,10 @@ public struct Event
         return ref Unsafe.As<PayloadBytes, T>(ref Payload);
     }
 
-    public readonly bool TryGet<T>(out T payload)
-        where T : unmanaged, IEventPayload
-    {
-        if (Type == EventType<T>.Id)
-        {
-            payload = Unsafe.As<PayloadBytes, T>(ref Unsafe.AsRef(in Payload));
-            return true;
-        }
-
-        payload = default;
-        return false;
-    }
+    /// <summary>A copy of the payload. Null if the event does not hold a <typeparamref name="T"/>.</summary>
+    public readonly T? PayloadOf<T>()
+        where T : unmanaged, IEventPayload =>
+        Type == EventType<T>.Id ? Unsafe.As<PayloadBytes, T>(ref Unsafe.AsRef(in Payload)) : null;
 
     public override readonly string ToString() => $"Event({EventTypeRegistry.NameOf(Type)}, {Target}, from {Sender})";
 

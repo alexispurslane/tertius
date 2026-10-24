@@ -121,7 +121,7 @@ internal static class QueryPlanner
         double radius
     )
     {
-        if (!near.TryCenter(snapshot, out FrameHandle frame, out Double3 point))
+        if (near.Center(snapshot) is not (var frame, var point))
         {
             best = new() { Index = QueryIndex.Nothing, Count = 0 };
             return;

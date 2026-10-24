@@ -292,8 +292,7 @@ public sealed class EntityQueryRunTests
 
         metal.Count().Should().Be(2);
         metal.Any().Should().BeTrue();
-        metal.TryFirst(out Entity found).Should().BeTrue();
-        found.Should().Be(first);
+        metal.First().Should().Be(first);
         copied.Should().Equal(Entity.Null, first, second);
     }
 
@@ -306,8 +305,7 @@ public sealed class EntityQueryRunTests
 
         none.Count().Should().Be(0);
         none.Any().Should().BeFalse();
-        none.TryFirst(out Entity found).Should().BeFalse();
-        found.Should().Be(Entity.Null);
+        none.First().Should().BeNull();
     }
 
     // ---- The shorthand chain -------------------------------------------------------------------------------------

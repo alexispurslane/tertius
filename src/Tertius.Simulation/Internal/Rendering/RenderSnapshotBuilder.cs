@@ -209,15 +209,7 @@ internal sealed partial class RenderSnapshotBuilder
         snapshot.OriginFrameId = 0;
         renderHasCamera = renderFollowsTick = false;
 
-        if (
-            !TryGetCameraPose(
-                camera: view.Camera,
-                frame: out FrameHandle cameraFrame,
-                home: out FrameHandle cameraHome,
-                inFrame: out DPose eyeInFrame,
-                inHome: out DPose cameraPose
-            )
-        )
+        if (CameraPoseOf(view.Camera) is not (var cameraFrame, var cameraHome, var eyeInFrame, var cameraPose))
         {
             lastCamera = Entity.Null;
             return;
@@ -276,22 +268,15 @@ internal sealed partial class RenderSnapshotBuilder
 
     /// <summary>
     /// The camera's frame and physics home, and its eye pose in each: the entity pose composed with its view offset.
+    /// Null if the camera is not live or owns no frame.
     /// </summary>
-    private bool TryGetCameraPose(
-        Entity camera,
-        out FrameHandle frame,
-        out FrameHandle home,
-        out DPose inFrame,
-        out DPose inHome
-    )
+    private (FrameHandle Frame, FrameHandle Home, DPose InFrame, DPose InHome)? CameraPoseOf(Entity camera)
     {
-        frame = home = default;
-        inFrame = inHome = default;
         if (!entities.IsAlive(camera))
-            return false;
+            return null;
         ref readonly TransformRow row = ref entities.FrontRow(camera);
-        frame = row.Frame;
-        home = row.PhysicsHome;
+        FrameHandle frame = row.Frame,
+            home = row.PhysicsHome;
         DPose entityPose = row.Pose,
             homePose = row.HomePose;
         if (frame.IsNull)
@@ -300,13 +285,12 @@ internal sealed partial class RenderSnapshotBuilder
             frame = home = entities.OwnedFrame(camera);
             entityPose = homePose = DPose.Identity;
             if (frame.IsNull)
-                return false;
+                return null;
         }
 
         var view = Poses.Safe(entities.FrontRender(camera).ViewOffset).ToDPose();
-        inFrame = DPose.Compose(entityPose, view);
-        inHome = home == frame ? inFrame : DPose.Compose(homePose, view);
-        return true;
+        DPose inFrame = DPose.Compose(entityPose, view);
+        return (frame, home, inFrame, home == frame ? inFrame : DPose.Compose(homePose, view));
     }
 
     /// <summary>
@@ -522,6 +506,9 @@ internal sealed partial class RenderSnapshotBuilder
     /// <param name="dense">The dense index of the entity's own frame: the frame that it owns, or else the frame that it
     /// is in.</param>
     /// <param name="place">The entity's position in that frame: zero for a frame owner, which is its frame's origin.</param>
+    // Kept as a Try method: RenderSnapshotBenchmarks.Build (Release, short job, in-process) took 914,002 ns (flat) and
+    // 950,777 ns (frames1000) with this out form, and 1,099,087 ns and 1,142,552 ns when the method returned a nullable
+    // tuple of about 140 bytes.
     private bool TryGetRenderPoses(
         Entity entity,
         out DPose current,

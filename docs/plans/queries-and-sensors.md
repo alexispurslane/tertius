@@ -66,9 +66,9 @@ Today a component reads other entities only through the snapshot of the previous
 | Filter by value | `Where(predicate)`, `Where(state, predicate)` | The same |
 | Filter by place or sender | `From(sender)` | `In(frame)`, `Near(...)` |
 | Filter by collision group | None | `InAll(group)`, `InNone(group)`, `InAny(group)` |
-| Endings | `foreach`, `Count()`, `Any()`, `TryFirst(out)`, `Remove()` | `foreach`, `Count()`, `Any()`, `TryFirst(out)`, `CopyTo(list)` |
+| Endings | `foreach`, `Count()`, `Any()`, `First()`, `Remove()` | `foreach`, `Count()`, `Any()`, `First()`, `CopyTo(list)` |
 
-A predicate is a static lambda, so it captures nothing and allocates nothing. `Where(state, predicate)` passes one value in without a capture. `TryFirst` avoids LINQ's `First`, which throws, and `FirstOrDefault`, whose default struct is ambiguous. `Remove()` removes the matches from the inbox and returns their number. Only an inbox has it, because the snapshot is read-only.
+A predicate is a static lambda, so it captures nothing and allocates nothing. `Where(state, predicate)` passes one value in without a capture. `First()` returns null when nothing matches. It avoids LINQ's `First`, which throws, and `FirstOrDefault`, whose default struct is ambiguous. `Remove()` removes the matches from the inbox and returns their number. Only an inbox has it, because the snapshot is read-only.
 
 ### Event queries
 
@@ -159,7 +159,7 @@ A component cannot ask Jolt anything during `Handle`, because the physics step o
 // Tick N: ask. The request goes out with the entity's messages.
 self.Physics.CastRay(from, direction, 50, Targets, RayTag.Aim);
 // Tick N+1: the answer is an event in this entity's own inbox.
-if (events.Of<RayHit>().Where(static (ref RayHit h) => h.Tag == RayTag.Aim).TryFirst(out RayHit hit))
+if (events.Of<RayHit>().Where(static (ref RayHit h) => h.Tag == RayTag.Aim).First() is { } hit)
     outbox.Send(hit.Entity, new Shot());
 ```
 

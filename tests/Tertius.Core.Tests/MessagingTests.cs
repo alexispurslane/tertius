@@ -62,9 +62,11 @@ public sealed class MessagingTests
         Assert.True(e.Is<Damage>());
         Assert.False(e.Is<Heal>());
         e.As<Damage>().Amount -= 4;
-        Assert.True(e.TryGet(out Damage d));
+        Assert.NotNull(e.PayloadOf<Damage>());
+        Damage d = e.PayloadOf<Damage>().GetValueOrDefault();
         Assert.Equal(6, d.Amount);
         Assert.Equal(3, d.Kind);
+        Assert.Null(e.PayloadOf<Heal>());
         Assert.Throws<InvalidOperationException>(() => e.As<Heal>());
     }
 

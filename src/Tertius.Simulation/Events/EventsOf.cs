@@ -41,8 +41,8 @@ public readonly ref struct EventsOf<T>
     /// <summary>True if an event matches.</summary>
     public bool Any() => buffer.FirstMatch(query) >= 0;
 
-    /// <summary>Copies the payload of the first matching event into <paramref name="payload"/>. False, with a default payload, if none matches.</summary>
-    public bool TryFirst(out T payload) => buffer.TryFirst(query, out payload);
+    /// <summary>A copy of the payload of the first matching event. Null if none matches.</summary>
+    public T? First() => buffer.First<EventQuery<T>, T>(query);
 
     /// <summary>Removes the matching events from the inbox and returns their number. The other events keep their order.</summary>
     public int Remove() => buffer.RemoveMatches(query);
@@ -100,8 +100,8 @@ public readonly ref struct EventsOf<T, TState>
     /// <summary>True if an event matches.</summary>
     public bool Any() => buffer.FirstMatch(query) >= 0;
 
-    /// <summary>Copies the payload of the first matching event into <paramref name="payload"/>. False, with a default payload, if none matches.</summary>
-    public bool TryFirst(out T payload) => buffer.TryFirst(query, out payload);
+    /// <summary>A copy of the payload of the first matching event. Null if none matches.</summary>
+    public T? First() => buffer.First<EventQuery<T, TState>, T>(query);
 
     /// <summary>Removes the matching events from the inbox and returns their number. The other events keep their order.</summary>
     public int Remove() => buffer.RemoveMatches(query);
@@ -162,8 +162,8 @@ public readonly ref struct EventsOfAnyType
     /// <summary>True if an event matches.</summary>
     public bool Any() => buffer.FirstMatch(filter) >= 0;
 
-    /// <summary>Copies the first matching event into <paramref name="e"/>. False, with a default event, if none matches.</summary>
-    public bool TryFirst(out Event e) => buffer.TryFirst(filter, out e);
+    /// <summary>A copy of the first matching event. Null if none matches.</summary>
+    public Event? First() => buffer.First(filter);
 
     /// <summary>Removes the matching events from the inbox and returns their number. The other events keep their order.</summary>
     public int Remove() => buffer.RemoveMatches(filter);
