@@ -133,7 +133,8 @@ public class ArgumentNameTests
 
     [Fact]
     public async Task TheMessageNamesTheTarget() =>
-        (await Analysis.Diagnostics(Targets + "\npublic static class Use { public static Four Make() => new(1, 2, 3, 4); }"))
+        (await Analysis.Diagnostics(Targets +
+                                    "\npublic static class Use { public static Four Make() => new(1, 2, 3, 4); }"))
         .Single().GetMessage().Should().StartWith("'Four.Four(int, int, int, int)'");
 
     // Near misses

@@ -279,13 +279,17 @@ public sealed class DockingAutopilot(Entity station) : IComponent
                     : null;
             case SpinUp { StartTime: var start }:
                 // The profile ends at the docked rotation at rest, and holds it there until the tolerances hold.
-                Steer(self: self, events: ref events, frames: frames, stationFrame: stationFrame, inside: inside, body: body, pose: pose, velocity: velocity, rate: rate,
-                    target: profile.Target(time - start), targetTurn: profile.TurnRate(time - start), point: DemoStation.HoldPoint,
+                Steer(self: self, events: ref events, frames: frames, stationFrame: stationFrame, inside: inside,
+                    body: body, pose: pose, velocity: velocity, rate: rate,
+                    target: profile.Target(time - start), targetTurn: profile.TurnRate(time - start),
+                    point: DemoStation.HoldPoint,
                     guidance: ApproachGuidance.ForGlide());
                 return time - start >= SpinUpTime && SpinUpDone(pose, turn) ? new SpunUp() : null;
             case Entry:
-                Steer(self: self, events: ref events, frames: frames, stationFrame: stationFrame, inside: inside, body: body, pose: pose, velocity: velocity, rate: rate,
-                    target: DemoStation.DockedRotation, targetTurn: 0, point: EntryEnd, guidance: ApproachGuidance.ForEntry());
+                Steer(self: self, events: ref events, frames: frames, stationFrame: stationFrame, inside: inside,
+                    body: body, pose: pose, velocity: velocity, rate: rate,
+                    target: DemoStation.DockedRotation, targetTurn: 0, point: EntryEnd,
+                    guidance: ApproachGuidance.ForEntry());
                 return pose.Position.Y <= EntryEnd.Y + EntryEndDistance &&
                        FromTheAxis(pose.Position) <= EntryEndDistance
                     ? new EntryEnded()
@@ -293,8 +297,10 @@ public sealed class DockingAutopilot(Entity station) : IComponent
             case MoveOut:
                 if (RestsAtTheParkedPose(pose, velocity, turn))
                     return new Landed();
-                Steer(self: self, events: ref events, frames: frames, stationFrame: stationFrame, inside: inside, body: body, pose: pose, velocity: velocity, rate: rate,
-                    target: DemoStation.DockedRotation, targetTurn: 0, point: LandingPoint, guidance: ApproachGuidance.ForMoveOut());
+                Steer(self: self, events: ref events, frames: frames, stationFrame: stationFrame, inside: inside,
+                    body: body, pose: pose, velocity: velocity, rate: rate,
+                    target: DemoStation.DockedRotation, targetTurn: 0, point: LandingPoint,
+                    guidance: ApproachGuidance.ForMoveOut());
                 return null;
             default:
                 throw new UnreachableException($"Fly returns at once in the docking state {State}.");
@@ -328,7 +334,8 @@ public sealed class DockingAutopilot(Entity station) : IComponent
         }
 
         // The spin's terms act at the hull's center of mass, which the engine computes for the hull's shape.
-        Double3 free = ApproachGuidance.FreeAcceleration(rate: rate, centerOfMass: pose.TransformPoint(body.CenterOfMass), velocity: velocity,
+        Double3 free = ApproachGuidance.FreeAcceleration(rate: rate,
+            centerOfMass: pose.TransformPoint(body.CenterOfMass), velocity: velocity,
             gravityDifference: gravityDifference);
         Double3 push = guidance.Push(position: pose.Position, velocity: velocity, target: point, free: free);
         Double3 feedForward = stationAxes.Rotation.Rotate(Double3.UnitY * targetTurn) +

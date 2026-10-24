@@ -135,7 +135,8 @@ public class GravityTests
         var deck = new CompoundShapeDesc([
             new(new BoxShapeDesc(new(10, 0.25f, 10)), new(new(0, -2.25f, 0), Quaternion.Identity))
         ]);
-        var hull = new BodyDesc(Shape: new BoxShapeDesc(new(10, 3, 10)), Motion: BodyMotion.Static, InteriorShape: deck);
+        var hull = new BodyDesc(Shape: new BoxShapeDesc(new(10, 3, 10)), Motion: BodyMotion.Static,
+            InteriorShape: deck);
         FrameHandle ship = world.GetOwnedFrame(world.Spawn(new()
         {
             Frame = space,

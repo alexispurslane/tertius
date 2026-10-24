@@ -226,7 +226,8 @@ public class UnionAnalyzerTests
         CancellationToken cancel = TestContext.Current.CancellationToken;
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new UnionGenerator())
             .WithUpdatedParseOptions(TestCompilation.Parse);
-        driver.RunGeneratorsAndUpdateCompilation(compilation: TestCompilation.Of(source), outputCompilation: out Compilation output,
+        driver.RunGeneratorsAndUpdateCompilation(compilation: TestCompilation.Of(source),
+            outputCompilation: out Compilation output,
             diagnostics: out ImmutableArray<Diagnostic> generated, cancellationToken: cancel);
         ImmutableArray<Diagnostic> analyzed = await output.WithAnalyzers([new UnionAnalyzer()])
             .GetAnalyzerDiagnosticsAsync(cancel);

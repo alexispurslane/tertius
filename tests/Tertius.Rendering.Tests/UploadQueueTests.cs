@@ -7,7 +7,8 @@ public sealed class UploadQueueTests
 {
     private const int MaxTextureSize = 64;
 
-    private static TextureData Pixels(int width, int height) => new(Width: width, Height: height, Rgba: new byte[width * height * 4]);
+    private static TextureData Pixels(int width, int height) =>
+        new(Width: width, Height: height, Rgba: new byte[width * height * 4]);
 
     [Fact]
     public void EachKindOfIdCountsFromZeroAndIsNeverNone()
@@ -16,7 +17,9 @@ public sealed class UploadQueueTests
         MeshId[] meshes = [.. Enumerable.Range(0, 3).Select(_ => queue.AddMesh(Primitives.Box(Vector3.One)))];
         TextureId[] textures = [.. Enumerable.Range(0, 3).Select(_ => queue.AddTexture(Pixels(2, 2)))];
         MaterialId[] materials =
-            [.. Enumerable.Range(0, 3).Select(i => queue.AddMaterial(new(BaseColor: Vector4.One, Albedo: textures[i])))];
+        [
+            .. Enumerable.Range(0, 3).Select(i => queue.AddMaterial(new(BaseColor: Vector4.One, Albedo: textures[i])))
+        ];
 
         meshes.Select(m => m.Value).Should().Equal(0, 1, 2);
         textures.Select(t => t.Value).Should().Equal(0, 1, 2);
@@ -85,7 +88,8 @@ public sealed class UploadQueueTests
         FluentActions.Invoking(() => queue.AddMesh(new([], [0, 0, 0]))).Should()
             .ThrowExactly<ArgumentException>("a mesh needs vertices");
         FluentActions.Invoking(() => queue.AddTexture(null!)).Should().ThrowExactly<ArgumentNullException>();
-        FluentActions.Invoking(() => queue.AddTexture(new(Width: 1, Height: 1, Rgba: null!))).Should().ThrowExactly<ArgumentNullException>();
+        FluentActions.Invoking(() => queue.AddTexture(new(Width: 1, Height: 1, Rgba: null!))).Should()
+            .ThrowExactly<ArgumentNullException>();
         FluentActions.Invoking(() => queue.AddMaterial(null!)).Should().ThrowExactly<ArgumentNullException>();
 
         queue.AddMesh(Primitives.Box(Vector3.One)).Value.Should().Be(0);
@@ -101,7 +105,8 @@ public sealed class UploadQueueTests
         FluentActions.Invoking(() => queue.AddMaterial(new(BaseColor: Vector4.One, Albedo: new(0)))).Should()
             .ThrowExactly<ArgumentException>("texture 0 does not exist yet");
         TextureId texture = queue.AddTexture(Pixels(1, 1));
-        queue.AddMaterial(new(BaseColor: Vector4.One, Albedo: texture, Normal: TextureId.None, SpecularGloss: texture)).Value
+        queue.AddMaterial(new(BaseColor: Vector4.One, Albedo: texture, Normal: TextureId.None, SpecularGloss: texture))
+            .Value
             .Should().Be(0);
         FluentActions.Invoking(() => queue.AddMaterial(new(BaseColor: Vector4.One, Normal: new(1)))).Should()
             .ThrowExactly<ArgumentException>();

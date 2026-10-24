@@ -129,7 +129,8 @@ public sealed class FilmEditTests
     [
         .. films.SelectMany(film =>
             Enumerable.Range(0, film.Frames)
-                .Select(k => new ReadoutRow(Frame: $"{film.Name}-{k:000000}", Tick: 0, Position: default, Speed: 0, ToStation: 0, Axis: 0, Felt: 0)))
+                .Select(k => new ReadoutRow(Frame: $"{film.Name}-{k:000000}", Tick: 0, Position: default, Speed: 0,
+                    ToStation: 0, Axis: 0, Felt: 0)))
     ];
 
     [Fact]

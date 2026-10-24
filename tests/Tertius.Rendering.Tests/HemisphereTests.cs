@@ -14,7 +14,8 @@ public sealed class HemisphereTests
     private const int Width = 320, Height = 180;
     private static readonly Vector3 Center = new(0, 0, -4);
 
-    private static Vector2 Toward(Vector3 side) => Gpu.Project(point: Center + 0.8f * side, width: Width, height: Height);
+    private static Vector2 Toward(Vector3 side) =>
+        Gpu.Project(point: Center + 0.8f * side, width: Width, height: Height);
 
     /// <summary>Renders the sphere and returns its color at the right, the left and the top.</summary>
     private static (Vector3 Right, Vector3 Left, Vector3 Top) Render(HemisphereUp up, string name,
@@ -27,7 +28,8 @@ public sealed class HemisphereTests
             MaterialId white = renderer.CreateMaterial(new(BaseColor: Vector4.One, SpecularIntensity: 0));
             RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
             snapshot.Ambient = new() { SkyColor = new(0.6f, 0, 0), GroundColor = new(0, 0, 0.6f), Intensity = 1 };
-            snapshot.Instances.Add(RenderInstance.Create(mesh: sphere, material: white, position: Center, rotation: Quaternion.Identity, scale: Vector3.One, boundingRadius: 1f,
+            snapshot.Instances.Add(RenderInstance.Create(mesh: sphere, material: white, position: Center,
+                rotation: Quaternion.Identity, scale: Vector3.One, boundingRadius: 1f,
                 hemisphere: up,
                 flags: RenderFlags.Visible | flags, entityIndex: 1));
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: name);
@@ -56,7 +58,8 @@ public sealed class HemisphereTests
     [Fact]
     public void WithUpAlongTheCameraFramesXTheRightFacesTheSkyAndTheTopFacesSideways()
     {
-        (Vector3 right, Vector3 left, Vector3 top) = Render(up: HemisphereUp.Along(Vector3.UnitX), name: "hemisphere-along-x");
+        (Vector3 right, Vector3 left, Vector3 top) =
+            Render(up: HemisphereUp.Along(Vector3.UnitX), name: "hemisphere-along-x");
 
         ExpectSkyward(right, "right");
         ExpectGroundward(left, "left");
@@ -76,7 +79,8 @@ public sealed class HemisphereTests
     [Fact]
     public void AroundAPointUpLeadsAwayFromItSoAPlanetSeesTheSkyOnEverySide()
     {
-        (Vector3 right, Vector3 left, Vector3 top) = Render(up: HemisphereUp.AwayFrom(Vector3.Zero), name: "hemisphere-away");
+        (Vector3 right, Vector3 left, Vector3 top) =
+            Render(up: HemisphereUp.AwayFrom(Vector3.Zero), name: "hemisphere-away");
 
         ExpectSkyward(right, "right");
         ExpectSkyward(left, "left");
@@ -98,7 +102,8 @@ public sealed class HemisphereTests
     [Fact]
     public void ATransparentObjectTakesItsUpFromItsInstanceToo()
     {
-        (Vector3 right, Vector3 left, Vector3 top) = Render(up: HemisphereUp.Along(Vector3.UnitX), name: "hemisphere-transparent",
+        (Vector3 right, Vector3 left, Vector3 top) = Render(up: HemisphereUp.Along(Vector3.UnitX),
+            name: "hemisphere-transparent",
             flags: RenderFlags.Transparent);
 
         ExpectSkyward(right, "right");

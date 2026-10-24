@@ -253,7 +253,8 @@ internal static class NumericFrameRules
     internal static NumericMode GroupMode(NumericMode current, in NumericGroup group, NumericFrameOptions options) =>
         group.Follows
             ? NumericMode.Following
-            : Mode(current: current, velocity: group.Velocity, center: group.Center, anchored: group.Anchored, isFixed: group.Fixed, thrusts: group.Thrusts, options: options);
+            : Mode(current: current, velocity: group.Velocity, center: group.Center, anchored: group.Anchored,
+                isFixed: group.Fixed, thrusts: group.Thrusts, options: options);
 
     /// <summary>
     /// The mode that a body alone, outside a numeric frame, needs: None when it needs no frame. It uses the speeds of a body
@@ -270,10 +271,12 @@ internal static class NumericFrameRules
     /// the speeds of a body that thrusts with the semantic frame's other bodies, because it can join the group of one.
     /// </summary>
     internal static NumericMode BodyMode(in NumericBody body, bool thrusts, NumericFrameOptions options) =>
-        body.Follows && Mode(current: NumericMode.None, velocity: body.Velocity, center: body.Position, anchored: false, isFixed: false, thrusts: false, options: options) !=
+        body.Follows && Mode(current: NumericMode.None, velocity: body.Velocity, center: body.Position, anchored: false,
+            isFixed: false, thrusts: false, options: options) !=
         NumericMode.None
             ? NumericMode.Following
-            : Mode(current: NumericMode.None, velocity: body.Velocity, center: body.Position, anchored: body.Static, isFixed: body.Fixed, thrusts: thrusts, options: options);
+            : Mode(current: NumericMode.None, velocity: body.Velocity, center: body.Position, anchored: body.Static,
+                isFixed: body.Fixed, thrusts: thrusts, options: options);
 
     /// <summary>
     /// True when <paramref name="body"/>, a body that follows (see <see cref="NumericBody.Follows"/>), lives in a following
@@ -284,7 +287,8 @@ internal static class NumericFrameRules
     /// body never thrusts, so it uses the speeds of free bodies.
     /// </summary>
     internal static bool FollowsInFrame(in NumericBody body, NumericFrameOptions options) =>
-        body.Follows && Mode(current: body.HomeMode == NumericMode.None ? NumericMode.None : NumericMode.Falling, velocity: body.Velocity,
+        body.Follows && Mode(current: body.HomeMode == NumericMode.None ? NumericMode.None : NumericMode.Falling,
+            velocity: body.Velocity,
             center: body.Position,
             anchored: false, isFixed: false, thrusts: false, options: options) != NumericMode.None;
 
@@ -296,7 +300,8 @@ internal static class NumericFrameRules
     /// </summary>
     internal static bool MayTouch(in NumericBody a, in NumericBody b, Double3 separation,
         NumericFrameOptions options) =>
-        MayTouch(radii: a.Radius + b.Radius, relativeVelocity: a.Velocity - b.Velocity, oneSystem: a.Home == b.Home, separation: separation, options: options);
+        MayTouch(radii: a.Radius + b.Radius, relativeVelocity: a.Velocity - b.Velocity, oneSystem: a.Home == b.Home,
+            separation: separation, options: options);
 
     /// <summary>
     /// The merge test of <paramref name="body"/> and the place of a ghost (see <see cref="GhostPlace"/>), the same as the test
@@ -307,7 +312,8 @@ internal static class NumericFrameRules
     /// </summary>
     internal static bool MayTouch(in NumericBody body, in GhostPlace place, Double3 separation,
         NumericFrameOptions options) =>
-        MayTouch(radii: body.Radius + place.Radius, relativeVelocity: body.Velocity - place.Velocity, oneSystem: body.Home == place.Home, separation: separation,
+        MayTouch(radii: body.Radius + place.Radius, relativeVelocity: body.Velocity - place.Velocity,
+            oneSystem: body.Home == place.Home, separation: separation,
             options: options);
 
     private static bool MayTouch(double radii, Double3 relativeVelocity, bool oneSystem, Double3 separation,
@@ -571,8 +577,10 @@ internal static class NumericFrameRules
         {
             ref readonly NumericBody follower = ref members[anchor];
             FrameHandle following = follower.AnchorsHome ? follower.Home : FrameHandle.Null;
-            return new(Velocity: Double3.Zero, Center: follower.Position, Anchored: false, Fixed: false, Frame: following,
-                FrameMass: following.IsNull ? 0 : double.PositiveInfinity, Anchor: anchor, Follows: true, Thrusts: thrusts);
+            return new(Velocity: Double3.Zero, Center: follower.Position, Anchored: false, Fixed: false,
+                Frame: following,
+                FrameMass: following.IsNull ? 0 : double.PositiveInfinity, Anchor: anchor, Follows: true,
+                Thrusts: thrusts);
         }
 
         FrameHandle frame = FrameHandle.Null;
@@ -587,7 +595,8 @@ internal static class NumericFrameRules
             kinematicMass > 0 ? kinematicMomentum / kinematicMass : momentum / movingMass;
         Double3 center = anchored ? staticMoment / staticMass :
             kinematicMass > 0 ? kinematicMoment / kinematicMass : moment / mass;
-        return new(Velocity: velocity, Center: center, Anchored: anchored, Fixed: isFixed, Frame: frame, FrameMass: frameMass, Anchor: anchor, Thrusts: thrusts);
+        return new(Velocity: velocity, Center: center, Anchored: anchored, Fixed: isFixed, Frame: frame,
+            FrameMass: frameMass, Anchor: anchor, Thrusts: thrusts);
     }
 
     /// <summary>

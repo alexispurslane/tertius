@@ -100,7 +100,8 @@ public sealed class Disembark(
         // when that tick starts the last leg, the walk is asked again at the last leg's speed, from the pace before the
         // first. The second walk replaces the first, and the waypoints that it skips are the same.
         if (walk.Next != before.Next && walk.Next < wayOut.Length && SpeedToward(walk.Next) != SpeedToward(before.Next))
-            walk = Walker.Step(self: self, path: wayOut, walk: before with { Next = walk.Next }, speed: SpeedToward(walk.Next));
+            walk = Walker.Step(self: self, path: wayOut, walk: before with { Next = walk.Next },
+                speed: SpeedToward(walk.Next));
         walking = new(walk);
         return null;
     }
@@ -124,7 +125,8 @@ public sealed class Disembark(
         // The station's angular velocity relative to the virtual root, in its own axes, is the opposite of the virtual
         // root's relative to the station.
         Double3 omega = -frames.AngularVelocityRelative(FrameHandle.Null, station);
-        Double3 friction = chute.Friction(position: position, velocity: self.VelocityIn(station), omega: omega, radius: radius, dt: self.DeltaTime);
+        Double3 friction = chute.Friction(position: position, velocity: self.VelocityIn(station), omega: omega,
+            radius: radius, dt: self.DeltaTime);
         if (friction == Double3.Zero)
             return null;
         float mass = self.Snapshot.TryGetBody(self.Entity, out BodyFacts body) ? body.Mass : 0;

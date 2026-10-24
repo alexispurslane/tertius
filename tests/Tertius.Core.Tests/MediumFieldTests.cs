@@ -54,15 +54,18 @@ public class MediumFieldTests
         MediumField.Uniform(SeaLevelAir, 2, Cabin).Fills(OutsideCabin).Should().BeFalse();
         MediumField.Uniform(0, 2).Fills(InCabin).Should().BeFalse("a medium of no density holds no gas");
         MediumField.Uniform(0, 2, Cabin).Fills(InCabin).Should().BeFalse();
-        MediumField.Planet(radius: EarthRadius, surfaceDensity: SeaLevelAir, scaleHeight: ScaleHeight, drag: 2).Fills(new(0, EarthRadius * 3, 0))
+        MediumField.Planet(radius: EarthRadius, surfaceDensity: SeaLevelAir, scaleHeight: ScaleHeight, drag: 2)
+            .Fills(new(0, EarthRadius * 3, 0))
             .Should().BeTrue("a planet medium fills its whole frame, however thin");
-        MediumField.Planet(radius: EarthRadius, surfaceDensity: 0, scaleHeight: ScaleHeight, drag: 2).Fills(new(0, EarthRadius, 0)).Should().BeFalse();
+        MediumField.Planet(radius: EarthRadius, surfaceDensity: 0, scaleHeight: ScaleHeight, drag: 2)
+            .Fills(new(0, EarthRadius, 0)).Should().BeFalse();
     }
 
     [Fact]
     public void APlanetMediumThinsByTheFactorEPerScaleHeightAboveItsRadius()
     {
-        MediumField air = MediumField.Planet(radius: EarthRadius, surfaceDensity: SeaLevelAir, scaleHeight: ScaleHeight, drag: 2);
+        MediumField air = MediumField.Planet(radius: EarthRadius, surfaceDensity: SeaLevelAir, scaleHeight: ScaleHeight,
+            drag: 2);
         Double3 up = new Double3(1, 2, -2) / 3;
 
         air.DensityAt(up * EarthRadius).Should().BeApproximately(SeaLevelAir, 1e-9);
@@ -74,7 +77,8 @@ public class MediumFieldTests
     [Fact]
     public void APlanetMediumKeepsItsSurfaceDensityBelowItsRadius()
     {
-        MediumField air = MediumField.Planet(radius: EarthRadius, surfaceDensity: SeaLevelAir, scaleHeight: ScaleHeight, drag: 2);
+        MediumField air = MediumField.Planet(radius: EarthRadius, surfaceDensity: SeaLevelAir, scaleHeight: ScaleHeight,
+            drag: 2);
 
         air.DensityAt(new(0, EarthRadius - 1000, 0)).Should().Be(SeaLevelAir);
         air.DensityAt(Double3.Zero).Should().Be(SeaLevelAir);
@@ -85,8 +89,10 @@ public class MediumFieldTests
     {
         MediumField.Uniform(SeaLevelAir, 2, Cabin).IsValid.Should().BeTrue();
         MediumField.Uniform(0, 0).IsValid.Should().BeTrue("no density and no drag are allowed");
-        MediumField.Planet(radius: EarthRadius, surfaceDensity: SeaLevelAir, scaleHeight: ScaleHeight, drag: 2).IsValid.Should().BeTrue();
-        MediumField.Planet(radius: 0, surfaceDensity: 0, scaleHeight: ScaleHeight, drag: 0).IsValid.Should().BeTrue("a radius of 0 is allowed");
+        MediumField.Planet(radius: EarthRadius, surfaceDensity: SeaLevelAir, scaleHeight: ScaleHeight, drag: 2).IsValid
+            .Should().BeTrue();
+        MediumField.Planet(radius: 0, surfaceDensity: 0, scaleHeight: ScaleHeight, drag: 0).IsValid.Should()
+            .BeTrue("a radius of 0 is allowed");
 
         MediumField[] invalid =
         [
@@ -100,17 +106,22 @@ public class MediumFieldTests
             MediumField.Uniform(SeaLevelAir, 2, new BoundingBox(Vector3.Zero, new(0, float.PositiveInfinity, 0))),
             MediumField.Planet(radius: -1, surfaceDensity: SeaLevelAir, scaleHeight: ScaleHeight, drag: 2),
             MediumField.Planet(radius: double.NaN, surfaceDensity: SeaLevelAir, scaleHeight: ScaleHeight, drag: 2),
-            MediumField.Planet(radius: double.PositiveInfinity, surfaceDensity: SeaLevelAir, scaleHeight: ScaleHeight, drag: 2),
+            MediumField.Planet(radius: double.PositiveInfinity, surfaceDensity: SeaLevelAir, scaleHeight: ScaleHeight,
+                drag: 2),
             MediumField.Planet(radius: EarthRadius, surfaceDensity: -1, scaleHeight: ScaleHeight, drag: 2),
             MediumField.Planet(radius: EarthRadius, surfaceDensity: float.NaN, scaleHeight: ScaleHeight, drag: 2),
-            MediumField.Planet(radius: EarthRadius, surfaceDensity: float.PositiveInfinity, scaleHeight: ScaleHeight, drag: 2),
+            MediumField.Planet(radius: EarthRadius, surfaceDensity: float.PositiveInfinity, scaleHeight: ScaleHeight,
+                drag: 2),
             MediumField.Planet(radius: EarthRadius, surfaceDensity: SeaLevelAir, scaleHeight: 0, drag: 2),
             MediumField.Planet(radius: EarthRadius, surfaceDensity: SeaLevelAir, scaleHeight: -1, drag: 2),
             MediumField.Planet(radius: EarthRadius, surfaceDensity: SeaLevelAir, scaleHeight: float.NaN, drag: 2),
-            MediumField.Planet(radius: EarthRadius, surfaceDensity: SeaLevelAir, scaleHeight: float.PositiveInfinity, drag: 2),
+            MediumField.Planet(radius: EarthRadius, surfaceDensity: SeaLevelAir, scaleHeight: float.PositiveInfinity,
+                drag: 2),
             MediumField.Planet(radius: EarthRadius, surfaceDensity: SeaLevelAir, scaleHeight: ScaleHeight, drag: -1),
-            MediumField.Planet(radius: EarthRadius, surfaceDensity: SeaLevelAir, scaleHeight: ScaleHeight, drag: float.NaN),
-            MediumField.Planet(radius: EarthRadius, surfaceDensity: SeaLevelAir, scaleHeight: ScaleHeight, drag: float.PositiveInfinity)
+            MediumField.Planet(radius: EarthRadius, surfaceDensity: SeaLevelAir, scaleHeight: ScaleHeight,
+                drag: float.NaN),
+            MediumField.Planet(radius: EarthRadius, surfaceDensity: SeaLevelAir, scaleHeight: ScaleHeight,
+                drag: float.PositiveInfinity)
         ];
         for (int i = 0; i < invalid.Length; i++)
             invalid[i].IsValid.Should().BeFalse($"medium {i}, {invalid[i]}, holds a number out of its range");
@@ -120,9 +131,11 @@ public class MediumFieldTests
     public void TheMediumFieldUnionHoldsOneCaseAndMatchesWithoutBoxing()
     {
         var uniformCase = new UniformMedium(SeaLevelAir, 2, Cabin);
-        var planetCase = new PlanetMedium(Radius: EarthRadius, SurfaceDensity: SeaLevelAir, ScaleHeight: ScaleHeight, Drag: 3);
+        var planetCase = new PlanetMedium(Radius: EarthRadius, SurfaceDensity: SeaLevelAir, ScaleHeight: ScaleHeight,
+            Drag: 3);
         MediumField uniform = MediumField.Uniform(SeaLevelAir, 2, Cabin);
-        MediumField planet = MediumField.Planet(radius: EarthRadius, surfaceDensity: SeaLevelAir, scaleHeight: ScaleHeight, drag: 3);
+        MediumField planet = MediumField.Planet(radius: EarthRadius, surfaceDensity: SeaLevelAir,
+            scaleHeight: ScaleHeight, drag: 3);
 
         // One case in, the same case out, and no other case answers.
         uniform.TryGetValue(out UniformMedium heldUniform).Should().BeTrue();

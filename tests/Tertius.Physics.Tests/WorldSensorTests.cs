@@ -17,14 +17,16 @@ public class WorldSensorTests
     /// <summary>The length of a step, in seconds, at the world's 60 ticks a second.</summary>
     private const double StepSeconds = 1.0 / 60;
 
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
+        Mass: 70);
 
     /// <summary>A static sensor box with the half extents <paramref name="half"/>.</summary>
     private static BodyDesc SensorBox(Vector3 half) =>
         new(Shape: new BoxShapeDesc(half), Motion: BodyMotion.Static) { IsSensor = true };
 
     /// <summary>A ball with a radius of 0.25 m and a mass of 1 kg that nothing slows down.</summary>
-    private static BodyDesc SmallBall(BodyMotion motion) => new(Shape: new SphereShapeDesc(0.25f), Motion: motion, Mass: 1,
+    private static BodyDesc SmallBall(BodyMotion motion) => new(Shape: new SphereShapeDesc(0.25f), Motion: motion,
+        Mass: 1,
         LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>
@@ -149,7 +151,8 @@ public class WorldSensorTests
             world.Spawn(KinematicDrift.Drifting(
                 new()
                 {
-                    Frame = ground, Pose = At(-40, 20), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Kinematic)
+                    Frame = ground, Pose = At(-40, 20),
+                    Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Kinematic)
                 },
                 world, new(0, 0, 0.1)));
         var sensorLog = new CollisionLog();

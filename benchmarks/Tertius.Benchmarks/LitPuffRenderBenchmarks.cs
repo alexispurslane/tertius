@@ -40,7 +40,8 @@ public class LitPuffRenderBenchmarks
         });
         MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
         MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
-        MaterialId gray = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.55f, y: 0.55f, z: 0.55f, w: 1), gloss: 0.3f));
+        MaterialId gray =
+            renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.55f, y: 0.55f, z: 0.55f, w: 1), gloss: 0.3f));
         snapshot = new()
         {
             Camera = new()
@@ -53,7 +54,8 @@ public class LitPuffRenderBenchmarks
             Ambient = new() { SkyColor = new(0.09f, 0.11f, 0.15f), GroundColor = new(0.05f), Intensity = 1 }
         };
         HemisphereUp up = HemisphereUp.Along(Vector3.UnitY);
-        snapshot.Instances.Add(RenderInstance.Create(mesh: plane, material: gray, position: new(0, -2, -200), rotation: Quaternion.Identity,
+        snapshot.Instances.Add(RenderInstance.Create(mesh: plane, material: gray, position: new(0, -2, -200),
+            rotation: Quaternion.Identity,
             scale: new(250, 1, 250), boundingRadius: 0, hemisphere: up,
             flags: RenderFlags.Visible | RenderFlags.CastsShadow));
         var random = new Random(7);
@@ -63,7 +65,8 @@ public class LitPuffRenderBenchmarks
             var position = new Vector3((random.NextSingle() * 2 - 1) * depth, -1, -depth);
             snapshot.Instances.Add(RenderInstance.Create(mesh: box, material: gray, position: position,
                 rotation: Quaternion.CreateFromYawPitchRoll(random.NextSingle() * 3, 0, 0),
-                scale: new(2), boundingRadius: 0, hemisphere: up, flags: RenderFlags.Visible | RenderFlags.CastsShadow, entityIndex: (uint)i + 1));
+                scale: new(2), boundingRadius: 0, hemisphere: up, flags: RenderFlags.Visible | RenderFlags.CastsShadow,
+                entityIndex: (uint)i + 1));
         }
 
         for (int i = 0; i < 8; i++)
@@ -72,7 +75,8 @@ public class LitPuffRenderBenchmarks
             var color = new Vector3(1f, 0.8f, 0.6f);
             snapshot.Lights.Add(i % 2 == 0
                 ? new PointRenderLight(Position: place, Color: color, Intensity: 40, Range: 30)
-                : new SpotRenderLight(Position: place, Direction: new(0, -1, -1), Color: color, Intensity: 60, Range: 30, InnerConeAngle: 0.5f,
+                : new SpotRenderLight(Position: place, Direction: new(0, -1, -1), Color: color, Intensity: 60,
+                    Range: 30, InnerConeAngle: 0.5f,
                     OuterConeAngle: 0.8f));
         }
 

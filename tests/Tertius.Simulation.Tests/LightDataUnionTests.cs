@@ -22,7 +22,8 @@ public class LightDataUnionTests
     /// <summary>A point light and a spot light that share every field that both cases have, so that only the case tells them apart.</summary>
     private static readonly PointLightData Lamp = new(Offset: Above, Color: Warm, Intensity: 4, Range: 10);
 
-    private static readonly SpotLightData Beam = new(Offset: Above, Color: Warm, Intensity: 4, Range: 10, InnerConeAngle: 0.3f, OuterConeAngle: 0.5f);
+    private static readonly SpotLightData Beam = new(Offset: Above, Color: Warm, Intensity: 4, Range: 10,
+        InnerConeAngle: 0.3f, OuterConeAngle: 0.5f);
 
     /// <summary>The names of the cases whose <c>TryGetValue</c> answers true for the light.</summary>
     private static string[] CasesHeld(LightData light)
@@ -110,7 +111,8 @@ public class LightDataUnionTests
     {
         // The numbers of each case differ from each other, so a swap of two fields shows.
         var point = new PointLightData(Offset: Turned, Color: new(4, 5, 6), Intensity: 7, Range: 8);
-        var spot = new SpotLightData(Offset: Turned, Color: new(4, 5, 6), Intensity: 7, Range: 8, InnerConeAngle: 9, OuterConeAngle: 10);
+        var spot = new SpotLightData(Offset: Turned, Color: new(4, 5, 6), Intensity: 7, Range: 8, InnerConeAngle: 9,
+            OuterConeAngle: 10);
 
         new LightData(point).TryGetValue(out PointLightData heldPoint).Should().BeTrue();
         heldPoint.Offset.Should().Be(Turned);
@@ -201,9 +203,19 @@ public class LightDataUnionTests
     public void TwoLightsOfTheSameCaseWithTheSameFieldsAreEqualAndHashAlike()
     {
         LightData[] first =
-            [new PointLightData(Offset: Above, Color: Warm, Intensity: 4, Range: 10), new SpotLightData(Offset: Above, Color: Warm, Intensity: 4, Range: 10, InnerConeAngle: 0.3f, OuterConeAngle: 0.5f), default];
+        [
+            new PointLightData(Offset: Above, Color: Warm, Intensity: 4, Range: 10),
+            new SpotLightData(Offset: Above, Color: Warm, Intensity: 4, Range: 10, InnerConeAngle: 0.3f,
+                OuterConeAngle: 0.5f),
+            default
+        ];
         LightData[] second =
-            [new PointLightData(Offset: Above, Color: Warm, Intensity: 4, Range: 10), new SpotLightData(Offset: Above, Color: Warm, Intensity: 4, Range: 10, InnerConeAngle: 0.3f, OuterConeAngle: 0.5f), default];
+        [
+            new PointLightData(Offset: Above, Color: Warm, Intensity: 4, Range: 10),
+            new SpotLightData(Offset: Above, Color: Warm, Intensity: 4, Range: 10, InnerConeAngle: 0.3f,
+                OuterConeAngle: 0.5f),
+            default
+        ];
 
         for (int i = 0; i < first.Length; i++)
         {
@@ -245,7 +257,8 @@ public class LightDataUnionTests
         // The point light and the spot light share offset, color, intensity and range, so only the case can tell them apart.
         LightData point = Lamp;
         LightData spot = Beam;
-        LightData spotWithoutCone = new SpotLightData(Offset: Above, Color: Warm, Intensity: 4, Range: 10, InnerConeAngle: 0, OuterConeAngle: 0);
+        LightData spotWithoutCone = new SpotLightData(Offset: Above, Color: Warm, Intensity: 4, Range: 10,
+            InnerConeAngle: 0, OuterConeAngle: 0);
 
         (point == spot).Should().BeFalse();
         (point != spot).Should().BeTrue();
@@ -261,9 +274,12 @@ public class LightDataUnionTests
     {
         LightData empty = default;
 
-        new LightData(new PointLightData(Offset: default, Color: default, Intensity: 0, Range: 0)).Should().NotBe(empty);
-        new LightData(new SpotLightData(Offset: default, Color: default, Intensity: 0, Range: 0, InnerConeAngle: 0, OuterConeAngle: 0)).Should().NotBe(empty);
-        (empty != new LightData(new PointLightData(Offset: default, Color: default, Intensity: 0, Range: 0))).Should().BeTrue();
+        new LightData(new PointLightData(Offset: default, Color: default, Intensity: 0, Range: 0)).Should()
+            .NotBe(empty);
+        new LightData(new SpotLightData(Offset: default, Color: default, Intensity: 0, Range: 0, InnerConeAngle: 0,
+            OuterConeAngle: 0)).Should().NotBe(empty);
+        (empty != new LightData(new PointLightData(Offset: default, Color: default, Intensity: 0, Range: 0))).Should()
+            .BeTrue();
     }
 
     [Fact]

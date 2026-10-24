@@ -95,7 +95,8 @@ public class CharacterFormTests
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         var pilot = new Pilot();
-        Entity person = SpawnPerson(world: world, frame: ground, pose: At(0, StandingHeight + 0.03), components: [pilot]);
+        Entity person = SpawnPerson(world: world, frame: ground, pose: At(0, StandingHeight + 0.03),
+            components: [pilot]);
         // The crate stands on the floor, its face 0.02 m ahead of the capsule's side: the gap that a Jolt character keeps.
         Entity crate = world.Spawn(new() { Frame = ground, Pose = At(0.3 + 0.02 + 0.5, 1), Body = TallCrate });
         Tick(world, 60);
@@ -173,9 +174,13 @@ public class CharacterFormTests
         Floor(world, ground);
         // A wall whose face is at x = 1.5.
         world.Spawn(new()
-            { Frame = ground, Pose = At(2, 2), Body = new(Shape: new BoxShapeDesc(new(0.5f, 2, 5)), Motion: BodyMotion.Static) });
+        {
+            Frame = ground, Pose = At(2, 2),
+            Body = new(Shape: new BoxShapeDesc(new(0.5f, 2, 5)), Motion: BodyMotion.Static)
+        });
         var pilot = new Pilot();
-        Entity person = SpawnPerson(world: world, frame: ground, pose: At(0.5, StandingHeight + 0.03), components: [pilot]);
+        Entity person = SpawnPerson(world: world, frame: ground, pose: At(0.5, StandingHeight + 0.03),
+            components: [pilot]);
         Tick(world, 20);
         pilot.Once = body => body.MoveCharacter(new(1, 0, 0));
         Tick(world, 60);
@@ -298,10 +303,14 @@ public class CharacterFormTests
         Floor(world, ground);
         // A wall whose face is at x = 1.5.
         Entity wall = world.Spawn(new()
-            { Frame = ground, Pose = At(2, 2), Body = new(Shape: new BoxShapeDesc(new(0.5f, 2, 5)), Motion: BodyMotion.Static) });
+        {
+            Frame = ground, Pose = At(2, 2),
+            Body = new(Shape: new BoxShapeDesc(new(0.5f, 2, 5)), Motion: BodyMotion.Static)
+        });
         var pilot = new Pilot();
         var log = new CollisionLog();
-        Entity person = SpawnPerson(world: world, frame: ground, pose: At(0.5, StandingHeight + 0.03), components: [pilot, log]);
+        Entity person = SpawnPerson(world: world, frame: ground, pose: At(0.5, StandingHeight + 0.03),
+            components: [pilot, log]);
         Tick(world, 20);
         pilot.Once = body => body.MoveCharacter(new(1, 0, 0));
         Tick(world, 60);
@@ -343,9 +352,13 @@ public class CharacterFormTests
         // A game that builds a new body description for each spawn around one shared capsule, as the demo scenes do.
         var capsule = new CapsuleShapeDesc(0.6f, 0.3f);
         Entity first = world.Spawn(new()
-            { Frame = space, Pose = At(0), Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: PersonMass) });
+        {
+            Frame = space, Pose = At(0), Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: PersonMass)
+        });
         Entity second = world.Spawn(new()
-            { Frame = space, Pose = At(5), Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: PersonMass) });
+        {
+            Frame = space, Pose = At(5), Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: PersonMass)
+        });
         world.Tick();
         backend.HasRigidForm(first).Should().BeTrue();
         backend.HasRigidForm(second).Should().BeTrue();
@@ -440,7 +453,8 @@ public class CharacterFormTests
     [Fact]
     public void AWeightlessCharacterKeepsItsFormAndMotionThroughASystemGrowth()
     {
-        using World world = NewWorldWithFaultsAndSmallSystems(maxBodiesPerFrame: 8, faults: out FaultInjectingBackend faults);
+        using World world =
+            NewWorldWithFaultsAndSmallSystems(maxBodiesPerFrame: 8, faults: out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
         var velocity = new Double3(1, 0.5, 0);
         Entity person = SpawnPerson(world: world, frame: space, pose: At(0), velocity: velocity);
@@ -581,7 +595,8 @@ public class CharacterFormTests
         });
         Tick(world, 60);
         var pilot = new Pilot();
-        Entity person = SpawnPerson(world: world, frame: ground, pose: At(1.5 - 0.3 - 0.02, -2), velocity: new(0, 0, 3), pilot);
+        Entity person = SpawnPerson(world: world, frame: ground, pose: At(1.5 - 0.3 - 0.02, -2), velocity: new(0, 0, 3),
+            pilot);
         return (world, ground, person, panel, pilot);
     }
 

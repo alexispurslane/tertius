@@ -62,7 +62,8 @@ public class GhostPairTests
             { Frame = first, Pose = At(-0.4 - firstX), Body = SensorBall, Components = [sensorLog, pilot] });
         Entity other = world.Spawn(new()
             { Frame = second, Pose = At(0.4 - secondX), Body = body, Components = [bodyLog] });
-        return new(Parent: parent, First: first, Second: second, Sensor: sensor, Body: other, SensorLog: sensorLog, BodyLog: bodyLog, SensorPilot: pilot);
+        return new(Parent: parent, First: first, Second: second, Sensor: sensor, Body: other, SensorLog: sensorLog,
+            BodyLog: bodyLog, SensorPilot: pilot);
     }
 
     /// <summary>Checks that only the parent's system holds a body of each entity of the scene across frames: their two ghosts.</summary>
@@ -120,7 +121,8 @@ public class GhostPairTests
         static (List<ContactNews> First, List<ContactNews> Second) Run(bool acrossFrames)
         {
             using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
-            PairScene scene = SensorAndBody(world: world, parent: Space(world), acrossFrames: acrossFrames, body: SensorBall);
+            PairScene scene = SensorAndBody(world: world, parent: Space(world), acrossFrames: acrossFrames,
+                body: SensorBall);
             Tick(world, 10);
             if (acrossFrames)
                 OnlyTheParentHoldsBoth(faults, scene);
@@ -356,7 +358,8 @@ public class GhostPairTests
         FrameHandle first = space, second = space;
         if (acrossFrames)
         {
-            var hull = new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Mass: 1000, LinearDamping: 0, AngularDamping: 0);
+            var hull = new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Mass: 1000, LinearDamping: 0,
+                AngularDamping: 0);
             first = world.GetOwnedFrame(world.Spawn(new()
             {
                 Frame = space, Pose = At(-3.7), LinearVelocity = velocity, Body = hull,

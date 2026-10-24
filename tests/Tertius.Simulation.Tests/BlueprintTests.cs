@@ -25,7 +25,8 @@ public class BlueprintTests
     {
         var blueprints = new Blueprints();
         blueprints.Register(new(Name: "radio", Components: [new(typeof(Radio), Fields(("Channel", (byte)3)))]));
-        blueprints.Register(new(Name: "weapon", Components: [new(typeof(Weapon), Fields(("Damage", 5.0), ("Range", 30)))]));
+        blueprints.Register(new(Name: "weapon",
+            Components: [new(typeof(Weapon), Fields(("Damage", 5.0), ("Range", 30)))]));
 
         // A byte for an int field, a double for a float field and an int for a double property.
         ((Radio)blueprints.Instantiate("radio")[0]).Channel.Should().Be(3);
@@ -102,7 +103,8 @@ public class BlueprintTests
     public void ANullValueClearsAFieldThatHasANonNullDefault()
     {
         var blueprints = new Blueprints();
-        blueprints.Register(new(Name: "tag", Components: [new(typeof(Labelled), Fields(("Label", null), ("Level", null)))]));
+        blueprints.Register(new(Name: "tag",
+            Components: [new(typeof(Labelled), Fields(("Label", null), ("Level", null)))]));
 
         var labelled = (Labelled)blueprints.Instantiate("tag")[0];
 
@@ -161,7 +163,8 @@ public class BlueprintTests
         var blueprints = new Blueprints();
 
         Action register = () =>
-            blueprints.Register(new(Name: "box", Components: [new(EmittedComponents.OpenGeneric.MakeGenericType(typeof(int)))]));
+            blueprints.Register(new(Name: "box",
+                Components: [new(EmittedComponents.OpenGeneric.MakeGenericType(typeof(int)))]));
 
         register.Should().Throw<ArgumentException>().WithMessage("*generic component types are refused*");
     }
@@ -172,8 +175,10 @@ public class BlueprintTests
     public void FieldValuesLandInTheRightFieldsWhateverOrderTheBlueprintListsThem()
     {
         var blueprints = new Blueprints();
-        blueprints.Register(new(Name: "light", Components: [new(typeof(Weapon), Fields(("Damage", 1f), ("Range", 5.0)))]));
-        blueprints.Register(new(Name: "heavy", Components: [new(typeof(Weapon), Fields(("Range", 50.0), ("Damage", 9f)))]));
+        blueprints.Register(new(Name: "light",
+            Components: [new(typeof(Weapon), Fields(("Damage", 1f), ("Range", 5.0)))]));
+        blueprints.Register(new(Name: "heavy",
+            Components: [new(typeof(Weapon), Fields(("Range", 50.0), ("Damage", 9f)))]));
 
         var light = (Weapon)blueprints.Instantiate("light")[0];
         var heavy = (Weapon)blueprints.Instantiate("heavy")[0];
@@ -187,8 +192,10 @@ public class BlueprintTests
     {
         // Reflection and expression compiling are the costly steps. They happen once per component type and set of field names.
         var blueprints = new Blueprints();
-        blueprints.Register(new(Name: "light", Components: [new(typeof(Weapon), Fields(("Damage", 1f), ("Range", 5.0)))]));
-        blueprints.Register(new(Name: "heavy", Components: [new(typeof(Weapon), Fields(("Range", 50.0), ("Damage", 9f)))]));
+        blueprints.Register(new(Name: "light",
+            Components: [new(typeof(Weapon), Fields(("Damage", 1f), ("Range", 5.0)))]));
+        blueprints.Register(new(Name: "heavy",
+            Components: [new(typeof(Weapon), Fields(("Range", 50.0), ("Damage", 9f)))]));
 
         blueprints.FactoryOf("heavy", 0).Should().BeSameAs(blueprints.FactoryOf("light", 0));
     }
@@ -197,7 +204,8 @@ public class BlueprintTests
     public void BlueprintsThatSetDifferentFieldsDoNotShareAFactory()
     {
         var blueprints = new Blueprints();
-        blueprints.Register(new(Name: "light", Components: [new(typeof(Weapon), Fields(("Damage", 1f), ("Range", 5.0)))]));
+        blueprints.Register(new(Name: "light",
+            Components: [new(typeof(Weapon), Fields(("Damage", 1f), ("Range", 5.0)))]));
         blueprints.Register(new(Name: "plain", Components: [new(typeof(Weapon), Fields(("Damage", 2f)))]));
 
         blueprints.FactoryOf("plain", 0).Should().NotBeSameAs(blueprints.FactoryOf("light", 0));

@@ -25,9 +25,12 @@ public sealed class FrameTests
             instance.PreviousRotation = Quaternion.Identity;
             snapshot.Instances.Add(instance);
 
-            Capture start = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "interpolation-alpha0", alpha: 0f);
-            Capture middle = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "interpolation-alpha05", alpha: 0.5f);
-            Capture end = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "interpolation-alpha1", alpha: 1f);
+            Capture start = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "interpolation-alpha0",
+                alpha: 0f);
+            Capture middle = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "interpolation-alpha05",
+                alpha: 0.5f);
+            Capture end = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "interpolation-alpha1",
+                alpha: 1f);
             Vector2 leftPixel = Gpu.Project(point: left, width: width, height: height);
             Vector2 centerPixel = Gpu.Project(point: (left + right) / 2, width: width, height: height);
             Vector2 rightPixel = Gpu.Project(point: right, width: width, height: height);
@@ -43,12 +46,15 @@ public sealed class FrameTests
             // The rotation is interpolated too: a centered box turning 45 degrees about Y shows only its front face
             // at alpha 0 and two faces, about √2 times wider, at alpha 1.
             RenderSnapshot turning = LitFromBehind();
-            RenderInstance spinner = Gpu.Instance(mesh: box, material: white, position: new(0, 0, -8), scale: Vector3.One,
+            RenderInstance spinner = Gpu.Instance(mesh: box, material: white, position: new(0, 0, -8),
+                scale: Vector3.One,
                 rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 4));
             spinner.PreviousRotation = Quaternion.Identity;
             turning.Instances.Add(spinner);
-            Capture unturned = Gpu.RenderAndCapture(renderer: renderer, snapshot: turning, name: "rotation-alpha0", alpha: 0f);
-            Capture turned = Gpu.RenderAndCapture(renderer: renderer, snapshot: turning, name: "rotation-alpha1", alpha: 1f);
+            Capture unturned = Gpu.RenderAndCapture(renderer: renderer, snapshot: turning, name: "rotation-alpha0",
+                alpha: 0f);
+            Capture turned = Gpu.RenderAndCapture(renderer: renderer, snapshot: turning, name: "rotation-alpha1",
+                alpha: 1f);
             int row = height / 2;
             float ratio = Measure.LongestRun(image: turned, line: row, horizontal: true) /
                           (float)Measure.LongestRun(image: unturned, line: row, horizontal: true);
@@ -70,11 +76,14 @@ public sealed class FrameTests
             MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
             MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.9f, y: 0.9f, z: 0.9f, w: 1)));
             RenderSnapshot snapshot = LitFromBehind();
-            snapshot.Instances.Add(Gpu.Instance(mesh: box, material: white, position: new(0, 0, -6), scale: Vector3.One));
+            snapshot.Instances.Add(
+                Gpu.Instance(mesh: box, material: white, position: new(0, 0, -6), scale: Vector3.One));
             // The camera moved 2 m to the right during the tick; the box is fixed in the world.
             snapshot.Camera.PreviousPosition = new(-2f, 0, 0);
-            Capture start = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "camera-alpha0", alpha: 0f);
-            Capture end = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "camera-alpha1", alpha: 1f);
+            Capture start =
+                Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "camera-alpha0", alpha: 0f);
+            Capture end =
+                Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "camera-alpha1", alpha: 1f);
             Vector2 seenFromPrevious = Gpu.Project(point: new(2f, 0, -6), width: width, height: height);
             Vector2 seenFromCurrent = Gpu.Project(point: new(0, 0, -6), width: width, height: height);
             start.Luma(seenFromPrevious).Should()
@@ -98,7 +107,8 @@ public sealed class FrameTests
             MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f));
             MaterialId orange = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.9f, y: 0.45f, z: 0.1f, w: 1)));
             RenderSnapshot snapshot = LitFromBehind();
-            snapshot.Instances.Add(Gpu.Instance(mesh: sphere, material: orange, position: new(0, 0, -5), scale: Vector3.One));
+            snapshot.Instances.Add(Gpu.Instance(mesh: sphere, material: orange, position: new(0, 0, -5),
+                scale: Vector3.One));
 
             Capture small = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "resize-320x180");
             (small.Width, small.Height).Should().Be((320, 180));
@@ -137,18 +147,22 @@ public sealed class FrameTests
         {
             MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
             MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f));
-            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.9f, y: 0.9f, z: 0.9f, w: 1), gloss: 0.1f));
+            MaterialId white =
+                renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.9f, y: 0.9f, z: 0.9f, w: 1), gloss: 0.1f));
             MaterialId redGlass =
                 renderer.CreateMaterial(MaterialDesc.Color(new(x: 1f, y: 0.05f, z: 0.05f, w: 0.5f), gloss: 0.1f) with
                 {
                     SpecularIntensity = 0f
                 });
             RenderSnapshot snapshot = LitFromBehind();
-            snapshot.Instances.Add(Gpu.Instance(mesh: box, material: white, position: new(0, 0, -8), scale: new(4, 4, 1)));
+            snapshot.Instances.Add(Gpu.Instance(mesh: box, material: white, position: new(0, 0, -8),
+                scale: new(4, 4, 1)));
             // In front of the wall, and a second one hidden behind it.
-            snapshot.Instances.Add(Gpu.Instance(mesh: sphere, material: redGlass, position: new(-1, 0, -5), scale: new(0.7f),
+            snapshot.Instances.Add(Gpu.Instance(mesh: sphere, material: redGlass, position: new(-1, 0, -5),
+                scale: new(0.7f),
                 flags: RenderFlags.Transparent));
-            snapshot.Instances.Add(Gpu.Instance(mesh: sphere, material: redGlass, position: new(1, 0, -11), scale: new(0.7f),
+            snapshot.Instances.Add(Gpu.Instance(mesh: sphere, material: redGlass, position: new(1, 0, -11),
+                scale: new(0.7f),
                 flags: RenderFlags.Transparent));
 
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "transparent");
@@ -183,12 +197,15 @@ public sealed class FrameTests
         try
         {
             MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), gloss: 0.1f));
+            MaterialId white =
+                renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), gloss: 0.1f));
             RenderSnapshot snapshot = Gpu.Snapshot(new(0, 1, 0.2f));
             // A rail 200 m below the eye from 1 km to 3 km, across the near/middle boundary at 2 km, and a slab
             // 400 km below and to the left from 1,000 km to 3,000 km, across the middle/far boundary at 2,000 km.
-            snapshot.Instances.Add(Gpu.Instance(mesh: box, material: white, position: new(0, -200, -2_000), scale: new(30, 4, 2_000)));
-            snapshot.Instances.Add(Gpu.Instance(mesh: box, material: white, position: new(-400_000, -400_000, -2_000_000),
+            snapshot.Instances.Add(Gpu.Instance(mesh: box, material: white, position: new(0, -200, -2_000),
+                scale: new(30, 4, 2_000)));
+            snapshot.Instances.Add(Gpu.Instance(mesh: box, material: white,
+                position: new(-400_000, -400_000, -2_000_000),
                 scale: new(200_000, 4_000, 2_000_000)));
 
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "range-boundaries");
@@ -236,8 +253,10 @@ public sealed class FrameTests
         {
             MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
-            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), gloss: 0.3f));
-            MaterialId red = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.1f, z: 0.1f, w: 1), gloss: 0.3f));
+            MaterialId white =
+                renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), gloss: 0.3f));
+            MaterialId red =
+                renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.1f, z: 0.1f, w: 1), gloss: 0.3f));
             // Looking 20 degrees down at a red box 1.5 km away. The ground's two triangles reach 1 km behind the camera
             // and 4 km ahead, past the near range's far boundary: with a far clipping plane, MoltenVK drew the ground
             // with wrong depth over the box.
@@ -247,11 +266,15 @@ public sealed class FrameTests
             snapshot.Camera.Rotation = camera;
             snapshot.Camera.PreviousRotation = camera;
             snapshot.Camera.VerticalFov = fov;
-            snapshot.Instances.Add(Gpu.Instance(mesh: plane, material: white, position: new(0, ground, -1_500f), scale: new(100f, 1, 2_500f)));
-            snapshot.Instances.Add(Gpu.Instance(mesh: box, material: red, position: new(0, ground + 20f, -1_500f), scale: new(40f)));
+            snapshot.Instances.Add(Gpu.Instance(mesh: plane, material: white, position: new(0, ground, -1_500f),
+                scale: new(100f, 1, 2_500f)));
+            snapshot.Instances.Add(Gpu.Instance(mesh: box, material: red, position: new(0, ground + 20f, -1_500f),
+                scale: new(40f)));
 
-            Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "ground-behind-and-beyond");
-            Vector3 top = image.Color(Gpu.Project(point: new(0, ground + 40f, -1_500f), cameraRotation: camera, width: width, height: height, fov: fov));
+            Capture image =
+                Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "ground-behind-and-beyond");
+            Vector3 top = image.Color(Gpu.Project(point: new(0, ground + 40f, -1_500f), cameraRotation: camera,
+                width: width, height: height, fov: fov));
             top.X.Should().BeGreaterThan(0.4f, "the box's top is lit").And
                 .BeGreaterThan(2 * top.Y, "the box's top is red, not the ground: {0}", top);
         }

@@ -114,7 +114,8 @@ public sealed class BoxMeshTests
         });
 
     /// <summary>True if the line along X through (<paramref name="y"/>, <paramref name="z"/>) crosses a triangle.</summary>
-    private static bool LineAlongXHits(MeshData mesh, float y, float z) => LineHits(mesh: mesh, axis: Vector3.UnitX, u: y, v: z);
+    private static bool LineAlongXHits(MeshData mesh, float y, float z) =>
+        LineHits(mesh: mesh, axis: Vector3.UnitX, u: y, v: z);
 
     /// <summary>True if the line along Z through (<paramref name="x"/>, <paramref name="y"/>) crosses a triangle that
     /// <paramref name="keep"/> accepts.</summary>

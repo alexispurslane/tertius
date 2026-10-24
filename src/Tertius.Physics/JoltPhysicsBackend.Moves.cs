@@ -77,7 +77,8 @@ public sealed partial class JoltPhysicsBackend
             bool awake = record.Character is not null || record.World.Bodies.IsActive(record.Body) ||
                          velocity != Double3.Zero;
             pendingMoves.Add(new(Record: record, To: move.To, Pose: new(s.Pose.Position + offset, s.Pose.Rotation),
-                Linear: (s.Linear + velocity).ToVector3(), Angular: s.Angular, Awake: awake, Offset: offset, HomeVelocity: velocity));
+                Linear: (s.Linear + velocity).ToVector3(), Angular: s.Angular, Awake: awake, Offset: offset,
+                HomeVelocity: velocity));
         }
 
         for (int i = 0; i < pendingMoves.Count; i++)
@@ -93,11 +94,13 @@ public sealed partial class JoltPhysicsBackend
             // DropWithdrawnAnchorGhosts).
             RemoveGhostIn(record, WorldFor(move.To));
             if (record.IsHull)
-                MoveGhostsThatStickOut(frame: record.OwnedFrame, from: record.World, to: move.To, offset: move.Offset, velocity: move.HomeVelocity);
+                MoveGhostsThatStickOut(frame: record.OwnedFrame, from: record.World, to: move.To, offset: move.Offset,
+                    velocity: move.HomeVelocity);
             // The body's velocity shadow moves with it, as its state does.
             VelocityShadow shadow = record.Shadow;
             RemovePrimary(record);
-            CreatePrimary(record: record, frame: move.To, pose: move.Pose, linearVelocity: move.Linear, angularVelocity: move.Angular, upFromGravity: record.Standing,
+            CreatePrimary(record: record, frame: move.To, pose: move.Pose, linearVelocity: move.Linear,
+                angularVelocity: move.Angular, upFromGravity: record.Standing,
                 awake: move.Awake);
             record.Shadow = shadow.Moved(move.Offset, move.HomeVelocity);
             Contract.Assert(record.HasPrimary);
@@ -145,7 +148,8 @@ public sealed partial class JoltPhysicsBackend
             var pose = new DPose(position.ToDouble3() + offset, bodies.GetRotation(body).ToDouble());
             BodyLayer role = ghosts[index].Role;
             RemoveGhostAt(ghosts, index);
-            WantGhost(record: record, frame: to, pose: pose, linearVelocity: linear + velocity, angularVelocity: angular, role: role);
+            WantGhost(record: record, frame: to, pose: pose, linearVelocity: linear + velocity,
+                angularVelocity: angular, role: role);
         }
 
         stickOutScratch.Clear();

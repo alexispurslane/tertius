@@ -118,7 +118,8 @@ public class WorldFrameReadTests
 
         Double3 velocity = world.VelocityIn(ball, turning);
 
-        Double3 expected = world.Frames.ConvertVelocity(from: space, to: turning, position: world.PoseIn(ball, space).Position,
+        Double3 expected = world.Frames.ConvertVelocity(from: space, to: turning,
+            position: world.PoseIn(ball, space).Position,
             v: world.VelocityIn(ball, space));
         // The same conversion, up to the last bit of rounding.
         TestPrecision.RoughlyEqual(velocity, expected, 1e-12).Should()

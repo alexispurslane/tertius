@@ -180,9 +180,11 @@ public class InternalEdgeRemovalTests
         });
         Tick(world, 3);
 
-        RemovesInternalEdges(backend: backend, frame: world.GetOwnedFrame(box), entity: compound, kind: BodyKind.Ghost).Should()
+        RemovesInternalEdges(backend: backend, frame: world.GetOwnedFrame(box), entity: compound, kind: BodyKind.Ghost)
+            .Should()
             .BeTrue("the ghost's shape is the hull of sharp boxes");
-        RemovesInternalEdges(backend: backend, frame: world.GetOwnedFrame(compound), entity: box, kind: BodyKind.Ghost).Should()
+        RemovesInternalEdges(backend: backend, frame: world.GetOwnedFrame(compound), entity: box, kind: BodyKind.Ghost)
+            .Should()
             .BeFalse("the ghost's shape is the box hull");
         world.Errors.Should().BeEmpty();
     }
@@ -211,11 +213,15 @@ public class InternalEdgeRemovalTests
         });
         world.Tick();
 
-        RemovesInternalEdges(backend: backend, frame: space, entity: boxHull, kind: BodyKind.Primary).Should().BeFalse("the hull is a box");
-        RemovesInternalEdges(backend: backend, frame: world.GetOwnedFrame(boxHull), entity: boxHull, kind: BodyKind.Interior).Should()
+        RemovesInternalEdges(backend: backend, frame: space, entity: boxHull, kind: BodyKind.Primary).Should()
+            .BeFalse("the hull is a box");
+        RemovesInternalEdges(backend: backend, frame: world.GetOwnedFrame(boxHull), entity: boxHull,
+                kind: BodyKind.Interior).Should()
             .BeTrue("the interior is a compound");
-        RemovesInternalEdges(backend: backend, frame: space, entity: compoundHull, kind: BodyKind.Primary).Should().BeTrue("the hull is a compound");
-        RemovesInternalEdges(backend: backend, frame: world.GetOwnedFrame(compoundHull), entity: compoundHull, kind: BodyKind.Interior).Should()
+        RemovesInternalEdges(backend: backend, frame: space, entity: compoundHull, kind: BodyKind.Primary).Should()
+            .BeTrue("the hull is a compound");
+        RemovesInternalEdges(backend: backend, frame: world.GetOwnedFrame(compoundHull), entity: compoundHull,
+                kind: BodyKind.Interior).Should()
             .BeFalse("the interior is a box");
         world.Errors.Should().BeEmpty();
     }
@@ -238,7 +244,9 @@ public class InternalEdgeRemovalTests
             new(SharpPlank, new(new(0.5f, 0, 0), Quaternion.Identity))
         ]);
         const double landing = 0.010;
-        Entity SpawnRaft() => world.Spawn(new() { Frame = ground, Pose = At(0, 0.125), Body = new(Shape: raft, Mass: 100) });
+
+        Entity SpawnRaft() => world.Spawn(new()
+            { Frame = ground, Pose = At(0, 0.125), Body = new(Shape: raft, Mass: 100) });
 
         Entity SpawnBall() => world.Spawn(new()
             { Frame = ground, Pose = At(landing, 0.25 + 0.25 + 0.1), Body = Ball(0.25f) });
@@ -311,7 +319,8 @@ public class InternalEdgeRemovalTests
         {
             Frame = ground,
             Pose = At(x, PersonRadius + PersonHalfHeight + 0.01),
-            Body = new(Shape: new CapsuleShapeDesc(PersonHalfHeight, PersonRadius), Motion: BodyMotion.Character, Mass: 70),
+            Body = new(Shape: new CapsuleShapeDesc(PersonHalfHeight, PersonRadius), Motion: BodyMotion.Character,
+                Mass: 70),
             Components = [walker]
         });
         world.Tick();
@@ -337,7 +346,8 @@ public class InternalEdgeRemovalTests
     {
         using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
-        Entity person = PersonOnGroove(world: world, backend: backend, ground: ground, x: 0, removesEdges: removesEdges, walker: new());
+        Entity person = PersonOnGroove(world: world, backend: backend, ground: ground, x: 0, removesEdges: removesEdges,
+            walker: new());
         Tick(world, 180);
         world.IsStanding(person).Should().BeTrue();
         world.Errors.Should().BeEmpty();
@@ -376,7 +386,8 @@ public class InternalEdgeRemovalTests
         using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         var walker = new Walker();
-        Entity person = PersonOnGroove(world: world, backend: backend, ground: ground, x: -1.5, removesEdges: removesEdges, walker: walker);
+        Entity person = PersonOnGroove(world: world, backend: backend, ground: ground, x: -1.5,
+            removesEdges: removesEdges, walker: walker);
         Tick(world, 59);
         walker.Speed = speed;
         double lowest = double.MaxValue, highest = double.MinValue, slowest = double.MaxValue;

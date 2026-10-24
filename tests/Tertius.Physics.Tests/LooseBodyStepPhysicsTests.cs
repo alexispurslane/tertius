@@ -75,7 +75,8 @@ public class LooseBodyStepPhysicsTests
         FrameHandle ship = world.GetOwnedFrame(world.Spawn(new()
         {
             Frame = space,
-            Body = new(Shape: new BoxShapeDesc(new(2, 0.5f, 2)), Motion: BodyMotion.Dynamic, Mass: mass, LinearDamping: 0,
+            Body = new(Shape: new BoxShapeDesc(new(2, 0.5f, 2)), Motion: BodyMotion.Dynamic, Mass: mass,
+                LinearDamping: 0,
                 AngularDamping: 0),
             AsFrame = new(FrameBounds.Sphere(10), GravityField.Uniform(new(0, -1, 0))),
             Components = [pilot]

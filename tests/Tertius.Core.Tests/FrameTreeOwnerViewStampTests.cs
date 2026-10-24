@@ -18,8 +18,10 @@ public class FrameTreeOwnerViewStampTests
 
     public FrameTreeOwnerViewStampTests()
     {
-        ground = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
-        ship = frames.Create(frameOwner: new(2, 1), parent: ground, localPose: new(X(100), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(50));
+        ground = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f));
+        ship = frames.Create(frameOwner: new(2, 1), parent: ground, localPose: new(X(100), DQuaternion.Identity),
+            frameBounds: FrameBounds.Sphere(50));
         frames.SetHullMotion(ship, BodyMotion.Dynamic);
     }
 
@@ -60,7 +62,8 @@ public class FrameTreeOwnerViewStampTests
 
     [Fact]
     public void A_new_frame_changes_the_stamp() =>
-        StampChanges(() => frames.Create(frameOwner: new(3, 1), parent: ground, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(5)))
+        StampChanges(() => frames.Create(frameOwner: new(3, 1), parent: ground, localPose: DPose.Identity,
+                frameBounds: FrameBounds.Sphere(5)))
             .Should().BeTrue();
 
     [Fact]
@@ -71,7 +74,8 @@ public class FrameTreeOwnerViewStampTests
     public void A_frame_that_moves_under_another_parent_changes_the_stamp()
     {
         FrameHandle dock =
-            frames.Create(frameOwner: new(3, 1), parent: ground, localPose: new(X(-100), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(500));
+            frames.Create(frameOwner: new(3, 1), parent: ground, localPose: new(X(-100), DQuaternion.Identity),
+                frameBounds: FrameBounds.Sphere(500));
         StampChanges(() => frames.Reparent(ship, dock)).Should().BeTrue();
     }
 
@@ -90,9 +94,12 @@ public class FrameTreeOwnerViewStampTests
     [Fact]
     public void A_frame_that_takes_its_step_record_changes_the_stamp()
     {
-        var record = new MotionSample(Pose: new(X(101), DQuaternion.Identity), ChordVelocity: X(60), Velocity: Double3.Zero, Acceleration: Double3.Zero,
+        var record = new MotionSample(Pose: new(X(101), DQuaternion.Identity), ChordVelocity: X(60),
+            Velocity: Double3.Zero, Acceleration: Double3.Zero,
             AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
-        StampChanges(() => frames.TakeStepRecords(stepIntents: [], step: 1.0 / 60, owners: new StepOwners().WithHullRecord(ship, record))).Should()
+        StampChanges(() =>
+                frames.TakeStepRecords(stepIntents: [], step: 1.0 / 60,
+                    owners: new StepOwners().WithHullRecord(ship, record))).Should()
             .BeTrue();
     }
 

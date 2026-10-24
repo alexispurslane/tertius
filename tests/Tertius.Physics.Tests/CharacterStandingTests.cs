@@ -16,12 +16,15 @@ public class CharacterStandingTests
 {
     // The capsule center rests 0.9 m above the floor, plus Jolt's character padding.
     private const double StandingHeight = 0.9;
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
+
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
+        Mass: 70);
 
     /// <summary>The largest angle, in radians, by which up turns in one step of 1/60 s in the air, at the default air rate.</summary>
     private static float AirUpTurnPerStep => new JoltBackendOptions().CharacterAirUpTurnRate / 60f;
 
-    private static BodyDesc StaticBox(Vector3 halfExtents) => new(Shape: new BoxShapeDesc(halfExtents), Motion: BodyMotion.Static);
+    private static BodyDesc StaticBox(Vector3 halfExtents) =>
+        new(Shape: new BoxShapeDesc(halfExtents), Motion: BodyMotion.Static);
 
     /// <summary>A world with a root frame of 9.81 m/s² of gravity along -Y and a floor whose top is at y = 0.</summary>
     private static (World World, FrameHandle Ground) WorldWithFloor()
@@ -69,7 +72,8 @@ public class CharacterStandingTests
         using (world)
         {
             var pilot = new Pilot();
-            Entity person = SpawnPerson(world: world, frame: ground, pose: At(0, StandingHeight + 0.02, 0), pilot: pilot);
+            Entity person = SpawnPerson(world: world, frame: ground, pose: At(0, StandingHeight + 0.02, 0),
+                pilot: pilot);
             Tick(world, 20);
             Send(world, pilot, body => body.Jump(5));
             Tick(world, 10);
@@ -219,7 +223,8 @@ public class CharacterStandingTests
         {
             Frame = ground,
             Pose = new(normal * 0.1, tilt),
-            Body = new(Shape: new BoxShapeDesc(new(2, 0.1f, 2)), Mass: 700, Friction: 0, LinearDamping: 0, AngularDamping: 0)
+            Body = new(Shape: new BoxShapeDesc(new(2, 0.1f, 2)), Mass: 700, Friction: 0, LinearDamping: 0,
+                AngularDamping: 0)
         });
         // The upright capsule's lower sphere, 0.6 m below its center, starts 1 cm above the plate.
         Entity person = SpawnPerson(world: world, frame: ground,
@@ -258,7 +263,8 @@ public class CharacterStandingTests
         {
             world.Spawn(new() { Frame = ground, Pose = At(8, 0.15), Body = StaticBox(new(5, 0.15f, 5)) });
             var pilot = new Pilot { EveryTick = body => body.MoveCharacter(new(3, 0, 0)) };
-            Entity person = SpawnPerson(world: world, frame: ground, pose: At(0, StandingHeight + 0.02, 0), pilot: pilot);
+            Entity person = SpawnPerson(world: world, frame: ground, pose: At(0, StandingHeight + 0.02, 0),
+                pilot: pilot);
             double highest = 0, last = 0;
             for (int tick = 0; tick < 150; tick++)
             {
@@ -491,7 +497,8 @@ public class CharacterStandingTests
             // The ceiling's lower face is at y = 2.3, 0.5 m above the head of the person who stands on the floor.
             world.Spawn(new() { Frame = ground, Pose = At(0, 2.8, 0), Body = StaticBox(new(50, 0.5f, 50)) });
             var pilot = new Pilot();
-            Entity person = SpawnPerson(world: world, frame: ground, pose: At(0, StandingHeight + 0.02, 0), pilot: pilot);
+            Entity person = SpawnPerson(world: world, frame: ground, pose: At(0, StandingHeight + 0.02, 0),
+                pilot: pilot);
             Tick(world, 20);
             Send(world, pilot, body => body.Jump(5));
             world.Tick();

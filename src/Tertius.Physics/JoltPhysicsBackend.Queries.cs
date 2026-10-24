@@ -96,9 +96,11 @@ public sealed partial class JoltPhysicsBackend
             bodyFilter.Begin(world.System.BodyInterfaceNoLock, filter);
             try
             {
-                world.System.NarrowPhaseQuery.CastShape(shape: queryShapes.Get(shape), centerOfMassTransform: Transform(from, start.Rotation),
+                world.System.NarrowPhaseQuery.CastShape(shape: queryShapes.Get(shape),
+                    centerOfMassTransform: Transform(from, start.Rotation),
                     direction: (direction * length).ToVector3(), castSettings: settings,
-                    baseOffset: from.ToJolt(), collectorType: CollisionCollectorType.ClosestHit, results: shapeCastResults, bodyFilter: bodyFilter);
+                    baseOffset: from.ToJolt(), collectorType: CollisionCollectorType.ClosestHit,
+                    results: shapeCastResults, bodyFilter: bodyFilter);
             }
             finally
             {
@@ -110,7 +112,8 @@ public sealed partial class JoltPhysicsBackend
             {
                 Vector3 axis = result.PenetrationAxis;
                 Vector3 normal = axis.LengthSquared() > 0 ? -Vector3.Normalize(axis) : Vector3.Zero;
-                hits.Add(new(Entity: EntityOf(bodies.GetUserData(result.BodyID2)), Distance: startDistance + result.Fraction * length,
+                hits.Add(new(Entity: EntityOf(bodies.GetUserData(result.BodyID2)),
+                    Distance: startDistance + result.Fraction * length,
                     Point: from + result.ContactPointOn2, Normal: normal));
             }
         }
@@ -189,7 +192,8 @@ public sealed partial class JoltPhysicsBackend
         if (read.Succeeded)
         {
             RVector3 position = point.ToJolt();
-            JoltNative.SurfaceNormal(body: read.BodyHandle, subShapeId: result.subShapeID2, position: &position, normal: &normal);
+            JoltNative.SurfaceNormal(body: read.BodyHandle, subShapeId: result.subShapeID2, position: &position,
+                normal: &normal);
         }
 
         locks.UnlockRead(read);

@@ -27,7 +27,8 @@ public sealed class BlueDanubeFilmRun : IDisposable
         Backend = new(JoltBackendOptions.Unpaced);
         World = new(new() { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true }, Backend);
         Scene = DemoScenes.All.Single(s => s.Name == full.Scene).Build(World, RenderResources.None);
-        ScriptRunner.Run(script: full with { Steps = [.. full.Steps.Take(last + 1)] }, world: World, scene: Scene, outputFolder: null,
+        ScriptRunner.Run(script: full with { Steps = [.. full.Steps.Take(last + 1)] }, world: World, scene: Scene,
+            outputFolder: null,
             playback: new Recorder(this));
     }
 
@@ -58,13 +59,16 @@ public sealed class BlueDanubeFilmRun : IDisposable
         bool Clear(Double3 toward)
         {
             var hits = new List<RayCastHit>();
-            Backend.CastRay(frame: surface, origin: view.Position, direction: (toward - view.Position).Normalized(), start: 0, end: 1e4,
+            Backend.CastRay(frame: surface, origin: view.Position, direction: (toward - view.Position).Normalized(),
+                start: 0, end: 1e4,
                 filter: new AcceptsEveryEntity(), kind: RayCastKind.Nearest, hits: hits);
             return hits.Count == 0;
         }
 
-        return new(Name: name, Sun: Picture.Project(view, sun, World.VerticalFov), Moon: Picture.Project(view, moon, World.VerticalFov),
-            Shuttle: Picture.Project(view, World.PoseIn(Scene["shuttle"], surface).Position, World.VerticalFov), SunClear: Clear(sun),
+        return new(Name: name, Sun: Picture.Project(view, sun, World.VerticalFov),
+            Moon: Picture.Project(view, moon, World.VerticalFov),
+            Shuttle: Picture.Project(view, World.PoseIn(Scene["shuttle"], surface).Position, World.VerticalFov),
+            SunClear: Clear(sun),
             MoonClear: Clear(moon));
     }
 
@@ -83,8 +87,11 @@ public sealed class BlueDanubeFilmRun : IDisposable
                             Picture.Contains(
                                 Picture.Project(view, World.PoseIn(pen, frame).Position, World.VerticalFov));
         DPose inCabin = World.PoseIn(person, cabin);
-        return new(Name: name, PersonCover: Picture.Cover(view: view, body: body, half: DemoSurface.PersonHalf, verticalFov: World.VerticalFov), PenInPicture: penInPicture,
-            View: World.PoseIn(World.Camera, cabin), Eye: inCabin.TransformPoint(World.GetRender(person).ViewOffset.Position),
+        return new(Name: name,
+            PersonCover: Picture.Cover(view: view, body: body, half: DemoSurface.PersonHalf,
+                verticalFov: World.VerticalFov), PenInPicture: penInPicture,
+            View: World.PoseIn(World.Camera, cabin),
+            Eye: inCabin.TransformPoint(World.GetRender(person).ViewOffset.Position),
             VerticalFov: World.VerticalFov);
     }
 

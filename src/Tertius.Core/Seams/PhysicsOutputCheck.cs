@@ -153,7 +153,8 @@ public sealed class PhysicsOutputCheck
             BodyState state = output.Bodies[i];
             // The pose and velocities are relative to the reported frame, so they are useless in any other frame.
             if ((BodyFault(state.Entity, facts) ?? FrameFault(state.Frame, frames)) is { } fault)
-                Add(kind: PhysicsOutputKind.BodyState, index: i, message: $"ignored the body state of {state.Entity}, because {fault}",
+                Add(kind: PhysicsOutputKind.BodyState, index: i,
+                    message: $"ignored the body state of {state.Entity}, because {fault}",
                     entity: state.Entity);
         }
 
@@ -166,7 +167,8 @@ public sealed class PhysicsOutputCheck
                     (again ? $"{handOff.Entity} has another hand-off in this step" : null)) is { } fault)
             {
                 brokenHandOffs.Add(i);
-                Add(kind: PhysicsOutputKind.HandOff, index: i, message: $"ignored the hand-off of {handOff.Entity}, because {fault}",
+                Add(kind: PhysicsOutputKind.HandOff, index: i,
+                    message: $"ignored the hand-off of {handOff.Entity}, because {fault}",
                     entity: handOff.Entity);
             }
         }
@@ -175,7 +177,8 @@ public sealed class PhysicsOutputCheck
         {
             FrameHandle frame = output.Frames[i].Frame;
             if (FrameRecordFault(frame, frames, facts) is { } fault)
-                Add(kind: PhysicsOutputKind.FrameRecord, index: i, message: $"ignored the step record of {fault}", entity: frame.Entity);
+                Add(kind: PhysicsOutputKind.FrameRecord, index: i, message: $"ignored the step record of {fault}",
+                    entity: frame.Entity);
         }
 
         for (int i = 0; i < output.Contacts.Count; i++)
@@ -186,7 +189,8 @@ public sealed class PhysicsOutputCheck
                     (contact.A == contact.B ? $"{contact.A} cannot touch itself" : null) ??
                     FrameFault(contact.Frame, frames)) is { } fault)
                 Add(kind: PhysicsOutputKind.Contact, index: i,
-                    message: $"ignored the contact of {contact.A} and {contact.B}, because {fault}", entity: contact.A, other: contact.B);
+                    message: $"ignored the contact of {contact.A} and {contact.B}, because {fault}", entity: contact.A,
+                    other: contact.B);
         }
 
         for (int i = 0; i < output.ContactsEnded.Count; i++)
@@ -194,7 +198,8 @@ public sealed class PhysicsOutputCheck
             ContactEnded ended = output.ContactsEnded[i];
             if (ended.A == ended.B)
                 Add(kind: PhysicsOutputKind.ContactEnd, index: i,
-                    message: $"ignored the end of the contact of {ended.A} and {ended.B}, because {ended.A} cannot touch itself",
+                    message:
+                    $"ignored the end of the contact of {ended.A} and {ended.B}, because {ended.A} cannot touch itself",
                     entity: ended.A);
         }
 
@@ -208,7 +213,8 @@ public sealed class PhysicsOutputCheck
             if (handOff.To == own || IsAncestorAfter(own, handOff.To, frames))
             {
                 Add(kind: PhysicsOutputKind.HandOff, index: i,
-                    message: $"refused the hand-off of {handOff.Entity} from {handOff.From} to {handOff.To}, which would put {own} under itself or its own descendant",
+                    message:
+                    $"refused the hand-off of {handOff.Entity} from {handOff.From} to {handOff.To}, which would put {own} under itself or its own descendant",
                     entity: handOff.Entity);
                 continue;
             }

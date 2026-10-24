@@ -75,7 +75,8 @@ public class BodyFactsTests
     public void ACharacterHasTheCharacterMotion()
     {
         using World world = NewWorld(out FrameHandle space);
-        Entity walker = Spawn(world: world, frame: space, body: new(Shape: new CapsuleShapeDesc(0.5f, 0.3f), Motion: BodyMotion.Character, Mass: 70));
+        Entity walker = Spawn(world: world, frame: space,
+            body: new(Shape: new CapsuleShapeDesc(0.5f, 0.3f), Motion: BodyMotion.Character, Mass: 70));
 
         FactsOf(world, walker).Motion.Should().Be(BodyMotion.Character);
     }
@@ -108,7 +109,9 @@ public class BodyFactsTests
         Entity owner = world.Spawn(new()
         {
             AsFrame = new(FrameBounds.Sphere(1e6f)),
-            Body = body == "a mesh" ? new(Shape: Ramp) : new BodyDesc(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Mass: 0)
+            Body = body == "a mesh"
+                ? new(Shape: Ramp)
+                : new BodyDesc(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Mass: 0)
         });
         world.Tick();
 
@@ -254,8 +257,10 @@ public class BodyFactsTests
     {
         using World world = NewWorld(out FrameHandle space);
         Entity ball = Spawn(world: world, frame: space, body: new(Shape: new SphereShapeDesc(0.5f)));
-        Entity wall = Spawn(world: world, frame: space, body: new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static), x: 10);
-        Entity plate = Spawn(world: world, frame: space, body: new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static) { IsSensor = true },
+        Entity wall = Spawn(world: world, frame: space,
+            body: new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static), x: 10);
+        Entity plate = Spawn(world: world, frame: space,
+            body: new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static) { IsSensor = true },
             x: 20);
 
         FactsOf(world, ball).IsSensor.Should().BeFalse();
@@ -288,7 +293,8 @@ public class BodyFactsTests
         CollisionGroup glass = registry.Register("Glass");
         using World world = NewWorld(out FrameHandle space);
         var pilot = new Pilot();
-        Entity box = Spawn(world: world, frame: space, body: new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static), components: [pilot]);
+        Entity box = Spawn(world: world, frame: space,
+            body: new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static), components: [pilot]);
         world.Tick();
         CollisionGroups newGroups = CollisionGroups.Of(glass);
         CollisionMask newMask = CollisionMask.Empty.InAny(glass);
@@ -359,7 +365,8 @@ public class BodyFactsTests
         Entity[] bodies =
         [
             Spawn(world: world, frame: space, body: new(Shape: new SphereShapeDesc(0.5f))),
-            Spawn(world: world, frame: space, body: new(Shape: new CapsuleShapeDesc(0.5f, 0.3f), Motion: BodyMotion.Character, Mass: 70), x: 10),
+            Spawn(world: world, frame: space,
+                body: new(Shape: new CapsuleShapeDesc(0.5f, 0.3f), Motion: BodyMotion.Character, Mass: 70), x: 10),
             Ship(world: world, space: space, motion: BodyMotion.Dynamic),
             world.SpawnWith(space, new Metal())
         ];

@@ -35,7 +35,8 @@ public class TurningFollowingFrameTests
     /// two worlds' velocities differently, in different systems and about different origins: the worst differences measured
     /// are 7.4e-5 m and 4.9e-4 m/s.
     /// </summary>
-    private static readonly HullScene Fast = new(Rate: 1e-3, Start: new(0, 0, 1e5), Drift: new(2_000, 0, 0), PlaceTolerance: 3e-4,
+    private static readonly HullScene Fast = new(Rate: 1e-3, Start: new(0, 0, 1e5), Drift: new(2_000, 0, 0),
+        PlaceTolerance: 3e-4,
         VelocityTolerance: 1e-3);
 
     /// <summary>
@@ -45,7 +46,8 @@ public class TurningFollowingFrameTests
     /// worst differences measured are 1.3e-6 m and 2.9e-6 m/s. The turn's Coriolis half step on a change of 10 m/s is
     /// ω v dt / 2 = 2.5e-5 m/s, so the tolerance sees an error in it.
     /// </summary>
-    private static readonly HullScene Far = new(Rate: 3e-4, Start: new(0, 0, 1e7), Drift: new(10, 0, 0), PlaceTolerance: 1e-5,
+    private static readonly HullScene Far = new(Rate: 3e-4, Start: new(0, 0, 1e7), Drift: new(10, 0, 0),
+        PlaceTolerance: 1e-5,
         VelocityTolerance: 1e-5);
 
     private static readonly BodyDesc Crate =
@@ -178,7 +180,8 @@ public class TurningFollowingFrameTests
     private static (World World, FrameHandle Turning, Entity Owner, Entity Crate) LeavingCrate(bool numericFrames,
         HullScene scene,
         DriftChange change, long changeTick, bool ship) =>
-        LeavingCrate(numericFrames: numericFrames, scene: scene, change: change, changeTick: changeTick, ship: ship, faults: out _);
+        LeavingCrate(numericFrames: numericFrames, scene: scene, change: change, changeTick: changeTick, ship: ship,
+            faults: out _);
 
     /// <summary>The scene of <see cref="LeavingCrate(bool, HullScene, DriftChange, long, bool)"/>, with its backend.</summary>
     private static (World World, FrameHandle Turning, Entity Owner, Entity Crate) LeavingCrate(bool numericFrames,
@@ -224,8 +227,10 @@ public class TurningFollowingFrameTests
     {
         HullScene scene = SceneOf(sceneKind);
         long exitTick;
-        (World probe, FrameHandle _, Entity probeOwner, Entity probeCrate) = LeavingCrate(numericFrames: true, scene: scene,
-            change: change == DriftChange.Starts ? DriftChange.Starts : DriftChange.Stops, changeTick: long.MaxValue, ship: ship);
+        (World probe, FrameHandle _, Entity probeOwner, Entity probeCrate) = LeavingCrate(numericFrames: true,
+            scene: scene,
+            change: change == DriftChange.Starts ? DriftChange.Starts : DriftChange.Stops, changeTick: long.MaxValue,
+            ship: ship);
         using (probe)
         {
             TickUntil(probe, () => probe.GetFrame(probeCrate) != probe.GetOwnedFrame(probeOwner), 120);
@@ -243,7 +248,8 @@ public class TurningFollowingFrameTests
         for (long changeTick = exitTick - 3; changeTick <= exitTick; changeTick++)
         {
             (World world, FrameHandle turning, Entity owner, Entity crate) =
-                LeavingCrate(numericFrames: true, scene: scene, change: change, changeTick: changeTick, ship: ship, faults: out FaultInjectingBackend faults);
+                LeavingCrate(numericFrames: true, scene: scene, change: change, changeTick: changeTick, ship: ship,
+                    faults: out FaultInjectingBackend faults);
             (World plain, FrameHandle plainTurning, Entity plainOwner, Entity plainCrate) =
                 LeavingCrate(numericFrames: false, scene: scene, change: change, changeTick: changeTick, ship: ship);
             // The crate's hand-off out of the hull's frame, read in the step that makes it, while the tree is as the step has
@@ -312,7 +318,8 @@ public class TurningFollowingFrameTests
     /// </summary>
     private static (World World, FrameHandle Turning, Entity Owner, Entity Body) EnteringBody(bool numericFrames,
         bool character,
-        out FaultInjectingBackend backend) => EnteringBody(numericFrames: numericFrames, character: character, scene: Fast, stopTick: StopTick, backend: out backend);
+        out FaultInjectingBackend backend) => EnteringBody(numericFrames: numericFrames, character: character,
+        scene: Fast, stopTick: StopTick, backend: out backend);
 
     /// <summary>
     /// The scene of <see cref="EnteringBody(bool, bool, out FaultInjectingBackend)"/> with the hull of
@@ -325,12 +332,15 @@ public class TurningFollowingFrameTests
     {
         World world = NewTurningWorld(numericFrames, out backend);
         FrameHandle turning = TurningFrame(world, scene);
-        Entity owner = SpawnHull(world: world, turning: turning, scene: scene, change: DriftChange.Stops, changeTick: stopTick);
+        Entity owner = SpawnHull(world: world, turning: turning, scene: scene, change: DriftChange.Stops,
+            changeTick: stopTick);
         Entity body = world.Spawn(new()
         {
             Frame = turning, Pose = new(scene.Start + new Double3(-24, 5, 0), DQuaternion.Identity),
             LinearVelocity = scene.Drift + new Double3(10, 0, 0),
-            Body = character ? new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70) : Crate
+            Body = character
+                ? new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70)
+                : Crate
         });
         return (world, turning, owner, body);
     }
@@ -460,7 +470,8 @@ public class TurningFollowingFrameTests
     {
         World world = NewTurningWorld(numericFrames, out _);
         FrameHandle turning = TurningFrame(world, Fast);
-        Entity owner = SpawnHull(world: world, turning: turning, scene: Fast, change: DriftChange.Stops, changeTick: StopTick);
+        Entity owner = SpawnHull(world: world, turning: turning, scene: Fast, change: DriftChange.Stops,
+            changeTick: StopTick);
         Entity ship = world.Spawn(new()
         {
             Frame = turning, Pose = new(Fast.Start + new Double3(-10, 22, 0), DQuaternion.Identity),

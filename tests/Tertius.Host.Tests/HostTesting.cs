@@ -306,7 +306,8 @@ public static class HostTesting
         {
             Frame = ship,
             Pose = At(1),
-            FirstMove = new(new MotionSample(Pose: crateEnd, ChordVelocity: crateVelocity, Velocity: crateVelocity, Acceleration: Double3.Zero, AngularVelocity: crateSpin,
+            FirstMove = new(new MotionSample(Pose: crateEnd, ChordVelocity: crateVelocity, Velocity: crateVelocity,
+                Acceleration: Double3.Zero, AngularVelocity: crateSpin,
                 AngularAcceleration: Double3.Zero))
         }));
         FrameHandle shuttle = ChildFrame(world, ship, At(0, 0, 2));

@@ -28,7 +28,8 @@ public static class ScriptRunner
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(scene);
         EventPayloads payloads = EventPayloads.FromLoadedAssemblies();
-        ReadyStep[] steps = MakeReady(script: script, world: world, scene: scene, playback: playback, payloads: payloads, lastDump: out int lastDump);
+        ReadyStep[] steps = MakeReady(script: script, world: world, scene: scene, playback: playback,
+            payloads: payloads, lastDump: out int lastDump);
         JsonSerializerOptions dumpJson = ScriptJson.Dumps(scene);
 
         if (outputFolder != null)
@@ -162,7 +163,8 @@ public static class ScriptRunner
                     ready[i] = new ReadyRun(run.Ticks);
                     break;
                 case PostStep post:
-                    ready[i] = new ReadyPost(MakeEvent(post: post, world: world, scene: scene, payloads: payloads, json: json, where: $"{where} (post)"));
+                    ready[i] = new ReadyPost(MakeEvent(post: post, world: world, scene: scene, payloads: payloads,
+                        json: json, where: $"{where} (post)"));
                     break;
                 case CameraStep cameraStep:
                     camera = LiveEntity(id: cameraStep.Entity, world: world, scene: scene, where: $"{where} (camera)");
@@ -234,7 +236,8 @@ public static class ScriptRunner
     {
         ToEntity(string id) => LiveEntity(id: id, world: world, scene: scene, where: where),
         ToTopic(string name) => Topics.Get(name),
-        ToFrame(string id) => world.GetOwnedFrame(LiveEntity(id: id, world: world, scene: scene, where: where)) is { IsNull: false } frame
+        ToFrame(string id) => world.GetOwnedFrame(LiveEntity(id: id, world: world, scene: scene, where: where)) is
+            { IsNull: false } frame
             ? frame.Topic
             : throw new ScriptException($"{where}: the entity '{id}' owns no frame."),
         ToEveryone => new Broadcast(),

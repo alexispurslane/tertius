@@ -25,7 +25,8 @@ public class WorldNumericClusteringTests
     private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0,
         AngularDamping: 0);
 
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
+        Mass: 70);
 
     private static readonly BodyDesc Hull = new(Shape: new BoxShapeDesc(new(5)), Mass: 1e4f, LinearDamping: 0,
         AngularDamping: 0,

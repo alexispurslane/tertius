@@ -78,7 +78,8 @@ public class SharedComponentTests
         using var t = new TestWorld();
         var inbox = new Recorder();
         Entity target = t.SpawnWith(inbox);
-        SendEvery sender = SendEvery.Of(target: target, payloadAt: tick => new Ping { Value = (int)tick }, every: 2, from: 1);
+        SendEvery sender = SendEvery.Of(target: target, payloadAt: tick => new Ping { Value = (int)tick }, every: 2,
+            from: 1);
         t.SpawnWith(sender);
 
         t.Run(7);

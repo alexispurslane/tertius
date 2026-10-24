@@ -135,7 +135,8 @@ public class FirstMotionIntentTests
         FrameHandle space = Space(world);
         bool frame = kind == "frame without a body with a full sample";
         var moved = new DPose(new(0.3, 0, 0), DQuaternion.Identity);
-        var sample = new MotionSample(Pose: moved, ChordVelocity: new(18, 0, 0), Velocity: new(18, 0, 0), Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
+        var sample = new MotionSample(Pose: moved, ChordVelocity: new(18, 0, 0), Velocity: new(18, 0, 0),
+            Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
         Entity entity = world.Spawn(new()
         {
             Frame = space,
@@ -207,7 +208,8 @@ public class FirstMotionIntentTests
         FrameHandle space = Space(world);
         Entity parent = world.Spawn(new() { Frame = space });
         var endPose = new MotionIntent(new EndPose(Turned));
-        var sample = new MotionIntent(new MotionSample(Pose: Turned, ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
+        var sample = new MotionIntent(new MotionSample(Pose: Turned, ChordVelocity: Double3.Zero,
+            Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
             AngularAcceleration: Double3.Zero));
         var steer = new MotionIntent(new SteerTarget(Turned));
         (SpawnDesc desc, string reason) = kind switch
@@ -264,7 +266,8 @@ public class FirstMotionIntentTests
         using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
         var endPose = new MotionIntent(new EndPose(Turned));
-        var sample = new MotionIntent(new MotionSample(Pose: Turned, ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
+        var sample = new MotionIntent(new MotionSample(Pose: Turned, ChordVelocity: Double3.Zero,
+            Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
             AngularAcceleration: Double3.Zero));
         SpawnDesc desc = kind switch
         {
@@ -306,13 +309,15 @@ public class FirstMotionIntentTests
             "full sample with a velocity that is not finite" => new()
             {
                 Frame = space, AsFrame = SmallBubble,
-                FirstMove = new(new MotionSample(Pose: at, ChordVelocity: Double3.Zero, Velocity: new(0, double.PositiveInfinity, 0), Acceleration: Double3.Zero,
+                FirstMove = new(new MotionSample(Pose: at, ChordVelocity: Double3.Zero,
+                    Velocity: new(0, double.PositiveInfinity, 0), Acceleration: Double3.Zero,
                     AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero))
             },
             "full sample with a zero rotation" => new()
             {
                 Frame = space, AsFrame = SmallBubble,
-                FirstMove = new(new MotionSample(Pose: new(Double3.Zero, zero), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero,
+                FirstMove = new(new MotionSample(Pose: new(Double3.Zero, zero), ChordVelocity: Double3.Zero,
+                    Velocity: Double3.Zero, Acceleration: Double3.Zero,
                     AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero))
             },
             _ => new()
@@ -337,7 +342,8 @@ public class FirstMotionIntentTests
         {
             Frame = space,
             AsFrame = SmallBubble,
-            FirstMove = new(new MotionSample(Pose: new(Double3.Zero, doubled), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero,
+            FirstMove = new(new MotionSample(Pose: new(Double3.Zero, doubled), ChordVelocity: Double3.Zero,
+                Velocity: Double3.Zero, Acceleration: Double3.Zero,
                 AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero))
         }));
         Entity body = world.Spawn(new()

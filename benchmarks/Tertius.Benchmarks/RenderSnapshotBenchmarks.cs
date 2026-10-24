@@ -129,7 +129,8 @@ public class RenderSnapshotBenchmarks
     /// <summary>The placement of the puffs into a snapshot, per puff.</summary>
     [Benchmark(OperationsPerInvoke = PuffCount)]
     public void PlacePuffs() =>
-        puffBuilder.BuildPuffs(puffSnapshot, new(rows: puffRows, ranges: puffRanges, looks: puffLooks, step: world.DeltaTime));
+        puffBuilder.BuildPuffs(puffSnapshot,
+            new(rows: puffRows, ranges: puffRanges, looks: puffLooks, step: world.DeltaTime));
 
     private static World Flat()
     {

@@ -45,7 +45,8 @@ public sealed class ShuttleJetControlTests : IDisposable
     /// <see cref="Shuttle.FitJets"/>).</summary>
     private void Launch(DQuaternion turn, params IComponent[] components)
     {
-        shuttle = Shuttle.Park(world: world, frame: space, pose: new(Double3.Zero, turn), components: [new Unpark(), .. components]);
+        shuttle = Shuttle.Park(world: world, frame: space, pose: new(Double3.Zero, turn),
+            components: [new Unpark(), .. components]);
         Shuttle.FitJets(world, shuttle);
     }
 
@@ -175,7 +176,8 @@ public sealed class ShuttleJetControlTests : IDisposable
     [Fact]
     public void ANonFiniteTorqueIsAnErrorAndFiresNoJet()
     {
-        Launch(DQuaternion.Identity, new TorqueAt(from: 0, count: int.MaxValue, torque: new(0, double.PositiveInfinity, 0), own: false));
+        Launch(DQuaternion.Identity,
+            new TorqueAt(from: 0, count: int.MaxValue, torque: new(0, double.PositiveInfinity, 0), own: false));
 
         Tick(world, 30);
 

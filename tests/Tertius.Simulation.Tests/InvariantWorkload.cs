@@ -54,9 +54,15 @@ internal sealed class ChaoticWorkload : IDisposable
     /// </summary>
     private static readonly PuffEmitter[] Jets =
     [
-        new(Rate: 90, Speed: 4, Spread: 0.5f, Look: new(Life: 2, StartRadius: 0.1f, EndRadius: 0.5f, TemperatureRatio: 3, Shading: PuffShading.Glow(new(4, 3, 2)))),
-        new(Rate: 45, Speed: 2, Spread: 1.2f, Look: new(Life: 1.5f, StartRadius: 0.2f, EndRadius: 1, TemperatureRatio: 0.75f, Shading: PuffShading.Lit(new(0.6f)))),
-        new(Rate: 120, Speed: 9, Spread: 0.1f, Look: new(Life: 0.3f, StartRadius: 0.1f, EndRadius: 0.2f, TemperatureRatio: 2, Shading: PuffShading.Glow(new(1, 2, 3))))
+        new(Rate: 90, Speed: 4, Spread: 0.5f,
+            Look: new(Life: 2, StartRadius: 0.1f, EndRadius: 0.5f, TemperatureRatio: 3,
+                Shading: PuffShading.Glow(new(4, 3, 2)))),
+        new(Rate: 45, Speed: 2, Spread: 1.2f,
+            Look: new(Life: 1.5f, StartRadius: 0.2f, EndRadius: 1, TemperatureRatio: 0.75f,
+                Shading: PuffShading.Lit(new(0.6f)))),
+        new(Rate: 120, Speed: 9, Spread: 0.1f,
+            Look: new(Life: 0.3f, StartRadius: 0.1f, EndRadius: 0.2f, TemperatureRatio: 2,
+                Shading: PuffShading.Glow(new(1, 2, 3))))
     ];
 
     private static readonly MediumField[] Media =
@@ -88,7 +94,8 @@ internal sealed class ChaoticWorkload : IDisposable
         random = new(seed);
         sampler = new(seed ^ 0x5EED);
         faults = new(new(new() { WorkerThreads = 2 }));
-        World = TestWorld.Create(root: out FrameHandle root, maxDop: maxDegreeOfParallelism, physics: faults, chunkSize: chunkSize, debugChecks: debugChecks,
+        World = TestWorld.Create(root: out FrameHandle root, maxDop: maxDegreeOfParallelism, physics: faults,
+            chunkSize: chunkSize, debugChecks: debugChecks,
             configure: options =>
             {
                 options.DisposePhysics = true;
@@ -104,7 +111,8 @@ internal sealed class ChaoticWorkload : IDisposable
         East = SpawnFrame(parent: root, pose: TestWorld.At(500), spec: new(FrameBounds.Sphere(300)));
         FrameHandle bay = SpawnFrame(parent: East, pose: TestWorld.At(10), spec: new(FrameBounds.Sphere(40)));
         // The Kepler frame orbits a star, far from every other frame. The star's gravity is strong, and nothing is spawned in it.
-        star = SpawnFrame(parent: root, pose: TestWorld.At(0, 0, -30000), spec: new(FrameBounds.Sphere(10000), GravityField.Point(1e6)));
+        star = SpawnFrame(parent: root, pose: TestWorld.At(0, 0, -30000),
+            spec: new(FrameBounds.Sphere(10000), GravityField.Point(1e6)));
         KeplerOrbit starOrbit = KeplerOrbit.Circular(2000, spinRate: 0.1);
         FrameHandle orbit = SpawnFrame(parent: star, pose: DPose.Identity,
             spec: new(FrameBounds.Sphere(300)), rails: desc => desc.OnKeplerOrbit(World, starOrbit));
@@ -208,7 +216,8 @@ internal sealed class ChaoticWorkload : IDisposable
     }
 
     /// <summary>The violations that the cross-checks find in the state as it is now. Empty if it is sound.</summary>
-    public List<string> FindViolations(bool afterTick) => InvariantCrossChecks.Find(world: World, history: History, inboxesCurrent: afterTick, sampler: sampler);
+    public List<string> FindViolations(bool afterTick) => InvariantCrossChecks.Find(world: World, history: History,
+        inboxesCurrent: afterTick, sampler: sampler);
 
     private void Check(string when, bool afterTick)
     {
@@ -440,7 +449,8 @@ internal sealed class ChaoticWorkload : IDisposable
             }
             else if (roll < 17)
             {
-                self.Snapshot.QueryRadius(frame: self.Frame, center: self.PoseInOwnFrame().Position, radius: 40, results: neighbors);
+                self.Snapshot.QueryRadius(frame: self.Frame, center: self.PoseInOwnFrame().Position, radius: 40,
+                    results: neighbors);
                 neighbors.Remove(workload.Root.Entity);
                 if (neighbors.Count > 0)
                 {

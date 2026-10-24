@@ -83,7 +83,8 @@ public record struct DQuaternion(double X, double Y, double Z, double W)
 
     public static DQuaternion FromQuaternion(Quaternion q) => new(X: q.X, Y: q.Y, Z: q.Z, W: q.W);
 
-    public readonly Quaternion ToQuaternion() => Quaternion.Normalize(new(x: (float)X, y: (float)Y, z: (float)Z, w: (float)W));
+    public readonly Quaternion ToQuaternion() =>
+        Quaternion.Normalize(new(x: (float)X, y: (float)Y, z: (float)Z, w: (float)W));
 
     /// <summary>Normalized linear interpolation along the shorter arc.</summary>
     public static DQuaternion Nlerp(DQuaternion a, DQuaternion b, double t)

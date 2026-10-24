@@ -35,7 +35,8 @@ public static partial class DemoScenes
             Frame = ground,
             Pose = new(new(0, -0.5, 0), DQuaternion.Identity),
             Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Static),
-            Render = Drawn(resources: resources, mesh: Primitives.Box(new(50, 0.5f, 50)), color: new(x: 0.3f, y: 0.3f, z: 0.32f, w: 1), boundingRadius: 71)
+            Render = Drawn(resources: resources, mesh: Primitives.Box(new(50, 0.5f, 50)),
+                color: new(x: 0.3f, y: 0.3f, z: 0.32f, w: 1), boundingRadius: 71)
         }));
 
         var flame = new PuffLook(Life: 3, StartRadius: 0.25f, EndRadius: 1.2f, TemperatureRatio: 3,
@@ -44,13 +45,18 @@ public static partial class DemoScenes
             Shading: PuffShading.Glow(new(0.25f, 0.5f, 1.5f)));
         var cold = new PuffLook(Life: 4, StartRadius: 0.2f, EndRadius: 1f, TemperatureRatio: 0.8f,
             Shading: PuffShading.Glow(new(0.15f, 0.6f, 0.2f)));
-        scene.Add("flame", Nozzle(world: world, resources: resources, frame: ground, place: new(-6, 0, 0), direction: Double3.UnitY, emitter: new(Rate: 60, Speed: 6, Spread: 0.15f, Look: flame)));
+        scene.Add("flame",
+            Nozzle(world: world, resources: resources, frame: ground, place: new(-6, 0, 0), direction: Double3.UnitY,
+                emitter: new(Rate: 60, Speed: 6, Spread: 0.15f, Look: flame)));
         scene.Add("blue-jet", Nozzle(world: world, resources: resources, frame: ground, place: new(0, 0, 0),
             direction: new(Math.Cos(Math.PI / 6), Math.Sin(Math.PI / 6), 0),
             emitter: new(Rate: 80, Speed: 12, Spread: 0.08f, Look: blue)));
-        scene.Add("cold-jet", Nozzle(world: world, resources: resources, frame: ground, place: new(6, 0, 0), direction: Double3.UnitY, emitter: new(Rate: 50, Speed: 5, Spread: 0.25f, Look: cold)));
+        scene.Add("cold-jet",
+            Nozzle(world: world, resources: resources, frame: ground, place: new(6, 0, 0), direction: Double3.UnitY,
+                emitter: new(Rate: 50, Speed: 5, Spread: 0.25f, Look: cold)));
 
-        RenderData box = Drawn(resources: resources, mesh: Primitives.Box(new(0.5f)), color: new(x: 1, y: 0.45f, z: 0.1f, w: 1), boundingRadius: 0.87f);
+        RenderData box = Drawn(resources: resources, mesh: Primitives.Box(new(0.5f)),
+            color: new(x: 1, y: 0.45f, z: 0.1f, w: 1), boundingRadius: 0.87f);
         box.Emitter = new(Rate: 90, Speed: 1, Spread: MathF.PI / 2, Look: flame with { Life = 2, EndRadius = 0.8f });
         scene.Add("tossed-box", world.Spawn(new()
         {
@@ -99,7 +105,8 @@ public static partial class DemoScenes
         {
             Frame = frame,
             Pose = new(place + new Double3(0, 0.3, 0), DQuaternion.Identity),
-            Render = Drawn(resources: resources, mesh: Primitives.Box(new(0.15f, 0.3f, 0.15f)), color: new(x: 0.12f, y: 0.12f, z: 0.12f, w: 1),
+            Render = Drawn(resources: resources, mesh: Primitives.Box(new(0.15f, 0.3f, 0.15f)),
+                color: new(x: 0.12f, y: 0.12f, z: 0.12f, w: 1),
                 boundingRadius: 0.4f)
         });
         return world.Spawn(new()

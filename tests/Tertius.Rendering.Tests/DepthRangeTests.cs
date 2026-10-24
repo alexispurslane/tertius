@@ -22,7 +22,8 @@ public sealed class DepthRangeTests
         Depth(finite, 2_000f).Should().BeApproximately(0f, 1e-5f);
         Depth(finite, 1f).Should().BeGreaterThan(Depth(finite, 10f), "nearer is greater");
 
-        Matrix4x4 infinite = DepthRanges.Projection(verticalFov: 1f, aspect: 1.5f, near: 2e6f, far: float.PositiveInfinity);
+        Matrix4x4 infinite =
+            DepthRanges.Projection(verticalFov: 1f, aspect: 1.5f, near: 2e6f, far: float.PositiveInfinity);
         Depth(infinite, 2e6f).Should().BeApproximately(1f, 1e-5f);
         Depth(infinite, 1.5e11f).Should().BeInRange(1e-6f, 1e-4f);
         Depth(infinite, 1e7f).Should().BeGreaterThan(Depth(infinite, 1e8f), "nearer is greater");

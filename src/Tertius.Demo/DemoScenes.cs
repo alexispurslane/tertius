@@ -258,7 +258,8 @@ public static partial class DemoScenes
             AngularVelocity = start.AngularVelocityAt(world.Time, earthMu).ToVector3(),
             // In Earth's frame the hull is a solid box. Inside the ship's own frame it is hollow: the person walks on its
             // floor, and goes out through the airlock along its outer faces.
-            Body = new(Shape: new BoxShapeDesc(Hull), Motion: BodyMotion.Dynamic, Mass: 1e5f, LinearDamping: 0, AngularDamping: 0,
+            Body = new(Shape: new BoxShapeDesc(Hull), Motion: BodyMotion.Dynamic, Mass: 1e5f, LinearDamping: 0,
+                AngularDamping: 0,
                 InteriorShape: new CompoundShapeDesc([
                     .. ShipInterior().Select(box =>
                         new CompoundChild(new BoxShapeDesc(box.Extents), new(box.Center, Quaternion.Identity)))
@@ -268,7 +269,8 @@ public static partial class DemoScenes
             // belly, in the cabin alone.
             AsFrame = new(new(ShipBubble),
                 GravityField.Uniform(new(0, -9.81f, 0), new BoundingBox(-Cabin, Cabin))),
-            Render = Drawn(resources: resources, mesh: HullMesh(), color: new(x: 0.8f, y: 0.8f, z: 0.82f, w: 1), boundingRadius: 32)
+            Render = Drawn(resources: resources, mesh: HullMesh(), color: new(x: 0.8f, y: 0.8f, z: 0.82f, w: 1),
+                boundingRadius: 32)
         });
         scene.Add("ship", ship);
         FrameHandle shipFrame = world.GetOwnedFrame(ship);
@@ -279,7 +281,8 @@ public static partial class DemoScenes
         // glowing panel, with its light just below.
         MeshId lampMesh = resources.CreateMesh(Primitives.Box(new(0.6f, 0.05f, 0.6f)));
         MaterialId lampMaterial =
-            resources.CreateMaterial(new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), SpecularIntensity: 0, Emissive: new(6, 5.4f, 4.5f)));
+            resources.CreateMaterial(new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), SpecularIntensity: 0,
+                Emissive: new(6, 5.4f, 4.5f)));
         for (int i = -2; i <= 2; i++)
             world.Spawn(new()
             {
@@ -291,7 +294,8 @@ public static partial class DemoScenes
                     Material = lampMaterial,
                     BoundingRadius = 0.85f,
                     Flags = RenderFlags.Visible,
-                    Light = new PointLightData(Offset: new(new(0, -0.1f, 0), Quaternion.Identity), Color: new(1, 0.9f, 0.75f),
+                    Light = new PointLightData(Offset: new(new(0, -0.1f, 0), Quaternion.Identity),
+                        Color: new(1, 0.9f, 0.75f),
                         Intensity: 100, Range: 20)
                 }
             });
@@ -299,10 +303,13 @@ public static partial class DemoScenes
         // A pane of glass in each window: mostly clear, with a slight blue tint. It casts no shadow, so sunlight comes in
         // through a window when the sun stands on its side. It has no body, because the walls of the interior shape are
         // solid at the windows.
-        MaterialId glass = resources.CreateMaterial(new(BaseColor: new(x: 0.45f, y: 0.65f, z: 1, w: 0.2f), SpecularIntensity: 1, Gloss: 0.9f));
+        MaterialId glass = resources.CreateMaterial(new(BaseColor: new(x: 0.45f, y: 0.65f, z: 1, w: 0.2f),
+            SpecularIntensity: 1, Gloss: 0.9f));
         var paneMeshes = new Dictionary<Vector3, MeshId>();
         foreach ((string pane, Opening window) in Windows)
-            scene.Add(pane, world.Spawn(PaneIn(frame: shipFrame, window: window, glass: glass, meshes: paneMeshes, resources: resources)));
+            scene.Add(pane,
+                world.Spawn(PaneIn(frame: shipFrame, window: window, glass: glass, meshes: paneMeshes,
+                    resources: resources)));
 
         // The airlock's doors slide up into the wall above their doorways. Each is 0.1 m thick, in the middle of its wall.
         Entity innerDoor = world.Spawn(DoorIn(shipFrame, InnerDoorway, resources));
@@ -325,7 +332,8 @@ public static partial class DemoScenes
             Frame = shipFrame,
             Pose = new(new(0, -Cabin.Y + 0.95, AirlockZ), DQuaternion.Identity),
             Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: 70),
-            Render = Drawn(resources: resources, mesh: Primitives.Box(new(0.3f, 0.9f, 0.3f)), color: new(x: 0.2f, y: 0.45f, z: 0.8f, w: 1),
+            Render = Drawn(resources: resources, mesh: Primitives.Box(new(0.3f, 0.9f, 0.3f)),
+                color: new(x: 0.2f, y: 0.45f, z: 0.8f, w: 1),
                 boundingRadius: 1),
             Components = [new PersonControl(new(0, 0.75f, 0)), new Carry(capsule)],
             Subscriptions = [Topics.Input]
@@ -335,7 +343,8 @@ public static partial class DemoScenes
         // floor, aft of the person and to starboard, away from its ways in the other scripts and out of its reach where it
         // presses E. One lies in the airlock's chamber, in the corner by the hatch on the aft side, beside the person's way
         // in. The person presses E in the middle of the chamber, so it reaches that crate and the airlock with one press.
-        var crate = new CrateSpec(HalfExtents: new(0.2f), Mass: 5, Mesh: resources.CreateMesh(Primitives.Box(new(0.2f))),
+        var crate = new CrateSpec(HalfExtents: new(0.2f), Mass: 5,
+            Mesh: resources.CreateMesh(Primitives.Box(new(0.2f))),
             Material: resources.CreateMaterial(MaterialDesc.Color(new(x: 0.3f, y: 0.6f, z: 0.25f, w: 1))));
         double onTheFloor = -Cabin.Y + crate.HalfExtents.Y;
 
@@ -413,7 +422,9 @@ public static partial class DemoScenes
         DQuaternion obliquity = DQuaternion.FromAxisAngle(Double3.UnitX, -Obliquity);
         const double eccentricity = 0.01671123, perihelion = 102.93768193 * Math.PI / 180;
         double meanAnomaly = MeanAnomaly(date.Longitude - perihelion, eccentricity);
-        return new(SemiMajorAxis: 1.00000261 * AstronomicalUnit, Eccentricity: eccentricity, Inclination: 0, LongitudeOfAscendingNode: 0, ArgumentOfPeriapsis: perihelion, MeanAnomalyAtEpoch: meanAnomaly, Epoch: 0, AxialTilt: obliquity, SpinRate: 0, SpinPhaseAtEpoch: 0);
+        return new(SemiMajorAxis: 1.00000261 * AstronomicalUnit, Eccentricity: eccentricity, Inclination: 0,
+            LongitudeOfAscendingNode: 0, ArgumentOfPeriapsis: perihelion, MeanAnomalyAtEpoch: meanAnomaly, Epoch: 0,
+            AxialTilt: obliquity, SpinRate: 0, SpinPhaseAtEpoch: 0);
     }
 
     /// <summary>
@@ -498,7 +509,8 @@ public static partial class DemoScenes
             Render = new RenderData
             {
                 Mesh = resources.CreateMesh(Primitives.Sphere((float)MoonRadius, 128, 64)),
-                Material = resources.CreateMaterial(new(BaseColor: new(x: 0.55f, y: 0.55f, z: 0.53f, w: 1), SpecularIntensity: 0.05f)),
+                Material = resources.CreateMaterial(new(BaseColor: new(x: 0.55f, y: 0.55f, z: 0.53f, w: 1),
+                    SpecularIntensity: 0.05f)),
                 BoundingRadius = (float)MoonRadius,
                 Flags = RenderFlags.Visible | RenderFlags.Celestial
             }
@@ -586,7 +598,8 @@ public static partial class DemoScenes
             Frame = frame,
             Pose = new(doorway.Center, DQuaternion.Identity),
             Body = new(Shape: new BoxShapeDesc(half), Motion: BodyMotion.Kinematic),
-            Render = Drawn(resources: resources, mesh: Primitives.Box(half), color: new(x: 0.85f, y: 0.45f, z: 0.1f, w: 1), boundingRadius: half.Length()),
+            Render = Drawn(resources: resources, mesh: Primitives.Box(half),
+                color: new(x: 0.85f, y: 0.45f, z: 0.1f, w: 1), boundingRadius: half.Length()),
             Components = [new Door(new(0, 2 * doorway.Extents.Y + 0.1f, 0), openSeconds: 1.5f)]
         };
     }
@@ -665,7 +678,8 @@ public static partial class DemoScenes
             Frame = ground,
             Pose = new(new(0, -0.5, 0), DQuaternion.Identity),
             Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Static),
-            Render = Drawn(resources: resources, mesh: Primitives.Box(new(50, 0.5f, 50)), color: new(x: 0.35f, y: 0.35f, z: 0.35f, w: 1),
+            Render = Drawn(resources: resources, mesh: Primitives.Box(new(50, 0.5f, 50)),
+                color: new(x: 0.35f, y: 0.35f, z: 0.35f, w: 1),
                 boundingRadius: 71)
         }));
         scene.Add("box", world.Spawn(new()
@@ -673,7 +687,8 @@ public static partial class DemoScenes
             Frame = ground,
             Pose = new(new(0, 3, 0), DQuaternion.Identity),
             Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10),
-            Render = Drawn(resources: resources, mesh: Primitives.Box(new(0.5f)), color: new(x: 1, y: 0.45f, z: 0.1f, w: 1), boundingRadius: 0.87f)
+            Render = Drawn(resources: resources, mesh: Primitives.Box(new(0.5f)),
+                color: new(x: 1, y: 0.45f, z: 0.1f, w: 1), boundingRadius: 0.87f)
         }));
         Entity camera = world.Spawn(new()
         {

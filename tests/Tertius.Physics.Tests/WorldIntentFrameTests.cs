@@ -111,7 +111,8 @@ public class WorldIntentFrameTests
     {
         using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
-        FrameHandle room = world.GetOwnedFrame(Room(world: world, space: space, pose: new(new(20, 0, 0), Turned), radius: 5));
+        FrameHandle room =
+            world.GetOwnedFrame(Room(world: world, space: space, pose: new(new(20, 0, 0), Turned), radius: 5));
         // 6 m/s along +X: the cube touches the bubble at x = 14.1, in the step of tick 91, and leaves it fully at x = 26.7.
         var rail = new Rail(space: space, start: new(5, 0, 0), velocity: new(6, 0, 0));
         var frames = new FrameChangedLog();
@@ -192,7 +193,8 @@ public class WorldIntentFrameTests
     {
         using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
-        FrameHandle room = world.GetOwnedFrame(Room(world: world, space: space, pose: new(new(20, 0, 0), Turned), radius: 5));
+        FrameHandle room =
+            world.GetOwnedFrame(Room(world: world, space: space, pose: new(new(20, 0, 0), Turned), radius: 5));
         var rail = new Rail(space: space, start: new(5, 0, 0), velocity: new(6, 0, 0), steer: true);
         var frames = new FrameChangedLog();
         Entity cube = world.Spawn(new()
@@ -215,7 +217,8 @@ public class WorldIntentFrameTests
         using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
         const long doomsday = 20;
-        Entity roomOwner = Room(world: world, space: space, pose: new(new(0, 0, 30), Turned), radius: 50, new DestroyAt(doomsday));
+        Entity roomOwner = Room(world: world, space: space, pose: new(new(0, 0, 30), Turned), radius: 50,
+            new DestroyAt(doomsday));
         FrameHandle room = world.GetOwnedFrame(roomOwner);
         var rail = new Rail(space: space, start: new(1, 0, 31), velocity: new(0, 3, 0));
         var frames = new FrameChangedLog();
@@ -246,7 +249,8 @@ public class WorldIntentFrameTests
         // outside: 6.73 m from the room's center. At 6 m/s from the center, the step of tick 67 ends 6.8 m out, and the step
         // before 6.7 m. The room dies at the same sync point.
         const long leaving = 67;
-        Entity roomOwner = Room(world: world, space: space, pose: new(new(0, 0, 30), Turned), radius: 5, new DestroyAt(leaving));
+        Entity roomOwner = Room(world: world, space: space, pose: new(new(0, 0, 30), Turned), radius: 5,
+            new DestroyAt(leaving));
         FrameHandle room = world.GetOwnedFrame(roomOwner);
         var rail = new Rail(space: space, start: new(0, 0, 30), velocity: new(0, 6, 0));
         Entity cube = world.Spawn(new()
@@ -291,10 +295,12 @@ public class WorldIntentFrameTests
     [Fact]
     public void AnEndPoseWrittenInTheTickInWhichTheBodyEntersAChildOfAFrameThatDiesMovesTheBodyWhereGameplayMeantIt()
     {
-        long entering = RunCabinScene(doomsday: long.MaxValue, world: out _, roomOwner: out _, cabin: out _, cube: out _, rail: out _);
+        long entering = RunCabinScene(doomsday: long.MaxValue, world: out _, roomOwner: out _, cabin: out _,
+            cube: out _, rail: out _);
         entering.Should().BeGreaterThan(10, "the cube enters the cabin after a while");
 
-        RunCabinScene(doomsday: entering, world: out World world, roomOwner: out Entity roomOwner, cabin: out FrameHandle cabin, cube: out Entity cube,
+        RunCabinScene(doomsday: entering, world: out World world, roomOwner: out Entity roomOwner,
+            cabin: out FrameHandle cabin, cube: out Entity cube,
             rail: out Rail rail);
         using (world)
         {
@@ -322,10 +328,12 @@ public class WorldIntentFrameTests
     {
         world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
-        roomOwner = Room(world: world, space: space, pose: new(new(0, 0, 30), Turned), radius: 50, new DestroyAt(doomsday));
+        roomOwner = Room(world: world, space: space, pose: new(new(0, 0, 30), Turned), radius: 50,
+            new DestroyAt(doomsday));
         FrameHandle room = world.GetOwnedFrame(roomOwner);
         // Turned carries the room's +Y to space's +Z.
-        cabin = world.GetOwnedFrame(Room(world: world, space: room, pose: new(new(0, 20, 0), DQuaternion.Identity), radius: 5, new Hold()));
+        cabin = world.GetOwnedFrame(Room(world: world, space: room, pose: new(new(0, 20, 0), DQuaternion.Identity),
+            radius: 5, new Hold()));
         rail = new(space: space, start: new(0, 0, 40), velocity: new(0, 0, 3));
         cube = world.Spawn(new()
         {

@@ -86,7 +86,8 @@ internal sealed class YardRecord
                 HomeMode: home.IsNull ? NumericMode.None : world.Frames.Numeric(home));
         }
 
-        Ticks.Add(new(Tick: world.TickNumber, Time: world.Time, Bodies: bodies, PersonStanding: world.IsStanding(scene["person"]),
+        Ticks.Add(new(Tick: world.TickNumber, Time: world.Time, Bodies: bodies,
+            PersonStanding: world.IsStanding(scene["person"]),
             NumericFrames: world.Frames.NumericCount, Errors: world.Errors.Count));
     }
 }

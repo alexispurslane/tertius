@@ -370,7 +370,8 @@ public class KeplerParentGravityTests
         });
         FrameHandle moon = t.World.GetOwnedFrame(t.World.Spawn(KeplerMoon(t.World.GetOwnedFrame(innerOwner))));
         t.Run(1);
-        t.SpawnWith(SendOnce.Of(target: outerOwner, payload: new Destroy()), SendOnce.Of(target: innerOwner, payload: new Destroy()));
+        t.SpawnWith(SendOnce.Of(target: outerOwner, payload: new Destroy()),
+            SendOnce.Of(target: innerOwner, payload: new Destroy()));
 
         t.Run(2);
 

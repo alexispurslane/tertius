@@ -14,10 +14,6 @@ namespace Tertius.Slop;
 /// </summary>
 public sealed record Function(SyntaxNode Node)
 {
-    /// <summary>Every function in <paramref name="root"/>, in the order of the source.</summary>
-    public static IEnumerable<Function> In(SyntaxNode root) =>
-        root.DescendantNodes().Where(IsFunction).Select(node => new Function(node));
-
     /// <summary>
     /// The syntactic cyclomatic complexity: 1, plus 1 for each <c>if</c>, <c>while</c>, <c>do</c>, <c>for</c>,
     /// <c>foreach</c>, <c>catch</c>, <c>?:</c>, <c>??</c>, <c>??=</c>, <c>&amp;&amp;</c>, <c>||</c> and pattern
@@ -40,6 +36,10 @@ public sealed record Function(SyntaxNode Node)
     public int Line =>
         Node.DescendantTokens(descendIntoChildren: node => node is not AttributeListSyntax).First().GetLocation()
             .GetLineSpan().StartLinePosition.Line + 1;
+
+    /// <summary>Every function in <paramref name="root"/>, in the order of the source.</summary>
+    public static IEnumerable<Function> In(SyntaxNode root) =>
+        root.DescendantNodes().Where(IsFunction).Select(node => new Function(node));
 
     /// <summary>The measures of this function, in the file at <paramref name="file"/>.</summary>
     public FunctionMeasure Measure(string file) =>

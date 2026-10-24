@@ -105,7 +105,8 @@ internal sealed class OutlinePass : RenderPass
             {
                 case SemanticOutline(var center, var rotation, var radii):
                     // A bubble with three equal radii is a sphere, by the rule of FrameBounds, so it also gets its rim.
-                    Add(scene: scene, center: center, rotation: new(x: rotation.X, y: rotation.Y, z: rotation.Z, w: rotation.W), radii: radii,
+                    Add(scene: scene, center: center,
+                        rotation: new(x: rotation.X, y: rotation.Y, z: rotation.Z, w: rotation.W), radii: radii,
                         color: OutlineColors.Semantic,
                         flags: new FrameBounds(radii).IsSphere ? GpuOutline.SphereFlag : 0);
                     break;
@@ -131,7 +132,8 @@ internal sealed class OutlinePass : RenderPass
 
     /// <summary>A contents sphere has no axes of its own, so its rings lie in the axes of the camera's frame.</summary>
     private static void AddSphere(PreparedScene scene, Vector3 center, float radius, uint color) =>
-        Add(scene: scene, center: center, rotation: new(x: 0, y: 0, z: 0, w: 1), radii: new(radius), color: color, flags: GpuOutline.SphereFlag);
+        Add(scene: scene, center: center, rotation: new(x: 0, y: 0, z: 0, w: 1), radii: new(radius), color: color,
+            flags: GpuOutline.SphereFlag);
 
     private static void Add(PreparedScene scene, Vector3 center, Vector4 rotation, Vector3 radii, uint color,
         uint flags)
@@ -179,12 +181,16 @@ internal sealed class OutlinePass : RenderPass
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, pipeline);
         DescriptorSet* sets = stackalloc[]
             { context.Frame.FrameSet, context.Frame.TextureSet, context.Targets.GBufferSet };
-        vk.CmdBindDescriptorSets(commandBuffer: commandBuffer, pipelineBindPoint: PipelineBindPoint.Graphics, layout: layouts.OverlayLayout, firstSet: 0, descriptorSetCount: 3, pDescriptorSets: sets, dynamicOffsetCount: 0, pDynamicOffsets: null);
+        vk.CmdBindDescriptorSets(commandBuffer: commandBuffer, pipelineBindPoint: PipelineBindPoint.Graphics,
+            layout: layouts.OverlayLayout, firstSet: 0, descriptorSetCount: 3, pDescriptorSets: sets,
+            dynamicOffsetCount: 0, pDynamicOffsets: null);
         context.SetFullViewport();
         var push = new OutlinePushConstants { EncodeSrgb = context.EncodeSrgb ? 1u : 0u };
-        vk.CmdPushConstants(commandBuffer: commandBuffer, layout: layouts.OverlayLayout, stageFlags: ShaderStageFlags.FragmentBit, offset: 0,
+        vk.CmdPushConstants(commandBuffer: commandBuffer, layout: layouts.OverlayLayout,
+            stageFlags: ShaderStageFlags.FragmentBit, offset: 0,
             size: (uint)sizeof(OutlinePushConstants), pValues: &push);
-        vk.CmdDraw(commandBuffer: commandBuffer, vertexCount: VerticesPerOutline, instanceCount: (uint)count, firstVertex: 0, firstInstance: 0);
+        vk.CmdDraw(commandBuffer: commandBuffer, vertexCount: VerticesPerOutline, instanceCount: (uint)count,
+            firstVertex: 0, firstInstance: 0);
         vk.CmdEndRendering(commandBuffer);
     }
 

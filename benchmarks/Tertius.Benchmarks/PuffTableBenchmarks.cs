@@ -47,7 +47,8 @@ public class PuffTableBenchmarks
     [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "newborns")]
     private static extern ref Puff[] NewbornsOf(PuffTable table);
 
-    private static PuffLook Look(float life) => new(Life: life, StartRadius: 0.2f, EndRadius: 1, TemperatureRatio: 3, Shading: PuffShading.Glow(new(4, 3, 2)));
+    private static PuffLook Look(float life) => new(Life: life, StartRadius: 0.2f, EndRadius: 1, TemperatureRatio: 3,
+        Shading: PuffShading.Glow(new(4, 3, 2)));
 
     /// <summary>The world, its frame of the puffs and the place of the emitter in it.</summary>
     private (FrameHandle Frame, Double3 Place) Scene(int capacity)

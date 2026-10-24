@@ -12,8 +12,12 @@ namespace Tertius.Simulation.Tests;
 public class FrameMediumTests
 {
     private static readonly MediumField CabinAir = MediumField.Uniform(1.225f, 2, new BoundingBox(new(-3), new(3)));
-    private static readonly MediumField Thin = MediumField.Planet(radius: 6_371_000, surfaceDensity: 1.225f, scaleHeight: 8_500, drag: 0.5f);
-    private static readonly MediumField NotValid = MediumField.Planet(radius: 6_371_000, surfaceDensity: 1.225f, scaleHeight: 0, drag: 0.5f);
+
+    private static readonly MediumField Thin =
+        MediumField.Planet(radius: 6_371_000, surfaceDensity: 1.225f, scaleHeight: 8_500, drag: 0.5f);
+
+    private static readonly MediumField NotValid =
+        MediumField.Planet(radius: 6_371_000, surfaceDensity: 1.225f, scaleHeight: 0, drag: 0.5f);
 
     private static FrameHandle SpawnFrame(TestWorld test, FrameHandle parent, DPose pose, MediumField medium,
         float radius = 10,

@@ -143,7 +143,10 @@ public class EdgeRemovalBenchmarks
         world = new(new() { MaxDegreeOfParallelism = 1, DisposePhysics = true }, backend);
         frame = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(9.81f, 0, 0))));
         world.Spawn(new()
-            { Frame = frame, Body = new(Shape: Floor == RingFloor.Hulls ? RingHulls() : RingMesh(), Motion: BodyMotion.Static) });
+        {
+            Frame = frame,
+            Body = new(Shape: Floor == RingFloor.Hulls ? RingHulls() : RingMesh(), Motion: BodyMotion.Static)
+        });
         List<Entity> slidingBoxes = [], slidingBalls = [];
         if (Load == FloorLoad.Characters)
             people = SpawnCharacters();

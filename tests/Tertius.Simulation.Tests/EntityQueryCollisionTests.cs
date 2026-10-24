@@ -24,7 +24,10 @@ public class EntityQueryCollisionTests
     {
         Frame = frame,
         Pose = WorldTesting.At(x),
-        Body = new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static) with { CollisionGroups = groups },
+        Body = new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static) with
+        {
+            CollisionGroups = groups
+        },
         Components = [new Metal(), .. more]
     });
 
@@ -41,7 +44,8 @@ public class EntityQueryCollisionTests
         CollisionGroup wall = registry.Register("Wall");
         using World world = NewWorld(out FrameHandle space);
         Box(world: world, frame: space, x: 0, groups: CollisionGroups.Of(CollisionGroup.Solid));
-        Entity solidWall = Box(world: world, frame: space, x: 10, groups: CollisionGroups.Of(CollisionGroup.Solid).And(wall));
+        Entity solidWall = Box(world: world, frame: space, x: 10,
+            groups: CollisionGroups.Of(CollisionGroup.Solid).And(wall));
         Box(world: world, frame: space, x: 20, groups: CollisionGroups.Of(wall));
 
         Found(world.Snapshot.Find(EntityQuery.With<Metal>().InAll(CollisionGroup.Solid).InAll(wall))).Should()
@@ -66,7 +70,8 @@ public class EntityQueryCollisionTests
         CollisionGroup wall = registry.Register("Wall");
         using World world = NewWorld(out FrameHandle space);
         Entity solid = Box(world: world, frame: space, x: 0, groups: CollisionGroups.Of(CollisionGroup.Solid));
-        Entity solidWall = Box(world: world, frame: space, x: 10, groups: CollisionGroups.Of(CollisionGroup.Solid).And(wall));
+        Entity solidWall = Box(world: world, frame: space, x: 10,
+            groups: CollisionGroups.Of(CollisionGroup.Solid).And(wall));
         Entity plain = world.SpawnWith(space, new Metal());
 
         Found(world.Snapshot.Find(EntityQuery.With<Metal>().InNone(wall))).Should().Equal(solid, plain);

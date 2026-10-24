@@ -254,7 +254,8 @@ internal sealed class SceneBatcher
         transparent.AsSpan(0, transparentCount).Sort(default(DrawItemComparer));
         EnsureCapacity(ref scene.Instances, opaqueCount + transparentCount);
         Emit(scene: scene, meshes: meshes, items: opaque.AsSpan(0, opaqueCount), ranges: scene.Opaque);
-        EmitTransparent(scene: scene, meshes: meshes, items: transparent.AsSpan(0, transparentCount), firstPuff: visible.Length);
+        EmitTransparent(scene: scene, meshes: meshes, items: transparent.AsSpan(0, transparentCount),
+            firstPuff: visible.Length);
     }
 
     /// <summary>
@@ -286,7 +287,8 @@ internal sealed class SceneBatcher
             if (isPuff)
                 scene.Puffs[scene.PuffCount++] = collectedPuffs[item.Index - firstPuff];
             else
-                AppendInstanceCommand(scene: scene, meshes: meshes, instance: ref scene.Visible[item.Index], currentMesh: ref currentMesh);
+                AppendInstanceCommand(scene: scene, meshes: meshes, instance: ref scene.Visible[item.Index],
+                    currentMesh: ref currentMesh);
         }
 
         if (currentRange >= 0)
@@ -307,7 +309,8 @@ internal sealed class SceneBatcher
         ref PreparedInstance instance, ref int currentMesh)
     {
         int gpuIndex = scene.InstanceCount++;
-        scene.Instances[gpuIndex] = GpuInstance.From(position: instance.Position, rotation: instance.Rotation, scale: instance.Scale,
+        scene.Instances[gpuIndex] = GpuInstance.From(position: instance.Position, rotation: instance.Rotation,
+            scale: instance.Scale,
             material: instance.Material, hemisphere: instance.Hemisphere);
         if (instance.Mesh == currentMesh)
         {
@@ -367,7 +370,8 @@ internal sealed class SceneBatcher
             {
                 case PointRenderLight(var worldPosition, var color, var intensity, var range):
                 {
-                    if (!Reaches(camera: camera, worldPosition: worldPosition, intensity: intensity, range: range, position: out Vector3 position))
+                    if (!Reaches(camera: camera, worldPosition: worldPosition, intensity: intensity, range: range,
+                            position: out Vector3 position))
                         continue;
                     // A point light has no direction and no cone, so those fields of its GpuLight stay zero. The shader and the
                     // impostor lighting read them only for a spot light.
@@ -381,7 +385,8 @@ internal sealed class SceneBatcher
                 case SpotRenderLight(var worldPosition, var axis, var color, var intensity, var range, var
                     innerConeAngle, var outerConeAngle):
                 {
-                    if (!Reaches(camera: camera, worldPosition: worldPosition, intensity: intensity, range: range, position: out Vector3 position))
+                    if (!Reaches(camera: camera, worldPosition: worldPosition, intensity: intensity, range: range,
+                            position: out Vector3 position))
                         continue;
                     Vector3 direction = axis.LengthSquared() > 1e-12f ? Vector3.Normalize(axis) : -Vector3.UnitY;
                     float cosOuter = MathF.Cos(Math.Clamp(outerConeAngle, 0f, MathF.PI));
@@ -512,7 +517,8 @@ internal sealed class SceneBatcher
             AmbientSky = new(ambient.SkyColor * ambient.Intensity, 0f),
             AmbientGround = new(ambient.GroundColor * ambient.Intensity, 0f),
             Viewport =
-                new(x: camera.Width, y: camera.Height, z: 1f / Math.Max(camera.Width, 1), w: 1f / Math.Max(camera.Height, 1)),
+                new(x: camera.Width, y: camera.Height, z: 1f / Math.Max(camera.Width, 1),
+                    w: 1f / Math.Max(camera.Height, 1)),
             Params = new(x: 1f, y: (float)snapshot.Time, z: camera.PixelAngle, w: 0f),
             LightCount = (uint)scene.LightCount,
             OccluderCount = (uint)scene.OccluderCount,

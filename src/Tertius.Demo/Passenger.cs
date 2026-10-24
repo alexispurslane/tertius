@@ -298,7 +298,8 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
             return;
         }
 
-        Steer(self: self, outbox: outbox, velocity: way * (Math.Min(FloatSpeed, distance * ApproachRate) / distance), mass: mass);
+        Steer(self: self, outbox: outbox, velocity: way * (Math.Min(FloatSpeed, distance * ApproachRate) / distance),
+            mass: mass);
     }
 
     /// <summary>
@@ -341,7 +342,8 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
         Double3 lineUp = way - ahead * gap;
         double distance = lineUp.Length;
         double speed = Math.Min(FloatSpeed, distance * ApproachRate);
-        Steer(self: self, outbox: outbox, velocity: penVelocity + (distance > 0 ? lineUp * (speed / distance) : Double3.Zero), mass: mass);
+        Steer(self: self, outbox: outbox,
+            velocity: penVelocity + (distance > 0 ? lineUp * (speed / distance) : Double3.Zero), mass: mass);
     }
 
     /// <summary>
@@ -356,7 +358,8 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
         Pose view = self.Render.ViewOffset;
         var grip = Pose.Compose(view.Inverse(), DPose.Compose(self.PoseIn(self.Frame).Inverse(), penPose).ToPose());
         outbox.Send(pen, new CrateTaken());
-        State = new Holding(self.Spawn(offered.HeldCopy(frame: self.Frame, holder: self.Entity, view: view, grip: grip)));
+        State = new Holding(
+            self.Spawn(offered.HeldCopy(frame: self.Frame, holder: self.Entity, view: view, grip: grip)));
         return true;
     }
 

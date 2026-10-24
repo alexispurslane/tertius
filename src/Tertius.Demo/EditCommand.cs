@@ -117,7 +117,8 @@ public static class EditCommand
             return ScriptCommand.FileError;
         }
 
-        List<string> arguments = Arguments(stretches: stretches, cuts: cuts, master: options.Master, music: options.Music, musicStart: options.MusicStart,
+        List<string> arguments = Arguments(stretches: stretches, cuts: cuts, master: options.Master,
+            music: options.Music, musicStart: options.MusicStart,
             output: options.Output, width: width, height: height);
         try
         {
@@ -135,7 +136,8 @@ public static class EditCommand
         }
 
         int videoFrames = cuts.Opening.Frames + stretches.Sum(s => s.Count) + cuts.Closing.Frames;
-        output.WriteLine(string.Format(provider: CultureInfo.InvariantCulture, format: "{0}: {1:F1} s", arg0: options.Output,
+        output.WriteLine(string.Format(provider: CultureInfo.InvariantCulture, format: "{0}: {1:F1} s",
+            arg0: options.Output,
             arg1: videoFrames / (double)Stretch.FramesPerSecond));
         return ScriptCommand.Ok;
     }
@@ -178,7 +180,8 @@ public static class EditCommand
 
         double start = 0;
         if (values.TryGetValue("--music-start", out string? startText) &&
-            !(double.TryParse(s: startText, style: NumberStyles.Float, provider: CultureInfo.InvariantCulture, result: out start) && start >= 0))
+            !(double.TryParse(s: startText, style: NumberStyles.Float, provider: CultureInfo.InvariantCulture,
+                result: out start) && start >= 0))
         {
             error.WriteLine("--music-start must be a number of seconds, 0 or more.");
             return null;
@@ -191,9 +194,11 @@ public static class EditCommand
             return null;
         }
 
-        return new(Output: Path.GetFullPath(output), Script: Path.GetFullPath(values["--script"]), Master: Path.GetFullPath(values["--master"]),
+        return new(Output: Path.GetFullPath(output), Script: Path.GetFullPath(values["--script"]),
+            Master: Path.GetFullPath(values["--master"]),
             Readouts: Path.GetFullPath(values["--readouts"]),
-            Music: music == null ? null : Path.GetFullPath(music), MusicStart: start, MusicCredit: values.GetValueOrDefault("--music-credit"));
+            Music: music == null ? null : Path.GetFullPath(music), MusicStart: start,
+            MusicCredit: values.GetValueOrDefault("--music-credit"));
     }
 
     /// <summary>Writes the subtitle files and the folder of fonts into <paramref name="parts"/>.</summary>
@@ -274,10 +279,11 @@ public static class EditCommand
     private static (int Frames, int Width, int Height) ProbeMaster(string master)
     {
         (int exit, string text) = RunTool(tool: "ffprobe",
-        arguments: [
-            "-v", "error", "-select_streams", "v:0", "-count_packets", "-show_entries",
-            "stream=nb_read_packets,width,height", "-of", "csv=p=0", master
-        ], folder: null, standardOutput: true);
+            arguments:
+            [
+                "-v", "error", "-select_streams", "v:0", "-count_packets", "-show_entries",
+                "stream=nb_read_packets,width,height", "-of", "csv=p=0", master
+            ], folder: null, standardOutput: true);
         if (exit != 0)
             throw new IOException($"ffprobe cannot read the master {master}: {text}");
         string[] cells = text.Trim().Split(',');

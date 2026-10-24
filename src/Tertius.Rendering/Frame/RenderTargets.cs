@@ -85,15 +85,22 @@ internal sealed class RenderTargets : IDisposable
     {
         const ImageUsageFlags target = ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit;
         Extent = extent;
-        Albedo = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: AlbedoFormat, usage: target, mipLevels: 1, name: "g-buffer albedo");
-        Normal = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: NormalFormat, usage: target, mipLevels: 1, name: "g-buffer normal");
-        SpecularGloss = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: SpecularGlossFormat, usage: target, mipLevels: 1,
+        Albedo = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: AlbedoFormat,
+            usage: target, mipLevels: 1, name: "g-buffer albedo");
+        Normal = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: NormalFormat,
+            usage: target, mipLevels: 1, name: "g-buffer normal");
+        SpecularGloss = GpuImage.Create(device: device, allocator: allocator, extent: extent,
+            format: SpecularGlossFormat, usage: target, mipLevels: 1,
             name: "g-buffer specular-gloss");
-        Emissive = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: EmissiveFormat, usage: target, mipLevels: 1, name: "g-buffer emissive");
-        Distance = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: DistanceFormat, usage: target, mipLevels: 1, name: "g-buffer distance");
-        Depth = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: DepthFormat, usage: ImageUsageFlags.DepthStencilAttachmentBit, mipLevels: 1,
+        Emissive = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: EmissiveFormat,
+            usage: target, mipLevels: 1, name: "g-buffer emissive");
+        Distance = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: DistanceFormat,
+            usage: target, mipLevels: 1, name: "g-buffer distance");
+        Depth = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: DepthFormat,
+            usage: ImageUsageFlags.DepthStencilAttachmentBit, mipLevels: 1,
             name: "depth");
-        Hdr = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: HdrFormat, usage: target, mipLevels: 1, name: "hdr");
+        Hdr = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: HdrFormat, usage: target,
+            mipLevels: 1, name: "hdr");
         GBuffer = [Albedo, Normal, SpecularGloss, Emissive, Distance];
         for (int i = 0; i < GBuffer.Length; i++)
             layouts.WriteImage(set: GBufferSet, binding: (uint)i, arrayElement: 0, image: GBuffer[i]);

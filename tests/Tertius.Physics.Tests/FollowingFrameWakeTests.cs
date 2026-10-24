@@ -260,7 +260,8 @@ public class FollowingFrameWakeTests
         public EventMask Wants => EventMask.Of<Tick>();
 
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
-            self.MoveOnRails(new(Pose: At(0), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Acceleration, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero));
+            self.MoveOnRails(new(Pose: At(0), ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
+                Acceleration: Acceleration, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero));
     }
 
     /// <summary>

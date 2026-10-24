@@ -30,7 +30,9 @@ public sealed class ShuttleTests : IDisposable
         FrameHandle earth =
             world.CreateRootFrame(new(FrameBounds.Sphere(1e7f), GravityField.Point(DemoScenes.EarthMu)));
         double r = DemoScenes.EarthRadius + Shuttle.Hull.Y;
-        FrameHandle cabin = world.GetOwnedFrame(Shuttle.Park(world: world, frame: earth, pose: new(new(0, r, 0), DQuaternion.Identity)));
+        FrameHandle cabin =
+            world.GetOwnedFrame(Shuttle.Park(world: world, frame: earth,
+                pose: new(new(0, r, 0), DQuaternion.Identity)));
         Entity ball = world.Spawn(new() { Frame = cabin, Pose = At(0, -Shuttle.Cabin.Y + 1.5), Body = Ball(0.1f) });
         Tick(world, 2);
         Double3 before = world.VelocityIn(ball, cabin);
@@ -356,7 +358,10 @@ public sealed class ShuttleTests : IDisposable
         FrameHandle ground =
             world.CreateRootFrame(new(FrameBounds.Sphere(1e4f), GravityField.Uniform(new(0, -9.81f, 0))));
         world.Spawn(new()
-            { Frame = ground, Pose = At(0, 0.6), Body = new(Shape: new BoxShapeDesc(new(8, 0.6f, 8)), Motion: BodyMotion.Static) });
+        {
+            Frame = ground, Pose = At(0, 0.6),
+            Body = new(Shape: new BoxShapeDesc(new(8, 0.6f, 8)), Motion: BodyMotion.Static)
+        });
         Entity hull = world.Spawn(new()
         {
             Frame = ground,

@@ -36,5 +36,6 @@ public record struct FrameSpin(DQuaternion Tilt, double Rate, double PhaseAtEpoc
     /// depend on it. It keeps the signature the same as <see cref="KeplerOrbit.Sample"/>.
     /// </summary>
     public readonly MotionSample Sample(Double3 place, double stepEnd, double step) =>
-        new(Pose: new(place, RotationAt(stepEnd)), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: AngularVelocity, AngularAcceleration: Double3.Zero);
+        new(Pose: new(place, RotationAt(stepEnd)), ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
+            Acceleration: Double3.Zero, AngularVelocity: AngularVelocity, AngularAcceleration: Double3.Zero);
 }

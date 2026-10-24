@@ -93,7 +93,8 @@ public sealed class ExitRun : IDisposable
             Station);
         Double3 sight = position - view.Position;
         var hits = new List<RayCastHit>();
-        backend.CastRay(frame: Station, origin: view.Position, direction: sight.Normalized(), start: 0, end: sight.Length, filter: new AllBut(person),
+        backend.CastRay(frame: Station, origin: view.Position, direction: sight.Normalized(), start: 0,
+            end: sight.Length, filter: new AllBut(person),
             kind: RayCastKind.Nearest, hits: hits);
         Entity copy = World.GetComponent<Passenger>(person)!.State.Value switch
         {
@@ -101,7 +102,8 @@ public sealed class ExitRun : IDisposable
             Unstrapped unstrapped => unstrapped.Copy,
             _ => Entity.Null
         };
-        return new(Tick: tick, InCabin: frame == Cabin, InStation: frame == Station, Position: position, InCabinAxes: World.PoseIn(person, Cabin).Position,
+        return new(Tick: tick, InCabin: frame == Cabin, InStation: frame == Station, Position: position,
+            InCabinAxes: World.PoseIn(person, Cabin).Position,
             Velocity: World.VelocityIn(person, Station),
             Standing: World.IsStanding(person), Exit: World.GetComponent<Disembark>(person)!.State,
             Belt: World.GetComponent<Passenger>(person)!.State,
@@ -401,7 +403,8 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
                 $"the camera is above the trough's open side at tick {s.Tick}");
             Double3.Distance(camera, s.Position).Should()
                 .BeInRange(1.5, 4, $"the camera keeps its distance at tick {s.Tick}");
-            double cover = Picture.Cover(view: s.ChuteView, body: new(s.Position, s.Rotation), half: DemoScenes.DemoSurface.PersonHalf,
+            double cover = Picture.Cover(view: s.ChuteView, body: new(s.Position, s.Rotation),
+                half: DemoScenes.DemoSurface.PersonHalf,
                 verticalFov: run.World.VerticalFov);
             cover.Should().BeInRange(0.01, 0.3, $"the person fills part of the picture at tick {s.Tick}");
             for (int corner = 0; corner < 8; corner++)

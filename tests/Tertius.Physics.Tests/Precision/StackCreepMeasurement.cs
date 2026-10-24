@@ -125,7 +125,8 @@ public sealed class StackCreepMeasurement
             if (speed == 0)
                 continue;
             StackRun control = Run(0, direction.Unit, direction.Unit * run.LargestDistance);
-            Write(csv: csv, kind: "distance-control", direction: direction, speed: 0, run: control, reference: reference,
+            Write(csv: csv, kind: "distance-control", direction: direction, speed: 0, run: control,
+                reference: reference,
                 note: $"V = 0, the scene placed at the largest distance of the run at {speed} m/s: the stack can sleep");
         }
 
@@ -234,12 +235,15 @@ public sealed class StackCreepMeasurement
             for (int k = 0; k < BoxCount; k++)
             {
                 Double3 read = world.VelocityIn(boxes[k], space) - world.VelocityIn(platform, space);
-                boxReports[k] = new(Offset: offsets[k], Creep: offsets[k] - settled[k], ReadVelocity: read, JitterRms: Math.Sqrt(sumSquares[k] / tick),
-                    JitterRmsUp: Math.Sqrt(sumSquaresUp[k] / tick), JitterRmsAcross: Math.Sqrt(sumSquaresAcross[k] / tick), JitterMax: max[k],
+                boxReports[k] = new(Offset: offsets[k], Creep: offsets[k] - settled[k], ReadVelocity: read,
+                    JitterRms: Math.Sqrt(sumSquares[k] / tick),
+                    JitterRmsUp: Math.Sqrt(sumSquaresUp[k] / tick),
+                    JitterRmsAcross: Math.Sqrt(sumSquaresAcross[k] / tick), JitterMax: max[k],
                     Tilt: AngleOf(world.PoseIn(boxes[k], space).Rotation), Asleep: asleep[k + 1], Slept: slept[k + 1]);
             }
 
-            reports.Add(new(Boxes: boxReports, Stands: Stands(offsets), PlatformAsleep: asleep[0], PlatformSlept: slept[0], FirstSleepTick: firstSleep));
+            reports.Add(new(Boxes: boxReports, Stands: Stands(offsets), PlatformAsleep: asleep[0],
+                PlatformSlept: slept[0], FirstSleepTick: firstSleep));
         }
 
         return new([.. reports], largest, warnings.Count + world.Errors.Count);

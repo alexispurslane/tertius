@@ -98,7 +98,8 @@ public class MeshGhostTests
         List<(long Tick, Entity Other, float Impulse)> seen = [.. log.Seen.Where(s => s.Other == wall)];
         List<(long Tick, Entity Other)> ended = [.. log.Ended.Where(e => e.Other == wall)];
         return new(Scene: numericFrames ? "with numeric frames" : "without numeric frames",
-            Position: world.PoseIn(mover, ground).Position, Velocity: world.VelocityIn(mover, ground), Heard: log.NewsOf(wall),
+            Position: world.PoseIn(mover, ground).Position, Velocity: world.VelocityIn(mover, ground),
+            Heard: log.NewsOf(wall),
             StartTick: seen.Count > 0 ? seen[0].Tick : null, EndTick: ended.Count > 0 ? ended[0].Tick : null,
             Impulse: seen.Count > 0 ? seen[0].Impulse : 0);
     }
@@ -120,8 +121,10 @@ public class MeshGhostTests
         bool everyBodyFalls, double speed, double gap)
     {
         NumericFrameOptions numeric = everyBodyFalls ? EveryGroupFalls : new();
-        WallRun without = FlyAtAMeshWall(numericFrames: false, numeric: numeric, body: Crate, reach: 0.5, speed: speed, gap: gap);
-        WallRun with = FlyAtAMeshWall(numericFrames: true, numeric: numeric, body: Crate, reach: 0.5, speed: speed, gap: gap);
+        WallRun without = FlyAtAMeshWall(numericFrames: false, numeric: numeric, body: Crate, reach: 0.5, speed: speed,
+            gap: gap);
+        WallRun with = FlyAtAMeshWall(numericFrames: true, numeric: numeric, body: Crate, reach: 0.5, speed: speed,
+            gap: gap);
 
         foreach (WallRun run in new[] { without, with })
         {
@@ -151,8 +154,10 @@ public class MeshGhostTests
     public void ABallThatFliesAtAStaticMeshWallJoinsItsHomeAndBouncesOffItAsItDoesWithoutNumericFrames()
     {
         var numeric = new NumericFrameOptions();
-        WallRun without = FlyAtAMeshWall(numericFrames: false, numeric: numeric, body: BouncyBall, reach: 0.5, speed: 60, gap: 0.01);
-        WallRun with = FlyAtAMeshWall(numericFrames: true, numeric: numeric, body: BouncyBall, reach: 0.5, speed: 60, gap: 0.01);
+        WallRun without = FlyAtAMeshWall(numericFrames: false, numeric: numeric, body: BouncyBall, reach: 0.5,
+            speed: 60, gap: 0.01);
+        WallRun with = FlyAtAMeshWall(numericFrames: true, numeric: numeric, body: BouncyBall, reach: 0.5, speed: 60,
+            gap: 0.01);
 
         foreach (WallRun run in new[] { without, with })
         {
@@ -354,7 +359,9 @@ public class MeshGhostTests
     [InlineData(true)]
     public void AGrowthKeepsTheMotionAndTheStateOfAMeshGhost(bool shipRises)
     {
-        using World world = WorldTestingGrowth.NewWorldWithFaultsAndSmallSystems(maxBodiesPerFrame: 4, faults: out FaultInjectingBackend faults);
+        using World world =
+            WorldTestingGrowth.NewWorldWithFaultsAndSmallSystems(maxBodiesPerFrame: 4,
+                faults: out FaultInjectingBackend faults);
         DockScene scene = CrateOnAStationsMeshHull(world);
         Tick(world, 3);
         if (shipRises)
@@ -371,7 +378,8 @@ public class MeshGhostTests
         for (int i = 0; i <= room; i++)
             world.Spawn(new()
             {
-                Frame = scene.Ship, Pose = At(3 * i - 6, 10), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static)
+                Frame = scene.Ship, Pose = At(3 * i - 6, 10),
+                Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static)
             });
         Entity marker = world.Spawn(new() { Frame = scene.Ship });
         world.Destroy(marker).Should().BeTrue();

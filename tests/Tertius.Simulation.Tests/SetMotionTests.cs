@@ -330,7 +330,8 @@ public class SetMotionTests
     private sealed class HoldsOnRails : IComponent
     {
         public static readonly MotionSample Sample =
-            new(Pose: TestWorld.At(100), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
+            new(Pose: TestWorld.At(100), ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
+                Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
 
         public int Priority => 0;
 

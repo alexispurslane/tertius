@@ -41,7 +41,8 @@ public class ComposeUnitParentTests
     };
 
     /// <summary>A rotation about +Z by a quarter turn, scaled so that its length is <paramref name="length"/>.</summary>
-    private static DQuaternion Scaled(double length) => new(X: 0, Y: 0, Z: Math.Sqrt(0.5) * length, W: Math.Sqrt(0.5) * length);
+    private static DQuaternion Scaled(double length) =>
+        new(X: 0, Y: 0, Z: Math.Sqrt(0.5) * length, W: Math.Sqrt(0.5) * length);
 
     public static TheoryData<string, DQuaternion, DQuaternion> UnitParentsAndLocalRotations()
     {

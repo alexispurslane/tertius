@@ -22,8 +22,10 @@ public class SensorComponentTests
     private static List<Relayed> RelayedTo(Recorder listener) =>
     [
         .. listener.Seen.Select(seen => seen.Event.Is<Entered>()
-            ? new(Tick: seen.Tick, Entered: true, Sensor: seen.Event.As<Entered>().Sensor, Other: seen.Event.As<Entered>().Other)
-            : new Relayed(Tick: seen.Tick, Entered: false, Sensor: seen.Event.As<Left>().Sensor, Other: seen.Event.As<Left>().Other))
+            ? new(Tick: seen.Tick, Entered: true, Sensor: seen.Event.As<Entered>().Sensor,
+                Other: seen.Event.As<Entered>().Other)
+            : new Relayed(Tick: seen.Tick, Entered: false, Sensor: seen.Event.As<Left>().Sensor,
+                Other: seen.Event.As<Left>().Other))
     ];
 
     /// <summary>A static sensor box with the half extents <paramref name="half"/>.</summary>
@@ -129,7 +131,8 @@ public class SensorComponentTests
         FrameHandle space = Ground(world, 0);
         Entity wall = world.Spawn(new()
         {
-            Frame = space, Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static), Components = [new Sensor()]
+            Frame = space, Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static),
+            Components = [new Sensor()]
         });
         Recorder listener = Listener();
         Bystander(world, space, listener);
@@ -247,7 +250,8 @@ public class SensorComponentTests
     public void ASensorFromABlueprintRelaysToTheTopicThatTheBlueprintNames()
     {
         var blueprints = new Blueprints();
-        blueprints.Register(new(Name: "plate", Components: [
+        blueprints.Register(new(Name: "plate", Components:
+        [
             new(typeof(Sensor), new Dictionary<string, object?>
             {
                 ["Topic"] = "sensor-tests/blueprint-plates",

@@ -61,7 +61,9 @@ public class FrameSpinTests
     [Fact]
     public void ATiltThatIsNotUnitLengthLeansTheFrameByItsDirectionAlone()
     {
-        var spin = new FrameSpin(Tilt: new(X: Obliquity.X * 1.5, Y: Obliquity.Y * 1.5, Z: Obliquity.Z * 1.5, W: Obliquity.W * 1.5), Rate: 0.25);
+        var spin = new FrameSpin(
+            Tilt: new(X: Obliquity.X * 1.5, Y: Obliquity.Y * 1.5, Z: Obliquity.Z * 1.5, W: Obliquity.W * 1.5),
+            Rate: 0.25);
 
         ExpectNear(spin.RotationAt(3).Rotate(new Double3(0, 1, 0)), Pole);
         ExpectNear(spin.AngularVelocity, Pole * 0.25);

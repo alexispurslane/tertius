@@ -56,7 +56,8 @@ public class NumericFrameOrbitTests
         LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>A rock, a ball of 1 kg with a radius of 0.5 m that nothing slows down and that does not bounce.</summary>
-    private static readonly BodyDesc Rock = new(Shape: new SphereShapeDesc(0.5f), Mass: 1, Restitution: 0, LinearDamping: 0,
+    private static readonly BodyDesc Rock = new(Shape: new SphereShapeDesc(0.5f), Mass: 1, Restitution: 0,
+        LinearDamping: 0,
         AngularDamping: 0);
 
     // ---- Crates that drift out of the station ----------------------------------------------------------------------
@@ -70,7 +71,8 @@ public class NumericFrameOrbitTests
     private static readonly FrameSpec PodFrame = new(FrameBounds.Sphere(0.01f));
 
     /// <summary>A person, a character: a capsule of half height 0.6 m and radius 0.3 m, and 70 kg.</summary>
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
+        Mass: 70);
 
     /// <summary>
     /// A world on the wrapper with the default numeric frames or, when <paramref name="numericFrames"/> is false, with none.
@@ -212,7 +214,8 @@ public class NumericFrameOrbitTests
             .. drifters.Select((drifter, i) => new Drift(Homes: homes[i],
                 Bumps: [.. logs[i].Seen.Where(s => s.Other == station.Owner).Select(s => s.Tick)],
                 Position: world.PoseIn(drifter, station.Frame).Position,
-                OffsetInEarth: world.PoseIn(drifter, station.Earth).Position - world.PoseIn(station.Owner, station.Earth).Position,
+                OffsetInEarth: world.PoseIn(drifter, station.Earth).Position -
+                               world.PoseIn(station.Owner, station.Earth).Position,
                 FastestInOrbit: fastest[i]))
         ];
     }
@@ -483,7 +486,8 @@ public class NumericFrameOrbitTests
         }.OnKeplerOrbit(world, KeplerOrbit.Circular(FarOrbitRadius), firstMove: true));
         Entity rock = world.Spawn(new()
         {
-            Frame = space, Pose = At(FarOrbitRadius + 8, 0, -100), Body = new(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Static)
+            Frame = space, Pose = At(FarOrbitRadius + 8, 0, -100),
+            Body = new(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Static)
         });
         Entity pod = world.Spawn(new()
         {
@@ -620,7 +624,8 @@ public class NumericFrameOrbitTests
         Double3 FreeFall() => secondSpawn + 0.5 * Math.Pow(world.Time - secondSpawnTime, 2) * pull;
         Tick(world, 1);
 
-        world.SetMotionNextTick(owner: station.Owner, motion: BodyMotion.Kinematic, add: new KeplerMotion { Orbit = station.Orbit });
+        world.SetMotionNextTick(owner: station.Owner, motion: BodyMotion.Kinematic,
+            add: new KeplerMotion { Orbit = station.Orbit });
         Tick(world, 2);
         world.PoseIn(station.Owner, station.Earth).Position.Should().Be(stopped.Position,
             "the kinematic hull holds still for the step without a sample");
@@ -721,7 +726,8 @@ public class NumericFrameOrbitTests
             .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary &&
                              BodyUserData.Names(facts.UserData, station.Owner)).Position;
         FrameHandle home = world.PhysicsHomeOf(crate);
-        return new(PlaceBefore: placeBefore, VelocityBefore: velocityBefore, PlaceAfter: placeAfter, VelocityAfter: velocityAfter, PlaceAtEnd: world.PoseIn(crate, station.Earth).Position,
+        return new(PlaceBefore: placeBefore, VelocityBefore: velocityBefore, PlaceAfter: placeAfter,
+            VelocityAfter: velocityAfter, PlaceAtEnd: world.PoseIn(crate, station.Earth).Position,
             VelocityAtEnd: world.VelocityIn(crate, station.Earth),
             CrateHome: home == station.Earth ? "earth" : world.Frames.Numeric(home).ToString(), HullInHome: hull,
             FrameInHome: world.Frames.TreeLocalPose(station.Frame), PodBefore: podBefore, PodAfter: podAfter);

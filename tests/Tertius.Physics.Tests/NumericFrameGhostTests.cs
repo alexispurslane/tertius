@@ -178,7 +178,8 @@ public class NumericFrameGhostTests
             ? world.Spawn(new() { Frame = ship, Pose = inShip, Body = CrateBody })
             : Entity.Null;
         Tick(world, WarmUpTicks);
-        return new(Space: space, StationOwner: stationOwner, Station: station, Crate: crate, ShipOwner: shipOwner, Ship: ship, ShipCrate: cargo);
+        return new(Space: space, StationOwner: stationOwner, Station: station, Crate: crate, ShipOwner: shipOwner,
+            Ship: ship, ShipCrate: cargo);
     }
 
     /// <summary>The distance in meters from the station's center to the ship's, at the end of the last step.</summary>
@@ -497,7 +498,8 @@ public class NumericFrameGhostTests
         bool numericFrames)
     {
         using World world = NewStationWorld(numericFrames, out _);
-        StationScene scene = CratesPassingAStation(world: world, lane: 45, stationCrate: At(15, 15), shipCrate: At(0, -30));
+        StationScene scene =
+            CratesPassingAStation(world: world, lane: 45, stationCrate: At(15, 15), shipCrate: At(0, -30));
         world.Tick();
         ShipHomeShouldBe(world, scene, numericFrames);
 
@@ -542,7 +544,8 @@ public class NumericFrameGhostTests
         bool numericFrames)
     {
         using World world = NewStationWorld(numericFrames, out _);
-        StationScene scene = CratesPassingAStation(world: world, lane: 50, stationCrate: At(0, 40), shipCrate: At(0, -10));
+        StationScene scene =
+            CratesPassingAStation(world: world, lane: 50, stationCrate: At(0, 40), shipCrate: At(0, -10));
         world.Tick();
         ShipHomeShouldBe(world, scene, numericFrames);
 
@@ -651,7 +654,10 @@ public class NumericFrameGhostTests
         FrameHandle space = Scenes.AsteroidSpace(world);
         Entity hull = Scenes.FastKeplerHull(world, space, ShipHull with { Motion = BodyMotion.Kinematic });
         world.Spawn(new()
-            { Frame = space, Pose = At(5_008, 0, -100), Body = new(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Static) });
+        {
+            Frame = space, Pose = At(5_008, 0, -100),
+            Body = new(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Static)
+        });
         FrameHandle buoy = EmptyFrame(world: world, parent: space, pose: At(-5000), radius: 5);
         FrameHandle depot = EmptyFrame(world: world, parent: space, pose: At(-6000), radius: 50);
         Tick(world, 2);
@@ -689,11 +695,16 @@ public class NumericFrameGhostTests
         FrameHandle space = Scenes.AsteroidSpace(world);
         Entity hull = Scenes.FastKeplerHull(world, space, ShipHull with { Motion = BodyMotion.Kinematic });
         world.Spawn(new()
-            { Frame = space, Pose = At(5_008, 0, -100), Body = new(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Static) });
+        {
+            Frame = space, Pose = At(5_008, 0, -100),
+            Body = new(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Static)
+        });
         // 5.8 km from every point of the hull's orbit, beyond the reach of the merge test at 2 km/s.
         FrameHandle station = EmptyFrame(world: world, parent: space, pose: At(0, 3_000), radius: 10);
         Entity crate = world.Spawn(new()
-            { Frame = station, Pose = At(0, 10), Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic) });
+        {
+            Frame = station, Pose = At(0, 10), Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic)
+        });
         Tick(world, 2);
         NamesAnchorGhost(world, hull, space).Should().BeTrue("the hull starts 100 m from the rock");
         faults.Jolt.HasGhostIn(hull, space).Should().BeTrue();
@@ -762,7 +773,8 @@ public class NumericFrameGhostTests
     public void BodiesThatStayAwayFromABubbleHaveNoGhostThereButOneInTheirFramesTreeParent(bool numericFrames)
     {
         using World world = NewStationWorld(numericFrames, out FaultInjectingBackend faults, lookahead: 0.8);
-        StationScene scene = CratesPassingAStation(world: world, lane: 75, stationCrate: At(0, 40), shipCrate: At(0, -30));
+        StationScene scene =
+            CratesPassingAStation(world: world, lane: 75, stationCrate: At(0, 40), shipCrate: At(0, -30));
         world.Tick();
         ShipHomeShouldBe(world, scene, numericFrames);
         FrameHandle shipParent = world.Frames.TreeParent(scene.Ship);
@@ -885,7 +897,8 @@ public class NumericFrameGhostTests
         });
         Entity fastOwner = SpawnFastShip(world: world, space: space, at: new(150, 140, 0), radius: 60);
         Tick(world, WarmUpTicks);
-        return new(Space: space, SlowOwner: slowOwner, Slow: world.GetOwnedFrame(slowOwner), FastOwner: fastOwner, Fast: world.GetOwnedFrame(fastOwner));
+        return new(Space: space, SlowOwner: slowOwner, Slow: world.GetOwnedFrame(slowOwner), FastOwner: fastOwner,
+            Fast: world.GetOwnedFrame(fastOwner));
     }
 
     [Theory]
@@ -1009,8 +1022,10 @@ public class NumericFrameGhostTests
     private static RockScene FallingShipPassingARock(World world, bool withRock = true, double crateY = -BigShipRadius,
         GravityField gravity = default)
     {
-        RockScene scene = ShipAndRock(world: world, shipPose: At(1100 + WarmUpDistance), shipVelocity: new(-ShipSpeed, 0, 0), cratePose: At(0, crateY),
-            rockPose: withRock ? At(1000, -BigShipRadius - 0.6) : null, gravity: gravity, shipComponents: [ShipThruster()]);
+        RockScene scene = ShipAndRock(world: world, shipPose: At(1100 + WarmUpDistance),
+            shipVelocity: new(-ShipSpeed, 0, 0), cratePose: At(0, crateY),
+            rockPose: withRock ? At(1000, -BigShipRadius - 0.6) : null, gravity: gravity,
+            shipComponents: [ShipThruster()]);
         Tick(world, WarmUpTicks);
         return scene;
     }
@@ -1030,7 +1045,8 @@ public class NumericFrameGhostTests
     /// </summary>
     private static RockScene
         ShipRestingBesideARock(World world, bool withRock = true, double crateX = -BigShipRadius) =>
-        ShipAndRock(world: world, shipPose: At(RestDistance + 150), shipVelocity: Double3.Zero, cratePose: At(crateX), rockPose: withRock ? At(RestDistance - 70) : null,
+        ShipAndRock(world: world, shipPose: At(RestDistance + 150), shipVelocity: Double3.Zero, cratePose: At(crateX),
+            rockPose: withRock ? At(RestDistance - 70) : null,
             rockVelocity: new(10, 0, 0));
 
     /// <summary>
@@ -1102,8 +1118,10 @@ public class NumericFrameGhostTests
         Tick(world, total - ticks);
 
         world.Errors.Should().BeEmpty();
-        return new(Ticks: ticks, Position: world.PoseIn(scene.Rock, scene.Space).Position, Velocity: world.VelocityIn(scene.Rock, scene.Space),
-            InSpace: world.GetFrame(scene.Rock) == scene.Space, HitInHullsHome: rockHome == hullHome, HitMode: world.Frames.Numeric(rockHome));
+        return new(Ticks: ticks, Position: world.PoseIn(scene.Rock, scene.Space).Position,
+            Velocity: world.VelocityIn(scene.Rock, scene.Space),
+            InSpace: world.GetFrame(scene.Rock) == scene.Space, HitInHullsHome: rockHome == hullHome,
+            HitMode: world.Frames.Numeric(rockHome));
     }
 
     /// <summary>
@@ -1120,9 +1138,11 @@ public class NumericFrameGhostTests
     {
         static RockScene build(World world) => FallingShipPassingARock(world: world);
         RockRun withNumericFrames =
-            RunTheRock(numericFrames: true, build: build, mode: NumericMode.Falling, done: velocity => velocity.Length > 10);
+            RunTheRock(numericFrames: true, build: build, mode: NumericMode.Falling,
+                done: velocity => velocity.Length > 10);
         RockRun withoutNumericFrames =
-            RunTheRock(numericFrames: false, build: build, mode: NumericMode.None, done: velocity => velocity.Length > 10);
+            RunTheRock(numericFrames: false, build: build, mode: NumericMode.None,
+                done: velocity => velocity.Length > 10);
 
         // The front of the crate reaches the back of the rock, at x = 1000.5 in space, after 98.5 m, or 1.64 s.
         withoutNumericFrames.Ticks.Should()
@@ -1147,9 +1167,11 @@ public class NumericFrameGhostTests
     {
         static RockScene build(World world) => ShipRestingBesideARock(world);
         RockRun withNumericFrames =
-            RunTheRock(numericFrames: true, build: build, mode: NumericMode.Resting, done: velocity => velocity.Length < 1);
+            RunTheRock(numericFrames: true, build: build, mode: NumericMode.Resting,
+                done: velocity => velocity.Length < 1);
         RockRun withoutNumericFrames =
-            RunTheRock(numericFrames: false, build: build, mode: NumericMode.None, done: velocity => velocity.Length < 1);
+            RunTheRock(numericFrames: false, build: build, mode: NumericMode.None,
+                done: velocity => velocity.Length < 1);
 
         // The front of the rock reaches the face of the crate, at x = RestDistance - 51 in space, after 18.5 m, or 1.85 s.
         withoutNumericFrames.Ticks.Should()
@@ -1262,7 +1284,8 @@ public class NumericFrameGhostTests
         // The sync point of the first tick after the warm-up gives the falling ship's hull its numeric frame, after that
         // tick's step, and the ghost pass of the next step puts the crate's ghost there.
         Tick(world, 2);
-        ShipHomeShouldBe(world: world, scene: scene, numericFrames: true, mode: shipRests ? NumericMode.Resting : NumericMode.Falling);
+        ShipHomeShouldBe(world: world, scene: scene, numericFrames: true,
+            mode: shipRests ? NumericMode.Resting : NumericMode.Falling);
         FrameHandle home = world.PhysicsHomeOf(scene.ShipOwner);
         faults.Jolt.HasGhostIn(scene.Crate, home).Should()
             .BeTrue("the crate sticks out of the ship into its tree parent");
@@ -1301,7 +1324,8 @@ public class NumericFrameGhostTests
             ? ShipRestingBesideARock(world, withRock: false, crateX: -BigShipRadius + 100)
             : FallingShipPassingARock(world: world, withRock: false, crateY: -BigShipRadius + 100);
         world.Tick();
-        ShipHomeShouldBe(world: world, scene: scene, numericFrames: numericFrames, mode: shipRests ? NumericMode.Resting : NumericMode.Falling);
+        ShipHomeShouldBe(world: world, scene: scene, numericFrames: numericFrames,
+            mode: shipRests ? NumericMode.Resting : NumericMode.Falling);
 
         for (int tick = 0; tick < 60; tick++)
         {

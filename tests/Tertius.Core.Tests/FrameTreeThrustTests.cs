@@ -20,7 +20,8 @@ public class FrameTreeThrustTests
 
     public FrameTreeThrustTests()
     {
-        ground = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
+        ground = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f));
     }
 
     private static Double3 X(double x) => new(x, 0, 0);
@@ -47,7 +48,8 @@ public class FrameTreeThrustTests
     {
         changes.Clear();
         var moves = new List<NumericMove>();
-        frames.UpdateNumericFrames(bodies: bodies, dt: dt, step: 1.0 / 60, changes: changes, applyMoves: moves.AddRange);
+        frames.UpdateNumericFrames(bodies: bodies, dt: dt, step: 1.0 / 60, changes: changes,
+            applyMoves: moves.AddRange);
         frames.AssertInvariants();
         Dictionary<Entity, FrameHandle> homes = moves.ToDictionary(move => move.Entity, move => move.To);
         return
@@ -109,7 +111,8 @@ public class FrameTreeThrustTests
     {
         // Neither body needs a frame by itself: the free one is below 1,000 m/s and the character below 50 m/s. Together
         // they thrust at 50 m/s, so the update must look at the frame although no body passes its own threshold.
-        NumericBody[] after = Update(Tick, Body(id: 10, x: 0, vx: 60), Body(id: 11, x: 3, vx: 40) with { Character = true });
+        NumericBody[] after = Update(Tick, Body(id: 10, x: 0, vx: 60),
+            Body(id: 11, x: 3, vx: 40) with { Character = true });
         after[0].Home.Should().Be(after[1].Home);
         frames.Numeric(after[0].Home).Should().Be(NumericMode.Falling);
     }

@@ -169,7 +169,8 @@ public sealed partial class FrameTree
             throw new InvalidOperationException($"{frameOwner} already owns a frame.");
         Contract.Requires(localPose.Rotation.IsUnit);
 
-        FrameHandle handle = AddFrame(frameOwner: frameOwner, parent: parent, localPose: localPose, frameBounds: frameBounds, field: field, mode: NumericMode.None, frameMedium: medium);
+        FrameHandle handle = AddFrame(frameOwner: frameOwner, parent: parent, localPose: localPose,
+            frameBounds: frameBounds, field: field, mode: NumericMode.None, frameMedium: medium);
         byOwner.Add(frameOwner, handle);
         return handle;
     }
@@ -313,7 +314,8 @@ public sealed partial class FrameTree
         Double3 w = angularVelocity[node.Id];
         DQuaternion oldToNew = RootPose(newParent).Rotation.Conjugate() * RootPose(oldParent).Rotation;
         Double3 relativeSpin = AngularVelocityRelative(oldParent, newParent);
-        var oldParentInNew = new FrameMotion(Pose: new(Double3.Zero, oldToNew), Velocity: Double3.Zero, AngularVelocity: relativeSpin, Acceleration: Double3.Zero,
+        var oldParentInNew = new FrameMotion(Pose: new(Double3.Zero, oldToNew), Velocity: Double3.Zero,
+            AngularVelocity: relativeSpin, Acceleration: Double3.Zero,
             AngularAcceleration: AngularAccelerationRelative(oldParent, newParent));
         angularAcceleration[node.Id] = oldParentInNew.AngularAccelerationToParent(angularAcceleration[node.Id], w);
         LinearVelocityForWrite(node.Id) =
@@ -430,7 +432,8 @@ public sealed partial class FrameTree
         {
             if (numeric[ids[dense]] != NumericMode.None)
                 continue;
-            visitor.Visit(OwnerViewAt(dense: dense, parents: parents, locals: locals, ids: ids, generations: generations));
+            visitor.Visit(OwnerViewAt(dense: dense, parents: parents, locals: locals, ids: ids,
+                generations: generations));
             Contract.Assert(OwnerViewStamp == stamp, "An owner view visitor changed the frame tree during the walk.");
         }
     }
@@ -443,7 +446,8 @@ public sealed partial class FrameTree
     {
         PoseNode node = Node(frame);
         Contract.Requires(numeric[node.Id] == NumericMode.None);
-        return OwnerViewAt(dense: poses.DenseIndex(node), parents: poses.ParentsDense, locals: poses.LocalPoses, ids: poses.IdsDense,
+        return OwnerViewAt(dense: poses.DenseIndex(node), parents: poses.ParentsDense, locals: poses.LocalPoses,
+            ids: poses.IdsDense,
             generations: poses.Generations);
     }
 
@@ -476,7 +480,8 @@ public sealed partial class FrameTree
             semantic = s == p ? home : HandleOf(ids[s], generations);
         }
 
-        return new(Frame: HandleOf(id, generations), Home: home, Semantic: semantic, LocalPose: local, PositionInSemantic: position, LinearVelocity: linearVelocity[id], AngularVelocity: angularVelocity[id]);
+        return new(Frame: HandleOf(id, generations), Home: home, Semantic: semantic, LocalPose: local,
+            PositionInSemantic: position, LinearVelocity: linearVelocity[id], AngularVelocity: angularVelocity[id]);
     }
 
     /// <summary>The handle of the live frame with stable index <paramref name="id"/>, with its generation from
@@ -1134,12 +1139,14 @@ public sealed partial class FrameTree
 
     /// <summary>Velocity of a point in the parent (see <see cref="Parent"/>): R·v + v_frame + ω × (R·p).</summary>
     public Double3 VelocityToParent(FrameHandle frame, Double3 positionInFrame, Double3 velocityInFrame) =>
-        VelocityToParent(pose: LocalPose(frame), velocity: LinearVelocity(frame), angular: AngularVelocity(frame), positionInFrame: positionInFrame,
+        VelocityToParent(pose: LocalPose(frame), velocity: LinearVelocity(frame), angular: AngularVelocity(frame),
+            positionInFrame: positionInFrame,
             velocityInFrame: velocityInFrame);
 
     /// <summary>Velocity of a point in the frame, from the parent (see <see cref="Parent"/>): R⁻¹(v − v_frame − ω × (p − origin)).</summary>
     public Double3 VelocityFromParent(FrameHandle frame, Double3 positionInParent, Double3 velocityInParent) =>
-        VelocityFromParent(pose: LocalPose(frame), velocity: LinearVelocity(frame), angular: AngularVelocity(frame), positionInParent: positionInParent,
+        VelocityFromParent(pose: LocalPose(frame), velocity: LinearVelocity(frame), angular: AngularVelocity(frame),
+            positionInParent: positionInParent,
             velocityInParent: velocityInParent);
 
     private static Double3 VelocityToParent(in DPose pose, Double3 velocity, Double3 angular, Double3 positionInFrame,
@@ -1220,7 +1227,8 @@ public sealed partial class FrameTree
         {
             int id = Node(x).Id;
             DPose pose = TreeLocalPose(x);
-            vel = VelocityToParent(pose: pose, velocity: linearVelocity[id], angular: angularVelocity[id], positionInFrame: p, velocityInFrame: vel);
+            vel = VelocityToParent(pose: pose, velocity: linearVelocity[id], angular: angularVelocity[id],
+                positionInFrame: p, velocityInFrame: vel);
             p = pose.TransformPoint(p);
             x = TreeParent(x);
         }
@@ -1236,7 +1244,8 @@ public sealed partial class FrameTree
             FrameHandle child = path.Pop();
             int id = Node(child).Id;
             DPose pose = TreeLocalPose(child);
-            vel = VelocityFromParent(pose: pose, velocity: linearVelocity[id], angular: angularVelocity[id], positionInParent: p, velocityInParent: vel);
+            vel = VelocityFromParent(pose: pose, velocity: linearVelocity[id], angular: angularVelocity[id],
+                positionInParent: p, velocityInParent: vel);
             p = pose.InverseTransformPoint(p);
         }
 

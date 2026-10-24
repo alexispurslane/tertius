@@ -164,7 +164,8 @@ public class NumericHomeHandOffTests
             stationCrate = world.Spawn(new() { Frame = station, Pose = At(-28), Body = CrateBody });
         }
 
-        return new(Space: space, ShipOwner: shipOwner, Ship: ship, Crate: crate, CrateFrames: crateFrames, Station: station, StationCrate: stationCrate, CratePilot: cratePilot,
+        return new(Space: space, ShipOwner: shipOwner, Ship: ship, Crate: crate, CrateFrames: crateFrames,
+            Station: station, StationCrate: stationCrate, CratePilot: cratePilot,
             ThrowVelocity: throwDirection * ThrowSpeed);
     }
 
@@ -240,7 +241,8 @@ public class NumericHomeHandOffTests
         GravityField shipGravity = default)
     {
         using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
-        ShipScene scene = CrateThrownInAShip(world: world, shipMotion: shipMotion, throwDirection: throwDirection, shipGravity: shipGravity);
+        ShipScene scene = CrateThrownInAShip(world: world, shipMotion: shipMotion, throwDirection: throwDirection,
+            shipGravity: shipGravity);
         WarmUpAndThrow(world, scene);
         world.Tick();
         CrateHomeShouldBe(world, scene, numericFrames);
@@ -271,8 +273,10 @@ public class NumericHomeHandOffTests
             .. faults.Outputs.SelectMany(output => output.HandOffs).Where(h =>
                 h.Entity == scene.Crate && (h.To == scene.Space || h.To == shipTreeParent))
         ];
-        return new(Space: scene.Space, Ship: scene.Ship, ShipTreeParent: shipTreeParent, GhostTicks: ghostTicks, TreeParentGhostTicks: treeParentGhostTicks, LeftAt: leftAt,
-            Position: world.PoseIn(scene.Crate, scene.Space).Position, Velocity: world.VelocityIn(scene.Crate, scene.Space),
+        return new(Space: scene.Space, Ship: scene.Ship, ShipTreeParent: shipTreeParent, GhostTicks: ghostTicks,
+            TreeParentGhostTicks: treeParentGhostTicks, LeftAt: leftAt,
+            Position: world.PoseIn(scene.Crate, scene.Space).Position,
+            Velocity: world.VelocityIn(scene.Crate, scene.Space),
             Seen: scene.CrateFrames.Seen, HandOffsOut: handOffsOut);
     }
 
@@ -315,8 +319,10 @@ public class NumericHomeHandOffTests
     [Fact]
     public void ACrateThrownFastInsideAShipLeavesItAtTheSameTickPlaceAndVelocityAsWithoutNumericFrames()
     {
-        Run withNumericFrames = ThrowTheCrate(numericFrames: true, shipMotion: Drift, throwDirection: new(1, 0, 0), shipGravity: ShipGravity);
-        Run withoutNumericFrames = ThrowTheCrate(numericFrames: false, shipMotion: Drift, throwDirection: new(1, 0, 0), shipGravity: ShipGravity);
+        Run withNumericFrames = ThrowTheCrate(numericFrames: true, shipMotion: Drift, throwDirection: new(1, 0, 0),
+            shipGravity: ShipGravity);
+        Run withoutNumericFrames = ThrowTheCrate(numericFrames: false, shipMotion: Drift, throwDirection: new(1, 0, 0),
+            shipGravity: ShipGravity);
 
         withoutNumericFrames.Velocity.Y.Should().BeInRange(20 - 9.81 * 0.55, 20 - 9.81 * 0.4,
             "the crate fell in the ship's gravity for about 0.5 s");
@@ -346,7 +352,8 @@ public class NumericHomeHandOffTests
         bool numericFrames)
     {
         using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
-        ShipScene scene = CrateThrownInAShip(world: world, shipMotion: Drift, throwDirection: new(1, 0, 0), shipGravity: ShipGravity);
+        ShipScene scene = CrateThrownInAShip(world: world, shipMotion: Drift, throwDirection: new(1, 0, 0),
+            shipGravity: ShipGravity);
         WarmUpAndThrow(world, scene);
         world.Tick();
         CrateHomeShouldBe(world, scene, numericFrames);
@@ -407,7 +414,8 @@ public class NumericHomeHandOffTests
         bool numericFrames)
     {
         using World world = NewWorld(numericFrames, out _);
-        ShipScene scene = CrateThrownInAShip(world: world, shipMotion: AtRest, throwDirection: new(1, 0, 0), withStation: true);
+        ShipScene scene = CrateThrownInAShip(world: world, shipMotion: AtRest, throwDirection: new(1, 0, 0),
+            withStation: true);
         WarmUpAndThrow(world, scene);
         world.Tick();
         CrateHomeShouldBe(world, scene, numericFrames);

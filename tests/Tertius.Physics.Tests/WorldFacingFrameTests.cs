@@ -78,7 +78,9 @@ public class WorldFacingFrameTests
         {
             FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f), GravityField.Point(PlanetMu)));
             // Periapsis at t = 0, apoapsis at half the 31.4 s period.
-            var oval = new KeplerOrbit(SemiMajorAxis: 5000, Eccentricity: 0.3, Inclination: 0, LongitudeOfAscendingNode: 0, ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: 0, Epoch: 0, AxialTilt: DQuaternion.Identity, SpinRate: 0, SpinPhaseAtEpoch: 0,
+            var oval = new KeplerOrbit(SemiMajorAxis: 5000, Eccentricity: 0.3, Inclination: 0,
+                LongitudeOfAscendingNode: 0, ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: 0, Epoch: 0,
+                AxialTilt: DQuaternion.Identity, SpinRate: 0, SpinPhaseAtEpoch: 0,
                 Attitude: KeplerAttitude.FacesParent);
             Entity owner = world.Spawn(new SpawnDesc
             {

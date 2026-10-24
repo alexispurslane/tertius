@@ -243,11 +243,13 @@ public class FramelessMotionIntentTests
         {
             Frame = test.Root,
             Pose = spawn,
-            FirstMove = new(new EndPose(Advanced(pose: spawn, velocity: drift, spin: spin, step: test.World.DeltaTime))),
+            FirstMove =
+                new(new EndPose(Advanced(pose: spawn, velocity: drift, spin: spin, step: test.World.DeltaTime))),
             Components =
             [
                 Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-                    self.MoveKinematic(Advanced(pose: self.PoseAtNextStepStartIn(self.Frame), velocity: drift, spin: spin, step: self.DeltaTime)))
+                    self.MoveKinematic(Advanced(pose: self.PoseAtNextStepStartIn(self.Frame), velocity: drift,
+                        spin: spin, step: self.DeltaTime)))
             ]
         });
         Entity child = test.World.Spawn(new()
@@ -313,7 +315,8 @@ public class FramelessMotionIntentTests
             {
                 0 => new SpawnDesc { Frame = test.Root }.OnKeplerOrbit(world,
                     KeplerOrbit.Circular(1000 + i * 10, phase: i * 0.7), firstMove: i % 8 == 0),
-                1 => place.Spinning(world, new(Tilt: DQuaternion.Identity, Rate: 0.1 + 0.01 * i), firstMove: i % 8 == 1),
+                1 => place.Spinning(world, new(Tilt: DQuaternion.Identity, Rate: 0.1 + 0.01 * i),
+                    firstMove: i % 8 == 1),
                 2 => KinematicDrift.Drifting(place, world, velocity),
                 _ => KinematicDrift.Drifting(new() { Frame = test.Root, Pose = at, Body = kinematicBall }, world,
                     velocity)

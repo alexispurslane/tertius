@@ -69,7 +69,8 @@ public sealed class OutlineRenderTests
             Vector2 lowerLeft = Pixel(new(-rim, -rim, -5.04f));
             foreach (Vector2 pixel in new[] { upperRight, lowerLeft })
             {
-                List<(Vector3 With, Vector3 Without)> covered = Covered(with: with, without: without, around: pixel, radius: 1);
+                List<(Vector3 With, Vector3 Without)> covered = Covered(with: with, without: without, around: pixel,
+                    radius: 1);
                 covered.Should().NotBeEmpty("the rim as seen from the eye passes through pixel {0}", pixel);
                 covered.Should().AllSatisfy(p => Vector3.Distance(p.With, Display(OutlineColors.Resting)).Should()
                     .BeLessThan(0.02f, "a ring against the sky draws its color at full alpha: {0}", p.With));
@@ -77,7 +78,8 @@ public sealed class OutlineRenderTests
 
             // Halfway between the rim and the ring of the XY plane, 4 px inside the rim, is sky.
             float between = (rim + 2.4f / 6f * 5.04f / MathF.Sqrt(2)) / 2;
-            Covered(with: with, without: without, around: Pixel(new(between, between, -5.04f)), radius: 0).Should().BeEmpty();
+            Covered(with: with, without: without, around: Pixel(new(between, between, -5.04f)), radius: 0).Should()
+                .BeEmpty();
         }
         finally
         {
@@ -92,13 +94,16 @@ public sealed class OutlineRenderTests
     private static RenderSnapshot RingAmongGeometry(VulkanRenderer renderer)
     {
         MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-        MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), gloss: 0.1f) with
-        {
-            SpecularIntensity = 0f
-        });
+        MaterialId white = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), gloss: 0.1f) with
+            {
+                SpecularIntensity = 0f
+            });
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.5f, 0.8f));
-        snapshot.Instances.Add(Gpu.Instance(mesh: box, material: white, position: new(2, 2, -6), scale: new(2.5f, 2.5f, 0.5f)));
-        snapshot.Instances.Add(Gpu.Instance(mesh: box, material: white, position: new(-4, -4, -20), scale: new(6, 6, 0.5f)));
+        snapshot.Instances.Add(Gpu.Instance(mesh: box, material: white, position: new(2, 2, -6),
+            scale: new(2.5f, 2.5f, 0.5f)));
+        snapshot.Instances.Add(Gpu.Instance(mesh: box, material: white, position: new(-4, -4, -20),
+            scale: new(6, 6, 0.5f)));
         snapshot.Outlines.Add(new SemanticOutline(new(0, 0, -10), Quaternion.Identity, new(3)));
         return snapshot;
     }
@@ -122,7 +127,8 @@ public sealed class OutlineRenderTests
             {
                 float angle = degrees * MathF.PI / 180;
                 Vector2 pixel = Pixel(new(3 * MathF.Cos(angle), 3 * MathF.Sin(angle), -10));
-                List<(Vector3 With, Vector3 Without)> covered = Covered(with: with, without: without, around: pixel, radius: 1);
+                List<(Vector3 With, Vector3 Without)> covered = Covered(with: with, without: without, around: pixel,
+                    radius: 1);
                 covered.Should().NotBeEmpty("the ring passes behind the box at {0}°", degrees);
                 foreach ((Vector3 shown, Vector3 box) in covered)
                 {
@@ -151,7 +157,8 @@ public sealed class OutlineRenderTests
                 .BeGreaterThan(0.3f, "the wall is behind the ring at the lower left");
             foreach (Vector2 pixel in new[] { RingPixel(-1, -1), RingPixel(-1, 1) })
             {
-                List<(Vector3 With, Vector3 Without)> covered = Covered(with: with, without: without, around: pixel, radius: 1);
+                List<(Vector3 With, Vector3 Without)> covered = Covered(with: with, without: without, around: pixel,
+                    radius: 1);
                 covered.Should().NotBeEmpty("the ring passes through pixel {0}", pixel);
                 covered.Should().AllSatisfy(p => Vector3.Distance(p.With, Display(OutlineColors.Semantic)).Should()
                     .BeLessThan(0.02f, "nothing is in front of the ring at {0}: {1}", pixel, p.With));
@@ -184,7 +191,8 @@ public sealed class OutlineRenderTests
             foreach (Vector3 point in new[] { onYz, onZx })
             {
                 point.Z.Should().BeLessThan(-2, "the point is ahead of the eye");
-                List<(Vector3 With, Vector3 Without)> covered = Covered(with: with, without: without, around: Pixel(point), radius: 1);
+                List<(Vector3 With, Vector3 Without)> covered = Covered(with: with, without: without,
+                    around: Pixel(point), radius: 1);
                 covered.Should().NotBeEmpty("the ring passes through {0}", point);
                 covered.Should().AllSatisfy(p => Vector3.Distance(p.With, Display(OutlineColors.Semantic)).Should()
                     .BeLessThan(0.02f, "the ring at {0} draws its color: {1}", point, p.With));
@@ -215,7 +223,8 @@ public sealed class OutlineRenderTests
             Vector3 start = center + new Vector3(3 * MathF.Sin(a), 0, 3 * MathF.Cos(a));
             Vector3 end = new(0, -0.01f, 0);
             Vector3 AtDepth(float depth) => Vector3.Lerp(start, end, (-start.Z - depth) / -start.Z);
-            List<(Vector3 With, Vector3 Without)> ahead = Covered(with: with, without: without, around: Pixel(AtDepth(0.1f)), radius: 1);
+            List<(Vector3 With, Vector3 Without)> ahead = Covered(with: with, without: without,
+                around: Pixel(AtDepth(0.1f)), radius: 1);
             ahead.Should().NotBeEmpty("the segment draws 10 cm ahead, in front of the near plane");
             ahead.Should().AllSatisfy(p =>
                 Vector3.Distance(p.With, Display(OutlineColors.Semantic)).Should().BeLessThan(0.02f));
@@ -302,17 +311,22 @@ public sealed class OutlineRenderTests
     {
         MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
         MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
-        MaterialId gray = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.55f, y: 0.55f, z: 0.55f, w: 1), gloss: 0.3f));
-        MaterialId ground = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.35f, y: 0.35f, z: 0.35f, w: 1), gloss: 0.2f));
+        MaterialId gray =
+            renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.55f, y: 0.55f, z: 0.55f, w: 1), gloss: 0.3f));
+        MaterialId ground =
+            renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.35f, y: 0.35f, z: 0.35f, w: 1), gloss: 0.2f));
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.5f));
-        snapshot.Instances.Add(Gpu.Instance(mesh: plane, material: ground, position: new(0, -2, -30), scale: new(30, 1, 30)));
+        snapshot.Instances.Add(Gpu.Instance(mesh: plane, material: ground, position: new(0, -2, -30),
+            scale: new(30, 1, 30)));
 
         var turned = Quaternion.CreateFromYawPitchRoll(0.5f, 0, 0);
         Vector3 boxCenter = new(-3, -0.5f, -11);
-        snapshot.Instances.Add(Gpu.Instance(mesh: box, material: gray, position: boxCenter, scale: new(1.2f), rotation: turned));
+        snapshot.Instances.Add(Gpu.Instance(mesh: box, material: gray, position: boxCenter, scale: new(1.2f),
+            rotation: turned));
         snapshot.Outlines.Add(new SemanticOutline(boxCenter, turned, new(1.8f, 1.3f, 1.6f)));
 
-        snapshot.Instances.Add(Gpu.Instance(mesh: box, material: gray, position: new(3, -0.8f, -9), scale: new(2.8f, 2.5f, 0.4f)));
+        snapshot.Instances.Add(Gpu.Instance(mesh: box, material: gray, position: new(3, -0.8f, -9),
+            scale: new(2.8f, 2.5f, 0.4f)));
         snapshot.Outlines.Add(new FallingOutline(new(2.5f, 0, -14), 2.2f));
         snapshot.Outlines.Add(new RestingOutline(new(-0.5f, 2.6f, -14), 1f));
         snapshot.Outlines.Add(new NestingOutline(new(-1, -2.6f, -16), 1.4f));

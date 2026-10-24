@@ -59,7 +59,8 @@ public class MotionIntentGuardTests
     private static MotionIntent Move(string write) => write switch
     {
         "end pose" => new(new EndPose(Turned)),
-        "full sample" => new(new MotionSample(Pose: Turned, ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
+        "full sample" => new(new MotionSample(Pose: Turned, ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
+            Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
             AngularAcceleration: Double3.Zero)),
         _ => new(new SteerTarget(Turned))
     };
@@ -107,7 +108,9 @@ public class MotionIntentGuardTests
         "kinematic hull" => world.Spawn(
             new() { Frame = space, Body = Box(BodyMotion.Kinematic), AsFrame = SmallBubble }),
         "character" => world.Spawn(new()
-            { Frame = space, Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70) }),
+        {
+            Frame = space, Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70)
+        }),
         "attached entity" => world.Spawn(new() { AttachTo = world.Spawn(new() { Frame = space }) }),
         "entity without a body" => world.Spawn(new() { Frame = space }),
         "owner of a root frame" => world.Spawn(new() { Body = Box(BodyMotion.Static), AsFrame = SmallBubble }),
@@ -289,7 +292,8 @@ public class MotionIntentGuardTests
         var end = new DPose(new(3 * step, 0, 0), DQuaternion.Identity);
         MotionIntent move = write == "end pose"
             ? new(new EndPose(end))
-            : new MotionIntent(new MotionSample(Pose: end, ChordVelocity: new(3, 0, 0), Velocity: new(3, 0, 0), Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
+            : new MotionIntent(new MotionSample(Pose: end, ChordVelocity: new(3, 0, 0), Velocity: new(3, 0, 0),
+                Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
                 AngularAcceleration: Double3.Zero));
 
         InATick(world, entity, self => Write(self, move)).Should().BeNull();
@@ -352,7 +356,8 @@ public sealed class RefusedRailsAllocationCollection;
 [Collection(nameof(RefusedRailsAllocationTests))]
 public class RefusedRailsAllocationTests
 {
-    private static readonly BodyDesc StaticBox = new(Shape: new BoxShapeDesc(new(2, 0.5f, 2)), Motion: BodyMotion.Static);
+    private static readonly BodyDesc StaticBox = new(Shape: new BoxShapeDesc(new(2, 0.5f, 2)),
+        Motion: BodyMotion.Static);
 
     /// <summary>
     /// A rails component whose entity the guard refuses logs the reason once and writes nothing (see

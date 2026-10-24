@@ -105,10 +105,15 @@ public sealed class CodaRun : IDisposable
     {
         Entity person = Scene["person"];
         var play = World.GetComponent<BoxPlay>(person)!;
-        return new(Tick: tick, Person: World.PoseIn(person, Station).Position, Standing: World.IsStanding(person), Play: play.State,
+        return new(Tick: tick, Person: World.PoseIn(person, Station).Position, Standing: World.IsStanding(person),
+            Play: play.State,
             Pen: World.GetComponent<Passenger>(person)!.State,
-            Stack: [.. Stack.Select(box => (World.PoseIn(box, Station).Position, World.VelocityIn(box, Station).Length))],
-            ThrowBoxes: [
+            Stack:
+            [
+                .. Stack.Select(box => (World.PoseIn(box, Station).Position, World.VelocityIn(box, Station).Length))
+            ],
+            ThrowBoxes:
+            [
                 .. Enumerable.Range(0, BoxPlayState.Throws).Select(i => Scene[WheelCoda.ThrowBoxId(i)]).Select(box =>
                     World.IsAlive(box) ? (true, World.PoseIn(box, Station).Position) : (false, default(Double3)))
             ],

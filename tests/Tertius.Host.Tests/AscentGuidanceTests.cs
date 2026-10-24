@@ -14,7 +14,8 @@ public sealed class AscentGuidanceTests
 
     private static readonly Double3 PlaneNormal = -Double3.UnitX;
 
-    private static readonly AscentGuidance Guidance = new(Mu: Mu, OrbitRadius: OrbitRadius, MaxAcceleration: Full, PlaneNormal: PlaneNormal);
+    private static readonly AscentGuidance Guidance = new(Mu: Mu, OrbitRadius: OrbitRadius, MaxAcceleration: Full,
+        PlaneNormal: PlaneNormal);
 
     [Fact]
     public void TheCirclesSpeedIsThatOfACircularOrbit() =>
@@ -125,8 +126,10 @@ public sealed class AscentGuidanceTests
     public void ThePushAcrossThePlaneNeverTakesThrustFromTheClimb(double radius, double climb, double alongTrack,
         double across)
     {
-        (Double3 position, Double3 velocity) = OnTheTrack(radius: radius, across: across, climb: climb, alongTrack: alongTrack);
-        (Double3 twinPosition, Double3 twinVelocity) = OnTheTrack(radius: radius, across: 0, climb: climb, alongTrack: alongTrack);
+        (Double3 position, Double3 velocity) =
+            OnTheTrack(radius: radius, across: across, climb: climb, alongTrack: alongTrack);
+        (Double3 twinPosition, Double3 twinVelocity) =
+            OnTheTrack(radius: radius, across: 0, climb: climb, alongTrack: alongTrack);
 
         Double3 a = Guidance.Acceleration(position, velocity), twin = Guidance.Acceleration(twinPosition, twinVelocity);
 

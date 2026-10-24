@@ -303,7 +303,8 @@ public class LifecycleFrameTests
         outer = t.SpawnStaticFrame(TestWorld.At(100), 50);
         inner = t.SpawnStaticFrame(TestWorld.At(10), 5, outer);
         x = t.World.SpawnAt(inner, new(1, 0, 0));
-        t.SpawnWith(SendOnce.Of(target: inner.Entity, payload: new Destroy()), SendOnce.Of(target: outer.Entity, payload: new Destroy()));
+        t.SpawnWith(SendOnce.Of(target: inner.Entity, payload: new Destroy()),
+            SendOnce.Of(target: outer.Entity, payload: new Destroy()));
         t.Run(2);
         return t;
     }
@@ -373,7 +374,8 @@ public class LifecycleFrameTests
         podLog = new(EventMask.Of<FrameChanged>());
         t.World.AddComponent(pod.Entity, podLog);
         passenger = t.World.SpawnAt(pod, new(1, 0, 0));
-        t.SpawnWith(SendOnce.Of(target: outer.Entity, payload: new Destroy()), SendOnce.Of(target: inner.Entity, payload: new Destroy()));
+        t.SpawnWith(SendOnce.Of(target: outer.Entity, payload: new Destroy()),
+            SendOnce.Of(target: inner.Entity, payload: new Destroy()));
         t.Run(3);
         return t;
     }
@@ -383,7 +385,8 @@ public class LifecycleFrameTests
     [InlineData(true)]
     public void AFrameInsideTwoFramesThatDieTogetherMovesToTheNearestSurvivor(bool innerOwnerHasTheLowerSlot)
     {
-        using TestWorld t = PodInTwoDyingFrames(innerOwnerHasTheLowerSlot: innerOwnerHasTheLowerSlot, inner: out _, pod: out FrameHandle pod, passenger: out _, podLog: out _);
+        using TestWorld t = PodInTwoDyingFrames(innerOwnerHasTheLowerSlot: innerOwnerHasTheLowerSlot, inner: out _,
+            pod: out FrameHandle pod, passenger: out _, podLog: out _);
 
         t.World.Frames.Parent(pod).Should().Be(t.Root);
         t.World.GetFrame(pod.Entity).Should().Be(t.Root);
@@ -395,7 +398,8 @@ public class LifecycleFrameTests
     [InlineData(true)]
     public void AFrameInsideTwoFramesThatDieTogetherKeepsItsPlaceInSpace(bool innerOwnerHasTheLowerSlot)
     {
-        using TestWorld t = PodInTwoDyingFrames(innerOwnerHasTheLowerSlot: innerOwnerHasTheLowerSlot, inner: out _, pod: out FrameHandle pod, passenger: out _, podLog: out _);
+        using TestWorld t = PodInTwoDyingFrames(innerOwnerHasTheLowerSlot: innerOwnerHasTheLowerSlot, inner: out _,
+            pod: out FrameHandle pod, passenger: out _, podLog: out _);
 
         // The inner frame's quarter turn maps the pod's offset of z = 5 to x = 5. With the inner frame's x = 10 and the outer's 100, that is x = 115.
         Double3 position = t.World.PoseInOwnFrame(pod.Entity).Position;
@@ -407,7 +411,8 @@ public class LifecycleFrameTests
     [InlineData(true)]
     public void WhatWasInsideThePodStaysInThePodAndKeepsItsPlaceInSpace(bool innerOwnerHasTheLowerSlot)
     {
-        using TestWorld t = PodInTwoDyingFrames(innerOwnerHasTheLowerSlot: innerOwnerHasTheLowerSlot, inner: out _, pod: out FrameHandle pod,
+        using TestWorld t = PodInTwoDyingFrames(innerOwnerHasTheLowerSlot: innerOwnerHasTheLowerSlot, inner: out _,
+            pod: out FrameHandle pod,
             passenger: out Entity passenger, podLog: out _);
 
         t.World.GetFrame(passenger).Should().Be(pod);
@@ -421,7 +426,8 @@ public class LifecycleFrameTests
     [InlineData(true)]
     public void ThePodsOwnerHearsOnceThatItMovedFromTheFrameItWasInToTheSurvivor(bool innerOwnerHasTheLowerSlot)
     {
-        using TestWorld t = PodInTwoDyingFrames(innerOwnerHasTheLowerSlot: innerOwnerHasTheLowerSlot, inner: out FrameHandle inner, pod: out _, passenger: out _,
+        using TestWorld t = PodInTwoDyingFrames(innerOwnerHasTheLowerSlot: innerOwnerHasTheLowerSlot,
+            inner: out FrameHandle inner, pod: out _, passenger: out _,
             podLog: out Recorder podLog);
 
         var changed = podLog.Seen.Should().ContainSingle().Subject.Event.As<FrameChanged>();
@@ -434,7 +440,8 @@ public class LifecycleFrameTests
     [InlineData(true)]
     public void AFrameInsideTwoFramesThatDieTogetherReportsNoErrors(bool innerOwnerHasTheLowerSlot)
     {
-        using TestWorld t = PodInTwoDyingFrames(innerOwnerHasTheLowerSlot: innerOwnerHasTheLowerSlot, inner: out _, pod: out _, passenger: out _, podLog: out _);
+        using TestWorld t = PodInTwoDyingFrames(innerOwnerHasTheLowerSlot: innerOwnerHasTheLowerSlot, inner: out _,
+            pod: out _, passenger: out _, podLog: out _);
 
         t.World.Errors.Should().BeEmpty();
     }
@@ -461,7 +468,8 @@ public class LifecycleFrameTests
             Pod = T.SpawnStaticFrame(TestWorld.At(100, 20, -30), 10, moon);
             Passenger = T.World.SpawnAt(Pod, new(1, 0, 0));
             T.Run(3);
-            PodVelocityBefore = T.World.Frames.ConvertVelocity(from: Pod, to: T.Root, position: Double3.Zero, v: Double3.Zero);
+            PodVelocityBefore =
+                T.World.Frames.ConvertVelocity(from: Pod, to: T.Root, position: Double3.Zero, v: Double3.Zero);
             PodSpinBefore = T.World.Frames.AngularVelocityRelative(Pod, T.Root);
             T.World.Snapshot.TryGetPoseIn(Passenger, T.Root, out DPose passengerInRoot).Should().BeTrue();
             PassengerInRootBefore = passengerInRoot;

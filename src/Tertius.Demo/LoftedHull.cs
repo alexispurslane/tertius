@@ -313,7 +313,8 @@ public sealed partial class LoftedHull
                     nameof(door));
         }
 
-        return new(from: this, door: new(Box: door, Bay: bay, FromCorner: fromCorner, ToCorner: toCorner, Axis: axis), pocket: pocket, surrounds: surrounds, panes: panes);
+        return new(from: this, door: new(Box: door, Bay: bay, FromCorner: fromCorner, ToCorner: toCorner, Axis: axis),
+            pocket: pocket, surrounds: surrounds, panes: panes);
     }
 
     /// <summary>
@@ -345,7 +346,9 @@ public sealed partial class LoftedHull
                     $"The pocket's housing, {2 * outer} m square round ({center.X}, {center.Y}), reaches the hull's wall at z = {z}.",
                     nameof(housing));
 
-        return new(from: this, door: door, pocket: new(X: center.X, Y: center.Y, Half: half, Depth: depth, Housing: housing), surrounds: surrounds, panes: panes);
+        return new(from: this, door: door,
+            pocket: new(X: center.X, Y: center.Y, Half: half, Depth: depth, Housing: housing), surrounds: surrounds,
+            panes: panes);
     }
 
     /// <summary>
@@ -424,7 +427,8 @@ public sealed partial class LoftedHull
                 "Call Surrounds before the glass: the size of a pane's hole comes from them.");
         if (panes.Any(other => other.Id == pane.Id))
             throw new ArgumentException($"The scene id {pane.Id} belongs to another pane.", nameof(pane));
-        var hull = new LoftedHull(from: this, door: door, pocket: pocket, surrounds: surrounds, panes: [.. panes, pane]);
+        var hull = new LoftedHull(from: this, door: door, pocket: pocket, surrounds: surrounds,
+            panes: [.. panes, pane]);
         foreach (PaneCut each in hull.panes)
             hull.HoleOf(each);
         return hull;
@@ -458,7 +462,8 @@ public sealed partial class LoftedHull
                 mesh.Polygon(outward, [front[i], front[next], back[next], back[i]]);
             }
 
-            return new HullPane(Id: pane.Id, Center: center.ToVector3(), Outer: [.. outer.Select(corner => corner.ToVector3())],
+            return new HullPane(Id: pane.Id, Center: center.ToVector3(),
+                Outer: [.. outer.Select(corner => corner.ToVector3())],
                 Inner: [.. inner.Select(corner => corner.ToVector3())], Mesh: mesh.Build());
         })
     ];
@@ -927,7 +932,8 @@ public sealed partial class LoftedHull
 
         Vector3[] outerPanel = Outline(outer), innerPanel = Outline(inner);
         Vector3 normal = CellNormal(a: outer[cut.Bay - 1][cut.FromCorner],
-            b: outer[cut.Bay - 1][(cut.FromCorner + 1) % Corners], aNext: outer[cut.Bay][cut.FromCorner], edge: cut.FromCorner);
+            b: outer[cut.Bay - 1][(cut.FromCorner + 1) % Corners], aNext: outer[cut.Bay][cut.FromCorner],
+            edge: cut.FromCorner);
         Vector3[] outerHole = Hole(Component(outerPanel[0], axis)), innerHole = Hole(Component(innerPanel[0], axis));
         mesh.Ring(normal, outerPanel, outerHole);
         mesh.Ring(-normal, innerPanel, innerHole);
@@ -1190,7 +1196,8 @@ public sealed partial class LoftedHull
 
             Vector3 middle = corners.Aggregate(Vector3.Zero, (sum, corner) => sum + corner) / corners.Length;
             for (int i = 0; i < corners.Length; i++)
-                Triangle(normal: normal, tangent: tangent, a: middle, b: corners[i], c: corners[(i + 1) % corners.Length]);
+                Triangle(normal: normal, tangent: tangent, a: middle, b: corners[i],
+                    c: corners[(i + 1) % corners.Length]);
         }
 
         /// <summary>

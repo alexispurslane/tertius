@@ -58,7 +58,8 @@ public static partial class DemoScenes
             Frame = ground,
             Pose = new(new(0, -0.5, 0), DQuaternion.Identity),
             Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Static),
-            Render = Drawn(resources: resources, mesh: Primitives.Box(new(50, 0.5f, 50)), color: new(x: 0.35f, y: 0.35f, z: 0.35f, w: 1),
+            Render = Drawn(resources: resources, mesh: Primitives.Box(new(50, 0.5f, 50)),
+                color: new(x: 0.35f, y: 0.35f, z: 0.35f, w: 1),
                 boundingRadius: 71)
         }));
         var ball = new SphereShapeDesc(MeshesBallRadius);
@@ -72,7 +73,8 @@ public static partial class DemoScenes
                 Frame = ground,
                 Pose = pose,
                 Body = new(Shape: shape, Motion: BodyMotion.Static),
-                Render = Drawn(resources: resources, mesh: solid.Mesh(), color: color, boundingRadius: shape.BoundingRadius())
+                Render = Drawn(resources: resources, mesh: solid.Mesh(), color: color,
+                    boundingRadius: shape.BoundingRadius())
             }));
         }
 
@@ -81,18 +83,23 @@ public static partial class DemoScenes
             Frame = ground,
             Pose = new(position, DQuaternion.Identity),
             Body = new(Shape: ball, Mass: 1),
-            Render = Drawn(resources: resources, mesh: ballMesh, color: new(x: 0.85f, y: 0.15f, z: 0.15f, w: 1), boundingRadius: MeshesBallRadius)
+            Render = Drawn(resources: resources, mesh: ballMesh, color: new(x: 0.85f, y: 0.15f, z: 0.15f, w: 1),
+                boundingRadius: MeshesBallRadius)
         }));
 
         Solid(id: "cylinder",
             solid: RevolvedSolid.Cylinder(MeshesCylinderRadius, MeshesCylinderHalfHeight, MeshesCylinderSegments),
-            pose: new(new(MeshesCylinderX, MeshesCylinderHalfHeight, 0), DQuaternion.Identity), color: new(x: 0.25f, y: 0.5f, z: 0.85f, w: 1));
+            pose: new(new(MeshesCylinderX, MeshesCylinderHalfHeight, 0), DQuaternion.Identity),
+            color: new(x: 0.25f, y: 0.5f, z: 0.85f, w: 1));
         Ball("cylinder-ball", new(MeshesCylinderX + 0.3, 2 * MeshesCylinderHalfHeight + MeshesBallRadius + 0.5, 0));
 
         // The tube's flat bottom and top are r cos(π / sides) below and above its center circle.
         double tubeFlat = MeshesTorusMinor * Math.Cos(Math.PI / MeshesTorusSides);
-        Solid(id: "torus", solid: RevolvedSolid.Torus(majorRadius: MeshesTorusMajor, minorRadius: MeshesTorusMinor, segments: MeshesTorusSegments, sides: MeshesTorusSides),
-            pose: new(new(MeshesTorusX, tubeFlat, 0), DQuaternion.Identity), color: new(x: 0.9f, y: 0.55f, z: 0.15f, w: 1));
+        Solid(id: "torus",
+            solid: RevolvedSolid.Torus(majorRadius: MeshesTorusMajor, minorRadius: MeshesTorusMinor,
+                segments: MeshesTorusSegments, sides: MeshesTorusSides),
+            pose: new(new(MeshesTorusX, tubeFlat, 0), DQuaternion.Identity),
+            color: new(x: 0.9f, y: 0.55f, z: 0.15f, w: 1));
         // The middle of segment 0's facet, half a segment from +X toward -Z.
         double half = Math.PI / MeshesTorusSegments, middle = MeshesTorusMajor * Math.Cos(half);
         Ball("torus-ball",
@@ -105,7 +112,9 @@ public static partial class DemoScenes
         double ringY = MeshesRingOuter * facet;
         DQuaternion onEdge = DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2) *
                              DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / MeshesRingSegments);
-        Solid(id: "ring", solid: RevolvedSolid.Ring(innerRadius: MeshesRingInner, outerRadius: MeshesRingOuter, halfWidth: MeshesRingHalfWidth, segments: MeshesRingSegments),
+        Solid(id: "ring",
+            solid: RevolvedSolid.Ring(innerRadius: MeshesRingInner, outerRadius: MeshesRingOuter,
+                halfWidth: MeshesRingHalfWidth, segments: MeshesRingSegments),
             pose: new(new(MeshesRingX, ringY, 0), onEdge), color: new(x: 0.75f, y: 0.75f, z: 0.8f, w: 1));
         Ball("ring-ball", new(MeshesRingX, ringY - MeshesRingInner * facet + MeshesBallRadius + 0.5, 0));
 

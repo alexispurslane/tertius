@@ -274,7 +274,8 @@ public sealed class ReadoutLogTests
             var output = new StringWriter();
             var error = new StringWriter();
 
-            int exit = Program.Readouts(args: ["--readouts", script, log], scenes: [Drop], output: output, error: error);
+            int exit = Program.Readouts(args: ["--readouts", script, log], scenes: [Drop], output: output,
+                error: error);
 
             exit.Should().Be(ScriptCommand.Ok, error.ToString());
             ReadoutLog.FromCsv(File.ReadAllText(log)).Should().Equal(Rows);

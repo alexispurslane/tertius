@@ -49,7 +49,8 @@ public class SpinStationLandingTests
     private static readonly Double3 Omega = new(0, StationRate, 0);
 
     /// <summary>A person: a capsule with a half height of 0.6 m and a radius of 0.3 m, of 70 kg.</summary>
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
+        Mass: 70);
 
     /// <summary>An undamped crate, a box of 1 m and 10 kg, so that its path is its inertial line until it lands.</summary>
     private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0,
@@ -99,11 +100,13 @@ public class SpinStationLandingTests
                     Motion: BodyMotion.Kinematic, InteriorShape: RingMesh())
                 : null
         };
-        Entity owner = world.Spawn(desc.Spinning(world, new(Tilt: DQuaternion.Identity, Rate: StationRate), firstMove: true));
+        Entity owner =
+            world.Spawn(desc.Spinning(world, new(Tilt: DQuaternion.Identity, Rate: StationRate), firstMove: true));
         FrameHandle frame = world.GetOwnedFrame(owner);
         if (floor == FloorKind.Slabs)
             for (int i = 0; i < FloorFaces; i++)
-                world.Spawn(new() { Frame = frame, Pose = SlabPose(i), Body = new(Shape: Slab, Motion: BodyMotion.Static) });
+                world.Spawn(new()
+                    { Frame = frame, Pose = SlabPose(i), Body = new(Shape: Slab, Motion: BodyMotion.Static) });
         return new(space, frame);
     }
 
@@ -225,7 +228,8 @@ public class SpinStationLandingTests
         double radius = 60,
         FloorKind floor = FloorKind.Slabs)
     {
-        using World world = NewWorld(backend: out _, debugChecks: false, configure: options => options.NumericFrames = rules);
+        using World world = NewWorld(backend: out _, debugChecks: false,
+            configure: options => options.NumericFrames = rules);
         Station station = SpawnStation(world, floor);
         Entity crosser = SpawnCrosser(world: world, station: station, body: body, radius: radius, thrusts: thrusts);
         var crossing = new Crossing([]);
@@ -236,7 +240,8 @@ public class SpinStationLandingTests
             FrameHandle home = world.PhysicsHomeOf(crosser);
             crossing.Moments.Add(new(Place: pose.Position, Depth: Depth(pose, body.Motion == BodyMotion.Character),
                 Falling: world.Frames.IsNumeric(home),
-                Speed: world.VelocityIn(crosser, station.Frame).Length, HomeSpeed: world.VelocityIn(crosser, home).Length));
+                Speed: world.VelocityIn(crosser, station.Frame).Length,
+                HomeSpeed: world.VelocityIn(crosser, home).Length));
             world.GetFrame(crosser).Should().Be(station.Frame, "the body stays inside the station");
         }
 

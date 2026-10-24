@@ -57,12 +57,14 @@ public sealed class PuffRenderTests
     private static RenderSnapshot GlowScene(VulkanRenderer renderer)
     {
         MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
-        MaterialId ground = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.08f, y: 0.08f, z: 0.08f, w: 1), gloss: 0.1f) with
-        {
-            SpecularIntensity = 0f
-        });
+        MaterialId ground = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.08f, y: 0.08f, z: 0.08f, w: 1), gloss: 0.1f) with
+            {
+                SpecularIntensity = 0f
+            });
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.4f, 0.8f), sunIntensity: 0.5f);
-        snapshot.Instances.Add(Gpu.Instance(mesh: plane, material: ground, position: new(0, -2, -30), scale: new(40, 1, 40)));
+        snapshot.Instances.Add(Gpu.Instance(mesh: plane, material: ground, position: new(0, -2, -30),
+            scale: new(40, 1, 40)));
         snapshot.PuffLooks.Add(new(Life: 2f, StartRadius: 0.4f, EndRadius: 1.2f, TemperatureRatio: 3f,
             Shading: PuffShading.Glow(new(3f, 1.2f, 0.3f))));
         for (int i = 0; i < 9; i++)
@@ -117,17 +119,21 @@ public sealed class PuffRenderTests
     {
         MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
         MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
-        MaterialId ground = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.3f, y: 0.3f, z: 0.3f, w: 1), gloss: 0.2f) with
-        {
-            SpecularIntensity = 0f
-        });
-        MaterialId glass = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.6f, y: 0.7f, z: 0.8f, w: 0.2f), gloss: 0.2f) with
-        {
-            SpecularIntensity = 0f
-        });
+        MaterialId ground = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.3f, y: 0.3f, z: 0.3f, w: 1), gloss: 0.2f) with
+            {
+                SpecularIntensity = 0f
+            });
+        MaterialId glass = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.6f, y: 0.7f, z: 0.8f, w: 0.2f), gloss: 0.2f) with
+            {
+                SpecularIntensity = 0f
+            });
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.6f, 0.8f), sunIntensity: 0.6f);
-        snapshot.Instances.Add(Gpu.Instance(mesh: plane, material: ground, position: new(0, -2, -30), scale: new(40, 1, 40)));
-        snapshot.Instances.Add(Gpu.Instance(mesh: box, material: glass, position: new(-3.5f, 0.5f, -8), scale: new(7, 5, 0.05f),
+        snapshot.Instances.Add(Gpu.Instance(mesh: plane, material: ground, position: new(0, -2, -30),
+            scale: new(40, 1, 40)));
+        snapshot.Instances.Add(Gpu.Instance(mesh: box, material: glass, position: new(-3.5f, 0.5f, -8),
+            scale: new(7, 5, 0.05f),
             flags: RenderFlags.Transparent));
         snapshot.PuffLooks.Add(new(Life: 2f, StartRadius: 0.6f, EndRadius: 0.6f, TemperatureRatio: 3f,
             Shading: PuffShading.Glow(new(0.5f, 0.25f, 0.08f))));
@@ -169,7 +175,8 @@ public sealed class PuffRenderTests
         }
     }
 
-    private static Vector2 SoftPixel(Vector3 point) => Gpu.Project(point: point, cameraRotation: SoftCamera, width: Width, height: Height);
+    private static Vector2 SoftPixel(Vector3 point) =>
+        Gpu.Project(point: point, cameraRotation: SoftCamera, width: Width, height: Height);
 
     /// <summary>
     /// The scene of puffs-soft.png, seen by <see cref="SoftCamera"/>: a gray floor 3 m below the eye and a gray wall whose
@@ -181,15 +188,18 @@ public sealed class PuffRenderTests
     {
         MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
         MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
-        MaterialId gray = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.35f, y: 0.35f, z: 0.35f, w: 1), gloss: 0.2f) with
-        {
-            SpecularIntensity = 0f
-        });
+        MaterialId gray = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.35f, y: 0.35f, z: 0.35f, w: 1), gloss: 0.2f) with
+            {
+                SpecularIntensity = 0f
+            });
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.7f, 0.6f), sunIntensity: 1.5f);
         snapshot.Camera.Rotation = SoftCamera;
         snapshot.Camera.PreviousRotation = SoftCamera;
-        snapshot.Instances.Add(Gpu.Instance(mesh: plane, material: gray, position: new(0, -3, -10), scale: new(20, 1, 20)));
-        snapshot.Instances.Add(Gpu.Instance(mesh: box, material: gray, position: new(0, 0, -10.2f), scale: new(20, 6, 0.4f)));
+        snapshot.Instances.Add(Gpu.Instance(mesh: plane, material: gray, position: new(0, -3, -10),
+            scale: new(20, 1, 20)));
+        snapshot.Instances.Add(Gpu.Instance(mesh: box, material: gray, position: new(0, 0, -10.2f),
+            scale: new(20, 6, 0.4f)));
         snapshot.PuffLooks.Add(new(Life: 2f, StartRadius: 1.2f, EndRadius: 1.2f, TemperatureRatio: 3f,
             Shading: PuffShading.Glow(new(2f, 0.9f, 0.25f))));
         snapshot.PuffLooks.Add(new(Life: 2f, StartRadius: 1f, EndRadius: 1f, TemperatureRatio: 3f,
@@ -251,12 +261,14 @@ public sealed class PuffRenderTests
     private static RenderSnapshot FarScene(VulkanRenderer renderer, out Vector3 first, out float firstRadius)
     {
         MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
-        MaterialId ground = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.25f, y: 0.27f, z: 0.22f, w: 1), gloss: 0.1f) with
-        {
-            SpecularIntensity = 0f
-        });
+        MaterialId ground = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.25f, y: 0.27f, z: 0.22f, w: 1), gloss: 0.1f) with
+            {
+                SpecularIntensity = 0f
+            });
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.5f, 0.8f), sunIntensity: 2f);
-        snapshot.Instances.Add(Gpu.Instance(mesh: plane, material: ground, position: new(0, -300, -20_000), scale: new(30_000, 1, 30_000)));
+        snapshot.Instances.Add(Gpu.Instance(mesh: plane, material: ground, position: new(0, -300, -20_000),
+            scale: new(30_000, 1, 30_000)));
         snapshot.PuffLooks.Add(new(Life: 12f, StartRadius: 20f, EndRadius: 68f, TemperatureRatio: 3f,
             Shading: PuffShading.Glow(new(4f, 1.8f, 0.5f))));
         first = new(0, 0, -2_500);

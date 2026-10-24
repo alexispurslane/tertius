@@ -165,7 +165,8 @@ public class LifecycleTests
         using var t = new TestWorld();
         Entity shielded = t.SpawnWith(new Invulnerable());
         Entity exposed = t.SpawnWith();
-        t.SpawnWith(SendOnce.Of(target: shielded, payload: new Destroy()), SendOnce.Of(target: exposed, payload: new Destroy()));
+        t.SpawnWith(SendOnce.Of(target: shielded, payload: new Destroy()),
+            SendOnce.Of(target: exposed, payload: new Destroy()));
 
         t.Run(2);
 

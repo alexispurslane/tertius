@@ -27,8 +27,10 @@ public sealed class StressTests(ITestOutputHelper output)
             float x = (column - columns / 2) * 2.2f;
             float z = -4f - row * 4f;
             float y = -3f + MathF.Sin(column * 0.3f) * MathF.Cos(row * 0.2f);
-            RenderInstance instance = Gpu.Instance(mesh: i % 3 == 0 ? sphere : box, material: materials[i % 4], position: new(x, y, z),
-                scale: new(1.4f), rotation: Quaternion.CreateFromYawPitchRoll(i * 0.37f, i * 0.11f, 0), flags: flags, entity: (uint)i);
+            RenderInstance instance = Gpu.Instance(mesh: i % 3 == 0 ? sphere : box, material: materials[i % 4],
+                position: new(x, y, z),
+                scale: new(1.4f), rotation: Quaternion.CreateFromYawPitchRoll(i * 0.37f, i * 0.11f, 0), flags: flags,
+                entity: (uint)i);
             snapshot.Instances.Add(instance);
         }
 
@@ -88,7 +90,8 @@ public sealed class StressTests(ITestOutputHelper output)
         try
         {
             RenderSnapshot snapshot = Field(renderer, RenderFlags.None);
-            Capture geometry = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "twenty-thousand-impostors-frame-0");
+            Capture geometry = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot,
+                name: "twenty-thousand-impostors-frame-0");
             RenderStats first = renderer.LastFrameStats;
             output.WriteLine($"first frame: {first}");
             first.ImpostorCaptures.Should().Be(4);
@@ -102,7 +105,8 @@ public sealed class StressTests(ITestOutputHelper output)
                     .Be(4, "the budget is used in full while tiles are free (frame {0})", i);
             }
 
-            Capture impostors = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "twenty-thousand-impostors");
+            Capture impostors =
+                Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "twenty-thousand-impostors");
             RenderStats stats = renderer.LastFrameStats;
             output.WriteLine($"atlas full: {stats}");
             // 64 impostors, each visible every frame, so no tile can be evicted: the rest wait as geometry.
@@ -130,7 +134,11 @@ public sealed class StressTests(ITestOutputHelper output)
                 $"{clock.Elapsed.TotalMilliseconds / frames:F2} ms per frame with validation and impostors");
 
             // The CPU cost of the impostor decisions alone: batching the same snapshot with and without the manager.
-            MeshInfo[] meshes = [new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: MathF.Sqrt(0.75f)), new(FirstIndex: 36, IndexCount: 3000, VertexOffset: 24, Radius: 0.5f)];
+            MeshInfo[] meshes =
+            [
+                new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: MathF.Sqrt(0.75f)),
+                new(FirstIndex: 36, IndexCount: 3000, VertexOffset: 24, Radius: 0.5f)
+            ];
 
             double Batch(bool withManager)
             {
@@ -139,10 +147,12 @@ public sealed class StressTests(ITestOutputHelper output)
                     batcher.Processors.Add(new ImpostorManager(64));
                 var scene = new PreparedScene();
                 for (int i = 0; i < 20; i++)
-                    batcher.Prepare(snapshot: snapshot, alpha: 1f, width: width, height: height, meshes: meshes, materialCount: 8, scene: scene);
+                    batcher.Prepare(snapshot: snapshot, alpha: 1f, width: width, height: height, meshes: meshes,
+                        materialCount: 8, scene: scene);
                 var timer = Stopwatch.StartNew();
                 for (int i = 0; i < 50; i++)
-                    batcher.Prepare(snapshot: snapshot, alpha: 1f, width: width, height: height, meshes: meshes, materialCount: 8, scene: scene);
+                    batcher.Prepare(snapshot: snapshot, alpha: 1f, width: width, height: height, meshes: meshes,
+                        materialCount: 8, scene: scene);
                 return timer.Elapsed.TotalMilliseconds / 50;
             }
 
@@ -166,10 +176,13 @@ public sealed class StressTests(ITestOutputHelper output)
             // The sun is low in front and to the right, and the field stands on a ground plane, so the shadows show.
             RenderSnapshot snapshot = Field(renderer, RenderFlags.CastsShadow, new Vector3(0.6f, 0.45f, -0.5f));
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
-            MaterialId ground = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1), gloss: 0.2f));
-            snapshot.Instances.Add(Gpu.Instance(mesh: plane, material: ground, position: new(0, -5f, -200f), scale: new(450f, 1f, 450f),
+            MaterialId ground =
+                renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1), gloss: 0.2f));
+            snapshot.Instances.Add(Gpu.Instance(mesh: plane, material: ground, position: new(0, -5f, -200f),
+                scale: new(450f, 1f, 450f),
                 flags: RenderFlags.CastsShadow));
-            Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "twenty-thousand-shadows");
+            Capture image =
+                Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "twenty-thousand-shadows");
             RenderStats stats = renderer.LastFrameStats;
             output.WriteLine($"{stats}");
             stats.ShadowCasters.Should().Be(20_001);
@@ -188,7 +201,8 @@ public sealed class StressTests(ITestOutputHelper output)
                 snapshot.Instances[i] = instance;
             }
 
-            Capture unshadowed = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "twenty-thousand-without-shadow-maps");
+            Capture unshadowed = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot,
+                name: "twenty-thousand-without-shadow-maps");
 
             static double Mean(Capture capture)
             {

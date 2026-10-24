@@ -31,7 +31,8 @@ public sealed class FilmStepTests : IDisposable
         try
         {
             using var playback = new HeadlessPlayback(renderer, script.Window, new PngFolder(output));
-            return ScriptRunner.Run(script: script, world: world, scene: build(world, renderer), outputFolder: output, playback: playback);
+            return ScriptRunner.Run(script: script, world: world, scene: build(world, renderer), outputFolder: output,
+                playback: playback);
         }
         finally
         {

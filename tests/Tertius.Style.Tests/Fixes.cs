@@ -70,7 +70,8 @@ internal static class Fixes
         ImmutableArray<CodeActionOperation> operations = await action.GetOperationsAsync(cancel);
         Solution changed = operations.OfType<ApplyChangesOperation>().Single().ChangedSolution;
         string fixedSource = (await changed.GetDocument(document.Id)!.GetTextAsync(cancel)).ToString();
-        (await Analysis.Ids(fixedSource)).Should().NotContain("TS0002", "the fix names every argument that needs a name");
+        (await Analysis.Ids(fixedSource)).Should()
+            .NotContain("TS0002", "the fix names every argument that needs a name");
         return fixedSource;
     }
 

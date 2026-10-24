@@ -46,15 +46,18 @@ public class RenderSnapshotPuffTests
         public FrameHandle AddFrame(FrameHandle parent, DPose local)
         {
             Entity owner = entities.Reserve();
-            FrameHandle frame = Frames.Create(frameOwner: owner, parent: parent, localPose: local, frameBounds: FrameBounds.Sphere(1e9f));
-            entities.Activate(entity: owner, row: new() { Frame = parent, PhysicsHome = parent, Pose = local }, render: new(), components: [], wants: [], body: null,
+            FrameHandle frame = Frames.Create(frameOwner: owner, parent: parent, localPose: local,
+                frameBounds: FrameBounds.Sphere(1e9f));
+            entities.Activate(entity: owner, row: new() { Frame = parent, PhysicsHome = parent, Pose = local },
+                render: new(), components: [], wants: [], body: null,
                 bodyCenterOfMass: Vector3.Zero, ownedFrame: frame);
             Frames.Update();
             return frame;
         }
 
         /// <summary>A camera at <paramref name="pose"/> in <paramref name="frame"/>, which is also its physics home.</summary>
-        public Entity AddCamera(FrameHandle frame, DPose pose) => AddCamera(frame: frame, pose: pose, home: frame, homePosition: pose.Position);
+        public Entity AddCamera(FrameHandle frame, DPose pose) =>
+            AddCamera(frame: frame, pose: pose, home: frame, homePosition: pose.Position);
 
         /// <summary>
         /// A camera at <paramref name="pose"/> in <paramref name="frame"/>, whose physics home is <paramref name="home"/>, a
@@ -65,7 +68,8 @@ public class RenderSnapshotPuffTests
             Entity camera = entities.Reserve();
             entities.Activate(entity: camera,
                 row: new() { Frame = frame, PhysicsHome = home, Pose = pose, HomePosition = homePosition },
-                render: new(), components: [], wants: [], body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
+                render: new(), components: [], wants: [], body: null, bodyCenterOfMass: Vector3.Zero,
+                ownedFrame: FrameHandle.Null);
             return camera;
         }
 
@@ -86,7 +90,8 @@ public class RenderSnapshotPuffTests
 
         public void Build(RenderSnapshot snapshot, long tick, Entity camera, in PuffView puffs)
         {
-            Builder.Build(snapshot, new(Tick: tick, Time: tick * Step, Camera: camera, VerticalFov: 1, SunFrame: FrameHandle.Null, SunColor: Vector3.One,
+            Builder.Build(snapshot, new(Tick: tick, Time: tick * Step, Camera: camera, VerticalFov: 1,
+                SunFrame: FrameHandle.Null, SunColor: Vector3.One,
                 SunIntensity: 0,
                 Ambient: new(), ShowFrameOutlines: false), puffs);
         }
@@ -111,7 +116,8 @@ public class RenderSnapshotPuffTests
         FrameHandle hut = h.AddFrame(h.Root, hutPose);
         // The camera is at (1, 2, 3) in the ship, and its home is a cell of the ship at (50, 0, 0), as a numeric frame is.
         FrameHandle cell = h.AddFrame(ship, new(new(50, 0, 0), DQuaternion.Identity));
-        Entity camera = h.AddCamera(frame: ship, pose: new(new(1, 2, 3), DQuaternion.Identity), home: cell, homePosition: new(-49, 2, 3));
+        Entity camera = h.AddCamera(frame: ship, pose: new(new(1, 2, 3), DQuaternion.Identity), home: cell,
+            homePosition: new(-49, 2, 3));
         var place = new Double3(5, 6, 7);
 
         RenderSnapshot snapshot = h.Build(1, camera, ViewIn(hut, Row(place: place)));
@@ -212,7 +218,8 @@ public class RenderSnapshotPuffTests
         else
         {
             FrameHandle cell = h.AddFrame(station, new(new(0, 0, 40), DQuaternion.Identity));
-            camera = h.AddCamera(frame: station, pose: new(eyeInStation, DQuaternion.Identity), home: cell, homePosition: new(0, 2, 20));
+            camera = h.AddCamera(frame: station, pose: new(eyeInStation, DQuaternion.Identity), home: cell,
+                homePosition: new(0, 2, 20));
             expected = fromEye;
         }
 
@@ -244,7 +251,11 @@ public class RenderSnapshotPuffTests
         FrameHandle west = h.AddFrame(h.Root, new(new(-100, 0, 0), DQuaternion.Identity));
         Entity camera = h.AddCamera(h.Root, DPose.Identity);
         // The west range comes first in the list, though its frame was made after the east one.
-        Puff[] rows = [Row(place: new(1, 0, 0)), Row(place: new(2, 0, 0)), Row(place: new(3, 0, 0)), Row(place: new(4, 0, 0)), Row(place: new(5, 0, 0))];
+        Puff[] rows =
+        [
+            Row(place: new(1, 0, 0)), Row(place: new(2, 0, 0)), Row(place: new(3, 0, 0)), Row(place: new(4, 0, 0)),
+            Row(place: new(5, 0, 0))
+        ];
         PuffRange[] ranges = [new(west, 0, 2), new(east, 2, 3)];
 
         RenderSnapshot snapshot = h.Build(1, camera, View(rows, ranges));
@@ -312,7 +323,8 @@ public class RenderSnapshotPuffTests
         var h = new Harness();
         FrameHandle ship = h.AddFrame(h.Root, new(new(10, 0, 0), DQuaternion.Identity));
         Entity camera = h.AddCamera(h.Root, DPose.Identity);
-        Puff[] rows = [.. Enumerable.Range(0, 500).Select(i => Row(place: new(i, 0, 0), chord: new(1, 0, 0), look: i % 2))];
+        Puff[] rows =
+            [.. Enumerable.Range(0, 500).Select(i => Row(place: new(i, 0, 0), chord: new(1, 0, 0), look: i % 2))];
         PuffRange[] ranges = [new(ship, 0, 300), new(h.Root, 300, 200)];
         PuffLook[] looks = [HotLook, ColdLook];
         var snapshot = new RenderSnapshot();

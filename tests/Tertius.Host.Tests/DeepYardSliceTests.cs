@@ -115,7 +115,8 @@ internal sealed record DeepYardBody(
         FrameHandle frame = world.GetFrame(entity), home = world.PhysicsHomeOf(entity), nest = home;
         while (!nest.IsNull && world.Frames.Numeric(nest) != NumericMode.Nesting)
             nest = world.Frames.TreeParent(nest);
-        return new(Position: world.PoseIn(entity, frame).Position, Velocity: world.VelocityIn(entity, frame), Home: home,
+        return new(Position: world.PoseIn(entity, frame).Position, Velocity: world.VelocityIn(entity, frame),
+            Home: home,
             HomeMode: world.Frames.Numeric(home),
             InHome: world.PoseIn(entity, home).Position, Nest: nest,
             NestPlace: nest.IsNull ? Double3.Zero : world.Frames.TreeLocalPose(nest).Position,

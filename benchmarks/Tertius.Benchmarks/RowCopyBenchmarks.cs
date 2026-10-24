@@ -37,7 +37,8 @@ internal static class RowCopyBenchmarks
             for (int i = 0; i < rows; i++)
             {
                 Live[i] = Entities.Reserve();
-                Entities.Activate(entity: Live[i], row: new(), render: new(), components: [], wants: [], body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
+                Entities.Activate(entity: Live[i], row: new(), render: new(), components: [], wants: [], body: null,
+                    bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
             }
 
             Entities.TakeMoved();
@@ -48,11 +49,12 @@ internal static class RowCopyBenchmarks
         {
             long now = ++tick;
             Entities.BeginTick(spawnPoolSize: 0);
-            Parallel.For(fromInclusive: 0, toExclusive: (Live.Length + ChunkSize - 1) / ChunkSize, parallelOptions: AllWorkers, body: chunk =>
-            {
-                for (int i = chunk * ChunkSize, end = Math.Min(Live.Length, i + ChunkSize); i < end; i++)
-                    Entities.WritableTransform(Live[i]).Position = new(now, i, 0);
-            });
+            Parallel.For(fromInclusive: 0, toExclusive: (Live.Length + ChunkSize - 1) / ChunkSize,
+                parallelOptions: AllWorkers, body: chunk =>
+                {
+                    for (int i = chunk * ChunkSize, end = Math.Min(Live.Length, i + ChunkSize); i < end; i++)
+                        Entities.WritableTransform(Live[i]).Position = new(now, i, 0);
+                });
             Entities.EndGameplay();
             long spinEnd = Stopwatch.GetTimestamp() + Stopwatch.Frequency / 5000;
             while (Stopwatch.GetTimestamp() < spinEnd)

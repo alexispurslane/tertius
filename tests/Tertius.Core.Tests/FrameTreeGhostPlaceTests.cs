@@ -38,7 +38,8 @@ public class FrameTreeGhostPlaceTests
 
     public FrameTreeGhostPlaceTests()
     {
-        ground = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
+        ground = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f));
     }
 
     private static Double3 X(double x) => new(x, 0, 0);
@@ -107,7 +108,8 @@ public class FrameTreeGhostPlaceTests
         };
 
     /// <summary>Runs one update and returns the bodies with their new homes and their places in them.</summary>
-    private NumericBody[] Update(double dt, params NumericBody[] bodies) => Run(frames: frames, changes: changes, dt: dt, bodies: bodies, moves: out moves);
+    private NumericBody[] Update(double dt, params NumericBody[] bodies) => Run(frames: frames, changes: changes,
+        dt: dt, bodies: bodies, moves: out moves);
 
     private static NumericBody[] Run(FrameTree frames, PhysicsChanges changes, double dt, NumericBody[] bodies,
         out List<NumericMove> moves)
@@ -155,7 +157,10 @@ public class FrameTreeGhostPlaceTests
         // rock is 215 m from the hull, and alone it falls at 50 m/s in a frame of its own.
         FrameHandle ship = Station(owner: 20, position: X(1_000), motion: BodyMotion.Dynamic, bubble: 200);
         frames.SetTreeLinearVelocity(ship, X(60));
-        NumericBody hull = Body(id: 20, position: X(1_000), velocity: X(60), character: true, radius: 2) with { OwnedFrame = ship };
+        NumericBody hull = Body(id: 20, position: X(1_000), velocity: X(60), character: true, radius: 2) with
+        {
+            OwnedFrame = ship
+        };
         NumericBody rock = Body(id: 10, position: X(1_215), velocity: X(50), character: true);
 
         NumericBody[] after = Update(0.1, hull, rock, BodyOf(frame: ship, id: 11, position: X(199.5)));
@@ -224,7 +229,10 @@ public class FrameTreeGhostPlaceTests
         // A hull that moves its frame never leaves the bubble, so it sticks out by as far as it lies: 20 m outside
         // the station's bubble, with a radius of 5 m. The slow body far out touches it, and alone it would rest in a frame.
         FrameHandle station = Station(owner: 2, position: X(Far));
-        NumericBody radar = BodyOf(frame: station, id: 11, position: Y(60)) with { Radius = 5, Fixed = true, Kinematic = true };
+        NumericBody radar = BodyOf(frame: station, id: 11, position: Y(60)) with
+        {
+            Radius = 5, Fixed = true, Kinematic = true
+        };
 
         NumericBody[] after = Update(0.1, Body(id: 10, position: new(Far, 66, 0)), radar);
 
@@ -236,9 +244,11 @@ public class FrameTreeGhostPlaceTests
     {
         // The station is turned a quarter turn about Z, so the crate at 40 m on its Y axis lies 40 m along ground's -X. The
         // slow body far out touches it there, 58 m from where the crate would be without the turn.
-        FrameHandle station = Station(owner: 2, position: X(Far), rotation: DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2));
+        FrameHandle station = Station(owner: 2, position: X(Far),
+            rotation: DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2));
 
-        NumericBody[] after = Update(0.1, Body(id: 10, position: X(Far - 42)), BodyOf(frame: station, id: 11, position: Y(40)));
+        NumericBody[] after = Update(0.1, Body(id: 10, position: X(Far - 42)),
+            BodyOf(frame: station, id: 11, position: Y(40)));
 
         after[0].Home.Should().Be(ground);
     }
@@ -251,7 +261,8 @@ public class FrameTreeGhostPlaceTests
         FrameHandle station = Station(owner: 2, position: X(Far));
         frames.SetAngularVelocity(station, new(0, 0, 1));
 
-        NumericBody[] after = Update(0.1, Body(id: 10, position: new(Far - 50, 40, 0)), BodyOf(frame: station, id: 11, position: Y(40)));
+        NumericBody[] after = Update(0.1, Body(id: 10, position: new(Far - 50, 40, 0)),
+            BodyOf(frame: station, id: 11, position: Y(40)));
 
         after[0].Home.Should().Be(ground);
     }
@@ -260,11 +271,13 @@ public class FrameTreeGhostPlaceTests
     public void A_fast_body_that_has_passed_the_place_of_a_crate_gets_its_own_frame()
     {
         FrameHandle station = Station(owner: 2, position: X(100));
-        NumericBody[] near = Update(0.1, Body(id: 10, position: X(0), velocity: X(60), character: true), BodyOf(frame: station, id: 11, position: Y(40)));
+        NumericBody[] near = Update(0.1, Body(id: 10, position: X(0), velocity: X(60), character: true),
+            BodyOf(frame: station, id: 11, position: Y(40)));
         near[0].Home.Should().Be(ground);
 
         // 204 m past the crate: beyond 2 m plus 2 s of 60 m/s and the split margin.
-        NumericBody[] after = Update(0.1, Body(id: 10, position: X(300), velocity: X(60), character: true), BodyOf(frame: station, id: 11, position: Y(40)));
+        NumericBody[] after = Update(0.1, Body(id: 10, position: X(300), velocity: X(60), character: true),
+            BodyOf(frame: station, id: 11, position: Y(40)));
 
         frames.Numeric(after[0].Home).Should().Be(NumericMode.Falling);
     }
@@ -276,7 +289,10 @@ public class FrameTreeGhostPlaceTests
         // system. The first rock is 3 m from the crate at 1,200 m and 203 m from the hull; the second is 50 m from the crate.
         FrameHandle ship = Station(owner: 20, position: X(1_000), motion: BodyMotion.Dynamic, bubble: 200);
         frames.SetTreeLinearVelocity(ship, X(60));
-        NumericBody hull = Body(id: 20, position: X(1_000), velocity: X(60), character: true, radius: 2) with { OwnedFrame = ship };
+        NumericBody hull = Body(id: 20, position: X(1_000), velocity: X(60), character: true, radius: 2) with
+        {
+            OwnedFrame = ship
+        };
 
         NumericBody[] after = Update(0.1, hull, Body(id: 10, position: X(1_203), velocity: X(60), character: true),
             Body(id: 12, position: X(1_150), velocity: X(60), character: true),
@@ -299,12 +315,18 @@ public class FrameTreeGhostPlaceTests
         frames.SetTreeLinearVelocity(ship, X(60));
         NumericBody[] before = Update(0.1,
             Body(id: 20, position: X(1_000), velocity: X(60), character: true, radius: 2) with { OwnedFrame = ship },
-            Body(id: 10, position: X(1_203), velocity: X(60), character: true), BodyOf(frame: ship, id: 11, position: X(200)));
+            Body(id: 10, position: X(1_203), velocity: X(60), character: true),
+            BodyOf(frame: ship, id: 11, position: X(200)));
         FrameHandle pod = before[0].Home;
         before[1].Home.Should().Be(pod);
 
-        Update(1, Body(id: 20, position: X(1_000), velocity: X(60), home: pod, character: true, radius: 2) with { OwnedFrame = ship },
-            Body(id: 10, position: X(1_208), velocity: X(60), home: pod, character: true), BodyOf(frame: ship, id: 11, position: X(200)));
+        Update(1,
+            Body(id: 20, position: X(1_000), velocity: X(60), home: pod, character: true, radius: 2) with
+            {
+                OwnedFrame = ship
+            },
+            Body(id: 10, position: X(1_208), velocity: X(60), home: pod, character: true),
+            BodyOf(frame: ship, id: 11, position: X(200)));
 
         moves.Should().BeEmpty();
     }
@@ -314,13 +336,15 @@ public class FrameTreeGhostPlaceTests
         A_body_in_a_falling_frame_of_its_own_that_nears_a_crate_of_a_parked_station_moves_into_the_semantic_frames_own_system()
     {
         FrameHandle station = Station(owner: 2, position: X(1_000));
-        NumericBody[] before = Update(0.1, Body(id: 10, position: new(1_000, 1_000, 0), velocity: Y(-60), character: true),
+        NumericBody[] before = Update(0.1,
+            Body(id: 10, position: new(1_000, 1_000, 0), velocity: Y(-60), character: true),
             BodyOf(frame: station, id: 11, position: Y(40)));
         FrameHandle pod = before[0].Home;
         frames.Numeric(pod).Should().Be(NumericMode.Falling);
 
         // 100 m from the crate: within 2 m plus 2 s of 60 m/s.
-        NumericBody[] after = Update(0.1, Body(id: 10, position: new(1_000, 140, 0), velocity: Y(-60), home: pod, character: true),
+        NumericBody[] after = Update(0.1,
+            Body(id: 10, position: new(1_000, 140, 0), velocity: Y(-60), home: pod, character: true),
             BodyOf(frame: station, id: 11, position: Y(40)));
 
         after[0].Home.Should().Be(ground);
@@ -340,7 +364,8 @@ public class FrameTreeGhostPlaceTests
         frames.SetTreeLinearVelocity(ship, X(60));
         NumericBody[] after = Update(0.1,
             Body(id: 20, position: X(1_000), velocity: X(60), character: true, radius: 2) with { OwnedFrame = ship },
-            Body(id: 10, position: X(1_250), velocity: X(60), character: true), BodyOf(frame: ship, id: 11, position: X(200)));
+            Body(id: 10, position: X(1_250), velocity: X(60), character: true),
+            BodyOf(frame: ship, id: 11, position: X(200)));
 
         after[1].Home.Should().NotBe(after[0].Home);
         frames.Numeric(after[1].Home).Should().Be(NumericMode.Falling);
@@ -382,7 +407,8 @@ public class FrameTreeGhostPlaceTests
         // The static body far out lies 5 m from the crate, and alone it rests in a frame.
         FrameHandle station = Station(owner: 2, position: X(Far));
 
-        NumericBody[] after = Update(0.1, Body(id: 10, position: new(Far, 45, 0)) with { Static = true }, BodyOf(frame: station, id: 11, position: Y(40)));
+        NumericBody[] after = Update(0.1, Body(id: 10, position: new(Far, 45, 0)) with { Static = true },
+            BodyOf(frame: station, id: 11, position: Y(40)));
 
         frames.Numeric(after[0].Home).Should().Be(NumericMode.Resting);
     }
@@ -411,7 +437,10 @@ public class FrameTreeGhostPlaceTests
     public void A_static_or_kinematic_sensor_is_linked_by_a_place(bool isStatic)
     {
         FrameHandle station = Station(owner: 2, position: X(Far));
-        NumericBody sensor = Body(id: 10, position: new(Far, 45, 0)) with { Static = isStatic, Kinematic = !isStatic, Sensor = true };
+        NumericBody sensor = Body(id: 10, position: new(Far, 45, 0)) with
+        {
+            Static = isStatic, Kinematic = !isStatic, Sensor = true
+        };
 
         NumericBody[] after = Update(0.1, sensor, BodyOf(frame: station, id: 11, position: Y(40)));
 
@@ -442,7 +471,10 @@ public class FrameTreeGhostPlaceTests
         FrameHandle station = Station(owner: 2, position: X(1_000));
         FrameHandle ship = Station(owner: 20, position: new(1_000, 75, 0), motion: BodyMotion.Dynamic, bubble: 30);
         frames.SetTreeLinearVelocity(ship, X(-60));
-        NumericBody hull = Body(id: 20, position: new(1_000, 75, 0), velocity: X(-60), character: true, radius: 2) with { OwnedFrame = ship };
+        NumericBody hull = Body(id: 20, position: new(1_000, 75, 0), velocity: X(-60), character: true, radius: 2) with
+        {
+            OwnedFrame = ship
+        };
 
         NumericBody[] after = Update(0.1, hull, BodyOf(frame: station, id: 11, position: Y(40)));
 
@@ -457,7 +489,10 @@ public class FrameTreeGhostPlaceTests
         // in the station does not detect it, and alone it lives in a following frame of its own in the station.
         FrameHandle station = Station(owner: 2, position: X(1_000));
         FrameHandle depot = Station(owner: 3, position: new(1_000, 100, 0), bubble: 70);
-        NumericBody sensor = BodyOf(frame: station, id: 12, position: Double3.Zero, velocity: X(1_000)) with { Kinematic = true, Sensor = true };
+        NumericBody sensor = BodyOf(frame: station, id: 12, position: Double3.Zero, velocity: X(1_000)) with
+        {
+            Kinematic = true, Sensor = true
+        };
 
         NumericBody[] after = Update(0.1, ParkedHull(depot), sensor);
 
@@ -482,7 +517,10 @@ public class FrameTreeGhostPlaceTests
     public void The_update_finds_the_fixed_ghosts_that_a_body_may_touch_itself()
     {
         // The tree fills in the field, as it fills in the mode of the home, so a value in the input does not count.
-        NumericBody rock = Body(id: 10, position: X(1_000), velocity: X(60), character: true) with { MayTouchFixedGhost = true };
+        NumericBody rock = Body(id: 10, position: X(1_000), velocity: X(60), character: true) with
+        {
+            MayTouchFixedGhost = true
+        };
 
         NumericBody[] after = Update(0.1, rock);
 
@@ -557,7 +595,10 @@ public class FrameTreeGhostPlaceTests
         // 25 m from it, and 1,410 m from where the rock would be without the turn.
         FrameHandle station = Station(owner: 2, position: X(10_000), bubble: 1_000,
             rotation: DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2));
-        NumericBody inside = BodyOf(frame: station, id: 12, position: Y(985), velocity: X(60)) with { Character = true };
+        NumericBody inside = BodyOf(frame: station, id: 12, position: Y(985), velocity: X(60)) with
+        {
+            Character = true
+        };
 
         NumericBody[] after = Update(0.1, Body(id: 10, position: X(10_000 - 1_010), radius: 10), inside);
 
@@ -589,7 +630,10 @@ public class FrameTreeGhostPlaceTests
         {
             Entity = ground.Entity, Static = true, Fixed = true
         };
-        NumericBody inside = BodyOf(frame: station, id: 12, position: X(-29), velocity: Y(60)) with { Character = true };
+        NumericBody inside = BodyOf(frame: station, id: 12, position: X(-29), velocity: Y(60)) with
+        {
+            Character = true
+        };
 
         NumericBody[] after = Update(0.1, interior, inside);
 
@@ -648,7 +692,8 @@ public class FrameTreeGhostPlaceTests
         // so the hull reaches the content although it is dynamic (fork F2).
         FrameHandle station = Station(owner: 2, position: X(1_000));
         var at = new Double3(1_000, 56, 0);
-        FrameHandle pod = frames.Create(frameOwner: new(10, 1), parent: ground, localPose: new(at, DQuaternion.Identity), frameBounds: FrameBounds.Sphere(1));
+        FrameHandle pod = frames.Create(frameOwner: new(10, 1), parent: ground,
+            localPose: new(at, DQuaternion.Identity), frameBounds: FrameBounds.Sphere(1));
         frames.SetHullMotion(pod, BodyMotion.Dynamic);
         NumericBody inside = BodyOf(frame: station, id: 12, position: Y(39), velocity: X(60)) with { Character = true };
 
@@ -666,7 +711,8 @@ public class FrameTreeGhostPlaceTests
         FrameHandle station = Station(owner: 2, position: X(1_000), bubble: 200);
         FrameHandle depot = Station(owner: 3, position: new(1_000, 260, 0), bubble: 70);
         FrameHandle shuttle =
-            frames.Create(frameOwner: new(30, 1), parent: station, localPose: new(Y(190), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(10));
+            frames.Create(frameOwner: new(30, 1), parent: station, localPose: new(Y(190), DQuaternion.Identity),
+                frameBounds: FrameBounds.Sphere(10));
         frames.SetHullMotion(shuttle, BodyMotion.Dynamic);
         NumericBody hull = BodyOf(frame: station, id: 30, position: Y(190), velocity: X(60)) with
         {
@@ -686,14 +732,16 @@ public class FrameTreeGhostPlaceTests
         // names (fork F1).
         FrameHandle station = Station(owner: 2, position: X(1_000), bubble: 200);
         FrameHandle shuttle =
-            frames.Create(frameOwner: new(30, 1), parent: station, localPose: new(Y(190), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(10));
+            frames.Create(frameOwner: new(30, 1), parent: station, localPose: new(Y(190), DQuaternion.Identity),
+                frameBounds: FrameBounds.Sphere(10));
         frames.SetHullMotion(shuttle, BodyMotion.Dynamic);
         NumericBody hull = BodyOf(frame: station, id: 30, position: Y(190), velocity: X(60)) with
         {
             Entity = shuttle.Entity, OwnedFrame = shuttle, Character = true, Radius = 2
         };
 
-        NumericBody[] after = Update(0.1, Body(id: 3, position: new(1_000, 260, 0), radius: 30) with { Static = true }, hull);
+        NumericBody[] after = Update(0.1, Body(id: 3, position: new(1_000, 260, 0), radius: 30) with { Static = true },
+            hull);
 
         after[1].Home.Should().Be(station);
     }
@@ -836,7 +884,8 @@ public class FrameTreeGhostPlaceTests
         NumericBody crate = BodyOf(frame: depot, id: 11, position: X(40)) with { Kinematic = !hull };
         if (hull)
         {
-            FrameHandle pod = frames.Create(frameOwner: new(11, 1), parent: depot, localPose: new(X(40), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(1));
+            FrameHandle pod = frames.Create(frameOwner: new(11, 1), parent: depot,
+                localPose: new(X(40), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(1));
             frames.SetHullMotion(pod, BodyMotion.Dynamic);
             crate = crate with { OwnedFrame = pod };
         }
@@ -861,7 +910,8 @@ public class FrameTreeGhostPlaceTests
         FrameHandle depot = Station(owner: 3, position: X(1_080));
         NumericBody inside = BodyOf(frame: station, id: 12, position: X(30), velocity: Y(60)) with { Character = true };
 
-        NumericBody[] after = Update(0.1, BodyOf(frame: depot, id: 11, position: X(40)) with { Character = character }, inside);
+        NumericBody[] after = Update(0.1, BodyOf(frame: depot, id: 11, position: X(40)) with { Character = character },
+            inside);
 
         frames.Numeric(after[1].Home).Should().Be(NumericMode.Falling);
     }
@@ -876,17 +926,20 @@ public class FrameTreeGhostPlaceTests
         // the station.
         FrameHandle station = Station(owner: 2, position: X(1_000));
         FrameHandle depot = Station(owner: 3, position: X(1_080));
-        FrameHandle pod = frames.Create(frameOwner: new(11, 1), parent: depot, localPose: new(X(-40), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(1));
+        FrameHandle pod = frames.Create(frameOwner: new(11, 1), parent: depot,
+            localPose: new(X(-40), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(1));
         frames.SetHullMotion(pod, BodyMotion.Dynamic);
         FrameHandle shuttle =
-            frames.Create(frameOwner: new(30, 1), parent: station, localPose: new(X(30), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(5));
+            frames.Create(frameOwner: new(30, 1), parent: station, localPose: new(X(30), DQuaternion.Identity),
+                frameBounds: FrameBounds.Sphere(5));
         frames.SetHullMotion(shuttle, BodyMotion.Dynamic);
         NumericBody hull = BodyOf(frame: station, id: 30, position: X(30), velocity: Y(60)) with
         {
             Entity = shuttle.Entity, OwnedFrame = shuttle, Character = true, Radius = 2
         };
 
-        NumericBody[] after = Update(0.1, BodyOf(frame: depot, id: 11, position: X(-40)) with { OwnedFrame = pod }, hull);
+        NumericBody[] after = Update(0.1, BodyOf(frame: depot, id: 11, position: X(-40)) with { OwnedFrame = pod },
+            hull);
 
         after[1].Home.Should().Be(station);
     }
@@ -897,7 +950,8 @@ public class FrameTreeGhostPlaceTests
         // Its ghost lives in the station's tree parent, not in the station's own system, so nothing keeps it there.
         FrameHandle station = Station(owner: 2, position: X(1_000));
 
-        NumericBody[] after = Update(0.1, BodyOf(frame: station, id: 12, position: Y(39.5), velocity: X(60)) with { Character = true });
+        NumericBody[] after = Update(0.1,
+            BodyOf(frame: station, id: 12, position: Y(39.5), velocity: X(60)) with { Character = true });
 
         frames.Numeric(after[0].Home).Should().Be(NumericMode.Falling);
     }
@@ -956,20 +1010,26 @@ public class FrameTreeGhostPlaceTests
         // so the merge test links it to the crate's place but not to the hull. The static rock 15 m beyond the pod is within
         // 2 m plus 2 s of the pod's 7.7 m/s, but 56.5 m from the hull, beyond its reach of 21.4 m.
         const double mu = 1e9, start = 100;
-        FrameHandle space = frames.Create(frameOwner: new(3, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f),
+        FrameHandle space = frames.Create(frameOwner: new(3, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f),
             field: GravityField.Point(mu));
         KeplerOrbit path = KeplerOrbit.Circular(Far);
         (Double3 place, Double3 velocity) = path.StateAt(start, mu);
-        FrameHandle station = frames.Create(frameOwner: new(2, 1), parent: space, localPose: new(place, path.RotationAt(start, mu)),
+        FrameHandle station = frames.Create(frameOwner: new(2, 1), parent: space,
+            localPose: new(place, path.RotationAt(start, mu)),
             frameBounds: FrameBounds.Sphere(40));
         frames.SetHullMotion(station, BodyMotion.Kinematic);
         frames.SetTreeLinearVelocity(station, velocity);
         FrameHandle orbit = Update(0.1, KeplerHull(station))[0].Home;
         frames.Numeric(orbit).Should().Be(NumericMode.Following);
         NumericBody pod = SpaceBody(space: space, id: 10, position: place + Y(41.5), velocity: velocity);
-        NumericBody rock = SpaceBody(space: space, id: 12, position: place + Y(56.5), velocity: Double3.Zero) with { Static = true };
+        NumericBody rock = SpaceBody(space: space, id: 12, position: place + Y(56.5), velocity: Double3.Zero) with
+        {
+            Static = true
+        };
 
-        NumericBody[] after = Update(0.1, KeplerHull(station), pod, rock, BodyOf(frame: station, id: 11, position: Y(40)));
+        NumericBody[] after = Update(0.1, KeplerHull(station), pod, rock,
+            BodyOf(frame: station, id: 11, position: Y(40)));
 
         after[0].Home.Should().Be(orbit, "the hull's orbit moves it, so it keeps its own home");
         FrameHandle raft = after[2].Home;
@@ -1023,9 +1083,14 @@ public class FrameTreeGhostPlaceTests
         FrameHandle ship = Station(owner: 20, position: X(1_000), motion: BodyMotion.Dynamic, bubble: 200);
         frames.SetTreeLinearVelocity(ship, X(60));
         FrameHandle pod =
-            Update(0.1, Body(id: 20, position: X(1_000), velocity: X(60), character: true, radius: 2) with { OwnedFrame = ship })[0].Home;
+            Update(0.1,
+                Body(id: 20, position: X(1_000), velocity: X(60), character: true, radius: 2) with
+                {
+                    OwnedFrame = ship
+                })[0].Home;
         frames.Numeric(pod).Should().Be(NumericMode.Falling);
-        FrameHandle room = frames.Create(frameOwner: new(30, 1), parent: ship, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(20));
+        FrameHandle room = frames.Create(frameOwner: new(30, 1), parent: ship, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(20));
         return (ship, pod, room);
     }
 
@@ -1059,7 +1124,8 @@ public class FrameTreeGhostPlaceTests
     {
         (_, FrameHandle pod, _) = RoomInAFallingShip();
         FrameHandle hall =
-            frames.Create(frameOwner: new(40, 1), parent: ground, localPose: new(X(1_000), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(20));
+            frames.Create(frameOwner: new(40, 1), parent: ground, localPose: new(X(1_000), DQuaternion.Identity),
+                frameBounds: FrameBounds.Sphere(20));
 
         frames.Reparent(hall, pod);
 
@@ -1075,8 +1141,10 @@ public class FrameTreeGhostPlaceTests
         // links the rock to the hull, and the place of the rock keeps the body in the station's own system. So the update
         // works on both semantic frames with places and makes no numeric frame, whose collection allocates on its own.
         FrameHandle station = Station(owner: 2, position: X(1_000));
-        NumericBody[] bodies = Update(0.1, ParkedHull(station), Body(id: 10, position: new(1_000, 160, 0), velocity: Y(-60), character: true),
-            BodyOf(frame: station, id: 11, position: Y(40)), BodyOf(frame: station, id: 12, position: Y(38), velocity: X(60)) with { Character = true });
+        NumericBody[] bodies = Update(0.1, ParkedHull(station),
+            Body(id: 10, position: new(1_000, 160, 0), velocity: Y(-60), character: true),
+            BodyOf(frame: station, id: 11, position: Y(40)),
+            BodyOf(frame: station, id: 12, position: Y(38), velocity: X(60)) with { Character = true });
         bodies.Select(body => body.Home).Should().Equal(ground, ground, station, station);
         frames.NumericCount.Should().Be(0);
 
@@ -1086,7 +1154,8 @@ public class FrameTreeGhostPlaceTests
 
         frames.UpdateNumericFrames(bodies: bodies, dt: 0.1, step: 0.1, changes: changes, applyMoves: ignore);
 
-        long allocated = Allocations.Fewest(() => frames.UpdateNumericFrames(bodies: bodies, dt: 0.1, step: 0.1, changes: changes, applyMoves: ignore));
+        long allocated = Allocations.Fewest(() =>
+            frames.UpdateNumericFrames(bodies: bodies, dt: 0.1, step: 0.1, changes: changes, applyMoves: ignore));
 
         allocated.Should().Be(0);
     }
@@ -1113,12 +1182,15 @@ public class FrameTreeGhostPlaceTests
     {
         var tree = new FrameTree();
         var changes = new PhysicsChanges();
-        FrameHandle root = tree.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
-        FrameHandle ship = tree.Create(frameOwner: new(20, 1), parent: root, localPose: new(X(1_000), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(200));
+        FrameHandle root = tree.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f));
+        FrameHandle ship = tree.Create(frameOwner: new(20, 1), parent: root,
+            localPose: new(X(1_000), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(200));
         tree.SetHullMotion(ship, BodyMotion.Dynamic);
         tree.SetTreeLinearVelocity(ship, X(60));
         FrameHandle station =
-            tree.Create(frameOwner: new(2, 1), parent: root, localPose: new(X(-1_000), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(40));
+            tree.Create(frameOwner: new(2, 1), parent: root, localPose: new(X(-1_000), DQuaternion.Identity),
+                frameBounds: FrameBounds.Sphere(40));
 
         static NumericBody Free(uint id, Double3 position, Double3 velocity, FrameHandle frame) => new()
         {

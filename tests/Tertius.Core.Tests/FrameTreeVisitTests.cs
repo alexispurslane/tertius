@@ -23,7 +23,8 @@ public class FrameTreeVisitTests
 
     /// <summary>A frame owned by entity <paramref name="owner"/> under <paramref name="parent"/>, at <paramref name="x"/> on X.</summary>
     private FrameHandle Frame(uint owner, FrameHandle parent, double x = 0) =>
-        frames.Create(frameOwner: new(owner, 1), parent: parent, localPose: new(X(x), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(1e9f));
+        frames.Create(frameOwner: new(owner, 1), parent: parent, localPose: new(X(x), DQuaternion.Identity),
+            frameBounds: FrameBounds.Sphere(1e9f));
 
     private struct ViewRecorder(List<FrameOwnerView> seen) : IOwnerViewVisitor
     {
@@ -83,16 +84,20 @@ public class FrameTreeVisitTests
     [Fact]
     public void The_owner_view_of_a_frame_holds_its_parent_as_home_and_semantic_frame_its_pose_and_its_velocities()
     {
-        FrameHandle root = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: new(X(5), Turned), frameBounds: FrameBounds.Sphere(1e9f));
+        FrameHandle root = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: new(X(5), Turned),
+            frameBounds: FrameBounds.Sphere(1e9f));
         var childPose = new DPose(new(7, 8, 9), Turned);
-        FrameHandle child = frames.Create(frameOwner: new(2, 1), parent: root, localPose: childPose, frameBounds: FrameBounds.Sphere(50));
+        FrameHandle child = frames.Create(frameOwner: new(2, 1), parent: root, localPose: childPose,
+            frameBounds: FrameBounds.Sphere(50));
         frames.SetTreeLinearVelocity(child, new(1, 2, 3));
         frames.SetAngularVelocity(child, new(0, 0.5f, 0));
 
         Views().Should().Equal(
-            new FrameOwnerView(Frame: root, Home: FrameHandle.Null, Semantic: FrameHandle.Null, LocalPose: new(X(5), Turned), PositionInSemantic: X(5), LinearVelocity: Double3.Zero,
+            new FrameOwnerView(Frame: root, Home: FrameHandle.Null, Semantic: FrameHandle.Null,
+                LocalPose: new(X(5), Turned), PositionInSemantic: X(5), LinearVelocity: Double3.Zero,
                 AngularVelocity: Vector3.Zero),
-            new FrameOwnerView(Frame: child, Home: root, Semantic: root, LocalPose: childPose, PositionInSemantic: new(7, 8, 9), LinearVelocity: new(1, 2, 3), AngularVelocity: new(0, 0.5f, 0)));
+            new FrameOwnerView(Frame: child, Home: root, Semantic: root, LocalPose: childPose,
+                PositionInSemantic: new(7, 8, 9), LinearVelocity: new(1, 2, 3), AngularVelocity: new(0, 0.5f, 0)));
     }
 
     [Fact]

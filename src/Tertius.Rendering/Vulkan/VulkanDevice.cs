@@ -158,7 +158,8 @@ internal sealed unsafe class VulkanDevice : IDisposable
             {
                 if (!vk.TryGetInstanceExtension(instance, out debugUtils) || debugUtils is null)
                     throw new NotSupportedException("VK_EXT_debug_utils is not available.");
-                debugUtils.CreateDebugUtilsMessenger(instance: instance, pCreateInfo: &messengerInfo, pAllocator: null, pMessenger: out messenger)
+                debugUtils.CreateDebugUtilsMessenger(instance: instance, pCreateInfo: &messengerInfo, pAllocator: null,
+                        pMessenger: out messenger)
                     .Check("vkCreateDebugUtilsMessengerEXT");
             }
 
@@ -169,14 +170,19 @@ internal sealed unsafe class VulkanDevice : IDisposable
                 surface = createSurface(instance);
             }
 
-            (PhysicalDevice physicalDevice, uint queueFamily) = ChoosePhysicalDevice(vk: vk, instance: instance, surfaceApi: surfaceApi, surface: surface);
-            device = CreateLogicalDevice(vk: vk, physicalDevice: physicalDevice, queueFamily: queueFamily, swapchain: surface.Handle != 0, strings: strings);
+            (PhysicalDevice physicalDevice, uint queueFamily) = ChoosePhysicalDevice(vk: vk, instance: instance,
+                surfaceApi: surfaceApi, surface: surface);
+            device = CreateLogicalDevice(vk: vk, physicalDevice: physicalDevice, queueFamily: queueFamily,
+                swapchain: surface.Handle != 0, strings: strings);
 
             KhrSwapchain? swapchainApi = null;
-            return surface.Handle != 0 && !vk.TryGetDeviceExtension(instance: instance, device: device, ext: out swapchainApi)
+            return surface.Handle != 0 &&
+                   !vk.TryGetDeviceExtension(instance: instance, device: device, ext: out swapchainApi)
                 ? throw new NotSupportedException("VK_KHR_swapchain is not available.")
-                : new(vk: vk, instance: instance, log: log, logHandle: logHandle, debugUtils: debugUtils, messenger: messenger, surfaceApi: surfaceApi, surface: surface,
-                    physicalDevice: physicalDevice, queueFamily: queueFamily, device: device, swapchainApi: swapchainApi, validation: validation);
+                : new(vk: vk, instance: instance, log: log, logHandle: logHandle, debugUtils: debugUtils,
+                    messenger: messenger, surfaceApi: surfaceApi, surface: surface,
+                    physicalDevice: physicalDevice, queueFamily: queueFamily, device: device,
+                    swapchainApi: swapchainApi, validation: validation);
         }
         catch
         {
@@ -242,7 +248,8 @@ internal sealed unsafe class VulkanDevice : IDisposable
                     continue;
                 if (surfaceApi != null)
                 {
-                    surfaceApi.GetPhysicalDeviceSurfaceSupport(physicalDevice: candidate, queueFamilyIndex: i, surface: surface, pSupported: out Bool32 supported)
+                    surfaceApi.GetPhysicalDeviceSurfaceSupport(physicalDevice: candidate, queueFamilyIndex: i,
+                            surface: surface, pSupported: out Bool32 supported)
                         .Check("vkGetPhysicalDeviceSurfaceSupportKHR");
                     if (!supported)
                         continue;
@@ -353,7 +360,8 @@ internal sealed unsafe class VulkanDevice : IDisposable
             EnabledExtensionCount = (uint)extensions.Count,
             PpEnabledExtensionNames = strings.Array(extensions)
         };
-        vk.CreateDevice(physicalDevice: physicalDevice, pCreateInfo: &deviceInfo, pAllocator: null, pDevice: out Device device).Check("vkCreateDevice");
+        vk.CreateDevice(physicalDevice: physicalDevice, pCreateInfo: &deviceInfo, pAllocator: null,
+            pDevice: out Device device).Check("vkCreateDevice");
         return device;
     }
 
@@ -377,12 +385,14 @@ internal sealed unsafe class VulkanDevice : IDisposable
     private static HashSet<string> DeviceExtensions(Vk vk, PhysicalDevice device)
     {
         uint count = 0;
-        vk.EnumerateDeviceExtensionProperties(physicalDevice: device, pLayerName: (byte*)null, pPropertyCount: ref count, pProperties: null)
+        vk.EnumerateDeviceExtensionProperties(physicalDevice: device, pLayerName: (byte*)null,
+                pPropertyCount: ref count, pProperties: null)
             .Check("vkEnumerateDeviceExtensionProperties");
         var properties = new ExtensionProperties[count];
         fixed (ExtensionProperties* p = properties)
         {
-            vk.EnumerateDeviceExtensionProperties(physicalDevice: device, pLayerName: (byte*)null, pPropertyCount: ref count, pProperties: p)
+            vk.EnumerateDeviceExtensionProperties(physicalDevice: device, pLayerName: (byte*)null,
+                    pPropertyCount: ref count, pProperties: p)
                 .Check("vkEnumerateDeviceExtensionProperties");
         }
 

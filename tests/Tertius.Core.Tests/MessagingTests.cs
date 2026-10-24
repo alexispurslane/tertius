@@ -52,7 +52,8 @@ public class MessagingTests
     [Fact]
     public void EventPayloadRoundTripsAndEditsInPlace()
     {
-        var e = Event.Create(target: new Entity(1, 1), sender: new(2, 1), payload: new Damage { Amount = 10, Kind = 3 });
+        var e = Event.Create(target: new Entity(1, 1), sender: new(2, 1),
+            payload: new Damage { Amount = 10, Kind = 3 });
         Assert.True(e.Is<Damage>());
         Assert.False(e.Is<Heal>());
         e.As<Damage>().Amount -= 4;

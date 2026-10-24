@@ -50,7 +50,7 @@ public sealed record ErosionReport
         FunctionMeasure[] highCc = [.. functions.Where(function => function.Complexity > ComplexityLimit)];
         double totalMass = functions.Sum(function => function.Mass);
         double highCcMass = highCc.Sum(function => function.Mass);
-        return new ErosionReport
+        return new()
         {
             Erosion = totalMass > 0 ? highCcMass / totalMass : 0,
             TotalMass = totalMass,

@@ -35,7 +35,7 @@ public sealed class NameArgumentsFix : CodeFixProvider
     /// </summary>
     public override FixAllProvider GetFixAllProvider() =>
         FixAllProvider.Create(async (context, document, diagnostics) => await Named(document,
-            diagnostics.Select(diagnostic => diagnostic.Location.SourceSpan), context.CancellationToken)
+                diagnostics.Select(diagnostic => diagnostic.Location.SourceSpan), context.CancellationToken)
             .ConfigureAwait(false));
 
     /// <inheritdoc/>

@@ -93,7 +93,8 @@ public sealed class Blueprints
 
                 if (spec.Fields != null)
                     foreach ((string field, object? value) in spec.Fields)
-                        specs[index].Fields[field] = Coerce(blueprint: name, type: spec.Type, field: field, value: value);
+                        specs[index].Fields[field] =
+                            Coerce(blueprint: name, type: spec.Type, field: field, value: value);
             }
 
             var recipes = new Recipe[specs.Count];
@@ -255,7 +256,8 @@ public sealed class Blueprints
         for (int i = 0; i < names.Length; i++)
         {
             MemberInfo member = FindMember(type, names[i], out Type memberType) ??
-                                throw new UnreachableException($"The blueprint's check found the member {names[i]} of {type}.");
+                                throw new UnreachableException(
+                                    $"The blueprint's check found the member {names[i]} of {type}.");
             Expression value = Expression.Convert(Expression.ArrayIndex(values, Expression.Constant(i)), memberType);
             bindings[i] = Expression.Bind(member, value);
         }

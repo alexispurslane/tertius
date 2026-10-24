@@ -21,7 +21,8 @@ namespace Tertius.Host.Tests;
 public sealed class PenClipTests : IDisposable
 {
     /// <summary>The pen of the demo. The world has no renderer, so the mesh and the material are only numbers.</summary>
-    private static readonly CrateSpec Pen = new(HalfExtents: DemoSurface.PenHalf, Mass: DemoSurface.PenMass, Mesh: new(11), Material: new(5));
+    private static readonly CrateSpec Pen = new(HalfExtents: DemoSurface.PenHalf, Mass: DemoSurface.PenMass,
+        Mesh: new(11), Material: new(5));
 
     /// <summary>
     /// The person's turn in the demo's orbit: face-down, with its head toward the nose. Its up, +Y, points along the
@@ -49,7 +50,8 @@ public sealed class PenClipTests : IDisposable
         IComponent[] engine = thrust
             ? [new Unpark(), new FullThrottle(), new MainEngine(Shuttle.Mass * Shuttle.ThrustAcceleration)]
             : [];
-        Entity shuttle = Shuttle.Park(world: world, frame: space, pose: WorldTesting.At(0, Shuttle.Hull.Y), components: engine);
+        Entity shuttle = Shuttle.Park(world: world, frame: space, pose: WorldTesting.At(0, Shuttle.Hull.Y),
+            components: engine);
         cabin = world.GetOwnedFrame(shuttle);
         pen = world.Spawn(penDrift == default
             ? DemoSurface.ClippedPen(Pen, cabin)

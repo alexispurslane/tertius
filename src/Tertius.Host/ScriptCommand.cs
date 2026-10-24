@@ -85,7 +85,8 @@ public static class ScriptCommand
                 return ScriptError;
             }
 
-            return WindowHost.Run(sceneToBuild: live, script: null, scriptPath: null, outputFolder: null, speed: options.Speed,
+            return WindowHost.Run(sceneToBuild: live, script: null, scriptPath: null, outputFolder: null,
+                speed: options.Speed,
                 recordPath: options.Record, output: output, error: error);
         }
 
@@ -126,7 +127,8 @@ public static class ScriptCommand
         }
 
         if (!options.Headless)
-            return WindowHost.Run(sceneToBuild: scene, script: script, scriptPath: options.Script, outputFolder: options.Out, speed: options.Speed, recordPath: null, output: output,
+            return WindowHost.Run(sceneToBuild: scene, script: script, scriptPath: options.Script,
+                outputFolder: options.Out, speed: options.Speed, recordPath: null, output: output,
                 error: error);
 
         using var world = new World(new() { DisposePhysics = true },
@@ -151,7 +153,8 @@ public static class ScriptCommand
         if (renderer != null)
             try
             {
-                playback = new(renderer: renderer, size: script.Window, target: target, startVideo: startVideo ?? FfmpegVideoSink.Start);
+                playback = new(renderer: renderer, size: script.Window, target: target,
+                    startVideo: startVideo ?? FfmpegVideoSink.Start);
             }
             // Only a video target starts a tool, ffmpeg. Process.Start throws a Win32Exception when ffmpeg is not on the
             // search path or cannot start.
@@ -175,7 +178,8 @@ public static class ScriptCommand
         world.Log += error.WriteLine;
         try
         {
-            RunResult result = ScriptRunner.Run(script: script, world: world, scene: scene.Build(world, renderer ?? RenderResources.None),
+            RunResult result = ScriptRunner.Run(script: script, world: world,
+                scene: scene.Build(world, renderer ?? RenderResources.None),
                 outputFolder: options.Out, playback: playback);
             playback?.Finish();
             WriteFiles(result: result, outputFolder: outFolder, target: target, output: output);
@@ -311,7 +315,8 @@ public static class ScriptCommand
             _ when speedText != null && headless =>
                 "--speed applies to the window. A headless run runs its ticks back to back.",
             _ when speedText != null &&
-                   !(double.TryParse(s: speedText, style: NumberStyles.Float, provider: CultureInfo.InvariantCulture, result: out speed) &&
+                   !(double.TryParse(s: speedText, style: NumberStyles.Float, provider: CultureInfo.InvariantCulture,
+                         result: out speed) &&
                      double.IsFinite(speed) && speed > 0) =>
                 $"--speed needs a positive number, such as 0.5 or 2, not '{speedText}'.",
             _ when video != null && !headless =>
@@ -320,7 +325,8 @@ public static class ScriptCommand
                 $"The --video file's name ends in {VideoFile.Extension}, and '{video}' does not.",
             _ when fpsText != null && video is null => "--fps applies to a video, so give --video too.",
             _ when fpsText != null &&
-                   !(int.TryParse(s: fpsText, style: NumberStyles.None, provider: CultureInfo.InvariantCulture, result: out fps) &&
+                   !(int.TryParse(s: fpsText, style: NumberStyles.None, provider: CultureInfo.InvariantCulture,
+                         result: out fps) &&
                      fps is >= VideoFile.MinFramesPerSecond and <= VideoFile.MaxFramesPerSecond) =>
                 $"--fps needs a whole number from {VideoFile.MinFramesPerSecond} to {VideoFile.MaxFramesPerSecond}, not '{fpsText}'.",
             _ => null

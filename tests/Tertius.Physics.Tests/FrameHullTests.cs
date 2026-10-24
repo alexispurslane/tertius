@@ -168,7 +168,8 @@ public class FrameHullTests
         {
             Frame = space,
             Pose = At(100),
-            Body = new(Shape: new BoxShapeDesc(new(20)), Motion: BodyMotion.Static, InteriorShape: new BoxShapeDesc(new(1))),
+            Body = new(Shape: new BoxShapeDesc(new(20)), Motion: BodyMotion.Static,
+                InteriorShape: new BoxShapeDesc(new(1))),
             AsFrame = new(FrameBounds.Sphere(200))
         });
         FrameHandle carrierFrame = world.GetOwnedFrame(carrier);
@@ -328,7 +329,9 @@ public class FrameHullTests
         // it holds a change, so the test spawns a box far away to make one.
         faults.EditNextChanges = changes => changes.FramesDestroyed.Add(bubble);
         world.Spawn(new()
-            { Frame = space, Pose = At(0, -1000), Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static) });
+        {
+            Frame = space, Pose = At(0, -1000), Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static)
+        });
         world.Tick();
         warnings.Should().Contain(w => w.Contains(bubble.ToString()) && w.Contains("still in the frame tree"));
         faults.Jolt.TryGetBodyFrame(ball, out FrameHandle ballFrame).Should().BeTrue();
@@ -360,7 +363,8 @@ public class FrameHullTests
         {
             Frame = space,
             Pose = At(505),
-            Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0, LinearDamping: 0,
+                AngularDamping: 0),
             AsFrame = new(FrameBounds.Sphere(10))
         });
         FrameHandle shuttle = world.GetOwnedFrame(shuttleOwner);
@@ -398,7 +402,8 @@ public class FrameHullTests
             Frame = hangar,
             Pose = At(25),
             LinearVelocity = new(10, 0, 0),
-            Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0, LinearDamping: 0,
+                AngularDamping: 0),
             AsFrame = new(FrameBounds.Sphere(10)),
             Components = [pilot]
         });

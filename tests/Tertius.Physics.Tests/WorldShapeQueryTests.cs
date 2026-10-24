@@ -78,10 +78,12 @@ public class WorldShapeQueryTests
 
             foreach (Cast cast in Casts)
                 if (EveryTick || cast.OnTick == self.Tick)
-                    self.Physics.CastShape(shape: cast.Shape, start: cast.Start, direction: cast.Direction, length: cast.Length, query: cast.Query, tag: cast.Tag);
+                    self.Physics.CastShape(shape: cast.Shape, start: cast.Start, direction: cast.Direction,
+                        length: cast.Length, query: cast.Query, tag: cast.Tag);
             foreach (Overlap overlap in Overlaps)
                 if (EveryTick || overlap.OnTick == self.Tick)
-                    self.Physics.Overlap(shape: overlap.Shape, pose: overlap.Pose, query: overlap.Query, tag: overlap.Tag);
+                    self.Physics.Overlap(shape: overlap.Shape, pose: overlap.Pose, query: overlap.Query,
+                        tag: overlap.Tag);
         }
 
         public ShapeHit[] CastAnswersTo(int tag) =>
@@ -91,7 +93,8 @@ public class WorldShapeQueryTests
             [.. OverlapAnswers.Where(a => a.Hit.Tag == tag).Select(a => a.Hit.Entity)];
     }
 
-    private static BodyDesc StaticBox(float half = 0.5f) => new(Shape: new BoxShapeDesc(new(half)), Motion: BodyMotion.Static);
+    private static BodyDesc StaticBox(float half = 0.5f) =>
+        new(Shape: new BoxShapeDesc(new(half)), Motion: BodyMotion.Static);
 
     private static Entity Spawn(World world, FrameHandle frame, Double3 at, BodyDesc? body,
         params IComponent[] components) =>
@@ -151,7 +154,14 @@ public class WorldShapeQueryTests
     {
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 0);
-        var probe = new Probe { Casts = [new(Shape: QueryShape.Sphere(0.5f), Start: At(0), Direction: Double3.UnitX, Length: 50, Query: default, Tag: 4)] };
+        var probe = new Probe
+        {
+            Casts =
+            [
+                new(Shape: QueryShape.Sphere(0.5f), Start: At(0), Direction: Double3.UnitX, Length: 50, Query: default,
+                    Tag: 4)
+            ]
+        };
         Spawn(world: world, frame: ground, at: Double3.Zero, body: null, probe);
         Spawn(world: world, frame: ground, at: new(20, 0, 0), body: StaticBox());
         Entity near = Spawn(world: world, frame: ground, at: new(10, 0, 0), body: StaticBox());
@@ -162,7 +172,8 @@ public class WorldShapeQueryTests
         probe.ShapeAnswers[0].Tick.Should()
             .Be(1, "the cast asked on tick 0, and its answer arrives with the next tick");
         // The sphere's front reaches the face at x = 9.5 when its center is at x = 9.
-        ShouldBeAt(hit: probe.ShapeAnswers[0].Hit, entity: near, point: new(9.5, 0, 0), normal: -Vector3.UnitX, distance: 9);
+        ShouldBeAt(hit: probe.ShapeAnswers[0].Hit, entity: near, point: new(9.5, 0, 0), normal: -Vector3.UnitX,
+            distance: 9);
         probe.ShapeAnswers[0].Hit.Tag.Should().Be(4);
         world.Errors.Should().BeEmpty();
     }
@@ -173,13 +184,21 @@ public class WorldShapeQueryTests
         // The direction (6, 0, 0) is six meters long. The sphere still moves 9 m before it touches the box, not 9 m over 6.
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 0);
-        var probe = new Probe { Casts = [new(Shape: QueryShape.Sphere(0.5f), Start: At(0), Direction: new(6, 0, 0), Length: 50, Query: default, Tag: 4)] };
+        var probe = new Probe
+        {
+            Casts =
+            [
+                new(Shape: QueryShape.Sphere(0.5f), Start: At(0), Direction: new(6, 0, 0), Length: 50, Query: default,
+                    Tag: 4)
+            ]
+        };
         Spawn(world: world, frame: ground, at: Double3.Zero, body: null, probe);
         Entity near = Spawn(world: world, frame: ground, at: new(10, 0, 0), body: StaticBox());
 
         Tick(world, 2);
 
-        ShouldBeAt(hit: probe.CastAnswersTo(4).Should().ContainSingle().Subject, entity: near, point: new(9.5, 0, 0), normal: -Vector3.UnitX, distance: 9);
+        ShouldBeAt(hit: probe.CastAnswersTo(4).Should().ContainSingle().Subject, entity: near, point: new(9.5, 0, 0),
+            normal: -Vector3.UnitX, distance: 9);
         world.Errors.Should().BeEmpty();
     }
 
@@ -189,7 +208,13 @@ public class WorldShapeQueryTests
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 0);
         var probe = new Probe
-            { Casts = [new(Shape: QueryShape.Sphere(0.5f), Start: At(1, 2, 3), Direction: new(0, 0, 3), Length: 50, Query: default, Tag: 5)] };
+        {
+            Casts =
+            [
+                new(Shape: QueryShape.Sphere(0.5f), Start: At(1, 2, 3), Direction: new(0, 0, 3), Length: 50,
+                    Query: default, Tag: 5)
+            ]
+        };
         Spawn(world: world, frame: ground, at: new(1, 2, 3), body: null, probe);
 
         Tick(world, 2);
@@ -209,7 +234,13 @@ public class WorldShapeQueryTests
         FrameHandle ground = Ground(world, 0);
         DPose start = Turned(Double3.Zero, Double3.UnitY, Math.PI / 2);
         var probe = new Probe
-            { Casts = [new(Shape: QueryShape.Box(new(0.25f, 0.25f, 1)), Start: start, Direction: Double3.UnitX, Length: 50, Query: default, Tag: 1)] };
+        {
+            Casts =
+            [
+                new(Shape: QueryShape.Box(new(0.25f, 0.25f, 1)), Start: start, Direction: Double3.UnitX, Length: 50,
+                    Query: default, Tag: 1)
+            ]
+        };
         Spawn(world: world, frame: ground, at: Double3.Zero, body: null, probe);
         Entity target = Spawn(world: world, frame: ground, at: new(10, 0, 0), body: StaticBox());
 
@@ -234,13 +265,21 @@ public class WorldShapeQueryTests
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 0);
         DPose start = Turned(Double3.Zero, Double3.UnitZ, Math.PI / 2);
-        var probe = new Probe { Casts = [new(Shape: QueryShape.Capsule(1, 0.5f), Start: start, Direction: Double3.UnitX, Length: 50, Query: default, Tag: 1)] };
+        var probe = new Probe
+        {
+            Casts =
+            [
+                new(Shape: QueryShape.Capsule(1, 0.5f), Start: start, Direction: Double3.UnitX, Length: 50,
+                    Query: default, Tag: 1)
+            ]
+        };
         Spawn(world: world, frame: ground, at: Double3.Zero, body: null, probe);
         Entity target = Spawn(world: world, frame: ground, at: new(10, 0, 0), body: StaticBox());
 
         Tick(world, 2);
 
-        ShouldBeAt(hit: probe.CastAnswersTo(1).Single(), entity: target, point: new(9.5, 0, 0), normal: -Vector3.UnitX, distance: 8);
+        ShouldBeAt(hit: probe.CastAnswersTo(1).Single(), entity: target, point: new(9.5, 0, 0), normal: -Vector3.UnitX,
+            distance: 8);
     }
 
     [Fact]
@@ -248,7 +287,14 @@ public class WorldShapeQueryTests
     {
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 0);
-        var probe = new Probe { Casts = [new(Shape: QueryShape.Sphere(1), Start: At(1, 2, 3), Direction: Double3.UnitY, Length: 50, Query: default, Tag: 9)] };
+        var probe = new Probe
+        {
+            Casts =
+            [
+                new(Shape: QueryShape.Sphere(1), Start: At(1, 2, 3), Direction: Double3.UnitY, Length: 50,
+                    Query: default, Tag: 9)
+            ]
+        };
         Spawn(world: world, frame: ground, at: new(1, 2, 3), body: null, probe);
         Spawn(world: world, frame: ground, at: new(10, 0, 0), body: StaticBox());
 
@@ -268,14 +314,21 @@ public class WorldShapeQueryTests
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 0);
         var probe = new Probe
-            { Casts = [new(Shape: QueryShape.Sphere(0.5f), Start: At(0), Direction: Double3.UnitX, Length: 50, Query: EntityQuery.With<Crew>(), Tag: 1)] };
+        {
+            Casts =
+            [
+                new(Shape: QueryShape.Sphere(0.5f), Start: At(0), Direction: Double3.UnitX, Length: 50,
+                    Query: EntityQuery.With<Crew>(), Tag: 1)
+            ]
+        };
         Spawn(world: world, frame: ground, at: Double3.Zero, body: null, probe);
         Spawn(world: world, frame: ground, at: new(10, 0, 0), body: StaticBox());
         Entity crew = Spawn(world: world, frame: ground, at: new(20, 0, 0), body: StaticBox(), new Crew());
 
         Tick(world, 2);
 
-        ShouldBeAt(hit: probe.CastAnswersTo(1).Single(), entity: crew, point: new(19.5, 0, 0), normal: -Vector3.UnitX, distance: 19);
+        ShouldBeAt(hit: probe.CastAnswersTo(1).Single(), entity: crew, point: new(19.5, 0, 0), normal: -Vector3.UnitX,
+            distance: 19);
     }
 
     [Fact]
@@ -289,16 +342,19 @@ public class WorldShapeQueryTests
         {
             Casts =
             [
-                new(Shape: QueryShape.Sphere(0.5f), Start: At(0), Direction: Double3.UnitX, Length: 50, Query: EntityQuery.InAny(CollisionGroup.Solid), Tag: 1)
+                new(Shape: QueryShape.Sphere(0.5f), Start: At(0), Direction: Double3.UnitX, Length: 50,
+                    Query: EntityQuery.InAny(CollisionGroup.Solid), Tag: 1)
             ]
         };
         Spawn(world: world, frame: ground, at: Double3.Zero, body: null, probe);
-        Spawn(world: world, frame: ground, at: new(10, 0, 0), body: StaticBox() with { CollisionGroups = CollisionGroups.Of(glass) });
+        Spawn(world: world, frame: ground, at: new(10, 0, 0),
+            body: StaticBox() with { CollisionGroups = CollisionGroups.Of(glass) });
         Entity wall = Spawn(world: world, frame: ground, at: new(20, 0, 0), body: StaticBox());
 
         Tick(world, 2);
 
-        ShouldBeAt(hit: probe.CastAnswersTo(1).Single(), entity: wall, point: new(19.5, 0, 0), normal: -Vector3.UnitX, distance: 19);
+        ShouldBeAt(hit: probe.CastAnswersTo(1).Single(), entity: wall, point: new(19.5, 0, 0), normal: -Vector3.UnitX,
+            distance: 19);
     }
 
     [Fact]
@@ -308,13 +364,21 @@ public class WorldShapeQueryTests
         // asker at once.
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 0);
-        var probe = new Probe { Casts = [new(Shape: QueryShape.Sphere(0.5f), Start: At(0), Direction: Double3.UnitX, Length: 50, Query: default, Tag: 1)] };
+        var probe = new Probe
+        {
+            Casts =
+            [
+                new(Shape: QueryShape.Sphere(0.5f), Start: At(0), Direction: Double3.UnitX, Length: 50, Query: default,
+                    Tag: 1)
+            ]
+        };
         Spawn(world: world, frame: ground, at: Double3.Zero, body: StaticBox(2), probe);
         Entity target = Spawn(world: world, frame: ground, at: new(10, 0, 0), body: StaticBox());
 
         Tick(world, 2);
 
-        ShouldBeAt(hit: probe.CastAnswersTo(1).Single(), entity: target, point: new(9.5, 0, 0), normal: -Vector3.UnitX, distance: 9);
+        ShouldBeAt(hit: probe.CastAnswersTo(1).Single(), entity: target, point: new(9.5, 0, 0), normal: -Vector3.UnitX,
+            distance: 9);
     }
 
     [Fact]
@@ -324,7 +388,14 @@ public class WorldShapeQueryTests
         // box at x = -10. A convex body is solid, as it is for a ray.
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 0);
-        var probe = new Probe { Casts = [new(Shape: QueryShape.Sphere(1), Start: At(0), Direction: -Double3.UnitX, Length: 50, Query: default, Tag: 1)] };
+        var probe = new Probe
+        {
+            Casts =
+            [
+                new(Shape: QueryShape.Sphere(1), Start: At(0), Direction: -Double3.UnitX, Length: 50, Query: default,
+                    Tag: 1)
+            ]
+        };
         Spawn(world: world, frame: ground, at: Double3.Zero, body: null, probe);
         Entity overlapped = Spawn(world: world, frame: ground, at: new(1, 0, 0), body: StaticBox());
         Spawn(world: world, frame: ground, at: new(-10, 0, 0), body: StaticBox());
@@ -346,14 +417,21 @@ public class WorldShapeQueryTests
         FrameHandle child = TurnedChildFrame(world, ground);
         DPose start = Turned(Double3.Zero, Double3.UnitZ, Math.PI / 2);
         var probe = new Probe
-            { Casts = [new(Shape: QueryShape.Capsule(1, 0.5f), Start: start, Direction: Double3.UnitX, Length: 200, Query: default, Tag: 1)] };
+        {
+            Casts =
+            [
+                new(Shape: QueryShape.Capsule(1, 0.5f), Start: start, Direction: Double3.UnitX, Length: 200,
+                    Query: default, Tag: 1)
+            ]
+        };
         Spawn(world: world, frame: ground, at: Double3.Zero, body: null, probe);
         // At (0, 0, 5) in the child, which is (105, 0, 0) in the ground. Its face toward the cast is the child's -Z face.
         Entity inside = Spawn(world: world, frame: child, at: new(0, 0, 5), body: StaticBox());
 
         Tick(world, 2);
 
-        ShouldBeAt(hit: probe.CastAnswersTo(1).Single(), entity: inside, point: new(104.5, 0, 0), normal: -Vector3.UnitX, distance: 103);
+        ShouldBeAt(hit: probe.CastAnswersTo(1).Single(), entity: inside, point: new(104.5, 0, 0),
+            normal: -Vector3.UnitX, distance: 103);
         world.Errors.Should().BeEmpty();
     }
 
@@ -365,7 +443,14 @@ public class WorldShapeQueryTests
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 0);
         FrameHandle child = TurnedChildFrame(world, ground);
-        var probe = new Probe { Casts = [new(Shape: QueryShape.Sphere(0.5f), Start: At(0), Direction: Double3.UnitX, Length: 200, Query: default, Tag: 1)] };
+        var probe = new Probe
+        {
+            Casts =
+            [
+                new(Shape: QueryShape.Sphere(0.5f), Start: At(0), Direction: Double3.UnitX, Length: 200, Query: default,
+                    Tag: 1)
+            ]
+        };
         Spawn(world: world, frame: ground, at: Double3.Zero, body: null, probe);
         Spawn(world: world, frame: ground, at: new(150, 0, 0), body: StaticBox());
         // At (0, 0, 5) in the child, which is (105, 0, 0) in the ground: the sphere touches its face at x = 104.5 with its
@@ -374,7 +459,8 @@ public class WorldShapeQueryTests
 
         Tick(world, 2);
 
-        ShouldBeAt(hit: probe.CastAnswersTo(1).Single(), entity: nearer, point: new(104.5, 0, 0), normal: -Vector3.UnitX, distance: 104);
+        ShouldBeAt(hit: probe.CastAnswersTo(1).Single(), entity: nearer, point: new(104.5, 0, 0),
+            normal: -Vector3.UnitX, distance: 104);
         world.Errors.Should().BeEmpty();
     }
 
@@ -391,7 +477,13 @@ public class WorldShapeQueryTests
         FrameHandle farFrame = Bubble(world: world, parent: ground, at: new(120, 0, 0), radius: 10);
         FrameHandle nearFrame = Bubble(world: world, parent: ground, at: new(40, 0, 0), radius: 10);
         var probe = new Probe
-            { Casts = [new(Shape: QueryShape.Sphere(0.5f), Start: At(0), Direction: Double3.UnitX, Length: 200, Query: Recording(asked), Tag: 1)] };
+        {
+            Casts =
+            [
+                new(Shape: QueryShape.Sphere(0.5f), Start: At(0), Direction: Double3.UnitX, Length: 200,
+                    Query: Recording(asked), Tag: 1)
+            ]
+        };
         Spawn(world: world, frame: ground, at: Double3.Zero, body: null, probe);
         Entity groundBox = Spawn(world: world, frame: ground, at: new(150, 0, 0), body: StaticBox());
         Entity farBody = Spawn(world: world, frame: farFrame, at: Double3.Zero, body: StaticBox());
@@ -399,7 +491,8 @@ public class WorldShapeQueryTests
 
         Tick(world, 2);
 
-        ShouldBeAt(hit: probe.CastAnswersTo(1).Single(), entity: nearBody, point: new(39.5, 0, 0), normal: -Vector3.UnitX, distance: 39);
+        ShouldBeAt(hit: probe.CastAnswersTo(1).Single(), entity: nearBody, point: new(39.5, 0, 0),
+            normal: -Vector3.UnitX, distance: 39);
         asked.Should().Contain([groundBox, nearBody], "the cast looked in the ground and in the near frame");
         asked.Should().NotContain(farBody, "the near frame's hit ends the cast's search before the far frame");
         world.Errors.Should().BeEmpty();
@@ -415,13 +508,21 @@ public class WorldShapeQueryTests
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 0);
         FrameHandle child = TurnedChildFrame(world, ground);
-        var probe = new Probe { Casts = [new(Shape: QueryShape.Sphere(2), Start: At(0), Direction: Double3.UnitZ, Length: 100, Query: default, Tag: 1)] };
+        var probe = new Probe
+        {
+            Casts =
+            [
+                new(Shape: QueryShape.Sphere(2), Start: At(0), Direction: Double3.UnitZ, Length: 100, Query: default,
+                    Tag: 1)
+            ]
+        };
         Spawn(world: world, frame: child, at: Double3.Zero, body: null, probe);
         Entity box = Spawn(world: world, frame: ground, at: new(121, 0, 0), body: StaticBox());
 
         Tick(world, 2);
 
-        ShouldBeAt(hit: probe.CastAnswersTo(1).Single(), entity: box, point: new(0, 0, 20.5), normal: -Vector3.UnitZ, distance: 18.5);
+        ShouldBeAt(hit: probe.CastAnswersTo(1).Single(), entity: box, point: new(0, 0, 20.5), normal: -Vector3.UnitZ,
+            distance: 18.5);
     }
 
     [Fact]
@@ -433,7 +534,14 @@ public class WorldShapeQueryTests
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 0);
         DPose start = Turned(Double3.Zero, Double3.UnitY, Math.PI / 4);
-        var probe = new Probe { Casts = [new(Shape: QueryShape.Box(new(0.5f)), Start: start, Direction: Double3.UnitX, Length: 50, Query: default, Tag: 1)] };
+        var probe = new Probe
+        {
+            Casts =
+            [
+                new(Shape: QueryShape.Box(new(0.5f)), Start: start, Direction: Double3.UnitX, Length: 50,
+                    Query: default, Tag: 1)
+            ]
+        };
         Spawn(world: world, frame: ground, at: Double3.Zero, body: null, probe);
         Entity target = Spawn(world: world, frame: ground, at: new(10, 0, 0), body: StaticBox());
 
@@ -454,14 +562,22 @@ public class WorldShapeQueryTests
         FrameHandle ground = Ground(world, 0);
         FrameHandle child = TurnedChildFrame(world, ground);
         // From the child's origin along its +Z, which is the ground's +X.
-        var probe = new Probe { Casts = [new(Shape: QueryShape.Sphere(0.5f), Start: At(0), Direction: Double3.UnitZ, Length: 100, Query: default, Tag: 1)] };
+        var probe = new Probe
+        {
+            Casts =
+            [
+                new(Shape: QueryShape.Sphere(0.5f), Start: At(0), Direction: Double3.UnitZ, Length: 100, Query: default,
+                    Tag: 1)
+            ]
+        };
         Spawn(world: world, frame: child, at: Double3.Zero, body: null, probe);
         Entity outside = Spawn(world: world, frame: ground, at: new(150, 0, 0), body: StaticBox());
 
         Tick(world, 2);
 
         // The face at x = 149.5 in the ground is 49.5 m along the child's +Z, and its normal is the child's -Z.
-        ShouldBeAt(hit: probe.CastAnswersTo(1).Single(), entity: outside, point: new(0, 0, 49.5), normal: -Vector3.UnitZ, distance: 49);
+        ShouldBeAt(hit: probe.CastAnswersTo(1).Single(), entity: outside, point: new(0, 0, 49.5),
+            normal: -Vector3.UnitZ, distance: 49);
     }
 
     [Fact]
@@ -475,13 +591,21 @@ public class WorldShapeQueryTests
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 0);
         Scenes.ShipScene ship = Scenes.ShipWithInterior(world: world, space: ground, bubbleRadius: 10);
-        var probe = new Probe { Casts = [new(Shape: QueryShape.Sphere(2.9f), Start: At(0, 1), Direction: Double3.UnitX, Length: 100, Query: default, Tag: 1)] };
+        var probe = new Probe
+        {
+            Casts =
+            [
+                new(Shape: QueryShape.Sphere(2.9f), Start: At(0, 1), Direction: Double3.UnitX, Length: 100,
+                    Query: default, Tag: 1)
+            ]
+        };
         Spawn(world: world, frame: ship.Interior, at: new(0, 1, 0), body: null, probe);
         Entity beyond = Spawn(world: world, frame: ground, at: new(30, 1, 0), body: StaticBox());
 
         Tick(world, 2);
 
-        ShouldBeAt(hit: probe.CastAnswersTo(1).Single(), entity: beyond, point: new(29.5, 1, 0), normal: -Vector3.UnitX, distance: 26.6);
+        ShouldBeAt(hit: probe.CastAnswersTo(1).Single(), entity: beyond, point: new(29.5, 1, 0), normal: -Vector3.UnitX,
+            distance: 26.6);
     }
 
     // ---- Overlaps ----
@@ -500,7 +624,8 @@ public class WorldShapeQueryTests
         Spawn(world: world, frame: ground, at: new(0, -5.6, 0), body: StaticBox());
         Entity crate = Spawn(world: world, frame: ground, at: new(3, 0, 0), body: Cube());
         // A mesh cube whose face at z = 4.5 and whose sides reach into the sphere: Jolt reports each triangle it touches.
-        Entity mesh = Spawn(world: world, frame: ground, at: new(0, 0, 5.5), body: new(Shape: MeshCube(1), Motion: BodyMotion.Static));
+        Entity mesh = Spawn(world: world, frame: ground, at: new(0, 0, 5.5),
+            body: new(Shape: MeshCube(1), Motion: BodyMotion.Static));
 
         Tick(world, 2);
 
@@ -537,7 +662,8 @@ public class WorldShapeQueryTests
         {
             Overlaps =
             [
-                new(Shape: QueryShape.Box(new(4.5f, 0.5f, 0.5f)), Pose: Turned(Double3.Zero, Double3.UnitZ, Math.PI / 2), Query: default,
+                new(Shape: QueryShape.Box(new(4.5f, 0.5f, 0.5f)),
+                    Pose: Turned(Double3.Zero, Double3.UnitZ, Math.PI / 2), Query: default,
                     Tag: 1),
                 new(Shape: QueryShape.Capsule(4, 0.5f), Pose: At(0), Query: default, Tag: 2)
             ]
@@ -564,7 +690,8 @@ public class WorldShapeQueryTests
         {
             Overlaps =
             [
-                new(Shape: QueryShape.Box(new(4.5f, 0.5f, 0.5f)), Pose: new(Double3.Zero, new(X: 0, Y: 0, Z: side, W: side)), Query: default, Tag: 1)
+                new(Shape: QueryShape.Box(new(4.5f, 0.5f, 0.5f)),
+                    Pose: new(Double3.Zero, new(X: 0, Y: 0, Z: side, W: side)), Query: default, Tag: 1)
             ]
         };
         Spawn(world: world, frame: ground, at: Double3.Zero, body: null, probe);
@@ -583,10 +710,12 @@ public class WorldShapeQueryTests
         // diagonal, dips 1 cm into the corner. A box rounded by Jolt's default convex radius of 5 cm would miss it by 1 cm.
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 0);
-        var probe = new Probe { Overlaps = [new(Shape: QueryShape.Box(Vector3.One), Pose: At(0), Query: default, Tag: 1)] };
+        var probe = new Probe
+            { Overlaps = [new(Shape: QueryShape.Box(Vector3.One), Pose: At(0), Query: default, Tag: 1)] };
         Spawn(world: world, frame: ground, at: Double3.Zero, body: null, probe);
         double offset = 1 + 0.49 / Math.Sqrt(2);
-        Entity ball = Spawn(world: world, frame: ground, at: new(offset, offset, 0), body: new(Shape: new SphereShapeDesc(0.5f), Motion: BodyMotion.Static));
+        Entity ball = Spawn(world: world, frame: ground, at: new(offset, offset, 0),
+            body: new(Shape: new SphereShapeDesc(0.5f), Motion: BodyMotion.Static));
 
         Tick(world, 2);
 
@@ -605,7 +734,8 @@ public class WorldShapeQueryTests
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 0);
         FrameHandle child = TurnedChildFrame(world, ground);
-        var probe = new Probe { Overlaps = [new(Shape: QueryShape.Box(new(2, 0.5f, 0.5f)), Pose: At(79), Query: default, Tag: 1)] };
+        var probe = new Probe
+            { Overlaps = [new(Shape: QueryShape.Box(new(2, 0.5f, 0.5f)), Pose: At(79), Query: default, Tag: 1)] };
         Spawn(world: world, frame: ground, at: new(79, 0, 0), body: null, probe);
         Entity inside = Spawn(world: world, frame: child, at: new(0, 0, -19), body: StaticBox());
         Entity groundBox = Spawn(world: world, frame: ground, at: new(77.5, 0, 0), body: StaticBox());
@@ -625,7 +755,8 @@ public class WorldShapeQueryTests
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 0);
         FrameHandle child = TurnedChildFrame(world, ground);
-        var probe = new Probe { Overlaps = [new(Shape: QueryShape.Sphere(2), Pose: At(100, 22), Query: default, Tag: 1)] };
+        var probe = new Probe
+            { Overlaps = [new(Shape: QueryShape.Sphere(2), Pose: At(100, 22), Query: default, Tag: 1)] };
         Spawn(world: world, frame: ground, at: new(100, 22, 0), body: null, probe);
         Entity top = Spawn(world: world, frame: child, at: new(0, 20, 0), body: StaticBox());
 
@@ -660,7 +791,8 @@ public class WorldShapeQueryTests
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 0);
         Scenes.ShipScene ship = Scenes.ShipWithInterior(world: world, space: ground, bubbleRadius: 10);
-        var probe = new Probe { Overlaps = [new(Shape: QueryShape.Sphere(3.2f), Pose: At(7, 1), Query: default, Tag: 1)] };
+        var probe = new Probe
+            { Overlaps = [new(Shape: QueryShape.Sphere(3.2f), Pose: At(7, 1), Query: default, Tag: 1)] };
         Spawn(world: world, frame: ship.Interior, at: new(7, 1, 0), body: null, probe);
         Entity box = Spawn(world: world, frame: ground, at: new(10.5, 1, 0), body: StaticBox());
 
@@ -682,7 +814,8 @@ public class WorldShapeQueryTests
             if (overlap)
                 self.Physics.Overlap(shape: shape, pose: pose, query: default, tag: 1);
             else
-                self.Physics.CastShape(shape: shape, start: pose, direction: direction, length: length, query: default, tag: 1);
+                self.Physics.CastShape(shape: shape, start: pose, direction: direction, length: length, query: default,
+                    tag: 1);
         }
     }
 
@@ -712,7 +845,8 @@ public class WorldShapeQueryTests
         var pose = new DPose(new(x, 0, 0), new(X: 0, Y: 0, Z: 0, W: w));
         Double3 direction = length == 0 ? Double3.Zero : Double3.UnitX;
         Spawn(world: world, frame: ground, at: Double3.Zero, body: null, probe,
-            new BadQuery(shape: shape, pose: pose, direction: direction, length: length == 0 ? 10 : length, overlap: overlap));
+            new BadQuery(shape: shape, pose: pose, direction: direction, length: length == 0 ? 10 : length,
+                overlap: overlap));
 
         Tick(world, 2);
 
@@ -732,8 +866,22 @@ public class WorldShapeQueryTests
         FrameHandle ground = Ground(world, 0);
         EntityQuery throws =
             EntityQuery.Where(static (_, _) => throw new InvalidOperationException("the predicate broke"));
-        var broken = new Probe { Casts = [new(Shape: QueryShape.Sphere(0.5f), Start: At(0), Direction: Double3.UnitX, Length: 50, Query: throws, Tag: 1)] };
-        var fine = new Probe { Casts = [new(Shape: QueryShape.Sphere(0.5f), Start: At(0, 0.1), Direction: Double3.UnitX, Length: 50, Query: default, Tag: 2)] };
+        var broken = new Probe
+        {
+            Casts =
+            [
+                new(Shape: QueryShape.Sphere(0.5f), Start: At(0), Direction: Double3.UnitX, Length: 50, Query: throws,
+                    Tag: 1)
+            ]
+        };
+        var fine = new Probe
+        {
+            Casts =
+            [
+                new(Shape: QueryShape.Sphere(0.5f), Start: At(0, 0.1), Direction: Double3.UnitX, Length: 50,
+                    Query: default, Tag: 2)
+            ]
+        };
         Spawn(world: world, frame: ground, at: Double3.Zero, body: null, broken);
         Spawn(world: world, frame: ground, at: new(0, 0.1, 0), body: null, fine);
         Entity box = Spawn(world: world, frame: ground, at: new(10, 0, 0), body: StaticBox());
@@ -754,7 +902,8 @@ public class WorldShapeQueryTests
         EntityQuery throws =
             EntityQuery.Where(static (_, _) => throw new InvalidOperationException("the predicate broke"));
         var broken = new Probe { Overlaps = [new(Shape: QueryShape.Sphere(2), Pose: At(0), Query: throws, Tag: 1)] };
-        var fine = new Probe { Overlaps = [new(Shape: QueryShape.Sphere(2), Pose: At(0, 0.1), Query: default, Tag: 2)] };
+        var fine = new Probe
+            { Overlaps = [new(Shape: QueryShape.Sphere(2), Pose: At(0, 0.1), Query: default, Tag: 2)] };
         Spawn(world: world, frame: ground, at: Double3.Zero, body: null, broken);
         Spawn(world: world, frame: ground, at: new(0, 0.1, 0), body: null, fine);
         Entity box = Spawn(world: world, frame: ground, at: new(1, 0, 0), body: StaticBox());
@@ -779,7 +928,8 @@ public class WorldShapeQueryTests
         FrameHandle ground = Ground(world, 0);
         FrameHandle child = TurnedChildFrame(world, ground);
         for (int i = 0; i < 24; i++)
-            Spawn(world: world, frame: ground, at: new(5 + 7 * i, i % 5 - 2, i % 3 - 1), body: StaticBox(0.5f + 0.1f * (i % 4)),
+            Spawn(world: world, frame: ground, at: new(5 + 7 * i, i % 5 - 2, i % 3 - 1),
+                body: StaticBox(0.5f + 0.1f * (i % 4)),
                 i % 2 == 0 ? [new Crew()] : []);
         for (int i = 0; i < 6; i++)
             Spawn(world: world, frame: child, at: new(i - 3, 0, 3 * i - 8), body: StaticBox(), new Crew());
@@ -793,7 +943,11 @@ public class WorldShapeQueryTests
             Double3 direction = new Double3(1, 0.002 * i, -0.001 * i).Normalized();
             var probe = new Probe
             {
-                Casts = [new(Shape: shapes[i % 3], Start: Turned(from, Double3.UnitY, 0.3 * i), Direction: direction, Length: 300, Query: default, Tag: 1)],
+                Casts =
+                [
+                    new(Shape: shapes[i % 3], Start: Turned(from, Double3.UnitY, 0.3 * i), Direction: direction,
+                        Length: 300, Query: default, Tag: 1)
+                ],
                 Overlaps =
                 [
                     new(Shape: volumes[(i + 1) % 3], Pose: Turned(new(7 * i + 5, 0, 0), Double3.UnitZ, 0.2 * i),
@@ -854,12 +1008,14 @@ public class WorldShapeQueryTests
             {
                 Casts =
                 [
-                    new(Shape: QueryShape.Capsule(0.3f, 0.2f), Start: new(from, DQuaternion.Identity), Direction: Double3.UnitX, Length: 300,
+                    new(Shape: QueryShape.Capsule(0.3f, 0.2f), Start: new(from, DQuaternion.Identity),
+                        Direction: Double3.UnitX, Length: 300,
                         Query: EntityQuery.With<Crew>().Near(500), Tag: 1)
                 ],
                 Overlaps =
                 [
-                    new(Shape: QueryShape.Box(new(30, 1, 1)), Pose: new(new(30, 0, 0), DQuaternion.Identity), Query: default, Tag: 2)
+                    new(Shape: QueryShape.Box(new(30, 1, 1)), Pose: new(new(30, 0, 0), DQuaternion.Identity),
+                        Query: default, Tag: 2)
                 ],
                 EveryTick = true,
                 Keeps = false

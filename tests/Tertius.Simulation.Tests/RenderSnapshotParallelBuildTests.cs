@@ -36,7 +36,8 @@ public class RenderSnapshotParallelBuildTests
         {
             RenderData render = Visible(i % 5);
             if (i % 50 == 0)
-                render.Light = new PointLightData(Offset: Pose.Identity, Color: new(1, 0.5f, 0.25f), Intensity: 1, Range: 20);
+                render.Light = new PointLightData(Offset: Pose.Identity, Color: new(1, 0.5f, 0.25f), Intensity: 1,
+                    Range: 20);
             test.World.Spawn(new()
             {
                 Frame = i % 3 == 0 ? side : test.Root,
@@ -106,8 +107,10 @@ public class RenderSnapshotParallelBuildTests
             entities = new(chunkSize: 64, initialCapacity: visible + 2);
             var frames = new FrameTree();
             Entity owner = entities.Reserve();
-            FrameHandle root = frames.Create(frameOwner: owner, parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
-            entities.Activate(entity: owner, row: new() { Pose = DPose.Identity }, render: new(), components: [], wants: [], body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: root);
+            FrameHandle root = frames.Create(frameOwner: owner, parent: FrameHandle.Null, localPose: DPose.Identity,
+                frameBounds: FrameBounds.Sphere(1e9f));
+            entities.Activate(entity: owner, row: new() { Pose = DPose.Identity }, render: new(), components: [],
+                wants: [], body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: root);
             camera = Spawn(root, new(), 0);
             for (int i = 0; i < visible; i++)
                 Spawn(root, Visible(), i + 1);
@@ -125,7 +128,8 @@ public class RenderSnapshotParallelBuildTests
         {
             var snapshot = new RenderSnapshot();
             Builder.Build(snapshot,
-                new(Tick: 0, Time: 0, Camera: camera, VerticalFov: 1, SunFrame: FrameHandle.Null, SunColor: Vector3.One, SunIntensity: 0, Ambient: new(),
+                new(Tick: 0, Time: 0, Camera: camera, VerticalFov: 1, SunFrame: FrameHandle.Null, SunColor: Vector3.One,
+                    SunIntensity: 0, Ambient: new(),
                     ShowFrameOutlines: false), puffs: default);
             return snapshot;
         }
@@ -133,7 +137,8 @@ public class RenderSnapshotParallelBuildTests
         private Entity Spawn(FrameHandle frame, in RenderData render, double x)
         {
             Entity entity = entities.Reserve();
-            entities.Activate(entity: entity, row: new() { Frame = frame, PhysicsHome = frame, Pose = TestWorld.At(x) }, render: render, components: [],
+            entities.Activate(entity: entity, row: new() { Frame = frame, PhysicsHome = frame, Pose = TestWorld.At(x) },
+                render: render, components: [],
                 wants: [], body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
             return entity;
         }

@@ -83,7 +83,8 @@ public readonly record struct TransferGuidance(double Mu)
     public (Double3 Point, Double3 StationVelocity) Arrival(
         Double3 stationPosition, Double3 stationVelocity, Double3 axis, double arrivalDistance, double time)
     {
-        (Double3 position, Double3 velocity) = KeplerOrbit.Propagate(position: stationPosition, velocity: stationVelocity, mu: Mu, time: time);
+        (Double3 position, Double3 velocity) =
+            KeplerOrbit.Propagate(position: stationPosition, velocity: stationVelocity, mu: Mu, time: time);
         return (position + axis * arrivalDistance, velocity);
     }
 
@@ -100,7 +101,8 @@ public readonly record struct TransferGuidance(double Mu)
     {
         if (timeLeft <= CoastTime)
             return true;
-        Double3 arrival = Arrival(stationPosition: stationPosition, stationVelocity: stationVelocity, axis: axis, arrivalDistance: arrivalDistance, time: timeLeft).Point;
+        Double3 arrival = Arrival(stationPosition: stationPosition, stationVelocity: stationVelocity, axis: axis,
+            arrivalDistance: arrivalDistance, time: timeLeft).Point;
         double angle = TransferAngle(shuttlePosition, arrival, OrbitNormal(stationPosition, stationVelocity));
         return angle is < CoastAngle or > 2 * Math.PI - CoastAngle;
     }
@@ -119,9 +121,11 @@ public readonly record struct TransferGuidance(double Mu)
         Double3 axis, double arrivalDistance, double timeLeft)
     {
         (Double3 arrival, Double3 stationAtArrival) =
-            Arrival(stationPosition: stationPosition, stationVelocity: stationVelocity, axis: axis, arrivalDistance: arrivalDistance, time: timeLeft);
+            Arrival(stationPosition: stationPosition, stationVelocity: stationVelocity, axis: axis,
+                arrivalDistance: arrivalDistance, time: timeLeft);
         Double3 normal = OrbitNormal(stationPosition, stationVelocity);
-        (Double3 needed, Double3 atArrival) = KeplerOrbit.Lambert(from: shuttlePosition, to: arrival, timeOfFlight: timeLeft, mu: Mu, normal: normal);
+        (Double3 needed, Double3 atArrival) = KeplerOrbit.Lambert(from: shuttlePosition, to: arrival,
+            timeOfFlight: timeLeft, mu: Mu, normal: normal);
         Double3 toGain = needed - shuttleVelocity;
         Double3 push = toGain / TrimTime;
         double length = push.Length;

@@ -55,7 +55,9 @@ internal sealed record StationSample(
         double mu = world.Frames.Gravity(earth) is PointGravity { Mu: var m } ? m : double.NaN;
         Double3 orbitPlace = world.GetComponent<KeplerMotion>(station)!.Orbit.StateAt(world.Time, mu).Position;
         return new(Tick: world.TickNumber, Time: world.Time,
-            Bodies: BodyIds.ToDictionary(id => id, id => StationBody.Take(world: world, entity: scene[id], station: frame, hullHome: hullHome)), HullHome: hullHome,
+            Bodies: BodyIds.ToDictionary(id => id,
+                id => StationBody.Take(world: world, entity: scene[id], station: frame, hullHome: hullHome)),
+            HullHome: hullHome,
             HullHomeMode: world.Frames.Numeric(hullHome),
             HullOffEarthOrbit: (world.PoseIn(station, earth).Position - orbitPlace).Length);
     }
@@ -74,7 +76,8 @@ internal sealed record StationBody(Double3 InStation, Double3 VelocityInStation,
         FrameHandle home = world.PhysicsHomeOf(entity);
         string kind = home == station ? "station" :
             home == hullHome ? "following frame" : world.Frames.Numeric(home).ToString();
-        return new(InStation: world.PoseIn(entity, station).Position, VelocityInStation: world.VelocityIn(entity, station),
+        return new(InStation: world.PoseIn(entity, station).Position,
+            VelocityInStation: world.VelocityIn(entity, station),
             InStationFrame: world.GetFrame(entity) == station, Home: kind);
     }
 }

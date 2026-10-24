@@ -56,7 +56,8 @@ public class NullForgivingTests
                             {
                                 public static string Name(string? name) => name!;
                             }
-                            """)).Should().BeEmpty("generated code that reads a reference slot is the one place for it");
+                            """)).Should()
+        .BeEmpty("generated code that reads a reference slot is the one place for it");
 
     [Fact]
     public async Task TheRepositoryEditorConfigKeepsTheRuleToSrc()
@@ -84,6 +85,6 @@ public class NullForgivingTests
 
         found.Select(diagnostic => Path.GetRelativePath(root, diagnostic.Location.SourceTree!.FilePath))
             .Should().Equal([Path.Combine("src", "Probe", "Probe.cs")], "the tests, the benchmarks and the analyzers " +
-                                                                         "are not engine code");
+                                                                        "are not engine code");
     }
 }

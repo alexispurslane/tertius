@@ -129,8 +129,10 @@ internal sealed unsafe class GeometryPass : RenderPass
     {
         ulong offset = 0;
         Buffer vertexBuffer = context.Geometry.VertexBuffer.Handle;
-        context.Vk.CmdBindVertexBuffers(commandBuffer: context.CommandBuffer, firstBinding: 0, bindingCount: 1, pBuffers: &vertexBuffer, pOffsets: &offset);
-        context.Vk.CmdBindIndexBuffer(commandBuffer: context.CommandBuffer, buffer: context.Geometry.IndexBuffer.Handle, offset: 0, indexType: IndexType.Uint32);
+        context.Vk.CmdBindVertexBuffers(commandBuffer: context.CommandBuffer, firstBinding: 0, bindingCount: 1,
+            pBuffers: &vertexBuffer, pOffsets: &offset);
+        context.Vk.CmdBindIndexBuffer(commandBuffer: context.CommandBuffer, buffer: context.Geometry.IndexBuffer.Handle,
+            offset: 0, indexType: IndexType.Uint32);
     }
 
     /// <summary>
@@ -141,15 +143,18 @@ internal sealed unsafe class GeometryPass : RenderPass
         PipelineLayout layout = default)
     {
         var push = new DrawPushConstants { ViewProj = viewProjection, Eye = new(eye, 1f) };
-        context.Vk.CmdPushConstants(commandBuffer: context.CommandBuffer, layout: layout.Handle != 0 ? layout : context.Layouts.SceneLayout,
-            stageFlags: ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit, offset: 0, size: (uint)sizeof(DrawPushConstants), pValues: &push);
+        context.Vk.CmdPushConstants(commandBuffer: context.CommandBuffer,
+            layout: layout.Handle != 0 ? layout : context.Layouts.SceneLayout,
+            stageFlags: ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit, offset: 0,
+            size: (uint)sizeof(DrawPushConstants), pValues: &push);
     }
 
     /// <summary>One multi-draw over a run of this frame's indirect commands.</summary>
     public static void DrawIndirect(FrameContext context, CommandRange commands)
     {
         uint stride = (uint)Unsafe.SizeOf<DrawIndexedIndirectCommand>();
-        context.Vk.CmdDrawIndexedIndirect(commandBuffer: context.CommandBuffer, buffer: context.Frame.Commands.Buffer.Handle,
+        context.Vk.CmdDrawIndexedIndirect(commandBuffer: context.CommandBuffer,
+            buffer: context.Frame.Commands.Buffer.Handle,
             offset: (ulong)commands.First * stride, drawCount: (uint)commands.Count, stride: stride);
         context.IndirectDrawCalls++;
     }

@@ -55,7 +55,8 @@ public sealed class ShuttleGlareTests : IDisposable
         int x = (int)Math.Round((1 + projected.X) / 2 * lit.Width),
             y = (int)Math.Round((1 - projected.Y) / 2 * lit.Height);
         int peak = Added(lit: lit, dark: dark, x: x, y: y),
-            beside = (Added(lit: lit, dark: dark, x: x, y: y - Beside) + Added(lit: lit, dark: dark, x: x, y: y + Beside)) / 2;
+            beside = (Added(lit: lit, dark: dark, x: x, y: y - Beside) +
+                      Added(lit: lit, dark: dark, x: x, y: y + Beside)) / 2;
         (peak - beside).Should().BeLessThan(64,
             $"the highlight of {lampId} in {paneId} at ({x}, {y}) is faint: the lamps add {peak} there and {beside} beside it");
     }

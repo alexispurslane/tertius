@@ -25,7 +25,9 @@ public class MessagingDelayedTests
         using var t = new TestWorld();
         var inbox = new Recorder();
         Entity target = t.SpawnWith(inbox);
-        t.SpawnWith(SendsAfter(onTick: 0, delay: 1, target: target, value: 1), SendsAfter(onTick: 0, delay: 2, target: target, value: 2), SendsAfter(onTick: 0, delay: 3, target: target, value: 3));
+        t.SpawnWith(SendsAfter(onTick: 0, delay: 1, target: target, value: 1),
+            SendsAfter(onTick: 0, delay: 2, target: target, value: 2),
+            SendsAfter(onTick: 0, delay: 3, target: target, value: 3));
 
         t.Run(6);
 
@@ -99,8 +101,10 @@ public class MessagingDelayedTests
         using var t = new TestWorld(chunkSize: 1);
         var inbox = new Recorder();
         Entity target = t.SpawnWith(inbox);
-        t.SpawnWith(SendsAfter(onTick: 0, delay: 1, target: target, value: 10), SendsAfter(onTick: 0, delay: 1, target: target, value: 11));
-        t.SpawnWith(SendsAfter(onTick: 0, delay: 1, target: target, value: 20), SendsAfter(onTick: 0, delay: 1, target: target, value: 21));
+        t.SpawnWith(SendsAfter(onTick: 0, delay: 1, target: target, value: 10),
+            SendsAfter(onTick: 0, delay: 1, target: target, value: 11));
+        t.SpawnWith(SendsAfter(onTick: 0, delay: 1, target: target, value: 20),
+            SendsAfter(onTick: 0, delay: 1, target: target, value: 21));
 
         t.Run(4);
 
@@ -211,7 +215,8 @@ public class MessagingDelayedTests
         Entity sender = t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
         {
             if (self.Tick == 0)
-                outbox.SendAfter(ticks: 2, target: target, payload: new Damage { Amount = 2.5f, Kind = 7 }, extra: extra);
+                outbox.SendAfter(ticks: 2, target: target, payload: new Damage { Amount = 2.5f, Kind = 7 },
+                    extra: extra);
         }));
 
         t.Run(5);

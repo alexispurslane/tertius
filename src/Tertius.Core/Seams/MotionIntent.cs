@@ -84,7 +84,8 @@ public readonly partial struct MotionIntent
     {
         Double3 chord = (end.Position - stepStart.Position) / step;
         Double3 spin = stepStart.Rotation.AngularVelocityTo(end.Rotation, step);
-        return new(Pose: end, ChordVelocity: chord, Velocity: chord, Acceleration: Double3.Zero, AngularVelocity: spin, AngularAcceleration: Double3.Zero);
+        return new(Pose: end, ChordVelocity: chord, Velocity: chord, Acceleration: Double3.Zero, AngularVelocity: spin,
+            AngularAcceleration: Double3.Zero);
     }
 
     /// <summary>

@@ -63,11 +63,14 @@ internal sealed unsafe class ImpostorAtlas : IDisposable
                                       ImageUsageFlags.TransferSrcBit | ImageUsageFlags.TransferDstBit;
         try
         {
-            Color = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: ColorFormat, usage: usage, mipLevels: MipLevels, name: "impostor atlas color",
+            Color = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: ColorFormat,
+                usage: usage, mipLevels: MipLevels, name: "impostor atlas color",
                 arrayLayers: (uint)tiles, arrayView: true);
-            DepthOffset = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: DepthOffsetFormat, usage: usage, mipLevels: MipLevels,
+            DepthOffset = GpuImage.Create(device: device, allocator: allocator, extent: extent,
+                format: DepthOffsetFormat, usage: usage, mipLevels: MipLevels,
                 name: "impostor atlas depth offset", arrayLayers: (uint)tiles, arrayView: true);
-            CaptureDepth = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: CaptureDepthFormat,
+            CaptureDepth = GpuImage.Create(device: device, allocator: allocator, extent: extent,
+                format: CaptureDepthFormat,
                 usage: ImageUsageFlags.DepthStencilAttachmentBit, mipLevels: 1, name: "impostor capture depth");
             for (int i = 0; i < tiles; i++)
             {

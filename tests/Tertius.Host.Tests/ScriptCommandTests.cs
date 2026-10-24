@@ -27,7 +27,8 @@ public sealed class ScriptCommandTests : IDisposable
         return path;
     }
 
-    private int Run(params string[] args) => ScriptCommand.Run(args: args, scenes: Scenes, output: output, error: error);
+    private int Run(params string[] args) =>
+        ScriptCommand.Run(args: args, scenes: Scenes, output: output, error: error);
 
     [Fact]
     public void TheCommandRunsTheScriptOnTheSceneThatItNamesAndWritesTheDumps()
@@ -136,7 +137,8 @@ public sealed class ScriptCommandTests : IDisposable
             ScriptFile(
                 """{ "scene": "drop-box", "steps": [ { "do": "run", "ticks": 120 }, { "do": "dump", "name": "landed" } ] }""");
 
-        int code = ScriptCommand.Run(args: ["--script", script, "--headless", "--out", Out], scenes: DemoScenes.All, output: output, error: error,
+        int code = ScriptCommand.Run(args: ["--script", script, "--headless", "--out", Out], scenes: DemoScenes.All,
+            output: output, error: error,
             createRenderer: _ => throw new InvalidOperationException("a script without captures makes no renderer"));
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
@@ -198,8 +200,10 @@ public sealed class ScriptCommandTests : IDisposable
         ScriptCommand.Options? free = ScriptCommand.ReadOptions(["--scene", "drop-box", "--speed", "0.5"], out _);
         ScriptCommand.Options? played = ScriptCommand.ReadOptions(["--script", "s.json", "--out", "o"], out _);
 
-        free.Should().Be(new ScriptCommand.Options(Script: null, Scene: "drop-box", Out: null, Headless: false, Speed: 0.5));
-        played.Should().Be(new ScriptCommand.Options(Script: "s.json", Scene: null, Out: "o", Headless: false, Speed: 1));
+        free.Should()
+            .Be(new ScriptCommand.Options(Script: null, Scene: "drop-box", Out: null, Headless: false, Speed: 0.5));
+        played.Should()
+            .Be(new ScriptCommand.Options(Script: "s.json", Scene: null, Out: "o", Headless: false, Speed: 1));
     }
 
     [Fact]
@@ -211,8 +215,10 @@ public sealed class ScriptCommandTests : IDisposable
         ScriptCommand.Options? plain =
             ScriptCommand.ReadOptions(["--script", "s.json", "--headless", "--out", "o", "--video", "o/v.mkv"], out _);
 
-        rated.Should().Be(new ScriptCommand.Options(Script: "s.json", Scene: null, Out: "o", Headless: true, Speed: 1, Video: new("o/v.mkv", 24)));
-        plain.Should().Be(new ScriptCommand.Options(Script: "s.json", Scene: null, Out: "o", Headless: true, Speed: 1, Video: new("o/v.mkv", 30)));
+        rated.Should().Be(new ScriptCommand.Options(Script: "s.json", Scene: null, Out: "o", Headless: true, Speed: 1,
+            Video: new("o/v.mkv", 24)));
+        plain.Should().Be(new ScriptCommand.Options(Script: "s.json", Scene: null, Out: "o", Headless: true, Speed: 1,
+            Video: new("o/v.mkv", 30)));
     }
 
     [Theory]
@@ -234,7 +240,8 @@ public sealed class ScriptCommandTests : IDisposable
         string video = Path.Combine(folder, "v.mkv");
         int started = 0;
 
-        int code = ScriptCommand.Run(args: ["--script", script, "--headless", "--out", Out, "--video", video], scenes: Scenes, output: output,
+        int code = ScriptCommand.Run(args: ["--script", script, "--headless", "--out", Out, "--video", video],
+            scenes: Scenes, output: output,
             error: error, createRenderer: VulkanRenderer.CreateHeadless,
             startVideo: (_, _) =>
             {
@@ -256,7 +263,8 @@ public sealed class ScriptCommandTests : IDisposable
             ScriptCommand.ReadOptions(["--scene", "drop-box", "--record", "sessions/today.json", "--speed", "2"],
                 out _);
 
-        recorded.Should().Be(new ScriptCommand.Options(Script: null, Scene: "drop-box", Out: null, Headless: false, Speed: 2, Record: "sessions/today.json"));
+        recorded.Should().Be(new ScriptCommand.Options(Script: null, Scene: "drop-box", Out: null, Headless: false,
+            Speed: 2, Record: "sessions/today.json"));
     }
 
     [Fact]

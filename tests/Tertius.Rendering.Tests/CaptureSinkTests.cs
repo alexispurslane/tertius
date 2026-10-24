@@ -19,7 +19,8 @@ public sealed class CaptureSinkTests
         TestOutput? made = null;
         var renderer = VulkanRenderer.CreateOffscreen(
             new() { Validation = true, Width = Width, Height = Height, Impostors = false },
-            (device, allocator, extent) => made = new(device: device, allocator: allocator, extent: extent, bgra: bgra) { CanCapture = canCapture });
+            (device, allocator, extent) => made = new(device: device, allocator: allocator, extent: extent, bgra: bgra)
+                { CanCapture = canCapture });
         output = made!;
         return renderer;
     }
@@ -139,7 +140,8 @@ public sealed class CaptureSinkTests
             VulkanRenderer renderer = Offscreen(out _, bgra);
             try
             {
-                return Gpu.RenderAndCapture(renderer: renderer, snapshot: Scene(renderer), name: bgra ? "the BGRA output" : "the RGBA output");
+                return Gpu.RenderAndCapture(renderer: renderer, snapshot: Scene(renderer),
+                    name: bgra ? "the BGRA output" : "the RGBA output");
             }
             finally
             {

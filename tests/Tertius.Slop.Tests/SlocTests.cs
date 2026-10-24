@@ -84,7 +84,8 @@ public class SlocTests
                                  }
                              }
                          }
-                         """).Select(function => (function.Name, function.Sloc)).Should().Equal(("C.F", 4), ("C.F.Twice", 4));
+                         """).Select(function => (function.Name, function.Sloc)).Should()
+            .Equal(("C.F", 4), ("C.F.Twice", 4));
 
     [Fact]
     public void TheSlocOfAFileCountsTheCodeOutsideFunctionsToo() =>

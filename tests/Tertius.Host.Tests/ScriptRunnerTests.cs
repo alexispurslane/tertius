@@ -17,7 +17,8 @@ public class ScriptRunnerTests
     private const string CameraOnProbe = """{ "do": "camera", "entity": "probe" }""";
 
     private static RunResult Run(World world, SceneInstance scene, params string[] steps) =>
-        ScriptRunner.Run(script: Script.Parse($$"""{ "scene": "test", "steps": [ {{string.Join(", ", steps)}} ] }"""), world: world,
+        ScriptRunner.Run(script: Script.Parse($$"""{ "scene": "test", "steps": [ {{string.Join(", ", steps)}} ] }"""),
+            world: world,
             scene: scene);
 
     [Fact]
@@ -371,8 +372,8 @@ public class ScriptRunnerTests
         var playback = new NotesTheOutlineSetting(world);
 
         ScriptRunner.Run(script: Script.Parse("""
-                                      { "scene": "test", "steps": [ { "do": "run", "ticks": 1 }, { "do": "outlines", "show": true }, { "do": "run", "ticks": 2 }, { "do": "outlines", "show": false }, { "do": "run", "ticks": 1 } ] }
-                                      """), world: world, scene: scene, playback: playback);
+                                              { "scene": "test", "steps": [ { "do": "run", "ticks": 1 }, { "do": "outlines", "show": true }, { "do": "run", "ticks": 2 }, { "do": "outlines", "show": false }, { "do": "run", "ticks": 1 } ] }
+                                              """), world: world, scene: scene, playback: playback);
 
         playback.BeforeEachTick.Should().Equal(false, true, true, false);
     }
@@ -411,7 +412,8 @@ public class ScriptRunnerTests
     /// <summary>Runs the steps on the scene with an output folder that the test deletes, and the playback.</summary>
     private static RunResult RunWithCaptures(World world, SceneInstance scene, string folder, IPlayback playback,
         params string[] steps) =>
-        ScriptRunner.Run(script: Script.Parse($$"""{ "scene": "test", "steps": [ {{string.Join(", ", steps)}} ] }"""), world: world,
+        ScriptRunner.Run(script: Script.Parse($$"""{ "scene": "test", "steps": [ {{string.Join(", ", steps)}} ] }"""),
+            world: world,
             scene: scene, outputFolder: folder, playback: playback);
 
     [Fact]
@@ -468,8 +470,9 @@ public class ScriptRunnerTests
         var playback = new NotesTheCaptures();
 
         RunResult result = ScriptRunner.Run(script: Script.Parse($$"""
-                                                           { "scene": "test", "steps": [ {{CameraOnProbe}}, { "do": "capture", "name": "first" }, { "do": "film", "name": "climb", "frames": 1, "every": 1 } ] }
-                                                           """), world: world, scene: scene, outputFolder: null, playback: playback);
+                                                                   { "scene": "test", "steps": [ {{CameraOnProbe}}, { "do": "capture", "name": "first" }, { "do": "film", "name": "climb", "frames": 1, "every": 1 } ] }
+                                                                   """), world: world, scene: scene, outputFolder: null,
+            playback: playback);
 
         playback.Captured.Should().Equal((0, "first"), (1, "climb-000000"));
         result.Captures.Should().Equal("first", "climb-000000");
@@ -492,7 +495,8 @@ public class ScriptRunnerTests
                     $$"""{ "scene": "test", "steps": [ {{first}}, { "do": "run", "ticks": 1 }, { "do": "film", "name": "climb", "frames": 2, "every": 1 } ] }""");
 
             Action run = () =>
-                ScriptRunner.Run(script: script, world: world, scene: scene, outputFolder: folder, playback: hasPlayback ? new NotesTheCaptures() : null);
+                ScriptRunner.Run(script: script, world: world, scene: scene, outputFolder: folder,
+                    playback: hasPlayback ? new NotesTheCaptures() : null);
 
             run.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 3 (film)").And.Contain(named);
             world.TickNumber.Should().Be(0);
@@ -511,7 +515,8 @@ public class ScriptRunnerTests
         string folder = NewFolder();
         try
         {
-            RunResult result = RunWithCaptures(world: world, scene: scene, folder: folder, playback: new NotesTheCaptures(ticks: 5),
+            RunResult result = RunWithCaptures(world: world, scene: scene, folder: folder,
+                playback: new NotesTheCaptures(ticks: 5),
                 CameraOnProbe, """{ "do": "film", "name": "climb", "frames": 5, "every": 2 }""",
                 """{ "do": "dump", "name": "after" }""");
 
@@ -534,7 +539,8 @@ public class ScriptRunnerTests
         string folder = NewFolder();
         try
         {
-            RunResult result = RunWithCaptures(world: world, scene: scene, folder: folder, playback: new ClosesDuringCaptures(),
+            RunResult result = RunWithCaptures(world: world, scene: scene, folder: folder,
+                playback: new ClosesDuringCaptures(),
                 CameraOnProbe, """{ "do": "film", "name": "climb", "frames": 3, "every": 2 }""",
                 """{ "do": "dump", "name": "after" }""");
 
@@ -567,8 +573,9 @@ public class ScriptRunnerTests
         SceneInstance scene = Probes(world);
 
         RunResult result = ScriptRunner.Run(script: Script.Parse("""
-                                                         { "scene": "test", "steps": [ { "do": "run", "ticks": 2 }, { "do": "dump", "name": "a" }, { "do": "run", "ticks": 5 }, { "do": "dump", "name": "b" } ] }
-                                                         """), world: world, scene: scene, playback: new StopsAfter(4));
+                                                                 { "scene": "test", "steps": [ { "do": "run", "ticks": 2 }, { "do": "dump", "name": "a" }, { "do": "run", "ticks": 5 }, { "do": "dump", "name": "b" } ] }
+                                                                 """), world: world, scene: scene,
+            playback: new StopsAfter(4));
 
         result.Stopped.Should().BeTrue();
         world.TickNumber.Should().Be(4);
@@ -601,8 +608,9 @@ public class ScriptRunnerTests
         try
         {
             RunResult result = ScriptRunner.Run(script: Script.Parse("""
-                                                             { "scene": "test", "steps": [ { "do": "camera", "entity": "probe" }, { "do": "dump", "name": "a" }, { "do": "capture", "name": "b" }, { "do": "run", "ticks": 3 }, { "do": "dump", "name": "c" } ] }
-                                                             """), world: world, scene: scene, outputFolder: folder, playback: new ClosesDuringCaptures());
+                                                                     { "scene": "test", "steps": [ { "do": "camera", "entity": "probe" }, { "do": "dump", "name": "a" }, { "do": "capture", "name": "b" }, { "do": "run", "ticks": 3 }, { "do": "dump", "name": "c" } ] }
+                                                                     """), world: world, scene: scene,
+                outputFolder: folder, playback: new ClosesDuringCaptures());
 
             result.Stopped.Should().BeTrue();
             result.Dumps.Select(d => d.Name).Should().Equal("a");

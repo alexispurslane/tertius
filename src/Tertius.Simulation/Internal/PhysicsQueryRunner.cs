@@ -199,7 +199,8 @@ internal sealed class PhysicsQueryRunner(
             // The parent's system holds the hull of the frame that the query came up from, around the query's start.
             filter.Skip(visit.GoesUp ? visit.CameFrom.Entity : Entity.Null);
             DPose toVisit = frames.Relative(request.Frame, visit.Frame);
-            Query(backend: backend, frame: visit.Frame, request: request, toFrame: toVisit, start: visit.Start, end: end);
+            Query(backend: backend, frame: visit.Frame, request: request, toFrame: toVisit, start: visit.Start,
+                end: end);
 
             double limit = Limit(length, firstOnly);
             foreach (ref readonly FrameLink link in links.AsSpan())
@@ -210,14 +211,16 @@ internal sealed class PhysicsQueryRunner(
                 if (link.Numeric)
                 {
                     // A numeric frame has no bubble: its bodies are the frame's own, wherever they are.
-                    Query(backend: backend, frame: link.Child, request: request, toFrame: toChild, start: visit.Start, end: end);
+                    Query(backend: backend, frame: link.Child, request: request, toFrame: toChild, start: visit.Start,
+                        end: end);
                     continue;
                 }
 
                 FrameBounds bubble = frames.Bounds(link.Child);
                 var region =
                     new FrameBounds(bubble.Radii * (float)(ContentScale(link.Child) + reach / bubble.MinRadius));
-                if (!region.TryIntersectLine(origin: toChild.TransformPoint(from), direction: toChild.Rotation.Rotate(line),
+                if (!region.TryIntersectLine(origin: toChild.TransformPoint(from),
+                        direction: toChild.Rotation.Rotate(line),
                         entry: out double entry, exit: out double exit))
                     continue;
                 double start = Math.Max(0, entry), stop = Math.Min(limit, exit);
@@ -309,7 +312,8 @@ internal sealed class PhysicsQueryRunner(
         {
             case RayQuestion(var origin, var direction, _, var kind):
                 rayHits.Clear();
-                backend.CastRay(frame: frame, origin: toFrame.TransformPoint(origin), direction: toFrame.Rotation.Rotate(direction), start: start, end: end,
+                backend.CastRay(frame: frame, origin: toFrame.TransformPoint(origin),
+                    direction: toFrame.Rotation.Rotate(direction), start: start, end: end,
                     filter: filter, kind: kind, hits: rayHits);
                 foreach (RayCastHit found in rayHits)
                     Keep(new(Entity: found.Entity, Distance: found.Distance, Point: origin + direction * found.Distance,
@@ -317,15 +321,18 @@ internal sealed class PhysicsQueryRunner(
                 break;
             case ShapeCastQuestion(var shape, var startPose, var direction, _):
                 shapeHits.Clear();
-                backend.CastShape(frame: frame, shape: shape, start: DPose.Compose(toFrame, startPose), direction: toFrame.Rotation.Rotate(direction),
+                backend.CastShape(frame: frame, shape: shape, start: DPose.Compose(toFrame, startPose),
+                    direction: toFrame.Rotation.Rotate(direction),
                     startDistance: start, endDistance: end, filter: filter, hits: shapeHits);
                 foreach (ShapeCastHit found in shapeHits)
-                    Keep(new(Entity: found.Entity, Distance: found.Distance, Point: toFrame.InverseTransformPoint(found.Point),
+                    Keep(new(Entity: found.Entity, Distance: found.Distance,
+                        Point: toFrame.InverseTransformPoint(found.Point),
                         Normal: back.Rotate(found.Normal)));
                 break;
             case OverlapQuestion(var shape, var pose):
                 overlapped.Clear();
-                backend.Overlap(frame: frame, shape: shape, pose: DPose.Compose(toFrame, pose), filter: filter, entities: overlapped);
+                backend.Overlap(frame: frame, shape: shape, pose: DPose.Compose(toFrame, pose), filter: filter,
+                    entities: overlapped);
                 foreach (Entity found in overlapped)
                     hits.Add(new(Entity: found, Distance: 0, Point: default, Normal: default));
                 return;

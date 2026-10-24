@@ -112,7 +112,8 @@ public class SleepTests
         var deck = new CompoundShapeDesc([
             new(new BoxShapeDesc(new(10, 0.25f, 30)), new(new(0, -2.25f, 0), Quaternion.Identity))
         ]);
-        var hull = new BodyDesc(Shape: new BoxShapeDesc(new(10, 3, 30)), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
+        var hull = new BodyDesc(Shape: new BoxShapeDesc(new(10, 3, 30)), Mass: 1000, LinearDamping: 0,
+            AngularDamping: 0,
             InteriorShape: deck);
         // The ship's engine pushes with this force along +Z in every tick. A pilot writes it in one tick and Jolt applies
         // it in the step of the next one.

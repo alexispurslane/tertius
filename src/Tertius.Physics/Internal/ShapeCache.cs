@@ -97,7 +97,8 @@ internal sealed class ShapeCache : IDisposable
         foreach (CompoundChild child in compound.Children)
         {
             Pose pose = child.Pose;
-            settings.AddShape(position: pose.Position, rotation: Quaternion.Normalize(pose.Rotation), shape: Get(child.Shape));
+            settings.AddShape(position: pose.Position, rotation: Quaternion.Normalize(pose.Rotation),
+                shape: Get(child.Shape));
         }
 
         StaticCompoundShape shape = NativeOwnership.Owned(new StaticCompoundShape(settings));

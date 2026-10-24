@@ -265,7 +265,8 @@ public class MessagingTests
     {
         using var t = new TestWorld();
         var child = new Recorder();
-        t.SpawnWith(new Spawner(childComponents: () => [child]), SendOnce.Of(target: new Broadcast(), payload: new Ping { Value = 3 }));
+        t.SpawnWith(new Spawner(childComponents: () => [child]),
+            SendOnce.Of(target: new Broadcast(), payload: new Ping { Value = 3 }));
 
         t.Run(2);
 

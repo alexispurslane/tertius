@@ -31,7 +31,8 @@ public class KinematicEndPoseTests
         {
             var end = new DPose(Place(self.TimeAt(self.Tick + 2), t0), DQuaternion.Identity);
             if (sample)
-                self.MoveOnRails(new(Pose: end, ChordVelocity: Velocity, Velocity: Velocity, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero));
+                self.MoveOnRails(new(Pose: end, ChordVelocity: Velocity, Velocity: Velocity, Acceleration: Double3.Zero,
+                    AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero));
             else
                 self.MoveKinematic(end);
         }

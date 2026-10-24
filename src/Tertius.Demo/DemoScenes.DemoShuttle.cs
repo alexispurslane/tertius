@@ -40,7 +40,8 @@ public static partial class DemoScenes
             Frame = ground,
             Pose = new(new(0, -0.5, 0), DQuaternion.Identity),
             Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Static),
-            Render = Drawn(resources: resources, mesh: Primitives.Box(new(50, 0.5f, 50)), color: new(x: 0.35f, y: 0.35f, z: 0.35f, w: 1),
+            Render = Drawn(resources: resources, mesh: Primitives.Box(new(50, 0.5f, 50)),
+                color: new(x: 0.35f, y: 0.35f, z: 0.35f, w: 1),
                 boundingRadius: 71)
         }));
         scene.Add("pad", world.Spawn(new()
@@ -48,7 +49,8 @@ public static partial class DemoScenes
             Frame = ground,
             Pose = new(new(0, ShuttlePadHalf.Y, 0), DQuaternion.Identity),
             Body = new(Shape: new BoxShapeDesc(ShuttlePadHalf), Motion: BodyMotion.Static),
-            Render = Drawn(resources: resources, mesh: Primitives.Box(ShuttlePadHalf), color: new(x: 0.55f, y: 0.55f, z: 0.52f, w: 1),
+            Render = Drawn(resources: resources, mesh: Primitives.Box(ShuttlePadHalf),
+                color: new(x: 0.55f, y: 0.55f, z: 0.52f, w: 1),
                 boundingRadius: ShuttlePadHalf.Length())
         }));
 
@@ -62,13 +64,18 @@ public static partial class DemoScenes
             Render = Shuttle.DrawnHull(resources)
         });
         scene.Add("standing", standing);
-        Shuttle.SpawnNozzle(world: world, cabin: world.GetOwnedFrame(standing), scene: scene, resources: resources, prefix: "standing");
-        Shuttle.Panes(world: world, cabin: world.GetOwnedFrame(standing), scene: scene, resources: resources, prefix: "standing");
-        Entity lying = Shuttle.Park(world: world, frame: ground, pose: new(new(LyingShuttleX, Shuttle.Hull.Y, 0), DQuaternion.Identity),
+        Shuttle.SpawnNozzle(world: world, cabin: world.GetOwnedFrame(standing), scene: scene, resources: resources,
+            prefix: "standing");
+        Shuttle.Panes(world: world, cabin: world.GetOwnedFrame(standing), scene: scene, resources: resources,
+            prefix: "standing");
+        Entity lying = Shuttle.Park(world: world, frame: ground,
+            pose: new(new(LyingShuttleX, Shuttle.Hull.Y, 0), DQuaternion.Identity),
             render: Shuttle.DrawnHull(resources));
         scene.Add("lying", lying);
-        Shuttle.SpawnNozzle(world: world, cabin: world.GetOwnedFrame(lying), scene: scene, resources: resources, prefix: "lying");
-        Shuttle.Panes(world: world, cabin: world.GetOwnedFrame(lying), scene: scene, resources: resources, prefix: "lying");
+        Shuttle.SpawnNozzle(world: world, cabin: world.GetOwnedFrame(lying), scene: scene, resources: resources,
+            prefix: "lying");
+        Shuttle.Panes(world: world, cabin: world.GetOwnedFrame(lying), scene: scene, resources: resources,
+            prefix: "lying");
 
         Entity camera = world.Spawn(new()
             { Frame = ground, Pose = LookingAt(new(-28, 7, 32), new(7, 5, 0)), Render = new RenderData() });

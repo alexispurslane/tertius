@@ -46,10 +46,12 @@ public sealed class RevolvedSolidShapeTests
     private static readonly RevolvedSolid Cylinder =
         RevolvedSolid.Cylinder(CylinderRadius, CylinderHalfHeight, CylinderSegments);
 
-    private static readonly RevolvedSolid Ring = RevolvedSolid.Ring(innerRadius: RingInner, outerRadius: RingOuter, halfWidth: RingHalfWidth, segments: RingSegments);
+    private static readonly RevolvedSolid Ring = RevolvedSolid.Ring(innerRadius: RingInner, outerRadius: RingOuter,
+        halfWidth: RingHalfWidth, segments: RingSegments);
 
     private static readonly RevolvedSolid
-        Torus = RevolvedSolid.Torus(majorRadius: TorusMajor, minorRadius: TorusMinor, segments: TorusSegments, sides: TorusSides);
+        Torus = RevolvedSolid.Torus(majorRadius: TorusMajor, minorRadius: TorusMinor, segments: TorusSegments,
+            sides: TorusSides);
 
     /// <summary>
     /// A ring standing on edge: its axis along Z, and the point at angle θ (ρ cos θ, ρ sin θ, y), so its lowest point is at
@@ -75,10 +77,13 @@ public sealed class RevolvedSolidShapeTests
         FrameHandle frame =
             world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), GravityField.Uniform((9.81 * down).ToVector3())));
         world.Spawn(new()
-            { Frame = frame, Pose = new(Double3.Zero, turn), Body = new(Shape: solid.Shape(), Motion: BodyMotion.Static) });
+        {
+            Frame = frame, Pose = new(Double3.Zero, turn), Body = new(Shape: solid.Shape(), Motion: BodyMotion.Static)
+        });
         Entity ball = world.Spawn(new()
         {
-            Frame = frame, Pose = new(from, DQuaternion.Identity), Body = new(Shape: new SphereShapeDesc(BallRadius), Mass: 1)
+            Frame = frame, Pose = new(from, DQuaternion.Identity),
+            Body = new(Shape: new SphereShapeDesc(BallRadius), Mass: 1)
         });
         Tick(world, 180);
         world.Errors.Should().BeEmpty();
@@ -163,7 +168,8 @@ public sealed class RevolvedSolidShapeTests
     {
         // Untwisted, the ring has the joint of segments 191 and 192 at its lowest point. The ball touches both of their
         // facets, whose middles are half a segment to either side.
-        (Double3 position, double speed) = Drop(solid: Ring, turn: OnEdge, from: new(0, -RingInner + BallRadius + 0.1, 0), down: -Double3.UnitY);
+        (Double3 position, double speed) = Drop(solid: Ring, turn: OnEdge,
+            from: new(0, -RingInner + BallRadius + 0.1, 0), down: -Double3.UnitY);
 
         speed.Should().BeLessThan(0.01, "the ball has come to rest");
         double facet = RingInner * Math.Cos(Math.PI / RingSegments);
@@ -238,7 +244,8 @@ public sealed class RevolvedSolidShapeTests
     {
         using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle frame = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        world.Spawn(new() { Frame = frame, Pose = DPose.Identity, Body = new(Shape: solid.Shape(), Motion: BodyMotion.Static) });
+        world.Spawn(new()
+            { Frame = frame, Pose = DPose.Identity, Body = new(Shape: solid.Shape(), Motion: BodyMotion.Static) });
         world.Tick();
         var hits = new List<RayCastHit>();
         for (int k = 0; k < arcs; k++)
@@ -250,7 +257,8 @@ public sealed class RevolvedSolidShapeTests
                 (Double3 origin, Double3 direction) = ray(angle);
                 (double distance, Vector3? normal) = expect(middle, angle);
                 hits.Clear();
-                backend.CastRay(frame: frame, origin: origin, direction: direction, start: 0, end: 100, filter: new AcceptsEveryEntity(), kind: RayCastKind.Nearest, hits: hits);
+                backend.CastRay(frame: frame, origin: origin, direction: direction, start: 0, end: 100,
+                    filter: new AcceptsEveryEntity(), kind: RayCastKind.Nearest, hits: hits);
                 hits.Should().ContainSingle($"the ray at {angle} in arc {k} meets the shape");
                 hits[0].Distance.Should()
                     .BeApproximately(distance, 1e-4, $"the ray at {angle} in arc {k} meets the facet");
@@ -329,7 +337,9 @@ public sealed class RevolvedSolidShapeTests
         Double3 center = new(TorusMajor, 0, 0);
         static Double3 Across(double angle) => new(Math.Cos(angle), Math.Sin(angle), 0);
 
-        ExpectRaysHit(solid: RevolvedSolid.Torus(majorRadius: TorusMajor, minorRadius: TorusMinor, segments: 8, sides: sides), arcs: sides,
+        ExpectRaysHit(
+            solid: RevolvedSolid.Torus(majorRadius: TorusMajor, minorRadius: TorusMinor, segments: 8, sides: sides),
+            arcs: sides,
             ray: angle => (center + 5 * Across(angle + halfSide), -Across(angle + halfSide)),
             expect: (middle, angle) => (5 - side / Math.Cos(angle - middle), null));
     }

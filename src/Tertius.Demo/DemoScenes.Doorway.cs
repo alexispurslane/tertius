@@ -53,7 +53,8 @@ public static partial class DemoScenes
             Frame = ground,
             Pose = new(new(0, -0.5, 0), DQuaternion.Identity),
             Body = new(Shape: new BoxShapeDesc(new(25, 0.5f, 25)), Motion: BodyMotion.Static),
-            Render = Drawn(resources: resources, mesh: Primitives.Box(new(25, 0.5f, 25)), color: new(x: 0.4f, y: 0.4f, z: 0.38f, w: 1), boundingRadius: 36)
+            Render = Drawn(resources: resources, mesh: Primitives.Box(new(25, 0.5f, 25)),
+                color: new(x: 0.4f, y: 0.4f, z: 0.38f, w: 1), boundingRadius: 36)
         }));
 
         var doorHalf = new Vector3(1, (float)DoorwayDoorShutY, 0.05f);
@@ -62,7 +63,8 @@ public static partial class DemoScenes
             Frame = ground,
             Pose = new(new(0, DoorwayDoorShutY, 0), DQuaternion.Identity),
             Body = new(Shape: new BoxShapeDesc(doorHalf), Motion: BodyMotion.Kinematic),
-            Render = Drawn(resources: resources, mesh: Primitives.Box(doorHalf), color: new(x: 0.6f, y: 0.35f, z: 0.2f, w: 1), boundingRadius: 1.6f),
+            Render = Drawn(resources: resources, mesh: Primitives.Box(doorHalf),
+                color: new(x: 0.6f, y: 0.35f, z: 0.2f, w: 1), boundingRadius: 1.6f),
             Components = [new Door(new(0, DoorwayDoorRise, 0), openSeconds: 1)],
             Subscriptions = [Topics.Get(DoorwayTopic)]
         }));
@@ -81,7 +83,8 @@ public static partial class DemoScenes
         {
             Frame = ground,
             Pose = new(new(0, 0.005, DoorwaySensorZ), DQuaternion.Identity),
-            Render = Drawn(resources: resources, mesh: Primitives.Box(matHalf), color: new(x: 0.2f, y: 0.4f, z: 0.8f, w: 1), boundingRadius: 1.3f)
+            Render = Drawn(resources: resources, mesh: Primitives.Box(matHalf),
+                color: new(x: 0.2f, y: 0.4f, z: 0.8f, w: 1), boundingRadius: 1.3f)
         }));
 
         // The capsule is 1.8 m tall, and its center rests 0.9 m above the floor. The eye is 1.65 m above the floor.
@@ -91,7 +94,8 @@ public static partial class DemoScenes
             Frame = ground,
             Pose = new(new(0, 0.95, DoorwayPersonStartZ), DQuaternion.Identity),
             Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: YardPersonMass),
-            Render = Drawn(resources: resources, mesh: Primitives.Box(new(0.3f, 0.9f, 0.3f)), color: new(x: 0.2f, y: 0.45f, z: 0.8f, w: 1),
+            Render = Drawn(resources: resources, mesh: Primitives.Box(new(0.3f, 0.9f, 0.3f)),
+                color: new(x: 0.2f, y: 0.45f, z: 0.8f, w: 1),
                 boundingRadius: 1),
             Components = [new PersonControl(new(0, 0.75f, 0))],
             Subscriptions = [Topics.Input]

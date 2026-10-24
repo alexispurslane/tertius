@@ -31,9 +31,11 @@ public sealed class ReferenceImageRenderTests
         try
         {
             MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), gloss: 0.5f));
+            MaterialId white =
+                renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), gloss: 0.5f));
             RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.5f));
-            snapshot.Instances.Add(Gpu.Instance(mesh: box, material: white, position: BoxCenter + offset, scale: Vector3.One,
+            snapshot.Instances.Add(Gpu.Instance(mesh: box, material: white, position: BoxCenter + offset,
+                scale: Vector3.One,
                 rotation: Quaternion.CreateFromYawPitchRoll(0.6f, 0.3f, 0), radius: 0.87f, entity: 1));
             return Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: name);
         }
@@ -49,7 +51,8 @@ public sealed class ReferenceImageRenderTests
         string reference = Path.Combine(Folder, "box-again.png");
         ReferenceImages.Verify(actual: RenderBox("reference-box-first"), referencePath: reference, approve: true);
 
-        Action check = () => ReferenceImages.Verify(actual: RenderBox("reference-box-second"), referencePath: reference, approve: false);
+        Action check = () =>
+            ReferenceImages.Verify(actual: RenderBox("reference-box-second"), referencePath: reference, approve: false);
 
         check.Should().NotThrow();
     }
@@ -61,7 +64,8 @@ public sealed class ReferenceImageRenderTests
         ReferenceImages.Verify(actual: RenderBox("reference-box-in-place"), referencePath: reference, approve: true);
 
         Action check = () =>
-            ReferenceImages.Verify(actual: RenderBox("reference-box-moved", offset: new(1.6f, 0, 0)), referencePath: reference,
+            ReferenceImages.Verify(actual: RenderBox("reference-box-moved", offset: new(1.6f, 0, 0)),
+                referencePath: reference,
                 approve: false);
 
         check.Should().Throw<FailException>();

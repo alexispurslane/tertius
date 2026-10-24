@@ -82,7 +82,8 @@ public class ContactLifetimeTests
             {
                 Frame = Frame,
                 Pose = At(0, 2),
-                Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+                Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0, LinearDamping: 0,
+                    AngularDamping: 0),
                 AsFrame = new(FrameBounds.Sphere(1))
             });
             return World.GetOwnedFrame(owner);
@@ -250,7 +251,8 @@ public class ContactLifetimeTests
         {
             Frame = space,
             Pose = At(0, 2.01),
-            Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0, LinearDamping: 0,
+                AngularDamping: 0),
             AsFrame = new(FrameBounds.Sphere(4))
         });
         Tick(world, 3);

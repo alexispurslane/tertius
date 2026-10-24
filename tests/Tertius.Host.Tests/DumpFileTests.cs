@@ -46,7 +46,8 @@ public sealed class DumpFileTests : IDisposable
     [Fact]
     public void ADumpFileWritesPosesAsPositionAndQuaternionArraysWithTheirFrames()
     {
-        JsonElement dump = RunAndRead(newWorld: NewWorld, build: ShipWithCrate, script: Parse("""{ "do": "dump", "name": "now" }"""), dump: "now");
+        JsonElement dump = RunAndRead(newWorld: NewWorld, build: ShipWithCrate,
+            script: Parse("""{ "do": "dump", "name": "now" }"""), dump: "now");
 
         JsonElement crate = EntityNamed(dump, "crate");
         crate.GetProperty("pose").GetProperty("frame").GetString().Should().Be("ship");

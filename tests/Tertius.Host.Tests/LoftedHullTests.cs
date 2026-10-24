@@ -348,13 +348,17 @@ public sealed class LoftedHullTests
             new(2.3, -1.1, -8), new(2.3, -0.241, -8), new(1.559, 0.5, -8), new(-1.559, 0.5, -8), new(-2.3, -0.241, -8),
             new(-2.3, -1.1, -8)
         ], "pane-nose");
-        ExpectBox(actual: panes.Single(p => p.Id == "pane-starboard-4").Outer, min: new(3, -1.1, -2.9), max: new(3, 1.14, -1.1),
+        ExpectBox(actual: panes.Single(p => p.Id == "pane-starboard-4").Outer, min: new(3, -1.1, -2.9),
+            max: new(3, 1.14, -1.1),
             what: "pane-starboard-4");
-        ExpectBox(actual: panes.Single(p => p.Id == "pane-starboard-5").Outer, min: new(3, -1.1, -0.9), max: new(3, 1.14, 0.9),
+        ExpectBox(actual: panes.Single(p => p.Id == "pane-starboard-5").Outer, min: new(3, -1.1, -0.9),
+            max: new(3, 1.14, 0.9),
             what: "pane-starboard-5");
-        ExpectBox(actual: panes.Single(p => p.Id == "pane-port-7").Outer, min: new(-3, -1.1, 3.1), max: new(-3, 1.14, 4.9),
+        ExpectBox(actual: panes.Single(p => p.Id == "pane-port-7").Outer, min: new(-3, -1.1, 3.1),
+            max: new(-3, 1.14, 4.9),
             what: "pane-port-7");
-        ExpectBox(actual: panes.Single(p => p.Id == "pane-roof-4").Outer, min: new(-2.14, 2, -2.9), max: new(2.14, 2, -1.1),
+        ExpectBox(actual: panes.Single(p => p.Id == "pane-roof-4").Outer, min: new(-2.14, 2, -2.9),
+            max: new(2.14, 2, -1.1),
             what: "pane-roof-4");
 
         foreach (ExpectedPane want in expected)
@@ -784,7 +788,8 @@ public sealed class LoftedHullTests
         LoftedHull hull = pointed
             ? new([new(-3, pointedSection), new(3, pointedSection)], wall: 0.2f, ribs: [-3, -1, 1])
             : SmallBox();
-        Action door = () => hull.Door(door: new(new(1.8f, -1, -0.5f), new(2, 1, 0.5f)), bay: 2, fromCorner: 1, toCorner: 3);
+        Action door = () =>
+            hull.Door(door: new(new(1.8f, -1, -0.5f), new(2, 1, 0.5f)), bay: 2, fromCorner: 1, toCorner: 3);
 
         door.Should().Throw<ArgumentException>().WithMessage("*one plane*");
     }

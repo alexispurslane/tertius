@@ -166,7 +166,8 @@ public class ConvexRadiusTests
         // A block with the half extents (2, 0.5, 2), whose flat top is at height 0.
         world.Spawn(new()
         {
-            Frame = ground, Pose = At(0, -0.5), Body = new(Shape: new BoxShapeDesc(new(2, 0.5f, 2), 0), Motion: BodyMotion.Static)
+            Frame = ground, Pose = At(0, -0.5),
+            Body = new(Shape: new BoxShapeDesc(new(2, 0.5f, 2), 0), Motion: BodyMotion.Static)
         });
 
         RestingHeightOfBallAt(world, ground, 0).Should().BeApproximately(RestingHeight, Tolerance);

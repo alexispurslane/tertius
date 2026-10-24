@@ -15,8 +15,9 @@ public class StyleRulesTests
     {
         ImmutableArray<DiagnosticDescriptor> rules = new StyleAnalyzer().SupportedDiagnostics;
 
-        rules.Select(rule => rule.Id).Should().Equal(["TS0001", "TS0002", "TS0003"]);
-        rules.Should().OnlyContain(rule => rule.DefaultSeverity == DiagnosticSeverity.Warning && rule.IsEnabledByDefault,
+        rules.Select(rule => rule.Id).Should().Equal("TS0001", "TS0002", "TS0003");
+        rules.Should().OnlyContain(
+            rule => rule.DefaultSeverity == DiagnosticSeverity.Warning && rule.IsEnabledByDefault,
             "a rule is a warning, as a compiler warning is, and TreatWarningsAsErrors makes it an error");
     }
 
@@ -57,5 +58,5 @@ public class StyleRulesTests
 
     [Fact]
     public void TheCodeFixFixesTheRuleOfUnnamedArguments() =>
-        new NameArgumentsFix().FixableDiagnosticIds.Should().Equal(["TS0002"]);
+        new NameArgumentsFix().FixableDiagnosticIds.Should().Equal("TS0002");
 }

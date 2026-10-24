@@ -90,10 +90,12 @@ public sealed partial class World : IDisposable
         Attachments = new(Entities);
         Spatial = new(Entities, Frames, workers);
         renderBuilder = new(Entities, Frames, workers);
-        queryRunner = new(world: this, physics: physics, router: router, reportError: message => Report(message, isError: true));
+        queryRunner = new(world: this, physics: physics, router: router,
+            reportError: message => Report(message, isError: true));
         dyingMarks = Entities.AddColumn<bool>();
         characterStanding = Entities.AddColumn<bool>();
-        Puffs = new(entities: Entities, frames: Frames, capacity: Options.PuffCapacity, reportError: message => Report(message, isError: true));
+        Puffs = new(entities: Entities, frames: Frames, capacity: Options.PuffCapacity,
+            reportError: message => Report(message, isError: true));
         heirOf = HeirOf;
         Frames.NumericOptions = Options.NumericFrames;
         if (physics != null)
@@ -178,7 +180,8 @@ public sealed partial class World : IDisposable
     public ReadOnlySpan<Event> RoutedEvents => router.Routed;
 
     /// <summary>Counters of the last tick.</summary>
-    public WorldStats Stats => new(LiveEntities: Entities.LiveCount, Capacity: Entities.Capacity, Frames: Frames.Count - Frames.NumericCount,
+    public WorldStats Stats => new(LiveEntities: Entities.LiveCount, Capacity: Entities.Capacity,
+        Frames: Frames.Count - Frames.NumericCount,
         RoutedEvents: router.RoutedCount, Deliveries: router.DeliveryCount, FallbackSpawns: fallbackSpawnTotal);
 
     // ---- For Self, BodyHandle and Snapshot ---------------------------------------------------------------------------
@@ -227,7 +230,8 @@ public sealed partial class World : IDisposable
     /// <see cref="StaleEntityException"/> for a stale entity and <see cref="ArgumentException"/> for a stale frame.
     /// </summary>
     public Vector3 AngularVelocityIn(Entity entity, FrameHandle frame) =>
-        FrameReads.AngularVelocityIn(frames: Frames, entity: entity, row: Entities.FrontRow(entity), to: LiveFrame(frame));
+        FrameReads.AngularVelocityIn(frames: Frames, entity: entity, row: Entities.FrontRow(entity),
+            to: LiveFrame(frame));
 
     /// <summary>Returns <paramref name="frame"/> if it is live. Throws <see cref="ArgumentException"/> if it is stale or null.</summary>
     private FrameHandle LiveFrame(FrameHandle frame) =>
@@ -444,7 +448,8 @@ public sealed partial class World : IDisposable
     {
         RenderSnapshot snapshot = RenderSnapshots.WriteBuffer;
         renderBuilder.Build(snapshot,
-            new(Tick: TickNumber, Time: Time, Camera: Camera, VerticalFov: VerticalFov, SunFrame: SunFrame, SunColor: SunColor, SunIntensity: SunIntensity, Ambient: Ambient, ShowFrameOutlines: ShowFrameOutlines),
+            new(Tick: TickNumber, Time: Time, Camera: Camera, VerticalFov: VerticalFov, SunFrame: SunFrame,
+                SunColor: SunColor, SunIntensity: SunIntensity, Ambient: Ambient, ShowFrameOutlines: ShowFrameOutlines),
             Puffs.View);
         snapshot.PublishedAt = Stopwatch.GetTimestamp();
         RenderSnapshots.Publish();

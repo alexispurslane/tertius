@@ -85,7 +85,9 @@ public class TurningFrameWakeTests
         using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
         // A G·M of 1.25e5 m³/s² gives a mean motion of sqrt(mu / a³) = 1e-3 rad/s at 5 km.
         FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f), GravityField.Point(1.25e5)));
-        var oval = new KeplerOrbit(SemiMajorAxis: 5000, Eccentricity: 0.1, Inclination: 0, LongitudeOfAscendingNode: 0, ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: 0, Epoch: 0, AxialTilt: DQuaternion.Identity, SpinRate: 0, SpinPhaseAtEpoch: 0, Attitude: KeplerAttitude.FacesParent);
+        var oval = new KeplerOrbit(SemiMajorAxis: 5000, Eccentricity: 0.1, Inclination: 0, LongitudeOfAscendingNode: 0,
+            ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: 0, Epoch: 0, AxialTilt: DQuaternion.Identity, SpinRate: 0,
+            SpinPhaseAtEpoch: 0, Attitude: KeplerAttitude.FacesParent);
         Entity owner = world.Spawn(new SpawnDesc { Frame = planet, AsFrame = new(FrameBounds.Sphere(50)) }
             .OnKeplerOrbit(world, oval, firstMove: true));
         FrameHandle frame = world.GetOwnedFrame(owner);
@@ -178,7 +180,8 @@ public class TurningFrameWakeTests
             var pose = new DPose(new(0.5 * acceleration * s * s, 0, 0),
                 DQuaternion.FromAxisAngle(Double3.UnitY, 0.5 * angularAcceleration * s * s));
             Double3 chord = new Double3(0.5 * acceleration * (s * s - before * before), 0, 0) / step;
-            return new(Pose: pose, ChordVelocity: chord, Velocity: velocity, Acceleration: (velocity - velocityBefore) / step, AngularVelocity: angularVelocity,
+            return new(Pose: pose, ChordVelocity: chord, Velocity: velocity,
+                Acceleration: (velocity - velocityBefore) / step, AngularVelocity: angularVelocity,
                 AngularAcceleration: (angularVelocity - angularVelocityBefore) / step);
         }
 
@@ -205,7 +208,8 @@ public class TurningFrameWakeTests
             Vector3 direction = Vector3.Normalize(new(Next(1), Next(1), Next(1)));
             Vector3 push = wakePush + direction * (threshold * (1 + Next(1e-6f)));
             bool before = Vector3.DistanceSquared(push, wakePush) > threshold * threshold;
-            if (JoltPhysicsBackend.FeltChangeWakes(push: push, wakePush: wakePush, turn: 0, reach: 0, threshold: threshold) != before)
+            if (JoltPhysicsBackend.FeltChangeWakes(push: push, wakePush: wakePush, turn: 0, reach: 0,
+                    threshold: threshold) != before)
                 disagree++;
         }
 

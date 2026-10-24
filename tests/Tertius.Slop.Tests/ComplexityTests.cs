@@ -101,7 +101,8 @@ public class ComplexityTests
                           1 => a ? "a" : "b",
                           _ => "c"
                       };
-                      """).Complexity.Should().Be(3, "the switch adds one and the conditional expression in its arm adds one");
+                      """).Complexity.Should().Be(3,
+            "the switch adds one and the conditional expression in its arm adds one");
 
     [Fact]
     public void TheExpressionThatASwitchStatementReadsStillCounts() =>

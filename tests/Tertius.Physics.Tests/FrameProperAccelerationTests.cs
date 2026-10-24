@@ -92,7 +92,8 @@ public class FrameProperAccelerationTests
 
         Tick(world, 3);
 
-        ShouldBeNear(actual: world.Frames.ProperAcceleration(cabin), expected: Weight, tolerance: 1e-6f, because: "the cabin's contents have weight");
+        ShouldBeNear(actual: world.Frames.ProperAcceleration(cabin), expected: Weight, tolerance: 1e-6f,
+            because: "the cabin's contents have weight");
         world.Errors.Should().BeEmpty();
     }
 
@@ -104,10 +105,12 @@ public class FrameProperAccelerationTests
         GravityField field = world.Frames.Gravity(planet);
         var pilot = new Pilot();
         var start = new Double3(6.4e6, 0, 0);
-        FrameHandle platform = world.GetOwnedFrame(SpawnFrame(world: world, parent: planet, pose: new(start, DQuaternion.Identity),
+        FrameHandle platform = world.GetOwnedFrame(SpawnFrame(world: world, parent: planet,
+            pose: new(start, DQuaternion.Identity),
             body: HullBody(BodyMotion.Static), pilot));
         Tick(world, 3);
-        ShouldBeNear(actual: world.Frames.ProperAcceleration(platform), expected: Reversed(field, start, DQuaternion.Identity), tolerance: 1e-5f,
+        ShouldBeNear(actual: world.Frames.ProperAcceleration(platform),
+            expected: Reversed(field, start, DQuaternion.Identity), tolerance: 1e-5f,
             because: "before the teleport");
 
         var target = new DPose(new(0, 4.6e6, 4.6e6), DQuaternion.FromAxisAngle(Double3.UnitX, 0.5));
@@ -116,7 +119,8 @@ public class FrameProperAccelerationTests
 
         DPose moved = world.Frames.LocalPose(platform);
         (moved.Position - target.Position).Length.Should().BeLessThan(1e-6, "the platform stands where it teleported");
-        ShouldBeNear(actual: world.Frames.ProperAcceleration(platform), expected: Reversed(field, target.Position, target.Rotation),
+        ShouldBeNear(actual: world.Frames.ProperAcceleration(platform),
+            expected: Reversed(field, target.Position, target.Rotation),
             tolerance: 1e-5f,
             because: "the platform feels the gravity at its new place, in its own axes");
         world.Errors.Should().BeEmpty();
@@ -154,10 +158,12 @@ public class FrameProperAccelerationTests
         const float mass = 1000;
         // The engine holds the ship against gravity and lifts it at 1 m/s² more.
         var pilot = new Pilot { EveryTick = hull => hull.AddForce(new(0, mass * (G + 1), 0)) };
-        Entity owner = SpawnFrame(world: world, parent: ground, pose: At(0, 100), body: HullBody(BodyMotion.Dynamic, mass), pilot);
+        Entity owner = SpawnFrame(world: world, parent: ground, pose: At(0, 100),
+            body: HullBody(BodyMotion.Dynamic, mass), pilot);
         FrameHandle ship = world.GetOwnedFrame(owner);
         Tick(world, 30);
-        ShouldBeNear(actual: world.Frames.ProperAcceleration(ship), expected: new(0, G + 1, 0), tolerance: 1e-2f, because: "the engine pushes the ship");
+        ShouldBeNear(actual: world.Frames.ProperAcceleration(ship), expected: new(0, G + 1, 0), tolerance: 1e-2f,
+            because: "the engine pushes the ship");
 
         pilot.EveryTick = null;
         world.SetMotionNextTick(owner: owner, motion: BodyMotion.Static);
@@ -175,9 +181,11 @@ public class FrameProperAccelerationTests
         FrameHandle ground = Ground(world, G);
         var turned = new DPose(new(5, 100, 0), DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2));
         var flight = new ClimbThenWrite(turned);
-        FrameHandle cabin = world.GetOwnedFrame(SpawnFrame(world: world, parent: ground, pose: At(0, 100), body: null, flight));
+        FrameHandle cabin =
+            world.GetOwnedFrame(SpawnFrame(world: world, parent: ground, pose: At(0, 100), body: null, flight));
         Tick(world, 3);
-        ShouldBeNear(actual: world.Frames.ProperAcceleration(cabin), expected: new(0, G + 2, 0), tolerance: 1e-5f, because: "the samples lift the cabin");
+        ShouldBeNear(actual: world.Frames.ProperAcceleration(cabin), expected: new(0, G + 2, 0), tolerance: 1e-5f,
+            because: "the samples lift the cabin");
 
         flight.Write = true;
         world.Tick();
@@ -204,9 +212,13 @@ public class FrameProperAccelerationTests
         FrameHandle cart = world.GetOwnedFrame(SmallFrame(world: world, parent: turntable, pose: At(1), body: null));
         // The fighter's hull, 0.5 m half high, stands on the hangar's floor, whose top is at y = 0 in the ship.
         world.Spawn(new()
-            { Frame = ship, Pose = At(-10, -0.5), Body = new(Shape: new BoxShapeDesc(new(5, 0.5f, 5)), Motion: BodyMotion.Static) });
+        {
+            Frame = ship, Pose = At(-10, -0.5),
+            Body = new(Shape: new BoxShapeDesc(new(5, 0.5f, 5)), Motion: BodyMotion.Static)
+        });
         FrameHandle fighter =
-            world.GetOwnedFrame(SmallFrame(world: world, parent: ship, pose: At(-10, 0.5), body: HullBody(BodyMotion.Dynamic, 100)));
+            world.GetOwnedFrame(SmallFrame(world: world, parent: ship, pose: At(-10, 0.5),
+                body: HullBody(BodyMotion.Dynamic, 100)));
         Tick(world, 3);
         var thrust = new Vector3(0, 1.5f, 0);
 
@@ -242,7 +254,8 @@ public class FrameProperAccelerationTests
     {
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, G);
-        FrameHandle cabin = world.GetOwnedFrame(SpawnFrame(world: world, parent: ground, pose: At(0, 100), body: HullBody(BodyMotion.Static)));
+        FrameHandle cabin = world.GetOwnedFrame(SpawnFrame(world: world, parent: ground, pose: At(0, 100),
+            body: HullBody(BodyMotion.Static)));
         // The ball's bottom hangs 1 m above the cabin's floor, the top of the static hull's shape inside the cabin, at y = 0.5.
         Entity crate = world.Spawn(new() { Frame = cabin, Pose = At(0, 2), Body = Ball() });
         world.Frames.ProperAcceleration(cabin).Should().Be(Vector3.Zero, "a new frame has no step record yet");
@@ -273,7 +286,8 @@ public class FrameProperAccelerationTests
         public EventMask Wants => EventMask.Of<Tick>();
 
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
-            self.MoveOnRails(new(Pose: At(0), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Acceleration, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero));
+            self.MoveOnRails(new(Pose: At(0), ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
+                Acceleration: Acceleration, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero));
     }
 
     /// <summary>
@@ -290,7 +304,8 @@ public class FrameProperAccelerationTests
 
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
-            self.MoveOnRails(new(Pose: At(0, 100), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: new(0, 2, 0), AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero));
+            self.MoveOnRails(new(Pose: At(0, 100), ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
+                Acceleration: new(0, 2, 0), AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero));
             if (Write)
                 self.SetTransform(written);
         }
@@ -303,7 +318,8 @@ public class FrameProperAccelerationTests
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         var pilot = new Pilot();
         FrameHandle ship =
-            world.GetOwnedFrame(SpawnFrame(world: world, parent: space, pose: At(0), body: HullBody(BodyMotion.Dynamic, 500), pilot));
+            world.GetOwnedFrame(SpawnFrame(world: world, parent: space, pose: At(0),
+                body: HullBody(BodyMotion.Dynamic, 500), pilot));
         Tick(world, 2);
 
         pilot.Once = hull => hull.AddImpulse(new(0, 0, 1000));
@@ -325,7 +341,8 @@ public class FrameProperAccelerationTests
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, G);
         var turned = new DPose(new(0, 100, 0), DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2));
-        FrameHandle cabin = world.GetOwnedFrame(SpawnFrame(world: world, parent: ground, pose: turned, body: HullBody(BodyMotion.Static)));
+        FrameHandle cabin = world.GetOwnedFrame(SpawnFrame(world: world, parent: ground, pose: turned,
+            body: HullBody(BodyMotion.Static)));
 
         Tick(world, 3);
 

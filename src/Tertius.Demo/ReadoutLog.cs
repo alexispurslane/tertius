@@ -91,8 +91,10 @@ public sealed class ReadoutLog : IPlayback
         // The station's axis is its +Y through its center. The part of the offset along the axis leaves the part across it.
         DPose stationPose = world.PoseIn(station, earth);
         Double3 offset = position - stationPose.Position, axis = stationPose.Rotation.Rotate(Double3.UnitY);
-        rows.Add(new(Frame: name, Tick: world.TickNumber, Position: position, Speed: world.VelocityIn(person, earth).Length,
-            ToStation: offset.Length, Axis: (offset - axis * Double3.Dot(offset, axis)).Length, Felt: felt.Length, FirstThrow: ThrowOf(world, 0),
+        rows.Add(new(Frame: name, Tick: world.TickNumber, Position: position,
+            Speed: world.VelocityIn(person, earth).Length,
+            ToStation: offset.Length, Axis: (offset - axis * Double3.Dot(offset, axis)).Length, Felt: felt.Length,
+            FirstThrow: ThrowOf(world, 0),
             SecondThrow: ThrowOf(world, 1)));
         return true;
     }
@@ -174,7 +176,8 @@ public sealed class ReadoutLog : IPlayback
                 throw new FormatException($"Line {i + 1} of the readout log has {cells.Length} cells, not {Cells}.");
             double Number(int cell) => double.Parse(cells[cell], NumberStyles.Float, CultureInfo.InvariantCulture);
             rows.Add(new(Frame: cells[0], Tick: long.Parse(cells[1], CultureInfo.InvariantCulture),
-                Position: new(Number(2), Number(3), Number(4)), Speed: Number(5), ToStation: Number(6), Axis: Number(7), Felt: Number(8),
+                Position: new(Number(2), Number(3), Number(4)), Speed: Number(5), ToStation: Number(6), Axis: Number(7),
+                Felt: Number(8),
                 FirstThrow: ReadThrow(cells, 9), SecondThrow: ReadThrow(cells, 19)));
         }
 

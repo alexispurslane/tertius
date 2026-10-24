@@ -68,7 +68,8 @@ public class TupleElementNameTests
                             {
                                 public (int Id, (double, double) Range) Row;
                             }
-                            """)).Should().Equal(["TS0001"], "the outer tuple names its elements, the inner one does not");
+                            """)).Should().Equal(["TS0001"],
+            "the outer tuple names its elements, the inner one does not");
 
     [Fact]
     public async Task TheMessageNamesTheTupleType() =>
@@ -77,7 +78,8 @@ public class TupleElementNameTests
                                     {
                                         public (int Count, double) Pair;
                                     }
-                                    """)).Single().GetMessage().Should().StartWith("The tuple type '(int Count, double)'");
+                                    """)).Single().GetMessage().Should()
+        .StartWith("The tuple type '(int Count, double)'");
 
     // Inferred tuple types
 

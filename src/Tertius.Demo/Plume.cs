@@ -23,7 +23,9 @@ public readonly record struct Plume(PuffLook Look, float FullRate, float Speed, 
     /// puffs in the docking. At a hundredth of the thrust, the square root makes a tenth of the full rate.
     /// </remarks>
     public PuffEmitter At(float throttle) =>
-        throttle > 0 ? new PuffEmitter(Rate: MathF.Sqrt(throttle) * FullRate, Speed: Speed, Spread: Spread, Look: Look) : default;
+        throttle > 0
+            ? new PuffEmitter(Rate: MathF.Sqrt(throttle) * FullRate, Speed: Speed, Spread: Spread, Look: Look)
+            : default;
 
     /// <summary>
     /// The rotation whose -Z, the way that puffs leave an entity, points along <paramref name="exhaust"/>, which need not

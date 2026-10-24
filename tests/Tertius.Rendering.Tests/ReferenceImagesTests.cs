@@ -28,7 +28,8 @@ public sealed class ReferenceImagesTests : IDisposable
 
     /// <summary>A gray 64×64 image with a white 8×8 square at (40, 40): a change that anyone sees.</summary>
     private static Capture GrayWithSquare() =>
-        TestImages.GrayWith(width: 64, height: 64, value: 128, changed: (x, y) => x is >= 40 and < 48 && y is >= 40 and < 48, changedValue: 255);
+        TestImages.GrayWith(width: 64, height: 64, value: 128,
+            changed: (x, y) => x is >= 40 and < 48 && y is >= 40 and < 48, changedValue: 255);
 
     [Fact]
     public void AnImageWithoutAReferenceFailsAndIsWrittenBesideTheMissingReferenceEvenWithoutItsFolder()
@@ -133,7 +134,8 @@ public sealed class ReferenceImagesTests : IDisposable
         // One white pixel on black scores far above 0.1 at that pixel, though the mean over the 4,096 pixels stays far below 0.1.
         Checking(TestImages.Gray(64, 64, 0), approve: true).Should().NotThrow();
 
-        Checking(TestImages.GrayWith(width: 64, height: 64, value: 0, changed: (x, y) => x == 32 && y == 32, changedValue: 255)).Should().Throw<FailException>();
+        Checking(TestImages.GrayWith(width: 64, height: 64, value: 0, changed: (x, y) => x == 32 && y == 32,
+            changedValue: 255)).Should().Throw<FailException>();
     }
 
     [Fact]

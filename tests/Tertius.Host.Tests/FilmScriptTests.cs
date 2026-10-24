@@ -64,7 +64,8 @@ public sealed class FilmScriptTests
     [Fact]
     public void ASectionGoesOnForItsHoldAfterItsCue()
     {
-        Script script = Generate(new FilmSection(Name: "drop", Camera: "camera", Every: 4, Until: AfterTick(101), Hold: 10));
+        Script script =
+            Generate(new FilmSection(Name: "drop", Camera: "camera", Every: 4, Until: AfterTick(101), Hold: 10));
 
         // 104 ticks to the cue, then 10 ticks of hold, which take three more frames of 4 ticks: 116 ticks in all.
         script.Steps[^1].Should().Be((ScriptStep)new FilmStep("drop", 29, 4));
@@ -86,7 +87,8 @@ public sealed class FilmScriptTests
     [Fact]
     public void ASectionWhoseCueHoldsAtItsStartFilmsOnlyItsHold()
     {
-        Script script = Generate(new FilmSection(Name: "still", Camera: "camera", Every: 3, Until: FilmSection.Now, Hold: 30));
+        Script script =
+            Generate(new FilmSection(Name: "still", Camera: "camera", Every: 3, Until: FilmSection.Now, Hold: 30));
 
         script.Steps[^1].Should().Be((ScriptStep)new FilmStep("still", 10, 3));
     }

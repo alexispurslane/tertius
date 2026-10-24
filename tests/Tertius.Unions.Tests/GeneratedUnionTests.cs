@@ -17,7 +17,8 @@ public class GeneratedUnionTests
     public void EachCaseComesBackOutOfTryGetValue()
     {
         var point = new Point(Position: new(1, 2, 3), Color: new(0.5f, 0.25f, 1), Intensity: 4, Range: 9);
-        var spot = new Spot(Position: new(-1, 0, 2), Direction: Sideways, Color: new(1, 1, 0), Intensity: 2, Range: 30, Inner: 0.1f, Outer: 0.4f);
+        var spot = new Spot(Position: new(-1, 0, 2), Direction: Sideways, Color: new(1, 1, 0), Intensity: 2, Range: 30,
+            Inner: 0.1f, Outer: 0.4f);
 
         new Light(point).TryGetValue(out Point pointBack).Should().BeTrue();
         new Light(spot).TryGetValue(out Spot spotBack).Should().BeTrue();

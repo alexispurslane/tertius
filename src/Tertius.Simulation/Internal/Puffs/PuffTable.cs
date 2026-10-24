@@ -109,7 +109,8 @@ internal sealed class PuffTable
     /// The live rows, their ranges and the look table, for the render snapshot. Valid until the table next changes, at the
     /// next sync point.
     /// </summary>
-    public PuffView View => new(rows: rows.AsSpan(0, Count), ranges: CollectionsMarshal.AsSpan(ranges), looks: looks.All, step: step);
+    public PuffView View => new(rows: rows.AsSpan(0, Count), ranges: CollectionsMarshal.AsSpan(ranges),
+        looks: looks.All, step: step);
 
     /// <summary>The birth phase of an emitter's entity, in [0, 1). Throws <see cref="StaleEntityException"/> for a stale handle.</summary>
     public double BirthPhase(Entity entity) => phases[entity];
@@ -248,7 +249,8 @@ internal sealed class PuffTable
         // one that is already dead.
         long total = 0;
         foreach (Entity entity in entities.EmitterEntities)
-            total += Living(emitter: in entities.FrontRender(entity).Emitter, phase: phases[entity], dt: dt, first: out _, next: out _);
+            total += Living(emitter: in entities.FrontRender(entity).Emitter, phase: phases[entity], dt: dt,
+                first: out _, next: out _);
         long skip = Math.Max(0, total - Capacity);
         EnsureNewborns((int)Math.Min(total, Capacity));
 
@@ -258,14 +260,16 @@ internal sealed class PuffTable
             ref readonly PuffEmitter emitter = ref entities.FrontRender(entity).Emitter;
             ref double phase = ref phases[entity];
             double start = phase;
-            long living = Living(emitter: in emitter, phase: start, dt: dt, first: out long firstLiving, next: out phase);
+            long living = Living(emitter: in emitter, phase: start, dt: dt, first: out long firstLiving,
+                next: out phase);
             // The newborns from the first living one past the skipped ones on, numbered from 1 in the emitter's step.
             long first = firstLiving + Math.Max(0, skip - seen);
             long last = firstLiving + living - 1;
             seen += living;
             if (first > last)
                 continue;
-            AddNewbornsOf(entity: entity, emitter: in emitter, phase: start, first: first, last: last, tick: tick, dt: dt);
+            AddNewbornsOf(entity: entity, emitter: in emitter, phase: start, first: first, last: last, tick: tick,
+                dt: dt);
         }
 
         // A step without newborns changes no row: the count was within the capacity already.
@@ -308,7 +312,8 @@ internal sealed class PuffTable
             (double r1, double r2) = PuffBirths.Seed(entity, tick, j);
             Double3 direction = PuffBirths.Direction(emitter.Spread, r1, r2);
             newborns[newbornCount++] =
-                PuffBirths.Newborn(step: in loose, emitterPose: in pose, emitterVelocity: velocity, emitter: in emitter, direction: direction, age: age, look: -1, dt: dt);
+                PuffBirths.Newborn(step: in loose, emitterPose: in pose, emitterVelocity: velocity, emitter: in emitter,
+                    direction: direction, age: age, look: -1, dt: dt);
         }
 
         int born = newbornCount - runStart;

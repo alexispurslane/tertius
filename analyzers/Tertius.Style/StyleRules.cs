@@ -25,8 +25,9 @@ internal static class StyleRules
 
     public static readonly DiagnosticDescriptor NullForgiving = new(id: "TS0003",
         title: "No null-forgiving operator",
-        messageFormat: "The operator ! silences the nullable analysis. Test for null once at the outer shell, in a form " +
-                       "that the flow analysis understands, and pass a value that is not nullable inward " +
-                       "(STYLE.md, \"Nulls\").",
+        messageFormat:
+        "The operator ! silences the nullable analysis. Test for null once at the outer shell, in a form " +
+        "that the flow analysis understands, and pass a value that is not nullable inward " +
+        "(STYLE.md, \"Nulls\").",
         category: Category, defaultSeverity: DiagnosticSeverity.Warning, isEnabledByDefault: true);
 }

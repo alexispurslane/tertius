@@ -20,7 +20,9 @@ public class PipelineTests
         using var t = new TestWorld();
         var log = new List<string>();
         EventMask tick = EventMask.Of<Tick>();
-        t.SpawnWith(Named(log: log, name: "3", priority: 3, wants: tick), Named(log: log, name: "-2", priority: -2, wants: tick), Named(log: log, name: "1", priority: 1, wants: tick),
+        t.SpawnWith(Named(log: log, name: "3", priority: 3, wants: tick),
+            Named(log: log, name: "-2", priority: -2, wants: tick),
+            Named(log: log, name: "1", priority: 1, wants: tick),
             Named(log: log, name: "0", priority: 0, wants: tick));
 
         t.World.Tick();
@@ -53,7 +55,8 @@ public class PipelineTests
         using var t = new TestWorld();
         var log = new List<string>();
         EventMask tick = EventMask.Of<Tick>();
-        t.SpawnWith(Named(log: log, name: "late", priority: 1, wants: tick), Named(log: log, name: "early", priority: 0, wants: tick));
+        t.SpawnWith(Named(log: log, name: "late", priority: 1, wants: tick),
+            Named(log: log, name: "early", priority: 0, wants: tick));
 
         t.Run(3);
 

@@ -592,7 +592,8 @@ public class SpatialQueryTests
     {
         using var test = new TestWorld();
 
-        Action query = () => test.World.Snapshot.QueryRadius(frame: FrameHandle.Null, center: Double3.Zero, radius: 1, results: []);
+        Action query = () =>
+            test.World.Snapshot.QueryRadius(frame: FrameHandle.Null, center: Double3.Zero, radius: 1, results: []);
 
         query.Should().Throw<InvalidOperationException>();
     }
@@ -602,7 +603,8 @@ public class SpatialQueryTests
     {
         using var test = new TestWorld();
 
-        Action query = () => test.World.Snapshot.QueryRadius(frame: test.Root, center: Double3.Zero, radius: -1, results: []);
+        Action query = () =>
+            test.World.Snapshot.QueryRadius(frame: test.Root, center: Double3.Zero, radius: -1, results: []);
 
         query.Should().Throw<ArgumentOutOfRangeException>();
     }
@@ -616,7 +618,8 @@ public class SpatialQueryTests
 
         for (int tick = 0; tick < 8; tick++)
         {
-            test.World.Snapshot.QueryRadius(frame: test.Root, center: new(40 * tick, 0, 0), radius: 1, results: results);
+            test.World.Snapshot.QueryRadius(frame: test.Root, center: new(40 * tick, 0, 0), radius: 1,
+                results: results);
 
             results.Should().Equal(runner);
             test.Run(1);
@@ -656,7 +659,8 @@ public class SpatialQueryTests
                     Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
                     {
                         var found = new List<Entity>();
-                        self.Snapshot.QueryRadius(frame: self.Frame, center: self.PoseInOwnFrame().Position, radius: 15, results: found);
+                        self.Snapshot.QueryRadius(frame: self.Frame, center: self.PoseInOwnFrame().Position, radius: 15,
+                            results: found);
                         counts[index] = found.Count;
                     })
                 ]

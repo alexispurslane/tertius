@@ -55,7 +55,8 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
         if (swapchain.Handle == 0)
             return null;
         uint index;
-        Result result = api.AcquireNextImage(device: device.Device, swapchain: swapchain, timeout: ulong.MaxValue, semaphore: frame.ImageAvailable, fence: default,
+        Result result = api.AcquireNextImage(device: device.Device, swapchain: swapchain, timeout: ulong.MaxValue,
+            semaphore: frame.ImageAvailable, fence: default,
             pImageIndex: &index);
         if (result == Result.ErrorOutOfDateKhr)
         {
@@ -85,7 +86,8 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
     public void SubmitAndPresent(FrameResources frame)
     {
         Semaphore finished = renderFinished[(int)imageIndex];
-        QueueSubmission.Submit(device: device, frame: frame, wait: frame.ImageAvailable, waitStages: PipelineStageFlags2.ColorAttachmentOutputBit,
+        QueueSubmission.Submit(device: device, frame: frame, wait: frame.ImageAvailable,
+            waitStages: PipelineStageFlags2.ColorAttachmentOutputBit,
             signal: finished);
         SwapchainKHR target = swapchain;
         uint index = imageIndex;
@@ -172,7 +174,8 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
             Clipped = true,
             OldSwapchain = old
         };
-        api.CreateSwapchain(device: device.Device, pCreateInfo: &info, pAllocator: null, pSwapchain: out SwapchainKHR created).Check("vkCreateSwapchainKHR");
+        api.CreateSwapchain(device: device.Device, pCreateInfo: &info, pAllocator: null,
+            pSwapchain: out SwapchainKHR created).Check("vkCreateSwapchainKHR");
         if (old.Handle != 0)
             api.DestroySwapchain(device.Device, old, null);
         swapchain = created;
@@ -180,20 +183,24 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
         Generation++;
 
         uint count = 0;
-        api.GetSwapchainImages(device: device.Device, swapchain: swapchain, pSwapchainImageCount: &count, pSwapchainImages: null).Check("vkGetSwapchainImagesKHR");
+        api.GetSwapchainImages(device: device.Device, swapchain: swapchain, pSwapchainImageCount: &count,
+            pSwapchainImages: null).Check("vkGetSwapchainImagesKHR");
         var handles = new Image[count];
         fixed (Image* p = handles)
         {
-            api.GetSwapchainImages(device: device.Device, swapchain: swapchain, pSwapchainImageCount: &count, pSwapchainImages: p).Check("vkGetSwapchainImagesKHR");
+            api.GetSwapchainImages(device: device.Device, swapchain: swapchain, pSwapchainImageCount: &count,
+                pSwapchainImages: p).Check("vkGetSwapchainImagesKHR");
         }
 
         images = new GpuImage[count];
         for (int i = 0; i < count; i++)
-            images[i] = GpuImage.Wrap(device: device, image: handles[i], format: surfaceFormat.Format, extent: extent, name: $"swapchain image {i}");
+            images[i] = GpuImage.Wrap(device: device, image: handles[i], format: surfaceFormat.Format, extent: extent,
+                name: $"swapchain image {i}");
         var semaphoreInfo = new SemaphoreCreateInfo { SType = StructureType.SemaphoreCreateInfo };
         while (renderFinished.Count < count)
         {
-            device.Vk.CreateSemaphore(device: device.Device, pCreateInfo: &semaphoreInfo, pAllocator: null, pSemaphore: out Semaphore semaphore)
+            device.Vk.CreateSemaphore(device: device.Device, pCreateInfo: &semaphoreInfo, pAllocator: null,
+                    pSemaphore: out Semaphore semaphore)
                 .Check("vkCreateSemaphore");
             device.SetName(ObjectType.Semaphore, semaphore.Handle, $"render finished {renderFinished.Count}");
             renderFinished.Add(semaphore);
@@ -213,12 +220,14 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
     private SurfaceFormatKHR ChooseFormat()
     {
         uint count = 0;
-        surfaceApi.GetPhysicalDeviceSurfaceFormats(physicalDevice: device.PhysicalDevice, surface: device.Surface, pSurfaceFormatCount: &count, pSurfaceFormats: null)
+        surfaceApi.GetPhysicalDeviceSurfaceFormats(physicalDevice: device.PhysicalDevice, surface: device.Surface,
+                pSurfaceFormatCount: &count, pSurfaceFormats: null)
             .Check("vkGetPhysicalDeviceSurfaceFormatsKHR");
         var formats = new SurfaceFormatKHR[count];
         fixed (SurfaceFormatKHR* p = formats)
         {
-            surfaceApi.GetPhysicalDeviceSurfaceFormats(physicalDevice: device.PhysicalDevice, surface: device.Surface, pSurfaceFormatCount: &count, pSurfaceFormats: p)
+            surfaceApi.GetPhysicalDeviceSurfaceFormats(physicalDevice: device.PhysicalDevice, surface: device.Surface,
+                    pSurfaceFormatCount: &count, pSurfaceFormats: p)
                 .Check("vkGetPhysicalDeviceSurfaceFormatsKHR");
         }
 
@@ -239,12 +248,14 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
         if (vsync)
             return PresentModeKHR.FifoKhr;
         uint count = 0;
-        surfaceApi.GetPhysicalDeviceSurfacePresentModes(physicalDevice: device.PhysicalDevice, surface: device.Surface, pPresentModeCount: &count, pPresentModes: null)
+        surfaceApi.GetPhysicalDeviceSurfacePresentModes(physicalDevice: device.PhysicalDevice, surface: device.Surface,
+                pPresentModeCount: &count, pPresentModes: null)
             .Check("vkGetPhysicalDeviceSurfacePresentModesKHR");
         var modes = new PresentModeKHR[count];
         fixed (PresentModeKHR* p = modes)
         {
-            surfaceApi.GetPhysicalDeviceSurfacePresentModes(physicalDevice: device.PhysicalDevice, surface: device.Surface, pPresentModeCount: &count, pPresentModes: p)
+            surfaceApi.GetPhysicalDeviceSurfacePresentModes(physicalDevice: device.PhysicalDevice,
+                    surface: device.Surface, pPresentModeCount: &count, pPresentModes: p)
                 .Check("vkGetPhysicalDeviceSurfacePresentModesKHR");
         }
 

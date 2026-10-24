@@ -88,15 +88,18 @@ public sealed class SceneTests
         try
         {
             MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f, 64, 32));
-            MaterialId rock = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.6f, y: 0.6f, z: 0.6f, w: 1), gloss: 0.1f));
+            MaterialId rock =
+                renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.6f, y: 0.6f, z: 0.6f, w: 1), gloss: 0.1f));
             // The sun is due +X. The planet's shadow points to −X; one moon sits in it, the other on the day side.
             RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX);
             var planet = new Vector3(0, 0, -3.0e7f);
             var shadowed = new Vector3(-2.0e7f, 0, -3.0e7f);
             var lit = new Vector3(2.0e7f, 0, -3.0e7f);
             const float moonRadius = 3.0e6f;
-            snapshot.Instances.Add(Gpu.Instance(mesh: sphere, material: rock, position: planet, scale: new(6.0e6f), flags: RenderFlags.CastsShadow));
-            snapshot.Instances.Add(Gpu.Instance(mesh: sphere, material: rock, position: shadowed, scale: new(moonRadius)));
+            snapshot.Instances.Add(Gpu.Instance(mesh: sphere, material: rock, position: planet, scale: new(6.0e6f),
+                flags: RenderFlags.CastsShadow));
+            snapshot.Instances.Add(Gpu.Instance(mesh: sphere, material: rock, position: shadowed,
+                scale: new(moonRadius)));
             snapshot.Instances.Add(Gpu.Instance(mesh: sphere, material: rock, position: lit, scale: new(moonRadius)));
 
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "eclipse");
@@ -121,14 +124,18 @@ public sealed class SceneTests
         {
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
             MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f, 32, 16));
-            MaterialId ground = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.7f, y: 0.7f, z: 0.7f, w: 1), gloss: 0.2f));
+            MaterialId ground =
+                renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.7f, y: 0.7f, z: 0.7f, w: 1), gloss: 0.2f));
             RenderSnapshot snapshot = Gpu.Snapshot(new(0, 1, 0));
-            snapshot.Instances.Add(Gpu.Instance(mesh: plane, material: ground, position: new(0, -1.5f, -20), scale: new(20, 1, 20)));
+            snapshot.Instances.Add(Gpu.Instance(mesh: plane, material: ground, position: new(0, -1.5f, -20),
+                scale: new(20, 1, 20)));
             // An invisible caster of 200 m radius, 2.4 km straight up from a point 200 m to the left of the view. It stays
             // farther than 2 km from the camera, so it casts a far shadow, whose edge crosses the ground at x = 0. The sun's
             // disc, 4.67e-3 rad in radius, spreads that edge over 2 × 4.67e-3 × 2,400 m, about 22 m.
-            snapshot.Instances.Add(RenderInstance.Create(mesh: sphere, material: ground, position: new(-200f, 2_398.5f, -25f),
-                rotation: Quaternion.Identity, scale: new(200f), boundingRadius: 0, hemisphere: HemisphereUp.Even, flags: RenderFlags.CastsShadow, entityIndex: 0, part: 0));
+            snapshot.Instances.Add(RenderInstance.Create(mesh: sphere, material: ground,
+                position: new(-200f, 2_398.5f, -25f),
+                rotation: Quaternion.Identity, scale: new(200f), boundingRadius: 0, hemisphere: HemisphereUp.Even,
+                flags: RenderFlags.CastsShadow, entityIndex: 0, part: 0));
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "occluder-shadow");
             float shadow = image.MeanLuma(Gpu.Project(point: new(-16f, -1.5f, -25f), width: 640, height: 360), 2);
             float edge = image.MeanLuma(Gpu.Project(point: new(0f, -1.5f, -25f), width: 640, height: 360), 2);

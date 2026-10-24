@@ -16,7 +16,8 @@ public class StateDumpTests
     private const string DumpNow = """{ "do": "dump", "name": "now" }""";
 
     private static RunResult Run(World world, SceneInstance scene, params string[] steps) =>
-        ScriptRunner.Run(script: Script.Parse($$"""{ "scene": "test", "steps": [ {{string.Join(", ", steps)}} ] }"""), world: world,
+        ScriptRunner.Run(script: Script.Parse($$"""{ "scene": "test", "steps": [ {{string.Join(", ", steps)}} ] }"""),
+            world: world,
             scene: scene);
 
     [Fact]
@@ -187,7 +188,8 @@ public class StateDumpTests
     {
         using World world = NewJoltWorld();
         (SceneInstance scene, Entity owner) = ShipInSpace(world, BodyMotion.Kinematic);
-        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Dynamic, remove: world.GetComponent<KeplerMotion>(owner));
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Dynamic,
+            remove: world.GetComponent<KeplerMotion>(owner));
 
         RunResult run = Run(world, scene, """{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "changed" }""",
             """{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "after" }""");
@@ -213,7 +215,8 @@ public class StateDumpTests
         static DPose At(long tick) => new(new(tick, 0, 0), DQuaternion.Identity);
 
         static MotionSample Still(long tick) =>
-            new(Pose: At(tick), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
+            new(Pose: At(tick), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero,
+                AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
 
         scene.Add("yard", world.Spawn(new()
         {
@@ -378,15 +381,16 @@ public class StateDumpTests
         try
         {
             RunResult result = ScriptRunner.Run(script: Script.Parse("""
-                                                             { "scene": "test", "steps": [
-                                                               { "do": "camera", "entity": "probe" },
-                                                               { "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Nudge", "payload": { "amount": 1 } },
-                                                               { "do": "run", "ticks": 2 },
-                                                               { "do": "dump", "name": "first" },
-                                                               { "do": "post", "to": { "kind": "entity", "id": "crew" }, "event": "Nudge", "payload": { "amount": 2 } },
-                                                               { "do": "film", "name": "climb", "frames": 2, "every": 2 },
-                                                               { "do": "dump", "name": "second" } ] }
-                                                             """), world: world, scene: scene, outputFolder: folder, playback: new DrawsNothing());
+                                                                     { "scene": "test", "steps": [
+                                                                       { "do": "camera", "entity": "probe" },
+                                                                       { "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Nudge", "payload": { "amount": 1 } },
+                                                                       { "do": "run", "ticks": 2 },
+                                                                       { "do": "dump", "name": "first" },
+                                                                       { "do": "post", "to": { "kind": "entity", "id": "crew" }, "event": "Nudge", "payload": { "amount": 2 } },
+                                                                       { "do": "film", "name": "climb", "frames": 2, "every": 2 },
+                                                                       { "do": "dump", "name": "second" } ] }
+                                                                     """), world: world, scene: scene,
+                outputFolder: folder, playback: new DrawsNothing());
 
             result.Dump("first").Events.Select(e => ((Nudge)e.Payload).Amount).Should().Equal(1);
             // Posted after 2 ticks, so the sync point of the film's first tick routes it.
@@ -422,7 +426,8 @@ public class StateDumpTests
             try
             {
                 long before = GC.GetAllocatedBytesForCurrentThread();
-                ScriptRunner.Run(script: script, world: world, scene: scene, outputFolder: folder, playback: new DrawsNothing());
+                ScriptRunner.Run(script: script, world: world, scene: scene, outputFolder: folder,
+                    playback: new DrawsNothing());
                 bytes = GC.GetAllocatedBytesForCurrentThread() - before;
                 world.Stats.RoutedEvents.Should()
                     .Be(nudgesPerTick, "the last sync point routed the nudges of the last tick");

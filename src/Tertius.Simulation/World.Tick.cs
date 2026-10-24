@@ -43,7 +43,8 @@ public sealed partial class World
             if (physicsWorker != null)
             {
                 stepOutput.Clear();
-                physicsWorker.Begin(new(tick: TickNumber, deltaTime: DeltaTime, time: Time, frames: Frames, intents: Entities.FrontIntents,
+                physicsWorker.Begin(new(tick: TickNumber, deltaTime: DeltaTime, time: Time, frames: Frames,
+                    intents: Entities.FrontIntents,
                     intentEntities: Entities.IntentEntities));
                 stepping = physicsWorker;
             }
@@ -260,7 +261,9 @@ public sealed partial class World
         FrameHandle frame = QueryFrame(entity, "cast a ray");
         Double3 origin = CheckedOrigin(from);
         Double3 unit = CheckedSweep("A ray", direction, length);
-        chunk.PhysicsRequests.Add(new(Asker: entity, Frame: frame, Question: new RayQuestion(Origin: origin, Direction: unit, Length: length, Kind: kind), Query: query, Tag: tag));
+        chunk.PhysicsRequests.Add(new(Asker: entity, Frame: frame,
+            Question: new RayQuestion(Origin: origin, Direction: unit, Length: length, Kind: kind), Query: query,
+            Tag: tag));
     }
 
     /// <summary>
@@ -274,7 +277,9 @@ public sealed partial class World
         FrameHandle frame = QueryFrame(entity, "cast a shape");
         DPose pose = CheckedPose(shape: shape, pose: start, what: "A shape cast", parameter: nameof(start));
         Double3 unit = CheckedSweep("A shape cast", direction, length);
-        chunk.PhysicsRequests.Add(new(Asker: entity, Frame: frame, Question: new ShapeCastQuestion(Shape: shape, Start: pose, Direction: unit, Length: length), Query: query, Tag: tag));
+        chunk.PhysicsRequests.Add(new(Asker: entity, Frame: frame,
+            Question: new ShapeCastQuestion(Shape: shape, Start: pose, Direction: unit, Length: length), Query: query,
+            Tag: tag));
     }
 
     /// <summary>
@@ -286,7 +291,8 @@ public sealed partial class World
     {
         FrameHandle frame = QueryFrame(entity, "test an overlap");
         DPose checkedPose = CheckedPose(shape: shape, pose: pose, what: "An overlap query", parameter: nameof(pose));
-        chunk.PhysicsRequests.Add(new(Asker: entity, Frame: frame, Question: new OverlapQuestion(shape, checkedPose), Query: query, Tag: tag));
+        chunk.PhysicsRequests.Add(new(Asker: entity, Frame: frame, Question: new OverlapQuestion(shape, checkedPose),
+            Query: query, Tag: tag));
     }
 
     /// <summary>The frame that a query of <paramref name="entity"/> works in: the frame the entity is in.</summary>

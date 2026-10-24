@@ -188,7 +188,10 @@ public sealed class WalkerTests : IDisposable
             .Spinning(world, new(Tilt: DQuaternion.Identity, Rate: 0.1)));
         FrameHandle table = world.GetOwnedFrame(turntable);
         world.Spawn(new()
-            { Frame = table, Pose = At(30, -0.5), Body = new(Shape: new BoxShapeDesc(new(8, 0.5f, 8)), Motion: BodyMotion.Static) });
+        {
+            Frame = table, Pose = At(30, -0.5),
+            Body = new(Shape: new BoxShapeDesc(new(8, 0.5f, 8)), Motion: BodyMotion.Static)
+        });
         Waypoint[] path = [new(table, new(34, 0.9, 0)), new(table, new(34, 0.9, -4)), new(table, new(30, 0.9, -4))];
         Entity person = Person(table, new(30, 0.95, 0), path);
         Double3 start = world.PoseIn(person, space).Position;

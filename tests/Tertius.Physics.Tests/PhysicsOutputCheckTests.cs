@@ -14,7 +14,8 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public class PhysicsOutputCheckTests
 {
-    private static readonly BodyDesc PersonBody = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc PersonBody = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f),
+        Motion: BodyMotion.Character, Mass: 70);
 
     /// <summary>A dynamic box with sides of 2 · <paramref name="half"/> m that nothing slows down on its own and that does not bounce.</summary>
     private static BodyDesc BoxBody(float half, float mass) =>
@@ -136,7 +137,8 @@ public class PhysicsOutputCheckTests
     }
 
     private static HandOff HandOffOf(Entity entity, FrameHandle from, FrameHandle to) =>
-        new(Entity: entity, From: from, To: to, Pose: DPose.Identity, LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero);
+        new(Entity: entity, From: from, To: to, Pose: DPose.Identity, LinearVelocity: Vector3.Zero,
+            AngularVelocity: Vector3.Zero);
 
     private static ContactStarted ContactOf(Entity a, Entity b, FrameHandle frame) =>
         new(A: a, B: b, Frame: frame, Point: Double3.Zero, Normal: Vector3.UnitX, Impulse: 0);
@@ -158,7 +160,8 @@ public class PhysicsOutputCheckTests
         using var scene = new Scene();
 
         scene.ShouldRefuse(
-            output => output.Bodies.Add(new(Entity: scene.Ball, Frame: scene.Gone, Pose: DPose.Identity, LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero)),
+            output => output.Bodies.Add(new(Entity: scene.Ball, Frame: scene.Gone, Pose: DPose.Identity,
+                LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero)),
             $"*body state of {scene.Ball}*{scene.Gone}*");
     }
 
@@ -168,7 +171,8 @@ public class PhysicsOutputCheckTests
         using var scene = new Scene();
 
         scene.ShouldRefuse(
-            output => output.Bodies.Add(new(Entity: scene.Wreck, Frame: scene.Space, Pose: DPose.Identity, LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero)),
+            output => output.Bodies.Add(new(Entity: scene.Wreck, Frame: scene.Space, Pose: DPose.Identity,
+                LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero)),
             $"*body state of {scene.Wreck}*no longer exists*");
 
         scene.World.IsAlive(scene.Wreck).Should().BeFalse();
@@ -182,7 +186,8 @@ public class PhysicsOutputCheckTests
 
         scene.ShouldRefuse(
             output => output.Bodies.Add(
-                new(Entity: scene.Space.Entity, Frame: scene.Space, Pose: DPose.Identity, LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero)),
+                new(Entity: scene.Space.Entity, Frame: scene.Space, Pose: DPose.Identity, LinearVelocity: Vector3.Zero,
+                    AngularVelocity: Vector3.Zero)),
             $"*body state of {scene.Space.Entity}*has no body*");
     }
 
@@ -254,7 +259,8 @@ public class PhysicsOutputCheckTests
         using var scene = new Scene();
 
         scene.ShouldRefuse(
-            output => output.Frames.Add(StepRecords.Of(frame: scene.Drifter, pose: DPose.Identity, velocity: Double3.Zero, angularVelocity: Vector3.Zero,
+            output => output.Frames.Add(StepRecords.Of(frame: scene.Drifter, pose: DPose.Identity,
+                velocity: Double3.Zero, angularVelocity: Vector3.Zero,
                 measured: Vector3.Zero)),
             $"*step record of {scene.Drifter}*has no body*");
     }
@@ -265,7 +271,8 @@ public class PhysicsOutputCheckTests
         using var scene = new Scene();
 
         scene.ShouldRefuse(
-            output => output.Frames.Add(StepRecords.Of(frame: scene.Raft, pose: DPose.Identity, velocity: Double3.Zero, angularVelocity: Vector3.Zero,
+            output => output.Frames.Add(StepRecords.Of(frame: scene.Raft, pose: DPose.Identity, velocity: Double3.Zero,
+                angularVelocity: Vector3.Zero,
                 measured: Vector3.Zero)),
             $"*step record of {scene.Raft}*root frame*");
     }
@@ -290,7 +297,8 @@ public class PhysicsOutputCheckTests
         using var scene = new Scene();
 
         scene.ShouldRefuse(
-            output => output.Frames.Add(StepRecords.Of(frame: scene.Gone, pose: DPose.Identity, velocity: Double3.Zero, angularVelocity: Vector3.Zero,
+            output => output.Frames.Add(StepRecords.Of(frame: scene.Gone, pose: DPose.Identity, velocity: Double3.Zero,
+                angularVelocity: Vector3.Zero,
                 measured: Vector3.Zero)),
             $"*step record of the stale frame {scene.Gone}*");
     }
@@ -479,7 +487,8 @@ public class PhysicsOutputCheckTests
         FrameHandle ground = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), gravity));
         world.Spawn(new()
         {
-            Frame = ground, Pose = At(0, -0.5), Body = new(Shape: new BoxShapeDesc(new(100, 0.5f, 100)), Motion: BodyMotion.Static)
+            Frame = ground, Pose = At(0, -0.5),
+            Body = new(Shape: new BoxShapeDesc(new(100, 0.5f, 100)), Motion: BodyMotion.Static)
         });
         FrameHandle building = world.GetOwnedFrame(world.Spawn(new()
         {
@@ -488,7 +497,8 @@ public class PhysicsOutputCheckTests
         }));
         world.Spawn(new()
         {
-            Frame = building, Pose = At(0, -0.5), Body = new(Shape: new BoxShapeDesc(new(15, 0.5f, 15)), Motion: BodyMotion.Static)
+            Frame = building, Pose = At(0, -0.5),
+            Body = new(Shape: new BoxShapeDesc(new(15, 0.5f, 15)), Motion: BodyMotion.Static)
         });
         var pilot = new Pilot { EveryTick = body => body.MoveCharacter(new(4, 0, 0)) };
         Entity walker = world.Spawn(new()

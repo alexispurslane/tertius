@@ -44,12 +44,15 @@ internal sealed unsafe class GpuBuffer : IDisposable
             Usage = usage,
             SharingMode = SharingMode.Exclusive
         };
-        device.Vk.CreateBuffer(device: device.Device, pCreateInfo: &info, pAllocator: null, pBuffer: out Buffer buffer).Check("vkCreateBuffer");
+        device.Vk.CreateBuffer(device: device.Device, pCreateInfo: &info, pAllocator: null, pBuffer: out Buffer buffer)
+            .Check("vkCreateBuffer");
         try
         {
             device.Vk.GetBufferMemoryRequirements(device.Device, buffer, out MemoryRequirements requirements);
-            MemoryAllocation memory = allocator.Allocate(requirements: requirements, usage: memoryUsage, linear: true, name: name);
-            Result bind = device.Vk.BindBufferMemory(device: device.Device, buffer: buffer, memory: memory.Memory, memoryOffset: memory.Offset);
+            MemoryAllocation memory =
+                allocator.Allocate(requirements: requirements, usage: memoryUsage, linear: true, name: name);
+            Result bind = device.Vk.BindBufferMemory(device: device.Device, buffer: buffer, memory: memory.Memory,
+                memoryOffset: memory.Offset);
             if (bind != Result.Success)
             {
                 allocator.Free(memory);

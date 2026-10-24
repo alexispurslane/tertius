@@ -51,7 +51,9 @@ public sealed class FlightRecorder(FrameHandle station, WheelFloor floor, double
         double dt = self.DeltaTime;
         Release ??= new(place, self.VelocityIn(station));
         int n = places.Count;
-        bool free = n < 2 || Double3.Distance(place, Extend(before: places[n - 2], last: places[n - 1], dt: dt, time: dt)) <= FreeBound;
+        bool free = n < 2 ||
+                    Double3.Distance(place, Extend(before: places[n - 2], last: places[n - 1], dt: dt, time: dt)) <=
+                    FreeBound;
         bool above = floor.Height(place) > halfSize;
         places.Add(place);
         if (free && above)

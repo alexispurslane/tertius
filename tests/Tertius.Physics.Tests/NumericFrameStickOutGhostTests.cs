@@ -174,7 +174,8 @@ public partial class NumericFrameStickOutGhostTests
             Components = layout == Layout.ShipAndFarRock ? [rockLog] : [rockLog, new Thruster(RockBody.Mass)]
         });
         Tick(world, OnsetTicks);
-        return new(Layout: layout, Space: space, Owner: owner, Bubble: frame, Crate: crate, Rock: rock, CrateLog: crateLog, RockLog: rockLog);
+        return new(Layout: layout, Space: space, Owner: owner, Bubble: frame, Crate: crate, Rock: rock,
+            CrateLog: crateLog, RockLog: rockLog);
     }
 
     /// <summary>
@@ -300,7 +301,8 @@ public partial class NumericFrameStickOutGhostTests
         world.Errors.Should().BeEmpty();
         world.GetFrame(scene.Rock).Should().Be(scene.Space, "the rock never touched the bubble");
         world.GetFrame(scene.Crate).Should().Be(scene.Bubble, "the crate never left the bubble");
-        return new(HitTick: hitTick, HitInGhostHome: hitInGhostHome, HitMode: hitMode, Position: world.PoseIn(scene.Rock, scene.Space).Position,
+        return new(HitTick: hitTick, HitInGhostHome: hitInGhostHome, HitMode: hitMode,
+            Position: world.PoseIn(scene.Rock, scene.Space).Position,
             Velocity: world.VelocityIn(scene.Rock, scene.Space), RockNews: scene.RockLog.NewsOf(scene.Crate),
             CrateNews: scene.CrateLog.NewsOf(scene.Rock));
     }
@@ -626,7 +628,8 @@ public partial class NumericFrameStickOutGhostTests
 
         world.Errors.Should().BeEmpty();
         world.GetFrame(rock).Should().Be(planet, "the rock never touched the bubble");
-        return new(HitTick: hitTick, HitInHullHome: hitInHullHome, HitMode: hitMode, RockInStation: world.PoseIn(rock, station).Position, RockNews: rockLog.NewsOf(crate));
+        return new(HitTick: hitTick, HitInHullHome: hitInHullHome, HitMode: hitMode,
+            RockInStation: world.PoseIn(rock, station).Position, RockNews: rockLog.NewsOf(crate));
     }
 
     /// <summary>
@@ -737,7 +740,8 @@ public partial class NumericFrameStickOutGhostTests
             Components = [sensorLog]
         });
         (bool InExpectedHome, NumericMode Mode) contact =
-            WatchFirstContact(world: world, body: sensor, log: sensorLog, other: crate, expectedHome: () => world.PhysicsHomeOf(station), ticks: 200);
+            WatchFirstContact(world: world, body: sensor, log: sensorLog, other: crate,
+                expectedHome: () => world.PhysicsHomeOf(station), ticks: 200);
         world.Errors.Should().BeEmpty();
         world.GetFrame(crate).Should().Be(bubble, "the crate still sticks out of the station's bubble");
         return (sensorLog.NewsOf(crate), contact.InExpectedHome, contact.Mode, world.PhysicsHomeOf(sensor), space);
@@ -801,7 +805,8 @@ public partial class NumericFrameStickOutGhostTests
             Components = [rockLog]
         });
         (bool InExpectedHome, NumericMode Mode) contact =
-            WatchFirstContact(world: world, body: rock, log: rockLog, other: radar, expectedHome: () => world.PhysicsHomeOf(station), ticks: 120);
+            WatchFirstContact(world: world, body: rock, log: rockLog, other: radar,
+                expectedHome: () => world.PhysicsHomeOf(station), ticks: 120);
         world.Errors.Should().BeEmpty();
         world.GetFrame(rock).Should().Be(space, "the rock never touched the station's bubble");
         return (rockLog.NewsOf(radar), world.PoseIn(rock, space).Position, world.VelocityIn(rock, space),

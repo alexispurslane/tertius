@@ -232,7 +232,8 @@ public class BeginStepBenchmarks
     public void Setup()
     {
         uint next = 1;
-        FrameHandle root = frames.Create(frameOwner: new(next++, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
+        FrameHandle root = frames.Create(frameOwner: new(next++, 1), parent: FrameHandle.Null,
+            localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
         var spin = new FrameSpin(Tilt: DQuaternion.Identity, Rate: 0.1);
         var moves = new List<(uint Slot, FrameHandle Parent)>();
         for (int c = 0; c < Chains; c++)
@@ -241,7 +242,8 @@ public class BeginStepBenchmarks
             for (int level = 0; level < 3; level++)
             {
                 uint slot = next++;
-                parent = frames.Create(frameOwner: new(slot, 1), parent: parent, localPose: new(new(10, 0, 0), DQuaternion.Identity),
+                parent = frames.Create(frameOwner: new(slot, 1), parent: parent,
+                    localPose: new(new(10, 0, 0), DQuaternion.Identity),
                     frameBounds: FrameBounds.Sphere(1));
                 moves.Add((slot, frames.Parent(parent)));
             }

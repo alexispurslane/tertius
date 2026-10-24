@@ -52,7 +52,8 @@ public class PhysicsQuestionUnionTests
         null => "none"
     };
 
-    private static RayQuestion Ray(RayCastKind kind = RayCastKind.Nearest) => new(Origin: Start, Direction: Along, Length: 50, Kind: kind);
+    private static RayQuestion Ray(RayCastKind kind = RayCastKind.Nearest) =>
+        new(Origin: Start, Direction: Along, Length: 50, Kind: kind);
 
     private static ShapeCastQuestion Cast() => new(Shape: Ball, Start: StartPose, Direction: Along, Length: 50);
 
@@ -160,7 +161,9 @@ public class PhysicsQuestionUnionTests
     public void ARayKeepsADirectionThatIsNotUnitLengthAsItWasGiven()
     {
         // The union stores what it gets. The World checks and normalizes a request before it builds the question.
-        var question = new PhysicsQuestion(new RayQuestion(Origin: Start, Direction: new(0, 0, 7), Length: 5, Kind: RayCastKind.All));
+        var question =
+            new PhysicsQuestion(new RayQuestion(Origin: Start, Direction: new(0, 0, 7), Length: 5,
+                Kind: RayCastKind.All));
 
         question.TryGetValue(out RayQuestion held);
         held.Direction.Should().Be(new Double3(0, 0, 7));
@@ -179,7 +182,8 @@ public class PhysicsQuestionUnionTests
     [Fact]
     public void ABoxShapeSurvivesAShapeCastAndAnOverlap()
     {
-        new PhysicsQuestion(new ShapeCastQuestion(Shape: Crate, Start: StartPose, Direction: Along, Length: 9)).TryGetValue(out ShapeCastQuestion cast);
+        new PhysicsQuestion(new ShapeCastQuestion(Shape: Crate, Start: StartPose, Direction: Along, Length: 9))
+            .TryGetValue(out ShapeCastQuestion cast);
         new PhysicsQuestion(new OverlapQuestion(Crate, StartPose)).TryGetValue(out OverlapQuestion overlap);
 
         cast.Shape.Should().Be(Crate);
@@ -365,7 +369,8 @@ public class PhysicsQuestionUnionTests
         using var t = new TestWorld();
         Entity asker = t.SpawnAt(Double3.Zero);
         t.Run(1);
-        t.World.Entities.Chunks[0].PhysicsRequests.Add(new(Asker: asker, Frame: t.Root, Question: default, Query: default, Tag: 1));
+        t.World.Entities.Chunks[0].PhysicsRequests
+            .Add(new(Asker: asker, Frame: t.Root, Question: default, Query: default, Tag: 1));
 
 #if TERTIUS_CONTRACTS
         Action tick = () => t.Run(1);

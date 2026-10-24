@@ -22,7 +22,8 @@ public class InvariantHandOffTests
         FrameHandle gone = world.SpawnStaticFrame(test.Root, TestWorld.At(-500), radius: 5);
         Entity body = world.Spawn(new() { Frame = test.Root, Body = TestWorld.Ball });
         faults.EditNextOutput =
-            output => output.Bodies.Add(new(Entity: body, Frame: gone, Pose: TestWorld.At(3), LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero));
+            output => output.Bodies.Add(new(Entity: body, Frame: gone, Pose: TestWorld.At(3),
+                LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero));
         world.Destroy(gone.Entity).Should().BeTrue();
 
         Action tick = world.Tick;

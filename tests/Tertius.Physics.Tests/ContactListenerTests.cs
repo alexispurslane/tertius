@@ -21,7 +21,8 @@ public class ContactListenerTests
         LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>A static cube with sides of 1 m that does not bounce. Jolt takes the larger restitution of two bodies.</summary>
-    private static readonly BodyDesc WallDesc = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static, Restitution: 0);
+    private static readonly BodyDesc WallDesc = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static,
+        Restitution: 0);
 
     /// <summary>The backing fields of the binding's four contact events on <see cref="PhysicsSystem"/>.</summary>
     private static readonly FieldInfo[] BindingContactEvents =
@@ -46,7 +47,8 @@ public class ContactListenerTests
     {
         public Walls()
         {
-            World = WorldTestingGrowth.NewWorldWithFaultsAndSmallSystems(maxBodiesPerFrame: 8, faults: out FaultInjectingBackend faults, warnings: Warnings);
+            World = WorldTestingGrowth.NewWorldWithFaultsAndSmallSystems(maxBodiesPerFrame: 8,
+                faults: out FaultInjectingBackend faults, warnings: Warnings);
             Backend = faults.Jolt;
             Space = Ground(World, 0);
             NearWall = World.Spawn(new() { Frame = Space, Pose = At(1.01), Body = WallDesc });
@@ -171,7 +173,8 @@ public class ContactListenerTests
         foreach (double x in new[] { 0.0, 0.9 })
         {
             using BodyCreationSettings settings = NativeOwnership.Owned(new BodyCreationSettings(shape: cube,
-                position: new RVector3(x, 0, 0), rotation: Quaternion.Identity, motionType: MotionType.Dynamic, objectLayer: moving));
+                position: new RVector3(x, 0, 0), rotation: Quaternion.Identity, motionType: MotionType.Dynamic,
+                objectLayer: moving));
             system.BodyInterface.CreateAndAddBody(settings, Activation.Activate);
         }
 
@@ -266,7 +269,10 @@ public class ContactAllocationTests
             Components = [blockContacts]
         });
         world.Spawn(new()
-            { Frame = space, Pose = At(13.75), Body = new(Shape: new BoxShapeDesc(new(0.25f, 1, 1)), Motion: BodyMotion.Static) });
+        {
+            Frame = space, Pose = At(13.75),
+            Body = new(Shape: new BoxShapeDesc(new(0.25f, 1, 1)), Motion: BodyMotion.Static)
+        });
         var bouncy = new BodyDesc(Shape: new SphereShapeDesc(0.1f), Mass: 1, Restitution: 1, LinearDamping: 0,
             AngularDamping: 0);
         for (int i = 0; i < 16; i++)

@@ -99,7 +99,8 @@ public sealed partial class World
         }
 
         Profile.Lap(23);
-        Frames.UpdateNumericFrames(bodies: CollectionsMarshal.AsSpan(numericBodies), dt: dt, step: DeltaTime, changes: physicsChanges,
+        Frames.UpdateNumericFrames(bodies: CollectionsMarshal.AsSpan(numericBodies), dt: dt, step: DeltaTime,
+            changes: physicsChanges,
             applyMoves: applyNumericMoves ??= ApplyNumericMoves);
         Profile.Lap(24);
         ApplyPhysicsChanges();

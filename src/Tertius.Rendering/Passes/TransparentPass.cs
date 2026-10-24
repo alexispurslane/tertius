@@ -108,7 +108,8 @@ internal sealed unsafe class TransparentPass : RenderPass
                         break;
                     case PuffSprites(var first, var count):
                         Bind(vk: vk, commandBuffer: commandBuffer, bound: ref bound, wanted: puffPipeline);
-                        vk.CmdDraw(commandBuffer: commandBuffer, vertexCount: 6, instanceCount: (uint)count, firstVertex: 0, firstInstance: (uint)first);
+                        vk.CmdDraw(commandBuffer: commandBuffer, vertexCount: 6, instanceCount: (uint)count,
+                            firstVertex: 0, firstInstance: (uint)first);
                         break;
                     default:
                         throw new UnreachableException(

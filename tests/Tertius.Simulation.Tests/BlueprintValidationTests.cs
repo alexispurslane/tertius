@@ -36,23 +36,31 @@ public class BlueprintValidationTests
     private static (Blueprint Blueprint, string MessageHas) Invalid(string problem) => problem switch
     {
         "unknown field" => (new(Name: "x", Components: [new(typeof(Health), Fields(("Maximum", 1f)))]), "Maximum"),
-        "field name in the wrong case" => (new(Name: "x", Components: [new(typeof(Health), Fields(("max", 1f)))]), "max"),
+        "field name in the wrong case" => (new(Name: "x", Components: [new(typeof(Health), Fields(("max", 1f)))]),
+            "max"),
         "string for a number" => (new(Name: "x", Components: [new(typeof(Health), Fields(("Max", "lots")))]), "Max"),
         "number for a string" => (new(Name: "x", Components: [new(typeof(Health), Fields(("Name", 5)))]), "Name"),
-        "null for a value type" => (new(Name: "x", Components: [new(typeof(Health), Fields(("Max", null)))]), "cannot be null"),
-        "number too large for the field" => (new(Name: "x", Components: [new(typeof(Radio), Fields(("Channel", 1e20)))]), "Channel"),
+        "null for a value type" => (new(Name: "x", Components: [new(typeof(Health), Fields(("Max", null)))]),
+            "cannot be null"),
+        "number too large for the field" => (
+            new(Name: "x", Components: [new(typeof(Radio), Fields(("Channel", 1e20)))]), "Channel"),
         "unknown enum name" => (new(Name: "x", Components: [new(typeof(Health), Fields(("Side", "Pirates")))]), "Side"),
-        "enum name in the wrong case" => (new(Name: "x", Components: [new(typeof(Health), Fields(("Side", "rebel")))]), "Side"),
+        "enum name in the wrong case" => (new(Name: "x", Components: [new(typeof(Health), Fields(("Side", "rebel")))]),
+            "Side"),
         "read-only field" => (new(Name: "x", Components: [new(typeof(Sealed), Fields(("Fixed", 4)))]), "Fixed"),
-        "property without a setter" => (new(Name: "x", Components: [new(typeof(Labelled), Fields(("Computed", 1)))]), "Computed"),
-        "property with a private setter" => (new(Name: "x", Components: [new(typeof(Labelled), Fields(("Locked", 1)))]), "Locked"),
+        "property without a setter" => (new(Name: "x", Components: [new(typeof(Labelled), Fields(("Computed", 1)))]),
+            "Computed"),
+        "property with a private setter" => (new(Name: "x", Components: [new(typeof(Labelled), Fields(("Locked", 1)))]),
+            "Locked"),
         "constant" => (new(Name: "x", Components: [new(typeof(Labelled), Fields(("Limit", 1)))]), "Limit"),
         "static field" => (new(Name: "x", Components: [new(typeof(Labelled), Fields(("Counter", 1)))]), "Counter"),
-        "non-public field" => (new(Name: "x", Components: [new(typeof(Labelled), Fields(("Internal", 1)))]), "Internal"),
+        "non-public field" => (new(Name: "x", Components: [new(typeof(Labelled), Fields(("Internal", 1)))]),
+            "Internal"),
         "type that is not a component" => (new(Name: "x", Components: [new(typeof(string))]), "IComponent"),
         "abstract component" => (new(Name: "x", Components: [new(typeof(AbstractComponent))]), "concrete class"),
         "struct component" => (new(Name: "x", Components: [new(typeof(ValueComponent))]), "concrete class"),
-        "open generic component" => (new(Name: "x", Components: [new(EmittedComponents.OpenGeneric)]), "concrete class"),
+        "open generic component" => (new(Name: "x", Components: [new(EmittedComponents.OpenGeneric)]),
+            "concrete class"),
         "component with no parameterless constructor" => (new(Name: "x", Components: [new(typeof(NeedsArgument))]),
             "parameterless constructor"),
         "component with no public constructor" => (new(Name: "x", Components: [new(typeof(HiddenConstructor))]),
@@ -229,7 +237,8 @@ public class BlueprintValidationTests
     {
         var blueprints = new Blueprints();
         var spec = new FrameSpec(FrameBounds.Sphere(30));
-        blueprints.Register(new(Name: "hull", Components: [], Body: TestWorld.Ball, Render: new RenderData { Mesh = new(6) }, Frame: spec));
+        blueprints.Register(new(Name: "hull", Components: [], Body: TestWorld.Ball,
+            Render: new RenderData { Mesh = new(6) }, Frame: spec));
 
         SpawnDesc desc = blueprints.CreateSpawnDesc("hull", default, DPose.Identity);
 

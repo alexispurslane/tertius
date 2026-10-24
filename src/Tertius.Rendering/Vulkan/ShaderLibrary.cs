@@ -26,7 +26,8 @@ internal sealed unsafe class ShaderLibrary(VulkanDevice device) : IDisposable
                 CodeSize = (nuint)code.Length,
                 PCode = (uint*)p
             };
-            device.Vk.CreateShaderModule(device: device.Device, pCreateInfo: &info, pAllocator: null, pShaderModule: out module).Check($"vkCreateShaderModule({file})");
+            device.Vk.CreateShaderModule(device: device.Device, pCreateInfo: &info, pAllocator: null,
+                pShaderModule: out module).Check($"vkCreateShaderModule({file})");
         }
 
         device.SetName(ObjectType.ShaderModule, module.Handle, file);

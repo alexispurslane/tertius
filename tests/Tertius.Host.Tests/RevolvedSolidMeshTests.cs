@@ -37,9 +37,11 @@ public sealed class RevolvedSolidMeshTests
     private static MeshData Cylinder() =>
         RevolvedSolid.Cylinder(CylinderRadius, CylinderHalfHeight, CylinderSegments).Mesh();
 
-    private static MeshData Ring() => RevolvedSolid.Ring(innerRadius: RingInner, outerRadius: RingOuter, halfWidth: RingHalfWidth, segments: RingSegments).Mesh();
+    private static MeshData Ring() => RevolvedSolid.Ring(innerRadius: RingInner, outerRadius: RingOuter,
+        halfWidth: RingHalfWidth, segments: RingSegments).Mesh();
 
-    private static MeshData Torus() => RevolvedSolid.Torus(majorRadius: TorusMajor, minorRadius: TorusMinor, segments: TorusSegments, sides: TorusSides).Mesh();
+    private static MeshData Torus() => RevolvedSolid.Torus(majorRadius: TorusMajor, minorRadius: TorusMinor,
+        segments: TorusSegments, sides: TorusSides).Mesh();
 
     /// <summary>The distance of <paramref name="p"/> from the Y axis.</summary>
     private static float Rho(Vector3 p) => MathF.Sqrt(p.X * p.X + p.Z * p.Z);
@@ -274,7 +276,8 @@ public sealed class RevolvedSolidMeshTests
     public void ARingWithoutAHoleAThicknessAWidthOrThreeSegmentsIsAnError(float inner, float outer, float halfWidth,
         int segments)
     {
-        Action build = () => RevolvedSolid.Ring(innerRadius: inner, outerRadius: outer, halfWidth: halfWidth, segments: segments);
+        Action build = () =>
+            RevolvedSolid.Ring(innerRadius: inner, outerRadius: outer, halfWidth: halfWidth, segments: segments);
 
         build.Should().Throw<ArgumentOutOfRangeException>();
     }
@@ -289,7 +292,8 @@ public sealed class RevolvedSolidMeshTests
         int sides)
     {
         // A segment's hull has two corners for each side, and Jolt keeps at most 256 points in a convex hull.
-        Action build = () => RevolvedSolid.Torus(majorRadius: major, minorRadius: minor, segments: segments, sides: sides);
+        Action build = () =>
+            RevolvedSolid.Torus(majorRadius: major, minorRadius: minor, segments: segments, sides: sides);
 
         build.Should().Throw<ArgumentOutOfRangeException>();
     }

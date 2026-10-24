@@ -53,7 +53,8 @@ internal sealed unsafe class TextureStore : IDisposable
             MinLod = 0f,
             MaxLod = Vk.LodClampNone
         };
-        device.Vk.CreateSampler(device: device.Device, pCreateInfo: &info, pAllocator: null, pSampler: out Sampler sampler).Check("vkCreateSampler");
+        device.Vk.CreateSampler(device: device.Device, pCreateInfo: &info, pAllocator: null,
+            pSampler: out Sampler sampler).Check("vkCreateSampler");
         device.SetName(ObjectType.Sampler, sampler.Handle, "material sampler");
         MaterialSampler = sampler;
     }
@@ -87,9 +88,12 @@ internal sealed unsafe class TextureStore : IDisposable
         if (images.Count == 0)
         {
             // In slot order: White, FlatNormal, DefaultSpecularGloss.
-            Add(commandBuffer: commandBuffer, data: new(Width: 1, Height: 1, Rgba: [255, 255, 255, 255], Srgb: true), name: "default white", staging: staging, barriers: barriers);
-            Add(commandBuffer: commandBuffer, data: new(Width: 1, Height: 1, Rgba: [128, 128, 255, 255], Srgb: false), name: "default normal", staging: staging, barriers: barriers);
-            Add(commandBuffer: commandBuffer, data: new(Width: 1, Height: 1, Rgba: [255, 255, 0, 255], Srgb: false), name: "default specular-gloss", staging: staging, barriers: barriers);
+            Add(commandBuffer: commandBuffer, data: new(Width: 1, Height: 1, Rgba: [255, 255, 255, 255], Srgb: true),
+                name: "default white", staging: staging, barriers: barriers);
+            Add(commandBuffer: commandBuffer, data: new(Width: 1, Height: 1, Rgba: [128, 128, 255, 255], Srgb: false),
+                name: "default normal", staging: staging, barriers: barriers);
+            Add(commandBuffer: commandBuffer, data: new(Width: 1, Height: 1, Rgba: [255, 255, 0, 255], Srgb: false),
+                name: "default specular-gloss", staging: staging, barriers: barriers);
         }
 
         foreach ((TextureId id, TextureData data) in pending)
@@ -97,7 +101,8 @@ internal sealed unsafe class TextureStore : IDisposable
             // The upload queue hands out dense ids under one lock and drains them in order, so each id names the next
             // slot. If that broke, a material would sample another texture.
             Contract.Assert(Slot(id) == images.Count);
-            Add(commandBuffer: commandBuffer, data: data, name: $"texture {id.Value}", staging: staging, barriers: barriers);
+            Add(commandBuffer: commandBuffer, data: data, name: $"texture {id.Value}", staging: staging,
+                barriers: barriers);
         }
     }
 
@@ -112,43 +117,53 @@ internal sealed unsafe class TextureStore : IDisposable
         uint levels = mips ? (uint)BitOperations.Log2((uint)Math.Max(data.Width, data.Height)) + 1 : 1;
         var extent = new Extent2D((uint)data.Width, (uint)data.Height);
         var image = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: format,
-            usage: ImageUsageFlags.SampledBit | ImageUsageFlags.TransferDstBit | ImageUsageFlags.TransferSrcBit, mipLevels: levels, name: name);
+            usage: ImageUsageFlags.SampledBit | ImageUsageFlags.TransferDstBit | ImageUsageFlags.TransferSrcBit,
+            mipLevels: levels, name: name);
         images.Add(image);
 
         StagingSlice stage = staging.Allocate((ulong)data.Rgba.Length);
         data.Rgba.CopyTo(stage.Bytes);
 
         Vk vk = device.Vk;
-        barriers.ImageLevels(image: image, baseMip: 0, mipCount: levels, oldLayout: ImageLayout.Undefined, newLayout: ImageLayout.TransferDstOptimal,
-            srcStages: PipelineStageFlags2.None, srcAccess: AccessFlags2.None, dstStages: PipelineStageFlags2.AllTransferBit,
+        barriers.ImageLevels(image: image, baseMip: 0, mipCount: levels, oldLayout: ImageLayout.Undefined,
+            newLayout: ImageLayout.TransferDstOptimal,
+            srcStages: PipelineStageFlags2.None, srcAccess: AccessFlags2.None,
+            dstStages: PipelineStageFlags2.AllTransferBit,
             dstAccess: AccessFlags2.TransferWriteBit);
         barriers.Flush(vk, commandBuffer);
         var region = new BufferImageCopy
         {
             BufferOffset = stage.Offset,
-            ImageSubresource = new(aspectMask: ImageAspectFlags.ColorBit, mipLevel: 0, baseArrayLayer: 0, layerCount: 1),
+            ImageSubresource =
+                new(aspectMask: ImageAspectFlags.ColorBit, mipLevel: 0, baseArrayLayer: 0, layerCount: 1),
             ImageExtent = new(extent.Width, extent.Height, 1)
         };
-        vk.CmdCopyBufferToImage(commandBuffer: commandBuffer, srcBuffer: stage.Buffer.Handle, dstImage: image.Handle, dstImageLayout: ImageLayout.TransferDstOptimal, regionCount: 1,
+        vk.CmdCopyBufferToImage(commandBuffer: commandBuffer, srcBuffer: stage.Buffer.Handle, dstImage: image.Handle,
+            dstImageLayout: ImageLayout.TransferDstOptimal, regionCount: 1,
             pRegions: &region);
 
         // Each level is blitted from the one above it, which first becomes a transfer source.
         int width = data.Width, height = data.Height;
         for (uint level = 1; level < levels; level++)
         {
-            barriers.ImageLevels(image: image, baseMip: level - 1, mipCount: 1, oldLayout: ImageLayout.TransferDstOptimal, newLayout: ImageLayout.TransferSrcOptimal,
-                srcStages: PipelineStageFlags2.AllTransferBit, srcAccess: AccessFlags2.TransferWriteBit, dstStages: PipelineStageFlags2.AllTransferBit,
+            barriers.ImageLevels(image: image, baseMip: level - 1, mipCount: 1,
+                oldLayout: ImageLayout.TransferDstOptimal, newLayout: ImageLayout.TransferSrcOptimal,
+                srcStages: PipelineStageFlags2.AllTransferBit, srcAccess: AccessFlags2.TransferWriteBit,
+                dstStages: PipelineStageFlags2.AllTransferBit,
                 dstAccess: AccessFlags2.TransferReadBit);
             barriers.Flush(vk, commandBuffer);
             int nextWidth = Math.Max(1, width / 2), nextHeight = Math.Max(1, height / 2);
             var blit = new ImageBlit
             {
-                SrcSubresource = new(aspectMask: ImageAspectFlags.ColorBit, mipLevel: level - 1, baseArrayLayer: 0, layerCount: 1),
-                DstSubresource = new(aspectMask: ImageAspectFlags.ColorBit, mipLevel: level, baseArrayLayer: 0, layerCount: 1)
+                SrcSubresource = new(aspectMask: ImageAspectFlags.ColorBit, mipLevel: level - 1, baseArrayLayer: 0,
+                    layerCount: 1),
+                DstSubresource = new(aspectMask: ImageAspectFlags.ColorBit, mipLevel: level, baseArrayLayer: 0,
+                    layerCount: 1)
             };
             blit.SrcOffsets[1] = new(width, height, 1);
             blit.DstOffsets[1] = new(nextWidth, nextHeight, 1);
-            vk.CmdBlitImage(commandBuffer: commandBuffer, srcImage: image.Handle, srcImageLayout: ImageLayout.TransferSrcOptimal, dstImage: image.Handle,
+            vk.CmdBlitImage(commandBuffer: commandBuffer, srcImage: image.Handle,
+                srcImageLayout: ImageLayout.TransferSrcOptimal, dstImage: image.Handle,
                 dstImageLayout: ImageLayout.TransferDstOptimal, regionCount: 1, pRegions: &blit, filter: Filter.Linear);
             width = nextWidth;
             height = nextHeight;
@@ -156,12 +171,16 @@ internal sealed unsafe class TextureStore : IDisposable
 
         // Every level but the last is a transfer source now; the last is still a transfer destination.
         if (levels > 1)
-            barriers.ImageLevels(image: image, baseMip: 0, mipCount: levels - 1, oldLayout: ImageLayout.TransferSrcOptimal,
+            barriers.ImageLevels(image: image, baseMip: 0, mipCount: levels - 1,
+                oldLayout: ImageLayout.TransferSrcOptimal,
                 newLayout: ImageLayout.ShaderReadOnlyOptimal,
-                srcStages: PipelineStageFlags2.AllTransferBit, srcAccess: AccessFlags2.TransferReadBit, dstStages: PipelineStageFlags2.FragmentShaderBit,
+                srcStages: PipelineStageFlags2.AllTransferBit, srcAccess: AccessFlags2.TransferReadBit,
+                dstStages: PipelineStageFlags2.FragmentShaderBit,
                 dstAccess: AccessFlags2.ShaderSampledReadBit);
-        barriers.ImageLevels(image: image, baseMip: levels - 1, mipCount: 1, oldLayout: ImageLayout.TransferDstOptimal, newLayout: ImageLayout.ShaderReadOnlyOptimal,
-            srcStages: PipelineStageFlags2.AllTransferBit, srcAccess: AccessFlags2.TransferWriteBit, dstStages: PipelineStageFlags2.FragmentShaderBit,
+        barriers.ImageLevels(image: image, baseMip: levels - 1, mipCount: 1, oldLayout: ImageLayout.TransferDstOptimal,
+            newLayout: ImageLayout.ShaderReadOnlyOptimal,
+            srcStages: PipelineStageFlags2.AllTransferBit, srcAccess: AccessFlags2.TransferWriteBit,
+            dstStages: PipelineStageFlags2.FragmentShaderBit,
             dstAccess: AccessFlags2.ShaderSampledReadBit);
         barriers.Flush(vk, commandBuffer);
         image.State = ResourceUses.Describe(ImageUse.SampledFragment);

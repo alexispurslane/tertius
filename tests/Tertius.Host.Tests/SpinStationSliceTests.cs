@@ -69,9 +69,12 @@ internal sealed record SpinStationSample(
         Entity thrown = live.FirstOrDefault(e =>
             world.GetComponent<Crate>(e) != null && !scene.TryGetEntity(scene.IdOf(e), out _));
         return new(Tick: world.TickNumber, Time: world.Time, Station: world.Frames.Relative(station, space),
-            Person: SpinStationBody.Take(world: world, entity: person, space: space, station: station), Standing: world.IsStanding(person),
+            Person: SpinStationBody.Take(world: world, entity: person, space: space, station: station),
+            Standing: world.IsStanding(person),
             Dropped: SpinStationBody.Take(world: world, entity: scene["dropped-crate"], space: space, station: station),
-            Thrown: thrown.IsNull ? null : SpinStationBody.Take(world: world, entity: thrown, space: space, station: station));
+            Thrown: thrown.IsNull
+                ? null
+                : SpinStationBody.Take(world: world, entity: thrown, space: space, station: station));
     }
 }
 
@@ -376,7 +379,8 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
         Double3 velocity = start.Station.Rotation.Rotate(-Outward(x0) * PersonControl.JumpSpeed)
                            + Double3.Cross(new(0, Omega, 0), start.Person.Inertial - start.Station.Position);
         double plane = FacetDistance - SpinStation.StandingHeight;
-        (double time, Double3 place) = Landing(at: start.Station, start: start.Person.Inertial, velocity: velocity, normal: normal, distance: plane, from: 1e-3, until: 3);
+        (double time, Double3 place) = Landing(at: start.Station, start: start.Person.Inertial, velocity: velocity,
+            normal: normal, distance: plane, from: 1e-3, until: 3);
 
         List<Double3> places = [.. Samples.Select(s => s.Person.Inertial)];
         int landed = FirstConstrainedStep(places, jump + 3);
@@ -413,7 +417,8 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
         body.LinearDamping.Should().Be(0.05f, "the dropped crate has Jolt's default damping");
         SpinStationSample release = Samples[0];
         Double3 velocity = Double3.Cross(new(0, Omega, 0), release.Dropped.Inertial - release.Station.Position);
-        var path = new ExpectedPath(place: release.Dropped.Inertial, damping: body.LinearDamping, dt: (float)Dt, lastMove: velocity * Dt);
+        var path = new ExpectedPath(place: release.Dropped.Inertial, damping: body.LinearDamping, dt: (float)Dt,
+            lastMove: velocity * Dt);
         Double3 normal = FacetNormal(release.Dropped.InStation);
         double plane = FacetDistance - SpinStation.CrateHalfSize;
 
@@ -574,16 +579,19 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
         double depth = -local.Z,
             tanY = Math.Tan(run.World.VerticalFov / 2),
             tanX = tanY * run.Script.Window!.Width / run.Script.Window.Height;
-        return new(X: local.X / depth / tanX, Y: local.Y / depth / tanY, HalfWidth: halfWidth / depth / tanX, HalfHeight: halfHeight / depth / tanY,
+        return new(X: local.X / depth / tanX, Y: local.Y / depth / tanY, HalfWidth: halfWidth / depth / tanX,
+            HalfHeight: halfHeight / depth / tanY,
             Depth: depth);
     }
 
     /// <summary>The person's box on the screen: its drawn box, 0.3 m to each side and 0.9 m up and down from its center.</summary>
-    private ScreenBox PersonOnScreen(string view, int tick) => OnScreen(view: view, place: Samples[tick].Person.InStation, halfWidth: 0.3, halfHeight: 0.9);
+    private ScreenBox PersonOnScreen(string view, int tick) => OnScreen(view: view,
+        place: Samples[tick].Person.InStation, halfWidth: 0.3, halfHeight: 0.9);
 
     /// <summary>A crate's box on the screen: its bounding sphere, so that every turn of the crate lies inside the box.</summary>
     private ScreenBox CrateOnScreen(string view, Double3 place) =>
-        OnScreen(view: view, place: place, halfWidth: SpinStation.CrateHalfSize * Math.Sqrt(3), halfHeight: SpinStation.CrateHalfSize * Math.Sqrt(3));
+        OnScreen(view: view, place: place, halfWidth: SpinStation.CrateHalfSize * Math.Sqrt(3),
+            halfHeight: SpinStation.CrateHalfSize * Math.Sqrt(3));
 
     /// <summary>The distance along the floor from the angle of the station's +X to <paramref name="place"/>, in meters, growing spinward.</summary>
     private static double AlongFloor(Double3 place) => Math.Atan2(-place.Z, place.X) * SpinStation.FloorRadius;
@@ -654,7 +662,8 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
         // The screen's spinward side: where a point a meter spinward of the takeoff shows.
         double theta = Theta(from) + 1 / SpinStation.FloorRadius, radius = Math.Sqrt(from.X * from.X + from.Z * from.Z);
         double spinwardOnScreen = Math.Sign(
-            OnScreen(view: takeoff.Value.View, place: new(radius * Math.Cos(theta), from.Y, -radius * Math.Sin(theta)), halfWidth: 0, halfHeight: 0).X
+            OnScreen(view: takeoff.Value.View, place: new(radius * Math.Cos(theta), from.Y, -radius * Math.Sin(theta)),
+                halfWidth: 0, halfHeight: 0).X
             - OnScreen(view: takeoff.Value.View, place: from, halfWidth: 0, halfHeight: 0).X);
         ScreenBox before = PersonOnScreen(takeoff.Value.View, takeoff.Value.Tick),
             after = PersonOnScreen(landed.Value.View, landed.Value.Tick);

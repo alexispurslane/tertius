@@ -108,7 +108,8 @@ public static partial class DemoScenes
                 Pose = InYard(0, PersonDistance),
                 LinearVelocity = Drift,
                 Body = new(Shape: PersonShape, Motion: BodyMotion.Character, Mass: PersonMass),
-                Render = Drawn(resources: resources, mesh: Primitives.Box(new(0.3f, 0.9f, 0.3f)), color: new(x: 0.2f, y: 0.45f, z: 0.8f, w: 1),
+                Render = Drawn(resources: resources, mesh: Primitives.Box(new(0.3f, 0.9f, 0.3f)),
+                    color: new(x: 0.2f, y: 0.45f, z: 0.8f, w: 1),
                     boundingRadius: 1),
                 Components = [new PersonControl(new(0, 0.75f, 0))],
                 Subscriptions = [Topics.Input]
