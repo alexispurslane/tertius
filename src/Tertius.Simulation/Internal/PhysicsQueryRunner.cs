@@ -336,8 +336,10 @@ internal sealed class PhysicsQueryRunner(
                 foreach (Entity found in overlapped)
                     hits.Add(new(Entity: found, Distance: 0, Point: default, Normal: default));
                 return;
-            default:
+            case null:
                 throw new UnreachableException("Run refuses a request without a question before it walks.");
+            default:
+                throw new UnreachableException();
         }
 
         if (request.Question.FirstHitOnly && hits.Count > 1)

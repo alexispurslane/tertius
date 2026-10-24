@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 
 namespace Tertius.Simulation.Tests;
@@ -432,9 +433,11 @@ internal static class InvariantCrossChecks
                         break;
                     case Broadcast:
                         break;
-                    default:
+                    case null:
                         report($"{entity} got {e}, which has no target.");
                         break;
+                    default:
+                        throw new UnreachableException();
                 }
             }
         }

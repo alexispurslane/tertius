@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 using Tertius.Frames.Rails;
 using Tertius.Simulation;
@@ -79,8 +80,11 @@ public sealed class MotionIntentGuardTests
             case SteerTarget steer:
                 self.Body.SteerTo(steer.Pose);
                 break;
+            case null:
+                // Move gives a case for every write.
+                throw new UnreachableException("The motion intent is empty.");
             default:
-                throw new ArgumentException($"The motion intent {move} has no writer here.", nameof(move));
+                throw new UnreachableException();
         }
     }
 

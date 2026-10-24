@@ -17,7 +17,7 @@ public sealed class StyleAnalyzer : DiagnosticAnalyzer
         StyleRules.PositionalDeconstruction, StyleRules.DefaultMethodNotInlined, StyleRules.UnsealedClass,
         StyleRules.DeepInheritance, StyleRules.Finalizer, StyleRules.TryMethodShape, StyleRules.UndisposedLocal,
         StyleRules.NestedConditional, StyleRules.CopiedGenericStruct, StyleRules.BoxedGenericStruct,
-        StyleRules.HelperClass
+        StyleRules.HelperClass, StyleRules.UnnamedCase
     ];
 
     /// <inheritdoc/>
@@ -46,6 +46,7 @@ public sealed class StyleAnalyzer : DiagnosticAnalyzer
             OperationKind.PropertyReference);
         context.RegisterOperationAction(GenericStructs.AnalyzeConversion, OperationKind.Conversion);
         context.RegisterSymbolAction(HelperClasses.Analyze, SymbolKind.NamedType);
+        context.RegisterCompilationStartAction(SwitchStatements.Start);
     }
 
     private static void AnalyzeArgumentList(SyntaxNodeAnalysisContext context)

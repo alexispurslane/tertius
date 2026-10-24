@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 using JoltPhysicsSharp;
 using Tertius.Frames.Rails;
@@ -1160,10 +1161,12 @@ public sealed partial class JoltPhysicsBackend
                 plain = chord.Velocity.ToVector3();
                 plainBehind = behind = chord.Velocity;
                 break;
-            default:
+            case null:
                 // Only a bug leaves the case out: the update builds one for every character.
                 Contract.Assert(false, "a walking character's update needs the case of its start velocity");
                 return Vector3.Zero;
+            default:
+                throw new UnreachableException();
         }
 
         plain += gravity * dt;

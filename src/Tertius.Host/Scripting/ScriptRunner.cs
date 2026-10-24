@@ -76,8 +76,11 @@ public static class ScriptRunner
                             !Capture(film.Step.FrameName(frame), film.Where, frame))
                             return new(dumps, captures, stopped: true);
                     break;
+                case null:
+                    // MakeReady makes a ready step of every script step.
+                    throw new UnreachableException($"The ready step {i + 1} is empty.");
                 default:
-                    throw new InvalidOperationException($"The runner has no arm for the step {step}.");
+                    throw new UnreachableException();
             }
         }
 
@@ -185,8 +188,11 @@ public static class ScriptRunner
                 case OutlinesStep outlines:
                     ready[i] = new ReadyOutlines(outlines.Show);
                     break;
+                case null:
+                    // CheckSteps refuses a null step.
+                    throw new UnreachableException($"The {where} is null.");
                 default:
-                    throw new InvalidOperationException($"The runner has no arm for the step {step}.");
+                    throw new UnreachableException();
             }
         }
 

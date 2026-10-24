@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 
 namespace Tertius.Demo;
@@ -515,7 +516,7 @@ public sealed partial class LoftedHull
                 break;
             }
             default:
-                throw new InvalidOperationException($"Unknown pane {pane}.");
+                throw new UnreachableException();
         }
 
         Double3[] outer = MovedIn(outerPanel, distances, normal), inner = MovedIn(innerPanel, distances, normal);

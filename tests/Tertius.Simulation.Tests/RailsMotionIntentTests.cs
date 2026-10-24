@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using AwesomeAssertions;
 using Tertius.Frames.Rails;
 
@@ -516,8 +517,11 @@ public sealed class RailsMotionIntentTests
             case MotionSample sample:
                 self.MoveOnRails(sample);
                 break;
+            case null:
+                // Case gives a case for every kind.
+                throw new UnreachableException($"The motion intent of {kind} is empty.");
             default:
-                throw new ArgumentOutOfRangeException(nameof(kind), kind, "no writer for this case");
+                throw new UnreachableException();
         }
     }
 

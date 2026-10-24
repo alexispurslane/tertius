@@ -1,6 +1,6 @@
 # C# style for Tertius
 
-This guide covers the code in `src`. The code in `tests` has its own guide, [tests/STYLE.md](tests/STYLE.md). The guide holds the rules that no tool enforces, and names the tool for the rules that one does. The style analyzer's rules, `TS0001` to `TS0014` (ARCHITECTURE.md, "Style analyzer"), are each a warning, an error through `TreatWarningsAsErrors`, so a hit fails the build. `.editorconfig` and `tools/cleanup.sh` own formatting, member layout, `using` order and the modern syntax fixes.
+This guide covers the code in `src`. The code in `tests` has its own guide, [tests/STYLE.md](tests/STYLE.md). The guide holds the rules that no tool enforces, and names the tool for the rules that one does. The style analyzer's rules, `TS0001` to `TS0015` (ARCHITECTURE.md, "Style analyzer"), are each a warning, an error through `TreatWarningsAsErrors`, so a hit fails the build. `.editorconfig` and `tools/cleanup.sh` own formatting, member layout, `using` order and the modern syntax fixes.
 
 When a reason can beat a rule, the rule says "prefer". When nothing beats a rule, it says "always" or "never". Most examples are real code from `src`. An example that starts with the comment `// Sketch` shows the form with made-up names.
 
@@ -152,11 +152,11 @@ Never use `!` to silence the compiler (tool: TS0003). Generated code that reads 
 
 ### Switches
 
-These rules come from ARCHITECTURE.md, "Switches over closed sets". The build enforces the first one.
+These rules come from ARCHITECTURE.md, "Switches over closed sets". The build enforces the first and the third.
 
 - A switch over a closed set has no discard arm, so a new case fails the build.
 - A switch that chooses a value is a switch expression. A union switch ends in a `null` arm. The compiler never asks for that arm, and without it the empty value throws.
-- A switch statement names its quiet cases and throws `UnreachableException` in its default case. The cleanup deletes an empty default case, and a missing case then fails the build.
+- A switch statement over a closed set names every case, the quiet cases too, in a label without a guard. A union without a zero case also names `null`. The default case only throws `UnreachableException` (tool: TS0015). The cleanup deletes an empty default case, and a missing default case then fails the build.
 
 ```csharp
 case MouseButtonChanged or KeyChanged or MouseMoved or Scrolled or null:
