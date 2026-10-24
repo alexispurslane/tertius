@@ -19,7 +19,7 @@ public class BackendTests
         var changes = new PhysicsChanges();
         var output = new PhysicsStepOutput();
         FrameHandle space =
-            frames.Create(new(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), default);
+            frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e6f), field: default);
         changes.FramesCreated.Add(space);
         using var backend = new JoltPhysicsBackend(new() { WorkerThreads = 2 });
         backend.ApplyChanges(changes, frames);
@@ -55,10 +55,10 @@ public class BackendTests
     [Fact]
     public void ShapeCastAndOverlapRefuseAShapeThatNoQueryCanUse()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 0);
         Entity box = world.Spawn(new()
-            { Frame = ground, Pose = At(5), Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static) });
+            { Frame = ground, Pose = At(5), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static) });
         world.Tick();
         var filter = new AcceptsEveryEntity();
         QueryShape unusable = QueryShape.Sphere(0);
@@ -66,15 +66,15 @@ public class BackendTests
         var shapeHits = new List<ShapeCastHit>();
         var overlapped = new List<Entity>();
 
-        backend.Invoking(b => b.CastShape(ground, unusable, DPose.Identity, Double3.UnitX, 0, 10, filter, shapeHits))
+        backend.Invoking(b => b.CastShape(frame: ground, shape: unusable, start: DPose.Identity, direction: Double3.UnitX, startDistance: 0, endDistance: 10, filter: filter, hits: shapeHits))
             .Should().Throw<ArgumentException>().WithParameterName("shape")
             .WithMessage("*is a sphere with a radius of 0 m*");
-        backend.Invoking(b => b.Overlap(ground, unusable, DPose.Identity, filter, overlapped))
+        backend.Invoking(b => b.Overlap(frame: ground, shape: unusable, pose: DPose.Identity, filter: filter, entities: overlapped))
             .Should().Throw<ArgumentException>().WithParameterName("shape")
             .WithMessage("*is a sphere with a radius of 0 m*");
 
-        backend.CastShape(ground, usable, DPose.Identity, Double3.UnitX, 0, 10, filter, shapeHits);
-        backend.Overlap(ground, usable, At(5), filter, overlapped);
+        backend.CastShape(frame: ground, shape: usable, start: DPose.Identity, direction: Double3.UnitX, startDistance: 0, endDistance: 10, filter: filter, hits: shapeHits);
+        backend.Overlap(frame: ground, shape: usable, pose: At(5), filter: filter, entities: overlapped);
         shapeHits.Should().ContainSingle().Which.Entity.Should().Be(box);
         overlapped.Should().Equal(box);
     }
@@ -82,7 +82,7 @@ public class BackendTests
     [Fact]
     public void SceneWithMoreFramesThanTheFirstTablesHoldKeepsEveryBodyInItsFrame()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         // A ball in space makes the step look at every child bubble of space.
         Entity probe = world.Spawn(new() { Frame = space, Pose = At(0, -100), Body = Ball() });
@@ -119,7 +119,7 @@ public class BackendTests
     public void FramesWithoutBodiesPastTheFirstTablesCostNothingAndCanBeDestroyed()
     {
         var warnings = new List<string>();
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, warnings);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults, warnings: warnings);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         var roomOwners = new List<Entity>();
         for (int i = 0; i < 45; i++)
@@ -149,5 +149,5 @@ public class BackendTests
     }
 
     private static PhysicsStepContext Context(FrameTree frames, float dt) =>
-        new(0, dt, 0, frames, ReadOnlyMemory<PhysicsIntent>.Empty, ReadOnlyMemory<Entity>.Empty);
+        new(tick: 0, deltaTime: dt, time: 0, frames: frames, intents: ReadOnlyMemory<PhysicsIntent>.Empty, intentEntities: ReadOnlyMemory<Entity>.Empty);
 }

@@ -46,10 +46,10 @@ public sealed partial class JoltPhysicsBackend
             bodyFilter.Begin(world.System.BodyInterfaceNoLock, filter);
             try
             {
-                world.System.NarrowPhaseQuery.CastRay(from, ray, new(),
-                    kind == RayCastKind.Nearest
+                world.System.NarrowPhaseQuery.CastRay(origin: from, direction: ray, settings: new(),
+                    collectorType: kind == RayCastKind.Nearest
                         ? CollisionCollectorType.ClosestHit
-                        : CollisionCollectorType.AllHitSorted, rayResults, bodyFilter: bodyFilter);
+                        : CollisionCollectorType.AllHitSorted, results: rayResults, bodyFilter: bodyFilter);
             }
             finally
             {
@@ -96,9 +96,9 @@ public sealed partial class JoltPhysicsBackend
             bodyFilter.Begin(world.System.BodyInterfaceNoLock, filter);
             try
             {
-                world.System.NarrowPhaseQuery.CastShape(queryShapes.Get(shape), Transform(from, start.Rotation),
-                    (direction * length).ToVector3(), settings,
-                    from.ToJolt(), CollisionCollectorType.ClosestHit, shapeCastResults, bodyFilter: bodyFilter);
+                world.System.NarrowPhaseQuery.CastShape(shape: queryShapes.Get(shape), centerOfMassTransform: Transform(from, start.Rotation),
+                    direction: (direction * length).ToVector3(), castSettings: settings,
+                    baseOffset: from.ToJolt(), collectorType: CollisionCollectorType.ClosestHit, results: shapeCastResults, bodyFilter: bodyFilter);
             }
             finally
             {
@@ -110,8 +110,8 @@ public sealed partial class JoltPhysicsBackend
             {
                 Vector3 axis = result.PenetrationAxis;
                 Vector3 normal = axis.LengthSquared() > 0 ? -Vector3.Normalize(axis) : Vector3.Zero;
-                hits.Add(new(EntityOf(bodies.GetUserData(result.BodyID2)), startDistance + result.Fraction * length,
-                    from + result.ContactPointOn2, normal));
+                hits.Add(new(Entity: EntityOf(bodies.GetUserData(result.BodyID2)), Distance: startDistance + result.Fraction * length,
+                    Point: from + result.ContactPointOn2, Normal: normal));
             }
         }
     }
@@ -139,9 +139,9 @@ public sealed partial class JoltPhysicsBackend
             bodyFilter.Begin(world.System.BodyInterfaceNoLock, filter);
             try
             {
-                world.System.NarrowPhaseQuery.CollideShape(queryShapes.Get(shape), Vector3.One,
-                    Transform(pose.Position, pose.Rotation), pose.Position.ToJolt(),
-                    CollisionCollectorType.AllHit, collideResults, bodyFilter: bodyFilter);
+                world.System.NarrowPhaseQuery.CollideShape(shape: queryShapes.Get(shape), scale: Vector3.One,
+                    centerOfMassTransform: Transform(pose.Position, pose.Rotation), baseOffset: pose.Position.ToJolt(),
+                    collectorType: CollisionCollectorType.AllHit, results: collideResults, bodyFilter: bodyFilter);
             }
             finally
             {
@@ -189,7 +189,7 @@ public sealed partial class JoltPhysicsBackend
         if (read.Succeeded)
         {
             RVector3 position = point.ToJolt();
-            JoltNative.SurfaceNormal(read.BodyHandle, result.subShapeID2, &position, &normal);
+            JoltNative.SurfaceNormal(body: read.BodyHandle, subShapeId: result.subShapeID2, position: &position, normal: &normal);
         }
 
         locks.UnlockRead(read);

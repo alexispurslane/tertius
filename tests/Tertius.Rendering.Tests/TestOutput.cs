@@ -11,7 +11,7 @@ namespace Tertius.Rendering.Tests;
 internal sealed class TestOutput(VulkanDevice device, DeviceAllocator allocator, Extent2D extent, bool bgra)
     : IOutputTarget
 {
-    private readonly HeadlessTarget target = new(device, allocator, extent, bgra);
+    private readonly HeadlessTarget target = new(device: device, allocator: allocator, extent: extent, bgra: bgra);
 
     /// <summary>How many of the next frames find no image, so that the renderer skips them.</summary>
     public int FramesToSkip { get; set; }

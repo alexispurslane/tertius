@@ -22,7 +22,7 @@ public sealed class CarryTests : IDisposable
     /// A crate 0.4 m on a side, of 5 kg. The world has no renderer, so the mesh and the material are only numbers, which
     /// the drawn copy and a thrown crate must keep.
     /// </summary>
-    private static readonly CrateSpec Spec = new(new(0.2f), 5, new(7), new(3));
+    private static readonly CrateSpec Spec = new(HalfExtents: new(0.2f), Mass: 5, Mesh: new(7), Material: new(3));
 
     /// <summary>
     /// A turn of 1.1 rad about the axis (1, 2, 2) / 3, which lines up with none of the frame's axes, so a vector that
@@ -53,7 +53,7 @@ public sealed class CarryTests : IDisposable
             Frame = frame,
             Pose = pose,
             LinearVelocity = velocity,
-            Body = new(capsule ?? Capsule, BodyMotion.Character, Mass: PersonMass),
+            Body = new(Shape: capsule ?? Capsule, Motion: BodyMotion.Character, Mass: PersonMass),
             Components = [new PersonControl(eye ?? Eye), new Carry(capsule ?? Capsule)],
             Subscriptions = [Topics.Input]
         });
@@ -73,9 +73,9 @@ public sealed class CarryTests : IDisposable
         {
             Frame = room,
             Pose = new(new(0, -0.5, 0), DQuaternion.Identity),
-            Body = new(new BoxShapeDesc(new(50, 0.5f, 50)), BodyMotion.Static)
+            Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Static)
         });
-        Entity person = SpawnPerson(room, new(new(0, 0.95, 0), DQuaternion.Identity), Vector3.Zero);
+        Entity person = SpawnPerson(frame: room, pose: new(new(0, 0.95, 0), DQuaternion.Identity), velocity: Vector3.Zero);
         // The person lands on the floor.
         Ticks(30);
         return (room, person);
@@ -91,7 +91,7 @@ public sealed class CarryTests : IDisposable
     private (FrameHandle Space, Entity Person) FloatInSpace(Vector3 eye, CapsuleShapeDesc capsule)
     {
         FrameHandle space = NewSpace();
-        Entity person = SpawnPerson(space, new(Double3.Zero, DQuaternion.Identity), Vector3.Zero, eye, capsule);
+        Entity person = SpawnPerson(frame: space, pose: new(Double3.Zero, DQuaternion.Identity), velocity: Vector3.Zero, eye: eye, capsule: capsule);
         Ticks(3);
         return (space, person);
     }
@@ -107,7 +107,7 @@ public sealed class CarryTests : IDisposable
         {
             Frame = space,
             Pose = new(Double3.Zero, DQuaternion.Identity),
-            Body = new(Capsule, BodyMotion.Character, Mass: PersonMass),
+            Body = new(Shape: Capsule, Motion: BodyMotion.Character, Mass: PersonMass),
             Render = new RenderData { ViewOffset = new(Eye, look) },
             Components = [new Carry(Capsule)],
             Subscriptions = [Topics.Input]
@@ -122,7 +122,7 @@ public sealed class CarryTests : IDisposable
     private (FrameHandle Space, Entity Person) FloatInSpace(DQuaternion rotation, Vector3 velocity)
     {
         FrameHandle space = NewSpace();
-        Entity person = SpawnPerson(space, new(Double3.Zero, rotation), velocity);
+        Entity person = SpawnPerson(frame: space, pose: new(Double3.Zero, rotation), velocity: velocity);
         Ticks(3);
         return (space, person);
     }
@@ -134,7 +134,7 @@ public sealed class CarryTests : IDisposable
     private (FrameHandle Space, Entity First, Entity Second) FloatTwoInSpace()
     {
         FrameHandle space = NewSpace();
-        Entity first = SpawnPerson(space, At(-1), Vector3.Zero), second = SpawnPerson(space, At(1), Vector3.Zero);
+        Entity first = SpawnPerson(frame: space, pose: At(-1), velocity: Vector3.Zero), second = SpawnPerson(frame: space, pose: At(1), velocity: Vector3.Zero);
         Ticks(3);
         return (space, first, second);
     }
@@ -144,7 +144,7 @@ public sealed class CarryTests : IDisposable
     private Entity SpawnCrate(FrameHandle frame, Double3 at, Vector3 velocity = default) =>
         world.Spawn(Spec.Spawn(frame, new(at, DQuaternion.Identity), velocity));
 
-    private void Post(InputEvent e) => world.Post(Event.Create(Topics.Input, Entity.Null, e));
+    private void Post(InputEvent e) => world.Post(Event.Create(target: Topics.Input, sender: Entity.Null, payload: e));
 
     private void PressE()
     {
@@ -157,7 +157,7 @@ public sealed class CarryTests : IDisposable
     /// person whose view is on reads a key, so a test of two users posts the Use that their two presses send.
     /// </summary>
     private void UseCrate(Entity crate, Entity user) =>
-        world.Post(Event.Create(crate, user, new Use { User = user }));
+        world.Post(Event.Create(target: crate, sender: user, payload: new Use { User = user }));
 
     private void ButtonDown() => Post(InputEvent.MouseDown((int)MouseButton.Left));
 
@@ -241,7 +241,7 @@ public sealed class CarryTests : IDisposable
         Probe user = new(EventMask.Of<CrateOffer>());
         Entity userEntity = world.Spawn(new()
             { Frame = room, Pose = new(new(-3, 1, 0), DQuaternion.Identity), Components = [user] });
-        world.Post(Event.Create(crate, Entity.Null, new Use { User = userEntity }));
+        world.Post(Event.Create(target: crate, sender: Entity.Null, payload: new Use { User = userEntity }));
         Ticks(3);
 
         user.Seen.Should().ContainSingle();
@@ -258,12 +258,12 @@ public sealed class CarryTests : IDisposable
         Probe user = new(EventMask.Of<CrateOffer>());
         Entity userEntity = world.Spawn(new()
             { Frame = room, Pose = new(new(-3, 1, 0), DQuaternion.Identity), Components = [user] });
-        world.Post(Event.Create(crate, Entity.Null, new Use { User = userEntity }));
-        world.Post(Event.Create(crate, Entity.Null, new CrateTaken()));
+        world.Post(Event.Create(target: crate, sender: Entity.Null, payload: new Use { User = userEntity }));
+        world.Post(Event.Create(target: crate, sender: Entity.Null, payload: new CrateTaken()));
         Ticks(3);
         // A later order reaches no one.
-        world.Post(Event.Create(crate, Entity.Null, new CrateTaken()));
-        world.Post(Event.Create(crate, Entity.Null, new Use { User = userEntity }));
+        world.Post(Event.Create(target: crate, sender: Entity.Null, payload: new CrateTaken()));
+        world.Post(Event.Create(target: crate, sender: Entity.Null, payload: new Use { User = userEntity }));
         Ticks(3);
 
         world.IsAlive(crate).Should().BeFalse();
@@ -370,7 +370,7 @@ public sealed class CarryTests : IDisposable
         Entity crate = SpawnCrate(space, new(0, 0, -1));
         Ticks(1);
         UseCrate(crate, person);
-        world.Post(Event.Create(crate, Entity.Null, new Destroy()));
+        world.Post(Event.Create(target: crate, sender: Entity.Null, payload: new Destroy()));
         Ticks(8);
 
         // The crate offers itself on the tick that it dies, so the offer reaches a person after the crate is gone.
@@ -536,7 +536,7 @@ public sealed class CarryTests : IDisposable
 
         var at = (world.Snapshot.PoseInOwnFrame(thrown).Position - world.Snapshot.PoseInOwnFrame(person).Position)
             .ToVector3();
-        ExpectStartsOnTheViewClearOfTheCapsule(at, Eye, new(0, MathF.Sin(pitch), -MathF.Cos(pitch)), Capsule);
+        ExpectStartsOnTheViewClearOfTheCapsule(at: at, eye: Eye, aim: new(0, MathF.Sin(pitch), -MathF.Cos(pitch)), capsule: Capsule);
     }
 
     [Fact]
@@ -603,7 +603,7 @@ public sealed class CarryTests : IDisposable
         Double3 offset = world.Snapshot.PoseInOwnFrame(thrown).Position -
                          world.Snapshot.PoseInOwnFrame(person).Position;
         Vector3 at = Vector3.Transform(offset.ToVector3(), Quaternion.Inverse(Tumbled.ToQuaternion()));
-        ExpectStartsOnTheViewClearOfTheCapsule(at, Eye, LookDirection(0.6f, -0.5f), Capsule);
+        ExpectStartsOnTheViewClearOfTheCapsule(at: at, eye: Eye, aim: LookDirection(0.6f, -0.5f), capsule: Capsule);
     }
 
     [Theory]
@@ -637,7 +637,7 @@ public sealed class CarryTests : IDisposable
 
         var at = (world.Snapshot.PoseInOwnFrame(thrown).Position - world.Snapshot.PoseInOwnFrame(person).Position)
             .ToVector3();
-        ExpectStartsOnTheViewClearOfTheCapsule(at, eye, LookDirection(yaw, pitch), capsule);
+        ExpectStartsOnTheViewClearOfTheCapsule(at: at, eye: eye, aim: LookDirection(yaw, pitch), capsule: capsule);
     }
 
     [Theory]
@@ -651,7 +651,7 @@ public sealed class CarryTests : IDisposable
         // quaternions turn the view a quarter turn about +X, which takes -Z to +Y or -Y, and then a quarter turn about +Y,
         // which leaves that direction where it is. Their components are exact in a float, so the aim is exact too.
         (FrameHandle space, Entity person) =
-            FloatLooking(up ? new(0.5f, 0.5f, -0.5f, 0.5f) : new Quaternion(-0.5f, 0.5f, 0.5f, 0.5f));
+            FloatLooking(up ? new(x: 0.5f, y: 0.5f, z: -0.5f, w: 0.5f) : new Quaternion(x: -0.5f, y: 0.5f, z: 0.5f, w: 0.5f));
         Entity crate = SpawnCrate(space, new(0, 0, -1));
         Ticks(1);
         UseCrate(crate, person);
@@ -664,7 +664,7 @@ public sealed class CarryTests : IDisposable
         world.Errors.Should().BeEmpty();
         var at = (world.Snapshot.PoseInOwnFrame(thrown).Position - world.Snapshot.PoseInOwnFrame(person).Position)
             .ToVector3();
-        ExpectStartsOnTheViewClearOfTheCapsule(at, Eye, up ? Vector3.UnitY : -Vector3.UnitY, Capsule);
+        ExpectStartsOnTheViewClearOfTheCapsule(at: at, eye: Eye, aim: up ? Vector3.UnitY : -Vector3.UnitY, capsule: Capsule);
     }
 
     [Fact]
@@ -733,7 +733,7 @@ public sealed class CarryTests : IDisposable
         Entity thrown = Throw(0);
 
         With<HeldInView>().Should().BeEmpty("the throw let go of the drawn copy");
-        world.GetBody(thrown).Should().Be(new BodyDesc(new BoxShapeDesc(Spec.HalfExtents), Mass: Spec.Mass,
+        world.GetBody(thrown).Should().Be(new BodyDesc(Shape: new BoxShapeDesc(Spec.HalfExtents), Mass: Spec.Mass,
             LinearDamping: 0, AngularDamping: 0));
         world.GetRender(thrown).Mesh.Should().Be(Spec.Mesh);
         world.GetRender(thrown).Material.Should().Be(Spec.Material);

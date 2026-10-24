@@ -22,7 +22,7 @@ public class WorldCollisionGroupTests
     private static double Height(World world, Entity entity, FrameHandle frame) =>
         world.PoseIn(entity, frame).Position.Y;
 
-    private static BodyDesc StaticBox(Vector3 halfExtents) => new(new BoxShapeDesc(halfExtents), BodyMotion.Static);
+    private static BodyDesc StaticBox(Vector3 halfExtents) => new(Shape: new BoxShapeDesc(halfExtents), Motion: BodyMotion.Static);
 
     [Fact]
     public void TwoGroupsThatDoNotNameEachOtherPassThroughEachOtherWhileAThirdGroupHitsBoth()
@@ -30,22 +30,22 @@ public class WorldCollisionGroupTests
         CollisionGroup debris = registry.Register("Debris"),
             people = registry.Register("People"),
             wall = registry.Register("Wall");
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
-        Entity floor = Spawn(world, ground, At(0, -0.5), StaticBox(new(50, 0.5f, 50)) with
+        Entity floor = Spawn(world: world, frame: ground, pose: At(0, -0.5), body: StaticBox(new(50, 0.5f, 50)) with
         {
             CollisionGroups = CollisionGroups.Of(wall),
             CollisionMask = CollisionMask.Empty.InAny(debris).InAny(people)
         });
         var personLog = new CollisionLog();
-        Entity person = Spawn(world, ground, At(0, 0.5), Cube() with
+        Entity person = Spawn(world: world, frame: ground, pose: At(0, 0.5), body: Cube() with
         {
             CollisionGroups = CollisionGroups.Of(people),
             CollisionMask = CollisionMask.Empty.InAny(wall)
         }, personLog);
         // The debris falls from right above the person.
         var debrisLog = new CollisionLog();
-        Entity rock = Spawn(world, ground, At(0, 3), Ball(0.4f) with
+        Entity rock = Spawn(world: world, frame: ground, pose: At(0, 3), body: Ball(0.4f) with
         {
             CollisionGroups = CollisionGroups.Of(debris),
             CollisionMask = CollisionMask.Empty.InAny(wall)
@@ -67,15 +67,15 @@ public class WorldCollisionGroupTests
     public void ABodyPassesThroughABodyThatOnlyOneOfTheTwoMasksNames(bool theBallNamesTheFloor)
     {
         CollisionGroup debris = registry.Register("Debris"), wall = registry.Register("Wall");
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
-        Spawn(world, ground, At(0, -0.5), StaticBox(new(50, 0.5f, 50)) with
+        Spawn(world: world, frame: ground, pose: At(0, -0.5), body: StaticBox(new(50, 0.5f, 50)) with
         {
             CollisionGroups = CollisionGroups.Of(wall),
             CollisionMask = theBallNamesTheFloor ? CollisionMask.Empty.InAny(wall) : CollisionMask.Empty.InAny(debris)
         });
         var log = new CollisionLog();
-        Entity ball = Spawn(world, ground, At(0, 1), Ball() with
+        Entity ball = Spawn(world: world, frame: ground, pose: At(0, 1), body: Ball() with
         {
             CollisionGroups = CollisionGroups.Of(debris),
             CollisionMask = theBallNamesTheFloor ? CollisionMask.Empty.InAny(wall) : CollisionMask.Empty.InAny(debris)
@@ -91,15 +91,15 @@ public class WorldCollisionGroupTests
     public void ABodyThatChangesItsGroupsByAnIntentFallsThroughWhatItRestedOn()
     {
         CollisionGroup debris = registry.Register("Debris"), glass = registry.Register("Glass");
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         // The floor meets debris and glass, and the shelf only debris. The ball's mask names neither of its groups, so
         // no body near it in its own group can wake it: only the change itself can.
-        Spawn(world, ground, At(0, -0.5),
-            StaticBox(new(50, 0.5f, 50)) with { CollisionMask = InAnySolid.InAny(debris).InAny(glass) });
-        Spawn(world, ground, At(0, 2), StaticBox(new(1, 0.25f, 1)) with { CollisionMask = InAnySolid.InAny(debris) });
+        Spawn(world: world, frame: ground, pose: At(0, -0.5),
+            body: StaticBox(new(50, 0.5f, 50)) with { CollisionMask = InAnySolid.InAny(debris).InAny(glass) });
+        Spawn(world: world, frame: ground, pose: At(0, 2), body: StaticBox(new(1, 0.25f, 1)) with { CollisionMask = InAnySolid.InAny(debris) });
         var pilot = new Pilot();
-        Entity ball = Spawn(world, ground, At(0, 2.75), Ball() with { CollisionGroups = CollisionGroups.Of(debris) },
+        Entity ball = Spawn(world: world, frame: ground, pose: At(0, 2.75), body: Ball() with { CollisionGroups = CollisionGroups.Of(debris) },
             pilot);
         Tick(world, 120);
         Height(world, ball, ground).Should().BeApproximately(2.75, 0.02, "the ball rests on the shelf");
@@ -117,12 +117,12 @@ public class WorldCollisionGroupTests
     public void WhatRestedOnAStaticBodyFallsWhenTheStaticBodyChangesItsGroups()
     {
         CollisionGroup glass = registry.Register("Glass");
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         var pilot = new Pilot();
-        Spawn(world, ground, At(0, 2), StaticBox(new(1, 0.25f, 1)), pilot);
-        Entity ball = Spawn(world, ground, At(0, 2.75), Ball());
+        Spawn(world: world, frame: ground, pose: At(0, 2), body: StaticBox(new(1, 0.25f, 1)), pilot);
+        Entity ball = Spawn(world: world, frame: ground, pose: At(0, 2.75), body: Ball());
         Tick(world, 120);
         IsAwake(backend, ground, ball).Should().BeFalse("the ball fell asleep on the shelf");
 
@@ -142,16 +142,16 @@ public class WorldCollisionGroupTests
     public void ASleepingBodyWakesWhenAStaticBodyThatItOverlapsStartsToMeetIt()
     {
         CollisionGroup glass = registry.Register("Glass");
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         var pilot = new Pilot();
-        Spawn(world, ground, At(0.6, 0.5), StaticBox(new(0.5f)) with
+        Spawn(world: world, frame: ground, pose: At(0.6, 0.5), body: StaticBox(new(0.5f)) with
         {
             CollisionGroups = CollisionGroups.Of(glass),
             CollisionMask = CollisionMask.Empty.InAny(glass)
         }, pilot);
-        Entity ball = Spawn(world, ground, At(0, 0.5), Ball());
+        Entity ball = Spawn(world: world, frame: ground, pose: At(0, 0.5), body: Ball());
         Tick(world, 120);
         IsAwake(backend, ground, ball).Should().BeFalse("the ball fell asleep on the floor, inside the glass");
 
@@ -172,12 +172,12 @@ public class WorldCollisionGroupTests
     public void AGhostCarriesTheGroupsOfItsBody(bool theBlockIsSolid)
     {
         CollisionGroup phantom = registry.Register("Phantom");
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         Entity owner = world.Spawn(new() { Frame = space, AsFrame = new(FrameBounds.Sphere(10)) });
         FrameHandle bubble = world.GetOwnedFrame(owner);
-        var block = new BodyDesc(new BoxShapeDesc(new(1)), BodyMotion.Kinematic);
-        Entity blockEntity = Spawn(world, bubble, At(10), theBlockIsSolid
+        var block = new BodyDesc(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic);
+        Entity blockEntity = Spawn(world: world, frame: bubble, pose: At(10), body: theBlockIsSolid
             ? block
             : block with
             {
@@ -210,12 +210,12 @@ public class WorldCollisionGroupTests
     public void AGhostTakesTheGroupsThatItsBodyChangesTo()
     {
         CollisionGroup phantom = registry.Register("Phantom");
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         Entity owner = world.Spawn(new() { Frame = space, AsFrame = new(FrameBounds.Sphere(10)) });
         FrameHandle bubble = world.GetOwnedFrame(owner);
         var pilot = new Pilot();
-        Entity block = Spawn(world, bubble, At(10), new(new BoxShapeDesc(new(1)), BodyMotion.Kinematic), pilot);
+        Entity block = Spawn(world: world, frame: bubble, pose: At(10), body: new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic), pilot);
         Entity ball = world.Spawn(new()
             { Frame = space, Pose = At(16), LinearVelocity = new(-5, 0, 0), Body = Ball(0.25f) });
         world.Tick();
@@ -248,9 +248,9 @@ public class WorldCollisionGroupTests
             CollisionMask.Empty.InAny(glass));
         ((CollisionGroups Groups, CollisionMask Mask) spawned, (CollisionGroups Groups, CollisionMask Mask) changed) =
             theBallJoinsSolid ? (glassy, solid) : (solid, glassy);
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         var pilot = new Pilot();
-        (FrameHandle ground, Entity owner, Entity ball) = BallInABubble(world, spawned.Groups, spawned.Mask, pilot);
+        (FrameHandle ground, Entity owner, Entity ball) = BallInABubble(world: world, groups: spawned.Groups, mask: spawned.Mask, pilot: pilot);
 
         pilot.Once = body => body.SetCollision(changed.Groups, changed.Mask);
         Tick(world, 3);
@@ -285,11 +285,11 @@ public class WorldCollisionGroupTests
     public void ABodyKeepsTheGroupsOfAnIntentThatIsInFlightWhenItsFrameDies(int ticksFromIntentToDeath)
     {
         CollisionGroup glass = registry.Register("Glass");
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         var pilot = new Pilot();
         var doom = new DestroySelf();
         (FrameHandle ground, _, Entity ball) =
-            BallInABubble(world, CollisionGroups.Of(CollisionGroup.Solid), InAnySolid, pilot, doom);
+            BallInABubble(world: world, groups: CollisionGroups.Of(CollisionGroup.Solid), mask: InAnySolid, pilot: pilot, doom);
 
         pilot.Once = body => body.SetCollision(CollisionGroups.Of(glass), CollisionMask.Empty.InAny(glass));
         Tick(world, ticksFromIntentToDeath);
@@ -313,7 +313,7 @@ public class WorldCollisionGroupTests
     public void AFrameOwnerKeepsTheMaskThatAnIntentGaveItWhenItsParentFrameDies()
     {
         CollisionGroup hull = registry.Register("Hull");
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         Entity carrier = world.Spawn(new()
             { Frame = ground, Pose = At(0, 50), AsFrame = new(FrameBounds.Sphere(200)) });
@@ -336,7 +336,7 @@ public class WorldCollisionGroupTests
         world.Frames.Parent(shipFrame).Should().Be(ground);
         FactsOf(world, ship).CollisionMask.Should().Be(CollisionMask.Empty.InAny(hull));
 
-        Entity ball = Spawn(world, shipFrame, At(0, 2), Ball());
+        Entity ball = Spawn(world: world, frame: shipFrame, pose: At(0, 2), body: Ball());
         Tick(world, 90);
 
         Height(world, ball, shipFrame).Should().BeLessThan(-2, "the ball fell through the deck");
@@ -360,8 +360,8 @@ public class WorldCollisionGroupTests
             AsFrame = new(FrameBounds.Sphere(4)),
             Components = ownerComponents
         });
-        Entity ball = Spawn(world, world.GetOwnedFrame(owner), At(0),
-            Ball() with { CollisionGroups = groups, CollisionMask = mask }, pilot);
+        Entity ball = Spawn(world: world, frame: world.GetOwnedFrame(owner), pose: At(0),
+            body: Ball() with { CollisionGroups = groups, CollisionMask = mask }, pilot);
         world.Tick();
         return (ground, owner, ball);
     }
@@ -395,7 +395,7 @@ public class WorldCollisionGroupTests
     public void AFramesInteriorCarriesTheGroupsOfItsOwner(bool theOwnerIsSolid)
     {
         CollisionGroup hull = registry.Register("Hull");
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         BodyDesc deck = StaticBox(new(5, 0.5f, 5));
         Entity owner = world.Spawn(new()
         {
@@ -408,7 +408,7 @@ public class WorldCollisionGroupTests
             AsFrame = new(FrameBounds.Sphere(100), GravityField.Uniform(new(0, -9.81f, 0)))
         });
         FrameHandle ship = world.GetOwnedFrame(owner);
-        Entity ball = Spawn(world, ship, At(0, 2), Ball());
+        Entity ball = Spawn(world: world, frame: ship, pose: At(0, 2), body: Ball());
 
         Tick(world, 90);
 
@@ -423,7 +423,7 @@ public class WorldCollisionGroupTests
     public void TheOwnerOfARootFrameChangesTheGroupsOfItsInteriorByAnIntent()
     {
         CollisionGroup hull = registry.Register("Hull");
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         var pilot = new Pilot();
         Entity owner = world.Spawn(new()
         {
@@ -432,7 +432,7 @@ public class WorldCollisionGroupTests
             Components = [pilot]
         });
         FrameHandle ship = world.GetOwnedFrame(owner);
-        Entity ball = Spawn(world, ship, At(0, 1), Ball());
+        Entity ball = Spawn(world: world, frame: ship, pose: At(0, 1), body: Ball());
         Tick(world, 30);
         Height(world, ball, ship).Should().BeApproximately(1, 0.02, "the ball rests on the deck");
 
@@ -449,11 +449,11 @@ public class WorldCollisionGroupTests
     public void ACharacterMovesWithItsOwnGroups(bool theCharacterIsSolid)
     {
         CollisionGroup phantom = registry.Register("Phantom");
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
-        var walker = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
-        Entity character = Spawn(world, ground, At(0, 1), theCharacterIsSolid
+        var walker = new BodyDesc(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
+        Entity character = Spawn(world: world, frame: ground, pose: At(0, 1), body: theCharacterIsSolid
             ? walker
             : walker with
             {
@@ -478,18 +478,18 @@ public class WorldCollisionGroupTests
     public void ACharacterThatChangesItsGroupsByAnIntentLetsABodyThrough()
     {
         CollisionGroup phantom = registry.Register("Phantom");
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
-        Spawn(world, ground, At(0, -0.5),
-            StaticBox(new(50, 0.5f, 50)) with { CollisionMask = InAnySolid.InAny(phantom) });
+        Spawn(world: world, frame: ground, pose: At(0, -0.5),
+            body: StaticBox(new(50, 0.5f, 50)) with { CollisionMask = InAnySolid.InAny(phantom) });
         var pilot = new Pilot();
-        Entity character = Spawn(world, ground, At(0, 0.9),
-            new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70), pilot);
+        Entity character = Spawn(world: world, frame: ground, pose: At(0, 0.9),
+            body: new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70), pilot);
         Tick(world, 30);
 
         pilot.Once = body => body.SetCollision(CollisionGroups.Of(phantom), InAnySolid);
         Tick(world, 2);
-        Entity ball = Spawn(world, ground, At(0, 3), Ball(0.2f));
+        Entity ball = Spawn(world: world, frame: ground, pose: At(0, 3), body: Ball(0.2f));
         Tick(world, 90);
 
         DPose pose = world.PoseIn(ball, ground);
@@ -506,11 +506,11 @@ public class WorldCollisionGroupTests
     [InlineData(BodyLayer.Ghost)]
     public void ACharacterIsOnTheLayerOfAMovingBodyWhateverLayerItsDescriptionNames(BodyLayer layer)
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
-        Entity character = Spawn(world, ground, At(0, 5),
-            new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Layer: layer, Mass: 70));
-        Entity ball = Spawn(world, ground, At(5, 5), Ball());
+        Entity character = Spawn(world: world, frame: ground, pose: At(0, 5),
+            body: new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Layer: layer, Mass: 70));
+        Entity ball = Spawn(world: world, frame: ground, pose: At(5, 5), body: Ball());
         world.Tick();
 
         List<JoltPhysicsBackend.BodyFacts> bodies = backend.BodiesIn(ground);
@@ -526,18 +526,18 @@ public class WorldCollisionGroupTests
     public void ABodyPassesThroughACharacterWhoseGroupsItsMaskDoesNotName()
     {
         CollisionGroup phantom = registry.Register("Phantom");
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         // The floor meets both, and the character stands on it.
-        Spawn(world, ground, At(0, -0.5),
-            StaticBox(new(50, 0.5f, 50)) with { CollisionMask = InAnySolid.InAny(phantom) });
-        Spawn(world, ground, At(0, 0.9),
-            new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70) with
+        Spawn(world: world, frame: ground, pose: At(0, -0.5),
+            body: StaticBox(new(50, 0.5f, 50)) with { CollisionMask = InAnySolid.InAny(phantom) });
+        Spawn(world: world, frame: ground, pose: At(0, 0.9),
+            body: new BodyDesc(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70) with
             {
                 CollisionGroups = CollisionGroups.Of(phantom),
                 CollisionMask = InAnySolid
             });
-        Entity ball = Spawn(world, ground, At(0, 3), Ball(0.2f));
+        Entity ball = Spawn(world: world, frame: ground, pose: At(0, 3), body: Ball(0.2f));
 
         Tick(world, 90);
 
@@ -555,7 +555,7 @@ public class WorldCollisionGroupTests
     [Fact]
     public void AFrameHullPassesThroughABodyWhoseMaskHasNoCondition()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         world.Spawn(new()
         {
@@ -563,7 +563,7 @@ public class WorldCollisionGroupTests
             Body = StaticBox(new(5, 0.5f, 5)),
             AsFrame = new(FrameBounds.Sphere(1))
         });
-        Entity ball = Spawn(world, ground, At(3, 2), Ball() with { CollisionMask = CollisionMask.Empty });
+        Entity ball = Spawn(world: world, frame: ground, pose: At(3, 2), body: Ball() with { CollisionMask = CollisionMask.Empty });
 
         Tick(world, 60);
 

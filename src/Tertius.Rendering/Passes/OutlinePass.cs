@@ -105,21 +105,21 @@ internal sealed class OutlinePass : RenderPass
             {
                 case SemanticOutline(var center, var rotation, var radii):
                     // A bubble with three equal radii is a sphere, by the rule of FrameBounds, so it also gets its rim.
-                    Add(scene, center, new(rotation.X, rotation.Y, rotation.Z, rotation.W), radii,
-                        OutlineColors.Semantic,
-                        new FrameBounds(radii).IsSphere ? GpuOutline.SphereFlag : 0);
+                    Add(scene: scene, center: center, rotation: new(x: rotation.X, y: rotation.Y, z: rotation.Z, w: rotation.W), radii: radii,
+                        color: OutlineColors.Semantic,
+                        flags: new FrameBounds(radii).IsSphere ? GpuOutline.SphereFlag : 0);
                     break;
                 case FallingOutline(var center, var radius):
-                    AddSphere(scene, center, radius, OutlineColors.Falling);
+                    AddSphere(scene: scene, center: center, radius: radius, color: OutlineColors.Falling);
                     break;
                 case RestingOutline(var center, var radius):
-                    AddSphere(scene, center, radius, OutlineColors.Resting);
+                    AddSphere(scene: scene, center: center, radius: radius, color: OutlineColors.Resting);
                     break;
                 case NestingOutline(var center, var radius):
-                    AddSphere(scene, center, radius, OutlineColors.Nesting);
+                    AddSphere(scene: scene, center: center, radius: radius, color: OutlineColors.Nesting);
                     break;
                 case FollowingOutline(var center, var radius):
-                    AddSphere(scene, center, radius, OutlineColors.Following);
+                    AddSphere(scene: scene, center: center, radius: radius, color: OutlineColors.Following);
                     break;
                 case null:
                     // The default outline holds no case, so it draws nothing.
@@ -131,7 +131,7 @@ internal sealed class OutlinePass : RenderPass
 
     /// <summary>A contents sphere has no axes of its own, so its rings lie in the axes of the camera's frame.</summary>
     private static void AddSphere(PreparedScene scene, Vector3 center, float radius, uint color) =>
-        Add(scene, center, new(0, 0, 0, 1), new(radius), color, GpuOutline.SphereFlag);
+        Add(scene: scene, center: center, rotation: new(x: 0, y: 0, z: 0, w: 1), radii: new(radius), color: color, flags: GpuOutline.SphereFlag);
 
     private static void Add(PreparedScene scene, Vector3 center, Vector4 rotation, Vector3 radii, uint color,
         uint flags)
@@ -179,12 +179,12 @@ internal sealed class OutlinePass : RenderPass
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, pipeline);
         DescriptorSet* sets = stackalloc[]
             { context.Frame.FrameSet, context.Frame.TextureSet, context.Targets.GBufferSet };
-        vk.CmdBindDescriptorSets(commandBuffer, PipelineBindPoint.Graphics, layouts.OverlayLayout, 0, 3, sets, 0, null);
+        vk.CmdBindDescriptorSets(commandBuffer: commandBuffer, pipelineBindPoint: PipelineBindPoint.Graphics, layout: layouts.OverlayLayout, firstSet: 0, descriptorSetCount: 3, pDescriptorSets: sets, dynamicOffsetCount: 0, pDynamicOffsets: null);
         context.SetFullViewport();
         var push = new OutlinePushConstants { EncodeSrgb = context.EncodeSrgb ? 1u : 0u };
-        vk.CmdPushConstants(commandBuffer, layouts.OverlayLayout, ShaderStageFlags.FragmentBit, 0,
-            (uint)sizeof(OutlinePushConstants), &push);
-        vk.CmdDraw(commandBuffer, VerticesPerOutline, (uint)count, 0, 0);
+        vk.CmdPushConstants(commandBuffer: commandBuffer, layout: layouts.OverlayLayout, stageFlags: ShaderStageFlags.FragmentBit, offset: 0,
+            size: (uint)sizeof(OutlinePushConstants), pValues: &push);
+        vk.CmdDraw(commandBuffer: commandBuffer, vertexCount: VerticesPerOutline, instanceCount: (uint)count, firstVertex: 0, firstInstance: 0);
         vk.CmdEndRendering(commandBuffer);
     }
 

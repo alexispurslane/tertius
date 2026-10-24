@@ -73,7 +73,7 @@ public class FrameTests
     [Fact]
     public void EllipticOrbitConservesEnergyAndReturnsAfterOnePeriod()
     {
-        var orbit = new KeplerOrbit(1e7, 0.6, 0.4, 1.0, 0.5, 0.3, 0, DQuaternion.Identity, 0, 0);
+        var orbit = new KeplerOrbit(SemiMajorAxis: 1e7, Eccentricity: 0.6, Inclination: 0.4, LongitudeOfAscendingNode: 1.0, ArgumentOfPeriapsis: 0.5, MeanAnomalyAtEpoch: 0.3, Epoch: 0, AxialTilt: DQuaternion.Identity, SpinRate: 0, SpinPhaseAtEpoch: 0);
         const double mu = 3.986004418e14;
         double energy = -mu / (2 * orbit.SemiMajorAxis);
         (Double3 p0, _) = orbit.StateAt(0, mu);
@@ -91,7 +91,7 @@ public class FrameTests
     [Fact]
     public void OrbitVelocityIsDerivativeOfPosition()
     {
-        var orbit = new KeplerOrbit(2e7, 0.3, 0.2, 0.1, 1.1, 0, 0, DQuaternion.Identity, 0, 0);
+        var orbit = new KeplerOrbit(SemiMajorAxis: 2e7, Eccentricity: 0.3, Inclination: 0.2, LongitudeOfAscendingNode: 0.1, ArgumentOfPeriapsis: 1.1, MeanAnomalyAtEpoch: 0, Epoch: 0, AxialTilt: DQuaternion.Identity, SpinRate: 0, SpinPhaseAtEpoch: 0);
         const double mu = 3.986004418e14, t = 1234.5, h = 1e-3;
         (Double3 pa, _) = orbit.StateAt(t - h, mu);
         (Double3 pb, _) = orbit.StateAt(t + h, mu);
@@ -115,9 +115,9 @@ public class FrameTests
     public void FrameTreeVelocityConversionIncludesSpin()
     {
         var frames = new FrameTree();
-        FrameHandle root = frames.Create(new(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e12f));
-        FrameHandle station = frames.Create(new(2, 1), root, new(new(1000, 0, 0), DQuaternion.Identity),
-            FrameBounds.Sphere(200));
+        FrameHandle root = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e12f));
+        FrameHandle station = frames.Create(frameOwner: new(2, 1), parent: root, localPose: new(new(1000, 0, 0), DQuaternion.Identity),
+            frameBounds: FrameBounds.Sphere(200));
         frames.SetTreeLinearVelocity(station, new(0, 0, 50));
         frames.SetAngularVelocity(station, new(0, 0.1f, 0));
         frames.Update();
@@ -136,11 +136,11 @@ public class FrameTests
     public void FrameTreeReparentKeepsPose()
     {
         var frames = new FrameTree();
-        FrameHandle root = frames.Create(new(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
-        FrameHandle carrier = frames.Create(new(2, 1), root,
-            new(new(5000, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, 0.5)), FrameBounds.Sphere(400));
-        FrameHandle fighter = frames.Create(new(3, 1), root, new(new(5100, 10, 0), DQuaternion.Identity),
-            FrameBounds.Sphere(15));
+        FrameHandle root = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
+        FrameHandle carrier = frames.Create(frameOwner: new(2, 1), parent: root,
+            localPose: new(new(5000, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, 0.5)), frameBounds: FrameBounds.Sphere(400));
+        FrameHandle fighter = frames.Create(frameOwner: new(3, 1), parent: root, localPose: new(new(5100, 10, 0), DQuaternion.Identity),
+            frameBounds: FrameBounds.Sphere(15));
         frames.SetTreeLinearVelocity(carrier, new(10, 0, 0));
         frames.SetTreeLinearVelocity(fighter, new(12, 0, 0));
         frames.Update();
@@ -160,8 +160,8 @@ public class FrameTests
     public void FrameTreeRejectsStaleHandles()
     {
         var frames = new FrameTree();
-        FrameHandle root = frames.Create(new(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(10));
-        FrameHandle child = frames.Create(new(2, 1), root, DPose.Identity, FrameBounds.Sphere(1));
+        FrameHandle root = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(10));
+        FrameHandle child = frames.Create(frameOwner: new(2, 1), parent: root, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1));
         frames.Destroy(child);
         Assert.False(frames.IsAlive(child));
         Assert.Throws<InvalidOperationException>(() => frames.LocalPose(child));

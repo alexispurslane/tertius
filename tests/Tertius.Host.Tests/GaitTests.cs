@@ -16,7 +16,7 @@ public sealed class GaitTests : IDisposable
 {
     private static readonly Vector3 Eye = new(0, 0.75f, 0);
 
-    private readonly World world = NewWorld(out _);
+    private readonly World world = NewWorld(backend: out _);
 
     public void Dispose() => world.Dispose();
 
@@ -25,7 +25,7 @@ public sealed class GaitTests : IDisposable
     {
         Frame = frame,
         Pose = new(position, DQuaternion.Identity),
-        Body = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
+        Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70),
         LinearVelocity = velocity.ToVector3(),
         Render = new RenderData { ViewOffset = new(Eye, view) },
         Components = components
@@ -86,7 +86,7 @@ public sealed class GaitTests : IDisposable
         FrameHandle ground = OnTheGround();
         Quaternion view = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2) *
                           Quaternion.CreateFromAxisAngle(Vector3.UnitX, -MathF.PI / 6);
-        Entity person = Person(ground, new(0, 0.95, 0), view);
+        Entity person = Person(frame: ground, position: new(0, 0.95, 0), view: view);
         Entity body = DrawnBody(person);
 
         Tick(world, 10);
@@ -104,12 +104,12 @@ public sealed class GaitTests : IDisposable
     public void TheBodyRisesAndFallsOnceForEachStepOfTheWalk()
     {
         FrameHandle ground = OnTheGround();
-        Entity person = Person(ground, new(0, 0.95, 0), Quaternion.Identity,
+        Entity person = Person(frame: ground, position: new(0, 0.95, 0), view: Quaternion.Identity,
             components: new SteadyWalk(new(0, 0, -2), ticks: 600));
         Entity body = DrawnBody(person);
         Tick(world, 30);
 
-        List<double> lifts = Lifts(body, person, ground, 180);
+        List<double> lifts = Lifts(body: body, person: person, frame: ground, ticks: 180);
 
         Steps(lifts).Should().BeInRange(7, 9);
         lifts.Max().Should().BeInRange(0.9 * Gait.StepRise, Gait.StepRise + 1e-6);
@@ -124,9 +124,9 @@ public sealed class GaitTests : IDisposable
     public void TheStepsFollowTheDistanceWalkedNotTheTime()
     {
         FrameHandle ground = OnTheGround();
-        Entity slow = Person(ground, new(0, 0.95, 0), Quaternion.Identity,
+        Entity slow = Person(frame: ground, position: new(0, 0.95, 0), view: Quaternion.Identity,
             components: new SteadyWalk(new(0, 0, -1), ticks: 216));
-        Entity fast = Person(ground, new(5, 0.95, 0), Quaternion.Identity,
+        Entity fast = Person(frame: ground, position: new(5, 0.95, 0), view: Quaternion.Identity,
             components: new SteadyWalk(new(0, 0, -2), ticks: 108));
         Entity slowBody = DrawnBody(slow), fastBody = DrawnBody(fast);
 
@@ -148,10 +148,10 @@ public sealed class GaitTests : IDisposable
     public void TheBodyDoesNotBobWhileThePersonStandsStill()
     {
         FrameHandle ground = OnTheGround();
-        Entity person = Person(ground, new(0, 0.95, 0), Quaternion.Identity);
+        Entity person = Person(frame: ground, position: new(0, 0.95, 0), view: Quaternion.Identity);
         Entity body = DrawnBody(person);
 
-        Lifts(body, person, ground, 120).Should().AllSatisfy(lift => Math.Abs(lift).Should().BeLessThan(1e-6));
+        Lifts(body: body, person: person, frame: ground, ticks: 120).Should().AllSatisfy(lift => Math.Abs(lift).Should().BeLessThan(1e-6));
     }
 
     /// <summary>The person drifts at 2 m/s along -Z with no floor under it, in a frame with no gravity, so it takes no steps.</summary>
@@ -159,10 +159,10 @@ public sealed class GaitTests : IDisposable
     public void TheBodyDoesNotBobWhileThePersonFloats()
     {
         FrameHandle space = Ground(world, 0);
-        Entity person = Person(space, Double3.Zero, Quaternion.Identity, velocity: new(0, 0, -2));
+        Entity person = Person(frame: space, position: Double3.Zero, view: Quaternion.Identity, velocity: new(0, 0, -2));
         Entity body = DrawnBody(person);
 
-        Lifts(body, person, space, 120).Should().AllSatisfy(lift => Math.Abs(lift).Should().BeLessThan(1e-6));
+        Lifts(body: body, person: person, frame: space, ticks: 120).Should().AllSatisfy(lift => Math.Abs(lift).Should().BeLessThan(1e-6));
     }
 
     /// <summary>After the walk stops, the bob dies away within half a second, wherever in its step the person stopped.</summary>
@@ -170,12 +170,12 @@ public sealed class GaitTests : IDisposable
     public void TheBobDiesAwayWhenThePersonStops()
     {
         FrameHandle ground = OnTheGround();
-        Entity person = Person(ground, new(0, 0.95, 0), Quaternion.Identity,
+        Entity person = Person(frame: ground, position: new(0, 0.95, 0), view: Quaternion.Identity,
             components: new SteadyWalk(new(0, 0, -2), ticks: 100));
         Entity body = DrawnBody(person);
-        List<double> walking = Lifts(body, person, ground, 100);
+        List<double> walking = Lifts(body: body, person: person, frame: ground, ticks: 100);
 
-        List<double> stopped = Lifts(body, person, ground, 60);
+        List<double> stopped = Lifts(body: body, person: person, frame: ground, ticks: 60);
 
         walking.Max().Should().BeGreaterThan(0.9 * Gait.StepRise, "the body bobbed while the person walked");
         stopped.Skip(30).Should().AllSatisfy(lift => Math.Abs(lift).Should().BeLessThan(0.001));

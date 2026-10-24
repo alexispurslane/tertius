@@ -50,7 +50,7 @@ public sealed class BlueDanubePlumeCostMeasurement
                     new VideoFile(Path.Combine(folder, $"master-{capacity}.mkv"), 60));
                 var counting = new CountingPlayback(world, headless);
                 long start = Stopwatch.GetTimestamp();
-                ScriptRunner.Run(script, world, scene, outputFolder: null, counting);
+                ScriptRunner.Run(script: script, world: world, scene: scene, outputFolder: null, playback: counting);
                 headless.Finish();
                 seconds[capacity] = Stopwatch.GetElapsedTime(start).TotalSeconds;
                 report.AppendLine(inv,

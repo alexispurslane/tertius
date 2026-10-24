@@ -51,7 +51,7 @@ public sealed class FlightRecorder(FrameHandle station, WheelFloor floor, double
         double dt = self.DeltaTime;
         Release ??= new(place, self.VelocityIn(station));
         int n = places.Count;
-        bool free = n < 2 || Double3.Distance(place, Extend(places[n - 2], places[n - 1], dt, dt)) <= FreeBound;
+        bool free = n < 2 || Double3.Distance(place, Extend(before: places[n - 2], last: places[n - 1], dt: dt, time: dt)) <= FreeBound;
         bool above = floor.Height(place) > halfSize;
         places.Add(place);
         if (free && above)
@@ -63,18 +63,18 @@ public sealed class FlightRecorder(FrameHandle station, WheelFloor floor, double
             return;
         Double3 before = places[n - 2], last = places[n - 1];
         double low = 0, high = 2 * dt;
-        if (floor.Height(Extend(before, last, dt, high)) > halfSize)
+        if (floor.Height(Extend(before: before, last: last, dt: dt, time: high)) > halfSize)
             return;
         for (int i = 0; i < 60; i++)
         {
             double middle = (low + high) / 2;
-            if (floor.Height(Extend(before, last, dt, middle)) > halfSize)
+            if (floor.Height(Extend(before: before, last: last, dt: dt, time: middle)) > halfSize)
                 low = middle;
             else
                 high = middle;
         }
 
-        Landing = new ThrowLanding((n - 1) * dt + high, Extend(before, last, dt, high));
+        Landing = new ThrowLanding((n - 1) * dt + high, Extend(before: before, last: last, dt: dt, time: high));
     }
 
     /// <summary>

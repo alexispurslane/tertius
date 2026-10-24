@@ -37,7 +37,7 @@ public sealed class DoorTests : IDisposable
     {
         Frame = frame,
         Pose = new(Closed, rotation),
-        Body = new(new BoxShapeDesc(new(0.05f, 1, 0.5f)), BodyMotion.Kinematic),
+        Body = new(Shape: new BoxShapeDesc(new(0.05f, 1, 0.5f)), Motion: BodyMotion.Kinematic),
         Components = [new Door(new(0, 2, 0), openSeconds: 1)]
     });
 
@@ -48,7 +48,7 @@ public sealed class DoorTests : IDisposable
     }
 
     private void Order<T>(Entity to) where T : unmanaged, IEventPayload =>
-        world.Post(Event.Create(to, Entity.Null, new T()));
+        world.Post(Event.Create(target: to, sender: Entity.Null, payload: new T()));
 
     /// <summary>How far the door is from its closed pose, in meters, in the room's axes.</summary>
     private Double3 Moved(Entity of) => world.Snapshot.PoseInOwnFrame(of).Position - Closed;
@@ -132,7 +132,7 @@ public sealed class DoorTests : IDisposable
         {
             Frame = room,
             Pose = new(new(5, 4, 3), DQuaternion.Identity),
-            Body = new(new BoxShapeDesc(new(0.05f, 1, 0.5f)), BodyMotion.Kinematic),
+            Body = new(Shape: new BoxShapeDesc(new(0.05f, 1, 0.5f)), Motion: BodyMotion.Kinematic),
             Components = [new Door(new(0, 2, 0), openSeconds: 1, openAtStart: true)]
         });
         Ticks(30);
@@ -189,7 +189,7 @@ public sealed class DoorTests : IDisposable
         FrameHandle booth = world.GetOwnedFrame(Booth());
         Order<OpenDoor>(door);
 
-        double stray = WorstStray(door, Closed, new(0, 2, 0), 90);
+        double stray = WorstStray(of: door, closed: Closed, slide: new(0, 2, 0), count: 90);
 
         stray.Should().BeLessThan(1e-4, "the door slides on along its way in the room in the booth's frame");
         world.GetFrame(door).Should().Be(booth, "the door's bounding sphere touched the booth's bubble on its way up");
@@ -214,7 +214,7 @@ public sealed class DoorTests : IDisposable
         Double3 stopped = world.PoseIn(inCabin, room).Position;
 
         Double3 closed = cabinPose.TransformPoint(Closed), slide = cabinPose.TransformDirection(new(0, 2, 0));
-        double stray = WorstStray(inCabin, closed, slide, 60);
+        double stray = WorstStray(of: inCabin, closed: closed, slide: slide, count: 60);
 
         (world.PoseIn(inCabin, room).Position - stopped).Length.Should()
             .BeLessThan(1e-9, "the door's way died with the cabin, so it stays where it is");
@@ -234,7 +234,7 @@ public sealed class DoorTests : IDisposable
         {
             Frame = room,
             Pose = new(new(-5, 2, 3), DQuaternion.Identity),
-            Body = new(new BoxShapeDesc(new(width / 2, 0.5f, 0.5f)), BodyMotion.Static) { IsSensor = true },
+            Body = new(Shape: new BoxShapeDesc(new(width / 2, 0.5f, 0.5f)), Motion: BodyMotion.Static) { IsSensor = true },
             Components = [new Sensor { Topic = Doorway }]
         });
     }
@@ -246,7 +246,7 @@ public sealed class DoorTests : IDisposable
         Frame = room,
         Pose = new(new(x, 2, 2), DQuaternion.Identity),
         LinearVelocity = new Vector3(0, 0, speed),
-        Body = new(new SphereShapeDesc(0.25f), Mass: 1, LinearDamping: 0, AngularDamping: 0)
+        Body = new(Shape: new SphereShapeDesc(0.25f), Mass: 1, LinearDamping: 0, AngularDamping: 0)
     });
 
     /// <summary>

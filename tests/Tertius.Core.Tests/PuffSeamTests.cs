@@ -19,7 +19,7 @@ public class PuffSeamTests
 
     /// <summary>A valid hot exhaust look: every number differs from the others, so a swap of two shows.</summary>
     private static readonly PuffLook Exhaust = new(Life: 2, StartRadius: 0.5f, EndRadius: 3, TemperatureRatio: 3,
-        PuffShading.Glow(Orange));
+        Shading: PuffShading.Glow(Orange));
 
     /// <summary>The names of the cases whose <c>TryGetValue</c> answers true for the shading.</summary>
     private static string[] CasesHeld(PuffShading shading)

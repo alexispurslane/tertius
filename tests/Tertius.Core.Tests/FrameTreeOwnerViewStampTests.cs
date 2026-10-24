@@ -18,8 +18,8 @@ public class FrameTreeOwnerViewStampTests
 
     public FrameTreeOwnerViewStampTests()
     {
-        ground = frames.Create(new(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
-        ship = frames.Create(new(2, 1), ground, new(X(100), DQuaternion.Identity), FrameBounds.Sphere(50));
+        ground = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
+        ship = frames.Create(frameOwner: new(2, 1), parent: ground, localPose: new(X(100), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(50));
         frames.SetHullMotion(ship, BodyMotion.Dynamic);
     }
 
@@ -49,7 +49,7 @@ public class FrameTreeOwnerViewStampTests
             OwnedFrame = owned
         };
         FrameHandle after = physicsHome;
-        frames.UpdateNumericFrames([body], 0.1, 0.1, new(), moves =>
+        frames.UpdateNumericFrames(bodies: [body], dt: 0.1, step: 0.1, changes: new(), applyMoves: moves =>
         {
             foreach (NumericMove move in moves)
                 after = move.To;
@@ -60,7 +60,7 @@ public class FrameTreeOwnerViewStampTests
 
     [Fact]
     public void A_new_frame_changes_the_stamp() =>
-        StampChanges(() => frames.Create(new(3, 1), ground, DPose.Identity, FrameBounds.Sphere(5)))
+        StampChanges(() => frames.Create(frameOwner: new(3, 1), parent: ground, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(5)))
             .Should().BeTrue();
 
     [Fact]
@@ -71,7 +71,7 @@ public class FrameTreeOwnerViewStampTests
     public void A_frame_that_moves_under_another_parent_changes_the_stamp()
     {
         FrameHandle dock =
-            frames.Create(new(3, 1), ground, new(X(-100), DQuaternion.Identity), FrameBounds.Sphere(500));
+            frames.Create(frameOwner: new(3, 1), parent: ground, localPose: new(X(-100), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(500));
         StampChanges(() => frames.Reparent(ship, dock)).Should().BeTrue();
     }
 
@@ -90,15 +90,15 @@ public class FrameTreeOwnerViewStampTests
     [Fact]
     public void A_frame_that_takes_its_step_record_changes_the_stamp()
     {
-        var record = new MotionSample(new(X(101), DQuaternion.Identity), X(60), Double3.Zero, Double3.Zero,
-            Double3.Zero, Double3.Zero);
-        StampChanges(() => frames.TakeStepRecords([], 1.0 / 60, new StepOwners().WithHullRecord(ship, record))).Should()
+        var record = new MotionSample(Pose: new(X(101), DQuaternion.Identity), ChordVelocity: X(60), Velocity: Double3.Zero, Acceleration: Double3.Zero,
+            AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
+        StampChanges(() => frames.TakeStepRecords(stepIntents: [], step: 1.0 / 60, owners: new StepOwners().WithHullRecord(ship, record))).Should()
             .BeTrue();
     }
 
     [Fact]
     public void A_frame_that_holds_still_changes_the_stamp() =>
-        StampChanges(() => frames.TakeStepRecords([], 1.0 / 60)).Should().BeTrue();
+        StampChanges(() => frames.TakeStepRecords(stepIntents: [], step: 1.0 / 60)).Should().BeTrue();
 
     // A change of a hull's motion writes no pose, velocity or parent: a parked ship stops through the record of its next
     // step, which changes the stamp (see A_frame_that_takes_its_step_record_changes_the_stamp). So the change leaves the
@@ -173,7 +173,7 @@ public class FrameTreeOwnerViewStampTests
             _ = frames.Relative(ship, ground);
             _ = frames.InSemantic(ship, ship, X(1));
             _ = frames.Parent(ship);
-            _ = frames.ConvertVelocity(ship, ground, X(1), X(1));
+            _ = frames.ConvertVelocity(from: ship, to: ground, position: X(1), v: X(1));
             frames.GetAll([]);
             frames.Update();
         }).Should().BeFalse();

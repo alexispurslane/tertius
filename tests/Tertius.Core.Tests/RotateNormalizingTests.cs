@@ -17,12 +17,12 @@ public class RotateNormalizingTests
         { "a rotation about an axis, of unit length", DQuaternion.FromAxisAngle(new(1, 2, 3), 0.9) },
         {
             "a rotation that came out of a float quaternion",
-            DQuaternion.FromQuaternion(new(0.18257418f, 0.36514837f, 0.5477226f, 0.73029685f))
+            DQuaternion.FromQuaternion(new(x: 0.18257418f, y: 0.36514837f, z: 0.5477226f, w: 0.73029685f))
         },
-        { "a rotation that is too short", new(0, 0.1, 0, 0.1) },
-        { "a rotation that is too long", new(2, -3, 1, 5) },
-        { "a rotation by half a turn", new(0, 1, 0, 0) },
-        { "a rotation that is very short", new(0, 1e-100, 0, 1e-100) }
+        { "a rotation that is too short", new(X: 0, Y: 0.1, Z: 0, W: 0.1) },
+        { "a rotation that is too long", new(X: 2, Y: -3, Z: 1, W: 5) },
+        { "a rotation by half a turn", new(X: 0, Y: 1, Z: 0, W: 0) },
+        { "a rotation that is very short", new(X: 0, Y: 1e-100, Z: 0, W: 1e-100) }
     };
 
     [Theory]
@@ -43,6 +43,6 @@ public class RotateNormalizingTests
     [Fact]
     public void AQuaternionThatIsNotANumberLeavesAVectorAsItIs()
     {
-        new DQuaternion(double.NaN, 0, 0, 1).RotateNormalizing(Far).Should().Be(Far);
+        new DQuaternion(X: double.NaN, Y: 0, Z: 0, W: 1).RotateNormalizing(Far).Should().Be(Far);
     }
 }

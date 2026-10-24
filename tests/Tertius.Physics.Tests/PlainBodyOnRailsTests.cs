@@ -35,7 +35,7 @@ public class PlainBodyOnRailsTests
     [Fact]
     public void APlainKinematicBodyOnKeplerRailsStandsOnItsOrbitToTheLastBit()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Scenes.AsteroidSpace(world);
         Entity ball = OnOrbit(world, space);
         Tick(world, 2);
@@ -62,7 +62,7 @@ public class PlainBodyOnRailsTests
     [Fact]
     public void ARailsSpawnPutsAPlainKinematicBodyOnItsKeplerOrbitFromItsFirstStep()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Scenes.AsteroidSpace(world);
         Entity ball =
             world.Spawn(
@@ -83,9 +83,9 @@ public class PlainBodyOnRailsTests
     [Fact]
     public void ARailsSpawnTurnsAPlainKinematicBodyInPlaceFromItsFirstStep()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
-        var spin = new FrameSpin(DQuaternion.Identity, 0.5);
+        var spin = new FrameSpin(Tilt: DQuaternion.Identity, Rate: 0.5);
         Entity ball =
             world.Spawn(
                 new SpawnDesc { Frame = space, Pose = At(3), Body = KinematicBall }.Spinning(world, spin,
@@ -112,7 +112,7 @@ public class PlainBodyOnRailsTests
     [Fact]
     public void APlainBodyOnRailsReadsTheSamplesInstantVelocity()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Scenes.AsteroidSpace(world);
         Entity ball = OnOrbit(world, space);
         Tick(world, 2);
@@ -136,7 +136,7 @@ public class PlainBodyOnRailsTests
     [Fact]
     public void APlainBodyOnRailsInANumericFrameReadsTheVelocityOfItsMotionIntents()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
         Entity ball =
             world.Spawn(KinematicDrift.Drifting(new() { Frame = space, Body = KinematicBall }, world,
@@ -163,7 +163,7 @@ public class PlainBodyOnRailsTests
     [Fact]
     public void APlainBodyOnRailsThatHandsOffFromANumericFrameCarriesTheVelocityOfItsMotionIntents()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
         FrameHandle room = world.GetOwnedFrame(world.Spawn(new()
             { Frame = space, Pose = At(2_000), AsFrame = new(FrameBounds.Sphere(100)) }));
@@ -225,12 +225,12 @@ public class PlainBodyOnRailsTests
             DPose relation = self.Snapshot.Frames.Relative(space, self.Frame);
             DQuaternion turn = relation.Rotation;
             self.MoveOnRails(new(
-                DPose.Compose(relation, new(At(end), RotationAt(end))),
-                turn.Rotate((At(end) - At(end - step)) / step),
-                turn.Rotate(VelocityAt(end)),
-                turn.Rotate(new Double3(acceleration, 0, 0)),
-                turn.Rotate(AngularVelocityAt(end)),
-                turn.Rotate(new Double3(0, 0, spinUp))));
+                Pose: DPose.Compose(relation, new(At(end), RotationAt(end))),
+                ChordVelocity: turn.Rotate((At(end) - At(end - step)) / step),
+                Velocity: turn.Rotate(VelocityAt(end)),
+                Acceleration: turn.Rotate(new Double3(acceleration, 0, 0)),
+                AngularVelocity: turn.Rotate(AngularVelocityAt(end)),
+                AngularAcceleration: turn.Rotate(new Double3(0, 0, spinUp))));
         }
     }
 
@@ -244,9 +244,9 @@ public class PlainBodyOnRailsTests
         {
             Frame = space,
             Pose = new(rails.At(0), rails.RotationAt(0)),
-            Body = new(lopsided
+            Body = new(Shape: lopsided
                 ? new CompoundShapeDesc([new(new BoxShapeDesc(new(0.5f)), new(new(1, 0, 0), Quaternion.Identity))])
-                : new BoxShapeDesc(new(0.5f)), BodyMotion.Kinematic),
+                : new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Kinematic),
             Components = [rails]
         });
 
@@ -269,10 +269,10 @@ public class PlainBodyOnRailsTests
     [Fact]
     public void APlainBodyOnRailsReadsTheInstantVelocityOfItsCentreOfMass()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        var rails = new Speeding(space, Double3.Zero, acceleration: 3, spinUp: 2);
-        Entity cube = CubeOn(world, space, rails, lopsided: true);
+        var rails = new Speeding(space: space, start: Double3.Zero, acceleration: 3, spinUp: 2);
+        Entity cube = CubeOn(world: world, space: space, rails: rails, lopsided: true);
         Tick(world, 2);
 
         for (int i = 0; i < 30; i++)
@@ -294,10 +294,10 @@ public class PlainBodyOnRailsTests
     [Fact]
     public void APlainBodyOnRailsReadsTheSamplesInstantAngularVelocity()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        var rails = new Speeding(space, Double3.Zero, acceleration: 0, spinUp: 2);
-        Entity cube = CubeOn(world, space, rails);
+        var rails = new Speeding(space: space, start: Double3.Zero, acceleration: 0, spinUp: 2);
+        Entity cube = CubeOn(world: world, space: space, rails: rails);
         Tick(world, 2);
 
         for (int i = 0; i < 30; i++)
@@ -323,7 +323,7 @@ public class PlainBodyOnRailsTests
     [InlineData(true)]
     public void APlainBodyOnRailsThatHandsOffCarriesTheSamplesInstantVelocity(bool lopsided)
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         DQuaternion turned = DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2) *
                              DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2);
@@ -333,8 +333,8 @@ public class PlainBodyOnRailsTests
             Pose = new(new(20, 0, 0), turned),
             AsFrame = new(FrameBounds.Sphere(5))
         }));
-        var rails = new Speeding(space, new(5, 0, 0), acceleration: 3, spinUp: 2);
-        Entity cube = CubeOn(world, space, rails, lopsided);
+        var rails = new Speeding(space: space, start: new(5, 0, 0), acceleration: 3, spinUp: 2);
+        Entity cube = CubeOn(world: world, space: space, rails: rails, lopsided: lopsided);
         Tick(world, 2);
 
         var handOffs = new List<(FrameHandle To, double Off, double TurnOff)>();

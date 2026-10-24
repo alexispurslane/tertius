@@ -9,13 +9,13 @@ internal static class PuffTesting
 {
     /// <summary>Hot exhaust that lives 10 s: it glows, and its own gas is three times as hot as the medium.</summary>
     public static readonly PuffLook Hot = new(Life: 10, StartRadius: 0.2f, EndRadius: 1, TemperatureRatio: 3,
-        PuffShading.Glow(new(6, 5.4f, 4.5f)));
+        Shading: PuffShading.Glow(new(6, 5.4f, 4.5f)));
 
     /// <summary>Cold gas that lives 10 s, at three quarters of the medium's temperature.</summary>
     public static readonly PuffLook Cold = Hot with { TemperatureRatio = 0.75f, Shading = PuffShading.Lit(new(0.5f)) };
 
     /// <summary>An emitter along its entity's local -Z with no spread.</summary>
-    public static PuffEmitter Jet(PuffLook look, float rate = 60, float speed = 0) => new(rate, speed, 0, look);
+    public static PuffEmitter Jet(PuffLook look, float rate = 60, float speed = 0) => new(Rate: rate, Speed: speed, Spread: 0, Look: look);
 
     public static Entity SpawnEmitter(World world, FrameHandle frame, Double3 place, PuffEmitter emitter,
         params IComponent[] components) =>
@@ -56,7 +56,7 @@ internal static class PuffTesting
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         Entity owner = world.Spawn(new SpawnDesc
                 { Frame = space, AsFrame = new(FrameBounds.Sphere(150), default, medium) }
-            .Spinning(world, new(DQuaternion.Identity, rate), firstMove: true));
+            .Spinning(world, new(Tilt: DQuaternion.Identity, Rate: rate), firstMove: true));
         return (space, world.GetOwnedFrame(owner));
     }
 
@@ -68,7 +68,7 @@ internal static class PuffTesting
             Frame = space,
             Pose = new(place, DQuaternion.Identity),
             LinearVelocity = velocity,
-            Body = new(new BoxShapeDesc(new(2, 1, 5)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(2, 1, 5)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
             AsFrame = new(FrameBounds.Sphere(20)),
             Components = components
         });
@@ -87,12 +87,12 @@ public class PuffPhysicsTests
     [Fact]
     public void APuffInOrbitStaysWithTheFallingShip()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle earth = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(Scenes.EarthMu)));
         const double radius = 6.8e6;
-        Entity hull = PuffTesting.Hull(world, earth, new(radius, 0, 0), new(0, 0, Math.Sqrt(Scenes.EarthMu / radius)));
+        Entity hull = PuffTesting.Hull(world: world, space: earth, place: new(radius, 0, 0), velocity: new(0, 0, Math.Sqrt(Scenes.EarthMu / radius)));
         // A part with speed 0 at the stern: its puffs leave at the hull's own velocity.
-        Entity jet = PuffTesting.AttachEmitter(world, hull, new(0, 0, -6), PuffTesting.Jet(PuffTesting.Hot));
+        Entity jet = PuffTesting.AttachEmitter(world: world, parent: hull, offset: new(0, 0, -6), emitter: PuffTesting.Jet(PuffTesting.Hot));
 
         Tick(world, 120);
 
@@ -109,11 +109,11 @@ public class PuffPhysicsTests
     [Fact]
     public void APuffInTheSpinningStationCurvesAsAnInertialLineDoes()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         (FrameHandle space, FrameHandle station) = PuffTesting.SpinningStation(world, StationRate);
         Tick(world, 10);
         // At 60 puffs per second each newborn is born at the end of its step, to within a millionth of a step.
-        PuffTesting.SpawnEmitter(world, station, new(8, 0, 0), PuffTesting.Jet(PuffTesting.Hot, speed: 5));
+        PuffTesting.SpawnEmitter(world: world, frame: station, place: new(8, 0, 0), emitter: PuffTesting.Jet(PuffTesting.Hot, speed: 5));
         world.Tick();
         Puff born = PuffTesting.Rows(world, station)[0];
         DPose atBirth = world.Frames.Relative(station, space);
@@ -136,10 +136,10 @@ public class PuffPhysicsTests
     [Fact]
     public void APuffMovesAsALooseBodyThatLeavesTheEmitterWithTheSameVelocity()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         (_, FrameHandle station) = PuffTesting.SpinningStation(world, StationRate);
         Tick(world, 10);
-        PuffTesting.SpawnEmitter(world, station, new(8, 0, 0), PuffTesting.Jet(PuffTesting.Hot, speed: 5));
+        PuffTesting.SpawnEmitter(world: world, frame: station, place: new(8, 0, 0), emitter: PuffTesting.Jet(PuffTesting.Hot, speed: 5));
         world.Tick();
         Puff born = PuffTesting.Rows(world, station)[0];
         // The sphere starts where the puff is, with the puff's instant velocity in the station: the ejection velocity.
@@ -148,7 +148,7 @@ public class PuffPhysicsTests
             Frame = station,
             Pose = new(born.Place, DQuaternion.Identity),
             LinearVelocity = new(0, 0, -5),
-            Body = new(new SphereShapeDesc(0.05f), Mass: 0.1f, LinearDamping: 0, AngularDamping: 0)
+            Body = new(Shape: new SphereShapeDesc(0.05f), Mass: 0.1f, LinearDamping: 0, AngularDamping: 0)
         });
 
         Tick(world, 60);
@@ -163,13 +163,13 @@ public class PuffPhysicsTests
     [Fact]
     public void APuffInAThrustingHullsFrameFallsBehindTheHull()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         var thruster = new Thruster(1000) { Acceleration = 4.9f, Direction = Vector3.UnitZ };
-        FrameHandle cabin = world.GetOwnedFrame(PuffTesting.Hull(world, space, components: thruster));
+        FrameHandle cabin = world.GetOwnedFrame(PuffTesting.Hull(world: world, space: space, components: thruster));
         Tick(world, 10);
         // An emitter without a body at rest in the cabin, with speed 0.
-        PuffTesting.SpawnEmitter(world, cabin, new(1, 0, 2), PuffTesting.Jet(PuffTesting.Hot));
+        PuffTesting.SpawnEmitter(world: world, frame: cabin, place: new(1, 0, 2), emitter: PuffTesting.Jet(PuffTesting.Hot));
         world.Tick();
         Puff born = PuffTesting.Rows(world, cabin)[0];
         double birthTime = world.Time;
@@ -188,12 +188,12 @@ public class PuffPhysicsTests
     [Fact]
     public void AJetsPuffsFallBehindItsThrustingHullInTheHullsParentFrame()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         var thruster = new Thruster(1000) { Acceleration = 4.9f, Direction = Vector3.UnitZ };
-        Entity hull = PuffTesting.Hull(world, space, velocity: new(0, 0, 3), components: thruster);
+        Entity hull = PuffTesting.Hull(world: world, space: space, velocity: new(0, 0, 3), components: thruster);
         Tick(world, 10);
-        PuffTesting.AttachEmitter(world, hull, new(0, 0, -6), PuffTesting.Jet(PuffTesting.Hot));
+        PuffTesting.AttachEmitter(world: world, parent: hull, offset: new(0, 0, -6), emitter: PuffTesting.Jet(PuffTesting.Hot));
         world.Tick();
         Puff born = PuffTesting.Rows(world, space)[0];
         Double3 offsetAtBirth = born.Place - world.PoseIn(hull, space).Position;
@@ -213,17 +213,17 @@ public class PuffPhysicsTests
     [Fact]
     public void APuffInAFrameThatHoldsStillInAFieldFallsWithTheField()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         FrameHandle cabin = world.GetOwnedFrame(world.Spawn(new()
         {
             Frame = ground,
             Pose = At(0, 100),
-            Body = new(new BoxShapeDesc(new(2, 0.5f, 2)), BodyMotion.Static),
+            Body = new(Shape: new BoxShapeDesc(new(2, 0.5f, 2)), Motion: BodyMotion.Static),
             AsFrame = new(FrameBounds.Sphere(30))
         }));
         Tick(world, 5);
-        PuffTesting.SpawnEmitter(world, cabin, new(0, 5, 0), PuffTesting.Jet(PuffTesting.Hot));
+        PuffTesting.SpawnEmitter(world: world, frame: cabin, place: new(0, 5, 0), emitter: PuffTesting.Jet(PuffTesting.Hot));
         world.Tick();
         Puff born = PuffTesting.Rows(world, cabin)[0];
         double birthTime = world.Time;
@@ -239,12 +239,12 @@ public class PuffPhysicsTests
     [Fact]
     public void HotExhaustInAMediumRisesAndColdGasSinks()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f),
             GravityField.Uniform(new(0, -9.81f, 0)),
             MediumField.Uniform(1.225f, 2)));
-        PuffTesting.SpawnEmitter(world, ground, new(-5, 0, 0), PuffTesting.Jet(PuffTesting.Hot));
-        PuffTesting.SpawnEmitter(world, ground, new(5, 0, 0), PuffTesting.Jet(PuffTesting.Cold));
+        PuffTesting.SpawnEmitter(world: world, frame: ground, place: new(-5, 0, 0), emitter: PuffTesting.Jet(PuffTesting.Hot));
+        PuffTesting.SpawnEmitter(world: world, frame: ground, place: new(5, 0, 0), emitter: PuffTesting.Jet(PuffTesting.Cold));
 
         Tick(world, 60);
 
@@ -262,11 +262,11 @@ public class PuffPhysicsTests
     [Fact]
     public void HotGasInASpinningMediumRisesTowardTheAxis()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         (_, FrameHandle station) = PuffTesting.SpinningStation(world, StationRate, MediumField.Uniform(1.225f, 2));
         Tick(world, 10);
-        PuffTesting.SpawnEmitter(world, station, new(8, 0, 0), PuffTesting.Jet(PuffTesting.Hot));
-        PuffTesting.SpawnEmitter(world, station, new(0, 0, 8), PuffTesting.Jet(PuffTesting.Cold));
+        PuffTesting.SpawnEmitter(world: world, frame: station, place: new(8, 0, 0), emitter: PuffTesting.Jet(PuffTesting.Hot));
+        PuffTesting.SpawnEmitter(world: world, frame: station, place: new(0, 0, 8), emitter: PuffTesting.Jet(PuffTesting.Cold));
         world.Tick();
 
         Tick(world, 60);
@@ -284,9 +284,9 @@ public class PuffPhysicsTests
     [Fact]
     public void APuffInARootFrameFeelsTheRootsFieldAndNoProperAcceleration()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
-        PuffTesting.SpawnEmitter(world, ground, new(0, 10, 0), PuffTesting.Jet(PuffTesting.Hot));
+        PuffTesting.SpawnEmitter(world: world, frame: ground, place: new(0, 10, 0), emitter: PuffTesting.Jet(PuffTesting.Hot));
         world.Tick();
         Puff born = PuffTesting.Rows(world, ground)[0];
         double birthTime = world.Time;

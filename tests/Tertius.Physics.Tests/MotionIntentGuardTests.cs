@@ -23,7 +23,7 @@ public class MotionIntentGuardTests
     private static FrameHandle Space(World world) => world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
 
     private static BodyDesc Box(BodyMotion motion) =>
-        new(new BoxShapeDesc(new(2, 0.5f, 2)), motion, Mass: 1000, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new BoxShapeDesc(new(2, 0.5f, 2)), Motion: motion, Mass: 1000, LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>What a test does with the running entity in a tick. A delegate of its own, because <see cref="Self"/> is a ref struct.</summary>
     private delegate void SelfAction(Self self);
@@ -59,8 +59,8 @@ public class MotionIntentGuardTests
     private static MotionIntent Move(string write) => write switch
     {
         "end pose" => new(new EndPose(Turned)),
-        "full sample" => new(new MotionSample(Turned, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero,
-            Double3.Zero)),
+        "full sample" => new(new MotionSample(Pose: Turned, ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
+            AngularAcceleration: Double3.Zero)),
         _ => new(new SteerTarget(Turned))
     };
 
@@ -107,7 +107,7 @@ public class MotionIntentGuardTests
         "kinematic hull" => world.Spawn(
             new() { Frame = space, Body = Box(BodyMotion.Kinematic), AsFrame = SmallBubble }),
         "character" => world.Spawn(new()
-            { Frame = space, Body = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70) }),
+            { Frame = space, Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70) }),
         "attached entity" => world.Spawn(new() { AttachTo = world.Spawn(new() { Frame = space }) }),
         "entity without a body" => world.Spawn(new() { Frame = space }),
         "owner of a root frame" => world.Spawn(new() { Body = Box(BodyMotion.Static), AsFrame = SmallBubble }),
@@ -122,7 +122,7 @@ public class MotionIntentGuardTests
     /// </summary>
     private static void AssertRefused(string kind, string write, string reason)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
         Entity entity = Spawn(world, space, kind);
         world.Tick();
@@ -214,7 +214,7 @@ public class MotionIntentGuardTests
     [Fact]
     public void AKinematicHullTakesAnEndPoseAndItsFrameMovesAtTheChord()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         var line = new EndPoses(new(2, 0, 0));
         FrameHandle frame = world.GetOwnedFrame(world.Spawn(new()
@@ -255,7 +255,7 @@ public class MotionIntentGuardTests
     [InlineData("owner of a root frame without a body", "full sample")]
     public void TheOwnerOfARootFrameTakesAnEndPoseAndAFullSample(string kind, string write)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         Entity owner = Spawn(world, Space(world), kind);
         FrameHandle root = world.GetOwnedFrame(owner);
         world.Tick();
@@ -281,7 +281,7 @@ public class MotionIntentGuardTests
     [InlineData("kinematic hull", "full sample")]
     public void AKinematicBodyHoldsStillInTheStepAfterItsLastMotionIntent(string kind, string write)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
         Entity entity = Spawn(world, space, kind);
         world.Tick();
@@ -289,8 +289,8 @@ public class MotionIntentGuardTests
         var end = new DPose(new(3 * step, 0, 0), DQuaternion.Identity);
         MotionIntent move = write == "end pose"
             ? new(new EndPose(end))
-            : new MotionIntent(new MotionSample(end, new(3, 0, 0), new(3, 0, 0), Double3.Zero, Double3.Zero,
-                Double3.Zero));
+            : new MotionIntent(new MotionSample(Pose: end, ChordVelocity: new(3, 0, 0), Velocity: new(3, 0, 0), Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
+                AngularAcceleration: Double3.Zero));
 
         InATick(world, entity, self => Write(self, move)).Should().BeNull();
         world.Tick();
@@ -317,7 +317,7 @@ public class MotionIntentGuardTests
     [InlineData("kinematic hull", "SetAngularVelocity")]
     public void AKinematicBodyRefusesSetVelocityAndSetAngularVelocity(string kind, string write)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         Entity entity = Spawn(world, Space(world), kind);
         world.Tick();
 
@@ -352,7 +352,7 @@ public sealed class RefusedRailsAllocationCollection;
 [Collection(nameof(RefusedRailsAllocationTests))]
 public class RefusedRailsAllocationTests
 {
-    private static readonly BodyDesc StaticBox = new(new BoxShapeDesc(new(2, 0.5f, 2)), BodyMotion.Static);
+    private static readonly BodyDesc StaticBox = new(Shape: new BoxShapeDesc(new(2, 0.5f, 2)), Motion: BodyMotion.Static);
 
     /// <summary>
     /// A rails component whose entity the guard refuses logs the reason once and writes nothing (see
@@ -363,7 +363,7 @@ public class RefusedRailsAllocationTests
     [Fact]
     public void ARailsComponentThatTheGuardRefusesAllocatesNothingInTheTicksAfterItsLog()
     {
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         FrameHandle space = Scenes.AsteroidSpace(world);
         var log = new List<string>();
         world.Log += log.Add;
@@ -375,7 +375,7 @@ public class RefusedRailsAllocationTests
         world.Spawn(new()
         {
             Frame = space, Pose = At(0, 5_000), Body = StaticBox,
-            Components = [new SpinMotion { Spin = new(DQuaternion.Identity, 0.5) }]
+            Components = [new SpinMotion { Spin = new(Tilt: DQuaternion.Identity, Rate: 0.5) }]
         });
         Tick(world, 10);
         log.Should().HaveCount(2, "each component logs its refusal once");

@@ -54,8 +54,8 @@ public sealed class ShuttleGlareTests : IDisposable
         Picture.Contains(projected).Should().BeTrue($"{camera} sees the mirror image of {lampId}");
         int x = (int)Math.Round((1 + projected.X) / 2 * lit.Width),
             y = (int)Math.Round((1 - projected.Y) / 2 * lit.Height);
-        int peak = Added(lit, dark, x, y),
-            beside = (Added(lit, dark, x, y - Beside) + Added(lit, dark, x, y + Beside)) / 2;
+        int peak = Added(lit: lit, dark: dark, x: x, y: y),
+            beside = (Added(lit: lit, dark: dark, x: x, y: y - Beside) + Added(lit: lit, dark: dark, x: x, y: y + Beside)) / 2;
         (peak - beside).Should().BeLessThan(64,
             $"the highlight of {lampId} in {paneId} at ({x}, {y}) is faint: the lamps add {peak} there and {beside} beside it");
     }
@@ -90,8 +90,8 @@ public sealed class ShuttleGlareTests : IDisposable
             if (!withLamps)
                 foreach ((string id, _) in Shuttle.Lamps)
                     world.Destroy(scene[id]);
-            ScriptRunner.Run(script, world, scene, folder,
-                new HeadlessPlayback(renderer, script.Window, new PngFolder(folder)));
+            ScriptRunner.Run(script: script, world: world, scene: scene, outputFolder: folder,
+                playback: new HeadlessPlayback(renderer, script.Window, new PngFolder(folder)));
             view = world.PoseIn(scene[camera], world.GetOwnedFrame(scene["shuttle"]));
             verticalFov = world.VerticalFov;
         }

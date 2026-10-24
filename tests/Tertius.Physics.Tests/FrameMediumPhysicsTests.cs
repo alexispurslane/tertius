@@ -19,7 +19,7 @@ public class FrameMediumPhysicsTests
     /// <summary>Runs the scene for 120 ticks in a ground with <paramref name="medium"/>, and records each body after each tick.</summary>
     private static (Trace Box, Trace Person) Run(MediumField medium)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground =
             world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(0, -9.81f, 0)), medium));
         world.Frames.Medium(ground).Should().Be(medium);
@@ -29,14 +29,14 @@ public class FrameMediumPhysicsTests
             Frame = ground,
             Pose = At(0, 3),
             LinearVelocity = new(4, 0, 1),
-            Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Dynamic, Mass: 10)
+            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Dynamic, Mass: 10)
         });
         var pilot = new Pilot { EveryTick = body => body.MoveCharacter(new(2, 0, -1)) };
         Entity person = world.Spawn(new()
         {
             Frame = ground,
             Pose = At(-5, 1.2, 0),
-            Body = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
+            Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70),
             Components = [pilot]
         });
         var boxTrace = new Trace([], []);

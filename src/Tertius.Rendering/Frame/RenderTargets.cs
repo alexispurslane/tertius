@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering;
@@ -52,13 +53,13 @@ internal sealed class RenderTargets : IDisposable
     }
 
     public Extent2D Extent { get; private set; }
-    public GpuImage Albedo { get; private set; } = null!;
-    public GpuImage Normal { get; private set; } = null!;
-    public GpuImage SpecularGloss { get; private set; } = null!;
-    public GpuImage Emissive { get; private set; } = null!;
-    public GpuImage Distance { get; private set; } = null!;
-    public GpuImage Depth { get; private set; } = null!;
-    public GpuImage Hdr { get; private set; } = null!;
+    public GpuImage Albedo { get; private set; }
+    public GpuImage Normal { get; private set; }
+    public GpuImage SpecularGloss { get; private set; }
+    public GpuImage Emissive { get; private set; }
+    public GpuImage Distance { get; private set; }
+    public GpuImage Depth { get; private set; }
+    public GpuImage Hdr { get; private set; }
 
     /// <summary>Set 2: the G-buffer for the lighting and transparent passes.</summary>
     public DescriptorSet GBufferSet { get; }
@@ -78,23 +79,25 @@ internal sealed class RenderTargets : IDisposable
         Create(extent);
     }
 
+    [MemberNotNull(nameof(Albedo), nameof(Normal), nameof(SpecularGloss), nameof(Emissive), nameof(Distance),
+        nameof(Depth), nameof(Hdr))]
     private void Create(Extent2D extent)
     {
         const ImageUsageFlags target = ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit;
         Extent = extent;
-        Albedo = GpuImage.Create(device, allocator, extent, AlbedoFormat, target, 1, "g-buffer albedo");
-        Normal = GpuImage.Create(device, allocator, extent, NormalFormat, target, 1, "g-buffer normal");
-        SpecularGloss = GpuImage.Create(device, allocator, extent, SpecularGlossFormat, target, 1,
-            "g-buffer specular-gloss");
-        Emissive = GpuImage.Create(device, allocator, extent, EmissiveFormat, target, 1, "g-buffer emissive");
-        Distance = GpuImage.Create(device, allocator, extent, DistanceFormat, target, 1, "g-buffer distance");
-        Depth = GpuImage.Create(device, allocator, extent, DepthFormat, ImageUsageFlags.DepthStencilAttachmentBit, 1,
-            "depth");
-        Hdr = GpuImage.Create(device, allocator, extent, HdrFormat, target, 1, "hdr");
+        Albedo = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: AlbedoFormat, usage: target, mipLevels: 1, name: "g-buffer albedo");
+        Normal = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: NormalFormat, usage: target, mipLevels: 1, name: "g-buffer normal");
+        SpecularGloss = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: SpecularGlossFormat, usage: target, mipLevels: 1,
+            name: "g-buffer specular-gloss");
+        Emissive = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: EmissiveFormat, usage: target, mipLevels: 1, name: "g-buffer emissive");
+        Distance = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: DistanceFormat, usage: target, mipLevels: 1, name: "g-buffer distance");
+        Depth = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: DepthFormat, usage: ImageUsageFlags.DepthStencilAttachmentBit, mipLevels: 1,
+            name: "depth");
+        Hdr = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: HdrFormat, usage: target, mipLevels: 1, name: "hdr");
         GBuffer = [Albedo, Normal, SpecularGloss, Emissive, Distance];
         for (int i = 0; i < GBuffer.Length; i++)
-            layouts.WriteImage(GBufferSet, (uint)i, 0, GBuffer[i]);
-        layouts.WriteImage(PostSet, 0, 0, Hdr);
+            layouts.WriteImage(set: GBufferSet, binding: (uint)i, arrayElement: 0, image: GBuffer[i]);
+        layouts.WriteImage(set: PostSet, binding: 0, arrayElement: 0, image: Hdr);
     }
 
     private static void CheckFormats(VulkanDevice device)

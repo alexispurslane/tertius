@@ -43,9 +43,9 @@ public class StaticBodyGhostBenchmarks
         FrameHandle station = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), gravity));
         world.Spawn(new()
         {
-            Frame = station, Pose = At(0, -0.5, 0), Body = new(new BoxShapeDesc(new(100, 0.5f, 80)), BodyMotion.Static)
+            Frame = station, Pose = At(0, -0.5, 0), Body = new(Shape: new BoxShapeDesc(new(100, 0.5f, 80)), Motion: BodyMotion.Static)
         });
-        var prop = new BodyDesc(new BoxShapeDesc(new(0.5f)), BodyMotion.Static);
+        var prop = new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static);
         for (int i = 0; i < Props; i++)
             world.Spawn(new() { Frame = station, Pose = At(i % 50 * 4 - 98, 0.5, i / 50 * 4 - 78), Body = prop });
         var ships = new FrameHandle[DockedShips];
@@ -54,7 +54,7 @@ public class StaticBodyGhostBenchmarks
             {
                 Frame = station,
                 Pose = At(s * 48 - 50, 2, 0),
-                Body = new(new BoxShapeDesc(new(2, 1, 5)), BodyMotion.Static,
+                Body = new(Shape: new BoxShapeDesc(new(2, 1, 5)), Motion: BodyMotion.Static,
                     InteriorShape: new BoxShapeDesc(new(1.8f, 0.1f, 4.8f))),
                 AsFrame = new(FrameBounds.Sphere(10), gravity)
             }));

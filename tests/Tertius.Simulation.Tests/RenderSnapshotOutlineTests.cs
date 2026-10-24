@@ -27,14 +27,14 @@ public class RenderSnapshotOutlineTests
     private static readonly DQuaternion QuarterTurnAboutY = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
 
     /// <summary>The hull of a ship, 10 m by 6 m by 30 m: its bounding sphere has a radius of 16.4 m.</summary>
-    private static readonly BodyDesc ShipHull = new(new BoxShapeDesc(new(5, 3, 15)), Mass: 1000, LinearDamping: 0,
+    private static readonly BodyDesc ShipHull = new(Shape: new BoxShapeDesc(new(5, 3, 15)), Mass: 1000, LinearDamping: 0,
         AngularDamping: 0);
 
-    private static readonly BodyDesc CrateBody = new(new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0,
+    private static readonly BodyDesc CrateBody = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0,
         AngularDamping: 0);
 
     private static TestWorld OnJolt(int maxDegreeOfParallelism = 1) =>
-        new(new JoltPhysicsBackend(new() { WorkerThreads = 2 }), maxDegreeOfParallelism,
+        new(physics: new JoltPhysicsBackend(new() { WorkerThreads = 2 }), maxDegreeOfParallelism: maxDegreeOfParallelism,
             configure: options => options.DisposePhysics = true);
 
     private static List<SemanticOutline> Semantic(IEnumerable<FrameOutline> outlines) =>
@@ -318,7 +318,7 @@ public class RenderSnapshotOutlineTests
         Entity hull = test.World.Spawn(new SpawnDesc
         {
             Frame = space,
-            Body = new(new BoxShapeDesc(new(2)), BodyMotion.Kinematic),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Kinematic),
             AsFrame = new(FrameBounds.Sphere(30))
         }.OnKeplerOrbit(test.World, KeplerOrbit.Circular(5_000)));
         FrameHandle station = test.World.GetOwnedFrame(hull);
@@ -355,7 +355,7 @@ public class RenderSnapshotOutlineTests
         {
             Frame = test.Root,
             Pose = TestWorld.At(1e7),
-            Body = new(new BoxShapeDesc(new(20, 0.5f, 2)), BodyMotion.Static)
+            Body = new(Shape: new BoxShapeDesc(new(20, 0.5f, 2)), Motion: BodyMotion.Static)
         });
         Entity crate = test.World.Spawn(new()
             { Frame = test.Root, Pose = TestWorld.At(1e7 + 19.5, 1.6, 1.5), Body = CrateBody });
@@ -391,7 +391,7 @@ public class RenderSnapshotOutlineTests
         {
             Frame = test.Root,
             Pose = TestWorld.At(1e7),
-            Body = new(new BoxShapeDesc(new(20, 0.5f, 2)), BodyMotion.Static)
+            Body = new(Shape: new BoxShapeDesc(new(20, 0.5f, 2)), Motion: BodyMotion.Static)
         });
         Entity crate = test.World.Spawn(new()
             { Frame = test.Root, Pose = TestWorld.At(1e7 + 19.5, 1.6, 1.5), Body = CrateBody });
@@ -509,7 +509,7 @@ public class RenderSnapshotOutlineTests
             Frame = space,
             Pose = TestWorld.At(LightYear),
             LinearVelocity = new(FallingSpeed, 0, 0),
-            Body = new(new BoxShapeDesc(new(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
+            Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
                 InteriorShape: new SphereShapeDesc(0.05f)),
             AsFrame = new(FrameBounds.Sphere(20))
         });

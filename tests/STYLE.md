@@ -1,6 +1,6 @@
 # Test style for Tertius
 
-This guide covers the code in `tests`. The rules of [STYLE.md](../STYLE.md) for `src` apply here too, with the changes below. The workflow around tests, such as hand mutations, coverage and the review of snapshot images, is in CLAUDE.md.
+This guide covers the code in `tests`. The rules of [STYLE.md](../STYLE.md) for `src` apply here too, with the changes below. The style analyzer checks the named tuple elements (tool: TS0001) and the named arguments past 3 parameters (tool: TS0002) in `tests` as in `src`. Each is a warning, an error through `TreatWarningsAsErrors`, so a hit fails the build. The rule against `!` (tool: TS0003) holds for `src` only: a test may use `!` on a value that it knows. The workflow around tests, such as hand mutations, coverage and the review of snapshot images, is in CLAUDE.md.
 
 ## Names
 

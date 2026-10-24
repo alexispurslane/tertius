@@ -22,7 +22,7 @@ public class FramelessMotionIntentTests
     private static readonly DPose End = new(new(4, 2, 3), DQuaternion.FromAxisAngle(Double3.UnitY, 0.1));
 
     /// <summary>A full sample whose instant velocities differ from its chord, so that a test can tell which one the row takes.</summary>
-    private static readonly MotionSample Sample = new(End, ChordVelocity: new(2, 0, 0), Velocity: new(5, 0, 0),
+    private static readonly MotionSample Sample = new(Pose: End, ChordVelocity: new(2, 0, 0), Velocity: new(5, 0, 0),
         Acceleration: new(-1, 0, 0), AngularVelocity: new(0, 0, 0.5), AngularAcceleration: Double3.Zero);
 
     // ---- The record lands on the transform row -------------------------------------------------------------------
@@ -34,7 +34,7 @@ public class FramelessMotionIntentTests
     [InlineData("full sample", false)]
     public void AnEntityWithoutBodyOrFrameFollowsItsMotionIntent(string kind, bool onJolt)
     {
-        using TestWorld test = onJolt ? TestWorld.OnJolt(out _) : new();
+        using TestWorld test = onJolt ? TestWorld.OnJolt(faults: out _) : new();
         Entity entity = test.World.Spawn(new()
         {
             Frame = test.Root,
@@ -70,7 +70,7 @@ public class FramelessMotionIntentTests
     [Fact]
     public void AnEntityWithoutBodyOrFrameHoldsStillInTheStepAfterItsLastMotionIntent()
     {
-        using TestWorld test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(faults: out _);
         Entity entity = test.World.Spawn(new()
         {
             Frame = test.Root,
@@ -104,7 +104,7 @@ public class FramelessMotionIntentTests
     [InlineData(true)]
     public void ATransformWriteWinsForOneTickOverAMotionIntent(bool ownsFrame)
     {
-        using TestWorld test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(faults: out _);
         DPose written = TestWorld.At(10, 2, 3), next = TestWorld.At(12, 2, 3);
         Entity entity = test.World.Spawn(new()
         {
@@ -146,7 +146,7 @@ public class FramelessMotionIntentTests
     [Fact]
     public void ATransformWriteLeavesAnEntityWithoutABodyAtRest()
     {
-        using TestWorld test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(faults: out _);
         Entity entity = test.World.Spawn(new()
         {
             Frame = test.Root,
@@ -178,7 +178,7 @@ public class FramelessMotionIntentTests
     [InlineData(false)]
     public void AKeplerMotionMovesAnEntityWithoutBodyOrFrameOnItsOrbit(bool firstMove)
     {
-        using TestWorld test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(faults: out _);
         var log = new List<string>();
         test.World.Log += log.Add;
         test.GiveRootPointGravity(EarthMu);
@@ -208,8 +208,8 @@ public class FramelessMotionIntentTests
     [Fact]
     public void ASpinMotionTurnsAnEntityWithoutAFrameInPlace()
     {
-        using TestWorld test = TestWorld.OnJolt(out _);
-        var spin = new FrameSpin(DQuaternion.FromAxisAngle(Double3.UnitX, 0.2), Rate: 0.5);
+        using TestWorld test = TestWorld.OnJolt(faults: out _);
+        var spin = new FrameSpin(Tilt: DQuaternion.FromAxisAngle(Double3.UnitX, 0.2), Rate: 0.5);
         var place = new Double3(5, 0, 0);
         Entity entity = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = new(place, DQuaternion.Identity) }
             .Spinning(test.World, spin, firstMove: true));
@@ -235,7 +235,7 @@ public class FramelessMotionIntentTests
     [Fact]
     public void AnAttachedChildFollowsARootThatMotionIntentsMove()
     {
-        using TestWorld test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(faults: out _);
         var drift = new Double3(2, 0, 0);
         var spin = new Double3(0, 0.5, 0);
         DPose spawn = TestWorld.At(5);
@@ -243,11 +243,11 @@ public class FramelessMotionIntentTests
         {
             Frame = test.Root,
             Pose = spawn,
-            FirstMove = new(new EndPose(Advanced(spawn, drift, spin, test.World.DeltaTime))),
+            FirstMove = new(new EndPose(Advanced(pose: spawn, velocity: drift, spin: spin, step: test.World.DeltaTime))),
             Components =
             [
                 Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-                    self.MoveKinematic(Advanced(self.PoseAtNextStepStartIn(self.Frame), drift, spin, self.DeltaTime)))
+                    self.MoveKinematic(Advanced(pose: self.PoseAtNextStepStartIn(self.Frame), velocity: drift, spin: spin, step: self.DeltaTime)))
             ]
         });
         Entity child = test.World.Spawn(new()
@@ -298,12 +298,12 @@ public class FramelessMotionIntentTests
     private static (ulong Hash, int Moved, int Frameless) RunMotionIntents(int maxDop)
     {
         using TestWorld test =
-            TestWorld.OnJolt(out _, maxDegreeOfParallelism: maxDop, chunkSize: 16, debugChecks: false);
+            TestWorld.OnJolt(faults: out _, maxDegreeOfParallelism: maxDop, chunkSize: 16, debugChecks: false);
         test.GiveRootPointGravity(1e8);
         World world = test.World;
         var random = new Random(7);
         var frameless = new List<(Entity Entity, DPose Spawn)>();
-        var kinematicBall = new BodyDesc(new SphereShapeDesc(0.5f), Motion: BodyMotion.Kinematic);
+        var kinematicBall = new BodyDesc(Shape: new SphereShapeDesc(0.5f), Motion: BodyMotion.Kinematic);
         for (int i = 0; i < 120; i++)
         {
             DPose at = TestWorld.At(random.NextDouble() * 400 - 200, 0, random.NextDouble() * 400 - 200);
@@ -313,7 +313,7 @@ public class FramelessMotionIntentTests
             {
                 0 => new SpawnDesc { Frame = test.Root }.OnKeplerOrbit(world,
                     KeplerOrbit.Circular(1000 + i * 10, phase: i * 0.7), firstMove: i % 8 == 0),
-                1 => place.Spinning(world, new(DQuaternion.Identity, Rate: 0.1 + 0.01 * i), firstMove: i % 8 == 1),
+                1 => place.Spinning(world, new(Tilt: DQuaternion.Identity, Rate: 0.1 + 0.01 * i), firstMove: i % 8 == 1),
                 2 => KinematicDrift.Drifting(place, world, velocity),
                 _ => KinematicDrift.Drifting(new() { Frame = test.Root, Pose = at, Body = kinematicBall }, world,
                     velocity)

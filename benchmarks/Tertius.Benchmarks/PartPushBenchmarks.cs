@@ -48,7 +48,7 @@ public class PartPushTickBenchmarks
             DisposePhysics = true
         }, backend);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
-        var crate = new BodyDesc(new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
+        var crate = new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
         for (int i = 0; i < Crates; i++)
         {
             Entity root = world.Spawn(new()

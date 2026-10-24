@@ -16,7 +16,7 @@ public class UnitRotationPoseTests
     /// its last component one step of a float too long, so the square of its length is 1.7E-7 above 1.
     /// </summary>
     private static readonly DQuaternion Widened =
-        DQuaternion.FromQuaternion(new(0.18257418f, 0.36514837f, 0.5477226f, 0.73029685f));
+        DQuaternion.FromQuaternion(new(x: 0.18257418f, y: 0.36514837f, z: 0.5477226f, w: 0.73029685f));
 
     /// <summary>The place of a ship in a low orbit round Earth, in Earth's axes, 6.77E6 m from the center.</summary>
     private static readonly Double3 InOrbit = new(4.2e6, -3.9e6, 3.6e6);
@@ -117,7 +117,7 @@ public class UnitRotationPoseTests
     [Fact]
     public void AFloatPoseBecomesADoublePoseWhoseRotationIsOfUnitLength()
     {
-        var pose = new Pose(new(1, 2, 3), new(0.18257418f, 0.36514837f, 0.5477226f, 0.73029685f));
+        var pose = new Pose(new(1, 2, 3), new(x: 0.18257418f, y: 0.36514837f, z: 0.5477226f, w: 0.73029685f));
 
         var widened = pose.ToDPose();
 

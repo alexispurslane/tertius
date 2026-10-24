@@ -88,13 +88,13 @@ internal static class QueryPlanner
                 throw new InvalidOperationException(
                     "Near(radius) is around the entity that runs the query, and this snapshot has none. Run it from a component's Self.Snapshot, or use Near(other, radius) or Near(frame, point, radius).");
             case NearAsker(var radius):
-                ConsiderNear(ref best, snapshot, filter, radius);
+                ConsiderNear(best: ref best, snapshot: snapshot, near: filter, radius: radius);
                 break;
             case NearEntity(_, var radius):
-                ConsiderNear(ref best, snapshot, filter, radius);
+                ConsiderNear(best: ref best, snapshot: snapshot, near: filter, radius: radius);
                 break;
             case NearPoint(_, _, var radius):
-                ConsiderNear(ref best, snapshot, filter, radius);
+                ConsiderNear(best: ref best, snapshot: snapshot, near: filter, radius: radius);
                 break;
             case WhereFilter or null:
                 // Where and the empty filter have no index.

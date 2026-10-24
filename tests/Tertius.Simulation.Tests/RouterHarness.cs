@@ -55,8 +55,8 @@ internal sealed class RouterHarness
     public Entity Spawn(EventMask wants, FrameHandle frame = default)
     {
         Entity entity = Entities.Reserve();
-        Entities.Activate(entity, new() { Frame = frame, PhysicsHome = frame }, new(), [new Recorder(wants)], [wants],
-            null, Vector3.Zero, FrameHandle.Null);
+        Entities.Activate(entity: entity, row: new() { Frame = frame, PhysicsHome = frame }, render: new(), components: [new Recorder(wants)], wants: [wants],
+            body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
         Topics.MoveMember(entity, frame, out _);
         return entity;
     }
@@ -70,7 +70,7 @@ internal sealed class RouterHarness
     public void Send<T>(int chunk, Target target, T payload) where T : unmanaged, IEventPayload
     {
         EnsureChunk(chunk);
-        Entities.Chunks[chunk].Outbox.Add(Event.Create(target, Entity.Null, payload));
+        Entities.Chunks[chunk].Outbox.Add(Event.Create(target: target, sender: Entity.Null, payload: payload));
     }
 
     /// <summary>Writes a delayed message into a chunk, as an entity of that chunk would. It is due at routing number
@@ -78,7 +78,7 @@ internal sealed class RouterHarness
     public void SendAt<T>(int chunk, long due, Target target, T payload) where T : unmanaged, IEventPayload
     {
         EnsureChunk(chunk);
-        Entities.Chunks[chunk].Delayed.Add(new() { Due = due, Event = Event.Create(target, Entity.Null, payload) });
+        Entities.Chunks[chunk].Delayed.Add(new() { Due = due, Event = Event.Create(target: target, sender: Entity.Null, payload: payload) });
     }
 
     // With one slot per chunk, chunk n exists once slot n has been handed out.

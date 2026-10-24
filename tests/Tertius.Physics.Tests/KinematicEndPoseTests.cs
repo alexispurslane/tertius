@@ -31,7 +31,7 @@ public class KinematicEndPoseTests
         {
             var end = new DPose(Place(self.TimeAt(self.Tick + 2), t0), DQuaternion.Identity);
             if (sample)
-                self.MoveOnRails(new(end, Velocity, Velocity, Double3.Zero, Double3.Zero, Double3.Zero));
+                self.MoveOnRails(new(Pose: end, ChordVelocity: Velocity, Velocity: Velocity, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero));
             else
                 self.MoveKinematic(end);
         }
@@ -46,14 +46,14 @@ public class KinematicEndPoseTests
     [InlineData(true, true)]
     public void EveryKinematicBodyEndsItsStepExactlyOnItsEndPose(bool hull, bool sample)
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Scenes.AsteroidSpace(world);
         double t0 = world.Time;
         Entity mover = world.Spawn(new()
         {
             Frame = space,
             Pose = new(Start, DQuaternion.Identity),
-            Body = new(new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Kinematic),
+            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Kinematic),
             AsFrame = hull ? new FrameSpec(FrameBounds.Sphere(5)) : null,
             Components = [new Line(t0, sample)]
         });

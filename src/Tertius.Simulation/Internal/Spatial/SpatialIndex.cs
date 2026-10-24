@@ -121,7 +121,7 @@ internal sealed partial class SpatialIndex
         moved.CopyTo(movedForWorkers);
         movedCount = moved.Length;
         int items = Math.Min(movedCount, ParallelItems);
-        Parallel.For(0, items, workers, findItemMoves ??= FindItemMoves);
+        Parallel.For(fromInclusive: 0, toExclusive: items, parallelOptions: workers, body: findItemMoves ??= FindItemMoves);
         for (int item = 0; item < items; item++)
             Apply(moves.AsSpan(ItemStart(item, items), movesPerItem[item]));
     }
@@ -146,13 +146,13 @@ internal sealed partial class SpatialIndex
         if (box.CellCount > grid.CellCount)
             // A large radius: visiting the occupied cells is cheaper than visiting the box.
             foreach (KeyValuePair<CellKey, List<Entity>> cell in grid.Cells)
-                CollectWithin(cell.Value, center, radius * radius, results);
+                CollectWithin(cell: cell.Value, center: center, r2: radius * radius, results: results);
         else
             for (long x = box.X0; x <= box.X1; x++)
             for (long y = box.Y0; y <= box.Y1; y++)
             for (long z = box.Z0; z <= box.Z1; z++)
                 if (grid.TryGetCell(new(x, y, z), out List<Entity>? cell))
-                    CollectWithin(cell, center, radius * radius, results);
+                    CollectWithin(cell: cell, center: center, r2: radius * radius, results: results);
         results.Sort();
     }
 

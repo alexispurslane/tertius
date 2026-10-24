@@ -58,7 +58,7 @@ public class PipelineComponentTests
         using var t = new TestWorld();
         var added = new Recorder(EventMask.Of<Ping>());
         Entity target = t.SpawnWith(OnTick(0, self => self.AddComponent(added)));
-        t.SpawnWith(SendEvery.Of(target, tick => new Ping { Value = (int)tick }));
+        t.SpawnWith(SendEvery.Of(target: target, payloadAt: tick => new Ping { Value = (int)tick }));
 
         t.Run(4);
 
@@ -72,7 +72,7 @@ public class PipelineComponentTests
         using var t = new TestWorld();
         var removed = new Recorder(EventMask.Of<Ping>());
         Entity target = t.SpawnWith(OnTick(2, self => self.RemoveComponent(removed)), removed);
-        t.SpawnWith(SendEvery.Of(target, tick => new Ping { Value = (int)tick }));
+        t.SpawnWith(SendEvery.Of(target: target, payloadAt: tick => new Ping { Value = (int)tick }));
 
         t.Run(5);
 

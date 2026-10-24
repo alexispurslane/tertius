@@ -103,7 +103,7 @@ public sealed class BoxPlay(
             if (e.Is<PlayWithBoxes>())
                 Apply(self, new PlayWithBoxes());
             else if (e.Is<CrateOffer>() && State.TryGetValue(out Taking taking) && e.Sender == throws[taking.Throw].Box)
-                Apply(self, Take(self, outbox, taking.Throw, e.Sender, e.As<CrateOffer>().Crate));
+                Apply(self, Take(self: self, outbox: outbox, index: taking.Throw, box: e.Sender, offered: e.As<CrateOffer>().Crate));
         }
 
         BoxPlayEvent? report = null;
@@ -145,7 +145,7 @@ public sealed class BoxPlay(
     {
         if (!self.Snapshot.Frames.IsAlive(station))
             return (Gone(self), walk);
-        walk = Walker.Step(self, path, walk, walkSpeed);
+        walk = Walker.Step(self: self, path: path, walk: walk, speed: walkSpeed);
         return (walk.Next >= path.Length ? new WalkDone() : null, walk);
     }
 
@@ -177,9 +177,9 @@ public sealed class BoxPlay(
         taken[index] = offered;
         Pose view = self.Render.ViewOffset;
         (Vector3 aim, Quaternion turn) = AimInPerson(self, index, offered);
-        var grip = Pose.Compose(view.Inverse(), new(Carry.ThrowStart(body, offered, view.Position, aim), turn));
+        var grip = Pose.Compose(view.Inverse(), new(Carry.ThrowStart(body: body, carried: offered, eye: view.Position, aim: aim), turn));
         outbox.Send(box, new CrateTaken());
-        return new Took(self.Spawn(offered.HeldCopy(self.Frame, self.Entity, view, grip)));
+        return new Took(self.Spawn(offered.HeldCopy(frame: self.Frame, holder: self.Entity, view: view, grip: grip)));
     }
 
     /// <summary>
@@ -195,9 +195,9 @@ public sealed class BoxPlay(
             return null;
         CrateSpec box = taken[aiming.Throw];
         (Vector3 aim, Quaternion turn) = AimInPerson(self, aiming.Throw, box);
-        thrown.Add(Carry.Release(self, outbox, box, aiming.Copy, body, self.Render.ViewOffset.Position, aim, turn,
-            throwSpeed,
-            new FlightRecorder(station, floor, rate, box.HalfExtents.Y)));
+        thrown.Add(Carry.Release(self: self, outbox: outbox, carried: box, copy: aiming.Copy, body: body, eye: self.Render.ViewOffset.Position, aim: aim, turn: turn,
+            speed: throwSpeed,
+            new FlightRecorder(station: station, floor: floor, rate: rate, halfSize: box.HalfExtents.Y)));
         return new Thrown();
     }
 
@@ -223,7 +223,7 @@ public sealed class BoxPlay(
         DPose person = self.PoseIn(station);
         DQuaternion toPerson = person.Rotation.Conjugate();
         var aim = toPerson.Rotate(throws[index].Aim).ToVector3();
-        Double3 start = person.TransformPoint(Carry.ThrowStart(body, box, self.Render.ViewOffset.Position, aim));
+        Double3 start = person.TransformPoint(Carry.ThrowStart(body: body, carried: box, eye: self.Render.ViewOffset.Position, aim: aim));
         var release = new ThrowRelease(start, self.VelocityIn(station) + throws[index].Aim * throwSpeed);
         int facet = floor.FacetIndex(release.Landing(rate, floor, box.HalfExtents.Y).Place);
         return (aim, (toPerson * floor.FacetTurn(facet)).ToQuaternion());

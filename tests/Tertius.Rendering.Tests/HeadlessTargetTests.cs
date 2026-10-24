@@ -10,7 +10,7 @@ public sealed class HeadlessTargetTests
         HeadlessTarget? made = null;
         var renderer = VulkanRenderer.CreateOffscreen(
             new() { Validation = true, Width = 64, Height = 32, Impostors = false },
-            (device, allocator, extent) => made = new(device, allocator, extent, bgra: false));
+            (device, allocator, extent) => made = new(device: device, allocator: allocator, extent: extent, bgra: false));
         try
         {
             HeadlessTarget output = made!;

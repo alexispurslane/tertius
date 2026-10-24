@@ -32,13 +32,13 @@ public class SpinStationChordTests
     private static readonly double SpikeRate = Math.Sqrt(9.81 / 100);
 
     private static readonly BodyDesc UndampedCrate =
-        new(new BoxShapeDesc(new(0.5f)), Mass: 20, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 20, LinearDamping: 0, AngularDamping: 0);
 
-    private static readonly BodyDesc Crate = new(new BoxShapeDesc(new(0.5f)), Mass: 20);
+    private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 20);
 
     // A ball of 10 kg and radius 0.5 m has the moment of inertia 2/5 m r² = 1 kg m² about every axis.
     private static readonly BodyDesc UndampedBall =
-        new(new SphereShapeDesc(0.5f), Mass: 10, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new SphereShapeDesc(0.5f), Mass: 10, LinearDamping: 0, AngularDamping: 0);
 
     private sealed record Station(FrameHandle Space, FrameHandle Frame)
     {
@@ -54,7 +54,7 @@ public class SpinStationChordTests
     {
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         Entity owner = world.Spawn(new SpawnDesc { Frame = space, AsFrame = new(FrameBounds.Sphere(150)) }
-            .Spinning(world, new(DQuaternion.Identity, rate), firstMove: true));
+            .Spinning(world, new(Tilt: DQuaternion.Identity, Rate: rate), firstMove: true));
         return new(space, world.GetOwnedFrame(owner));
     }
 
@@ -63,7 +63,7 @@ public class SpinStationChordTests
     {
         Frame = station.Frame,
         Pose = At(100.5),
-        Body = new(new BoxShapeDesc(new(0.5f, 5, 5)), BodyMotion.Static)
+        Body = new(Shape: new BoxShapeDesc(new(0.5f, 5, 5)), Motion: BodyMotion.Static)
     });
 
     private static Entity SpawnIn(World world, FrameHandle frame, BodyDesc body, Double3 place,
@@ -163,13 +163,13 @@ public class SpinStationChordTests
         // last two free places, as the spike measured it. Without the chord rule of a turning frame, physics took the spawn
         // velocity, zero, as the chord of the step before, and the crate left on the step convention's line, about 0.08 m/s
         // faster outward.
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world, SpikeRate);
         SpawnFloor(world, station);
         Tick(world, 30);
 
-        Entity crate = SpawnIn(world, station.Frame, UndampedCrate, new(98, 0, 0));
-        List<Sample> flight = Record(world, station, crate, 60);
+        Entity crate = SpawnIn(world: world, frame: station.Frame, body: UndampedCrate, place: new(98, 0, 0));
+        List<Sample> flight = Record(world: world, station: station, body: crate, ticks: 60);
         Sample release = flight[0];
         Double3 velocity = Double3.Cross(new(0, SpikeRate, 0), release.Place - release.Station.Position);
 
@@ -182,9 +182,9 @@ public class SpinStationChordTests
         worst.Should().BeLessThan(1e-5, "the crate flies on the straight line through its place at ω × r");
 
         Sample last = flight[touch - 1];
-        (double time, Double3 inStation) = Landing(last.Place, (last.Place - flight[touch - 2].Place) / world.DeltaTime,
-            last.Time,
-            last.Station, SpikeRate, -world.DeltaTime, 3 * world.DeltaTime);
+        (double time, Double3 inStation) = Landing(place: last.Place, velocity: (last.Place - flight[touch - 2].Place) / world.DeltaTime,
+            time: last.Time,
+            station: last.Station, rate: SpikeRate, from: -world.DeltaTime, until: 3 * world.DeltaTime);
         // To the last digit of the spike's numbers.
         (time - release.Time).Should().BeApproximately(0.5607786, 5e-8);
         inStation.Z.Should().BeApproximately(0.176458, 5e-7);
@@ -197,18 +197,18 @@ public class SpinStationChordTests
         // The drop of the test before with Jolt's damping, which takes the crate's motion relative to the station's axes
         // away, like air that turns with the station. Its expected path starts on the straight line through its place at
         // ω × r: at rest relative to the station, the chord rule adds no half step of the damping.
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world, SpikeRate);
         SpawnFloor(world, station);
         Tick(world, 30);
 
-        Entity crate = SpawnIn(world, station.Frame, Crate, new(98, 0, 0));
+        Entity crate = SpawnIn(world: world, frame: station.Frame, body: Crate, place: new(98, 0, 0));
         // The crate lands after about 34 ticks.
-        List<Sample> flight = Record(world, station, crate, 30);
+        List<Sample> flight = Record(world: world, station: station, body: crate, ticks: 30);
         Sample release = flight[0];
         Double3 velocity = Double3.Cross(new(0, SpikeRate, 0), release.Place - release.Station.Position);
-        var path = new SpinStationBodyTests.ExpectedPath(release.Place, Crate.LinearDamping, world.DeltaTime,
-            velocity * world.DeltaTime);
+        var path = new SpinStationBodyTests.ExpectedPath(place: release.Place, damping: Crate.LinearDamping, dt: world.DeltaTime,
+            lastMove: velocity * world.DeltaTime);
 
         double worst = 0;
         for (int n = 1; n < flight.Count; n++)
@@ -228,7 +228,7 @@ public class SpinStationChordTests
         // 1.7e-3 rad/s in each step. The chord rule at the spawn takes the turn of the step that ended at the release and the
         // rate at that instant, so the crate leaves at ω × r at the rate of its release. The rate at the end of the step in
         // flight would make it 0.08 m/s faster at 50 m.
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         double spinStart = world.Time;
         Entity owner = world.Spawn(SpinUp.Spawning(new() { Frame = space, AsFrame = new(FrameBounds.Sphere(150)) },
@@ -236,8 +236,8 @@ public class SpinStationChordTests
         var station = new Station(space, world.GetOwnedFrame(owner));
         Tick(world, 3 * world.Options.TickRate);
 
-        Entity crate = SpawnIn(world, station.Frame, UndampedCrate, new(50, 0, 0));
-        List<Sample> flight = Record(world, station, crate, 30);
+        Entity crate = SpawnIn(world: world, frame: station.Frame, body: UndampedCrate, place: new(50, 0, 0));
+        List<Sample> flight = Record(world: world, station: station, body: crate, ticks: 30);
         Sample release = flight[0];
         var rate = new Double3(0, 0.1 * (release.Time - spinStart), 0);
         Double3 velocity = Double3.Cross(rate, release.Place - release.Station.Position);
@@ -263,18 +263,18 @@ public class SpinStationChordTests
         // ended, and Jolt gets the chord behind it: the chord of the step that ended of the inertial line through that state,
         // plus half a step of the damping. The expected path continues that line with Jolt's damping. Taken as the chord of
         // the step before, the throw left 0.1 m/s off its line at 60 Hz.
-        using World world = NewWorld(out _, debugChecks: false, configure: options => options.TickRate = tickRate);
+        using World world = NewWorld(backend: out _, debugChecks: false, configure: options => options.TickRate = tickRate);
         Station station = SpawnStation(world, SpikeRate);
         SpawnFloor(world, station);
         Tick(world, tickRate / 2);
 
         var pilot = new Pilot();
-        Entity crate = SpawnIn(world, station.Frame, Crate, new(99, 0, 0), component: pilot);
+        Entity crate = SpawnIn(world: world, frame: station.Frame, body: Crate, place: new(99, 0, 0), component: pilot);
         var throwVelocity = new Double3(0, 0, -3);
         pilot.Once = body => body.SetVelocity(throwVelocity);
         DPose beforeThrow = station.Pose(world);
         // The crate lands after about 0.3 s.
-        List<Sample> flight = Record(world, station, crate, tickRate / 4);
+        List<Sample> flight = Record(world: world, station: station, body: crate, ticks: tickRate / 4);
         Sample atThrow = flight[1];
         double dt = world.DeltaTime;
         Double3 inStation = atThrow.Station.InverseTransformPoint(atThrow.Place);
@@ -283,8 +283,8 @@ public class SpinStationChordTests
         // The chord behind the throw is faster by half a step of the damping, in the station's axes where the step that
         // ended started.
         Double3 halfStep = beforeThrow.Rotation.Rotate(throwVelocity * (Crate.LinearDamping * 0.5 * dt));
-        var path = new SpinStationBodyTests.ExpectedPath(atThrow.Place, Crate.LinearDamping, world.DeltaTime,
-            (velocity + halfStep) * dt);
+        var path = new SpinStationBodyTests.ExpectedPath(place: atThrow.Place, damping: Crate.LinearDamping, dt: world.DeltaTime,
+            lastMove: (velocity + halfStep) * dt);
 
         double worst = 0;
         for (int n = 2; n < flight.Count; n++)
@@ -307,12 +307,12 @@ public class SpinStationChordTests
         // rule acts on the crate's semantic place and velocity, its home's offset and frame velocity included, and the
         // crate's local chord loses the home's frame velocity again. Without damping, the crate's expected path is the
         // inertial line.
-        using World world = NewWorld(out _, debugChecks: false,
+        using World world = NewWorld(backend: out _, debugChecks: false,
             configure: options => options.NumericFrames = NumericFrameTesting.EveryGroupFalls);
         Station station = SpawnStation(world, SpikeRate);
         Tick(world, 30);
         var pilot = new Pilot();
-        Entity crate = SpawnIn(world, station.Frame, UndampedCrate, new(99, 0, 0), component: pilot);
+        Entity crate = SpawnIn(world: world, frame: station.Frame, body: UndampedCrate, place: new(99, 0, 0), component: pilot);
         world.Tick();
         world.Frames.IsNumeric(world.PhysicsHomeOf(crate)).Should()
             .BeTrue("the crate fell in a numeric frame below the station");
@@ -350,7 +350,7 @@ public class SpinStationChordTests
         // home's instant velocity past its chord: half a step of the frame's step acceleration, the rotation terms at the
         // origin, 5.9 m/s² there (docs/plans/spin-gravity.md, "The origin of a falling frame"). Without that term the turn's
         // part misses by ω dt times it, 2.6e-4 m/s. Without damping, the crate's path is a straight line in inertial space.
-        using World world = NewWorld(out _, debugChecks: false,
+        using World world = NewWorld(backend: out _, debugChecks: false,
             configure: options => options.NumericFrames = NumericFrameTesting.EveryGroupFalls);
         Station station = SpawnStation(world, SpikeRate);
         Tick(world, 30);
@@ -362,7 +362,7 @@ public class SpinStationChordTests
             Pose = new(place, DQuaternion.Identity),
             LinearVelocity = -Double3.Cross(omega, place),
             AngularVelocity = (-omega).ToVector3(),
-            Body = new(new BoxShapeDesc(new(1)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(1)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
             AsFrame = new(FrameBounds.Sphere(3))
         });
         FrameHandle shipFrame = world.GetOwnedFrame(ship);
@@ -371,11 +371,11 @@ public class SpinStationChordTests
         world.Frames.Numeric(falling).Should()
             .Be(NumericMode.Falling, "the ship falls in a numeric frame below the station");
 
-        Entity crate = SpawnIn(world, shipFrame, UndampedCrate, new(0, 2.4, 0), velocity: new(0, 2, 0));
+        Entity crate = SpawnIn(world: world, frame: shipFrame, body: UndampedCrate, place: new(0, 2.4, 0), velocity: new(0, 2, 0));
         Double3 velocity = world.Frames.Relative(shipFrame, station.Space).Rotation.Rotate(new Double3(0, 2, 0));
         // It is fully outside the bubble of 3 m, plus its bounding radius of 0.87 m and the exit margin, as much again, after
         // about 70 ticks.
-        List<Sample> flight = Record(world, station, crate, 100);
+        List<Sample> flight = Record(world: world, station: station, body: crate, ticks: 100);
 
         world.GetFrame(crate).Should().Be(station.Frame, "the crate leaves the ship's bubble");
         world.PhysicsHomeOf(crate).Should().Be(world.PhysicsHomeOf(ship),
@@ -396,11 +396,11 @@ public class SpinStationChordTests
         // The crate rests on the axis, where the station's turn does not move it, until a teleport puts it at rest 98 m out.
         // The rest after a teleport is an instant velocity of zero relative to the station, so from the teleport on the crate
         // moves at ω × r in inertial space.
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world, SpikeRate);
         Tick(world, 30);
         var pilot = new Pilot();
-        Entity crate = SpawnIn(world, station.Frame, UndampedCrate, Double3.Zero, component: pilot);
+        Entity crate = SpawnIn(world: world, frame: station.Frame, body: UndampedCrate, place: Double3.Zero, component: pilot);
         world.Tick();
 
         var place = new Double3(98, 0, 0);
@@ -429,12 +429,12 @@ public class SpinStationChordTests
         // A kinematic body moves in the frame's coordinates, by its motion intents and teleports alone, so the chord rule of
         // a turning frame does not act on it (docs/plans/spin-gravity.md, "The flow per kind of entity"). The chord of a point
         // at rest in the station's axes would carry it off at ω × r, 18.8 m/s here.
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world, SpikeRate);
         Tick(world, 30);
         var pilot = new Pilot();
-        Entity crate = SpawnIn(world, station.Frame, new(new BoxShapeDesc(new(0.5f)), BodyMotion.Kinematic),
-            new(20, 0, 0), component: pilot);
+        Entity crate = SpawnIn(world: world, frame: station.Frame, body: new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Kinematic),
+            place: new(20, 0, 0), component: pilot);
         world.Tick();
 
         var place = new Double3(60, 0, 0);
@@ -457,11 +457,11 @@ public class SpinStationChordTests
         // The ball rests on the axis and turns with the station, until it gets 2 rad/s about the station's +X relative to the
         // station. At that instant its inertial angular velocity is that spin plus the station's, which it keeps. Taken as
         // the angular chord of the step before, the spin was off by half the station's turn of a step, 5 mrad/s.
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world, SpikeRate);
         Tick(world, 30);
         var pilot = new Pilot();
-        Entity ball = SpawnIn(world, station.Frame, UndampedBall, Double3.Zero, component: pilot);
+        Entity ball = SpawnIn(world: world, frame: station.Frame, body: UndampedBall, place: Double3.Zero, component: pilot);
         world.Tick();
 
         var spin = new Vector3(2, 0, 0);
@@ -511,10 +511,10 @@ public class SpinStationChordTests
         var place = new Double3(140, 0, 0);
         var inertialVelocity = new Double3(10, 0, 0);
         var relativeSpin = (new Double3(0, 0, 3) - frameSpin).ToVector3();
-        Entity ball = SpawnIn(world, frame, UndampedBall, place, inertialVelocity - Double3.Cross(frameSpin, place),
-            relativeSpin);
-        state = new(world.Time, pose.TransformPoint(place), pose.Rotation.Rotate(inertialVelocity),
-            pose.Rotation.Rotate(relativeSpin + frameSpin), pose.Rotation);
+        Entity ball = SpawnIn(world: world, frame: frame, body: UndampedBall, place: place, velocity: inertialVelocity - Double3.Cross(frameSpin, place),
+            angularVelocity: relativeSpin);
+        state = new(Time: world.Time, Place: pose.TransformPoint(place), Velocity: pose.Rotation.Rotate(inertialVelocity),
+            AngularVelocity: pose.Rotation.Rotate(relativeSpin + frameSpin), Rotation: pose.Rotation);
         return ball;
     }
 
@@ -531,13 +531,13 @@ public class SpinStationChordTests
         // the end of the step, which the chord rule's inverse gives from its chords in the station, and keeps its line. With
         // numeric frames, under rules by which every group falls, the ball lives in a falling frame below the station, and
         // the ghost and the hand-off add the home's offset and frame velocity at the end of the step.
-        using World world = NewWorld(out JoltPhysicsBackend jolt, debugChecks: false,
+        using World world = NewWorld(backend: out JoltPhysicsBackend jolt, debugChecks: false,
             configure: options =>
                 options.NumericFrames = numericFrames ? NumericFrameTesting.EveryGroupFalls : options.NumericFrames);
         Station station = SpawnStation(world, SpikeRate);
         Tick(world, 30);
-        Entity ball = SpawnOutwardBall(world, station.Frame, station.Pose(world), new(0, SpikeRate, 0),
-            out InertialState state);
+        Entity ball = SpawnOutwardBall(world: world, frame: station.Frame, pose: station.Pose(world), frameSpin: new(0, SpikeRate, 0),
+            state: out InertialState state);
         bool fell = false;
 
         double worstPlace = 0, worstGhost = 0, worstGhostSpin = 0;
@@ -614,11 +614,11 @@ public class SpinStationChordTests
             world, OuterSpinUp));
         FrameHandle outer = world.GetOwnedFrame(outerOwner);
         // The tilt takes the spin's pole, +Y, to +X.
-        var spin = new FrameSpin(DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2), SpikeRate);
+        var spin = new FrameSpin(Tilt: DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2), Rate: SpikeRate);
         Entity stationOwner = world.Spawn(new SpawnDesc { Frame = outer, AsFrame = new(FrameBounds.Sphere(150)) }
             .Spinning(world, spin, firstMove: true));
         Tick(world, world.Options.TickRate);
-        return new(new(space, world.GetOwnedFrame(stationOwner)), outer, spinStart, spin);
+        return new(Station: new(space, world.GetOwnedFrame(stationOwner)), Outer: outer, SpinStart: spinStart, StationSpin: spin);
     }
 
     [Fact]
@@ -628,12 +628,12 @@ public class SpinStationChordTests
         // must take the turn of the step that just ended in the new frame, and the instant velocity in the station the turn
         // of the same step there. The ball's new body in the outer frame starts without the station's velocity shadow, whose
         // chord and place are relative to the station.
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         SpinningPair pair = SpawnSpinningPair(world);
         Station station = pair.Station;
         FrameHandle space = station.Space, outer = pair.Outer;
-        Entity ball = SpawnOutwardBall(world, station.Frame, station.Pose(world), pair.StationSpinNow(world),
-            out InertialState state);
+        Entity ball = SpawnOutwardBall(world: world, frame: station.Frame, pose: station.Pose(world), frameSpin: pair.StationSpinNow(world),
+            state: out InertialState state);
 
         double worstPlace = 0;
         int ticks = TickUntil(world, () =>
@@ -667,7 +667,7 @@ public class SpinStationChordTests
         // its instant velocity in the outer frame, which holds that frame's turn of the step, so the step record of the ship's
         // frame takes back the same turn with its acceleration over half a step, and the frame's velocity in the tree is the
         // instant velocity of the hull's inertial line relative to the turning outer frame.
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         SpinningPair pair = SpawnSpinningPair(world);
         Station station = pair.Station;
         DPose atSpawn = station.Pose(world);
@@ -681,7 +681,7 @@ public class SpinStationChordTests
             Pose = new(place, DQuaternion.Identity),
             LinearVelocity = inertialVelocity - Double3.Cross(stationSpin, place),
             AngularVelocity = (-stationSpin).ToVector3(),
-            Body = new(new BoxShapeDesc(new(1)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(1)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
             AsFrame = new(FrameBounds.Sphere(5))
         });
         FrameHandle shipFrame = world.GetOwnedFrame(ship);
@@ -708,12 +708,12 @@ public class SpinStationChordTests
         // every other body (docs/plans/spin-gravity.md, "The chord rule"). Jolt's chord plus half a step of the change of
         // Jolt's velocity misses it by the jerk of the circle times dt² / 3, ω³ r dt² / 3 = 2.9e-4 m/s. A float velocity at
         // 31 m/s has steps of 1.9e-6 m/s.
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world, SpikeRate);
         Tick(world, 30);
         var omega = new Double3(0, SpikeRate, 0);
         var place = new Double3(100, 0, 0);
-        Entity ship = world.Spawn(SpinningShip(station.Frame, place, -Double3.Cross(omega, place), -omega));
+        Entity ship = world.Spawn(SpinningShip(frame: station.Frame, place: place, velocity: -Double3.Cross(omega, place), angularVelocity: -omega));
         FrameHandle shipFrame = world.GetOwnedFrame(ship);
 
         double worst = 0;
@@ -742,7 +742,7 @@ public class SpinStationChordTests
         Pose = new(place, DQuaternion.Identity),
         LinearVelocity = velocity,
         AngularVelocity = angularVelocity.ToVector3(),
-        Body = new(new BoxShapeDesc(new(1)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+        Body = new(Shape: new BoxShapeDesc(new(1)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
         AsFrame = new(FrameBounds.Sphere(0.5f))
     };
 
@@ -771,13 +771,13 @@ public class SpinStationChordTests
         // angular acceleration is the change of Jolt's angular chords, centered a step before the instant angular velocity
         // that the cross term takes, so the frame keeps about one step of the change of α_b, (α + ω²) |Ω| dt = 6e-3 rad/s²
         // at a rate of 0.4 rad/s (measured 5.3e-3 rad/s²).
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStationThatSpinsUp(world);
         Double3 omega = world.Frames.AngularVelocity(station.Frame);
         var spin = new Double3(1, 0, 0);
         var place = new Double3(140, 0, 0);
-        Entity ship = world.Spawn(SpinningShip(station.Frame, place,
-            new Double3(10, 0, 0) - Double3.Cross(omega, place), spin - omega));
+        Entity ship = world.Spawn(SpinningShip(frame: station.Frame, place: place,
+            velocity: new Double3(10, 0, 0) - Double3.Cross(omega, place), angularVelocity: spin - omega));
         FrameHandle shipFrame = world.GetOwnedFrame(ship);
         world.Tick();
         Double3 inStation = world.Frames.AngularAcceleration(shipFrame);
@@ -800,10 +800,10 @@ public class SpinStationChordTests
         // station's axes and ω the station's rate when it enters. The hand-off converts its zero angular acceleration in
         // space by the full rule back, α_b = R⁻¹ (α' − α − ω × Ω'), which gives that. The rule that only turns the vector
         // gave zero.
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStationThatSpinsUp(world);
         var spin = new Double3(1, 0, 0);
-        Entity ship = world.Spawn(SpinningShip(station.Space, new(158, 0, 0), new(-10, 0, 0), spin));
+        Entity ship = world.Spawn(SpinningShip(frame: station.Space, place: new(158, 0, 0), velocity: new(-10, 0, 0), angularVelocity: spin));
         FrameHandle shipFrame = world.GetOwnedFrame(ship);
 
         int ticks = TickUntil(world, () => world.GetFrame(ship) == station.Frame, 200);
@@ -824,14 +824,14 @@ public class SpinStationChordTests
         // The pillar stands in space and reaches 5 m into the station's bubble, so it has a ghost in the station, which a
         // static body never enters. In the station's axes its center goes round the axis, and its ghost moves by the chord
         // of that motion over the step that ended. The instant rule at the end of the step gave −ω × r, 0.13 m/s off.
-        using World world = NewWorld(out JoltPhysicsBackend jolt, debugChecks: false);
+        using World world = NewWorld(backend: out JoltPhysicsBackend jolt, debugChecks: false);
         Station station = SpawnStation(world, SpikeRate);
         var center = new Double3(160, 0, 0);
         Entity pillar = world.Spawn(new()
         {
             Frame = station.Space,
             Pose = new(center, DQuaternion.Identity),
-            Body = new(new BoxShapeDesc(new(15, 1, 1)), BodyMotion.Static)
+            Body = new(Shape: new BoxShapeDesc(new(15, 1, 1)), Motion: BodyMotion.Static)
         });
         Tick(world, 10);
 
@@ -885,22 +885,22 @@ public class SpinStationChordTests
     [Fact]
     public void TheGhostOfABodyInAStationThatTeleportsFollowsItsChordFromTheTeleportsPose()
     {
-        using World world = NewWorld(out JoltPhysicsBackend jolt, debugChecks: false);
+        using World world = NewWorld(backend: out JoltPhysicsBackend jolt, debugChecks: false);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        var spin = new FrameSpin(DQuaternion.Identity, 0.05);
+        var spin = new FrameSpin(Tilt: DQuaternion.Identity, Rate: 0.05);
         FrameSpin ahead = spin with { PhaseAtEpoch = 0.5 };
         const long jumpTick = 20;
         var jumping = new JumpingSpin(spin, ahead, jumpTick);
         Entity owner = world.Spawn(new()
         {
             Frame = space,
-            Body = new(new BoxShapeDesc(new(1)), BodyMotion.Kinematic, InteriorShape: new SphereShapeDesc(0.5f)),
+            Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic, InteriorShape: new SphereShapeDesc(0.5f)),
             AsFrame = new(FrameBounds.Sphere(150)),
             FirstMove = new(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
             Components = [jumping]
         });
         FrameHandle station = world.GetOwnedFrame(owner);
-        Entity ball = SpawnIn(world, station, UndampedBall, new(149.8, 0, 0));
+        Entity ball = SpawnIn(world: world, frame: station, body: UndampedBall, place: new(149.8, 0, 0));
         while (world.TickNumber <= jumpTick)
             world.Tick();
         jolt.HasGhostIn(ball, space).Should().BeTrue("the ball sticks out of the bubble");
@@ -937,7 +937,7 @@ public class SpinStationChordTests
     [Fact]
     public void TheGhostOfABodyInAShipThatHandsOffOutOfTheStationMovesWithTheBodyInTheStepOfTheHandOff()
     {
-        using World world = NewWorld(out JoltPhysicsBackend jolt, debugChecks: false);
+        using World world = NewWorld(backend: out JoltPhysicsBackend jolt, debugChecks: false);
         Station station = SpawnStation(world, SpikeRate);
         Tick(world, 30);
         DPose atSpawn = station.Pose(world);
@@ -951,11 +951,11 @@ public class SpinStationChordTests
             Pose = new(place, DQuaternion.Identity),
             LinearVelocity = inertialVelocity - Double3.Cross(stationSpin, place),
             AngularVelocity = (shipSpin - stationSpin).ToVector3(),
-            Body = new(new BoxShapeDesc(new(1)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(1)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
             AsFrame = new(FrameBounds.Sphere(5))
         });
         FrameHandle shipFrame = world.GetOwnedFrame(ship);
-        Entity ball = SpawnIn(world, shipFrame, UndampedBall, new(0, 0, 4.8));
+        Entity ball = SpawnIn(world: world, frame: shipFrame, body: UndampedBall, place: new(0, 0, 4.8));
 
         int ticks = TickUntil(world, () => world.GetFrame(ship) == station.Space, 200);
 
@@ -988,7 +988,7 @@ public class SpinStationChordTests
     [Fact]
     public void ABodyThatSticksOutOfItsRoomIntoTheSiblingStationHasAGhostThereThatMovesByItsChordInTheStationsAxes()
     {
-        using World world = NewWorld(out JoltPhysicsBackend jolt, debugChecks: false);
+        using World world = NewWorld(backend: out JoltPhysicsBackend jolt, debugChecks: false);
         Station station = SpawnStation(world, SpikeRate);
         var roomPlace = new Double3(300, 0, 0);
         FrameHandle room = world.GetOwnedFrame(world.Spawn(new()
@@ -997,7 +997,7 @@ public class SpinStationChordTests
             Pose = new(roomPlace, DQuaternion.Identity),
             AsFrame = new(FrameBounds.Sphere(150))
         }));
-        Entity ball = SpawnIn(world, room, UndampedBall, new(-149.8, 0, 0), new(0, 1, 0));
+        Entity ball = SpawnIn(world: world, frame: room, body: UndampedBall, place: new(-149.8, 0, 0), velocity: new(0, 1, 0));
         Tick(world, 10);
 
         DPose start = station.Pose(world);

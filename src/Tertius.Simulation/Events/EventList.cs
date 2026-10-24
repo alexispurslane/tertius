@@ -123,7 +123,7 @@ public sealed class EventBuffer(int capacity = 32)
     private void Compact(int count, int read, int write)
     {
         if (read < count && write != read)
-            Array.Copy(Items, read, Items, write, count - read);
+            Array.Copy(sourceArray: Items, sourceIndex: read, destinationArray: Items, destinationIndex: write, length: count - read);
         int newCount = write + (count - read);
         if (newCount < count)
         {
@@ -223,7 +223,7 @@ public readonly ref struct EventList
             ThrowIndex(index);
         Event[] items = buffer.Items;
         if (index < count - 1)
-            Array.Copy(items, index + 1, items, index, count - index - 1);
+            Array.Copy(sourceArray: items, sourceIndex: index + 1, destinationArray: items, destinationIndex: index, length: count - index - 1);
         items[count - 1] = default;
         buffer.Count = count - 1;
         buffer.Version++;

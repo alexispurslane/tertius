@@ -33,11 +33,11 @@ internal readonly record struct FrameMotion(
     /// (see <see cref="FrameTree.MotionRelativeInStep"/>).
     /// </summary>
     public FrameMotion MotionToParent(in FrameMotion local) => new(
-        PoseToParent(local.Pose),
-        VelocityToParent(local.Pose.Position, local.Velocity),
-        AngularToParent(local.AngularVelocity),
-        AccelerationToParent(local.Pose.Position, local.Velocity, local.Acceleration),
-        AngularAccelerationToParent(local.AngularAcceleration, local.AngularVelocity));
+        Pose: PoseToParent(local.Pose),
+        Velocity: VelocityToParent(local.Pose.Position, local.Velocity),
+        AngularVelocity: AngularToParent(local.AngularVelocity),
+        Acceleration: AccelerationToParent(local.Pose.Position, local.Velocity, local.Acceleration),
+        AngularAcceleration: AngularAccelerationToParent(local.AngularAcceleration, local.AngularVelocity));
 
     /// <summary>
     /// The motion of the parent in this frame, in the frame's axes: the inverse pose, and the motion of the parent's origin
@@ -47,11 +47,11 @@ internal readonly record struct FrameMotion(
     /// at rest in itself.
     /// </summary>
     public FrameMotion Inverse() => new(
-        Pose.Inverse(),
-        VelocityFromParent(Double3.Zero, Double3.Zero),
-        AngularFromParent(Double3.Zero),
-        AccelerationFromParent(Double3.Zero, Double3.Zero, Double3.Zero),
-        AngularAccelerationFromParent(Double3.Zero, Double3.Zero));
+        Pose: Pose.Inverse(),
+        Velocity: VelocityFromParent(Double3.Zero, Double3.Zero),
+        AngularVelocity: AngularFromParent(Double3.Zero),
+        Acceleration: AccelerationFromParent(Double3.Zero, Double3.Zero, Double3.Zero),
+        AngularAcceleration: AngularAccelerationFromParent(Double3.Zero, Double3.Zero));
 
     public DPose PoseFromParent(in DPose parentPose) => DPose.Compose(Pose.Inverse(), parentPose);
 

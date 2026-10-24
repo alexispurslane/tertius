@@ -552,7 +552,7 @@ public struct PhysicsIntent
         DPose start = StepStart(standing);
         return Move.TryRecordFrom(start, step, out MotionSample record)
             ? record
-            : new(start, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
+            : new(Pose: start, ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
     }
 
     /// <summary>

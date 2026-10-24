@@ -284,7 +284,7 @@ public class MixedBodiesTickBenchmarks
             AsFrame = new(FrameBounds.Sphere(1000))
         }));
         var mesh = new RenderData { Mesh = new(0), Flags = RenderFlags.Visible, BoundingRadius = 0.5f };
-        var cube = new BodyDesc(new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
+        var cube = new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
         for (int i = 0; i < Bodies; i++)
             world.Spawn(new()
             {

@@ -43,7 +43,7 @@ public class AttachedSpawnHandOffTests
                 Frame = Space,
                 Pose = TestWorld.At(3.5),
                 LinearVelocity = new Vector3(6, 0, 0),
-                Body = new(new SphereShapeDesc(0.5f), LinearDamping: 0, AngularDamping: 0),
+                Body = new(Shape: new SphereShapeDesc(0.5f), LinearDamping: 0, AngularDamping: 0),
                 Components =
                 [
                     Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>

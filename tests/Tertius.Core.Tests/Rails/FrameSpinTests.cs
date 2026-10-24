@@ -15,7 +15,7 @@ public class FrameSpinTests
 
     // ---- The sample of a spin over a step ----------------------------------------------------------------------
 
-    private static readonly FrameSpin Turning = new(Obliquity, 0.25, PhaseAtEpoch: 0.7, Epoch: 3);
+    private static readonly FrameSpin Turning = new(Tilt: Obliquity, Rate: 0.25, PhaseAtEpoch: 0.7, Epoch: 3);
     private static readonly Double3 Place = new(5, -6, 7e6);
 
     private static void ExpectNear(Double3 actual, Double3 expected, double tolerance = 1e-12) =>
@@ -27,7 +27,7 @@ public class FrameSpinTests
     [InlineData(86164.09)]
     public void TheFramesPoleIsItsTiltedPlusYAndStaysPut(double time)
     {
-        var spin = new FrameSpin(Obliquity, 7.2921159e-5);
+        var spin = new FrameSpin(Tilt: Obliquity, Rate: 7.2921159e-5);
 
         ExpectNear(spin.RotationAt(time).Rotate(new Double3(0, 1, 0)), Pole);
     }
@@ -35,7 +35,7 @@ public class FrameSpinTests
     [Fact]
     public void AtItsEpochTheFrameStandsAtItsPhase()
     {
-        var spin = new FrameSpin(DQuaternion.Identity, 3, PhaseAtEpoch: Math.PI / 2, Epoch: 40);
+        var spin = new FrameSpin(Tilt: DQuaternion.Identity, Rate: 3, PhaseAtEpoch: Math.PI / 2, Epoch: 40);
 
         // A quarter turn about +Y, counterclockwise seen from above, takes +X to -Z.
         ExpectNear(spin.RotationAt(40).Rotate(new Double3(1, 0, 0)), new(0, 0, -1));
@@ -44,7 +44,7 @@ public class FrameSpinTests
     [Fact]
     public void TheFrameTurnsAboutItsPoleByItsRateTimesTheTimeThatPassed()
     {
-        var spin = new FrameSpin(Obliquity, 0.25, PhaseAtEpoch: 0.7, Epoch: 3);
+        var spin = new FrameSpin(Tilt: Obliquity, Rate: 0.25, PhaseAtEpoch: 0.7, Epoch: 3);
 
         // From t = 5 to t = 7 the frame turns 0.5 rad about its pole: the change of rotation is that turn.
         DQuaternion change = spin.RotationAt(7) * spin.RotationAt(5).Conjugate();
@@ -55,13 +55,13 @@ public class FrameSpinTests
     [Fact]
     public void TheAngularVelocityIsTheRateAboutThePole()
     {
-        ExpectNear(new FrameSpin(Obliquity, 0.25).AngularVelocity, Pole * 0.25);
+        ExpectNear(new FrameSpin(Tilt: Obliquity, Rate: 0.25).AngularVelocity, Pole * 0.25);
     }
 
     [Fact]
     public void ATiltThatIsNotUnitLengthLeansTheFrameByItsDirectionAlone()
     {
-        var spin = new FrameSpin(new(Obliquity.X * 1.5, Obliquity.Y * 1.5, Obliquity.Z * 1.5, Obliquity.W * 1.5), 0.25);
+        var spin = new FrameSpin(Tilt: new(X: Obliquity.X * 1.5, Y: Obliquity.Y * 1.5, Z: Obliquity.Z * 1.5, W: Obliquity.W * 1.5), Rate: 0.25);
 
         ExpectNear(spin.RotationAt(3).Rotate(new Double3(0, 1, 0)), Pole);
         ExpectNear(spin.AngularVelocity, Pole * 0.25);
@@ -90,14 +90,14 @@ public class FrameSpinTests
     {
         FrameSpin spin = which switch
         {
-            "rate NaN" => new(DQuaternion.Identity, double.NaN),
-            "rate infinite" => new(DQuaternion.Identity, double.PositiveInfinity),
-            "phase NaN" => new(DQuaternion.Identity, 1, PhaseAtEpoch: double.NaN),
-            "epoch infinite" => new(DQuaternion.Identity, 1, Epoch: double.NegativeInfinity),
-            "tilt NaN" => new(new(double.NaN, 0, 0, 1), 1),
-            "tilt Y NaN" => new(new(0, double.NaN, 0, 1), 1),
-            "tilt Z infinite" => new(new(0, 0, double.PositiveInfinity, 1), 1),
-            _ => new(new(0, 0, 0, double.PositiveInfinity), 1)
+            "rate NaN" => new(Tilt: DQuaternion.Identity, Rate: double.NaN),
+            "rate infinite" => new(Tilt: DQuaternion.Identity, Rate: double.PositiveInfinity),
+            "phase NaN" => new(Tilt: DQuaternion.Identity, Rate: 1, PhaseAtEpoch: double.NaN),
+            "epoch infinite" => new(Tilt: DQuaternion.Identity, Rate: 1, Epoch: double.NegativeInfinity),
+            "tilt NaN" => new(Tilt: new(X: double.NaN, Y: 0, Z: 0, W: 1), Rate: 1),
+            "tilt Y NaN" => new(Tilt: new(X: 0, Y: double.NaN, Z: 0, W: 1), Rate: 1),
+            "tilt Z infinite" => new(Tilt: new(X: 0, Y: 0, Z: double.PositiveInfinity, W: 1), Rate: 1),
+            _ => new(Tilt: new(X: 0, Y: 0, Z: 0, W: double.PositiveInfinity), Rate: 1)
         };
 
         spin.IsValid.Should().BeFalse();

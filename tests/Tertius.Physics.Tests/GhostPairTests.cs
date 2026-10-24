@@ -52,8 +52,8 @@ public class GhostPairTests
     /// </summary>
     private static PairScene SensorAndBody(World world, FrameHandle parent, bool acrossFrames, BodyDesc body)
     {
-        FrameHandle first = acrossFrames ? Bubble(world, parent, At(-3.7), 3) : parent;
-        FrameHandle second = acrossFrames ? Bubble(world, parent, At(3.7), 3) : parent;
+        FrameHandle first = acrossFrames ? Bubble(world: world, parent: parent, pose: At(-3.7), radius: 3) : parent;
+        FrameHandle second = acrossFrames ? Bubble(world: world, parent: parent, pose: At(3.7), radius: 3) : parent;
         double firstX = acrossFrames ? -3.7 : 0, secondX = acrossFrames ? 3.7 : 0;
         var sensorLog = new CollisionLog();
         var bodyLog = new CollisionLog();
@@ -62,7 +62,7 @@ public class GhostPairTests
             { Frame = first, Pose = At(-0.4 - firstX), Body = SensorBall, Components = [sensorLog, pilot] });
         Entity other = world.Spawn(new()
             { Frame = second, Pose = At(0.4 - secondX), Body = body, Components = [bodyLog] });
-        return new(parent, first, second, sensor, other, sensorLog, bodyLog, pilot);
+        return new(Parent: parent, First: first, Second: second, Sensor: sensor, Body: other, SensorLog: sensorLog, BodyLog: bodyLog, SensorPilot: pilot);
     }
 
     /// <summary>Checks that only the parent's system holds a body of each entity of the scene across frames: their two ghosts.</summary>
@@ -91,8 +91,8 @@ public class GhostPairTests
         ASensorAndABodyThatStickOutOfSiblingFramesAndOverlapOnlyOutsideBothBubblesHearOneCollisionAndOneEndWhenTheyPart(
             bool acrossFrames)
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        PairScene scene = SensorAndBody(world, Space(world), acrossFrames, Ball());
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
+        PairScene scene = SensorAndBody(world: world, parent: Space(world), acrossFrames: acrossFrames, body: Ball());
         Tick(world, 10);
         if (acrossFrames)
             OnlyTheParentHoldsBoth(faults, scene);
@@ -119,8 +119,8 @@ public class GhostPairTests
     {
         static (List<ContactNews> First, List<ContactNews> Second) Run(bool acrossFrames)
         {
-            using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-            PairScene scene = SensorAndBody(world, Space(world), acrossFrames, SensorBall);
+            using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
+            PairScene scene = SensorAndBody(world: world, parent: Space(world), acrossFrames: acrossFrames, body: SensorBall);
             Tick(world, 10);
             if (acrossFrames)
                 OnlyTheParentHoldsBoth(faults, scene);
@@ -169,13 +169,13 @@ public class GhostPairTests
         BodyDesc ballBody,
         bool boxIsSensor = false)
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
         var boxLog = new CollisionLog();
         Entity box = world.Spawn(new()
         {
             Frame = space, Pose = At(0, 11.3),
-            Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static) { IsSensor = boxIsSensor },
+            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static) { IsSensor = boxIsSensor },
             Components = [boxLog]
         });
         FrameHandle ship = FrameHandle.Null, room = FrameHandle.Null;
@@ -200,11 +200,11 @@ public class GhostPairTests
                 Frame = space,
                 Pose = At(-8),
                 LinearVelocity = new Vector3(4, 0, 0),
-                Body = new(new BoxShapeDesc(new(0.25f)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+                Body = new(Shape: new BoxShapeDesc(new(0.25f)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
                 AsFrame = new(FrameBounds.Sphere(20))
             }));
             if (place == SensorPlace.Room)
-                room = Bubble(world, ship, At(0, 8), 3);
+                room = Bubble(world: world, parent: ship, pose: At(0, 8), radius: 3);
             ball = world.Spawn(place == SensorPlace.Room
                 ? new() { Frame = room, Pose = At(0, 3.3), Body = ballBody, Components = [ballLog] }
                 : new SpawnDesc { Frame = ship, Pose = At(0, 11.3), Body = ballBody, Components = [ballLog] });
@@ -305,10 +305,10 @@ public class GhostPairTests
     [InlineData(false)]
     public void AContactThroughTwoGhostsGoesOnWhenTheFrameThatHoldsTheGhostsIsDestroyed(bool acrossFrames)
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
-        FrameHandle parent = Bubble(world, space, At(0), 50);
-        PairScene scene = SensorAndBody(world, parent, acrossFrames, Ball());
+        FrameHandle parent = Bubble(world: world, parent: space, pose: At(0), radius: 50);
+        PairScene scene = SensorAndBody(world: world, parent: parent, acrossFrames: acrossFrames, body: Ball());
         Tick(world, 10);
         if (acrossFrames)
             OnlyTheParentHoldsBoth(faults, scene);
@@ -349,14 +349,14 @@ public class GhostPairTests
     [InlineData(false)]
     public void AContactThroughTwoGhostsGoesOnWhenANumericMoveReplacesTheGhosts(bool acrossFrames)
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
         var velocity = new Vector3(0, 0, 60);
         static Thruster Thrusting(float mass) => new(mass) { Direction = Vector3.UnitZ };
         FrameHandle first = space, second = space;
         if (acrossFrames)
         {
-            var hull = new BodyDesc(new BoxShapeDesc(new(0.5f)), Mass: 1000, LinearDamping: 0, AngularDamping: 0);
+            var hull = new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Mass: 1000, LinearDamping: 0, AngularDamping: 0);
             first = world.GetOwnedFrame(world.Spawn(new()
             {
                 Frame = space, Pose = At(-3.7), LinearVelocity = velocity, Body = hull,

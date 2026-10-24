@@ -388,8 +388,8 @@ public class QueryFilterUnionTests
         Entity outside = t.SpawnAt(new(1, 0, 0));
         QueryFilter filter = QueryFilter.In(ship);
 
-        PassesOf(t, filter, aboard).Should().BeTrue();
-        PassesOf(t, filter, outside).Should().BeFalse();
+        PassesOf(t: t, filter: filter, entity: aboard).Should().BeTrue();
+        PassesOf(t: t, filter: filter, entity: outside).Should().BeFalse();
     }
 
     [Fact]
@@ -404,11 +404,11 @@ public class QueryFilterUnionTests
         Entity otherFrame = t.World.SpawnAt(ship, new(11, 0, 0));
         QueryFilter filter = QueryFilter.Near(5);
 
-        PassesOf(t, filter, close, asker).Should().BeTrue();
-        PassesOf(t, filter, asker, asker).Should().BeTrue("the asker is at distance 0 from itself");
-        PassesOf(t, filter, onTheEdge, asker).Should().BeTrue();
-        PassesOf(t, filter, far, asker).Should().BeFalse();
-        PassesOf(t, filter, otherFrame, asker).Should().BeFalse("it is close in numbers but in another frame");
+        PassesOf(t: t, filter: filter, entity: close, asker: asker).Should().BeTrue();
+        PassesOf(t: t, filter: filter, entity: asker, asker: asker).Should().BeTrue("the asker is at distance 0 from itself");
+        PassesOf(t: t, filter: filter, entity: onTheEdge, asker: asker).Should().BeTrue();
+        PassesOf(t: t, filter: filter, entity: far, asker: asker).Should().BeFalse();
+        PassesOf(t: t, filter: filter, entity: otherFrame, asker: asker).Should().BeFalse("it is close in numbers but in another frame");
     }
 
     [Fact]
@@ -417,7 +417,7 @@ public class QueryFilterUnionTests
         using var t = new TestWorld();
         Entity entity = t.SpawnAt(new(1, 0, 0));
 
-        PassesOf(t, QueryFilter.Near(5), entity).Should().BeFalse();
+        PassesOf(t: t, filter: QueryFilter.Near(5), entity: entity).Should().BeFalse();
     }
 
     [Fact]
@@ -429,12 +429,12 @@ public class QueryFilterUnionTests
         Entity far = t.SpawnAt(new(20, 0, 0));
         QueryFilter filter = QueryFilter.Near(center, 3);
 
-        PassesOf(t, filter, close).Should().BeTrue();
-        PassesOf(t, filter, far).Should().BeFalse();
+        PassesOf(t: t, filter: filter, entity: close).Should().BeTrue();
+        PassesOf(t: t, filter: filter, entity: far).Should().BeFalse();
 
         t.World.Destroy(center);
 
-        PassesOf(t, filter, close).Should().BeFalse("a center that is not live matches nothing");
+        PassesOf(t: t, filter: filter, entity: close).Should().BeFalse("a center that is not live matches nothing");
     }
 
     [Fact]
@@ -447,9 +447,9 @@ public class QueryFilterUnionTests
         Entity inRoot = t.SpawnAt(new(11, 0, 0));
         QueryFilter filter = QueryFilter.Near(ship, new(10, 0, 0), 2);
 
-        PassesOf(t, filter, close).Should().BeTrue();
-        PassesOf(t, filter, far).Should().BeFalse();
-        PassesOf(t, filter, inRoot).Should().BeFalse("the point is in the ship's frame");
+        PassesOf(t: t, filter: filter, entity: close).Should().BeTrue();
+        PassesOf(t: t, filter: filter, entity: far).Should().BeFalse();
+        PassesOf(t: t, filter: filter, entity: inRoot).Should().BeFalse("the point is in the ship's frame");
     }
 
     [Fact]
@@ -458,8 +458,8 @@ public class QueryFilterUnionTests
         using var t = new TestWorld();
         Entity entity = t.SpawnWith();
 
-        PassesOf(t, QueryFilter.Where(Always), entity).Should().BeTrue();
-        PassesOf(t, QueryFilter.Where(Never), entity).Should().BeFalse();
+        PassesOf(t: t, filter: QueryFilter.Where(Always), entity: entity).Should().BeTrue();
+        PassesOf(t: t, filter: QueryFilter.Where(Never), entity: entity).Should().BeFalse();
     }
 
     // ---- TryCenter -----------------------------------------------------------------------------------------------

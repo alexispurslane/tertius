@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
@@ -37,7 +38,7 @@ internal sealed class EventPayloads
     {
         var payloads = new EventPayloads();
         Assembly core = typeof(IEventPayload).Assembly;
-        string coreName = core.GetName().Name!;
+        string? coreName = core.GetName().Name;
         foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
         {
             if (assembly.IsDynamic)
@@ -61,9 +62,8 @@ internal sealed class EventPayloads
     {
         if (type.IsByRefLike)
             return "it is a ref struct";
-        (bool hasReferences, int size) =
-            ((bool, int))typeof(EventPayloads).GetMethod(nameof(Layout), BindingFlags.NonPublic | BindingFlags.Static)!
-                .MakeGenericMethod(type).Invoke(null, null)!;
+        if (OwnGeneric(nameof(Layout)).MakeGenericMethod(type).Invoke(null, null) is not (bool hasReferences, int size))
+            throw new UnreachableException("Layout gives a flag and a size.");
         return hasReferences
             ? "it has a field that holds a reference"
             : size > EventTypeRegistry.MaxPayloadSize
@@ -112,12 +112,8 @@ internal sealed class EventPayloads
     {
         if (!bound.TryGetValue(type, out PayloadType? payload))
         {
-            MethodInfo create =
-                typeof(EventPayloads).GetMethod(nameof(CreateEvent), BindingFlags.NonPublic | BindingFlags.Static)!
-                    .MakeGenericMethod(type);
-            MethodInfo box =
-                typeof(EventPayloads).GetMethod(nameof(BoxPayload), BindingFlags.NonPublic | BindingFlags.Static)!
-                    .MakeGenericMethod(type);
+            MethodInfo create = OwnGeneric(nameof(CreateEvent)).MakeGenericMethod(type);
+            MethodInfo box = OwnGeneric(nameof(BoxPayload)).MakeGenericMethod(type);
             payload = new(type, create.CreateDelegate<Func<Target, object, Event>>(),
                 box.CreateDelegate<Func<Event, object>>());
             bound.Add(type, payload);
@@ -126,8 +122,13 @@ internal sealed class EventPayloads
         return payload;
     }
 
+    /// <summary>The generic method definition of a private static method of this class, named by <c>nameof</c>.</summary>
+    private static MethodInfo OwnGeneric(string name) =>
+        typeof(EventPayloads).GetMethod(name, BindingFlags.NonPublic | BindingFlags.Static) ??
+        throw new UnreachableException($"EventPayloads declares the method {name}.");
+
     private static Event CreateEvent<T>(Target target, object payload) where T : unmanaged, IEventPayload =>
-        Event.Create(target, Entity.Null, (T)payload);
+        Event.Create(target: target, sender: Entity.Null, payload: (T)payload);
 
     private static object BoxPayload<T>(Event e) where T : unmanaged, IEventPayload => e.As<T>();
 }

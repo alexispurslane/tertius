@@ -102,12 +102,12 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
             ObjectDisposedException.ThrowIf(disposed, this);
             if (requirements.Size > BlockSize / 2)
             {
-                var allocation = new Dedicated(AllocateMemory(requirements.Size, (uint)type, mapped, out byte* pointer),
+                var allocation = new Dedicated(AllocateMemory(size: requirements.Size, type: (uint)type, map: mapped, pointer: out byte* pointer),
                     pointer);
                 dedicated.Add(allocation);
                 liveAllocations++;
                 device.SetName(ObjectType.DeviceMemory, allocation.Memory.Handle, name);
-                return new(allocation.Memory, 0, requirements.Size, pointer, allocation);
+                return new(memory: allocation.Memory, offset: 0, size: requirements.Size, mapped: pointer, owner: allocation);
             }
 
             ulong alignment = Math.Max(requirements.Alignment, 16);
@@ -116,20 +116,20 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
                     block.Space.TryAllocate(requirements.Size, alignment, out ulong offset))
                 {
                     liveAllocations++;
-                    return new(block.Memory, offset, requirements.Size,
-                        block.Mapped == null ? null : block.Mapped + offset, block);
+                    return new(memory: block.Memory, offset: offset, size: requirements.Size,
+                        mapped: block.Mapped == null ? null : block.Mapped + offset, owner: block);
                 }
 
-            var created = new Block(AllocateMemory(BlockSize, (uint)type, mapped, out byte* blockPointer), blockPointer,
-                type, linear);
+            var created = new Block(memory: AllocateMemory(size: BlockSize, type: (uint)type, map: mapped, pointer: out byte* blockPointer), mapped: blockPointer,
+                type: type, linear: linear);
             device.SetName(ObjectType.DeviceMemory, created.Memory.Handle,
                 $"block {blocks.Count} (type {type}, {(linear ? "buffers" : "images")})");
             blocks.Add(created);
             if (!created.Space.TryAllocate(requirements.Size, alignment, out ulong first))
                 throw new InvalidOperationException("A new block cannot hold an allocation smaller than half a block.");
             liveAllocations++;
-            return new(created.Memory, first, requirements.Size, blockPointer == null ? null : blockPointer + first,
-                created);
+            return new(memory: created.Memory, offset: first, size: requirements.Size, mapped: blockPointer == null ? null : blockPointer + first,
+                owner: created);
         }
     }
 
@@ -166,12 +166,12 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
             AllocationSize = size,
             MemoryTypeIndex = type
         };
-        device.Vk.AllocateMemory(device.Device, &info, null, out DeviceMemory memory).Check("vkAllocateMemory");
+        device.Vk.AllocateMemory(device: device.Device, pAllocateInfo: &info, pAllocator: null, pMemory: out DeviceMemory memory).Check("vkAllocateMemory");
         pointer = null;
         if (map)
         {
             void* p;
-            Result result = device.Vk.MapMemory(device.Device, memory, 0, Vk.WholeSize, 0, &p);
+            Result result = device.Vk.MapMemory(device: device.Device, memory: memory, offset: 0, size: Vk.WholeSize, flags: 0, ppData: &p);
             if (result != Result.Success)
             {
                 device.Vk.FreeMemory(device.Device, memory, null);

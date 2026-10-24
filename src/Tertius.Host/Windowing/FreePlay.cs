@@ -96,7 +96,7 @@ public sealed class FreePlay
         while (queued.TryDequeue(out InputEvent e))
         {
             recorder?.Post(world.TickNumber, e);
-            world.Post(Event.Create(Topics.Input, Entity.Null, e));
+            world.Post(Event.Create(target: Topics.Input, sender: Entity.Null, payload: e));
         }
     }
 
@@ -107,7 +107,9 @@ public sealed class FreePlay
             return;
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(record.Path))!);
+            // A record in the root folder has no folder to make.
+            if (Path.GetDirectoryName(Path.GetFullPath(record.Path)) is { } folder)
+                Directory.CreateDirectory(folder);
             File.WriteAllText(record.Path, recorder.ToScript(world.TickNumber).ToJson());
             RecordWritten = true;
         }

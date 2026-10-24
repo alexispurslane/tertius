@@ -25,11 +25,11 @@ public class GhostContactTests
     /// </summary>
     private const double FarOut = 9_000_000;
 
-    private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
 
     /// <summary>A kinematic sensor ball of radius 0.25 m.</summary>
     private static readonly BodyDesc KinematicSensorBall =
-        new(new SphereShapeDesc(0.25f), BodyMotion.Kinematic, Mass: 1, LinearDamping: 0, AngularDamping: 0)
+        new(Shape: new SphereShapeDesc(0.25f), Motion: BodyMotion.Kinematic, Mass: 1, LinearDamping: 0, AngularDamping: 0)
             { IsSensor = true };
 
     private static FrameHandle Space(World world) =>
@@ -65,8 +65,8 @@ public class GhostContactTests
     /// <remarks>The scene sits at the height <paramref name="y"/> in space. Each body's pose is in its own frame.</remarks>
     private static MirrorScene MirrorPair(World world, FrameHandle space, double y = 0)
     {
-        FrameHandle first = Bubble(world, space, -10.25, 10, y);
-        FrameHandle second = Bubble(world, space, 10.25, 10, y);
+        FrameHandle first = Bubble(world: world, parent: space, x: -10.25, radius: 10, y: y);
+        FrameHandle second = Bubble(world: world, parent: space, x: 10.25, radius: 10, y: y);
         var ballLog = new CollisionLog();
         var boxLog = new CollisionLog();
         var pilot = new Pilot();
@@ -76,10 +76,10 @@ public class GhostContactTests
         {
             Frame = second,
             Pose = At(1.3 - 10.25),
-            Body = new(new BoxShapeDesc(new(1, 3, 3)), Mass: 10, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(1, 3, 3)), Mass: 10, LinearDamping: 0, AngularDamping: 0),
             Components = [boxLog]
         });
-        return new(first, second, ball, box, ballLog, boxLog, pilot);
+        return new(First: first, Second: second, Ball: ball, Box: box, BallLog: ballLog, BoxLog: boxLog, BallPilot: pilot);
     }
 
     /// <summary>
@@ -94,7 +94,7 @@ public class GhostContactTests
     [Fact]
     public void AMirrorPairIsReportedOnceAndEndsOnceAfterTheLastSystemDropsIt()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
         MirrorScene scene = MirrorPair(world, space);
         Tick(world, 3);
@@ -144,14 +144,14 @@ public class GhostContactTests
     [Fact]
     public void APersonWhoDriftsIntoTheGhostOfABlockAndTheBlockEachHearTheContact()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
-        FrameHandle bubble = Bubble(world, space, 0, 10);
+        FrameHandle bubble = Bubble(world: world, parent: space, x: 0, radius: 10);
         var blockLog = new CollisionLog();
         var pilot = new Pilot();
         Entity block = world.Spawn(new()
         {
-            Frame = bubble, Pose = At(10), Body = new(new BoxShapeDesc(new(1)), BodyMotion.Kinematic),
+            Frame = bubble, Pose = At(10), Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic),
             Components = [blockLog, pilot]
         });
         var personLog = new CollisionLog();
@@ -188,14 +188,14 @@ public class GhostContactTests
     [Fact]
     public void TheImpulseOfAHitOnTheGhostOfADynamicBodyUsesTheMassesOfBothRealBodies()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
-        FrameHandle bubble = Bubble(world, space, 0, 10);
+        FrameHandle bubble = Bubble(world: world, parent: space, x: 0, radius: 10);
         var crateLog = new CollisionLog();
         Entity crate = world.Spawn(new()
         {
             Frame = bubble, Pose = At(10),
-            Body = new(new BoxShapeDesc(new(1)), Mass: 10, LinearDamping: 0, AngularDamping: 0), Components = [crateLog]
+            Body = new(Shape: new BoxShapeDesc(new(1)), Mass: 10, LinearDamping: 0, AngularDamping: 0), Components = [crateLog]
         });
         Entity ball = world.Spawn(new()
             { Frame = space, Pose = At(16), LinearVelocity = new Vector3(-5, 0, 0), Body = Ball(0.25f) });
@@ -219,9 +219,9 @@ public class GhostContactTests
     [Fact]
     public void TheImpulseOfAHitOnTheGhostOfACharacterUsesTheCharactersMass()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
-        FrameHandle bubble = Bubble(world, space, 0, 10);
+        FrameHandle bubble = Bubble(world: world, parent: space, x: 0, radius: 10);
         var personLog = new CollisionLog();
         Entity person = world.Spawn(new()
             { Frame = bubble, Pose = At(10), Body = Person with { Mass = 2 }, Components = [personLog] });
@@ -251,13 +251,13 @@ public class GhostContactTests
     [Fact]
     public void ABallThatHitsACrateThatSticksOutOfAFrameGetsNoGhostInTheFrameAndLeavesTheCrateWhereItIs()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
-        FrameHandle bubble = Bubble(world, space, 0, 10);
+        FrameHandle bubble = Bubble(world: world, parent: space, x: 0, radius: 10);
         Entity crate = world.Spawn(new()
         {
             Frame = bubble, Pose = At(10),
-            Body = new(new BoxShapeDesc(new(1)), Mass: 10, LinearDamping: 0, AngularDamping: 0)
+            Body = new(Shape: new BoxShapeDesc(new(1)), Mass: 10, LinearDamping: 0, AngularDamping: 0)
         });
         Entity ball = world.Spawn(new()
             { Frame = space, Pose = At(16), LinearVelocity = new Vector3(-5, 0, 0), Body = Ball(0.25f) });
@@ -287,16 +287,16 @@ public class GhostContactTests
     [Fact]
     public void APersonWhoWalksIntoACrateThatSticksOutOfAFrameGetsNoGhostInTheFrameAndLeavesTheCrateWhereItIs()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         GravityField gravity = GravityField.Uniform(new(0, -9.81f, 0));
         FrameHandle ground = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), gravity));
         world.Spawn(new()
-            { Frame = ground, Pose = At(0, -0.5), Body = new(new BoxShapeDesc(new(20, 0.5f, 20)), BodyMotion.Static) });
+            { Frame = ground, Pose = At(0, -0.5), Body = new(Shape: new BoxShapeDesc(new(20, 0.5f, 20)), Motion: BodyMotion.Static) });
         FrameHandle bubble = world.GetOwnedFrame(world.Spawn(new()
             { Frame = ground, Pose = At(0), AsFrame = new(FrameBounds.Sphere(5), gravity) }));
         Entity crate = world.Spawn(new()
         {
-            Frame = bubble, Pose = At(5.3, 0.5), Body = new(new BoxShapeDesc(new(0.5f)), Mass: 10, Restitution: 0)
+            Frame = bubble, Pose = At(5.3, 0.5), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, Restitution: 0)
         });
         var pilot = new Pilot { EveryTick = handle => handle.MoveCharacter(new(-2, 0, 0)) };
         Entity person = world.Spawn(new() { Frame = ground, Pose = At(9, 0.9), Body = Person, Components = [pilot] });
@@ -332,19 +332,19 @@ public class GhostContactTests
     [Fact]
     public void ACrateThatRestsOnTheGhostOfABlockAtRestKeepsItsContactAndNeitherFallsAsleep()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Ground(world, 9.81f);
-        FrameHandle bubble = Bubble(world, space, 0, 10);
+        FrameHandle bubble = Bubble(world: world, parent: space, x: 0, radius: 10);
         var blockLog = new CollisionLog();
         Entity block = world.Spawn(new()
         {
-            Frame = bubble, Pose = At(0, 10), Body = new(new BoxShapeDesc(new(1)), BodyMotion.Kinematic),
+            Frame = bubble, Pose = At(0, 10), Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic),
             Components = [blockLog]
         });
         var crateLog = new CollisionLog();
         Entity crate = world.Spawn(new() { Frame = space, Pose = At(0, 11.6), Body = Cube(), Components = [crateLog] });
         Entity plainBlock = world.Spawn(new()
-            { Frame = space, Pose = At(50, 10), Body = new(new BoxShapeDesc(new(1)), BodyMotion.Kinematic) });
+            { Frame = space, Pose = At(50, 10), Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic) });
         Entity plainCrate = world.Spawn(new() { Frame = space, Pose = At(50, 11.6), Body = Cube() });
 
         Tick(world, 360);
@@ -374,13 +374,13 @@ public class GhostContactTests
             new World(new() { MaxDegreeOfParallelism = threads, DebugChecks = true, DisposePhysics = true }, faults);
         FrameHandle space = Space(world);
         // The three parts lie 100 m apart, so that each meets only its own bubbles.
-        Bubble(world, space, 20, 5);
+        Bubble(world: world, parent: space, x: 20, radius: 5);
         world.Spawn(new() { Frame = space, Pose = At(14), LinearVelocity = new Vector3(2, 0, 0), Body = Cube() });
         world.Spawn(new() { Frame = space, Pose = At(13), LinearVelocity = new Vector3(2, 0, 0), Body = Cube() });
         MirrorPair(world, space, y: 100);
-        FrameHandle blockFrame = Bubble(world, space, 0, 10, y: -100);
+        FrameHandle blockFrame = Bubble(world: world, parent: space, x: 0, radius: 10, y: -100);
         world.Spawn(new()
-            { Frame = blockFrame, Pose = At(10), Body = new(new BoxShapeDesc(new(1)), BodyMotion.Kinematic) });
+            { Frame = blockFrame, Pose = At(10), Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic) });
         world.Spawn(new()
             { Frame = space, Pose = At(16, -100), LinearVelocity = new Vector3(-5, 0, 0), Body = Ball(0.25f) });
         Tick(world, 90);
@@ -421,7 +421,7 @@ public class GhostContactTests
 
     /// <summary>A world on the wrapper with the default numeric frames or, when <paramref name="numericFrames"/> is false, with none.</summary>
     private static World WorldWith(bool numericFrames, out FaultInjectingBackend faults) =>
-        NewWorldWithFaults(out faults,
+        NewWorldWithFaults(faults: out faults,
             configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
 
     /// <summary>True while the numeric update names <paramref name="frame"/> to keep a ghost of the anchor
@@ -507,7 +507,7 @@ public class GhostContactTests
     public void AKinematicSensorThatFliesThroughAStaticBoxDetectsNothingWithNumericFramesOrWithout(bool numericFrames)
     {
         (List<ContactNews> BoxHeard, List<ContactNews> BallHeard, bool GhostOfTheBox) heard =
-            FlyThroughAStaticBox(numericFrames, new(new BoxShapeDesc(new(2)), BodyMotion.Static), KinematicSensorBall);
+            FlyThroughAStaticBox(numericFrames, new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Static), KinematicSensorBall);
 
         heard.GhostOfTheBox.Should()
             .BeFalse("the box's home keeps a ghost of the sensor, and no frame keeps a ghost of the box");
@@ -528,7 +528,7 @@ public class GhostContactTests
     public void AStaticSensorDetectsAKinematicBallThatFliesThroughItWithNumericFramesOrWithout(bool numericFrames)
     {
         (List<ContactNews> BoxHeard, List<ContactNews> BallHeard, bool GhostOfTheBox) heard = FlyThroughAStaticBox(
-            numericFrames, new(new BoxShapeDesc(new(2)), BodyMotion.Static) { IsSensor = true },
+            numericFrames, new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Static) { IsSensor = true },
             KinematicSensorBall with { IsSensor = false });
 
         heard.GhostOfTheBox.Should()
@@ -551,18 +551,18 @@ public class GhostContactTests
     [InlineData(true)]
     public void AKinematicSensorDoesNotDetectTheGhostOfAParkedStationsHull(bool parkedByTheGame)
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
         var stationLog = new CollisionLog();
         Entity stationOwner = world.Spawn(new()
         {
             Frame = space,
-            Body = new(new BoxShapeDesc(new(2)), parkedByTheGame ? BodyMotion.Dynamic : BodyMotion.Static, Mass: 1000,
+            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: parkedByTheGame ? BodyMotion.Dynamic : BodyMotion.Static, Mass: 1000,
                 LinearDamping: 0, AngularDamping: 0),
             AsFrame = new(FrameBounds.Sphere(40)),
             Components = [stationLog]
         });
-        FrameHandle beside = Bubble(world, space, 20, 30);
+        FrameHandle beside = Bubble(world: world, parent: space, x: 20, radius: 30);
         var sensorLog = new CollisionLog();
         Entity sensor = world.Spawn(KinematicDrift.Drifting(new()
         {
@@ -572,7 +572,7 @@ public class GhostContactTests
         faults.Jolt.HasGhostIn(stationOwner, beside).Should()
             .BeTrue("the bubbles overlap, and the station does not fit in the other frame");
         if (parkedByTheGame)
-            world.SetMotionNextTick(stationOwner, BodyMotion.Static);
+            world.SetMotionNextTick(owner: stationOwner, motion: BodyMotion.Static);
 
         bool ghostSeen = false;
         for (int tick = 0; tick < 150; tick++)
@@ -603,11 +603,11 @@ public class GhostContactTests
     [Fact]
     public void TheGhostOfAKeplerHullInTheHomeOfAStaticRockGoesAtTheSyncPointWhoseNumericUpdateStopsNamingIt()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Scenes.AsteroidSpace(world);
-        Entity box = Scenes.FastKeplerHull(world, space, new(new BoxShapeDesc(new(1)), BodyMotion.Kinematic));
+        Entity box = Scenes.FastKeplerHull(world, space, new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic));
         world.Spawn(new()
-            { Frame = space, Pose = At(5_008, 0, -100), Body = new(new SphereShapeDesc(1), BodyMotion.Static) });
+            { Frame = space, Pose = At(5_008, 0, -100), Body = new(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Static) });
         Tick(world, 2);
         world.Frames.Numeric(world.PhysicsHomeOf(box)).Should().Be(NumericMode.Following);
         NamesAnchor(world, box, space).Should().BeTrue();
@@ -657,15 +657,15 @@ public class GhostContactTests
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f)));
         const double radiusOfP = 10_000_000;
         FrameHandle station =
-            crateOutside ? Bubble(world, space, 0, (float)radiusOfP) : Bubble(world, space, FarOut, 40);
+            crateOutside ? Bubble(world: world, parent: space, x: 0, radius: (float)radiusOfP) : Bubble(world: world, parent: space, x: FarOut, radius: 40);
         var crateLog = new CollisionLog();
         Entity crate = world.Spawn(new()
         {
             Frame = crateOutside ? space : station,
             Pose = crateOutside ? At(radiusOfP + 1) : At(0, 40.5),
             Body = crateOutside
-                ? new(new BoxShapeDesc(new(12, 1, 1)), BodyMotion.Static) { IsSensor = true }
-                : new BodyDesc(new BoxShapeDesc(new(1)), Mass: 2, LinearDamping: 0, AngularDamping: 0)
+                ? new(Shape: new BoxShapeDesc(new(12, 1, 1)), Motion: BodyMotion.Static) { IsSensor = true }
+                : new BodyDesc(Shape: new BoxShapeDesc(new(1)), Mass: 2, LinearDamping: 0, AngularDamping: 0)
                     { IsSensor = !ballIsSensor },
             Components = [crateLog]
         });
@@ -748,11 +748,11 @@ public class GhostContactTests
     {
         using World world = WorldWith(numericFrames, out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
-        Entity cube = world.Spawn(new() { Frame = space, Body = new(MeshCube(1), BodyMotion.Static) });
+        Entity cube = world.Spawn(new() { Frame = space, Body = new(Shape: MeshCube(1), Motion: BodyMotion.Static) });
         Entity ship = world.Spawn(new()
         {
             Frame = space, Pose = At(100, 6), LinearVelocity = new Vector3(-60, 0, 0),
-            Body = new(new BoxShapeDesc(new(1)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(1)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
             Components = [new Thruster(1000) { Direction = Vector3.UnitZ }]
         });
         var probeLog = new CollisionLog();
@@ -798,17 +798,17 @@ public class GhostContactTests
     public void TheImpulseOfACrateThatSpeedsUpJustBeforeAStaticWallIsItsApproachToTheWallWithNumericFramesOrWithout(
         bool mesh, bool numericFrames)
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults,
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults,
             configure: options => options.NumericFrames = numericFrames ? EveryGroupFalls : WithoutNumericFrames);
         FrameHandle ground = Ground(world, 0);
         ShapeDesc shape = mesh ? MeshCube(0.5f) : new BoxShapeDesc(new(0.5f));
-        Entity wall = world.Spawn(new() { Frame = ground, Body = new(shape, BodyMotion.Static) });
+        Entity wall = world.Spawn(new() { Frame = ground, Body = new(Shape: shape, Motion: BodyMotion.Static) });
         var crateLog = new CollisionLog();
         var pilot = new Pilot();
         Entity crate = world.Spawn(new()
         {
             Frame = ground, Pose = At(-3), LinearVelocity = new(3, 0, 0),
-            Body = new(new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0),
             Components = [crateLog, pilot]
         });
         double Gap() => -1 - world.PoseIn(crate, ground).Position.X;
@@ -840,16 +840,16 @@ public class GhostContactTests
     [Fact]
     public void AContactThatNoSystemCanHoldAfterAHandOffEndsInTheStepOfTheHandOff()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
-        FrameHandle station = Bubble(world, space, 0, 100);
+        FrameHandle station = Bubble(world: world, parent: space, x: 0, radius: 100);
         var shipLog = new CollisionLog();
         Entity shipOwner = world.Spawn(new()
         {
             Frame = space,
             Pose = At(110),
             LinearVelocity = new Vector3(-2, 0, 0),
-            Body = new(new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0)
+            Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0)
             {
                 InteriorShape = new SphereShapeDesc(0.05f)
             },
@@ -860,7 +860,7 @@ public class GhostContactTests
         Entity crate = world.Spawn(new()
         {
             Frame = station, Pose = At(103),
-            Body = new(new BoxShapeDesc(new(1)), Mass: 2, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(1)), Mass: 2, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
             Components = [crateLog]
         });
 

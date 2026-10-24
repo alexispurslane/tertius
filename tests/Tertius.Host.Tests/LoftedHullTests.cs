@@ -262,7 +262,7 @@ public sealed class LoftedHullTests
     [Fact]
     public void TheHullsMeshFacesOutOfItsSolid()
     {
-        MeshChecks.ExpectFacingOut(Shuttle.Loft.Mesh(), InSolid, probe: 0.005f, maxNormalAngle: 0.001f);
+        MeshChecks.ExpectFacingOut(mesh: Shuttle.Loft.Mesh(), inside: InSolid, probe: 0.005f, maxNormalAngle: 0.001f);
     }
 
     /// <summary>
@@ -348,14 +348,14 @@ public sealed class LoftedHullTests
             new(2.3, -1.1, -8), new(2.3, -0.241, -8), new(1.559, 0.5, -8), new(-1.559, 0.5, -8), new(-2.3, -0.241, -8),
             new(-2.3, -1.1, -8)
         ], "pane-nose");
-        ExpectBox(panes.Single(p => p.Id == "pane-starboard-4").Outer, new(3, -1.1, -2.9), new(3, 1.14, -1.1),
-            "pane-starboard-4");
-        ExpectBox(panes.Single(p => p.Id == "pane-starboard-5").Outer, new(3, -1.1, -0.9), new(3, 1.14, 0.9),
-            "pane-starboard-5");
-        ExpectBox(panes.Single(p => p.Id == "pane-port-7").Outer, new(-3, -1.1, 3.1), new(-3, 1.14, 4.9),
-            "pane-port-7");
-        ExpectBox(panes.Single(p => p.Id == "pane-roof-4").Outer, new(-2.14, 2, -2.9), new(2.14, 2, -1.1),
-            "pane-roof-4");
+        ExpectBox(actual: panes.Single(p => p.Id == "pane-starboard-4").Outer, min: new(3, -1.1, -2.9), max: new(3, 1.14, -1.1),
+            what: "pane-starboard-4");
+        ExpectBox(actual: panes.Single(p => p.Id == "pane-starboard-5").Outer, min: new(3, -1.1, -0.9), max: new(3, 1.14, 0.9),
+            what: "pane-starboard-5");
+        ExpectBox(actual: panes.Single(p => p.Id == "pane-port-7").Outer, min: new(-3, -1.1, 3.1), max: new(-3, 1.14, 4.9),
+            what: "pane-port-7");
+        ExpectBox(actual: panes.Single(p => p.Id == "pane-roof-4").Outer, min: new(-2.14, 2, -2.9), max: new(2.14, 2, -1.1),
+            what: "pane-roof-4");
 
         foreach (ExpectedPane want in expected)
         {
@@ -487,7 +487,7 @@ public sealed class LoftedHullTests
             foreach (Double3 corner in outline)
                 flats.Min(flat => Double3.Distance(flat, corner)).Should()
                     .BeLessThan(1e-4, $"{want.Id} reaches its outline's corner {corner}");
-            MeshChecks.ExpectFacingOut(pane.Mesh, local =>
+            MeshChecks.ExpectFacingOut(mesh: pane.Mesh, inside: local =>
             {
                 Double3 p = (Double3)local + pane.Center;
                 return Math.Abs(Double3.Dot(normal, p) - plane) < 0.01 && Outside(p) < 0;
@@ -518,7 +518,7 @@ public sealed class LoftedHullTests
     /// <summary>The planes of the faces of the convex hull of <paramref name="points"/>: unit normals out, and their offsets.</summary>
     private static List<(Vector3 Normal, float Offset)> HullPlanes(IReadOnlyList<Vector3> points)
     {
-        var planes = new List<(Vector3, float)>();
+        var planes = new List<(Vector3 Normal, float Offset)>();
         for (int i = 0; i < points.Count; i++)
         for (int j = i + 1; j < points.Count; j++)
         for (int k = j + 1; k < points.Count; k++)
@@ -565,7 +565,7 @@ public sealed class LoftedHullTests
         hull.Points.Should().BeEquivalentTo(expected);
         hull.ConvexRadius.Should().Be(ShapeDesc.DefaultConvexRadius,
             "its edges meet the ramp's foot with the box's rounding");
-        List<(Vector3, float)> planes = HullPlanes(hull.Points);
+        List<(Vector3 Normal, float Offset)> planes = HullPlanes(hull.Points);
         foreach (Vertex vertex in Shuttle.Loft.Mesh().Vertices)
         {
             Vector3 p = vertex.Position;
@@ -765,7 +765,7 @@ public sealed class LoftedHullTests
     public void ADoorThatReachesTheEdgeOfItsPanelIsAnError()
     {
         Action door = () =>
-            SmallBox().Door(new(new(1.8f, -1, -1.2f), new(2, 1, 0.5f)), bay: 2, fromCorner: 1, toCorner: 2);
+            SmallBox().Door(door: new(new(1.8f, -1, -1.2f), new(2, 1, 0.5f)), bay: 2, fromCorner: 1, toCorner: 2);
 
         door.Should().Throw<ArgumentException>().WithMessage("*edge of its panel*");
     }
@@ -784,7 +784,7 @@ public sealed class LoftedHullTests
         LoftedHull hull = pointed
             ? new([new(-3, pointedSection), new(3, pointedSection)], wall: 0.2f, ribs: [-3, -1, 1])
             : SmallBox();
-        Action door = () => hull.Door(new(new(1.8f, -1, -0.5f), new(2, 1, 0.5f)), bay: 2, fromCorner: 1, toCorner: 3);
+        Action door = () => hull.Door(door: new(new(1.8f, -1, -0.5f), new(2, 1, 0.5f)), bay: 2, fromCorner: 1, toCorner: 3);
 
         door.Should().Throw<ArgumentException>().WithMessage("*one plane*");
     }
@@ -803,7 +803,7 @@ public sealed class LoftedHullTests
     public void APaneInTheDoorsPanelIsAnError()
     {
         Action glass = () => SmallBox()
-            .Door(new(new(1.8f, -1, -0.5f), new(2, 1, 0.5f)), bay: 2, fromCorner: 1, toCorner: 2)
+            .Door(door: new(new(1.8f, -1, -0.5f), new(2, 1, 0.5f)), bay: 2, fromCorner: 1, toCorner: 2)
             .Surrounds(rib: 0.1f, fold: 0.06f, solid: 0.1f).Glass("pane", edge: 1, bay: 2);
 
         glass.Should().Throw<ArgumentException>().WithMessage("*door*");
@@ -854,7 +854,7 @@ public sealed class LoftedHullTests
     public void ADoorAfterTheGlassIsAnError()
     {
         Action door = () => SmallBox().Surrounds(rib: 0.1f, fold: 0.06f, solid: 0.1f).Glass("pane", edge: 1, bay: 2)
-            .Door(new(new(1.8f, -1, -0.5f), new(2, 1, 0.5f)), bay: 2, fromCorner: 1, toCorner: 2);
+            .Door(door: new(new(1.8f, -1, -0.5f), new(2, 1, 0.5f)), bay: 2, fromCorner: 1, toCorner: 2);
 
         door.Should().Throw<InvalidOperationException>().WithMessage("*before the glass*");
     }

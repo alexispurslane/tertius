@@ -55,7 +55,7 @@ public sealed class DemoExitScriptTests
         using World world = NewJoltWorld();
         SceneInstance scene = DemoScenes.All.Single(s => s.Name == script.Scene).Build(world, RenderResources.None);
 
-        RunResult result = ScriptRunner.Run(script, world, scene, outputFolder: null, new StopsAtOnce());
+        RunResult result = ScriptRunner.Run(script: script, world: world, scene: scene, outputFolder: null, playback: new StopsAtOnce());
 
         result.Stopped.Should().BeTrue();
         world.TickNumber.Should().Be(0);

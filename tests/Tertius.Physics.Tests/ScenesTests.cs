@@ -9,7 +9,7 @@ public class ScenesTests
     [Fact]
     public void ABallReleasedAboveTheFloorFallsAndLiesOnIt()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         Scenes.FloorAndBall scene = Scenes.FloorWithBall(world, height: 1);
         world.PoseInOwnFrame(scene.Ball).Position.Y.Should().Be(1.5,
             "the height is measured to the bottom of the ball, which has a radius of 0.5 m");
@@ -25,9 +25,9 @@ public class ScenesTests
     [Fact]
     public void ABallReleasedInAShipWithGravityLiesOnItsDeck()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        Scenes.ShipScene ship = Scenes.ShipWithInterior(world, space, g: 9.81f);
+        Scenes.ShipScene ship = Scenes.ShipWithInterior(world: world, space: space, g: 9.81f);
         Entity ball = world.Spawn(new() { Frame = ship.Interior, Pose = At(0, Scenes.DeckTop + 1), Body = Ball() });
 
         Tick(world, 180);
@@ -41,9 +41,9 @@ public class ScenesTests
     [Fact]
     public void AShipWithoutGravityStaysWhereItIsInSpace()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        Scenes.ShipScene ship = Scenes.ShipWithInterior(world, space, position: new(100, 200, 300), bubbleRadius: 30);
+        Scenes.ShipScene ship = Scenes.ShipWithInterior(world: world, space: space, position: new(100, 200, 300), bubbleRadius: 30);
 
         Tick(world, 60);
 
@@ -55,8 +55,8 @@ public class ScenesTests
     [Fact]
     public void AMoonOnACircularOrbitKeepsItsDistanceFromThePlanet()
     {
-        using World world = NewWorld(out _);
-        Scenes.MoonScene scene = Scenes.MoonOnKeplerOrbit(world, orbitRadius: 7e6);
+        using World world = NewWorld(backend: out _);
+        Scenes.MoonScene scene = Scenes.MoonOnKeplerOrbit(world: world, orbitRadius: 7e6);
 
         Tick(world, 120);
 
@@ -73,7 +73,7 @@ public class ScenesTests
     [InlineData(1, 20)]
     public void ABallApproachingABubbleIsHandedOffInTheStepOfTheTickThatWasAskedFor(int tick, double lateral)
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         FrameHandle station = world.GetOwnedFrame(world.Spawn(new()
         {
@@ -81,7 +81,7 @@ public class ScenesTests
             Pose = At(500, 3, -2),
             AsFrame = new(FrameBounds.Sphere(100))
         }));
-        Scenes.Approach approach = Scenes.ApproachToBubble(world, station, tick, lateral: lateral);
+        Scenes.Approach approach = Scenes.ApproachToBubble(world: world, into: station, tick: tick, lateral: lateral);
         Entity ball = world.Spawn(new()
             { Frame = space, Pose = approach.Pose, LinearVelocity = approach.Velocity, Body = Ball() });
 

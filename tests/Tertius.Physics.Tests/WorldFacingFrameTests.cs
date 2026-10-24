@@ -30,12 +30,12 @@ public class WorldFacingFrameTests
     private static (World World, JoltPhysicsBackend Backend, FrameHandle Planet, Entity Owner) Station(
         double mu = PlanetMu)
     {
-        World world = NewWorld(out JoltPhysicsBackend backend);
+        World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f), GravityField.Point(mu)));
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = planet,
-            Body = new(new BoxShapeDesc(new(5, 3, 15)), BodyMotion.Kinematic, Mass: 1000),
+            Body = new(Shape: new BoxShapeDesc(new(5, 3, 15)), Motion: BodyMotion.Kinematic, Mass: 1000),
             AsFrame = new(FrameBounds.Sphere(50))
         }.OnKeplerOrbit(world, Facing));
         return (world, backend, planet, owner);
@@ -73,17 +73,17 @@ public class WorldFacingFrameTests
     [Fact]
     public void OnAnOvalOrbitTheStationsOwnerTurnsAtTheRateOfItsPlaceOnTheOrbit()
     {
-        World world = NewWorld(out _);
+        World world = NewWorld(backend: out _);
         using (world)
         {
             FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f), GravityField.Point(PlanetMu)));
             // Periapsis at t = 0, apoapsis at half the 31.4 s period.
-            var oval = new KeplerOrbit(5000, 0.3, 0, 0, 0, 0, 0, DQuaternion.Identity, 0, 0,
-                KeplerAttitude.FacesParent);
+            var oval = new KeplerOrbit(SemiMajorAxis: 5000, Eccentricity: 0.3, Inclination: 0, LongitudeOfAscendingNode: 0, ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: 0, Epoch: 0, AxialTilt: DQuaternion.Identity, SpinRate: 0, SpinPhaseAtEpoch: 0,
+                Attitude: KeplerAttitude.FacesParent);
             Entity owner = world.Spawn(new SpawnDesc
             {
                 Frame = planet,
-                Body = new(new BoxShapeDesc(new(5, 3, 15)), BodyMotion.Kinematic, Mass: 1000),
+                Body = new(Shape: new BoxShapeDesc(new(5, 3, 15)), Motion: BodyMotion.Kinematic, Mass: 1000),
                 AsFrame = new(FrameBounds.Sphere(50))
             }.OnKeplerOrbit(world, oval));
 

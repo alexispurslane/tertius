@@ -9,7 +9,7 @@ namespace Tertius.Simulation.Tests;
 public class MessagingPostTests
 {
     private static Event Message<T>(Target target, T payload) where T : unmanaged, IEventPayload =>
-        Event.Create(target, Entity.Null, payload);
+        Event.Create(target: target, sender: Entity.Null, payload: payload);
 
     [Fact]
     public void AMessagePostedBeforeATickIsHandledOneTickAfterIt()
@@ -45,7 +45,7 @@ public class MessagingPostTests
         using var t = new TestWorld();
         var inbox = new Recorder();
         Entity target = t.SpawnWith(inbox);
-        t.SpawnWith(SendOnce.Of(target, new Ping { Value = 1 }));
+        t.SpawnWith(SendOnce.Of(target: target, payload: new Ping { Value = 1 }));
         // Posted first in time, and still last in the inbox.
         t.World.Post(Message(target, new Ping { Value = 2 }));
 

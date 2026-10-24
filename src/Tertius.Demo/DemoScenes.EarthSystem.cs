@@ -42,19 +42,19 @@ public static partial class DemoScenes
         {
             var scene = new SceneInstance();
             EarthDate date = DemoSurface.Date;
-            FrameHandle earth = SunAndEarth(world, resources, scene, date);
+            FrameHandle earth = SunAndEarth(world: world, resources: resources, scene: scene, date: date);
             FrameHandle sun = world.GetOwnedFrame(scene["sun"]);
             FrameHandle surface = world.GetOwnedFrame(scene["earth-surface"]);
 
-            DemoStation.Spawn(world, earth, scene, resources);
+            DemoStation.Spawn(world: world, parent: earth, scene: scene, resources: resources);
 
             // The pad lies on the ground at the pole, the vertex of Earth's sphere on +Y.
             scene.Add("pad", world.Spawn(new()
             {
                 Frame = surface,
                 Pose = new(new(0, PadTop - PadHalf.Y, 0), DQuaternion.Identity),
-                Body = new(new BoxShapeDesc(PadHalf), BodyMotion.Static),
-                Render = Drawn(resources, Primitives.Box(PadHalf), new(0.75f, 0.74f, 0.7f, 1), PadHalf.Length()) with
+                Body = new(Shape: new BoxShapeDesc(PadHalf), Motion: BodyMotion.Static),
+                Render = Drawn(resources: resources, mesh: Primitives.Box(PadHalf), color: new(x: 0.75f, y: 0.74f, z: 0.7f, w: 1), boundingRadius: PadHalf.Length()) with
                 {
                     Flags = RenderFlags.Visible | RenderFlags.CastsShadow
                 }
@@ -64,7 +64,7 @@ public static partial class DemoScenes
             {
                 Frame = surface,
                 Pose = new(new(5, PadTop + mastHalf.Y, -5), DQuaternion.Identity),
-                Render = Drawn(resources, Primitives.Box(mastHalf), new(0.8f, 0.15f, 0.1f, 1), mastHalf.Length()) with
+                Render = Drawn(resources: resources, mesh: Primitives.Box(mastHalf), color: new(x: 0.8f, y: 0.15f, z: 0.1f, w: 1), boundingRadius: mastHalf.Length()) with
                 {
                     Flags = RenderFlags.Visible | RenderFlags.CastsShadow
                 }

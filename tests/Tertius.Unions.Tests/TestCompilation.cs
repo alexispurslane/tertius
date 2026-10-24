@@ -10,7 +10,7 @@ namespace Tertius.Unions.Tests;
 /// </summary>
 internal static class TestCompilation
 {
-    public static readonly CSharpParseOptions Parse = new(LanguageVersion.Preview);
+    public static readonly CSharpParseOptions Parse = new(languageVersion: LanguageVersion.Preview);
 
     /// <summary>A library of <paramref name="source"/>, with the platform and Tertius.Core as references.</summary>
     public static CSharpCompilation Of(string source)
@@ -19,10 +19,10 @@ internal static class TestCompilation
         IEnumerable<MetadataReference> references = platform
             .Append(typeof(GeneratedUnionAttribute).Assembly.Location)
             .Select(path => MetadataReference.CreateFromFile(path));
-        return CSharpCompilation.Create("Probe",
-            [CSharpSyntaxTree.ParseText(source, Parse, cancellationToken: TestContext.Current.CancellationToken)],
-            references,
-            new(OutputKind.DynamicallyLinkedLibrary,
+        return CSharpCompilation.Create(assemblyName: "Probe",
+            syntaxTrees: [CSharpSyntaxTree.ParseText(text: source, options: Parse, cancellationToken: TestContext.Current.CancellationToken)],
+            references: references,
+            options: new(outputKind: OutputKind.DynamicallyLinkedLibrary,
                 nullableContextOptions: NullableContextOptions.Enable,
                 generalDiagnosticOption: ReportDiagnostic.Error));
     }

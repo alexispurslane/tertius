@@ -12,7 +12,7 @@ public class StaleHandleRouterTests
         var topics = new TopicSets(table);
         var router = new Router(table, topics);
         Entity stale = table.ReuseSlot(out Entity successor, components: new Recorder());
-        router.Post(Event.Create(successor, Entity.Null, new Ping { Value = 1 }));
+        router.Post(Event.Create(target: successor, sender: Entity.Null, payload: new Ping { Value = 1 }));
         router.Route(tick: 0);
         return (table, router, stale, successor);
     }

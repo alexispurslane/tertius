@@ -201,8 +201,8 @@ internal sealed partial class RenderSnapshotBuilder
         snapshot.OriginFrameId = 0;
         renderHasCamera = renderFollowsTick = false;
 
-        if (!TryGetCameraPose(view.Camera, out FrameHandle cameraFrame, out FrameHandle cameraHome,
-                out DPose eyeInFrame, out DPose cameraPose))
+        if (!TryGetCameraPose(camera: view.Camera, frame: out FrameHandle cameraFrame, home: out FrameHandle cameraHome,
+                inFrame: out DPose eyeInFrame, inHome: out DPose cameraPose))
         {
             lastCamera = Entity.Null;
             return;
@@ -353,7 +353,7 @@ internal sealed partial class RenderSnapshotBuilder
         }
 
         if (workers != null && renderSlotCount >= parallelThreshold)
-            Parallel.For(0, chunkCount, workers, renderChunk);
+            Parallel.For(fromInclusive: 0, toExclusive: chunkCount, parallelOptions: workers, body: renderChunk);
         else
             for (int c = 0; c < chunkCount; c++)
                 BuildChunk(c);
@@ -395,7 +395,7 @@ internal sealed partial class RenderSnapshotBuilder
             bool visible = (render.Flags & RenderFlags.Visible) != 0 && !render.Mesh.IsNone;
             if (!visible && !render.Light.HasValue)
                 continue;
-            if (!TryGetRenderPoses(entity, out DPose current, out DPose previous, out int dense, out Vector3 place))
+            if (!TryGetRenderPoses(entity: entity, current: out DPose current, previous: out DPose previous, dense: out int dense, place: out Vector3 place))
                 continue;
 
             if (visible)
@@ -403,14 +403,14 @@ internal sealed partial class RenderSnapshotBuilder
                 // One render row per entity today, so every instance is part 0.
                 ref RenderInstance instance = ref instances.AddRef();
                 instance = RenderInstance.Create(
-                    render.Mesh,
-                    render.Material,
-                    (current.Position - origin).ToVector3(),
-                    current.Rotation.ToQuaternion(),
-                    render.Scale,
-                    render.BoundingRadius,
-                    HemisphereOf(dense, place, current.Position),
-                    render.Flags,
+                    mesh: render.Mesh,
+                    material: render.Material,
+                    position: (current.Position - origin).ToVector3(),
+                    rotation: current.Rotation.ToQuaternion(),
+                    scale: render.Scale,
+                    boundingRadius: render.BoundingRadius,
+                    hemisphere: HemisphereOf(dense, place, current.Position),
+                    flags: render.Flags,
                     entityIndex: entity.Index,
                     part: 0);
                 instance.PreviousPosition = (previous.Position - origin).ToVector3();
@@ -424,7 +424,7 @@ internal sealed partial class RenderSnapshotBuilder
                 {
                     DPose pose = LightPose(current, offset);
                     lights.AddRef() =
-                        new PointRenderLight((pose.Position - origin).ToVector3(), color, intensity, range);
+                        new PointRenderLight(Position: (pose.Position - origin).ToVector3(), Color: color, Intensity: intensity, Range: range);
                     break;
                 }
                 case SpotLightData(var offset, var color, var intensity, var range, var innerConeAngle, var
@@ -432,9 +432,9 @@ internal sealed partial class RenderSnapshotBuilder
                 {
                     DPose pose = LightPose(current, offset);
                     lights.AddRef() = new SpotRenderLight(
-                        (pose.Position - origin).ToVector3(),
-                        pose.Rotation.Rotate(LightForward).ToVector3(),
-                        color, intensity, range, innerConeAngle, outerConeAngle);
+                        Position: (pose.Position - origin).ToVector3(),
+                        Direction: pose.Rotation.Rotate(LightForward).ToVector3(),
+                        Color: color, Intensity: intensity, Range: range, InnerConeAngle: innerConeAngle, OuterConeAngle: outerConeAngle);
                     break;
                 }
                 case null:

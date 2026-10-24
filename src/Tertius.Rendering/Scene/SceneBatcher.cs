@@ -47,17 +47,17 @@ internal sealed class SceneBatcher
     {
         alpha = ClampAlpha(alpha);
         scene.Reset();
-        scene.Camera = InterpolateCamera(snapshot, alpha, width, height);
+        scene.Camera = InterpolateCamera(snapshot: snapshot, alpha: alpha, width: width, height: height);
         scene.Sun = snapshot.Sun;
         scene.Ambient = snapshot.Ambient;
         for (int range = 0; range < DepthRanges.Count; range++)
             scene.RangeViewProjection[range] = scene.Camera.ViewProjection(range);
 
-        CollectVisible(snapshot, alpha, meshes, materialCount, scene);
+        CollectVisible(snapshot: snapshot, alpha: alpha, meshes: meshes, materialCount: materialCount, scene: scene);
         CollectPuffs(snapshot, alpha, scene.Camera);
         // Before the processors: impostor captures are lit with the sun as the far shadows leave it.
         CollectLights(snapshot, scene);
-        CollectFarShadows(snapshot, alpha, meshes, scene);
+        CollectFarShadows(snapshot: snapshot, alpha: alpha, meshes: meshes, scene: scene);
         foreach (IInstanceProcessor processor in Processors)
             processor.Process(scene);
         Batch(scene, meshes);
@@ -253,8 +253,8 @@ internal sealed class SceneBatcher
         opaque.AsSpan(0, opaqueCount).Sort(default(DrawItemComparer));
         transparent.AsSpan(0, transparentCount).Sort(default(DrawItemComparer));
         EnsureCapacity(ref scene.Instances, opaqueCount + transparentCount);
-        Emit(scene, meshes, opaque.AsSpan(0, opaqueCount), scene.Opaque);
-        EmitTransparent(scene, meshes, transparent.AsSpan(0, transparentCount), visible.Length);
+        Emit(scene: scene, meshes: meshes, items: opaque.AsSpan(0, opaqueCount), ranges: scene.Opaque);
+        EmitTransparent(scene: scene, meshes: meshes, items: transparent.AsSpan(0, transparentCount), firstPuff: visible.Length);
     }
 
     /// <summary>
@@ -276,7 +276,7 @@ internal sealed class SceneBatcher
             if (range != currentRange || isPuff != puffRun)
             {
                 if (currentRange >= 0)
-                    CloseRun(scene, currentRange, puffRun, runStart);
+                    CloseRun(scene: scene, range: currentRange, puffRun: puffRun, runStart: runStart);
                 currentRange = range;
                 puffRun = isPuff;
                 currentMesh = -1;
@@ -286,11 +286,11 @@ internal sealed class SceneBatcher
             if (isPuff)
                 scene.Puffs[scene.PuffCount++] = collectedPuffs[item.Index - firstPuff];
             else
-                AppendInstanceCommand(scene, meshes, ref scene.Visible[item.Index], ref currentMesh);
+                AppendInstanceCommand(scene: scene, meshes: meshes, instance: ref scene.Visible[item.Index], currentMesh: ref currentMesh);
         }
 
         if (currentRange >= 0)
-            CloseRun(scene, currentRange, puffRun, runStart);
+            CloseRun(scene: scene, range: currentRange, puffRun: puffRun, runStart: runStart);
     }
 
     /// <summary>Adds the run of one kind that started at <paramref name="runStart"/> to the runs of its range.</summary>
@@ -307,8 +307,8 @@ internal sealed class SceneBatcher
         ref PreparedInstance instance, ref int currentMesh)
     {
         int gpuIndex = scene.InstanceCount++;
-        scene.Instances[gpuIndex] = GpuInstance.From(instance.Position, instance.Rotation, instance.Scale,
-            instance.Material, instance.Hemisphere);
+        scene.Instances[gpuIndex] = GpuInstance.From(position: instance.Position, rotation: instance.Rotation, scale: instance.Scale,
+            material: instance.Material, hemisphere: instance.Hemisphere);
         if (instance.Mesh == currentMesh)
         {
             scene.Commands[scene.CommandCount - 1].InstanceCount++;
@@ -350,7 +350,7 @@ internal sealed class SceneBatcher
                 rangeStart = scene.CommandCount;
             }
 
-            AppendInstanceCommand(scene, meshes, ref instance, ref currentMesh);
+            AppendInstanceCommand(scene: scene, meshes: meshes, instance: ref instance, currentMesh: ref currentMesh);
         }
 
         if (currentRange >= 0)
@@ -367,7 +367,7 @@ internal sealed class SceneBatcher
             {
                 case PointRenderLight(var worldPosition, var color, var intensity, var range):
                 {
-                    if (!Reaches(camera, worldPosition, intensity, range, out Vector3 position))
+                    if (!Reaches(camera: camera, worldPosition: worldPosition, intensity: intensity, range: range, position: out Vector3 position))
                         continue;
                     // A point light has no direction and no cone, so those fields of its GpuLight stay zero. The shader and the
                     // impostor lighting read them only for a spot light.
@@ -381,7 +381,7 @@ internal sealed class SceneBatcher
                 case SpotRenderLight(var worldPosition, var axis, var color, var intensity, var range, var
                     innerConeAngle, var outerConeAngle):
                 {
-                    if (!Reaches(camera, worldPosition, intensity, range, out Vector3 position))
+                    if (!Reaches(camera: camera, worldPosition: worldPosition, intensity: intensity, range: range, position: out Vector3 position))
                         continue;
                     Vector3 direction = axis.LengthSquared() > 1e-12f ? Vector3.Normalize(axis) : -Vector3.UnitY;
                     float cosOuter = MathF.Cos(Math.Clamp(outerConeAngle, 0f, MathF.PI));
@@ -393,7 +393,7 @@ internal sealed class SceneBatcher
                         PositionRange = new(position, range),
                         RadianceKind = new(color * intensity, 1f),
                         DirectionCosOuter = new(direction, cosOuter),
-                        Spot = new(cosInner, 0f, 0f, 0f)
+                        Spot = new(x: cosInner, y: 0f, z: 0f, w: 0f)
                     });
                     break;
                 }
@@ -512,15 +512,15 @@ internal sealed class SceneBatcher
             AmbientSky = new(ambient.SkyColor * ambient.Intensity, 0f),
             AmbientGround = new(ambient.GroundColor * ambient.Intensity, 0f),
             Viewport =
-                new(camera.Width, camera.Height, 1f / Math.Max(camera.Width, 1), 1f / Math.Max(camera.Height, 1)),
-            Params = new(1f, (float)snapshot.Time, camera.PixelAngle, 0f),
+                new(x: camera.Width, y: camera.Height, z: 1f / Math.Max(camera.Width, 1), w: 1f / Math.Max(camera.Height, 1)),
+            Params = new(x: 1f, y: (float)snapshot.Time, z: camera.PixelAngle, w: 0f),
             LightCount = (uint)scene.LightCount,
             OccluderCount = (uint)scene.OccluderCount,
             // The shadow pass fills in the cascades when it draws them.
             ShadowCascadeCount = 0,
             MappedOccluderCount = (uint)scene.MappedOccluderCount,
-            RootRotation = new(camera.RootRotation.X, camera.RootRotation.Y, camera.RootRotation.Z,
-                camera.RootRotation.W)
+            RootRotation = new(x: camera.RootRotation.X, y: camera.RootRotation.Y, z: camera.RootRotation.Z,
+                w: camera.RootRotation.W)
         };
     }
 

@@ -20,11 +20,11 @@ internal sealed class DumpRecorder(World world, SceneInstance scene, EventPayloa
         {
             Type type = EventTypeRegistry.TypeOf(e.Type);
             eventsSinceDump.Add(new(
-                world.TickNumber,
-                type.Name,
-                TargetOf(e.Target),
-                e.Sender.IsNull ? null : scene.IdOf(e.Sender),
-                payloads.Of(type).Box(e)));
+                Tick: world.TickNumber,
+                Event: type.Name,
+                To: TargetOf(e.Target),
+                From: e.Sender.IsNull ? null : scene.IdOf(e.Sender),
+                Payload: payloads.Of(type).Box(e)));
         }
     }
 
@@ -37,14 +37,14 @@ internal sealed class DumpRecorder(World world, SceneInstance scene, EventPayloa
         world.Frames.GetAll(frames);
 
         var dump = new StateDump(
-            name,
-            world.TickNumber,
-            world.Time,
-            world.IsAlive(world.Camera) ? scene.IdOf(world.Camera) : null,
-            [.. live.Select(EntityRecordOf)],
-            [.. frames.Select(FrameRecordOf)],
-            eventsSinceDump,
-            [.. world.Errors]);
+            Name: name,
+            Tick: world.TickNumber,
+            Time: world.Time,
+            Camera: world.IsAlive(world.Camera) ? scene.IdOf(world.Camera) : null,
+            Entities: [.. live.Select(EntityRecordOf)],
+            Frames: [.. frames.Select(FrameRecordOf)],
+            Events: eventsSinceDump,
+            Errors: [.. world.Errors]);
         eventsSinceDump = [];
         return dump;
     }
@@ -77,12 +77,12 @@ internal sealed class DumpRecorder(World world, SceneInstance scene, EventPayloa
         }
 
         return new(
-            scene.IdOf(entity),
-            new(frame.IsNull ? null : scene.IdOf(frame.Entity), pose.Position, pose.Rotation),
-            rootPose,
-            velocity,
-            angularVelocity,
-            world.GetBody(entity) is { Motion: BodyMotion.Character } ? world.Snapshot.IsStanding(entity) : null);
+            Id: scene.IdOf(entity),
+            Pose: new(frame.IsNull ? null : scene.IdOf(frame.Entity), pose.Position, pose.Rotation),
+            RootPose: rootPose,
+            Velocity: velocity,
+            AngularVelocity: angularVelocity,
+            Standing: world.GetBody(entity) is { Motion: BodyMotion.Character } ? world.Snapshot.IsStanding(entity) : null);
     }
 
     private FrameRecord FrameRecordOf(FrameHandle frame)

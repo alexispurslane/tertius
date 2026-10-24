@@ -38,29 +38,29 @@ public readonly record struct ApproachGuidance(
     /// so the law has room to follow its curve. It has no speed cap. It takes the error of the velocity in 0.5 s.
     /// </summary>
     public static ApproachGuidance ForBrake() =>
-        new(0.8 * TransferGuidance.BurnAcceleration, double.PositiveInfinity, 0.5, 0.5,
-            TransferGuidance.BurnAcceleration);
+        new(BrakeAcceleration: 0.8 * TransferGuidance.BurnAcceleration, SpeedCap: double.PositiveInfinity, FinalRate: 0.5, VelocityTime: 0.5,
+            MaxAcceleration: TransferGuidance.BurnAcceleration);
 
     /// <summary>
     /// The law of the glide and the hold, which flies the shuttle along the axis to the hold point on the translation
     /// thrusters alone, with a correction of at most 0.2 m/s². Its curve brakes at 0.05 m/s², and it flies at 5 m/s at
     /// most. It takes the error of the velocity in 2 s. The docking's spin-up holds the hold point with it.
     /// </summary>
-    public static ApproachGuidance ForGlide() => new(0.05, 5, 0.1, 2, 0.2);
+    public static ApproachGuidance ForGlide() => new(BrakeAcceleration: 0.05, SpeedCap: 5, FinalRate: 0.1, VelocityTime: 2, MaxAcceleration: 0.2);
 
     /// <summary>
     /// The law of the docking's entry, which flies the shuttle along the station's axis through the slot to the entry's
     /// end: 2 m/s at most, a braking curve of 0.1 m/s², a final rate of 0.2 /s, the error of the velocity taken in 1 s, and
     /// a correction of at most 0.3 m/s².
     /// </summary>
-    public static ApproachGuidance ForEntry() => new(0.1, 2, 0.2, 1, 0.3);
+    public static ApproachGuidance ForEntry() => new(BrakeAcceleration: 0.1, SpeedCap: 2, FinalRate: 0.2, VelocityTime: 1, MaxAcceleration: 0.3);
 
     /// <summary>
     /// The law of the docking's move out, which flies the shuttle from the axis to the landing point in the corner of the
     /// deck: 0.5 m/s at most, a braking curve of 0.05 m/s², a final rate of 0.2 /s, the error of the velocity taken in 1 s,
     /// and a correction of at most 0.3 m/s².
     /// </summary>
-    public static ApproachGuidance ForMoveOut() => new(0.05, 0.5, 0.2, 1, 0.3);
+    public static ApproachGuidance ForMoveOut() => new(BrakeAcceleration: 0.05, SpeedCap: 0.5, FinalRate: 0.2, VelocityTime: 1, MaxAcceleration: 0.3);
 
     /// <summary>
     /// The free acceleration, in m/s², in axes that turn at <paramref name="rate"/> about their origin, of a body whose

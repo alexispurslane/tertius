@@ -11,7 +11,7 @@ public sealed partial class JoltPhysicsBackend
 
     // Scratch for a growth: the IDs of the bodies of the full system, its characters, and the inner bodies that changed ID.
     private BodyID[] growthIds = new BodyID[256];
-    private readonly List<BodyRecord> growthCharacters = [];
+    private readonly List<(BodyRecord Member, CharacterVirtual Character)> growthCharacters = [];
     private readonly Dictionary<uint, uint> renamedBodies = [];
 
     /// <summary>
@@ -64,7 +64,7 @@ public sealed partial class JoltPhysicsBackend
             full.GetBodies(first, (uint)count);
         }
 
-        Array.Sort(growthIds, 0, count, ByIndex);
+        Array.Sort(array: growthIds, index: 0, length: count, comparer: ByIndex);
 
         for (int i = 0; i < count; i++)
         {
@@ -95,7 +95,7 @@ public sealed partial class JoltPhysicsBackend
             };
             from.GetRPosition(id, out RVector3 position);
             from.GetLinearAndAngularVelocity(id, out Vector3 linear, out Vector3 angular);
-            using BodyCreationSettings settings = Settings(spec, position, from.GetRotation(id), linear, angular);
+            using BodyCreationSettings settings = Settings(spec: spec, position: position, rotation: from.GetRotation(id), linearVelocity: linear, angularVelocity: angular);
             if (to.CreateBodyWithID(id, settings) is null)
                 throw new InvalidOperationException(
                     $"Jolt refused to move {id} into the grown system of {world.Frame}.");
@@ -104,30 +104,32 @@ public sealed partial class JoltPhysicsBackend
 
         growthCharacters.Clear();
         foreach (BodyRecord member in world.Members)
-            if (member.Character is not null)
-                growthCharacters.Add(member);
+            if (member.Character is { } character)
+                growthCharacters.Add((member, character));
         growthCharacters.Sort(static (a, b) =>
-            a.Character!.InnerBodyID.Index.CompareTo(b.Character!.InnerBodyID.Index));
+            a.Character.InnerBodyID.Index.CompareTo(b.Character.InnerBodyID.Index));
         renamedBodies.Clear();
-        foreach (BodyRecord member in growthCharacters)
+        for (int i = 0; i < growthCharacters.Count; i++)
         {
             // A character removes its inner body from its system, so it goes before the full system does.
-            CharacterVirtual old = member.Character!;
+            (BodyRecord member, CharacterVirtual old) = growthCharacters[i];
             RVector3 position = old.RPosition;
             Quaternion rotation = old.Rotation;
             Vector3 velocity = old.LinearVelocity;
             BodyID oldInner = old.InnerBodyID;
             old.Dispose();
-            member.Character = NewCharacter(member, larger, position, rotation, velocity);
-            renamedBodies[oldInner.ID] = member.Character.InnerBodyID.ID;
+            CharacterVirtual renewed = NewCharacter(record: member, system: larger, position: position, rotation: rotation, linearVelocity: velocity);
+            member.Character = renewed;
+            growthCharacters[i] = (member, renewed);
+            renamedBodies[oldInner.ID] = renewed.InnerBodyID.ID;
         }
 
         // Jolt builds a better broad-phase tree at once than one body at a time.
         larger.OptimizeBroadPhase();
         world.ReplaceSystem(larger, limits, renamedBodies);
         queryBodyFilter?.ForgetBodies();
-        foreach (BodyRecord member in growthCharacters)
-            member.Character!.RefreshContacts(PrimaryLayer(member), larger);
+        foreach ((BodyRecord member, CharacterVirtual character) in growthCharacters)
+            character.RefreshContacts(layer: PrimaryLayer(member), physicsSystem: larger);
         growthCharacters.Clear();
 
         log(

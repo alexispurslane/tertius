@@ -26,7 +26,7 @@ internal static class ReferenceImages
 
     /// <summary>The folder of the approved reference images, in the source tree, so that an approval lands in git.</summary>
     public static string Folder =>
-        Path.Combine(Gpu.RepositoryRoot, "tests", "Tertius.Rendering.Tests", "ReferenceImages");
+        Path.Combine(path1: Gpu.RepositoryRoot, path2: "tests", path3: "Tertius.Rendering.Tests", path4: "ReferenceImages");
 
     /// <summary>Whether this run approves the images that its snapshot tests render.</summary>
     private static bool Approving => Environment.GetEnvironmentVariable(ApproveVariable) == "1";
@@ -38,14 +38,14 @@ internal static class ReferenceImages
     /// </summary>
     public static void Verify(VulkanRenderer renderer, RenderSnapshot snapshot, string name,
         float tolerance = DefaultTolerance) =>
-        Verify(Gpu.RenderAndCapture(renderer, snapshot, name), Path.Combine(Folder, name + ".png"), tolerance);
+        Verify(Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: name), Path.Combine(Folder, name + ".png"), tolerance);
 
     /// <summary>
     /// Checks <paramref name="actual"/> against the reference image at <paramref name="referencePath"/>, or makes it the
     /// reference when <see cref="ApproveVariable"/> is 1.
     /// </summary>
     public static void Verify(Capture actual, string referencePath, float tolerance = DefaultTolerance) =>
-        Verify(actual, referencePath, Approving, tolerance);
+        Verify(actual: actual, referencePath: referencePath, approve: Approving, tolerance: tolerance);
 
     /// <summary>
     /// Checks <paramref name="actual"/> against the reference image at <paramref name="referencePath"/>, or makes it the
@@ -70,14 +70,14 @@ internal static class ReferenceImages
         }
 
         if (!File.Exists(referencePath))
-            Fail(actual, actualPath, heatMapPath, null,
-                $"No approved reference image at {referencePath}. The actual image is at {actualPath}. Open it, and if it " +
+            Fail(actual: actual, actualPath: actualPath, heatMapPath: heatMapPath, map: null,
+                message: $"No approved reference image at {referencePath}. The actual image is at {actualPath}. Open it, and if it " +
                 $"shows the scene as its test describes it, approve it: run the test again with {ApproveVariable}=1.");
 
         Capture reference = Capture.Load(referencePath);
         if (reference.Width != actual.Width || reference.Height != actual.Height)
-            Fail(actual, actualPath, heatMapPath, null,
-                $"The reference image {referencePath} is {reference.Width}×{reference.Height} pixels, but the actual image is " +
+            Fail(actual: actual, actualPath: actualPath, heatMapPath: heatMapPath, map: null,
+                message: $"The reference image {referencePath} is {reference.Width}×{reference.Height} pixels, but the actual image is " +
                 $"{actual.Width}×{actual.Height}. The actual image is at {actualPath}. If the new size is intended, approve " +
                 $"it with {ApproveVariable}=1.");
 
@@ -90,8 +90,8 @@ internal static class ReferenceImages
             return;
         }
 
-        Fail(actual, actualPath, heatMapPath, map,
-            $"{visible} pixels differ visibly from the reference image {referencePath}: their FLIP value is above " +
+        Fail(actual: actual, actualPath: actualPath, heatMapPath: heatMapPath, map: map,
+            message: $"{visible} pixels differ visibly from the reference image {referencePath}: their FLIP value is above " +
             $"{tolerance} (the largest is {map.Max:F3}, the mean over the image {map.Mean:F5}). The actual image is at " +
             $"{actualPath} and the FLIP heat map at {heatMapPath}. Open all three. If the change is intended, approve it " +
             $"with {ApproveVariable}=1.");

@@ -20,7 +20,7 @@ public class FrameTreeThrustTests
 
     public FrameTreeThrustTests()
     {
-        ground = frames.Create(new(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
+        ground = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
     }
 
     private static Double3 X(double x) => new(x, 0, 0);
@@ -47,7 +47,7 @@ public class FrameTreeThrustTests
     {
         changes.Clear();
         var moves = new List<NumericMove>();
-        frames.UpdateNumericFrames(bodies, dt, 1.0 / 60, changes, moves.AddRange);
+        frames.UpdateNumericFrames(bodies: bodies, dt: dt, step: 1.0 / 60, changes: changes, applyMoves: moves.AddRange);
         frames.AssertInvariants();
         Dictionary<Entity, FrameHandle> homes = moves.ToDictionary(move => move.Entity, move => move.To);
         return
@@ -70,13 +70,13 @@ public class FrameTreeThrustTests
 
     [Fact]
     public void A_free_body_at_60_m_s_stays_in_its_semantic_frame() =>
-        Update(Tick, Body(10, x: 100, vx: 60))[0].Home.Should()
+        Update(Tick, Body(id: 10, x: 100, vx: 60))[0].Home.Should()
             .Be(ground, "a group of free bodies falls only from 1,000 m/s");
 
     [Fact]
     public void A_character_at_60_m_s_gets_a_falling_frame_at_the_first_update()
     {
-        FrameHandle home = Update(Tick, Body(10, x: 100, vx: 60) with { Character = true })[0].Home;
+        FrameHandle home = Update(Tick, Body(id: 10, x: 100, vx: 60) with { Character = true })[0].Home;
         frames.Numeric(home).Should().Be(NumericMode.Falling);
     }
 
@@ -84,7 +84,7 @@ public class FrameTreeThrustTests
     public void A_body_that_thrusts_on_every_update_gets_its_falling_frame_at_the_thirtieth_update_at_60_Hz()
     {
         // Half a second of thrust: 29 ticks of a float sixtieth are 0.4833 s, and 30 are a hair over 0.5 s.
-        NumericBody body = UpdateTimes(29, Tick, Body(10, x: 100, vx: 60, thrust: 1));
+        NumericBody body = UpdateTimes(29, Tick, Body(id: 10, x: 100, vx: 60, thrust: 1));
         body.Home.Should().Be(ground);
         FrameHandle home = Update(Tick, body)[0].Home;
         frames.Numeric(home).Should().Be(NumericMode.Falling);
@@ -95,7 +95,7 @@ public class FrameTreeThrustTests
     {
         // Two updates of a quarter second make half a second of thrust. Then the body coasts at 60 m/s, below the leave
         // speed of free bodies, and it counts as thrusting until 20 s pass without thrust, at the 80th quiet update.
-        NumericBody body = UpdateTimes(2, 0.25, Body(10, x: 100, vx: 60, thrust: 1));
+        NumericBody body = UpdateTimes(2, 0.25, Body(id: 10, x: 100, vx: 60, thrust: 1));
         FrameHandle pod = body.Home;
         frames.Numeric(pod).Should().Be(NumericMode.Falling);
         body = UpdateTimes(79, 0.25, body with { ThrustAcceleration = 0 });
@@ -109,7 +109,7 @@ public class FrameTreeThrustTests
     {
         // Neither body needs a frame by itself: the free one is below 1,000 m/s and the character below 50 m/s. Together
         // they thrust at 50 m/s, so the update must look at the frame although no body passes its own threshold.
-        NumericBody[] after = Update(Tick, Body(10, x: 0, vx: 60), Body(11, x: 3, vx: 40) with { Character = true });
+        NumericBody[] after = Update(Tick, Body(id: 10, x: 0, vx: 60), Body(id: 11, x: 3, vx: 40) with { Character = true });
         after[0].Home.Should().Be(after[1].Home);
         frames.Numeric(after[0].Home).Should().Be(NumericMode.Falling);
     }
@@ -118,7 +118,7 @@ public class FrameTreeThrustTests
     public void A_body_that_leaves_the_input_loses_its_thrust_clock()
     {
         // One tick short of the onset, the body is gone from one update. Back, it starts its thrust time again from zero.
-        NumericBody body = UpdateTimes(29, Tick, Body(10, x: 100, vx: 60, thrust: 1));
+        NumericBody body = UpdateTimes(29, Tick, Body(id: 10, x: 100, vx: 60, thrust: 1));
         Update(Tick);
         Update(Tick, body)[0].Home.Should().Be(ground, "one tick of thrust is not half a second");
     }
@@ -127,7 +127,7 @@ public class FrameTreeThrustTests
     public void A_body_that_turns_static_drops_its_thrust_clock()
     {
         // A ship that parks: its hull turns static. The invariant check of every update finds no clock for a static body.
-        NumericBody body = UpdateTimes(2, 0.25, Body(10, x: 100, vx: 0, thrust: 1));
+        NumericBody body = UpdateTimes(2, 0.25, Body(id: 10, x: 100, vx: 0, thrust: 1));
         Update(0.25, body with { Static = true, ThrustAcceleration = 0 });
     }
 
@@ -135,7 +135,7 @@ public class FrameTreeThrustTests
     public void The_invariant_check_rejects_a_thrust_clock_whose_quiet_time_reaches_the_window()
     {
         // A second of quiet after a thrust: a window shrunk to one second leaves a clock that the update never makes.
-        NumericBody body = UpdateTimes(1, 0.25, Body(10, x: 100, vx: 0, thrust: 1));
+        NumericBody body = UpdateTimes(1, 0.25, Body(id: 10, x: 100, vx: 0, thrust: 1));
         UpdateTimes(4, 0.25, body with { ThrustAcceleration = 0 });
         frames.NumericOptions = frames.NumericOptions with { ThrustWindow = 1 };
         frames.Invoking(tree => tree.AssertInvariants()).Should().Throw<ContractException>();

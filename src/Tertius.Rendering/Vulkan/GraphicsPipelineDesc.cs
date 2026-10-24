@@ -124,10 +124,10 @@ internal sealed class GraphicsPipelineDesc
 
         var binding = new VertexInputBindingDescription(0, (uint)Unsafe.SizeOf<Vertex>(), VertexInputRate.Vertex);
         VertexInputAttributeDescription* attributes = stackalloc VertexInputAttributeDescription[4];
-        attributes[0] = new(0, 0, Format.R32G32B32Sfloat, (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Position)));
-        attributes[1] = new(1, 0, Format.R32G32B32Sfloat, (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Normal)));
-        attributes[2] = new(2, 0, Format.R32G32B32A32Sfloat, (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Tangent)));
-        attributes[3] = new(3, 0, Format.R32G32Sfloat, (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.TexCoord)));
+        attributes[0] = new(location: 0, binding: 0, format: Format.R32G32B32Sfloat, offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Position)));
+        attributes[1] = new(location: 1, binding: 0, format: Format.R32G32B32Sfloat, offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Normal)));
+        attributes[2] = new(location: 2, binding: 0, format: Format.R32G32B32A32Sfloat, offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Tangent)));
+        attributes[3] = new(location: 3, binding: 0, format: Format.R32G32Sfloat, offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.TexCoord)));
         // Declaring only what the vertex shader reads keeps validation from reporting unconsumed attributes.
         bool hasVertices = VertexInput != VertexInput.None;
         var vertexInput = new PipelineVertexInputStateCreateInfo
@@ -219,7 +219,7 @@ internal sealed class GraphicsPipelineDesc
                 PDynamicState = &dynamic,
                 Layout = Layout
             };
-            device.Vk.CreateGraphicsPipelines(device.Device, default, 1, &info, null, out Pipeline pipeline)
+            device.Vk.CreateGraphicsPipelines(device: device.Device, pipelineCache: default, createInfoCount: 1, pCreateInfos: &info, pAllocator: null, pPipelines: out Pipeline pipeline)
                 .Check($"vkCreateGraphicsPipelines({Name})");
             device.SetName(ObjectType.Pipeline, pipeline.Handle, Name);
             return pipeline;

@@ -38,7 +38,7 @@ public class WorldPhysicsTests
         {
             Frame = ground,
             Pose = At(0, -0.5),
-            Body = new(new BoxShapeDesc(new(100, 0.5f, 100)), BodyMotion.Static)
+            Body = new(Shape: new BoxShapeDesc(new(100, 0.5f, 100)), Motion: BodyMotion.Static)
         });
         var log = new CollisionLog();
         Entity ball = world.Spawn(new()
@@ -55,7 +55,7 @@ public class WorldPhysicsTests
         // A level load: one batch of 15 static crates, far below the floor, grows the ground's system twice.
         for (int i = 0; i < 15; i++)
             world.Spawn(new()
-                { Frame = ground, Pose = At(3 * i, -100), Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static) });
+                { Frame = ground, Pose = At(3 * i, -100), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static) });
         Tick(world, 10);
 
         warnings.Count(warning => warning.Contains("so it grew")).Should().Be(2);
@@ -78,19 +78,19 @@ public class WorldPhysicsTests
     public void AShipThatTheGameParksStopsWhereItIsWithNoError()
     {
         var warnings = new List<string>();
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, warnings);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults, warnings: warnings);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f)));
         Entity owner = world.Spawn(new()
         {
             Frame = space,
             LinearVelocity = new(10, 0, 0),
-            Body = new(new BoxShapeDesc(new(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
             AsFrame = new(FrameBounds.Sphere(10))
         });
         FrameHandle ship = world.GetOwnedFrame(owner);
         Tick(world, 5);
 
-        world.SetMotionNextTick(owner, BodyMotion.Static);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Static);
         world.Tick();
         DPose parked = world.Frames.LocalPose(ship);
         parked.Position.X.Should().BeGreaterThan(0.5, "the ship flew for 6 steps");
@@ -118,7 +118,7 @@ public class WorldPhysicsTests
     [Fact]
     public void AParkedStationThatGoesIntoOrbitJumpsOntoItsOrbitSoItsHullNeverCrossesTheGap()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         // At 5 km, a parent with this gravitational parameter gives an orbital speed of 10 m/s: √(5e5 / 5000).
         const double planetMu = 5000.0 * 100;
         FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f), GravityField.Point(planetMu)));
@@ -126,7 +126,7 @@ public class WorldPhysicsTests
         {
             Frame = planet,
             Pose = At(-5000),
-            Body = new(new BoxShapeDesc(new(5)), BodyMotion.Static, Mass: 1000),
+            Body = new(Shape: new BoxShapeDesc(new(5)), Motion: BodyMotion.Static, Mass: 1000),
             AsFrame = new(FrameBounds.Sphere(50))
         });
         FrameHandle station = world.GetOwnedFrame(owner);
@@ -137,7 +137,7 @@ public class WorldPhysicsTests
             backend.BodiesIn(planet).Single(facts =>
                 BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner));
 
-        world.SetMotionNextTick(owner, BodyMotion.Kinematic, add: new KeplerMotion { Orbit = orbit });
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Kinematic, add: new KeplerMotion { Orbit = orbit });
         Tick(world, 2);
         Hull().LinearVelocity.Length().Should()
             .BeLessThan(0.01f, "the hull holds still in the step before its first sample");
@@ -164,21 +164,21 @@ public class WorldPhysicsTests
     public void AShipThatTheGameParksAndUnparksWithinOneTickFliesOn()
     {
         var warnings = new List<string>();
-        using World world = NewWorld(out _, warnings);
+        using World world = NewWorld(backend: out _, warnings: warnings);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f)));
         Entity owner = world.Spawn(new()
         {
             Frame = space,
             LinearVelocity = new(10, 0, 0),
-            Body = new(new BoxShapeDesc(new(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
             AsFrame = new(FrameBounds.Sphere(10))
         });
         FrameHandle ship = world.GetOwnedFrame(owner);
         Tick(world, 5);
         DPose before = world.Frames.LocalPose(ship);
 
-        world.SetMotionNextTick(owner, BodyMotion.Static);
-        world.SetMotionNextTick(owner, BodyMotion.Dynamic);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Static);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Dynamic);
         Tick(world, 60);
 
         world.Frames.LinearVelocity(ship).X.Should().BeApproximately(10, 1e-6, "the ship never parked");
@@ -197,22 +197,22 @@ public class WorldPhysicsTests
     public void AShipThatTheGameParksForOneStepStaysWhereItWasParked()
     {
         var warnings = new List<string>();
-        using World world = NewWorld(out _, warnings);
+        using World world = NewWorld(backend: out _, warnings: warnings);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f)));
         Entity owner = world.Spawn(new()
         {
             Frame = space,
             LinearVelocity = new(10, 0, 0),
-            Body = new(new BoxShapeDesc(new(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
             AsFrame = new(FrameBounds.Sphere(10))
         });
         FrameHandle ship = world.GetOwnedFrame(owner);
         Tick(world, 5);
 
-        world.SetMotionNextTick(owner, BodyMotion.Static);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Static);
         world.Tick();
         DPose parked = world.Frames.LocalPose(ship);
-        world.SetMotionNextTick(owner, BodyMotion.Dynamic);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Dynamic);
         Tick(world, 60);
 
         (world.Frames.LocalPose(ship).Position - parked.Position).Length.Should()
@@ -230,18 +230,18 @@ public class WorldPhysicsTests
     [Fact]
     public void ACrateThatSleepsOnTheFloorAndWakesWhenABallHitsItHearsTheFloorOnlyOnce()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle ground = Ground(world, 9.81f);
         Entity floor = world.Spawn(new()
         {
             Frame = ground,
             Pose = At(0, -0.5),
-            Body = new(new BoxShapeDesc(new(500, 0.5f, 500)), BodyMotion.Static)
+            Body = new(Shape: new BoxShapeDesc(new(500, 0.5f, 500)), Motion: BodyMotion.Static)
         });
         var log = new CollisionLog();
         Entity crate = world.Spawn(new()
         {
-            Frame = ground, Pose = At(0, 0.5), Body = new(new BoxShapeDesc(new(0.5f)), Mass: 10), Components = [log]
+            Frame = ground, Pose = At(0, 0.5), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10), Components = [log]
         });
         world.Spawn(new()
         {
@@ -253,7 +253,7 @@ public class WorldPhysicsTests
         Tick(world, 300);
 
         Entity dropped = world.Spawn(new()
-            { Frame = ground, Pose = At(0, 2.5), Body = new(new SphereShapeDesc(0.25f), Mass: 0.5f) });
+            { Frame = ground, Pose = At(0, 2.5), Body = new(Shape: new SphereShapeDesc(0.25f), Mass: 0.5f) });
         Tick(world, 120);
 
         log.Seen.Select(seen => seen.Other).Should().Equal([floor, dropped], "the crate never left the floor");

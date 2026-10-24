@@ -48,8 +48,8 @@ public class RenderSnapshotBenchmarks
 
     private readonly PuffLook[] puffLooks =
     [
-        new(Life: 2, StartRadius: 0.5f, EndRadius: 2, TemperatureRatio: 3, PuffShading.Glow(new(4, 2, 1))),
-        new(Life: 5, StartRadius: 1, EndRadius: 4, TemperatureRatio: 0.5f, PuffShading.Lit(new(0.5f)))
+        new(Life: 2, StartRadius: 0.5f, EndRadius: 2, TemperatureRatio: 3, Shading: PuffShading.Glow(new(4, 2, 1))),
+        new(Life: 5, StartRadius: 1, EndRadius: 4, TemperatureRatio: 0.5f, Shading: PuffShading.Lit(new(0.5f)))
     ];
 
     [Params("flat", "orbit", "frames1000")]
@@ -129,7 +129,7 @@ public class RenderSnapshotBenchmarks
     /// <summary>The placement of the puffs into a snapshot, per puff.</summary>
     [Benchmark(OperationsPerInvoke = PuffCount)]
     public void PlacePuffs() =>
-        puffBuilder.BuildPuffs(puffSnapshot, new(puffRows, puffRanges, puffLooks, world.DeltaTime));
+        puffBuilder.BuildPuffs(puffSnapshot, new(rows: puffRows, ranges: puffRanges, looks: puffLooks, step: world.DeltaTime));
 
     private static World Flat()
     {
@@ -169,7 +169,7 @@ public class RenderSnapshotBenchmarks
             Pose = new(place, orbit.RotationAt(world.Time, EarthMu)),
             LinearVelocity = velocity,
             AngularVelocity = orbit.AngularVelocityAt(world.Time, EarthMu).ToVector3(),
-            Body = new(new BoxShapeDesc(new(10, 5, 10)), BodyMotion.Kinematic),
+            Body = new(Shape: new BoxShapeDesc(new(10, 5, 10)), Motion: BodyMotion.Kinematic),
             Render = Visible,
             AsFrame = new(FrameBounds.Sphere(100)),
             Components = [new KeplerMotion { Orbit = orbit }]
@@ -182,11 +182,11 @@ public class RenderSnapshotBenchmarks
             Frame = planet,
             Pose = new(behind, DQuaternion.Identity),
             LinearVelocity = velocity,
-            Body = new(new BoxShapeDesc(new(5, 3, 15)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(5, 3, 15)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
             Render = Visible,
             AsFrame = new(FrameBounds.Sphere(50))
         });
-        var crate = new BodyDesc(new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
+        var crate = new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
         for (int i = 0; i < 10; i++)
             world.Spawn(new()
             {
@@ -225,7 +225,7 @@ public class RenderSnapshotBenchmarks
                 AsFrame = new(FrameBounds.Sphere(50))
             });
         // Each cluster is a grid of 10 by 20 boxes 1.5 m apart, whose bounding spheres overlap, so the boxes form one group.
-        var box = new BodyDesc(new BoxShapeDesc(new(0.5f)), BodyMotion.Static);
+        var box = new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static);
         for (int c = 0; c < clusters; c++)
         for (int b = 0; b < boxesPerCluster; b++)
             world.Spawn(new()

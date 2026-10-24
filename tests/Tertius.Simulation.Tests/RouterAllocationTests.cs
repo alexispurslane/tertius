@@ -29,7 +29,7 @@ public class RouterAllocationTests
             for (int s = 0; s < 200; s++)
                 h.Send(s % everyone.Count, everyone[s * 7 % everyone.Count], new Ping { Value = s });
             h.Send(0, Squad, new Ping { Value = -1 });
-            h.SendAt(1, tick + 2, everyone[3], new Ping { Value = -2 });
+            h.SendAt(chunk: 1, due: tick + 2, target: everyone[3], payload: new Ping { Value = -2 });
             h.Router.Route(tick);
         }
 

@@ -35,25 +35,26 @@ public sealed partial class World
         if (inTick)
             throw new InvalidOperationException("World.Tick is not re-entrant.");
         inTick = true;
-        bool stepping = false;
+        // The physics worker while it runs the step of this tick.
+        PhysicsWorker? stepping = null;
         try
         {
             PrepareTick();
             if (physicsWorker != null)
             {
                 stepOutput.Clear();
-                physicsWorker.Begin(new(TickNumber, DeltaTime, Time, Frames, Entities.FrontIntents,
-                    Entities.IntentEntities));
-                stepping = true;
+                physicsWorker.Begin(new(tick: TickNumber, deltaTime: DeltaTime, time: Time, frames: Frames, intents: Entities.FrontIntents,
+                    intentEntities: Entities.IntentEntities));
+                stepping = physicsWorker;
             }
 
             RunGameplay();
 
             ExceptionDispatchInfo? physicsError = null;
-            if (stepping)
+            if (stepping is { } worker)
             {
-                stepping = false;
-                physicsError = physicsWorker!.Wait();
+                stepping = null;
+                physicsError = worker.Wait();
             }
 
             // A broken contract is a bug in the backend, not a failed step, so the world does not survive it like one.
@@ -67,8 +68,7 @@ public sealed partial class World
         }
         finally
         {
-            if (stepping)
-                physicsWorker!.Wait();
+            stepping?.Wait();
             inTick = false;
         }
 
@@ -155,7 +155,7 @@ public sealed partial class World
             for (int c = 0; c < count; c++)
                 RunChunk(c);
         else
-            Parallel.For(0, count, parallelOptions, runChunk);
+            Parallel.For(fromInclusive: 0, toExclusive: count, parallelOptions: parallelOptions, body: runChunk);
     }
 
     /// <summary>Runs every entity of one chunk that has mail, wants Tick, or is new and wants Spawned. On a worker.</summary>
@@ -172,7 +172,7 @@ public sealed partial class World
             bool wantsSpawned = first && Entities.Accepts(entity, spawnedType);
             if (router.InboxCount(entity) == 0 && !wantsTick && !wantsSpawned)
                 continue;
-            RunEntity(chunk, buffer, entity, wantsTick, wantsSpawned);
+            RunEntity(chunk: chunk, buffer: buffer, entity: entity, wantsTick: wantsTick, wantsSpawned: wantsSpawned);
         }
     }
 
@@ -260,7 +260,7 @@ public sealed partial class World
         FrameHandle frame = QueryFrame(entity, "cast a ray");
         Double3 origin = CheckedOrigin(from);
         Double3 unit = CheckedSweep("A ray", direction, length);
-        chunk.PhysicsRequests.Add(new(entity, frame, new RayQuestion(origin, unit, length, kind), query, tag));
+        chunk.PhysicsRequests.Add(new(Asker: entity, Frame: frame, Question: new RayQuestion(Origin: origin, Direction: unit, Length: length, Kind: kind), Query: query, Tag: tag));
     }
 
     /// <summary>
@@ -272,9 +272,9 @@ public sealed partial class World
         double length, in EntityQuery query, int tag)
     {
         FrameHandle frame = QueryFrame(entity, "cast a shape");
-        DPose pose = CheckedPose(shape, start, "A shape cast", nameof(start));
+        DPose pose = CheckedPose(shape: shape, pose: start, what: "A shape cast", parameter: nameof(start));
         Double3 unit = CheckedSweep("A shape cast", direction, length);
-        chunk.PhysicsRequests.Add(new(entity, frame, new ShapeCastQuestion(shape, pose, unit, length), query, tag));
+        chunk.PhysicsRequests.Add(new(Asker: entity, Frame: frame, Question: new ShapeCastQuestion(Shape: shape, Start: pose, Direction: unit, Length: length), Query: query, Tag: tag));
     }
 
     /// <summary>
@@ -285,8 +285,8 @@ public sealed partial class World
         in EntityQuery query, int tag)
     {
         FrameHandle frame = QueryFrame(entity, "test an overlap");
-        DPose checkedPose = CheckedPose(shape, pose, "An overlap query", nameof(pose));
-        chunk.PhysicsRequests.Add(new(entity, frame, new OverlapQuestion(shape, checkedPose), query, tag));
+        DPose checkedPose = CheckedPose(shape: shape, pose: pose, what: "An overlap query", parameter: nameof(pose));
+        chunk.PhysicsRequests.Add(new(Asker: entity, Frame: frame, Question: new OverlapQuestion(shape, checkedPose), Query: query, Tag: tag));
     }
 
     /// <summary>The frame that a query of <paramref name="entity"/> works in: the frame the entity is in.</summary>

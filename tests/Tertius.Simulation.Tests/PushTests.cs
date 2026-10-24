@@ -67,7 +67,7 @@ public class PushTests
 
         Push atLever = free.At(new(5, -7, 11));
 
-        atLever.Should().Be(new Push(Double3.Zero, new(1, 2, 3), Double3.Zero, new(-4, 5, -6)));
+        atLever.Should().Be(new Push(Force: Double3.Zero, Torque: new(1, 2, 3), Impulse: Double3.Zero, AngularImpulse: new(-4, 5, -6)));
     }
 
     [Fact]

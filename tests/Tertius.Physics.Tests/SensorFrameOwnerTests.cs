@@ -56,11 +56,11 @@ public class SensorFrameOwnerTests
 
     /// <summary>A box of <see cref="HullHalf"/> and 1000 kg with <paramref name="motion"/> that nothing slows down.</summary>
     private static BodyDesc Box(BodyMotion motion) =>
-        new(new BoxShapeDesc(new(HullHalf)), motion, Mass: 1000, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new BoxShapeDesc(new(HullHalf)), Motion: motion, Mass: 1000, LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>A sensor ball of <see cref="SensorRadius"/> and 1 kg with <paramref name="motion"/> that nothing slows down.</summary>
     private static BodyDesc SensorBall(BodyMotion motion) =>
-        new(new SphereShapeDesc(SensorRadius), motion, Mass: 1, LinearDamping: 0, AngularDamping: 0)
+        new(Shape: new SphereShapeDesc(SensorRadius), Motion: motion, Mass: 1, LinearDamping: 0, AngularDamping: 0)
             { IsSensor = true };
 
     /// <summary>The scene of <see cref="ShipAndSensor"/>: the ship's owner and the sensor, with what each heard, and the sensor's home.</summary>
@@ -89,12 +89,12 @@ public class SensorFrameOwnerTests
         {
             Place.Parent => (space, SensorX),
             Place.Frame => (world.GetOwnedFrame(owner), SensorX),
-            _ => (Bubble(world, space, SiblingX, SiblingRadius), SensorX - SiblingX)
+            _ => (Bubble(world: world, parent: space, x: SiblingX, radius: SiblingRadius), SensorX - SiblingX)
         };
         var sensorLog = new CollisionLog();
         Entity sensorEntity = world.Spawn(new()
             { Frame = home, Pose = At(x), Body = SensorBall(sensor), Components = [sensorLog] });
-        return new(owner, sensorEntity, ownerLog, sensorLog, home);
+        return new(Owner: owner, Sensor: sensorEntity, OwnerLog: ownerLog, SensorLog: sensorLog, Home: home);
     }
 
     /// <summary>A frame without a body and with no gravity, with a bubble of <paramref name="radius"/> m at x =
@@ -146,8 +146,8 @@ public class SensorFrameOwnerTests
     public void ASensorDetectsAShipInEveryFrameWhenTheSensorIsDynamicOrTheShipsHullMoves(BodyMotion sensor,
         BodyMotion hull, Place place)
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        Scene scene = ShipAndSensor(world, hull, sensor, place);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
+        Scene scene = ShipAndSensor(world: world, hull: hull, sensor: sensor, place: place);
         Tick(world, 10);
 
         world.GetFrame(scene.Sensor).Should().Be(scene.Home);
@@ -177,7 +177,7 @@ public class SensorFrameOwnerTests
     public void ASensorDetectsAPlainBodyOfTheHullsShapeWhenTheSensorIsDynamicOrTheBodyMoves(BodyMotion sensor,
         BodyMotion body)
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         var boxLog = new CollisionLog();
         Entity box = world.Spawn(new() { Frame = space, Body = Box(body), Components = [boxLog] });
@@ -210,12 +210,12 @@ public class SensorFrameOwnerTests
     [InlineData(Place.Sibling, BodyMotion.Dynamic)]
     public void AStaticSensorStopsDetectingAShipWhenTheShipParks(Place place, BodyMotion from)
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        Scene scene = ShipAndSensor(world, from, BodyMotion.Static, place);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
+        Scene scene = ShipAndSensor(world: world, hull: from, sensor: BodyMotion.Static, place: place);
         Tick(world, 10);
         scene.SensorLog.NewsOf(scene.Owner).Should().Equal(Started);
 
-        world.SetMotionNextTick(scene.Owner, BodyMotion.Static);
+        world.SetMotionNextTick(owner: scene.Owner, motion: BodyMotion.Static);
         Tick(world, 10);
 
         scene.SensorLog.NewsOf(scene.Owner).Should().Equal(Started, Ended);
@@ -238,12 +238,12 @@ public class SensorFrameOwnerTests
     [InlineData(Place.Sibling, BodyMotion.Dynamic)]
     public void AStaticSensorStartsToDetectAParkedShipThatItOverlapsWhenTheShipStartsToMove(Place place, BodyMotion to)
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        Scene scene = ShipAndSensor(world, BodyMotion.Static, BodyMotion.Static, place);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
+        Scene scene = ShipAndSensor(world: world, hull: BodyMotion.Static, sensor: BodyMotion.Static, place: place);
         Tick(world, 10);
         scene.SensorLog.NewsOf(scene.Owner).Should().BeEmpty();
 
-        world.SetMotionNextTick(scene.Owner, to);
+        world.SetMotionNextTick(owner: scene.Owner, motion: to);
         Tick(world, 10);
 
         scene.SensorLog.NewsOf(scene.Owner).Should().Equal(Started);
@@ -261,13 +261,13 @@ public class SensorFrameOwnerTests
     [InlineData(Place.Sibling)]
     public void AStaticSensorDetectsAShipAgainWhenTheShipMovesAgainAfterItParked(Place place)
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        Scene scene = ShipAndSensor(world, BodyMotion.Kinematic, BodyMotion.Static, place);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
+        Scene scene = ShipAndSensor(world: world, hull: BodyMotion.Kinematic, sensor: BodyMotion.Static, place: place);
         Tick(world, 10);
-        world.SetMotionNextTick(scene.Owner, BodyMotion.Static);
+        world.SetMotionNextTick(owner: scene.Owner, motion: BodyMotion.Static);
         Tick(world, 10);
 
-        world.SetMotionNextTick(scene.Owner, BodyMotion.Kinematic);
+        world.SetMotionNextTick(owner: scene.Owner, motion: BodyMotion.Kinematic);
         Tick(world, 10);
 
         scene.SensorLog.NewsOf(scene.Owner).Should().Equal(Started, Ended, Started);
@@ -287,11 +287,11 @@ public class SensorFrameOwnerTests
     [InlineData(Place.Sibling, BodyMotion.Dynamic)]
     public void ADynamicSensorKeepsDetectingAShipWhenTheShipParks(Place place, BodyMotion from)
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        Scene scene = ShipAndSensor(world, from, BodyMotion.Dynamic, place);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
+        Scene scene = ShipAndSensor(world: world, hull: from, sensor: BodyMotion.Dynamic, place: place);
         Tick(world, 10);
 
-        world.SetMotionNextTick(scene.Owner, BodyMotion.Static);
+        world.SetMotionNextTick(owner: scene.Owner, motion: BodyMotion.Static);
         Tick(world, 10);
 
         scene.SensorLog.NewsOf(scene.Owner).Should().Equal(Started);
@@ -306,8 +306,8 @@ public class SensorFrameOwnerTests
     [Fact]
     public void TheInvariantsFindAnInteriorWhoseJoltMotionDoesNotFollowTheHulls()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        Scene scene = ShipAndSensor(world, BodyMotion.Kinematic, BodyMotion.Static, Place.Parent);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
+        Scene scene = ShipAndSensor(world: world, hull: BodyMotion.Kinematic, sensor: BodyMotion.Static, place: Place.Parent);
         world.Tick();
         FrameHandle ship = world.GetOwnedFrame(scene.Owner);
         JoltPhysicsBackend.BodyFacts interior = faults.Jolt.BodiesIn(ship)
@@ -334,8 +334,8 @@ public class SensorFrameOwnerTests
     [InlineData(BodyMotion.Dynamic)]
     public void TheInteriorOfAFrameThatBecomesARootTurnsStaticAndAStaticSensorStopsDetectingIt(BodyMotion hull)
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, debugChecks: false);
-        Scene scene = ShipAndSensor(world, hull, BodyMotion.Static, Place.Frame);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults, debugChecks: false);
+        Scene scene = ShipAndSensor(world: world, hull: hull, sensor: BodyMotion.Static, place: Place.Frame);
         Tick(world, 10);
         scene.SensorLog.NewsOf(scene.Owner).Should().Equal(Started);
         FrameHandle ship = world.GetOwnedFrame(scene.Owner);
@@ -359,7 +359,7 @@ public class SensorFrameOwnerTests
     [Fact]
     public void ACrateThatRestsOnAShipsInteriorHearsNoEndWhenTheShipParksOrWhenItsEnginesStart()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         Entity owner = world.Spawn(new()
@@ -374,9 +374,9 @@ public class SensorFrameOwnerTests
         Tick(world, 30);
         crateLog.NewsOf(owner).Should().Equal(Started);
 
-        world.SetMotionNextTick(owner, BodyMotion.Static);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Static);
         Tick(world, 30);
-        world.SetMotionNextTick(owner, BodyMotion.Dynamic);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Dynamic);
         Tick(world, 30);
 
         world.GetFrame(crate).Should().Be(lander);

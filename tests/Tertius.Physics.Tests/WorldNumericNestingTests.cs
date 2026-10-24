@@ -31,11 +31,11 @@ public class WorldNumericNestingTests
     /// <summary>The grid of a resting frame that nests, in meters: 2^20 m.</summary>
     private const double Grid = 1 << 20;
 
-    private static readonly BodyDesc PodHull = new(new BoxShapeDesc(new(2)), Mass: 1000, LinearDamping: 0,
+    private static readonly BodyDesc PodHull = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, LinearDamping: 0,
         AngularDamping: 0,
         InteriorShape: new SphereShapeDesc(0.05f));
 
-    private static readonly BodyDesc CrateBody = new(new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0,
+    private static readonly BodyDesc CrateBody = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0,
         AngularDamping: 0);
 
     /// <summary>A pod with its own frame and a camera in it, and a crate beside it, a light-year out in a frame without gravity.</summary>
@@ -49,7 +49,7 @@ public class WorldNumericNestingTests
     /// </summary>
     private static Scene PodAndCrate(double speed, NumericFrameOptions? options = null)
     {
-        World world = WorldTesting.NewWorld(out _, configure: o =>
+        World world = WorldTesting.NewWorld(backend: out _, configure: o =>
         {
             if (options is not null)
                 o.NumericFrames = options;

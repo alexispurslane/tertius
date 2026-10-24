@@ -212,7 +212,7 @@ public class StaleHandleTests
         Entity next = table.Reserve();
 
         Action activate = () =>
-            table.Activate(reservation, default, new(), [], [], null, Vector3.Zero, FrameHandle.Null);
+            table.Activate(entity: reservation, row: default, render: new(), components: [], wants: [], body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
 
         activate.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(reservation);
         table.IsAlive(next).Should().BeFalse();
@@ -226,7 +226,7 @@ public class StaleHandleTests
         EntityTable table = TableSupport.NewTable();
         Entity live = table.SpawnLive();
 
-        Action activate = () => table.Activate(live, RowAt(9), new(), [], [], null, Vector3.Zero, FrameHandle.Null);
+        Action activate = () => table.Activate(entity: live, row: RowAt(9), render: new(), components: [], wants: [], body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
 
         activate.Should().ThrowExactly<InvalidOperationException>()
             .WithMessage($"*{live}*does not name a reservation*");
@@ -271,7 +271,7 @@ public class StaleHandleTests
         Live(table.LiveEntitiesOfChunk(0)).Should().Equal(a, c);
         Live(table.LiveEntities).Should().Equal(a, c);
 
-        table.Activate(reserved, default, new(), [], [], null, Vector3.Zero, FrameHandle.Null);
+        table.Activate(entity: reserved, row: default, render: new(), components: [], wants: [], body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
         Live(table.LiveEntitiesOfChunk(0)).Should().Equal(a, reserved, c);
         Live(table.LiveEntitiesIn(1, 3)).Should().Equal(reserved, c);
     }
@@ -396,7 +396,7 @@ public class StaleHandleTests
     {
         (EntityTable table, Entity handle) = TableWithHandle(kind);
 
-        Action activate = () => table.Activate(handle, default, new(), [], [], null, Vector3.Zero, FrameHandle.Null);
+        Action activate = () => table.Activate(entity: handle, row: default, render: new(), components: [], wants: [], body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
 
         activate.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(handle);
         table.AssertInvariants();

@@ -83,16 +83,16 @@ public static partial class DemoScenes
                 Render = new RenderData
                 {
                     Mesh = resources.CreateMesh(Primitives.Sphere((float)(EarthRadius - 1), 256, 128)),
-                    Material = resources.CreateMaterial(new(Vector4.One, SpecularIntensity: 0.1f,
+                    Material = resources.CreateMaterial(new(BaseColor: Vector4.One, SpecularIntensity: 0.1f,
                         Albedo: resources.CreateTexture(EarthGrid()))),
                     BoundingRadius = (float)EarthRadius,
                     Flags = RenderFlags.Visible | RenderFlags.Celestial
                 }
             }));
 
-            Entity station = DemoStation.Spawn(world, earth, scene, resources);
+            Entity station = DemoStation.Spawn(world: world, parent: earth, scene: scene, resources: resources);
             FrameHandle frame = world.GetOwnedFrame(station);
-            Entity shuttle = Shuttle.Park(world, frame, DemoStation.ParkedPose, Shuttle.DrawnHull(resources));
+            Entity shuttle = Shuttle.Park(world: world, frame: frame, pose: DemoStation.ParkedPose, render: Shuttle.DrawnHull(resources));
             scene.Add("shuttle", shuttle);
             FrameHandle cabin = world.GetOwnedFrame(shuttle);
             Vector3 seatHalf = Shuttle.Seat.Extents;
@@ -100,12 +100,12 @@ public static partial class DemoScenes
             {
                 Frame = cabin,
                 Pose = new(Shuttle.Seat.Center, DQuaternion.Identity),
-                Render = Drawn(resources, Primitives.Box(seatHalf), new(0.15f, 0.25f, 0.6f, 1),
+                Render = Drawn(resources: resources, mesh: Primitives.Box(seatHalf), color: new(x: 0.15f, y: 0.25f, z: 0.6f, w: 1),
                     boundingRadius: seatHalf.Length())
             }));
-            Shuttle.Panes(world, cabin, scene, resources);
-            Shuttle.SpawnLamps(world, cabin, scene, resources);
-            Shuttle.SpawnNozzle(world, cabin, scene, resources);
+            Shuttle.Panes(world: world, cabin: cabin, scene: scene, resources: resources);
+            Shuttle.SpawnLamps(world: world, cabin: cabin, scene: scene, resources: resources);
+            Shuttle.SpawnNozzle(world: world, cabin: cabin, scene: scene, resources: resources);
 
             Vector3 personHalf = DemoSurface.PersonHalf;
             var personRender = new RenderData { ViewOffset = new(DemoSurface.Eye, Quaternion.Identity) };
@@ -113,16 +113,16 @@ public static partial class DemoScenes
             {
                 Frame = cabin,
                 Pose = StandAtSeat,
-                Body = new(new CapsuleShapeDesc(CapsuleHalfHeight, (float)StationExit.PersonRadius),
-                    BodyMotion.Character, Mass: YardPersonMass),
+                Body = new(Shape: new CapsuleShapeDesc(CapsuleHalfHeight, (float)StationExit.PersonRadius),
+                    Motion: BodyMotion.Character, Mass: YardPersonMass),
                 Render = personRender
             });
             scene.Add("person", person);
-            DemoSurface.SpawnDrawnBody(world, scene, person, resources);
-            var penSpec = new CrateSpec(DemoSurface.PenHalf, DemoSurface.PenMass,
-                resources.CreateMesh(Primitives.Box(DemoSurface.PenHalf)),
-                resources.CreateMaterial(MaterialDesc.Color(new(0.85f, 0.1f, 0.08f, 1))));
-            Entity copy = world.Spawn(penSpec.HeldCopy(cabin, person, personRender.ViewOffset, PenGrip));
+            DemoSurface.SpawnDrawnBody(world: world, scene: scene, person: person, resources: resources);
+            var penSpec = new CrateSpec(HalfExtents: DemoSurface.PenHalf, Mass: DemoSurface.PenMass,
+                Mesh: resources.CreateMesh(Primitives.Box(DemoSurface.PenHalf)),
+                Material: resources.CreateMaterial(MaterialDesc.Color(new(x: 0.85f, y: 0.1f, z: 0.08f, w: 1))));
+            Entity copy = world.Spawn(penSpec.HeldCopy(frame: cabin, holder: person, view: personRender.ViewOffset, grip: PenGrip));
             scene.Add("pen-copy", copy);
             world.AddComponent(person, new Passenger(new(cabin, Shuttle.SeatStand), Entity.Null, new Strapped(copy)));
             world.AddComponent(person, StationExit.Disembark(cabin, frame));
@@ -139,8 +139,8 @@ public static partial class DemoScenes
                 Render = new RenderData(),
                 Components =
                 [
-                    new ChaseCamera(DemoSurface.FollowBehind, DemoSurface.FollowAbove, DemoSurface.FollowAhead,
-                        personHalf, world.VerticalFov)
+                    new ChaseCamera(behind: DemoSurface.FollowBehind, above: DemoSurface.FollowAbove, ahead: DemoSurface.FollowAhead,
+                        subjectHalf: personHalf, verticalFov: world.VerticalFov)
                 ]
             }));
             scene.Add("slide-camera", StationExit.SpawnSlideCamera(world, person, frame));
@@ -148,8 +148,8 @@ public static partial class DemoScenes
                 { Frame = cabin, Pose = DemoSurface.CabinCamera, Render = new RenderData() });
             scene.Add("cabin-camera", cabinCamera);
 
-            SunAt(world, scene, earth,
-                new Double3(0, EarthRadius, 0) + new Double3(60, 80, 40).Normalized() * AstronomicalUnit);
+            SunAt(world: world, scene: scene, frame: earth,
+                position: new Double3(0, EarthRadius, 0) + new Double3(60, 80, 40).Normalized() * AstronomicalUnit);
 
             foreach (string view in new[]
                      {

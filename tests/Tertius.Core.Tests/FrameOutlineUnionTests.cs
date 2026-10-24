@@ -129,7 +129,7 @@ public class FrameOutlineUnionTests
     public void EveryFieldOfEveryCaseSurvivesTheRoundTrip()
     {
         // Every field differs from every other field, so a swap of two fields shows.
-        var rotation = new Quaternion(0.1f, 0.2f, 0.3f, 0.9f);
+        var rotation = new Quaternion(x: 0.1f, y: 0.2f, z: 0.3f, w: 0.9f);
         new FrameOutline(new SemanticOutline(new(1, 2, 3), rotation, new(4, 5, 6)))
             .TryGetValue(out SemanticOutline semantic).Should().BeTrue();
         semantic.Center.Should().Be(new Vector3(1, 2, 3));
@@ -286,7 +286,7 @@ public class FrameOutlineUnionTests
         // every set and every dictionary that holds it. So a NaN equals a NaN here, as it does in Vector3.Equals.
         FrameOutline[] outlines =
         [
-            Ship with { Radii = new(float.NaN, 1, 1) }, Ship with { Rotation = new(float.NaN, 0, 0, 1) },
+            Ship with { Radii = new(float.NaN, 1, 1) }, Ship with { Rotation = new(x: float.NaN, y: 0, z: 0, w: 1) },
             Falling with { Radius = float.NaN }, Following with { Center = new(0, float.NaN, 0) }
         ];
 

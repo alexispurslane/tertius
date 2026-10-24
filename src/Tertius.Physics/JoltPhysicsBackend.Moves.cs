@@ -74,16 +74,18 @@ public sealed partial class JoltPhysicsBackend
             BodySnapshot s = ReadPrimary(record);
             // A sleeping body has no velocity in its old home, so it has the homes' difference in the new one. It sleeps
             // on only when that is zero: else Jolt would carry it along with the new home.
-            bool awake = record.Character is not null || record.World!.Bodies.IsActive(record.Body) ||
+            bool awake = record.Character is not null || record.World.Bodies.IsActive(record.Body) ||
                          velocity != Double3.Zero;
-            pendingMoves.Add(new(record, move.To, new(s.Pose.Position + offset, s.Pose.Rotation),
-                (s.Linear + velocity).ToVector3(), s.Angular, awake, offset, velocity));
+            pendingMoves.Add(new(Record: record, To: move.To, Pose: new(s.Pose.Position + offset, s.Pose.Rotation),
+                Linear: (s.Linear + velocity).ToVector3(), Angular: s.Angular, Awake: awake, Offset: offset, HomeVelocity: velocity));
         }
 
         for (int i = 0; i < pendingMoves.Count; i++)
         {
             PendingMove move = pendingMoves[i];
             BodyRecord record = move.Record;
+            // The first loop read the body's state, so it has one.
+            Contract.Assert(record.HasPrimary);
             // The body keeps its ghosts, but not one in its new home, so that no system holds a body and its ghost. Only an
             // anchor's ghost lies in a home of the body's semantic frame: a kinematic hull whose owner changes its motion
             // can join the home of a group that kept its ghost a sync point before. The update stops naming that home at
@@ -91,15 +93,16 @@ public sealed partial class JoltPhysicsBackend
             // DropWithdrawnAnchorGhosts).
             RemoveGhostIn(record, WorldFor(move.To));
             if (record.IsHull)
-                MoveGhostsThatStickOut(record.OwnedFrame, record.World!, move.To, move.Offset, move.HomeVelocity);
+                MoveGhostsThatStickOut(frame: record.OwnedFrame, from: record.World, to: move.To, offset: move.Offset, velocity: move.HomeVelocity);
             // The body's velocity shadow moves with it, as its state does.
             VelocityShadow shadow = record.Shadow;
             RemovePrimary(record);
-            CreatePrimary(record, move.To, move.Pose, move.Linear, move.Angular, upFromGravity: record.Standing,
+            CreatePrimary(record: record, frame: move.To, pose: move.Pose, linearVelocity: move.Linear, angularVelocity: move.Angular, upFromGravity: record.Standing,
                 awake: move.Awake);
             record.Shadow = shadow.Moved(move.Offset, move.HomeVelocity);
+            Contract.Assert(record.HasPrimary);
             if (record.Character is { } character)
-                character.RefreshContacts(PrimaryLayer(record), record.World!.System);
+                character.RefreshContacts(layer: PrimaryLayer(record), physicsSystem: record.World.System);
         }
 
         pendingMoves.Clear();
@@ -126,11 +129,12 @@ public sealed partial class JoltPhysicsBackend
         foreach (BodyID body in stickOutScratch)
         {
             // A system holds only the ghosts that the records keep in it (see AssertInvariants).
-            BodyRecord record = RecordFor(from.Bodies.GetUserData(body))!;
+            BodyRecord? record = RecordFor(from.Bodies.GetUserData(body));
+            Contract.Assert(record?.Ghosts is not null);
             // Only a body of the frame, or of a numeric frame below it, sticks out of the frame's bubble (see BubbleOf).
             if (record.Frame.IsNull || BubbleOf(record.Frame) != frame)
                 continue;
-            List<GhostBody> ghosts = record.Ghosts!;
+            List<GhostBody> ghosts = record.Ghosts;
             int index = ghosts.Count - 1;
             while (index >= 0 && !(ghosts[index].Body == body && ghosts[index].World == from))
                 index--;
@@ -141,7 +145,7 @@ public sealed partial class JoltPhysicsBackend
             var pose = new DPose(position.ToDouble3() + offset, bodies.GetRotation(body).ToDouble());
             BodyLayer role = ghosts[index].Role;
             RemoveGhostAt(ghosts, index);
-            WantGhost(record, to, pose, linear + velocity, angular, role);
+            WantGhost(record: record, frame: to, pose: pose, linearVelocity: linear + velocity, angularVelocity: angular, role: role);
         }
 
         stickOutScratch.Clear();

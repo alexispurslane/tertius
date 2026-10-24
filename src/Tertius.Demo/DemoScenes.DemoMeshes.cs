@@ -57,8 +57,8 @@ public static partial class DemoScenes
         {
             Frame = ground,
             Pose = new(new(0, -0.5, 0), DQuaternion.Identity),
-            Body = new(new BoxShapeDesc(new(50, 0.5f, 50)), BodyMotion.Static),
-            Render = Drawn(resources, Primitives.Box(new(50, 0.5f, 50)), new(0.35f, 0.35f, 0.35f, 1),
+            Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Static),
+            Render = Drawn(resources: resources, mesh: Primitives.Box(new(50, 0.5f, 50)), color: new(x: 0.35f, y: 0.35f, z: 0.35f, w: 1),
                 boundingRadius: 71)
         }));
         var ball = new SphereShapeDesc(MeshesBallRadius);
@@ -71,8 +71,8 @@ public static partial class DemoScenes
             {
                 Frame = ground,
                 Pose = pose,
-                Body = new(shape, BodyMotion.Static),
-                Render = Drawn(resources, solid.Mesh(), color, shape.BoundingRadius())
+                Body = new(Shape: shape, Motion: BodyMotion.Static),
+                Render = Drawn(resources: resources, mesh: solid.Mesh(), color: color, boundingRadius: shape.BoundingRadius())
             }));
         }
 
@@ -80,19 +80,19 @@ public static partial class DemoScenes
         {
             Frame = ground,
             Pose = new(position, DQuaternion.Identity),
-            Body = new(ball, Mass: 1),
-            Render = Drawn(resources, ballMesh, new(0.85f, 0.15f, 0.15f, 1), MeshesBallRadius)
+            Body = new(Shape: ball, Mass: 1),
+            Render = Drawn(resources: resources, mesh: ballMesh, color: new(x: 0.85f, y: 0.15f, z: 0.15f, w: 1), boundingRadius: MeshesBallRadius)
         }));
 
-        Solid("cylinder",
-            RevolvedSolid.Cylinder(MeshesCylinderRadius, MeshesCylinderHalfHeight, MeshesCylinderSegments),
-            new(new(MeshesCylinderX, MeshesCylinderHalfHeight, 0), DQuaternion.Identity), new(0.25f, 0.5f, 0.85f, 1));
+        Solid(id: "cylinder",
+            solid: RevolvedSolid.Cylinder(MeshesCylinderRadius, MeshesCylinderHalfHeight, MeshesCylinderSegments),
+            pose: new(new(MeshesCylinderX, MeshesCylinderHalfHeight, 0), DQuaternion.Identity), color: new(x: 0.25f, y: 0.5f, z: 0.85f, w: 1));
         Ball("cylinder-ball", new(MeshesCylinderX + 0.3, 2 * MeshesCylinderHalfHeight + MeshesBallRadius + 0.5, 0));
 
         // The tube's flat bottom and top are r cos(π / sides) below and above its center circle.
         double tubeFlat = MeshesTorusMinor * Math.Cos(Math.PI / MeshesTorusSides);
-        Solid("torus", RevolvedSolid.Torus(MeshesTorusMajor, MeshesTorusMinor, MeshesTorusSegments, MeshesTorusSides),
-            new(new(MeshesTorusX, tubeFlat, 0), DQuaternion.Identity), new(0.9f, 0.55f, 0.15f, 1));
+        Solid(id: "torus", solid: RevolvedSolid.Torus(majorRadius: MeshesTorusMajor, minorRadius: MeshesTorusMinor, segments: MeshesTorusSegments, sides: MeshesTorusSides),
+            pose: new(new(MeshesTorusX, tubeFlat, 0), DQuaternion.Identity), color: new(x: 0.9f, y: 0.55f, z: 0.15f, w: 1));
         // The middle of segment 0's facet, half a segment from +X toward -Z.
         double half = Math.PI / MeshesTorusSegments, middle = MeshesTorusMajor * Math.Cos(half);
         Ball("torus-ball",
@@ -105,8 +105,8 @@ public static partial class DemoScenes
         double ringY = MeshesRingOuter * facet;
         DQuaternion onEdge = DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2) *
                              DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / MeshesRingSegments);
-        Solid("ring", RevolvedSolid.Ring(MeshesRingInner, MeshesRingOuter, MeshesRingHalfWidth, MeshesRingSegments),
-            new(new(MeshesRingX, ringY, 0), onEdge), new(0.75f, 0.75f, 0.8f, 1));
+        Solid(id: "ring", solid: RevolvedSolid.Ring(innerRadius: MeshesRingInner, outerRadius: MeshesRingOuter, halfWidth: MeshesRingHalfWidth, segments: MeshesRingSegments),
+            pose: new(new(MeshesRingX, ringY, 0), onEdge), color: new(x: 0.75f, y: 0.75f, z: 0.8f, w: 1));
         Ball("ring-ball", new(MeshesRingX, ringY - MeshesRingInner * facet + MeshesBallRadius + 0.5, 0));
 
         Entity camera = world.Spawn(new()

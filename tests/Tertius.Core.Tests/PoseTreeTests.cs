@@ -14,9 +14,9 @@ public class PoseTreeTests
     public void WorldPosesComposeDownTheTree()
     {
         var tree = new PoseTree<Pose>();
-        PoseNode root = tree.Add(PoseNode.Null, At(10));
-        PoseNode child = tree.Add(root, At(1, yaw: MathF.PI / 2));
-        PoseNode grandchild = tree.Add(child, At(1));
+        PoseNode root = tree.Add(PoseNode.Null, At(x: 10));
+        PoseNode child = tree.Add(root, At(x: 1, yaw: MathF.PI / 2));
+        PoseNode grandchild = tree.Add(child, At(x: 1));
         tree.UpdateWorld();
         Near(new(10, 0, 0), tree.World(root).Position);
         Near(new(11, 0, 0), tree.World(child).Position);
@@ -27,9 +27,9 @@ public class PoseTreeTests
     public void ParentAlwaysPrecedesChildAfterReparent()
     {
         var tree = new PoseTree<Pose>();
-        PoseNode a = tree.Add(PoseNode.Null, At(0));
-        PoseNode b = tree.Add(a, At(1));
-        PoseNode c = tree.Add(PoseNode.Null, At(100));
+        PoseNode a = tree.Add(PoseNode.Null, At(x: 0));
+        PoseNode b = tree.Add(a, At(x: 1));
+        PoseNode c = tree.Add(PoseNode.Null, At(x: 100));
         tree.UpdateWorld();
         Vector3 bWorld = tree.World(b).Position;
 
@@ -48,9 +48,9 @@ public class PoseTreeTests
     public void RemoveKeepsChildrenWorldPoses()
     {
         var tree = new PoseTree<Pose>();
-        PoseNode a = tree.Add(PoseNode.Null, At(5));
-        PoseNode b = tree.Add(a, At(2, yaw: 1));
-        PoseNode c = tree.Add(b, At(3));
+        PoseNode a = tree.Add(PoseNode.Null, At(x: 5));
+        PoseNode b = tree.Add(a, At(x: 2, yaw: 1));
+        PoseNode c = tree.Add(b, At(x: 3));
         tree.UpdateWorld();
         Vector3 before = tree.World(c).Position;
 
@@ -67,9 +67,9 @@ public class PoseTreeTests
     public void StaleHandlesAreRejectedAfterSlotReuse()
     {
         var tree = new PoseTree<Pose>();
-        PoseNode a = tree.Add(PoseNode.Null, At(0));
+        PoseNode a = tree.Add(PoseNode.Null, At(x: 0));
         tree.Remove(a);
-        PoseNode b = tree.Add(PoseNode.Null, At(1));
+        PoseNode b = tree.Add(PoseNode.Null, At(x: 1));
         Assert.Equal(a.Id, b.Id);
         Assert.NotEqual(a.Generation, b.Generation);
         Assert.False(tree.IsAlive(a));
@@ -126,9 +126,9 @@ public class PoseTreeTests
     public void ManyNodesStayPacked()
     {
         var tree = new PoseTree<Pose>(2);
-        var nodes = new List<PoseNode> { tree.Add(PoseNode.Null, At(0)) };
+        var nodes = new List<PoseNode> { tree.Add(PoseNode.Null, At(x: 0)) };
         for (int i = 1; i < 500; i++)
-            nodes.Add(tree.Add(nodes[i / 2], At(1)));
+            nodes.Add(tree.Add(nodes[i / 2], At(x: 1)));
         for (int i = 499; i > 0; i -= 7)
             tree.Remove(nodes[i]);
         tree.UpdateWorld();

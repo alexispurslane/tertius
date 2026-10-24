@@ -29,7 +29,7 @@ public class EntityTableParallelCopyTests : EntityTableDirtyRowTests
     /// <summary>What a copy leaves behind: the moved list, every live entity's front rows, and the component index.</summary>
     private sealed record CopyResult(
         Entity[] Moved,
-        (Entity, TransformRow, RenderData, ComponentFlags)[] Rows,
+        (Entity Entity, TransformRow Transform, RenderData Render, ComponentFlags Components)[] Rows,
         Entity[][] Index);
 
     private static int Id<T>() where T : IComponent => ComponentTypes.IdOf(typeof(T));

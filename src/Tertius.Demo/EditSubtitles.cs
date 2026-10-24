@@ -52,22 +52,22 @@ public static class EditSubtitles
             for (int frame = stretch.From; frame < stretch.From + stretch.Count; frame++)
             {
                 ReadoutRow row = rows[frame];
-                Event(text, frame, frame + 1, "Readout", Boxed(ReadoutText.Lines(row)));
+                Event(text: text, from: frame, to: frame + 1, style: "Readout", body: Boxed(ReadoutText.Lines(row)));
                 string rate = ReadoutText.Rate(stretch.Film.Every);
-                Event(text, frame, frame + 1, "Clock",
-                    Boxed([ReadoutText.Clock(row.Tick)]) + "\\N" +
+                Event(text: text, from: frame, to: frame + 1, style: "Clock",
+                    body: Boxed([ReadoutText.Clock(row.Tick)]) + "\\N" +
                     Colored(stretch.Film.Every == 1 ? Gray : Amber, Boxed([rate])));
             }
 
             if (stretch.Film.Outlines)
-                Event(text, stretch.From, stretch.From + stretch.Count, "Legend", LegendText());
+                Event(text: text, from: stretch.From, to: stretch.From + stretch.Count, style: "Legend", body: LegendText());
         }
 
         foreach (EditPart part in cuts.Parts)
         {
             Stretch first = Find(stretches, part.FirstFilm, "part");
-            Event(text, first.From, first.From + TitleFrames, "Title",
-                $"{{\\fad(600,600)}}{Plain(part.Title)}\\N{{\\fs24\\c{Gray}}}{Plain(part.Subtitle)}");
+            Event(text: text, from: first.From, to: first.From + TitleFrames, style: "Title",
+                body: $"{{\\fad(600,600)}}{Plain(part.Title)}\\N{{\\fs24\\c{Gray}}}{Plain(part.Subtitle)}");
         }
 
         foreach (PanelSpan span in cuts.Panels)
@@ -77,7 +77,7 @@ public static class EditSubtitles
             ReadoutRow first = rows[stretches[start].Film.FirstFrame];
             for (int index = start; index <= end; index++)
             for (int frame = stretches[index].From; frame < stretches[index].From + stretches[index].Count; frame++)
-                Event(text, frame, frame + 1, "Panel", Boxed(span.Panel(first, rows[frame])));
+                Event(text: text, from: frame, to: frame + 1, style: "Panel", body: Boxed(span.Panel(first, rows[frame])));
         }
 
         return text.ToString();
@@ -90,7 +90,7 @@ public static class EditSubtitles
         var text = new StringBuilder(Header());
         string lines = string.Join("\\N",
             card.Lines.Select(line => $"{{\\fs{line.Size}\\c{(line.Gray ? Gray : White)}}}{Plain(line.Text)}"));
-        Event(text, 0, card.Frames, "Card", lines);
+        Event(text: text, from: 0, to: card.Frames, style: "Card", body: lines);
         return text.ToString();
     }
 

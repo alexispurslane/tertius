@@ -80,7 +80,7 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
                     Position = self.PoseInOwnFrame().Position + new Double3(Next() - 0.5, 0, Next() - 0.5)
                 });
 
-            self.Snapshot.QueryRadius(self.Frame, self.PoseInOwnFrame().Position, 30, neighbors);
+            self.Snapshot.QueryRadius(frame: self.Frame, center: self.PoseInOwnFrame().Position, radius: 30, results: neighbors);
             neighbors.Remove(self.Entity);
             int value = (int)(Rng & 0xFFFF);
             if (neighbors.Count > 0 && Next() < 0.3)
@@ -94,7 +94,7 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
             if (Next() < 0.05)
             {
                 Target target = neighbors.Count > 0 ? neighbors[(int)(Next() * neighbors.Count)] : self.Entity;
-                outbox.SendAfter(1 + (int)(Next() * 5), target, new Ping { Value = value + 4 });
+                outbox.SendAfter(ticks: 1 + (int)(Next() * 5), target: target, payload: new Ping { Value = value + 4 });
             }
 
             if (Children < 2 && Next() < 0.012)
@@ -170,7 +170,7 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
     {
         var threads = new ConcurrentDictionary<int, byte>();
         // Debug checks are off: the invariant tests run them over a workload that churns more. Here they would only slow the four runs.
-        using World world = WorldTesting.NewWorldWithFaults(out FaultInjectingBackend faults, debugChecks: false,
+        using World world = WorldTesting.NewWorldWithFaults(faults: out FaultInjectingBackend faults, debugChecks: false,
             configure: options =>
             {
                 options.MaxDegreeOfParallelism = maxDop;
@@ -254,8 +254,8 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
         int handOffs = faults.Outputs.Sum(output => output.HandOffs.Count);
         int contacts = faults.Outputs.Sum(output => output.Contacts.Count);
         return (
-            new(hash, world.Stats, messages, handOffs, contacts, world.Errors.Count, fallingFrameTicks,
-                restingFrameTicks), threads.Count);
+            new(Hash: hash, Stats: world.Stats, Messages: messages, HandOffs: handOffs, Contacts: contacts, Errors: world.Errors.Count, FallingFrameTicks: fallingFrameTicks,
+                RestingFrameTicks: restingFrameTicks), threads.Count);
     }
 
     /// <summary>The four runs, made once for the whole class: two on one worker and two on eight, alternating.</summary>

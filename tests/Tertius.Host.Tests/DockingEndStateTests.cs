@@ -152,7 +152,7 @@ public sealed class DockingEndStateTests
         var log = new List<string>();
         world.Log += log.Add;
         FrameHandle earth = RendezvousAutopilotTests.Earth(world);
-        Entity station = DemoStation.Spawn(world, earth, new(), RenderResources.None);
+        Entity station = DemoStation.Spawn(world: world, parent: earth, scene: new(), resources: RenderResources.None);
         FrameHandle frame = world.GetOwnedFrame(station);
         Entity shuttle = world.Spawn(new()
         {

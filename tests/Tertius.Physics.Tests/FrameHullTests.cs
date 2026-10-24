@@ -16,7 +16,7 @@ public class FrameHullTests
 
     /// <summary>A dynamic box with sides of 2 · <paramref name="half"/> m that nothing slows down on its own and that does not bounce.</summary>
     private static BodyDesc BoxBody(float half, float mass) =>
-        new(new BoxShapeDesc(new(half)), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new BoxShapeDesc(new(half)), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
 
     private static FrameHandle SpaceFrame(World world) =>
         world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
@@ -48,13 +48,13 @@ public class FrameHullTests
     [Fact]
     public void TheKinematicHullOfAKeplerFrameFollowsTheTreePoseInTheFollowingFrameWhereItRests()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
         KeplerOrbit orbit = KeplerOrbit.Circular(7_000_000, phase: 1.0, spinRate: 0.05);
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = planet,
-            Body = new(new BoxShapeDesc(new(10)), BodyMotion.Kinematic),
+            Body = new(Shape: new BoxShapeDesc(new(10)), Motion: BodyMotion.Kinematic),
             AsFrame = new(FrameBounds.Sphere(100))
         }.OnKeplerOrbit(world, orbit));
         FrameHandle station = world.GetOwnedFrame(owner);
@@ -89,13 +89,13 @@ public class FrameHullTests
     [Fact]
     public void FrameOwnerGetsHullInParentAndInteriorInItsOwnFrame()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle space = SpaceFrame(world);
         Entity ship = world.Spawn(new()
         {
             Frame = space,
             Pose = At(10),
-            Body = new(new BoxShapeDesc(new(3)), Mass: 100),
+            Body = new(Shape: new BoxShapeDesc(new(3)), Mass: 100),
             AsFrame = new(FrameBounds.Sphere(30))
         });
         world.Tick();
@@ -108,7 +108,7 @@ public class FrameHullTests
         // A root frame has no parent, so its owner only has the interior.
         Entity root = world.Spawn(new()
         {
-            Body = new(new BoxShapeDesc(new(1)), BodyMotion.Static),
+            Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static),
             AsFrame = new(FrameBounds.Sphere(5))
         });
         world.Tick();
@@ -126,13 +126,13 @@ public class FrameHullTests
     public void DestroyedBodiesAndFramesReleaseTheirSystems()
     {
         var warnings = new List<string>();
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, warnings);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults, warnings: warnings);
         FrameHandle space = SpaceFrame(world);
         Entity ship = world.Spawn(new()
         {
             Frame = space,
             Pose = At(10),
-            Body = new(new BoxShapeDesc(new(3)), Mass: 100, InteriorShape: new BoxShapeDesc(new(0.5f))),
+            Body = new(Shape: new BoxShapeDesc(new(3)), Mass: 100, InteriorShape: new BoxShapeDesc(new(0.5f))),
             AsFrame = new(FrameBounds.Sphere(30))
         });
         FrameHandle shipFrame = world.GetOwnedFrame(ship);
@@ -162,13 +162,13 @@ public class FrameHullTests
     [Fact]
     public void ChildFrameHullMovesToGrandparentWhenParentFrameIsDestroyed()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle space = SpaceFrame(world);
         Entity carrier = world.Spawn(new()
         {
             Frame = space,
             Pose = At(100),
-            Body = new(new BoxShapeDesc(new(20)), BodyMotion.Static, InteriorShape: new BoxShapeDesc(new(1))),
+            Body = new(Shape: new BoxShapeDesc(new(20)), Motion: BodyMotion.Static, InteriorShape: new BoxShapeDesc(new(1))),
             AsFrame = new(FrameBounds.Sphere(200))
         });
         FrameHandle carrierFrame = world.GetOwnedFrame(carrier);
@@ -177,7 +177,7 @@ public class FrameHullTests
             Frame = carrierFrame,
             Pose = At(0, 50),
             LinearVelocity = new(1, 0, 0),
-            Body = new(new BoxShapeDesc(new(2)), Mass: 1000, LinearDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, LinearDamping: 0),
             AsFrame = new(FrameBounds.Sphere(10))
         });
         FrameHandle fighterFrame = world.GetOwnedFrame(fighter);
@@ -199,11 +199,11 @@ public class FrameHullTests
     [Fact]
     public void ChildFrameKeepsItsMotionWhenItsMovingParentFrameIsDestroyed()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle space = SpaceFrame(world);
         // A drifting, spinning carrier with a fighter inside that flies and spins on its own. Sphere hulls keep their
         // spin constant and nothing is damped, so every velocity stays exact.
-        var carrierHull = new BodyDesc(new SphereShapeDesc(20), Mass: 1e6f, LinearDamping: 0, AngularDamping: 0,
+        var carrierHull = new BodyDesc(Shape: new SphereShapeDesc(20), Mass: 1e6f, LinearDamping: 0, AngularDamping: 0,
             InteriorShape: new SphereShapeDesc(1));
         Entity carrier = world.Spawn(new()
         {
@@ -215,7 +215,7 @@ public class FrameHullTests
             AsFrame = new(FrameBounds.Sphere(200))
         });
         FrameHandle carrierFrame = world.GetOwnedFrame(carrier);
-        var fighterHull = new BodyDesc(new SphereShapeDesc(2), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
+        var fighterHull = new BodyDesc(Shape: new SphereShapeDesc(2), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
             InteriorShape: new SphereShapeDesc(0.5f));
         Entity fighter = world.Spawn(new()
         {
@@ -267,20 +267,20 @@ public class FrameHullTests
     public void OwnerThatOutlivesItsFrameLosesItsHull()
     {
         var warnings = new List<string>();
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, warnings);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults, warnings: warnings);
         FrameHandle space = SpaceFrame(world);
         Entity shipOwner = world.Spawn(new()
         {
             Frame = space,
             Pose = At(10),
-            Body = new(new BoxShapeDesc(new(3)), Mass: 100),
+            Body = new(Shape: new BoxShapeDesc(new(3)), Mass: 100),
             AsFrame = new(FrameBounds.Sphere(30))
         });
         Entity towerOwner = world.Spawn(new()
         {
             Frame = space,
             Pose = At(-50),
-            Body = new(new BoxShapeDesc(new(2)), BodyMotion.Static),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Static),
             AsFrame = new(FrameBounds.Sphere(20))
         });
         world.Tick();
@@ -315,7 +315,7 @@ public class FrameHullTests
     public void FrameSystemStaysUntilTheFrameLeavesTheTree()
     {
         var warnings = new List<string>();
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, warnings);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults, warnings: warnings);
         FrameHandle space = SpaceFrame(world);
         Entity bubbleOwner = world.Spawn(new() { Frame = space, Pose = At(50), AsFrame = new(FrameBounds.Sphere(20)) });
         FrameHandle bubble = world.GetOwnedFrame(bubbleOwner);
@@ -328,7 +328,7 @@ public class FrameHullTests
         // it holds a change, so the test spawns a box far away to make one.
         faults.EditNextChanges = changes => changes.FramesDestroyed.Add(bubble);
         world.Spawn(new()
-            { Frame = space, Pose = At(0, -1000), Body = new(new BoxShapeDesc(new(1)), BodyMotion.Static) });
+            { Frame = space, Pose = At(0, -1000), Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static) });
         world.Tick();
         warnings.Should().Contain(w => w.Contains(bubble.ToString()) && w.Contains("still in the frame tree"));
         faults.Jolt.TryGetBodyFrame(ball, out FrameHandle ballFrame).Should().BeTrue();
@@ -352,15 +352,15 @@ public class FrameHullTests
     [Fact]
     public void SimulationReparentingAFrameMovesItsHull()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = SpaceFrame(world);
         // The shuttle's bubble does not fit in the station's, so it never enters on its own.
-        FrameHandle station = EmptyFrame(world, space, At(500), 15);
+        FrameHandle station = EmptyFrame(world: world, parent: space, pose: At(500), radius: 15);
         Entity shuttleOwner = world.Spawn(new()
         {
             Frame = space,
             Pose = At(505),
-            Body = new(new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
             AsFrame = new(FrameBounds.Sphere(10))
         });
         FrameHandle shuttle = world.GetOwnedFrame(shuttleOwner);
@@ -387,18 +387,18 @@ public class FrameHullTests
     public void SimulationCanDockAFrameThatPhysicsHandedOffBefore()
     {
         var warnings = new List<string>();
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, warnings);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults, warnings: warnings);
         FrameHandle space = SpaceFrame(world);
-        FrameHandle hangar = EmptyFrame(world, space, At(400), 30);
+        FrameHandle hangar = EmptyFrame(world: world, parent: space, pose: At(400), radius: 30);
         // The shuttle's bubble does not fit in the station's, so it never enters on its own.
-        FrameHandle station = EmptyFrame(world, space, At(500), 15);
+        FrameHandle station = EmptyFrame(world: world, parent: space, pose: At(500), radius: 15);
         var pilot = new Pilot();
         Entity shuttleOwner = world.Spawn(new()
         {
             Frame = hangar,
             Pose = At(25),
             LinearVelocity = new(10, 0, 0),
-            Body = new(new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
             AsFrame = new(FrameBounds.Sphere(10)),
             Components = [pilot]
         });

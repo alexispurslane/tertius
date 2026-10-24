@@ -37,7 +37,7 @@ public struct Note : IEventPayload
 public sealed class TestWorld : IDisposable
 {
     /// <summary>A dynamic ball of radius 0.5, the body that most tests give an entity.</summary>
-    public static readonly BodyDesc Ball = new(new SphereShapeDesc(0.5f));
+    public static readonly BodyDesc Ball = new(Shape: new SphereShapeDesc(0.5f));
 
     /// <param name="physics">The physics backend, or null for none. See <see cref="OnJolt"/>.</param>
     /// <param name="maxDegreeOfParallelism">The most gameplay workers. 1 runs every chunk on the ticking thread.</param>
@@ -49,7 +49,7 @@ public sealed class TestWorld : IDisposable
         bool debugChecks = true,
         Action<WorldOptions>? configure = null)
     {
-        World = Create(out FrameHandle root, maxDegreeOfParallelism, physics, chunkSize, debugChecks, configure);
+        World = Create(root: out FrameHandle root, maxDop: maxDegreeOfParallelism, physics: physics, chunkSize: chunkSize, debugChecks: debugChecks, configure: configure);
         Root = root;
     }
 
@@ -69,7 +69,7 @@ public sealed class TestWorld : IDisposable
         Action<WorldOptions>? configure = null)
     {
         faults = new(new(new() { WorkerThreads = 2 }));
-        return new(faults, maxDegreeOfParallelism, chunkSize, debugChecks, options =>
+        return new(physics: faults, maxDegreeOfParallelism: maxDegreeOfParallelism, chunkSize: chunkSize, debugChecks: debugChecks, configure: options =>
         {
             options.DisposePhysics = true;
             configure?.Invoke(options);
@@ -186,8 +186,8 @@ internal static class TableSupport
     public static Entity SpawnLive(this EntityTable table, FrameHandle frame = default, double x = 0)
     {
         Entity entity = table.Reserve();
-        table.Activate(entity, new() { Frame = frame, PhysicsHome = frame, Pose = TestWorld.At(x) }, new(), [], [],
-            null, Vector3.Zero, FrameHandle.Null);
+        table.Activate(entity: entity, row: new() { Frame = frame, PhysicsHome = frame, Pose = TestWorld.At(x) }, render: new(), components: [], wants: [],
+            body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
         return entity;
     }
 }

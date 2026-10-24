@@ -31,7 +31,7 @@ public sealed class AmbientFrameTests : IDisposable
             Render = new RenderData
             {
                 Mesh = resources.CreateMesh(Primitives.Sphere(1, 64, 32)),
-                Material = resources.CreateMaterial(new(Vector4.One, SpecularIntensity: 0)),
+                Material = resources.CreateMaterial(new(BaseColor: Vector4.One, SpecularIntensity: 0)),
                 BoundingRadius = 1,
                 Flags = RenderFlags.Visible
             }
@@ -64,8 +64,8 @@ public sealed class AmbientFrameTests : IDisposable
         VulkanRenderer renderer = GpuTesting.Headless(16, 16);
         try
         {
-            ScriptRunner.Run(script, world, Build(world, renderer), folder,
-                new HeadlessPlayback(renderer, script.Window, new PngFolder(folder)));
+            ScriptRunner.Run(script: script, world: world, scene: Build(world, renderer), outputFolder: folder,
+                playback: new HeadlessPlayback(renderer, script.Window, new PngFolder(folder)));
         }
         finally
         {

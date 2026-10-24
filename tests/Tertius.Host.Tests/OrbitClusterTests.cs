@@ -108,8 +108,8 @@ internal sealed class ClusterLog
         foreach (string id in Bodies)
         {
             Entity body = scene[id];
-            var place = new Place(tick, scene.IdOf(world.GetFrame(body).Entity), world.PhysicsHomeOf(body),
-                HomeName(world, scene, body));
+            var place = new Place(Tick: tick, Frame: scene.IdOf(world.GetFrame(body).Entity), Home: world.PhysicsHomeOf(body),
+                HomeName: HomeName(world, scene, body));
             List<Place> changes = Changes[id];
             if (changes.Count == 0 || changes[^1].Frame != place.Frame || changes[^1].Home != place.Home)
                 changes.Add(place);
@@ -124,11 +124,11 @@ internal sealed class ClusterLog
         }
 
         Entity thrown = scene["thrown-crate"];
-        ThrownCrate.Add(new(tick, world.PhysicsHomeOf(thrown), world.PhysicsHomeOf(scene["ship"]),
-            world.PoseIn(thrown, shipFrame).Position.Length));
+        ThrownCrate.Add(new(Tick: tick, Home: world.PhysicsHomeOf(thrown), HullHome: world.PhysicsHomeOf(scene["ship"]),
+            Distance: world.PoseIn(thrown, shipFrame).Position.Length));
         if (tick % TableTicks == 0)
-            Table.Add(new(tick, world.Time, [.. Bodies.Select(id => StateOf(world, scene, id, shipFrame))],
-                numericFrames, world.Errors.Count));
+            Table.Add(new(Tick: tick, Time: world.Time, Bodies: [.. Bodies.Select(id => StateOf(world: world, scene: scene, id: id, shipFrame: shipFrame))],
+                NumericFrames: numericFrames, Errors: world.Errors.Count));
     }
 
     /// <summary>
@@ -149,8 +149,8 @@ internal sealed class ClusterLog
         FrameHandle frame = world.GetFrame(body), own = world.GetOwnedFrame(body);
         // A frame's owner moves with its frame, whose velocity the frame tree keeps, as a state dump reads it.
         Double3 velocity = own.IsNull ? world.VelocityIn(body, frame) : world.Frames.LinearVelocity(own);
-        return new(id, scene.IdOf(frame.Entity), world.PoseIn(body, frame).Position, velocity,
-            own == shipFrame ? null : world.PoseIn(body, shipFrame).Position, HomeName(world, scene, body));
+        return new(Id: id, Frame: scene.IdOf(frame.Entity), Position: world.PoseIn(body, frame).Position, Velocity: velocity,
+            OffsetFromShip: own == shipFrame ? null : world.PoseIn(body, shipFrame).Position, HomeName: HomeName(world, scene, body));
     }
 
     private string HomeName(World world, SceneInstance scene, Entity body)
@@ -391,7 +391,7 @@ public sealed class OrbitClusterTests(OrbitClusterRun run) : IClassFixture<Orbit
         foreach (long change in log.ChangeTicks.Where(change => change + 3 <= log.LastTick))
         foreach (string id in log.Offsets.Keys)
         foreach (long tick in new[] { change - 1, change }.Where(tick => tick >= 1))
-            yield return new(change, id, tick, (Unthrust(id, tick) - Unthrust(id, change + 2)).Length);
+            yield return new(Change: change, Id: id, Tick: tick, Size: (Unthrust(id, tick) - Unthrust(id, change + 2)).Length);
     }
 
     /// <summary>
@@ -448,8 +448,8 @@ public sealed class OrbitClusterTests(OrbitClusterRun run) : IClassFixture<Orbit
         {
             Double3 thrust = walker.Rotation.Rotate(new Double3(0, 0, keys[step])) *
                              (PersonControl.ThrustForce / SpacewalkerMass);
-            (shipPosition, shipVelocity) = RungeKutta(shipPosition, shipVelocity, Double3.Zero, dt);
-            (walkerPosition, walkerVelocity) = RungeKutta(walkerPosition, walkerVelocity, thrust, dt);
+            (shipPosition, shipVelocity) = RungeKutta(position: shipPosition, velocity: shipVelocity, thrust: Double3.Zero, dt: dt);
+            (walkerPosition, walkerVelocity) = RungeKutta(position: walkerPosition, velocity: walkerVelocity, thrust: thrust, dt: dt);
         }
 
         return (walkerPosition - shipPosition, measured);

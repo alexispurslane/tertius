@@ -25,7 +25,7 @@ public class FollowingFrameWakeTests
     private static readonly Double3 SpeedUp = new(2, 0, 0);
 
     /// <summary>A crate, a box of 50 cm and 2 kg that nothing slows down and that does not bounce.</summary>
-    private static readonly BodyDesc Crate = new(new BoxShapeDesc(new(0.25f)), Mass: 2, Restitution: 0,
+    private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.25f)), Mass: 2, Restitution: 0,
         LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>
@@ -33,10 +33,10 @@ public class FollowingFrameWakeTests
     /// the bubble of 16 m, across the +Y axis, 20 m from the core. Its bounding sphere reaches past the bubble, so a crate
     /// outside the bubble lies within the merge test's reach of the hull.
     /// </summary>
-    private static readonly BodyDesc Hull = new(new CompoundShapeDesc([
+    private static readonly BodyDesc Hull = new(Shape: new CompoundShapeDesc([
         new(new BoxShapeDesc(new(2)), new(Vector3.Zero, Quaternion.Identity)),
         new(new BoxShapeDesc(new(8, 0.25f, 8)), new(new(0, 20, 0), Quaternion.Identity))
-    ]), BodyMotion.Kinematic, Mass: 1e5f, Restitution: 0);
+    ]), Motion: BodyMotion.Kinematic, Mass: 1e5f, Restitution: 0);
 
     /// <summary>
     /// Drives its kinematic body along a straight line with end poses, as <see cref="KinematicDrift"/> does, at a velocity
@@ -96,7 +96,7 @@ public class FollowingFrameWakeTests
         SpeedingDrift Drive) CrateBeside(string anchorKind,
             bool numericFrames)
     {
-        World world = NewWorld(out JoltPhysicsBackend backend,
+        World world = NewWorld(backend: out JoltPhysicsBackend backend,
             configure: numericFrames
                 ? null
                 : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
@@ -260,7 +260,7 @@ public class FollowingFrameWakeTests
         public EventMask Wants => EventMask.Of<Tick>();
 
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
-            self.MoveOnRails(new(At(0), Double3.Zero, Double3.Zero, Acceleration, Double3.Zero, Double3.Zero));
+            self.MoveOnRails(new(Pose: At(0), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Acceleration, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero));
     }
 
     /// <summary>
@@ -272,7 +272,7 @@ public class FollowingFrameWakeTests
     private static (World World, JoltPhysicsBackend Backend, FrameHandle Ship, Entity Crate, Engine Engine)
         CrateAsleepFarOutInAShip(bool numericFrames)
     {
-        World world = NewWorld(out JoltPhysicsBackend backend,
+        World world = NewWorld(backend: out JoltPhysicsBackend backend,
             configure: numericFrames
                 ? null
                 : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
@@ -362,7 +362,7 @@ public class FollowingFrameWakeTests
     [Fact]
     public void ACrateAsleepInTheFollowingFrameOfAnAnchorOnALowKeplerOrbitStaysAsleep()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle earth = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(Scenes.EarthMu)));
         KeplerOrbit orbit = KeplerOrbit.Circular(6.8e6, phase: 0.4);
         Entity ball =

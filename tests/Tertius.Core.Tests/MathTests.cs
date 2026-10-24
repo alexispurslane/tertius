@@ -57,7 +57,7 @@ public class MathTests
     public void DQuaternion_AngularVelocityToTheSameRotationIsZeroWhateverItsSign()
     {
         DQuaternion q = DQuaternion.FromAxisAngle(new Double3(1, 2, 3).Normalized(), 0.8);
-        var negated = new DQuaternion(-q.X, -q.Y, -q.Z, -q.W);
+        var negated = new DQuaternion(X: -q.X, Y: -q.Y, Z: -q.Z, W: -q.W);
 
         Assert.Equal(Double3.Zero, q.AngularVelocityTo(q, 1.0 / 60));
         Assert.Equal(Double3.Zero, q.AngularVelocityTo(negated, 1.0 / 60));
@@ -87,8 +87,8 @@ public class MathTests
     public void DPose_DefaultValueKeepsAZeroRotation()
     {
         var poses = new DPose[1];
-        Assert.Equal(new(0, 0, 0, 0), default(DPose).Rotation);
-        Assert.Equal(new(0, 0, 0, 0), poses[0].Rotation);
+        Assert.Equal(new(X: 0, Y: 0, Z: 0, W: 0), default(DPose).Rotation);
+        Assert.Equal(new(X: 0, Y: 0, Z: 0, W: 0), poses[0].Rotation);
     }
 
     [Fact]

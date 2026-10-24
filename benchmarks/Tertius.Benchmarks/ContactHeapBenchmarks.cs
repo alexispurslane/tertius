@@ -47,7 +47,7 @@ public class ContactHeapBenchmarks
             Frame = ground,
             Pose = floor,
             FirstMove = new(new EndPose(Conveyor.After(floor, world.DeltaTime))),
-            Body = new(new BoxShapeDesc(new(60, 0.5f, 60)), BodyMotion.Kinematic),
+            Body = new(Shape: new BoxShapeDesc(new(60, 0.5f, 60)), Motion: BodyMotion.Kinematic),
             Components = [new Conveyor()]
         });
         var boxes = new List<Entity>();
@@ -60,7 +60,7 @@ public class ContactHeapBenchmarks
             {
                 Frame = ground,
                 Pose = At(x, 0.5, (i / Columns - Rows / 2) * 1.05),
-                Body = new(new BoxShapeDesc(new(0.5f)), Mass: 10, Restitution: Restitution)
+                Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, Restitution: Restitution)
             }));
         }
 

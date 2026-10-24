@@ -20,11 +20,11 @@ public class WorldIntentFrameTests
                                          DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2);
 
     /// <summary>A kinematic cube with sides of 1 m.</summary>
-    private static BodyDesc KinematicCube => new(new BoxShapeDesc(new(0.5f)), BodyMotion.Kinematic);
+    private static BodyDesc KinematicCube => new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Kinematic);
 
     /// <summary>A dynamic cube with sides of 1 m that nothing slows down.</summary>
     private static BodyDesc DynamicCube =>
-        new(new BoxShapeDesc(new(0.5f)), BodyMotion.Dynamic, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Dynamic, LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>A root frame without gravity.</summary>
     private static FrameHandle Space(World world) => world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
@@ -109,11 +109,11 @@ public class WorldIntentFrameTests
     [Fact]
     public void AnEndPoseConvertsWhenItsBodyHandsOff()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
-        FrameHandle room = world.GetOwnedFrame(Room(world, space, new(new(20, 0, 0), Turned), radius: 5));
+        FrameHandle room = world.GetOwnedFrame(Room(world: world, space: space, pose: new(new(20, 0, 0), Turned), radius: 5));
         // 6 m/s along +X: the cube touches the bubble at x = 14.1, in the step of tick 91, and leaves it fully at x = 26.7.
-        var rail = new Rail(space, new(5, 0, 0), new(6, 0, 0));
+        var rail = new Rail(space: space, start: new(5, 0, 0), velocity: new(6, 0, 0));
         var frames = new FrameChangedLog();
         Entity cube = world.Spawn(new()
         {
@@ -121,7 +121,7 @@ public class WorldIntentFrameTests
             Components = [rail, frames]
         });
 
-        (double off, long tick) = WorstOffRail(world, cube, space, rail, ticks: 300);
+        (double off, long tick) = WorstOffRail(world: world, entity: cube, space: space, rail: rail, ticks: 300);
 
         frames.Seen.Select(change => (change.From, change.To)).Should().Equal([(space, room), (room, space)],
             "the cube passes through the room's bubble");
@@ -159,10 +159,10 @@ public class WorldIntentFrameTests
     [Fact]
     public void AnEndPoseThatConvertsAtAHandOffOutOfAMovingFrameConvertsByWhereThatFrameEndsTheStep()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
         var cruise = new Cruise(Double3.Zero, new(0, 0, 30));
-        Entity shipOwner = Room(world, space, DPose.Identity, radius: 5, cruise);
+        Entity shipOwner = Room(world: world, space: space, pose: DPose.Identity, radius: 5, cruise);
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
         var outward = new Cruise(new(3, 0, 0), new(6, 0, 0));
         Entity cube = world.Spawn(new()
@@ -190,17 +190,17 @@ public class WorldIntentFrameTests
     [Fact]
     public void ASteerTargetConvertsWhenItsBodyHandsOff()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
-        FrameHandle room = world.GetOwnedFrame(Room(world, space, new(new(20, 0, 0), Turned), radius: 5));
-        var rail = new Rail(space, new(5, 0, 0), new(6, 0, 0), steer: true);
+        FrameHandle room = world.GetOwnedFrame(Room(world: world, space: space, pose: new(new(20, 0, 0), Turned), radius: 5));
+        var rail = new Rail(space: space, start: new(5, 0, 0), velocity: new(6, 0, 0), steer: true);
         var frames = new FrameChangedLog();
         Entity cube = world.Spawn(new()
         {
             Frame = space, Pose = new(rail.At(0), DQuaternion.Identity), Body = DynamicCube, Components = [rail, frames]
         });
 
-        (double off, long tick) = WorstOffRail(world, cube, space, rail, ticks: 300);
+        (double off, long tick) = WorstOffRail(world: world, entity: cube, space: space, rail: rail, ticks: 300);
 
         frames.Seen.Select(change => (change.From, change.To)).Should().Equal([(space, room), (room, space)],
             "the cube passes through the room's bubble");
@@ -212,12 +212,12 @@ public class WorldIntentFrameTests
     [Fact]
     public void AnEndPoseWrittenInTheTickInWhichTheBodysFrameDiesMovesTheBodyWhereGameplayMeantIt()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
         const long doomsday = 20;
-        Entity roomOwner = Room(world, space, new(new(0, 0, 30), Turned), radius: 50, new DestroyAt(doomsday));
+        Entity roomOwner = Room(world: world, space: space, pose: new(new(0, 0, 30), Turned), radius: 50, new DestroyAt(doomsday));
         FrameHandle room = world.GetOwnedFrame(roomOwner);
-        var rail = new Rail(space, new(1, 0, 31), new(0, 3, 0));
+        var rail = new Rail(space: space, start: new(1, 0, 31), velocity: new(0, 3, 0));
         var frames = new FrameChangedLog();
         Entity cube = world.Spawn(new()
         {
@@ -227,7 +227,7 @@ public class WorldIntentFrameTests
             Components = [rail, frames]
         });
 
-        (double off, long tick) = WorstOffRail(world, cube, space, rail, ticks: 60);
+        (double off, long tick) = WorstOffRail(world: world, entity: cube, space: space, rail: rail, ticks: 60);
 
         world.IsAlive(roomOwner).Should().BeFalse();
         frames.Seen.Should().ContainSingle("the destroy batch moves the cube out of the room that dies").Which.From
@@ -240,15 +240,15 @@ public class WorldIntentFrameTests
     [Fact]
     public void AnEndPoseWrittenInTheTickInWhichTheBodyLeavesAFrameThatDiesThenMovesTheBodyWhereGameplayMeantIt()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
         // The cube leaves the bubble of 5 m when its center is more than its radius of 0.866 m and an exit margin as large
         // outside: 6.73 m from the room's center. At 6 m/s from the center, the step of tick 67 ends 6.8 m out, and the step
         // before 6.7 m. The room dies at the same sync point.
         const long leaving = 67;
-        Entity roomOwner = Room(world, space, new(new(0, 0, 30), Turned), radius: 5, new DestroyAt(leaving));
+        Entity roomOwner = Room(world: world, space: space, pose: new(new(0, 0, 30), Turned), radius: 5, new DestroyAt(leaving));
         FrameHandle room = world.GetOwnedFrame(roomOwner);
-        var rail = new Rail(space, new(0, 0, 30), new(0, 6, 0));
+        var rail = new Rail(space: space, start: new(0, 0, 30), velocity: new(0, 6, 0));
         Entity cube = world.Spawn(new()
         {
             Frame = room,
@@ -263,7 +263,7 @@ public class WorldIntentFrameTests
         world.IsAlive(roomOwner).Should().BeFalse();
         world.GetFrame(cube).Should().Be(space,
             "the step of the tick in which the room died handed the cube out of its bubble");
-        (double off, long tick) = WorstOffRail(world, cube, space, rail, ticks: 10);
+        (double off, long tick) = WorstOffRail(world: world, entity: cube, space: space, rail: rail, ticks: 10);
 
         off.Should().BeLessThan(1e-6,
             $"the end pose of the tick of the hand-off means the place that gameplay meant in the room; the cube was {off} m off at tick {tick}");
@@ -291,11 +291,11 @@ public class WorldIntentFrameTests
     [Fact]
     public void AnEndPoseWrittenInTheTickInWhichTheBodyEntersAChildOfAFrameThatDiesMovesTheBodyWhereGameplayMeantIt()
     {
-        long entering = RunCabinScene(doomsday: long.MaxValue, out _, out _, out _, out _, out _);
+        long entering = RunCabinScene(doomsday: long.MaxValue, world: out _, roomOwner: out _, cabin: out _, cube: out _, rail: out _);
         entering.Should().BeGreaterThan(10, "the cube enters the cabin after a while");
 
-        RunCabinScene(entering, out World world, out Entity roomOwner, out FrameHandle cabin, out Entity cube,
-            out Rail rail);
+        RunCabinScene(doomsday: entering, world: out World world, roomOwner: out Entity roomOwner, cabin: out FrameHandle cabin, cube: out Entity cube,
+            rail: out Rail rail);
         using (world)
         {
             world.IsAlive(roomOwner).Should().BeFalse();
@@ -303,7 +303,7 @@ public class WorldIntentFrameTests
                 "the step of the tick in which the room died handed the cube into the cabin");
             FrameHandle space = world.Frames.Parent(cabin);
             world.Frames.Parent(space).IsNull.Should().BeTrue("the cabin moved into space when the room died");
-            (double off, long tick) = WorstOffRail(world, cube, space, rail, ticks: 10);
+            (double off, long tick) = WorstOffRail(world: world, entity: cube, space: space, rail: rail, ticks: 10);
 
             off.Should().BeLessThan(1e-6,
                 $"the end pose of the tick of the hand-off means the place that gameplay meant in the room; the cube was {off} m off at tick {tick}");
@@ -320,13 +320,13 @@ public class WorldIntentFrameTests
     private static long RunCabinScene(long doomsday, out World world, out Entity roomOwner, out FrameHandle cabin,
         out Entity cube, out Rail rail)
     {
-        world = NewWorld(out _);
+        world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
-        roomOwner = Room(world, space, new(new(0, 0, 30), Turned), radius: 50, new DestroyAt(doomsday));
+        roomOwner = Room(world: world, space: space, pose: new(new(0, 0, 30), Turned), radius: 50, new DestroyAt(doomsday));
         FrameHandle room = world.GetOwnedFrame(roomOwner);
         // Turned carries the room's +Y to space's +Z.
-        cabin = world.GetOwnedFrame(Room(world, room, new(new(0, 20, 0), DQuaternion.Identity), radius: 5, new Hold()));
-        rail = new(space, new(0, 0, 40), new(0, 0, 3));
+        cabin = world.GetOwnedFrame(Room(world: world, space: room, pose: new(new(0, 20, 0), DQuaternion.Identity), radius: 5, new Hold()));
+        rail = new(space: space, start: new(0, 0, 40), velocity: new(0, 0, 3));
         cube = world.Spawn(new()
         {
             Frame = room,
@@ -354,18 +354,18 @@ public class WorldIntentFrameTests
             Frame = space,
             Pose = new(new(30, 0, 0), Turned),
             LinearVelocity = new(0, 0.5, 0),
-            Body = new(new BoxShapeDesc(new(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
             AsFrame = new(FrameBounds.Sphere(20))
         });
         FrameHandle ship = world.GetOwnedFrame(hull);
         // The ship drifts 0.25 m sideways before the touch, which moves the touch by 2 mm: well inside half a step.
-        Scenes.Approach approach = Scenes.ApproachToBubble(world, ship, tick: 30);
+        Scenes.Approach approach = Scenes.ApproachToBubble(world: world, into: ship, tick: 30);
         Entity ball = world.Spawn(new()
         {
             Frame = space,
             Pose = approach.Pose,
             LinearVelocity = approach.Velocity,
-            Body = new(new SphereShapeDesc(0.5f), Mass: 1, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new SphereShapeDesc(0.5f), Mass: 1, LinearDamping: 0, AngularDamping: 0),
             Components = [pilot]
         });
         return (ship, ball);
@@ -374,7 +374,7 @@ public class WorldIntentFrameTests
     [Fact]
     public void AVelocitySetInTheTickOfAHandOffIsTheVelocityRelativeToTheFrameThatGameplayNamed()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
         var pilot = new Pilot();
         (FrameHandle ship, Entity ball) = BallMeetsDriftingShip(world, space, pilot);
@@ -396,7 +396,7 @@ public class WorldIntentFrameTests
     [Fact]
     public void AnImpulseAddedInTheTickOfAHandOffPushesAlongTheAxesOfTheFrameThatGameplayNamed()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
         var pilot = new Pilot();
         (FrameHandle ship, Entity ball) = BallMeetsDriftingShip(world, space, pilot);
@@ -417,7 +417,7 @@ public class WorldIntentFrameTests
     [Fact]
     public void AForceAddedInTheTickOfAHandOffPushesAlongTheAxesOfTheFrameThatGameplayNamed()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
         var pilot = new Pilot();
         (FrameHandle ship, Entity ball) = BallMeetsDriftingShip(world, space, pilot);
@@ -438,7 +438,7 @@ public class WorldIntentFrameTests
     [Fact]
     public void ATeleportWrittenInTheTickOfAHandOffPutsTheBodyWhereGameplayMeantInTheFrameThatItNamed()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
         var pilot = new Pilot();
         (FrameHandle ship, Entity ball) = BallMeetsDriftingShip(world, space, pilot);
@@ -461,7 +461,7 @@ public class WorldIntentFrameTests
     [Fact]
     public void AnAngularVelocitySetInTheTickOfAHandOffIsRelativeToTheFrameThatGameplayNamed()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
         var pilot = new Pilot();
         (FrameHandle ship, Entity ball) = BallMeetsDriftingShip(world, space, pilot);
@@ -516,7 +516,7 @@ public class WorldIntentFrameTests
         long handOff = -1;
         for (int run = 0; run < 2; run++)
         {
-            using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+            using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
             FrameHandle space = Scenes.AsteroidSpace(world);
             // An inclined orbit and a tilted frame, so that no level of the path is a plain shift.
             KeplerOrbit orbit = KeplerOrbit.Circular(5_000, phase: 0.7) with
@@ -551,7 +551,7 @@ public class WorldIntentFrameTests
             world.TickNumber.Should().Be(handOff + 1, "the velocity acts after the step of the hand-off");
             Double3 at = world.Frames.Relative(space, station)
                 .InverseTransformPoint(world.PoseInOwnFrame(ball).Position);
-            Double3 expected = world.Frames.ConvertVelocity(space, station, at, setter.Written);
+            Double3 expected = world.Frames.ConvertVelocity(from: space, to: station, position: at, v: setter.Written);
 
             world.Tick();
 
@@ -570,7 +570,7 @@ public class WorldIntentFrameTests
     [Fact]
     public void AVelocitySetInTheTickOfAHandOffIntoAFrameThatTeleportsConvertsByTheTeleportsPose()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
         var turner = new Pilot();
         Entity owner = world.Spawn(new()
@@ -583,7 +583,7 @@ public class WorldIntentFrameTests
         });
         FrameHandle cabin = world.GetOwnedFrame(owner);
         var pilot = new Pilot();
-        Scenes.Approach approach = Scenes.ApproachToBubble(world, cabin, tick: 30);
+        Scenes.Approach approach = Scenes.ApproachToBubble(world: world, into: cabin, tick: 30);
         Entity ball = world.Spawn(new()
         {
             Frame = space, Pose = approach.Pose, LinearVelocity = approach.Velocity, Body = Ball(), Components = [pilot]

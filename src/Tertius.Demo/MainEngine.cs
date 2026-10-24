@@ -44,7 +44,7 @@ public sealed class MainEngine(float maxThrust) : IComponent
     /// than real exhaust, which hang behind the shuttle and mark its path (docs/plans/blue-danube-demo.md, "The plumes").
     /// </summary>
     public static Plume Plume { get; } = new(
-        new(Life: 6, StartRadius: 1, EndRadius: 24, TemperatureRatio: 3, PuffShading.Glow(new(1.2f, 0.6f, 0.22f))),
+        Look: new(Life: 6, StartRadius: 1, EndRadius: 24, TemperatureRatio: 3, Shading: PuffShading.Glow(new(1.2f, 0.6f, 0.22f))),
         FullRate: 240, Speed: 30, Spread: 0.1f);
 
     /// <summary>The force at full throttle, in newtons.</summary>

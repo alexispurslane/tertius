@@ -47,11 +47,11 @@ public class ContractChangeTests
     public void DestroyingAFrameConvertsChildVelocities()
     {
         var frames = new FrameTree();
-        FrameHandle root = frames.Create(new(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
-        FrameHandle ship = frames.Create(new(2, 1), root,
-            new(new(1000, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2)), FrameBounds.Sphere(500));
-        FrameHandle shuttle = frames.Create(new(3, 1), ship, new(new(10, 0, 0), DQuaternion.Identity),
-            FrameBounds.Sphere(20));
+        FrameHandle root = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
+        FrameHandle ship = frames.Create(frameOwner: new(2, 1), parent: root,
+            localPose: new(new(1000, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2)), frameBounds: FrameBounds.Sphere(500));
+        FrameHandle shuttle = frames.Create(frameOwner: new(3, 1), parent: ship, localPose: new(new(10, 0, 0), DQuaternion.Identity),
+            frameBounds: FrameBounds.Sphere(20));
         frames.SetTreeLinearVelocity(ship, new(0, 0, 100));
         frames.SetAngularVelocity(ship, new(0, 0.1f, 0));
         frames.SetTreeLinearVelocity(shuttle, new(1, 0, 0));
@@ -71,10 +71,10 @@ public class ContractChangeTests
     public void ChildOfADestroyedRootBecomesARootAndKeepsItsMotion()
     {
         var frames = new FrameTree();
-        FrameHandle root = frames.Create(new(1, 1), FrameHandle.Null, new(new(5, 0, 0), DQuaternion.Identity),
-            FrameBounds.Sphere(1e6f));
-        FrameHandle child = frames.Create(new(2, 1), root, new(new(1, 0, 0), DQuaternion.Identity),
-            FrameBounds.Sphere(10));
+        FrameHandle root = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: new(new(5, 0, 0), DQuaternion.Identity),
+            frameBounds: FrameBounds.Sphere(1e6f));
+        FrameHandle child = frames.Create(frameOwner: new(2, 1), parent: root, localPose: new(new(1, 0, 0), DQuaternion.Identity),
+            frameBounds: FrameBounds.Sphere(10));
         frames.SetTreeLinearVelocity(child, new(0, 3, 0));
         frames.Update();
 
@@ -114,8 +114,8 @@ public class ContractChangeTests
     [Fact]
     public void RenderInstanceCreateIsDrawableAndStill()
     {
-        var i = RenderInstance.Create(new(1), new(2), new(1, 2, 3), Quaternion.Identity, Vector3.One, 1.5f,
-            HemisphereUp.Even, part: 2);
+        var i = RenderInstance.Create(mesh: new(1), material: new(2), position: new(1, 2, 3), rotation: Quaternion.Identity, scale: Vector3.One, boundingRadius: 1.5f,
+            hemisphere: HemisphereUp.Even, part: 2);
         Assert.Equal(i.Position, i.PreviousPosition);
         Assert.Equal(i.Rotation, i.PreviousRotation);
         Assert.Equal((ushort)2, i.Part);

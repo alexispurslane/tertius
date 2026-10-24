@@ -12,10 +12,10 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public class WorldCharacterContactTests
 {
-    private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
 
     /// <summary>A heavy box, which the character cannot push: friction holds 0.5 · 500 kg · g, and a character pushes with 100 N.</summary>
-    private static readonly BodyDesc HeavyBox = new(new BoxShapeDesc(new(0.5f)), Mass: 500);
+    private static readonly BodyDesc HeavyBox = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 500);
 
     /// <summary>
     /// The reviewer's probe C11. A character walks against a heavy box and stands there until the box falls asleep. It
@@ -27,14 +27,14 @@ public class WorldCharacterContactTests
     [InlineData(true)]
     public void ACharacterThatLeavesASleepingBoxAndComesBackHearsItAgain(bool keepStepping)
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         if (keepStepping)
             world.Spawn(KinematicDrift.Drifting(
                 new()
                 {
-                    Frame = ground, Pose = At(-40, 20), Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Kinematic)
+                    Frame = ground, Pose = At(-40, 20), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Kinematic)
                 },
                 world, new(0, 0, 0.1)));
         var boxLog = new CollisionLog();
@@ -70,7 +70,7 @@ public class WorldCharacterContactTests
     [Fact]
     public void ACharacterThatStaysAgainstASleepingBoxAndPushesAgainHearsItOnce()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         Entity box = world.Spawn(new() { Frame = ground, Pose = At(1, 0.5), Body = HeavyBox });
@@ -97,7 +97,7 @@ public class WorldCharacterContactTests
     [Fact]
     public void ACharacterThatPushesALightBoxSlowlyHearsIt()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         var boxLog = new CollisionLog();
@@ -120,7 +120,7 @@ public class WorldCharacterContactTests
     [Fact]
     public void ACharacterThatLandsOnABoxHearsIt()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         var boxLog = new CollisionLog();
@@ -145,7 +145,7 @@ public class WorldCharacterContactTests
     [Fact]
     public void ACharacterThatFallsOntoAFloorHearsItWithTheImpulseThatStopsIt()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         Entity floor = Floor(world, ground);
         var personLog = new CollisionLog();

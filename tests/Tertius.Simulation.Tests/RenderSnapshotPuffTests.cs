@@ -17,10 +17,10 @@ public class RenderSnapshotPuffTests
     private const double Step = 1.0 / 60;
 
     private static readonly PuffLook HotLook = new(Life: 2, StartRadius: 0.5f, EndRadius: 2, TemperatureRatio: 3,
-        PuffShading.Glow(new(4, 2, 1)));
+        Shading: PuffShading.Glow(new(4, 2, 1)));
 
     private static readonly PuffLook ColdLook = new(Life: 5, StartRadius: 1, EndRadius: 4, TemperatureRatio: 0.5f,
-        PuffShading.Lit(new(0.5f)));
+        Shading: PuffShading.Lit(new(0.5f)));
 
     /// <summary>
     /// An entity table and a frame tree with a root frame, and a builder over them with no workers. Every frame is a plain
@@ -46,15 +46,15 @@ public class RenderSnapshotPuffTests
         public FrameHandle AddFrame(FrameHandle parent, DPose local)
         {
             Entity owner = entities.Reserve();
-            FrameHandle frame = Frames.Create(owner, parent, local, FrameBounds.Sphere(1e9f));
-            entities.Activate(owner, new() { Frame = parent, PhysicsHome = parent, Pose = local }, new(), [], [], null,
-                Vector3.Zero, frame);
+            FrameHandle frame = Frames.Create(frameOwner: owner, parent: parent, localPose: local, frameBounds: FrameBounds.Sphere(1e9f));
+            entities.Activate(entity: owner, row: new() { Frame = parent, PhysicsHome = parent, Pose = local }, render: new(), components: [], wants: [], body: null,
+                bodyCenterOfMass: Vector3.Zero, ownedFrame: frame);
             Frames.Update();
             return frame;
         }
 
         /// <summary>A camera at <paramref name="pose"/> in <paramref name="frame"/>, which is also its physics home.</summary>
-        public Entity AddCamera(FrameHandle frame, DPose pose) => AddCamera(frame, pose, frame, pose.Position);
+        public Entity AddCamera(FrameHandle frame, DPose pose) => AddCamera(frame: frame, pose: pose, home: frame, homePosition: pose.Position);
 
         /// <summary>
         /// A camera at <paramref name="pose"/> in <paramref name="frame"/>, whose physics home is <paramref name="home"/>, a
@@ -63,9 +63,9 @@ public class RenderSnapshotPuffTests
         public Entity AddCamera(FrameHandle frame, DPose pose, FrameHandle home, Double3 homePosition)
         {
             Entity camera = entities.Reserve();
-            entities.Activate(camera,
-                new() { Frame = frame, PhysicsHome = home, Pose = pose, HomePosition = homePosition },
-                new(), [], [], null, Vector3.Zero, FrameHandle.Null);
+            entities.Activate(entity: camera,
+                row: new() { Frame = frame, PhysicsHome = home, Pose = pose, HomePosition = homePosition },
+                render: new(), components: [], wants: [], body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
             return camera;
         }
 
@@ -80,15 +80,15 @@ public class RenderSnapshotPuffTests
         public RenderSnapshot Build(long tick, Entity camera, in PuffView puffs)
         {
             var snapshot = new RenderSnapshot();
-            Build(snapshot, tick, camera, puffs);
+            Build(snapshot: snapshot, tick: tick, camera: camera, puffs: puffs);
             return snapshot;
         }
 
         public void Build(RenderSnapshot snapshot, long tick, Entity camera, in PuffView puffs)
         {
-            Builder.Build(snapshot, new(tick, tick * Step, camera, VerticalFov: 1, FrameHandle.Null, Vector3.One,
+            Builder.Build(snapshot, new(Tick: tick, Time: tick * Step, Camera: camera, VerticalFov: 1, SunFrame: FrameHandle.Null, SunColor: Vector3.One,
                 SunIntensity: 0,
-                new(), ShowFrameOutlines: false), puffs);
+                Ambient: new(), ShowFrameOutlines: false), puffs);
         }
     }
 
@@ -96,7 +96,7 @@ public class RenderSnapshotPuffTests
         new() { Place = place, Chord = chord, Age = age, Look = look };
 
     private static PuffView View(Puff[] rows, PuffRange[] ranges, PuffLook[]? looks = null) =>
-        new(rows, ranges, looks ?? [HotLook], Step);
+        new(rows: rows, ranges: ranges, looks: looks ?? [HotLook], step: Step);
 
     /// <summary>One range in <paramref name="frame"/> that holds every row.</summary>
     private static PuffView ViewIn(FrameHandle frame, params Puff[] rows) => View(rows, [new(frame, 0, rows.Length)]);
@@ -111,10 +111,10 @@ public class RenderSnapshotPuffTests
         FrameHandle hut = h.AddFrame(h.Root, hutPose);
         // The camera is at (1, 2, 3) in the ship, and its home is a cell of the ship at (50, 0, 0), as a numeric frame is.
         FrameHandle cell = h.AddFrame(ship, new(new(50, 0, 0), DQuaternion.Identity));
-        Entity camera = h.AddCamera(ship, new(new(1, 2, 3), DQuaternion.Identity), cell, new(-49, 2, 3));
+        Entity camera = h.AddCamera(frame: ship, pose: new(new(1, 2, 3), DQuaternion.Identity), home: cell, homePosition: new(-49, 2, 3));
         var place = new Double3(5, 6, 7);
 
-        RenderSnapshot snapshot = h.Build(1, camera, ViewIn(hut, Row(place)));
+        RenderSnapshot snapshot = h.Build(1, camera, ViewIn(hut, Row(place: place)));
 
         // The place in the root, then in the ship's axes, less the camera's place in the ship.
         Double3 expected = shipPose.InverseTransformPoint(hutPose.TransformPoint(place)) - new Double3(1, 2, 3);
@@ -132,7 +132,7 @@ public class RenderSnapshotPuffTests
         Entity camera = h.AddCamera(h.Root, new(new(0, 0, 5), DQuaternion.Identity));
         var place = new Double3(1, 2, 3);
         var chord = new Double3(30, -6, 12);
-        PuffView puffs = ViewIn(ship, Row(place, chord));
+        PuffView puffs = ViewIn(ship, Row(place: place, chord: chord));
         h.Build(1, camera, puffs);
         h.Move(ship, after);
 
@@ -154,7 +154,7 @@ public class RenderSnapshotPuffTests
         FrameHandle ship = h.AddFrame(h.Root, new(new(10, 0, 0), DQuaternion.Identity));
         Entity camera = h.AddCamera(h.Root, DPose.Identity);
         Entity other = h.AddCamera(h.Root, DPose.Identity);
-        PuffView puffs = ViewIn(ship, Row(new(1, 2, 3), new(30, -6, 12), age: 0.5f));
+        PuffView puffs = ViewIn(ship, Row(place: new(1, 2, 3), chord: new(30, -6, 12), age: 0.5f));
         h.Build(1, camera, puffs);
         h.Build(2, camera, puffs);
         h.Move(ship, new(new(11, 0, 0), DQuaternion.Identity));
@@ -177,7 +177,7 @@ public class RenderSnapshotPuffTests
         var h = new Harness();
         FrameHandle ship = h.AddFrame(h.Root, DPose.Identity);
         Entity camera = h.AddCamera(h.Root, DPose.Identity);
-        PuffView puffs = ViewIn(ship, Row(new(1, 2, 3), new(30, -6, 12)));
+        PuffView puffs = ViewIn(ship, Row(place: new(1, 2, 3), chord: new(30, -6, 12)));
         if (build != "the first build")
             h.Build(1, camera, puffs);
 
@@ -212,11 +212,11 @@ public class RenderSnapshotPuffTests
         else
         {
             FrameHandle cell = h.AddFrame(station, new(new(0, 0, 40), DQuaternion.Identity));
-            camera = h.AddCamera(station, new(eyeInStation, DQuaternion.Identity), cell, new(0, 2, 20));
+            camera = h.AddCamera(frame: station, pose: new(eyeInStation, DQuaternion.Identity), home: cell, homePosition: new(0, 2, 20));
             expected = fromEye;
         }
 
-        RenderSnapshot snapshot = h.Build(1, camera, ViewIn(h.Root, Row(place)));
+        RenderSnapshot snapshot = h.Build(1, camera, ViewIn(h.Root, Row(place: place)));
 
         AssertNear(snapshot.Puffs.Should().ContainSingle().Subject.Position, expected.ToVector3(), 1e-6f);
     }
@@ -228,7 +228,7 @@ public class RenderSnapshotPuffTests
         Entity camera = h.AddCamera(h.Root, DPose.Identity);
         // Entry 1 is free: no live puff uses it, and the table keeps it in place.
         PuffLook[] looks = [HotLook, default, ColdLook];
-        Puff[] rows = [Row(new(1, 0, 0), age: 0.25f, look: 2), Row(new(2, 0, 0), age: 1.75f, look: 0)];
+        Puff[] rows = [Row(place: new(1, 0, 0), age: 0.25f, look: 2), Row(place: new(2, 0, 0), age: 1.75f, look: 0)];
 
         RenderSnapshot snapshot = h.Build(1, camera, View(rows, [new(h.Root, 0, 2)], looks));
 
@@ -244,7 +244,7 @@ public class RenderSnapshotPuffTests
         FrameHandle west = h.AddFrame(h.Root, new(new(-100, 0, 0), DQuaternion.Identity));
         Entity camera = h.AddCamera(h.Root, DPose.Identity);
         // The west range comes first in the list, though its frame was made after the east one.
-        Puff[] rows = [Row(new(1, 0, 0)), Row(new(2, 0, 0)), Row(new(3, 0, 0)), Row(new(4, 0, 0)), Row(new(5, 0, 0))];
+        Puff[] rows = [Row(place: new(1, 0, 0)), Row(place: new(2, 0, 0)), Row(place: new(3, 0, 0)), Row(place: new(4, 0, 0)), Row(place: new(5, 0, 0))];
         PuffRange[] ranges = [new(west, 0, 2), new(east, 2, 3)];
 
         RenderSnapshot snapshot = h.Build(1, camera, View(rows, ranges));
@@ -259,7 +259,7 @@ public class RenderSnapshotPuffTests
     {
         var h = new Harness();
         Entity camera = h.AddCamera(h.Root, DPose.Identity);
-        PuffView puffs = ViewIn(h.Root, Row(new(1, 2, 3), new(1, 0, 0)));
+        PuffView puffs = ViewIn(h.Root, Row(place: new(1, 2, 3), chord: new(1, 0, 0)));
         if (build != "in the first build")
             h.Build(1, camera, puffs);
 
@@ -280,7 +280,7 @@ public class RenderSnapshotPuffTests
         Entity camera = h.AddCamera(h.Root, DPose.Identity);
         h.Frames.Destroy(gone);
         h.Frames.Update();
-        Puff[] rows = [Row(new(1, 0, 0)), Row(new(2, 0, 0))];
+        Puff[] rows = [Row(place: new(1, 0, 0)), Row(place: new(2, 0, 0))];
 
         RenderSnapshot snapshot = h.Build(1, camera, View(rows, [new(gone, 0, 1), new(h.Root, 1, 1)]));
 
@@ -293,10 +293,10 @@ public class RenderSnapshotPuffTests
         var h = new Harness();
         FrameHandle ship = h.AddFrame(h.Root, new(new(10, 0, 0), DQuaternion.Identity));
         Entity camera = h.AddCamera(h.Root, DPose.Identity);
-        PuffView puffs = ViewIn(ship, Row(new(1, 0, 0), new(3, 0, 0)), Row(new(2, 0, 0)));
+        PuffView puffs = ViewIn(ship, Row(place: new(1, 0, 0), chord: new(3, 0, 0)), Row(place: new(2, 0, 0)));
         h.Build(1, camera, puffs);
         var snapshot = new RenderSnapshot();
-        h.Build(snapshot, 2, camera, puffs);
+        h.Build(snapshot: snapshot, tick: 2, camera: camera, puffs: puffs);
         RenderPuff[] first = [.. snapshot.Puffs];
 
         h.Builder.BuildPuffs(snapshot, puffs);
@@ -312,12 +312,12 @@ public class RenderSnapshotPuffTests
         var h = new Harness();
         FrameHandle ship = h.AddFrame(h.Root, new(new(10, 0, 0), DQuaternion.Identity));
         Entity camera = h.AddCamera(h.Root, DPose.Identity);
-        Puff[] rows = [.. Enumerable.Range(0, 500).Select(i => Row(new(i, 0, 0), new(1, 0, 0), look: i % 2))];
+        Puff[] rows = [.. Enumerable.Range(0, 500).Select(i => Row(place: new(i, 0, 0), chord: new(1, 0, 0), look: i % 2))];
         PuffRange[] ranges = [new(ship, 0, 300), new(h.Root, 300, 200)];
         PuffLook[] looks = [HotLook, ColdLook];
         var snapshot = new RenderSnapshot();
-        h.Build(snapshot, 1, camera, View(rows, ranges, looks));
-        h.Build(snapshot, 2, camera, View(rows, ranges, looks));
+        h.Build(snapshot: snapshot, tick: 1, camera: camera, puffs: View(rows, ranges, looks));
+        h.Build(snapshot: snapshot, tick: 2, camera: camera, puffs: View(rows, ranges, looks));
 
         long allocated = Allocations.Fewest(() => h.Builder.BuildPuffs(snapshot, View(rows, ranges, looks)));
 

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Tertius.Rendering;
 using Tertius.Simulation;
 
@@ -42,8 +43,8 @@ public sealed class HeadlessPlayback : IPlayback, IDisposable
     /// folder of the video cannot be made.
     /// </summary>
     /// <exception cref="ArgumentException"><paramref name="target"/> is the default value, which holds no case.</exception>
-    public HeadlessPlayback(IRenderer renderer, ScriptWindow size, CaptureTarget target) : this(renderer, size, target,
-        FfmpegVideoSink.Start)
+    public HeadlessPlayback(IRenderer renderer, ScriptWindow size, CaptureTarget target) : this(renderer: renderer, size: size, target: target,
+        startVideo: FfmpegVideoSink.Start)
     {
     }
 
@@ -77,7 +78,7 @@ public sealed class HeadlessPlayback : IPlayback, IDisposable
         ICaptureSink sink = target switch
         {
             PngFolder folder => new PngCaptureSink(folder.PathOf(name)),
-            VideoFile => video!,
+            VideoFile => video ?? throw new UnreachableException("The constructor starts the video of a video target."),
             null => throw new InvalidOperationException("The headless playback has no capture target.")
         };
         world.PublishRenderSnapshot();

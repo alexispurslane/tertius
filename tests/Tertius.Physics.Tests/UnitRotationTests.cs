@@ -27,10 +27,10 @@ public class UnitRotationTests
     [Fact]
     public void EveryRotationOfABodyThatPhysicsReportsIsUnitLength()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f)));
-        var cube = new BodyDesc(new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
-        var ball = new BodyDesc(new SphereShapeDesc(0.5f), Mass: 10, LinearDamping: 0, AngularDamping: 0);
+        var cube = new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
+        var ball = new BodyDesc(Shape: new SphereShapeDesc(0.5f), Mass: 10, LinearDamping: 0, AngularDamping: 0);
         Entity tumbling = world.Spawn(new()
             { Frame = space, Pose = At(0), Body = cube, AngularVelocity = new(1.3f, 0.7f, -0.9f) });
         Entity slow = world.Spawn(new()
@@ -52,7 +52,7 @@ public class UnitRotationTests
     [Fact]
     public void EveryLocalPoseOfAShipFrameThatPhysicsReportsIsUnitLength()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f)));
         Entity owner = world.Spawn(new()
         {
@@ -60,7 +60,7 @@ public class UnitRotationTests
             Pose = At(6.77e6),
             LinearVelocity = new Vector3(0, 7700, 0),
             AngularVelocity = new(0.0011f, 0.0007f, 0.0013f),
-            Body = new(new BoxShapeDesc(new(10, 4, 30)), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(10, 4, 30)), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0),
             AsFrame = new(FrameBounds.Sphere(100))
         });
         FrameHandle ship = world.GetOwnedFrame(owner);
@@ -87,7 +87,7 @@ public class UnitRotationTests
     [Fact]
     public void EveryRotationOfACharacterThatPhysicsReportsIsUnitLength()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         // The character stands upright and faces a direction that float rotations cannot hold exactly.
@@ -95,7 +95,7 @@ public class UnitRotationTests
         {
             Frame = ground,
             Pose = new(new(0, 0.95, 0), DQuaternion.FromAxisAngle(Double3.UnitY, 0.9)),
-            Body = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70)
+            Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70)
         });
 
         double worstInTheWorld = 0;

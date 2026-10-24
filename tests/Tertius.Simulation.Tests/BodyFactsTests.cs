@@ -24,7 +24,7 @@ public class BodyFactsTests
 
     private static World NewWorld(out FrameHandle space)
     {
-        World world = WorldTesting.NewWorld(out JoltPhysicsBackend _);
+        World world = WorldTesting.NewWorld(backend: out JoltPhysicsBackend _);
         space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f), GravityField.Point(SpaceMu)));
         return world;
     }
@@ -47,7 +47,7 @@ public class BodyFactsTests
         {
             Frame = space,
             Pose = WorldTesting.At(5000),
-            Body = new(new BoxShapeDesc(new(2)), motion, Mass: 1000, InteriorShape: interior),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: motion, Mass: 1000, InteriorShape: interior),
             AsFrame = new(FrameBounds.Sphere(10))
         });
 
@@ -66,7 +66,7 @@ public class BodyFactsTests
     public void ABodyThatOwnsNoFrameHasTheMotionOfItsDescription(BodyMotion motion)
     {
         using World world = NewWorld(out FrameHandle space);
-        Entity box = Spawn(world, space, new(new BoxShapeDesc(new(0.5f)), motion));
+        Entity box = Spawn(world: world, frame: space, body: new(Shape: new BoxShapeDesc(new(0.5f)), Motion: motion));
 
         FactsOf(world, box).Motion.Should().Be(motion);
     }
@@ -75,7 +75,7 @@ public class BodyFactsTests
     public void ACharacterHasTheCharacterMotion()
     {
         using World world = NewWorld(out FrameHandle space);
-        Entity walker = Spawn(world, space, new(new CapsuleShapeDesc(0.5f, 0.3f), BodyMotion.Character, Mass: 70));
+        Entity walker = Spawn(world: world, frame: space, body: new(Shape: new CapsuleShapeDesc(0.5f, 0.3f), Motion: BodyMotion.Character, Mass: 70));
 
         FactsOf(world, walker).Motion.Should().Be(BodyMotion.Character);
     }
@@ -87,7 +87,7 @@ public class BodyFactsTests
     public void AHullTakesTheMotionOfItsBodyDescription(BodyMotion motion)
     {
         using World world = NewWorld(out FrameHandle space);
-        Entity ship = Ship(world, space, motion);
+        Entity ship = Ship(world: world, space: space, motion: motion);
         world.Tick();
 
         world.Frames.HullMotion(world.GetOwnedFrame(ship)).Should().Be(motion);
@@ -108,7 +108,7 @@ public class BodyFactsTests
         Entity owner = world.Spawn(new()
         {
             AsFrame = new(FrameBounds.Sphere(1e6f)),
-            Body = body == "a mesh" ? new(Ramp) : new BodyDesc(new BoxShapeDesc(new(50, 0.5f, 50)), Mass: 0)
+            Body = body == "a mesh" ? new(Shape: Ramp) : new BodyDesc(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Mass: 0)
         });
         world.Tick();
 
@@ -140,7 +140,7 @@ public class BodyFactsTests
     public void ABodyHasTheMassOfItsDescription()
     {
         using World world = NewWorld(out FrameHandle space);
-        Entity crate = Spawn(world, space, new(new BoxShapeDesc(new(0.5f)), Mass: 12.5f));
+        Entity crate = Spawn(world: world, frame: space, body: new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 12.5f));
 
         FactsOf(world, crate).Mass.Should().Be(12.5f);
     }
@@ -166,7 +166,7 @@ public class BodyFactsTests
             ShapeKind.Mesh => new MeshShapeDesc([new(-1, 0, -1), new(1, 0, -1), new(0, 0, 1)], [0, 2, 1]),
             _ => new CompoundShapeDesc([new(new SphereShapeDesc(0.3f), Pose.Identity)])
         };
-        Entity body = Spawn(world, space, new(shape, BodyMotion.Static));
+        Entity body = Spawn(world: world, frame: space, body: new(Shape: shape, Motion: BodyMotion.Static));
 
         FactsOf(world, body).ShapeKind.Should().Be(kind);
     }
@@ -175,7 +175,7 @@ public class BodyFactsTests
     public void ABodyHasTheRadiusOfTheSmallestSphereAboutItsOriginThatHoldsItsShape()
     {
         using World world = NewWorld(out FrameHandle space);
-        Entity box = Spawn(world, space, new(new BoxShapeDesc(new(1, 2, 2)), Mass: 5));
+        Entity box = Spawn(world: world, frame: space, body: new(Shape: new BoxShapeDesc(new(1, 2, 2)), Mass: 5));
 
         FactsOf(world, box).BoundingRadius.Should()
             .BeApproximately(3f, 5e-6f, "the corners of the box are 3 m from its center");
@@ -184,7 +184,7 @@ public class BodyFactsTests
     [Fact]
     public void ABodyHasTheCenterOfMassThatPhysicsComputesForItsShape()
     {
-        World world = WorldTesting.NewWorld(out JoltPhysicsBackend backend);
+        World world = WorldTesting.NewWorld(backend: out JoltPhysicsBackend backend);
         using (world)
         {
             FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
@@ -192,8 +192,8 @@ public class BodyFactsTests
             var offsetBox = new CompoundShapeDesc([
                 new(new BoxShapeDesc(new(0.5f)), new(new(1.5f, 0, -2), Quaternion.Identity))
             ]);
-            Entity crate = Spawn(world, space, new(offsetBox, Mass: 5));
-            Entity ball = Spawn(world, space, new(new SphereShapeDesc(0.5f)), x: 10);
+            Entity crate = Spawn(world: world, frame: space, body: new(Shape: offsetBox, Mass: 5));
+            Entity ball = Spawn(world: world, frame: space, body: new(Shape: new SphereShapeDesc(0.5f)), x: 10);
 
             Vector3 center = FactsOf(world, crate).CenterOfMass;
 
@@ -207,7 +207,7 @@ public class BodyFactsTests
     [Fact]
     public void TheCenterOfMassOfAFrameOwnerIsThatOfItsHullAndNotOfItsInterior()
     {
-        World world = WorldTesting.NewWorld(out JoltPhysicsBackend backend);
+        World world = WorldTesting.NewWorld(backend: out JoltPhysicsBackend backend);
         using (world)
         {
             FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
@@ -216,7 +216,7 @@ public class BodyFactsTests
             {
                 Frame = space,
                 Pose = WorldTesting.At(5000),
-                Body = new(hull, BodyMotion.Dynamic, Mass: 1000, InteriorShape: new SphereShapeDesc(8)),
+                Body = new(Shape: hull, Motion: BodyMotion.Dynamic, Mass: 1000, InteriorShape: new SphereShapeDesc(8)),
                 AsFrame = new(FrameBounds.Sphere(10))
             });
 
@@ -231,7 +231,7 @@ public class BodyFactsTests
         using var test = new TestWorld();
         var offsetBox =
             new CompoundShapeDesc([new(new BoxShapeDesc(new(0.5f)), new(new(1.5f, 0, -2), Quaternion.Identity))]);
-        Entity crate = Spawn(test.World, test.Root, new(offsetBox, Mass: 5));
+        Entity crate = Spawn(world: test.World, frame: test.Root, body: new(Shape: offsetBox, Mass: 5));
 
         FactsOf(test.World, crate).CenterOfMass.Should().Be(Vector3.Zero);
     }
@@ -240,7 +240,7 @@ public class BodyFactsTests
     public void TheShapeFactsOfAFrameOwnerAreThoseOfItsHullAndNotOfItsInterior()
     {
         using World world = NewWorld(out FrameHandle space);
-        Entity ship = Ship(world, space, BodyMotion.Static, interior: new SphereShapeDesc(8));
+        Entity ship = Ship(world: world, space: space, motion: BodyMotion.Static, interior: new SphereShapeDesc(8));
 
         BodyFacts facts = FactsOf(world, ship);
 
@@ -253,9 +253,9 @@ public class BodyFactsTests
     public void TheFactsOfASensorBodySayThatItIsASensorAndThoseOfASolidBodyDoNot()
     {
         using World world = NewWorld(out FrameHandle space);
-        Entity ball = Spawn(world, space, new(new SphereShapeDesc(0.5f)));
-        Entity wall = Spawn(world, space, new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static), x: 10);
-        Entity plate = Spawn(world, space, new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static) { IsSensor = true },
+        Entity ball = Spawn(world: world, frame: space, body: new(Shape: new SphereShapeDesc(0.5f)));
+        Entity wall = Spawn(world: world, frame: space, body: new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static), x: 10);
+        Entity plate = Spawn(world: world, frame: space, body: new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static) { IsSensor = true },
             x: 20);
 
         FactsOf(world, ball).IsSensor.Should().BeFalse();
@@ -270,8 +270,8 @@ public class BodyFactsTests
     {
         CollisionGroup wall = registry.Register("Wall");
         using World world = NewWorld(out FrameHandle space);
-        Entity box = Spawn(world, space,
-            new BodyDesc(new SphereShapeDesc(0.5f)) with
+        Entity box = Spawn(world: world, frame: space,
+            body: new BodyDesc(Shape: new SphereShapeDesc(0.5f)) with
             {
                 CollisionGroups = CollisionGroups.Of(wall), CollisionMask = InAnySolid.InAny(wall)
             });
@@ -288,7 +288,7 @@ public class BodyFactsTests
         CollisionGroup glass = registry.Register("Glass");
         using World world = NewWorld(out FrameHandle space);
         var pilot = new Pilot();
-        Entity box = Spawn(world, space, new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static), components: [pilot]);
+        Entity box = Spawn(world: world, frame: space, body: new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static), components: [pilot]);
         world.Tick();
         CollisionGroups newGroups = CollisionGroups.Of(glass);
         CollisionMask newMask = CollisionMask.Empty.InAny(glass);
@@ -313,8 +313,8 @@ public class BodyFactsTests
         CollisionGroup wall = registry.Register("Wall");
         using World world = NewWorld(out FrameHandle space);
         var pilot = new Pilot { EveryTick = body => body.AddForce(new(0, 1, 0)) };
-        Entity ball = Spawn(world, space,
-            new BodyDesc(new SphereShapeDesc(0.5f)) with { CollisionGroups = CollisionGroups.Of(wall) },
+        Entity ball = Spawn(world: world, frame: space,
+            body: new BodyDesc(Shape: new SphereShapeDesc(0.5f)) with { CollisionGroups = CollisionGroups.Of(wall) },
             components: [pilot]);
 
         world.Run(3);
@@ -340,9 +340,9 @@ public class BodyFactsTests
     public void AStaleHandleHasNoFactsEvenWhenItsSlotHoldsANewBody()
     {
         using World world = NewWorld(out FrameHandle space);
-        Entity gone = Spawn(world, space, new(new BoxShapeDesc(new(0.5f)), Mass: 3));
+        Entity gone = Spawn(world: world, frame: space, body: new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 3));
         world.Destroy(gone);
-        Entity heir = Spawn(world, space, new(new SphereShapeDesc(0.5f), Mass: 7));
+        Entity heir = Spawn(world: world, frame: space, body: new(Shape: new SphereShapeDesc(0.5f), Mass: 7));
         heir.Index.Should().Be(gone.Index, "the test needs the new body in the slot of the stale handle");
 
         world.Snapshot.TryGetBody(gone, out BodyFacts facts).Should().BeFalse();
@@ -358,9 +358,9 @@ public class BodyFactsTests
         using World world = NewWorld(out FrameHandle space);
         Entity[] bodies =
         [
-            Spawn(world, space, new(new SphereShapeDesc(0.5f))),
-            Spawn(world, space, new(new CapsuleShapeDesc(0.5f, 0.3f), BodyMotion.Character, Mass: 70), x: 10),
-            Ship(world, space, BodyMotion.Dynamic),
+            Spawn(world: world, frame: space, body: new(Shape: new SphereShapeDesc(0.5f))),
+            Spawn(world: world, frame: space, body: new(Shape: new CapsuleShapeDesc(0.5f, 0.3f), Motion: BodyMotion.Character, Mass: 70), x: 10),
+            Ship(world: world, space: space, motion: BodyMotion.Dynamic),
             world.SpawnWith(space, new Metal())
         ];
         world.Tick();

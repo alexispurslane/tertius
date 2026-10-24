@@ -26,7 +26,7 @@ public class PhysicsContactEndTests
 
         public Scene(float speedApart = 0)
         {
-            Test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+            Test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
             Faults = faults;
             FirstLog = new(Wants);
             SecondLog = new(Wants);
@@ -124,7 +124,7 @@ public class PhysicsContactEndTests
     [Fact]
     public void AContactThatStartsAndEndsInOneStepArrivesAsTheStartAndThenTheEnd()
     {
-        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         // The bubble's edge toward the balls lies at x = 400 m. At 180 m/s the first ball flies 3 m in a step.
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
         var firstLog = new Recorder(Scene.Wants);
@@ -217,7 +217,7 @@ public class PhysicsContactEndTests
         scene.Faults.EditOutput = output =>
         {
             if (output.ContactsEnded.Count > 0)
-                output.Bodies.Add(new BodyState(scene.First, gone, TestWorld.At(9), Vector3.Zero, Vector3.Zero));
+                output.Bodies.Add(new BodyState(Entity: scene.First, Frame: gone, Pose: TestWorld.At(9), LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero));
         };
 
         scene.Test.Run(8);

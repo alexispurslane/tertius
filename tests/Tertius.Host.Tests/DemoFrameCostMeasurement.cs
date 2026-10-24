@@ -51,13 +51,13 @@ public sealed class DemoFrameCostMeasurement
                 new HeadlessPlayback(timed, script.Window, new VideoFile(Path.Combine(folder, "demo.mkv"), 60));
             var watched = new TimedPlayback(playback, timed);
             long start = Stopwatch.GetTimestamp();
-            ScriptRunner.Run(script, world, scene, outputFolder: null, watched);
+            ScriptRunner.Run(script: script, world: world, scene: scene, outputFolder: null, playback: watched);
             long ran = Stopwatch.GetTimestamp();
             playback.Finish();
             long finished = Stopwatch.GetTimestamp();
             File.WriteAllText(reportPath,
-                Report(script, watched.Frames, TimedRenderer.Seconds(ran - start),
-                    TimedRenderer.Seconds(finished - ran)));
+                Report(script: script, frames: watched.Frames, run: TimedRenderer.Seconds(ran - start),
+                    finish: TimedRenderer.Seconds(finished - ran)));
         }
         finally
         {

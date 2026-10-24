@@ -10,11 +10,11 @@ public sealed record SourceFile(string Path, SyntaxTree Tree)
 {
     // C# 15 preview, so that a built-in union parses. The metrics never read a doc comment, so the parser keeps each one
     // as plain comment trivia.
-    private static readonly CSharpParseOptions ParseOptions = new(LanguageVersion.Preview, DocumentationMode.None);
+    private static readonly CSharpParseOptions ParseOptions = new(languageVersion: LanguageVersion.Preview, documentationMode: DocumentationMode.None);
 
     /// <summary>The file at <paramref name="path"/> with the text <paramref name="text"/>.</summary>
     public static SourceFile Parse(string path, string text) =>
-        new(path, CSharpSyntaxTree.ParseText(text, ParseOptions, path));
+        new(path, CSharpSyntaxTree.ParseText(text: text, options: ParseOptions, path: path));
 
     /// <summary>
     /// Whether a tool wrote the file: its name ends in <c>.g.cs</c>, or a comment before its first code holds the marker

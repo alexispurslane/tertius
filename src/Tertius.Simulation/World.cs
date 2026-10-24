@@ -90,10 +90,10 @@ public sealed partial class World : IDisposable
         Attachments = new(Entities);
         Spatial = new(Entities, Frames, workers);
         renderBuilder = new(Entities, Frames, workers);
-        queryRunner = new(this, physics, router, message => Report(message, isError: true));
+        queryRunner = new(world: this, physics: physics, router: router, reportError: message => Report(message, isError: true));
         dyingMarks = Entities.AddColumn<bool>();
         characterStanding = Entities.AddColumn<bool>();
-        Puffs = new(Entities, Frames, Options.PuffCapacity, message => Report(message, isError: true));
+        Puffs = new(entities: Entities, frames: Frames, capacity: Options.PuffCapacity, reportError: message => Report(message, isError: true));
         heirOf = HeirOf;
         Frames.NumericOptions = Options.NumericFrames;
         if (physics != null)
@@ -178,8 +178,8 @@ public sealed partial class World : IDisposable
     public ReadOnlySpan<Event> RoutedEvents => router.Routed;
 
     /// <summary>Counters of the last tick.</summary>
-    public WorldStats Stats => new(Entities.LiveCount, Entities.Capacity, Frames.Count - Frames.NumericCount,
-        router.RoutedCount, router.DeliveryCount, fallbackSpawnTotal);
+    public WorldStats Stats => new(LiveEntities: Entities.LiveCount, Capacity: Entities.Capacity, Frames: Frames.Count - Frames.NumericCount,
+        RoutedEvents: router.RoutedCount, Deliveries: router.DeliveryCount, FallbackSpawns: fallbackSpawnTotal);
 
     // ---- For Self, BodyHandle and Snapshot ---------------------------------------------------------------------------
     // These views read and write the subsystems directly, through the same checked members that the world uses.
@@ -207,7 +207,7 @@ public sealed partial class World : IDisposable
     /// <see cref="StaleEntityException"/> for a stale entity and <see cref="ArgumentException"/> for a stale frame.
     /// </summary>
     public DPose PoseIn(Entity entity, FrameHandle frame) =>
-        FrameReads.PoseIn(Frames, entity, Entities.FrontRow(entity), LiveFrame(frame));
+        FrameReads.PoseIn(frames: Frames, entity: entity, row: Entities.FrontRow(entity), to: LiveFrame(frame));
 
     /// <summary>
     /// The frame the entity is in, from the front snapshot. Null for the owner of a root frame. Throws
@@ -220,14 +220,14 @@ public sealed partial class World : IDisposable
     /// <see cref="StaleEntityException"/> for a stale entity and <see cref="ArgumentException"/> for a stale frame.
     /// </summary>
     public Double3 VelocityIn(Entity entity, FrameHandle frame) =>
-        FrameReads.VelocityIn(Frames, entity, Entities.FrontRow(entity), LiveFrame(frame));
+        FrameReads.VelocityIn(frames: Frames, entity: entity, row: Entities.FrontRow(entity), to: LiveFrame(frame));
 
     /// <summary>
     /// The entity's angular velocity relative to <paramref name="frame"/>, in its axes, from the front snapshot. Throws
     /// <see cref="StaleEntityException"/> for a stale entity and <see cref="ArgumentException"/> for a stale frame.
     /// </summary>
     public Vector3 AngularVelocityIn(Entity entity, FrameHandle frame) =>
-        FrameReads.AngularVelocityIn(Frames, entity, Entities.FrontRow(entity), LiveFrame(frame));
+        FrameReads.AngularVelocityIn(frames: Frames, entity: entity, row: Entities.FrontRow(entity), to: LiveFrame(frame));
 
     /// <summary>Returns <paramref name="frame"/> if it is live. Throws <see cref="ArgumentException"/> if it is stale or null.</summary>
     private FrameHandle LiveFrame(FrameHandle frame) =>
@@ -320,7 +320,7 @@ public sealed partial class World : IDisposable
     }
 
     internal void QueryRadius(FrameHandle frame, Double3 center, double radius, List<Entity> results) =>
-        Spatial.QueryRadius(frame, center, radius, results);
+        Spatial.QueryRadius(frame: frame, center: center, radius: radius, results: results);
 
     // ---- Invariants -----------------------------------------------------------------------------------------------
 
@@ -380,8 +380,8 @@ public sealed partial class World : IDisposable
 
         if (Physics != null)
             foreach (Entity entity in Entities.BodyEntities)
-                Contract.Invariant(Entities.BodyCenterOfMass(entity) ==
-                                   Physics.ShapeCenterOfMass(Entities.Body(entity)!.Shape));
+                Contract.Invariant(Entities.Body(entity) is { } body &&
+                                   Entities.BodyCenterOfMass(entity) == Physics.ShapeCenterOfMass(body.Shape));
         foreach (Entity entity in Entities.LiveEntities)
         {
             ref readonly TransformRow row = ref Entities.BackRow(entity);
@@ -444,7 +444,7 @@ public sealed partial class World : IDisposable
     {
         RenderSnapshot snapshot = RenderSnapshots.WriteBuffer;
         renderBuilder.Build(snapshot,
-            new(TickNumber, Time, Camera, VerticalFov, SunFrame, SunColor, SunIntensity, Ambient, ShowFrameOutlines),
+            new(Tick: TickNumber, Time: Time, Camera: Camera, VerticalFov: VerticalFov, SunFrame: SunFrame, SunColor: SunColor, SunIntensity: SunIntensity, Ambient: Ambient, ShowFrameOutlines: ShowFrameOutlines),
             Puffs.View);
         snapshot.PublishedAt = Stopwatch.GetTimestamp();
         RenderSnapshots.Publish();

@@ -98,7 +98,7 @@ public class PipelineEventsTests
             (self, scoped ref events, scoped ref outbox) => events.Of<Ping>().Remove());
         var after = new Recorder(EventMask.Of<Ping>(), priority: 1);
         Entity e = t.SpawnWith(before, remover, after);
-        t.World.Post(Event.Create(e, Entity.Null, new Ping { Value = 1 }));
+        t.World.Post(Event.Create(target: e, sender: Entity.Null, payload: new Ping { Value = 1 }));
 
         t.Run(2);
 
@@ -119,7 +119,7 @@ public class PipelineEventsTests
         });
         var after = new Recorder(EventMask.Of<Ping>(), priority: 1);
         Entity e = t.SpawnWith(before, doubler, after);
-        t.World.Post(Event.Create(e, Entity.Null, new Ping { Value = 21 }));
+        t.World.Post(Event.Create(target: e, sender: Entity.Null, payload: new Ping { Value = 21 }));
 
         t.Run(2);
 
@@ -142,7 +142,7 @@ public class PipelineEventsTests
         var untouchedCopy = new Recorder(EventMask.Of<Ping>());
         t.SpawnWith(doubler, editedCopy);
         t.SpawnWith(untouchedCopy);
-        t.SpawnWith(SendOnce.Of(new Broadcast(), new Ping { Value = 10 }));
+        t.SpawnWith(SendOnce.Of(target: new Broadcast(), payload: new Ping { Value = 10 }));
 
         t.Run(2);
 
@@ -160,7 +160,7 @@ public class PipelineEventsTests
         var keeper = new Recorder(EventMask.Of<Ping>());
         t.SpawnWith(remover);
         t.SpawnWith(keeper);
-        t.SpawnWith(SendOnce.Of(new Broadcast(), new Ping { Value = 2 }));
+        t.SpawnWith(SendOnce.Of(target: new Broadcast(), payload: new Ping { Value = 2 }));
 
         t.Run(2);
 

@@ -35,7 +35,7 @@ internal sealed class HeadlessTarget : IOutputTarget
     }
 
     public void SubmitAndPresent(FrameResources frame) =>
-        QueueSubmission.Submit(device, frame, default, PipelineStageFlags2.None, default);
+        QueueSubmission.Submit(device: device, frame: frame, wait: default, waitStages: PipelineStageFlags2.None, signal: default);
 
     public void Resize(Extent2D extent)
     {
@@ -45,8 +45,8 @@ internal sealed class HeadlessTarget : IOutputTarget
         image = CreateImage(extent);
     }
 
-    private GpuImage CreateImage(Extent2D extent) => GpuImage.Create(device, allocator, extent, Format,
-        ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.TransferSrcBit, 1, "headless output");
+    private GpuImage CreateImage(Extent2D extent) => GpuImage.Create(device: device, allocator: allocator, extent: extent, format: Format,
+        usage: ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.TransferSrcBit, mipLevels: 1, name: "headless output");
 
     public void Dispose() => image.Dispose();
 }

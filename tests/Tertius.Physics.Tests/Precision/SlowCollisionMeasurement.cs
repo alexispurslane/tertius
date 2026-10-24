@@ -35,7 +35,7 @@ public sealed class SlowCollisionMeasurement
 
     /// <summary>A box with sides of 1 m and 2 kg that nothing slows down, with the restitution <paramref name="restitution"/>.</summary>
     private static BodyDesc BoxBody(float restitution) =>
-        new(new BoxShapeDesc(new(0.5f)), Mass: 2, Restitution: restitution, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 2, Restitution: restitution, LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>The state of the pair at one report time.</summary>
     /// <param name="MovedA">How far box A moved since its spawn, in meters.</param>
@@ -100,20 +100,20 @@ public sealed class SlowCollisionMeasurement
         foreach (double approach in ApproachSpeeds)
         foreach (float restitution in Restitutions)
         {
-            PairRun reference = Run(0, Double3.UnitX, Double3.Zero, approach, restitution);
+            PairRun reference = Run(speed: 0, direction: Double3.UnitX, origin: Double3.Zero, approach: approach, restitution: restitution);
             foreach (Direction direction in Directions)
             foreach (double speed in Speeds)
             {
                 PairRun run = speed == 0
                     ? reference
-                    : Run(speed, direction.Unit, direction.Unit * (-speed * Ticks * (1f / 60) / 2), approach,
-                        restitution);
-                Write(csv, "speed", direction, speed, approach, restitution, run, reference);
+                    : Run(speed: speed, direction: direction.Unit, origin: direction.Unit * (-speed * Ticks * (1f / 60) / 2), approach: approach,
+                        restitution: restitution);
+                Write(csv: csv, kind: "speed", direction: direction, speed: speed, approach: approach, restitution: restitution, run: run, reference: reference);
                 rowSets++;
                 if (speed == 0)
                     continue;
-                PairRun control = Run(0, direction.Unit, direction.Unit * run.LargestDistance, approach, restitution);
-                Write(csv, "distance-control", direction, 0, approach, restitution, control, reference);
+                PairRun control = Run(speed: 0, direction: direction.Unit, origin: direction.Unit * run.LargestDistance, approach: approach, restitution: restitution);
+                Write(csv: csv, kind: "distance-control", direction: direction, speed: 0, approach: approach, restitution: restitution, run: control, reference: reference);
                 rowSets++;
             }
         }
@@ -192,14 +192,14 @@ public sealed class SlowCollisionMeasurement
                 continue;
             int collisions = logA.Seen.Count(seen => seen.Other == b);
             int ended = logA.Ended.Count(seen => seen.Other == b);
-            reports.Add(new(poseA.Position - startA, poseB.Position - startB,
-                world.VelocityIn(a, space) - world.VelocityIn(b, space), collisions, ended, largestOverlap,
-                largestTilt));
+            reports.Add(new(MovedA: poseA.Position - startA, MovedB: poseB.Position - startB,
+                Relative: world.VelocityIn(a, space) - world.VelocityIn(b, space), Collisions: collisions, Ended: ended, LargestOverlap: largestOverlap,
+                LargestTilt: largestTilt));
         }
 
         (long Tick, Entity Other, float Impulse) first = logA.Seen.FirstOrDefault(seen => seen.Other == b);
         bool hit = logA.Seen.Any(seen => seen.Other == b);
-        return new([.. reports], hit ? first.Tick : -1, hit ? first.Impulse : 0, largest,
-            warnings.Count + world.Errors.Count);
+        return new(Reports: [.. reports], FirstCollisionTick: hit ? first.Tick : -1, FirstImpulse: hit ? first.Impulse : 0, LargestDistance: largest,
+            Warnings: warnings.Count + world.Errors.Count);
     }
 }

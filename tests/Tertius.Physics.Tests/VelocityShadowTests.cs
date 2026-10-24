@@ -20,7 +20,7 @@ public class VelocityShadowTests
     [Fact]
     public void AShadowMovesItsTrackingIntoTheNewHome()
     {
-        var tracking = new ShadowTracking(new(1, 2, 3), new(4, 5, 6), new(7, 8, 9), 41);
+        var tracking = new ShadowTracking(Chord: new(1, 2, 3), Place: new(4, 5, 6), JoltTarget: new(7, 8, 9), Step: 41);
         VelocityShadow shadow = tracking;
 
         VelocityShadow moved = shadow.Moved(Offset, HomeVelocity);

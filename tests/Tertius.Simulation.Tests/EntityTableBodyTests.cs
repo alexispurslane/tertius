@@ -41,7 +41,7 @@ public class EntityTableBodyTests
         Entity reserved = table.Reserve();
 
         BodyEntities(table).Should().BeEmpty();
-        table.Activate(reserved, new(), new(), [], [], Ball, Vector3.Zero, FrameHandle.Null);
+        table.Activate(entity: reserved, row: new(), render: new(), components: [], wants: [], body: Ball, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
         BodyEntities(table).Should().Equal(reserved);
     }
 
@@ -111,7 +111,7 @@ public class EntityTableBodyTests
         var hull = new BoxShapeDesc(new(1));
         var interior = new BoxShapeDesc(new(3, 4, 12));
 
-        Entity entity = table.SpawnLiveWith(new(hull, InteriorShape: interior));
+        Entity entity = table.SpawnLiveWith(new(Shape: hull, InteriorShape: interior));
 
         table.BodyBoundingRadius(entity).Should().Be(hull.BoundingRadius());
         table.BodyInteriorBoundingRadius(entity).Should().Be(interior.BoundingRadius());
@@ -124,7 +124,7 @@ public class EntityTableBodyTests
         EntityTable table = TableSupport.NewTable();
         var shape = new BoxShapeDesc(new(2));
 
-        Entity entity = table.SpawnLiveWith(new(shape));
+        Entity entity = table.SpawnLiveWith(new(Shape: shape));
 
         table.BodyInteriorBoundingRadius(entity).Should().Be(shape.BoundingRadius());
     }
@@ -146,10 +146,10 @@ public class EntityTableBodyTests
         EntityTable table = TableSupport.NewTable();
         var small = new BoxShapeDesc(new(1));
         var large = new BoxShapeDesc(new(5));
-        Entity first = table.SpawnLiveWith(new(small, InteriorShape: small));
+        Entity first = table.SpawnLiveWith(new(Shape: small, InteriorShape: small));
         table.Release(first);
 
-        Entity successor = table.SpawnLiveWith(new(large, InteriorShape: large));
+        Entity successor = table.SpawnLiveWith(new(Shape: large, InteriorShape: large));
 
         successor.Index.Should().Be(first.Index);
         table.BodyBoundingRadius(successor).Should().Be(large.BoundingRadius());

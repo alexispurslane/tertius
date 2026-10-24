@@ -55,7 +55,7 @@ public sealed partial class World
             throw new ArgumentException($"Cannot attach: {problem}", nameof(desc));
 
         Entity entity = Entities.Reserve();
-        MakeLive(entity, desc, plan, frame);
+        MakeLive(entity: entity, desc: desc, plan: plan, frame: frame);
         if (!desc.AttachTo.IsNull)
             Attachments.Attach(entity, desc.AttachTo, desc.AttachOffset);
         FinishOutsideTickChange();
@@ -384,7 +384,7 @@ public sealed partial class World
         FrameHandle own = FrameHandle.Null;
         if (desc.AsFrame is { } spec)
         {
-            own = Frames.Create(entity, frame, pose, spec.Bounds, spec.Gravity, spec.Medium);
+            own = Frames.Create(frameOwner: entity, parent: frame, localPose: pose, frameBounds: spec.Bounds, field: spec.Gravity, medium: spec.Medium);
             // A frame with a parent whose owner has a body has a hull, with the motion of the body's description. A root frame
             // has no hull, and neither has a frame without a body: the tree gives a new frame no hull motion.
             if (!frame.IsNull && desc.Body is { } hullBody)
@@ -408,8 +408,8 @@ public sealed partial class World
         Vector3 centerOfMass = desc.Body is { } spawnBody && Physics != null
             ? Physics.ShapeCenterOfMass(spawnBody.Shape)
             : Vector3.Zero;
-        Entities.Activate(entity, row, desc.Render ?? new RenderData(), plan.Components, plan.Wants, desc.Body,
-            centerOfMass, own);
+        Entities.Activate(entity: entity, row: row, render: desc.Render ?? new RenderData(), components: plan.Components, wants: plan.Wants, body: desc.Body,
+            bodyCenterOfMass: centerOfMass, ownedFrame: own);
         // The first motion intent, relative to the spawn's frame, goes into the new entity's front intent, which the next step
         // applies as an intent that the entity wrote in the spawn's tick (docs/plans/rails-components.md, "The first motion
         // intent of a spawn"). Step 6 runs after the swap of step 4, and a spawn outside a tick goes live at the call, so either
@@ -417,8 +417,8 @@ public sealed partial class World
         if (desc.FirstMove.HasValue)
             Entities.SetFirstMove(entity, frame, WithUnitRotation(desc.FirstMove));
         if (desc.Body != null)
-            physicsChanges.BodiesCreated.Add(new(entity, row.Frame, desc.Body, row.Pose, velocity,
-                row.AngularVelocity));
+            physicsChanges.BodiesCreated.Add(new(Entity: entity, Frame: row.Frame, Desc: desc.Body, Pose: row.Pose, LinearVelocity: velocity,
+                AngularVelocity: row.AngularVelocity));
 
         // A new entity joins the members of its frame. That is no change of frame, so it hears no FrameChanged.
         topics.MoveMember(entity, row.Frame, out _);
@@ -452,7 +452,7 @@ public sealed partial class World
                 continue;
             }
 
-            MakeLive(spawn.Entity, spawn.Desc, spawn.Plan, frame);
+            MakeLive(entity: spawn.Entity, desc: spawn.Desc, plan: spawn.Plan, frame: frame);
         }
 
         MakeAttachedSpawnsLive();
@@ -477,7 +477,7 @@ public sealed partial class World
                 PendingSpawn spawn = waitingAttachedSpawns[i];
                 if (Attachments.CheckParent(spawn.Desc.AttachTo, out FrameHandle frame) is null)
                 {
-                    MakeLive(spawn.Entity, spawn.Desc, spawn.Plan, frame);
+                    MakeLive(entity: spawn.Entity, desc: spawn.Desc, plan: spawn.Plan, frame: frame);
                     Attachments.Attach(spawn.Entity, spawn.Desc.AttachTo, spawn.Desc.AttachOffset);
                     madeOneLive = true;
                 }
@@ -634,16 +634,16 @@ public sealed partial class World
             FrameHandle from = Entities.NextStepIntent(entity).Frame;
             if (from.IsNull || !dyingMarks[from.Entity])
                 continue;
-            (FrameMotion start, FrameMotion end) = Frames.MotionRelativeInStep(from, Entities.BackRow(entity).Frame,
-                Entities.FrontIntents.Span, DeltaTime, dying);
+            (FrameMotion start, FrameMotion end) = Frames.MotionRelativeInStep(of: from, to: Entities.BackRow(entity).Frame,
+                stepIntents: Entities.FrontIntents.Span, step: DeltaTime, dying: dying);
             dyingFrameConversions.Add(new(entity, start, end));
         }
 
         foreach (IntentConversion conversion in dyingFrameConversions)
         {
             ref readonly TransformRow row = ref Entities.BackRow(conversion.Entity);
-            ConvertIntent(ref Entities.NextStepIntent(conversion.Entity), row.Frame, row.Pose.Position,
-                conversion.Start, conversion.End);
+            ConvertIntent(intent: ref Entities.NextStepIntent(conversion.Entity), to: row.Frame, position: row.Pose.Position,
+                start: conversion.Start, end: conversion.End);
         }
 
         dyingFrameConversions.Clear();
@@ -658,7 +658,7 @@ public sealed partial class World
         ref readonly TransformRow row = ref Entities.BackRow(entity);
         DPose relative = Frames.Relative(from, to);
         Double3 velocity =
-            Frames.ConvertVelocity(from, to, row.Pose.Position, FrameReads.VelocityIn(Frames, entity, row, from));
+            Frames.ConvertVelocity(from: from, to: to, position: row.Pose.Position, v: FrameReads.VelocityIn(frames: Frames, entity: entity, row: row, to: from));
         DPose pose = DPose.Compose(relative, row.Pose);
         var moved = new TransformRow
         {
@@ -683,7 +683,7 @@ public sealed partial class World
             if (!own.IsNull && NextStepHullMotion(own) is { } motion && motion != body.Motion)
                 body = body with { Motion = motion };
             physicsChanges.BodiesDestroyed.Add(entity);
-            physicsChanges.BodiesCreated.Add(new(entity, to, body, moved.Pose, velocity, moved.AngularVelocity));
+            physicsChanges.BodiesCreated.Add(new(Entity: entity, Frame: to, Desc: body, Pose: moved.Pose, LinearVelocity: velocity, AngularVelocity: moved.AngularVelocity));
         }
     }
 
@@ -836,7 +836,7 @@ public sealed partial class World
     {
         if (!topics.MoveMember(entity, to, out FrameHandle from))
             return;
-        router.AddEngineEvent(Event.Create(new(entity), Entity.Null, new FrameChanged { From = from, To = to }));
+        router.AddEngineEvent(Event.Create(target: new(entity), sender: Entity.Null, payload: new FrameChanged { From = from, To = to }));
     }
 
     /// <summary>Subscribes an entity, or reports why the topic's frame cannot take it. Throws

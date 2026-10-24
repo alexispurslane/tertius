@@ -56,7 +56,7 @@ public class RailsComponentTests
     [Fact]
     public void TheSpinMotionSetterRefusesASpinThatIsNotValid()
     {
-        var spin = new FrameSpin(DQuaternion.Identity, double.NaN);
+        var spin = new FrameSpin(Tilt: DQuaternion.Identity, Rate: double.NaN);
 
         FluentActions.Invoking(() => new SpinMotion { Spin = spin }).Should().Throw<ArgumentException>();
     }
@@ -66,7 +66,7 @@ public class RailsComponentTests
     {
         KeplerOrbit orbit = KeplerOrbit.Circular(7e6, phase: 0.4);
         var blueprints = new Blueprints();
-        blueprints.Register(new("moon", [new(typeof(KeplerMotion), Fields(("Orbit", orbit)))]));
+        blueprints.Register(new(Name: "moon", Components: [new(typeof(KeplerMotion), Fields(("Orbit", orbit)))]));
 
         var motion = (KeplerMotion)blueprints.Instantiate("moon").Single();
 
@@ -76,9 +76,9 @@ public class RailsComponentTests
     [Fact]
     public void ABlueprintMakesASpinMotionFromItsProperties()
     {
-        var spin = new FrameSpin(DQuaternion.FromAxisAngle(Double3.UnitZ, -0.4), 0.7, PhaseAtEpoch: 0.3, Epoch: 2);
+        var spin = new FrameSpin(Tilt: DQuaternion.FromAxisAngle(Double3.UnitZ, -0.4), Rate: 0.7, PhaseAtEpoch: 0.3, Epoch: 2);
         var blueprints = new Blueprints();
-        blueprints.Register(new("ground", [new(typeof(SpinMotion), Fields(("Spin", spin)))]));
+        blueprints.Register(new(Name: "ground", Components: [new(typeof(SpinMotion), Fields(("Spin", spin)))]));
 
         var motion = (SpinMotion)blueprints.Instantiate("ground").Single();
 
@@ -106,7 +106,7 @@ public class RailsComponentTests
     public void SpinMotionWritesTheSpinsSampleAtItsFramesPlace()
     {
         using var test = new TestWorld();
-        var spin = new FrameSpin(DQuaternion.FromAxisAngle(Double3.UnitZ, -0.4), 0.7, PhaseAtEpoch: 0.3, Epoch: 2);
+        var spin = new FrameSpin(Tilt: DQuaternion.FromAxisAngle(Double3.UnitZ, -0.4), Rate: 0.7, PhaseAtEpoch: 0.3, Epoch: 2);
         var place = new Double3(5, -6, 7);
         FrameHandle ground = SpawnFrame(test, place, new SpinMotion { Spin = spin });
 
@@ -120,8 +120,8 @@ public class RailsComponentTests
     {
         using var test = new TestWorld();
         test.GiveRootPointGravity(Mu);
-        var parked = new MotionSample(new(new(1, 2, 3), DQuaternion.Identity), Double3.Zero, Double3.Zero, Double3.Zero,
-            Double3.Zero, Double3.Zero);
+        var parked = new MotionSample(Pose: new(new(1, 2, 3), DQuaternion.Identity), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero,
+            AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
         // The other component comes first in the list, so only the priority of KeplerMotion makes it run first.
         FrameHandle moon = SpawnFrame(test, components:
         [
@@ -147,10 +147,10 @@ public class RailsComponentTests
         Lambda flight = Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
         {
             Double3 place = velocity * self.TimeAt(self.Tick + 2);
-            self.MoveOnRails(new(new(place, DQuaternion.Identity), velocity, velocity, Double3.Zero, Double3.Zero,
-                Double3.Zero));
+            self.MoveOnRails(new(Pose: new(place, DQuaternion.Identity), ChordVelocity: velocity, Velocity: velocity, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
+                AngularAcceleration: Double3.Zero));
         });
-        var spin = new FrameSpin(DQuaternion.FromAxisAngle(Double3.UnitZ, 0.1), 0.7);
+        var spin = new FrameSpin(Tilt: DQuaternion.FromAxisAngle(Double3.UnitZ, 0.1), Rate: 0.7);
         FrameHandle frame = SpawnFrame(test, components: flight);
         test.Run(10);
 
@@ -246,7 +246,7 @@ public class RailsComponentTests
         test.GiveRootPointGravity(Mu);
         IComponent rails = component == "KeplerMotion"
             ? new KeplerMotion { Orbit = KeplerOrbit.Circular(7e6) }
-            : new SpinMotion { Spin = new(DQuaternion.Identity, 0.5) };
+            : new SpinMotion { Spin = new(Tilt: DQuaternion.Identity, Rate: 0.5) };
         FrameHandle frame = SpawnFrame(test, components: rails);
 
         test.Run(2);

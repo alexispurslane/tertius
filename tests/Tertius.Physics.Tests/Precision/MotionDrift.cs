@@ -133,11 +133,11 @@ internal static class MotionDrift
         {
             Double3 speedStart = direction * (-speed * RunSeconds / 2);
             RunResult moving = Run(scene, speedStart, direction * speed);
-            Append(csv, scene, "speed", name, direction, speed, speed, -speed * RunSeconds / 2, moving);
+            Append(csv: csv, scene: scene, run: "speed", direction: name, d: direction, speed: speed, matchingSpeed: speed, startAlong: -speed * RunSeconds / 2, result: moving);
 
             Double3 distanceStart = direction * moving.LargestDistance;
             RunResult still = Run(scene, distanceStart, Double3.Zero);
-            Append(csv, scene, "distance", name, direction, 0, speed, moving.LargestDistance, still);
+            Append(csv: csv, scene: scene, run: "distance", direction: name, d: direction, speed: 0, matchingSpeed: speed, startAlong: moving.LargestDistance, result: still);
         }
 
         string folder = Environment.GetEnvironmentVariable(OutputVariable) is { Length: > 0 } named
@@ -153,7 +153,7 @@ internal static class MotionDrift
     {
         using World world = NewWorld();
         FrameHandle space = world.CreateRootFrame(scene.Space);
-        Entity[] bodies = scene.Spawn(world, space, start, common);
+        Entity[] bodies = scene.Spawn(world: world, space: space, start: start, common: common);
         double dt = world.DeltaTime;
         double largest = LargestDistance(world, space, bodies);
         var samples = new List<Sample>();
@@ -164,9 +164,9 @@ internal static class MotionDrift
             if (Array.IndexOf(SampleTicks, tick) < 0)
                 continue;
             (Double3 position, Double3 velocity) = scene.Measure(world, space, bodies);
-            (Double3 expectedPosition, Double3 expectedVelocity) = scene.Expected(tick, dt, start, common);
-            samples.Add(new(tick, tick * dt, position - expectedPosition, velocity - expectedVelocity,
-                world.Errors.Count));
+            (Double3 expectedPosition, Double3 expectedVelocity) = scene.Expected(ticks: tick, dt: dt, start: start, common: common);
+            samples.Add(new(Ticks: tick, Time: tick * dt, PositionError: position - expectedPosition, VelocityError: velocity - expectedVelocity,
+                WorldErrors: world.Errors.Count));
         }
 
         return new(samples, largest);

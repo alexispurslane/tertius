@@ -17,7 +17,7 @@ public class RenderSnapshotNumericFrameTests
     /// ).</summary>
     private const int OnsetTicks = 30;
 
-    private static readonly BodyDesc Crate = new(new BoxShapeDesc(new(0.5f)), Mass: HeavyMass, LinearDamping: 0,
+    private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: HeavyMass, LinearDamping: 0,
         AngularDamping: 0);
 
     /// <summary>
@@ -29,7 +29,7 @@ public class RenderSnapshotNumericFrameTests
     [Fact]
     public void TheCameraKeepsItsMotionInTheBuildWhereAMergeTakesAwayItsNumericFrame()
     {
-        using var test = new TestWorld(new JoltPhysicsBackend(JoltBackendOptions.Unpaced),
+        using var test = new TestWorld(physics: new JoltPhysicsBackend(JoltBackendOptions.Unpaced),
             configure: options => options.DisposePhysics = true);
         var heavyVelocity = new Double3(0, 0, 60);
         Entity heavy = test.World.Spawn(new()

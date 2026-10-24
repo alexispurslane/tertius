@@ -86,7 +86,7 @@ public static class FilmScript
                 opening.Insert(0, new OutlinesStep(section.Outlines));
             outlines = section.Outlines;
             // The runner checks and takes the camera step and the posts, so the rehearsal posts as a run of the script does.
-            ScriptRunner.Run(new(scene.Name, opening, window), world, instance);
+            ScriptRunner.Run(script: new(scene.Name, opening, window), world: world, scene: instance);
             steps.AddRange(opening);
             steps.Add(new FilmStep(section.Name, Rehearse(world, instance, section), section.Every));
         }

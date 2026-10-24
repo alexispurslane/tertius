@@ -53,7 +53,7 @@ public static class ScriptCommand
     /// renderer only for a script with a capture or film step, so a script with dumps only runs on a machine with no GPU.
     /// </summary>
     public static int Run(string[] args, IReadOnlyList<Scene> scenes, TextWriter output, TextWriter error) =>
-        Run(args, scenes, output, error, VulkanRenderer.CreateHeadless);
+        Run(args: args, scenes: scenes, output: output, error: error, createRenderer: VulkanRenderer.CreateHeadless);
 
     /// <summary>
     /// <see cref="Run(string[], IReadOnlyList{Scene}, TextWriter, TextWriter)"/> with the function that makes the headless
@@ -85,14 +85,17 @@ public static class ScriptCommand
                 return ScriptError;
             }
 
-            return WindowHost.Run(live, script: null, scriptPath: null, outputFolder: null, options.Speed,
-                options.Record, output, error);
+            return WindowHost.Run(sceneToBuild: live, script: null, scriptPath: null, outputFolder: null, speed: options.Speed,
+                recordPath: options.Record, output: output, error: error);
         }
 
+        // ReadOptions gives a run that is not free play its script and its output folder.
+        if (options is not { Script: { } scriptPath, Out: { } outFolder })
+            throw new UnreachableException("A script run has its script and its output folder.");
         Script script;
         try
         {
-            script = Script.Load(options.Script!);
+            script = Script.Load(scriptPath);
         }
         catch (ScriptException ex)
         {
@@ -123,8 +126,8 @@ public static class ScriptCommand
         }
 
         if (!options.Headless)
-            return WindowHost.Run(scene, script, options.Script, options.Out, options.Speed, recordPath: null, output,
-                error);
+            return WindowHost.Run(sceneToBuild: scene, script: script, scriptPath: options.Script, outputFolder: options.Out, speed: options.Speed, recordPath: null, output: output,
+                error: error);
 
         using var world = new World(new() { DisposePhysics = true },
             new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
@@ -143,12 +146,12 @@ public static class ScriptCommand
             }
 
         using VulkanRenderer? rendererToDispose = renderer;
-        CaptureTarget target = options.Video is { } video ? video : new PngFolder(options.Out!);
+        CaptureTarget target = options.Video is { } video ? video : new PngFolder(outFolder);
         HeadlessPlayback? playback = null;
         if (renderer != null)
             try
             {
-                playback = new(renderer, script.Window, target, startVideo ?? FfmpegVideoSink.Start);
+                playback = new(renderer: renderer, size: script.Window, target: target, startVideo: startVideo ?? FfmpegVideoSink.Start);
             }
             // Only a video target starts a tool, ffmpeg. Process.Start throws a Win32Exception when ffmpeg is not on the
             // search path or cannot start.
@@ -172,10 +175,10 @@ public static class ScriptCommand
         world.Log += error.WriteLine;
         try
         {
-            RunResult result = ScriptRunner.Run(script, world, scene.Build(world, renderer ?? RenderResources.None),
-                options.Out, playback);
+            RunResult result = ScriptRunner.Run(script: script, world: world, scene: scene.Build(world, renderer ?? RenderResources.None),
+                outputFolder: options.Out, playback: playback);
             playback?.Finish();
-            WriteFiles(result, options.Out!, target, output);
+            WriteFiles(result: result, outputFolder: outFolder, target: target, output: output);
             return Ok;
         }
         catch (ScriptException ex)
@@ -308,7 +311,7 @@ public static class ScriptCommand
             _ when speedText != null && headless =>
                 "--speed applies to the window. A headless run runs its ticks back to back.",
             _ when speedText != null &&
-                   !(double.TryParse(speedText, NumberStyles.Float, CultureInfo.InvariantCulture, out speed) &&
+                   !(double.TryParse(s: speedText, style: NumberStyles.Float, provider: CultureInfo.InvariantCulture, result: out speed) &&
                      double.IsFinite(speed) && speed > 0) =>
                 $"--speed needs a positive number, such as 0.5 or 2, not '{speedText}'.",
             _ when video != null && !headless =>
@@ -317,14 +320,14 @@ public static class ScriptCommand
                 $"The --video file's name ends in {VideoFile.Extension}, and '{video}' does not.",
             _ when fpsText != null && video is null => "--fps applies to a video, so give --video too.",
             _ when fpsText != null &&
-                   !(int.TryParse(fpsText, NumberStyles.None, CultureInfo.InvariantCulture, out fps) &&
+                   !(int.TryParse(s: fpsText, style: NumberStyles.None, provider: CultureInfo.InvariantCulture, result: out fps) &&
                      fps is >= VideoFile.MinFramesPerSecond and <= VideoFile.MaxFramesPerSecond) =>
                 $"--fps needs a whole number from {VideoFile.MinFramesPerSecond} to {VideoFile.MaxFramesPerSecond}, not '{fpsText}'.",
             _ => null
         };
         return problem is null
-            ? new Options(script, scene, output, headless, speed, record,
-                video is null ? null : new VideoFile(video, fps))
+            ? new Options(Script: script, Scene: scene, Out: output, Headless: headless, Speed: speed, Record: record,
+                Video: video is null ? null : new VideoFile(video, fps))
             : null;
     }
 }

@@ -15,7 +15,7 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public class WorldCharacterLifetimeTests
 {
-    private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
 
     private static bool IsInner(JoltPhysicsBackend.BodyFacts facts) =>
         BodyUserData.Kind(facts.UserData) == BodyKind.CharacterInner;
@@ -27,12 +27,12 @@ public class WorldCharacterLifetimeTests
     [Fact]
     public void DestroyingACharacterRemovesItsInnerBodySoTheBoxOnItsHeadFallsStraightDown()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         Entity person = world.Spawn(new() { Frame = ground, Pose = At(0, 0.95), Body = Person });
         Entity box = world.Spawn(new()
-            { Frame = ground, Pose = At(0, 2.2), Body = new(new BoxShapeDesc(new(0.2f)), Mass: 1) });
+            { Frame = ground, Pose = At(0, 2.2), Body = new(Shape: new BoxShapeDesc(new(0.2f)), Mass: 1) });
         world.Tick();
         TickUntil(world, () => !IsAwake(backend, ground, box), 600);
         IsAwake(backend, ground, box).Should().BeFalse("the box fell asleep on the character's head");
@@ -58,7 +58,7 @@ public class WorldCharacterLifetimeTests
     [Fact]
     public void ACharacterThatChangesFrameLeavesNoInnerBodyBehind()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         // The shed's bubble covers x from 5 to 15. Its interior is a slab whose top is level with the ground's floor.
@@ -69,7 +69,7 @@ public class WorldCharacterLifetimeTests
         {
             Frame = ground,
             Pose = At(10, 1),
-            Body = new(new BoxShapeDesc(new(0.2f)), BodyMotion.Static, Mass: 1000, InteriorShape: slab),
+            Body = new(Shape: new BoxShapeDesc(new(0.2f)), Motion: BodyMotion.Static, Mass: 1000, InteriorShape: slab),
             AsFrame = new(FrameBounds.Sphere(5), GravityField.Uniform(new(0, -9.81f, 0)))
         });
         FrameHandle shed = world.GetOwnedFrame(shedOwner);
@@ -92,7 +92,7 @@ public class WorldCharacterLifetimeTests
         var ballLog = new CollisionLog();
         Entity ball = world.Spawn(new()
         {
-            Frame = ground, Pose = At(4.6, 3.5), Body = new(new SphereShapeDesc(0.2f), Mass: 1), Components = [ballLog]
+            Frame = ground, Pose = At(4.6, 3.5), Body = new(Shape: new SphereShapeDesc(0.2f), Mass: 1), Components = [ballLog]
         });
         Tick(world, 120);
 
@@ -155,14 +155,14 @@ public class WorldCharacterLifetimeTests
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static WeakReference[] RunAWorldAndDisposeIt()
     {
-        World world = NewWorld(out JoltPhysicsBackend backend);
+        World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         FrameHandle room = world.GetOwnedFrame(world.Spawn(new()
         {
             Frame = ground,
             Pose = At(50, 1),
-            Body = new(new BoxShapeDesc(new(0.2f)), BodyMotion.Static, Mass: 1000,
+            Body = new(Shape: new BoxShapeDesc(new(0.2f)), Motion: BodyMotion.Static, Mass: 1000,
                 InteriorShape: new BoxShapeDesc(new(4, 0.5f, 4))),
             AsFrame = new(FrameBounds.Sphere(10), GravityField.Uniform(new(0, -9.81f, 0)))
         }));

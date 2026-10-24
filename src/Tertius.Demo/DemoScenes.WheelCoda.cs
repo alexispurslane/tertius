@@ -57,7 +57,7 @@ public static partial class DemoScenes
         private static WheelFloor Floor => DemoStation.WheelFloor;
 
         /// <summary>The place of the stand: the person's center there, over the middle of <see cref="Facet"/> in the lane.</summary>
-        public static Double3 Stand { get; } = Floor.OnFacet(Facet, Standing, LaneY);
+        public static Double3 Stand { get; } = Floor.OnFacet(facet: Facet, height: Standing, y: LaneY);
 
         /// <summary>The person's capsule, 1.8 m tall and 0.3 m in radius, which a thrown box starts clear of.</summary>
         public static CapsuleShapeDesc PersonBody { get; } = new(0.6f, (float)StationExit.PersonRadius);
@@ -89,8 +89,8 @@ public static partial class DemoScenes
             for (int i = 0; i < boxes.Length; i++)
                 yield return ($"stack-{i}",
                     new(
-                        Floor.OnFacet(Facet, boxes[i].Height * BoxHalf + 0.002 * (boxes[i].Height - 1), StackY,
-                            boxes[i].Along), Floor.FacetTurn(Facet)));
+                        Floor.OnFacet(facet: Facet, height: boxes[i].Height * BoxHalf + 0.002 * (boxes[i].Height - 1), y: StackY,
+                            along: boxes[i].Along), Floor.FacetTurn(Facet)));
         }
 
         /// <summary>The scene id of the box of throw <paramref name="index"/>.</summary>
@@ -98,7 +98,7 @@ public static partial class DemoScenes
 
         /// <summary>Where the box of throw <paramref name="index"/> rests before the person takes it: in front of the stand, on the side of its throw.</summary>
         public static DPose ThrowBoxPose(int index) =>
-            new(Floor.OnFacet(Facet, BoxHalf, LaneY - 0.8, index == 0 ? 0.45 : -0.45), Floor.FacetTurn(Facet));
+            new(Floor.OnFacet(facet: Facet, height: BoxHalf, y: LaneY - 0.8, along: index == 0 ? 0.45 : -0.45), Floor.FacetTurn(Facet));
 
         /// <summary>The unit direction of throw <paramref name="index"/> at the stand: 30 degrees above the floor, spinward for 0 and antispinward for 1.</summary>
         public static Double3 Aim(int index) =>
@@ -111,7 +111,7 @@ public static partial class DemoScenes
         /// </summary>
         public static Waypoint[] Shove(FrameHandle station) =>
         [
-            new(station, Floor.OnFacet(Facet, Standing, 1)), new(station, Floor.OnFacet(Facet, Standing, StackY + 0.9))
+            new(station, Floor.OnFacet(facet: Facet, height: Standing, y: 1)), new(station, Floor.OnFacet(facet: Facet, height: Standing, y: StackY + 0.9))
         ];
 
         /// <summary>The walk to the stand, straight back along -Y.</summary>
@@ -125,11 +125,11 @@ public static partial class DemoScenes
         /// </summary>
         public static ThrowRelease DesignRelease(int index, CapsuleShapeDesc body)
         {
-            var box = new CrateSpec(new(BoxHalf), BoxMass, default, default);
+            var box = new CrateSpec(HalfExtents: new(BoxHalf), Mass: BoxMass, Mesh: default, Material: default);
             Vector3 eye = DemoSurface.Eye;
             // In axes with +Y along the person's up and +X along the throw's part across it.
             var aim = new Vector3((float)Math.Cos(ThrowAngle), (float)Math.Sin(ThrowAngle), 0);
-            Vector3 start = Carry.ThrowStart(body, box, eye, aim);
+            Vector3 start = Carry.ThrowStart(body: body, carried: box, eye: eye, aim: aim);
             Double3 up = WheelFloor.UpAt(Stand), across = Aim(index) - up * Math.Sin(ThrowAngle);
             Double3 place = Stand + up * start.Y + across.Normalized() * start.X;
             return new(place, Aim(index) * ThrowSpeed);
@@ -148,10 +148,10 @@ public static partial class DemoScenes
 
         /// <summary>The play of the person in <paramref name="station"/>, the station's frame, with the boxes of
         /// <paramref name="scene"/>.</summary>
-        public static BoxPlay Play(SceneInstance scene, FrameHandle station) => new(station, Shove(station),
-            ToStand(station),
-            [new(scene[ThrowBoxId(0)], Aim(0)), new(scene[ThrowBoxId(1)], Aim(1))],
-            StationExit.WalkSpeed, ThrowSpeed, PersonBody, Floor, SpinStation.Rate);
+        public static BoxPlay Play(SceneInstance scene, FrameHandle station) => new(station: station, shove: Shove(station),
+            toStand: ToStand(station),
+            throws: [new(scene[ThrowBoxId(0)], Aim(0)), new(scene[ThrowBoxId(1)], Aim(1))],
+            walkSpeed: StationExit.WalkSpeed, throwSpeed: ThrowSpeed, body: PersonBody, floor: Floor, rate: SpinStation.Rate);
 
         /// <summary>The place <paramref name="height"/> above the floor, <paramref name="along"/> meters spinward of the middle of
         /// <see cref="Facet"/> along the floor, at <paramref name="y"/>.</summary>
@@ -169,13 +169,13 @@ public static partial class DemoScenes
         {
             MeshId mesh = resources.CreateMesh(Primitives.Box(new(BoxHalf)));
 
-            CrateSpec Box(Vector4 color) => new(new(BoxHalf), BoxMass, mesh,
-                resources.CreateMaterial(MaterialDesc.Color(color)), NoImpostor: true);
+            CrateSpec Box(Vector4 color) => new(HalfExtents: new(BoxHalf), Mass: BoxMass, Mesh: mesh,
+                Material: resources.CreateMaterial(MaterialDesc.Color(color)), NoImpostor: true);
 
-            CrateSpec stackBox = Box(new(0.72f, 0.55f, 0.32f, 1));
+            CrateSpec stackBox = Box(new(x: 0.72f, y: 0.55f, z: 0.32f, w: 1));
             foreach ((string id, DPose pose) in Stack())
                 scene.Add(id, world.Spawn(stackBox.Spawn(station, pose, Double3.Zero)));
-            Vector4[] colors = [new(0.2f, 0.7f, 0.3f, 1), new(0.95f, 0.5f, 0.1f, 1)];
+            Vector4[] colors = [new(x: 0.2f, y: 0.7f, z: 0.3f, w: 1), new(x: 0.95f, y: 0.5f, z: 0.1f, w: 1)];
             for (int i = 0; i < BoxPlayState.Throws; i++)
             {
                 scene.Add(ThrowBoxId(i), world.Spawn(Box(colors[i]).Spawn(station, ThrowBoxPose(i), Double3.Zero)));
@@ -185,7 +185,7 @@ public static partial class DemoScenes
                 {
                     Frame = station,
                     Pose = new(mark - Floor.Normal(mark) * plate.X, Floor.FacetTurn(Floor.FacetIndex(mark))),
-                    Render = Drawn(resources, Primitives.Box(plate), colors[i], plate.Length()) with
+                    Render = Drawn(resources: resources, mesh: Primitives.Box(plate), color: colors[i], boundingRadius: plate.Length()) with
                     {
                         Flags = RenderFlags.Visible | RenderFlags.NoImpostor
                     }

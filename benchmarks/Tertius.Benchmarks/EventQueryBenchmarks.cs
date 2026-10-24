@@ -55,9 +55,9 @@ public class EventQueryBenchmarks
         {
             events[i] = (i % 4) switch
             {
-                0 or 2 => Event.Create(Owner, Owner, new Damage { Amount = i % 17, Kind = i % 3 }),
-                1 => Event.Create(Owner, Owner, new Heal { Amount = 1 }),
-                _ => Event.Create(Owner, Owner, new Note { Value = i })
+                0 or 2 => Event.Create(target: Owner, sender: Owner, payload: new Damage { Amount = i % 17, Kind = i % 3 }),
+                1 => Event.Create(target: Owner, sender: Owner, payload: new Heal { Amount = 1 }),
+                _ => Event.Create(target: Owner, sender: Owner, payload: new Note { Value = i })
             };
             list.Add(events[i]);
         }

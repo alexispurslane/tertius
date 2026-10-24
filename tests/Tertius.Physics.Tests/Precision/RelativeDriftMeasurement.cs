@@ -21,7 +21,7 @@ public class RelativeDriftMeasurement
         private const double HalfSeparation = 5;
         private const double HalfRelativeSpeed = 0.05;
 
-        private static readonly BodyDesc Box = new(new BoxShapeDesc(new(0.5f)), Mass: 10, Restitution: 0,
+        private static readonly BodyDesc Box = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, Restitution: 0,
             LinearDamping: 0, AngularDamping: 0);
 
         public override string Measurement => "relative-drift";
@@ -31,8 +31,8 @@ public class RelativeDriftMeasurement
 
         public override Entity[] Spawn(World world, FrameHandle space, Double3 start, Double3 common) =>
         [
-            SpawnBox(world, space, start - Double3.UnitX * HalfSeparation, common - Double3.UnitX * HalfRelativeSpeed),
-            SpawnBox(world, space, start + Double3.UnitX * HalfSeparation, common + Double3.UnitX * HalfRelativeSpeed)
+            SpawnBox(world: world, space: space, position: start - Double3.UnitX * HalfSeparation, velocity: common - Double3.UnitX * HalfRelativeSpeed),
+            SpawnBox(world: world, space: space, position: start + Double3.UnitX * HalfSeparation, velocity: common + Double3.UnitX * HalfRelativeSpeed)
         ];
 
         private static Entity SpawnBox(World world, FrameHandle space, Double3 position, Double3 velocity) =>

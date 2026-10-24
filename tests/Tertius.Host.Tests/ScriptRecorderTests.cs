@@ -241,7 +241,7 @@ public class ScriptRecorderTests
         using World world = NewJoltWorld();
         SceneInstance scene = Probes(world);
 
-        RunResult result = ScriptRunner.Run(script, world, scene);
+        RunResult result = ScriptRunner.Run(script: script, world: world, scene: scene);
 
         result.Dump("end").Tick.Should().Be(3);
         result.Dump("end").Camera.Should().Be("crew");

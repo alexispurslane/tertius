@@ -21,7 +21,7 @@ public sealed class LaunchTests : IDisposable
         {
             Frame = space,
             LinearVelocity = new(20, 0, 0),
-            Body = new(new SphereShapeDesc(0.5f), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
+            Body = new(Shape: new SphereShapeDesc(0.5f), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
                 InteriorShape: new SphereShapeDesc(0.05f)),
             AsFrame = new(FrameBounds.Sphere(100))
         });
@@ -30,7 +30,7 @@ public sealed class LaunchTests : IDisposable
         {
             Frame = frame,
             Pose = new(new(0, 0, 10), DQuaternion.Identity),
-            Body = new(new BoxShapeDesc(new(0.2f)), Mass: 5, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(0.2f)), Mass: 5, LinearDamping: 0, AngularDamping: 0),
             Components = [new Launchable()]
         });
         world.Tick();
@@ -39,7 +39,7 @@ public sealed class LaunchTests : IDisposable
     public void Dispose() => world.Dispose();
 
     private void Launch(Double3 velocity) =>
-        world.Post(Event.Create(crate, Entity.Null, new Launch { Velocity = velocity }));
+        world.Post(Event.Create(target: crate, sender: Entity.Null, payload: new Launch { Velocity = velocity }));
 
     private void Ticks(int count)
     {

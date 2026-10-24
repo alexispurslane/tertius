@@ -79,9 +79,9 @@ public readonly struct Snapshot
         }
 
         ref readonly BodyCollision collision = ref entities.FrontCollision(entity);
-        facts = new(MotionOf(body, entities.OwnedFrame(entity)), body.Mass, body.Shape.Kind,
-            entities.BodyBoundingRadius(entity),
-            entities.BodyCenterOfMass(entity), collision.Groups, collision.Mask, body.IsSensor);
+        facts = new(Motion: MotionOf(body, entities.OwnedFrame(entity)), Mass: body.Mass, ShapeKind: body.Shape.Kind,
+            BoundingRadius: entities.BodyBoundingRadius(entity),
+            CenterOfMass: entities.BodyCenterOfMass(entity), CollisionGroups: collision.Groups, CollisionMask: collision.Mask, IsSensor: body.IsSensor);
         return true;
     }
 
@@ -123,7 +123,7 @@ public readonly struct Snapshot
             return false;
         }
 
-        pose = FrameReads.PoseIn(World.Frames, entity, World.Entities.FrontRow(entity), frame);
+        pose = FrameReads.PoseIn(frames: World.Frames, entity: entity, row: World.Entities.FrontRow(entity), to: frame);
         return true;
     }
 
@@ -139,7 +139,7 @@ public readonly struct Snapshot
             return false;
         }
 
-        velocity = FrameReads.VelocityIn(World.Frames, entity, World.Entities.FrontRow(entity), frame);
+        velocity = FrameReads.VelocityIn(frames: World.Frames, entity: entity, row: World.Entities.FrontRow(entity), to: frame);
         return true;
     }
 
@@ -154,7 +154,7 @@ public readonly struct Snapshot
             return false;
         }
 
-        angularVelocity = FrameReads.AngularVelocityIn(World.Frames, entity, World.Entities.FrontRow(entity), frame);
+        angularVelocity = FrameReads.AngularVelocityIn(frames: World.Frames, entity: entity, row: World.Entities.FrontRow(entity), to: frame);
         return true;
     }
 
@@ -166,5 +166,5 @@ public readonly struct Snapshot
     /// grid only narrows the search.
     /// </summary>
     public void QueryRadius(FrameHandle frame, Double3 center, double radius, List<Entity> results) =>
-        World.QueryRadius(frame, center, radius, results);
+        World.QueryRadius(frame: frame, center: center, radius: radius, results: results);
 }

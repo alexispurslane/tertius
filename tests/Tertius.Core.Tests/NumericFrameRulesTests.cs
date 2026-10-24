@@ -88,88 +88,88 @@ public class NumericFrameRulesTests
     /// </summary>
     private static NumericMode Free(NumericMode current, double speed, double distance, bool anchored = false,
         bool isFixed = false) =>
-        Mode(current, X(speed), X(distance), anchored, isFixed, thrusts: false, Options);
+        Mode(current: current, velocity: X(speed), center: X(distance), anchored: anchored, isFixed: isFixed, thrusts: false, options: Options);
 
     [Fact]
     public void A_slow_near_group_needs_no_frame() =>
-        Free(NumericMode.None, speed: 999.9, distance: 8_388_607).Should().Be(NumericMode.None);
+        Free(current: NumericMode.None, speed: 999.9, distance: 8_388_607).Should().Be(NumericMode.None);
 
     [Fact]
     public void A_group_of_free_bodies_gets_a_falling_frame_only_at_the_create_speed()
     {
-        Free(NumericMode.None, speed: 999, distance: 0).Should().Be(NumericMode.None);
-        Free(NumericMode.None, speed: 1_000, distance: 0).Should().Be(NumericMode.Falling);
+        Free(current: NumericMode.None, speed: 999, distance: 0).Should().Be(NumericMode.None);
+        Free(current: NumericMode.None, speed: 1_000, distance: 0).Should().Be(NumericMode.Falling);
     }
 
     [Fact]
     public void A_group_at_the_create_distance_gets_a_resting_frame() =>
-        Free(NumericMode.None, speed: 0, distance: 8_388_608).Should().Be(NumericMode.Resting, "2^23 m");
+        Free(current: NumericMode.None, speed: 0, distance: 8_388_608).Should().Be(NumericMode.Resting, "2^23 m");
 
     [Fact]
     public void A_fast_far_group_gets_a_falling_frame() =>
-        Free(NumericMode.None, speed: 1_000, distance: 8_388_608).Should().Be(NumericMode.Falling);
+        Free(current: NumericMode.None, speed: 1_000, distance: 8_388_608).Should().Be(NumericMode.Falling);
 
     [Fact]
     public void An_anchored_group_never_falls() =>
-        Free(NumericMode.None, speed: 5_000, distance: 0, anchored: true).Should().Be(NumericMode.None);
+        Free(current: NumericMode.None, speed: 5_000, distance: 0, anchored: true).Should().Be(NumericMode.None);
 
     [Fact]
     public void A_far_anchored_group_gets_a_resting_frame() =>
-        Free(NumericMode.None, speed: 5_000, distance: 8_388_608, anchored: true).Should().Be(NumericMode.Resting);
+        Free(current: NumericMode.None, speed: 5_000, distance: 8_388_608, anchored: true).Should().Be(NumericMode.Resting);
 
     [Fact]
     public void A_fixed_group_never_gets_a_frame() =>
-        Free(NumericMode.None, speed: 5_000, distance: 1e9, isFixed: true).Should().Be(NumericMode.None);
+        Free(current: NumericMode.None, speed: 5_000, distance: 1e9, isFixed: true).Should().Be(NumericMode.None);
 
     [Fact]
     public void A_fixed_group_leaves_its_falling_frame() =>
-        Free(NumericMode.Falling, speed: 5_000, distance: 1e9, isFixed: true).Should().Be(NumericMode.None);
+        Free(current: NumericMode.Falling, speed: 5_000, distance: 1e9, isFixed: true).Should().Be(NumericMode.None);
 
     [Fact]
     public void A_falling_frame_keeps_falling_down_to_the_leave_speed() =>
-        Free(NumericMode.Falling, speed: 400, distance: 0).Should().Be(NumericMode.Falling);
+        Free(current: NumericMode.Falling, speed: 400, distance: 0).Should().Be(NumericMode.Falling);
 
     [Fact]
     public void A_falling_frame_below_the_leave_speed_comes_to_rest_when_it_is_far() =>
-        Free(NumericMode.Falling, speed: 399.99, distance: 4_194_304).Should().Be(NumericMode.Resting, "2^22 m");
+        Free(current: NumericMode.Falling, speed: 399.99, distance: 4_194_304).Should().Be(NumericMode.Resting, "2^22 m");
 
     [Fact]
     public void A_falling_frame_below_the_leave_speed_and_near_goes_back_to_the_semantic_frame() =>
-        Free(NumericMode.Falling, speed: 399.99, distance: 4_194_303.99).Should().Be(NumericMode.None);
+        Free(current: NumericMode.Falling, speed: 399.99, distance: 4_194_303.99).Should().Be(NumericMode.None);
 
     [Fact]
     public void An_anchored_falling_frame_comes_to_rest_when_it_is_far() =>
-        Free(NumericMode.Falling, speed: 5_000, distance: 5e6, anchored: true).Should().Be(NumericMode.Resting);
+        Free(current: NumericMode.Falling, speed: 5_000, distance: 5e6, anchored: true).Should().Be(NumericMode.Resting);
 
     [Fact]
     public void A_resting_frame_stays_down_to_the_leave_distance() =>
-        Free(NumericMode.Resting, speed: 0, distance: 4_194_304).Should().Be(NumericMode.Resting);
+        Free(current: NumericMode.Resting, speed: 0, distance: 4_194_304).Should().Be(NumericMode.Resting);
 
     [Fact]
     public void A_resting_frame_nearer_than_the_leave_distance_goes_back_to_the_semantic_frame() =>
-        Free(NumericMode.Resting, speed: 0, distance: 4_194_303.99).Should().Be(NumericMode.None);
+        Free(current: NumericMode.Resting, speed: 0, distance: 4_194_303.99).Should().Be(NumericMode.None);
 
     [Fact]
     public void A_resting_frame_starts_to_fall_only_at_the_create_speed()
     {
-        Free(NumericMode.Resting, speed: 999.99, distance: 5e6).Should().Be(NumericMode.Resting);
-        Free(NumericMode.Resting, speed: 1_000, distance: 5e6).Should().Be(NumericMode.Falling);
+        Free(current: NumericMode.Resting, speed: 999.99, distance: 5e6).Should().Be(NumericMode.Resting);
+        Free(current: NumericMode.Resting, speed: 1_000, distance: 5e6).Should().Be(NumericMode.Falling);
     }
 
     [Fact]
     public void A_body_alone_uses_the_create_thresholds_with_its_own_motion()
     {
-        BodyMode(Body(0, vx: 1_000), Options).Should().Be(NumericMode.Falling);
-        BodyMode(Body(8_388_608) with { Static = true }, Options).Should().Be(NumericMode.Resting);
-        BodyMode(Body(8_388_608, vx: 1_000) with { Fixed = true }, Options).Should().Be(NumericMode.None);
-        BodyMode(Body(8_388_607, vx: 999), Options).Should().Be(NumericMode.None);
+        BodyMode(Body(x: 0, vx: 1_000), Options).Should().Be(NumericMode.Falling);
+        BodyMode(Body(x: 8_388_608) with { Static = true }, Options).Should().Be(NumericMode.Resting);
+        BodyMode(Body(x: 8_388_608, vx: 1_000) with { Fixed = true }, Options).Should().Be(NumericMode.None);
+        BodyMode(Body(x: 8_388_607, vx: 999), Options).Should().Be(NumericMode.None);
     }
 
     // ---- The thrust pair ------------------------------------------------------------------------------------------
 
     /// <summary>The mode of a group with a body that thrusts, as <see cref="Free"/> gives it for a group of free bodies only.</summary>
     private static NumericMode Thrusting(NumericMode current, double speed, double distance) =>
-        Mode(current, X(speed), X(distance), anchored: false, isFixed: false, thrusts: true, Options);
+        Mode(current: current, velocity: X(speed), center: X(distance), anchored: false, isFixed: false, thrusts: true, options: Options);
 
     [Fact]
     public void A_group_with_a_body_that_thrusts_gets_a_falling_frame_at_the_thrust_create_speed()
@@ -190,7 +190,7 @@ public class NumericFrameRulesTests
     {
         Thrusting(NumericMode.Falling, speed: 60, distance: 0).Should()
             .Be(NumericMode.Falling, "while a member counts as thrusting");
-        Free(NumericMode.Falling, speed: 60, distance: 0).Should().Be(NumericMode.None,
+        Free(current: NumericMode.Falling, speed: 60, distance: 0).Should().Be(NumericMode.None,
             "60 m/s is below the leave speed of free bodies, 400 m/s");
     }
 
@@ -198,31 +198,31 @@ public class NumericFrameRulesTests
     public void A_group_of_a_free_body_and_a_body_that_thrusts_uses_the_thrust_pair()
     {
         // Neither body reaches the create speed of its own pair, 1,000 m/s for the free body and 50 m/s for the other.
-        NumericGroup group = Summary(Body(0, vx: 60), Body(1, vx: 40) with { Thrusts = true });
+        NumericGroup group = Summary(Body(x: 0, vx: 60), Body(x: 1, vx: 40) with { Thrusts = true });
         group.Thrusts.Should().BeTrue();
         GroupMode(NumericMode.None, group, Options).Should().Be(NumericMode.Falling, "the common speed is 50 m/s");
     }
 
     [Fact]
     public void An_anchor_never_makes_its_group_thrust() =>
-        Summary(Body(0, vx: 30), Body(1) with { Static = true, Thrusts = true },
-                Body(2) with { Fixed = true, Thrusts = true })
+        Summary(Body(x: 0, vx: 30), Body(x: 1) with { Static = true, Thrusts = true },
+                Body(x: 2) with { Fixed = true, Thrusts = true })
             .Thrusts.Should().BeFalse();
 
     [Fact]
     public void A_body_alone_uses_the_thrust_pair_when_it_thrusts()
     {
-        BodyMode(Body(0, vx: 50) with { Thrusts = true }, Options).Should().Be(NumericMode.Falling);
-        BodyMode(Body(0, vx: 50), Options).Should().Be(NumericMode.None);
+        BodyMode(Body(x: 0, vx: 50) with { Thrusts = true }, Options).Should().Be(NumericMode.Falling);
+        BodyMode(Body(x: 0, vx: 50), Options).Should().Be(NumericMode.None);
     }
 
     [Fact]
     public void A_Kepler_hull_never_thrusts()
     {
-        NumericBody hull = KeplerHull(0, vx: 60) with { Thrusts = true };
+        NumericBody hull = KeplerHull(x: 0, vx: 60) with { Thrusts = true };
         BodyMode(hull, Options).Should().Be(NumericMode.None, "60 m/s is below the create speed of free bodies");
         FollowsInFrame(hull, Options).Should().BeFalse();
-        FollowsInFrame(KeplerHull(0, vx: 60, Orbit, NumericMode.Following) with { Thrusts = true }, Options)
+        FollowsInFrame(KeplerHull(x: 0, vx: 60, home: Orbit, homeMode: NumericMode.Following) with { Thrusts = true }, Options)
             .Should().BeFalse("60 m/s is below the leave speed of free bodies");
     }
 
@@ -237,7 +237,7 @@ public class NumericFrameRulesTests
         (bool Thrusts, double ThrustTime, double QuietTime) clock = (false, 0, 0);
         foreach (double acceleration in accelerations)
         {
-            clock = ThrustClock(acceleration, clock.ThrustTime, clock.QuietTime, dt, Options);
+            clock = ThrustClock(acceleration: acceleration, thrustTime: clock.ThrustTime, quietTime: clock.QuietTime, dt: dt, options: Options);
             after.Add(clock);
         }
 
@@ -311,32 +311,32 @@ public class NumericFrameRulesTests
     // ---- MayTouch ------------------------------------------------------------------------------------------------
 
     /// <summary>The merge test of two bodies, with the separation that their positions in the semantic frame give.</summary>
-    private static bool Touch(in NumericBody a, in NumericBody b) => MayTouch(a, b, b.Position - a.Position, Options);
+    private static bool Touch(in NumericBody a, in NumericBody b) => MayTouch(a: a, b: b, separation: b.Position - a.Position, options: Options);
 
     [Fact]
     public void Two_still_bodies_whose_spheres_touch_may_touch() =>
-        Touch(Body(0, radius: 1), Body(3, radius: 2, home: Pod)).Should().BeTrue();
+        Touch(Body(x: 0, radius: 1), Body(x: 3, radius: 2, home: Pod)).Should().BeTrue();
 
     [Fact]
     public void Two_still_bodies_just_apart_may_not_touch() =>
-        Touch(Body(0, radius: 1), Body(3.001, radius: 2, home: Pod)).Should().BeFalse();
+        Touch(Body(x: 0, radius: 1), Body(x: 3.001, radius: 2, home: Pod)).Should().BeFalse();
 
     [Fact]
     public void The_relative_speed_times_the_lookahead_grows_the_reach()
     {
         // 10 m apart with radii 1 m: the reach is 2 m plus the relative speed times 2 s.
-        Touch(Body(0, vx: 4), Body(10, home: Pod)).Should().BeTrue();
-        Touch(Body(0, vx: 3.9), Body(10, home: Pod)).Should().BeFalse();
+        Touch(Body(x: 0, vx: 4), Body(x: 10, home: Pod)).Should().BeTrue();
+        Touch(Body(x: 0, vx: 3.9), Body(x: 10, home: Pod)).Should().BeFalse();
     }
 
     [Fact]
     public void A_common_velocity_does_not_grow_the_reach() =>
-        Touch(Body(0, vx: 7_700), Body(3, vx: 7_700, home: Pod)).Should().BeFalse();
+        Touch(Body(x: 0, vx: 7_700), Body(x: 3, vx: 7_700, home: Pod)).Should().BeFalse();
 
     [Fact]
     public void The_merge_test_is_symmetric()
     {
-        NumericBody a = Body(0, vx: 4), b = Body(9.99) with { Velocity = new(0, 1, 0) };
+        NumericBody a = Body(x: 0, vx: 4), b = Body(x: 9.99) with { Velocity = new(0, 1, 0) };
         Touch(a, b).Should().Be(Touch(b, a));
     }
 
@@ -344,33 +344,33 @@ public class NumericFrameRulesTests
     public void The_merge_test_measures_the_separation_that_it_is_given_not_the_positions_in_the_semantic_frame()
     {
         // Far from the semantic frame's origin, the positions round; the caller gives the separation in the homes.
-        NumericBody a = Body(1e16), b = Body(1e16, home: Pod);
-        MayTouch(a, b, X(3), Options).Should().BeFalse();
-        MayTouch(a, b, X(2), Options).Should().BeTrue();
+        NumericBody a = Body(x: 1e16), b = Body(x: 1e16, home: Pod);
+        MayTouch(a: a, b: b, separation: X(3), options: Options).Should().BeFalse();
+        MayTouch(a: a, b: b, separation: X(2), options: Options).Should().BeTrue();
     }
 
     [Fact]
     public void Members_of_one_numeric_frame_stay_linked_up_to_the_split_margin()
     {
-        Touch(Body(0, home: Pod), Body(12, home: Pod)).Should().BeTrue();
-        Touch(Body(0, home: Pod), Body(12.001, home: Pod)).Should().BeFalse();
+        Touch(Body(x: 0, home: Pod), Body(x: 12, home: Pod)).Should().BeTrue();
+        Touch(Body(x: 0, home: Pod), Body(x: 12.001, home: Pod)).Should().BeFalse();
     }
 
     [Fact]
     public void Bodies_in_the_system_of_the_semantic_frame_stay_linked_up_to_the_split_margin()
     {
         // A body that leaves a group with a fixed hull into the semantic frame's system does not go in and out at the edge.
-        Touch(Body(0), Body(12)).Should().BeTrue();
-        Touch(Body(0), Body(12.001)).Should().BeFalse();
+        Touch(Body(x: 0), Body(x: 12)).Should().BeTrue();
+        Touch(Body(x: 0), Body(x: 12.001)).Should().BeFalse();
     }
 
     [Fact]
     public void Bodies_of_two_numeric_frames_get_no_split_margin() =>
-        Touch(Body(0, home: Pod), Body(5, home: Raft)).Should().BeFalse();
+        Touch(Body(x: 0, home: Pod), Body(x: 5, home: Raft)).Should().BeFalse();
 
     [Fact]
     public void A_body_of_a_numeric_frame_and_one_of_the_semantic_frame_get_no_split_margin() =>
-        Touch(Body(0, home: Pod), Body(5)).Should().BeFalse();
+        Touch(Body(x: 0, home: Pod), Body(x: 5)).Should().BeFalse();
 
     // ---- Places of ghosts ----------------------------------------------------------------------------------------
 
@@ -378,42 +378,42 @@ public class NumericFrameRulesTests
     public void A_body_whose_sphere_comes_nearer_than_the_split_margin_to_its_bubbles_edge_can_stick_out()
     {
         // 29 m from the origin of a bubble of 40 m, the body's radius of 1 m ends 10 m inside it, the split margin.
-        MayStickOut(FrameBounds.Sphere(40), Body(29.001), Options).Should().BeTrue();
-        MayStickOut(FrameBounds.Sphere(40), Body(29), Options).Should().BeFalse();
+        MayStickOut(FrameBounds.Sphere(40), Body(x: 29.001), Options).Should().BeTrue();
+        MayStickOut(FrameBounds.Sphere(40), Body(x: 29), Options).Should().BeFalse();
     }
 
     [Fact]
     public void A_resting_body_near_the_edge_of_its_bubble_can_stick_out_whether_it_sleeps_or_not()
     {
         // The review's scene: the crate's sphere ends 1 mm inside the bubble. Awake, it moves at about 1 mm/s.
-        MayStickOut(FrameBounds.Sphere(40), Body(38.999), Options).Should().BeTrue();
-        MayStickOut(FrameBounds.Sphere(40), Body(38.999, vx: 1e-3), Options).Should().BeTrue();
+        MayStickOut(FrameBounds.Sphere(40), Body(x: 38.999), Options).Should().BeTrue();
+        MayStickOut(FrameBounds.Sphere(40), Body(x: 38.999, vx: 1e-3), Options).Should().BeTrue();
         // Just beyond the split margin, the body gives no place whether it sleeps or not. A margin added to the motion would
         // give it one while it is awake.
-        MayStickOut(FrameBounds.Sphere(40), Body(28.999), Options).Should().BeFalse();
-        MayStickOut(FrameBounds.Sphere(40), Body(28.999, vx: 1e-3), Options).Should().BeFalse();
+        MayStickOut(FrameBounds.Sphere(40), Body(x: 28.999), Options).Should().BeFalse();
+        MayStickOut(FrameBounds.Sphere(40), Body(x: 28.999, vx: 1e-3), Options).Should().BeFalse();
     }
 
     [Fact]
     public void A_body_faster_than_the_split_margin_over_the_lookahead_can_stick_out_by_its_speed_times_the_lookahead()
     {
         // 20 m inside the bubble: the body reaches its radius plus its speed times 2 s, and it must pass the bubble.
-        MayStickOut(FrameBounds.Sphere(40), Body(20, vx: 9.6), Options).Should().BeTrue();
-        MayStickOut(FrameBounds.Sphere(40), Body(20, vx: 9.4), Options).Should().BeFalse();
-        MayStickOut(FrameBounds.Sphere(40), Body(20) with { Velocity = new(0, -9.6, 0) }, Options).Should().BeTrue(
+        MayStickOut(FrameBounds.Sphere(40), Body(x: 20, vx: 9.6), Options).Should().BeTrue();
+        MayStickOut(FrameBounds.Sphere(40), Body(x: 20, vx: 9.4), Options).Should().BeFalse();
+        MayStickOut(FrameBounds.Sphere(40), Body(x: 20) with { Velocity = new(0, -9.6, 0) }, Options).Should().BeTrue(
             "the body may move anywhere before the next update");
     }
 
     [Fact]
     public void A_static_body_never_sticks_out() =>
-        MayStickOut(FrameBounds.Sphere(40), Body(45) with { Static = true }, Options).Should().BeFalse();
+        MayStickOut(FrameBounds.Sphere(40), Body(x: 45) with { Static = true }, Options).Should().BeFalse();
 
     [Fact]
     public void A_body_touches_a_bubble_from_outside_within_its_reach_and_the_split_margin()
     {
-        MayTouchBubble(FrameBounds.Sphere(40), X(51), Double3.Zero, reach: 1, Options).Should().BeTrue();
-        MayTouchBubble(FrameBounds.Sphere(40), X(51.001), Double3.Zero, reach: 1, Options).Should().BeFalse();
-        MayTouchBubble(FrameBounds.Sphere(40), X(51.001), X(1e-3), reach: 1, Options).Should()
+        MayTouchBubble(bubble: FrameBounds.Sphere(40), position: X(51), velocity: Double3.Zero, reach: 1, options: Options).Should().BeTrue();
+        MayTouchBubble(bubble: FrameBounds.Sphere(40), position: X(51.001), velocity: Double3.Zero, reach: 1, options: Options).Should().BeFalse();
+        MayTouchBubble(bubble: FrameBounds.Sphere(40), position: X(51.001), velocity: X(1e-3), reach: 1, options: Options).Should()
             .BeFalse("a slow body moves less than the split margin");
     }
 
@@ -422,8 +422,8 @@ public class NumericFrameRulesTests
         The_speed_relative_to_the_bubbles_frame_times_the_lookahead_grows_the_reach_to_the_bubble_past_the_split_margin()
     {
         // 21 m outside the bubble: the reach of 1 m plus the speed times 2 s.
-        MayTouchBubble(FrameBounds.Sphere(40), X(61), X(10), reach: 1, Options).Should().BeTrue();
-        MayTouchBubble(FrameBounds.Sphere(40), X(61), X(9.9), reach: 1, Options).Should().BeFalse();
+        MayTouchBubble(bubble: FrameBounds.Sphere(40), position: X(61), velocity: X(10), reach: 1, options: Options).Should().BeTrue();
+        MayTouchBubble(bubble: FrameBounds.Sphere(40), position: X(61), velocity: X(9.9), reach: 1, options: Options).Should().BeFalse();
     }
 
     /// <summary>
@@ -433,13 +433,13 @@ public class NumericFrameRulesTests
     private static GhostPlace Place(double vx = 0, FrameHandle home = default, double radius = 1,
         bool ofStaticBody = false, bool sensor = false,
         bool meetsHulls = false) =>
-        new(home.IsNull ? Ground : home, Double3.Zero, X(vx), radius, Target: -1, ofStaticBody, sensor, meetsHulls);
+        new(Home: home.IsNull ? Ground : home, HomePosition: Double3.Zero, Velocity: X(vx), Radius: radius, Target: -1, OfStaticBody: ofStaticBody, Sensor: sensor, MeetsHulls: meetsHulls);
 
     [Fact]
     public void A_dynamic_body_and_a_character_meet_a_ghost()
     {
-        MeetsGhost(Body(0), Place()).Should().BeTrue();
-        MeetsGhost(Body(0) with { Character = true }, Place()).Should().BeTrue();
+        MeetsGhost(Body(x: 0), Place()).Should().BeTrue();
+        MeetsGhost(Body(x: 0) with { Character = true }, Place()).Should().BeTrue();
     }
 
     [Fact]
@@ -447,10 +447,10 @@ public class NumericFrameRulesTests
     {
         // A ghost is kinematic, and Jolt makes no contact between a kinematic body and a static or kinematic one unless one
         // of them is a sensor.
-        MeetsGhost(Body(0) with { Static = true }, Place()).Should().BeFalse();
-        MeetsGhost(Body(0) with { Kinematic = true }, Place()).Should().BeFalse();
-        MeetsGhost(Body(0) with { Static = true, Sensor = true }, Place()).Should().BeTrue();
-        MeetsGhost(Body(0) with { Kinematic = true, Sensor = true }, Place()).Should().BeTrue();
+        MeetsGhost(Body(x: 0) with { Static = true }, Place()).Should().BeFalse();
+        MeetsGhost(Body(x: 0) with { Kinematic = true }, Place()).Should().BeFalse();
+        MeetsGhost(Body(x: 0) with { Static = true, Sensor = true }, Place()).Should().BeTrue();
+        MeetsGhost(Body(x: 0) with { Kinematic = true, Sensor = true }, Place()).Should().BeTrue();
     }
 
     [Fact]
@@ -458,9 +458,9 @@ public class NumericFrameRulesTests
     {
         // A stick-out ghost has the ghost role, and the mask of a hull names only the static and hull roles.
         FrameHandle ship = new(new(20, 1), 3, 1);
-        MeetsGhost(Body(0) with { OwnedFrame = ship }, Place()).Should().BeFalse();
-        MeetsGhost(Body(0) with { OwnedFrame = ship, Character = true }, Place()).Should().BeFalse();
-        MeetsGhost(Body(0) with { OwnedFrame = ship, Kinematic = true, Fixed = true }, Place(sensor: true)).Should()
+        MeetsGhost(Body(x: 0) with { OwnedFrame = ship }, Place()).Should().BeFalse();
+        MeetsGhost(Body(x: 0) with { OwnedFrame = ship, Character = true }, Place()).Should().BeFalse();
+        MeetsGhost(Body(x: 0) with { OwnedFrame = ship, Kinematic = true, Fixed = true }, Place(sensor: true)).Should()
             .BeFalse();
     }
 
@@ -470,12 +470,12 @@ public class NumericFrameRulesTests
         // A child ghost of a static body or a hull has the static role, which the mask of a hull names (fork F1). Jolt then
         // makes the contact when the hull is dynamic, or when it is kinematic and the ghost is a sensor's.
         FrameHandle ship = new(new(20, 1), 3, 1);
-        MeetsGhost(Body(0) with { OwnedFrame = ship }, Place(ofStaticBody: true, meetsHulls: true)).Should().BeTrue();
-        MeetsGhost(Body(0) with { OwnedFrame = ship, Kinematic = true, Fixed = true },
+        MeetsGhost(Body(x: 0) with { OwnedFrame = ship }, Place(ofStaticBody: true, meetsHulls: true)).Should().BeTrue();
+        MeetsGhost(Body(x: 0) with { OwnedFrame = ship, Kinematic = true, Fixed = true },
             Place(ofStaticBody: true, meetsHulls: true)).Should().BeFalse();
-        MeetsGhost(Body(0) with { OwnedFrame = ship, Static = true, Fixed = true }, Place(meetsHulls: true)).Should()
+        MeetsGhost(Body(x: 0) with { OwnedFrame = ship, Static = true, Fixed = true }, Place(meetsHulls: true)).Should()
             .BeFalse();
-        MeetsGhost(Body(0) with { OwnedFrame = ship, Kinematic = true, Fixed = true },
+        MeetsGhost(Body(x: 0) with { OwnedFrame = ship, Kinematic = true, Fixed = true },
             Place(ofStaticBody: true, sensor: true, meetsHulls: true)).Should().BeTrue();
     }
 
@@ -483,37 +483,37 @@ public class NumericFrameRulesTests
     public void The_ghost_of_a_static_body_meets_only_what_the_static_body_meets()
     {
         // Physics lets such a ghost meet a dynamic body, and a kinematic one when the static body is a sensor.
-        MeetsGhost(Body(0), Place(ofStaticBody: true)).Should().BeTrue();
-        MeetsGhost(Body(0) with { Static = true, Sensor = true }, Place(ofStaticBody: true)).Should().BeFalse();
-        MeetsGhost(Body(0) with { Kinematic = true, Sensor = true }, Place(ofStaticBody: true)).Should().BeFalse();
-        MeetsGhost(Body(0) with { Kinematic = true }, Place(ofStaticBody: true, sensor: true)).Should().BeTrue();
+        MeetsGhost(Body(x: 0), Place(ofStaticBody: true)).Should().BeTrue();
+        MeetsGhost(Body(x: 0) with { Static = true, Sensor = true }, Place(ofStaticBody: true)).Should().BeFalse();
+        MeetsGhost(Body(x: 0) with { Kinematic = true, Sensor = true }, Place(ofStaticBody: true)).Should().BeFalse();
+        MeetsGhost(Body(x: 0) with { Kinematic = true }, Place(ofStaticBody: true, sensor: true)).Should().BeTrue();
     }
 
     [Fact]
     public void The_ghost_of_a_sensor_meets_a_kinematic_body_but_no_static_one()
     {
         // Jolt makes a contact between a kinematic body and a sensor.
-        MeetsGhost(Body(0) with { Kinematic = true }, Place(sensor: true)).Should().BeTrue();
-        MeetsGhost(Body(0) with { Static = true }, Place(sensor: true)).Should().BeFalse();
+        MeetsGhost(Body(x: 0) with { Kinematic = true }, Place(sensor: true)).Should().BeTrue();
+        MeetsGhost(Body(x: 0) with { Static = true }, Place(sensor: true)).Should().BeFalse();
     }
 
     [Fact]
     public void A_body_may_touch_the_place_of_a_ghost_by_the_merge_test_of_two_bodies()
     {
         // 10 m apart with radii 1 m and 2 m in two systems: the reach is 3 m plus the relative speed times 2 s.
-        MayTouch(Body(0, home: Pod), Place(radius: 2), X(3), Options).Should().BeTrue();
-        MayTouch(Body(0, home: Pod), Place(radius: 2), X(3.001), Options).Should().BeFalse();
-        MayTouch(Body(0, vx: 4, home: Pod), Place(radius: 2), X(11), Options).Should().BeTrue();
-        MayTouch(Body(0, vx: 4, home: Pod), Place(vx: 4, radius: 2), X(11), Options).Should()
+        MayTouch(body: Body(x: 0, home: Pod), place: Place(radius: 2), separation: X(3), options: Options).Should().BeTrue();
+        MayTouch(body: Body(x: 0, home: Pod), place: Place(radius: 2), separation: X(3.001), options: Options).Should().BeFalse();
+        MayTouch(body: Body(x: 0, vx: 4, home: Pod), place: Place(radius: 2), separation: X(11), options: Options).Should().BeTrue();
+        MayTouch(body: Body(x: 0, vx: 4, home: Pod), place: Place(vx: 4, radius: 2), separation: X(11), options: Options).Should()
             .BeFalse("a common velocity does not grow the reach");
     }
 
     [Fact]
     public void A_body_in_the_system_of_a_ghost_stays_linked_to_its_place_up_to_the_split_margin()
     {
-        MayTouch(Body(0, home: Pod), Place(home: Pod), X(12), Options).Should().BeTrue();
-        MayTouch(Body(0, home: Pod), Place(home: Pod), X(12.001), Options).Should().BeFalse();
-        MayTouch(Body(0, home: Pod), Place(home: Raft), X(5), Options).Should()
+        MayTouch(body: Body(x: 0, home: Pod), place: Place(home: Pod), separation: X(12), options: Options).Should().BeTrue();
+        MayTouch(body: Body(x: 0, home: Pod), place: Place(home: Pod), separation: X(12.001), options: Options).Should().BeFalse();
+        MayTouch(body: Body(x: 0, home: Pod), place: Place(home: Raft), separation: X(5), options: Options).Should()
             .BeFalse("a ghost in another system gets no split margin");
     }
 
@@ -521,66 +521,66 @@ public class NumericFrameRulesTests
 
     [Fact]
     public void Members_that_are_together_need_no_hold_and_reset_the_clock() =>
-        SplitClock(together: true, apart: 0.5, dt: 0.25, Options).Should().Be((false, 0.0));
+        SplitClock(together: true, apart: 0.5, dt: 0.25, options: Options).Should().Be((false, 0.0));
 
     [Fact]
     public void Members_that_are_apart_are_held_before_the_cooldown() =>
-        SplitClock(together: false, apart: 0, dt: 0.25, Options).Should().Be((true, 0.25));
+        SplitClock(together: false, apart: 0, dt: 0.25, options: Options).Should().Be((true, 0.25));
 
     [Fact]
     public void The_split_clock_adds_up_over_sync_points() =>
-        SplitClock(together: false, apart: 0.5, dt: 0.25, Options).Should().Be((true, 0.75));
+        SplitClock(together: false, apart: 0.5, dt: 0.25, options: Options).Should().Be((true, 0.75));
 
     [Fact]
     public void Members_split_when_the_clock_reaches_the_cooldown_and_the_clock_starts_again() =>
-        SplitClock(together: false, apart: 0.75, dt: 0.25, Options).Should().Be((false, 0.0));
+        SplitClock(together: false, apart: 0.75, dt: 0.25, options: Options).Should().Be((false, 0.0));
 
     [Fact]
     public void A_sync_point_without_time_holds_members_that_are_apart() =>
-        SplitClock(together: false, apart: 0, dt: 0, Options).Should().Be((true, 0.0));
+        SplitClock(together: false, apart: 0, dt: 0, options: Options).Should().Be((true, 0.0));
 
     [Fact]
     public void A_zero_cooldown_splits_at_once() =>
-        SplitClock(together: false, apart: 0, dt: 0, Options with { SplitCooldown = 0 }).Should().Be((false, 0.0));
+        SplitClock(together: false, apart: 0, dt: 0, options: Options with { SplitCooldown = 0 }).Should().Be((false, 0.0));
 
     // ---- LeaveClock ----------------------------------------------------------------------------------------------
 
     [Fact]
     public void A_body_whose_group_stays_in_the_semantic_system_needs_no_hold_and_resets_its_clock() =>
-        LeaveClock(NumericMode.None, FrameHandle.Null, apart: 0.5, dt: 0.25, Options).Should().Be((false, 0.0));
+        LeaveClock(mode: NumericMode.None, frame: FrameHandle.Null, apart: 0.5, dt: 0.25, options: Options).Should().Be((false, 0.0));
 
     [Fact]
     public void A_body_whose_group_would_rest_in_a_new_frame_is_held_before_the_cooldown() =>
-        LeaveClock(NumericMode.Resting, FrameHandle.Null, apart: 0, dt: 0.25, Options).Should().Be((true, 0.25));
+        LeaveClock(mode: NumericMode.Resting, frame: FrameHandle.Null, apart: 0, dt: 0.25, options: Options).Should().Be((true, 0.25));
 
     [Fact]
     public void The_leave_clock_adds_up_over_sync_points() =>
-        LeaveClock(NumericMode.Resting, FrameHandle.Null, apart: 0.5, dt: 0.25, Options).Should().Be((true, 0.75));
+        LeaveClock(mode: NumericMode.Resting, frame: FrameHandle.Null, apart: 0.5, dt: 0.25, options: Options).Should().Be((true, 0.75));
 
     [Fact]
     public void A_body_is_held_just_below_the_cooldown() =>
-        LeaveClock(NumericMode.Resting, FrameHandle.Null, apart: 0.5, dt: 0.4990234375, Options).Should()
+        LeaveClock(mode: NumericMode.Resting, frame: FrameHandle.Null, apart: 0.5, dt: 0.4990234375, options: Options).Should()
             .Be((true, 0.9990234375));
 
     [Fact]
     public void A_body_leaves_when_its_clock_reaches_the_cooldown() =>
-        LeaveClock(NumericMode.Resting, FrameHandle.Null, apart: 0.75, dt: 0.25, Options).Should().Be((false, 1.0));
+        LeaveClock(mode: NumericMode.Resting, frame: FrameHandle.Null, apart: 0.75, dt: 0.25, options: Options).Should().Be((false, 1.0));
 
     [Fact]
     public void A_clock_past_the_cooldown_keeps_counting_so_that_another_member_cannot_restart_it() =>
-        LeaveClock(NumericMode.Resting, FrameHandle.Null, apart: 1.5, dt: 0.25, Options).Should().Be((false, 1.75));
+        LeaveClock(mode: NumericMode.Resting, frame: FrameHandle.Null, apart: 1.5, dt: 0.25, options: Options).Should().Be((false, 1.75));
 
     [Fact]
     public void A_sync_point_without_time_holds_a_body_about_to_leave() =>
-        LeaveClock(NumericMode.Resting, FrameHandle.Null, apart: 0, dt: 0, Options).Should().Be((true, 0.0));
+        LeaveClock(mode: NumericMode.Resting, frame: FrameHandle.Null, apart: 0, dt: 0, options: Options).Should().Be((true, 0.0));
 
     [Fact]
     public void A_body_whose_group_falls_leaves_at_once() =>
-        LeaveClock(NumericMode.Falling, FrameHandle.Null, apart: 0.5, dt: 0.25, Options).Should().Be((false, 0.0));
+        LeaveClock(mode: NumericMode.Falling, frame: FrameHandle.Null, apart: 0.5, dt: 0.25, options: Options).Should().Be((false, 0.0));
 
     [Fact]
     public void A_body_whose_group_joins_a_numeric_frame_merges_at_once() =>
-        LeaveClock(NumericMode.Resting, Pod, apart: 0.5, dt: 0.25, Options).Should().Be((false, 0.0));
+        LeaveClock(mode: NumericMode.Resting, frame: Pod, apart: 0.5, dt: 0.25, options: Options).Should().Be((false, 0.0));
 
     // ---- Summarize -----------------------------------------------------------------------------------------------
 
@@ -588,21 +588,21 @@ public class NumericFrameRulesTests
 
     [Fact]
     public void The_center_of_a_group_without_a_static_body_is_the_mass_weighted_mean_of_every_body() =>
-        Summary(Body(0, mass: 3), Body(8, mass: 1)).Center.Should().Be(X(2));
+        Summary(Body(x: 0, mass: 3), Body(x: 8, mass: 1)).Center.Should().Be(X(2));
 
     [Fact]
     public void A_static_body_is_infinitely_heavy_so_its_group_is_centered_on_the_static_bodies() =>
-        Summary(Body(0, mass: 3), Body(8, mass: 1) with { Static = true }, Body(12, mass: 3) with { Static = true })
+        Summary(Body(x: 0, mass: 3), Body(x: 8, mass: 1) with { Static = true }, Body(x: 12, mass: 3) with { Static = true })
             .Center.Should().Be(X(11));
 
     [Fact]
     public void The_velocity_is_the_mass_weighted_mean_of_the_bodies() =>
-        Summary(Body(0, vx: 100, mass: 3), Body(1, vx: 200, mass: 1)).Velocity.Should().Be(X(125));
+        Summary(Body(x: 0, vx: 100, mass: 3), Body(x: 1, vx: 200, mass: 1)).Velocity.Should().Be(X(125));
 
     [Fact]
     public void A_static_body_anchors_the_group_and_zeroes_its_velocity()
     {
-        NumericGroup group = Summary(Body(0, vx: 100), Body(1) with { Static = true });
+        NumericGroup group = Summary(Body(x: 0, vx: 100), Body(x: 1) with { Static = true });
         group.Anchored.Should().BeTrue();
         group.Velocity.Should().Be(Double3.Zero);
     }
@@ -611,30 +611,30 @@ public class NumericFrameRulesTests
     public void A_kinematic_body_is_infinitely_heavy_so_its_group_takes_its_velocity_and_its_center()
     {
         // A crate of 25 kg at 60 m/s and a still door of 1 kg: the door decides, so the group does not fall.
-        NumericGroup still = Summary(Body(-120, vx: 60, mass: 25), Body(0, mass: 1) with { Kinematic = true });
+        NumericGroup still = Summary(Body(x: -120, vx: 60, mass: 25), Body(x: 0, mass: 1) with { Kinematic = true });
         still.Velocity.Should().Be(Double3.Zero);
         still.Center.Should().Be(X(0));
         still.Anchored.Should().BeFalse("a kinematic body can take a velocity, so its group can fall with it");
-        NumericGroup sliding = Summary(Body(0, vx: 60, mass: 25), Body(2, vx: 30, mass: 1) with { Kinematic = true },
-            Body(6, vx: 90, mass: 3) with { Kinematic = true });
+        NumericGroup sliding = Summary(Body(x: 0, vx: 60, mass: 25), Body(x: 2, vx: 30, mass: 1) with { Kinematic = true },
+            Body(x: 6, vx: 90, mass: 3) with { Kinematic = true });
         sliding.Velocity.Should().Be(X(75), "the mass-weighted mean of the kinematic bodies alone");
         sliding.Center.Should().Be(X(5));
     }
 
     [Fact]
     public void A_static_body_outweighs_a_kinematic_one_so_their_group_does_not_move() =>
-        Summary(Body(0, vx: 60, mass: 25), Body(1, vx: 70, mass: 1) with { Kinematic = true },
-                Body(2) with { Static = true })
+        Summary(Body(x: 0, vx: 60, mass: 25), Body(x: 1, vx: 70, mass: 1) with { Kinematic = true },
+                Body(x: 2) with { Static = true })
             .Should().Match<NumericGroup>(group => group.Velocity == Double3.Zero && group.Center == X(2));
 
     [Fact]
     public void A_fixed_body_fixes_the_whole_group() =>
-        Summary(Body(0, vx: 100), Body(1) with { Fixed = true }).Fixed.Should().BeTrue();
+        Summary(Body(x: 0, vx: 100), Body(x: 1) with { Fixed = true }).Fixed.Should().BeTrue();
 
     [Fact]
     public void A_group_in_its_semantic_frame_has_no_frame()
     {
-        NumericGroup group = Summary(Body(0), Body(1));
+        NumericGroup group = Summary(Body(x: 0), Body(x: 1));
         group.Frame.IsNull.Should().BeTrue();
         group.FrameMass.Should().Be(0);
     }
@@ -642,21 +642,21 @@ public class NumericFrameRulesTests
     [Fact]
     public void The_group_keeps_the_numeric_frame_that_holds_most_of_its_mass()
     {
-        NumericGroup group = Summary(Body(0, mass: 2, home: Pod), Body(1, mass: 2, home: Raft),
-            Body(2, mass: 1, home: Raft), Body(3, mass: 9));
+        NumericGroup group = Summary(Body(x: 0, mass: 2, home: Pod), Body(x: 1, mass: 2, home: Raft),
+            Body(x: 2, mass: 1, home: Raft), Body(x: 3, mass: 9));
         group.Frame.Should().Be(Raft);
         group.FrameMass.Should().Be(3);
     }
 
     [Fact]
     public void On_a_tie_the_group_keeps_the_frame_of_its_first_body() =>
-        Summary(Body(0, mass: 2, home: Raft), Body(1, mass: 2, home: Pod)).Frame.Should().Be(Raft);
+        Summary(Body(x: 0, mass: 2, home: Raft), Body(x: 1, mass: 2, home: Pod)).Frame.Should().Be(Raft);
 
     [Fact]
     public void A_frame_that_holds_a_static_body_of_the_group_outweighs_every_frame_without_one()
     {
-        NumericGroup group = Summary(Body(0, vx: 7_700, mass: 1e9, home: Pod),
-            Body(1, mass: 1, home: Raft) with { Static = true });
+        NumericGroup group = Summary(Body(x: 0, vx: 7_700, mass: 1e9, home: Pod),
+            Body(x: 1, mass: 1, home: Raft) with { Static = true });
         group.Frame.Should().Be(Raft);
         group.FrameMass.Should().Be(double.PositiveInfinity, "only comparisons read the mass of a frame");
         group.Center.Should().Be(X(1));
@@ -667,7 +667,7 @@ public class NumericFrameRulesTests
     public void A_group_whose_static_bodies_lie_in_the_semantic_frames_own_system_keeps_no_numeric_frame()
     {
         // The fast body's falling frame holds most of the group's mass, but the static body lives in the system of ground.
-        NumericGroup group = Summary(Body(0, vx: 60, mass: 5, home: Pod), Body(7_000) with { Static = true });
+        NumericGroup group = Summary(Body(x: 0, vx: 60, mass: 5, home: Pod), Body(x: 7_000) with { Static = true });
         group.Frame.IsNull.Should().BeTrue();
         group.FrameMass.Should().Be(0);
         group.Center.Should().Be(X(7_000));
@@ -675,15 +675,15 @@ public class NumericFrameRulesTests
 
     [Fact]
     public void Between_two_frames_that_hold_static_bodies_of_the_group_the_first_wins_whatever_the_masses() =>
-        Summary(Body(0, mass: 1, home: Pod) with { Static = true }, Body(1, mass: 9, home: Raft) with { Static = true },
-            Body(2, mass: 9, home: Raft)).Frame.Should().Be(Pod);
+        Summary(Body(x: 0, mass: 1, home: Pod) with { Static = true }, Body(x: 1, mass: 9, home: Raft) with { Static = true },
+            Body(x: 2, mass: 9, home: Raft)).Frame.Should().Be(Pod);
 
     // ---- Kepler hulls and their following frames ----------------------------------------------------------------------
 
     /// <summary>The kinematic hull of a frame on a Kepler orbit, at <paramref name="x"/> and flying at <paramref name="vx"/>.</summary>
     private static NumericBody KeplerHull(double x, double vx, FrameHandle home = default,
         NumericMode homeMode = NumericMode.None) =>
-        Body(x, vx, home: home) with
+        Body(x: x, vx: vx, home: home) with
         {
             Kinematic = true, Fixed = true, HomeMode = homeMode, AnchorsHome = homeMode == NumericMode.Following
         };
@@ -695,66 +695,66 @@ public class NumericFrameRulesTests
     [Fact]
     public void A_far_body_lives_in_a_following_frame_of_its_own_because_it_is_kinematic()
     {
-        FollowsInFrame(Body(8_388_608) with { Kinematic = true }, Options).Should()
+        FollowsInFrame(Body(x: 8_388_608) with { Kinematic = true }, Options).Should()
             .BeTrue("only its motion intents move a kinematic body");
-        FollowsInFrame(Body(8_388_608), Options).Should().BeFalse("a dynamic body moves with its group");
+        FollowsInFrame(Body(x: 8_388_608), Options).Should().BeFalse("a dynamic body moves with its group");
     }
 
     [Fact]
     public void A_Kepler_hull_that_its_orbit_moves_fast_or_far_lives_in_a_following_frame_of_its_own()
     {
-        FollowsInFrame(KeplerHull(6.8e6, vx: 7_700), Options).Should().BeTrue("at the create speed or above");
-        FollowsInFrame(KeplerHull(0, vx: 1_000), Options).Should().BeTrue();
-        FollowsInFrame(KeplerHull(8_388_608, vx: 0), Options).Should().BeTrue("at the create distance or beyond");
-        FollowsInFrame(KeplerHull(8_388_607, vx: 999), Options).Should()
+        FollowsInFrame(KeplerHull(x: 6.8e6, vx: 7_700), Options).Should().BeTrue("at the create speed or above");
+        FollowsInFrame(KeplerHull(x: 0, vx: 1_000), Options).Should().BeTrue();
+        FollowsInFrame(KeplerHull(x: 8_388_608, vx: 0), Options).Should().BeTrue("at the create distance or beyond");
+        FollowsInFrame(KeplerHull(x: 8_388_607, vx: 999), Options).Should()
             .BeFalse("a slow, near hull stays in its semantic frame's own system");
     }
 
     [Fact]
     public void A_Kepler_hull_in_its_following_frame_keeps_it_down_to_the_thresholds_to_leave_one()
     {
-        FollowsInFrame(KeplerHull(0, vx: 500, Orbit, NumericMode.Following), Options).Should()
+        FollowsInFrame(KeplerHull(x: 0, vx: 500, home: Orbit, homeMode: NumericMode.Following), Options).Should()
             .BeTrue("above the leave speed");
-        FollowsInFrame(KeplerHull(0, vx: 500), Options).Should()
+        FollowsInFrame(KeplerHull(x: 0, vx: 500), Options).Should()
             .BeFalse("below the create speed, outside a numeric frame");
-        FollowsInFrame(KeplerHull(5e6, vx: 0, Orbit, NumericMode.Following), Options).Should()
+        FollowsInFrame(KeplerHull(x: 5e6, vx: 0, home: Orbit, homeMode: NumericMode.Following), Options).Should()
             .BeTrue("beyond the leave distance");
-        FollowsInFrame(KeplerHull(4_194_303, vx: 399, Orbit, NumericMode.Following), Options).Should().BeFalse();
+        FollowsInFrame(KeplerHull(x: 4_194_303, vx: 399, home: Orbit, homeMode: NumericMode.Following), Options).Should().BeFalse();
     }
 
     [Fact]
     public void Only_a_Kepler_hull_lives_in_a_following_frame()
     {
-        FollowsInFrame(Body(0, vx: 7_700), Options).Should().BeFalse("a fast body falls");
-        FollowsInFrame(Body(0, vx: 7_700) with { Fixed = true }, Options).Should()
+        FollowsInFrame(Body(x: 0, vx: 7_700), Options).Should().BeFalse("a fast body falls");
+        FollowsInFrame(Body(x: 0, vx: 7_700) with { Fixed = true }, Options).Should()
             .BeFalse("the hull of a Spin frame, which turns in place");
     }
 
     [Fact]
     public void A_fast_Kepler_hull_alone_needs_a_following_frame()
     {
-        BodyMode(KeplerHull(0, vx: 7_700), Options).Should().Be(NumericMode.Following);
-        BodyMode(KeplerHull(0, vx: 999), Options).Should().Be(NumericMode.None);
+        BodyMode(KeplerHull(x: 0, vx: 7_700), Options).Should().Be(NumericMode.Following);
+        BodyMode(KeplerHull(x: 0, vx: 999), Options).Should().Be(NumericMode.None);
     }
 
     [Fact]
     public void An_following_frame_whose_group_no_longer_orbits_leaves_with_the_hysteresis_of_a_falling_frame()
     {
-        Free(NumericMode.Following, speed: 500, distance: 0)
+        Free(current: NumericMode.Following, speed: 500, distance: 0)
             .Should().Be(NumericMode.Falling,
                 "a group above the leave speed keeps falling, as it would in a falling frame");
-        Free(NumericMode.Following, speed: 0, distance: 5e6)
+        Free(current: NumericMode.Following, speed: 0, distance: 5e6)
             .Should().Be(NumericMode.Resting,
                 "a slow group beyond the leave distance rests, as it would in a falling frame");
-        Free(NumericMode.Following, speed: 399, distance: 4_194_303)
+        Free(current: NumericMode.Following, speed: 399, distance: 4_194_303)
             .Should().Be(NumericMode.None, "below both leave thresholds the frame goes");
     }
 
     [Fact]
     public void A_group_with_a_fast_Kepler_hull_and_no_anchor_at_rest_takes_the_hulls_following_frame()
     {
-        NumericGroup group = Summary(Body(0, vx: 7_701, home: Pod),
-            KeplerHull(5, vx: 7_700, Orbit, NumericMode.Following));
+        NumericGroup group = Summary(Body(x: 0, vx: 7_701, home: Pod),
+            KeplerHull(x: 5, vx: 7_700, home: Orbit, homeMode: NumericMode.Following));
         group.Follows.Should().BeTrue();
         group.Anchor.Should().Be(1);
         group.Frame.Should().Be(Orbit);
@@ -766,7 +766,7 @@ public class NumericFrameRulesTests
     [Fact]
     public void A_group_whose_Kepler_hull_has_no_following_frame_yet_takes_a_new_one()
     {
-        NumericGroup group = Summary(KeplerHull(0, vx: 7_700));
+        NumericGroup group = Summary(KeplerHull(x: 0, vx: 7_700));
         group.Follows.Should().BeTrue();
         group.Frame.IsNull.Should().BeTrue("the update makes the frame for the hull");
     }
@@ -774,8 +774,8 @@ public class NumericFrameRulesTests
     [Fact]
     public void Among_Kepler_hulls_with_following_frames_the_first_one_gives_the_group_its_home()
     {
-        NumericGroup group = Summary(Body(0, vx: 7_700), KeplerHull(1, vx: 7_700, Raft, NumericMode.Following),
-            KeplerHull(2, vx: 7_700, Orbit, NumericMode.Following));
+        NumericGroup group = Summary(Body(x: 0, vx: 7_700), KeplerHull(x: 1, vx: 7_700, home: Raft, homeMode: NumericMode.Following),
+            KeplerHull(x: 2, vx: 7_700, home: Orbit, homeMode: NumericMode.Following));
         group.Anchor.Should().Be(1);
         group.Frame.Should().Be(Raft);
     }
@@ -783,8 +783,8 @@ public class NumericFrameRulesTests
     [Fact]
     public void An_anchor_at_rest_wins_over_the_following_frame_of_a_Kepler_hull()
     {
-        NumericGroup group = Summary(KeplerHull(0, vx: 7_700, Orbit, NumericMode.Following), Body(4, vx: 7_700),
-            Body(6, home: Raft) with { Static = true });
+        NumericGroup group = Summary(KeplerHull(x: 0, vx: 7_700, home: Orbit, homeMode: NumericMode.Following), Body(x: 4, vx: 7_700),
+            Body(x: 6, home: Raft) with { Static = true });
         group.Follows.Should().BeFalse();
         group.Anchor.Should().Be(0, "the hull keeps its own frame, and the group's home keeps a ghost of it");
         group.Anchored.Should().BeTrue();
@@ -796,9 +796,9 @@ public class NumericFrameRulesTests
     [Fact]
     public void The_hull_of_a_Static_or_Spin_frame_and_a_slow_Kepler_hull_win_over_a_following_frame()
     {
-        Summary(KeplerHull(0, vx: 7_700, Orbit, NumericMode.Following), Body(1) with { Fixed = true }).Fixed.Should()
+        Summary(KeplerHull(x: 0, vx: 7_700, home: Orbit, homeMode: NumericMode.Following), Body(x: 1) with { Fixed = true }).Fixed.Should()
             .BeTrue();
-        NumericGroup group = Summary(KeplerHull(0, vx: 7_700, Orbit, NumericMode.Following), KeplerHull(1, vx: 10));
+        NumericGroup group = Summary(KeplerHull(x: 0, vx: 7_700, home: Orbit, homeMode: NumericMode.Following), KeplerHull(x: 1, vx: 10));
         group.Fixed.Should().BeTrue("a slow, near Kepler hull stays in the semantic frame's own system");
         group.Follows.Should().BeFalse();
         GroupMode(NumericMode.None, group, Options).Should().Be(NumericMode.None);
@@ -808,8 +808,8 @@ public class NumericFrameRulesTests
     public void Bodies_in_a_following_frame_without_its_hull_do_not_keep_it()
     {
         // The hull's group keeps its frame by itself, so a group that the hull left must find a frame of its own.
-        NumericGroup group = Summary(Body(0, vx: 7_700, mass: 5, home: Orbit) with { HomeMode = NumericMode.Following },
-            Body(1, vx: 7_700, home: Pod) with { HomeMode = NumericMode.Falling });
+        NumericGroup group = Summary(Body(x: 0, vx: 7_700, mass: 5, home: Orbit) with { HomeMode = NumericMode.Following },
+            Body(x: 1, vx: 7_700, home: Pod) with { HomeMode = NumericMode.Falling });
         group.Follows.Should().BeFalse();
         group.Frame.Should().Be(Pod);
         group.FrameMass.Should().Be(1);
@@ -819,32 +819,32 @@ public class NumericFrameRulesTests
     public void A_sleeping_member_counts_with_zero_local_velocity_and_holds_the_drain_back()
     {
         // The sleeper moves with the frame. The mover's 4 m/s, a quarter of the mass, is a common part of exactly 1 m/s.
-        NumericBody sleeper = Body(0, vx: OrbitSpeed.X, mass: 3, home: Pod),
-            mover = Body(1, vx: OrbitSpeed.X + 4, mass: 1, home: Pod);
+        NumericBody sleeper = Body(x: 0, vx: OrbitSpeed.X, mass: 3, home: Pod),
+            mover = Body(x: 1, vx: OrbitSpeed.X + 4, mass: 1, home: Pod);
         Double3 common = Summary(sleeper, mover).Velocity;
-        DrainVelocity(NumericMode.Falling, NumericMode.Falling, OrbitSpeed, common, Options).Should().Be(OrbitSpeed);
+        DrainVelocity(frameMode: NumericMode.Falling, groupMode: NumericMode.Falling, frameVelocity: OrbitSpeed, groupVelocity: common, options: Options).Should().Be(OrbitSpeed);
 
         Double3 faster = Summary(sleeper, mover with { Velocity = X(OrbitSpeed.X + 4.04) }).Velocity;
-        DrainVelocity(NumericMode.Falling, NumericMode.Falling, OrbitSpeed, faster, Options).Should().Be(faster);
+        DrainVelocity(frameMode: NumericMode.Falling, groupMode: NumericMode.Falling, frameVelocity: OrbitSpeed, groupVelocity: faster, options: Options).Should().Be(faster);
     }
 
     [Fact]
     public void A_falling_frame_keeps_its_velocity_up_to_the_drain_speed() =>
-        DrainVelocity(NumericMode.Falling, NumericMode.Falling, OrbitSpeed, OrbitSpeed + X(1), Options).Should()
+        DrainVelocity(frameMode: NumericMode.Falling, groupMode: NumericMode.Falling, frameVelocity: OrbitSpeed, groupVelocity: OrbitSpeed + X(1), options: Options).Should()
             .Be(OrbitSpeed);
 
     [Fact]
     public void A_falling_frame_takes_its_members_velocity_above_the_drain_speed() =>
-        DrainVelocity(NumericMode.Falling, NumericMode.Falling, OrbitSpeed, OrbitSpeed + X(1.01), Options).Should()
+        DrainVelocity(frameMode: NumericMode.Falling, groupMode: NumericMode.Falling, frameVelocity: OrbitSpeed, groupVelocity: OrbitSpeed + X(1.01), options: Options).Should()
             .Be(OrbitSpeed + X(1.01));
 
     [Fact]
     public void A_resting_frame_that_starts_to_fall_takes_its_members_velocity() =>
-        DrainVelocity(NumericMode.Resting, NumericMode.Falling, Double3.Zero, X(50.5), Options).Should().Be(X(50.5));
+        DrainVelocity(frameMode: NumericMode.Resting, groupMode: NumericMode.Falling, frameVelocity: Double3.Zero, groupVelocity: X(50.5), options: Options).Should().Be(X(50.5));
 
     [Fact]
     public void A_frame_that_comes_to_rest_keeps_no_velocity() =>
-        DrainVelocity(NumericMode.Falling, NumericMode.Resting, OrbitSpeed, X(3), Options).Should().Be(Double3.Zero);
+        DrainVelocity(frameMode: NumericMode.Falling, groupMode: NumericMode.Resting, frameVelocity: OrbitSpeed, groupVelocity: X(3), options: Options).Should().Be(Double3.Zero);
 
     [Fact]
     public void The_origin_stays_while_the_center_is_within_the_recenter_distance() =>
@@ -911,18 +911,18 @@ public class NumericFrameRulesTests
     public void The_nearest_nest_within_half_the_nest_distance_wins()
     {
         // The frame is at 1.2e9 + 1e8 = 1.3e9 in the semantic frame.
-        (FrameHandle, Double3)[] nests = [(Pod, X(2e9)), (Raft, X(1.5e9))];
-        NearestNest(nests, X(1.2e9), X(1e8), Options).Should().Be(Raft);
+        (FrameHandle Nest, Double3 Place)[] nests = [(Pod, X(2e9)), (Raft, X(1.5e9))];
+        NearestNest(nests: nests, parentPlace: X(1.2e9), position: X(1e8), options: Options).Should().Be(Raft);
     }
 
     [Fact]
     public void No_nest_is_near_beyond_half_the_nest_distance() =>
-        NearestNest([(Pod, X(0))], X(5e8), X(1), Options).IsNull.Should().BeTrue();
+        NearestNest(nests: [(Pod, X(0))], parentPlace: X(5e8), position: X(1), options: Options).IsNull.Should().BeTrue();
 
     [Fact]
     public void On_a_tie_the_later_nest_wins() =>
-        NearestNest([(Pod, X(-1e8)), (Raft, X(1e8))], Double3.Zero, Double3.Zero, Options).Should().Be(Raft);
+        NearestNest(nests: [(Pod, X(-1e8)), (Raft, X(1e8))], parentPlace: Double3.Zero, position: Double3.Zero, options: Options).Should().Be(Raft);
 
     [Fact]
-    public void No_nests_give_no_nest() => NearestNest([], Double3.Zero, X(1e9), Options).IsNull.Should().BeTrue();
+    public void No_nests_give_no_nest() => NearestNest(nests: [], parentPlace: Double3.Zero, position: X(1e9), options: Options).IsNull.Should().BeTrue();
 }

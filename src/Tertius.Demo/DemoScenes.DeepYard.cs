@@ -91,11 +91,11 @@ public static partial class DemoScenes
             world.Ambient = new() { SkyColor = new(0.03f), GroundColor = new(0.03f), Intensity = 1 };
 
             MeshId crateMesh = resources.CreateMesh(Primitives.Box(new(CrateHalfSize)));
-            var orange = new CrateSpec(new(CrateHalfSize), CrateMass, crateMesh,
-                resources.CreateMaterial(MaterialDesc.Color(new(1, 0.45f, 0.1f, 1))));
+            var orange = new CrateSpec(HalfExtents: new(CrateHalfSize), Mass: CrateMass, Mesh: crateMesh,
+                Material: resources.CreateMaterial(MaterialDesc.Color(new(x: 1, y: 0.45f, z: 0.1f, w: 1))));
             CrateSpec green = orange with
             {
-                Material = resources.CreateMaterial(MaterialDesc.Color(new(0.3f, 0.6f, 0.25f, 1)))
+                Material = resources.CreateMaterial(MaterialDesc.Color(new(x: 0.3f, y: 0.6f, z: 0.25f, w: 1)))
             };
             scene.Add("crate-a",
                 world.Spawn(orange.Spawn(space, InYard(-CrateSpacing / 2, 0), Drift + new Double3(CrateSpeed, 0, 0))));
@@ -107,8 +107,8 @@ public static partial class DemoScenes
                 Frame = space,
                 Pose = InYard(0, PersonDistance),
                 LinearVelocity = Drift,
-                Body = new(PersonShape, BodyMotion.Character, Mass: PersonMass),
-                Render = Drawn(resources, Primitives.Box(new(0.3f, 0.9f, 0.3f)), new(0.2f, 0.45f, 0.8f, 1),
+                Body = new(Shape: PersonShape, Motion: BodyMotion.Character, Mass: PersonMass),
+                Render = Drawn(resources: resources, mesh: Primitives.Box(new(0.3f, 0.9f, 0.3f)), color: new(x: 0.2f, y: 0.45f, z: 0.8f, w: 1),
                     boundingRadius: 1),
                 Components = [new PersonControl(new(0, 0.75f, 0))],
                 Subscriptions = [Topics.Input]

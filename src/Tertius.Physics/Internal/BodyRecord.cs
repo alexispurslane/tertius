@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using JoltPhysicsSharp;
 using Tertius.Frames.Rails;
@@ -73,14 +74,14 @@ internal struct GhostBody
 internal sealed class BodyRecord
 {
     public Entity Entity;
-    public BodyDesc Desc = null!;
+    public required BodyDesc Desc;
 
     /// <summary>
     /// The description of the Jolt rigid body that stands for the entity: <see cref="Desc"/>, or for a character the
     /// description of its rigid form (see <c>JoltPhysicsBackend.RigidForm</c>). The primary rigid body takes its shape, mass,
     /// material and damping from it, and so do the conversions between instant velocities and chords.
     /// </summary>
-    public BodyDesc Material = null!;
+    public required BodyDesc Material;
 
     /// <summary>The bounding-sphere radius of the primary shape, about the body origin.</summary>
     public float Radius;
@@ -270,5 +271,11 @@ internal sealed class BodyRecord
     /// </summary>
     public bool GhostsReachContent => IsHull || Motion is BodyMotion.Static or BodyMotion.Kinematic;
 
+    /// <summary>True when the record has a primary body or character, in the system <see cref="World"/>.</summary>
+    [MemberNotNullWhen(true, nameof(World))]
     public bool HasPrimary => World is not null;
+
+    /// <summary>True when the frame that the record owns has its interior body, in the system <see cref="InteriorWorld"/>.</summary>
+    [MemberNotNullWhen(true, nameof(InteriorWorld))]
+    public bool HasInterior => InteriorWorld is not null;
 }

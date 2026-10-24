@@ -52,9 +52,9 @@ public class PhysicsQuestionUnionTests
         null => "none"
     };
 
-    private static RayQuestion Ray(RayCastKind kind = RayCastKind.Nearest) => new(Start, Along, 50, kind);
+    private static RayQuestion Ray(RayCastKind kind = RayCastKind.Nearest) => new(Origin: Start, Direction: Along, Length: 50, Kind: kind);
 
-    private static ShapeCastQuestion Cast() => new(Ball, StartPose, Along, 50);
+    private static ShapeCastQuestion Cast() => new(Shape: Ball, Start: StartPose, Direction: Along, Length: 50);
 
     private static OverlapQuestion Overlap() => new(Ball, StartPose);
 
@@ -160,7 +160,7 @@ public class PhysicsQuestionUnionTests
     public void ARayKeepsADirectionThatIsNotUnitLengthAsItWasGiven()
     {
         // The union stores what it gets. The World checks and normalizes a request before it builds the question.
-        var question = new PhysicsQuestion(new RayQuestion(Start, new(0, 0, 7), 5, RayCastKind.All));
+        var question = new PhysicsQuestion(new RayQuestion(Origin: Start, Direction: new(0, 0, 7), Length: 5, Kind: RayCastKind.All));
 
         question.TryGetValue(out RayQuestion held);
         held.Direction.Should().Be(new Double3(0, 0, 7));
@@ -179,7 +179,7 @@ public class PhysicsQuestionUnionTests
     [Fact]
     public void ABoxShapeSurvivesAShapeCastAndAnOverlap()
     {
-        new PhysicsQuestion(new ShapeCastQuestion(Crate, StartPose, Along, 9)).TryGetValue(out ShapeCastQuestion cast);
+        new PhysicsQuestion(new ShapeCastQuestion(Shape: Crate, Start: StartPose, Direction: Along, Length: 9)).TryGetValue(out ShapeCastQuestion cast);
         new PhysicsQuestion(new OverlapQuestion(Crate, StartPose)).TryGetValue(out OverlapQuestion overlap);
 
         cast.Shape.Should().Be(Crate);
@@ -206,7 +206,7 @@ public class PhysicsQuestionUnionTests
     [Fact]
     public void TwoQuestionsOfTheSameCaseWithTheSameFieldsAreEqualAndHashAlike()
     {
-        foreach ((PhysicsQuestion a, PhysicsQuestion b) in new (PhysicsQuestion, PhysicsQuestion)[]
+        foreach ((PhysicsQuestion a, PhysicsQuestion b) in new (PhysicsQuestion A, PhysicsQuestion B)[]
                  {
                      (Ray(), Ray()), (Ray(RayCastKind.All), Ray(RayCastKind.All)), (Cast(), Cast()),
                      (Overlap(), Overlap())
@@ -292,7 +292,7 @@ public class PhysicsQuestionUnionTests
     [Fact]
     public void AShapeCastSweepsFromItsStartAndReachesAsFarAsItsShapesBoundingRadius()
     {
-        PhysicsQuestion question = new ShapeCastQuestion(Crate, StartPose, Along, 9);
+        PhysicsQuestion question = new ShapeCastQuestion(Shape: Crate, Start: StartPose, Direction: Along, Length: 9);
 
         question.Origin.Should().Be(Start);
         question.Direction.Should().Be(Along);
@@ -348,10 +348,10 @@ public class PhysicsQuestionUnionTests
         var asker = new Entity(4, 1);
         var frame = new FrameHandle(new(1, 1), 0, 1);
 
-        new PhysicsRequest(asker, frame, Cast(), default, 17).Should()
-            .Be(new PhysicsRequest(asker, frame, Cast(), default, 17));
-        new PhysicsRequest(asker, frame, Cast(), default, 17).Should()
-            .NotBe(new PhysicsRequest(asker, frame, Overlap(), default, 17));
+        new PhysicsRequest(Asker: asker, Frame: frame, Question: Cast(), Query: default, Tag: 17).Should()
+            .Be(new PhysicsRequest(Asker: asker, Frame: frame, Question: Cast(), Query: default, Tag: 17));
+        new PhysicsRequest(Asker: asker, Frame: frame, Question: Cast(), Query: default, Tag: 17).Should()
+            .NotBe(new PhysicsRequest(Asker: asker, Frame: frame, Question: Overlap(), Query: default, Tag: 17));
     }
 
     /// <summary>
@@ -365,7 +365,7 @@ public class PhysicsQuestionUnionTests
         using var t = new TestWorld();
         Entity asker = t.SpawnAt(Double3.Zero);
         t.Run(1);
-        t.World.Entities.Chunks[0].PhysicsRequests.Add(new(asker, t.Root, default, default, 1));
+        t.World.Entities.Chunks[0].PhysicsRequests.Add(new(Asker: asker, Frame: t.Root, Question: default, Query: default, Tag: 1));
 
 #if TERTIUS_CONTRACTS
         Action tick = () => t.Run(1);

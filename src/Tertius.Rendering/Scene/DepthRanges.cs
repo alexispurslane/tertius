@@ -73,7 +73,7 @@ internal static class DepthRanges
 
     /// <summary>The projection the geometry passes draw a range with: infinite reversed-Z from the range's near plane.</summary>
     public static Matrix4x4 RangeProjection(int range, float verticalFov, float aspect) =>
-        Projection(verticalFov, aspect, NearOf(range), float.PositiveInfinity);
+        Projection(verticalFov: verticalFov, aspect: aspect, near: NearOf(range), far: float.PositiveInfinity);
 
     /// <summary>The range that holds a view depth by the nominal boundaries.</summary>
     public static int Containing(float depth) =>
@@ -127,9 +127,9 @@ internal static class DepthRanges
         }
 
         return new(
-            sx, 0, 0, 0,
-            0, -sy, 0, 0,
-            0, 0, a, -1,
-            0, 0, b, 0);
+            m11: sx, m12: 0, m13: 0, m14: 0,
+            m21: 0, m22: -sy, m23: 0, m24: 0,
+            m31: 0, m32: 0, m33: a, m34: -1,
+            m41: 0, m42: 0, m43: b, m44: 0);
     }
 }

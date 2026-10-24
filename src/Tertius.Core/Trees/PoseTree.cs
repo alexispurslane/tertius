@@ -185,10 +185,10 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
         int tail = Count - dense - 1;
         if (tail > 0)
         {
-            Array.Copy(parent, dense + 1, parent, dense, tail);
-            Array.Copy(local, dense + 1, local, dense, tail);
-            Array.Copy(world, dense + 1, world, dense, tail);
-            Array.Copy(idAt, dense + 1, idAt, dense, tail);
+            Array.Copy(sourceArray: parent, sourceIndex: dense + 1, destinationArray: parent, destinationIndex: dense, length: tail);
+            Array.Copy(sourceArray: local, sourceIndex: dense + 1, destinationArray: local, destinationIndex: dense, length: tail);
+            Array.Copy(sourceArray: world, sourceIndex: dense + 1, destinationArray: world, destinationIndex: dense, length: tail);
+            Array.Copy(sourceArray: idAt, sourceIndex: dense + 1, destinationArray: idAt, destinationIndex: dense, length: tail);
         }
 
         Count--;

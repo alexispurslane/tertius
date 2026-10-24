@@ -10,7 +10,7 @@ namespace Tertius.Simulation.Tests;
 public class SharedComponentTests
 {
     private static Event Message<T>(Entity target, T payload) where T : unmanaged, IEventPayload =>
-        Event.Create(target, Entity.Null, payload);
+        Event.Create(target: target, sender: Entity.Null, payload: payload);
 
     [Fact]
     public void ARecorderKeepsTheTickTheEntityAndTheEventTypesOfEachRun()
@@ -50,7 +50,7 @@ public class SharedComponentTests
         using var t = new TestWorld();
         var inbox = new Recorder();
         Entity target = t.SpawnWith(inbox);
-        SendOnce sender = SendOnce.Of(target, new Ping { Value = 7 }, onTick: 2);
+        SendOnce sender = SendOnce.Of(target: target, payload: new Ping { Value = 7 }, onTick: 2);
         t.SpawnWith(sender);
 
         t.Run(6);
@@ -65,7 +65,7 @@ public class SharedComponentTests
     {
         using var t = new TestWorld();
         Entity victim = t.SpawnWith();
-        t.SpawnWith(SendOnce.Of(victim, new Destroy()));
+        t.SpawnWith(SendOnce.Of(target: victim, payload: new Destroy()));
 
         t.Run(2);
 
@@ -78,7 +78,7 @@ public class SharedComponentTests
         using var t = new TestWorld();
         var inbox = new Recorder();
         Entity target = t.SpawnWith(inbox);
-        SendEvery sender = SendEvery.Of(target, tick => new Ping { Value = (int)tick }, every: 2, from: 1);
+        SendEvery sender = SendEvery.Of(target: target, payloadAt: tick => new Ping { Value = (int)tick }, every: 2, from: 1);
         t.SpawnWith(sender);
 
         t.Run(7);
@@ -94,7 +94,7 @@ public class SharedComponentTests
         using var t = new TestWorld();
         var inbox = new Recorder();
         Entity target = t.SpawnWith(inbox);
-        t.SpawnWith(SendEvery.Of(target, new Ping { Value = 9 }));
+        t.SpawnWith(SendEvery.Of(target: target, payload: new Ping { Value = 9 }));
 
         t.Run(4);
 
@@ -104,7 +104,7 @@ public class SharedComponentTests
     [Fact]
     public void SendEveryRefusesAnIntervalBelowOneTick()
     {
-        Action make = () => SendEvery.Of(Entity.Null, new Ping(), every: 0);
+        Action make = () => SendEvery.Of(target: Entity.Null, payload: new Ping(), every: 0);
 
         make.Should().Throw<ArgumentOutOfRangeException>();
     }
@@ -188,7 +188,7 @@ public class SharedComponentTests
     public void ASpawnerWithNoIntervalSpawnsItsChildrenOnceAtTheSpawnersPose()
     {
         using var t = new TestWorld();
-        var spawner = new Spawner(() => [new Recorder(EventMask.Of<Spawned>())], count: 2, onTick: 1);
+        var spawner = new Spawner(childComponents: () => [new Recorder(EventMask.Of<Spawned>())], count: 2, onTick: 1);
         t.SpawnAt(new(4, 0, 0), spawner);
 
         t.Run(4);
@@ -222,8 +222,8 @@ public class SharedComponentTests
         using var t = new TestWorld();
         Topic topic = Topics.Get("tests.support.news");
         var inbox = new Recorder();
-        t.SpawnWith(new Subscriber(topic, subscribeOnTick: 1, unsubscribeOnTick: 3), inbox);
-        t.SpawnWith(SendEvery.Of(topic, tick => new Ping { Value = (int)tick }));
+        t.SpawnWith(new Subscriber(topic: topic, subscribeOnTick: 1, unsubscribeOnTick: 3), inbox);
+        t.SpawnWith(SendEvery.Of(target: topic, payloadAt: tick => new Ping { Value = (int)tick }));
 
         t.Run(7);
 
@@ -263,7 +263,7 @@ public class TestWorldTests
     [Fact]
     public void ATestWorldKeepsTheBackendItIsGiven()
     {
-        using TestWorld t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
 
         t.World.Physics.Should().BeSameAs(faults);
     }
@@ -272,7 +272,7 @@ public class TestWorldTests
     public void ATestWorldOnJoltStepsRealPhysicsOnABackendThatTheWorldDisposes()
     {
         using TestWorld t =
-            TestWorld.OnJolt(out FaultInjectingBackend faults, configure: options => options.TickRate = 32);
+            TestWorld.OnJolt(faults: out FaultInjectingBackend faults, configure: options => options.TickRate = 32);
         Entity ball = t.World.Spawn(new()
             { Frame = t.Root, LinearVelocity = new(3, 0, 0), Body = WorldTesting.Ball() });
 
@@ -287,7 +287,7 @@ public class TestWorldTests
     [Fact]
     public void AnEditOfOneTickTouchesTheOutputOfThatTickOnly()
     {
-        using TestWorld t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         t.World.Spawn(new() { Frame = t.Root, LinearVelocity = new(3, 0, 0), Body = WorldTesting.Ball() });
         var ticksEdited = new List<long>();
         faults.EditOutputOfTick(1, output => ticksEdited.Add(faults.Steps[^1].Tick));
@@ -353,7 +353,7 @@ public class TestWorldTests
     [Fact]
     public void TheStaticCreateGivesTheSameWorldAsTheInstance()
     {
-        using World world = TestWorld.Create(out FrameHandle root, debugChecks: false);
+        using World world = TestWorld.Create(root: out FrameHandle root, debugChecks: false);
 
         world.Options.MaxDegreeOfParallelism.Should().Be(1);
         world.Options.DebugChecks.Should().BeFalse();

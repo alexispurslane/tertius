@@ -15,7 +15,7 @@ public sealed class WalkHeadingTests : IDisposable
 {
     private static readonly Vector3 Eye = new(0, 0.75f, 0);
 
-    private readonly World world = NewWorld(out _);
+    private readonly World world = NewWorld(backend: out _);
 
     public void Dispose() => world.Dispose();
 
@@ -24,7 +24,7 @@ public sealed class WalkHeadingTests : IDisposable
     {
         Frame = frame,
         Pose = new(position, DQuaternion.Identity),
-        Body = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
+        Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70),
         LinearVelocity = velocity.ToVector3(),
         Render = new RenderData { ViewOffset = new(Eye, Quaternion.Identity) },
         Components = [.. components, new WalkHeading()]
@@ -102,7 +102,7 @@ public sealed class WalkHeadingTests : IDisposable
         {
             Frame = ground,
             Pose = new(new(0, 0.95, 0), DQuaternion.Identity),
-            Body = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
+            Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70),
             Render = new RenderData { ViewOffset = new(Eye, Quaternion.Identity) },
             Components = [new WalkHeading(), new SteadyWalk(new(2, 0, 0), ticks: 600)]
         });

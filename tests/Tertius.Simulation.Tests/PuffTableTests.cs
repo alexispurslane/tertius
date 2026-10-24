@@ -11,14 +11,14 @@ namespace Tertius.Simulation.Tests;
 public class PuffTableTests
 {
     private static readonly PuffLook Hot = new(Life: 2, StartRadius: 0.2f, EndRadius: 1, TemperatureRatio: 3,
-        PuffShading.Glow(new(6, 5.4f, 4.5f)));
+        Shading: PuffShading.Glow(new(6, 5.4f, 4.5f)));
 
     private static readonly PuffLook Cold = new(Life: 2, StartRadius: 0.3f, EndRadius: 2, TemperatureRatio: 0.75f,
-        PuffShading.Lit(new(0.5f)));
+        Shading: PuffShading.Lit(new(0.5f)));
 
     private static readonly PuffLook Brief = Hot with { Life = 0.25f };
 
-    internal static PuffEmitter Jet(PuffLook look, float rate = 60, float speed = 10) => new(rate, speed, 0, look);
+    internal static PuffEmitter Jet(PuffLook look, float rate = 60, float speed = 10) => new(Rate: rate, Speed: speed, Spread: 0, Look: look);
 
     internal static Entity SpawnEmitter(World world, FrameHandle frame, Double3 place, PuffEmitter emitter,
         params IComponent[] components) =>
@@ -44,13 +44,13 @@ public class PuffTableTests
     [Fact]
     public void EachFrameHoldsItsPuffsInOneContiguousRange()
     {
-        using TestWorld test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(faults: out _);
         FrameHandle a = test.SpawnStaticFrame(TestWorld.At(-100), radius: 50);
         FrameHandle b = test.SpawnStaticFrame(TestWorld.At(100), radius: 50);
         // In slot order the emitters take turns between the two frames.
-        SpawnEmitter(test.World, a, new(0, 0, 0), Jet(Hot));
-        SpawnEmitter(test.World, b, new(0, 0, 0), Jet(Hot));
-        SpawnEmitter(test.World, a, new(5, 0, 0), Jet(Hot));
+        SpawnEmitter(world: test.World, frame: a, place: new(0, 0, 0), emitter: Jet(Hot));
+        SpawnEmitter(world: test.World, frame: b, place: new(0, 0, 0), emitter: Jet(Hot));
+        SpawnEmitter(world: test.World, frame: a, place: new(5, 0, 0), emitter: Jet(Hot));
 
         test.Run(5);
 
@@ -65,9 +65,9 @@ public class PuffTableTests
     [Fact]
     public void NewbornsJoinTheEndOfTheirFramesRange()
     {
-        using TestWorld test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(faults: out _);
         FrameHandle a = test.SpawnStaticFrame(TestWorld.At(0), radius: 50);
-        SpawnEmitter(test.World, a, Double3.Zero, Jet(Hot, rate: 120));
+        SpawnEmitter(world: test.World, frame: a, place: Double3.Zero, emitter: Jet(Hot, rate: 120));
 
         for (int tick = 0; tick < 6; tick++)
         {
@@ -84,14 +84,14 @@ public class PuffTableTests
     [Fact]
     public void AFrameThatGetsItsFirstPuffsTakesTheLastRange()
     {
-        using TestWorld test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(faults: out _);
         // b is made before a, so it comes first in the frame tree and in slot order, but it gets its puffs later.
         FrameHandle b = test.SpawnStaticFrame(TestWorld.At(100), radius: 50);
         FrameHandle a = test.SpawnStaticFrame(TestWorld.At(-100), radius: 50);
-        SpawnEmitter(test.World, a, Double3.Zero, Jet(Hot));
+        SpawnEmitter(world: test.World, frame: a, place: Double3.Zero, emitter: Jet(Hot));
         test.Run(3);
 
-        SpawnEmitter(test.World, b, Double3.Zero, Jet(Hot));
+        SpawnEmitter(world: test.World, frame: b, place: Double3.Zero, emitter: Jet(Hot));
         test.Run(2);
 
         Ranges(test.World).Select(range => range.Frame).Should().Equal(a, b);
@@ -100,14 +100,14 @@ public class PuffTableTests
     [Fact]
     public void ARangeThatEmptiesLeavesTheOrderOfTheOthers()
     {
-        using TestWorld test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(faults: out _);
         FrameHandle a = test.SpawnStaticFrame(TestWorld.At(-200), radius: 50);
         FrameHandle b = test.SpawnStaticFrame(TestWorld.At(0), radius: 50);
         FrameHandle c = test.SpawnStaticFrame(TestWorld.At(200), radius: 50);
-        SpawnEmitter(test.World, a, Double3.Zero, Jet(Hot));
+        SpawnEmitter(world: test.World, frame: a, place: Double3.Zero, emitter: Jet(Hot));
         var pilot = new SelfPilot();
-        SpawnEmitter(test.World, b, Double3.Zero, Jet(Brief), pilot);
-        SpawnEmitter(test.World, c, Double3.Zero, Jet(Hot));
+        SpawnEmitter(world: test.World, frame: b, place: Double3.Zero, emitter: Jet(Brief), pilot);
+        SpawnEmitter(world: test.World, frame: c, place: Double3.Zero, emitter: Jet(Hot));
         test.Run(3);
         Ranges(test.World).Select(range => range.Frame).Should().Equal(a, b, c);
 
@@ -124,14 +124,14 @@ public class PuffTableTests
     {
         foreach (bool heirFirst in new[] { true, false })
         {
-            using TestWorld test = TestWorld.OnJolt(out _);
+            using TestWorld test = TestWorld.OnJolt(faults: out _);
             FrameHandle dying = test.SpawnStaticFrame(TestWorld.At(100), radius: 50);
             if (heirFirst)
-                SpawnEmitter(test.World, test.Root, Double3.Zero, Jet(Hot));
-            SpawnEmitter(test.World, dying, Double3.Zero, Jet(Cold));
+                SpawnEmitter(world: test.World, frame: test.Root, place: Double3.Zero, emitter: Jet(Hot));
+            SpawnEmitter(world: test.World, frame: dying, place: Double3.Zero, emitter: Jet(Cold));
             test.Run(2);
             if (!heirFirst)
-                SpawnEmitter(test.World, test.Root, Double3.Zero, Jet(Hot));
+                SpawnEmitter(world: test.World, frame: test.Root, place: Double3.Zero, emitter: Jet(Hot));
             test.Run(2);
             int cold = Rows(test.World, dying)[0].Look;
 
@@ -151,9 +151,9 @@ public class PuffTableTests
     [Fact]
     public void AnEmitterThatGathersLessThanOnePuffPerStepMakesItsPuffsAtItsRate()
     {
-        using TestWorld test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(faults: out _);
         // 45 puffs per second gather 0.75 of a puff in each step, so most steps make none.
-        Entity emitter = SpawnEmitter(test.World, test.Root, Double3.Zero, Jet(Hot, rate: 45));
+        Entity emitter = SpawnEmitter(world: test.World, frame: test.Root, place: Double3.Zero, emitter: Jet(Hot, rate: 45));
 
         test.Run(1);
         test.World.Puffs.Count.Should().Be(0);
@@ -167,11 +167,11 @@ public class PuffTableTests
     [Fact]
     public void EmittersWithEqualLooksShareOneLook()
     {
-        using TestWorld test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(faults: out _);
         FrameHandle a = test.SpawnStaticFrame(TestWorld.At(-100), radius: 50);
         FrameHandle b = test.SpawnStaticFrame(TestWorld.At(100), radius: 50);
-        SpawnEmitter(test.World, a, Double3.Zero, Jet(Hot));
-        SpawnEmitter(test.World, b, Double3.Zero, Jet(Hot with { }, rate: 30, speed: 4));
+        SpawnEmitter(world: test.World, frame: a, place: Double3.Zero, emitter: Jet(Hot));
+        SpawnEmitter(world: test.World, frame: b, place: Double3.Zero, emitter: Jet(Hot with { }, rate: 30, speed: 4));
 
         test.Run(10);
 
@@ -186,10 +186,10 @@ public class PuffTableTests
     [Fact]
     public void APuffKeepsTheLookOfItsBirthWhenItsEmitterChangesItsLook()
     {
-        using TestWorld test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(faults: out _);
         FrameHandle a = test.SpawnStaticFrame(TestWorld.At(0), radius: 50);
         var pilot = new SelfPilot();
-        SpawnEmitter(test.World, a, Double3.Zero, Jet(Hot), pilot);
+        SpawnEmitter(world: test.World, frame: a, place: Double3.Zero, emitter: Jet(Hot), pilot);
         test.Run(3);
         int hot = Rows(test.World, a)[0].Look;
 
@@ -208,10 +208,10 @@ public class PuffTableTests
     [Fact]
     public void ALookIsFreedWithItsLastPuffAndItsIndexIsReused()
     {
-        using TestWorld test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(faults: out _);
         FrameHandle a = test.SpawnStaticFrame(TestWorld.At(0), radius: 50);
         var pilot = new SelfPilot();
-        SpawnEmitter(test.World, a, Double3.Zero, Jet(Brief), pilot);
+        SpawnEmitter(world: test.World, frame: a, place: Double3.Zero, emitter: Jet(Brief), pilot);
         test.Run(3);
         int brief = Rows(test.World, a)[0].Look;
 
@@ -237,7 +237,7 @@ public class PuffTableTests
     {
         // The workload checks every invariant of the World after every tick and after the changes between ticks, which
         // include the puff table's. A cap of 150 binds often.
-        using var workload = new ChaoticWorkload(seed, puffCapacity: 150);
+        using var workload = new ChaoticWorkload(seed: seed, puffCapacity: 150);
 
         workload.Run(150);
 
@@ -266,13 +266,13 @@ public class PuffTableTests
         }));
         for (int i = 0; i < 4; i++)
         {
-            SpawnEmitter(test.World, air, new(i, 0, 0), new(70, 6, 0.6f, Hot));
-            SpawnEmitter(test.World, test.Root, new(0, i, 0), new(50, 3, 0.2f, Brief));
+            SpawnEmitter(world: test.World, frame: air, place: new(i, 0, 0), emitter: new(Rate: 70, Speed: 6, Spread: 0.6f, Look: Hot));
+            SpawnEmitter(world: test.World, frame: test.Root, place: new(0, i, 0), emitter: new(Rate: 50, Speed: 3, Spread: 0.2f, Look: Brief));
         }
 
         var changer = new SelfPilot
             { EveryTick = self => self.Render.Emitter = Jet(self.Tick / 20 % 2 == 0 ? Cold : Brief) };
-        SpawnEmitter(test.World, air, new(0, 0, 5), default, changer);
+        SpawnEmitter(world: test.World, frame: air, place: new(0, 0, 5), emitter: default, changer);
         test.Run(200);
         test.World.Puffs.Count.Should().Be(200, "the cap binds");
 

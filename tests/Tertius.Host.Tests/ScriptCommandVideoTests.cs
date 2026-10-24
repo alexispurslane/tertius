@@ -42,15 +42,15 @@ public sealed class ScriptCommandVideoTests : IDisposable
     }
 
     private int Run(string script, params string[] more) =>
-        ScriptCommand.Run(["--script", script, "--headless", "--out", Out, .. more], [LitBoxScene, LitDropScene],
-            output, error);
+        ScriptCommand.Run(args: ["--script", script, "--headless", "--out", Out, .. more], scenes: [LitBoxScene, LitDropScene],
+            output: output, error: error);
 
     [Fact]
     public void AVideoRunHoldsOneFrameForEachCaptureInTheOrderOfTheStepsPixelForPixelAsThePngCaptures()
     {
         string script = ScriptFile(FiveCaptures);
         string pngs = Path.Combine(folder, "pngs");
-        ScriptCommand.Run(["--script", script, "--headless", "--out", pngs], [LitDropScene], output, error).Should()
+        ScriptCommand.Run(args: ["--script", script, "--headless", "--out", pngs], scenes: [LitDropScene], output: output, error: error).Should()
             .Be(ScriptCommand.Ok, error.ToString());
 
         int code = Run(script, "--video", Video);
@@ -114,7 +114,7 @@ public sealed class ScriptCommandVideoTests : IDisposable
     {
         string script = ScriptFile("""{ "do": "dump", "name": "start" }, { "do": "capture", "name": "only" }""",
             scene: "counted");
-        string video = Path.Combine(folder, "runs", "new", "video.mkv");
+        string video = Path.Combine(path1: folder, path2: "runs", path3: "new", path4: "video.mkv");
         int builds = 0;
         var counted = new Scene("counted", (world, resources) =>
         {
@@ -123,9 +123,9 @@ public sealed class ScriptCommandVideoTests : IDisposable
         });
 
         // The real start of the sink, with a program that is not on the search path, as in a shell without ffmpeg.
-        int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out, "--video", video], [counted],
-            output, error,
-            VulkanRenderer.CreateHeadless, (file, size) => FfmpegVideoSink.Start(file, size, "no-such-ffmpeg"));
+        int code = ScriptCommand.Run(args: ["--script", script, "--headless", "--out", Out, "--video", video], scenes: [counted],
+            output: output, error: error,
+            createRenderer: VulkanRenderer.CreateHeadless, startVideo: (file, size) => FfmpegVideoSink.Start(file, size, "no-such-ffmpeg"));
 
         code.Should().Be(ScriptCommand.ToolError);
         error.ToString().Should().Contain("Cannot start ffmpeg").And.Contain(video).And
@@ -183,8 +183,8 @@ public sealed class ScriptCommandVideoTests : IDisposable
             return scene;
         });
 
-        int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out, "--video", Video], [dyingEye],
-            output, error);
+        int code = ScriptCommand.Run(args: ["--script", script, "--headless", "--out", Out, "--video", Video], scenes: [dyingEye],
+            output: output, error: error);
 
         code.Should().Be(ScriptCommand.ScriptError);
         error.ToString().Should().Contain("frame 1").And.Contain("not alive");

@@ -217,7 +217,7 @@ public static class HostTesting
     {
         using World world = NewJoltWorld();
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e4f)));
-        Entity hull = DemoScenes.Shuttle.Park(world, space, DPose.Identity);
+        Entity hull = DemoScenes.Shuttle.Park(world: world, frame: space, pose: DPose.Identity);
         return world.Snapshot.TryGetBody(hull, out BodyFacts facts)
             ? facts.CenterOfMass
             : throw new InvalidOperationException("The shuttle's hull has a body.");
@@ -306,8 +306,8 @@ public static class HostTesting
         {
             Frame = ship,
             Pose = At(1),
-            FirstMove = new(new MotionSample(crateEnd, crateVelocity, crateVelocity, Double3.Zero, crateSpin,
-                Double3.Zero))
+            FirstMove = new(new MotionSample(Pose: crateEnd, ChordVelocity: crateVelocity, Velocity: crateVelocity, Acceleration: Double3.Zero, AngularVelocity: crateSpin,
+                AngularAcceleration: Double3.Zero))
         }));
         FrameHandle shuttle = ChildFrame(world, ship, At(0, 0, 2));
         scene.Add("shuttle", shuttle);
@@ -336,11 +336,11 @@ public static class HostTesting
         {
             Frame = ground,
             Pose = At(0, -0.5),
-            Body = new(new BoxShapeDesc(new(50, 0.5f, 50)), BodyMotion.Static)
+            Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Static)
         }));
         scene.Add("box",
             world.Spawn(new()
-                { Frame = ground, Pose = At(0, 1.5), Body = new(new BoxShapeDesc(new(0.5f)), Mass: 10) }));
+                { Frame = ground, Pose = At(0, 1.5), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10) }));
         return scene;
     }
 

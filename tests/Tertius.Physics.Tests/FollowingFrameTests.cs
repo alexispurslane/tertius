@@ -26,13 +26,13 @@ public class FollowingFrameTests
     /// leaves the bubble along +Y stays within the merge test's reach of the hull. It is kinematic, so only its motion intents
     /// move it.
     /// </summary>
-    private static readonly BodyDesc Hull = new(new CompoundShapeDesc([
+    private static readonly BodyDesc Hull = new(Shape: new CompoundShapeDesc([
         new(new BoxShapeDesc(new(2)), new(Vector3.Zero, Quaternion.Identity)),
         new(new BoxShapeDesc(new(8, 0.25f, 8)), new(new(0, 20, 0), Quaternion.Identity))
-    ]), BodyMotion.Kinematic, Mass: 1e5f, Restitution: 0);
+    ]), Motion: BodyMotion.Kinematic, Mass: 1e5f, Restitution: 0);
 
     /// <summary>A crate, a box of 50 cm and 2 kg that nothing slows down and that does not bounce.</summary>
-    private static readonly BodyDesc Crate = new(new BoxShapeDesc(new(0.25f)), Mass: 2, Restitution: 0,
+    private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.25f)), Mass: 2, Restitution: 0,
         LinearDamping: 0, AngularDamping: 0);
 
     // ---- A plain kinematic body as the anchor ------------------------------------------------------------------------
@@ -54,7 +54,7 @@ public class FollowingFrameTests
     /// </summary>
     private static (World World, FrameHandle Space, Entity Owner, FrameHandle Frame) DriftingHull()
     {
-        World world = NewWorld(out _);
+        World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
         Entity owner = world.Spawn(new()
         {
@@ -156,7 +156,7 @@ public class FollowingFrameTests
     /// </summary>
     private static (World World, FrameHandle Space, Entity Ball) DriftingBall()
     {
-        World world = NewWorld(out _);
+        World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
         Entity ball = world.Spawn(KinematicDrift.Drifting(new() { Frame = space, Body = KinematicBall }, world, Drift));
         return (world, space, ball);
@@ -242,7 +242,7 @@ public class FollowingFrameTests
     [Fact]
     public void APlainKinematicBodyOnALowKeplerOrbitStandsOnItsOrbitToTheLastBitInAFollowingFrame()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle earth = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(Scenes.EarthMu)));
         KeplerOrbit orbit = KeplerOrbit.Circular(6.8e6, phase: 0.4);
         Entity ball =
@@ -328,7 +328,7 @@ public class FollowingFrameTests
     [Fact]
     public void TheFollowingFrameOfAPlainAnchorThatTeleportsJumpsWithItAndTheCrateInItStaysWhereItWas()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
         var jump = new Double3(1_000, 0, 0);
         Entity ball = world.Spawn(new()
@@ -372,10 +372,10 @@ public class FollowingFrameTests
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(2e7f), GravityField.Point(4e10)));
         Entity ball = world.Spawn(new SpawnDesc
         {
-            Frame = space, Body = new(new SphereShapeDesc(2), BodyMotion.Kinematic, Mass: 1e4f, Restitution: 0)
+            Frame = space, Body = new(Shape: new SphereShapeDesc(2), Motion: BodyMotion.Kinematic, Mass: 1e4f, Restitution: 0)
         }.OnKeplerOrbit(world, FarOrbit, firstMove: true));
         Entity rock = world.Spawn(new()
-            { Frame = space, Pose = At(1e7 + 8, 0, -100), Body = new(new SphereShapeDesc(1), BodyMotion.Static) });
+            { Frame = space, Pose = At(1e7 + 8, 0, -100), Body = new(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Static) });
         Entity crate = world.Spawn(new() { Frame = space, Pose = At(1e7, 0, -100), Body = Crate, Components = [log] });
         return (space, ball, rock, crate);
     }
@@ -391,8 +391,8 @@ public class FollowingFrameTests
     {
         var withLog = new CollisionLog();
         var withoutLog = new CollisionLog();
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        using World plain = NewWorld(out _,
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
+        using World plain = NewWorld(backend: out _,
             configure: options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
         (FrameHandle space, Entity ball, Entity rock, Entity crate) = BallAndRock(world, withLog);
         BallAndRock(plain, withoutLog);

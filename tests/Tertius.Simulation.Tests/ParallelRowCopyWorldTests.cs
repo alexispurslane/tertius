@@ -55,7 +55,7 @@ public class ParallelRowCopyWorldTests
                 }
             }
 
-            self.Snapshot.QueryRadius(self.Frame, pose.Position, 6, neighbors);
+            self.Snapshot.QueryRadius(frame: self.Frame, center: pose.Position, radius: 6, results: neighbors);
             foreach (Entity neighbor in neighbors)
             {
                 Hash = WorldHash.Mix(Hash, neighbor.Raw);

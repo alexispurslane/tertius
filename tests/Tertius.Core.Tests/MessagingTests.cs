@@ -52,7 +52,7 @@ public class MessagingTests
     [Fact]
     public void EventPayloadRoundTripsAndEditsInPlace()
     {
-        var e = Event.Create(new Entity(1, 1), new(2, 1), new Damage { Amount = 10, Kind = 3 });
+        var e = Event.Create(target: new Entity(1, 1), sender: new(2, 1), payload: new Damage { Amount = 10, Kind = 3 });
         Assert.True(e.Is<Damage>());
         Assert.False(e.Is<Heal>());
         e.As<Damage>().Amount -= 4;
@@ -109,7 +109,7 @@ public class MessagingTests
     {
         EngineEvents.Register();
         Assert.True(EventType<Tick>.Id >= 0);
-        var c = Event.Create(Topics.Input, Entity.Null, InputEvent.MouseMove(new(3, 4)));
+        var c = Event.Create(target: Topics.Input, sender: Entity.Null, payload: InputEvent.MouseMove(new(3, 4)));
         Assert.True(c.As<InputEvent>().TryGetValue(out MouseMoved moved));
         Assert.Equal(new(3, 4), moved.Delta);
     }

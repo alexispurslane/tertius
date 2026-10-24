@@ -47,10 +47,10 @@ public sealed class VideoCostMeasurement
                 string pngs = Path.Combine(folder, $"orbit-{width}x{height}");
                 Cost toVideo = Measure(width, height, new VideoFile(video, VideoFile.DefaultFramesPerSecond));
                 Cost toPng = Measure(width, height, new PngFolder(pngs));
-                (double encodeSeconds, double decodeSeconds) = EncodeAgain(video, width, height, folder);
+                (double encodeSeconds, double decodeSeconds) = EncodeAgain(video: video, width: width, height: height, folder: folder);
                 long videoBytes = new FileInfo(video).Length;
                 long pngBytes = Directory.EnumerateFiles(pngs, "*.png").Sum(file => new FileInfo(file).Length);
-                Write(report, width, height, toVideo, toPng, videoBytes, pngBytes, encodeSeconds, decodeSeconds);
+                Write(report: report, width: width, height: height, toVideo: toVideo, toPng: toPng, videoBytes: videoBytes, pngBytes: pngBytes, encode: encodeSeconds, decode: decodeSeconds);
             }
 
             File.WriteAllText(reportPath, report.ToString());
@@ -91,11 +91,11 @@ public sealed class VideoCostMeasurement
         using var playback = new HeadlessPlayback(timed, script.Window, target);
         var watched = new TimedPlayback(playback);
         long start = Stopwatch.GetTimestamp();
-        ScriptRunner.Run(script, world, scene, outputFolder: null, watched);
+        ScriptRunner.Run(script: script, world: world, scene: scene, outputFolder: null, playback: watched);
         long ran = Stopwatch.GetTimestamp();
         playback.Finish();
         long finished = Stopwatch.GetTimestamp();
-        return new(Seconds(ran - start), watched.Seconds, timed.SinkSeconds, Seconds(finished - ran));
+        return new(Total: Seconds(ran - start), Captures: watched.Seconds, Sink: timed.SinkSeconds, Finish: Seconds(finished - ran));
     }
 
     /// <summary>

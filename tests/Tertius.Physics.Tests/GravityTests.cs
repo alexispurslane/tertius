@@ -16,15 +16,15 @@ public class GravityTests
 
     /// <summary>A dynamic box with sides of 2 · <paramref name="half"/> m that nothing slows down on its own and that does not bounce.</summary>
     private static BodyDesc BoxBody(float half, float mass) =>
-        new(new BoxShapeDesc(new(half)), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new BoxShapeDesc(new(half)), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>A dynamic ball that nothing slows down on its own and that does not bounce.</summary>
     private static BodyDesc BallBody(float radius, float mass = 1f) =>
-        new(new SphereShapeDesc(radius), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new SphereShapeDesc(radius), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>A static slab of 2 · <paramref name="halfSize"/> m by 1 m by 2 · <paramref name="halfSize"/> m.</summary>
     private static BodyDesc FloorBody(float halfSize) =>
-        new(new BoxShapeDesc(new(halfSize, 0.5f, halfSize)), BodyMotion.Static);
+        new(Shape: new BoxShapeDesc(new(halfSize, 0.5f, halfSize)), Motion: BodyMotion.Static);
 
     /// <summary>The planet: a root frame with the point gravity of the Earth.</summary>
     private static FrameHandle Planet(World world) =>
@@ -38,7 +38,7 @@ public class GravityTests
     [Fact]
     public void BoxComesToRestOnPlanetSurfaceFarFromOrigin()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle planet = Planet(world);
         // The ground is a slab whose top face lies on the surface.
         world.Spawn(new() { Frame = planet, Pose = At(0, EarthRadius - 0.5), Body = FloorBody(50) });
@@ -73,7 +73,7 @@ public class GravityTests
     [Fact]
     public void ABoxThatRestsOnAFloorUnderGravityFallsAsleepWithinTwoSeconds()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         (FrameHandle ground, Entity box) = BoxOnTheGround(world);
 
         int ticks = TickUntil(world, () => !IsAwake(faults.Jolt, ground, box), 120);
@@ -89,7 +89,7 @@ public class GravityTests
     [Fact]
     public void ABoxThatSleepsUnderGravityWakesWhenABallHitsIt()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         (FrameHandle ground, Entity box) = BoxOnTheGround(world);
         TickUntil(world, () => !IsAwake(faults.Jolt, ground, box), 120);
         IsAwake(faults.Jolt, ground, box).Should().BeFalse("the box fell asleep");
@@ -109,7 +109,7 @@ public class GravityTests
     [Fact]
     public void FreeFallNearSurfaceMatchesPointGravity()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle planet = Planet(world);
         Entity ball = world.Spawn(new() { Frame = planet, Pose = At(0, EarthRadius + 100), Body = BallBody(0.2f) });
 
@@ -128,14 +128,14 @@ public class GravityTests
     [Fact]
     public void UniformArtificialGravityActsInShipAxes()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         // The ship lies on its side in space. Its gravity points along its own -Y, which is space +X.
         var shipPose = new DPose(new(1000, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2));
         var deck = new CompoundShapeDesc([
             new(new BoxShapeDesc(new(10, 0.25f, 10)), new(new(0, -2.25f, 0), Quaternion.Identity))
         ]);
-        var hull = new BodyDesc(new BoxShapeDesc(new(10, 3, 10)), BodyMotion.Static, InteriorShape: deck);
+        var hull = new BodyDesc(Shape: new BoxShapeDesc(new(10, 3, 10)), Motion: BodyMotion.Static, InteriorShape: deck);
         FrameHandle ship = world.GetOwnedFrame(world.Spawn(new()
         {
             Frame = space,
@@ -163,14 +163,14 @@ public class GravityTests
     [Fact]
     public void ThrustingShipPushesLooseCrateTowardStern()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         // The ship's bow (+Z in ship axes) points along space +X.
         var shipPose = new DPose(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2));
         var sternWall = new CompoundShapeDesc([
             new(new BoxShapeDesc(new(5, 3, 0.25f)), new(new(0, 0, -9.25f), Quaternion.Identity))
         ]);
-        var hull = new BodyDesc(new BoxShapeDesc(new(5, 3, 10)), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
+        var hull = new BodyDesc(Shape: new BoxShapeDesc(new(5, 3, 10)), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
             InteriorShape: sternWall);
         var pilot = new Pilot();
         Entity owner = world.Spawn(new()
@@ -215,13 +215,13 @@ public class GravityTests
     [Fact]
     public void LandedShipPassesPlanetGravityToItsInterior()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle planet = Planet(world);
         world.Spawn(new() { Frame = planet, Pose = At(0, EarthRadius - 0.5), Body = FloorBody(100) });
         var deck = new CompoundShapeDesc([
             new(new BoxShapeDesc(new(4, 0.25f, 4)), new(new(0, -1.75f, 0), Quaternion.Identity))
         ]);
-        var hull = new BodyDesc(new BoxShapeDesc(new(4, 2, 4)), Mass: 5000, InteriorShape: deck);
+        var hull = new BodyDesc(Shape: new BoxShapeDesc(new(4, 2, 4)), Mass: 5000, InteriorShape: deck);
         FrameHandle ship = world.GetOwnedFrame(world.Spawn(new()
         {
             Frame = planet,
@@ -245,11 +245,11 @@ public class GravityTests
     [Fact]
     public void ShipInOrbitIsInFreeFallAndItsCargoFloats()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle planet = Planet(world);
         const double radius = 7_000_000;
         float speed = (float)Math.Sqrt(EarthMu / radius);
-        var hull = new BodyDesc(new SphereShapeDesc(3), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
+        var hull = new BodyDesc(Shape: new SphereShapeDesc(3), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
             InteriorShape: new SphereShapeDesc(0.5f));
         FrameHandle ship = world.GetOwnedFrame(world.Spawn(new()
         {

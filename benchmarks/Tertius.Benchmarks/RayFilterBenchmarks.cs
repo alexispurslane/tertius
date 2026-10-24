@@ -74,7 +74,7 @@ public unsafe class RayFilterBenchmarks
         {
             Frame = root,
             Pose = new(Double3.Zero, DQuaternion.Identity),
-            Body = new(new SphereShapeDesc(0.5f), BodyMotion.Static)
+            Body = new(Shape: new SphereShapeDesc(0.5f), Motion: BodyMotion.Static)
         });
         var boxes = new List<Entity> { asker };
         for (int i = 0; i < Bodies; i++)
@@ -82,7 +82,7 @@ public unsafe class RayFilterBenchmarks
             {
                 Frame = root,
                 Pose = new(new(3 + 2 * i, 0, 0), DQuaternion.Identity),
-                Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static),
+                Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static),
                 Components = i == Bodies - 1 ? [new RayMarker()] : []
             }));
         world.Tick();
@@ -129,8 +129,8 @@ public unsafe class RayFilterBenchmarks
     {
         lock (gate)
         {
-            return narrowPhase.CastRay(Origin, Direction, out RayCastResult hit, broadPhaseFilter, groupFilter,
-                bodyFilter)
+            return narrowPhase.CastRay(origin: Origin, direction: Direction, hit: out RayCastResult hit, broadPhaseFilter: broadPhaseFilter, objectLayerFilter: groupFilter,
+                bodyFilter: bodyFilter)
                 ? hit.Fraction
                 : -1;
         }
@@ -142,7 +142,7 @@ public unsafe class RayFilterBenchmarks
         lock (gate)
         {
             sorted.Clear();
-            narrowPhase.CastRay(Origin, Direction, new(), CollisionCollectorType.ClosestHit, sorted,
+            narrowPhase.CastRay(origin: Origin, direction: Direction, settings: new(), collectorType: CollisionCollectorType.ClosestHit, results: sorted,
                 bodyFilter: bodyFilter);
             return sorted.Count > 0 ? sorted[0].Fraction : -1;
         }
@@ -154,7 +154,7 @@ public unsafe class RayFilterBenchmarks
         lock (gate)
         {
             sorted.Clear();
-            narrowPhase.CastRay(Origin, Direction, new(), CollisionCollectorType.AllHitSorted, sorted);
+            narrowPhase.CastRay(origin: Origin, direction: Direction, settings: new(), collectorType: CollisionCollectorType.AllHitSorted, results: sorted);
             foreach (RayCastResult hit in sorted)
                 if (Accepts(hit.BodyID))
                     return hit.Fraction;
@@ -168,7 +168,7 @@ public unsafe class RayFilterBenchmarks
         lock (gate)
         {
             nearest = 1.0000001f;
-            narrowPhase.CastRay(Origin, Direction, new(), &OnHit, GCHandle.ToIntPtr(self));
+            narrowPhase.CastRay(origin: Origin, direction: Direction, settings: new(), callback: &OnHit, userData: GCHandle.ToIntPtr(self));
             return nearest <= 1 ? nearest : -1;
         }
     }

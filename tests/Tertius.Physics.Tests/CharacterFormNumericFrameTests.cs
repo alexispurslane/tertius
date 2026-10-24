@@ -28,14 +28,14 @@ public class CharacterFormNumericFrameTests
     private const float StationRadius = 16;
 
     /// <summary>A person: a capsule of half height 0.6 m and radius 0.3 m, so a bounding sphere of 0.9 m, and 70 kg.</summary>
-    private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character,
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
         Mass: PersonMass);
 
     /// <summary>A circular low orbit of 6,800 km round earth, at about 7.66 km/s, whose frame keeps the axes of earth. The pull there is 8.6 m/s².</summary>
     private static readonly KeplerOrbit LowOrbit = KeplerOrbit.Circular(6.8e6, phase: 0.4);
 
     /// <summary>A kinematic hull that its frame's Kepler orbit moves: a box of 4 m.</summary>
-    private static readonly BodyDesc Core = new(new BoxShapeDesc(new(2)), BodyMotion.Kinematic, Mass: 1e4f,
+    private static readonly BodyDesc Core = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Kinematic, Mass: 1e4f,
         Restitution: 0);
 
     /// <summary>
@@ -43,10 +43,10 @@ public class CharacterFormNumericFrameTests
     /// axis, whose face toward the core is 19.75 m from it. The plate makes the hull's bounding sphere about 21.6 m wide, so
     /// that the merge test links the hull to a body near the bubble of 16 m, as in <see cref="NumericFrameOrbitTests"/>.
     /// </summary>
-    private static readonly BodyDesc StationHull = new(new CompoundShapeDesc([
+    private static readonly BodyDesc StationHull = new(Shape: new CompoundShapeDesc([
         new(new BoxShapeDesc(new(2)), new(Vector3.Zero, Quaternion.Identity)),
         new(new BoxShapeDesc(new(8, 0.25f, 8)), new(new(0, 20, 0), Quaternion.Identity))
-    ]), BodyMotion.Kinematic, Mass: 1e5f, Restitution: 0);
+    ]), Motion: BodyMotion.Kinematic, Mass: 1e5f, Restitution: 0);
 
     // ---- Intent conversion and a switch of form ------------------------------------------------------------------
 
@@ -55,7 +55,7 @@ public class CharacterFormNumericFrameTests
                                          DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2);
 
     private static World NewWorld(bool numericFrames, out FaultInjectingBackend faults) =>
-        NewWorldWithFaults(out faults,
+        NewWorldWithFaults(faults: out faults,
             configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
 
     /// <summary>Earth with its point gravity.</summary>
@@ -93,12 +93,12 @@ public class CharacterFormNumericFrameTests
             Frame = space,
             Pose = new(new(30, 0, 0), Turned),
             LinearVelocity = new(0, 0.5, 0),
-            Body = new(new BoxShapeDesc(new(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
             AsFrame = new(FrameBounds.Sphere(20), GravityField.Uniform(new(0, -9.81f, 0)))
         });
         FrameHandle ship = world.GetOwnedFrame(hull);
         var pilot = new Pilot();
-        Scenes.Approach approach = Scenes.ApproachToBubble(world, ship, tick: 30, ballRadius: PersonRadius);
+        Scenes.Approach approach = Scenes.ApproachToBubble(world: world, into: ship, tick: 30, ballRadius: PersonRadius);
         Entity person = world.Spawn(new()
         {
             Frame = space, Pose = approach.Pose, LinearVelocity = approach.Velocity, Body = Person, Components = [pilot]
@@ -269,7 +269,7 @@ public class CharacterFormNumericFrameTests
         for (int tick = 0; tick < 480; tick++)
         {
             world.Tick();
-            string state = State(world, faults.Jolt, person, station, earth);
+            string state = State(world: world, backend: faults.Jolt, person: person, station: station, earth: earth);
             if (states.Count == 0 || states[^1] != state)
                 states.Add(state);
             FrameHandle parent = world.Frames.TreeParent(station);

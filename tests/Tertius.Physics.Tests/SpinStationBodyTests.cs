@@ -25,16 +25,16 @@ public class SpinStationBodyTests
     private const double StationRate = 0.31321;
 
     private static readonly BodyDesc UndampedCrate =
-        new(new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
 
-    private static readonly BodyDesc Crate = new(new BoxShapeDesc(new(0.5f)), Mass: 10);
+    private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10);
 
     // A ball of 10 kg and radius 0.5 m has the moment of inertia 2/5 m r² = 1 kg m² about every axis.
     private static readonly BodyDesc UndampedBall =
-        new(new SphereShapeDesc(0.5f), Mass: 10, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new SphereShapeDesc(0.5f), Mass: 10, LinearDamping: 0, AngularDamping: 0);
 
-    private static readonly BodyDesc Ball = new(new SphereShapeDesc(0.5f), Mass: 10);
-    private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc Ball = new(Shape: new SphereShapeDesc(0.5f), Mass: 10);
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
 
     private sealed record Station(FrameHandle Space, FrameHandle Frame)
     {
@@ -50,7 +50,7 @@ public class SpinStationBodyTests
     {
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         Entity owner = world.Spawn(new SpawnDesc { Frame = space, AsFrame = new(FrameBounds.Sphere(bubble)) }
-            .Spinning(world, new(DQuaternion.Identity, rate), firstMove));
+            .Spinning(world, new(Tilt: DQuaternion.Identity, Rate: rate), firstMove));
         return new(space, world.GetOwnedFrame(owner));
     }
 
@@ -142,10 +142,10 @@ public class SpinStationBodyTests
         // crate 0.8 mm in a minute and 24 mm in 10 minutes, in a run of this test before the shadow came. The shadow keeps
         // the update's chord and place in doubles and takes Jolt's rounding back in every step (docs/plans/spin-gravity.md,
         // "V6, the velocity shadow").
-        using World world = NewWorld(out _, debugChecks: false);
-        Station station = SpawnStation(world, firstMove: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
+        Station station = SpawnStation(world: world, firstMove: false);
         var place = new Double3(50, 0, 0);
-        Entity crate = SpawnIn(world, station, UndampedCrate, place);
+        Entity crate = SpawnIn(world: world, station: station, body: UndampedCrate, place: place);
         DPose start = DPose.Compose(station.Pose(world), new(place, DQuaternion.Identity));
 
         double worstPlace = 0, worstAngle = 0, farthestInStation = 0;
@@ -177,11 +177,11 @@ public class SpinStationBodyTests
         // The frame's origin moves on the inertial line of a free body at its place, and the crate's update acts on its
         // semantic place and chord, its home's offset and frame velocity included, so it feels only the difference
         // (docs/plans/spin-gravity.md, "The origin of a falling frame").
-        using World world = NewWorld(out _, debugChecks: false,
+        using World world = NewWorld(backend: out _, debugChecks: false,
             configure: options => options.NumericFrames = NumericFrameTesting.EveryGroupFalls);
-        Station station = SpawnStation(world, firstMove: false);
+        Station station = SpawnStation(world: world, firstMove: false);
         var place = new Double3(50, 0, 0);
-        Entity crate = SpawnIn(world, station, UndampedCrate, place);
+        Entity crate = SpawnIn(world: world, station: station, body: UndampedCrate, place: place);
         Double3 start = station.Pose(world).TransformPoint(place);
 
         double worst = 0;
@@ -207,10 +207,10 @@ public class SpinStationBodyTests
         // the difference of the two homes' places and frame velocities, as its state does. A shadow that stayed behind would
         // read the move as a contact of 15.7 m/s and turn it.
         NumericFrameOptions rules = NumericFrameTesting.EveryGroupFalls with { CreateSpeed = 10, LeaveSpeed = 4 };
-        using World world = NewWorld(out _, debugChecks: false, configure: options => options.NumericFrames = rules);
-        Station station = SpawnStation(world, firstMove: false);
+        using World world = NewWorld(backend: out _, debugChecks: false, configure: options => options.NumericFrames = rules);
+        Station station = SpawnStation(world: world, firstMove: false);
         var place = new Double3(50, 0, 0);
-        Entity crate = SpawnIn(world, station, UndampedCrate, place);
+        Entity crate = SpawnIn(world: world, station: station, body: UndampedCrate, place: place);
         Double3 start = station.Pose(world).TransformPoint(place);
         world.Tick();
         world.PhysicsHomeOf(crate).Should().Be(station.Frame,
@@ -236,11 +236,11 @@ public class SpinStationBodyTests
         // In the station's axes the crate first moves round the axis at the rate of the station backward. The damping takes
         // that motion relative to the station's axes away, like air that turns with the station, so the crate is drawn into
         // the station's turn and drifts outward.
-        using World world = NewWorld(out _, debugChecks: false);
-        Station station = SpawnStation(world, firstMove: false, bubble: 1000);
+        using World world = NewWorld(backend: out _, debugChecks: false);
+        Station station = SpawnStation(world: world, firstMove: false, bubble: 1000);
         var place = new Double3(20, 0, 0);
-        Entity crate = SpawnIn(world, station, Crate, place);
-        var path = new ExpectedPath(station.Pose(world).TransformPoint(place), Crate.LinearDamping, world.DeltaTime);
+        Entity crate = SpawnIn(world: world, station: station, body: Crate, place: place);
+        var path = new ExpectedPath(place: station.Pose(world).TransformPoint(place), damping: Crate.LinearDamping, dt: world.DeltaTime);
         // In its first step the station holds still, and the crate with it.
         world.Tick();
 
@@ -272,11 +272,11 @@ public class SpinStationBodyTests
         // at a rate that grows with its distance from the axis: at the spike's 0.31321 rad/s the distance grows by e in 16 s,
         // so the crate would leave any bubble in 10 minutes. At 0.02 rad/s it grows by e in about 200 s, and in a run of this
         // test it went from 30 m to 514 m in 10 minutes.
-        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
-        Station station = SpawnStation(world, firstMove: false, bubble: 2000, rate: 0.02);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
+        Station station = SpawnStation(world: world, firstMove: false, bubble: 2000, rate: 0.02);
         var place = new Double3(30, 0, 0);
-        Entity crate = SpawnIn(world, station, Crate, place);
-        var path = new ExpectedPath(station.Pose(world).TransformPoint(place), Crate.LinearDamping, world.DeltaTime);
+        Entity crate = SpawnIn(world: world, station: station, body: Crate, place: place);
+        var path = new ExpectedPath(place: station.Pose(world).TransformPoint(place), damping: Crate.LinearDamping, dt: world.DeltaTime);
         double dt = world.DeltaTime;
         // In its first step the station holds still, and the crate with it. Its second step is the first that turns, whose
         // update starts from Jolt's state and writes the first shadow.
@@ -322,12 +322,12 @@ public class SpinStationBodyTests
         // the station's axes and acts at the start of its step, so the update turns it by the step's turn, as it turns the
         // field: a force left unturned would push the crate sideways by ω |a| dt. The crate weighs 16 kg,
         // whose inverse Jolt holds exactly in a float, so the force of 16 N gives it exactly 1 m/s² along the station's +Z.
-        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
-        Station station = SpawnStation(world, firstMove: false, bubble: 1000);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
+        Station station = SpawnStation(world: world, firstMove: false, bubble: 1000);
         var place = new Double3(30, 0, 0);
         var pilot = new Pilot();
-        Entity crate = SpawnIn(world, station, UndampedCrate with { Mass = 16 }, place, component: pilot);
-        var path = new ExpectedPath(station.Pose(world).TransformPoint(place), 0, world.DeltaTime);
+        Entity crate = SpawnIn(world: world, station: station, body: UndampedCrate with { Mass = 16 }, place: place, component: pilot);
+        var path = new ExpectedPath(place: station.Pose(world).TransformPoint(place), damping: 0, dt: world.DeltaTime);
         double dt = world.DeltaTime;
         world.Tick();
         // The tick after this one writes the first force, which acts in the step beside the tick after it.
@@ -366,10 +366,10 @@ public class SpinStationBodyTests
         // The impulse acts at the start of its step, in the station's axes at that moment, so the crate leaves its place in
         // inertial space along that direction, at Δv = J / m = 1 m/s. If the update carried the change as a chord of the step
         // that ended, it would turn it once more, by the station's turn of a step: 5.2 mm/s sideways at 60 Hz.
-        using World world = NewWorld(out _, debugChecks: false, configure: options => options.TickRate = tickRate);
-        Station station = SpawnStation(world, firstMove: false);
+        using World world = NewWorld(backend: out _, debugChecks: false, configure: options => options.TickRate = tickRate);
+        Station station = SpawnStation(world: world, firstMove: false);
         var pilot = new Pilot();
-        Entity crate = SpawnIn(world, station, UndampedCrate, new(30, 0, 0), component: pilot);
+        Entity crate = SpawnIn(world: world, station: station, body: UndampedCrate, place: new(30, 0, 0), component: pilot);
         Double3 rest = station.Pose(world).TransformPoint(new(30, 0, 0));
         Tick(world, tickRate / 2);
 
@@ -407,10 +407,10 @@ public class SpinStationBodyTests
         NumericFrameOptions rules = shift == "drain"
             ? NumericFrameTesting.EveryGroupFalls
             : NumericFrameTesting.EveryGroupFalls with { DrainSpeed = 1e6, RecenterDistance = 1 };
-        using World world = NewWorld(out _, debugChecks: false, configure: options => options.NumericFrames = rules);
-        Station station = SpawnStation(world, firstMove: false);
+        using World world = NewWorld(backend: out _, debugChecks: false, configure: options => options.NumericFrames = rules);
+        Station station = SpawnStation(world: world, firstMove: false);
         var pilot = new Pilot();
-        Entity crate = SpawnIn(world, station, UndampedCrate, new(30, 0, 0), component: pilot);
+        Entity crate = SpawnIn(world: world, station: station, body: UndampedCrate, place: new(30, 0, 0), component: pilot);
         Double3 rest = station.Pose(world).TransformPoint(new(30, 0, 0));
         Tick(world, 30);
         world.Frames.IsNumeric(world.PhysicsHomeOf(crate)).Should()
@@ -441,10 +441,10 @@ public class SpinStationBodyTests
         // The ball sits on the axis and does not turn in inertial space. The angular impulse of 2 N m s about the station's
         // +X at the start of its step gives it 2 rad/s about that direction, which stays fixed in inertial space while the
         // station turns about +Y.
-        using World world = NewWorld(out _, debugChecks: false);
-        Station station = SpawnStation(world, firstMove: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
+        Station station = SpawnStation(world: world, firstMove: false);
         var pilot = new Pilot();
-        Entity ball = SpawnIn(world, station, UndampedBall, Double3.Zero, component: pilot);
+        Entity ball = SpawnIn(world: world, station: station, body: UndampedBall, place: Double3.Zero, component: pilot);
         DQuaternion still = station.Pose(world).Rotation;
         Tick(world, 30);
 
@@ -479,10 +479,10 @@ public class SpinStationBodyTests
         // unturned, each step's change would act along +X at the end of its step, half a step's turn late on average, and the
         // ball's spin axis would lean off its path by ω |α| dt per second. The ball's moment of inertia is 1 kg m², which
         // Jolt holds to float rounding.
-        using World world = NewWorld(out _, debugChecks: false);
-        Station station = SpawnStation(world, firstMove: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
+        Station station = SpawnStation(world: world, firstMove: false);
         var pilot = new Pilot();
-        Entity ball = SpawnIn(world, station, UndampedBall, Double3.Zero, component: pilot);
+        Entity ball = SpawnIn(world: world, station: station, body: UndampedBall, place: Double3.Zero, component: pilot);
         DQuaternion rotation = station.Pose(world).Rotation;
         double dt = world.DeltaTime;
         world.Tick();
@@ -519,10 +519,10 @@ public class SpinStationBodyTests
         // The ball spins at 2 rad/s about +X, across the station's axis. Jolt keeps a body's angular velocity in the axes of
         // its system, which turn with the station, so without the angular form the ball's spin axis would go round with the
         // station.
-        using World world = NewWorld(out _, debugChecks: false);
-        Station station = SpawnStation(world, firstMove: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
+        Station station = SpawnStation(world: world, firstMove: false);
         var spin = new Vector3(2, 0, 0);
-        Entity ball = SpawnIn(world, station, UndampedBall, Double3.Zero, spin);
+        Entity ball = SpawnIn(world: world, station: station, body: UndampedBall, place: Double3.Zero, angularVelocity: spin);
         DQuaternion start = station.Pose(world).Rotation;
         Double3 inertialSpin = start.Rotate((Double3)spin);
         double spawnTime = world.Time;
@@ -544,10 +544,10 @@ public class SpinStationBodyTests
     public void ATumblingBallWithTheDefaultDampingFollowsItsExpectedRotation()
     {
         // The damping slows the ball's spin relative to the station's axes, not relative to inertial space.
-        using World world = NewWorld(out _, debugChecks: false);
-        Station station = SpawnStation(world, firstMove: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
+        Station station = SpawnStation(world: world, firstMove: false);
         var spin = new Vector3(2, 0, 0);
-        Entity ball = SpawnIn(world, station, Ball, Double3.Zero, spin);
+        Entity ball = SpawnIn(world: world, station: station, body: Ball, place: Double3.Zero, angularVelocity: spin);
         DQuaternion still = station.Pose(world).Rotation;
         // In its first step the station holds still. Jolt turns the ball by its chord, the spin plus half a step of its
         // damping (see AngularChord), shrunk by the damping factor.
@@ -555,7 +555,7 @@ public class SpinStationBodyTests
         double firstChord = spin.X * (1 + Ball.AngularDamping * 0.5f * dt) *
                             MathF.Max(0f, 1f - Ball.AngularDamping * dt);
         DQuaternion firstTurn = DQuaternion.FromAxisAngle(still.Rotate(Double3.UnitX), firstChord * dt);
-        var tumble = new ExpectedTumble(firstTurn * still, firstTurn, Ball.AngularDamping, dt);
+        var tumble = new ExpectedTumble(rotation: firstTurn * still, firstTurn: firstTurn, damping: Ball.AngularDamping, dt: dt);
         world.Tick();
 
         double worst = 0;
@@ -579,12 +579,12 @@ public class SpinStationBodyTests
         // The steering velocities carry the crate to the target in the station's coordinates over the step, so the update
         // of a free body does not act on them. If it did, the crate would miss by about ω² r dt², 2.7 mm at 100 m, and turn
         // by the station's turn of a step, 5.2 mrad.
-        using World world = NewWorld(out _, debugChecks: false);
-        Station station = SpawnStation(world, firstMove: true);
+        using World world = NewWorld(backend: out _, debugChecks: false);
+        Station station = SpawnStation(world: world, firstMove: true);
         Tick(world, 10);
         var pilot = new Pilot();
         // Without damping, so that Jolt's damping does not shorten the steering chord.
-        Entity crate = SpawnIn(world, station, UndampedCrate, new(100, 0, 0), component: pilot);
+        Entity crate = SpawnIn(world: world, station: station, body: UndampedCrate, place: new(100, 0, 0), component: pilot);
         var target = new DPose(new(99.9, 0.2, 0.1), DQuaternion.FromAxisAngle(Double3.UnitZ, 0.2));
         pilot.EveryTick = body => body.SteerTo(target);
         world.Tick();
@@ -611,9 +611,9 @@ public class SpinStationBodyTests
         // The station spawns with its first motion intent, so it turns steadily from its first step; a station that spun up
         // in one step would give the person an Euler term of ω / dt times r, which makes it walk for that step. The line is
         // the one through the person's places in inertial space at the ends of its first two steps.
-        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
-        Station station = SpawnStation(world, firstMove: true);
-        Entity person = SpawnIn(world, station, Person, new(0.2, 0, 0));
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
+        Station station = SpawnStation(world: world, firstMove: true);
+        Entity person = SpawnIn(world: world, station: station, body: Person, place: new(0.2, 0, 0));
         world.Tick();
         Double3 first = world.PoseIn(person, station.Space).Position;
         world.Tick();
@@ -645,9 +645,9 @@ public class SpinStationBodyTests
     [Fact]
     public void AWeightlessPersonNearTheHubKeepsItsRotationInTheStationsAxes()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
-        Station station = SpawnStation(world, firstMove: true);
-        Entity person = SpawnIn(world, station, Person, new(0.2, 0, 0));
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
+        Station station = SpawnStation(world: world, firstMove: true);
+        Entity person = SpawnIn(world: world, station: station, body: Person, place: new(0.2, 0, 0));
         DQuaternion rotation = world.PoseIn(person, station.Frame).Rotation;
 
         double worstAngle = 0, worstSpin = 0;

@@ -20,7 +20,7 @@ public class SpinStationFloorTests
     /// <summary>The radius at which the thrusting ship hovers, in meters, 50 m short of the floor.</summary>
     private const double HoverRadius = 50;
 
-    private static readonly BodyDesc Crate = new(new BoxShapeDesc(new(0.5f)), Mass: 10);
+    private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10);
     private static readonly BodyDesc UndampedCrate = Crate with { LinearDamping = 0, AngularDamping = 0 };
 
     private sealed record Station(FrameHandle Space, FrameHandle Frame);
@@ -33,13 +33,13 @@ public class SpinStationFloorTests
     {
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         Entity owner = world.Spawn(new SpawnDesc { Frame = space, AsFrame = new(FrameBounds.Sphere(150)) }
-            .Spinning(world, new(DQuaternion.Identity, StationRate), firstMove));
+            .Spinning(world, new(Tilt: DQuaternion.Identity, Rate: StationRate), firstMove));
         FrameHandle frame = world.GetOwnedFrame(owner);
         world.Spawn(new()
         {
             Frame = frame,
             Pose = At(FloorRadius + 0.5),
-            Body = new(new BoxShapeDesc(new(0.5f, 10, 10)), BodyMotion.Static)
+            Body = new(Shape: new BoxShapeDesc(new(0.5f, 10, 10)), Motion: BodyMotion.Static)
         });
         return new(space, frame);
     }
@@ -50,7 +50,7 @@ public class SpinStationFloorTests
         // Each crate presses on the one below with the centrifugal term, about 9.8 m/s² here, and in every step the contact
         // takes back what the update gave it. A shadow that took that contact for rounding would start the next update from
         // the free path, and its take-back would pull the crates into the floor step after step.
-        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
         Station station = SpawnStation(world);
         Entity[] crates =
         [
@@ -101,7 +101,7 @@ public class SpinStationFloorTests
     [Fact]
     public void ACrateThatSlidesSlowlyOnTheFloorOfTheStationFallsAsleepAsUnderTheSameGravityThatDoesNotTurn()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
         Station station = SpawnStation(world);
         Entity crate = world.Spawn(new()
         {
@@ -126,13 +126,13 @@ public class SpinStationFloorTests
         // the distance R of its center of mass from the axis, so its accelerometer reads ω² R toward the axis, in its own
         // axes, which are the station's. The contact turn of each step, about ω³ R dt = 0.051 m/s² across the floor, is no
         // push of the floor: the floor takes it back in the same step.
-        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
         Station station = SpawnStation(world);
         Entity owner = world.Spawn(new()
         {
             Frame = station.Frame,
             Pose = At(FloorRadius - 1),
-            Body = new(new BoxShapeDesc(new(1, 2, 2)), Mass: 1000),
+            Body = new(Shape: new BoxShapeDesc(new(1, 2, 2)), Mass: 1000),
             // A bubble inside the hull, so that nothing hands into it.
             AsFrame = new(FrameBounds.Sphere(0.5f))
         });
@@ -185,7 +185,7 @@ public class SpinStationFloorTests
         // first V2 is its first V1 (docs/plans/spin-gravity.md, "Frames without a last turn"). A crate spawned at rest on
         // its floor takes the velocity of the floor under it from its first step, with no spin-up: it stays where it was
         // spawned, and the floor holds it against ω² r, about 9.76 m/s² at 99.5 m from the axis.
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world);
         Entity[] crates =
         [
@@ -243,7 +243,7 @@ public class SpinStationFloorTests
         // floor's face, and the turning floor sweeps into it.
         // The crates have no damping, which would slow them relative to the station's axes (docs/plans/spin-gravity.md,
         // "Jolt's damping in the shadow"), so that their expected path is their place in inertial space.
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world, firstMove: false);
         Entity[] crates =
         [
@@ -288,13 +288,13 @@ public class SpinStationFloorTests
         // their place in the ship. Cargo r farther from the axis than the ship's center weighs ω² (R + r) per kilogram, as
         // it would at rest in the station there. The read is the effective gravity that physics gives a body there.
         const double r = 0.5;
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world);
         Entity owner = world.Spawn(new()
         {
             Frame = station.Frame,
             Pose = At(FloorRadius - 1),
-            Body = new(new BoxShapeDesc(new(1, 2, 2)), Mass: 1000),
+            Body = new(Shape: new BoxShapeDesc(new(1, 2, 2)), Mass: 1000),
             // A bubble inside the hull, so that nothing hands into it.
             AsFrame = new(FrameBounds.Sphere(0.9f))
         });
@@ -333,9 +333,9 @@ public class SpinStationFloorTests
     private static HoverRun Hover()
     {
         double thrust = StationRate * StationRate * HoverRadius;
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world);
-        var hull = new BodyDesc(new BoxShapeDesc(new(1, 2, 2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0);
+        var hull = new BodyDesc(Shape: new BoxShapeDesc(new(1, 2, 2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0);
         Entity owner = world.Spawn(new()
         {
             Frame = station.Frame,
@@ -387,7 +387,7 @@ public class SpinStationFloorTests
         }
 
         world.Errors.Should().BeEmpty();
-        return new(fromPath, fromRadius, readAlong, readAcross);
+        return new(FromPath: fromPath, FromRadius: fromRadius, ReadAlong: readAlong, ReadAcross: readAcross);
     }
 
     [Fact]

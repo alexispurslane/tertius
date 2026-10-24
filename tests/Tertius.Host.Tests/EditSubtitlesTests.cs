@@ -23,9 +23,9 @@ public sealed class EditSubtitlesTests
     private static IReadOnlyList<ReadoutRow> Rows =>
     [
         .. FilmsOf.SelectMany(film => Enumerable.Range(0, film.Frames).Select(k => (film, k)))
-            .Select((frame, index) => new ReadoutRow($"{frame.film.Name}-{frame.k:000000}",
-                frame.film.FirstTick + (frame.k + 1L) * frame.film.Every,
-                new(DemoScenes.EarthRadius + 200e3, 0, 0), 1000 + index, 2e6, 0, 0))
+            .Select((frame, index) => new ReadoutRow(Frame: $"{frame.film.Name}-{frame.k:000000}",
+                Tick: frame.film.FirstTick + (frame.k + 1L) * frame.film.Every,
+                Position: new(DemoScenes.EarthRadius + 200e3, 0, 0), Speed: 1000 + index, ToStation: 2e6, Axis: 0, Felt: 0))
     ];
 
     private static readonly TitleCard Card = new(2,
@@ -33,7 +33,7 @@ public sealed class EditSubtitlesTests
 
     private static CutList Cuts(IReadOnlyList<EditTrim>? trims = null, IReadOnlyList<EditPart>? parts = null,
         IReadOnlyList<PanelSpan>? panels = null) =>
-        new(parts ?? [], trims ?? [], panels ?? [], Card, Card);
+        new(Parts: parts ?? [], Trims: trims ?? [], Panels: panels ?? [], Opening: Card, Closing: Card);
 
     private static string Subtitles(CutList cuts) => EditSubtitles.Film(Stretch.Of(FilmsOf, cuts.Trims), Rows, cuts);
 

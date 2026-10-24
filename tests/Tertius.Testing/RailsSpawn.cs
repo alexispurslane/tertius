@@ -31,9 +31,9 @@ public static class RailsSpawn
         (Double3 position, Double3 velocity) = orbit.StateAt(time, mu);
         MotionIntent first =
             firstMove ? new MotionIntent(orbit.Sample(mu, FirstStepEnd(world), world.DeltaTime)) : default;
-        return With(desc, new(position, orbit.RotationAt(time, mu)), velocity,
-            orbit.AngularVelocityAt(time, mu).ToVector3(),
-            first, new KeplerMotion { Orbit = orbit });
+        return With(desc: desc, pose: new(position, orbit.RotationAt(time, mu)), velocity: velocity,
+            angularVelocity: orbit.AngularVelocityAt(time, mu).ToVector3(),
+            firstMove: first, rails: new KeplerMotion { Orbit = orbit });
     }
 
     /// <summary>
@@ -46,11 +46,11 @@ public static class RailsSpawn
     /// of the next tick, at the place of <paramref name="desc"/>.
     /// </summary>
     public static SpawnDesc Spinning(this SpawnDesc desc, World world, FrameSpin spin, bool firstMove = false) =>
-        With(desc, new(desc.Pose.Position, spin.RotationAt(world.Time)), Double3.Zero, spin.AngularVelocity.ToVector3(),
-            firstMove
+        With(desc: desc, pose: new(desc.Pose.Position, spin.RotationAt(world.Time)), velocity: Double3.Zero, angularVelocity: spin.AngularVelocity.ToVector3(),
+            firstMove: firstMove
                 ? new MotionIntent(spin.Sample(desc.Pose.Position, FirstStepEnd(world), world.DeltaTime))
                 : default,
-            new SpinMotion { Spin = spin });
+            rails: new SpinMotion { Spin = spin });
 
     /// <summary>The end of the first step of an entity spawned now, outside a tick: the end of the step of the next tick.</summary>
     private static double FirstStepEnd(World world) => world.TimeAt(world.TickNumber + 1);

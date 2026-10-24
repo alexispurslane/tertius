@@ -27,8 +27,8 @@ public sealed class BlueDanubeFilmRun : IDisposable
         Backend = new(JoltBackendOptions.Unpaced);
         World = new(new() { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true }, Backend);
         Scene = DemoScenes.All.Single(s => s.Name == full.Scene).Build(World, RenderResources.None);
-        ScriptRunner.Run(full with { Steps = [.. full.Steps.Take(last + 1)] }, World, Scene, outputFolder: null,
-            new Recorder(this));
+        ScriptRunner.Run(script: full with { Steps = [.. full.Steps.Take(last + 1)] }, world: World, scene: Scene, outputFolder: null,
+            playback: new Recorder(this));
     }
 
     public World World { get; }
@@ -58,14 +58,14 @@ public sealed class BlueDanubeFilmRun : IDisposable
         bool Clear(Double3 toward)
         {
             var hits = new List<RayCastHit>();
-            Backend.CastRay(surface, view.Position, (toward - view.Position).Normalized(), 0, 1e4,
-                new AcceptsEveryEntity(), RayCastKind.Nearest, hits);
+            Backend.CastRay(frame: surface, origin: view.Position, direction: (toward - view.Position).Normalized(), start: 0, end: 1e4,
+                filter: new AcceptsEveryEntity(), kind: RayCastKind.Nearest, hits: hits);
             return hits.Count == 0;
         }
 
-        return new(name, Picture.Project(view, sun, World.VerticalFov), Picture.Project(view, moon, World.VerticalFov),
-            Picture.Project(view, World.PoseIn(Scene["shuttle"], surface).Position, World.VerticalFov), Clear(sun),
-            Clear(moon));
+        return new(Name: name, Sun: Picture.Project(view, sun, World.VerticalFov), Moon: Picture.Project(view, moon, World.VerticalFov),
+            Shuttle: Picture.Project(view, World.PoseIn(Scene["shuttle"], surface).Position, World.VerticalFov), SunClear: Clear(sun),
+            MoonClear: Clear(moon));
     }
 
     /// <summary>A query filter that accepts every entity.</summary>
@@ -83,9 +83,9 @@ public sealed class BlueDanubeFilmRun : IDisposable
                             Picture.Contains(
                                 Picture.Project(view, World.PoseIn(pen, frame).Position, World.VerticalFov));
         DPose inCabin = World.PoseIn(person, cabin);
-        return new(name, Picture.Cover(view, body, DemoSurface.PersonHalf, World.VerticalFov), penInPicture,
-            World.PoseIn(World.Camera, cabin), inCabin.TransformPoint(World.GetRender(person).ViewOffset.Position),
-            World.VerticalFov);
+        return new(Name: name, PersonCover: Picture.Cover(view: view, body: body, half: DemoSurface.PersonHalf, verticalFov: World.VerticalFov), PenInPicture: penInPicture,
+            View: World.PoseIn(World.Camera, cabin), Eye: inCabin.TransformPoint(World.GetRender(person).ViewOffset.Position),
+            VerticalFov: World.VerticalFov);
     }
 
     public void Dispose() => World.Dispose();

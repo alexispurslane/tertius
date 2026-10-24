@@ -124,7 +124,7 @@ public static partial class DemoScenes
         {
             Frame = surface,
             Pose = new(Foot, DQuaternion.Identity),
-            Body = new(new CompoundShapeDesc(Shape()), BodyMotion.Static, Friction: 0),
+            Body = new(Shape: new CompoundShapeDesc(Shape()), Motion: BodyMotion.Static, Friction: 0),
             Render = render
         });
     }

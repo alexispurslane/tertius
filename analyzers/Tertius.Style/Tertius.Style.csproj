@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The style analyzer: the rules of STYLE.md that a tool can check, and the code fix that names the arguments of a call.
+    Roslyn loads analyzers into the compiler, which runs on netstandard2.0, so this project targets it and C# 12, whatever
+    Directory.Build.props sets for the engine. Directory.Build.props references this project as an analyzer from every
+    other project.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>12</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <IsPackable>false</IsPackable>
+    <!-- RS2008 asks for release tracking of the rules, which matters for an analyzer package. This one never ships. -->
+    <NoWarn>$(NoWarn);RS2008</NoWarn>
+    <!--
+      RS1038 asks to keep a code fix, which needs the Workspaces assembly, out of the assembly of the analyzer, because
+      the compiler has no Workspaces assembly. The compiler creates only the types marked [DiagnosticAnalyzer], and the
+      analyzer types use no Workspaces type, so the code fix in the same assembly never loads in the compiler. One project
+      keeps the analyzer and its fix together, and dotnet format finds the fix in the same analyzer reference.
+    -->
+    <NoWarn>$(NoWarn);RS1038</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

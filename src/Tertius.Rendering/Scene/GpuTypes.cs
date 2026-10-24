@@ -47,9 +47,9 @@ internal struct GpuInstance
         Vector3 axisZ = new Vector3(2 * (xz + wy), 2 * (yz - wx), 1 - 2 * (xx + yy)) * scale.Z;
         return new()
         {
-            ModelRow0 = new(axisX.X, axisY.X, axisZ.X, position.X),
-            ModelRow1 = new(axisX.Y, axisY.Y, axisZ.Y, position.Y),
-            ModelRow2 = new(axisX.Z, axisY.Z, axisZ.Z, position.Z),
+            ModelRow0 = new(x: axisX.X, y: axisY.X, z: axisZ.X, w: position.X),
+            ModelRow1 = new(x: axisX.Y, y: axisY.Y, z: axisZ.Y, w: position.Y),
+            ModelRow2 = new(x: axisX.Z, y: axisY.Z, z: axisZ.Z, w: position.Z),
             InverseScaleSquared = new(InverseSquare(scale.X), InverseSquare(scale.Y), InverseSquare(scale.Z)),
             Material = material,
             Hemisphere = hemisphere switch
@@ -69,9 +69,9 @@ internal struct GpuInstance
     public static GpuInstance FromAxes(Vector3 axisX, Vector3 axisY, Vector3 axisZ, Vector3 origin, uint material) =>
         new()
         {
-            ModelRow0 = new(axisX.X, axisY.X, axisZ.X, origin.X),
-            ModelRow1 = new(axisX.Y, axisY.Y, axisZ.Y, origin.Y),
-            ModelRow2 = new(axisX.Z, axisY.Z, axisZ.Z, origin.Z),
+            ModelRow0 = new(x: axisX.X, y: axisY.X, z: axisZ.X, w: origin.X),
+            ModelRow1 = new(x: axisX.Y, y: axisY.Y, z: axisZ.Y, w: origin.Y),
+            ModelRow2 = new(x: axisX.Z, y: axisY.Z, z: axisZ.Z, w: origin.Z),
             Material = material
         };
 

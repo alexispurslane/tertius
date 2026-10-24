@@ -29,7 +29,7 @@ public class PhysicsIntentTests
     /// <paramref name="body"/>.</summary>
     private static List<IntentRecord> IntentsReceivedAfterWriting(WriteSelfIntent write, BodyDesc body, out Entity ball)
     {
-        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         List<IntentRecord> intents = faults.Intents;
         ball = test.World.Spawn(new()
         {
@@ -71,7 +71,7 @@ public class PhysicsIntentTests
     [Fact]
     public void PhysicsReceivesAnIntentOnlyFromTheEntitiesThatWroteOne()
     {
-        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         List<IntentRecord> intents = faults.Intents;
         Entity pusher = test.World.Spawn(new()
         {
@@ -90,7 +90,7 @@ public class PhysicsIntentTests
     [Fact]
     public void TheIntentsOfTwoEntitiesStaySeparate()
     {
-        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         List<IntentRecord> intents = faults.Intents;
         Entity left = SpawnPusher(test, new(-1, 0, 0));
         Entity right = SpawnPusher(test, new(1, 0, 0));
@@ -104,7 +104,7 @@ public class PhysicsIntentTests
     [Fact]
     public void AnIntentDoesNotPileUpFromOneTickToTheNext()
     {
-        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         List<IntentRecord> intents = faults.Intents;
         SpawnPusher(test, Vector3.UnitY);
 
@@ -218,7 +218,7 @@ public class PhysicsIntentTests
         DPose pose = fault == "a zero rotation"
             ? new(new(1, 0, 0), default)
             : new DPose(new(double.NaN, 0, 0), DQuaternion.Identity);
-        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         Entity ball = test.World.Spawn(new()
         {
             Frame = test.Root,
@@ -247,7 +247,7 @@ public class PhysicsIntentTests
     public void AnEndPoseAndASteerTargetReachPhysicsWithAUnitRotation(string writer)
     {
         DQuaternion turn = DQuaternion.FromAxisAngle(Double3.UnitZ, 0.4);
-        var doubled = new DQuaternion(2 * turn.X, 2 * turn.Y, 2 * turn.Z, 2 * turn.W);
+        var doubled = new DQuaternion(X: 2 * turn.X, Y: 2 * turn.Y, Z: 2 * turn.Z, W: 2 * turn.W);
 
         PhysicsIntent intent =
             IntentsReceivedAfterWriting(self => WriteAimPose(self, writer, new(new(1, 0, 0), doubled)), BallFor(writer),
@@ -313,7 +313,7 @@ public class PhysicsIntentTests
     [InlineData("none-of")]
     public void ABodyCannotTakeAMaskWithAnAllOfOrANoneOfPartAndTheErrorIsReported(string part)
     {
-        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         List<IntentRecord> intents = faults.Intents;
         CollisionMask mask = part == "all-of"
             ? CollisionMask.Empty.InAll(CollisionGroup.Solid)
@@ -349,7 +349,7 @@ public class PhysicsIntentTests
     [Fact]
     public void AnEntityCanReadWhatItHasWrittenSoFarInTheSameTick()
     {
-        using TestWorld test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(faults: out _);
         PhysicsIntent pendingAtTheEnd = default;
         test.World.Spawn(new()
         {
@@ -374,7 +374,7 @@ public class PhysicsIntentTests
     [Fact]
     public void AnEntityWithoutABodyCannotWriteAnIntentAndTheErrorIsReported()
     {
-        using TestWorld test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(faults: out _);
         Entity ghost = test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
             self.Body.AddForce(Vector3.UnitX)));
 

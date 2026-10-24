@@ -20,7 +20,7 @@ public class ReconcileTests
 {
     /// <summary>A hull of 4 m by 4 m by 4 m with a mass of 1000 kg, and no damping or bounce.</summary>
     private static BodyDesc ShipHull() =>
-        new(new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>The hand-offs that Jolt reported so far, in the order of the steps.</summary>
     private static List<HandOff> HandOffs(FaultInjectingBackend faults) =>
@@ -55,11 +55,11 @@ public class ReconcileTests
         public FullStorage(bool numericFrames)
         {
             this.numericFrames = numericFrames;
-            World = NewWorldWithFaultsAndSmallSystems(8, out FaultInjectingBackend faults,
+            World = NewWorldWithFaultsAndSmallSystems(maxBodiesPerFrame: 8, faults: out FaultInjectingBackend faults,
                 configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
             Faults = faults;
             Space = World.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
-            Hangar = EmptyFrame(World, Space, At(1000), 30);
+            Hangar = EmptyFrame(world: World, parent: Space, pose: At(1000), radius: 30);
             BodyDesc hull = ShipHull();
             Ship = World.GetOwnedFrame(World.Spawn(new()
             {
@@ -70,19 +70,19 @@ public class ReconcileTests
                 AsFrame = new(FrameBounds.Sphere(10)),
                 Components = [new Thruster(hull.Mass) { Direction = -Vector3.UnitX }]
             }));
-            Storage = EmptyFrame(World, Space, At(-5000), 50);
+            Storage = EmptyFrame(world: World, parent: Space, pose: At(-5000), radius: 50);
             for (int i = 0; i < 8; i++)
                 World.Spawn(new()
                 {
                     Frame = Storage,
                     Pose = At(3 * i - 12),
-                    Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static)
+                    Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static)
                 });
             Skiff = World.GetOwnedFrame(World.Spawn(new()
             {
                 Frame = Space,
                 Pose = At(-3000),
-                Body = new(new BoxShapeDesc(new(1)), BodyMotion.Static),
+                Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static),
                 AsFrame = new(FrameBounds.Sphere(5))
             }));
         }
@@ -190,10 +190,10 @@ public class ReconcileTests
     public void AfterARefusedHandOffTheReconcileRestoresTheInvariants()
     {
         // Numeric frames off: the Release branch checks that the system of space holds the fighter's hull.
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults,
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults,
             configure: options => options.NumericFrames = WithoutNumericFrames);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
-        FrameHandle carrier = EmptyFrame(world, space, At(1000), 200);
+        FrameHandle carrier = EmptyFrame(world: world, parent: space, pose: At(1000), radius: 200);
         FrameHandle fighter = world.GetOwnedFrame(world.Spawn(new()
         {
             Frame = space,
@@ -255,7 +255,7 @@ public class ReconcileTests
         FaultInjectingBackend faults)
     {
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
-        FrameHandle hangar = EmptyFrame(world, space, At(20), 15);
+        FrameHandle hangar = EmptyFrame(world: world, parent: space, pose: At(20), radius: 15);
         FrameHandle ship = world.GetOwnedFrame(world.Spawn(new()
         {
             Frame = space,
@@ -276,7 +276,7 @@ public class ReconcileTests
     [Fact]
     public void AHullHasNoGhostInAFrameThatTheGameMovedInsideItsOwnFrame()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         (_, FrameHandle hangar, FrameHandle ship) = ShipBesideHangar(world, faults);
 
         // Between ticks, with no change batch, the game moves the hangar into the ship.
@@ -300,16 +300,16 @@ public class ReconcileTests
     [Fact]
     public void ABodyHasNoGhostInAFrameThatTheGameMovedAwayFromItsFrame()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
-        FrameHandle bubble = EmptyFrame(world, space, At(50), 20);
-        FrameHandle station = EmptyFrame(world, space, At(-500), 200);
+        FrameHandle bubble = EmptyFrame(world: world, parent: space, pose: At(50), radius: 20);
+        FrameHandle station = EmptyFrame(world: world, parent: space, pose: At(-500), radius: 200);
         // The ball sticks out of the bubble, so space holds a ghost of it.
         Entity ball = world.Spawn(new()
         {
             Frame = bubble,
             Pose = At(19.8),
-            Body = new(new SphereShapeDesc(0.5f), Mass: 1, Restitution: 0, LinearDamping: 0, AngularDamping: 0)
+            Body = new(Shape: new SphereShapeDesc(0.5f), Mass: 1, Restitution: 0, LinearDamping: 0, AngularDamping: 0)
         });
         world.Tick();
         faults.Jolt.HasGhostIn(ball, space).Should().BeTrue();
@@ -335,10 +335,10 @@ public class ReconcileTests
     [Fact]
     public void AGhostThatTheTreeStillAllowsSurvivesTheReconcile()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         (FrameHandle space, FrameHandle hangar, FrameHandle ship) = ShipBesideHangar(world, faults);
-        FrameHandle buoy = EmptyFrame(world, space, At(-5000), 5);
-        FrameHandle depot = EmptyFrame(world, space, At(5000), 50);
+        FrameHandle buoy = EmptyFrame(world: world, parent: space, pose: At(-5000), radius: 5);
+        FrameHandle depot = EmptyFrame(world: world, parent: space, pose: At(5000), radius: 50);
         world.Tick();
 
         // A change far away makes the backend reconcile, but the hangar is still the ship's frame's sibling.

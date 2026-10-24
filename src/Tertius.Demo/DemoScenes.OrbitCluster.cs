@@ -96,17 +96,17 @@ public static partial class DemoScenes
 
         var capsule = new CapsuleShapeDesc(0.6f, 0.3f);
         (DPose walkerPose, Double3 walkerVelocity) = BesideTheShip(SpacewalkerStart, world.Time);
-        var suit = new Vector4(0.95f, 0.8f, 0.2f, 1);
+        var suit = new Vector4(x: 0.95f, y: 0.8f, z: 0.2f, w: 1);
         Entity spacewalker = world.Spawn(new()
         {
             Frame = earth,
             Pose = walkerPose,
             LinearVelocity = walkerVelocity,
-            Body = new(capsule, BodyMotion.Character, Mass: 70),
+            Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: 70),
             Render = new RenderData
             {
                 Mesh = resources.CreateMesh(Primitives.Box(new(0.3f, 0.9f, 0.3f))),
-                Material = resources.CreateMaterial(new(suit, Emissive: MarkerGlow(suit))),
+                Material = resources.CreateMaterial(new(BaseColor: suit, Emissive: MarkerGlow(suit))),
                 BoundingRadius = 1,
                 Flags = RenderFlags.Visible | RenderFlags.CastsShadow
             },
@@ -115,10 +115,10 @@ public static partial class DemoScenes
         });
         scene.Add("spacewalker", spacewalker);
 
-        var orange = new Vector4(1, 0.45f, 0.1f, 1);
-        var crate = new CrateSpec(ClusterCrateHalfExtents, 50,
-            resources.CreateMesh(Primitives.Box(ClusterCrateHalfExtents)),
-            resources.CreateMaterial(new(orange, Emissive: MarkerGlow(orange))));
+        var orange = new Vector4(x: 1, y: 0.45f, z: 0.1f, w: 1);
+        var crate = new CrateSpec(HalfExtents: ClusterCrateHalfExtents, Mass: 50,
+            Mesh: resources.CreateMesh(Primitives.Box(ClusterCrateHalfExtents)),
+            Material: resources.CreateMaterial(new(BaseColor: orange, Emissive: MarkerGlow(orange))));
         foreach ((string id, Double3 offset) in new[]
                      { ("crate-above", CrateAboveStart), ("crate-below", CrateBelowStart) })
         {

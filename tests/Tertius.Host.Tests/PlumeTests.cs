@@ -31,7 +31,7 @@ public sealed class PlumeTests : IDisposable
     /// <paramref name="components"/>, and fits its jets.</summary>
     private void Launch(FrameHandle frame, DQuaternion turn, params IComponent[] components)
     {
-        shuttle = Shuttle.Park(world, frame, new(Double3.Zero, turn), components: [new Unpark(), .. components]);
+        shuttle = Shuttle.Park(world: world, frame: frame, pose: new(Double3.Zero, turn), components: [new Unpark(), .. components]);
         Shuttle.FitJets(world, shuttle);
     }
 
@@ -200,15 +200,15 @@ public sealed class PlumeTests : IDisposable
 
         Tick(world, 2);
 
-        ShouldBeNear(ExhaustOf(Control.MainEnginePart, space), turn.Rotate(Double3.UnitZ), 1e-6,
-            "the main engine blows aft");
+        ShouldBeNear(actual: ExhaustOf(Control.MainEnginePart, space), expected: turn.Rotate(Double3.UnitZ), tolerance: 1e-6,
+            because: "the main engine blows aft");
         for (int pair = 0; pair < ShuttleJets.PairCount; pair++)
         {
             JetPair each = Control.Layout.Pairs[pair];
             foreach ((Jet jet, bool second) in new[] { (each.First, false), (each.Second, true) })
-                ShouldBeNear(ExhaustOf(Control.JetParts[ShuttleJetControl.PartIndex(pair, second)], space),
-                    -turn.Rotate(jet.Push), 1e-6,
-                    $"{jet.Id} blows against its push");
+                ShouldBeNear(actual: ExhaustOf(Control.JetParts[ShuttleJetControl.PartIndex(pair, second)], space),
+                    expected: -turn.Rotate(jet.Push), tolerance: 1e-6,
+                    because: $"{jet.Id} blows against its push");
         }
     }
 
@@ -229,7 +229,7 @@ public sealed class PlumeTests : IDisposable
         {
             Frame = space,
             Pose = new(Double3.Zero, turn),
-            Body = new(new BoxShapeDesc(new(0.3f, 0.9f, 0.3f)), Mass: 70),
+            Body = new(Shape: new BoxShapeDesc(new(0.3f, 0.9f, 0.3f)), Mass: 70),
             Components = [person]
         });
 
@@ -238,8 +238,8 @@ public sealed class PlumeTests : IDisposable
         // The box is no character, so the jet's lever turns it: the force is in its axes as they are now.
         DQuaternion now = world.PoseIn(body, space).Rotation;
         EmitterOf(person.Jet).Should().Be(BackJet.Plume.At(force.Length() / PersonControl.ThrustForce));
-        ShouldBeNear(ExhaustOf(person.Jet, space), -now.Rotate(((Double3)force).Normalized()), 1e-6,
-            "the back jet blows against its force");
+        ShouldBeNear(actual: ExhaustOf(person.Jet, space), expected: -now.Rotate(((Double3)force).Normalized()), tolerance: 1e-6,
+            because: "the back jet blows against its force");
     }
 
     /// <summary>A back jet that gets a force of zero makes no puffs.</summary>
@@ -251,7 +251,7 @@ public sealed class PlumeTests : IDisposable
         {
             Frame = space,
             Pose = DPose.Identity,
-            Body = new(new BoxShapeDesc(new(0.3f, 0.9f, 0.3f)), Mass: 70),
+            Body = new(Shape: new BoxShapeDesc(new(0.3f, 0.9f, 0.3f)), Mass: 70),
             Components = [person]
         });
 
@@ -337,7 +337,7 @@ public sealed class PlumeTests : IDisposable
         {
             Frame = space,
             Pose = DPose.Identity,
-            Body = new(new BoxShapeDesc(new(1, 1, 1)), Mass: 100),
+            Body = new(Shape: new BoxShapeDesc(new(1, 1, 1)), Mass: 100),
             Components = [driver, part]
         });
 
@@ -364,7 +364,7 @@ public sealed class PlumeTests : IDisposable
         {
             Frame = space,
             Pose = DPose.Identity,
-            Body = new(new BoxShapeDesc(new(1, 1, 1)), Mass: 100),
+            Body = new(Shape: new BoxShapeDesc(new(1, 1, 1)), Mass: 100),
             Components = [new ThrottleBy(tick => tick < 6 ? 0.5f : null), part]
         });
 
@@ -388,7 +388,7 @@ public sealed class PlumeTests : IDisposable
         {
             Frame = space,
             Pose = DPose.Identity,
-            Body = new(new BoxShapeDesc(new(0.3f, 0.9f, 0.3f)), Mass: 70),
+            Body = new(Shape: new BoxShapeDesc(new(0.3f, 0.9f, 0.3f)), Mass: 70),
             Components = [person]
         });
 

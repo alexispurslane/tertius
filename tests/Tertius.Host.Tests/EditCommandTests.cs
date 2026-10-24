@@ -21,8 +21,8 @@ public sealed class EditCommandTests : IDisposable
 
     private static readonly TitleCard Card = new(1, [new("Tertius", 96)]);
 
-    private static readonly CutList Cuts = new([new("a", "Earth", "The walk.")], [new("a", Head: 30, Tail: 10)], [],
-        Card, Card);
+    private static readonly CutList Cuts = new(Parts: [new("a", "Earth", "The walk.")], Trims: [new("a", Head: 30, Tail: 10)], Panels: [],
+        Opening: Card, Closing: Card);
 
     private readonly string folder = HostTesting.NewFolder();
 
@@ -43,8 +43,8 @@ public sealed class EditCommandTests : IDisposable
     private static List<ReadoutRow> RowsOf(Script script) =>
     [
         .. ScriptFilm.Of(script).SelectMany(film => Enumerable.Range(0, film.Frames)
-            .Select(k => new ReadoutRow($"{film.Name}-{k:000000}", film.FirstTick + (k + 1L) * film.Every,
-                new(DemoScenes.EarthRadius, 0, 0), 0, 1e6, 0, 9.8)))
+            .Select(k => new ReadoutRow(Frame: $"{film.Name}-{k:000000}", Tick: film.FirstTick + (k + 1L) * film.Every,
+                Position: new(DemoScenes.EarthRadius, 0, 0), Speed: 0, ToStation: 1e6, Axis: 0, Felt: 9.8)))
     ];
 
     /// <summary>A lossless video of <paramref name="frames"/> frames at 60 frames per second, whose frame k is gray level k.</summary>
@@ -80,8 +80,8 @@ public sealed class EditCommandTests : IDisposable
 
     private int Edit(StringWriter output, StringWriter error, params string[] extra) =>
         EditCommand.Run(
-            ["--edit", VideoPath, "--script", ScriptPath, "--master", MasterPath, "--readouts", LogPath, .. extra],
-            Cuts, output, error);
+            args: ["--edit", VideoPath, "--script", ScriptPath, "--master", MasterPath, "--readouts", LogPath, .. extra],
+            cuts: Cuts, output: output, error: error);
 
     [Fact]
     public void TheEditWritesTheOpeningCardTheKeptFramesAndTheClosingCardAt60FramesPerSecond()
@@ -197,8 +197,8 @@ public sealed class EditCommandTests : IDisposable
         // 0.505 s is 30.3 frames. The card rounds it to 30 frames, so the video must hold 30 frames of the card, not 31.
         CutList cuts = Cuts with { Opening = Card with { Seconds = 0.505 } };
 
-        EditCommand.Run(["--edit", VideoPath, "--script", ScriptPath, "--master", MasterPath, "--readouts", LogPath],
-                cuts, new StringWriter(), new StringWriter())
+        EditCommand.Run(args: ["--edit", VideoPath, "--script", ScriptPath, "--master", MasterPath, "--readouts", LogPath],
+                cuts: cuts, output: new StringWriter(), error: new StringWriter())
             .Should().Be(ScriptCommand.Ok);
 
         cuts.Opening.Frames.Should().Be(30);
@@ -256,7 +256,7 @@ public sealed class EditCommandTests : IDisposable
     {
         var error = new StringWriter();
 
-        int exit = EditCommand.Run(args, Cuts, new StringWriter(), error);
+        int exit = EditCommand.Run(args: args, cuts: Cuts, output: new StringWriter(), error: error);
 
         exit.Should().Be(ScriptCommand.CommandLineError);
         error.ToString().Should().Contain(EditCommand.Usage);

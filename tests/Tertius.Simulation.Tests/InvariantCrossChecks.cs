@@ -100,13 +100,13 @@ internal static class InvariantCrossChecks
         history.Checks++;
 
         CheckRows(world, live, Report);
-        CheckMembership(world, topics, live, frames, history, reachable, Report);
-        CheckTopics(world, topics, frames, history, reachable, Report);
-        CheckAttachments(world, live, history, reachable, Report);
-        CheckSpatialIndex(world, live, frames, history, reachable, sampler, Report);
-        CheckFrames(world, live, frames, Report);
+        CheckMembership(world: world, topics: topics, live: live, frames: frames, history: history, reachable: reachable, report: Report);
+        CheckTopics(world: world, topics: topics, frames: frames, history: history, reachable: reachable, report: Report);
+        CheckAttachments(world: world, live: live, history: history, reachable: reachable, report: Report);
+        CheckSpatialIndex(world: world, live: live, frames: frames, history: history, reachable: reachable, sampler: sampler, report: Report);
+        CheckFrames(world: world, live: live, frames: frames, report: Report);
         if (inboxesCurrent)
-            CheckInboxes(world, topics, live, history, Report);
+            CheckInboxes(world: world, topics: topics, live: live, history: history, report: Report);
 
         // An entity without a body writes only a motion intent, which the sync point applies to it.
         foreach (Entity intent in entities.IntentEntities.Span)
@@ -321,7 +321,7 @@ internal static class InvariantCrossChecks
         foreach (FrameHandle frame in frames)
         {
             Entity[] inFrame = [.. live.Where(entity => world.GetFrame(entity) == frame)];
-            world.Snapshot.QueryRadius(frame, Double3.Zero, 1e15, found);
+            world.Snapshot.QueryRadius(frame: frame, center: Double3.Zero, radius: 1e15, results: found);
             foreach (Entity entity in found)
                 reachable.Add(entity);
             history.SpatialMatches += found.Count;
@@ -347,7 +347,7 @@ internal static class InvariantCrossChecks
                     return dx * dx + dy * dy + dz * dz <= radius * radius;
                 })
             ];
-            world.Snapshot.QueryRadius(frame, center, radius, found);
+            world.Snapshot.QueryRadius(frame: frame, center: center, radius: radius, results: found);
             history.SpatialMatches += found.Count;
             if (!found.SequenceEqual(expected))
                 report(

@@ -192,14 +192,14 @@ public sealed partial class JoltPhysicsBackend
         // Intents and the update of the step have not run yet, so nothing waits for the walking form's next update.
         Contract.Requires(record.IsCharacter && record.Character is not null &&
                           record.PendingVelocityChange == Vector3.Zero && record.PendingJump == 0);
-        CharacterVirtual character = record.Character!;
+        CharacterVirtual character = record.Character;
         FrameHandle frame = record.Frame;
         var pose = new DPose(character.RPosition.ToDouble3(), character.Rotation.ToDouble());
         Vector3 velocity = character.LinearVelocity;
         RemovePrimary(record);
         record.Motion = BodyMotion.Dynamic;
         record.Standing = false;
-        CreatePrimary(record, frame, pose, velocity, Vector3.Zero, upFromGravity: false);
+        CreatePrimary(record: record, frame: frame, pose: pose, linearVelocity: velocity, angularVelocity: Vector3.Zero, upFromGravity: false);
         if (record.InstantVelocityStep == stepIndex)
             spawnedRigid.Add(record);
         Contract.Ensures(record.Motion == BodyMotion.Dynamic && record.Character is null && record.Body.IsValid &&
@@ -221,8 +221,9 @@ public sealed partial class JoltPhysicsBackend
         FrameHandle frame = record.Frame;
         RemovePrimary(record);
         record.Motion = BodyMotion.Character;
-        CreatePrimary(record, frame, s.Pose, s.Linear, Vector3.Zero, upFromGravity: false);
-        record.Character!.RefreshContacts(PrimaryLayer(record), record.World!.System);
+        CreatePrimary(record: record, frame: frame, pose: s.Pose, linearVelocity: s.Linear, angularVelocity: Vector3.Zero, upFromGravity: false);
+        Contract.Assert(record.Character is not null && record.HasPrimary);
+        record.Character.RefreshContacts(layer: PrimaryLayer(record), physicsSystem: record.World.System);
         Contract.Ensures(record.Motion == BodyMotion.Character && record.Character is not null &&
                          !record.Body.IsValid && record.Frame == frame);
     }
@@ -267,9 +268,9 @@ public sealed partial class JoltPhysicsBackend
             RMatrix4x4 transform = Matrix4x4.CreateFromQuaternion(bodies.GetRotation(member.Body));
             transform.Translation = position;
             rigidCharacterContacts.Clear();
-            world.System.NarrowPhaseQuery.CollideShape(shapes.Get(member.Desc.Shape), Vector3.One, transform, settings,
-                position,
-                CollisionCollectorType.AllHit, rigidCharacterContacts);
+            world.System.NarrowPhaseQuery.CollideShape(shape: shapes.Get(member.Desc.Shape), scale: Vector3.One, centerOfMassTransform: transform, settings: settings,
+                baseOffset: position,
+                collectorType: CollisionCollectorType.AllHit, results: rigidCharacterContacts);
             world.NoteRigidCharacterContacts(member.Body, rigidCharacterContacts);
         }
     }

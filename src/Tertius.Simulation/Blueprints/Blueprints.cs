@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -92,7 +93,7 @@ public sealed class Blueprints
 
                 if (spec.Fields != null)
                     foreach ((string field, object? value) in spec.Fields)
-                        specs[index].Fields[field] = Coerce(name, spec.Type, field, value);
+                        specs[index].Fields[field] = Coerce(blueprint: name, type: spec.Type, field: field, value: value);
             }
 
             var recipes = new Recipe[specs.Count];
@@ -116,11 +117,11 @@ public sealed class Blueprints
 
             Blueprint? parentBlueprint = parent?.Resolved;
             var resolved = new Blueprint(
-                name,
-                Array.AsReadOnly(resolvedSpecs),
-                blueprint.Body ?? parentBlueprint?.Body,
-                blueprint.Render ?? parentBlueprint?.Render,
-                blueprint.Frame ?? parentBlueprint?.Frame,
+                Name: name,
+                Components: Array.AsReadOnly(resolvedSpecs),
+                Body: blueprint.Body ?? parentBlueprint?.Body,
+                Render: blueprint.Render ?? parentBlueprint?.Render,
+                Frame: blueprint.Frame ?? parentBlueprint?.Frame,
                 Parent: null);
             entries[name] = new(resolved, specs, recipes);
         }
@@ -253,7 +254,8 @@ public sealed class Blueprints
         var bindings = new MemberBinding[names.Length];
         for (int i = 0; i < names.Length; i++)
         {
-            MemberInfo member = FindMember(type, names[i], out Type memberType)!;
+            MemberInfo member = FindMember(type, names[i], out Type memberType) ??
+                                throw new UnreachableException($"The blueprint's check found the member {names[i]} of {type}.");
             Expression value = Expression.Convert(Expression.ArrayIndex(values, Expression.Constant(i)), memberType);
             bindings[i] = Expression.Bind(member, value);
         }

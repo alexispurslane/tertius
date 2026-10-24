@@ -42,13 +42,13 @@ public sealed class PersonControlTests : IDisposable
         {
             Frame = room,
             Pose = new(new(-0.5 * up.X, -0.5 * up.Y, -0.5 * up.Z), DQuaternion.Identity),
-            Body = new(new BoxShapeDesc(new Vector3(50) - 49.5f * Vector3.Abs(up)), BodyMotion.Static)
+            Body = new(Shape: new BoxShapeDesc(new Vector3(50) - 49.5f * Vector3.Abs(up)), Motion: BodyMotion.Static)
         });
         Entity standing = world.Spawn(new()
         {
             Frame = room,
             Pose = new(new(0.95 * up.X, 0.95 * up.Y, 0.95 * up.Z), DQuaternion.Identity),
-            Body = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
+            Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70),
             Components = [new PersonControl(Eye)],
             Subscriptions = [Topics.Input]
         });
@@ -74,7 +74,7 @@ public sealed class PersonControlTests : IDisposable
         {
             Frame = space,
             Pose = new(Double3.Zero, rotation),
-            Body = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: Mass),
+            Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: Mass),
             Components = [new PersonControl(Eye)],
             Subscriptions = [Topics.Input]
         });
@@ -100,7 +100,7 @@ public sealed class PersonControlTests : IDisposable
             world.Tick();
     }
 
-    private void Post(InputEvent e) => world.Post(Event.Create(Topics.Input, Entity.Null, e));
+    private void Post(InputEvent e) => world.Post(Event.Create(target: Topics.Input, sender: Entity.Null, payload: e));
 
     private void Press(Key key) => Post(InputEvent.KeyDown((int)key));
 
@@ -188,9 +188,9 @@ public sealed class PersonControlTests : IDisposable
         // In a second room, gravity pulls along -X, so physics turns the person's +Y to +X: a quarter turn about -Z.
         Entity sideways = StandOnAFloor(Vector3.UnitX);
         world.Camera = sideways;
-        world.Post(Event.Create(sideways, Entity.Null,
-            InputEvent.MouseMove(new(-MathF.PI / 2 / PersonControl.TurnPerPixel, 0))));
-        world.Post(Event.Create(sideways, Entity.Null, InputEvent.KeyDown((int)Key.W)));
+        world.Post(Event.Create(target: sideways, sender: Entity.Null,
+            payload: InputEvent.MouseMove(new(-MathF.PI / 2 / PersonControl.TurnPerPixel, 0))));
+        world.Post(Event.Create(target: sideways, sender: Entity.Null, payload: InputEvent.KeyDown((int)Key.W)));
 
         // The view's quarter turn left takes forward from -Z to -X in the person's axes, and the body's turn takes -X to
         // +Y in the room's: along the floor, which lies across +X.

@@ -83,9 +83,9 @@ internal readonly partial struct QueryFilter
         switch (this)
         {
             case NearAsker:
-                return TryCenterOfEntity(snapshot, snapshot.Asker, out frame, out point);
+                return TryCenterOfEntity(snapshot: snapshot, center: snapshot.Asker, centerFrame: out frame, centerPoint: out point);
             case NearEntity(var center, _):
-                return TryCenterOfEntity(snapshot, center, out frame, out point);
+                return TryCenterOfEntity(snapshot: snapshot, center: center, centerFrame: out frame, centerPoint: out point);
             case NearPoint(var pointFrame, var center, _):
                 frame = pointFrame;
                 point = center;
@@ -113,10 +113,10 @@ internal readonly partial struct QueryFilter
     {
         InFilter(var inFrame) => row.Frame == inFrame,
         WhereFilter(var test) => test(snapshot, entity),
-        NearAsker(var distance) => IsWithinRadiusOfEntity(snapshot, snapshot.Asker, row, distance),
-        NearEntity(var center, var distance) => IsWithinRadiusOfEntity(snapshot, center, row, distance),
+        NearAsker(var distance) => IsWithinRadiusOfEntity(snapshot: snapshot, center: snapshot.Asker, row: row, distance: distance),
+        NearEntity(var center, var distance) => IsWithinRadiusOfEntity(snapshot: snapshot, center: center, row: row, distance: distance),
         NearPoint(var pointFrame, var center, var distance) =>
-            snapshot.World.Frames.IsAlive(pointFrame) && IsWithin(row, pointFrame, center, distance),
+            snapshot.World.Frames.IsAlive(pointFrame) && IsWithin(row: row, centerFrame: pointFrame, centerPoint: center, distance: distance),
         null => true
     };
 
@@ -124,8 +124,8 @@ internal readonly partial struct QueryFilter
     /// <paramref name="distance"/> meters of it.</summary>
     private static bool IsWithinRadiusOfEntity(in Snapshot snapshot, Entity center, in TransformRow row,
         double distance) =>
-        TryCenterOfEntity(snapshot, center, out FrameHandle centerFrame, out Double3 centerPoint)
-        && IsWithin(row, centerFrame, centerPoint, distance);
+        TryCenterOfEntity(snapshot: snapshot, center: center, centerFrame: out FrameHandle centerFrame, centerPoint: out Double3 centerPoint)
+        && IsWithin(row: row, centerFrame: centerFrame, centerPoint: centerPoint, distance: distance);
 
     private static bool IsWithin(in TransformRow row, FrameHandle centerFrame, Double3 centerPoint, double distance) =>
         row.Frame == centerFrame && (row.Pose.Position - centerPoint).LengthSquared <= distance * distance;

@@ -152,7 +152,7 @@ public class ScriptUnionTests
         SceneInstance scene = HostTesting.Probes(world);
         var script = new Script("probes", [new RunStep(1), (DumpStep)null!]);
 
-        Action run = () => ScriptRunner.Run(script, world, scene);
+        Action run = () => ScriptRunner.Run(script: script, world: world, scene: scene);
 
         run.Should().Throw<ScriptException>().Which.Message.Should().Be("step 2: a step cannot be null.");
         world.TickNumber.Should().Be(0);
@@ -247,7 +247,7 @@ public class ScriptUnionTests
         SceneInstance scene = HostTesting.Probes(world);
         var script = new Script("probes", [new RunStep(1), default]);
 
-        Action run = () => ScriptRunner.Run(script, world, scene);
+        Action run = () => ScriptRunner.Run(script: script, world: world, scene: scene);
 
         run.Should().Throw<ScriptException>().Which.Message.Should().Be("step 2: a step cannot be null.");
         world.TickNumber.Should().Be(0);
@@ -260,7 +260,7 @@ public class ScriptUnionTests
         SceneInstance scene = HostTesting.Probes(world);
         var script = new Script("probes", [new RunStep(1), new PostStep(default, "Nudge")]);
 
-        Action run = () => ScriptRunner.Run(script, world, scene);
+        Action run = () => ScriptRunner.Run(script: script, world: world, scene: scene);
 
         run.Should().Throw<ScriptException>().Which.Message.Should()
             .Be("step 2 (post): an event target cannot be null.");

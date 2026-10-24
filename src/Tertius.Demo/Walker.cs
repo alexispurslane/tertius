@@ -69,7 +69,7 @@ public sealed class Walker(IReadOnlyList<Waypoint> path) : IComponent
     public EventMask Wants => EventMask.Of<Tick>();
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
-        walk = Step(self, path, walk, PersonControl.WalkSpeed);
+        walk = Step(self: self, path: path, walk: walk, speed: PersonControl.WalkSpeed);
 
     /// <summary>
     /// Walks the character of <paramref name="self"/> one tick along <paramref name="path"/>, from

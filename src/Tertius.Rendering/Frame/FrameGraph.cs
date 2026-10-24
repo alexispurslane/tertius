@@ -15,6 +15,10 @@ internal sealed class FrameContext
     /// <summary>The sun shadow cascades. Passes that shade with the sun sample them.</summary>
     public required ShadowMap Shadows { get; init; }
 
+    // The renderer keeps one context for its life and sets the values of each frame before the frame graph runs, so no
+    // pass reads them before the first frame. A frame has no values to give at the creation of the context, and a new
+    // context per frame would allocate on the hot path.
+#pragma warning disable TS0003
     public FrameResources Frame { get; set; } = null!;
 
     /// <summary>The snapshot being drawn, unculled. A shadow pass selects casters from it, including ones outside the view.</summary>
@@ -27,6 +31,7 @@ internal sealed class FrameContext
 
     /// <summary>The final image: a swapchain image or the headless output.</summary>
     public GpuImage Output { get; set; } = null!;
+#pragma warning restore TS0003
 
     public long Number { get; set; }
     public float Exposure { get; set; } = 1f;
@@ -48,16 +53,16 @@ internal sealed class FrameContext
     public unsafe void BindSceneSets()
     {
         DescriptorSet* sets = stackalloc[] { Frame.FrameSet, Frame.TextureSet, Targets.GBufferSet };
-        Vk.CmdBindDescriptorSets(CommandBuffer, PipelineBindPoint.Graphics, Layouts.SceneLayout, 0, 3, sets, 0, null);
+        Vk.CmdBindDescriptorSets(commandBuffer: CommandBuffer, pipelineBindPoint: PipelineBindPoint.Graphics, layout: Layouts.SceneLayout, firstSet: 0, descriptorSetCount: 3, pDescriptorSets: sets, dynamicOffsetCount: 0, pDynamicOffsets: null);
     }
 
     /// <summary>Sets a viewport and scissor that cover the whole render target.</summary>
     public unsafe void SetFullViewport()
     {
-        var viewport = new Viewport(0, 0, Extent.Width, Extent.Height, 0, 1);
+        var viewport = new Viewport(x: 0, y: 0, width: Extent.Width, height: Extent.Height, minDepth: 0, maxDepth: 1);
         var scissor = new Rect2D(new Offset2D(0, 0), Extent);
-        Vk.CmdSetViewport(CommandBuffer, 0, 1, &viewport);
-        Vk.CmdSetScissor(CommandBuffer, 0, 1, &scissor);
+        Vk.CmdSetViewport(commandBuffer: CommandBuffer, firstViewport: 0, viewportCount: 1, pViewports: &viewport);
+        Vk.CmdSetScissor(commandBuffer: CommandBuffer, firstScissor: 0, scissorCount: 1, pScissors: &scissor);
     }
 }
 

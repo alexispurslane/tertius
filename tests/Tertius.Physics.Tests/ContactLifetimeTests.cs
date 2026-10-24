@@ -17,11 +17,11 @@ public class ContactLifetimeTests
 {
     /// <summary>A cube of 1 m with no damping and no bounce, so that it touches the floor once when it lands.</summary>
     private static BodyDesc BoxDesc(float mass) =>
-        new(new BoxShapeDesc(new(0.5f)), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new BoxShapeDesc(new(0.5f)), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>A ball with no damping and no bounce.</summary>
     private static BodyDesc BallDesc(float radius, float mass) =>
-        new(new SphereShapeDesc(radius), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new SphereShapeDesc(radius), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>A ground frame with gravity of 9.81 m/s² and a floor whose top is at y = 0, in a World on the real backend.</summary>
     private sealed class Ground : IDisposable
@@ -29,8 +29,8 @@ public class ContactLifetimeTests
         public Ground(int? maxBodiesPerFrame = null)
         {
             World = maxBodiesPerFrame is { } limit
-                ? NewWorldWithFaultsAndSmallSystems(limit, out FaultInjectingBackend small)
-                : NewWorldWithFaults(out small);
+                ? NewWorldWithFaultsAndSmallSystems(maxBodiesPerFrame: limit, faults: out FaultInjectingBackend small)
+                : NewWorldWithFaults(faults: out small);
             Faults = small;
             Frame = Ground(World, 9.81f);
             Floor = Floor(World, Frame);
@@ -60,7 +60,7 @@ public class ContactLifetimeTests
         {
             Frame = Frame,
             Pose = At(-40, 20),
-            Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Kinematic)
+            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Kinematic)
         }, World, new(0, 0, 0.1)));
 
         /// <summary>Adds a box of 1 m that rests on the floor, and ticks until it is asleep.</summary>
@@ -82,7 +82,7 @@ public class ContactLifetimeTests
             {
                 Frame = Frame,
                 Pose = At(0, 2),
-                Body = new(new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+                Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
                 AsFrame = new(FrameBounds.Sphere(1))
             });
             return World.GetOwnedFrame(owner);
@@ -144,7 +144,7 @@ public class ContactLifetimeTests
             {
                 Frame = ground.Frame,
                 Pose = At(3 * i, -100),
-                Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static)
+                Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static)
             });
         Tick(ground.World, 30);
         ground.Faults.Jolt.CapacityOf(ground.Frame).Should().Be(16, "the system grew");
@@ -178,11 +178,11 @@ public class ContactLifetimeTests
         Tick(ground.World, 120);
         ground.ContactsOf(lander.Entity, ground.Floor).Should().Be(1);
 
-        ground.World.SetMotionNextTick(lander.Entity, BodyMotion.Static);
+        ground.World.SetMotionNextTick(owner: lander.Entity, motion: BodyMotion.Static);
         Tick(ground.World, 60);
         ground.EndsOf(lander.Entity, ground.Floor).Should()
             .Be(1, "a parked lander is a static body, which touches no static body");
-        ground.World.SetMotionNextTick(lander.Entity, BodyMotion.Dynamic);
+        ground.World.SetMotionNextTick(owner: lander.Entity, motion: BodyMotion.Dynamic);
         Tick(ground.World, 60);
 
         ground.ContactsOf(lander.Entity, ground.Floor).Should().Be(2, "the unparked lander touches the floor again");
@@ -208,7 +208,7 @@ public class ContactLifetimeTests
         {
             Frame = ground.Frame,
             Pose = At(0, y),
-            Body = new(new BoxShapeDesc(new(2)), motion, Mass: 1000, Restitution: 0, LinearDamping: 0,
+            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: motion, Mass: 1000, Restitution: 0, LinearDamping: 0,
                 AngularDamping: 0),
             AsFrame = new(FrameBounds.Sphere(bubble))
         });
@@ -222,8 +222,8 @@ public class ContactLifetimeTests
         Tick(ground.World, 60);
         ground.ContactsOf(lander, platform).Should().Be(1, "the lander rests on the platform");
 
-        ground.World.SetMotionNextTick(lander, BodyMotion.Static);
-        ground.World.SetMotionNextTick(platform, BodyMotion.Dynamic);
+        ground.World.SetMotionNextTick(owner: lander, motion: BodyMotion.Static);
+        ground.World.SetMotionNextTick(owner: platform, motion: BodyMotion.Dynamic);
         Tick(ground.World, 30);
 
         ground.World.GetFrame(lander).Should().Be(ground.Frame);
@@ -243,21 +243,21 @@ public class ContactLifetimeTests
     [Fact]
     public void AShipThatParksJustAboveAFloorThatItNeverTouchedHearsNothingOfTheFloor()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         Entity floor = Floor(world, space);
         Entity owner = world.Spawn(new()
         {
             Frame = space,
             Pose = At(0, 2.01),
-            Body = new(new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
             AsFrame = new(FrameBounds.Sphere(4))
         });
         Tick(world, 3);
         faults.Jolt.PendingPairCount(space).Should().BeGreaterThan(0,
             "Jolt found the hull and the floor within its speculative contact distance");
 
-        world.SetMotionNextTick(owner, BodyMotion.Static);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Static);
         Tick(world, 5);
 
         faults.Outputs.SelectMany(output => output.Contacts).Should()
@@ -302,14 +302,14 @@ public class ContactLifetimeTests
         FrameHandle lander = ground.Lander();
         Tick(ground.World, 120);
         ground.ContactsOf(lander.Entity, ground.Floor).Should().Be(1);
-        ground.World.SetMotionNextTick(lander.Entity, BodyMotion.Static);
+        ground.World.SetMotionNextTick(owner: lander.Entity, motion: BodyMotion.Static);
         Tick(ground.World, 30);
 
         // A static frame moves where the game puts it.
         DPose parked = ground.World.Frames.LocalPose(lander);
         ground.World.Frames.SetLocalPose(lander, parked with { Position = parked.Position + new Double3(0, 3, 0) });
         Tick(ground.World, 30);
-        ground.World.SetMotionNextTick(lander.Entity, BodyMotion.Dynamic);
+        ground.World.SetMotionNextTick(owner: lander.Entity, motion: BodyMotion.Dynamic);
         Tick(ground.World, 120);
 
         ground.World.Frames.LocalPose(lander).Position.Y.Should()

@@ -27,15 +27,15 @@ public sealed class ReferenceImageRenderTests
     /// <summary>Renders the box, moved by <paramref name="offset"/> from its place, at alpha 1.</summary>
     private static Capture RenderBox(string name, Vector3 offset = default)
     {
-        VulkanRenderer renderer = Gpu.Headless(Width, Height);
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
             MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(new(0.8f, 0.8f, 0.8f, 1), gloss: 0.5f));
+            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), gloss: 0.5f));
             RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.5f));
-            snapshot.Instances.Add(Gpu.Instance(box, white, BoxCenter + offset, Vector3.One,
-                Quaternion.CreateFromYawPitchRoll(0.6f, 0.3f, 0), radius: 0.87f, entity: 1));
-            return Gpu.RenderAndCapture(renderer, snapshot, name);
+            snapshot.Instances.Add(Gpu.Instance(mesh: box, material: white, position: BoxCenter + offset, scale: Vector3.One,
+                rotation: Quaternion.CreateFromYawPitchRoll(0.6f, 0.3f, 0), radius: 0.87f, entity: 1));
+            return Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: name);
         }
         finally
         {
@@ -47,9 +47,9 @@ public sealed class ReferenceImageRenderTests
     public void ASecondRenderOfASceneMatchesTheReferenceThatTheFirstApproved()
     {
         string reference = Path.Combine(Folder, "box-again.png");
-        ReferenceImages.Verify(RenderBox("reference-box-first"), reference, approve: true);
+        ReferenceImages.Verify(actual: RenderBox("reference-box-first"), referencePath: reference, approve: true);
 
-        Action check = () => ReferenceImages.Verify(RenderBox("reference-box-second"), reference, approve: false);
+        Action check = () => ReferenceImages.Verify(actual: RenderBox("reference-box-second"), referencePath: reference, approve: false);
 
         check.Should().NotThrow();
     }
@@ -58,15 +58,15 @@ public sealed class ReferenceImageRenderTests
     public void AMovedBoxFailsWithAHeatMapThatLightsUpWhereTheBoxWas()
     {
         string reference = Path.Combine(Folder, "box-moved.png");
-        ReferenceImages.Verify(RenderBox("reference-box-in-place"), reference, approve: true);
+        ReferenceImages.Verify(actual: RenderBox("reference-box-in-place"), referencePath: reference, approve: true);
 
         Action check = () =>
-            ReferenceImages.Verify(RenderBox("reference-box-moved", offset: new(1.6f, 0, 0)), reference,
+            ReferenceImages.Verify(actual: RenderBox("reference-box-moved", offset: new(1.6f, 0, 0)), referencePath: reference,
                 approve: false);
 
         check.Should().Throw<FailException>();
         Capture heatMap = Capture.Load(Path.Combine(Folder, "box-moved.flip.png"));
-        heatMap.MeanLuma(Gpu.Project(BoxCenter, Width, Height), 2)
+        heatMap.MeanLuma(Gpu.Project(point: BoxCenter, width: Width, height: Height), 2)
             .Should().BeGreaterThan(0.5f, "the box moved 1.6 m to the right, clear of its old place, which became sky");
         heatMap.MeanLuma(new(20, 20), 2).Should().BeLessThan(0.02f, "the sky far from the box did not change");
     }

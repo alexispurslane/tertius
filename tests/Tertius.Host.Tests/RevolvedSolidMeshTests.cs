@@ -37,9 +37,9 @@ public sealed class RevolvedSolidMeshTests
     private static MeshData Cylinder() =>
         RevolvedSolid.Cylinder(CylinderRadius, CylinderHalfHeight, CylinderSegments).Mesh();
 
-    private static MeshData Ring() => RevolvedSolid.Ring(RingInner, RingOuter, RingHalfWidth, RingSegments).Mesh();
+    private static MeshData Ring() => RevolvedSolid.Ring(innerRadius: RingInner, outerRadius: RingOuter, halfWidth: RingHalfWidth, segments: RingSegments).Mesh();
 
-    private static MeshData Torus() => RevolvedSolid.Torus(TorusMajor, TorusMinor, TorusSegments, TorusSides).Mesh();
+    private static MeshData Torus() => RevolvedSolid.Torus(majorRadius: TorusMajor, minorRadius: TorusMinor, segments: TorusSegments, sides: TorusSides).Mesh();
 
     /// <summary>The distance of <paramref name="p"/> from the Y axis.</summary>
     private static float Rho(Vector3 p) => MathF.Sqrt(p.X * p.X + p.Z * p.Z);
@@ -61,7 +61,7 @@ public sealed class RevolvedSolidMeshTests
     /// behind it is inside.
     /// </summary>
     private static void ExpectFacingOut(MeshData mesh, Func<Vector3, bool> inside) =>
-        MeshChecks.ExpectFacingOut(mesh, inside, Probe, maxNormalAngle: MathF.PI / 12);
+        MeshChecks.ExpectFacingOut(mesh: mesh, inside: inside, probe: Probe, maxNormalAngle: MathF.PI / 12);
 
     /// <summary>A vertex of a cylinder's cap is the cap's center, on the axis, or on its rim.</summary>
     private static void ExpectCenterOrRim(Vector3 p) =>
@@ -274,7 +274,7 @@ public sealed class RevolvedSolidMeshTests
     public void ARingWithoutAHoleAThicknessAWidthOrThreeSegmentsIsAnError(float inner, float outer, float halfWidth,
         int segments)
     {
-        Action build = () => RevolvedSolid.Ring(inner, outer, halfWidth, segments);
+        Action build = () => RevolvedSolid.Ring(innerRadius: inner, outerRadius: outer, halfWidth: halfWidth, segments: segments);
 
         build.Should().Throw<ArgumentOutOfRangeException>();
     }
@@ -289,7 +289,7 @@ public sealed class RevolvedSolidMeshTests
         int sides)
     {
         // A segment's hull has two corners for each side, and Jolt keeps at most 256 points in a convex hull.
-        Action build = () => RevolvedSolid.Torus(major, minor, segments, sides);
+        Action build = () => RevolvedSolid.Torus(majorRadius: major, minorRadius: minor, segments: segments, sides: sides);
 
         build.Should().Throw<ArgumentOutOfRangeException>();
     }
@@ -311,7 +311,7 @@ public sealed class RevolvedSolidMeshTests
     [InlineData(0.1f, 48)]
     public void ATorusWhoseTubeBendsBy1MillimeterOrLessAtEachEdgeIsAnError(float minor, int sides)
     {
-        Action build = () => RevolvedSolid.Torus(3, minor, 8, sides);
+        Action build = () => RevolvedSolid.Torus(majorRadius: 3, minorRadius: minor, segments: 8, sides: sides);
 
         build.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("sides").WithMessage("*Jolt drops*");
     }

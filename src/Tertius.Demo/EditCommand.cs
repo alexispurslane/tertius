@@ -104,7 +104,7 @@ public static class EditCommand
                 return ScriptCommand.ScriptError;
             }
 
-            WriteParts(parts, film, cuts, options);
+            WriteParts(parts: parts, film: film, cuts: cuts, options: options);
         }
         catch (Win32Exception ex)
         {
@@ -117,11 +117,11 @@ public static class EditCommand
             return ScriptCommand.FileError;
         }
 
-        List<string> arguments = Arguments(stretches, cuts, options.Master, options.Music, options.MusicStart,
-            options.Output, width, height);
+        List<string> arguments = Arguments(stretches: stretches, cuts: cuts, master: options.Master, music: options.Music, musicStart: options.MusicStart,
+            output: options.Output, width: width, height: height);
         try
         {
-            (int exit, string errors) = RunTool("ffmpeg", arguments, parts);
+            (int exit, string errors) = RunTool(tool: "ffmpeg", arguments: arguments, folder: parts);
             if (exit != 0)
             {
                 error.WriteLine($"ffmpeg exited with code {exit}: {errors}");
@@ -135,8 +135,8 @@ public static class EditCommand
         }
 
         int videoFrames = cuts.Opening.Frames + stretches.Sum(s => s.Count) + cuts.Closing.Frames;
-        output.WriteLine(string.Format(CultureInfo.InvariantCulture, "{0}: {1:F1} s", options.Output,
-            videoFrames / (double)Stretch.FramesPerSecond));
+        output.WriteLine(string.Format(provider: CultureInfo.InvariantCulture, format: "{0}: {1:F1} s", arg0: options.Output,
+            arg1: videoFrames / (double)Stretch.FramesPerSecond));
         return ScriptCommand.Ok;
     }
 
@@ -178,7 +178,7 @@ public static class EditCommand
 
         double start = 0;
         if (values.TryGetValue("--music-start", out string? startText) &&
-            !(double.TryParse(startText, NumberStyles.Float, CultureInfo.InvariantCulture, out start) && start >= 0))
+            !(double.TryParse(s: startText, style: NumberStyles.Float, provider: CultureInfo.InvariantCulture, result: out start) && start >= 0))
         {
             error.WriteLine("--music-start must be a number of seconds, 0 or more.");
             return null;
@@ -191,9 +191,9 @@ public static class EditCommand
             return null;
         }
 
-        return new(Path.GetFullPath(output), Path.GetFullPath(values["--script"]), Path.GetFullPath(values["--master"]),
-            Path.GetFullPath(values["--readouts"]),
-            music == null ? null : Path.GetFullPath(music), start, values.GetValueOrDefault("--music-credit"));
+        return new(Output: Path.GetFullPath(output), Script: Path.GetFullPath(values["--script"]), Master: Path.GetFullPath(values["--master"]),
+            Readouts: Path.GetFullPath(values["--readouts"]),
+            Music: music == null ? null : Path.GetFullPath(music), MusicStart: start, MusicCredit: values.GetValueOrDefault("--music-credit"));
     }
 
     /// <summary>Writes the subtitle files and the folder of fonts into <paramref name="parts"/>.</summary>
@@ -273,11 +273,11 @@ public static class EditCommand
     /// <summary>The master's count of frames, its width and its height, from ffprobe.</summary>
     private static (int Frames, int Width, int Height) ProbeMaster(string master)
     {
-        (int exit, string text) = RunTool("ffprobe",
-        [
+        (int exit, string text) = RunTool(tool: "ffprobe",
+        arguments: [
             "-v", "error", "-select_streams", "v:0", "-count_packets", "-show_entries",
             "stream=nb_read_packets,width,height", "-of", "csv=p=0", master
-        ], null, standardOutput: true);
+        ], folder: null, standardOutput: true);
         if (exit != 0)
             throw new IOException($"ffprobe cannot read the master {master}: {text}");
         string[] cells = text.Trim().Split(',');
@@ -295,7 +295,8 @@ public static class EditCommand
             start.WorkingDirectory = folder;
         foreach (string argument in arguments)
             start.ArgumentList.Add(argument);
-        using Process process = Process.Start(start)!;
+        // Without the shell, Process.Start gives a process or throws.
+        using Process process = Process.Start(start) ?? throw new IOException($"{tool} did not start.");
         Task<string> errors = process.StandardError.ReadToEndAsync();
         Task<string> text = process.StandardOutput.ReadToEndAsync();
         process.WaitForExit();

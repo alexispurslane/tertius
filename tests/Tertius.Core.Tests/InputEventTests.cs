@@ -283,7 +283,7 @@ public class InputEventTests
     [MemberData(nameof(EveryCase))]
     public void AnInputEventSurvivesBeingCopiedIntoAnEventAndBack(InputEvent sent, object _)
     {
-        var e = Event.Create(Topics.Input, Entity.Null, sent);
+        var e = Event.Create(target: Topics.Input, sender: Entity.Null, payload: sent);
 
         e.Is<InputEvent>().Should().BeTrue();
         (e.As<InputEvent>() == sent).Should().BeTrue();

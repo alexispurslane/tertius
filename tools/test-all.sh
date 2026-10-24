@@ -8,7 +8,7 @@
 # Options:
 #   -c <list>  build configurations, separated by commas (default Checked,Release; Checked is Debug's contracts with
 #              Release's optimized code, see Directory.Build.targets)
-#   -m <list>  test modules, separated by commas (default Core,Simulation,Physics,Rendering,Host,Unions,Slop)
+#   -m <list>  test modules, separated by commas (default Core,Simulation,Physics,Rendering,Host,Unions,Style,Slop)
 #   -o <dir>   folder for the logs (default a new temporary folder)
 #   -j <runs>  the most test runs at once (default 0: every configuration and module at once)
 #   -- <args>  everything after -- goes to each dotnet test command unchanged, for example a filter
@@ -21,9 +21,9 @@ if [[ -z "${TERTIUS_VULKAN_DIR:-}" ]]; then
   echo "TERTIUS_VULKAN_DIR is empty. Run the script inside the dev shell: nix develop --command bash $0 ..." >&2
   exit 1
 fi
-usage="usage: tools/test-all.sh [-c Checked,Release] [-m Core,Simulation,Physics,Rendering,Host,Unions,Slop] [-o <out-dir>] [-j <runs>] [-- <dotnet test args>]"
+usage="usage: tools/test-all.sh [-c Checked,Release] [-m Core,Simulation,Physics,Rendering,Host,Unions,Style,Slop] [-o <out-dir>] [-j <runs>] [-- <dotnet test args>]"
 configurations=Checked,Release
-modules=Core,Simulation,Physics,Rendering,Host,Unions,Slop
+modules=Core,Simulation,Physics,Rendering,Host,Unions,Style,Slop
 out=
 jobs=0
 while getopts "c:m:o:j:h" option; do

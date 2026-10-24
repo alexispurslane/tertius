@@ -220,8 +220,8 @@ internal static class ScriptJson
         public override Quaternion Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             StartArray(ref reader, Form);
-            var value = new Quaternion(NextSingle(ref reader, Form), NextSingle(ref reader, Form),
-                NextSingle(ref reader, Form), NextSingle(ref reader, Form));
+            var value = new Quaternion(x: NextSingle(ref reader, Form), y: NextSingle(ref reader, Form),
+                z: NextSingle(ref reader, Form), w: NextSingle(ref reader, Form));
             EndArray(ref reader, Form);
             return value;
         }
@@ -237,8 +237,8 @@ internal static class ScriptJson
         public override DQuaternion Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             StartArray(ref reader, Form);
-            var value = new DQuaternion(NextDouble(ref reader, Form), NextDouble(ref reader, Form),
-                NextDouble(ref reader, Form), NextDouble(ref reader, Form));
+            var value = new DQuaternion(X: NextDouble(ref reader, Form), Y: NextDouble(ref reader, Form),
+                Z: NextDouble(ref reader, Form), W: NextDouble(ref reader, Form));
             EndArray(ref reader, Form);
             return value;
         }

@@ -238,7 +238,15 @@ dotnet_diagnostic.CA1507.severity = none
 dotnet_diagnostic.CA1859.severity = none
 # The `_` character in names: test names use it to separate the parts of a statement.
 dotnet_diagnostic.CA1707.severity = none
+# The null-forgiving operator: the rule against it (STYLE.md, "Nulls") holds for the engine code in src only.
+dotnet_diagnostic.TS0003.severity = none
 
 [benchmarks/**.cs]
 # Disposable fields in a class that is not IDisposable: BenchmarkDotNet frees them in [GlobalCleanup].
 dotnet_diagnostic.CA1001.severity = none
+# The null-forgiving operator: the rule against it holds for the engine code in src only.
+dotnet_diagnostic.TS0003.severity = none
+
+[analyzers/**.cs]
+# The null-forgiving operator: the rule against it holds for the engine code in src only.
+dotnet_diagnostic.TS0003.severity = none

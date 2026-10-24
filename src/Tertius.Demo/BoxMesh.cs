@@ -92,7 +92,7 @@ public sealed class BoxMesh
             if (holes[face].Count == 0)
                 Face(box, Normals[face], inward);
             else
-                HoledFace(box, Normals[face], inward, holes[face]);
+                HoledFace(box: box, side: Normals[face], inward: inward, holes: holes[face]);
         return this;
     }
 
@@ -150,10 +150,10 @@ public sealed class BoxMesh
     private void Face(BoundingBox box, Vector3 side, bool inward)
     {
         Span<Vector3> corners = stackalloc Vector3[4];
-        Corners(box, side, inward, corners);
+        Corners(box: box, side: side, inward: inward, corners: corners);
         Vector3 normal = inward ? -side : side;
-        Triangle(normal, corners[0], corners[1], corners[2]);
-        Triangle(normal, corners[0], corners[2], corners[3]);
+        Triangle(normal: normal, a: corners[0], b: corners[1], c: corners[2]);
+        Triangle(normal: normal, a: corners[0], b: corners[2], c: corners[3]);
     }
 
     /// <summary>
@@ -238,12 +238,12 @@ public sealed class BoxMesh
                           (i < a.Length - 1 && Vector3.Dot(a[i + 1], direction) <= Vector3.Dot(b[j + 1], direction));
             if (alongA)
             {
-                Triangle(normal, a[i], a[i + 1], b[j]);
+                Triangle(normal: normal, a: a[i], b: a[i + 1], c: b[j]);
                 i++;
             }
             else
             {
-                Triangle(normal, a[i], b[j + 1], b[j]);
+                Triangle(normal: normal, a: a[i], b: b[j + 1], c: b[j]);
                 j++;
             }
         }

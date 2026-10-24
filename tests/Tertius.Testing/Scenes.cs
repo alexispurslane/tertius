@@ -74,7 +74,7 @@ public static class Scenes
         {
             Frame = space,
             Pose = At(position.X, position.Y, position.Z),
-            Body = new(new BoxShapeDesc(new(5, 3, 15)), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
+            Body = new(Shape: new BoxShapeDesc(new(5, 3, 15)), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
                 InteriorShape: deck),
             AsFrame = new(FrameBounds.Sphere(bubbleRadius), gravity)
         });
@@ -168,7 +168,7 @@ public static class Scenes
     public static Entity BallApproachingBubble(World world, FrameHandle from, FrameHandle into, long tick,
         params IComponent[] components)
     {
-        Approach approach = ApproachToBubble(world, into, tick);
+        Approach approach = ApproachToBubble(world: world, into: into, tick: tick);
         return world.Spawn(new()
         {
             Frame = from, Pose = approach.Pose, LinearVelocity = approach.Velocity, Body = Ball(),

@@ -25,8 +25,8 @@ public class EntityTableGrowthTests
         .. Enumerable.Range(0, count).Select(i =>
         {
             Entity entity = table.Reserve();
-            table.Activate(entity, RowAt(i), new() { Scale = new(i + 1) }, [new Recorder()], [EventMask.Of<Ping>()],
-                i % 2 == 1 ? TestWorld.Ball : null, Vector3.Zero, i % 3 == 0 ? OwnedFrame : FrameHandle.Null);
+            table.Activate(entity: entity, row: RowAt(i), render: new() { Scale = new(i + 1) }, components: [new Recorder()], wants: [EventMask.Of<Ping>()],
+                body: i % 2 == 1 ? TestWorld.Ball : null, bodyCenterOfMass: Vector3.Zero, ownedFrame: i % 3 == 0 ? OwnedFrame : FrameHandle.Null);
             return entity;
         })
     ];
@@ -168,7 +168,7 @@ public class EntityTableGrowthTests
         table.PendingIntent(bodied).Force.Should().Be(new Vector3(0, 9, 0));
         table.AssertInvariants();
         foreach (Entity entity in spawned)
-            table.Activate(entity, default, new(), [], [], null, Vector3.Zero, FrameHandle.Null);
+            table.Activate(entity: entity, row: default, render: new(), components: [], wants: [], body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
         table.SwapIntents(keep: true);
         table.CopyDirtyRows();
         table.EndTick();

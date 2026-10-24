@@ -65,15 +65,15 @@ public class PushedContactMeasurement
     private static readonly int[] SampleTicks = [300, 1200, 3600];
 
     private static readonly PairScene CharacterPushesCrate = new(
-        "character-pushes-crate",
-        new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70, LinearDamping: 0, AngularDamping: 0),
-        new(new BoxShapeDesc(new(0.5f)), Mass: 20, LinearDamping: 0, AngularDamping: 0),
+        Name: "character-pushes-crate",
+        Pusher: new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70, LinearDamping: 0, AngularDamping: 0),
+        Pushed: new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 20, LinearDamping: 0, AngularDamping: 0),
         Thrust: 105, PusherHalfDepth: 0.3, PushedHalfDepth: 0.5, StartGap: 0.02);
 
     private static readonly PairScene BoxPushesBox = new(
-        "box-pushes-box",
-        new(new BoxShapeDesc(new(0.5f)), Mass: 2, LinearDamping: 0, AngularDamping: 0),
-        new(new BoxShapeDesc(new(0.5f)), Mass: 2, LinearDamping: 0, AngularDamping: 0),
+        Name: "box-pushes-box",
+        Pusher: new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 2, LinearDamping: 0, AngularDamping: 0),
+        Pushed: new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 2, LinearDamping: 0, AngularDamping: 0),
         Thrust: 10, PusherHalfDepth: 0.5, PushedHalfDepth: 0.5, StartGap: 0);
 
     /// <summary>
@@ -121,10 +121,10 @@ public class PushedContactMeasurement
         foreach (double speed in Speeds)
         {
             Double3 start = direction * (-speed * RunTicks / 60.0 / 2);
-            RunResult moving = Run(scene, direction, speed, start);
-            lines.AddRange(moving.Rows(scene.Name, directionName, "moving", speed, speed));
-            RunResult control = Run(scene, direction, 0, moving.FarthestPoint);
-            lines.AddRange(control.Rows(scene.Name, directionName, "distance-control", speed, 0));
+            RunResult moving = Run(scene: scene, direction: direction, speed: speed, start: start);
+            lines.AddRange(moving.Rows(scene: scene.Name, direction: directionName, run: "moving", speed: speed, commonSpeed: speed));
+            RunResult control = Run(scene: scene, direction: direction, speed: 0, start: moving.FarthestPoint);
+            lines.AddRange(control.Rows(scene: scene.Name, direction: directionName, run: "distance-control", speed: speed, commonSpeed: 0));
         }
 
         File.WriteAllLines(path, lines);
@@ -290,7 +290,7 @@ public class PushedContactMeasurement
             int collisions = pushedLog.Seen.Count(seen => seen.Other == pusher);
             int ended = pushedLog.Ended.Count(end => end.Other == pusher);
             samples.Add(new(
-                tick, forceSteps,
+                Tick: tick, ForceSteps: forceSteps,
                 Creep: offset.X - separation,
                 LateralSlip: Math.Sqrt(offset.Y * offset.Y + offset.Z * offset.Z),
                 RelativeVelocityRms: Math.Sqrt(relativeSpeedSquares / tick),
@@ -307,7 +307,7 @@ public class PushedContactMeasurement
                 BackendWarnings: Volatile.Read(ref warnings)));
         }
 
-        return new(start, samples, farthestPoint, largestDistance);
+        return new(StartPoint: start, Samples: samples, FarthestPoint: farthestPoint, LargestDistance: largestDistance);
     }
 
     /// <summary>The angle of <paramref name="rotation"/> from the start orientation (the identity), in degrees, from 0 to 180.</summary>

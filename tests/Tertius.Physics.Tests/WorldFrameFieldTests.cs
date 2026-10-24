@@ -45,7 +45,7 @@ public class WorldFrameFieldTests
     {
         public OrbitScene()
         {
-            World = NewWorld(out JoltPhysicsBackend backend);
+            World = NewWorld(backend: out JoltPhysicsBackend backend);
             Backend = backend;
             Planet = World.CreateRootFrame(new(FrameBounds.Sphere(1e7f), GravityField.Point(PlanetMu)));
             Ball = World.Spawn(new()
@@ -53,12 +53,12 @@ public class WorldFrameFieldTests
                 Frame = Planet,
                 Pose = At(100),
                 LinearVelocity = new Vector3(1, 0, 0),
-                Body = new(new SphereShapeDesc(0.5f), Mass: 1, LinearDamping: 0)
+                Body = new(Shape: new SphereShapeDesc(0.5f), Mass: 1, LinearDamping: 0)
             });
             Owner = World.Spawn(new SpawnDesc
             {
                 Frame = Planet,
-                Body = new(new BoxShapeDesc(new(5)), BodyMotion.Kinematic, Mass: 1000),
+                Body = new(Shape: new BoxShapeDesc(new(5)), Motion: BodyMotion.Kinematic, Mass: 1000),
                 AsFrame = new(FrameBounds.Sphere(50))
             }.OnKeplerOrbit(World, StationOrbit));
             Station = World.GetOwnedFrame(Owner);
@@ -123,11 +123,11 @@ public class WorldFrameFieldTests
     [InlineData("default")]
     public void ABlueprintWithAnOrbitThatIsNotValidForKeplerMotionThrowsAtSpawn(string kind)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f), GravityField.Point(PlanetMu)));
-        world.Blueprints.Register(new("station",
-            [new(typeof(KeplerMotion), new Dictionary<string, object?> { ["Orbit"] = BadOrbit(kind) })],
-            Body: new(new BoxShapeDesc(new(5)), BodyMotion.Kinematic, Mass: 1000),
+        world.Blueprints.Register(new(Name: "station",
+            Components: [new(typeof(KeplerMotion), new Dictionary<string, object?> { ["Orbit"] = BadOrbit(kind) })],
+            Body: new(Shape: new BoxShapeDesc(new(5)), Motion: BodyMotion.Kinematic, Mass: 1000),
             Frame: new(FrameBounds.Sphere(50))));
         int live = world.Stats.LiveEntities;
 
@@ -165,7 +165,7 @@ public class WorldFrameFieldTests
     public void TheHullOfAKeplerFrameHoldsStillWithItsFrameWhenItsPlanetIsDestroyed()
     {
         var warnings = new List<string>();
-        World world = NewWorld(out JoltPhysicsBackend backend, warnings);
+        World world = NewWorld(backend: out JoltPhysicsBackend backend, warnings: warnings);
         using (world)
         {
             var log = new List<string>();
@@ -179,7 +179,7 @@ public class WorldFrameFieldTests
             Entity owner = world.Spawn(new SpawnDesc
             {
                 Frame = world.GetOwnedFrame(planetOwner),
-                Body = new(new BoxShapeDesc(new(5)), BodyMotion.Kinematic, Mass: 1000),
+                Body = new(Shape: new BoxShapeDesc(new(5)), Motion: BodyMotion.Kinematic, Mass: 1000),
                 AsFrame = new(FrameBounds.Sphere(50))
             }.OnKeplerOrbit(world, StationOrbit));
             FrameHandle station = world.GetOwnedFrame(owner);
@@ -213,7 +213,7 @@ public class WorldFrameFieldTests
     [InlineData("negative G·M")]
     public void SetFrameGravityRefusesAFieldThatPhysicsCannotApply(string kind)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         Entity box = world.Spawn(new() { Frame = ground, Pose = At(0, 100), Body = Cube() });
         world.Tick();
@@ -231,7 +231,7 @@ public class WorldFrameFieldTests
     [Fact]
     public void ABoxFallsWhenTheGameTurnsOnTheGravityOfItsFrame()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle room = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         Entity box = world.Spawn(new() { Frame = room, Pose = At(0, 100), Body = Cube() });
         Tick(world, 60);
@@ -252,7 +252,7 @@ public class WorldFrameFieldTests
     [InlineData("another G·M")]
     public void ASleepingBoxWakesWhenTheGameChangesTheValuesOfTheFieldOfItsFrame(string change)
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         var down = new Vector3(0, -9.81f, 0);
         var cabin = new BoundingBox(new(-20, -1, -20), new(20, 50, 20));
         var wideCabin = new BoundingBox(new(-30, -1, -30), new(30, 50, 30));
@@ -283,7 +283,7 @@ public class WorldFrameFieldTests
     [InlineData("infinite G·M")]
     public void SpawnRefusesAFrameWithAGravityFieldThatPhysicsCannotApply(string kind)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle root = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
 
         Action spawn = () =>

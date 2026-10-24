@@ -29,7 +29,7 @@ public sealed class ShadowCascadeTests
     private static ShadowCascadeArray Fit(in CameraView camera, Vector3 sun, Double3 anchor = default)
     {
         var cascades = new ShadowCascadeArray();
-        ShadowCascades.Fit(camera, LightBasis.FromSunDirection(sun), MapSize, 16f, anchor, ref cascades);
+        ShadowCascades.Fit(camera: camera, light: LightBasis.FromSunDirection(sun), mapSize: MapSize, depthRangeScale: 16f, anchor: anchor, cascades: ref cascades);
         return cascades;
     }
 
@@ -68,7 +68,7 @@ public sealed class ShadowCascadeTests
     [InlineData(500f, 600f, 0.2f, 0.1f)]
     public void TheBoundingSphereHoldsItsSliceAndTouchesIt(float near, float far, float tanX, float tanY)
     {
-        (float centerDepth, float radius) = ShadowCascades.BoundingSphere(near, far, tanX, tanY);
+        (float centerDepth, float radius) = ShadowCascades.BoundingSphere(near: near, far: far, tanHalfX: tanX, tanHalfY: tanY);
         CameraView camera = Camera(Quaternion.Identity) with { TanHalfX = tanX, TanHalfY = tanY };
         var center = new Vector3(0, 0, -centerDepth);
         float farthest = SliceCorners(camera, near, far).Max(corner => Vector3.Distance(corner, center));
@@ -89,9 +89,9 @@ public sealed class ShadowCascadeTests
         {
             float start = i == 0 ? DepthRanges.NearPlane : ShadowCascades.BlendStart(i - 1);
             (_, float own) =
-                ShadowCascades.BoundingSphere(start, ShadowCascades.Split(i), camera.TanHalfX, camera.TanHalfY);
-            (_, float fromCamera) = ShadowCascades.BoundingSphere(DepthRanges.NearPlane, ShadowCascades.Split(i),
-                camera.TanHalfX, camera.TanHalfY);
+                ShadowCascades.BoundingSphere(near: start, far: ShadowCascades.Split(i), tanHalfX: camera.TanHalfX, tanHalfY: camera.TanHalfY);
+            (_, float fromCamera) = ShadowCascades.BoundingSphere(near: DepthRanges.NearPlane, far: ShadowCascades.Split(i),
+                tanHalfX: camera.TanHalfX, tanHalfY: camera.TanHalfY);
             (cascades[i].NearDepth, cascades[i].FarDepth).Should().Be((start, ShadowCascades.Split(i)));
             cascades[i].Radius.Should().Be(own, "cascade {0} bounds its own slice", i);
             if (i > 0)
@@ -116,8 +116,8 @@ public sealed class ShadowCascadeTests
             ShadowCascadeArray cascades = Fit(camera, sun, anchor);
             for (int i = 0; i < ShadowCascades.Count; i++)
             {
-                (float centerDepth, _) = ShadowCascades.BoundingSphere(cascades[i].NearDepth, cascades[i].FarDepth,
-                    camera.TanHalfX, camera.TanHalfY);
+                (float centerDepth, _) = ShadowCascades.BoundingSphere(near: cascades[i].NearDepth, far: cascades[i].FarDepth,
+                    tanHalfX: camera.TanHalfX, tanHalfY: camera.TanHalfY);
                 Vector3 unsnapped = light.ToLight(camera.Forward * centerDepth);
                 float texel = cascades[i].TexelSize;
                 MathF.Abs(cascades[i].Center.X - unsnapped.X).Should().BeLessThanOrEqualTo(0.5001f * texel,

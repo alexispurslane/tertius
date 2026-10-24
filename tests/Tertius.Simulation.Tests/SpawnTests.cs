@@ -182,7 +182,7 @@ public class SpawnTests
     public void ASpawnerGivesEachChildItsOwnComponentsAndItsOwnSlotInSpawnOrder()
     {
         using var t = new TestWorld();
-        var spawner = new Spawner(() => [new Recorder()], count: 3);
+        var spawner = new Spawner(childComponents: () => [new Recorder()], count: 3);
         t.SpawnWith(spawner);
 
         t.Run(1);
@@ -347,7 +347,7 @@ public class SpawnTests
     [Fact]
     public void ABodySpawnedDuringATickReachesPhysicsAtTheSyncPointOfThatTick()
     {
-        using TestWorld t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         List<PhysicsChanges> batches = faults.AppliedChanges;
         Entity child = default;
         t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
@@ -366,7 +366,7 @@ public class SpawnTests
     [Fact]
     public void ABodySpawnedOutsideATickReachesPhysicsBeforeTheFirstStep()
     {
-        using TestWorld t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         List<PhysicsChanges> batches = faults.AppliedChanges;
         Entity ball = default;
         var ballCreatedAtEachStep = new List<bool>();
@@ -385,7 +385,7 @@ public class SpawnTests
     [Fact]
     public void AnEntityWithoutABodyIsNeverCreatedInPhysics()
     {
-        using TestWorld t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         List<PhysicsChanges> batches = faults.AppliedChanges;
         t.SpawnWith(new Recorder());
 

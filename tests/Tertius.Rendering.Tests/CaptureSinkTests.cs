@@ -19,7 +19,7 @@ public sealed class CaptureSinkTests
         TestOutput? made = null;
         var renderer = VulkanRenderer.CreateOffscreen(
             new() { Validation = true, Width = Width, Height = Height, Impostors = false },
-            (device, allocator, extent) => made = new(device, allocator, extent, bgra) { CanCapture = canCapture });
+            (device, allocator, extent) => made = new(device: device, allocator: allocator, extent: extent, bgra: bgra) { CanCapture = canCapture });
         output = made!;
         return renderer;
     }
@@ -30,7 +30,7 @@ public sealed class CaptureSinkTests
     [Fact]
     public void ACaptureHandsItsSinkTheFrameThatRenderDrawsBeforeRenderReturns()
     {
-        VulkanRenderer renderer = Gpu.Headless(Width, Height);
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
             RenderSnapshot snapshot = Scene(renderer);
@@ -43,7 +43,7 @@ public sealed class CaptureSinkTests
             sink.Takes.Should().Be(1);
             sink.Image!.Width.Should().Be(Width);
             sink.Image.Height.Should().Be(Height);
-            Vector3 red = sink.Image.Color(Gpu.Project(TestScene.RedSphere, Width, Height));
+            Vector3 red = sink.Image.Color(Gpu.Project(point: TestScene.RedSphere, width: Width, height: Height));
             red.X.Should().BeGreaterThan(2 * red.Z, "the red sphere of the drawn frame is in the pixels");
             red.X.Should().BeGreaterThan(2 * red.Y);
         }
@@ -56,7 +56,7 @@ public sealed class CaptureSinkTests
     [Fact]
     public void ACaptureIsHandedOverOnceAndNotForTheFramesAfterIt()
     {
-        VulkanRenderer renderer = Gpu.Headless(Width, Height);
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
             RenderSnapshot snapshot = Scene(renderer);
@@ -78,7 +78,7 @@ public sealed class CaptureSinkTests
     [Fact]
     public void TheSinkTakesThePixelsOnTheThreadThatCalledRender()
     {
-        VulkanRenderer renderer = Gpu.Headless(Width, Height);
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
             RenderSnapshot snapshot = Scene(renderer);
@@ -139,7 +139,7 @@ public sealed class CaptureSinkTests
             VulkanRenderer renderer = Offscreen(out _, bgra);
             try
             {
-                return Gpu.RenderAndCapture(renderer, Scene(renderer), bgra ? "the BGRA output" : "the RGBA output");
+                return Gpu.RenderAndCapture(renderer: renderer, snapshot: Scene(renderer), name: bgra ? "the BGRA output" : "the RGBA output");
             }
             finally
             {
@@ -150,7 +150,7 @@ public sealed class CaptureSinkTests
         Capture rgba = Draw(bgra: false);
         Capture bgra = Draw(bgra: true);
 
-        Vector3 red = rgba.Color(Gpu.Project(TestScene.RedSphere, Width, Height));
+        Vector3 red = rgba.Color(Gpu.Project(point: TestScene.RedSphere, width: Width, height: Height));
         red.X.Should().BeGreaterThan(2 * red.Z, "the scene has a red sphere, so a missed swap of red and blue shows");
         for (int y = 0; y < Height; y++)
         for (int x = 0; x < Width; x++)
@@ -161,7 +161,7 @@ public sealed class CaptureSinkTests
     public void ThePngSinkWritesThePixelsThatTheRendererHandedOverWithEveryPixelOpaque()
     {
         string folder = Directory.CreateTempSubdirectory("tertius-capture-").FullName;
-        VulkanRenderer renderer = Gpu.Headless(Width, Height);
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
             RenderSnapshot snapshot = Scene(renderer);
@@ -189,14 +189,14 @@ public sealed class CaptureSinkTests
     [Fact]
     public void ACaptureAfterTheOutputShrankHandsOverOnlyThePixelsOfTheSmallerFrame()
     {
-        VulkanRenderer renderer = Gpu.Headless(Width, Height);
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
             RenderSnapshot snapshot = Scene(renderer);
-            Gpu.RenderAndCapture(renderer, snapshot, "before-shrink");
+            Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "before-shrink");
 
             renderer.Resize(Width / 2, Height / 2);
-            Capture small = Gpu.RenderAndCapture(renderer, snapshot, "after-shrink");
+            Capture small = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "after-shrink");
 
             small.Width.Should().Be(Width / 2);
             small.Height.Should().Be(Height / 2);
@@ -211,7 +211,7 @@ public sealed class CaptureSinkTests
     [Fact]
     public void ACaptureWithNoSinkIsRefused()
     {
-        VulkanRenderer renderer = Gpu.Headless(Width, Height);
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
             FluentActions.Invoking(() => renderer.CaptureNextFrame(null!)).Should().Throw<ArgumentNullException>();
@@ -240,7 +240,7 @@ public sealed class CaptureSinkTests
     [Fact]
     public void ACaptureFromADisposedRendererIsRefused()
     {
-        VulkanRenderer renderer = Gpu.Headless(Width, Height);
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         Gpu.DisposeAndAssertClean(renderer);
 
         FluentActions.Invoking(() => renderer.CaptureNextFrame(new MemorySink())).Should()

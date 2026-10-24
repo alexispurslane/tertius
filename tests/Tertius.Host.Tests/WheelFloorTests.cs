@@ -24,12 +24,12 @@ public sealed class WheelFloorTests
     [Fact]
     public void APlaceOnAFacetLiesItsHeightAboveThatFacetAndAlongItsSpinwardWay()
     {
-        Double3 place = Floor.OnFacet(130, 0.25, -2, along: 0.5);
+        Double3 place = Floor.OnFacet(facet: 130, height: 0.25, y: -2, along: 0.5);
 
         Floor.FacetIndex(place).Should().Be(130);
         Floor.Height(place).Should().BeApproximately(0.25, 1e-9);
         place.Y.Should().Be(-2);
-        Floor.Spinward(Floor.OnFacet(130, 0.25, -2), place).Should().BeApproximately(
+        Floor.Spinward(Floor.OnFacet(facet: 130, height: 0.25, y: -2), place).Should().BeApproximately(
             Floor.Radius * Math.Atan2(0.5, Floor.FacetDistance - 0.25), 1e-9,
             "half a meter along the facet, 0.25 m above it, turns the place about the axis by the angle that it spans there");
     }
@@ -48,7 +48,7 @@ public sealed class WheelFloorTests
     [Fact]
     public void TheSpinwardDistanceCrossesTheAngleZeroTheShortWay()
     {
-        Double3 before = Floor.OnFacet(Floor.Segments - 1, 0, 0), after = Floor.OnFacet(0, 0, 0);
+        Double3 before = Floor.OnFacet(facet: Floor.Segments - 1, height: 0, y: 0), after = Floor.OnFacet(facet: 0, height: 0, y: 0);
 
         Floor.Spinward(before, after).Should().BeApproximately(Floor.Facet * Floor.Radius, 1e-9);
         Floor.Spinward(after, before).Should().BeApproximately(-Floor.Facet * Floor.Radius, 1e-9);
@@ -59,6 +59,6 @@ public sealed class WheelFloorTests
     {
         // A box turned by the facet's turn has its +X along the facet's outward normal.
         (Floor.FacetTurn(77).Rotate(Double3.UnitX) - Floor.Normal(77)).Length.Should().BeLessThan(1e-12);
-        (Floor.Normal(77) - Floor.Normal(Floor.OnFacet(77, 1, 4))).Length.Should().BeLessThan(1e-12);
+        (Floor.Normal(77) - Floor.Normal(Floor.OnFacet(facet: 77, height: 1, y: 4))).Length.Should().BeLessThan(1e-12);
     }
 }

@@ -12,7 +12,7 @@ namespace Tertius.Simulation.Tests;
 public class SpinFrameTests
 {
     private const int TicksPerSecond = 64;
-    private static readonly FrameSpin QuarterTurnPerSecond = new(DQuaternion.Identity, Math.PI / 2);
+    private static readonly FrameSpin QuarterTurnPerSecond = new(Tilt: DQuaternion.Identity, Rate: Math.PI / 2);
 
     /// <summary>A mesh. Jolt never moves a mesh, so a hull of this shape can only be static.</summary>
     private static readonly MeshShapeDesc Ramp = new([new(-5, 0, -5), new(5, 0, -5), new(5, 2, 5), new(-5, 2, 5)],
@@ -182,7 +182,7 @@ public class SpinFrameTests
     {
         using TestWorld test = NewWorld();
         // The pole leans 90 degrees from +Y to +X, so the frame turns about the parent's +X.
-        var tilted = new FrameSpin(DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2), Math.PI / 2);
+        var tilted = new FrameSpin(Tilt: DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2), Rate: Math.PI / 2);
         FrameHandle ground = test.World.GetOwnedFrame(SpawnSpinFrame(test, tilted));
         Entity tower = test.World.SpawnAt(ground, new(0, 0, 10));
 
@@ -203,7 +203,7 @@ public class SpinFrameTests
         After_a_sync_point_a_spin_frame_has_the_pose_the_linear_velocity_and_the_angular_velocity_of_its_spin_sample()
     {
         using TestWorld test = NewWorld(startTime: 1);
-        var spin = new FrameSpin(DQuaternion.FromAxisAngle(Double3.UnitZ, -0.4), 0.7, PhaseAtEpoch: 0.3, Epoch: 2);
+        var spin = new FrameSpin(Tilt: DQuaternion.FromAxisAngle(Double3.UnitZ, -0.4), Rate: 0.7, PhaseAtEpoch: 0.3, Epoch: 2);
         var place = new Double3(5, -6, 7);
         FrameHandle ground = test.World.GetOwnedFrame(SpawnSpinFrame(test, spin, place));
 
@@ -269,8 +269,8 @@ public class SpinFrameTests
         Lambda flight = Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
         {
             double stepEnd = self.TimeAt(self.Tick + 2);
-            self.MoveOnRails(new(new(velocity * stepEnd, DQuaternion.Identity), velocity, velocity, Double3.Zero,
-                Double3.Zero, Double3.Zero));
+            self.MoveOnRails(new(Pose: new(velocity * stepEnd, DQuaternion.Identity), ChordVelocity: velocity, Velocity: velocity, Acceleration: Double3.Zero,
+                AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero));
         });
         Entity owner = test.World.Spawn(new()
         {
@@ -309,7 +309,7 @@ public class SpinFrameTests
         int before = test.World.Stats.LiveEntities;
 
         // The SpinMotion of the spawn refuses the spin in its setter, so nothing spawns.
-        Action spawn = () => SpawnSpinFrame(test, new(DQuaternion.Identity, double.NaN));
+        Action spawn = () => SpawnSpinFrame(test, new(Tilt: DQuaternion.Identity, Rate: double.NaN));
 
         spawn.Should().Throw<ArgumentException>().WithMessage("*SpinMotion*spin*not valid*");
         test.World.Stats.LiveEntities.Should().Be(before);
@@ -325,7 +325,7 @@ public class SpinFrameTests
         {
             Frame = test.Root,
             AsFrame = new(FrameBounds.Sphere(100)),
-            Body = new(Ramp, BodyMotion.Kinematic)
+            Body = new(Shape: Ramp, Motion: BodyMotion.Kinematic)
         }.Spinning(test.World, QuarterTurnPerSecond));
 
         spawn.Should().Throw<ArgumentException>().WithMessage("*kinematic*mesh*");
@@ -344,7 +344,7 @@ public class SpinFrameTests
 
         // The component checks its spin, not the World: its setter refuses it.
         Action add = () =>
-            test.World.AddComponent(dock.Entity, new SpinMotion { Spin = new(DQuaternion.Identity, double.NaN) });
+            test.World.AddComponent(dock.Entity, new SpinMotion { Spin = new(Tilt: DQuaternion.Identity, Rate: double.NaN) });
 
         add.Should().Throw<ArgumentException>().WithMessage("*SpinMotion*spin*not valid*");
         test.World.GetComponent<SpinMotion>(dock.Entity).Should().BeNull();

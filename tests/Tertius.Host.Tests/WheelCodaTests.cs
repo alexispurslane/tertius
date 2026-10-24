@@ -43,7 +43,7 @@ public sealed class CodaRun : IDisposable
         Station = World.GetOwnedFrame(Scene["station"]);
         Stack = [.. WheelCoda.Stack().Select(box => Scene[box.Id])];
         Entity person = Scene["person"];
-        World.Post(Event.Create(person, Entity.Null, new LeaveShip()));
+        World.Post(Event.Create(target: person, sender: Entity.Null, payload: new LeaveShip()));
         int after = -1;
         for (int tick = 0; tick < 120 * 60 && after != 0; tick++)
         {
@@ -58,7 +58,7 @@ public sealed class CodaRun : IDisposable
             ? copy
             : Entity.Null;
         Start = Record(0);
-        World.Post(Event.Create(person, Entity.Null, new PlayWithBoxes()));
+        World.Post(Event.Create(target: person, sender: Entity.Null, payload: new PlayWithBoxes()));
         after = -1;
         for (long tick = 1; tick <= 90 * 60 && after != 0; tick++)
         {
@@ -105,14 +105,14 @@ public sealed class CodaRun : IDisposable
     {
         Entity person = Scene["person"];
         var play = World.GetComponent<BoxPlay>(person)!;
-        return new(tick, World.PoseIn(person, Station).Position, World.IsStanding(person), play.State,
-            World.GetComponent<Passenger>(person)!.State,
-            [.. Stack.Select(box => (World.PoseIn(box, Station).Position, World.VelocityIn(box, Station).Length))],
-            [
+        return new(Tick: tick, Person: World.PoseIn(person, Station).Position, Standing: World.IsStanding(person), Play: play.State,
+            Pen: World.GetComponent<Passenger>(person)!.State,
+            Stack: [.. Stack.Select(box => (World.PoseIn(box, Station).Position, World.VelocityIn(box, Station).Length))],
+            ThrowBoxes: [
                 .. Enumerable.Range(0, BoxPlayState.Throws).Select(i => Scene[WheelCoda.ThrowBoxId(i)]).Select(box =>
                     World.IsAlive(box) ? (true, World.PoseIn(box, Station).Position) : (false, default(Double3)))
             ],
-            [.. play.Thrown.Where(World.IsAlive).Select(box => World.PoseIn(box, Station).Position)]);
+            Thrown: [.. play.Thrown.Where(World.IsAlive).Select(box => World.PoseIn(box, Station).Position)]);
     }
 
     public void Dispose() => World.Dispose();

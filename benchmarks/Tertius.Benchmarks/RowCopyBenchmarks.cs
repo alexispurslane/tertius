@@ -37,7 +37,7 @@ internal static class RowCopyBenchmarks
             for (int i = 0; i < rows; i++)
             {
                 Live[i] = Entities.Reserve();
-                Entities.Activate(Live[i], new(), new(), [], [], null, Vector3.Zero, FrameHandle.Null);
+                Entities.Activate(entity: Live[i], row: new(), render: new(), components: [], wants: [], body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
             }
 
             Entities.TakeMoved();
@@ -48,7 +48,7 @@ internal static class RowCopyBenchmarks
         {
             long now = ++tick;
             Entities.BeginTick(spawnPoolSize: 0);
-            Parallel.For(0, (Live.Length + ChunkSize - 1) / ChunkSize, AllWorkers, chunk =>
+            Parallel.For(fromInclusive: 0, toExclusive: (Live.Length + ChunkSize - 1) / ChunkSize, parallelOptions: AllWorkers, body: chunk =>
             {
                 for (int i = chunk * ChunkSize, end = Math.Min(Live.Length, i + ChunkSize); i < end; i++)
                     Entities.WritableTransform(Live[i]).Position = new(now, i, 0);

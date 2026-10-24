@@ -14,7 +14,7 @@ public class ComposeUnitParentTests
 {
     /// <summary>A rotation that came out of a float quaternion, as Jolt gives it: not unit length. Its square is 1.7E-7 over 1.</summary>
     private static readonly DQuaternion Widened =
-        DQuaternion.FromQuaternion(new(0.18257418f, 0.36514837f, 0.5477226f, 0.73029685f));
+        DQuaternion.FromQuaternion(new(x: 0.18257418f, y: 0.36514837f, z: 0.5477226f, w: 0.73029685f));
 
     /// <summary>The place of a ship in a low orbit round Earth, in Earth's axes, 6.77E6 m from the center.</summary>
     private static readonly Double3 InOrbit = new(4.2e6, -3.9e6, 3.6e6);
@@ -37,11 +37,11 @@ public class ComposeUnitParentTests
         { "a rotation half as long", Scaled(0.5) },
         { "a rotation just outside the tolerance", Scaled(1 + 5e-12) },
         { "the zero rotation", default },
-        { "a rotation that is not a number", new(double.NaN, 0, 0, 1) }
+        { "a rotation that is not a number", new(X: double.NaN, Y: 0, Z: 0, W: 1) }
     };
 
     /// <summary>A rotation about +Z by a quarter turn, scaled so that its length is <paramref name="length"/>.</summary>
-    private static DQuaternion Scaled(double length) => new(0, 0, Math.Sqrt(0.5) * length, Math.Sqrt(0.5) * length);
+    private static DQuaternion Scaled(double length) => new(X: 0, Y: 0, Z: Math.Sqrt(0.5) * length, W: Math.Sqrt(0.5) * length);
 
     public static TheoryData<string, DQuaternion, DQuaternion> UnitParentsAndLocalRotations()
     {

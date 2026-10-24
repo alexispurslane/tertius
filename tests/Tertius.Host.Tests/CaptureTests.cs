@@ -24,7 +24,7 @@ public sealed class CaptureTests : IDisposable
         string output)
     {
         using World world = newWorld();
-        return Run(json, world, build, output, new(output));
+        return Run(json: json, world: world, build: build, output: output, images: new(output));
     }
 
     /// <summary>
@@ -40,7 +40,7 @@ public sealed class CaptureTests : IDisposable
         try
         {
             using var playback = new HeadlessPlayback(renderer, script.Window, images);
-            return ScriptRunner.Run(script, world, build(world, renderer), output, playback);
+            return ScriptRunner.Run(script: script, world: world, scene: build(world, renderer), outputFolder: output, playback: playback);
         }
         finally
         {
@@ -53,8 +53,8 @@ public sealed class CaptureTests : IDisposable
     public void ACaptureWritesAPngOfTheScriptsWindowSizeIntoTheOutputFolder()
     {
         RunResult result = Run(
-            """{ "scene": "lit-box", "window": { "width": 320, "height": 180 }, "steps": [ { "do": "capture", "name": "front" } ] }""",
-            NewWorld, LitBox, folder);
+            json: """{ "scene": "lit-box", "window": { "width": 320, "height": 180 }, "steps": [ { "do": "capture", "name": "front" } ] }""",
+            newWorld: NewWorld, build: LitBox, output: folder);
 
         result.Captures.Should().Equal("front");
         Png image = Png.Load(Path.Combine(folder, "front.png"));
@@ -65,7 +65,7 @@ public sealed class CaptureTests : IDisposable
     [Fact]
     public void AScriptWithoutAWindowCapturesAt1280By720()
     {
-        Run("""{ "scene": "lit-box", "steps": [ { "do": "capture", "name": "front" } ] }""", NewWorld, LitBox, folder);
+        Run(json: """{ "scene": "lit-box", "steps": [ { "do": "capture", "name": "front" } ] }""", newWorld: NewWorld, build: LitBox, output: folder);
 
         Png image = Png.Load(Path.Combine(folder, "front.png"));
         (image.Width, image.Height).Should().Be((1280, 720));
@@ -75,8 +75,8 @@ public sealed class CaptureTests : IDisposable
     public void ACaptureShowsTheSceneThroughTheCamera()
     {
         Run(
-            """{ "scene": "lit-box", "window": { "width": 320, "height": 180 }, "steps": [ { "do": "capture", "name": "front" } ] }""",
-            NewWorld, LitBox, folder);
+            json: """{ "scene": "lit-box", "window": { "width": 320, "height": 180 }, "steps": [ { "do": "capture", "name": "front" } ] }""",
+            newWorld: NewWorld, build: LitBox, output: folder);
 
         Png image = Png.Load(Path.Combine(folder, "front.png"));
         image.IsRed(160, 90).Should().BeTrue("the red box fills the middle of the front camera's view");
@@ -86,10 +86,10 @@ public sealed class CaptureTests : IDisposable
     [Fact]
     public void ACameraStepChangesTheViewOfTheCapturesAfterIt()
     {
-        Run("""
+        Run(json: """
             { "scene": "lit-box", "window": { "width": 320, "height": 180 },
               "steps": [ { "do": "capture", "name": "before" }, { "do": "camera", "entity": "away" }, { "do": "capture", "name": "after" } ] }
-            """, NewWorld, LitBox, folder);
+            """, newWorld: NewWorld, build: LitBox, output: folder);
 
         Png.Load(Path.Combine(folder, "before.png")).IsRed(160, 90).Should().BeTrue();
         Png.Load(Path.Combine(folder, "after.png")).IsRed(160, 90).Should()
@@ -99,10 +99,10 @@ public sealed class CaptureTests : IDisposable
     [Fact]
     public void ACaptureShowsTheStateAfterTheTicksBeforeIt()
     {
-        Run("""
+        Run(json: """
             { "scene": "lit-drop", "window": { "width": 320, "height": 180 },
               "steps": [ { "do": "capture", "name": "start" }, { "do": "run", "ticks": 90 }, { "do": "capture", "name": "landed" } ] }
-            """, NewJoltWorld, LitDrop, folder);
+            """, newWorld: NewJoltWorld, build: LitDrop, output: folder);
 
         int high = RowOfHeight(3, 180), low = RowOfHeight(0.5, 180);
         Png start = Png.Load(Path.Combine(folder, "start.png"));
@@ -122,8 +122,8 @@ public sealed class CaptureTests : IDisposable
                               """;
         string second = Path.Combine(folder, "second");
 
-        Run(script, NewJoltWorld, LitDrop, folder);
-        Run(script, NewJoltWorld, LitDrop, second);
+        Run(json: script, newWorld: NewJoltWorld, build: LitDrop, output: folder);
+        Run(json: script, newWorld: NewJoltWorld, build: LitDrop, output: second);
 
         File.ReadAllBytes(Path.Combine(second, "falling.png")).Should()
             .Equal(File.ReadAllBytes(Path.Combine(folder, "falling.png")));
@@ -136,8 +136,8 @@ public sealed class CaptureTests : IDisposable
         string images = Path.Combine(folder, "images");
 
         Run(
-            """{ "scene": "lit-box", "window": { "width": 32, "height": 32 }, "steps": [ { "do": "capture", "name": "now" } ] }""",
-            world, LitBox, output: null, new(images));
+            json: """{ "scene": "lit-box", "window": { "width": 32, "height": 32 }, "steps": [ { "do": "capture", "name": "now" } ] }""",
+            world: world, build: LitBox, output: null, images: new(images));
 
         File.Exists(Path.Combine(images, "now.png")).Should()
             .BeTrue("the target names the folder, and the PNG sink makes it");
@@ -195,13 +195,13 @@ public sealed class CaptureTests : IDisposable
 
         Action run = () =>
             Run(
-                """{ "scene": "lit-box", "window": { "width": 32, "height": 32 }, "steps": [ { "do": "run", "ticks": 2 }, { "do": "capture", "name": "now" } ] }""",
-                world, (w, resources) =>
+                json: """{ "scene": "lit-box", "window": { "width": 32, "height": 32 }, "steps": [ { "do": "run", "ticks": 2 }, { "do": "capture", "name": "now" } ] }""",
+                world: world, build: (w, resources) =>
                 {
                     SceneInstance scene = LitBox(w, resources);
                     w.AddComponent(scene["front"], new DestroysItselfOnFirstTick());
                     return scene;
-                }, folder, new(folder));
+                }, output: folder, images: new(folder));
 
         run.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 2").And.Contain("camera").And
             .Contain("not alive");

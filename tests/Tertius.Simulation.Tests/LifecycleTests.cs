@@ -65,7 +65,7 @@ public class LifecycleTests
     {
         using var t = new TestWorld();
         Entity plain = t.SpawnWith();
-        t.SpawnWith(SendOnce.Of(plain, new Destroy()));
+        t.SpawnWith(SendOnce.Of(target: plain, payload: new Destroy()));
 
         t.Run(1);
         t.World.IsAlive(plain).Should().BeTrue("the message is sent on tick 0 and arrives on tick 1");
@@ -80,7 +80,7 @@ public class LifecycleTests
         using var t = new TestWorld();
         var watcher = new Recorder(EventMask.Of<Destroy>());
         Entity watched = t.SpawnWith(watcher);
-        t.SpawnWith(SendOnce.Of(watched, new Destroy()));
+        t.SpawnWith(SendOnce.Of(target: watched, payload: new Destroy()));
 
         t.Run(2);
 
@@ -94,7 +94,7 @@ public class LifecycleTests
         using var t = new TestWorld();
         Entity doomed = t.SpawnWith();
         t.World.Destroy(doomed);
-        t.SpawnWith(SendOnce.Of(doomed, new Destroy()));
+        t.SpawnWith(SendOnce.Of(target: doomed, payload: new Destroy()));
 
         t.Run(3);
 
@@ -109,7 +109,7 @@ public class LifecycleTests
         using var t = new TestWorld();
         var shield = new Invulnerable();
         Entity shielded = t.SpawnWith(shield);
-        t.SpawnWith(SendOnce.Of(shielded, new Destroy()));
+        t.SpawnWith(SendOnce.Of(target: shielded, payload: new Destroy()));
 
         t.Run(3);
 
@@ -123,7 +123,7 @@ public class LifecycleTests
         using var t = new TestWorld();
         var after = new Recorder(EventMask.Of<Destroy>(), priority: 5);
         Entity shielded = t.SpawnWith(new Invulnerable(priority: -10), after);
-        t.SpawnWith(SendOnce.Of(shielded, new Destroy()));
+        t.SpawnWith(SendOnce.Of(target: shielded, payload: new Destroy()));
 
         t.Run(3);
 
@@ -136,7 +136,7 @@ public class LifecycleTests
         using var t = new TestWorld();
         var before = new Recorder(EventMask.Of<Destroy>(), priority: -20);
         Entity shielded = t.SpawnWith(before, new Invulnerable(priority: -10));
-        t.SpawnWith(SendOnce.Of(shielded, new Destroy()));
+        t.SpawnWith(SendOnce.Of(target: shielded, payload: new Destroy()));
 
         t.Run(3);
 
@@ -150,7 +150,7 @@ public class LifecycleTests
         using var t = new TestWorld();
         var shield = new Invulnerable();
         Entity shielded = t.SpawnWith(shield);
-        t.SpawnWith(SendEvery.Of(shielded, new Destroy()));
+        t.SpawnWith(SendEvery.Of(target: shielded, payload: new Destroy()));
 
         t.Run(5);
 
@@ -165,7 +165,7 @@ public class LifecycleTests
         using var t = new TestWorld();
         Entity shielded = t.SpawnWith(new Invulnerable());
         Entity exposed = t.SpawnWith();
-        t.SpawnWith(SendOnce.Of(shielded, new Destroy()), SendOnce.Of(exposed, new Destroy()));
+        t.SpawnWith(SendOnce.Of(target: shielded, payload: new Destroy()), SendOnce.Of(target: exposed, payload: new Destroy()));
 
         t.Run(2);
 
@@ -180,7 +180,7 @@ public class LifecycleTests
     {
         using var t = new TestWorld();
         Entity target = t.SpawnWith(new Health());
-        t.SpawnWith(SendOnce.Of(target, new Damage { Amount = 100 }));
+        t.SpawnWith(SendOnce.Of(target: target, payload: new Damage { Amount = 100 }));
 
         t.Run(2);
 
@@ -193,7 +193,7 @@ public class LifecycleTests
         using var t = new TestWorld();
         var health = new Health();
         Entity target = t.SpawnWith(health);
-        t.SpawnWith(SendOnce.Of(target, new Damage { Amount = 40 }));
+        t.SpawnWith(SendOnce.Of(target: target, payload: new Damage { Amount = 40 }));
 
         t.Run(2);
 
@@ -208,7 +208,7 @@ public class LifecycleTests
         var health = new Health();
         var shield = new Invulnerable(priority: 10);
         Entity target = t.SpawnWith(health, shield);
-        t.SpawnWith(SendOnce.Of(target, new Damage { Amount = 150 }));
+        t.SpawnWith(SendOnce.Of(target: target, payload: new Damage { Amount = 150 }));
 
         t.Run(2);
 
@@ -223,7 +223,7 @@ public class LifecycleTests
         using var t = new TestWorld();
         var shield = new Invulnerable(priority: -10);
         Entity target = t.SpawnWith(new Health(), shield);
-        t.SpawnWith(SendOnce.Of(target, new Damage { Amount = 150 }));
+        t.SpawnWith(SendOnce.Of(target: target, payload: new Damage { Amount = 150 }));
 
         t.Run(2);
 
@@ -297,7 +297,7 @@ public class LifecycleTests
     [Fact]
     public void DestroyingAnEntityWithABodyOutsideATickTellsPhysicsToDropTheBody()
     {
-        using TestWorld t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         List<PhysicsChanges> batches = faults.AppliedChanges;
         Entity ball = t.World.Spawn(new() { Frame = t.Root, Body = TestWorld.Ball });
         t.Run(1);
@@ -311,7 +311,7 @@ public class LifecycleTests
     [Fact]
     public void AnEntityWithABodyThatDestroysItselfIsDroppedFromPhysicsAtTheSyncPoint()
     {
-        using TestWorld t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         List<PhysicsChanges> batches = faults.AppliedChanges;
         Entity ball = t.World.Spawn(new()
         {
@@ -335,7 +335,7 @@ public class LifecycleTests
     [Fact]
     public void DestroyingAnEntityWithoutABodyTellsPhysicsNothingAboutBodies()
     {
-        using TestWorld t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         List<PhysicsChanges> batches = faults.AppliedChanges;
         Entity plain = t.SpawnWith();
         t.Run(1);

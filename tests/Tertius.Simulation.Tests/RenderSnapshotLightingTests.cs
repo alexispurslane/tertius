@@ -17,13 +17,13 @@ public class RenderSnapshotLightingTests
     /// <summary>A render row that carries a spot light, one meter above the entity, that draws nothing.</summary>
     private static RenderData Lamp() => new()
     {
-        Light = new SpotLightData(LampOffset, LampColor, Intensity: 3, Range: 20, InnerConeAngle: 0.3f,
+        Light = new SpotLightData(Offset: LampOffset, Color: LampColor, Intensity: 3, Range: 20, InnerConeAngle: 0.3f,
             OuterConeAngle: 0.5f)
     };
 
     /// <summary>The same as <see cref="Lamp"/>, but a point light.</summary>
     private static RenderData PointLamp() => new()
-        { Light = new PointLightData(LampOffset, LampColor, Intensity: 3, Range: 20) };
+        { Light = new PointLightData(Offset: LampOffset, Color: LampColor, Intensity: 3, Range: 20) };
 
     // ---- The camera ------------------------------------------------------------------------------------------------
 
@@ -125,13 +125,13 @@ public class RenderSnapshotLightingTests
         {
             Frame = test.Root,
             Pose = new(new(5, 0, 0), PoseChecks.QuarterTurnAboutY),
-            Render = new RenderData { Light = new PointLightData(offset, LampColor, 3, 20) }
+            Render = new RenderData { Light = new PointLightData(Offset: offset, Color: LampColor, Intensity: 3, Range: 20) }
         });
         test.World.Spawn(new()
         {
             Frame = test.Root,
             Pose = new(new(5, 0, 0), PoseChecks.QuarterTurnAboutY),
-            Render = new RenderData { Light = new SpotLightData(offset, LampColor, 3, 20, 0.3f, 0.5f) }
+            Render = new RenderData { Light = new SpotLightData(Offset: offset, Color: LampColor, Intensity: 3, Range: 20, InnerConeAngle: 0.3f, OuterConeAngle: 0.5f) }
         });
 
         test.Run(1);
@@ -153,7 +153,7 @@ public class RenderSnapshotLightingTests
         test.World.Spawn(new()
         {
             Frame = test.Root,
-            Render = new RenderData { Light = new SpotLightData(quarterTurnAboutY, LampColor, 3, 20, 0.3f, 0.5f) }
+            Render = new RenderData { Light = new SpotLightData(Offset: quarterTurnAboutY, Color: LampColor, Intensity: 3, Range: 20, InnerConeAngle: 0.3f, OuterConeAngle: 0.5f) }
         });
 
         test.Run(1);
@@ -172,12 +172,12 @@ public class RenderSnapshotLightingTests
         test.World.Spawn(new()
         {
             Frame = test.Root, Pose = TestWorld.At(5),
-            Render = new RenderData { Light = new PointLightData(default, LampColor, 3, 20) }
+            Render = new RenderData { Light = new PointLightData(Offset: default, Color: LampColor, Intensity: 3, Range: 20) }
         });
         test.World.Spawn(new()
         {
             Frame = test.Root, Pose = TestWorld.At(6),
-            Render = new RenderData { Light = new SpotLightData(default, LampColor, 3, 20, 0.3f, 0.5f) }
+            Render = new RenderData { Light = new SpotLightData(Offset: default, Color: LampColor, Intensity: 3, Range: 20, InnerConeAngle: 0.3f, OuterConeAngle: 0.5f) }
         });
 
         test.Run(1);

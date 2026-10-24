@@ -14,11 +14,11 @@ public class RailsHullTests
 {
     /// <summary>A sample at (1, 2, 3) with no motion.</summary>
     private static readonly MotionSample Parked =
-        new(new(new(1, 2, 3), DQuaternion.Identity), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero,
-            Double3.Zero);
+        new(Pose: new(new(1, 2, 3), DQuaternion.Identity), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
+            AngularAcceleration: Double3.Zero);
 
     private static readonly KeplerOrbit Orbit = KeplerOrbit.Circular(5_000, phase: 0.3, spinRate: 0.2);
-    private static readonly FrameSpin Spin = new(DQuaternion.FromAxisAngle(Double3.UnitZ, 0.4), 0.5, PhaseAtEpoch: 0.1);
+    private static readonly FrameSpin Spin = new(Tilt: DQuaternion.FromAxisAngle(Double3.UnitZ, 0.4), Rate: 0.5, PhaseAtEpoch: 0.1);
     private static readonly Double3 SpinPlace = new(4_000, 300, -200);
 
     /// <summary>A far orbit of 9,000 km at 47 m/s round the point gravity of an <see cref="Scenes.AsteroidSpace"/>, past 2^23 m.</summary>
@@ -42,7 +42,7 @@ public class RailsHullTests
     [InlineData(BodyMotion.Static)]
     public void MoveOnRailsThrowsForTheOwnerOfAFrameWhoseHullIsNotKinematic(BodyMotion motion)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         Entity owner = Hull(world, Scenes.AsteroidSpace(world), motion, new WritesSample(Parked));
 
         Tick(world, 1);
@@ -55,7 +55,7 @@ public class RailsHullTests
     [Fact]
     public void MoveOnRailsTakesASampleFromTheOwnerOfAKinematicHull()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         Entity owner = Hull(world, Scenes.AsteroidSpace(world), BodyMotion.Kinematic, new WritesSample(Parked));
 
         Tick(world, 1);
@@ -68,11 +68,11 @@ public class RailsHullTests
     [Fact]
     public void TheOwnerOfARootFrameWithABodyCanWriteASample()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         // A root frame has no parent, so its owner's body is the frame's static interior, not a hull.
         Entity owner = world.Spawn(new()
         {
-            Body = new(new BoxShapeDesc(new(5)), BodyMotion.Static),
+            Body = new(Shape: new BoxShapeDesc(new(5)), Motion: BodyMotion.Static),
             AsFrame = new(FrameBounds.Sphere(1e6f)),
             Components = [new WritesSample(Parked)]
         });
@@ -91,14 +91,14 @@ public class RailsHullTests
     [Fact]
     public void AHullThatStopsBeingKinematicSendsNoSampleToTheStepAfterTheChange()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         var rails = new WritesSample(Parked);
         Entity owner = Hull(world, Scenes.AsteroidSpace(world), BodyMotion.Kinematic, rails);
         FrameHandle frame = world.GetOwnedFrame(owner);
         Tick(world, 2);
         NextSample(world, owner, out _).Should().BeTrue("tick 1 wrote a sample for step 2");
 
-        world.SetMotionNextTick(owner, BodyMotion.Dynamic, remove: rails);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Dynamic, remove: rails);
         Tick(world, 2);
 
         faults.Moves.Should().Contain(record => record.Entity == frame.Entity && record.Tick == 2,
@@ -119,7 +119,7 @@ public class RailsHullTests
     [Fact]
     public void InATickWithATeleportAndASampleOfAKinematicHullTheTeleportAppliesFirst()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         var pilot = new Pilot();
         Entity owner = Hull(world, Scenes.AsteroidSpace(world), BodyMotion.Kinematic, pilot, new WritesSample(Parked));
         FrameHandle frame = world.GetOwnedFrame(owner);
@@ -146,7 +146,7 @@ public class RailsHullTests
     [Fact]
     public void TheFrameOfAKinematicHullThatTeleportsInAStepWithoutASampleTakesTheTeleportsPose()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         var pilot = new Pilot();
         Entity owner = Hull(world, Scenes.AsteroidSpace(world), BodyMotion.Kinematic, pilot);
         FrameHandle frame = world.GetOwnedFrame(owner);
@@ -173,7 +173,7 @@ public class RailsHullTests
     [Fact]
     public void AKinematicHullThatLeavesItsStillFollowingFrameAndTeleportsWithoutASampleStaysWithItsFrame()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle space = Scenes.AsteroidSpace(world);
         var pilot = new Pilot();
         var rails = new KeplerMotion { Orbit = Orbit };
@@ -221,7 +221,7 @@ public class RailsHullTests
     [Fact]
     public void AKinematicHullWithoutASampleThatTeleportsInItsFarFollowingFrameStandsAtTheFramesOriginInJolt()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Scenes.AsteroidSpace(world);
         var pilot = new Pilot();
         var rails = new KeplerMotion { Orbit = FarOrbit };
@@ -283,7 +283,7 @@ public class RailsHullTests
     [InlineData("SpinMotion", "static plain body")]
     public void ARailsComponentWritesNothingAndLogsTheGuardsReasonOnce(string component, string kind)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         var log = new List<string>();
         world.Log += log.Add;
         FrameHandle space = Scenes.AsteroidSpace(world);
@@ -317,7 +317,7 @@ public class RailsHullTests
     public void TheFirstSampleOfARailsComponentComesWithATeleportOfItsHullToTheRailsPoseAtTheStartOfTheStep(
         string component)
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         Entity owner = Hull(world, Scenes.AsteroidSpace(world), BodyMotion.Kinematic, Rails(component));
 
         Tick(world, 4);
@@ -333,7 +333,7 @@ public class RailsHullTests
     [Fact]
     public void ANewRailsComponentTeleportsItsHullAgain()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         var first = new KeplerMotion { Orbit = Orbit };
         Entity owner = Hull(world, Scenes.AsteroidSpace(world), BodyMotion.Kinematic, first);
         Tick(world, 3);

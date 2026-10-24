@@ -17,23 +17,23 @@ public class FrameTreeFollowedTests
 
     /// <summary>A sample at rest 5 m along +X.</summary>
     private static MotionSample Sample =>
-        new(new(new(5, 0, 0), DQuaternion.Identity), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero,
-            Double3.Zero);
+        new(Pose: new(new(5, 0, 0), DQuaternion.Identity), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
+            AngularAcceleration: Double3.Zero);
 
     private readonly FrameTree frames = new();
     private readonly FrameHandle root;
 
     public FrameTreeFollowedTests()
     {
-        root = frames.Create(new(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
+        root = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
     }
 
     /// <summary>A frame of the owner <paramref name="id"/>, 100 m along +X in <paramref name="parent"/>, with a hull of
     /// <paramref name="motion"/>.</summary>
     private FrameHandle Child(uint id, FrameHandle parent, BodyMotion? motion)
     {
-        FrameHandle frame = frames.Create(new(id, 1), parent, new(new(100, 0, 0), DQuaternion.Identity),
-            FrameBounds.Sphere(10));
+        FrameHandle frame = frames.Create(frameOwner: new(id, 1), parent: parent, localPose: new(new(100, 0, 0), DQuaternion.Identity),
+            frameBounds: FrameBounds.Sphere(10));
         frames.SetHullMotion(frame, motion);
         return frame;
     }
@@ -52,7 +52,7 @@ public class FrameTreeFollowedTests
     /// relative to its parent.
     /// </summary>
     private void FollowRails(FrameHandle frame) =>
-        frames.TakeStepRecords(Only(frame, new() { Frame = frames.Parent(frame), Move = new(Sample) }), Step);
+        frames.TakeStepRecords(stepIntents: Only(frame, new() { Frame = frames.Parent(frame), Move = new(Sample) }), step: Step);
 
     [Fact]
     public void ANewFrameFollowedNothing()
@@ -77,7 +77,7 @@ public class FrameTreeFollowedTests
     {
         FrameHandle moon = Child(2, root, motion: null);
 
-        frames.TakeStepRecords(Only(moon, new() { Frame = root, Move = new(new EndPose(Sample.Pose)) }), Step);
+        frames.TakeStepRecords(stepIntents: Only(moon, new() { Frame = root, Move = new(new EndPose(Sample.Pose)) }), step: Step);
 
         frames.Followed(moon).Should().Be(FollowKind.Kinematic);
     }
@@ -87,7 +87,7 @@ public class FrameTreeFollowedTests
     {
         FrameHandle ship = Child(2, root, BodyMotion.Dynamic);
 
-        frames.TakeStepRecords([], Step, new StepOwners().WithHullRecord(ship, Sample));
+        frames.TakeStepRecords(stepIntents: [], step: Step, owners: new StepOwners().WithHullRecord(ship, Sample));
 
         frames.Followed(ship).Should().Be(FollowKind.Physics);
     }
@@ -99,7 +99,7 @@ public class FrameTreeFollowedTests
         var owners = new StepOwners();
         owners.Writes[moon] = Sample.Pose;
 
-        frames.TakeStepRecords(Only(moon, new() { Frame = root, Move = new(Sample) }), Step, owners);
+        frames.TakeStepRecords(stepIntents: Only(moon, new() { Frame = root, Move = new(Sample) }), step: Step, owners: owners);
 
         frames.Followed(moon).Should().Be(FollowKind.Static, "the write comes last, so it wins for one tick");
     }
@@ -110,7 +110,7 @@ public class FrameTreeFollowedTests
         FrameHandle moon = Child(2, root, motion: null);
         FollowRails(moon);
 
-        frames.TakeStepRecords([], Step);
+        frames.TakeStepRecords(stepIntents: [], step: Step);
 
         frames.Followed(moon).Should().Be(FollowKind.Static, "the frame took no record of the step");
     }

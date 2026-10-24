@@ -10,7 +10,7 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public class WorldCharacterStandingTests
 {
-    private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
 
     /// <summary>The height of the center of a person who stands on a floor whose top is at y = 0, plus 2 cm.</summary>
     private const double StandingHeight = 0.92;
@@ -18,7 +18,7 @@ public class WorldCharacterStandingTests
     [Fact]
     public void ACharacterOnAFloorUnderGravityStandsForItsComponentsAndInTheSnapshot()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         var log = new StandingLog();
@@ -35,7 +35,7 @@ public class WorldCharacterStandingTests
     [Fact]
     public void ACharacterThatJumpsDoesNotStandInTheAir()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         var pilot = new Pilot();
@@ -55,7 +55,7 @@ public class WorldCharacterStandingTests
     [Fact]
     public void ACharacterThatStandsStillOnAFloorHasNoVelocity()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         Entity person = world.Spawn(new() { Frame = ground, Pose = At(0, StandingHeight), Body = Person });
@@ -73,7 +73,7 @@ public class WorldCharacterStandingTests
     [Fact]
     public void GravityActsOnACharacterFromTheStepInWhichItJumps()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         var pilot = new Pilot();
@@ -92,10 +92,10 @@ public class WorldCharacterStandingTests
     [Fact]
     public void ACharacterThatStandsAgainstASleepingStackDoesNotWakeIt()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
-        var crate = new BodyDesc(new BoxShapeDesc(new(0.25f)), Mass: 40);
+        var crate = new BodyDesc(Shape: new BoxShapeDesc(new(0.25f)), Mass: 40);
         Entity bottom = world.Spawn(new() { Frame = ground, Pose = At(0, 0.25), Body = crate });
         Entity middle = world.Spawn(new() { Frame = ground, Pose = At(0, 0.75), Body = crate });
         var pilot = new Pilot();
@@ -128,7 +128,7 @@ public class WorldCharacterStandingTests
     [Fact]
     public void ACharacterThatAForcePressesOntoAFloorInZeroGravityDoesNotStand()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         Floor(world, space);
         // 70 N on 70 kg presses the character onto the floor at 1 m/s², so Jolt finds the floor under it in every
@@ -149,7 +149,7 @@ public class WorldCharacterStandingTests
     [Fact]
     public void ADynamicBodyAndAnEntityWithoutABodyNeverStand()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         var boxLog = new StandingLog();
@@ -168,7 +168,7 @@ public class WorldCharacterStandingTests
     [Fact]
     public void AComponentSeesTheStandingStateOfThePhysicsStepOfThePreviousTick()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         var log = new StandingLog();
@@ -195,7 +195,7 @@ public class WorldCharacterStandingTests
     [Fact]
     public void AnEntityThatTakesTheSlotOfAStandingCharacterDoesNotStand()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         Entity person = world.Spawn(new() { Frame = ground, Pose = At(0, StandingHeight), Body = Person });
@@ -212,7 +212,7 @@ public class WorldCharacterStandingTests
     [Fact]
     public void TheStandingStateOfAStaleHandleIsAnError()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         Entity person = world.Spawn(new() { Frame = ground, Pose = At(0, StandingHeight), Body = Person });
         world.Destroy(person);
@@ -313,7 +313,7 @@ public class WorldCharacterStandingTests
         world.Snapshot.IsStanding(person).Should().BeTrue();
         faults.EditNextOutput = output =>
         {
-            output.Contacts.Add(new(person, person, ground, Double3.Zero, Vector3.UnitY, 0));
+            output.Contacts.Add(new(A: person, B: person, Frame: ground, Point: Double3.Zero, Normal: Vector3.UnitY, Impulse: 0));
             for (int i = 0; i < output.Characters.Count; i++)
                 if (output.Characters[i].Entity == person)
                     output.Characters[i] = new(person, Standing: false);
@@ -348,7 +348,7 @@ public class WorldCharacterStandingTests
         Entity person = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, StandingHeight), Body = Person });
         Tick(world, 30);
         faults.EditNextOutput =
- output => output.Contacts.Add(new ContactStarted(person, person, ground, Double3.Zero, Vector3.UnitY, 0));
+ output => output.Contacts.Add(new ContactStarted(A: person, B: person, Frame: ground, Point: Double3.Zero, Normal: Vector3.UnitY, Impulse: 0));
         world.Tick();
         world.Errors.Should().ContainSingle().Which.Should().Contain(person.ToString());
         world.Snapshot.IsStanding(person).Should().BeTrue();

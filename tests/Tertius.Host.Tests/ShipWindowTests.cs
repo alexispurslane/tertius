@@ -159,7 +159,7 @@ public sealed class ShipWindowTests
             Frame = ship,
             Pose = new(new(8, EyeHeight, 12), DQuaternion.Identity),
             LinearVelocity = new Vector3(10, 0, 0),
-            Body = new(new BoxShapeDesc(new(0.2f)), Mass: 5, LinearDamping: 0, AngularDamping: 0)
+            Body = new(Shape: new BoxShapeDesc(new(0.2f)), Mass: 5, LinearDamping: 0, AngularDamping: 0)
         });
 
         for (int tick = 0; tick < 30; tick++)

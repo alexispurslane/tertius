@@ -20,9 +20,9 @@ public class TurningFrameWakeTests
     private const double SmallSpinUp = SmallPush / 50.87;
 
     private static readonly BodyDesc UndampedCrate =
-        new(new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
 
-    private static readonly BodyDesc Crate = new(new BoxShapeDesc(new(0.5f)), Mass: 10);
+    private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10);
 
     [Fact]
     public void SleepersWakeWhenTheStationSpinsUpAndStayAtRestInInertialSpace()
@@ -31,7 +31,7 @@ public class TurningFrameWakeTests
         // the design's example: the Euler term at once passes the threshold, at 0.5 m/s² for the crate 50 m from the axis.
         // A crate that slept on would turn with the station, and in 10 s the station turns by 0.5 rad. An awake crate stays
         // at rest in inertial space, where the update holds the Euler term, and later the centrifugal and Coriolis terms.
-        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         const double spinUp = 0.01;
         double start = world.Time + 2;
@@ -82,10 +82,10 @@ public class TurningFrameWakeTests
         // in every step. With a reach of a few meters, the change of the centrifugal and the Euler acceleration stays far
         // below the threshold of 0.02 m/s², so the crates sleep. A wake on any change of rate, the spike's rule, would wake
         // them in every step.
-        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
         // A G·M of 1.25e5 m³/s² gives a mean motion of sqrt(mu / a³) = 1e-3 rad/s at 5 km.
         FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f), GravityField.Point(1.25e5)));
-        var oval = new KeplerOrbit(5000, 0.1, 0, 0, 0, 0, 0, DQuaternion.Identity, 0, 0, KeplerAttitude.FacesParent);
+        var oval = new KeplerOrbit(SemiMajorAxis: 5000, Eccentricity: 0.1, Inclination: 0, LongitudeOfAscendingNode: 0, ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: 0, Epoch: 0, AxialTilt: DQuaternion.Identity, SpinRate: 0, SpinPhaseAtEpoch: 0, Attitude: KeplerAttitude.FacesParent);
         Entity owner = world.Spawn(new SpawnDesc { Frame = planet, AsFrame = new(FrameBounds.Sphere(50)) }
             .OnKeplerOrbit(world, oval, firstMove: true));
         FrameHandle frame = world.GetOwnedFrame(owner);
@@ -134,7 +134,7 @@ public class TurningFrameWakeTests
     /// </summary>
     private static bool WakesWithin(double acceleration, double angularAcceleration)
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         double start = world.Time + 2;
         Entity owner = world.Spawn(new()
@@ -178,8 +178,8 @@ public class TurningFrameWakeTests
             var pose = new DPose(new(0.5 * acceleration * s * s, 0, 0),
                 DQuaternion.FromAxisAngle(Double3.UnitY, 0.5 * angularAcceleration * s * s));
             Double3 chord = new Double3(0.5 * acceleration * (s * s - before * before), 0, 0) / step;
-            return new(pose, chord, velocity, (velocity - velocityBefore) / step, angularVelocity,
-                (angularVelocity - angularVelocityBefore) / step);
+            return new(Pose: pose, ChordVelocity: chord, Velocity: velocity, Acceleration: (velocity - velocityBefore) / step, AngularVelocity: angularVelocity,
+                AngularAcceleration: (angularVelocity - angularVelocityBefore) / step);
         }
 
         private double Since(double time) => Math.Max(0, time - startTime);
@@ -205,7 +205,7 @@ public class TurningFrameWakeTests
             Vector3 direction = Vector3.Normalize(new(Next(1), Next(1), Next(1)));
             Vector3 push = wakePush + direction * (threshold * (1 + Next(1e-6f)));
             bool before = Vector3.DistanceSquared(push, wakePush) > threshold * threshold;
-            if (JoltPhysicsBackend.FeltChangeWakes(push, wakePush, turn: 0, reach: 0, threshold) != before)
+            if (JoltPhysicsBackend.FeltChangeWakes(push: push, wakePush: wakePush, turn: 0, reach: 0, threshold: threshold) != before)
                 disagree++;
         }
 

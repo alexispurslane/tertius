@@ -22,14 +22,14 @@ public class WorldWakeTests
     [InlineData("teleport a kinematic platform away")]
     public void ASleepingBoxFallsWhenItsSupportGoesAway(string how)
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         BodyDesc supportDesc = how switch
         {
-            "destroy a static table" => new(new BoxShapeDesc(new(1)), BodyMotion.Static),
-            "teleport a kinematic platform away" => new(new BoxShapeDesc(new(1)), BodyMotion.Kinematic),
-            _ => new(new BoxShapeDesc(new(1)), Mass: 100)
+            "destroy a static table" => new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static),
+            "teleport a kinematic platform away" => new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic),
+            _ => new(Shape: new BoxShapeDesc(new(1)), Mass: 100)
         };
         var pilot = new Pilot();
         Entity support =
@@ -60,14 +60,14 @@ public class WorldWakeTests
     [Fact]
     public void ALanderAsleepOnAParkedPlatformFallsWhenTheGameMovesThePlatformAway()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         Entity platformOwner = world.Spawn(new()
         {
             Frame = ground,
             Pose = At(0, 1),
-            Body = new(new BoxShapeDesc(new(1)), BodyMotion.Static, Mass: 1000),
+            Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static, Mass: 1000),
             AsFrame = new(FrameBounds.Sphere(3))
         });
         FrameHandle platform = world.GetOwnedFrame(platformOwner);
@@ -75,7 +75,7 @@ public class WorldWakeTests
         {
             Frame = ground,
             Pose = At(0, 2.5),
-            Body = new(new BoxShapeDesc(new(0.5f)), Mass: 100),
+            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 100),
             AsFrame = new(FrameBounds.Sphere(3))
         });
         world.Tick();
@@ -101,7 +101,7 @@ public class WorldWakeTests
     [Fact]
     public void AStaticHullFollowsItsOwnersTeleportAtTheNextSyncPoint()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         var pilot = new Pilot();
@@ -134,7 +134,7 @@ public class WorldWakeTests
     [Fact]
     public void ATeleportOfAStaticHullWakesTheSleepingBodiesAroundItsOldAndNewPlaces()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         var pilot = new Pilot();
@@ -166,7 +166,7 @@ public class WorldWakeTests
     [Fact]
     public void AnEditOfAStaticFramesPoseOutsideATickStillMovesItsHull()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         Entity owner = Platform(world, ground, new Pilot());
@@ -186,7 +186,7 @@ public class WorldWakeTests
     {
         Frame = ground,
         Pose = At(0, 1),
-        Body = new(new BoxShapeDesc(new(1)), BodyMotion.Static),
+        Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static),
         AsFrame = new(FrameBounds.Sphere(3)),
         Components = components
     });
@@ -196,7 +196,7 @@ public class WorldWakeTests
     {
         Frame = ground,
         Pose = pose,
-        Body = new(new BoxShapeDesc(new(0.5f)), Mass: 100),
+        Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 100),
         AsFrame = new(FrameBounds.Sphere(3))
     });
 
@@ -213,7 +213,7 @@ public class WorldWakeTests
     [Fact]
     public void ABoxAsleepFarFromARemovedBodySleepsOn()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         Entity crate = world.Spawn(new() { Frame = ground, Pose = At(0, 0.5), Body = Cube() });

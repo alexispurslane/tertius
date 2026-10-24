@@ -45,7 +45,7 @@ internal sealed unsafe class VulkanDevice : IDisposable
         DeviceName = Marshal.PtrToStringUTF8((nint)properties.DeviceName) ?? "unknown";
         vk.GetPhysicalDeviceMemoryProperties(physicalDevice, out PhysicalDeviceMemoryProperties memory);
         MemoryProperties = memory;
-        vk.GetDeviceQueue(device, queueFamily, 0, out Queue queue);
+        vk.GetDeviceQueue(device: device, queueFamilyIndex: queueFamily, queueIndex: 0, pQueue: out Queue queue);
         Queue = queue;
     }
 
@@ -156,9 +156,9 @@ internal sealed unsafe class VulkanDevice : IDisposable
 
             if (validation)
             {
-                if (!vk.TryGetInstanceExtension(instance, out debugUtils))
+                if (!vk.TryGetInstanceExtension(instance, out debugUtils) || debugUtils is null)
                     throw new NotSupportedException("VK_EXT_debug_utils is not available.");
-                debugUtils!.CreateDebugUtilsMessenger(instance, &messengerInfo, null, out messenger)
+                debugUtils.CreateDebugUtilsMessenger(instance: instance, pCreateInfo: &messengerInfo, pAllocator: null, pMessenger: out messenger)
                     .Check("vkCreateDebugUtilsMessengerEXT");
             }
 
@@ -169,23 +169,24 @@ internal sealed unsafe class VulkanDevice : IDisposable
                 surface = createSurface(instance);
             }
 
-            (PhysicalDevice physicalDevice, uint queueFamily) = ChoosePhysicalDevice(vk, instance, surfaceApi, surface);
-            device = CreateLogicalDevice(vk, physicalDevice, queueFamily, surface.Handle != 0, strings);
+            (PhysicalDevice physicalDevice, uint queueFamily) = ChoosePhysicalDevice(vk: vk, instance: instance, surfaceApi: surfaceApi, surface: surface);
+            device = CreateLogicalDevice(vk: vk, physicalDevice: physicalDevice, queueFamily: queueFamily, swapchain: surface.Handle != 0, strings: strings);
 
             KhrSwapchain? swapchainApi = null;
-            return surface.Handle != 0 && !vk.TryGetDeviceExtension(instance, device, out swapchainApi)
+            return surface.Handle != 0 && !vk.TryGetDeviceExtension(instance: instance, device: device, ext: out swapchainApi)
                 ? throw new NotSupportedException("VK_KHR_swapchain is not available.")
-                : new(vk, instance, log, logHandle, debugUtils, messenger, surfaceApi, surface,
-                    physicalDevice, queueFamily, device, swapchainApi, validation);
+                : new(vk: vk, instance: instance, log: log, logHandle: logHandle, debugUtils: debugUtils, messenger: messenger, surfaceApi: surfaceApi, surface: surface,
+                    physicalDevice: physicalDevice, queueFamily: queueFamily, device: device, swapchainApi: swapchainApi, validation: validation);
         }
         catch
         {
             if (device.Handle != 0)
                 vk.DestroyDevice(device, null);
+            // A surface comes only from the surface extension, and a messenger only from the debug extension.
             if (surface.Handle != 0)
-                surfaceApi!.DestroySurface(instance, surface, null);
+                surfaceApi?.DestroySurface(instance, surface, null);
             if (messenger.Handle != 0)
-                debugUtils!.DestroyDebugUtilsMessenger(instance, messenger, null);
+                debugUtils?.DestroyDebugUtilsMessenger(instance, messenger, null);
             if (instance.Handle != 0)
                 vk.DestroyInstance(instance, null);
             logHandle.Free();
@@ -241,7 +242,7 @@ internal sealed unsafe class VulkanDevice : IDisposable
                     continue;
                 if (surfaceApi != null)
                 {
-                    surfaceApi.GetPhysicalDeviceSurfaceSupport(candidate, i, surface, out Bool32 supported)
+                    surfaceApi.GetPhysicalDeviceSurfaceSupport(physicalDevice: candidate, queueFamilyIndex: i, surface: surface, pSupported: out Bool32 supported)
                         .Check("vkGetPhysicalDeviceSurfaceSupportKHR");
                     if (!supported)
                         continue;
@@ -352,7 +353,7 @@ internal sealed unsafe class VulkanDevice : IDisposable
             EnabledExtensionCount = (uint)extensions.Count,
             PpEnabledExtensionNames = strings.Array(extensions)
         };
-        vk.CreateDevice(physicalDevice, &deviceInfo, null, out Device device).Check("vkCreateDevice");
+        vk.CreateDevice(physicalDevice: physicalDevice, pCreateInfo: &deviceInfo, pAllocator: null, pDevice: out Device device).Check("vkCreateDevice");
         return device;
     }
 
@@ -376,12 +377,12 @@ internal sealed unsafe class VulkanDevice : IDisposable
     private static HashSet<string> DeviceExtensions(Vk vk, PhysicalDevice device)
     {
         uint count = 0;
-        vk.EnumerateDeviceExtensionProperties(device, (byte*)null, ref count, null)
+        vk.EnumerateDeviceExtensionProperties(physicalDevice: device, pLayerName: (byte*)null, pPropertyCount: ref count, pProperties: null)
             .Check("vkEnumerateDeviceExtensionProperties");
         var properties = new ExtensionProperties[count];
         fixed (ExtensionProperties* p = properties)
         {
-            vk.EnumerateDeviceExtensionProperties(device, (byte*)null, ref count, p)
+            vk.EnumerateDeviceExtensionProperties(physicalDevice: device, pLayerName: (byte*)null, pPropertyCount: ref count, pProperties: p)
                 .Check("vkEnumerateDeviceExtensionProperties");
         }
 
@@ -490,9 +491,9 @@ internal sealed unsafe class VulkanDevice : IDisposable
         disposed = true;
         Vk.DestroyDevice(Device, null);
         if (Surface.Handle != 0)
-            SurfaceApi!.DestroySurface(Instance, Surface, null);
+            SurfaceApi?.DestroySurface(Instance, Surface, null);
         if (messenger.Handle != 0)
-            debugUtils!.DestroyDebugUtilsMessenger(Instance, messenger, null);
+            debugUtils?.DestroyDebugUtilsMessenger(Instance, messenger, null);
         Vk.DestroyInstance(Instance, null);
         // The messenger chained into vkCreateInstance stays active until vkDestroyInstance returns.
         logHandle.Free();

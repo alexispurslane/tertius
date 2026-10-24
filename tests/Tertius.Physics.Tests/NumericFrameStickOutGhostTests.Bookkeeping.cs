@@ -25,7 +25,7 @@ public partial class NumericFrameStickOutGhostTests
             bool numericFrames)
     {
         using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
-        Scene scene = Build(world, Layout.StationAndFastRock, rockOffset: 2);
+        Scene scene = Build(world: world, layout: Layout.StationAndFastRock, rockOffset: 2);
         world.Tick();
         world.PhysicsHomeOf(scene.Rock).Should().Be(scene.Space,
             "the rock may touch the ghost of the crate, which is fixed in the system of space");

@@ -13,13 +13,13 @@ public static class MeshChecks
     public static void ExpectClosed(MeshData mesh)
     {
         mesh.Indices.Should().NotBeEmpty("a mesh with no triangle proves nothing");
-        var edges = new Dictionary<(Vector3, Vector3), int>();
+        var edges = new Dictionary<(Vector3 From, Vector3 To), int>();
         for (int i = 0; i < mesh.Indices.Length; i += 3)
         {
             Vector3 a = mesh.Vertices[mesh.Indices[i]].Position,
                 b = mesh.Vertices[mesh.Indices[i + 1]].Position,
                 c = mesh.Vertices[mesh.Indices[i + 2]].Position;
-            foreach ((Vector3, Vector3) edge in new[] { (a, b), (b, c), (c, a) })
+            foreach ((Vector3 From, Vector3 To) edge in new[] { (a, b), (b, c), (c, a) })
                 edges[edge] = edges.GetValueOrDefault(edge) + 1;
         }
 

@@ -125,7 +125,7 @@ public sealed class AscentAutopilot(double maxThrust, double orbitRadius, double
             }
 
             self.Body.SetMotion(BodyMotion.Dynamic);
-            State = new Ramp(new(mu, orbitRadius, maxThrust / body.Mass, planeNormal), position.Length);
+            State = new Ramp(new(Mu: mu, OrbitRadius: orbitRadius, MaxAcceleration: maxThrust / body.Mass, PlaneNormal: planeNormal), position.Length);
         }
 
         if (State is Ramp ramp && position.Length - ramp.LaunchRadius > climbHeight)

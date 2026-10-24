@@ -17,10 +17,10 @@ public class AttachmentHandOffTests
     {
         public Scene()
         {
-            Test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+            Test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
             Faults = faults;
             Station = Test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
-            Scenes.Approach flight = Scenes.ApproachToBubble(Test.World, Station, tick: 1);
+            Scenes.Approach flight = Scenes.ApproachToBubble(world: Test.World, into: Station, tick: 1);
             Parent = Test.World.Spawn(new()
             {
                 Frame = Test.Root,
@@ -147,7 +147,7 @@ public class AttachmentHandOffTests
     public void AChildHearsTheTopicOfTheNewFrameAfterItsParentIsHandedOff()
     {
         using var scene = new Scene();
-        scene.Test.SpawnWith(SendEvery.Of(scene.Station.Topic, tick => new Ping { Value = (int)tick }));
+        scene.Test.SpawnWith(SendEvery.Of(target: scene.Station.Topic, payloadAt: tick => new Ping { Value = (int)tick }));
 
         scene.Test.Run(5);
 

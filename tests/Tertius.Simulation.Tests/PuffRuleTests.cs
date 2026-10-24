@@ -18,7 +18,7 @@ public class PuffRuleTests
     private static readonly Vector3 Down = new(0, -9.81f, 0);
 
     private static readonly PuffLook Hot = new(Life: 2, StartRadius: 0.2f, EndRadius: 1, TemperatureRatio: 3,
-        PuffShading.Glow(new(6, 5.4f, 4.5f)));
+        Shading: PuffShading.Glow(new(6, 5.4f, 4.5f)));
 
     private static readonly PuffLook Cold = Hot with { TemperatureRatio = 0.75f, Shading = PuffShading.Lit(new(0.8f)) };
     private static readonly PuffLook Neutral = Hot with { TemperatureRatio = 1, Life = 100 };
@@ -48,8 +48,8 @@ public class PuffRuleTests
     [Fact]
     public void APuffInVacuumInAFrameThatDoesNotTurnGainsItsLinearGravityTimesTheStep()
     {
-        LooseBodyStep step = StepOf(GravityField.Uniform(Down), properAcceleration: new(1, 0, 0.5));
-        Puff puff = At(new(3, 40, -2), new(4, 0.25, -9), age: 0.5f);
+        LooseBodyStep step = StepOf(field: GravityField.Uniform(Down), properAcceleration: new(1, 0, 0.5));
+        Puff puff = At(place: new(3, 40, -2), chord: new(4, 0.25, -9), age: 0.5f);
         Double3 linear = new Double3(0, Down.Y, 0) - new Double3(1, 0, 0.5);
 
         Puff next = puff.Stepped(in step, in Hot, Dt);
@@ -64,9 +64,9 @@ public class PuffRuleTests
     [Fact]
     public void APuffInVacuumInATurningFrameTakesTheFreeBodyUpdateOfPhysics()
     {
-        LooseBodyStep step = StepOf(GravityField.Uniform(new(0, -2, 0)), properAcceleration: new(0.5, 0, 0),
+        LooseBodyStep step = StepOf(field: GravityField.Uniform(new(0, -2, 0)), properAcceleration: new(0.5, 0, 0),
             turning: true);
-        Puff puff = At(new(80, -3, 12), new(2, 1, -30), age: 1.25f);
+        Puff puff = At(place: new(80, -3, 12), chord: new(2, 1, -30), age: 1.25f);
         Double3 linear = new Double3(0, -2, 0) - new Double3(0.5, 0, 0);
         FrameTurns turns = step.Turns;
 
@@ -81,8 +81,8 @@ public class PuffRuleTests
     [Fact]
     public void AHotPuffInAMediumRisesAndAColdPuffSinks()
     {
-        LooseBodyStep step = StepOf(GravityField.Uniform(Down), medium: MediumField.Uniform(1.225f, 2));
-        Puff atRest = At(new(0, 10, 0));
+        LooseBodyStep step = StepOf(field: GravityField.Uniform(Down), medium: MediumField.Uniform(1.225f, 2));
+        Puff atRest = At(place: new(0, 10, 0));
 
         Puff hot = atRest.Stepped(in step, in Hot, Dt);
         Puff cold = atRest.Stepped(in step, in Cold, Dt);
@@ -98,8 +98,8 @@ public class PuffRuleTests
     [Fact]
     public void APuffAtTheMediumsTemperatureFloatsAndComesToRest()
     {
-        LooseBodyStep step = StepOf(GravityField.Uniform(Down), medium: MediumField.Uniform(1.225f, 2));
-        Puff puff = At(new(0, 10, 0), new(5, 0, 0));
+        LooseBodyStep step = StepOf(field: GravityField.Uniform(Down), medium: MediumField.Uniform(1.225f, 2));
+        Puff puff = At(place: new(0, 10, 0), chord: new(5, 0, 0));
 
         for (int i = 0; i < 600; i++)
             puff = puff.Stepped(in step, in Neutral, Dt);
@@ -115,10 +115,10 @@ public class PuffRuleTests
     public void APuffCoolsTowardTheMediumAndItsLiftShareMovesTowardOne()
     {
         // No drag, so that a puff at rest gains its push times the step.
-        LooseBodyStep step = StepOf(GravityField.Uniform(Down), medium: MediumField.Uniform(1.225f, 0));
+        LooseBodyStep step = StepOf(field: GravityField.Uniform(Down), medium: MediumField.Uniform(1.225f, 0));
         Double3 place = new(0, 10, 0);
 
-        double PushAt(float age) => At(place, age: age).Stepped(in step, in Hot, Dt).Chord.Y / Dt;
+        double PushAt(float age) => At(place: place, age: age).Stepped(in step, in Hot, Dt).Chord.Y / Dt;
 
         // The temperature ratio of the mix is 1 + w (3 − 1), with the own share w = 1 − age / 2.
         PushAt(0).Should().BeApproximately(-Down.Y * 2, 1e-5, "a newborn holds only its own gas, at the ratio 3");
@@ -131,16 +131,16 @@ public class PuffRuleTests
     public void APuffFeelsTheSameLiftAndDragAtEveryHeightOfAPlanetMedium()
     {
         // A uniform field, so that only the medium could tell the two heights apart.
-        LooseBodyStep step = StepOf(GravityField.Uniform(Down), medium: MediumField.Planet(6.371e6, 1.225f, 8500, 2));
+        LooseBodyStep step = StepOf(field: GravityField.Uniform(Down), medium: MediumField.Planet(radius: 6.371e6, surfaceDensity: 1.225f, scaleHeight: 8500, drag: 2));
         Double3 velocity = new(3, -1, 2);
 
-        Puff low = At(new(0, 6.371e6 + 10, 0), velocity, age: 0.5f).Stepped(in step, in Hot, Dt);
-        Puff high = At(new(0, 6.371e6 + 40_000, 0), velocity, age: 0.5f).Stepped(in step, in Hot, Dt);
+        Puff low = At(place: new(0, 6.371e6 + 10, 0), chord: velocity, age: 0.5f).Stepped(in step, in Hot, Dt);
+        Puff high = At(place: new(0, 6.371e6 + 40_000, 0), chord: velocity, age: 0.5f).Stepped(in step, in Hot, Dt);
 
         high.Chord.Should().Be(low.Chord,
             "the lift share is the puff's temperature ratio, whatever the medium's density there");
-        LooseBodyStep vacuumStep = StepOf(GravityField.Uniform(Down));
-        Puff vacuum = At(new(0, 6.371e6 + 10, 0), velocity, age: 0.5f).Stepped(in vacuumStep, in Hot, Dt);
+        LooseBodyStep vacuumStep = StepOf(field: GravityField.Uniform(Down));
+        Puff vacuum = At(place: new(0, 6.371e6 + 10, 0), chord: velocity, age: 0.5f).Stepped(in vacuumStep, in Hot, Dt);
         low.Chord.Should().NotBe(vacuum.Chord);
     }
 
@@ -148,14 +148,14 @@ public class PuffRuleTests
     public void APuffOutsideTheRegionOfItsFramesMediumFeelsNoLiftAndNoDrag()
     {
         var cabin = new BoundingBox(new(-5), new(5));
-        LooseBodyStep withAir = StepOf(GravityField.Uniform(Down), medium: MediumField.Uniform(1.225f, 2, cabin));
-        LooseBodyStep vacuum = StepOf(GravityField.Uniform(Down));
+        LooseBodyStep withAir = StepOf(field: GravityField.Uniform(Down), medium: MediumField.Uniform(1.225f, 2, cabin));
+        LooseBodyStep vacuum = StepOf(field: GravityField.Uniform(Down));
         Double3 chord = new(1, 2, 3);
 
-        Puff outside = At(new(0, 20, 0), chord).Stepped(in withAir, in Hot, Dt);
-        Puff inside = At(new(0, 2, 0), chord).Stepped(in withAir, in Hot, Dt);
+        Puff outside = At(place: new(0, 20, 0), chord: chord).Stepped(in withAir, in Hot, Dt);
+        Puff inside = At(place: new(0, 2, 0), chord: chord).Stepped(in withAir, in Hot, Dt);
 
-        outside.Chord.Should().Be(At(new(0, 20, 0), chord).Stepped(in vacuum, in Hot, Dt).Chord,
+        outside.Chord.Should().Be(At(place: new(0, 20, 0), chord: chord).Stepped(in vacuum, in Hot, Dt).Chord,
             "outside its box the medium is vacuum");
         inside.Chord.Y.Should().BeGreaterThan(chord.Y, "inside the box the hot puff rises");
         inside.Chord.X.Should().BeLessThan(chord.X, "inside the box the drag slows it");
@@ -170,9 +170,9 @@ public class PuffRuleTests
         for (int step = 0; step < 60; step++)
         {
             double start = phase;
-            PuffBirths.Count(start, 60, Dt, out phase).Should().Be(1, "step {0}", step);
+            PuffBirths.Count(phase: start, rate: 60, dt: Dt, next: out phase).Should().Be(1, "step {0}", step);
             // The float step widened is a little more than 1/60, so the births run ahead of the steps by 5.2e-8 of a step each.
-            PuffBirths.AgeAt(1, start, 60, Dt).Should().BeInRange(0, 4e-6 * Dt, "step {0}", step);
+            PuffBirths.AgeAt(index: 1, phase: start, rate: 60, dt: Dt).Should().BeInRange(0, 4e-6 * Dt, "step {0}", step);
         }
     }
 
@@ -186,9 +186,9 @@ public class PuffRuleTests
         for (int step = 1; step <= 8; step++)
         {
             double start = phase;
-            long count = PuffBirths.Count(start, rate, Dt, out phase);
+            long count = PuffBirths.Count(phase: start, rate: rate, dt: Dt, next: out phase);
             for (long j = 1; j <= count; j++)
-                births.Add(step * (double)Dt - PuffBirths.AgeAt(j, start, rate, Dt));
+                births.Add(step * (double)Dt - PuffBirths.AgeAt(index: j, phase: start, rate: rate, dt: Dt));
             phase.Should().BeGreaterThanOrEqualTo(0).And.BeLessThan(1);
         }
 
@@ -207,13 +207,13 @@ public class PuffRuleTests
         EntityTable table = TableSupport.NewTable();
         var frames = new FrameTree();
         Entity owner = table.SpawnLive();
-        FrameHandle space = frames.Create(owner, FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f));
+        FrameHandle space = frames.Create(frameOwner: owner, parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e6f));
         Entity emitter = table.Reserve();
-        var render = new RenderData { Emitter = new(615, 10, 0, Hot) };
-        table.Activate(emitter, new() { Frame = space, PhysicsHome = space, Pose = DPose.Identity }, render, [], [],
-            null, Vector3.Zero, FrameHandle.Null);
+        var render = new RenderData { Emitter = new(Rate: 615, Speed: 10, Spread: 0, Look: Hot) };
+        table.Activate(entity: emitter, row: new() { Frame = space, PhysicsHome = space, Pose = DPose.Identity }, render: render, components: [], wants: [],
+            body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
         table.CopyDirtyRows();
-        var puffs = new PuffTable(table, frames, capacity: 4, reportError: _ => { });
+        var puffs = new PuffTable(entities: table, frames: frames, capacity: 4, reportError: _ => { });
 
         puffs.Step(tick: 0, Dt);
         puffs.AddNewborns(tick: 0, Dt);
@@ -223,7 +223,7 @@ public class PuffRuleTests
             "the phase gathers the whole rate, also the puffs that the cap skips");
         // The last newborns up to the capacity are made: puffs 7 to 10 of the step, the youngest.
         float[] ages = [.. puffs.View.Rows.ToArray().Select(row => row.Age)];
-        ages.Should().Equal(Enumerable.Range(7, 4).Select(j => (float)PuffBirths.AgeAt(j, 0, 615, Dt)));
+        ages.Should().Equal(Enumerable.Range(7, 4).Select(j => (float)PuffBirths.AgeAt(index: j, phase: 0, rate: 615, dt: Dt)));
         puffs.Looks.UsersOf(puffs.View.Rows[0].Look).Should().Be(4);
         puffs.AssertInvariants();
 
@@ -233,7 +233,7 @@ public class PuffRuleTests
         puffs.AddNewborns(tick: 1, Dt);
 
         puffs.View.Rows.ToArray().Select(row => row.Age).Should()
-            .Equal(Enumerable.Range(7, 4).Select(j => (float)PuffBirths.AgeAt(j, phase, 615, Dt)));
+            .Equal(Enumerable.Range(7, 4).Select(j => (float)PuffBirths.AgeAt(index: j, phase: phase, rate: 615, dt: Dt)));
         puffs.Looks.UsersOf(puffs.View.Rows[0].Look).Should().Be(4);
         puffs.AssertInvariants();
     }
@@ -245,13 +245,13 @@ public class PuffRuleTests
         EntityTable table = TableSupport.NewTable();
         var frames = new FrameTree();
         Entity owner = table.SpawnLive();
-        FrameHandle space = frames.Create(owner, FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f));
+        FrameHandle space = frames.Create(frameOwner: owner, parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e6f));
         Entity emitter = table.Reserve();
-        var render = new RenderData { Emitter = new(600, 10, 0, Hot with { Life = 0.004f }) };
-        table.Activate(emitter, new() { Frame = space, PhysicsHome = space, Pose = DPose.Identity }, render, [], [],
-            null, Vector3.Zero, FrameHandle.Null);
+        var render = new RenderData { Emitter = new(Rate: 600, Speed: 10, Spread: 0, Look: Hot with { Life = 0.004f }) };
+        table.Activate(entity: emitter, row: new() { Frame = space, PhysicsHome = space, Pose = DPose.Identity }, render: render, components: [], wants: [],
+            body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
         table.CopyDirtyRows();
-        var puffs = new PuffTable(table, frames, capacity: 100, reportError: _ => { });
+        var puffs = new PuffTable(entities: table, frames: frames, capacity: 100, reportError: _ => { });
 
         puffs.Step(tick: 0, Dt);
         puffs.AddNewborns(tick: 0, Dt);
@@ -266,13 +266,13 @@ public class PuffRuleTests
     public void TheFirstNewbornThatLivesIsTheOldestOneYoungerThanItsLook()
     {
         // 10 puffs per step from the phase 0: puff j of the step is (10 - j) tenths of a step old at its end.
-        PuffBirths.FirstLiving(10, 0, 600, Dt, life: 2).Should()
+        PuffBirths.FirstLiving(count: 10, phase: 0, rate: 600, dt: Dt, life: 2).Should()
             .Be(1, "a look that lives longer than the step keeps every newborn");
-        PuffBirths.FirstLiving(10, 0, 600, Dt, life: 0.004f).Should().Be(8,
+        PuffBirths.FirstLiving(count: 10, phase: 0, rate: 600, dt: Dt, life: 0.004f).Should().Be(8,
             "a look of a quarter of a step keeps the newborns of its last quarter");
-        PuffBirths.FirstLiving(10, 0, 600, Dt, life: (float)PuffBirths.AgeAt(8, 0, 600, Dt)).Should()
+        PuffBirths.FirstLiving(count: 10, phase: 0, rate: 600, dt: Dt, life: (float)PuffBirths.AgeAt(index: 8, phase: 0, rate: 600, dt: Dt)).Should()
             .Be(9, "a newborn exactly as old as its look's life does not live");
-        PuffBirths.FirstLiving(0, 0, 600, Dt, life: 2).Should().Be(1, "a step without newborns has none that live");
+        PuffBirths.FirstLiving(count: 0, phase: 0, rate: 600, dt: Dt, life: 2).Should().Be(1, "a step without newborns has none that live");
     }
 
     [Fact]
@@ -284,16 +284,16 @@ public class PuffRuleTests
         EntityTable table = TableSupport.NewTable();
         var frames = new FrameTree();
         Entity owner = table.SpawnLive();
-        FrameHandle space = frames.Create(owner, FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f));
+        FrameHandle space = frames.Create(frameOwner: owner, parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e6f));
         PuffLook brief = Hot with { Life = 0.004f };
         Entity b = table.Reserve();
-        table.Activate(b, new() { Frame = space, PhysicsHome = space, Pose = DPose.Identity },
-            new() { Emitter = new(120, 10, 0, Hot) }, [], [], null, Vector3.Zero, FrameHandle.Null);
+        table.Activate(entity: b, row: new() { Frame = space, PhysicsHome = space, Pose = DPose.Identity },
+            render: new() { Emitter = new(Rate: 120, Speed: 10, Spread: 0, Look: Hot) }, components: [], wants: [], body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
         Entity a = table.Reserve();
-        table.Activate(a, new() { Frame = space, PhysicsHome = space, Pose = DPose.Identity },
-            new() { Emitter = new(600, 10, 0, brief) }, [], [], null, Vector3.Zero, FrameHandle.Null);
+        table.Activate(entity: a, row: new() { Frame = space, PhysicsHome = space, Pose = DPose.Identity },
+            render: new() { Emitter = new(Rate: 600, Speed: 10, Spread: 0, Look: brief) }, components: [], wants: [], body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
         table.CopyDirtyRows();
-        var puffs = new PuffTable(table, frames, capacity: 4, reportError: _ => { });
+        var puffs = new PuffTable(entities: table, frames: frames, capacity: 4, reportError: _ => { });
 
         puffs.Step(tick: 0, Dt);
         puffs.AddNewborns(tick: 0, Dt);
@@ -302,8 +302,8 @@ public class PuffRuleTests
         float[] ages = [.. puffs.View.Rows.ToArray().Select(row => row.Age)];
         ages.Should().Equal(new[]
         {
-            PuffBirths.AgeAt(2, 0, 120, Dt), PuffBirths.AgeAt(8, 0, 600, Dt), PuffBirths.AgeAt(9, 0, 600, Dt),
-            PuffBirths.AgeAt(10, 0, 600, Dt)
+            PuffBirths.AgeAt(index: 2, phase: 0, rate: 120, dt: Dt), PuffBirths.AgeAt(index: 8, phase: 0, rate: 600, dt: Dt), PuffBirths.AgeAt(index: 9, phase: 0, rate: 600, dt: Dt),
+            PuffBirths.AgeAt(index: 10, phase: 0, rate: 600, dt: Dt)
         }.Select(age => (float)age));
         puffs.AssertInvariants();
     }
@@ -311,14 +311,14 @@ public class PuffRuleTests
     [Fact]
     public void ANewbornInVacuumLiesAheadOfItsEmitterByItsEjectionVelocityTimesItsAge()
     {
-        LooseBodyStep step = StepOf(GravityField.Uniform(Down));
+        LooseBodyStep step = StepOf(field: GravityField.Uniform(Down));
         // The emitter points its -Z along +X.
         var pose = new DPose(new(100, 20, -5), DQuaternion.FromAxisAngle(Double3.UnitY, -Math.PI / 2));
         Double3 velocity = new(7, 0, 3);
-        var emitter = new PuffEmitter(60, 30, 0, Hot);
+        var emitter = new PuffEmitter(Rate: 60, Speed: 30, Spread: 0, Look: Hot);
         const double age = 0.004;
 
-        Puff newborn = PuffBirths.Newborn(in step, in pose, velocity, in emitter, new(0, 0, -1), age, look: 2, Dt);
+        Puff newborn = PuffBirths.Newborn(step: in step, emitterPose: in pose, emitterVelocity: velocity, emitter: in emitter, direction: new(0, 0, -1), age: age, look: 2, dt: Dt);
 
         Double3 ejection = pose.Rotation.Rotate(new Double3(0, 0, -30));
         ejection.X.Should().BeApproximately(30, 1e-12);
@@ -335,13 +335,13 @@ public class PuffRuleTests
         LooseBodyStep step = StepOf(medium: MediumField.Uniform(1.225f, 2));
         var pose = new DPose(new(0, 0, 0), DQuaternion.Identity);
         Double3 velocity = new(60, 0, 0);
-        var emitter = new PuffEmitter(600, 0, 0, Hot);
+        var emitter = new PuffEmitter(Rate: 600, Speed: 0, Spread: 0, Look: Hot);
 
         double[] ages = [0.1 * Dt, 0.4 * Dt, 0.7 * Dt, Dt];
         Double3[] places =
         [
             .. ages.Select(age =>
-                PuffBirths.Newborn(in step, in pose, velocity, in emitter, new(0, 0, -1), age, 0, Dt).Place)
+                PuffBirths.Newborn(step: in step, emitterPose: in pose, emitterVelocity: velocity, emitter: in emitter, direction: new(0, 0, -1), age: age, look: 0, dt: Dt).Place)
         ];
 
         for (int i = 0; i < ages.Length; i++)
@@ -362,16 +362,16 @@ public class PuffRuleTests
     public void ANewbornsChordIsTheChordBehindItsInstantVelocity()
     {
         MediumField medium = MediumField.Uniform(1.225f, 2);
-        LooseBodyStep turning = StepOf(GravityField.Uniform(new(0, -2, 0)), medium: medium, turning: true);
-        LooseBodyStep still = StepOf(GravityField.Uniform(Down), medium: medium);
+        LooseBodyStep turning = StepOf(field: GravityField.Uniform(new(0, -2, 0)), medium: medium, turning: true);
+        LooseBodyStep still = StepOf(field: GravityField.Uniform(Down), medium: medium);
         var pose = new DPose(new(60, 3, -8), DQuaternion.Identity);
         Double3 velocity = new(1, 2, -3);
-        var emitter = new PuffEmitter(60, 20, 0, Hot);
+        var emitter = new PuffEmitter(Rate: 60, Speed: 20, Spread: 0, Look: Hot);
         const double age = 0.01;
 
         foreach (LooseBodyStep step in new[] { still, turning })
         {
-            Puff newborn = PuffBirths.Newborn(in step, in pose, velocity, in emitter, new(0, 0, -1), age, 0, Dt);
+            Puff newborn = PuffBirths.Newborn(step: in step, emitterPose: in pose, emitterVelocity: velocity, emitter: in emitter, direction: new(0, 0, -1), age: age, look: 0, dt: Dt);
 
             // Its instant velocity at the end of the step, after one implicit step of the drag 2 · 3 over its age.
             Double3 instant = (velocity + new Double3(0, 0, -20)) / (1 + 6 * age);
@@ -441,7 +441,7 @@ public class PuffRuleTests
     [Fact]
     public void AnEmitterWithNumbersThatAreNotValidMakesNoPuffs()
     {
-        var valid = new PuffEmitter(60, 30, 0.2f, Hot);
+        var valid = new PuffEmitter(Rate: 60, Speed: 30, Spread: 0.2f, Look: Hot);
         valid.CanMakePuffs.Should().BeTrue();
         (valid with { Speed = 0 }).CanMakePuffs.Should().BeTrue("a puff can leave at rest relative to its emitter");
         (valid with { Spread = MathF.PI }).CanMakePuffs.Should().BeTrue();
@@ -463,8 +463,8 @@ public class PuffRuleTests
     [Fact]
     public void AnEmitterWithAnEmptyLookMakesNoPuffs()
     {
-        new PuffEmitter(60, 30, 0.2f, default).CanMakePuffs.Should().BeFalse();
-        new PuffEmitter(60, 30, 0.2f, Hot with { Shading = default }).CanMakePuffs.Should().BeFalse();
+        new PuffEmitter(Rate: 60, Speed: 30, Spread: 0.2f, Look: default).CanMakePuffs.Should().BeFalse();
+        new PuffEmitter(Rate: 60, Speed: 30, Spread: 0.2f, Look: Hot with { Shading = default }).CanMakePuffs.Should().BeFalse();
         default(PuffEmitter).CanMakePuffs.Should().BeFalse("the default emitter makes no puffs");
         new RenderData().Emitter.CanMakePuffs.Should().BeFalse();
     }

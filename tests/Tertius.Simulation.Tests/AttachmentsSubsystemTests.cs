@@ -452,7 +452,7 @@ public class AttachmentsSubsystemTests
         EntityTable entities = TableSupport.NewTable();
         var attachments = new Attachments(entities);
         Entity root = entities.SpawnLive();
-        SetMotion(entities, root, velocity: new(1, 0, 0), spin: new(0, 1, 0));
+        SetMotion(entities: entities, entity: root, velocity: new(1, 0, 0), spin: new(0, 1, 0));
         Entity child = entities.SpawnLive();
         attachments.Attach(child, root, Offset(0, 0, 2));
 
@@ -469,7 +469,7 @@ public class AttachmentsSubsystemTests
         var attachments = new Attachments(entities);
         Entity root = entities.SpawnLive();
         TurnTo(entities, root, QuarterTurn);
-        SetMotion(entities, root, velocity: new(1, 0, 0), spin: new(0, 1, 0));
+        SetMotion(entities: entities, entity: root, velocity: new(1, 0, 0), spin: new(0, 1, 0));
         Entity child = entities.SpawnLive();
         attachments.Attach(child, root, Offset(0, 0, 2));
 
@@ -485,7 +485,7 @@ public class AttachmentsSubsystemTests
         EntityTable entities = TableSupport.NewTable();
         var attachments = new Attachments(entities);
         Entity root = entities.SpawnLive();
-        SetMotion(entities, root, velocity: Vector3.Zero, spin: new(0, 0, 1));
+        SetMotion(entities: entities, entity: root, velocity: Vector3.Zero, spin: new(0, 0, 1));
         Entity child = entities.SpawnLive();
         Entity grandchild = entities.SpawnLive();
         attachments.Attach(child, root, Offset(1, 0));
@@ -504,7 +504,7 @@ public class AttachmentsSubsystemTests
         EntityTable entities = TableSupport.NewTable();
         var attachments = new Attachments(entities);
         Entity root = entities.SpawnLive();
-        SetMotion(entities, root, velocity: Vector3.Zero, spin: new(0.5f, 0, 2));
+        SetMotion(entities: entities, entity: root, velocity: Vector3.Zero, spin: new(0.5f, 0, 2));
         Entity child = entities.SpawnLive();
         Entity grandchild = entities.SpawnLive();
         attachments.Attach(child, root, Offset(1, 0));
@@ -537,8 +537,8 @@ public class AttachmentsSubsystemTests
     private static Entity BodyRoot(EntityTable entities, FrameHandle frame)
     {
         Entity entity = entities.Reserve();
-        entities.Activate(entity, new() { Frame = frame, PhysicsHome = frame }, new(), [], [], TestWorld.Ball,
-            Vector3.Zero, FrameHandle.Null);
+        entities.Activate(entity: entity, row: new() { Frame = frame, PhysicsHome = frame }, render: new(), components: [], wants: [], body: TestWorld.Ball,
+            bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
         return entity;
     }
 

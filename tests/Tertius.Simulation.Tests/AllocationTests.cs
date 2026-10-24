@@ -46,7 +46,7 @@ public class AllocationTests
             if ((self.Tick & 7) == (self.Entity.Index & 7))
                 outbox.Send(topic, new Ping { Value = 2 });
             if ((self.Tick & 15) == 0)
-                outbox.SendAfter(3, self.Entity, new Ping { Value = 3 });
+                outbox.SendAfter(ticks: 3, target: self.Entity, payload: new Ping { Value = 3 });
         }
     }
 

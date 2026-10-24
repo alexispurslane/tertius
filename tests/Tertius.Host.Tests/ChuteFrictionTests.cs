@@ -26,7 +26,7 @@ public sealed class ChuteFrictionTests
     private static double OnThePlate => Chute.BackFace + Radius;
 
     private static Double3 Friction(Double3 position, Double3 velocity) =>
-        Chute.Friction(position, velocity, Omega, Radius, Dt);
+        Chute.Friction(position: position, velocity: velocity, omega: Omega, radius: Radius, dt: Dt);
 
     /// <summary>
     /// A person who slides down the spoke at 8 m/s, 50 m from the axis, gets the coefficient of the spoke, 1.5, times the

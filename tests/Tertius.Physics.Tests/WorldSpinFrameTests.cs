@@ -13,13 +13,13 @@ namespace Tertius.Physics.Tests;
 public class WorldSpinFrameTests
 {
     private const double Rate = 0.5;
-    private static readonly FrameSpin Turning = new(DQuaternion.Identity, Rate);
+    private static readonly FrameSpin Turning = new(Tilt: DQuaternion.Identity, Rate: Rate);
 
     private static Entity SpawnTurntable(World world, FrameHandle parent, float bubble, BodyDesc? hull = null,
         bool firstMove = false) => world.Spawn(new SpawnDesc
     {
         Frame = parent,
-        Body = hull ?? new BodyDesc(new BoxShapeDesc(new(5, 3, 15)), BodyMotion.Kinematic,
+        Body = hull ?? new BodyDesc(Shape: new BoxShapeDesc(new(5, 3, 15)), Motion: BodyMotion.Kinematic,
             InteriorShape: new SphereShapeDesc(1)),
         AsFrame = new(FrameBounds.Sphere(bubble))
     }.Spinning(world, Turning, firstMove));
@@ -27,11 +27,11 @@ public class WorldSpinFrameTests
     [Fact]
     public void TheHullOfASpinFrameIsKinematicAndTurnsWithTheFrame()
     {
-        World world = NewWorld(out JoltPhysicsBackend backend);
+        World world = NewWorld(backend: out JoltPhysicsBackend backend);
         using (world)
         {
             FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-            Entity owner = SpawnTurntable(world, space, bubble: 50);
+            Entity owner = SpawnTurntable(world: world, parent: space, bubble: 50);
 
             Tick(world, 100);
 
@@ -55,11 +55,11 @@ public class WorldSpinFrameTests
     [Fact]
     public void ANewSpinMotionPutsTheHullAtItsNewPoseInsteadOfSweepingItThere()
     {
-        World world = NewWorld(out JoltPhysicsBackend backend);
+        World world = NewWorld(backend: out JoltPhysicsBackend backend);
         using (world)
         {
             FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-            Entity owner = SpawnTurntable(world, space, bubble: 50);
+            Entity owner = SpawnTurntable(world: world, parent: space, bubble: 50);
             Tick(world, 10);
             FrameSpin ahead = Turning with { PhaseAtEpoch = Math.PI / 2 };
 
@@ -86,16 +86,16 @@ public class WorldSpinFrameTests
     [Fact]
     public void AShipWhoseHullRestsOnTheHullOfASpinFrameIsCarriedRoundByIt()
     {
-        World world = NewWorld(out _);
+        World world = NewWorld(backend: out _);
         using (world)
         {
             FrameHandle ground = Ground(world, 9.81f);
             // Frame hulls touch only each other and static bodies, so the thing that rests on the platform's hull is the
             // hull of another frame: a small ship with a dynamic hull. Both bubbles are small, so neither frame enters
             // the other, and the ship's hull rests on the platform's hull in the ground frame.
-            var platform = new BodyDesc(new BoxShapeDesc(new(10, 0.5f, 10)), BodyMotion.Kinematic, Friction: 1,
+            var platform = new BodyDesc(Shape: new BoxShapeDesc(new(10, 0.5f, 10)), Motion: BodyMotion.Kinematic, Friction: 1,
                 InteriorShape: new SphereShapeDesc(0.05f));
-            SpawnTurntable(world, ground, bubble: 0.1f, platform);
+            SpawnTurntable(world: world, parent: ground, bubble: 0.1f, hull: platform);
             Entity ship = world.Spawn(new()
             {
                 Frame = ground,
@@ -126,13 +126,13 @@ public class WorldSpinFrameTests
     [Fact]
     public void ABallThatLeavesASpinFrameKeepsTheVelocityOfTheGroundItLeft()
     {
-        World world = NewWorld(out _);
+        World world = NewWorld(backend: out _);
         using (world)
         {
             FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
             // The carousel's spawn carries its first motion intent, so it turns from the ball's first step, and the ball's
             // spawn velocity relative to it holds the velocity of the ground under it.
-            FrameHandle carousel = world.GetOwnedFrame(SpawnTurntable(world, space, bubble: 25, firstMove: true));
+            FrameHandle carousel = world.GetOwnedFrame(SpawnTurntable(world: world, parent: space, bubble: 25, firstMove: true));
             // The ball drifts out along +Z of the carousel at 5 m/s. In space it moves at 5 m/s outward plus ω × r = 5 m/s
             // along the ground, on a straight line, and leaves the bubble after about 2.4 s.
             Entity ball = world.Spawn(new()
@@ -140,7 +140,7 @@ public class WorldSpinFrameTests
                 Frame = carousel,
                 Pose = At(0, 0, 10),
                 LinearVelocity = new Vector3(0, 0, 5),
-                Body = new(new SphereShapeDesc(0.2f), Mass: 1, LinearDamping: 0, AngularDamping: 0)
+                Body = new(Shape: new SphereShapeDesc(0.2f), Mass: 1, LinearDamping: 0, AngularDamping: 0)
             });
             // The bodies join their systems at the first sync point, so the ball's line in space is fixed from its second tick.
             Tick(world, 2);

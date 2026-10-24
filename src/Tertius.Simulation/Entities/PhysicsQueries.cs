@@ -44,14 +44,14 @@ public readonly ref struct PhysicsQueries
     /// <see cref="InvalidOperationException"/> for an entity in no frame, the owner of a root frame.
     /// </summary>
     public void CastRay(Double3 from, Double3 direction, double length, in EntityQuery query, int tag) =>
-        world.RequestRay(chunk, entity, RayCastKind.Nearest, from, direction, length, query, tag);
+        world.RequestRay(chunk: chunk, entity: entity, kind: RayCastKind.Nearest, from: from, direction: direction, length: length, query: query, tag: tag);
 
     /// <summary>
     /// Like <see cref="CastRay"/>, but answers with one <see cref="RayHit"/> for every entity along the ray that
     /// <paramref name="query"/> matches, nearest first, each entity once. A ray that hits nothing answers with one miss.
     /// </summary>
     public void CastRayAll(Double3 from, Double3 direction, double length, in EntityQuery query, int tag) =>
-        world.RequestRay(chunk, entity, RayCastKind.All, from, direction, length, query, tag);
+        world.RequestRay(chunk: chunk, entity: entity, kind: RayCastKind.All, from: from, direction: direction, length: length, query: query, tag: tag);
 
     /// <summary>
     /// Moves <paramref name="shape"/> from <paramref name="start"/> along <paramref name="direction"/> for
@@ -64,7 +64,7 @@ public readonly ref struct PhysicsQueries
     /// </summary>
     public void CastShape(in QueryShape shape, in DPose start, Double3 direction, double length, in EntityQuery query,
         int tag) =>
-        world.RequestShapeCast(chunk, entity, shape, start, direction, length, query, tag);
+        world.RequestShapeCast(chunk: chunk, entity: entity, shape: shape, start: start, direction: direction, length: length, query: query, tag: tag);
 
     /// <summary>
     /// Asks which entities have a body that overlaps <paramref name="shape"/> at <paramref name="pose"/>, and answers in
@@ -74,7 +74,7 @@ public readonly ref struct PhysicsQueries
     /// finite or has a zero rotation, and <see cref="InvalidOperationException"/> for an entity in no frame.
     /// </summary>
     public void Overlap(in QueryShape shape, in DPose pose, in EntityQuery query, int tag) =>
-        world.RequestOverlap(chunk, entity, shape, pose, query, tag);
+        world.RequestOverlap(chunk: chunk, entity: entity, shape: shape, pose: pose, query: query, tag: tag);
 }
 
 /// <summary>

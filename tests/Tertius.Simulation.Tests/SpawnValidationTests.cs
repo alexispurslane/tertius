@@ -56,7 +56,7 @@ public class SpawnValidationTests
     public void ADescriptionWithADefectIsRefusedWithAnArgumentError(string defect)
     {
         using TestWorld t = Prepared(out FrameHandle staleFrame, out Entity liveParent, out Entity staleParent);
-        SpawnDesc desc = WithDefect(defect, t.Root, staleFrame, liveParent, staleParent);
+        SpawnDesc desc = WithDefect(defect: defect, root: t.Root, staleFrame: staleFrame, liveParent: liveParent, staleParent: staleParent);
 
         Action spawn = () => t.World.Spawn(desc);
 
@@ -68,7 +68,7 @@ public class SpawnValidationTests
     public void ARefusedSpawnTakesNoSlot(string defect)
     {
         using TestWorld t = Prepared(out FrameHandle staleFrame, out Entity liveParent, out Entity staleParent);
-        SpawnDesc desc = WithDefect(defect, t.Root, staleFrame, liveParent, staleParent);
+        SpawnDesc desc = WithDefect(defect: defect, root: t.Root, staleFrame: staleFrame, liveParent: liveParent, staleParent: staleParent);
         Entity before = t.SpawnWith();
 
         Record.Exception(() => t.World.Spawn(desc));
@@ -85,7 +85,7 @@ public class SpawnValidationTests
     public void ARefusedSpawnMakesNoEntity(string defect)
     {
         using TestWorld t = Prepared(out FrameHandle staleFrame, out Entity liveParent, out Entity staleParent);
-        SpawnDesc desc = WithDefect(defect, t.Root, staleFrame, liveParent, staleParent);
+        SpawnDesc desc = WithDefect(defect: defect, root: t.Root, staleFrame: staleFrame, liveParent: liveParent, staleParent: staleParent);
         int liveBefore = t.World.Stats.LiveEntities;
 
         Record.Exception(() => t.World.Spawn(desc));
@@ -96,7 +96,7 @@ public class SpawnValidationTests
     [Fact]
     public void ARefusedSpawnTellsPhysicsNothing()
     {
-        using TestWorld t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         List<PhysicsChanges> batches = faults.AppliedChanges;
         Record.Exception(() => t.World.Spawn(new() { Frame = default, Body = TestWorld.Ball }));
 

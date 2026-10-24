@@ -182,7 +182,7 @@ public sealed class DemoStationTests : IDisposable
         {
             Frame = frame,
             Pose = new(new(-7, 0, 1), DQuaternion.Identity),
-            Body = new(new BoxShapeDesc(new(half)), Mass: 10)
+            Body = new(Shape: new BoxShapeDesc(new(half)), Mass: 10)
         });
 
         Tick(world, 8 * 60);
@@ -211,7 +211,7 @@ public sealed class DemoStationTests : IDisposable
             Frame = frame,
             Pose = new(new(0, 22, 0), AttitudeAutopilot.Facing(-Double3.UnitY, Double3.UnitX)),
             LinearVelocity = new Vector3(0, -1, 0),
-            Body = new(new BoxShapeDesc(Shuttle.Hull), Mass: Shuttle.Mass, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(Shuttle.Hull), Mass: Shuttle.Mass, LinearDamping: 0, AngularDamping: 0),
             Components = [touches]
         });
 
@@ -259,7 +259,7 @@ public sealed class DemoStationTests : IDisposable
     [Fact]
     public void OnTheGroundTheShuttlesRendezvousAutopilotHaltsBecauseTheStationIsInEarth()
     {
-        world.Post(Event.Create(scene["shuttle"], Entity.Null, new Rendezvous()));
+        world.Post(Event.Create(target: scene["shuttle"], sender: Entity.Null, payload: new Rendezvous()));
 
         Tick(world, 2);
 
@@ -280,7 +280,7 @@ public sealed class DemoStationTests : IDisposable
     {
         var logged = new List<string>();
         world.Log += logged.Add;
-        world.Post(Event.Create(scene["shuttle"], Entity.Null, new Dock()));
+        world.Post(Event.Create(target: scene["shuttle"], sender: Entity.Null, payload: new Dock()));
 
         Tick(world, 2);
 
@@ -347,7 +347,7 @@ public sealed class DemoStationTests : IDisposable
                     $"the corner {corner} lies well inside the picture at a roll of {roll:F2} rad, at {at}");
             }
 
-            Picture.Cover(view, shuttle, Shuttle.Hull, world.VerticalFov).Should()
+            Picture.Cover(view: view, body: shuttle, half: Shuttle.Hull, verticalFov: world.VerticalFov).Should()
                 .BeGreaterThan(0.01, $"the shuttle is no speck at a roll of {roll:F2} rad");
         }
     }
@@ -410,7 +410,7 @@ public sealed class DemoStationTests : IDisposable
         {
             Frame = frame,
             Pose = new(normal * (plane - half - height), DQuaternion.FromAxisAngle(Double3.UnitY, theta)),
-            Body = new(new BoxShapeDesc(new((float)half)), Mass: 5, LinearDamping: 0, AngularDamping: 0)
+            Body = new(Shape: new BoxShapeDesc(new((float)half)), Mass: 5, LinearDamping: 0, AngularDamping: 0)
         });
 
         // The box's place relative to the station's center in earth's axes, which do not turn, and the station's rotation
