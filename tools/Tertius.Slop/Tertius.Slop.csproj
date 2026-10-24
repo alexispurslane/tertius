@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The slop metrics of src (docs/plans/code-quality-tooling.md, decision 16). It reads syntax only, with no compilation.
+    Microsoft.CodeAnalysis.CSharp 5.9.0 parses C# 15 preview syntax, such as a built-in union, which 4.14.0 does not.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="5.9.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Tertius.Slop.Tests" />
+  </ItemGroup>
+</Project>
