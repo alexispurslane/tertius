@@ -150,7 +150,7 @@ public class UnionDiagnosticsTests
     [Fact]
     public void AnUnchangedUnionIsNotWrittenAgain()
     {
-        CSharpCompilation compilation = Compilation("""
+        CSharpCompilation compilation = TestCompilation.Of("""
             public readonly record struct A(int X);
             [Tertius.GeneratedUnion(typeof(A))]
             public readonly partial struct U;
@@ -169,19 +169,7 @@ public class UnionDiagnosticsTests
                 "the model of the union equals the model of the run before");
     }
 
-    private static readonly CSharpParseOptions Parse = new(LanguageVersion.Preview);
-
-    private static CSharpCompilation Compilation(string source)
-    {
-        string[] platform = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
-        IEnumerable<MetadataReference> references = platform
-            .Append(typeof(GeneratedUnionAttribute).Assembly.Location)
-            .Select(path => MetadataReference.CreateFromFile(path));
-        return CSharpCompilation.Create("Probe", [CSharpSyntaxTree.ParseText(source, Parse)], references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
-                nullableContextOptions: NullableContextOptions.Enable,
-                generalDiagnosticOption: ReportDiagnostic.Error));
-    }
+    private static CSharpParseOptions Parse => TestCompilation.Parse;
 
     /// <summary>
     /// Runs the generator on <paramref name="source"/>. Gives the ids of the generator's diagnostics, and the errors of
@@ -189,7 +177,7 @@ public class UnionDiagnosticsTests
     /// </summary>
     private static (IReadOnlyList<string> Ids, IReadOnlyList<Diagnostic> Errors) Run(string source)
     {
-        CSharpCompilation compilation = Compilation(source);
+        CSharpCompilation compilation = TestCompilation.Of(source);
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new UnionGenerator()).WithUpdatedParseOptions(Parse);
         driver.RunGeneratorsAndUpdateCompilation(compilation, out Compilation output,
             out System.Collections.Immutable.ImmutableArray<Diagnostic> diagnostics,
