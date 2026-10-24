@@ -136,7 +136,7 @@ public sealed class BlueDanubeEditTests
     [Fact]
     public void TheParkingOrbitPanelSpansTheCoastFromTheInsertionToTheTransferBurn()
     {
-        PanelSpan panel = BlueDanubeEdit.Cuts.Panels.Single(span => span.Panel == (CheckPanel)CheckPanels.ParkingOrbit);
+        PanelSpan panel = BlueDanubeEdit.Cuts.Panels.Single(span => span.Panel == CheckPanels.ParkingOrbit);
 
         // The climb ends when the ascent autopilot is in orbit, and the films burn-chase and burn hold the transfer burn.
         IndexOf(panel.FirstFilm).Should().Be(IndexOf("climb-high") + 1);

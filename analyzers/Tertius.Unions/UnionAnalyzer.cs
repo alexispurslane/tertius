@@ -63,12 +63,12 @@ public sealed class UnionAnalyzer : DiagnosticAnalyzer
     {
         bool builtIn = type.DeclaringSyntaxReferences.Any(reference =>
             reference.GetSyntax(context.CancellationToken) is TypeDeclarationSyntax { Keyword.ValueText: "union" });
-        if (!builtIn)
-            return null;
-        return type.InstanceConstructors
-            .Where(constructor => constructor.IsImplicitlyDeclared && constructor.Parameters.Length == 1)
-            .Select(constructor => constructor.Parameters[0].Type)
-            .FirstOrDefault(caseType => caseType.IsValueType);
+        return !builtIn
+            ? null
+            : type.InstanceConstructors
+                .Where(constructor => constructor.IsImplicitlyDeclared && constructor.Parameters.Length == 1)
+                .Select(constructor => constructor.Parameters[0].Type)
+                .FirstOrDefault(caseType => caseType.IsValueType);
     }
 
     /// <summary>

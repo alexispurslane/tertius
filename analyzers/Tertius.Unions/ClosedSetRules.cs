@@ -19,7 +19,8 @@ internal static class ClosedSetRules
         "The built-in union '{0}' boxes its struct case '{1}'. A closed set of structs is a [GeneratedUnion] " +
         "(docs/plans/union-tooling.md, decision 1).", Category, DiagnosticSeverity.Error, true);
 
-    public static readonly DiagnosticDescriptor OpenHierarchy = new("TU0004", "A hierarchy of sealed subtypes is closed",
+    public static readonly DiagnosticDescriptor OpenHierarchy = new("TU0004",
+        "A hierarchy of sealed subtypes is closed",
         "Every subtype of '{0}' in this assembly is sealed. Declare it a closed record, or make the set a union, so that " +
         "a switch over it fails the build at a missing case.", Category, DiagnosticSeverity.Error, true,
         customTags: WellKnownDiagnosticTags.CompilationEnd);

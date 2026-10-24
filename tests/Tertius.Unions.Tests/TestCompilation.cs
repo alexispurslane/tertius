@@ -22,7 +22,7 @@ internal static class TestCompilation
         return CSharpCompilation.Create("Probe",
             [CSharpSyntaxTree.ParseText(source, Parse, cancellationToken: TestContext.Current.CancellationToken)],
             references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
+            new(OutputKind.DynamicallyLinkedLibrary,
                 nullableContextOptions: NullableContextOptions.Enable,
                 generalDiagnosticOption: ReportDiagnostic.Error));
     }

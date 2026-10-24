@@ -58,14 +58,12 @@ internal readonly partial struct QueryFilter
             ? throw new ArgumentException("Near needs an entity as its center, not the null handle.", nameof(other))
             : new NearEntity(other, CheckRadius(radius));
 
-    public static QueryFilter Near(FrameHandle frame, Double3 point, double radius)
-    {
-        if (frame.IsNull)
-            throw new ArgumentException("Near needs the frame of its point, not the null frame.", nameof(frame));
-        return !double.IsFinite(point.X) || !double.IsFinite(point.Y) || !double.IsFinite(point.Z)
-            ? throw new ArgumentException($"Near needs a finite point, not {point}.", nameof(point))
-            : (QueryFilter)new NearPoint(frame, point, CheckRadius(radius));
-    }
+    public static QueryFilter Near(FrameHandle frame, Double3 point, double radius) =>
+        frame.IsNull
+            ? throw new ArgumentException("Near needs the frame of its point, not the null frame.", nameof(frame))
+            : !double.IsFinite(point.X) || !double.IsFinite(point.Y) || !double.IsFinite(point.Z)
+                ? throw new ArgumentException($"Near needs a finite point, not {point}.", nameof(point))
+                : (QueryFilter)new NearPoint(frame, point, CheckRadius(radius));
 
     public static QueryFilter Where(EntityPredicate predicate)
     {

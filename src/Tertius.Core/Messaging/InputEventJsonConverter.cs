@@ -90,16 +90,16 @@ internal sealed class InputEventJsonConverter : JsonConverter<InputEvent>
             return InputEvent.KeyDown(CodeOf(kind, code, delta));
         if (Is(kind, KeyUp))
             return InputEvent.KeyUp(CodeOf(kind, code, delta));
-        if (Is(kind, MouseDown))
-            return InputEvent.MouseDown(CodeOf(kind, code, delta));
-        return Is(kind, MouseUp)
-            ? InputEvent.MouseUp(CodeOf(kind, code, delta))
-            : Is(kind, MouseMove)
-                ? InputEvent.MouseMove(DeltaOf(kind, code, delta))
-                : Is(kind, Scroll)
-                    ? InputEvent.Scroll(DeltaOf(kind, code, delta))
-                    : throw new JsonException(
-                        $"'{kind}' is not an input event kind. The kinds are {KeyDown}, {KeyUp}, {MouseDown}, {MouseUp}, {MouseMove} and {Scroll}.");
+        return Is(kind, MouseDown)
+            ? InputEvent.MouseDown(CodeOf(kind, code, delta))
+            : Is(kind, MouseUp)
+                ? InputEvent.MouseUp(CodeOf(kind, code, delta))
+                : Is(kind, MouseMove)
+                    ? InputEvent.MouseMove(DeltaOf(kind, code, delta))
+                    : Is(kind, Scroll)
+                        ? InputEvent.Scroll(DeltaOf(kind, code, delta))
+                        : throw new JsonException(
+                            $"'{kind}' is not an input event kind. The kinds are {KeyDown}, {KeyUp}, {MouseDown}, {MouseUp}, {MouseMove} and {Scroll}.");
     }
 
     public override void Write(Utf8JsonWriter writer, InputEvent value, JsonSerializerOptions options)
