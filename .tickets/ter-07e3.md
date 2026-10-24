@@ -1,6 +1,6 @@
 ---
 id: ter-07e3
-status: in_progress
+status: closed
 deps: [ter-qfxn]
 links: []
 created: 2026-10-22T12:58:25Z
