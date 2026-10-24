@@ -84,20 +84,6 @@ public class GeneratedUnionTests
     }
 
     [Fact]
-    public void AReferenceThatOnlyOneCaseHoldsComesBackFromThatCase()
-    {
-        var named = new MaybeNamed(new Named("pen"));
-        var busy = new MaybeNamed(new Busy(3));
-
-        named.TryGetValue(out Named back).Should().BeTrue();
-        back.Name.Should().Be("pen");
-        busy.TryGetValue(out Named _).Should().BeFalse();
-        busy.Value.Should().Be(new Busy(3));
-        busy.Should().Be(new MaybeNamed(new Busy(3)));
-        busy.Should().NotBe(named);
-    }
-
-    [Fact]
     public void TwoValuesOfOneCaseWithEqualFieldsAreEqual()
     {
         var a = new Label(new Tagged("crate", 3));

@@ -46,17 +46,13 @@ internal sealed record CaseModel(string Type, string Display, int Kind, Equatabl
 internal sealed record ValueModel(string? Property, int Slot);
 
 /// <summary>One slot: a private field that the cases share by type.</summary>
-/// <param name="Type">The fully qualified type of the values that the slot holds, with their nullable annotation.</param>
-/// <param name="IsReference">
-/// True when the values are references. The field is then nullable, because it holds null while the union holds a case
-/// that does not fill it.
-/// </param>
+/// <param name="Type">The fully qualified type of the field, with its nullable annotation.</param>
 /// <param name="Holds">The case values that the slot holds, such as <c>Along.Direction</c>, for a comment.</param>
-internal sealed record SlotModel(string Type, bool IsReference, string Holds)
-{
-    /// <summary>The type of the field: <see cref="Type"/>, made nullable for a reference.</summary>
-    public string FieldType => IsReference && !Type.EndsWith("?") ? Type + "?" : Type;
-}
+/// <param name="IsReference">
+/// True when the type is a reference type. Such a slot is null in the empty value and in the cases that do not use it,
+/// so its field is nullable, and a case reads it back with <c>!</c>.
+/// </param>
+internal sealed record SlotModel(string Type, string Holds, bool IsReference);
 
 /// <summary>An immutable array that compares by its items, for the models of the incremental pipeline.</summary>
 internal readonly struct EquatableArray<T>(ImmutableArray<T> items) : IEquatable<EquatableArray<T>>, IReadOnlyList<T>

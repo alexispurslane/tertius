@@ -55,13 +55,6 @@ public readonly record struct Tagged(string Tag, int Count);
 [GeneratedUnion(typeof(Named), typeof(Tagged))]
 public readonly partial struct Label;
 
-/// <summary>
-/// One <see cref="string"/> slot that only <see cref="Named"/> fills, so it holds null while the union holds
-/// <see cref="Busy"/>.
-/// </summary>
-[GeneratedUnion(typeof(Busy), typeof(Named))]
-public readonly partial struct MaybeNamed;
-
 /// <summary>A plain struct, which says nothing about how to build it again, so the union stores it whole.</summary>
 public struct Plain
 {

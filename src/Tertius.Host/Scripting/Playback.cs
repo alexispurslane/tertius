@@ -57,12 +57,12 @@ public sealed class HeadlessPlayback : IPlayback, IDisposable
         ArgumentNullException.ThrowIfNull(renderer);
         ArgumentNullException.ThrowIfNull(size);
         ArgumentNullException.ThrowIfNull(startVideo);
-        if (!target.HasValue)
+        if (target is null)
             throw new ArgumentException("A headless playback needs a capture target.", nameof(target));
         this.renderer = renderer;
         this.target = target;
         renderer.Resize(size.Width, size.Height);
-        video = target.TryGetValue(out VideoFile? file) ? startVideo(file, size) : null;
+        video = target is VideoFile file ? startVideo(file, size) : null;
     }
 
     public bool WaitForTick() => true;

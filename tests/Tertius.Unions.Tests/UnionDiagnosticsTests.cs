@@ -25,6 +25,21 @@ public class UnionDiagnosticsTests
     }
 
     [Fact]
+    public void AReferenceThatOnlyOneCaseHoldsCompilesWithNullableChecks()
+    {
+        // The slot of the string is null in the empty value and in the case B, so the generated file declares it nullable.
+        (IReadOnlyList<string> ids, IReadOnlyList<Diagnostic> errors) = Run("""
+            public readonly record struct A(string Name);
+            public readonly record struct B(int X);
+            [Tertius.GeneratedUnion(typeof(A), typeof(B))]
+            public readonly partial struct U;
+            """);
+
+        ids.Should().BeEmpty();
+        errors.Should().BeEmpty("every warning is an error, as in the projects that use the generator");
+    }
+
+    [Fact]
     public void AStructThatIsNotPartialIsRefused()
     {
         Run("""
@@ -163,7 +178,9 @@ public class UnionDiagnosticsTests
             .Append(typeof(GeneratedUnionAttribute).Assembly.Location)
             .Select(path => MetadataReference.CreateFromFile(path));
         return CSharpCompilation.Create("Probe", [CSharpSyntaxTree.ParseText(source, Parse)], references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
+                nullableContextOptions: NullableContextOptions.Enable,
+                generalDiagnosticOption: ReportDiagnostic.Error));
     }
 
     /// <summary>

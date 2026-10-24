@@ -48,7 +48,9 @@ internal static class UnionWriter
         for (int i = 0; i < union.Slots.Count; i++)
         {
             text.AppendLine($"    // Holds {union.Slots[i].Holds}.");
-            text.AppendLine($"    private readonly {union.Slots[i].FieldType} slot{i};");
+            SlotModel slot = union.Slots[i];
+            string nullable = slot.IsReference && !slot.Type.EndsWith("?") ? "?" : "";
+            text.AppendLine($"    private readonly {slot.Type}{nullable} slot{i};");
         }
 
         text.AppendLine("    private readonly byte kind;");
@@ -147,8 +149,8 @@ internal static class UnionWriter
     }
 
     /// <summary>
-    /// The expression that builds case <paramref name="c"/> from its slots. A reference slot is nullable, but the held case
-    /// filled it, so it gives back what the case put in.
+    /// The expression that builds case <paramref name="c"/> from its slots. A reference slot is nullable, but the case
+    /// that holds it stored its own value there, so the read says that it is not null.
     /// </summary>
     private static string Read(UnionModel union, CaseModel c) => c.Whole
         ? $"slot{c.Values[0].Slot}"

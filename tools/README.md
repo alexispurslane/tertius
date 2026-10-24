@@ -148,7 +148,7 @@ The folder `.githooks/` holds two git hooks. At its start, the dev shell sets `c
 The pre-commit hook runs on every commit that stages C# files or projects. A commit with no such file, such as a ticket note, skips it. The hook changes no file. It does three things:
 
 1. It builds the projects that the commit changes and the test projects that test them, incrementally. The build runs every analyzer, and an error stops the commit.
-2. It prints a report for the changed lines only: the duplicated blocks (jscpd) and the methods over the complexity limit (CA1502) or the length limit (MA0051). The report never stops the commit.
+2. It prints a report for the changed lines only: the duplicated blocks (jscpd) and the methods over the complexity limit (CA1502) or the length limit (MA0051). Test code gets the length limit only. If the report names anything, it ends with a prompt to refactor that code in the same commit. The report never stops the commit.
 3. It runs the tests of the changed code in Checked, one process per test project, in parallel. A failed test stops the commit.
 
 The tests of the changed code are:
