@@ -38,7 +38,7 @@ ARCHITECTURE.md is the binding design, and the code and `tools/README.md` say ho
 
 - `WorldOptions.DebugChecks` runs the world's invariant checks at the end of every sync point.
 - Mutation testing is not a gate on every epic, because a Stryker run over the whole vertical slice took hours.
-  - Every implementation brief asks for hand mutations. For each new test, the agent breaks the line that the test protects, watches the test fail, and restores the line. The report names each mutation. Mutation builds need `--no-incremental`.
+  - Every implementation brief asks for hand mutations. For each new test, the agent breaks the line that the test protects, watches the test fail, and restores the line. The report names each mutation. Mutation builds need `--no-incremental`. A mutation can make a loop that never ends, and the tests have no time limit. So each mutation builds only its test project and runs only the test class that covers it, under `timeout 120`, and a run that the timeout stops counts as killed.
   - Each epic runs coverage on its changed lines before the merge.
   - Stryker runs only on Core, Simulation and Physics, scoped to files or to changed lines.
 - A snapshot test proves only that nothing changed. So the first approval of a reference image is a real review against the scene description. If an agent adds or re-approves a reference image, or sees a snapshot fail, it opens three images with the Read tool. They are the reference, the actual image and the FLIP heat map, and its report describes them.
