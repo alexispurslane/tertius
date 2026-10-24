@@ -3,6 +3,14 @@ namespace Tertius.Physics;
 /// <summary>Tuning for <see cref="JoltPhysicsBackend"/>. The defaults suit a 60 Hz space sim.</summary>
 public sealed record JoltBackendOptions
 {
+    /// <summary>
+    /// The options of a run that steps as fast as it can, with no window to pace it: a headless script run, the script
+    /// generator, the readout log and the tests. It has one Jolt worker, because Jolt wakes every worker in every step,
+    /// and a scene of the demo's size gains nothing from more. Jolt's results do not depend on the number of its
+    /// workers. On 2026-10-21 the Blue Danube script, 306,558 ticks, took 62 s in Release with Jolt's default and 27 s
+    /// with one worker, and both wrote the same script.
+    /// </summary>
+    public static JoltBackendOptions Unpaced => new() { WorkerThreads = 1 };
     // Every frame with bodies gets its own Jolt system, and Jolt sizes its buffers from these limits up front, so
     // they are per frame and kept moderate.
 
@@ -22,15 +30,6 @@ public sealed record JoltBackendOptions
 
     /// <summary>Jolt worker threads. Zero or less uses Jolt's default: one per core, minus one.</summary>
     public int WorkerThreads { get; init; }
-
-    /// <summary>
-    /// The options of a run that steps as fast as it can, with no window to pace it: a headless script run, the script
-    /// generator, the readout log and the tests. It has one Jolt worker, because Jolt wakes every worker in every step,
-    /// and a scene of the demo's size gains nothing from more. Jolt's results do not depend on the number of its
-    /// workers. On 2026-10-21 the Blue Danube script, 306,558 ticks, took 62 s in Release with Jolt's default and 27 s
-    /// with one worker, and both wrote the same script.
-    /// </summary>
-    public static JoltBackendOptions Unpaced => new() { WorkerThreads = 1 };
 
     /// <summary>
     /// How far bodies may sink into each other before Jolt pushes them apart, in meters. A resting body sinks about

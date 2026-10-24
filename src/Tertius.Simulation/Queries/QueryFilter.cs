@@ -62,9 +62,9 @@ internal readonly partial struct QueryFilter
     {
         if (frame.IsNull)
             throw new ArgumentException("Near needs the frame of its point, not the null frame.", nameof(frame));
-        if (!double.IsFinite(point.X) || !double.IsFinite(point.Y) || !double.IsFinite(point.Z))
-            throw new ArgumentException($"Near needs a finite point, not {point}.", nameof(point));
-        return new NearPoint(frame, point, CheckRadius(radius));
+        return !double.IsFinite(point.X) || !double.IsFinite(point.Y) || !double.IsFinite(point.Z)
+            ? throw new ArgumentException($"Near needs a finite point, not {point}.", nameof(point))
+            : (QueryFilter)new NearPoint(frame, point, CheckRadius(radius));
     }
 
     public static QueryFilter Where(EntityPredicate predicate)

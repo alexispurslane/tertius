@@ -70,8 +70,8 @@ public readonly partial struct MotionIntent
         {
             MotionSample sample => (true, sample),
             EndPose(var end) => (true, KinematicRecord(stepStart, end, step)),
-            SteerTarget => (false, default(MotionSample)),
-            null => (false, default(MotionSample))
+            SteerTarget => (false, default),
+            null => (false, default)
         };
         return recorded;
     }
@@ -129,21 +129,21 @@ public readonly partial struct MotionIntent
             return MotionIntentRefusal.None;
         if (attached)
             return MotionIntentRefusal.Attached;
-        if (motion == BodyMotion.Character)
-            return MotionIntentRefusal.Character;
-        return this is not SteerTarget
-            ? motion is null or BodyMotion.Kinematic || ownsRootFrame
-                ? MotionIntentRefusal.None
-                : MotionIntentRefusal.NeedsKinematicBody
-            : ownsRootFrame
-                ? MotionIntentRefusal.SteerOfRootFrame
-                : motion switch
-                {
-                    BodyMotion.Dynamic => MotionIntentRefusal.None,
-                    null => MotionIntentRefusal.SteerWithoutBody,
-                    BodyMotion.Static or BodyMotion.Kinematic or BodyMotion.Character =>
-                        MotionIntentRefusal.NeedsDynamicBody
-                };
+        return motion == BodyMotion.Character
+            ? MotionIntentRefusal.Character
+            : this is not SteerTarget
+                ? motion is null or BodyMotion.Kinematic || ownsRootFrame
+                    ? MotionIntentRefusal.None
+                    : MotionIntentRefusal.NeedsKinematicBody
+                : ownsRootFrame
+                    ? MotionIntentRefusal.SteerOfRootFrame
+                    : motion switch
+                    {
+                        BodyMotion.Dynamic => MotionIntentRefusal.None,
+                        null => MotionIntentRefusal.SteerWithoutBody,
+                        BodyMotion.Static or BodyMotion.Kinematic or BodyMotion.Character =>
+                            MotionIntentRefusal.NeedsDynamicBody
+                    };
     }
 
     /// <summary>

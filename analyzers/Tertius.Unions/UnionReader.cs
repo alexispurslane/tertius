@@ -30,7 +30,8 @@ internal static class UnionReader
             diagnostics.Add(Diagnostic.Create(UnionDiagnostics.NotPartial, location, union.Name));
         for (INamedTypeSymbol? outer = union.ContainingType; outer != null; outer = outer.ContainingType)
             if (!IsPartial(outer))
-                diagnostics.Add(Diagnostic.Create(UnionDiagnostics.ContainerNotPartial, location, outer.Name, union.Name));
+                diagnostics.Add(Diagnostic.Create(UnionDiagnostics.ContainerNotPartial, location, outer.Name,
+                    union.Name));
 
         ImmutableArray<ITypeSymbol> cases = attribute.ConstructorArguments.Length == 1
             ? [.. attribute.ConstructorArguments[0].Values.Select(value => value.Value).OfType<ITypeSymbol>()]
@@ -58,7 +59,7 @@ internal static class UnionReader
                 union.Name));
 
         return diagnostics.Count > 0
-            ? new UnionResult(null, new EquatableArray<Diagnostic>([.. diagnostics]))
+            ? new(null, new([.. diagnostics]))
             : new UnionResult(Model(union, cases, zeroCase), default);
     }
 
@@ -82,16 +83,16 @@ internal static class UnionReader
             ImmutableArray<IParameterSymbol>? parameters = PositionalParameters(type);
             ValueModel[] values = parameters is { } fields
                 ? [.. fields.Select(p => new ValueModel(p.Name, slots.Place(p.Type, $"{display}.{p.Name}")))]
-                : [new ValueModel(null, slots.Place(type, display))];
-            models.Add(new CaseModel(type.ToDisplayString(TypeFormat), display, kind++,
-                new EquatableArray<ValueModel>([.. values]), parameters == null));
+                : [new(null, slots.Place(type, display))];
+            models.Add(new(type.ToDisplayString(TypeFormat), display, kind++,
+                new([.. values]), parameters == null));
         }
 
         (ImmutableArray<SlotModel> ordered, int[] renumber) = slots.Ordered();
         EquatableArray<CaseModel> renumbered = new([
             .. models.Select(model => model with
             {
-                Values = new EquatableArray<ValueModel>([
+                Values = new([
                     .. model.Values.Select(value => value with { Slot = renumber[value.Slot] })
                 ])
             })
@@ -99,12 +100,15 @@ internal static class UnionReader
 
         var containers = new List<string>();
         for (INamedTypeSymbol? outer = union.ContainingType; outer != null; outer = outer.ContainingType)
-            containers.Insert(0, $"partial {Keyword(outer)} {outer.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)}");
-        string? space = union.ContainingNamespace.IsGlobalNamespace ? null : union.ContainingNamespace.ToDisplayString();
+            containers.Insert(0,
+                $"partial {Keyword(outer)} {outer.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)}");
+        string? space = union.ContainingNamespace.IsGlobalNamespace
+            ? null
+            : union.ContainingNamespace.ToDisplayString();
         string hint = string.Join(".", new[] { space }.Concat(containers.Select(c => c.Split(' ').Last()))
             .Append(union.Name).Where(part => part != null)) + ".g.cs";
-        return new UnionModel(space, new EquatableArray<string>([.. containers]), union.Name, union.IsReadOnly,
-            renumbered, new EquatableArray<SlotModel>(ordered), zeroCase != null, hint.Replace('<', '{').Replace('>', '}'));
+        return new(space, new([.. containers]), union.Name, union.IsReadOnly,
+            renumbered, new(ordered), zeroCase != null, hint.Replace('<', '{').Replace('>', '}'));
     }
 
     /// <summary>
@@ -130,8 +134,10 @@ internal static class UnionReader
             properties.Add(property);
         }
 
-        bool onlyParameters = record.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic && !field.IsConst)
-            .All(field => properties.Contains(field.AssociatedSymbol as IPropertySymbol, SymbolEqualityComparer.Default));
+        bool onlyParameters = record.GetMembers().OfType<IFieldSymbol>()
+            .Where(field => !field.IsStatic && !field.IsConst)
+            .All(field =>
+                properties.Contains(field.AssociatedSymbol as IPropertySymbol, SymbolEqualityComparer.Default));
         bool fromSource = record.DeclaringSyntaxReferences.Length > 0;
         return onlyParameters && fromSource ? parameters : null;
     }
@@ -183,11 +189,16 @@ internal static class UnionReader
         /// <summary>The slots, the most aligned first and otherwise in the order of their first use, and the new number of each.</summary>
         public (ImmutableArray<SlotModel> Slots, int[] Renumber) Ordered()
         {
-            int[] order = [.. Enumerable.Range(0, slots.Count).OrderByDescending(i => slots[i].Alignment).ThenBy(i => i)];
+            int[] order =
+                [.. Enumerable.Range(0, slots.Count).OrderByDescending(i => slots[i].Alignment).ThenBy(i => i)];
             int[] renumber = new int[slots.Count];
             for (int position = 0; position < order.Length; position++)
                 renumber[order[position]] = position;
-            return ([.. order.Select(i => new SlotModel(slots[i].Type, string.Join(", ", slots[i].Holds), slots[i].IsReference))], renumber);
+            return (
+            [
+                .. order.Select(i =>
+                    new SlotModel(slots[i].Type, string.Join(", ", slots[i].Holds), slots[i].IsReference))
+            ], renumber);
         }
 
         /// <summary>The alignment of a field of <paramref name="type"/>, in bytes, as the runtime lays out a struct.</summary>
@@ -207,13 +218,12 @@ internal static class UnionReader
                 // Not a primitive: a struct, aligned as its most aligned field.
                 _ => 0
             };
-            if (primitive > 0)
-                return primitive;
-
-            return depth > 8
-                ? 8
-                : type.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic && !field.IsConst)
-                    .Select(field => Alignment(field.Type, depth + 1)).DefaultIfEmpty(1).Max();
+            return primitive > 0
+                ? primitive
+                : depth > 8
+                    ? 8
+                    : type.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic && !field.IsConst)
+                        .Select(field => Alignment(field.Type, depth + 1)).DefaultIfEmpty(1).Max();
         }
     }
 }

@@ -72,12 +72,12 @@ internal readonly struct EquatableArray<T>(ImmutableArray<T> items) : IEquatable
     {
         int hash = 17;
         foreach (T item in this)
-            hash = unchecked((hash * 31) + item.GetHashCode());
+            hash = unchecked(hash * 31 + item.GetHashCode());
         return hash;
     }
 
     public IEnumerator<T> GetEnumerator() =>
-        ((IEnumerable<T>)(items.IsDefault ? ImmutableArray<T>.Empty : items)).GetEnumerator();
+        ((IEnumerable<T>)(items.IsDefault ? [] : items)).GetEnumerator();
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }

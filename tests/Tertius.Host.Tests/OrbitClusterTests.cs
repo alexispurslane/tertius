@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using Tertius.Demo;
@@ -765,9 +766,11 @@ public sealed class OrbitClusterTests(OrbitClusterRun run) : IClassFixture<Orbit
                 case CaptureStep capture:
                     yield return (capture.Name, tick, camera);
                     break;
-                default:
+                case PostStep or DumpStep or FilmStep or OutlinesStep or null:
                     // The other steps move neither the tick nor the camera.
                     break;
+                default:
+                    throw new UnreachableException();
             }
     }
 

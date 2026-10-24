@@ -80,12 +80,6 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     // is filling now.
     private List<string>? bugReport;
 
-    /// <summary>
-    /// The gate that serializes the native work and the state of this backend: changes, steps, queries and shape builds.
-    /// Another backend has its own gate and can step at the same time on another thread.
-    /// </summary>
-    internal Lock Gate { get; } = new();
-
     /// <summary>Creates a backend. Initializes Jolt in double precision on first use in the process.</summary>
     public JoltPhysicsBackend(JoltBackendOptions? options = null)
     {
@@ -96,6 +90,12 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             ? new(new() { numThreads = this.options.WorkerThreads })
             : new JobSystemThreadPool());
     }
+
+    /// <summary>
+    /// The gate that serializes the native work and the state of this backend: changes, steps, queries and shape builds.
+    /// Another backend has its own gate and can step at the same time on another thread.
+    /// </summary>
+    internal Lock Gate { get; } = new();
 
     // ---- Diagnostics for tests ----
 

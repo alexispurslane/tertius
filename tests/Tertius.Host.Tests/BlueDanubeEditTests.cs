@@ -116,7 +116,7 @@ public sealed class BlueDanubeEditTests
     [Fact]
     public void TheThrowsPanelSpansTheTwoThrowsToTheEndOfTheRun()
     {
-        PanelSpan panel = BlueDanubeEdit.Cuts.Panels.Single(span => span.Panel == (CheckPanel)CheckPanels.Throws);
+        PanelSpan panel = BlueDanubeEdit.Cuts.Panels.Single(span => span.Panel == CheckPanels.Throws);
 
         // The film spinward follows the stack, and the film antispinward holds the second throw and the end of the play.
         IndexOf(panel.FirstFilm).Should().Be(IndexOf("stack") + 1);

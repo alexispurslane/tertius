@@ -255,7 +255,8 @@ public class QueryFilterUnionTests
         // A radius of exactly 0 and a point at the origin are valid.
         QueryFilter.Near(0).Should().Be(new QueryFilter(new NearAsker(0)));
         QueryFilter.Near(Rock, 0).Should().Be(new QueryFilter(new NearEntity(Rock, 0)));
-        QueryFilter.Near(Station, Double3.Zero, 0).Should().Be(new QueryFilter(new NearPoint(Station, Double3.Zero, 0)));
+        QueryFilter.Near(Station, Double3.Zero, 0).Should()
+            .Be(new QueryFilter(new NearPoint(Station, Double3.Zero, 0)));
     }
 
     [Fact]

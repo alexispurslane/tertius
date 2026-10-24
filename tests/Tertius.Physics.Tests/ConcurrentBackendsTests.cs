@@ -1,5 +1,4 @@
 using Tertius.Simulation;
-using Tertius.Testing;
 using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
@@ -19,13 +18,16 @@ public sealed class ConcurrentBackendsTests
     {
         ulong alone = HeapAndCharacterRun();
 
-        var hashes = new ulong[Worlds];
+        ulong[] hashes = new ulong[Worlds];
         using var start = new Barrier(Worlds);
-        Thread[] threads = [.. Enumerable.Range(0, Worlds).Select(i => new Thread(() =>
-        {
-            start.SignalAndWait();
-            hashes[i] = HeapAndCharacterRun();
-        }))];
+        Thread[] threads =
+        [
+            .. Enumerable.Range(0, Worlds).Select(i => new Thread(() =>
+            {
+                start.SignalAndWait();
+                hashes[i] = HeapAndCharacterRun();
+            }))
+        ];
         foreach (Thread thread in threads)
             thread.Start();
         foreach (Thread thread in threads)

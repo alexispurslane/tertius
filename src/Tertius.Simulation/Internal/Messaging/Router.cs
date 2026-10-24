@@ -377,7 +377,8 @@ internal sealed class Router
                     break;
                 default:
                     // World.Post, Outbox.Send and Outbox.SendAfter refuse a target with no value.
-                    throw new UnreachableException($"A routed event has the target {e.Target}, which names no recipient.");
+                    throw new UnreachableException(
+                        $"A routed event has the target {e.Target}, which names no recipient.");
             }
         }
     }

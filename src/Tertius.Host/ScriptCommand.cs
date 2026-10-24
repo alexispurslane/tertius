@@ -126,7 +126,8 @@ public static class ScriptCommand
             return WindowHost.Run(scene, script, options.Script, options.Out, options.Speed, recordPath: null, output,
                 error);
 
-        using var world = new World(new() { DisposePhysics = true }, new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
+        using var world = new World(new() { DisposePhysics = true },
+            new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
         VulkanRenderer? renderer = null;
         if (captures)
             try
@@ -223,7 +224,8 @@ public static class ScriptCommand
                 // A video without captures holds no frames, and no target writes no files.
                 break;
             default:
-                throw new UnreachableException($"The capture target {target} has a case that the command does not list.");
+                throw new UnreachableException(
+                    $"The capture target {target} has a case that the command does not list.");
         }
     }
 

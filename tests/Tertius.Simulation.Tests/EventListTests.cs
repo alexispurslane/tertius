@@ -1,5 +1,4 @@
 using AwesomeAssertions;
-using Tertius.Testing;
 
 namespace Tertius.Simulation.Tests;
 

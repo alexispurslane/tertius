@@ -6,7 +6,6 @@ using System.Text.Json.Serialization.Metadata;
 using Tertius.Host.Scripting;
 using Tertius.Rendering;
 using Tertius.Simulation;
-using Tertius.Testing;
 
 namespace Tertius.Host.Tests;
 
@@ -54,7 +53,8 @@ public class ScriptUnionTests
         union.GetInterfaces().Should().Contain(typeof(IUnion), $"the compiler declares {union.Name} as a union");
         union.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
             .Select(field => field.FieldType).Should()
-            .Equal([typeof(object)], $"{union.Name} holds its case as one reference, so it allocates nothing beyond it");
+            .Equal([typeof(object)],
+                $"{union.Name} holds its case as one reference, so it allocates nothing beyond it");
         CasesOf(union).Should().Equal(cases.Order(StringComparer.Ordinal));
     }
 

@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using AwesomeAssertions;
 
@@ -28,7 +29,7 @@ public class GeneratedUnionTests
     [Fact]
     public void APatternMatchReadsTheHeldCase()
     {
-        Up up = new Up(new AwayFrom(Sideways));
+        var up = new Up(new AwayFrom(Sideways));
 
         string read = up switch
         {
@@ -128,8 +129,8 @@ public class GeneratedUnionTests
     {
         Up none = default;
 
-        none.Equals(default(Up)).Should().BeTrue();
-        none.Equals(new Up(new Along(Vector3.Zero))).Should().BeFalse("a zero direction is still a case");
+        none.Equals(default).Should().BeTrue();
+        none.Equals(new(new Along(Vector3.Zero))).Should().BeFalse("a zero direction is still a case");
     }
 
     [Fact]
@@ -226,12 +227,12 @@ public class GeneratedUnionTests
     [Fact]
     public void TheValueOfAUnionWithAZeroCaseIsNeverNull()
     {
-        var nullability = new System.Reflection.NullabilityInfoContext();
+        var nullability = new NullabilityInfoContext();
 
         nullability.Create(typeof(Machine).GetProperty(nameof(Machine.Value))!).ReadState.Should()
-            .Be(System.Reflection.NullabilityState.NotNull);
+            .Be(NullabilityState.NotNull);
         nullability.Create(typeof(Label).GetProperty(nameof(Label.Value))!).ReadState.Should()
-            .Be(System.Reflection.NullabilityState.Nullable, "a union without a zero case has the empty value");
+            .Be(NullabilityState.Nullable, "a union without a zero case has the empty value");
     }
 
     [Fact]

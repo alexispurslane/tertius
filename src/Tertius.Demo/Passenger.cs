@@ -256,7 +256,8 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
                 Steer(self, outbox, Double3.Zero, mass);
                 return;
             default:
-                throw new UnreachableException($"The passenger state {State} has a case that the passenger does not run.");
+                throw new UnreachableException(
+                    $"The passenger state {State} has a case that the passenger does not run.");
         }
     }
 

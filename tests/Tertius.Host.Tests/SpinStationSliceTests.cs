@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Tertius.Demo;
 using Tertius.Host.Scripting;
 using Tertius.Simulation;
@@ -528,9 +529,11 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
                     break;
                 case CaptureStep c when c.Name == name:
                     return (tick, view ?? throw new InvalidOperationException($"no view before the capture {name}"));
-                default:
+                case PostStep or DumpStep or CaptureStep or OutlinesStep or null:
                     // The other steps move neither the tick nor the view.
                     break;
+                default:
+                    throw new UnreachableException();
             }
 
         return null;

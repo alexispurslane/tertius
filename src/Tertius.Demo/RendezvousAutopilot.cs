@@ -310,7 +310,8 @@ public sealed class RendezvousAutopilot(Entity station, RendezvousPlan plan, dou
             case Standby or Phasing or Halted:
                 break;
             default:
-                throw new UnreachableException($"The rendezvous state {State} has a case that the autopilot does not fly.");
+                throw new UnreachableException(
+                    $"The rendezvous state {State} has a case that the autopilot does not fly.");
         }
     }
 

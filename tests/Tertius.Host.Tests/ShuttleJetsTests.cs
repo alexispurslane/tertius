@@ -1,7 +1,6 @@
 using System.Numerics;
 using Tertius.Demo;
 using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
-using Tertius.Testing;
 
 namespace Tertius.Host.Tests;
 

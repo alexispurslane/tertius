@@ -1,7 +1,6 @@
 using System.Numerics;
 using JoltPhysicsSharp;
 using Tertius.Simulation;
-using Tertius.Testing;
 using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;

@@ -117,7 +117,7 @@ public static class ScriptRunner
     private union ReadyStep(ReadyRun, ReadyPost, ReadyCamera, ReadyDump, ReadyCapture, ReadyFilm, ReadyOutlines)
     {
         // The built-in union's ToString gives only the name of the union.
-        public override string ToString() => Value?.ToString() ?? "ReadyStep(none)";
+        public readonly override string ToString() => Value?.ToString() ?? "ReadyStep(none)";
     }
 
     private sealed record ReadyRun(int Ticks);
@@ -234,7 +234,8 @@ public static class ScriptRunner
             ? frame.Topic
             : throw new ScriptException($"{where}: the entity '{id}' owns no frame."),
         ToEveryone => new Broadcast(),
-        null => throw new InvalidOperationException("A post step has a target with no value, which Script.CheckSteps refuses.")
+        null => throw new InvalidOperationException(
+            "A post step has a target with no value, which Script.CheckSteps refuses.")
     };
 
     private static Entity LiveEntity(string id, World world, SceneInstance scene, string where) =>

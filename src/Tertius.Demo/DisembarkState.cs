@@ -36,7 +36,8 @@ public readonly record struct StationGone;
 /// <summary>
 /// What a <see cref="Disembark"/> does, in the order of the exit: <see cref="Aboard"/>, <see cref="Walking"/>,
 /// <see cref="Sliding"/>, <see cref="Strolling"/> and <see cref="Arrived"/>, or <see cref="Halted"/> once the station's frame
-/// is gone. The default value is <see cref="Aboard"/>. It is a generated union (see <see cref="GeneratedUnionAttribute"/>), and
+/// is gone. The default value is <see cref="Aboard"/>. It is a generated union (see <see cref="GeneratedUnionAttribute"/>
+/// ), and
 /// <see cref="Next"/> is the whole table of its changes (docs/plans/blue-danube-demo.md, "The exit component").
 /// </summary>
 [GeneratedUnion(typeof(Aboard), typeof(Walking), typeof(Sliding), typeof(Strolling), typeof(Arrived), typeof(Halted),

@@ -89,7 +89,7 @@ internal sealed partial class EntityTable
 
     // The bounding radius of each shape description that AssertInvariants met. Descriptions are immutable, so the check
     // computes each one once instead of in every call: the radius of a mesh visits every vertex.
-    private readonly ConditionalWeakTable<ShapeDesc, StrongBox<float>> checkedRadii = new();
+    private readonly ConditionalWeakTable<ShapeDesc, StrongBox<float>> checkedRadii = [];
     private readonly List<Action<Entity>> releaseHooks = [];
 
     // Slots ever handed out. During gameplay it grows only through the spawn fallback, atomically and past the tables;
@@ -410,6 +410,7 @@ internal sealed partial class EntityTable
     {
         void Grow(int capacity);
         void Clear(uint slot);
+
         /// <summary>True when the entries of the <paramref name="count"/> slots from <paramref name="start"/> are clear.</summary>
         bool IsClear(int start, int count);
     }
@@ -1522,7 +1523,7 @@ internal sealed partial class EntityTable
 
         // The slots from slotCount on were never used: free, of generation 0, without a body, and clear in every column.
         // One pass over each array checks them all, so a large capacity adds little to the check.
-        Contract.Invariant(IsDefault<SlotState>(state.AsSpan(slotCount)) && IsDefault<uint>(generation.AsSpan(slotCount)));
+        Contract.Invariant(IsDefault(state.AsSpan(slotCount)) && IsDefault(generation.AsSpan(slotCount)));
         for (int slot = slotCount; slot < Capacity && slot % 64 != 0; slot++)
             Contract.Invariant(!bodySlots.Contains((uint)slot));
         for (int word = BodySlots.WordsFor(slotCount); word < bodySlots.WordCount; word++)
@@ -1772,7 +1773,8 @@ internal sealed partial class EntityTable
     // One vectorized pass over the bytes of every entry. A reference in an entry reads as its pointer, which is zero
     // only for null.
     private static bool IsDefault<T>(ReadOnlySpan<T> values) =>
-        values.IsEmpty || !MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)),
+        values.IsEmpty || !MemoryMarshal.CreateReadOnlySpan(
+            ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)),
             values.Length * Unsafe.SizeOf<T>()).ContainsAnyExcept((byte)0);
 
     private static ReadOnlySpan<byte> BytesOf<T>(in T value) =>

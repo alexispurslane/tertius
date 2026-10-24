@@ -1,5 +1,4 @@
 using Tertius.Demo;
-using Tertius.Testing;
 
 namespace Tertius.Host.Tests;
 

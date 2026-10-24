@@ -139,7 +139,8 @@ public sealed class FilmScriptTests
     {
         Script script = Generate(new FilmSection("drop", "camera", Every: 1,
             Until: (world, scene) => BallHeight(world, scene) < 1));
-        using var world = new World(new() { DisposePhysics = true }, new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
+        using var world = new World(new() { DisposePhysics = true },
+            new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
         SceneInstance scene = Drop.Build(world, RenderResources.None);
         var heights = new List<double>();
 

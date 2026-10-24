@@ -440,7 +440,8 @@ internal sealed partial class RenderSnapshotBuilder
                 case null:
                     break;
                 default:
-                    throw new UnreachableException($"The light {render.Light} has a case that the snapshot does not draw.");
+                    throw new UnreachableException(
+                        $"The light {render.Light} has a case that the snapshot does not draw.");
             }
         }
     }

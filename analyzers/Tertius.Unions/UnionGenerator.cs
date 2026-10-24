@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Tertius.Unions;
 
@@ -15,7 +16,7 @@ public sealed class UnionGenerator : IIncrementalGenerator
     {
         IncrementalValuesProvider<UnionResult> unions = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Tertius.GeneratedUnionAttribute",
-            static (node, _) => node is Microsoft.CodeAnalysis.CSharp.Syntax.StructDeclarationSyntax,
+            static (node, _) => node is StructDeclarationSyntax,
             static (union, _) => UnionReader.Read(union));
         context.RegisterSourceOutput(unions, static (output, result) =>
         {

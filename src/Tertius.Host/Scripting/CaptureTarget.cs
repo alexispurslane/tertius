@@ -13,14 +13,14 @@ public union CaptureTarget(PngFolder, VideoFile) : IEquatable<CaptureTarget>
 {
     // The held case decides equality, by the value equality of its record. Two cases of different types are never equal.
     // The built-in union has only the equality of ValueType, which reads the field by reflection, and no == operator.
-    public bool Equals(CaptureTarget other) => Equals(Value, other.Value);
+    public readonly bool Equals(CaptureTarget other) => Equals(Value, other.Value);
     public override bool Equals(object? obj) => obj is CaptureTarget other && Equals(other);
-    public override int GetHashCode() => Value?.GetHashCode() ?? 0;
+    public readonly override int GetHashCode() => Value?.GetHashCode() ?? 0;
     public static bool operator ==(CaptureTarget a, CaptureTarget b) => a.Equals(b);
     public static bool operator !=(CaptureTarget a, CaptureTarget b) => !a.Equals(b);
 
     // The built-in union's ToString gives only the name of the union.
-    public override string ToString() => Value?.ToString() ?? "CaptureTarget(none)";
+    public readonly override string ToString() => Value?.ToString() ?? "CaptureTarget(none)";
 }
 
 /// <summary>

@@ -1050,9 +1050,11 @@ internal sealed class FrameWorld : IDisposable
     {
         BodyKind.Ghost => GhostContactMotion(new(JoltNative.BodyId(body))),
         BodyKind.CharacterInner => MotionType.Dynamic,
-        BodyKind.Primary or BodyKind.Interior or BodyKind.None => JoltNative.BodyIsDynamic(body) != 0 ? MotionType.Dynamic
-            : JoltNative.BodyIsKinematic(body) != 0 ? MotionType.Kinematic
-            : MotionType.Static
+        BodyKind.Primary or BodyKind.Interior or BodyKind.None => JoltNative.BodyIsDynamic(body) != 0
+            ? MotionType.Dynamic
+            : JoltNative.BodyIsKinematic(body) != 0
+                ? MotionType.Kinematic
+                : MotionType.Static
     };
 
     /// <summary>

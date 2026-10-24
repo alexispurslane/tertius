@@ -175,14 +175,14 @@ public union ScriptStep(RunStep, PostStep, DumpStep, CaptureStep, CameraStep, Fi
 {
     // The held case decides equality, by the value equality of its record. Two cases of different types are never equal.
     // The built-in union has only the equality of ValueType, which reads the field by reflection, and no == operator.
-    public bool Equals(ScriptStep other) => Equals(Value, other.Value);
+    public readonly bool Equals(ScriptStep other) => Equals(Value, other.Value);
     public override bool Equals(object? obj) => obj is ScriptStep other && Equals(other);
-    public override int GetHashCode() => Value?.GetHashCode() ?? 0;
+    public readonly override int GetHashCode() => Value?.GetHashCode() ?? 0;
     public static bool operator ==(ScriptStep a, ScriptStep b) => a.Equals(b);
     public static bool operator !=(ScriptStep a, ScriptStep b) => !a.Equals(b);
 
     // The built-in union's ToString gives only the name of the union.
-    public override string ToString() => Value?.ToString() ?? "ScriptStep(none)";
+    public readonly override string ToString() => Value?.ToString() ?? "ScriptStep(none)";
 }
 
 /// <summary>Runs <paramref name="Ticks"/> ticks, at least 1.</summary>
@@ -294,14 +294,14 @@ public union MessageTarget(ToEntity, ToTopic, ToFrame, ToEveryone) : IEquatable<
 {
     // The held case decides equality, by the value equality of its record. Two cases of different types are never equal.
     // The built-in union has only the equality of ValueType, which reads the field by reflection, and no == operator.
-    public bool Equals(MessageTarget other) => Equals(Value, other.Value);
+    public readonly bool Equals(MessageTarget other) => Equals(Value, other.Value);
     public override bool Equals(object? obj) => obj is MessageTarget other && Equals(other);
-    public override int GetHashCode() => Value?.GetHashCode() ?? 0;
+    public readonly override int GetHashCode() => Value?.GetHashCode() ?? 0;
     public static bool operator ==(MessageTarget a, MessageTarget b) => a.Equals(b);
     public static bool operator !=(MessageTarget a, MessageTarget b) => !a.Equals(b);
 
     // The built-in union's ToString gives only the name of the union.
-    public override string ToString() => Value?.ToString() ?? "MessageTarget(none)";
+    public readonly override string ToString() => Value?.ToString() ?? "MessageTarget(none)";
 }
 
 /// <summary>The entity with the scene id <paramref name="Id"/>.</summary>

@@ -1,7 +1,6 @@
 using System.Numerics;
 using System.Reflection;
 using AwesomeAssertions;
-using Tertius.Testing;
 
 namespace Tertius.Simulation.Tests;
 

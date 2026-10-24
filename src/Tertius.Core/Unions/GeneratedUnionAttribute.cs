@@ -6,7 +6,7 @@ namespace Tertius;
 /// <c>Value</c>, a <c>TryGetValue</c> per case, equality and <c>ToString</c> (docs/plans/union-tooling.md).
 /// </summary>
 /// <param name="cases">The case types, all structs, in the order of their kinds.</param>
-[AttributeUsage(AttributeTargets.Struct, Inherited = false)]
+[AttributeUsage(AttributeTargets.Struct)]
 public sealed class GeneratedUnionAttribute(params Type[] cases) : Attribute
 {
     /// <summary>The case types, in the order of their kinds.</summary>

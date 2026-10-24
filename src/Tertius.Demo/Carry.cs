@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 using Silk.NET.Input;
 using Tertius.Simulation;
@@ -99,9 +100,11 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
                         charging = false;
                         Throw(self, outbox);
                         break;
-                    default:
+                    case MouseButtonChanged or KeyChanged or MouseMoved or Scrolled or null:
                         // Every other input does nothing.
                         break;
+                    default:
+                        throw new UnreachableException();
                 }
             }
         }

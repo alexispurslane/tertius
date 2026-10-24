@@ -53,7 +53,7 @@ internal readonly partial struct VelocityShadow
     public VelocityShadow Moved(Double3 offset, Double3 velocity) => this switch
     {
         // The first arm names the union, so that the null arm's default is the empty shadow, not a zero tracking.
-        ShadowTracking tracking => new VelocityShadow(tracking.Moved(offset, velocity)),
+        ShadowTracking tracking => new(tracking.Moved(offset, velocity)),
         null => default
     };
 }
