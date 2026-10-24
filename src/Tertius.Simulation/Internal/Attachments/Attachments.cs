@@ -172,17 +172,21 @@ internal sealed class Attachments
             // The chain is placed in the root's physics home, where positions near the root stay exact.
             DPose inHome = tree.World(links[child].Node);
             Double3 lever = inHome.Position - rootRow.HomePose.Position;
-            entities.SetBackTransform(child, new()
-            {
-                Frame = rootRow.Frame,
-                PhysicsHome = rootRow.PhysicsHome,
-                Pose = rootRow.PhysicsHome == rootRow.Frame
-                    ? inHome
-                    : new(rootRow.Pose.Position + lever, inHome.Rotation),
-                HomePosition = inHome.Position,
-                LinearVelocity = rootRow.LinearVelocity + Double3.Cross(rootRow.AngularVelocity, lever).ToVector3(),
-                AngularVelocity = rootRow.AngularVelocity
-            });
+            entities.SetBackTransform(
+                child,
+                new()
+                {
+                    Frame = rootRow.Frame,
+                    PhysicsHome = rootRow.PhysicsHome,
+                    Pose =
+                        rootRow.PhysicsHome == rootRow.Frame
+                            ? inHome
+                            : new(rootRow.Pose.Position + lever, inHome.Rotation),
+                    HomePosition = inHome.Position,
+                    LinearVelocity = rootRow.LinearVelocity + Double3.Cross(rootRow.AngularVelocity, lever).ToVector3(),
+                    AngularVelocity = rootRow.AngularVelocity,
+                }
+            );
         }
     }
 
@@ -305,7 +309,8 @@ internal sealed class Attachments
     {
         attached.AssertInvariants();
         ReadOnlySpan<Entity> attachedEntities = attached.Items;
-        int attachedCount = 0, nodes = 0;
+        int attachedCount = 0,
+            nodes = 0;
         foreach (Entity entity in entities.LiveEntities)
         {
             ref readonly Link link = ref links[entity];

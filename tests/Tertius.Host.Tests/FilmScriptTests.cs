@@ -14,16 +14,49 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class FilmScriptTests
 {
-    private static readonly Scene Drop = new("film-drop", (world, resources) =>
-    {
-        var scene = new SceneInstance();
-        FrameHandle ground = Ground(world, 9.81f);
-        Floor(world, ground);
-        scene.Add("ball", world.Spawn(new() { Frame = ground, Pose = At(0, 5), Body = Ball() }));
-        scene.Add("camera", world.Spawn(new() { Frame = ground, Pose = At(0, 2, 10), Render = new RenderData() }));
-        scene.Add("listener", world.Spawn(new() { Frame = ground, Pose = At(5, 1), Components = [new Recorder()] }));
-        return scene;
-    });
+    private static readonly Scene Drop = new(
+        "film-drop",
+        (world, resources) =>
+        {
+            var scene = new SceneInstance();
+            FrameHandle ground = Ground(world, 9.81f);
+            Floor(world, ground);
+            scene.Add(
+                "ball",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = ground,
+                        Pose = At(0, 5),
+                        Body = Ball(),
+                    }
+                )
+            );
+            scene.Add(
+                "camera",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = ground,
+                        Pose = At(0, 2, 10),
+                        Render = new RenderData(),
+                    }
+                )
+            );
+            scene.Add(
+                "listener",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = ground,
+                        Pose = At(5, 1),
+                        Components = [new Recorder()],
+                    }
+                )
+            );
+            return scene;
+        }
+    );
 
     private static readonly ScriptWindow Window = new(64, 36);
 
@@ -52,20 +85,31 @@ public sealed class FilmScriptTests
             new FilmSection(Name: "plain", Camera: "camera", Every: 1, Until: FilmSection.Now),
             new FilmSection(Name: "outlined", Camera: "camera", Every: 1, Until: FilmSection.Now, Outlines: true),
             new FilmSection(Name: "still-outlined", Camera: "camera", Every: 1, Until: FilmSection.Now, Outlines: true),
-            new FilmSection(Name: "plain-again", Camera: "camera", Every: 1, Until: FilmSection.Now));
+            new FilmSection(Name: "plain-again", Camera: "camera", Every: 1, Until: FilmSection.Now)
+        );
 
-        script.Steps.Should().Equal(
-            new CameraStep("camera"), new FilmStep("plain", 1, 1),
-            new OutlinesStep(true), new CameraStep("camera"), new FilmStep("outlined", 1, 1),
-            new CameraStep("camera"), new FilmStep("still-outlined", 1, 1),
-            new OutlinesStep(false), new CameraStep("camera"), new FilmStep("plain-again", 1, 1));
+        script
+            .Steps.Should()
+            .Equal(
+                new CameraStep("camera"),
+                new FilmStep("plain", 1, 1),
+                new OutlinesStep(true),
+                new CameraStep("camera"),
+                new FilmStep("outlined", 1, 1),
+                new CameraStep("camera"),
+                new FilmStep("still-outlined", 1, 1),
+                new OutlinesStep(false),
+                new CameraStep("camera"),
+                new FilmStep("plain-again", 1, 1)
+            );
     }
 
     [Fact]
     public void ASectionGoesOnForItsHoldAfterItsCue()
     {
-        Script script =
-            Generate(new FilmSection(Name: "drop", Camera: "camera", Every: 4, Until: AfterTick(101), Hold: 10));
+        Script script = Generate(
+            new FilmSection(Name: "drop", Camera: "camera", Every: 4, Until: AfterTick(101), Hold: 10)
+        );
 
         // 104 ticks to the cue, then 10 ticks of hold, which take three more frames of 4 ticks: 116 ticks in all.
         script.Steps[^1].Should().Be((ScriptStep)new FilmStep("drop", 29, 4));
@@ -76,19 +120,27 @@ public sealed class FilmScriptTests
     {
         Script script = Generate(
             new FilmSection(Name: "first", Camera: "camera", Every: 4, Until: AfterTick(101)),
-            new FilmSection(Name: "second", Camera: "camera", Every: 5, Until: AfterTick(150)));
+            new FilmSection(Name: "second", Camera: "camera", Every: 5, Until: AfterTick(150))
+        );
 
         // The second section starts after tick 104 and asks its cue after ticks 109, 114 and so on: it first holds after
         // tick 154, its 10th frame.
-        script.Steps.Should().Equal(new CameraStep("camera"), new FilmStep("first", 26, 4), new CameraStep("camera"),
-            new FilmStep("second", 10, 5));
+        script
+            .Steps.Should()
+            .Equal(
+                new CameraStep("camera"),
+                new FilmStep("first", 26, 4),
+                new CameraStep("camera"),
+                new FilmStep("second", 10, 5)
+            );
     }
 
     [Fact]
     public void ASectionWhoseCueHoldsAtItsStartFilmsOnlyItsHold()
     {
-        Script script =
-            Generate(new FilmSection(Name: "still", Camera: "camera", Every: 3, Until: FilmSection.Now, Hold: 30));
+        Script script = Generate(
+            new FilmSection(Name: "still", Camera: "camera", Every: 3, Until: FilmSection.Now, Hold: 30)
+        );
 
         script.Steps[^1].Should().Be((ScriptStep)new FilmStep("still", 10, 3));
     }
@@ -112,12 +164,24 @@ public sealed class FilmScriptTests
 
         Script script = Generate(
             new FilmSection(Name: "still", Camera: "camera", Every: 1, Until: FilmSection.Now, Hold: 10),
-            new FilmSection(Name: "ping", Camera: "camera", Every: 1,
+            new FilmSection(
+                Name: "ping",
+                Camera: "camera",
+                Every: 1,
                 Until: (world, scene) => world.GetComponent<Recorder>(scene["listener"])!.Seen.Count > 0,
-                Posts: [ping]));
+                Posts: [ping]
+            )
+        );
 
-        script.Steps.Should().Equal(new CameraStep("camera"), new FilmStep("still", 10, 1), new CameraStep("camera"),
-            ping, new FilmStep("ping", 2, 1));
+        script
+            .Steps.Should()
+            .Equal(
+                new CameraStep("camera"),
+                new FilmStep("still", 10, 1),
+                new CameraStep("camera"),
+                ping,
+                new FilmStep("ping", 2, 1)
+            );
     }
 
     [Fact]
@@ -125,7 +189,7 @@ public sealed class FilmScriptTests
     {
         Script script = Generate(new FilmSection(Name: "drop", Camera: "camera", Every: 2, Until: AfterTick(10)));
 
-        Script read = Script.Parse(script.ToJson());
+        var read = Script.Parse(script.ToJson());
 
         read.Scene.Should().Be("film-drop");
         read.Window.Should().Be(Window);
@@ -139,15 +203,28 @@ public sealed class FilmScriptTests
     [Fact]
     public void ARunOfTheGeneratedScriptReachesTheCueAtTheLastFrameOfItsSection()
     {
-        Script script = Generate(new FilmSection(Name: "drop", Camera: "camera", Every: 1,
-            Until: (world, scene) => BallHeight(world, scene) < 1));
-        using var world = new World(new() { DisposePhysics = true },
-            new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
+        Script script = Generate(
+            new FilmSection(
+                Name: "drop",
+                Camera: "camera",
+                Every: 1,
+                Until: (world, scene) => BallHeight(world, scene) < 1
+            )
+        );
+        using var world = new World(
+            new() { DisposePhysics = true },
+            new JoltPhysicsBackend(JoltBackendOptions.Unpaced)
+        );
         SceneInstance scene = Drop.Build(world, RenderResources.None);
         var heights = new List<double>();
 
-        ScriptRunner.Run(script: script, world: world, scene: scene, outputFolder: null,
-            playback: new Probe(() => heights.Add(BallHeight(world, scene))));
+        ScriptRunner.Run(
+            script: script,
+            world: world,
+            scene: scene,
+            outputFolder: null,
+            playback: new Probe(() => heights.Add(BallHeight(world, scene)))
+        );
 
         heights.Should().HaveCountGreaterThan(30, "the ball falls 4 m in about 0.9 s");
         heights[^1].Should().BeLessThan(1);
@@ -158,11 +235,20 @@ public sealed class FilmScriptTests
     public void ASectionWhoseCueNeverHoldsWithinItsLimitFailsWithItsName()
     {
         long lastAsked = -1;
-        Action generate = () => Generate(new FilmSection(Name: "never", Camera: "camera", Every: 1, Until: (world, _) =>
-        {
-            lastAsked = world.TickNumber;
-            return false;
-        }, Limit: 30));
+        Action generate = () =>
+            Generate(
+                new FilmSection(
+                    Name: "never",
+                    Camera: "camera",
+                    Every: 1,
+                    Until: (world, _) =>
+                    {
+                        lastAsked = world.TickNumber;
+                        return false;
+                    },
+                    Limit: 30
+                )
+            );
 
         generate.Should().Throw<InvalidOperationException>().WithMessage("*'never'*30 ticks*");
         lastAsked.Should().Be(30, "the generator asks the cue after each tick of its limit of 30, and then gives up");

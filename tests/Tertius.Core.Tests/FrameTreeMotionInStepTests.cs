@@ -31,17 +31,24 @@ public sealed class FrameTreeMotionInStepTests
 
     public FrameTreeMotionInStepTests()
     {
-        space = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
-            frameBounds: FrameBounds.Sphere(1e9f));
+        space = frames.Create(
+            frameOwner: new(1, 1),
+            parent: FrameHandle.Null,
+            localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f)
+        );
     }
 
     /// <summary>A new frame of a new owner in <paramref name="parent"/> at <paramref name="place"/>, with a hull of
     /// <paramref name="hull"/> or none.</summary>
     private FrameHandle Frame(FrameHandle parent, Double3 place, BodyMotion? hull = null)
     {
-        FrameHandle frame = frames.Create(frameOwner: new(nextOwner++, 1), parent: parent,
+        FrameHandle frame = frames.Create(
+            frameOwner: new(nextOwner++, 1),
+            parent: parent,
             localPose: new(place, DQuaternion.Identity),
-            frameBounds: FrameBounds.Sphere(1e4f));
+            frameBounds: FrameBounds.Sphere(1e4f)
+        );
         frames.SetHullMotion(frame, hull);
         return frame;
     }
@@ -81,23 +88,48 @@ public sealed class FrameTreeMotionInStepTests
         Double3.Distance(actual, expected).Should().BeLessThan(tolerance, $"{what}: {actual} is not {expected}");
 
     private static void ExpectNear(DQuaternion actual, DQuaternion expected, double tolerance, string what) =>
-        (2 * DQuaternion.Identity.AngularVelocityTo(actual * expected.Conjugate(), 2).Length).Should()
-        .BeLessThan(tolerance, $"{what}: {actual} is not {expected}");
+        (2 * DQuaternion.Identity.AngularVelocityTo(actual * expected.Conjugate(), 2).Length)
+            .Should()
+            .BeLessThan(tolerance, $"{what}: {actual} is not {expected}");
 
     private static void ExpectMotion(in FrameMotion actual, in FrameMotion expected, double tolerance, string which)
     {
-        ExpectNear(actual: actual.Pose.Position, expected: expected.Pose.Position, tolerance: tolerance,
-            what: $"{which} place");
-        ExpectNear(actual: actual.Pose.Rotation, expected: expected.Pose.Rotation, tolerance: tolerance,
-            what: $"{which} rotation");
-        ExpectNear(actual: actual.Velocity, expected: expected.Velocity, tolerance: tolerance,
-            what: $"{which} velocity");
-        ExpectNear(actual: actual.AngularVelocity, expected: expected.AngularVelocity, tolerance: tolerance,
-            what: $"{which} angular velocity");
-        ExpectNear(actual: actual.Acceleration, expected: expected.Acceleration, tolerance: tolerance,
-            what: $"{which} acceleration");
-        ExpectNear(actual: actual.AngularAcceleration, expected: expected.AngularAcceleration, tolerance: tolerance,
-            what: $"{which} angular acceleration");
+        ExpectNear(
+            actual: actual.Pose.Position,
+            expected: expected.Pose.Position,
+            tolerance: tolerance,
+            what: $"{which} place"
+        );
+        ExpectNear(
+            actual: actual.Pose.Rotation,
+            expected: expected.Pose.Rotation,
+            tolerance: tolerance,
+            what: $"{which} rotation"
+        );
+        ExpectNear(
+            actual: actual.Velocity,
+            expected: expected.Velocity,
+            tolerance: tolerance,
+            what: $"{which} velocity"
+        );
+        ExpectNear(
+            actual: actual.AngularVelocity,
+            expected: expected.AngularVelocity,
+            tolerance: tolerance,
+            what: $"{which} angular velocity"
+        );
+        ExpectNear(
+            actual: actual.Acceleration,
+            expected: expected.Acceleration,
+            tolerance: tolerance,
+            what: $"{which} acceleration"
+        );
+        ExpectNear(
+            actual: actual.AngularAcceleration,
+            expected: expected.AngularAcceleration,
+            tolerance: tolerance,
+            what: $"{which} angular acceleration"
+        );
     }
 
     // ---- Each kind of level -------------------------------------------------------------------------------------
@@ -107,19 +139,30 @@ public sealed class FrameTreeMotionInStepTests
     {
         FrameHandle cart = Frame(space, Double3.Zero);
         RunStep(Intents((cart, EndingAt(new(1, 0, 0)))));
-        DQuaternion turned = DQuaternion.FromAxisAngle(Double3.UnitZ, 0.6);
+        var turned = DQuaternion.FromAxisAngle(Double3.UnitZ, 0.6);
 
-        (FrameMotion start, FrameMotion end) =
-            frames.MotionRelativeInStep(of: cart, to: space,
-                stepIntents: Intents((cart, EndingAt(new(3, 0, 0), turned))), step: Step);
+        (FrameMotion start, FrameMotion end) = frames.MotionRelativeInStep(
+            of: cart,
+            to: space,
+            stepIntents: Intents((cart, EndingAt(new(3, 0, 0), turned))),
+            step: Step
+        );
 
-        var row = new FrameMotion(Pose: new(new(1, 0, 0), DQuaternion.Identity), Velocity: new(60, 0, 0),
-            AngularVelocity: Double3.Zero, Acceleration: Double3.Zero,
-            AngularAcceleration: Double3.Zero);
+        var row = new FrameMotion(
+            Pose: new(new(1, 0, 0), DQuaternion.Identity),
+            Velocity: new(60, 0, 0),
+            AngularVelocity: Double3.Zero,
+            Acceleration: Double3.Zero,
+            AngularAcceleration: Double3.Zero
+        );
         ExpectMotion(actual: start, expected: row, tolerance: 1e-9, which: "the start's");
-        var record = new FrameMotion(Pose: new(new(3, 0, 0), turned), Velocity: new(120, 0, 0),
+        var record = new FrameMotion(
+            Pose: new(new(3, 0, 0), turned),
+            Velocity: new(120, 0, 0),
             AngularVelocity: DQuaternion.Identity.AngularVelocityTo(turned, Step),
-            Acceleration: Double3.Zero, AngularAcceleration: Double3.Zero);
+            Acceleration: Double3.Zero,
+            AngularAcceleration: Double3.Zero
+        );
         ExpectMotion(actual: end, expected: record, tolerance: 1e-9, which: "the end's");
     }
 
@@ -128,17 +171,34 @@ public sealed class FrameTreeMotionInStepTests
     {
         FrameHandle ship = Frame(space, Double3.Zero);
         RunStep(Intents((ship, EndingAt(new(1, 0, 0)))));
-        var sample = new MotionSample(Pose: new(new(2, 0.5, 0), DQuaternion.FromAxisAngle(Double3.UnitX, 0.2)),
-            ChordVelocity: new(60, 30, 0), Velocity: new(61, 30.5, 0), Acceleration: new(120, 60, -3),
-            AngularVelocity: new(12, 0, 0.5), AngularAcceleration: new(0.4, -0.2, 0.1));
+        var sample = new MotionSample(
+            Pose: new(new(2, 0.5, 0), DQuaternion.FromAxisAngle(Double3.UnitX, 0.2)),
+            ChordVelocity: new(60, 30, 0),
+            Velocity: new(61, 30.5, 0),
+            Acceleration: new(120, 60, -3),
+            AngularVelocity: new(12, 0, 0.5),
+            AngularAcceleration: new(0.4, -0.2, 0.1)
+        );
 
-        (_, FrameMotion end) = frames.MotionRelativeInStep(of: ship, to: space,
-            stepIntents: Intents((ship, Moving(sample))), step: Step);
+        (_, FrameMotion end) = frames.MotionRelativeInStep(
+            of: ship,
+            to: space,
+            stepIntents: Intents((ship, Moving(sample))),
+            step: Step
+        );
 
-        ExpectMotion(actual: end,
-            expected: new(Pose: sample.Pose, Velocity: sample.Velocity, AngularVelocity: sample.AngularVelocity,
-                Acceleration: sample.Acceleration, AngularAcceleration: sample.AngularAcceleration),
-            tolerance: 1e-9, which: "the end's");
+        ExpectMotion(
+            actual: end,
+            expected: new(
+                Pose: sample.Pose,
+                Velocity: sample.Velocity,
+                AngularVelocity: sample.AngularVelocity,
+                Acceleration: sample.Acceleration,
+                AngularAcceleration: sample.AngularAcceleration
+            ),
+            tolerance: 1e-9,
+            which: "the end's"
+        );
     }
 
     [Fact]
@@ -148,14 +208,26 @@ public sealed class FrameTreeMotionInStepTests
         FrameHandle room = Frame(space, Double3.Zero);
         RunStep(Intents((room, EndingAt(new(1, 0, 0)))));
 
-        (FrameMotion start, FrameMotion end) =
-            frames.MotionRelativeInStep(of: room, to: space, stepIntents: Intents(), step: Step);
+        (FrameMotion start, FrameMotion end) = frames.MotionRelativeInStep(
+            of: room,
+            to: space,
+            stepIntents: Intents(),
+            step: Step
+        );
 
         ExpectNear(actual: start.Velocity, expected: new(60, 0, 0), tolerance: 1e-9, what: "the start's velocity");
-        ExpectMotion(actual: end,
-            expected: new(Pose: new(new(1, 0, 0), DQuaternion.Identity), Velocity: Double3.Zero,
-                AngularVelocity: Double3.Zero, Acceleration: Double3.Zero, AngularAcceleration: Double3.Zero),
-            tolerance: 1e-12, which: "the end's");
+        ExpectMotion(
+            actual: end,
+            expected: new(
+                Pose: new(new(1, 0, 0), DQuaternion.Identity),
+                Velocity: Double3.Zero,
+                AngularVelocity: Double3.Zero,
+                Acceleration: Double3.Zero,
+                AngularAcceleration: Double3.Zero
+            ),
+            tolerance: 1e-12,
+            which: "the end's"
+        );
     }
 
     [Fact]
@@ -166,23 +238,39 @@ public sealed class FrameTreeMotionInStepTests
         var teleport = new DPose(new(10, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, 0.3));
         PhysicsIntent intent = EndingAt(new(11, 0, 0), teleport.Rotation) with
         {
-            Flags = IntentFlags.Teleport, TeleportPose = teleport
+            Flags = IntentFlags.Teleport,
+            TeleportPose = teleport,
         };
 
-        (FrameMotion start, FrameMotion end) =
-            frames.MotionRelativeInStep(of: cart, to: space, stepIntents: Intents((cart, intent)), step: Step);
+        (FrameMotion start, FrameMotion end) = frames.MotionRelativeInStep(
+            of: cart,
+            to: space,
+            stepIntents: Intents((cart, intent)),
+            step: Step
+        );
 
-        ExpectNear(actual: start.Pose.Position, expected: teleport.Position, tolerance: 1e-12,
-            what: "the start's place");
-        ExpectNear(actual: start.Pose.Rotation, expected: teleport.Rotation, tolerance: 1e-12,
-            what: "the start's rotation");
-        ExpectNear(actual: end.Velocity, expected: new(60, 0, 0), tolerance: 1e-9,
-            what: "the end pose's record runs from the teleport");
+        ExpectNear(
+            actual: start.Pose.Position,
+            expected: teleport.Position,
+            tolerance: 1e-12,
+            what: "the start's place"
+        );
+        ExpectNear(
+            actual: start.Pose.Rotation,
+            expected: teleport.Rotation,
+            tolerance: 1e-12,
+            what: "the start's rotation"
+        );
+        ExpectNear(
+            actual: end.Velocity,
+            expected: new(60, 0, 0),
+            tolerance: 1e-9,
+            what: "the end pose's record runs from the teleport"
+        );
     }
 
     [Fact]
-    public void
-        ALevelWithADynamicHullEndsTheStepWherePhysicsCarriesItFromItsRowUnderItsProperAccelerationAndTheParentsGravityAndRotationTerms()
+    public void ALevelWithADynamicHullEndsTheStepWherePhysicsCarriesItFromItsRowUnderItsProperAccelerationAndTheParentsGravityAndRotationTerms()
     {
         // The ship's hull moves outward along +X at 1 m/s at 50 m from the station's axis, thrusts along its +Y, and spins
         // up about +Z. Jolt adds the acceleration to the velocity and then moves the body by the new velocity, so from the
@@ -192,25 +280,36 @@ public sealed class FrameTreeMotionInStepTests
         // station turns steadily, so it has no Euler term.
         FrameHandle station = Frame(space, Double3.Zero);
         FrameHandle ship = Frame(station, Double3.Zero, BodyMotion.Dynamic);
-        var record = new MotionSample(Pose: new(new(50, 0, 0), DQuaternion.Identity), ChordVelocity: new(1, 0, 0),
+        var record = new MotionSample(
+            Pose: new(new(50, 0, 0), DQuaternion.Identity),
+            ChordVelocity: new(1, 0, 0),
             Velocity: new(1, 0, 0),
             Acceleration: Double3.Zero,
-            AngularVelocity: new(0, 0, 0.2), AngularAcceleration: new(0, 0, 0.1));
+            AngularVelocity: new(0, 0, 0.2),
+            AngularAcceleration: new(0, 0, 0.1)
+        );
         var thrust = new Vector3(0, 0.5f, 0);
         for (int k = 1; k <= 2; k++)
             RunStep(Intents((station, Spinning(k * Step))), new StepOwners().WithHullRecord(ship, record, thrust));
 
-        (_, FrameMotion end) = frames.MotionRelativeInStep(of: ship, to: station,
-            stepIntents: Intents((station, Spinning(3 * Step))), step: Step);
+        (_, FrameMotion end) = frames.MotionRelativeInStep(
+            of: ship,
+            to: station,
+            stepIntents: Intents((station, Spinning(3 * Step))),
+            step: Step
+        );
 
         Double3 spin = frames.AngularVelocity(ship) + new Double3(0, 0, 0.1) * Step;
-        DQuaternion rotation = DQuaternion.FromAxisAngle(spin, spin.Length * Step);
-        Double3 acceleration = rotation.Rotate((Double3)thrust) +
-                               new Double3(StationRate * StationRate * 50, 0, 2 * StationRate);
+        var rotation = DQuaternion.FromAxisAngle(spin, spin.Length * Step);
+        Double3 acceleration =
+            rotation.Rotate((Double3)thrust) + new Double3(StationRate * StationRate * 50, 0, 2 * StationRate);
         var expected = new FrameMotion(
             Pose: new(new Double3(50, 0, 0) + (new Double3(1, 0, 0) + acceleration * (Step / 2)) * Step, rotation),
-            Velocity: new Double3(1, 0, 0) + acceleration * Step, AngularVelocity: spin, Acceleration: acceleration,
-            AngularAcceleration: new(0, 0, 0.1));
+            Velocity: new Double3(1, 0, 0) + acceleration * Step,
+            AngularVelocity: spin,
+            Acceleration: acceleration,
+            AngularAcceleration: new(0, 0, 0.1)
+        );
         ExpectMotion(actual: end, expected: expected, tolerance: 1e-9, which: "the end's");
     }
 
@@ -224,13 +323,21 @@ public sealed class FrameTreeMotionInStepTests
         bool[] dying = new bool[nextOwner];
         dying[cart.Entity.Index] = true;
 
-        (FrameMotion start, FrameMotion end) =
-            frames.MotionRelativeInStep(of: cart, to: space, stepIntents: Intents((cart, EndingAt(new(3, 0, 0)))),
-                step: Step, dying: dying);
+        (FrameMotion start, FrameMotion end) = frames.MotionRelativeInStep(
+            of: cart,
+            to: space,
+            stepIntents: Intents((cart, EndingAt(new(3, 0, 0)))),
+            step: Step,
+            dying: dying
+        );
 
-        var row = new FrameMotion(Pose: new(new(1, 0, 0), DQuaternion.Identity), Velocity: new(60, 0, 0),
-            AngularVelocity: Double3.Zero, Acceleration: Double3.Zero,
-            AngularAcceleration: Double3.Zero);
+        var row = new FrameMotion(
+            Pose: new(new(1, 0, 0), DQuaternion.Identity),
+            Velocity: new(60, 0, 0),
+            AngularVelocity: Double3.Zero,
+            Acceleration: Double3.Zero,
+            AngularAcceleration: Double3.Zero
+        );
         ExpectMotion(actual: start, expected: row, tolerance: 1e-12, which: "the start's");
         ExpectMotion(actual: end, expected: row, tolerance: 1e-12, which: "the end's");
     }
@@ -247,20 +354,38 @@ public sealed class FrameTreeMotionInStepTests
             RunStep(Intents((station, Spinning(k * Step))));
         MotionSample stationEnd = StationSpin.Sample(Double3.Zero, 3 * Step);
 
-        (_, FrameMotion end) = frames.MotionRelativeInStep(of: room, to: space,
-            stepIntents: Intents((station, Spinning(3 * Step))), step: Step);
+        (_, FrameMotion end) = frames.MotionRelativeInStep(
+            of: room,
+            to: space,
+            stepIntents: Intents((station, Spinning(3 * Step))),
+            step: Step
+        );
 
         DQuaternion axes = stationEnd.Pose.Rotation;
-        ExpectNear(actual: end.Pose.Position, expected: axes.Rotate(new Double3(radius, 0, 0)), tolerance: 1e-12,
-            what: "the place");
-        ExpectNear(actual: end.Velocity, expected: axes.Rotate(new Double3(0, 0, -StationRate * radius)),
+        ExpectNear(
+            actual: end.Pose.Position,
+            expected: axes.Rotate(new Double3(radius, 0, 0)),
             tolerance: 1e-12,
-            what: "the velocity on the circle");
-        ExpectNear(actual: end.Acceleration,
-            expected: axes.Rotate(new Double3(-StationRate * StationRate * radius, 0, 0)), tolerance: 1e-12,
-            what: "the acceleration toward the axis");
-        ExpectNear(actual: end.AngularVelocity, expected: new(0, StationRate, 0), tolerance: 1e-12,
-            what: "the station's spin");
+            what: "the place"
+        );
+        ExpectNear(
+            actual: end.Velocity,
+            expected: axes.Rotate(new Double3(0, 0, -StationRate * radius)),
+            tolerance: 1e-12,
+            what: "the velocity on the circle"
+        );
+        ExpectNear(
+            actual: end.Acceleration,
+            expected: axes.Rotate(new Double3(-StationRate * StationRate * radius, 0, 0)),
+            tolerance: 1e-12,
+            what: "the acceleration toward the axis"
+        );
+        ExpectNear(
+            actual: end.AngularVelocity,
+            expected: new(0, StationRate, 0),
+            tolerance: 1e-12,
+            what: "the station's spin"
+        );
     }
 
     [Fact]
@@ -273,13 +398,26 @@ public sealed class FrameTreeMotionInStepTests
             RunStep(Intents((station, Spinning(k * Step)), (cart, EndingAt(new(k, 0, 0)))));
         PhysicsIntent[] next = Intents((station, Spinning(3 * Step)), (cart, EndingAt(new(3, 0.5, 0))));
 
-        (FrameMotion upStart, FrameMotion upEnd) =
-            frames.MotionRelativeInStep(of: cart, to: space, stepIntents: next, step: Step);
-        (FrameMotion downStart, FrameMotion downEnd) =
-            frames.MotionRelativeInStep(of: space, to: cart, stepIntents: next, step: Step);
+        (FrameMotion upStart, FrameMotion upEnd) = frames.MotionRelativeInStep(
+            of: cart,
+            to: space,
+            stepIntents: next,
+            step: Step
+        );
+        (FrameMotion downStart, FrameMotion downEnd) = frames.MotionRelativeInStep(
+            of: space,
+            to: cart,
+            stepIntents: next,
+            step: Step
+        );
 
-        var rest = new FrameMotion(Pose: DPose.Identity, Velocity: Double3.Zero, AngularVelocity: Double3.Zero,
-            Acceleration: Double3.Zero, AngularAcceleration: Double3.Zero);
+        var rest = new FrameMotion(
+            Pose: DPose.Identity,
+            Velocity: Double3.Zero,
+            AngularVelocity: Double3.Zero,
+            Acceleration: Double3.Zero,
+            AngularAcceleration: Double3.Zero
+        );
         ExpectMotion(actual: downStart.MotionToParent(upStart), expected: rest, tolerance: 1e-9, which: "the start's");
         ExpectMotion(actual: downEnd.MotionToParent(upEnd), expected: rest, tolerance: 1e-9, which: "the end's");
     }
@@ -290,18 +428,29 @@ public sealed class FrameTreeMotionInStepTests
         // The parts of an intent that convert by the start, such as a teleport and the forces, keep the tree's relation exactly.
         // The two frames' root is far from the origin of the virtual root and turned, so a path through the virtual root
         // would round otherwise.
-        FrameHandle root = frames.Create(frameOwner: new(nextOwner++, 1), parent: FrameHandle.Null,
+        FrameHandle root = frames.Create(
+            frameOwner: new(nextOwner++, 1),
+            parent: FrameHandle.Null,
             localPose: new(new(3e7, -2e6, 5e5), DQuaternion.FromAxisAngle(new Double3(1, 2, 3).Normalized(), 0.7)),
-            frameBounds: FrameBounds.Sphere(1e9f));
+            frameBounds: FrameBounds.Sphere(1e9f)
+        );
         FrameHandle station = Frame(root, new(1e6, -3e5, 2e4));
         FrameHandle room = Frame(station, new(100, 0, 3));
         FrameHandle cart = Frame(root, new(-5e5, 7, 1));
         for (int k = 1; k <= 2; k++)
-            RunStep(Intents((station, Spinning(k * Step)),
-                (cart, EndingAt(new(-5e5 + k, 7, 1), DQuaternion.FromAxisAngle(Double3.UnitX, 0.1 * k)))));
+            RunStep(
+                Intents(
+                    (station, Spinning(k * Step)),
+                    (cart, EndingAt(new(-5e5 + k, 7, 1), DQuaternion.FromAxisAngle(Double3.UnitX, 0.1 * k)))
+                )
+            );
 
-        (FrameMotion start, _) = frames.MotionRelativeInStep(of: room, to: cart,
-            stepIntents: Intents((station, Spinning(3 * Step))), step: Step);
+        (FrameMotion start, _) = frames.MotionRelativeInStep(
+            of: room,
+            to: cart,
+            stepIntents: Intents((station, Spinning(3 * Step))),
+            step: Step
+        );
 
         start.Pose.Should().Be(frames.Relative(room, cart));
     }
@@ -317,7 +466,9 @@ public sealed class FrameTreeMotionInStepTests
         PhysicsIntent[] next = Intents((station, Spinning(3 * Step)), (cart, EndingAt(new(0, 3, 50))));
         frames.MotionRelativeInStep(of: room, to: cart, stepIntents: next, step: Step);
 
-        Allocations.Fewest(() => frames.MotionRelativeInStep(of: room, to: cart, stepIntents: next, step: Step))
-            .Should().Be(0);
+        Allocations
+            .Fewest(() => frames.MotionRelativeInStep(of: room, to: cart, stepIntents: next, step: Step))
+            .Should()
+            .Be(0);
     }
 }

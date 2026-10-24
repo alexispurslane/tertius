@@ -15,7 +15,9 @@ public sealed class AirlockTests : IDisposable
 
     private readonly World world = NewJoltWorld();
     private readonly FrameHandle room;
-    private readonly Entity inner, outer, airlock;
+    private readonly Entity inner,
+        outer,
+        airlock;
 
     public AirlockTests()
     {
@@ -29,30 +31,43 @@ public sealed class AirlockTests : IDisposable
     /// Spawns an airlock with its inner door at z = 0 and its outer door at z = 3, at <paramref name="x"/> in the room. With
     /// <paramref name="outerOpenAtStart"/>, the airlock opens its outer door when it starts.
     /// </summary>
-    private (Entity Inner, Entity Outer, Entity Airlock) SpawnAirlock(double x, float cycleSeconds,
-        bool outerOpenAtStart = false)
+    private (Entity Inner, Entity Outer, Entity Airlock) SpawnAirlock(
+        double x,
+        float cycleSeconds,
+        bool outerOpenAtStart = false
+    )
     {
-        Entity innerDoor = SpawnDoor(x, z: 0), outerDoor = SpawnDoor(x, z: 3);
-        Entity cycler = world.Spawn(new()
-        {
-            Frame = room,
-            Pose = new(new(x, 1, 1.5), DQuaternion.Identity),
-            Components =
-            [
-                new Airlock(innerDoor: innerDoor, outerDoor: outerDoor, cycleSeconds: cycleSeconds,
-                    outerOpenAtStart: outerOpenAtStart)
-            ]
-        });
+        Entity innerDoor = SpawnDoor(x, z: 0),
+            outerDoor = SpawnDoor(x, z: 3);
+        Entity cycler = world.Spawn(
+            new()
+            {
+                Frame = room,
+                Pose = new(new(x, 1, 1.5), DQuaternion.Identity),
+                Components =
+                [
+                    new Airlock(
+                        innerDoor: innerDoor,
+                        outerDoor: outerDoor,
+                        cycleSeconds: cycleSeconds,
+                        outerOpenAtStart: outerOpenAtStart
+                    ),
+                ],
+            }
+        );
         return (innerDoor, outerDoor, cycler);
     }
 
-    private Entity SpawnDoor(double x, double z) => world.Spawn(new()
-    {
-        Frame = room,
-        Pose = new(new(x, 1, z), DQuaternion.Identity),
-        Body = new(Shape: new BoxShapeDesc(new(0.6f, 1, 0.05f)), Motion: BodyMotion.Kinematic),
-        Components = [new Door(new(0, 2, 0), openSeconds: 0.5f)]
-    });
+    private Entity SpawnDoor(double x, double z) =>
+        world.Spawn(
+            new()
+            {
+                Frame = room,
+                Pose = new(new(x, 1, z), DQuaternion.Identity),
+                Body = new(Shape: new BoxShapeDesc(new(0.6f, 1, 0.05f)), Motion: BodyMotion.Kinematic),
+                Components = [new Door(new(0, 2, 0), openSeconds: 0.5f)],
+            }
+        );
 
     private void Ticks(int count)
     {
@@ -98,8 +113,11 @@ public sealed class AirlockTests : IDisposable
     [Fact]
     public void AUseCyclesAnAirlockThatStartsOpenToTheOutsideBackToItsInnerDoor()
     {
-        (Entity innerDoor, Entity outerDoor, Entity cycler) =
-            SpawnAirlock(x: 5, cycleSeconds: 1, outerOpenAtStart: true);
+        (Entity innerDoor, Entity outerDoor, Entity cycler) = SpawnAirlock(
+            x: 5,
+            cycleSeconds: 1,
+            outerOpenAtStart: true
+        );
         Ticks(Second);
         Use(cycler);
         Ticks(Second * 3 / 4);
@@ -193,15 +211,20 @@ public sealed class AirlockTests : IDisposable
     {
         Action create = () => _ = new Airlock(innerDoor: inner, outerDoor: outer, cycleSeconds: cycleSeconds);
 
-        create.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("cycleSeconds")
+        create
+            .Should()
+            .Throw<ArgumentOutOfRangeException>()
+            .WithParameterName("cycleSeconds")
             .WithMessage("*cycle time*positive and finite*");
     }
 
     [Theory]
     [InlineData(Second, false)]
     [InlineData(Second + 1, true)]
-    public void AUseStartsAnotherCycleOnlyFromTheFirstTickAfterTheCycleHasEnded(int ticksAfterTheFirstUse,
-        bool startsACycle)
+    public void AUseStartsAnotherCycleOnlyFromTheFirstTickAfterTheCycleHasEnded(
+        int ticksAfterTheFirstUse,
+        bool startsACycle
+    )
     {
         Ticks(Second);
         Use();

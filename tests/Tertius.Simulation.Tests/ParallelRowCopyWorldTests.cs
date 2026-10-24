@@ -63,12 +63,14 @@ public sealed class ParallelRowCopyWorldTests
             }
 
             if (Next() < 0.01)
-                self.Spawn(new()
-                {
-                    Frame = self.Frame,
-                    Pose = pose,
-                    Components = [new Wanderer { Rng = Rng | 1 }]
-                });
+                self.Spawn(
+                    new()
+                    {
+                        Frame = self.Frame,
+                        Pose = pose,
+                        Components = [new Wanderer { Rng = Rng | 1 }],
+                    }
+                );
             if (Next() < 0.01)
                 self.Destroy();
         }
@@ -76,32 +78,40 @@ public sealed class ParallelRowCopyWorldTests
 
     private static ulong Run(int maxDop)
     {
-        using var world = new World(new()
-        {
-            MaxDegreeOfParallelism = maxDop,
-            ChunkSize = 8,
-            SpawnPoolSize = 8,
-            DebugChecks = true
-        });
+        using var world = new World(
+            new()
+            {
+                MaxDegreeOfParallelism = maxDop,
+                ChunkSize = 8,
+                SpawnPoolSize = 8,
+                DebugChecks = true,
+            }
+        );
         world.Entities.ParallelCopyThreshold = 1;
         FrameHandle root = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         var random = new Random(20261018);
         for (int i = 0; i < 120; i++)
-            world.Spawn(new()
-            {
-                Frame = root,
-                Pose = TestWorld.At(random.NextDouble() * 40 - 20, 0, random.NextDouble() * 40 - 20),
-                Render = new RenderData { Mesh = new(i % 3), Flags = RenderFlags.Visible },
-                Components = [new Wanderer { Rng = (ulong)random.NextInt64() | 1 }]
-            });
+            world.Spawn(
+                new()
+                {
+                    Frame = root,
+                    Pose = TestWorld.At(random.NextDouble() * 40 - 20, 0, random.NextDouble() * 40 - 20),
+                    Render = new RenderData { Mesh = new(i % 3), Flags = RenderFlags.Visible },
+                    Components = [new Wanderer { Rng = (ulong)random.NextInt64() | 1 }],
+                }
+            );
         for (int tick = 0; tick < 60; tick++)
             world.Tick();
-        return WorldHash.Of(world, static (soFar, component) => component switch
-        {
-            Wanderer w => WorldHash.Mix(WorldHash.Mix(soFar, w.Hash), w.Rng),
-            Metal => WorldHash.Mix(soFar, 7),
-            _ => soFar
-        });
+        return WorldHash.Of(
+            world,
+            static (soFar, component) =>
+                component switch
+                {
+                    Wanderer w => WorldHash.Mix(WorldHash.Mix(soFar, w.Hash), w.Rng),
+                    Metal => WorldHash.Mix(soFar, 7),
+                    _ => soFar,
+                }
+        );
     }
 
     [Fact]

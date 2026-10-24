@@ -57,14 +57,22 @@ public sealed class MotionIntentGuardTests
     }
 
     /// <summary>The motion intent of the write <paramref name="write"/> at <see cref="Turned"/>.</summary>
-    private static MotionIntent Move(string write) => write switch
-    {
-        "end pose" => new(new EndPose(Turned)),
-        "full sample" => new(new MotionSample(Pose: Turned, ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
-            Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
-            AngularAcceleration: Double3.Zero)),
-        _ => new(new SteerTarget(Turned))
-    };
+    private static MotionIntent Move(string write) =>
+        write switch
+        {
+            "end pose" => new(new EndPose(Turned)),
+            "full sample" => new(
+                new MotionSample(
+                    Pose: Turned,
+                    ChordVelocity: Double3.Zero,
+                    Velocity: Double3.Zero,
+                    Acceleration: Double3.Zero,
+                    AngularVelocity: Double3.Zero,
+                    AngularAcceleration: Double3.Zero
+                )
+            ),
+            _ => new(new SteerTarget(Turned)),
+        };
 
     /// <summary>Writes <paramref name="move"/> through the writer of its case.</summary>
     private static void Write(Self self, in MotionIntent move)
@@ -101,26 +109,53 @@ public sealed class MotionIntentGuardTests
     /// The entity of the kind <paramref name="kind"/> in <paramref name="space"/>: a body of a motion, as a plain body or as a
     /// frame's hull, a character, an attached entity, an entity without a body, or the owner of a root frame.
     /// </summary>
-    private static Entity Spawn(World world, FrameHandle space, string kind) => kind switch
-    {
-        "dynamic plain body" => world.Spawn(new() { Frame = space, Body = Ball() }),
-        "dynamic hull" => world.Spawn(new() { Frame = space, Body = Box(BodyMotion.Dynamic), AsFrame = SmallBubble }),
-        "static plain body" => world.Spawn(new() { Frame = space, Body = Ball() with { Motion = BodyMotion.Static } }),
-        "static hull" => world.Spawn(new() { Frame = space, Body = Box(BodyMotion.Static), AsFrame = SmallBubble }),
-        "kinematic plain body" => world.Spawn(new()
-            { Frame = space, Body = Ball() with { Motion = BodyMotion.Kinematic } }),
-        "kinematic hull" => world.Spawn(
-            new() { Frame = space, Body = Box(BodyMotion.Kinematic), AsFrame = SmallBubble }),
-        "character" => world.Spawn(new()
+    private static Entity Spawn(World world, FrameHandle space, string kind) =>
+        kind switch
         {
-            Frame = space, Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70)
-        }),
-        "attached entity" => world.Spawn(new() { AttachTo = world.Spawn(new() { Frame = space }) }),
-        "entity without a body" => world.Spawn(new() { Frame = space }),
-        "owner of a root frame" => world.Spawn(new() { Body = Box(BodyMotion.Static), AsFrame = SmallBubble }),
-        "owner of a root frame without a body" => world.Spawn(new() { AsFrame = SmallBubble }),
-        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "no such kind")
-    };
+            "dynamic plain body" => world.Spawn(new() { Frame = space, Body = Ball() }),
+            "dynamic hull" => world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Body = Box(BodyMotion.Dynamic),
+                    AsFrame = SmallBubble,
+                }
+            ),
+            "static plain body" => world.Spawn(
+                new() { Frame = space, Body = Ball() with { Motion = BodyMotion.Static } }
+            ),
+            "static hull" => world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Body = Box(BodyMotion.Static),
+                    AsFrame = SmallBubble,
+                }
+            ),
+            "kinematic plain body" => world.Spawn(
+                new() { Frame = space, Body = Ball() with { Motion = BodyMotion.Kinematic } }
+            ),
+            "kinematic hull" => world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Body = Box(BodyMotion.Kinematic),
+                    AsFrame = SmallBubble,
+                }
+            ),
+            "character" => world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70),
+                }
+            ),
+            "attached entity" => world.Spawn(new() { AttachTo = world.Spawn(new() { Frame = space }) }),
+            "entity without a body" => world.Spawn(new() { Frame = space }),
+            "owner of a root frame" => world.Spawn(new() { Body = Box(BodyMotion.Static), AsFrame = SmallBubble }),
+            "owner of a root frame without a body" => world.Spawn(new() { AsFrame = SmallBubble }),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "no such kind"),
+        };
 
     /// <summary>
     /// A component of <paramref name="kind"/> writes <paramref name="write"/>. The writer throws an
@@ -138,11 +173,19 @@ public sealed class MotionIntentGuardTests
         Exception? refusal = InATick(world, entity, self => Write(self, move));
 
         string? problem = world.MotionIntentProblem(entity, move);
-        problem.Should().NotBeNull().And
-            .Match(reason, "the guard's read gives the reason that {0} refuses {1}", kind, write);
-        refusal.Should().BeOfType<InvalidOperationException>().Which.Message.Should().Contain(entity.ToString()).And
-            .Contain(problem!);
-        world.Entities.NextStepIntent(entity).Move.HasValue.Should()
+        problem
+            .Should()
+            .NotBeNull()
+            .And.Match(reason, "the guard's read gives the reason that {0} refuses {1}", kind, write);
+        refusal
+            .Should()
+            .BeOfType<InvalidOperationException>()
+            .Which.Message.Should()
+            .Contain(entity.ToString())
+            .And.Contain(problem);
+        world
+            .Entities.NextStepIntent(entity)
+            .Move.HasValue.Should()
             .BeFalse("a refused write leaves the next step no motion intent");
         world.Errors.Should().BeEmpty();
     }
@@ -224,27 +267,36 @@ public sealed class MotionIntentGuardTests
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         var line = new EndPoses(new(2, 0, 0));
-        FrameHandle frame = world.GetOwnedFrame(world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = At(0, 10),
-            Body = Box(BodyMotion.Kinematic),
-            AsFrame = new(FrameBounds.Sphere(5)),
-            Components = [line]
-        }));
+        FrameHandle frame = world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = At(0, 10),
+                    Body = Box(BodyMotion.Kinematic),
+                    AsFrame = new(FrameBounds.Sphere(5)),
+                    Components = [line],
+                }
+            )
+        );
 
         for (int i = 0; i < 20; i++)
         {
             world.Tick();
             if (world.TickNumber < 3)
                 continue;
-            world.Frames.LocalPose(frame).Should().Be(line.Written[world.TickNumber - 2],
-                "the hull ends each step exactly on its end pose");
-            (world.Frames.LinearVelocity(frame) - new Double3(2, 0, 0)).Length.Should()
+            world
+                .Frames.LocalPose(frame)
+                .Should()
+                .Be(line.Written[world.TickNumber - 2], "the hull ends each step exactly on its end pose");
+            (world.Frames.LinearVelocity(frame) - new Double3(2, 0, 0))
+                .Length.Should()
                 .BeLessThan(1e-9, "the frame moves at the chord");
             world.Frames.Followed(frame).Should().Be(FollowKind.Kinematic);
-            (world.Frames.ProperAcceleration(frame) - new Vector3(0, 9.81f, 0)).Length().Should().BeLessThan(1e-5f,
-                "an end pose has no acceleration, so the frame feels the ground's gravity reversed");
+            (world.Frames.ProperAcceleration(frame) - new Vector3(0, 9.81f, 0))
+                .Length()
+                .Should()
+                .BeLessThan(1e-5f, "an end pose has no acceleration, so the frame feels the ground's gravity reversed");
         }
 
         world.Errors.Should().BeEmpty();
@@ -294,19 +346,29 @@ public sealed class MotionIntentGuardTests
         world.Tick();
         double step = world.DeltaTime;
         var end = new DPose(new(3 * step, 0, 0), DQuaternion.Identity);
-        MotionIntent move = write == "end pose"
-            ? new(new EndPose(end))
-            : new MotionIntent(new MotionSample(Pose: end, ChordVelocity: new(3, 0, 0), Velocity: new(3, 0, 0),
-                Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
-                AngularAcceleration: Double3.Zero));
+        MotionIntent move =
+            write == "end pose"
+                ? new(new EndPose(end))
+                : new MotionIntent(
+                    new MotionSample(
+                        Pose: end,
+                        ChordVelocity: new(3, 0, 0),
+                        Velocity: new(3, 0, 0),
+                        Acceleration: Double3.Zero,
+                        AngularVelocity: Double3.Zero,
+                        AngularAcceleration: Double3.Zero
+                    )
+                );
 
         InATick(world, entity, self => Write(self, move)).Should().BeNull();
         world.Tick();
-        (world.PoseIn(entity, space).Position - end.Position).Length.Should()
+        (world.PoseIn(entity, space).Position - end.Position)
+            .Length.Should()
             .BeLessThan(1e-6, "the step moved the body onto its motion intent");
         Tick(world, 3);
 
-        (world.PoseIn(entity, space).Position - end.Position).Length.Should()
+        (world.PoseIn(entity, space).Position - end.Position)
+            .Length.Should()
             .BeLessThan(1e-6, "the body holds still without a motion intent");
         world.VelocityIn(entity, space).Length.Should().BeLessThan(1e-6);
         world.Errors.Should().BeEmpty();
@@ -329,18 +391,28 @@ public sealed class MotionIntentGuardTests
         Entity entity = Spawn(world, Space(world), kind);
         world.Tick();
 
-        Exception? refusal = InATick(world, entity, self =>
-        {
-            if (write == "SetVelocity")
-                self.Body.SetVelocity(new(1, 0, 0));
-            else
-                self.Body.SetAngularVelocity(new(0, 1, 0));
-        });
+        Exception? refusal = InATick(
+            world,
+            entity,
+            self =>
+            {
+                if (write == "SetVelocity")
+                    self.Body.SetVelocity(new(1, 0, 0));
+                else
+                    self.Body.SetAngularVelocity(new(0, 1, 0));
+            }
+        );
 
-        refusal.Should().BeOfType<InvalidOperationException>().Which.Message.Should().Contain(entity.ToString()).And
-            .Contain("kinematic").And.Contain(write);
+        refusal
+            .Should()
+            .BeOfType<InvalidOperationException>()
+            .Which.Message.Should()
+            .Contain(entity.ToString())
+            .And.Contain("kinematic")
+            .And.Contain(write);
         (world.Entities.NextStepIntent(entity).Flags & (IntentFlags.SetVelocity | IntentFlags.SetAngularVelocity))
-            .Should().Be(IntentFlags.None);
+            .Should()
+            .Be(IntentFlags.None);
         world.Errors.Should().BeEmpty();
     }
 }
@@ -360,8 +432,10 @@ public sealed class RefusedRailsAllocationCollection;
 [Collection(nameof(RefusedRailsAllocationTests))]
 public sealed class RefusedRailsAllocationTests
 {
-    private static readonly BodyDesc StaticBox = new(Shape: new BoxShapeDesc(new(2, 0.5f, 2)),
-        Motion: BodyMotion.Static);
+    private static readonly BodyDesc StaticBox = new(
+        Shape: new BoxShapeDesc(new(2, 0.5f, 2)),
+        Motion: BodyMotion.Static
+    );
 
     /// <summary>
     /// A rails component whose entity the guard refuses logs the reason once and writes nothing (see
@@ -376,16 +450,24 @@ public sealed class RefusedRailsAllocationTests
         FrameHandle space = Scenes.AsteroidSpace(world);
         var log = new List<string>();
         world.Log += log.Add;
-        world.Spawn(new()
-        {
-            Frame = space, Pose = At(5_000), Body = StaticBox,
-            Components = [new KeplerMotion { Orbit = KeplerOrbit.Circular(5_000) }]
-        });
-        world.Spawn(new()
-        {
-            Frame = space, Pose = At(0, 5_000), Body = StaticBox,
-            Components = [new SpinMotion { Spin = new(Tilt: DQuaternion.Identity, Rate: 0.5) }]
-        });
+        world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(5_000),
+                Body = StaticBox,
+                Components = [new KeplerMotion { Orbit = KeplerOrbit.Circular(5_000) }],
+            }
+        );
+        world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(0, 5_000),
+                Body = StaticBox,
+                Components = [new SpinMotion { Spin = new(Tilt: DQuaternion.Identity, Rate: 0.5) }],
+            }
+        );
         Tick(world, 10);
         log.Should().HaveCount(2, "each component logs its refusal once");
 
@@ -393,8 +475,12 @@ public sealed class RefusedRailsAllocationTests
         long first = BytesPerTick(world, Ticks);
         long second = BytesPerTick(world, Ticks);
 
-        Math.Min(first, second).Should().Be(0,
-            $"a refused rails component must not allocate (the windows gave {first} and {second} bytes per tick)");
+        Math.Min(first, second)
+            .Should()
+            .Be(
+                0,
+                $"a refused rails component must not allocate (the windows gave {first} and {second} bytes per tick)"
+            );
         log.Should().HaveCount(2);
         world.Errors.Should().BeEmpty();
     }

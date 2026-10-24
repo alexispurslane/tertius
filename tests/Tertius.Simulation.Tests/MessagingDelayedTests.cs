@@ -11,11 +11,13 @@ public sealed class MessagingDelayedTests
 {
     /// <summary>A component that, on one tick, sends one <see cref="Ping"/> with a delay.</summary>
     private static Lambda SendsAfter(long onTick, int delay, Target target, int value) =>
-        Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick == onTick)
-                outbox.SendAfter(ticks: delay, target: target, payload: new Ping { Value = value });
-        });
+        Lambda.OnTick(
+            (self, scoped ref events, scoped ref outbox) =>
+            {
+                if (self.Tick == onTick)
+                    outbox.SendAfter(ticks: delay, target: target, payload: new Ping { Value = value });
+            }
+        );
 
     // ---- When it arrives ----------------------------------------------------------------------------------------------
 
@@ -25,9 +27,11 @@ public sealed class MessagingDelayedTests
         using var t = new TestWorld();
         var inbox = new Recorder();
         Entity target = t.SpawnWith(inbox);
-        t.SpawnWith(SendsAfter(onTick: 0, delay: 1, target: target, value: 1),
+        t.SpawnWith(
+            SendsAfter(onTick: 0, delay: 1, target: target, value: 1),
             SendsAfter(onTick: 0, delay: 2, target: target, value: 2),
-            SendsAfter(onTick: 0, delay: 3, target: target, value: 3));
+            SendsAfter(onTick: 0, delay: 3, target: target, value: 3)
+        );
 
         t.Run(6);
 
@@ -41,11 +45,15 @@ public sealed class MessagingDelayedTests
         using var t = new TestWorld();
         var inbox = new Recorder();
         Entity target = t.SpawnWith(inbox);
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick is 0 or 2 or 4)
-                outbox.SendAfter(ticks: 1, target: target, payload: new Ping { Value = (int)self.Tick });
-        }));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick is 0 or 2 or 4)
+                        outbox.SendAfter(ticks: 1, target: target, payload: new Ping { Value = (int)self.Tick });
+                }
+            )
+        );
 
         t.Run(7);
 
@@ -60,14 +68,18 @@ public sealed class MessagingDelayedTests
         using var t = new TestWorld();
         var inbox = new Recorder();
         Entity target = t.SpawnWith(inbox);
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick != 0)
-                return;
-            outbox.SendAfter(ticks: 2, target: target, payload: new Ping { Value = 21 });
-            outbox.Send(target, new Ping { Value = 0 });
-            outbox.SendAfter(ticks: 2, target: target, payload: new Ping { Value = 22 });
-        }));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick != 0)
+                        return;
+                    outbox.SendAfter(ticks: 2, target: target, payload: new Ping { Value = 21 });
+                    outbox.Send(target, new Ping { Value = 0 });
+                    outbox.SendAfter(ticks: 2, target: target, payload: new Ping { Value = 22 });
+                }
+            )
+        );
 
         t.Run(5);
 
@@ -80,13 +92,17 @@ public sealed class MessagingDelayedTests
         using var t = new TestWorld();
         var inbox = new Recorder();
         Entity target = t.SpawnWith(inbox);
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick == 0)
-                outbox.SendAfter(ticks: 1, target: target, payload: new Ping { Value = 11 });
-            if (self.Tick == 1)
-                outbox.Send(target, new Ping { Value = 22 });
-        }));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 0)
+                        outbox.SendAfter(ticks: 1, target: target, payload: new Ping { Value = 11 });
+                    if (self.Tick == 1)
+                        outbox.Send(target, new Ping { Value = 22 });
+                }
+            )
+        );
 
         t.Run(4);
 
@@ -101,10 +117,14 @@ public sealed class MessagingDelayedTests
         using var t = new TestWorld(chunkSize: 1);
         var inbox = new Recorder();
         Entity target = t.SpawnWith(inbox);
-        t.SpawnWith(SendsAfter(onTick: 0, delay: 1, target: target, value: 10),
-            SendsAfter(onTick: 0, delay: 1, target: target, value: 11));
-        t.SpawnWith(SendsAfter(onTick: 0, delay: 1, target: target, value: 20),
-            SendsAfter(onTick: 0, delay: 1, target: target, value: 21));
+        t.SpawnWith(
+            SendsAfter(onTick: 0, delay: 1, target: target, value: 10),
+            SendsAfter(onTick: 0, delay: 1, target: target, value: 11)
+        );
+        t.SpawnWith(
+            SendsAfter(onTick: 0, delay: 1, target: target, value: 20),
+            SendsAfter(onTick: 0, delay: 1, target: target, value: 21)
+        );
 
         t.Run(4);
 
@@ -156,8 +176,22 @@ public sealed class MessagingDelayedTests
         var stays = new Recorder();
         var leaves = new Recorder();
         var joins = new Recorder();
-        t.World.Spawn(new() { Frame = t.Root, Components = [stays], Subscriptions = [topic] });
-        Entity leavesEntity = t.World.Spawn(new() { Frame = t.Root, Components = [leaves], Subscriptions = [topic] });
+        t.World.Spawn(
+            new()
+            {
+                Frame = t.Root,
+                Components = [stays],
+                Subscriptions = [topic],
+            }
+        );
+        Entity leavesEntity = t.World.Spawn(
+            new()
+            {
+                Frame = t.Root,
+                Components = [leaves],
+                Subscriptions = [topic],
+            }
+        );
         Entity joinsEntity = t.SpawnWith(joins);
         t.SpawnWith(SendsAfter(onTick: 0, delay: 3, target: topic, value: 7));
         t.Run(1);
@@ -192,11 +226,15 @@ public sealed class MessagingDelayedTests
         using var t = new TestWorld();
         var inbox = new Recorder();
         Entity target = t.SpawnWith(inbox);
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            outbox.SendAfter(ticks: 3, target: target, payload: new Ping { Value = 4 });
-            self.Destroy();
-        }));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    outbox.SendAfter(ticks: 3, target: target, payload: new Ping { Value = 4 });
+                    self.Destroy();
+                }
+            )
+        );
 
         t.Run(6);
 
@@ -212,12 +250,20 @@ public sealed class MessagingDelayedTests
         var inbox = new Recorder(EventMask.Of<Damage>());
         Entity target = t.SpawnWith(inbox);
         object extra = new();
-        Entity sender = t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick == 0)
-                outbox.SendAfter(ticks: 2, target: target, payload: new Damage { Amount = 2.5f, Kind = 7 },
-                    extra: extra);
-        }));
+        Entity sender = t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 0)
+                        outbox.SendAfter(
+                            ticks: 2,
+                            target: target,
+                            payload: new Damage { Amount = 2.5f, Kind = 7 },
+                            extra: extra
+                        );
+                }
+            )
+        );
 
         t.Run(5);
 
@@ -250,8 +296,12 @@ public sealed class MessagingDelayedTests
     public void ADelayedSendToNoTargetIsRejectedAndReported()
     {
         using var t = new TestWorld();
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            outbox.SendAfter(ticks: 1, target: default, payload: new Ping())));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                    outbox.SendAfter(ticks: 1, target: default, payload: new Ping())
+            )
+        );
 
         t.World.Tick();
 

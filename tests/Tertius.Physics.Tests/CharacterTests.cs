@@ -15,14 +15,22 @@ public sealed class CharacterTests
     // The capsule center rests 0.9 m above the floor, plus Jolt's character padding.
     private const double StandingHeight = 0.9;
 
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
-        Mass: 70);
+    private static readonly BodyDesc Person = new(
+        Shape: new CapsuleShapeDesc(0.6f, 0.3f),
+        Motion: BodyMotion.Character,
+        Mass: 70
+    );
 
     /// <summary>A dynamic cube with sides of <c>2 · half</c> m that nothing slows down and that does not bounce.</summary>
     private static BodyDesc Box(float half, float mass = 1f) =>
-        new(Shape: new BoxShapeDesc(new(half)), Motion: BodyMotion.Dynamic, Mass: mass, Restitution: 0,
+        new(
+            Shape: new BoxShapeDesc(new(half)),
+            Motion: BodyMotion.Dynamic,
+            Mass: mass,
+            Restitution: 0,
             LinearDamping: 0,
-            AngularDamping: 0);
+            AngularDamping: 0
+        );
 
     private static BodyDesc StaticBox(Vector3 halfExtents) =>
         new(Shape: new BoxShapeDesc(halfExtents), Motion: BodyMotion.Static);
@@ -47,7 +55,15 @@ public sealed class CharacterTests
     }
 
     private static Entity SpawnPerson(World world, FrameHandle frame, DPose pose, Pilot? pilot = null) =>
-        world.Spawn(new() { Frame = frame, Pose = pose, Body = Person, Components = pilot is null ? [] : [pilot] });
+        world.Spawn(
+            new()
+            {
+                Frame = frame,
+                Pose = pose,
+                Body = Person,
+                Components = pilot is null ? [] : [pilot],
+            }
+        );
 
     private static Vector3 UpOf(World world, Entity entity) =>
         world.PoseInOwnFrame(entity).Rotation.Rotate(Vector3.UnitY);
@@ -79,8 +95,12 @@ public sealed class CharacterTests
         using (world)
         {
             var pilot = new Pilot();
-            Entity person = SpawnPerson(world: world, frame: ground, pose: At(0, StandingHeight + 0.02, 0),
-                pilot: pilot);
+            Entity person = SpawnPerson(
+                world: world,
+                frame: ground,
+                pose: At(0, StandingHeight + 0.02, 0),
+                pilot: pilot
+            );
             Tick(world, 10);
             // The vertical part of a desired velocity is ignored under gravity.
             Send(world, pilot, body => body.MoveCharacter(new(3, 5, 0)));
@@ -112,8 +132,12 @@ public sealed class CharacterTests
         using (world)
         {
             var pilot = new Pilot();
-            Entity person = SpawnPerson(world: world, frame: ground, pose: At(0, StandingHeight + 0.02, 0),
-                pilot: pilot);
+            Entity person = SpawnPerson(
+                world: world,
+                frame: ground,
+                pose: At(0, StandingHeight + 0.02, 0),
+                pilot: pilot
+            );
             Tick(world, 20);
             double floor = world.PoseInOwnFrame(person).Position.Y;
             Send(world, pilot, body => body.Jump(5));
@@ -125,7 +149,9 @@ public sealed class CharacterTests
             }
 
             // v² / 2g = 1.27 m.
-            (peak - floor).Should().BeInRange(1.15, 1.35);
+            (peak - floor)
+                .Should()
+                .BeInRange(1.15, 1.35);
             world.PoseInOwnFrame(person).Position.Y.Should().BeInRange(floor - 0.02, floor + 0.02);
             world.Errors.Should().BeEmpty();
         }
@@ -139,8 +165,15 @@ public sealed class CharacterTests
         {
             var liftPilot = new SelfPilot();
             var platform = new BodyDesc(Shape: new BoxShapeDesc(new(2, 0.25f, 2)), Motion: BodyMotion.Kinematic);
-            Entity lift = world.Spawn(new()
-                { Frame = ground, Pose = At(0, 1, 0), Body = platform, Components = [liftPilot] });
+            Entity lift = world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = At(0, 1, 0),
+                    Body = platform,
+                    Components = [liftPilot],
+                }
+            );
             Entity person = SpawnPerson(world: world, frame: ground, pose: At(0, 1.25 + StandingHeight + 0.02, 0));
             Tick(world, 20);
             Double3 start = world.PoseInOwnFrame(person).Position;
@@ -175,7 +208,14 @@ public sealed class CharacterTests
         using (world)
         {
             var platform = new BodyDesc(Shape: new BoxShapeDesc(new(3, 0.25f, 3)), Motion: BodyMotion.Kinematic);
-            Entity deck = world.Spawn(new() { Frame = ground, Pose = At(0, 1, 0), Body = platform });
+            Entity deck = world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = At(0, 1, 0),
+                    Body = platform,
+                }
+            );
             Entity person = SpawnPerson(world: world, frame: ground, pose: At(0, 1.25 + StandingHeight + 0.02, 0));
             Tick(world, 10);
             // A kinematic body moves only by its motion intents, so the deck drifts by end poses from the step after this tick.
@@ -201,11 +241,15 @@ public sealed class CharacterTests
             world.Tick();
 
             // 140 N·s and 4200 N for one step on 70 kg: +2 m/s along X and +1 m/s along Z.
-            Send(world, pilot, body =>
-            {
-                body.AddImpulse(new(140, 0, 0));
-                body.AddForce(new(0, 0, 4200));
-            });
+            Send(
+                world,
+                pilot,
+                body =>
+                {
+                    body.AddImpulse(new(140, 0, 0));
+                    body.AddForce(new(0, 0, 4200));
+                }
+            );
             Vector3 falling = world.VelocityInOwnFrame(person);
             world.Tick();
             Vector3 pushed = world.VelocityInOwnFrame(person);
@@ -258,11 +302,15 @@ public sealed class CharacterTests
         (World world, _, Entity person, Pilot pilot) = Floating();
         using (world)
         {
-            Send(world, pilot, body =>
-            {
-                body.MoveCharacter(new(0, 1, 1));
-                body.Jump(4);
-            });
+            Send(
+                world,
+                pilot,
+                body =>
+                {
+                    body.MoveCharacter(new(0, 1, 1));
+                    body.Jump(4);
+                }
+            );
             Tick(world, 60);
 
             world.PoseInOwnFrame(person).Position.Length.Should().BeLessThan(1e-3);
@@ -301,8 +349,14 @@ public sealed class CharacterTests
         using (world)
         {
             // A wall whose face is at x = 1.5. The capsule's side touches it when its center reaches x = 1.2.
-            world.Spawn(new()
-                { Frame = space, Pose = At(2, 0, 0), Body = StaticBox(new(0.5f, 5, 5)) with { Friction = 0 } });
+            world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Pose = At(2, 0, 0),
+                    Body = StaticBox(new(0.5f, 5, 5)) with { Friction = 0 },
+                }
+            );
             Send(world, pilot, body => body.AddImpulse(new(140, 0, 70)));
             Tick(world, 60);
 
@@ -328,13 +382,22 @@ public sealed class CharacterTests
         {
             // A lintel from x = 1.5 whose lower face, at y = 0.8, is 0.1 m below the top of the capsule. The capsule meets the
             // lintel's lower front edge with its top, so nothing blocks it below the edge.
-            world.Spawn(new() { Frame = space, Pose = At(2.5, 1.8, 0), Body = StaticBox(new(1, 1, 5)) });
+            world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Pose = At(2.5, 1.8, 0),
+                    Body = StaticBox(new(1, 1, 5)),
+                }
+            );
             pilot.Once = body => body.AddImpulse(new(35, 0, 0));
             // The push and the force of tick i act in the step of tick i + 1, so 301 ticks hold 300 steps with a force.
             pilot.EveryTick = body => body.AddForce(new(105, 0, 0));
             Tick(world, 301);
 
-            world.PoseInOwnFrame(person).Position.X.Should()
+            world
+                .PoseInOwnFrame(person)
+                .Position.X.Should()
                 .BeGreaterThan(3.5, "the edge turned the character down and under the lintel");
             world.VelocityInOwnFrame(person).X.Should().BeGreaterThan(1);
             world.Errors.Should().BeEmpty();
@@ -349,12 +412,14 @@ public sealed class CharacterTests
         {
             // A kinematic wall whose face is at x = 0.5 moves toward the character at 1 m/s for one second, then stops. A
             // kinematic body moves only by its motion intents, so the wall drifts by end poses.
-            Entity wall = world.Spawn(new()
-            {
-                Frame = space,
-                Pose = At(1, 0, 0),
-                Body = new(Shape: new BoxShapeDesc(new(0.5f, 5, 5)), Motion: BodyMotion.Kinematic)
-            });
+            Entity wall = world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Pose = At(1, 0, 0),
+                    Body = new(Shape: new BoxShapeDesc(new(0.5f, 5, 5)), Motion: BodyMotion.Kinematic),
+                }
+            );
             world.Tick();
             var drift = new KinematicDrift(new(-1, 0, 0));
             world.AddComponent(wall, drift);
@@ -367,9 +432,13 @@ public sealed class CharacterTests
             world.Tick();
             Tick(world, 60);
 
-            world.VelocityInOwnFrame(person).X.Should().BeApproximately(-1, 0.01f,
-                "the character drifts on at the speed that the wall gave it");
-            world.PoseInOwnFrame(person).Position.X.Should()
+            world
+                .VelocityInOwnFrame(person)
+                .X.Should()
+                .BeApproximately(-1, 0.01f, "the character drifts on at the speed that the wall gave it");
+            world
+                .PoseInOwnFrame(person)
+                .Position.X.Should()
                 .BeLessThan(-1.2, "it moved with the wall, then away from it");
             world.Errors.Should().BeEmpty();
         }
@@ -387,7 +456,14 @@ public sealed class CharacterTests
         using (world)
         {
             // A 5 kg crate 1 m ahead.
-            Entity crate = world.Spawn(new() { Frame = space, Pose = At(1.5, 0, 0), Body = Box(0.25f, mass: 5) });
+            Entity crate = world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Pose = At(1.5, 0, 0),
+                    Body = Box(0.25f, mass: 5),
+                }
+            );
             Send(world, pilot, body => body.AddImpulse(new(70, 0, 0)));
             Tick(world, 120);
 
@@ -403,16 +479,26 @@ public sealed class CharacterTests
     {
         using World world = NewWorld(backend: out _);
         // 0.04 m/s², too weak to stand in, as when a ship thrusts gently.
-        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f),
-            GravityField.Uniform(new(0, 0, 0.04f))));
+        FrameHandle space = world.CreateRootFrame(
+            new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(0, 0, 0.04f)))
+        );
         Entity person = SpawnPerson(world: world, frame: space, pose: At(0, 0, 0));
-        Entity crate = world.Spawn(new() { Frame = space, Pose = At(3, 0, 0), Body = Box(0.25f, mass: 5) });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(3, 0, 0),
+                Body = Box(0.25f, mass: 5),
+            }
+        );
         Tick(world, 60);
 
         // The character's velocity is the chord of the last step, the instant velocity half a step before its end.
         world.VelocityInOwnFrame(person).Z.Should().BeApproximately(0.04f * (1 - world.DeltaTime / 2), 1e-5f);
         world.VelocityInOwnFrame(person).Z.Should().BeApproximately(world.VelocityInOwnFrame(crate).Z, 1e-4f);
-        Vector3.Distance(UpOf(world, person), Vector3.UnitY).Should()
+        Vector3
+            .Distance(UpOf(world, person), Vector3.UnitY)
+            .Should()
             .BeLessThan(1e-5f, "a weightless character keeps its up");
         world.Errors.Should().BeEmpty();
     }
@@ -424,12 +510,24 @@ public sealed class CharacterTests
         using (world)
         {
             // The wall's face is at x = 0.28, so the capsule, 0.3 m in radius, sinks 2 cm into it.
-            world.Spawn(new() { Frame = space, Pose = At(0.78, 0, 0), Body = StaticBox(new(0.5f, 5, 5)) });
+            world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Pose = At(0.78, 0, 0),
+                    Body = StaticBox(new(0.5f, 5, 5)),
+                }
+            );
             Tick(world, 30);
 
-            world.PoseInOwnFrame(person).Position.X.Should()
+            world
+                .PoseInOwnFrame(person)
+                .Position.X.Should()
                 .BeLessThan(-0.015, "Jolt pushed the character out of the wall");
-            world.VelocityInOwnFrame(person).Length().Should()
+            world
+                .VelocityInOwnFrame(person)
+                .Length()
+                .Should()
                 .BeLessThan(1e-4f, "the push moved the character but gave it no momentum");
             world.Errors.Should().BeEmpty();
         }
@@ -441,9 +539,20 @@ public sealed class CharacterTests
         using World world = NewWorld(backend: out _);
         // Gravity acts only where x < 0. The floor goes on to x = 1, so the character walks out of the gravity on the
         // floor and then off its edge.
-        FrameHandle ground = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f),
-            GravityField.Uniform(new(0, -9.81f, 0), new BoundingBox(new(-50), new(0, 50, 50)))));
-        world.Spawn(new() { Frame = ground, Pose = At(-4, -0.5, 0), Body = StaticBox(new(5, 0.5f, 5)) });
+        FrameHandle ground = world.CreateRootFrame(
+            new(
+                FrameBounds.Sphere(1e6f),
+                GravityField.Uniform(new(0, -9.81f, 0), new BoundingBox(new(-50), new(0, 50, 50)))
+            )
+        );
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(-4, -0.5, 0),
+                Body = StaticBox(new(5, 0.5f, 5)),
+            }
+        );
         var pilot = new Pilot();
         Entity person = SpawnPerson(world: world, frame: ground, pose: At(-3, StandingHeight + 0.02, 0), pilot: pilot);
         Tick(world, 20);
@@ -456,11 +565,14 @@ public sealed class CharacterTests
         Tick(world, 60);
 
         DPose drifting = world.PoseInOwnFrame(person);
-        (drifting.Position.X - leftTheGravity).Should()
+        (drifting.Position.X - leftTheGravity)
+            .Should()
             .BeApproximately(3, 0.01, "it drifts 3 m in the second after it left the gravity");
         drifting.Position.Y.Should().BeApproximately(height, 0.01, "nothing pulls it down out of the gravity");
-        Vector3.Distance(world.VelocityInOwnFrame(person), new(3, 0, 0)).Should().BeLessThan(0.01f,
-            "the floor stopped the step of gravity that pressed the character onto it");
+        Vector3
+            .Distance(world.VelocityInOwnFrame(person), new(3, 0, 0))
+            .Should()
+            .BeLessThan(0.01f, "the floor stopped the step of gravity that pressed the character onto it");
         world.Errors.Should().BeEmpty();
     }
 
@@ -468,18 +580,24 @@ public sealed class CharacterTests
     public void StandsOnPlanetFarFromOrigin()
     {
         using World world = NewWorld(backend: out _);
-        const double radius = 6_371_000, mu = 3.986004418e14;
+        const double radius = 6_371_000,
+            mu = 3.986004418e14;
         FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(mu)));
         // Stand on the side of the planet along +X, where up is +X.
-        DQuaternion slabRotation = DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2);
-        world.Spawn(new()
-        {
-            Frame = planet,
-            Pose = new(new(radius - 0.5, 0, 0), slabRotation),
-            Body = StaticBox(new(20, 0.5f, 20))
-        });
-        Entity person = SpawnPerson(world: world, frame: planet,
-            pose: new(new(radius + StandingHeight + 0.1, 0, 0), DQuaternion.Identity));
+        var slabRotation = DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2);
+        world.Spawn(
+            new()
+            {
+                Frame = planet,
+                Pose = new(new(radius - 0.5, 0, 0), slabRotation),
+                Body = StaticBox(new(20, 0.5f, 20)),
+            }
+        );
+        Entity person = SpawnPerson(
+            world: world,
+            frame: planet,
+            pose: new(new(radius + StandingHeight + 0.1, 0, 0), DQuaternion.Identity)
+        );
         Tick(world, 60);
         DPose pose = world.PoseInOwnFrame(person);
         (pose.Position.X - radius).Should().BeInRange(StandingHeight - 0.01, StandingHeight + 0.05);

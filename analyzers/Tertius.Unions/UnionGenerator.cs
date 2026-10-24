@@ -17,13 +17,17 @@ public sealed class UnionGenerator : IIncrementalGenerator
         IncrementalValuesProvider<UnionResult> unions = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Tertius.GeneratedUnionAttribute",
             static (node, _) => node is StructDeclarationSyntax,
-            static (union, _) => UnionReader.Read(union));
-        context.RegisterSourceOutput(unions, static (output, result) =>
-        {
-            foreach (Diagnostic diagnostic in result.Diagnostics)
-                output.ReportDiagnostic(diagnostic);
-            if (result.Model is { } model)
-                output.AddSource(model.HintName, UnionWriter.Write(model));
-        });
+            static (union, _) => UnionReader.Read(union)
+        );
+        context.RegisterSourceOutput(
+            unions,
+            static (output, result) =>
+            {
+                foreach (Diagnostic diagnostic in result.Diagnostics)
+                    output.ReportDiagnostic(diagnostic);
+                if (result.Model is { } model)
+                    output.AddSource(model.HintName, UnionWriter.Write(model));
+            }
+        );
     }
 }

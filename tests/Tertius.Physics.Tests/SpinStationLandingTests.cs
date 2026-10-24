@@ -49,12 +49,19 @@ public sealed class SpinStationLandingTests
     private static readonly Double3 Omega = new(0, StationRate, 0);
 
     /// <summary>A person: a capsule with a half height of 0.6 m and a radius of 0.3 m, of 70 kg.</summary>
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
-        Mass: 70);
+    private static readonly BodyDesc Person = new(
+        Shape: new CapsuleShapeDesc(0.6f, 0.3f),
+        Motion: BodyMotion.Character,
+        Mass: 70
+    );
 
     /// <summary>An undamped crate, a box of 1 m and 10 kg, so that its path is its inertial line until it lands.</summary>
-    private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0,
-        AngularDamping: 0);
+    private static readonly BodyDesc Crate = new(
+        Shape: new BoxShapeDesc(new(0.5f)),
+        Mass: 10,
+        LinearDamping: 0,
+        AngularDamping: 0
+    );
 
     /// <summary>
     /// A force on the crate of 1 mN along the station's +Z, 1e-4 m/s² on 10 kg, above the 1e-3/60 m/s² from which a tick of
@@ -64,8 +71,9 @@ public sealed class SpinStationLandingTests
     private static readonly Vector3 Thrust = new(0, 0, 1e-3f);
 
     /// <summary>A slab of the floor, 1 m thick, 20 m wide along +Y, and as long as a face along the ring with 5 cm of overlap with its neighbors.</summary>
-    private static readonly BoxShapeDesc Slab = new(new(0.5f, 10,
-        (float)(FloorRadius * Math.Tan(Math.PI / FloorFaces)) + 0.05f));
+    private static readonly BoxShapeDesc Slab = new(
+        new(0.5f, 10, (float)(FloorRadius * Math.Tan(Math.PI / FloorFaces)) + 0.05f)
+    );
 
     private sealed record Station(FrameHandle Space, FrameHandle Frame);
 
@@ -79,7 +87,7 @@ public sealed class SpinStationLandingTests
         /// The interior of the station's owner: a ring mesh of <see cref="FloorFaces"/> faces, as ticket ter-n44b gives a
         /// station. The owner's kinematic hull, which turns in the root frame, is the same ring of slabs as one compound.
         /// </summary>
-        Interior
+        Interior,
     }
 
     /// <summary>
@@ -91,22 +99,35 @@ public sealed class SpinStationLandingTests
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         var desc = new SpawnDesc
         {
-            Frame = space, AsFrame = new(FrameBounds.Sphere(150)),
-            Body = floor == FloorKind.Interior
-                ? new BodyDesc(
-                    Shape: new CompoundShapeDesc([
-                        .. Enumerable.Range(0, FloorFaces).Select(i => new CompoundChild(Slab, SlabPose(i).ToPose()))
-                    ]),
-                    Motion: BodyMotion.Kinematic, InteriorShape: RingMesh())
-                : null
+            Frame = space,
+            AsFrame = new(FrameBounds.Sphere(150)),
+            Body =
+                floor == FloorKind.Interior
+                    ? new BodyDesc(
+                        Shape: new CompoundShapeDesc([
+                            .. Enumerable
+                                .Range(0, FloorFaces)
+                                .Select(i => new CompoundChild(Slab, SlabPose(i).ToPose())),
+                        ]),
+                        Motion: BodyMotion.Kinematic,
+                        InteriorShape: RingMesh()
+                    )
+                    : null,
         };
-        Entity owner =
-            world.Spawn(desc.Spinning(world, new(Tilt: DQuaternion.Identity, Rate: StationRate), firstMove: true));
+        Entity owner = world.Spawn(
+            desc.Spinning(world, new(Tilt: DQuaternion.Identity, Rate: StationRate), firstMove: true)
+        );
         FrameHandle frame = world.GetOwnedFrame(owner);
         if (floor == FloorKind.Slabs)
             for (int i = 0; i < FloorFaces; i++)
-                world.Spawn(new()
-                    { Frame = frame, Pose = SlabPose(i), Body = new(Shape: Slab, Motion: BodyMotion.Static) });
+                world.Spawn(
+                    new()
+                    {
+                        Frame = frame,
+                        Pose = SlabPose(i),
+                        Body = new(Shape: Slab, Motion: BodyMotion.Static),
+                    }
+                );
         return new(space, frame);
     }
 
@@ -133,7 +154,10 @@ public sealed class SpinStationLandingTests
 
         for (int i = 0; i < FloorFaces; i++)
         {
-            int low = 2 * i, high = low + 1, nextLow = 2 * ((i + 1) % FloorFaces), nextHigh = nextLow + 1;
+            int low = 2 * i,
+                high = low + 1,
+                nextLow = 2 * ((i + 1) % FloorFaces),
+                nextHigh = nextLow + 1;
             indices.AddRange([low, nextLow, high, nextLow, nextHigh, high]);
         }
 
@@ -177,22 +201,30 @@ public sealed class SpinStationLandingTests
     /// velocity at the place, ω × x. That is 44.2 m/s in the station at 60 m, and 50.4 m/s at 98 m. With
     /// <paramref name="thrusts"/> it has the force <see cref="Thrust"/> in every tick.
     /// </summary>
-    private static Entity SpawnCrosser(World world, Station station, BodyDesc body, double radius = 60,
+    private static Entity SpawnCrosser(
+        World world,
+        Station station,
+        BodyDesc body,
+        double radius = 60,
         double height = 0,
-        bool thrusts = false, IComponent? log = null)
+        bool thrusts = false,
+        IComponent? log = null
+    )
     {
         var place = new Double3(-radius, height, 0);
         var pilot = new Pilot();
         if (thrusts)
             pilot.EveryTick = handle => handle.AddForce(Thrust);
-        return world.Spawn(new()
-        {
-            Frame = station.Frame,
-            Pose = new(place, DQuaternion.Identity),
-            LinearVelocity = new Double3(40, 0, 0) - Double3.Cross(Omega, place),
-            Body = body,
-            Components = log is null ? [pilot] : [pilot, log]
-        });
+        return world.Spawn(
+            new()
+            {
+                Frame = station.Frame,
+                Pose = new(place, DQuaternion.Identity),
+                LinearVelocity = new Double3(40, 0, 0) - Double3.Cross(Omega, place),
+                Body = body,
+                Components = log is null ? [pilot] : [pilot, log],
+            }
+        );
     }
 
     /// <summary>What a run of one body across the station shows at one sync point.</summary>
@@ -224,12 +256,20 @@ public sealed class SpinStationLandingTests
     /// Runs one body across the station under <paramref name="rules"/> for <paramref name="seconds"/> s, from
     /// <paramref name="radius"/> m from the axis (see <see cref="SpawnCrosser"/>).
     /// </summary>
-    private static Crossing Cross(NumericFrameOptions rules, BodyDesc body, bool thrusts, double seconds,
+    private static Crossing Cross(
+        NumericFrameOptions rules,
+        BodyDesc body,
+        bool thrusts,
+        double seconds,
         double radius = 60,
-        FloorKind floor = FloorKind.Slabs)
+        FloorKind floor = FloorKind.Slabs
+    )
     {
-        using World world = NewWorld(backend: out _, debugChecks: false,
-            configure: options => options.NumericFrames = rules);
+        using World world = NewWorld(
+            backend: out _,
+            debugChecks: false,
+            configure: options => options.NumericFrames = rules
+        );
         Station station = SpawnStation(world, floor);
         Entity crosser = SpawnCrosser(world: world, station: station, body: body, radius: radius, thrusts: thrusts);
         var crossing = new Crossing([]);
@@ -238,10 +278,15 @@ public sealed class SpinStationLandingTests
             world.Tick();
             DPose pose = world.PoseIn(crosser, station.Frame);
             FrameHandle home = world.PhysicsHomeOf(crosser);
-            crossing.Moments.Add(new(Place: pose.Position, Depth: Depth(pose, body.Motion == BodyMotion.Character),
-                Falling: world.Frames.IsNumeric(home),
-                Speed: world.VelocityIn(crosser, station.Frame).Length,
-                HomeSpeed: world.VelocityIn(crosser, home).Length));
+            crossing.Moments.Add(
+                new(
+                    Place: pose.Position,
+                    Depth: Depth(pose, body.Motion == BodyMotion.Character),
+                    Falling: world.Frames.IsNumeric(home),
+                    Speed: world.VelocityIn(crosser, station.Frame).Length,
+                    HomeSpeed: world.VelocityIn(crosser, home).Length
+                )
+            );
             world.GetFrame(crosser).Should().Be(station.Frame, "the body stays inside the station");
         }
 
@@ -272,21 +317,36 @@ public sealed class SpinStationLandingTests
     [InlineData(FloorKind.Interior, true)]
     [InlineData(FloorKind.Interior, false)]
     public void APersonWhoLeavesTheFloorAt50MetersPerSecondAcrossTheStationLandsOnTheFarSideAndStaysOnIt(
-        FloorKind floor, bool numericFrames)
+        FloorKind floor,
+        bool numericFrames
+    )
     {
-        Crossing crossing = Cross(rules: numericFrames ? new() : NumericFrameTesting.WithoutNumericFrames, body: Person,
-            thrusts: false, seconds: 7, radius: 98, floor: floor);
+        Crossing crossing = Cross(
+            rules: numericFrames ? new() : NumericFrameTesting.WithoutNumericFrames,
+            body: Person,
+            thrusts: false,
+            seconds: 7,
+            radius: 98,
+            floor: floor
+        );
 
         int landing = crossing.Landing;
         landing.Should().BeGreaterThan(0, "the person reaches the floor");
         crossing.Deepest.Should().BeLessThan(0.05, "the person never sinks into the floor; in the spike it sank 0.7 m");
-        crossing.Moments.Skip(landing).Should().OnlyContain(moment => moment.Depth > -0.25,
-            "the person stays on the floor after it lands");
-        (crossing.Moments.Count - landing).Should()
+        crossing
+            .Moments.Skip(landing)
+            .Should()
+            .OnlyContain(moment => moment.Depth > -0.25, "the person stays on the floor after it lands");
+        (crossing.Moments.Count - landing)
+            .Should()
             .BeGreaterThan(120, "the run watches the person for 2 s after it lands");
         crossing.Moments[0].Speed.Should().BeGreaterThan(50, "the person moves fast enough for a falling frame");
-        crossing.Moments.Should().OnlyContain(moment => !moment.Falling,
-            "the merge test links the person to the floor, so it stays in the station's own system");
+        crossing
+            .Moments.Should()
+            .OnlyContain(
+                moment => !moment.Falling,
+                "the merge test links the person to the floor, so it stays in the station's own system"
+            );
     }
 
     /// <summary>
@@ -300,21 +360,31 @@ public sealed class SpinStationLandingTests
     [InlineData(true)]
     [InlineData(false)]
     public void APersonWhoLeavesTheFloorAt50MetersPerSecondCrossesNearTheAxisAndMeetsTheFarFloorAbove50MetersPerSecond(
-        bool numericFrames)
+        bool numericFrames
+    )
     {
-        Crossing crossing = Cross(rules: numericFrames ? new() : NumericFrameTesting.WithoutNumericFrames, body: Person,
-            thrusts: false, seconds: 7, radius: 98);
+        Crossing crossing = Cross(
+            rules: numericFrames ? new() : NumericFrameTesting.WithoutNumericFrames,
+            body: Person,
+            thrusts: false,
+            seconds: 7,
+            radius: 98
+        );
 
         int landing = crossing.Landing;
         landing.Should().BeGreaterThan(1, "the person reaches the floor");
-        double nearest = crossing.Moments.Take(landing).Min(moment =>
-            Math.Sqrt(moment.Place.X * moment.Place.X + moment.Place.Z * moment.Place.Z));
+        double nearest = crossing
+            .Moments.Take(landing)
+            .Min(moment => Math.Sqrt(moment.Place.X * moment.Place.X + moment.Place.Z * moment.Place.Z));
         nearest.Should().BeLessThan(1, "the person follows its inertial line through the axis");
-        crossing.Moments[landing - 1].Speed.Should()
+        crossing
+            .Moments[landing - 1]
+            .Speed.Should()
             .BeGreaterThan(50, "the person meets the floor at the spike's 50.8 m/s");
         TestContext.Current.TestOutputHelper?.WriteLine(
             $"numericFrames={numericFrames}: nearest the axis {nearest:F3} m, "
-            + $"speed before the landing {crossing.Moments[landing - 1].Speed:F3} m/s");
+                + $"speed before the landing {crossing.Moments[landing - 1].Speed:F3} m/s"
+        );
     }
 
     /// <summary>
@@ -332,22 +402,29 @@ public sealed class SpinStationLandingTests
 
         int landing = plain.Landing;
         landing.Should().BeGreaterThan(0, "the crate reaches the floor");
-        plain.Moments.Take(landing).Max(moment => moment.Speed).Should().BeGreaterThan(50,
-            "the crate passes the speed at which a group that thrusts falls");
+        plain
+            .Moments.Take(landing)
+            .Max(moment => moment.Speed)
+            .Should()
+            .BeGreaterThan(50, "the crate passes the speed at which a group that thrusts falls");
         numeric.Landing.Should().Be(landing, "the crate lands at the same sync point");
         // Jolt lets a box that hits a face at 50 m/s overlap it by 7.5 cm for a tick, without numeric frames too, and then
         // pushes it out. The spike's person sank 0.7 m and went through.
         plain.Deepest.Should().BeLessThan(0.1, "Jolt keeps the crate out of the floor in the station's own system");
-        numeric.Deepest.Should()
+        numeric
+            .Deepest.Should()
             .BeApproximately(plain.Deepest, 1e-3, "the crate sinks no deeper than without numeric frames");
         double before = numeric.WorstDistance(plain, 0, landing),
             after = numeric.WorstDistance(plain, landing, plain.Moments.Count);
         before.Should().BeLessThan(BeforeLanding, "the crate flies as it does without numeric frames");
         after.Should().BeLessThan(1e-3, "the crate lands and rests as it does without numeric frames");
-        numeric.Moments[landing].Falling.Should()
+        numeric
+            .Moments[landing]
+            .Falling.Should()
             .BeFalse("the merge test links the crate to the floor, so it lands in the station's own system");
         TestContext.Current.TestOutputHelper?.WriteLine(
-            $"thrusting crate: worst distance {before:E2} m before the landing, {after:E2} m after it");
+            $"thrusting crate: worst distance {before:E2} m before the landing, {after:E2} m after it"
+        );
     }
 
     /// <summary>
@@ -368,7 +445,8 @@ public sealed class SpinStationLandingTests
     [InlineData(false)]
     [InlineData(true)]
     public void ABodyThatCrossesTheMiddleOfTheStationInAFallingFrameMovesAsInTheStationsOwnSystemAndLandsThere(
-        bool person)
+        bool person
+    )
     {
         NumericFrameOptions falls = NumericFrameTesting.EveryGroupFalls with { LookaheadTime = 0 };
         BodyDesc body = person ? Person : Crate;
@@ -377,30 +455,43 @@ public sealed class SpinStationLandingTests
 
         int landing = plain.Landing;
         landing.Should().BeGreaterThan(0, "the body reaches the floor");
-        numeric.Moments.Take(landing).Count(moment => moment.Falling).Should().BeGreaterThan(landing / 2,
-            "the body falls in a numeric frame for most of its crossing");
-        numeric.Moments[landing].Falling.Should()
+        numeric
+            .Moments.Take(landing)
+            .Count(moment => moment.Falling)
+            .Should()
+            .BeGreaterThan(landing / 2, "the body falls in a numeric frame for most of its crossing");
+        numeric
+            .Moments[landing]
+            .Falling.Should()
             .BeFalse("the body joins the station's own system before it meets the floor");
         numeric.Landing.Should().Be(landing, "the body lands at the same sync point");
         plain.Deepest.Should().BeLessThan(0.1, "Jolt keeps the body out of the floor in the station's own system");
-        numeric.Deepest.Should()
+        numeric
+            .Deepest.Should()
             .BeApproximately(plain.Deepest, 1e-3, "the body sinks no deeper than without numeric frames");
         double before = numeric.WorstDistance(plain, 0, landing),
             after = numeric.WorstDistance(plain, landing, plain.Moments.Count);
-        before.Should().BeLessThan(person ? PersonBeforeLanding : BeforeLanding,
-            "the body flies as it does without numeric frames");
+        before
+            .Should()
+            .BeLessThan(
+                person ? PersonBeforeLanding : BeforeLanding,
+                "the body flies as it does without numeric frames"
+            );
         after.Should().BeLessThan(1e-3, "the body lands and rests as it does without numeric frames");
         double homeSpeed = numeric.Moments.Where(moment => moment.Falling).Max(moment => moment.HomeSpeed);
-        double homeSpeedChange = Enumerable.Range(1, landing - 1)
+        double homeSpeedChange = Enumerable
+            .Range(1, landing - 1)
             .Where(i => numeric.Moments[i].Falling && numeric.Moments[i - 1].Falling)
             .Max(i => Math.Abs(numeric.Moments[i].HomeSpeed - numeric.Moments[i - 1].HomeSpeed));
-        homeSpeed.Should().BeLessThan(0.5 * falls.DrainSpeed,
-            "the falling frame never has to take the body's velocity over");
+        homeSpeed
+            .Should()
+            .BeLessThan(0.5 * falls.DrainSpeed, "the falling frame never has to take the body's velocity over");
         homeSpeedChange.Should().BeLessThan(5e-3, "the body's velocity relative to its falling frame changes slowly");
         TestContext.Current.TestOutputHelper?.WriteLine(
             $"person={person}: worst distance {before:E2} m before the landing at tick {landing}, "
-            + $"{after:E2} m after it, deepest {plain.Deepest:F4} m, fastest relative to a falling home {homeSpeed:E2} m/s, "
-            + $"largest change of that in a tick {homeSpeedChange:E2} m/s");
+                + $"{after:E2} m after it, deepest {plain.Deepest:F4} m, fastest relative to a falling home {homeSpeed:E2} m/s, "
+                + $"largest change of that in a tick {homeSpeedChange:E2} m/s"
+        );
     }
 
     // ---- Determinism ----
@@ -417,9 +508,12 @@ public sealed class SpinStationLandingTests
         var backend = new JoltPhysicsBackend(new() { WorkerThreads = threads });
         var options = new WorldOptions
         {
-            MaxDegreeOfParallelism = threads, InitialCapacity = TestCapacity, DebugChecks = true, DisposePhysics = true
+            MaxDegreeOfParallelism = threads,
+            InitialCapacity = TestCapacity,
+            DebugChecks = true,
+            DisposePhysics = true,
+            NumericFrames = NumericFrameTesting.EveryGroupFalls with { LookaheadTime = 0 },
         };
-        options.NumericFrames = NumericFrameTesting.EveryGroupFalls with { LookaheadTime = 0 };
         using var world = new World(options, backend);
         Station station = SpawnStation(world);
         var logs = new List<CollisionLog> { new(), new(), new() };
@@ -427,7 +521,7 @@ public sealed class SpinStationLandingTests
         [
             SpawnCrosser(world: world, station: station, body: Person, height: -5, log: logs[0]),
             SpawnCrosser(world: world, station: station, body: Crate, height: 0, thrusts: true, log: logs[1]),
-            SpawnCrosser(world: world, station: station, body: Crate, height: 5, log: logs[2])
+            SpawnCrosser(world: world, station: station, body: Crate, height: 5, log: logs[2]),
         ];
 
         var lines = new List<string>();
@@ -442,8 +536,9 @@ public sealed class SpinStationLandingTests
                 homes.Add(home == station.Frame ? "station" : world.Frames.Numeric(home).ToString());
                 Double3 position = world.PoseIn(body, station.Frame).Position;
                 Double3 velocity = world.VelocityIn(body, station.Frame);
-                foreach (double value in new[]
-                             { position.X, position.Y, position.Z, velocity.X, velocity.Y, velocity.Z })
+                foreach (
+                    double value in new[] { position.X, position.Y, position.Z, velocity.X, velocity.Y, velocity.Z }
+                )
                     hash.Add(BitConverter.DoubleToInt64Bits(value));
             }
 
@@ -451,8 +546,12 @@ public sealed class SpinStationLandingTests
         }
 
         for (int i = 0; i < logs.Count; i++)
-            lines.AddRange(logs[i].Seen.Select(seen =>
-                $"body {i} hit {seen.Other} at {seen.Tick} with {BitConverter.SingleToInt32Bits(seen.Impulse)}"));
+            lines.AddRange(
+                logs[i]
+                    .Seen.Select(seen =>
+                        $"body {i} hit {seen.Other} at {seen.Tick} with {BitConverter.SingleToInt32Bits(seen.Impulse)}"
+                    )
+            );
         world.Errors.Should().BeEmpty();
         return lines;
     }
@@ -465,8 +564,12 @@ public sealed class SpinStationLandingTests
         List<string> parallel = LandingTrace(4);
 
         first.Should().Contain(line => line.Contains("Falling"), "the bodies fall in numeric frames below the station");
-        first.Should().Contain(line => line.StartsWith("body 1 hit") || line.StartsWith("body 2 hit"),
-            "the crates land on the floor");
+        first
+            .Should()
+            .Contain(
+                line => line.StartsWith("body 1 hit") || line.StartsWith("body 2 hit"),
+                "the crates land on the floor"
+            );
         second.Should().Equal(first);
         parallel.Should().Equal(first);
     }

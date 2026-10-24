@@ -25,12 +25,14 @@ public sealed class MessagingTests
         Target[] targets = [new Entity(4, 1), new Topic(3), new Broadcast()];
         string[] kinds =
         [
-            .. targets.Select(t => t switch
-            {
-                Entity => "entity",
-                Topic => "topic",
-                Broadcast => "broadcast"
-            })
+            .. targets.Select(t =>
+                t switch
+                {
+                    Entity => "entity",
+                    Topic => "topic",
+                    Broadcast => "broadcast",
+                }
+            ),
         ];
         Assert.Equal(["entity", "topic", "broadcast"], kinds);
     }
@@ -52,8 +54,11 @@ public sealed class MessagingTests
     [Fact]
     public void EventPayloadRoundTripsAndEditsInPlace()
     {
-        var e = Event.Create(target: new Entity(1, 1), sender: new(2, 1),
-            payload: new Damage { Amount = 10, Kind = 3 });
+        var e = Event.Create(
+            target: new Entity(1, 1),
+            sender: new(2, 1),
+            payload: new Damage { Amount = 10, Kind = 3 }
+        );
         Assert.True(e.Is<Damage>());
         Assert.False(e.Is<Heal>());
         e.As<Damage>().Amount -= 4;
@@ -66,7 +71,7 @@ public sealed class MessagingTests
     [Fact]
     public void PayloadOverLimitIsRejected()
     {
-        var ex = Assert.Throws<TypeInitializationException>(() => EventType<TooBig>.Id);
+        TypeInitializationException ex = Assert.Throws<TypeInitializationException>(() => EventType<TooBig>.Id);
         Assert.IsType<InvalidOperationException>(ex.InnerException);
     }
 
@@ -83,7 +88,7 @@ public sealed class MessagingTests
     [Fact]
     public void EventMaskSetOperations()
     {
-        EventMask damage = EventMask.Of<Damage>();
+        var damage = EventMask.Of<Damage>();
         EventMask both = damage.And<Heal>();
         Assert.True(both.Contains<Damage>());
         Assert.True(both.Contains<Heal>());
@@ -92,18 +97,16 @@ public sealed class MessagingTests
         Assert.False(EventMask.Of<Heal>().Overlaps(damage));
         Assert.True(EventMask.None.IsEmpty);
 
-        EventMask high = EventMask.OfId(511);
+        var high = EventMask.OfId(511);
         Assert.True(high.Contains(511));
         Assert.False(high.Contains(510));
         Assert.Equal(high | damage, damage | high);
     }
 
     [Fact]
-    public void EventFitsInOneHundredBytes()
-    {
+    public void EventFitsInOneHundredBytes() =>
         // Target 16 + Sender 8 + Type 4 (+4 padding) + Payload 48 + Extra 8.
         Assert.True(Unsafe.SizeOf<Event>() <= 96);
-    }
 
     [Fact]
     public void EngineEventsRegister()

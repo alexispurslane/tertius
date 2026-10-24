@@ -11,6 +11,7 @@ public sealed record JoltBackendOptions
     /// with one worker, and both wrote the same script.
     /// </summary>
     public static JoltBackendOptions Unpaced => new() { WorkerThreads = 1 };
+
     // Every frame with bodies gets its own Jolt system, and Jolt sizes its buffers from these limits up front, so
     // they are per frame and kept moderate.
 

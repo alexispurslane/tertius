@@ -18,32 +18,44 @@ public sealed class PuffSnapshotTests
     /// A space without a field, a hull in it that owns a frame, turned and drifting, with a jet in the hull's frame and a
     /// glow jet in space. The camera stands in space, so the hull's puffs reach the camera through the frame tree.
     /// </summary>
-    private static (Simulation.World World, Entity Camera, FrameHandle Space, FrameHandle Ship)
-        JetAndCameraInTwoFrames()
+    private static (World World, Entity Camera, FrameHandle Space, FrameHandle Ship) JetAndCameraInTwoFrames()
     {
         World world = NewWorld(backend: out _);
-        FrameHandle space =
-            world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), default, MediumField.Uniform(1.225f, 2)));
-        Entity hull = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = new(new(40, -3, -25), DQuaternion.FromAxisAngle(new Double3(1, 2, 0.5).Normalized(), 0.7)),
-            LinearVelocity = new(3, 0.5, -1),
-            AngularVelocity = new(0, 0.2f, 0),
-            Body = new(Shape: new BoxShapeDesc(new(2, 1, 5)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
-            AsFrame = new(FrameBounds.Sphere(20))
-        });
+        FrameHandle space = world.CreateRootFrame(
+            new(FrameBounds.Sphere(1e6f), default, MediumField.Uniform(1.225f, 2))
+        );
+        Entity hull = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = new(new(40, -3, -25), DQuaternion.FromAxisAngle(new Double3(1, 2, 0.5).Normalized(), 0.7)),
+                LinearVelocity = new(3, 0.5, -1),
+                AngularVelocity = new(0, 0.2f, 0),
+                Body = new(Shape: new BoxShapeDesc(new(2, 1, 5)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+                AsFrame = new(FrameBounds.Sphere(20)),
+            }
+        );
         FrameHandle ship = world.GetOwnedFrame(hull);
-        PuffTesting.SpawnEmitter(world: world, frame: ship, place: new(0, 0, 6),
-            emitter: new(Rate: 60, Speed: 4, Spread: 0.3f, Look: PuffTesting.Hot));
-        PuffTesting.SpawnEmitter(world: world, frame: space, place: new(-10, 0, 0),
-            emitter: new(Rate: 30, Speed: 2, Spread: 0.5f, Look: PuffTesting.Cold));
-        Entity camera = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = new(new(5, 2, 60), DQuaternion.FromAxisAngle(new(0, 1, 0), 0.3)),
-            Render = new RenderData()
-        });
+        PuffTesting.SpawnEmitter(
+            world: world,
+            frame: ship,
+            place: new(0, 0, 6),
+            emitter: new(Rate: 60, Speed: 4, Spread: 0.3f, Look: PuffTesting.Hot)
+        );
+        PuffTesting.SpawnEmitter(
+            world: world,
+            frame: space,
+            place: new(-10, 0, 0),
+            emitter: new(Rate: 30, Speed: 2, Spread: 0.5f, Look: PuffTesting.Cold)
+        );
+        Entity camera = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = new(new(5, 2, 60), DQuaternion.FromAxisAngle(new(0, 1, 0), 0.3)),
+                Render = new RenderData(),
+            }
+        );
         world.Camera = camera;
         return (world, camera, space, ship);
     }
@@ -64,7 +76,9 @@ public sealed class PuffSnapshotTests
 
         RenderSnapshot snapshot = Latest(world);
         PuffView view = world.Puffs.View;
-        view.Ranges.ToArray().Select(range => range.Frame).Should()
+        view.Ranges.ToArray()
+            .Select(range => range.Frame)
+            .Should()
             .BeEquivalentTo([space, ship], "both jets made puffs");
         snapshot.Puffs.Should().HaveCount(view.Rows.Length);
         snapshot.PuffLooks.Should().Equal(view.Looks.ToArray());
@@ -78,8 +92,10 @@ public sealed class PuffSnapshotTests
                 Puff row = view.Rows[i];
                 RenderPuff puff = snapshot.Puffs[i];
                 var expected = (frameInSpace.TransformPoint(row.Place) - eye).ToVector3();
-                Vector3.Distance(puff.Position, expected).Should().BeLessThan(1e-4f,
-                    $"puff {i} lies where its row lies, through the frame tree");
+                Vector3
+                    .Distance(puff.Position, expected)
+                    .Should()
+                    .BeLessThan(1e-4f, $"puff {i} lies where its row lies, through the frame tree");
                 puff.Age.Should().Be(row.Age);
                 puff.Look.Should().Be(row.Look);
             }
@@ -111,30 +127,56 @@ public sealed class PuffSnapshotTests
     private static World BusySceneWithCamera()
     {
         World world = NewWorld(backend: out _, configure: options => options.PuffCapacity = 500);
-        FrameHandle ground = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f),
-            GravityField.Uniform(new(0, -9.81f, 0)),
-            MediumField.Uniform(1.225f, 2)));
+        FrameHandle ground = world.CreateRootFrame(
+            new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(0, -9.81f, 0)), MediumField.Uniform(1.225f, 2))
+        );
         Floor(world, ground);
-        world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = At(0, 5),
-            Body = Ball(),
-            Render = new RenderData { Emitter = new(Rate: 90, Speed: 8, Spread: 0.4f, Look: PuffTesting.Hot) }
-        });
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 5),
+                Body = Ball(),
+                Render = new RenderData { Emitter = new(Rate: 90, Speed: 8, Spread: 0.4f, Look: PuffTesting.Hot) },
+            }
+        );
         var thruster = new Thruster(1000) { Acceleration = 2, Direction = Vector3.UnitY };
         Entity hull = PuffTesting.Hull(world: world, space: ground, place: new(30, 3, 0), components: thruster);
-        PuffTesting.AttachEmitter(world: world, parent: hull, offset: new(0, -2, 0),
-            emitter: new(Rate: 120, Speed: 20, Spread: 0.2f, Look: PuffTesting.Hot));
-        PuffTesting.SpawnEmitter(world: world, frame: world.GetOwnedFrame(hull), place: new(0, 1, 0),
-            emitter: new(Rate: 30, Speed: 3, Spread: 1.5f, Look: PuffTesting.Cold));
+        PuffTesting.AttachEmitter(
+            world: world,
+            parent: hull,
+            offset: new(0, -2, 0),
+            emitter: new(Rate: 120, Speed: 20, Spread: 0.2f, Look: PuffTesting.Hot)
+        );
+        PuffTesting.SpawnEmitter(
+            world: world,
+            frame: world.GetOwnedFrame(hull),
+            place: new(0, 1, 0),
+            emitter: new(Rate: 30, Speed: 3, Spread: 1.5f, Look: PuffTesting.Cold)
+        );
         var changer = new SelfPilot
         {
-            EveryTick = self => self.Render.Emitter = new(Rate: 60, Speed: 5, Spread: 0.1f,
-                Look: PuffTesting.Cold with { TemperatureRatio = 0.5f + self.Tick / 50 * 0.25f, Life = 1.5f })
+            EveryTick = self =>
+                self.Render.Emitter = new(
+                    Rate: 60,
+                    Speed: 5,
+                    Spread: 0.1f,
+                    Look: PuffTesting.Cold with
+                    {
+                        TemperatureRatio = 0.5f + self.Tick / 50 * 0.25f,
+                        Life = 1.5f,
+                    }
+                ),
         };
         PuffTesting.SpawnEmitter(world: world, frame: ground, place: new(-20, 10, 0), emitter: default, changer);
-        world.Camera = world.Spawn(new() { Frame = ground, Pose = At(10, 2, 40), Render = new RenderData() });
+        world.Camera = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(10, 2, 40),
+                Render = new RenderData(),
+            }
+        );
         return world;
     }
 

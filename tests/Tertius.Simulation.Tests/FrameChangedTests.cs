@@ -22,24 +22,32 @@ public sealed class FrameChangedTests
         /// The owner of a frame whose bubble is a sphere of 10 m. Its body is the frame's hull, a dynamic sphere of 5 m in the
         /// frame's parent, and its row is filled from the frame tree.
         /// </summary>
-        FrameOwner
+        FrameOwner,
     }
 
     /// <summary>Spawns a <paramref name="mover"/> in <paramref name="frame"/> at <paramref name="pose"/>, at rest, with
     /// <paramref name="log"/>.</summary>
     private static Entity Spawn(TestWorld test, Mover mover, FrameHandle frame, DPose pose, Recorder log) =>
-        test.World.Spawn(mover switch
-        {
-            Mover.PlainBody => new() { Frame = frame, Pose = pose, Body = WorldTesting.Ball(), Components = [log] },
-            _ => new()
+        test.World.Spawn(
+            mover switch
             {
-                Frame = frame,
-                Pose = pose,
-                Body = new(Shape: new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
-                AsFrame = new(FrameBounds.Sphere(10)),
-                Components = [log]
+                Mover.PlainBody => new()
+                {
+                    Frame = frame,
+                    Pose = pose,
+                    Body = WorldTesting.Ball(),
+                    Components = [log],
+                },
+                _ => new()
+                {
+                    Frame = frame,
+                    Pose = pose,
+                    Body = new(Shape: new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
+                    AsFrame = new(FrameBounds.Sphere(10)),
+                    Components = [log],
+                },
             }
-        });
+        );
 
     private static Recorder NewLog() => new(EventMask.Of<FrameChanged>());
 
@@ -50,7 +58,7 @@ public sealed class FrameChangedTests
     [InlineData(Mover.FrameOwner)]
     public void AnEntityThatPhysicsHandsIntoAFrameHearsOneFrameChangedFromItsOldFrameToTheNewOne(Mover mover)
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out _);
+        using var test = TestWorld.OnJolt(faults: out _);
         FrameHandle carrier = test.SpawnStaticFrame(TestWorld.At(1000), radius: 500);
         Recorder log = NewLog();
         Entity entity = Spawn(test: test, mover: mover, frame: test.Root, pose: TestWorld.At(1100), log: log);
@@ -72,7 +80,7 @@ public sealed class FrameChangedTests
     [InlineData(Mover.FrameOwner)]
     public void AnEntityThatPhysicsHandsOutOfAFrameHearsOneFrameChangedFromThatFrameToItsParent(Mover mover)
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out _);
+        using var test = TestWorld.OnJolt(faults: out _);
         FrameHandle carrier = test.SpawnStaticFrame(TestWorld.At(1000), radius: 50);
         Recorder log = NewLog();
         Entity entity = Spawn(test: test, mover: mover, frame: carrier, pose: TestWorld.At(200), log: log);
@@ -93,7 +101,7 @@ public sealed class FrameChangedTests
     [InlineData(Mover.FrameOwner)]
     public void AnEntityWhoseFrameDiesHearsOneFrameChangedFromThatFrameToTheAncestorThatSurvives(Mover mover)
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out _);
+        using var test = TestWorld.OnJolt(faults: out _);
         FrameHandle carrier = test.SpawnStaticFrame(TestWorld.At(1000), radius: 500);
         Recorder log = NewLog();
         Entity entity = Spawn(test: test, mover: mover, frame: carrier, pose: TestWorld.At(100), log: log);
@@ -115,12 +123,13 @@ public sealed class FrameChangedTests
     [Fact]
     public void TheOwnerOfAFrameThatTheGameMovesUnderAnotherFrameHearsOneFrameChangedFromTheOldParentToTheNewOne()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out _);
+        using var test = TestWorld.OnJolt(faults: out _);
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 15);
         Recorder log = NewLog();
         Entity owner = Spawn(test: test, mover: Mover.FrameOwner, frame: test.Root, pose: TestWorld.At(505), log: log);
         test.Run(1);
-        test.World.GetFrame(owner).Should()
+        test.World.GetFrame(owner)
+            .Should()
             .Be(test.Root, "the frame does not fit in the station, so physics hands nothing off");
 
         test.World.Frames.Reparent(test.World.GetOwnedFrame(owner), station);
@@ -139,7 +148,7 @@ public sealed class FrameChangedTests
     [InlineData(Mover.FrameOwner)]
     public void ANewEntityHearsNoFrameChangedForTheFrameThatItSpawnsInto(Mover mover)
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out _);
+        using var test = TestWorld.OnJolt(faults: out _);
         FrameHandle carrier = test.SpawnStaticFrame(TestWorld.At(1000), radius: 500);
         Recorder log = NewLog();
         Entity entity = Spawn(test: test, mover: mover, frame: carrier, pose: TestWorld.At(100), log: log);

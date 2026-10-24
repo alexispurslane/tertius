@@ -17,7 +17,7 @@ public sealed class Clones(IReadOnlyDictionary<string, IReadOnlySet<int>> linesB
     /// <summary>The clone lines in a jscpd JSON report of the src folder, whose file names are relative to src.</summary>
     public static Clones FromReport(string json)
     {
-        using JsonDocument report = JsonDocument.Parse(json);
+        using var report = JsonDocument.Parse(json);
         IEnumerable<(string File, int Line)> lines =
             from duplicate in report.RootElement.GetProperty("duplicates").EnumerateArray()
             from side in Sides
@@ -26,8 +26,15 @@ public sealed class Clones(IReadOnlyDictionary<string, IReadOnlySet<int>> linesB
             let end = fragment.GetProperty("end").GetInt32()
             from line in Enumerable.Range(start, end - start + 1)
             select ($"src/{fragment.GetProperty("name").GetString()}", line);
-        return new(lines.GroupBy(each => each.File, each => each.Line, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, IReadOnlySet<int> (group) => group.ToHashSet(), StringComparer.Ordinal));
+        return new(
+            lines
+                .GroupBy(each => each.File, each => each.Line, StringComparer.Ordinal)
+                .ToDictionary(
+                    group => group.Key,
+                    IReadOnlySet<int> (group) => group.ToHashSet(),
+                    StringComparer.Ordinal
+                )
+        );
     }
 
     /// <summary>
@@ -46,9 +53,19 @@ public sealed class Clones(IReadOnlyDictionary<string, IReadOnlySet<int>> linesB
                 RedirectStandardError = true,
                 ArgumentList =
                 {
-                    "src", "--format", "csharp", "--min-tokens", "70", "--mode", "mild", "--reporters", "json",
-                    "--output", output, "--silent"
-                }
+                    "src",
+                    "--format",
+                    "csharp",
+                    "--min-tokens",
+                    "70",
+                    "--mode",
+                    "mild",
+                    "--reporters",
+                    "json",
+                    "--output",
+                    output,
+                    "--silent",
+                },
             };
             Run(start);
             return FromReport(File.ReadAllText(Path.Combine(output, "jscpd-report.json")));
@@ -73,8 +90,10 @@ public sealed class Clones(IReadOnlyDictionary<string, IReadOnlySet<int>> linesB
         catch (Win32Exception missing)
         {
             throw new JscpdMissingException(
-                $"Tertius.Slop: {start.FileName} is not on the search path. The verbosity needs jscpd, which the dev " +
-                "shell has: run the tool inside nix develop.", missing);
+                $"Tertius.Slop: {start.FileName} is not on the search path. The verbosity needs jscpd, which the dev "
+                    + "shell has: run the tool inside nix develop.",
+                missing
+            );
         }
 
         using (process)
@@ -85,7 +104,8 @@ public sealed class Clones(IReadOnlyDictionary<string, IReadOnlySet<int>> linesB
             process.WaitForExit();
             if (process.ExitCode != 0)
                 throw new InvalidOperationException(
-                    $"{start.FileName} failed with exit code {process.ExitCode}: {errors.Result}");
+                    $"{start.FileName} failed with exit code {process.ExitCode}: {errors.Result}"
+                );
         }
     }
 }

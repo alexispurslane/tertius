@@ -55,6 +55,11 @@ public readonly record struct FollowingOutline(Vector3 Center, float Radius);
 /// same case and the same values, and counts a NaN as equal to a NaN, as <see cref="Vector3.Equals(Vector3)"/> does.
 /// </para>
 /// </remarks>
-[GeneratedUnion(typeof(SemanticOutline), typeof(FallingOutline), typeof(RestingOutline), typeof(NestingOutline),
-    typeof(FollowingOutline))]
+[GeneratedUnion(
+    typeof(SemanticOutline),
+    typeof(FallingOutline),
+    typeof(RestingOutline),
+    typeof(NestingOutline),
+    typeof(FollowingOutline)
+)]
 public readonly partial struct FrameOutline;

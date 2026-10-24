@@ -17,7 +17,8 @@ public sealed class SweepFalseHitsMeasurement
     private static readonly MovingPair.Member Character = new(
         new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70),
         d => 0.3 + 0.6 * Math.Abs(d.Y),
-        TurnsOntoD: false);
+        TurnsOntoD: false
+    );
 
     /// <summary>
     /// A crate of 10 kg that nothing slows down: 1 m deep along d, and 2 m by 2 m across it, so that its back face covers
@@ -26,7 +27,8 @@ public sealed class SweepFalseHitsMeasurement
     private static readonly MovingPair.Member Crate = new(
         new(Shape: new BoxShapeDesc(new(0.5f, 1, 1)), Mass: 10, LinearDamping: 0, AngularDamping: 0),
         _ => 0.5,
-        TurnsOntoD: true);
+        TurnsOntoD: true
+    );
 
     [Fact(Explicit = true)]
     public void SweepFalseHits()

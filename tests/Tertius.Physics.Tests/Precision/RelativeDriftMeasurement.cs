@@ -21,8 +21,13 @@ public sealed class RelativeDriftMeasurement
         private const double HalfSeparation = 5;
         private const double HalfRelativeSpeed = 0.05;
 
-        private static readonly BodyDesc Box = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, Restitution: 0,
-            LinearDamping: 0, AngularDamping: 0);
+        private static readonly BodyDesc Box = new(
+            Shape: new BoxShapeDesc(new(0.5f)),
+            Mass: 10,
+            Restitution: 0,
+            LinearDamping: 0,
+            AngularDamping: 0
+        );
 
         public override string Measurement => "relative-drift";
         public override Double3 AxisDirection => Double3.UnitY;
@@ -30,25 +35,44 @@ public sealed class RelativeDriftMeasurement
         public override FrameSpec Space => new(FrameBounds.Sphere(MotionDrift.SpaceRadius));
 
         public override Entity[] Spawn(World world, FrameHandle space, Double3 start, Double3 common) =>
-        [
-            SpawnBox(world: world, space: space, position: start - Double3.UnitX * HalfSeparation,
-                velocity: common - Double3.UnitX * HalfRelativeSpeed),
-            SpawnBox(world: world, space: space, position: start + Double3.UnitX * HalfSeparation,
-                velocity: common + Double3.UnitX * HalfRelativeSpeed)
-        ];
+            [
+                SpawnBox(
+                    world: world,
+                    space: space,
+                    position: start - Double3.UnitX * HalfSeparation,
+                    velocity: common - Double3.UnitX * HalfRelativeSpeed
+                ),
+                SpawnBox(
+                    world: world,
+                    space: space,
+                    position: start + Double3.UnitX * HalfSeparation,
+                    velocity: common + Double3.UnitX * HalfRelativeSpeed
+                ),
+            ];
 
         private static Entity SpawnBox(World world, FrameHandle space, Double3 position, Double3 velocity) =>
-            world.Spawn(new()
-                { Frame = space, Pose = new(position, DQuaternion.Identity), LinearVelocity = velocity, Body = Box });
+            world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Pose = new(position, DQuaternion.Identity),
+                    LinearVelocity = velocity,
+                    Body = Box,
+                }
+            );
 
         public override (Double3 Position, Double3 Velocity) Measure(World world, FrameHandle space, Entity[] bodies) =>
-        (
-            world.PoseIn(bodies[1], space).Position - world.PoseIn(bodies[0], space).Position,
-            world.VelocityIn(bodies[1], space) - world.VelocityIn(bodies[0], space)
-        );
+            (
+                world.PoseIn(bodies[1], space).Position - world.PoseIn(bodies[0], space).Position,
+                world.VelocityIn(bodies[1], space) - world.VelocityIn(bodies[0], space)
+            );
 
-        public override (Double3 Position, Double3 Velocity) Expected(int ticks, double dt, Double3 start,
-            Double3 common)
+        public override (Double3 Position, Double3 Velocity) Expected(
+            int ticks,
+            double dt,
+            Double3 start,
+            Double3 common
+        )
         {
             Double3 relativeVelocity = Double3.UnitX * (2 * HalfRelativeSpeed);
             return (Double3.UnitX * (2 * HalfSeparation) + relativeVelocity * (ticks * dt), relativeVelocity);

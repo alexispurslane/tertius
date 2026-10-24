@@ -18,8 +18,13 @@ public sealed class BallisticDriftMeasurement
     {
         private const float Gravity = 9.81f;
 
-        private static readonly BodyDesc Box = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, Restitution: 0,
-            LinearDamping: 0, AngularDamping: 0);
+        private static readonly BodyDesc Box = new(
+            Shape: new BoxShapeDesc(new(0.5f)),
+            Mass: 10,
+            Restitution: 0,
+            LinearDamping: 0,
+            AngularDamping: 0
+        );
 
         public override string Measurement => "ballistic-drift";
         public override Double3 AxisDirection => Double3.UnitX;
@@ -29,16 +34,27 @@ public sealed class BallisticDriftMeasurement
             new(FrameBounds.Sphere(MotionDrift.SpaceRadius), GravityField.Uniform(new(0, -Gravity, 0)));
 
         public override Entity[] Spawn(World world, FrameHandle space, Double3 start, Double3 common) =>
-        [
-            world.Spawn(new()
-                { Frame = space, Pose = new(start, DQuaternion.Identity), LinearVelocity = common, Body = Box })
-        ];
+            [
+                world.Spawn(
+                    new()
+                    {
+                        Frame = space,
+                        Pose = new(start, DQuaternion.Identity),
+                        LinearVelocity = common,
+                        Body = Box,
+                    }
+                ),
+            ];
 
         public override (Double3 Position, Double3 Velocity) Measure(World world, FrameHandle space, Entity[] bodies) =>
             (world.PoseIn(bodies[0], space).Position, world.VelocityIn(bodies[0], space));
 
-        public override (Double3 Position, Double3 Velocity) Expected(int ticks, double dt, Double3 start,
-            Double3 common)
+        public override (Double3 Position, Double3 Velocity) Expected(
+            int ticks,
+            double dt,
+            Double3 start,
+            Double3 common
+        )
         {
             var g = new Double3(0, -(double)Gravity, 0);
             double t = ticks * dt;

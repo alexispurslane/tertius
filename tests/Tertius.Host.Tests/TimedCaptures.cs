@@ -70,8 +70,14 @@ internal sealed class TimedPlayback(IPlayback inner, TimedRenderer? renderer = n
         long end = Stopwatch.GetTimestamp();
         double capture = TimedRenderer.Seconds(end - start);
         Seconds += capture;
-        Frames.Add(new(Name: name, Ticks: TimedRenderer.Seconds(start - last), Capture: capture,
-            Sink: renderer?.LastSinkSeconds ?? 0));
+        Frames.Add(
+            new(
+                Name: name,
+                Ticks: TimedRenderer.Seconds(start - last),
+                Capture: capture,
+                Sink: renderer?.LastSinkSeconds ?? 0
+            )
+        );
         last = end;
         return captured;
     }

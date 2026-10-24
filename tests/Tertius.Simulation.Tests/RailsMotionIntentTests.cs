@@ -24,8 +24,11 @@ public sealed class RailsMotionIntentTests
     private const double FarStartTime = 1e9 + 0.1;
 
     /// <summary>A kinematic box of 1 m, the hull of a frame on rails.</summary>
-    private static readonly BodyDesc KinematicHull =
-        new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Kinematic);
+    private static readonly BodyDesc KinematicHull = new(
+        Shape: new BoxShapeDesc(new(0.5f)),
+        Motion: BodyMotion.Kinematic
+    );
+
     // ---- The life of a full sample ------------------------------------------------------------------------------
 
     [Theory]
@@ -33,7 +36,7 @@ public sealed class RailsMotionIntentTests
     [InlineData(true)]
     public void AFullSampleWrittenInATickMovesItsFrameInTheNextStep(bool withHull)
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         FrameHandle frame = SpawnFrame(test, body: withHull ? KinematicHull : null, components: WritesTheTickNumber());
 
         test.Run(1);
@@ -42,12 +45,18 @@ public sealed class RailsMotionIntentTests
 
         test.Run(1);
 
-        faults.Intents.Should().Contain(
-            record => record.Entity == frame.Entity && record.Tick == 1 &&
-                      record.Intent.Move == new MotionIntent(SampleOfTick(0)),
-            "step 1 gets the sample in the owner's intent");
-        test.World.Frames.LocalPose(frame).Should().Be(SampleOfTick(0).Pose,
-            "step 1 applied it, so the frame stands on it at the sync point of tick 1");
+        faults
+            .Intents.Should()
+            .Contain(
+                record =>
+                    record.Entity == frame.Entity
+                    && record.Tick == 1
+                    && record.Intent.Move == new MotionIntent(SampleOfTick(0)),
+                "step 1 gets the sample in the owner's intent"
+            );
+        test.World.Frames.LocalPose(frame)
+            .Should()
+            .Be(SampleOfTick(0).Pose, "step 1 applied it, so the frame stands on it at the sync point of tick 1");
         test.World.Frames.Followed(frame).Should().Be(FollowKind.Rails);
         NextSample(test, frame).Should().Be(SampleOfTick(1));
     }
@@ -56,11 +65,16 @@ public sealed class RailsMotionIntentTests
     public void AFrameWhoseComponentWritesNoSampleInATickHasNoMotionIntentInTheNextStep()
     {
         using var test = new TestWorld();
-        FrameHandle frame = SpawnFrame(test, components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick == 0)
-                self.MoveOnRails(SampleOfTick(0));
-        }));
+        FrameHandle frame = SpawnFrame(
+            test,
+            components: Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 0)
+                        self.MoveOnRails(SampleOfTick(0));
+                }
+            )
+        );
         test.Run(1);
         NextSample(test, frame).Should().NotBeNull("tick 0 wrote a sample");
 
@@ -84,20 +98,24 @@ public sealed class RailsMotionIntentTests
     {
         using var test = new TestWorld();
         bool steers = first == "steer target";
-        Entity entity = test.World.Spawn(new()
-        {
-            Frame = steers ? test.Root : FrameHandle.Null,
-            Body = steers ? TestWorld.Ball : new(Shape: new SphereShapeDesc(0.5f), Motion: BodyMotion.Static),
-            AsFrame = steers ? null : new FrameSpec(FrameBounds.Sphere(10)),
-            Components =
-            [
-                Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-                {
-                    Write(self, first, 1);
-                    Write(self, last, 2);
-                })
-            ]
-        });
+        Entity entity = test.World.Spawn(
+            new()
+            {
+                Frame = steers ? test.Root : FrameHandle.Null,
+                Body = steers ? TestWorld.Ball : new(Shape: new SphereShapeDesc(0.5f), Motion: BodyMotion.Static),
+                AsFrame = steers ? null : new FrameSpec(FrameBounds.Sphere(10)),
+                Components =
+                [
+                    Lambda.OnTick(
+                        (self, scoped ref events, scoped ref outbox) =>
+                        {
+                            Write(self, first, 1);
+                            Write(self, last, 2);
+                        }
+                    ),
+                ],
+            }
+        );
 
         test.Run(1);
 
@@ -115,11 +133,13 @@ public sealed class RailsMotionIntentTests
         {
             test.Run(1);
 
-            NextSample(test, frame).Should()
+            NextSample(test, frame)
+                .Should()
                 .Be(SampleOfTick(tick - 1), "the swap keeps the motion intents without a backend");
             if (tick > 1)
-                test.World.Frames.LocalPose(frame).Should().Be(SampleOfTick(tick - 2).Pose,
-                    "the sync point applies them to a frame without a body");
+                test.World.Frames.LocalPose(frame)
+                    .Should()
+                    .Be(SampleOfTick(tick - 2).Pose, "the sync point applies them to a frame without a body");
         }
     }
 
@@ -165,18 +185,29 @@ public sealed class RailsMotionIntentTests
         KeplerOrbit orbit = KeplerOrbit.Circular(7e6, phase: 0.8, spinRate: 0.02) with
         {
             AxialTilt = DQuaternion.FromAxisAngle(Double3.UnitZ, 0.5),
-            SpinPhaseAtEpoch = 1.1
+            SpinPhaseAtEpoch = 1.1,
         };
-        FrameHandle parent = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
-        {
-            Frame = test.Root,
-            AsFrame = new(FrameBounds.Sphere(1e5f))
-        }.OnKeplerOrbit(test.World, orbit)));
-        var sample = new MotionSample(Pose: new(new(30, -40, 50), DQuaternion.FromAxisAngle(Double3.UnitX, 0.3)),
-            ChordVelocity: new(1, 2, 3), Velocity: new(1.5, 2.5, 3.5), Acceleration: new(-0.1, 0.2, 0.3),
-            AngularVelocity: new(0.01, 0.02, 0.03), AngularAcceleration: new(0.001, -0.002, 0.003));
-        FrameHandle child = SpawnFrame(test, parent,
-            components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.MoveOnRails(sample)));
+        FrameHandle parent = test.World.GetOwnedFrame(
+            test.World.Spawn(
+                new SpawnDesc { Frame = test.Root, AsFrame = new(FrameBounds.Sphere(1e5f)) }.OnKeplerOrbit(
+                    test.World,
+                    orbit
+                )
+            )
+        );
+        var sample = new MotionSample(
+            Pose: new(new(30, -40, 50), DQuaternion.FromAxisAngle(Double3.UnitX, 0.3)),
+            ChordVelocity: new(1, 2, 3),
+            Velocity: new(1.5, 2.5, 3.5),
+            Acceleration: new(-0.1, 0.2, 0.3),
+            AngularVelocity: new(0.01, 0.02, 0.03),
+            AngularAcceleration: new(0.001, -0.002, 0.003)
+        );
+        FrameHandle child = SpawnFrame(
+            test,
+            parent,
+            components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.MoveOnRails(sample))
+        );
         // After two ticks the parent stands on its rails: it followed the first sample of its KeplerMotion at the second
         // sync point.
         test.Run(2);
@@ -185,12 +216,13 @@ public sealed class RailsMotionIntentTests
         Double3 parentVelocity = frames.LinearVelocity(parent);
         Double3 parentSpin = frames.AngularVelocity(parent);
         DQuaternion turn = parentPose.Rotation;
-        parentPose.Position.Length.Should()
+        parentPose
+            .Position.Length.Should()
             .BeGreaterThan(6e6, "the parent is on its orbit, far from the root's origin");
         Distance(turn, DQuaternion.Identity).Should().BeGreaterThan(0.1, "the parent is turned");
         parentVelocity.Length.Should().BeGreaterThan(1e3, "the parent moves on its orbit");
         parentSpin.Length.Should().BeGreaterThan(1e-3, "the parent spins");
-        DPose composed = DPose.Compose(parentPose, sample.Pose);
+        var composed = DPose.Compose(parentPose, sample.Pose);
         // A point that moves with the child's sample, at the sample's place at the end of the step.
         Double3 place = turn.Rotate(sample.Pose.Position);
         Double3 carried = parentVelocity + Double3.Cross(parentSpin, place);
@@ -211,29 +243,38 @@ public sealed class RailsMotionIntentTests
         // converted sample misses by the parent's move over one step, the miss of every conversion through a frame that dies.
         Distance(converted.ChordVelocity, turn.Rotate(sample.ChordVelocity)).Should().BeLessThan(1e-9, "the chord");
         Distance(converted.Velocity, turn.Rotate(sample.Velocity) + carried).Should().BeLessThan(1e-9, "the velocity");
-        Double3 rotationTerms = Double3.Cross(parentSpin, Double3.Cross(parentSpin, place)) +
-                                2 * Double3.Cross(parentSpin, turn.Rotate(sample.Velocity));
-        Distance(converted.Acceleration, turn.Rotate(sample.Acceleration) + rotationTerms).Should()
+        Double3 rotationTerms =
+            Double3.Cross(parentSpin, Double3.Cross(parentSpin, place))
+            + 2 * Double3.Cross(parentSpin, turn.Rotate(sample.Velocity));
+        Distance(converted.Acceleration, turn.Rotate(sample.Acceleration) + rotationTerms)
+            .Should()
             .BeLessThan(1e-12, "the acceleration");
-        Distance(converted.AngularVelocity, turn.Rotate(sample.AngularVelocity) + parentSpin).Should()
+        Distance(converted.AngularVelocity, turn.Rotate(sample.AngularVelocity) + parentSpin)
+            .Should()
             .BeLessThan(1e-12, "the angular velocity");
-        Distance(converted.AngularAcceleration,
-                turn.Rotate(sample.AngularAcceleration) +
-                Double3.Cross(parentSpin, turn.Rotate(sample.AngularVelocity)))
-            .Should().BeLessThan(1e-12, "the angular acceleration");
+        Distance(
+                converted.AngularAcceleration,
+                turn.Rotate(sample.AngularAcceleration) + Double3.Cross(parentSpin, turn.Rotate(sample.AngularVelocity))
+            )
+            .Should()
+            .BeLessThan(1e-12, "the angular acceleration");
     }
 
     [Fact]
     public void EachStepGetsTheMotionIntentsThatItAppliesInItsIntents()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         FrameHandle frame = SpawnFrame(test, components: WritesTheTickNumber());
 
         test.Run(3);
 
-        faults.Moves.Where(record => record.Entity == frame.Entity).Should().Equal(
-            new MoveRecord(Tick: 1, Entity: frame.Entity, Frame: test.Root, Move: new(SampleOfTick(0))),
-            new MoveRecord(Tick: 2, Entity: frame.Entity, Frame: test.Root, Move: new(SampleOfTick(1))));
+        faults
+            .Moves.Where(record => record.Entity == frame.Entity)
+            .Should()
+            .Equal(
+                new MoveRecord(Tick: 1, Entity: frame.Entity, Frame: test.Root, Move: new(SampleOfTick(0))),
+                new MoveRecord(Tick: 2, Entity: frame.Entity, Frame: test.Root, Move: new(SampleOfTick(1)))
+            );
     }
 
     // ---- What a sample must hold --------------------------------------------------------------------------------
@@ -254,13 +295,18 @@ public sealed class RailsMotionIntentTests
     {
         using var test = new TestWorld();
         MotionSample sample = SampleNotFiniteIn(field);
-        FrameHandle frame = SpawnFrame(test,
-            components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.MoveOnRails(sample)));
+        FrameHandle frame = SpawnFrame(
+            test,
+            components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.MoveOnRails(sample))
+        );
 
         test.Run(1);
 
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain(frame.Entity.ToString()).And
-            .Contain(nameof(ArgumentException));
+        test.World.Errors.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Contain(frame.Entity.ToString())
+            .And.Contain(nameof(ArgumentException));
         NextMove(test, frame).HasValue.Should().BeFalse("the World keeps no sample that it refused");
     }
 
@@ -269,13 +315,18 @@ public sealed class RailsMotionIntentTests
     {
         using var test = new TestWorld();
         // The default sample has the rotation (0, 0, 0, 0), which no normalization can turn into a rotation.
-        FrameHandle frame = SpawnFrame(test,
-            components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.MoveOnRails(default)));
+        FrameHandle frame = SpawnFrame(
+            test,
+            components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.MoveOnRails(default))
+        );
 
         test.Run(1);
 
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain(frame.Entity.ToString()).And
-            .Contain(nameof(ArgumentException));
+        test.World.Errors.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Contain(frame.Entity.ToString())
+            .And.Contain(nameof(ArgumentException));
         NextMove(test, frame).HasValue.Should().BeFalse("the World keeps no sample that it refused");
     }
 
@@ -287,17 +338,20 @@ public sealed class RailsMotionIntentTests
     public void AFrameFollowsASampleWhoseRotationIsNotUnitLengthWithThatRotationMadeUnitLength()
     {
         using var test = new TestWorld();
-        DQuaternion turn = DQuaternion.FromAxisAngle(Double3.UnitY, 0.5);
+        var turn = DQuaternion.FromAxisAngle(Double3.UnitY, 0.5);
         var twiceAsLong = new DQuaternion(X: 2 * turn.X, Y: 2 * turn.Y, Z: 2 * turn.Z, W: 2 * turn.W);
         MotionSample sample = SampleOfTick(3) with { Pose = new(new(3, 0, 0), twiceAsLong) };
-        FrameHandle frame = SpawnFrame(test,
-            components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.MoveOnRails(sample)));
+        FrameHandle frame = SpawnFrame(
+            test,
+            components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.MoveOnRails(sample))
+        );
 
         test.Run(2);
 
         test.World.Errors.Should().BeEmpty();
         Distance(test.World.Frames.LocalPose(frame).Rotation, turn).Should().BeLessThan(1e-15);
-        Distance(NextSample(test, frame)!.Value.Pose.Rotation, turn).Should()
+        Distance(NextSample(test, frame)!.Value.Pose.Rotation, turn)
+            .Should()
             .BeLessThan(1e-15, "physics gets the same unit rotation");
     }
 
@@ -308,35 +362,53 @@ public sealed class RailsMotionIntentTests
     {
         using var test = new TestWorld(configure: options => options.StartTime = FarStartTime);
         var times = new List<(double TimeAt, double Time)>();
-        test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            times.Add((self.TimeAt(self.Tick), self.Time))));
+        test.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) => times.Add((self.TimeAt(self.Tick), self.Time))
+            )
+        );
 
         test.Run(5);
 
         times.Should().HaveCount(5);
-        times.Should().OnlyContain(t =>
-            BitConverter.DoubleToInt64Bits(t.TimeAt) == BitConverter.DoubleToInt64Bits(t.Time));
+        times
+            .Should()
+            .OnlyContain(t => BitConverter.DoubleToInt64Bits(t.TimeAt) == BitConverter.DoubleToInt64Bits(t.Time));
     }
 
     [Fact]
     public void SelfTimeAtTwoTicksOnEqualsWorldTimeTwoSyncPointsLater()
     {
         using var test = new TestWorld(configure: options => options.StartTime = FarStartTime);
-        double stepEnd = 0, sumOfSteps = 0;
-        test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick != 2)
-                return;
-            stepEnd = self.TimeAt(self.Tick + 2);
-            sumOfSteps = self.Time + 2.0 * self.DeltaTime;
-        }));
+        double stepEnd = 0,
+            sumOfSteps = 0;
+        test.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick != 2)
+                        return;
+                    stepEnd = self.TimeAt(self.Tick + 2);
+                    sumOfSteps = self.Time + 2.0 * self.DeltaTime;
+                }
+            )
+        );
 
         test.Run(4);
 
-        BitConverter.DoubleToInt64Bits(stepEnd).Should().Be(BitConverter.DoubleToInt64Bits(test.World.Time),
-            "the sync points of ticks 2 and 3 came after tick 2 read it");
-        sumOfSteps.Should().NotBe(stepEnd,
-            "at this start time a sum of steps rounds to another double, which the test must tell apart");
+        BitConverter
+            .DoubleToInt64Bits(stepEnd)
+            .Should()
+            .Be(
+                BitConverter.DoubleToInt64Bits(test.World.Time),
+                "the sync points of ticks 2 and 3 came after tick 2 read it"
+            );
+        sumOfSteps
+            .Should()
+            .NotBe(
+                stepEnd,
+                "at this start time a sum of steps rounds to another double, which the test must tell apart"
+            );
     }
 
     [Fact]
@@ -345,8 +417,10 @@ public sealed class RailsMotionIntentTests
         using var test = new TestWorld();
         FrameHandle seenByOwner = FrameHandle.Null;
         FrameHandle seenByPlain = test.Root;
-        FrameHandle frame = SpawnFrame(test,
-            components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) => seenByOwner = self.OwnedFrame));
+        FrameHandle frame = SpawnFrame(
+            test,
+            components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) => seenByOwner = self.OwnedFrame)
+        );
         test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) => seenByPlain = self.OwnedFrame));
 
         test.Run(1);
@@ -359,62 +433,77 @@ public sealed class RailsMotionIntentTests
     public void ThePoseAtTheNextStepStartIsTheEndOfTheRunningStepsMotionIntentInTheFrameThatTheReadNames()
     {
         using var test = new TestWorld();
-        DQuaternion turn = DQuaternion.FromAxisAngle(Double3.UnitZ, 0.5);
+        var turn = DQuaternion.FromAxisAngle(Double3.UnitZ, 0.5);
         FrameHandle parent = test.SpawnStaticFrame(new(new(100, 0, 0), turn));
         MotionSample sample = SampleOfTick(7);
-        DPose inParent = default, inRoot = default;
-        SpawnFrame(test, parent, components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick == 0)
-            {
-                self.MoveOnRails(sample);
-            }
-            else if (self.Tick == 1)
-            {
-                inParent = self.PoseAtNextStepStartIn(self.Frame);
-                inRoot = self.PoseAtNextStepStartIn(test.Root);
-            }
-        }));
+        DPose inParent = default,
+            inRoot = default;
+        SpawnFrame(
+            test,
+            parent,
+            components: Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 0)
+                    {
+                        self.MoveOnRails(sample);
+                    }
+                    else if (self.Tick == 1)
+                    {
+                        inParent = self.PoseAtNextStepStartIn(self.Frame);
+                        inRoot = self.PoseAtNextStepStartIn(test.Root);
+                    }
+                }
+            )
+        );
 
         test.Run(2);
 
         inParent.Should().Be(sample.Pose, "step 1 ends on the sample of tick 0, where step 2 starts");
-        Distance(inRoot.Position, DPose.Compose(new(new(100, 0, 0), turn), sample.Pose).Position).Should()
+        Distance(inRoot.Position, DPose.Compose(new(new(100, 0, 0), turn), sample.Pose).Position)
+            .Should()
             .BeLessThan(1e-12);
     }
 
     [Fact]
     public void WithoutAMotionIntentThePoseAtTheNextStepStartIsTheRunningStepsTeleportOrThePoseNow()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out _);
+        using var test = TestWorld.OnJolt(faults: out _);
         var seen = new List<DPose>();
-        test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = TestWorld.At(3),
-            Body = TestWorld.Ball,
-            Components =
-            [
-                Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-                {
-                    seen.Add(self.PoseAtNextStepStartIn(self.Frame));
-                    if (self.Tick == 0)
-                        self.Body.Teleport(TestWorld.At(40));
-                    else if (self.Tick == 2)
-                        self.Body.SteerTo(TestWorld.At(90));
-                })
-            ]
-        });
+        test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = TestWorld.At(3),
+                Body = TestWorld.Ball,
+                Components =
+                [
+                    Lambda.OnTick(
+                        (self, scoped ref events, scoped ref outbox) =>
+                        {
+                            seen.Add(self.PoseAtNextStepStartIn(self.Frame));
+                            if (self.Tick == 0)
+                                self.Body.Teleport(TestWorld.At(40));
+                            else if (self.Tick == 2)
+                                self.Body.SteerTo(TestWorld.At(90));
+                        }
+                    ),
+                ],
+            }
+        );
 
         test.Run(4);
 
-        seen[0].Should().Be(TestWorld.At(3),
-            "no step applies an intent of the ball, so it starts the next step where it stands");
+        seen[0]
+            .Should()
+            .Be(TestWorld.At(3), "no step applies an intent of the ball, so it starts the next step where it stands");
         seen[1].Should().Be(TestWorld.At(40), "the running step teleports the ball");
-        seen[2].Position.Should()
+        seen[2]
+            .Position.Should()
             .Be(new Double3(40, 0, 0), "the ball stands at the teleport's pose now, in no gravity");
-        seen[3].Position.Should().Be(new Double3(40, 0, 0),
-            "a steer target gives no exact end, so the read takes the pose now");
+        seen[3]
+            .Position.Should()
+            .Be(new Double3(40, 0, 0), "a steer target gives no exact end, so the read takes the pose now");
     }
 
     /// <summary>
@@ -428,13 +517,20 @@ public sealed class RailsMotionIntentTests
     {
         using var test = new TestWorld();
         var velocity = new Double3(10, 0, 0);
-        Lambda flight = Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            self.MoveOnRails(StillAt(velocity * self.TimeAt(self.Tick + 2)) with
-            {
-                ChordVelocity = velocity, Velocity = velocity
-            }));
-        Lambda turntable = Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            self.MoveOnRails(StillAt(self.PoseAtNextStepStartIn(self.Frame).Position)));
+        var flight = Lambda.OnTick(
+            (self, scoped ref events, scoped ref outbox) =>
+                self.MoveOnRails(
+                    StillAt(velocity * self.TimeAt(self.Tick + 2)) with
+                    {
+                        ChordVelocity = velocity,
+                        Velocity = velocity,
+                    }
+                )
+        );
+        var turntable = Lambda.OnTick(
+            (self, scoped ref events, scoped ref outbox) =>
+                self.MoveOnRails(StillAt(self.PoseAtNextStepStartIn(self.Frame).Position))
+        );
         FrameHandle frame = SpawnFrame(test, components: flight);
         test.Run(10);
 
@@ -442,28 +538,40 @@ public sealed class RailsMotionIntentTests
         test.World.AddComponent(frame.Entity, turntable);
         test.Run(1);
         Double3 stop = test.World.Frames.LocalPose(frame).Position;
-        stop.Should().Be(velocity * test.World.Time,
-            "the flight's last sample moves the frame in the step of the swap");
+        stop.Should()
+            .Be(velocity * test.World.Time, "the flight's last sample moves the frame in the step of the swap");
 
         for (int tick = 0; tick < 3; tick++)
         {
             test.Run(1);
 
-            test.World.Frames.LocalPose(frame).Position.Should()
+            test.World.Frames.LocalPose(frame)
+                .Position.Should()
                 .Be(stop, "the turntable keeps the place where the flight left the frame");
         }
     }
 
     /// <summary>A sample whose place is the tick number along X, so that a test can tell which tick wrote it.</summary>
     private static MotionSample SampleOfTick(long tick) =>
-        new(Pose: new(new(tick, 0, 0), DQuaternion.Identity), ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
-            Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
-            AngularAcceleration: Double3.Zero);
+        new(
+            Pose: new(new(tick, 0, 0), DQuaternion.Identity),
+            ChordVelocity: Double3.Zero,
+            Velocity: Double3.Zero,
+            Acceleration: Double3.Zero,
+            AngularVelocity: Double3.Zero,
+            AngularAcceleration: Double3.Zero
+        );
 
     /// <summary>A sample of a frame that stands still at <paramref name="place"/>, unturned.</summary>
     private static MotionSample StillAt(Double3 place) =>
-        new(Pose: new(place, DQuaternion.Identity), ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
-            Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
+        new(
+            Pose: new(place, DQuaternion.Identity),
+            ChordVelocity: Double3.Zero,
+            Velocity: Double3.Zero,
+            Acceleration: Double3.Zero,
+            AngularVelocity: Double3.Zero,
+            AngularAcceleration: Double3.Zero
+        );
 
     /// <summary>
     /// <see cref="SampleOfTick"/> of tick 0 with a value that is not a finite number in <paramref name="field"/>. The fields
@@ -481,7 +589,7 @@ public sealed class RailsMotionIntentTests
             "acceleration" => sample with { Acceleration = new(0, 0, double.NaN) },
             "angular velocity" => sample with { AngularVelocity = new(0, double.PositiveInfinity, 0) },
             "angular acceleration" => sample with { AngularAcceleration = new(double.NaN, 0, 0) },
-            _ => throw new ArgumentOutOfRangeException(nameof(field), field, "no such field")
+            _ => throw new ArgumentOutOfRangeException(nameof(field), field, "no such field"),
         };
     }
 
@@ -493,15 +601,23 @@ public sealed class RailsMotionIntentTests
     /// Spawns a frame at the origin of <paramref name="parent"/>, or of the root, with <paramref name="body"/> as its hull or
     /// without a body, and returns it.
     /// </summary>
-    private static FrameHandle SpawnFrame(TestWorld test, FrameHandle parent = default, BodyDesc? body = null,
-        params IComponent[] components) =>
-        test.World.GetOwnedFrame(test.World.Spawn(new()
-        {
-            Frame = parent.IsNull ? test.Root : parent,
-            Body = body,
-            AsFrame = new(FrameBounds.Sphere(10)),
-            Components = components
-        }));
+    private static FrameHandle SpawnFrame(
+        TestWorld test,
+        FrameHandle parent = default,
+        BodyDesc? body = null,
+        params IComponent[] components
+    ) =>
+        test.World.GetOwnedFrame(
+            test.World.Spawn(
+                new()
+                {
+                    Frame = parent.IsNull ? test.Root : parent,
+                    Body = body,
+                    AsFrame = new(FrameBounds.Sphere(10)),
+                    Components = components,
+                }
+            )
+        );
 
     /// <summary>Writes the case <paramref name="kind"/> of <see cref="Case"/> through its writer.</summary>
     private static void Write(Self self, string kind, double x)
@@ -526,18 +642,21 @@ public sealed class RailsMotionIntentTests
     }
 
     /// <summary>A motion intent of the case <paramref name="kind"/> at <paramref name="x"/> m along X.</summary>
-    private static MotionIntent Case(string kind, double x) => kind switch
-    {
-        "end pose" => new(new EndPose(TestWorld.At(x))),
-        "steer target" => new(new SteerTarget(TestWorld.At(x))),
-        _ => new(SampleOfTick((long)x))
-    };
+    private static MotionIntent Case(string kind, double x) =>
+        kind switch
+        {
+            "end pose" => new(new EndPose(TestWorld.At(x))),
+            "steer target" => new(new SteerTarget(TestWorld.At(x))),
+            _ => new(SampleOfTick((long)x)),
+        };
 
     private static double Distance(Double3 a, Double3 b) => (a - b).Length;
 
     private static double Distance(DQuaternion a, DQuaternion b) =>
-        Math.Max(Math.Max(Math.Abs(a.X - b.X), Math.Abs(a.Y - b.Y)),
-            Math.Max(Math.Abs(a.Z - b.Z), Math.Abs(a.W - b.W)));
+        Math.Max(
+            Math.Max(Math.Abs(a.X - b.X), Math.Abs(a.Y - b.Y)),
+            Math.Max(Math.Abs(a.Z - b.Z), Math.Abs(a.W - b.W))
+        );
 
     /// <summary>The motion intent that the next step applies to the owner of <paramref name="frame"/>, between two ticks.</summary>
     private static MotionIntent NextMove(TestWorld test, FrameHandle frame) =>

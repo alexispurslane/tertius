@@ -19,7 +19,7 @@ internal enum QueryIndex : byte
     Grid,
 
     /// <summary>No entity: a <c>Near</c> center that is not in a frame, so the filter matches nothing.</summary>
-    Nothing
+    Nothing,
 }
 
 /// <summary>
@@ -54,8 +54,11 @@ internal static class QueryPlanner
     /// The plan of a run of <paramref name="query"/> with the further filters <paramref name="more"/>. Throws
     /// <see cref="InvalidOperationException"/> for a <c>Near(radius)</c> on a snapshot that has no asker.
     /// </summary>
-    public static QueryPlan Choose(scoped in Snapshot snapshot, scoped in EntityQuery query,
-        scoped ReadOnlySpan<QueryFilter> more)
+    public static QueryPlan Choose(
+        scoped in Snapshot snapshot,
+        scoped in EntityQuery query,
+        scoped ReadOnlySpan<QueryFilter> more
+    )
     {
         EntityTable entities = snapshot.World.Entities;
         var best = new QueryPlan { Index = QueryIndex.All, Count = entities.LiveCount };
@@ -63,7 +66,12 @@ internal static class QueryPlanner
         {
             ReadOnlySpan<Entity> with = entities.WithComponent(id);
             if (with.Length < best.Count)
-                best = new() { Index = QueryIndex.Components, Count = with.Length, Candidates = with };
+                best = new()
+                {
+                    Index = QueryIndex.Components,
+                    Count = with.Length,
+                    Candidates = with,
+                };
         }
 
         if (!query.InFrame.IsNull)
@@ -86,7 +94,8 @@ internal static class QueryPlanner
                 break;
             case NearAsker when snapshot.Asker.IsNull:
                 throw new InvalidOperationException(
-                    "Near(radius) is around the entity that runs the query, and this snapshot has none. Run it from a component's Self.Snapshot, or use Near(other, radius) or Near(frame, point, radius).");
+                    "Near(radius) is around the entity that runs the query, and this snapshot has none. Run it from a component's Self.Snapshot, or use Near(other, radius) or Near(frame, point, radius)."
+                );
             case NearAsker(var radius):
                 ConsiderNear(best: ref best, snapshot: snapshot, near: filter, radius: radius);
                 break;
@@ -105,8 +114,12 @@ internal static class QueryPlanner
     }
 
     /// <summary>The Near filter <paramref name="near"/>, whose radius is <paramref name="radius"/>, as an index: the frame of its center and the grid around it.</summary>
-    private static void ConsiderNear(scoped ref QueryPlan best, in Snapshot snapshot, in QueryFilter near,
-        double radius)
+    private static void ConsiderNear(
+        scoped ref QueryPlan best,
+        in Snapshot snapshot,
+        in QueryFilter near,
+        double radius
+    )
     {
         if (!near.TryCenter(snapshot, out FrameHandle frame, out Double3 point))
         {
@@ -118,14 +131,26 @@ internal static class QueryPlanner
         ConsiderFrame(ref best, snapshot.World, frame);
         int inCells = snapshot.World.Spatial.CountNear(frame, point, radius);
         if (inCells >= 0 && inCells < best.Count)
-            best = new() { Index = QueryIndex.Grid, Count = inCells, Frame = frame, Point = point, Radius = radius };
+            best = new()
+            {
+                Index = QueryIndex.Grid,
+                Count = inCells,
+                Frame = frame,
+                Point = point,
+                Radius = radius,
+            };
     }
 
     private static void ConsiderFrame(scoped ref QueryPlan best, World world, FrameHandle frame)
     {
         ReadOnlySpan<Entity> members = world.FrameMembers(frame);
         if (members.Length < best.Count)
-            best = new() { Index = QueryIndex.Frame, Count = members.Length, Candidates = members };
+            best = new()
+            {
+                Index = QueryIndex.Frame,
+                Count = members.Length,
+                Candidates = members,
+            };
     }
 }
 
@@ -135,7 +160,8 @@ internal static class QueryPlanner
 /// </summary>
 internal static class QueryBuffers
 {
-    [ThreadStatic] private static Stack<Entity[]>? free;
+    [ThreadStatic]
+    private static Stack<Entity[]>? free;
 
     /// <summary>A buffer that holds at least <paramref name="size"/> handles.</summary>
     public static Entity[] Rent(int size)

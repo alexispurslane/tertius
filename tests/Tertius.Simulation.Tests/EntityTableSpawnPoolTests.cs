@@ -45,8 +45,16 @@ public sealed class EntityTableSpawnPoolTests
         table.EndGameplay().Should().Be(1);
         table.AssertInvariants();
         foreach (Entity spawned in new[] { first, second, third })
-            table.Activate(entity: spawned, row: default, render: new(), components: [], wants: [], body: null,
-                bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
+            table.Activate(
+                entity: spawned,
+                row: default,
+                render: new(),
+                components: [],
+                wants: [],
+                body: null,
+                bodyCenterOfMass: Vector3.Zero,
+                ownedFrame: FrameHandle.Null
+            );
         table.EndTick();
         table.LiveCount.Should().Be(4);
         table.AssertInvariants();
@@ -61,8 +69,16 @@ public sealed class EntityTableSpawnPoolTests
         Entity[] firstTick = [.. Enumerable.Range(0, 3).Select(_ => table.ReserveForSpawn(spawner))];
         table.EndGameplay();
         foreach (Entity spawned in firstTick)
-            table.Activate(entity: spawned, row: default, render: new(), components: [], wants: [], body: null,
-                bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
+            table.Activate(
+                entity: spawned,
+                row: default,
+                render: new(),
+                components: [],
+                wants: [],
+                body: null,
+                bodyCenterOfMass: Vector3.Zero,
+                ownedFrame: FrameHandle.Null
+            );
         table.EndTick();
 
         // The chunk spawned three last tick, so its next pool holds six.
@@ -84,8 +100,16 @@ public sealed class EntityTableSpawnPoolTests
         Entity[] firstTick = [.. Enumerable.Range(0, 600).Select(_ => table.ReserveForSpawn(spawner))];
         table.EndGameplay();
         foreach (Entity spawned in firstTick)
-            table.Activate(entity: spawned, row: default, render: new(), components: [], wants: [], body: null,
-                bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
+            table.Activate(
+                entity: spawned,
+                row: default,
+                render: new(),
+                components: [],
+                wants: [],
+                body: null,
+                bodyCenterOfMass: Vector3.Zero,
+                ownedFrame: FrameHandle.Null
+            );
         table.EndTick();
 
         // Twice 600 would be 1200 slots, but a pool stops at 1024: the 1025th spawn is the first to miss its pool.
@@ -108,8 +132,16 @@ public sealed class EntityTableSpawnPoolTests
         Entity spawned = table.ReserveForSpawn(spawner);
 
         table.EndGameplay().Should().Be(1);
-        table.Activate(entity: spawned, row: default, render: new(), components: [], wants: [], body: null,
-            bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
+        table.Activate(
+            entity: spawned,
+            row: default,
+            render: new(),
+            components: [],
+            wants: [],
+            body: null,
+            bodyCenterOfMass: Vector3.Zero,
+            ownedFrame: FrameHandle.Null
+        );
         table.IsAlive(spawned).Should().BeTrue();
         table.AssertInvariants();
     }
@@ -123,8 +155,16 @@ public sealed class EntityTableSpawnPoolTests
         Entity spawned = table.ReserveForSpawn(spawner);
         table.EndGameplay();
 
-        table.Activate(entity: spawned, row: EntityTableSupport.RowAt(7), render: new(), components: [], wants: [],
-            body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
+        table.Activate(
+            entity: spawned,
+            row: EntityTableSupport.RowAt(7),
+            render: new(),
+            components: [],
+            wants: [],
+            body: null,
+            bodyCenterOfMass: Vector3.Zero,
+            ownedFrame: FrameHandle.Null
+        );
         table.EndTick();
 
         spawned.Generation.Should().Be(1u);

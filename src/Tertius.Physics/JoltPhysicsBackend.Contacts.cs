@@ -48,13 +48,17 @@ public sealed partial class JoltPhysicsBackend
     private static readonly Comparison<ContactStarted> ByEntitiesThenFrame = static (x, y) =>
     {
         int c = x.A.CompareTo(y.A);
-        if (c != 0) return c;
+        if (c != 0)
+            return c;
         c = x.B.CompareTo(y.B);
-        if (c != 0) return c;
+        if (c != 0)
+            return c;
         c = x.Frame.Index.CompareTo(y.Frame.Index);
-        if (c != 0) return c;
+        if (c != 0)
+            return c;
         c = x.Point.X.CompareTo(y.Point.X);
-        if (c != 0) return c;
+        if (c != 0)
+            return c;
         c = x.Point.Y.CompareTo(y.Point.Y);
         return c != 0 ? c : x.Point.Z.CompareTo(y.Point.Z);
     };
@@ -116,9 +120,11 @@ public sealed partial class JoltPhysicsBackend
             world.DrainContacts(rawContacts, rawEnds);
             foreach (RawContact raw in rawContacts)
             {
-                if (ContactEntity(raw.UserData1, out float inverseMass1) is not { } a ||
-                    ContactEntity(raw.UserData2, out float inverseMass2) is not { } b ||
-                    a == b)
+                if (
+                    ContactEntity(raw.UserData1, out float inverseMass1) is not { } a
+                    || ContactEntity(raw.UserData2, out float inverseMass2) is not { } b
+                    || a == b
+                )
                     continue;
                 // Relative normal speed times the reduced mass: the impulse that stops the approach. A sensor stops nothing.
                 float inverseMassSum = inverseMass1 + inverseMass2;
@@ -132,8 +138,9 @@ public sealed partial class JoltPhysicsBackend
                     normal = -normal;
                 }
 
-                bodyPairStarts.Add(new(A: a, B: b, Frame: world.Frame, Point: raw.Point, Normal: normal,
-                    Impulse: impulse));
+                bodyPairStarts.Add(
+                    new(A: a, B: b, Frame: world.Frame, Point: raw.Point, Normal: normal, Impulse: impulse)
+                );
             }
         }
 
@@ -162,7 +169,8 @@ public sealed partial class JoltPhysicsBackend
         if (Unsafe.IsNullRef(ref count))
         {
             ReportBug(
-                $"Physics: the contact of {pair.A} and {pair.B} ended, but it had not started. Only a bug ends such a contact, so the end was skipped.");
+                $"Physics: the contact of {pair.A} and {pair.B} ended, but it had not started. Only a bug ends such a contact, so the end was skipped."
+            );
             return;
         }
 
@@ -182,11 +190,13 @@ public sealed partial class JoltPhysicsBackend
     private void WriteEndedContacts(PhysicsStepOutput output)
     {
         ResolveLooseContacts();
-        endedContacts.Sort(static (x, y) =>
-        {
-            int c = x.A.CompareTo(y.A);
-            return c != 0 ? c : x.B.CompareTo(y.B);
-        });
+        endedContacts.Sort(
+            static (x, y) =>
+            {
+                int c = x.A.CompareTo(y.A);
+                return c != 0 ? c : x.B.CompareTo(y.B);
+            }
+        );
         output.ContactsEnded.AddRange(endedContacts);
         endedContacts.Clear();
     }
@@ -231,8 +241,9 @@ public sealed partial class JoltPhysicsBackend
                 Recount(ended, -1);
             else
                 ReportBug(
-                    $"Physics: the system of {world.Frame} held a started pair of {body} and {other}, which is no contact of two entities. " +
-                    "Only a bug starts such a pair, so it was dropped.");
+                    $"Physics: the system of {world.Frame} held a started pair of {body} and {other}, which is no contact of two entities. "
+                        + "Only a bug starts such a pair, so it was dropped."
+                );
         }
 
         partnerScratch.Clear();
@@ -287,8 +298,10 @@ public sealed partial class JoltPhysicsBackend
     {
         // The contacts that waited since the last call, now that a sync point and a step have passed.
         foreach ((Entity A, Entity B) pair in waitingContacts)
-            Recount(pair,
-                (Find(pair.A) is { } first && Find(pair.B) is { } second ? CarryContact(first, second) : 0) - 1);
+            Recount(
+                pair,
+                (Find(pair.A) is { } first && Find(pair.B) is { } second ? CarryContact(first, second) : 0) - 1
+            );
         waitingContacts.Clear();
         foreach ((Entity A, Entity B) pair in looseContacts)
         {
@@ -299,8 +312,11 @@ public sealed partial class JoltPhysicsBackend
             }
 
             int taken = CarryContact(first, second);
-            if (taken == 0 && (handedOff.Contains(pair.A) || handedOff.Contains(pair.B)) &&
-                (InNumericFrame(first) || InNumericFrame(second)))
+            if (
+                taken == 0
+                && (handedOff.Contains(pair.A) || handedOff.Contains(pair.B))
+                && (InNumericFrame(first) || InNumericFrame(second))
+            )
                 waitingContacts.Add(pair);
             else
                 Recount(pair, taken - 1);
@@ -376,8 +392,11 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>The two entities of a contact, in canonical order, or null when the contact is not reported.</summary>
     private (Entity A, Entity B)? EntityPair(in RawEnd raw)
     {
-        if (ContactEntity(raw.UserData1, out _) is not { } a || ContactEntity(raw.UserData2, out _) is not { } b ||
-            a == b)
+        if (
+            ContactEntity(raw.UserData1, out _) is not { } a
+            || ContactEntity(raw.UserData2, out _) is not { } b
+            || a == b
+        )
             return null;
         return b.CompareTo(a) < 0 ? (b, a) : (a, b);
     }
@@ -394,11 +413,13 @@ public sealed partial class JoltPhysicsBackend
         float bodyInverseMass = record.Desc.Mass > 0 ? 1f / record.Desc.Mass : 0f;
         (Entity? entity, inverseMass) = BodyUserData.Kind(userData) switch
         {
-            BodyKind.Primary or BodyKind.Ghost when record.Motion is BodyMotion.Dynamic or BodyMotion.Character =>
-                (record.Entity, bodyInverseMass),
+            BodyKind.Primary or BodyKind.Ghost when record.Motion is BodyMotion.Dynamic or BodyMotion.Character => (
+                record.Entity,
+                bodyInverseMass
+            ),
             BodyKind.CharacterInner => (record.Entity, bodyInverseMass),
             BodyKind.Primary or BodyKind.Interior or BodyKind.Ghost => (record.Entity, 0f),
-            BodyKind.None => ((Entity?)null, 0f)
+            BodyKind.None => ((Entity?)null, 0f),
         };
         return entity;
     }

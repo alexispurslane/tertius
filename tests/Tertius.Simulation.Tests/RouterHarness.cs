@@ -17,9 +17,8 @@ internal sealed class RouterHarness
     private readonly CountingScheduler? workers;
 
     /// <summary>A harness whose router has no workers, so every routing runs on the calling thread.</summary>
-    public RouterHarness() : this(null)
-    {
-    }
+    public RouterHarness()
+        : this(null) { }
 
     private RouterHarness(CountingScheduler? workers)
     {
@@ -27,8 +26,11 @@ internal sealed class RouterHarness
         Entities = new(chunkSize: 1, initialCapacity: 16);
         Topics = new(Entities);
         this.workers = workers;
-        Router = new(Entities, Topics,
-            workers is null ? null : new ParallelOptions { MaxDegreeOfParallelism = 4, TaskScheduler = workers });
+        Router = new(
+            Entities,
+            Topics,
+            workers is null ? null : new ParallelOptions { MaxDegreeOfParallelism = 4, TaskScheduler = workers }
+        );
     }
 
     /// <summary>How many tasks the router queued on its workers so far. Always 0 for a harness without workers.</summary>
@@ -55,9 +57,16 @@ internal sealed class RouterHarness
     public Entity Spawn(EventMask wants, FrameHandle frame = default)
     {
         Entity entity = Entities.Reserve();
-        Entities.Activate(entity: entity, row: new() { Frame = frame, PhysicsHome = frame }, render: new(),
-            components: [new Recorder(wants)], wants: [wants],
-            body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
+        Entities.Activate(
+            entity: entity,
+            row: new() { Frame = frame, PhysicsHome = frame },
+            render: new(),
+            components: [new Recorder(wants)],
+            wants: [wants],
+            body: null,
+            bodyCenterOfMass: Vector3.Zero,
+            ownedFrame: FrameHandle.Null
+        );
         Topics.MoveMember(entity, frame, out _);
         return entity;
     }
@@ -68,7 +77,8 @@ internal sealed class RouterHarness
     /// Writes a message into the outbox of a chunk, as an entity of that chunk would. The table only has chunks for the
     /// slots it has handed out, so a chunk that has no entity yet gets filler entities that want nothing.
     /// </summary>
-    public void Send<T>(int chunk, Target target, T payload) where T : unmanaged, IEventPayload
+    public void Send<T>(int chunk, Target target, T payload)
+        where T : unmanaged, IEventPayload
     {
         EnsureChunk(chunk);
         Entities.Chunks[chunk].Outbox.Add(Event.Create(target: target, sender: Entity.Null, payload: payload));
@@ -76,11 +86,15 @@ internal sealed class RouterHarness
 
     /// <summary>Writes a delayed message into a chunk, as an entity of that chunk would. It is due at routing number
     /// <paramref name="due"/>.</summary>
-    public void SendAt<T>(int chunk, long due, Target target, T payload) where T : unmanaged, IEventPayload
+    public void SendAt<T>(int chunk, long due, Target target, T payload)
+        where T : unmanaged, IEventPayload
     {
         EnsureChunk(chunk);
-        Entities.Chunks[chunk].Delayed.Add(new()
-            { Due = due, Event = Event.Create(target: target, sender: Entity.Null, payload: payload) });
+        Entities
+            .Chunks[chunk]
+            .Delayed.Add(
+                new() { Due = due, Event = Event.Create(target: target, sender: Entity.Null, payload: payload) }
+            );
     }
 
     // With one slot per chunk, chunk n exists once slot n has been handed out.

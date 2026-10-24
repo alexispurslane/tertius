@@ -10,42 +10,61 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class EditSubtitlesTests
 {
-    private static readonly Script Films = new("scene",
-    [
-        new(new CameraStep("one")), new(new FilmStep("a", 100, 1)), new(new OutlinesStep(true)),
-        new(new FilmStep("b", 120, 4)),
-        new(new OutlinesStep(false)), new(new FilmStep("c", 80, 1))
-    ]);
+    private static readonly Script Films = new(
+        "scene",
+        [
+            new(new CameraStep("one")),
+            new(new FilmStep("a", 100, 1)),
+            new(new OutlinesStep(true)),
+            new(new FilmStep("b", 120, 4)),
+            new(new OutlinesStep(false)),
+            new(new FilmStep("c", 80, 1)),
+        ]
+    );
 
     private static IReadOnlyList<ScriptFilm> FilmsOf => ScriptFilm.Of(Films);
 
     /// <summary>One row for each frame of <see cref="Films"/>, at the frame's tick, with a speed of 1,000 m/s plus its index.</summary>
     private static IReadOnlyList<ReadoutRow> Rows =>
-    [
-        .. FilmsOf.SelectMany(film => Enumerable.Range(0, film.Frames).Select(k => (film, k)))
-            .Select((frame, index) => new ReadoutRow(Frame: $"{frame.film.Name}-{frame.k:000000}",
-                Tick: frame.film.FirstTick + (frame.k + 1L) * frame.film.Every,
-                Position: new(DemoScenes.EarthRadius + 200e3, 0, 0), Speed: 1000 + index, ToStation: 2e6, Axis: 0,
-                Felt: 0))
-    ];
+        [
+            .. FilmsOf
+                .SelectMany(film => Enumerable.Range(0, film.Frames).Select(k => (film, k)))
+                .Select(
+                    (frame, index) =>
+                        new ReadoutRow(
+                            Frame: $"{frame.film.Name}-{frame.k:000000}",
+                            Tick: frame.film.FirstTick + (frame.k + 1L) * frame.film.Every,
+                            Position: new(DemoScenes.EarthRadius + 200e3, 0, 0),
+                            Speed: 1000 + index,
+                            ToStation: 2e6,
+                            Axis: 0,
+                            Felt: 0
+                        )
+                ),
+        ];
 
-    private static readonly TitleCard Card = new(2,
-        [new("Tertius", 96), new("", 24), new("A {gray} line", 24, Gray: true)]);
+    private static readonly TitleCard Card = new(
+        2,
+        [new("Tertius", 96), new("", 24), new("A {gray} line", 24, Gray: true)]
+    );
 
-    private static CutList Cuts(IReadOnlyList<EditTrim>? trims = null, IReadOnlyList<EditPart>? parts = null,
-        IReadOnlyList<PanelSpan>? panels = null) =>
-        new(Parts: parts ?? [], Trims: trims ?? [], Panels: panels ?? [], Opening: Card, Closing: Card);
+    private static CutList Cuts(
+        IReadOnlyList<EditTrim>? trims = null,
+        IReadOnlyList<EditPart>? parts = null,
+        IReadOnlyList<PanelSpan>? panels = null
+    ) => new(Parts: parts ?? [], Trims: trims ?? [], Panels: panels ?? [], Opening: Card, Closing: Card);
 
     private static string Subtitles(CutList cuts) => EditSubtitles.Film(Stretch.Of(FilmsOf, cuts.Trims), Rows, cuts);
 
     /// <summary>The events of the style <paramref name="style"/>: their start, their end and their text.</summary>
     private static List<(string Start, string End, string Text)> Events(string ass, string style) =>
-    [
-        .. ass.Split('\n').Where(line => line.StartsWith("Dialogue: ", StringComparison.Ordinal))
-            .Select(line => line["Dialogue: ".Length..].Split(',', 10))
-            .Where(cells => cells[3] == style)
-            .Select(cells => (cells[1], cells[2], cells[9]))
-    ];
+        [
+            .. ass.Split('\n')
+                .Where(line => line.StartsWith("Dialogue: ", StringComparison.Ordinal))
+                .Select(line => line["Dialogue: ".Length..].Split(',', 10))
+                .Where(cells => cells[3] == style)
+                .Select(cells => (cells[1], cells[2], cells[9])),
+        ];
 
     [Theory]
     [InlineData(0, "0:00:00.00")]
@@ -55,10 +74,8 @@ public sealed class EditSubtitlesTests
     [InlineData(59, "0:00:00.98")]
     [InlineData(60, "0:00:01.00")]
     [InlineData(216_000, "1:00:00.00")]
-    public void AFramesTimeIsItsIndexOver60RoundedDownToTheHundredth(int frame, string time)
-    {
+    public void AFramesTimeIsItsIndexOver60RoundedDownToTheHundredth(int frame, string time) =>
         EditSubtitles.Time(frame).Should().Be(time);
-    }
 
     [Fact]
     public void TheFilmHasOneReadoutEventForEachKeptFrameFromItsTimeToTheNextFramesTime()
@@ -66,7 +83,9 @@ public sealed class EditSubtitlesTests
         List<(string Start, string End, string Text)> readouts = Events(Subtitles(Cuts([new("b", 10, 0)])), "Readout");
 
         int[] kept = [.. Enumerable.Range(0, 100), .. Enumerable.Range(110, 110), .. Enumerable.Range(220, 80)];
-        readouts.Select(e => (e.Start, e.End)).Should()
+        readouts
+            .Select(e => (e.Start, e.End))
+            .Should()
             .Equal(kept.Select(k => (EditSubtitles.Time(k), EditSubtitles.Time(k + 1))));
     }
 
@@ -75,8 +94,13 @@ public sealed class EditSubtitlesTests
     {
         List<(string Start, string End, string Text)> readouts = Events(Subtitles(Cuts()), "Readout");
 
-        readouts[150].Text.Should().Contain("SPEED").And.Contain("1,150.0\\hm/s").And.Contain("200.00\\hkm").And
-            .Contain("2,000.0\\hkm").And.Contain("0.00\\hg");
+        readouts[150]
+            .Text.Should()
+            .Contain("SPEED")
+            .And.Contain("1,150.0\\hm/s")
+            .And.Contain("200.00\\hkm")
+            .And.Contain("2,000.0\\hkm")
+            .And.Contain("0.00\\hg");
         readouts[150].Text.Split("\\N").Should().HaveCount(4);
     }
 
@@ -119,8 +143,10 @@ public sealed class EditSubtitlesTests
     {
         static string[] panel(ReadoutRow first, ReadoutRow row) => [$"from {first.Frame} at {row.Frame}"];
 
-        List<(string Start, string End, string Text)> panels =
-            Events(Subtitles(Cuts(trims: [new("b", 10, 0)], panels: [new("b", "c", panel)])), "Panel");
+        List<(string Start, string End, string Text)> panels = Events(
+            Subtitles(Cuts(trims: [new("b", 10, 0)], panels: [new("b", "c", panel)])),
+            "Panel"
+        );
 
         panels.Should().HaveCount(110 + 80);
         panels[0].Start.Should().Be(EditSubtitles.Time(110));

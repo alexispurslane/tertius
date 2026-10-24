@@ -174,17 +174,20 @@ public static partial class DemoScenes
         /// ground's axes, so the departure axes' turn takes the normal into earth's.
         /// </summary>
         public static Double3 LaunchPlaneNormal { get; } =
-            DQuaternion.FromAxisAngle(Double3.UnitY, GroundTurnAtDeparture)
-                .Rotate(Double3.Cross(Double3.UnitY, LaunchRamp.Up)).Normalized();
+            DQuaternion
+                .FromAxisAngle(Double3.UnitY, GroundTurnAtDeparture)
+                .Rotate(Double3.Cross(Double3.UnitY, LaunchRamp.Up))
+                .Normalized();
 
         /// <summary>
         /// The demo's date: the June solstice, with the ground turned at the world's time 0 so that it stands turned by
         /// <see cref="GroundTurnAtDeparture"/> at <see cref="DepartureAt"/>.
         /// </summary>
-        public static EarthDate Date { get; } = EarthDate.JuneSolstice with
-        {
-            GroundTurn = GroundTurnAtDeparture - SiderealRate * DepartureAt
-        };
+        public static EarthDate Date { get; } =
+            EarthDate.JuneSolstice with
+            {
+                GroundTurn = GroundTurnAtDeparture - SiderealRate * DepartureAt,
+            };
 
         /// <summary>The pen's half extents, in meters: 14 cm long along its own Z, and 12 mm thick.</summary>
         public static Vector3 PenHalf { get; } = new(0.006f, 0.006f, 0.07f);
@@ -194,8 +197,8 @@ public static partial class DemoScenes
         /// floor, 2.75 m aft of <see cref="Shuttle.SeatStand"/>, with 1 cm between the pen and the wall. Its length lies along
         /// the cabin, within the pillar's 0.2 m, so the pen never hangs in front of glass.
         /// </summary>
-        public static DPose PenClip { get; } = new(new(-Shuttle.Cabin.X + PenHalf.X + 0.01, -Shuttle.Cabin.Y + 1.5, -1),
-            DQuaternion.Identity);
+        public static DPose PenClip { get; } =
+            new(new(-Shuttle.Cabin.X + PenHalf.X + 0.01, -Shuttle.Cabin.Y + 1.5, -1), DQuaternion.Identity);
 
         /// <summary>
         /// The push with which the clip lets the pen go, in m/s, in the shuttle's axes: away from the port wall, toward the
@@ -273,7 +276,7 @@ public static partial class DemoScenes
         [
             new(new(-3, 0, 6), new(-0.5f, 0.45f, 6.8f)),
             new(new(0.5f, 0, 6), new(3, 0.45f, 6.8f)),
-            new(new(-3.6f, 0, 1.5f), new(-2.8f, 1.1f, 4.5f))
+            new(new(-3.6f, 0, 1.5f), new(-2.8f, 1.1f, 4.5f)),
         ];
 
         /// <summary>Where <c>sky-camera</c> stands, in earth-surface: to starboard of the ramp, 40 m ahead of the parked nose, 8 m up.</summary>
@@ -303,11 +306,19 @@ public static partial class DemoScenes
             yield return new(new(-half.X, top, -half.Z), new(half.X, 2 * half.Y, half.Z));
             yield return new(new(-half.X, 0, -half.Z), new(half.X, top, -inner));
             yield return new(new(-half.X, 0, inner), new(half.X, top, half.Z));
-            foreach (BoundingBox part in AroundDoorway(
-                         new(new(half.X - TerminalWall, 0, -inner), new(half.X, top, inner)), Entrance))
+            foreach (
+                BoundingBox part in AroundDoorway(
+                    new(new(half.X - TerminalWall, 0, -inner), new(half.X, top, inner)),
+                    Entrance
+                )
+            )
                 yield return part;
-            foreach (BoundingBox part in AroundDoorway(
-                         new(new(-half.X, 0, -inner), new(-half.X + TerminalWall, top, inner)), Gate))
+            foreach (
+                BoundingBox part in AroundDoorway(
+                    new(new(-half.X, 0, -inner), new(-half.X + TerminalWall, top, inner)),
+                    Gate
+                )
+            )
                 yield return part;
             foreach (BoundingBox box in Furniture)
                 yield return box;
@@ -318,8 +329,10 @@ public static partial class DemoScenes
         {
             Vector3 half = TerminalHalf;
             Opening[] doorways = [Opening.ThroughX(Entrance), Opening.ThroughX(Gate)];
-            var hall = new BoundingBox(new(-half.X + TerminalWall, HallFloor, -half.Z + TerminalWall),
-                new(half.X - TerminalWall, 2 * half.Y - TerminalWall, half.Z - TerminalWall));
+            var hall = new BoundingBox(
+                new(-half.X + TerminalWall, HallFloor, -half.Z + TerminalWall),
+                new(half.X - TerminalWall, 2 * half.Y - TerminalWall, half.Z - TerminalWall)
+            );
             BoxMesh mesh = new BoxMesh()
                 .Box(new(new(-half.X, 0, -half.Z), new(half.X, 2 * half.Y, half.Z)), openings: doorways)
                 .Box(hall, inward: true, openings: doorways);
@@ -339,25 +352,41 @@ public static partial class DemoScenes
         /// </summary>
         public static Entity SpawnDrawnBody(World world, SceneInstance scene, Entity person, IRenderResources resources)
         {
-            var heading = Quaternion.CreateFromAxisAngle(Vector3.UnitY,
-                (float)WalkHeading.Yaw(world.GetRender(person).ViewOffset.Rotation));
-            Entity body = world.Spawn(new()
-            {
-                AttachTo = person,
-                AttachOffset = new(Vector3.Transform(BodyCenter, heading), heading),
-                Render = Drawn(resources: resources, mesh: Primitives.Box(BodyHalf),
-                    color: new(x: 0.2f, y: 0.45f, z: 0.8f, w: 1), boundingRadius: 1),
-                Components = [new Gait(BodyCenter)]
-            });
+            var heading = Quaternion.CreateFromAxisAngle(
+                Vector3.UnitY,
+                (float)WalkHeading.Yaw(world.GetRender(person).ViewOffset.Rotation)
+            );
+            Entity body = world.Spawn(
+                new()
+                {
+                    AttachTo = person,
+                    AttachOffset = new(Vector3.Transform(BodyCenter, heading), heading),
+                    Render = Drawn(
+                        resources: resources,
+                        mesh: Primitives.Box(BodyHalf),
+                        color: new(x: 0.2f, y: 0.45f, z: 0.8f, w: 1),
+                        boundingRadius: 1
+                    ),
+                    Components = [new Gait(BodyCenter)],
+                }
+            );
             scene.Add("person-body", body);
-            scene.Add("person-visor", world.Spawn(new()
-            {
-                AttachTo = body,
-                AttachOffset = new(VisorCenter, Quaternion.Identity),
-                Render = Drawn(resources: resources, mesh: Primitives.Box(VisorHalf),
-                    color: new(x: 0.06f, y: 0.06f, z: 0.08f, w: 1),
-                    boundingRadius: VisorHalf.Length())
-            }));
+            scene.Add(
+                "person-visor",
+                world.Spawn(
+                    new()
+                    {
+                        AttachTo = body,
+                        AttachOffset = new(VisorCenter, Quaternion.Identity),
+                        Render = Drawn(
+                            resources: resources,
+                            mesh: Primitives.Box(VisorHalf),
+                            color: new(x: 0.06f, y: 0.06f, z: 0.08f, w: 1),
+                            boundingRadius: VisorHalf.Length()
+                        ),
+                    }
+                )
+            );
             return body;
         }
 
@@ -367,14 +396,14 @@ public static partial class DemoScenes
         /// seat. The waypoints on the ship are in its frame, so the path stays right however the shuttle stands.
         /// </summary>
         public static Waypoint[] Path(FrameHandle surface, FrameHandle cabin) =>
-        [
-            new(surface, new(TerminalCenter.X + 2, EarthRadius + 0.9, 0)),
-            new(surface, new(TerminalCenter.X - 2.5, EarthRadius + 0.9, -4)),
-            new(surface, new(TerminalCenter.X - 8, EarthRadius + 0.9, -4)),
-            new(cabin, Shuttle.OutsideHatch),
-            new(cabin, Shuttle.InsideHatch),
-            new(cabin, Shuttle.SeatStand)
-        ];
+            [
+                new(surface, new(TerminalCenter.X + 2, EarthRadius + 0.9, 0)),
+                new(surface, new(TerminalCenter.X - 2.5, EarthRadius + 0.9, -4)),
+                new(surface, new(TerminalCenter.X - 8, EarthRadius + 0.9, -4)),
+                new(cabin, Shuttle.OutsideHatch),
+                new(cabin, Shuttle.InsideHatch),
+                new(cabin, Shuttle.SeatStand),
+            ];
 
         /// <summary>
         /// The pose of <c>sky-camera</c> in earth-surface at the world's time: at <see cref="SkyEye"/>, looking toward the
@@ -386,8 +415,11 @@ public static partial class DemoScenes
         private static DPose SkyCamera(World world)
         {
             KeplerOrbit earthOrbit = EarthOrbit(Date);
-            Double3 toSun = earthOrbit.RotationAt(world.Time, SunMu).Conjugate()
-                .Rotate(-earthOrbit.StateAt(world.Time, SunMu).Position).Normalized();
+            Double3 toSun = earthOrbit
+                .RotationAt(world.Time, SunMu)
+                .Conjugate()
+                .Rotate(-earthOrbit.StateAt(world.Time, SunMu).Position)
+                .Normalized();
             DQuaternion intoGround = Date.Ground.RotationAt(world.Time).Conjugate();
             Double3 sun = intoGround.Rotate(toSun);
             Double3 moon = (intoGround.Rotate(MoonOrbit.StateAt(world.Time, EarthMu).Position) - SkyEye).Normalized();
@@ -407,234 +439,412 @@ public static partial class DemoScenes
             FrameHandle earth = SunAndEarth(world: world, resources: resources, scene: scene, date: Date);
             (world.SunIntensity, world.Ambient) = (sunIntensity, ambient);
             FrameHandle surface = world.GetOwnedFrame(scene["earth-surface"]);
-            Floor(world: world, resources: resources, scene: scene, surface: surface,
-                floorHalfExtents: new(70, 0.5f, 50));
-            scene.Add("ramp",
-                LaunchRamp.Spawn(world, surface,
-                    Drawn(resources: resources, mesh: LaunchRamp.Mesh(), color: new(x: 0.6f, y: 0.6f, z: 0.58f, w: 1),
-                        boundingRadius: LaunchRamp.Length + 6)));
+            Floor(
+                world: world,
+                resources: resources,
+                scene: scene,
+                surface: surface,
+                floorHalfExtents: new(70, 0.5f, 50)
+            );
+            scene.Add(
+                "ramp",
+                LaunchRamp.Spawn(
+                    world,
+                    surface,
+                    Drawn(
+                        resources: resources,
+                        mesh: LaunchRamp.Mesh(),
+                        color: new(x: 0.6f, y: 0.6f, z: 0.58f, w: 1),
+                        boundingRadius: LaunchRamp.Length + 6
+                    )
+                )
+            );
 
             MeshId lampMesh = resources.CreateMesh(Primitives.Box(new(0.6f, 0.05f, 0.6f)));
-            MaterialId lampMaterial =
-                resources.CreateMaterial(new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), SpecularIntensity: 0,
-                    Emissive: new(6, 5.4f, 4.5f)));
+            MaterialId lampMaterial = resources.CreateMaterial(
+                new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), SpecularIntensity: 0, Emissive: new(6, 5.4f, 4.5f))
+            );
 
-            SpawnDesc Lamp(FrameHandle frame, Double3 position, float range) => new()
-            {
-                Frame = frame,
-                Pose = new(position, DQuaternion.Identity),
-                Render = new RenderData
+            SpawnDesc Lamp(FrameHandle frame, Double3 position, float range) =>
+                new()
                 {
-                    Mesh = lampMesh,
-                    Material = lampMaterial,
-                    BoundingRadius = 0.85f,
-                    Flags = RenderFlags.Visible,
-                    Light = new PointLightData(Offset: new(new(0, -0.1f, 0), Quaternion.Identity),
-                        Color: new(1, 0.9f, 0.75f),
-                        Intensity: 100, Range: range)
-                }
-            };
+                    Frame = frame,
+                    Pose = new(position, DQuaternion.Identity),
+                    Render = new RenderData
+                    {
+                        Mesh = lampMesh,
+                        Material = lampMaterial,
+                        BoundingRadius = 0.85f,
+                        Flags = RenderFlags.Visible,
+                        Light = new PointLightData(
+                            Offset: new(new(0, -0.1f, 0), Quaternion.Identity),
+                            Color: new(1, 0.9f, 0.75f),
+                            Intensity: 100,
+                            Range: range
+                        ),
+                    },
+                };
 
             Vector3 half = TerminalHalf;
-            scene.Add("terminal", world.Spawn(new()
-            {
-                Frame = surface,
-                Pose = new(TerminalCenter, DQuaternion.Identity),
-                Body = new(
-                    Shape: new CompoundShapeDesc([
-                        .. TerminalShape().Select(box =>
-                            new CompoundChild(new BoxShapeDesc(box.Extents), new(box.Center, Quaternion.Identity)))
-                    ]), Motion: BodyMotion.Static),
-                // The terminal's origin lies on the slab, so its farthest corner is a whole height up.
-                Render = Drawn(resources: resources, mesh: TerminalMesh(),
-                    color: new(x: 0.72f, y: 0.72f, z: 0.7f, w: 1),
-                    boundingRadius: MathF.Ceiling((half with { Y = 2 * half.Y }).Length()))
-            }));
+            scene.Add(
+                "terminal",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = surface,
+                        Pose = new(TerminalCenter, DQuaternion.Identity),
+                        Body = new(
+                            Shape: new CompoundShapeDesc([
+                                .. TerminalShape()
+                                    .Select(box => new CompoundChild(
+                                        new BoxShapeDesc(box.Extents),
+                                        new(box.Center, Quaternion.Identity)
+                                    )),
+                            ]),
+                            Motion: BodyMotion.Static
+                        ),
+                        // The terminal's origin lies on the slab, so its farthest corner is a whole height up.
+                        Render = Drawn(
+                            resources: resources,
+                            mesh: TerminalMesh(),
+                            color: new(x: 0.72f, y: 0.72f, z: 0.7f, w: 1),
+                            boundingRadius: MathF.Ceiling((half with { Y = 2 * half.Y }).Length())
+                        ),
+                    }
+                )
+            );
             double lampHeight = EarthRadius + 2 * half.Y - TerminalWall - 0.05;
             world.Spawn(Lamp(surface, new(TerminalCenter.X + 1, lampHeight, -3), range: 12));
             world.Spawn(Lamp(surface, new(TerminalCenter.X + 1, lampHeight, 3), range: 12));
 
             // The pad is as thick as the bed's rise, so the parked hull stands on its drawn top.
             var padHalf = new Vector3(10, (float)LaunchRamp.BedRise / 2, 14);
-            scene.Add("pad", world.Spawn(new()
-            {
-                Frame = surface,
-                Pose = new(new(0, EarthRadius + padHalf.Y, 0), DQuaternion.Identity),
-                Render = Drawn(resources: resources, mesh: Primitives.Box(padHalf),
-                    color: new(x: 0.25f, y: 0.25f, z: 0.24f, w: 1),
-                    boundingRadius: MathF.Ceiling(padHalf.Length()))
-            }));
+            scene.Add(
+                "pad",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = surface,
+                        Pose = new(new(0, EarthRadius + padHalf.Y, 0), DQuaternion.Identity),
+                        Render = Drawn(
+                            resources: resources,
+                            mesh: Primitives.Box(padHalf),
+                            color: new(x: 0.25f, y: 0.25f, z: 0.24f, w: 1),
+                            boundingRadius: MathF.Ceiling(padHalf.Length())
+                        ),
+                    }
+                )
+            );
             var towerHalf = new Vector3(1.5f, 8, 1.5f);
-            scene.Add("tower", world.Spawn(new()
-            {
-                Frame = surface,
-                Pose = new(new(-11, EarthRadius + towerHalf.Y, -4), DQuaternion.Identity),
-                Body = new(Shape: new BoxShapeDesc(towerHalf), Motion: BodyMotion.Static),
-                Render = Drawn(resources: resources, mesh: Primitives.Box(towerHalf),
-                    color: new(x: 0.55f, y: 0.3f, z: 0.2f, w: 1),
-                    boundingRadius: towerHalf.Length())
-            }));
+            scene.Add(
+                "tower",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = surface,
+                        Pose = new(new(-11, EarthRadius + towerHalf.Y, -4), DQuaternion.Identity),
+                        Body = new(Shape: new BoxShapeDesc(towerHalf), Motion: BodyMotion.Static),
+                        Render = Drawn(
+                            resources: resources,
+                            mesh: Primitives.Box(towerHalf),
+                            color: new(x: 0.55f, y: 0.3f, z: 0.2f, w: 1),
+                            boundingRadius: towerHalf.Length()
+                        ),
+                    }
+                )
+            );
 
             // The station spawns before the shuttle, whose rendezvous autopilot takes the station's entity.
             Entity station = DemoStation.Spawn(world: world, parent: earth, scene: scene, resources: resources);
-            Entity shuttle = Shuttle.Park(world: world, frame: surface, pose: ShuttleParked,
+            Entity shuttle = Shuttle.Park(
+                world: world,
+                frame: surface,
+                pose: ShuttleParked,
                 render: Shuttle.DrawnHull(resources),
-                components: Shuttle.FlightControls(LaunchRamp.Height + ClimbClearance, new(earth, LaunchPlaneNormal),
-                    station));
+                components: Shuttle.FlightControls(
+                    LaunchRamp.Height + ClimbClearance,
+                    new(earth, LaunchPlaneNormal),
+                    station
+                )
+            );
             scene.Add("shuttle", shuttle);
             Shuttle.FitActuators(world, shuttle);
             FrameHandle cabin = world.GetOwnedFrame(shuttle);
             Vector3 seatHalf = Shuttle.Seat.Extents;
-            scene.Add("seat", world.Spawn(new()
-            {
-                Frame = cabin,
-                Pose = new(Shuttle.Seat.Center, DQuaternion.Identity),
-                Render = Drawn(resources: resources, mesh: Primitives.Box(seatHalf),
-                    color: new(x: 0.15f, y: 0.25f, z: 0.6f, w: 1),
-                    boundingRadius: seatHalf.Length())
-            }));
+            scene.Add(
+                "seat",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = cabin,
+                        Pose = new(Shuttle.Seat.Center, DQuaternion.Identity),
+                        Render = Drawn(
+                            resources: resources,
+                            mesh: Primitives.Box(seatHalf),
+                            color: new(x: 0.15f, y: 0.25f, z: 0.6f, w: 1),
+                            boundingRadius: seatHalf.Length()
+                        ),
+                    }
+                )
+            );
             Shuttle.Panes(world: world, cabin: cabin, scene: scene, resources: resources);
             Shuttle.SpawnLamps(world: world, cabin: cabin, scene: scene, resources: resources);
             Shuttle.SpawnNozzle(world: world, cabin: cabin, scene: scene, resources: resources);
 
             // The capsule is 1.8 m tall, and its center rests 0.9 m above the slab. Its eye is a view, which the pen in its
             // hand follows.
-            var penSpec = new CrateSpec(HalfExtents: PenHalf, Mass: PenMass,
+            var penSpec = new CrateSpec(
+                HalfExtents: PenHalf,
+                Mass: PenMass,
                 Mesh: resources.CreateMesh(Primitives.Box(PenHalf)),
-                Material: resources.CreateMaterial(MaterialDesc.Color(new(x: 0.85f, y: 0.1f, z: 0.08f, w: 1))));
+                Material: resources.CreateMaterial(MaterialDesc.Color(new(x: 0.85f, y: 0.1f, z: 0.08f, w: 1)))
+            );
             Entity pen = world.Spawn(ClippedPen(penSpec, cabin));
             scene.Add("pen", pen);
             // The person starts facing its first waypoint, along -X, toward the terminal's entrance: a quarter turn about +Y.
             var personRender = new RenderData
-                { ViewOffset = new(Eye, Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2)) };
-            Entity person = world.Spawn(new()
             {
-                Frame = surface,
-                Pose = new(PersonStart, DQuaternion.Identity),
-                Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: YardPersonMass),
-                Render = personRender,
-                Components =
-                [
-                    new Walker(Path(surface, cabin)), new Passenger(new(cabin, Shuttle.SeatStand), pen),
-                    StationExit.Disembark(cabin, world.GetOwnedFrame(station)),
-                    WheelCoda.Play(scene, world.GetOwnedFrame(station)), new WalkHeading()
-                ]
-            });
+                ViewOffset = new(Eye, Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2)),
+            };
+            Entity person = world.Spawn(
+                new()
+                {
+                    Frame = surface,
+                    Pose = new(PersonStart, DQuaternion.Identity),
+                    Body = new(
+                        Shape: new CapsuleShapeDesc(0.6f, 0.3f),
+                        Motion: BodyMotion.Character,
+                        Mass: YardPersonMass
+                    ),
+                    Render = personRender,
+                    Components =
+                    [
+                        new Walker(Path(surface, cabin)),
+                        new Passenger(new(cabin, Shuttle.SeatStand), pen),
+                        StationExit.Disembark(cabin, world.GetOwnedFrame(station)),
+                        WheelCoda.Play(scene, world.GetOwnedFrame(station)),
+                        new WalkHeading(),
+                    ],
+                }
+            );
             scene.Add("person", person);
             SpawnDrawnBody(world: world, scene: scene, person: person, resources: resources);
             // The person starts its walk along -X, toward the entrance, so the camera starts behind it along +X.
-            scene.Add("follow-camera", world.Spawn(new()
-            {
-                AttachTo = person,
-                AttachOffset = new(Eye + new Vector3((float)FollowBehind, (float)FollowAbove, 0), Quaternion.Identity),
-                Render = new RenderData(),
-                Components =
-                [
-                    new ChaseCamera(behind: FollowBehind, above: FollowAbove, ahead: FollowAhead,
-                        subjectHalf: PersonHalf, verticalFov: world.VerticalFov)
-                ]
-            }));
+            scene.Add(
+                "follow-camera",
+                world.Spawn(
+                    new()
+                    {
+                        AttachTo = person,
+                        AttachOffset = new(
+                            Eye + new Vector3((float)FollowBehind, (float)FollowAbove, 0),
+                            Quaternion.Identity
+                        ),
+                        Render = new RenderData(),
+                        Components =
+                        [
+                            new ChaseCamera(
+                                behind: FollowBehind,
+                                above: FollowAbove,
+                                ahead: FollowAhead,
+                                subjectHalf: PersonHalf,
+                                verticalFov: world.VerticalFov
+                            ),
+                        ],
+                    }
+                )
+            );
             scene.Add("slide-camera", StationExit.SpawnSlideCamera(world, person, world.GetOwnedFrame(station)));
 
-            Entity overview = world.Spawn(new()
-            {
-                Frame = surface,
-                Pose = LookingAt(new(48, EarthRadius + 16, 28), new(12, EarthRadius + 1, -1)),
-                Render = new RenderData()
-            });
+            Entity overview = world.Spawn(
+                new()
+                {
+                    Frame = surface,
+                    Pose = LookingAt(new(48, EarthRadius + 16, 28), new(12, EarthRadius + 1, -1)),
+                    Render = new RenderData(),
+                }
+            );
             scene.Add("overview", overview);
-            scene.Add("terminal-camera", world.Spawn(new()
-            {
-                Frame = surface,
-                Pose = LookingAt(new(TerminalCenter.X - 4.2, EarthRadius + 3.6, 7.2),
-                    new(TerminalCenter.X + 1, EarthRadius + 1, -1.5)),
-                Render = new RenderData()
-            }));
-            scene.Add("apron-camera", world.Spawn(new()
-            {
-                Frame = surface,
-                Pose = LookingAt(new(13, EarthRadius + 3, 10), new(5, EarthRadius + 1.2, 0.5)),
-                Render = new RenderData()
-            }));
-            scene.Add("cabin-camera",
-                world.Spawn(new() { Frame = cabin, Pose = CabinCamera, Render = new RenderData() }));
+            scene.Add(
+                "terminal-camera",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = surface,
+                        Pose = LookingAt(
+                            new(TerminalCenter.X - 4.2, EarthRadius + 3.6, 7.2),
+                            new(TerminalCenter.X + 1, EarthRadius + 1, -1.5)
+                        ),
+                        Render = new RenderData(),
+                    }
+                )
+            );
+            scene.Add(
+                "apron-camera",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = surface,
+                        Pose = LookingAt(new(13, EarthRadius + 3, 10), new(5, EarthRadius + 1.2, 0.5)),
+                        Render = new RenderData(),
+                    }
+                )
+            );
+            scene.Add(
+                "cabin-camera",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = cabin,
+                        Pose = CabinCamera,
+                        Render = new RenderData(),
+                    }
+                )
+            );
 
-            scene.Add("pad-camera", world.Spawn(new()
-            {
-                Frame = surface,
-                Pose = LookingAt(new(32, EarthRadius + 6, 30), new(0, EarthRadius + 12, -30)),
-                Render = new RenderData()
-            }));
-            scene.Add("ramp-camera", world.Spawn(new()
-            {
-                Frame = surface,
-                Pose = LookingAt(new(140, EarthRadius + 25, -95), new(0, EarthRadius + 55, -110)),
-                Render = new RenderData()
-            }));
-            scene.Add("ramp-top-camera", world.Spawn(new()
-            {
-                Frame = surface,
-                Pose = LookingAt(new(90, EarthRadius + 105, -200), new(0, EarthRadius + 145, -262)),
-                Render = new RenderData()
-            }));
-            scene.Add("chase-camera", world.Spawn(new()
-            {
-                Frame = cabin,
-                Pose = LookingAt(new(19.5, 8.5, 34), Double3.Zero),
-                Render = new RenderData()
-            }));
-            scene.Add("climb-camera", world.Spawn(new()
-            {
-                Frame = cabin,
-                Pose = LookingAt(new(0, 41, 29), Double3.Zero),
-                Render = new RenderData()
-            }));
-            scene.Add("pen-camera", world.Spawn(new()
-            {
-                Frame = cabin,
-                Pose = LookingAt(new(-1.5, 1.2, -0.45), new(-1.5, -0.3, -1.6)),
-                Render = new RenderData()
-            }));
-            scene.Add("hand-camera", world.Spawn(new()
-            {
-                Frame = cabin,
-                Pose = LookingAt(new(0.5, -0.9, -0.7), new(-0.7, 0.05, -0.95)),
-                Render = new RenderData()
-            }));
+            scene.Add(
+                "pad-camera",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = surface,
+                        Pose = LookingAt(new(32, EarthRadius + 6, 30), new(0, EarthRadius + 12, -30)),
+                        Render = new RenderData(),
+                    }
+                )
+            );
+            scene.Add(
+                "ramp-camera",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = surface,
+                        Pose = LookingAt(new(140, EarthRadius + 25, -95), new(0, EarthRadius + 55, -110)),
+                        Render = new RenderData(),
+                    }
+                )
+            );
+            scene.Add(
+                "ramp-top-camera",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = surface,
+                        Pose = LookingAt(new(90, EarthRadius + 105, -200), new(0, EarthRadius + 145, -262)),
+                        Render = new RenderData(),
+                    }
+                )
+            );
+            scene.Add(
+                "chase-camera",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = cabin,
+                        Pose = LookingAt(new(19.5, 8.5, 34), Double3.Zero),
+                        Render = new RenderData(),
+                    }
+                )
+            );
+            scene.Add(
+                "climb-camera",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = cabin,
+                        Pose = LookingAt(new(0, 41, 29), Double3.Zero),
+                        Render = new RenderData(),
+                    }
+                )
+            );
+            scene.Add(
+                "pen-camera",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = cabin,
+                        Pose = LookingAt(new(-1.5, 1.2, -0.45), new(-1.5, -0.3, -1.6)),
+                        Render = new RenderData(),
+                    }
+                )
+            );
+            scene.Add(
+                "hand-camera",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = cabin,
+                        Pose = LookingAt(new(0.5, -0.9, -0.7), new(-0.7, 0.05, -0.95)),
+                        Render = new RenderData(),
+                    }
+                )
+            );
             // The views of the rendezvous (docs/plans/blue-danube-demo.md, "The shuttle's windows and the cameras"), still in
             // the shuttle's frame.
             double eye = -Shuttle.Cabin.Y + 1.65;
-            scene.Add("window-camera", world.Spawn(new()
-            {
-                Frame = cabin,
-                Pose = new(new(0, eye, -Shuttle.Cabin.Z + 1.2), DQuaternion.Identity),
-                Render = new RenderData()
-            }));
+            scene.Add(
+                "window-camera",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = cabin,
+                        Pose = new(new(0, eye, -Shuttle.Cabin.Z + 1.2), DQuaternion.Identity),
+                        Render = new RenderData(),
+                    }
+                )
+            );
             var bow = new Double3(0, 5, -Shuttle.Hull.Z - 30);
             double portOfAstern = 30 * Math.PI / 180;
-            scene.Add("bow-camera", world.Spawn(new()
-            {
-                Frame = cabin,
-                Pose = LookingAt(bow, bow + new Double3(-Math.Sin(portOfAstern), 0, Math.Cos(portOfAstern))),
-                Render = new RenderData()
-            }));
+            scene.Add(
+                "bow-camera",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = cabin,
+                        Pose = LookingAt(bow, bow + new Double3(-Math.Sin(portOfAstern), 0, Math.Cos(portOfAstern))),
+                        Render = new RenderData(),
+                    }
+                )
+            );
             var portWindow = new Double3(-Shuttle.Cabin.X + 0.6, eye, 4.2);
             double aftOfAbeam = 20 * Math.PI / 180;
-            scene.Add("port-window-camera", world.Spawn(new()
-            {
-                Frame = cabin,
-                Pose = LookingAt(portWindow, portWindow + new Double3(-Math.Cos(aftOfAbeam), 0, Math.Sin(aftOfAbeam))),
-                Render = new RenderData()
-            }));
-            scene.Add("cockpit-camera", world.Spawn(new()
-            {
-                Frame = cabin,
-                Pose = LookingAt(new(1.9, 0.9, -1.4), new(0.7, -1.3, -5.2)),
-                Render = new RenderData()
-            }));
+            scene.Add(
+                "port-window-camera",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = cabin,
+                        Pose = LookingAt(
+                            portWindow,
+                            portWindow + new Double3(-Math.Cos(aftOfAbeam), 0, Math.Sin(aftOfAbeam))
+                        ),
+                        Render = new RenderData(),
+                    }
+                )
+            );
+            scene.Add(
+                "cockpit-camera",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = cabin,
+                        Pose = LookingAt(new(1.9, 0.9, -1.4), new(0.7, -1.3, -5.2)),
+                        Render = new RenderData(),
+                    }
+                )
+            );
 
-            scene.Add("sky-camera",
-                world.Spawn(new() { Frame = surface, Pose = SkyCamera(world), Render = new RenderData() }));
+            scene.Add(
+                "sky-camera",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = surface,
+                        Pose = SkyCamera(world),
+                        Render = new RenderData(),
+                    }
+                )
+            );
 
             scene.AddView("overview");
             scene.AddView("sky-camera");

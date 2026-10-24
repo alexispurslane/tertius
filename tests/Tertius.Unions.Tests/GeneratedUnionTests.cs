@@ -17,8 +17,15 @@ public sealed class GeneratedUnionTests
     public void EachCaseComesBackOutOfTryGetValue()
     {
         var point = new Point(Position: new(1, 2, 3), Color: new(0.5f, 0.25f, 1), Intensity: 4, Range: 9);
-        var spot = new Spot(Position: new(-1, 0, 2), Direction: Sideways, Color: new(1, 1, 0), Intensity: 2, Range: 30,
-            Inner: 0.1f, Outer: 0.4f);
+        var spot = new Spot(
+            Position: new(-1, 0, 2),
+            Direction: Sideways,
+            Color: new(1, 1, 0),
+            Intensity: 2,
+            Range: 30,
+            Inner: 0.1f,
+            Outer: 0.4f
+        );
 
         new Light(point).TryGetValue(out Point pointBack).Should().BeTrue();
         new Light(spot).TryGetValue(out Spot spotBack).Should().BeTrue();
@@ -36,7 +43,7 @@ public sealed class GeneratedUnionTests
         {
             Along { Direction: var direction } => $"along {direction}",
             AwayFrom { Center: var center } => $"away from {center}",
-            null => "none"
+            null => "none",
         };
 
         read.Should().Be($"away from {Sideways}");
@@ -161,11 +168,14 @@ public sealed class GeneratedUnionTests
     }
 
     [Fact]
-    public void TheMostAlignedSlotsComeFirst()
-    {
-        Unsafe.SizeOf<NarrowFirst>().Should().Be(16,
-            "the double slot comes before the int slot, though the first case names the int first, so no padding sits between them");
-    }
+    public void TheMostAlignedSlotsComeFirst() =>
+        Unsafe
+            .SizeOf<NarrowFirst>()
+            .Should()
+            .Be(
+                16,
+                "the double slot comes before the int slot, though the first case names the int first, so no padding sits between them"
+            );
 
     [Fact]
     public void TheHashDependsOnTheValuesOfTheHeldCase()
@@ -207,10 +217,7 @@ public sealed class GeneratedUnionTests
     }
 
     [Fact]
-    public void TwoValuesOfACaseWithNoValuesAreEqual()
-    {
-        new Odd(new Empty()).Should().Be(new Odd(new Empty()));
-    }
+    public void TwoValuesOfACaseWithNoValuesAreEqual() => new Odd(new Empty()).Should().Be(new Odd(new Empty()));
 
     [Fact]
     public void TheAllZeroValueOfAUnionWithAZeroCaseHoldsThatCase()
@@ -230,9 +237,13 @@ public sealed class GeneratedUnionTests
     {
         var nullability = new NullabilityInfoContext();
 
-        nullability.Create(typeof(Machine).GetProperty(nameof(Machine.Value))!).ReadState.Should()
+        nullability
+            .Create(typeof(Machine).GetProperty(nameof(Machine.Value))!)
+            .ReadState.Should()
             .Be(NullabilityState.NotNull);
-        nullability.Create(typeof(Label).GetProperty(nameof(Label.Value))!).ReadState.Should()
+        nullability
+            .Create(typeof(Label).GetProperty(nameof(Label.Value))!)
+            .ReadState.Should()
             .Be(NullabilityState.Nullable, "a union without a zero case has the empty value");
     }
 

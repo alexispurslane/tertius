@@ -72,8 +72,11 @@ public sealed partial class JoltPhysicsBackend
     {
         foreach (BodyRecord owner in frameOwners)
             if (owner.Motion == BodyMotion.Dynamic && owner.HasPrimary)
-                owner.World.Bodies.GetLinearAndAngularVelocity(owner.Body, out owner.VelocityAfterIntents,
-                    out owner.AngularVelocityAfterIntents);
+                owner.World.Bodies.GetLinearAndAngularVelocity(
+                    owner.Body,
+                    out owner.VelocityAfterIntents,
+                    out owner.AngularVelocityAfterIntents
+                );
     }
 
     // ---- Intents ----
@@ -100,11 +103,20 @@ public sealed partial class JoltPhysicsBackend
             // The guard of the writers, the drops of step 4 and the check of a spawn give a body only a motion intent whose
             // case its motion in the step takes, so another comes only from a bug.
             bool move = intent.Move.HasValue;
-            if (move && intent.Move.ProblemFor(record.IsCharacter ? BodyMotion.Character : record.Motion,
-                    attached: false, ownsRootFrame: false) is { } problem)
+            if (
+                move
+                && intent.Move.ProblemFor(
+                    record.IsCharacter ? BodyMotion.Character : record.Motion,
+                    attached: false,
+                    ownsRootFrame: false
+                )
+                    is { } problem
+            )
             {
-                ReportBug($"Physics: the step gives {entity} the motion intent {intent.Move}, but it {problem}. " +
-                          "Only a bug gives it that motion intent, so the step ignores it.");
+                ReportBug(
+                    $"Physics: the step gives {entity} the motion intent {intent.Move}, but it {problem}. "
+                        + "Only a bug gives it that motion intent, so the step ignores it."
+                );
                 move = false;
             }
 
@@ -145,9 +157,12 @@ public sealed partial class JoltPhysicsBackend
         var inHome = new DPose(InHome(hull, pose.Position), pose.Rotation.Normalized());
         FrameWorld world = hull.World;
         world.WakeAround(hull.Body);
-        world.Bodies.SetRPositionAndRotation(bodyID: hull.Body, position: inHome.Position.ToJolt(),
+        world.Bodies.SetRPositionAndRotation(
+            bodyID: hull.Body,
+            position: inHome.Position.ToJolt(),
             rotation: inHome.Rotation.ToJolt(),
-            activationMode: Activation.DontActivate);
+            activationMode: Activation.DontActivate
+        );
         world.WakeAround(hull.Body);
         hull.TeleportStep = stepIndex;
         hull.TeleportPose = inHome;
@@ -218,9 +233,12 @@ public sealed partial class JoltPhysicsBackend
         {
             Double3 position = InHome(record, intent.TeleportPose.Position);
             record.World.WakeAround(id);
-            bodies.SetRPositionAndRotation(bodyID: id, position: position.ToJolt(),
+            bodies.SetRPositionAndRotation(
+                bodyID: id,
+                position: position.ToJolt(),
                 rotation: intent.TeleportPose.Rotation.ToJolt(),
-                activationMode: Activation.Activate);
+                activationMode: Activation.Activate
+            );
             record.TeleportStep = stepIndex;
             record.TeleportPose = new(position, intent.TeleportPose.Rotation.Normalized());
             record.Shadow = default;
@@ -230,9 +248,11 @@ public sealed partial class JoltPhysicsBackend
             if (record is { IsHull: true, Motion: BodyMotion.Kinematic })
                 bodies.SetLinearAndAngularVelocity(id, Vector3.Zero, Vector3.Zero);
             else
-                bodies.SetLinearAndAngularVelocity(id,
+                bodies.SetLinearAndAngularVelocity(
+                    id,
                     LinearChordAtStart(record, CenterOfMass(bodies, id), LocalVelocity(record, Double3.Zero)),
-                    AngularChord(record, Vector3.Zero, StepStart(record.Frame)));
+                    AngularChord(record, Vector3.Zero, StepStart(record.Frame))
+                );
         }
 
         if ((flags & IntentFlags.SetVelocity) != 0)
@@ -240,8 +260,10 @@ public sealed partial class JoltPhysicsBackend
             Double3 velocity = LocalVelocity(record, intent.Velocity);
             // A sleeping body that gets no velocity sleeps on, so the step gives it no acceleration either.
             bool sleeps = velocity == Double3.Zero && !bodies.IsActive(id);
-            bodies.SetLinearVelocity(id,
-                sleeps ? Vector3.Zero : LinearChordAtStart(record, CenterOfMass(bodies, id), velocity));
+            bodies.SetLinearVelocity(
+                id,
+                sleeps ? Vector3.Zero : LinearChordAtStart(record, CenterOfMass(bodies, id), velocity)
+            );
             record.VelocitySetStep = stepIndex;
             record.Shadow = default;
         }
@@ -263,8 +285,12 @@ public sealed partial class JoltPhysicsBackend
             if (record.Motion == BodyMotion.Kinematic)
             {
                 DPose target = KinematicTarget(record, aim.Position, rotation);
-                bodies.MoveKinematic(bodyId: id, targetPosition: target.Position.ToJolt(),
-                    targetRotation: target.Rotation.ToJolt(), deltaTime: stepDt);
+                bodies.MoveKinematic(
+                    bodyId: id,
+                    targetPosition: target.Position.ToJolt(),
+                    targetRotation: target.Rotation.ToJolt(),
+                    deltaTime: stepDt
+                );
                 kinematicTargets.Add((record, target));
                 // The step record of a plain body starts where Jolt holds the body now, after the teleport, in the body's
                 // semantic frame, in which the intent is (see World.ConvertMovedIntents). The frame tree derives a hull's
@@ -274,8 +300,10 @@ public sealed partial class JoltPhysicsBackend
                     FrameHandle semantic = frames.SemanticOf(record.Frame);
                     Contract.Assert(intent.Frame == semantic);
                     DPose start = ReadPrimary(record).Pose;
-                    var standing = new DPose(start.Position + frames.HomeOffset(record.Frame, semantic),
-                        start.Rotation);
+                    var standing = new DPose(
+                        start.Position + frames.HomeOffset(record.Frame, semantic),
+                        start.Rotation
+                    );
                     record.AimedRecord = intent.StepRecordOrStill(standing, stepDt);
                     record.AimedHome = record.Frame;
                 }
@@ -343,9 +371,12 @@ public sealed partial class JoltPhysicsBackend
             FrameHandle home = world.Frame;
             if (frames.Numeric(home) != NumericMode.Following)
                 continue;
-            if (Find(frames.AnchorOf(home)) is not
-                    { HasPrimary: true, Motion: BodyMotion.Kinematic, Character: null } record ||
-                record.Frame != home || record.KinematicTargetStep == stepIndex)
+            if (
+                Find(frames.AnchorOf(home))
+                    is not { HasPrimary: true, Motion: BodyMotion.Kinematic, Character: null } record
+                || record.Frame != home
+                || record.KinematicTargetStep == stepIndex
+            )
                 continue;
             DPose start = ReadPrimary(record).Pose;
             FrameHandle semantic = frames.SemanticOf(home);
@@ -354,13 +385,18 @@ public sealed partial class JoltPhysicsBackend
             // holds still where the step starts, at the teleport's pose after a teleport. A conversion between frames can leave
             // a teleport's rotation off unit length by rounding.
             uint slot = record.Entity.Index;
-            MotionSample still = slot < (uint)intents.Length
-                ? intents[(int)slot].StepRecordOrStill(standing, stepDt)
-                : default(PhysicsIntent).StepRecordOrStill(standing, stepDt);
+            MotionSample still =
+                slot < (uint)intents.Length
+                    ? intents[(int)slot].StepRecordOrStill(standing, stepDt)
+                    : default(PhysicsIntent).StepRecordOrStill(standing, stepDt);
             still = still with { Pose = new(still.Pose.Position, still.Pose.Rotation.Normalized()) };
             DPose target = KinematicTarget(record, still.Pose.Position, still.Pose.Rotation);
-            world.Bodies.MoveKinematic(bodyId: record.Body, targetPosition: target.Position.ToJolt(),
-                targetRotation: target.Rotation.ToJolt(), deltaTime: stepDt);
+            world.Bodies.MoveKinematic(
+                bodyId: record.Body,
+                targetPosition: target.Position.ToJolt(),
+                targetRotation: target.Rotation.ToJolt(),
+                deltaTime: stepDt
+            );
             kinematicTargets.Add((record, target));
             if (!record.IsHull)
             {
@@ -386,8 +422,12 @@ public sealed partial class JoltPhysicsBackend
             record.DesiredVelocity = intent.CharacterVelocity;
         if ((intent.Flags & IntentFlags.Teleport) != 0)
             record.Up = TeleportUp(intent);
-        ApplyBodyIntent(record: record, intent: intent,
-            flags: intent.Flags & (IntentFlags.Teleport | IntentFlags.SetVelocity), move: false);
+        ApplyBodyIntent(
+            record: record,
+            intent: intent,
+            flags: intent.Flags & (IntentFlags.Teleport | IntentFlags.SetVelocity),
+            move: false
+        );
     }
 
     /// <summary>
@@ -490,9 +530,12 @@ public sealed partial class JoltPhysicsBackend
         foreach ((BodyRecord body, DPose target) in kinematicTargets)
         {
             Contract.Assert(body.HasPrimary);
-            body.World.Bodies.SetRPositionAndRotation(bodyID: body.Body, position: target.Position.ToJolt(),
+            body.World.Bodies.SetRPositionAndRotation(
+                bodyID: body.Body,
+                position: target.Position.ToJolt(),
                 rotation: target.Rotation.ToJolt(),
-                activationMode: Activation.DontActivate);
+                activationMode: Activation.DontActivate
+            );
         }
     }
 
@@ -513,9 +556,12 @@ public sealed partial class JoltPhysicsBackend
             if (IsAt(bodies, owner.Body, pose))
                 continue;
             owner.World.WakeAround(owner.Body);
-            bodies.SetRPositionAndRotation(bodyID: owner.Body, position: pose.Position.ToJolt(),
+            bodies.SetRPositionAndRotation(
+                bodyID: owner.Body,
+                position: pose.Position.ToJolt(),
                 rotation: pose.Rotation.ToJolt(),
-                activationMode: Activation.DontActivate);
+                activationMode: Activation.DontActivate
+            );
             owner.World.WakeAround(owner.Body);
         }
     }
@@ -549,12 +595,28 @@ public sealed partial class JoltPhysicsBackend
             // The reach costs a read of every dynamic member, so it is measured only when the turn changed and the push's
             // change alone does not wake the system.
             double turn = TurnChangeSinceWake(world, angularVelocity, angularAcceleration);
-            bool wake = world.HasGravityState &&
-                        (field != world.LastGravity || FeltChangeWakes(push: push, wakePush: world.WakePush, turn: 0,
-                                                        reach: 0, threshold: wakeThreshold)
-                                                    || (turn > 0 && FeltChangeWakes(push: push,
-                                                        wakePush: world.WakePush, turn: turn,
-                                                        reach: Reach(world), threshold: wakeThreshold)));
+            bool wake =
+                world.HasGravityState
+                && (
+                    field != world.LastGravity
+                    || FeltChangeWakes(
+                        push: push,
+                        wakePush: world.WakePush,
+                        turn: 0,
+                        reach: 0,
+                        threshold: wakeThreshold
+                    )
+                    || (
+                        turn > 0
+                        && FeltChangeWakes(
+                            push: push,
+                            wakePush: world.WakePush,
+                            turn: turn,
+                            reach: Reach(world),
+                            threshold: wakeThreshold
+                        )
+                    )
+                );
             if (wake)
                 WakeDynamicMembers(world);
             if (wake || !world.HasGravityState)
@@ -576,16 +638,25 @@ public sealed partial class JoltPhysicsBackend
             int count = CopyActiveBodies(world);
             float weakest = float.PositiveInfinity;
             Double3 homeVelocity = turns.Turns ? frames.HomeVelocity(frame, frames.SemanticOf(frame)) : Double3.Zero;
-            Double3 homeAcceleration =
-                turns.Turns ? frames.HomeAcceleration(frame, frames.SemanticOf(frame)) : Double3.Zero;
+            Double3 homeAcceleration = turns.Turns
+                ? frames.HomeAcceleration(frame, frames.SemanticOf(frame))
+                : Double3.Zero;
             for (int i = 0; i < count; i++)
             {
                 BodyID id = activeScratch[i];
                 locks.LockWrite(id, out BodyLockWrite write);
                 if (write.Succeeded && write.Body is { } body)
-                    weakest = MathF.Min(weakest,
-                        ApplyGravity(frame: frame, turns: turns, homeVelocity: homeVelocity,
-                            homeAcceleration: homeAcceleration, id: id, body: body));
+                    weakest = MathF.Min(
+                        weakest,
+                        ApplyGravity(
+                            frame: frame,
+                            turns: turns,
+                            homeVelocity: homeVelocity,
+                            homeAcceleration: homeAcceleration,
+                            id: id,
+                            body: body
+                        )
+                    );
                 locks.UnlockWrite(write);
             }
 
@@ -634,8 +705,8 @@ public sealed partial class JoltPhysicsBackend
     /// reach only then.
     /// </summary>
     internal static bool FeltChangeWakes(Vector3 push, Vector3 wakePush, double turn, double reach, float threshold) =>
-        Vector3.DistanceSquared(push, wakePush) > threshold * threshold ||
-        (turn > 0 && Vector3.Distance(push, wakePush) + turn * reach > threshold);
+        Vector3.DistanceSquared(push, wakePush) > threshold * threshold
+        || (turn > 0 && Vector3.Distance(push, wakePush) + turn * reach > threshold);
 
     /// <summary>
     /// The change of the turn of the semantic frame of <paramref name="world"/>'s system since its last wake, in 1/s²: with ω
@@ -646,8 +717,8 @@ public sealed partial class JoltPhysicsBackend
     /// rails, changes neither, so its change is zero.
     /// </summary>
     private static double TurnChangeSinceWake(FrameWorld world, Double3 angularVelocity, Double3 angularAcceleration) =>
-        (angularVelocity.Length + world.WakeAngularVelocity.Length) *
-        Double3.Distance(angularVelocity, world.WakeAngularVelocity)
+        (angularVelocity.Length + world.WakeAngularVelocity.Length)
+            * Double3.Distance(angularVelocity, world.WakeAngularVelocity)
         + Double3.Distance(angularAcceleration, world.WakeAngularAcceleration);
 
     /// <summary>
@@ -685,12 +756,21 @@ public sealed partial class JoltPhysicsBackend
     /// </summary>
     /// <param name="homeVelocity">The frame velocity of the system's home relative to its semantic frame, in the step.</param>
     /// <param name="homeAcceleration">The acceleration of the system's home relative to its semantic frame, in the step.</param>
-    private float ApplyGravity(FrameHandle frame, in FrameTurns turns, Double3 homeVelocity, Double3 homeAcceleration,
-        BodyID id, Body body)
+    private float ApplyGravity(
+        FrameHandle frame,
+        in FrameTurns turns,
+        Double3 homeVelocity,
+        Double3 homeAcceleration,
+        BodyID id,
+        Body body
+    )
     {
         ulong data = body.GetUserData();
-        if (BodyUserData.Kind(data) != BodyKind.Primary ||
-            RecordFor(data) is not { Motion: BodyMotion.Dynamic } record || record.Body != id)
+        if (
+            BodyUserData.Kind(data) != BodyKind.Primary
+            || RecordFor(data) is not { Motion: BodyMotion.Dynamic } record
+            || record.Body != id
+        )
             return float.PositiveInfinity;
         body.GetRCenterOfMassPosition(out RVector3 center);
         var place = center.ToDouble3();
@@ -698,8 +778,16 @@ public sealed partial class JoltPhysicsBackend
         var gravity = linear.ToVector3();
         if (turns.Turns && record.KinematicTargetStep != stepIndex)
         {
-            ApplyTurningUpdate(record: record, body: body, turns: turns, frame: frame, center: place,
-                homeVelocity: homeVelocity, homeAcceleration: homeAcceleration, linear: linear);
+            ApplyTurningUpdate(
+                record: record,
+                body: body,
+                turns: turns,
+                frame: frame,
+                center: place,
+                homeVelocity: homeVelocity,
+                homeAcceleration: homeAcceleration,
+                linear: linear
+            );
         }
         else
         {
@@ -750,9 +838,16 @@ public sealed partial class JoltPhysicsBackend
     /// <param name="center">The body's center of mass in its home, as Jolt holds it, in m.</param>
     /// <param name="homeVelocity">The frame velocity of the body's home relative to its semantic frame, in the step.</param>
     /// <param name="homeAcceleration">The acceleration of the body's home relative to its semantic frame, in the step.</param>
-    private unsafe void ApplyTurningUpdate(BodyRecord record, Body body, in FrameTurns turns, FrameHandle frame,
+    private unsafe void ApplyTurningUpdate(
+        BodyRecord record,
+        Body body,
+        in FrameTurns turns,
+        FrameHandle frame,
         Double3 center,
-        Double3 homeVelocity, Double3 homeAcceleration, Double3 linear)
+        Double3 homeVelocity,
+        Double3 homeAcceleration,
+        Double3 linear
+    )
     {
         double dt = stepDt;
         Vector3 velocity = body.GetLinearVelocity();
@@ -790,9 +885,11 @@ public sealed partial class JoltPhysicsBackend
         // too, and acts at the start of the step as the field does, so the update adds the part of its turn that Jolt leaves
         // out: Jolt adds F / m · dt, and the turned force is R_n F / m · dt.
         Double3 field = linear + homeAcceleration;
-        Double3 ahead = behind + turns.FreeChange(semanticPlace, behind, dt) +
-                        (turns.Step.Turn.Rotate(field) - homeAcceleration) * dt
-                        - homeVelocity;
+        Double3 ahead =
+            behind
+            + turns.FreeChange(semanticPlace, behind, dt)
+            + (turns.Step.Turn.Rotate(field) - homeAcceleration) * dt
+            - homeVelocity;
         if (intentForce != Vector3.Zero)
             ahead += (turns.Step.Turn.Rotate((Double3)intentForce) - intentForce) * (dt / record.Material.Mass);
         // Jolt's damping factor for the step, in floats, as Jolt computes it.
@@ -839,9 +936,10 @@ public sealed partial class JoltPhysicsBackend
             torqueChange = (Double3)Vector3.TransformNormal(torque, inverseInertia) * dt;
         }
 
-        var angular =
-            (turns.AngularChordAhead(body.GetAngularVelocity() - angularChange, angularChange + torqueChange, dt)
-             - torqueChange).ToVector3();
+        var angular = (
+            turns.AngularChordAhead(body.GetAngularVelocity() - angularChange, angularChange + torqueChange, dt)
+            - torqueChange
+        ).ToVector3();
         body.SetAngularVelocityClamped(angular);
     }
 
@@ -940,9 +1038,10 @@ public sealed partial class JoltPhysicsBackend
         if (semanticStrength >= FrameTree.ZeroGravityThreshold)
         {
             Vector3 against = -semanticGravity / semanticStrength;
-            up = groundState == GroundState.InAir
-                ? Rotations.TurnToward(record.Up, against, options.CharacterAirUpTurnRate * dt)
-                : against;
+            up =
+                groundState == GroundState.InAir
+                    ? Rotations.TurnToward(record.Up, against, options.CharacterAirUpTurnRate * dt)
+                    : against;
             if (Vector3.DistanceSquared(up, record.Up) > 1e-12f)
             {
                 character.Up = up;
@@ -962,17 +1061,28 @@ public sealed partial class JoltPhysicsBackend
         // The character moves away from its ground along the ground's normal, which on a slope and on a faceted floor
         // differs from up (docs/plans/spin-gravity.md, "Characters").
         Vector3 normal = groundState == GroundState.OnGround ? GroundFaceNormal(character, up) : up;
-        bool standing = underGravity && groundState == GroundState.OnGround &&
-                        Vector3.Dot(velocity - ground, normal) < 0.1f;
+        bool standing =
+            underGravity && groundState == GroundState.OnGround && Vector3.Dot(velocity - ground, normal) < 0.1f;
         // The ground holds a standing character against gravity, until the step in which it jumps off. Gravity in the
         // velocity of a standing character would press it into its ground in every step. Jolt then reported a false
         // velocity of gravity times the step, and pushed every dynamic body that the character leaned on a little in
         // every step, so a stack that the character stood against woke each time that it fell asleep.
         bool held = standing && record.PendingJump == 0;
-        CharacterStartVelocity start = StartVelocity(record: record, standing: standing, velocity: velocity,
-            ground: ground, up: up, normal: normal);
-        Vector3 next = NextCharacterVelocity(frame: world.Frame, record: record, position: position, linear: linear,
-            start: start);
+        CharacterStartVelocity start = StartVelocity(
+            record: record,
+            standing: standing,
+            velocity: velocity,
+            ground: ground,
+            up: up,
+            normal: normal
+        );
+        Vector3 next = NextCharacterVelocity(
+            frame: world.Frame,
+            record: record,
+            position: position,
+            linear: linear,
+            start: start
+        );
         record.Held = held;
         record.PendingVelocityChange = Vector3.Zero;
         record.PendingJump = 0;
@@ -980,13 +1090,22 @@ public sealed partial class JoltPhysicsBackend
         character.LinearVelocity = next;
 
         // Jolt reads the system gravity to press the character's weight onto what it stands on.
-        world.System.Gravity = WeightInput(frame: world.Frame, effective: effective, velocity: next, standing: standing,
-            up: up, normal: normal);
+        world.System.Gravity = WeightInput(
+            frame: world.Frame,
+            effective: effective,
+            velocity: next,
+            standing: standing,
+            up: up,
+            normal: normal
+        );
         if (standing)
             // A standing character sticks to the floor and climbs stairs.
-            character.ExtendedUpdate(deltaTime: dt,
+            character.ExtendedUpdate(
+                deltaTime: dt,
                 settings: new() { StickToFloorStepDown = -0.5f * up, WalkStairsStepUp = 0.4f * up },
-                layer: PrimaryLayer(record), physicsSystem: world.System);
+                layer: PrimaryLayer(record),
+                physicsSystem: world.System
+            );
         else
             // ExtendedUpdate starts by cancelling the velocity into each steep surface that the character touched in its
             // last update, which held it back from a body that gives way, and its stick to the floor pulled a character in
@@ -1012,8 +1131,14 @@ public sealed partial class JoltPhysicsBackend
     /// turn the Coriolis term is zero, and on flat ground under a uniform field up is against the gravity and the ground's
     /// normal is up, so the input is the effective gravity.
     /// </summary>
-    private Vector3 WeightInput(FrameHandle frame, Double3 effective, Vector3 velocity, bool standing, Vector3 up,
-        Vector3 normal)
+    private Vector3 WeightInput(
+        FrameHandle frame,
+        Double3 effective,
+        Vector3 velocity,
+        bool standing,
+        Vector3 up,
+        Vector3 normal
+    )
     {
         FrameTurns turns = frames.Turns(frame);
         Vector3 weight = turns.Turns
@@ -1092,8 +1217,14 @@ public sealed partial class JoltPhysicsBackend
     /// it, so it loses the home's instant velocity past its frame velocity where the step starts, as LinearChord takes it from
     /// a rigid body's.
     /// </summary>
-    private CharacterStartVelocity StartVelocity(BodyRecord record, bool standing, Vector3 velocity, Vector3 ground,
-        Vector3 up, Vector3 normal)
+    private CharacterStartVelocity StartVelocity(
+        BodyRecord record,
+        bool standing,
+        Vector3 velocity,
+        Vector3 ground,
+        Vector3 up,
+        Vector3 normal
+    )
     {
         if (standing)
         {
@@ -1130,8 +1261,13 @@ public sealed partial class JoltPhysicsBackend
     /// </list>
     /// In a frame that does not turn, every rule is the float rule of before the rotation terms, to the bit.
     /// </summary>
-    private Vector3 NextCharacterVelocity(FrameHandle frame, BodyRecord record, Double3 position, Double3 linear,
-        CharacterStartVelocity start)
+    private Vector3 NextCharacterVelocity(
+        FrameHandle frame,
+        BodyRecord record,
+        Double3 position,
+        Double3 linear,
+        CharacterStartVelocity start
+    )
     {
         float dt = stepDt;
         var gravity = linear.ToVector3();
@@ -1139,7 +1275,8 @@ public sealed partial class JoltPhysicsBackend
         FrameTurns turns = frames.Turns(frame);
         // The local chord of the step that ended, the same chord without the chord rule's turn, and the velocity of the rule
         // without turns, for the cases that take the frame's acceleration.
-        Double3 behind, plainBehind;
+        Double3 behind,
+            plainBehind;
         Vector3 plain;
         switch (start)
         {
@@ -1153,9 +1290,12 @@ public sealed partial class JoltPhysicsBackend
                 plainBehind = instant.Local - linear * (0.5 * stepDt);
                 behind = plainBehind;
                 if (StepStart(frame) is { } moment)
-                    behind += moment.ChordBehindChange(center: position,
-                        velocity: instant.Local + HomeInstantVelocityOverChordAtStart(frame), linear: linear,
-                        dt: stepDt);
+                    behind += moment.ChordBehindChange(
+                        center: position,
+                        velocity: instant.Local + HomeInstantVelocityOverChordAtStart(frame),
+                        linear: linear,
+                        dt: stepDt
+                    );
                 break;
             case ChordStart chord:
                 plain = chord.Velocity.ToVector3();
@@ -1186,8 +1326,10 @@ public sealed partial class JoltPhysicsBackend
         Double3 semanticChord = behind + turns.Last.ChangeBehind(change) + homeVelocity;
         Double3 field = linear + homeAcceleration;
         Double3 ahead =
-            semanticChord + turns.FreeChange(frames.InSemantic(frame, semantic, position), semanticChord, stepDt)
-                          + (turns.Step.Turn.Rotate(field) - homeAcceleration) * stepDt - homeVelocity;
+            semanticChord
+            + turns.FreeChange(frames.InSemantic(frame, semantic, position), semanticChord, stepDt)
+            + (turns.Step.Turn.Rotate(field) - homeAcceleration) * stepDt
+            - homeVelocity;
         // What the turns give beyond the rule without them is the frame's.
         record.FrameAcceleration = new(gravity, ((ahead - plainBehind - change) / stepDt - linear).ToVector3());
         return ahead.ToVector3();
@@ -1211,9 +1353,10 @@ public sealed partial class JoltPhysicsBackend
             if (!contact.HadCollision || contact.WasDiscarded || contact.MotionTypeB == MotionType.Dynamic)
                 continue;
             // Both normals point out of the surface, toward the character, so motion into the surface runs against them.
-            Vector3 normal = Vector3.Dot(contact.ContactNormal, contact.SurfaceNormal) >= faceNormalCosine
-                ? contact.SurfaceNormal
-                : contact.ContactNormal;
+            Vector3 normal =
+                Vector3.Dot(contact.ContactNormal, contact.SurfaceNormal) >= faceNormalCosine
+                    ? contact.SurfaceNormal
+                    : contact.ContactNormal;
             float into = Vector3.Dot(velocity - contact.LinearVelocity, normal);
             if (into < 0)
                 velocity -= into * normal;
@@ -1235,7 +1378,8 @@ public sealed partial class JoltPhysicsBackend
             {
                 world.ReportedOverflow = true;
                 log(
-                    $"Physics: the system of {world.Frame} reported {error}. Some contacts were dropped. Raise the per-frame limits in JoltBackendOptions.");
+                    $"Physics: the system of {world.Frame} reported {error}. Some contacts were dropped. Raise the per-frame limits in JoltBackendOptions."
+                );
             }
 
             // Only a system that updated ends a held pair, so the rigid characters of the others need no contact list.
@@ -1272,14 +1416,32 @@ public sealed partial class JoltPhysicsBackend
             Vector3 applied = owner.FrameAcceleration.Total;
             Vector3 acceleration = (after - before) / stepDt - applied;
             acceleration = new(
-                AboveResolution(acceleration: acceleration.X, before: before.X, after: after.X, applied: applied.X,
-                    dt: stepDt),
-                AboveResolution(acceleration: acceleration.Y, before: before.Y, after: after.Y, applied: applied.Y,
-                    dt: stepDt),
-                AboveResolution(acceleration: acceleration.Z, before: before.Z, after: after.Z, applied: applied.Z,
-                    dt: stepDt));
-            owner.ProperAcceleration =
-                Vector3.Transform(acceleration, Quaternion.Conjugate(bodies.GetRotation(owner.Body)));
+                AboveResolution(
+                    acceleration: acceleration.X,
+                    before: before.X,
+                    after: after.X,
+                    applied: applied.X,
+                    dt: stepDt
+                ),
+                AboveResolution(
+                    acceleration: acceleration.Y,
+                    before: before.Y,
+                    after: after.Y,
+                    applied: applied.Y,
+                    dt: stepDt
+                ),
+                AboveResolution(
+                    acceleration: acceleration.Z,
+                    before: before.Z,
+                    after: after.Z,
+                    applied: applied.Z,
+                    dt: stepDt
+                )
+            );
+            owner.ProperAcceleration = Vector3.Transform(
+                acceleration,
+                Quaternion.Conjugate(bodies.GetRotation(owner.Body))
+            );
             // The same change of velocity without its float noise, less the part that the intents made before the update.
             owner.StepAcceleration =
                 applied + (Double3)acceleration - ((Double3)owner.VelocityAfterIntents - before) / stepDt;

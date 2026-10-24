@@ -42,23 +42,34 @@ internal static class Gpu
     /// A validating headless renderer. Impostors are off unless asked for, so that the geometry, lighting and shadow
     /// tests see every object as geometry; the impostor tests turn them on with a small atlas.
     /// </summary>
-    public static VulkanRenderer Headless(int width = 640, int height = 360, int framesInFlight = 2,
-        bool impostors = false, int impostorTiles = 16) =>
-        VulkanRenderer.CreateHeadless(new()
-        {
-            Validation = true,
-            Width = width,
-            Height = height,
-            FramesInFlight = framesInFlight,
-            Impostors = impostors,
-            ImpostorTiles = impostorTiles
-        });
+    public static VulkanRenderer Headless(
+        int width = 640,
+        int height = 360,
+        int framesInFlight = 2,
+        bool impostors = false,
+        int impostorTiles = 16
+    ) =>
+        VulkanRenderer.CreateHeadless(
+            new()
+            {
+                Validation = true,
+                Width = width,
+                Height = height,
+                FramesInFlight = framesInFlight,
+                Impostors = impostors,
+                ImpostorTiles = impostorTiles,
+            }
+        );
 
     public static string CapturePath(string name) => Path.Combine(RepoRoot.Value, "captures", name + ".png");
 
     /// <summary>Renders one frame and captures it into memory. <paramref name="name"/> names the capture in a failure.</summary>
-    public static Capture RenderAndCapture(VulkanRenderer renderer, RenderSnapshot snapshot, string name,
-        float alpha = 1f)
+    public static Capture RenderAndCapture(
+        VulkanRenderer renderer,
+        RenderSnapshot snapshot,
+        string name,
+        float alpha = 1f
+    )
     {
         var sink = new MemorySink();
         renderer.CaptureNextFrame(sink);
@@ -75,7 +86,8 @@ internal static class Gpu
     }
 
     public static void AssertClean(VulkanRenderer renderer) =>
-        renderer.ValidationMessages.Should()
+        renderer
+            .ValidationMessages.Should()
             .BeEmpty("the Vulkan validation layers and the renderer's own checks must stay silent");
 
     /// <summary>The pixel of a camera-relative point for a camera with identity rotation (looking down −Z).</summary>
@@ -91,8 +103,12 @@ internal static class Gpu
 
     /// <summary>The pixel of a camera-relative point for a camera with any rotation and vertical field of view.</summary>
     public static Vector2 Project(Vector3 point, Quaternion cameraRotation, int width, int height, float fov = Fov) =>
-        Project(point: Vector3.Transform(point, Quaternion.Conjugate(cameraRotation)), width: width, height: height,
-            fov: fov);
+        Project(
+            point: Vector3.Transform(point, Quaternion.Conjugate(cameraRotation)),
+            width: width,
+            height: height,
+            fov: fov
+        );
 
     /// <summary>A camera turned down by <paramref name="pitch"/> radians from looking along −Z.</summary>
     public static Quaternion PitchDown(float pitch) => Quaternion.CreateFromAxisAngle(Vector3.UnitX, -pitch);
@@ -106,27 +122,53 @@ internal static class Gpu
     /// added. Its hemisphere ambient light has up along +Y: the test scenes stand on level ground in the camera's frame.
     /// Tests that need an instance that is not visible call <see cref="RenderInstance.Create"/> themselves.
     /// </summary>
-    public static RenderInstance Instance(MeshId mesh, MaterialId material, Vector3 position, Vector3 scale,
-        Quaternion? rotation = null, RenderFlags flags = RenderFlags.None, float radius = 0, uint entity = 0,
-        ushort part = 0) =>
-        RenderInstance.Create(mesh: mesh, material: material, position: position,
-            rotation: rotation ?? Quaternion.Identity, scale: scale, boundingRadius: radius,
+    public static RenderInstance Instance(
+        MeshId mesh,
+        MaterialId material,
+        Vector3 position,
+        Vector3 scale,
+        Quaternion? rotation = null,
+        RenderFlags flags = RenderFlags.None,
+        float radius = 0,
+        uint entity = 0,
+        ushort part = 0
+    ) =>
+        RenderInstance.Create(
+            mesh: mesh,
+            material: material,
+            position: position,
+            rotation: rotation ?? Quaternion.Identity,
+            scale: scale,
+            boundingRadius: radius,
             hemisphere: HemisphereUp.Along(Vector3.UnitY),
-            flags: flags | RenderFlags.Visible, entityIndex: entity, part: part);
+            flags: flags | RenderFlags.Visible,
+            entityIndex: entity,
+            part: part
+        );
 
     public static RenderSnapshot Snapshot(Vector3 sunDirection, float sunIntensity = 3f)
     {
         var snapshot = new RenderSnapshot
         {
             Camera = new()
-                { Rotation = Quaternion.Identity, PreviousRotation = Quaternion.Identity, VerticalFov = Fov },
+            {
+                Rotation = Quaternion.Identity,
+                PreviousRotation = Quaternion.Identity,
+                VerticalFov = Fov,
+            },
             Sun = new()
             {
-                Direction = Vector3.Normalize(sunDirection), Color = new(1f, 0.96f, 0.9f), Intensity = sunIntensity,
-                AngularRadius = 0.00467f
+                Direction = Vector3.Normalize(sunDirection),
+                Color = new(1f, 0.96f, 0.9f),
+                Intensity = sunIntensity,
+                AngularRadius = 0.00467f,
             },
             Ambient = new()
-                { SkyColor = new(0.09f, 0.11f, 0.15f), GroundColor = new(0.05f, 0.045f, 0.04f), Intensity = 1f }
+            {
+                SkyColor = new(0.09f, 0.11f, 0.15f),
+                GroundColor = new(0.05f, 0.045f, 0.04f),
+                Intensity = 1f,
+            },
         };
         return snapshot;
     }
@@ -145,7 +187,7 @@ internal sealed class Capture(int width, int height, byte[] rgba)
     public static Capture Load(string path)
     {
         using FileStream stream = File.OpenRead(path);
-        ImageResult image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
+        var image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
         return new(image.Width, image.Height, image.Data);
     }
 
@@ -156,7 +198,9 @@ internal sealed class Capture(int width, int height, byte[] rgba)
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
         return rgba.Length != width * height * 4
             ? throw new ArgumentException(
-                $"A {width}×{height} image needs {width * height * 4} bytes, not {rgba.Length}.", nameof(rgba))
+                $"A {width}×{height} image needs {width * height * 4} bytes, not {rgba.Length}.",
+                nameof(rgba)
+            )
             : new(width, height, rgba);
     }
 
@@ -164,8 +208,13 @@ internal sealed class Capture(int width, int height, byte[] rgba)
     public void Save(string path)
     {
         using FileStream stream = File.Create(path);
-        new ImageWriter().WritePng(data: Rgba, width: Width, height: Height,
-            components: StbImageWriteSharp.ColorComponents.RedGreenBlueAlpha, dest: stream);
+        new ImageWriter().WritePng(
+            data: Rgba,
+            width: Width,
+            height: Height,
+            components: StbImageWriteSharp.ColorComponents.RedGreenBlueAlpha,
+            dest: stream
+        );
     }
 
     /// <summary>Color in [0, 1] (display-encoded, as stored).</summary>
@@ -248,7 +297,8 @@ internal static class Measure
     public static int LongestRun(Capture image, int line, bool horizontal, float threshold = 0.1f)
     {
         int length = horizontal ? image.Width : image.Height;
-        int best = 0, run = 0;
+        int best = 0,
+            run = 0;
         for (int i = 0; i < length; i++)
         {
             float luma = horizontal ? image.Luma(i, line) : image.Luma(line, i);
@@ -313,7 +363,7 @@ internal static class TestTextures
                 ny = slope;
             else if (v > 1 - bevel)
                 ny = -slope;
-            Vector3 n = Vector3.Normalize(new(nx, ny, 1));
+            var n = Vector3.Normalize(new(nx, ny, 1));
             int i = (y * size + x) * 4;
             rgba[i] = (byte)MathF.Round((n.X * 0.5f + 0.5f) * 255);
             rgba[i + 1] = (byte)MathF.Round((n.Y * 0.5f + 0.5f) * 255);

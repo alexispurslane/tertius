@@ -31,12 +31,15 @@ public sealed class MessagingTests
     public void AnAnswerToAMessageArrivesTwoTicksAfterTheQuestion()
     {
         using var t = new TestWorld();
-        var responder = new Lambda(EventMask.Of<Ping>(), (self, scoped ref events, scoped ref outbox) =>
-        {
-            for (int i = 0; i < events.Count; i++)
-                if (events[i].Is<Ping>())
-                    outbox.Send(events[i].Sender, new Ping { Value = events[i].As<Ping>().Value + 100 });
-        });
+        var responder = new Lambda(
+            EventMask.Of<Ping>(),
+            (self, scoped ref events, scoped ref outbox) =>
+            {
+                for (int i = 0; i < events.Count; i++)
+                    if (events[i].Is<Ping>())
+                        outbox.Send(events[i].Sender, new Ping { Value = events[i].As<Ping>().Value + 100 });
+            }
+        );
         Entity responderEntity = t.SpawnWith(responder);
         var answers = new Recorder();
         t.SpawnWith(SendOnce.Of(target: responderEntity, payload: new Ping { Value = 1 }), answers);
@@ -53,11 +56,16 @@ public sealed class MessagingTests
     {
         using var t = new TestWorld();
         var inbox = new Recorder();
-        t.SpawnWith(inbox, Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick == 0)
-                outbox.Send(self.Entity, new Ping { Value = 5 });
-        }));
+        t.SpawnWith(
+            inbox,
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 0)
+                        outbox.Send(self.Entity, new Ping { Value = 5 });
+                }
+            )
+        );
 
         t.Run(3);
 
@@ -70,11 +78,15 @@ public sealed class MessagingTests
         using var t = new TestWorld();
         var inbox = new Recorder();
         Entity receiver = t.SpawnWith(inbox);
-        Entity sender = t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            outbox.Send(receiver, new Ping { Value = 5 });
-            self.Destroy();
-        }));
+        Entity sender = t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    outbox.Send(receiver, new Ping { Value = 5 });
+                    self.Destroy();
+                }
+            )
+        );
 
         t.Run(2);
 
@@ -91,11 +103,15 @@ public sealed class MessagingTests
         var inbox = new Recorder(EventMask.Of<Damage>());
         Entity receiver = t.SpawnWith(inbox);
         object extra = new();
-        Entity sender = t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick == 0)
-                outbox.Send(receiver, new Damage { Amount = 2.5f, Kind = 7 }, extra);
-        }));
+        Entity sender = t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 0)
+                        outbox.Send(receiver, new Damage { Amount = 2.5f, Kind = 7 }, extra);
+                }
+            )
+        );
 
         t.Run(2);
 
@@ -143,12 +159,14 @@ public sealed class MessagingTests
         var ownerInbox = new Recorder();
         var memberInbox = new Recorder();
         // A frame is an entity too. Its handle names that entity, and its topic (Frame.Topic) names the frame's contents.
-        Entity owner = t.World.Spawn(new()
-        {
-            Frame = t.Root,
-            Components = [ownerInbox],
-            AsFrame = new(FrameBounds.Sphere(50))
-        });
+        Entity owner = t.World.Spawn(
+            new()
+            {
+                Frame = t.Root,
+                Components = [ownerInbox],
+                AsFrame = new(FrameBounds.Sphere(50)),
+            }
+        );
         FrameHandle ship = t.World.GetOwnedFrame(owner);
         t.World.SpawnWith(ship, memberInbox);
         t.SpawnWith(SendOnce.Of(target: ship, payload: new Ping { Value = 1 }));
@@ -209,8 +227,10 @@ public sealed class MessagingTests
         var inbox = new Recorder();
         Entity target = t.SpawnWith(inbox);
         for (int sender = 1; sender <= 4; sender++)
-            t.SpawnWith(SendOnce.Of(target: target, payload: new Ping { Value = sender * 10 }),
-                SendOnce.Of(target: target, payload: new Ping { Value = sender * 10 + 1 }));
+            t.SpawnWith(
+                SendOnce.Of(target: target, payload: new Ping { Value = sender * 10 }),
+                SendOnce.Of(target: target, payload: new Ping { Value = sender * 10 + 1 })
+            );
         t.World.Post(Event.Create(target: target, sender: Entity.Null, payload: new Ping { Value = 999 }));
 
         t.Run(2);
@@ -221,7 +241,7 @@ public sealed class MessagingTests
     [Fact]
     public void AnEngineEventStandsAheadOfTheMessagesOfEntitiesInAnInbox()
     {
-        using TestWorld t = TestWorld.OnJolt(faults: out _);
+        using var t = TestWorld.OnJolt(faults: out _);
         FrameHandle b = t.SpawnStaticFrame(TestWorld.At(1000), radius: 50);
         var traveller = new Recorder(EventMask.Of<Ping>().And<FrameChanged>());
         // Jolt hands the ball off from the root into the frame b in the step of tick 1.
@@ -234,7 +254,8 @@ public sealed class MessagingTests
         string[] runs =
         [
             .. traveller.History.Select(run =>
-                $"tick {run.Tick}: {string.Join(", ", run.EventTypes.Select(type => type.Name))}")
+                $"tick {run.Tick}: {string.Join(", ", run.EventTypes.Select(type => type.Name))}"
+            ),
         ];
         runs.Should().Equal("tick 1: Ping", "tick 2: FrameChanged, Ping", "tick 3: Ping");
     }
@@ -246,8 +267,10 @@ public sealed class MessagingTests
     {
         using var t = new TestWorld();
         var inbox = new Recorder();
-        Entity doomed = t.SpawnWith(inbox,
-            Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy()));
+        Entity doomed = t.SpawnWith(
+            inbox,
+            Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy())
+        );
         t.SpawnWith(SendOnce.Of(target: doomed, payload: new Ping { Value = 1 }));
 
         t.Run(1);
@@ -265,8 +288,10 @@ public sealed class MessagingTests
     {
         using var t = new TestWorld();
         var child = new Recorder();
-        t.SpawnWith(new Spawner(childComponents: () => [child]),
-            SendOnce.Of(target: new Broadcast(), payload: new Ping { Value = 3 }));
+        t.SpawnWith(
+            new Spawner(childComponents: () => [child]),
+            SendOnce.Of(target: new Broadcast(), payload: new Ping { Value = 3 })
+        );
 
         t.Run(2);
 

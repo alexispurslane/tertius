@@ -41,8 +41,22 @@ public sealed class GravityTests
         using World world = NewWorld(backend: out _);
         FrameHandle planet = Planet(world);
         // The ground is a slab whose top face lies on the surface.
-        world.Spawn(new() { Frame = planet, Pose = At(0, EarthRadius - 0.5), Body = FloorBody(50) });
-        Entity box = world.Spawn(new() { Frame = planet, Pose = At(0, EarthRadius + 2), Body = BoxBody(0.5f, 10) });
+        world.Spawn(
+            new()
+            {
+                Frame = planet,
+                Pose = At(0, EarthRadius - 0.5),
+                Body = FloorBody(50),
+            }
+        );
+        Entity box = world.Spawn(
+            new()
+            {
+                Frame = planet,
+                Pose = At(0, EarthRadius + 2),
+                Body = BoxBody(0.5f, 10),
+            }
+        );
 
         Tick(world, 150);
 
@@ -61,7 +75,14 @@ public sealed class GravityTests
     {
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
-        Entity box = world.Spawn(new() { Frame = ground, Pose = At(0, 0.5), Body = BoxBody(0.5f, 10) });
+        Entity box = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 0.5),
+                Body = BoxBody(0.5f, 10),
+            }
+        );
         world.Tick();
         return (ground, box);
     }
@@ -80,7 +101,8 @@ public sealed class GravityTests
 
         ticks.Should().BeLessThan(120, "the box falls asleep within 2 s");
         world.PoseInOwnFrame(box).Position.Y.Should().BeApproximately(0.5, 0.01, "the box sleeps on the floor");
-        ReportsOf(faults, box)[^1].LinearVelocity.Should()
+        ReportsOf(faults, box)[^1]
+            .LinearVelocity.Should()
             .Be(Vector3.Zero, "the last report of a body that fell asleep has no velocity");
         world.VelocityInOwnFrame(box).Should().Be(Vector3.Zero, "the World holds the state of that last report");
         world.Errors.Should().BeEmpty();
@@ -98,7 +120,14 @@ public sealed class GravityTests
         Tick(world, 30);
         ReportsOf(faults, box, asleepSince).Should().BeEmpty();
 
-        world.Spawn(new() { Frame = ground, Pose = At(0, 2), Body = BallBody(0.25f) });
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 2),
+                Body = BallBody(0.25f),
+            }
+        );
         int ticks = TickUntil(world, () => IsAwake(faults.Jolt, ground, box), 120);
 
         ticks.Should().BeLessThan(120, "the ball hits the box within 2 s");
@@ -111,14 +140,23 @@ public sealed class GravityTests
     {
         using World world = NewWorld(backend: out _);
         FrameHandle planet = Planet(world);
-        Entity ball = world.Spawn(new() { Frame = planet, Pose = At(0, EarthRadius + 100), Body = BallBody(0.2f) });
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = planet,
+                Pose = At(0, EarthRadius + 100),
+                Body = BallBody(0.2f),
+            }
+        );
 
         Tick(world, 30);
 
         double g = EarthMu / ((EarthRadius + 100) * (EarthRadius + 100));
         double t = 30 * (double)world.DeltaTime;
         // Jolt's velocity is the chord of the last step, the instant velocity half a step before its end.
-        ((double)world.VelocityInOwnFrame(ball).Y).Should().BeApproximately(-g * (t - world.DeltaTime / 2.0), 5e-3);
+        ((double)world.VelocityInOwnFrame(ball).Y)
+            .Should()
+            .BeApproximately(-g * (t - world.DeltaTime / 2.0), 5e-3);
         // Jolt gets the chord of the spawn's instant velocity of zero, so the ball falls the exact g t² / 2.
         double fall = EarthRadius + 100 - world.PoseIn(ball, planet).Position.Y;
         fall.Should().BeApproximately(0.5 * g * t * t, 1e-4);
@@ -133,24 +171,40 @@ public sealed class GravityTests
         // The ship lies on its side in space. Its gravity points along its own -Y, which is space +X.
         var shipPose = new DPose(new(1000, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2));
         var deck = new CompoundShapeDesc([
-            new(new BoxShapeDesc(new(10, 0.25f, 10)), new(new(0, -2.25f, 0), Quaternion.Identity))
+            new(new BoxShapeDesc(new(10, 0.25f, 10)), new(new(0, -2.25f, 0), Quaternion.Identity)),
         ]);
-        var hull = new BodyDesc(Shape: new BoxShapeDesc(new(10, 3, 10)), Motion: BodyMotion.Static,
-            InteriorShape: deck);
-        FrameHandle ship = world.GetOwnedFrame(world.Spawn(new()
-        {
-            Frame = space,
-            Pose = shipPose,
-            Body = hull,
-            AsFrame = new(FrameBounds.Sphere(40), GravityField.Uniform(new(0, -9.81f, 0)))
-        }));
-        Entity crate = world.Spawn(new() { Frame = ship, Pose = At(0, 1), Body = BoxBody(0.5f, 5) });
+        var hull = new BodyDesc(
+            Shape: new BoxShapeDesc(new(10, 3, 10)),
+            Motion: BodyMotion.Static,
+            InteriorShape: deck
+        );
+        FrameHandle ship = world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Pose = shipPose,
+                    Body = hull,
+                    AsFrame = new(FrameBounds.Sphere(40), GravityField.Uniform(new(0, -9.81f, 0))),
+                }
+            )
+        );
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = ship,
+                Pose = At(0, 1),
+                Body = BoxBody(0.5f, 5),
+            }
+        );
 
         Tick(world, 10);
         world.GetFrame(crate).Should().Be(ship);
         Vector3 falling = world.VelocityInOwnFrame(crate);
         // Jolt's velocity is the chord of the last step, the instant velocity half a step before its end.
-        ((double)falling.Y).Should().BeApproximately(-9.81 * 9.5 * world.DeltaTime, 5e-4);
+        ((double)falling.Y)
+            .Should()
+            .BeApproximately(-9.81 * 9.5 * world.DeltaTime, 5e-4);
         MathF.Abs(falling.X).Should().BeLessThan(1e-4f);
         MathF.Abs(falling.Z).Should().BeLessThan(1e-4f);
 
@@ -169,21 +223,35 @@ public sealed class GravityTests
         // The ship's bow (+Z in ship axes) points along space +X.
         var shipPose = new DPose(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2));
         var sternWall = new CompoundShapeDesc([
-            new(new BoxShapeDesc(new(5, 3, 0.25f)), new(new(0, 0, -9.25f), Quaternion.Identity))
+            new(new BoxShapeDesc(new(5, 3, 0.25f)), new(new(0, 0, -9.25f), Quaternion.Identity)),
         ]);
-        var hull = new BodyDesc(Shape: new BoxShapeDesc(new(5, 3, 10)), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
-            InteriorShape: sternWall);
+        var hull = new BodyDesc(
+            Shape: new BoxShapeDesc(new(5, 3, 10)),
+            Mass: 1000,
+            LinearDamping: 0,
+            AngularDamping: 0,
+            InteriorShape: sternWall
+        );
         var pilot = new Pilot();
-        Entity owner = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = shipPose,
-            Body = hull,
-            AsFrame = new(FrameBounds.Sphere(50)),
-            Components = [pilot]
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = shipPose,
+                Body = hull,
+                AsFrame = new(FrameBounds.Sphere(50)),
+                Components = [pilot],
+            }
+        );
         FrameHandle ship = world.GetOwnedFrame(owner);
-        Entity crate = world.Spawn(new() { Frame = ship, Pose = At(0, 0, 0), Body = BoxBody(0.5f, 1) });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = ship,
+                Pose = At(0, 0, 0),
+                Body = BoxBody(0.5f, 1),
+            }
+        );
 
         // Coasting: the crate floats in place.
         Tick(world, 60);
@@ -198,7 +266,9 @@ public sealed class GravityTests
         Tick(world, 1 + ticks);
 
         Vector3 accelerometer = world.Frames.ProperAcceleration(ship);
-        Vector3.Distance(accelerometer, new(0, 0, 2)).Should()
+        Vector3
+            .Distance(accelerometer, new(0, 0, 2))
+            .Should()
             .BeLessThan(1e-3f, "the accelerometer reads the thrust, {0}", accelerometer);
         world.Frames.LinearVelocity(ship).X.Should().BeGreaterThan(1.9);
 
@@ -218,19 +288,37 @@ public sealed class GravityTests
     {
         using World world = NewWorld(backend: out _);
         FrameHandle planet = Planet(world);
-        world.Spawn(new() { Frame = planet, Pose = At(0, EarthRadius - 0.5), Body = FloorBody(100) });
+        world.Spawn(
+            new()
+            {
+                Frame = planet,
+                Pose = At(0, EarthRadius - 0.5),
+                Body = FloorBody(100),
+            }
+        );
         var deck = new CompoundShapeDesc([
-            new(new BoxShapeDesc(new(4, 0.25f, 4)), new(new(0, -1.75f, 0), Quaternion.Identity))
+            new(new BoxShapeDesc(new(4, 0.25f, 4)), new(new(0, -1.75f, 0), Quaternion.Identity)),
         ]);
         var hull = new BodyDesc(Shape: new BoxShapeDesc(new(4, 2, 4)), Mass: 5000, InteriorShape: deck);
-        FrameHandle ship = world.GetOwnedFrame(world.Spawn(new()
-        {
-            Frame = planet,
-            Pose = At(0, EarthRadius + 2.05),
-            Body = hull,
-            AsFrame = new(FrameBounds.Sphere(20))
-        }));
-        Entity crate = world.Spawn(new() { Frame = ship, Pose = At(0, 0, 0), Body = BoxBody(0.25f, 1) });
+        FrameHandle ship = world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = planet,
+                    Pose = At(0, EarthRadius + 2.05),
+                    Body = hull,
+                    AsFrame = new(FrameBounds.Sphere(20)),
+                }
+            )
+        );
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = ship,
+                Pose = At(0, 0, 0),
+                Body = BoxBody(0.25f, 1),
+            }
+        );
 
         Tick(world, 120);
 
@@ -238,7 +326,9 @@ public sealed class GravityTests
         Vector3 accelerometer = world.Frames.ProperAcceleration(ship);
         accelerometer.Y.Should().BeInRange(9.7f, 9.95f);
         world.GetFrame(crate).Should().Be(ship);
-        world.PoseInOwnFrame(crate).Position.Y.Should()
+        world
+            .PoseInOwnFrame(crate)
+            .Position.Y.Should()
             .BeApproximately(-1.5 + 0.25, 0.03, "the crate rests on the deck");
         world.Errors.Should().BeEmpty();
     }
@@ -250,17 +340,33 @@ public sealed class GravityTests
         FrameHandle planet = Planet(world);
         const double radius = 7_000_000;
         float speed = (float)Math.Sqrt(EarthMu / radius);
-        var hull = new BodyDesc(Shape: new SphereShapeDesc(3), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
-            InteriorShape: new SphereShapeDesc(0.5f));
-        FrameHandle ship = world.GetOwnedFrame(world.Spawn(new()
-        {
-            Frame = planet,
-            Pose = At(radius),
-            LinearVelocity = new(0, 0, -speed),
-            Body = hull,
-            AsFrame = new(FrameBounds.Sphere(30))
-        }));
-        Entity crate = world.Spawn(new() { Frame = ship, Pose = At(5), Body = BoxBody(0.25f, 1) });
+        var hull = new BodyDesc(
+            Shape: new SphereShapeDesc(3),
+            Mass: 1000,
+            LinearDamping: 0,
+            AngularDamping: 0,
+            InteriorShape: new SphereShapeDesc(0.5f)
+        );
+        FrameHandle ship = world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = planet,
+                    Pose = At(radius),
+                    LinearVelocity = new(0, 0, -speed),
+                    Body = hull,
+                    AsFrame = new(FrameBounds.Sphere(30)),
+                }
+            )
+        );
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = ship,
+                Pose = At(5),
+                Body = BoxBody(0.25f, 1),
+            }
+        );
 
         // At 7.5 km/s a float velocity step is about 0.03 m/s² over one tick. That noise must not reach the cargo.
         for (int i = 0; i < 180; i++)
@@ -271,8 +377,11 @@ public sealed class GravityTests
 
         List<FrameStepRecord> sent = [.. faults.Outputs.SelectMany(output => output.Frames)];
         sent.Should().NotBeEmpty("Jolt reports the state of the ship's frame");
-        sent.Should().OnlyContain(state => state.ProperAcceleration == Vector3.Zero,
-            "Jolt reported no proper acceleration for the ship in any step");
+        sent.Should()
+            .OnlyContain(
+                state => state.ProperAcceleration == Vector3.Zero,
+                "Jolt reported no proper acceleration for the ship in any step"
+            );
         (world.PoseInOwnFrame(crate).Position - new Double3(5, 0, 0)).Length.Should().BeLessThan(1e-9);
         // The ship really orbits: in 3 s it flew 22.6 km and curved about 36 m toward the planet, at constant radius.
         Double3 position = world.Frames.LocalPose(ship).Position;

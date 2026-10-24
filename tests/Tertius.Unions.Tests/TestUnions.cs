@@ -25,7 +25,8 @@ public readonly record struct Spot(
     float Intensity,
     float Range,
     float Inner,
-    float Outer);
+    float Outer
+);
 
 /// <summary>Three <see cref="Vector3"/> slots and four <see cref="float"/> slots: 52 bytes and the kind.</summary>
 [GeneratedUnion(typeof(Point), typeof(Spot))]

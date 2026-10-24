@@ -13,9 +13,7 @@ public abstract class EmittedComponent : IComponent
     public int Priority => 0;
     public EventMask Wants => default;
 
-    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
-    {
-    }
+    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) { }
 }
 
 /// <summary>
@@ -67,7 +65,7 @@ internal static class EmittedComponents
     public static Type InDynamicAssembly()
     {
         string name = $"Tertius.Dynamic{Interlocked.Increment(ref assemblies)}";
-        AssemblyBuilder builder = AssemblyBuilder.DefineDynamicAssembly(new(name), AssemblyBuilderAccess.Run);
+        var builder = AssemblyBuilder.DefineDynamicAssembly(new(name), AssemblyBuilderAccess.Run);
         ModuleBuilder module = builder.DefineDynamicModule(name);
         Define(module, $"{name}.D", generic: false);
         return builder.GetType($"{name}.D", throwOnError: true)!;
@@ -83,16 +81,24 @@ internal static class EmittedComponents
 
     private static void Define(ModuleBuilder module, string fullName, bool generic)
     {
-        TypeBuilder type = module.DefineType(fullName,
-            TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.Class, typeof(EmittedComponent));
+        TypeBuilder type = module.DefineType(
+            fullName,
+            TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.Class,
+            typeof(EmittedComponent)
+        );
         if (generic)
             type.DefineGenericParameters("T");
-        ConstructorBuilder constructor =
-            type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        ConstructorBuilder constructor = type.DefineConstructor(
+            MethodAttributes.Public,
+            CallingConventions.Standard,
+            Type.EmptyTypes
+        );
         ILGenerator il = constructor.GetILGenerator();
         il.Emit(OpCodes.Ldarg_0);
-        il.Emit(OpCodes.Call,
-            typeof(EmittedComponent).GetConstructor(BindingFlags.NonPublic | BindingFlags.Instance, Type.EmptyTypes)!);
+        il.Emit(
+            OpCodes.Call,
+            typeof(EmittedComponent).GetConstructor(BindingFlags.NonPublic | BindingFlags.Instance, Type.EmptyTypes)!
+        );
         il.Emit(OpCodes.Ret);
         type.CreateType();
     }

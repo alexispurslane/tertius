@@ -23,9 +23,20 @@ internal sealed unsafe class VulkanDevice : IDisposable
     private bool disposed;
 
     private VulkanDevice(
-        Vk vk, Instance instance, ValidationLog log, GCHandle logHandle, ExtDebugUtils? debugUtils,
-        DebugUtilsMessengerEXT messenger, KhrSurface? surfaceApi, SurfaceKHR surface, PhysicalDevice physicalDevice,
-        uint queueFamily, Device device, KhrSwapchain? swapchainApi, bool validation)
+        Vk vk,
+        Instance instance,
+        ValidationLog log,
+        GCHandle logHandle,
+        ExtDebugUtils? debugUtils,
+        DebugUtilsMessengerEXT messenger,
+        KhrSurface? surfaceApi,
+        SurfaceKHR surface,
+        PhysicalDevice physicalDevice,
+        uint queueFamily,
+        Device device,
+        KhrSwapchain? swapchainApi,
+        bool validation
+    )
     {
         Vk = vk;
         Instance = instance;
@@ -71,12 +82,15 @@ internal sealed unsafe class VulkanDevice : IDisposable
     /// Creates the instance and device. <paramref name="surfaceExtensions"/> and <paramref name="createSurface"/> are
     /// given for a window; the chosen queue family must then be able to present to that surface.
     /// </summary>
-    public static VulkanDevice Create(bool validation, IReadOnlyList<string> surfaceExtensions,
-        Func<Instance, SurfaceKHR>? createSurface)
+    public static VulkanDevice Create(
+        bool validation,
+        IReadOnlyList<string> surfaceExtensions,
+        Func<Instance, SurfaceKHR>? createSurface
+    )
     {
-        Vk vk = Vk.GetApi();
+        var vk = Vk.GetApi();
         var log = new ValidationLog();
-        GCHandle logHandle = GCHandle.Alloc(log);
+        var logHandle = GCHandle.Alloc(log);
         var strings = new NativeStrings();
         Instance instance = default;
         DebugUtilsMessengerEXT messenger = default;
@@ -109,7 +123,7 @@ internal sealed unsafe class VulkanDevice : IDisposable
                 ApplicationVersion = Vk.MakeVersion(0, 1, 0),
                 PEngineName = appName,
                 EngineVersion = Vk.MakeVersion(0, 1, 0),
-                ApiVersion = Vk.Version13
+                ApiVersion = Vk.Version13,
             };
 
             DebugUtilsMessengerCreateInfoEXT messengerInfo = ValidationLog.CreateInfo(logHandle);
@@ -120,7 +134,11 @@ internal sealed unsafe class VulkanDevice : IDisposable
             // descriptors (the instance, material and light buffers and the textures).
             uint enabled = Vk.True;
             ReadOnlySpan<string> syncSettings =
-                ["validate_sync", "syncval_load_op_after_store_op_validation", "syncval_shader_accesses_heuristic"];
+            [
+                "validate_sync",
+                "syncval_load_op_after_store_op_validation",
+                "syncval_shader_accesses_heuristic",
+            ];
             LayerSettingEXT* settings = stackalloc LayerSettingEXT[syncSettings.Length];
             for (int i = 0; i < syncSettings.Length; i++)
                 settings[i] = new()
@@ -129,14 +147,14 @@ internal sealed unsafe class VulkanDevice : IDisposable
                     PSettingName = strings.Get(syncSettings[i]),
                     Type = LayerSettingTypeEXT.Bool32Ext,
                     ValueCount = 1,
-                    PValues = &enabled
+                    PValues = &enabled,
                 };
             var layerSettings = new LayerSettingsCreateInfoEXT
             {
                 SType = StructureType.LayerSettingsCreateInfoExt,
                 PNext = &messengerInfo,
                 SettingCount = (uint)syncSettings.Length,
-                PSettings = settings
+                PSettings = settings,
             };
 
             byte** extensionNames = strings.Array(extensions);
@@ -150,7 +168,7 @@ internal sealed unsafe class VulkanDevice : IDisposable
                 EnabledLayerCount = validation ? 1u : 0u,
                 PpEnabledLayerNames = validation ? &layer : null,
                 EnabledExtensionCount = (uint)extensions.Count,
-                PpEnabledExtensionNames = extensionNames
+                PpEnabledExtensionNames = extensionNames,
             };
             vk.CreateInstance(&instanceInfo, null, out instance).Check("vkCreateInstance");
 
@@ -158,8 +176,13 @@ internal sealed unsafe class VulkanDevice : IDisposable
             {
                 if (!vk.TryGetInstanceExtension(instance, out debugUtils) || debugUtils is null)
                     throw new NotSupportedException("VK_EXT_debug_utils is not available.");
-                debugUtils.CreateDebugUtilsMessenger(instance: instance, pCreateInfo: &messengerInfo, pAllocator: null,
-                        pMessenger: out messenger)
+                debugUtils
+                    .CreateDebugUtilsMessenger(
+                        instance: instance,
+                        pCreateInfo: &messengerInfo,
+                        pAllocator: null,
+                        pMessenger: out messenger
+                    )
                     .Check("vkCreateDebugUtilsMessengerEXT");
             }
 
@@ -170,19 +193,40 @@ internal sealed unsafe class VulkanDevice : IDisposable
                 surface = createSurface(instance);
             }
 
-            (PhysicalDevice physicalDevice, uint queueFamily) = ChoosePhysicalDevice(vk: vk, instance: instance,
-                surfaceApi: surfaceApi, surface: surface);
-            device = CreateLogicalDevice(vk: vk, physicalDevice: physicalDevice, queueFamily: queueFamily,
-                swapchain: surface.Handle != 0, strings: strings);
+            (PhysicalDevice physicalDevice, uint queueFamily) = ChoosePhysicalDevice(
+                vk: vk,
+                instance: instance,
+                surfaceApi: surfaceApi,
+                surface: surface
+            );
+            device = CreateLogicalDevice(
+                vk: vk,
+                physicalDevice: physicalDevice,
+                queueFamily: queueFamily,
+                swapchain: surface.Handle != 0,
+                strings: strings
+            );
 
             KhrSwapchain? swapchainApi = null;
-            return surface.Handle != 0 &&
-                   !vk.TryGetDeviceExtension(instance: instance, device: device, ext: out swapchainApi)
+            return
+                surface.Handle != 0
+                && !vk.TryGetDeviceExtension(instance: instance, device: device, ext: out swapchainApi)
                 ? throw new NotSupportedException("VK_KHR_swapchain is not available.")
-                : new(vk: vk, instance: instance, log: log, logHandle: logHandle, debugUtils: debugUtils,
-                    messenger: messenger, surfaceApi: surfaceApi, surface: surface,
-                    physicalDevice: physicalDevice, queueFamily: queueFamily, device: device,
-                    swapchainApi: swapchainApi, validation: validation);
+                : new(
+                    vk: vk,
+                    instance: instance,
+                    log: log,
+                    logHandle: logHandle,
+                    debugUtils: debugUtils,
+                    messenger: messenger,
+                    surfaceApi: surfaceApi,
+                    surface: surface,
+                    physicalDevice: physicalDevice,
+                    queueFamily: queueFamily,
+                    device: device,
+                    swapchainApi: swapchainApi,
+                    validation: validation
+                );
         }
         catch
         {
@@ -205,8 +249,12 @@ internal sealed unsafe class VulkanDevice : IDisposable
         }
     }
 
-    private static (PhysicalDevice Device, uint QueueFamily) ChoosePhysicalDevice(Vk vk, Instance instance,
-        KhrSurface? surfaceApi, SurfaceKHR surface)
+    private static (PhysicalDevice Device, uint QueueFamily) ChoosePhysicalDevice(
+        Vk vk,
+        Instance instance,
+        KhrSurface? surfaceApi,
+        SurfaceKHR surface
+    )
     {
         uint count = 0;
         vk.EnumeratePhysicalDevices(instance, ref count, null).Check("vkEnumeratePhysicalDevices");
@@ -248,8 +296,13 @@ internal sealed unsafe class VulkanDevice : IDisposable
                     continue;
                 if (surfaceApi != null)
                 {
-                    surfaceApi.GetPhysicalDeviceSurfaceSupport(physicalDevice: candidate, queueFamilyIndex: i,
-                            surface: surface, pSupported: out Bool32 supported)
+                    surfaceApi
+                        .GetPhysicalDeviceSurfaceSupport(
+                            physicalDevice: candidate,
+                            queueFamilyIndex: i,
+                            surface: surface,
+                            pSupported: out Bool32 supported
+                        )
                         .Check("vkGetPhysicalDeviceSurfaceSupportKHR");
                     if (!supported)
                         continue;
@@ -268,26 +321,45 @@ internal sealed unsafe class VulkanDevice : IDisposable
     {
         var f13 = new PhysicalDeviceVulkan13Features { SType = StructureType.PhysicalDeviceVulkan13Features };
         var f12 = new PhysicalDeviceVulkan12Features
-            { SType = StructureType.PhysicalDeviceVulkan12Features, PNext = &f13 };
+        {
+            SType = StructureType.PhysicalDeviceVulkan12Features,
+            PNext = &f13,
+        };
         var f2 = new PhysicalDeviceFeatures2 { SType = StructureType.PhysicalDeviceFeatures2, PNext = &f12 };
         vk.GetPhysicalDeviceFeatures2(device, &f2);
         PhysicalDeviceFeatures f = f2.Features;
-        if (!f.MultiDrawIndirect) return "multiDrawIndirect";
-        if (!f.DrawIndirectFirstInstance) return "drawIndirectFirstInstance";
-        if (!f.DepthClamp) return "depthClamp";
-        if (!f12.RuntimeDescriptorArray) return "runtimeDescriptorArray";
-        if (!f12.DescriptorBindingPartiallyBound) return "descriptorBindingPartiallyBound";
-        if (!f12.DescriptorBindingVariableDescriptorCount) return "descriptorBindingVariableDescriptorCount";
-        if (!f12.DescriptorBindingSampledImageUpdateAfterBind) return "descriptorBindingSampledImageUpdateAfterBind";
-        if (!f12.ShaderSampledImageArrayNonUniformIndexing) return "shaderSampledImageArrayNonUniformIndexing";
-        if (!f13.DynamicRendering) return "dynamicRendering";
-        if (!f13.Synchronization2) return "synchronization2";
-        if (!f13.ShaderDemoteToHelperInvocation) return "shaderDemoteToHelperInvocation";
+        if (!f.MultiDrawIndirect)
+            return "multiDrawIndirect";
+        if (!f.DrawIndirectFirstInstance)
+            return "drawIndirectFirstInstance";
+        if (!f.DepthClamp)
+            return "depthClamp";
+        if (!f12.RuntimeDescriptorArray)
+            return "runtimeDescriptorArray";
+        if (!f12.DescriptorBindingPartiallyBound)
+            return "descriptorBindingPartiallyBound";
+        if (!f12.DescriptorBindingVariableDescriptorCount)
+            return "descriptorBindingVariableDescriptorCount";
+        if (!f12.DescriptorBindingSampledImageUpdateAfterBind)
+            return "descriptorBindingSampledImageUpdateAfterBind";
+        if (!f12.ShaderSampledImageArrayNonUniformIndexing)
+            return "shaderSampledImageArrayNonUniformIndexing";
+        if (!f13.DynamicRendering)
+            return "dynamicRendering";
+        if (!f13.Synchronization2)
+            return "synchronization2";
+        if (!f13.ShaderDemoteToHelperInvocation)
+            return "shaderDemoteToHelperInvocation";
         return null;
     }
 
-    private static Device CreateLogicalDevice(Vk vk, PhysicalDevice physicalDevice, uint queueFamily, bool swapchain,
-        NativeStrings strings)
+    private static Device CreateLogicalDevice(
+        Vk vk,
+        PhysicalDevice physicalDevice,
+        uint queueFamily,
+        bool swapchain,
+        NativeStrings strings
+    )
     {
         HashSet<string> available = DeviceExtensions(vk, physicalDevice);
         var extensions = new List<string>();
@@ -300,7 +372,7 @@ internal sealed unsafe class VulkanDevice : IDisposable
             DynamicRendering = true,
             Synchronization2 = true,
             // glslc maps `discard` to OpDemoteToHelperInvocation for SPIR-V 1.6 (the Vulkan 1.3 target).
-            ShaderDemoteToHelperInvocation = true
+            ShaderDemoteToHelperInvocation = true,
         };
         var f12 = new PhysicalDeviceVulkan12Features
         {
@@ -311,7 +383,7 @@ internal sealed unsafe class VulkanDevice : IDisposable
             DescriptorBindingPartiallyBound = true,
             DescriptorBindingVariableDescriptorCount = true,
             DescriptorBindingSampledImageUpdateAfterBind = true,
-            ShaderSampledImageArrayNonUniformIndexing = true
+            ShaderSampledImageArrayNonUniformIndexing = true,
         };
         var features = new PhysicalDeviceFeatures2
         {
@@ -322,19 +394,24 @@ internal sealed unsafe class VulkanDevice : IDisposable
                 MultiDrawIndirect = true,
                 DrawIndirectFirstInstance = true,
                 DepthClamp = true,
-                SamplerAnisotropy = true
-            }
+                SamplerAnisotropy = true,
+            },
         };
 
         // MoltenVK is a portability implementation: it must be enabled, and its subset features are enabled as
         // reported so that validation knows exactly what the device can do.
         var portabilityFeatures = new PhysicalDevicePortabilitySubsetFeaturesKHR
-            { SType = StructureType.PhysicalDevicePortabilitySubsetFeaturesKhr };
+        {
+            SType = StructureType.PhysicalDevicePortabilitySubsetFeaturesKhr,
+        };
         if (available.Contains("VK_KHR_portability_subset"))
         {
             extensions.Add("VK_KHR_portability_subset");
             var query = new PhysicalDeviceFeatures2
-                { SType = StructureType.PhysicalDeviceFeatures2, PNext = &portabilityFeatures };
+            {
+                SType = StructureType.PhysicalDeviceFeatures2,
+                PNext = &portabilityFeatures,
+            };
             vk.GetPhysicalDeviceFeatures2(physicalDevice, &query);
             portabilityFeatures.PNext = null;
             f13.PNext = &portabilityFeatures;
@@ -346,7 +423,7 @@ internal sealed unsafe class VulkanDevice : IDisposable
             SType = StructureType.DeviceQueueCreateInfo,
             QueueFamilyIndex = queueFamily,
             QueueCount = 1,
-            PQueuePriorities = &priority
+            PQueuePriorities = &priority,
         };
         var deviceInfo = new DeviceCreateInfo
         {
@@ -355,10 +432,15 @@ internal sealed unsafe class VulkanDevice : IDisposable
             QueueCreateInfoCount = 1,
             PQueueCreateInfos = &queueInfo,
             EnabledExtensionCount = (uint)extensions.Count,
-            PpEnabledExtensionNames = strings.Array(extensions)
+            PpEnabledExtensionNames = strings.Array(extensions),
         };
-        vk.CreateDevice(physicalDevice: physicalDevice, pCreateInfo: &deviceInfo, pAllocator: null,
-            pDevice: out Device device).Check("vkCreateDevice");
+        vk.CreateDevice(
+                physicalDevice: physicalDevice,
+                pCreateInfo: &deviceInfo,
+                pAllocator: null,
+                pDevice: out Device device
+            )
+            .Check("vkCreateDevice");
         return device;
     }
 
@@ -382,14 +464,22 @@ internal sealed unsafe class VulkanDevice : IDisposable
     private static HashSet<string> DeviceExtensions(Vk vk, PhysicalDevice device)
     {
         uint count = 0;
-        vk.EnumerateDeviceExtensionProperties(physicalDevice: device, pLayerName: (byte*)null,
-                pPropertyCount: ref count, pProperties: null)
+        vk.EnumerateDeviceExtensionProperties(
+                physicalDevice: device,
+                pLayerName: (byte*)null,
+                pPropertyCount: ref count,
+                pProperties: null
+            )
             .Check("vkEnumerateDeviceExtensionProperties");
         var properties = new ExtensionProperties[count];
         fixed (ExtensionProperties* p = properties)
         {
-            vk.EnumerateDeviceExtensionProperties(physicalDevice: device, pLayerName: (byte*)null,
-                    pPropertyCount: ref count, pProperties: p)
+            vk.EnumerateDeviceExtensionProperties(
+                    physicalDevice: device,
+                    pLayerName: (byte*)null,
+                    pPropertyCount: ref count,
+                    pProperties: p
+                )
                 .Check("vkEnumerateDeviceExtensionProperties");
         }
 
@@ -462,7 +552,7 @@ internal sealed unsafe class VulkanDevice : IDisposable
                 SType = StructureType.DebugUtilsObjectNameInfoExt,
                 ObjectType = type,
                 ObjectHandle = handle,
-                PObjectName = p
+                PObjectName = p,
             };
             debugUtils.SetDebugUtilsObjectName(Device, &info);
         }
@@ -484,10 +574,7 @@ internal sealed unsafe class VulkanDevice : IDisposable
         }
     }
 
-    public void EndLabel(CommandBuffer commandBuffer)
-    {
-        debugUtils?.CmdEndDebugUtilsLabel(commandBuffer);
-    }
+    public void EndLabel(CommandBuffer commandBuffer) => debugUtils?.CmdEndDebugUtilsLabel(commandBuffer);
 
     public void WaitIdle() => Vk.DeviceWaitIdle(Device).Check("vkDeviceWaitIdle");
 

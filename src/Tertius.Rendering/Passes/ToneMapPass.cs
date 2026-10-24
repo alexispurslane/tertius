@@ -23,7 +23,7 @@ internal sealed unsafe class ToneMapPass : RenderPass
             FragmentShader = "tonemap.frag",
             Layout = layouts.PostLayout,
             ColorFormats = [outputFormat],
-            CullMode = CullModeFlags.None
+            CullMode = CullModeFlags.None,
         }.Create(device, shaders);
         OutputFormat = outputFormat;
     }
@@ -47,7 +47,7 @@ internal sealed unsafe class ToneMapPass : RenderPass
             ImageView = context.Output.View,
             ImageLayout = ImageLayout.ColorAttachmentOptimal,
             LoadOp = AttachmentLoadOp.DontCare,
-            StoreOp = AttachmentStoreOp.Store
+            StoreOp = AttachmentStoreOp.Store,
         };
         var rendering = new RenderingInfo
         {
@@ -55,19 +55,31 @@ internal sealed unsafe class ToneMapPass : RenderPass
             RenderArea = new(new Offset2D(0, 0), context.Output.Extent),
             LayerCount = 1,
             ColorAttachmentCount = 1,
-            PColorAttachments = &color
+            PColorAttachments = &color,
         };
         vk.CmdBeginRendering(commandBuffer, &rendering);
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, pipeline);
         DescriptorSet set = context.Targets.PostSet;
-        vk.CmdBindDescriptorSets(commandBuffer: commandBuffer, pipelineBindPoint: PipelineBindPoint.Graphics,
-            layout: layouts.PostLayout, firstSet: 0, descriptorSetCount: 1, pDescriptorSets: &set,
-            dynamicOffsetCount: 0, pDynamicOffsets: null);
+        vk.CmdBindDescriptorSets(
+            commandBuffer: commandBuffer,
+            pipelineBindPoint: PipelineBindPoint.Graphics,
+            layout: layouts.PostLayout,
+            firstSet: 0,
+            descriptorSetCount: 1,
+            pDescriptorSets: &set,
+            dynamicOffsetCount: 0,
+            pDynamicOffsets: null
+        );
         context.SetFullViewport();
         var push = new ToneMapPushConstants { Exposure = context.Exposure, EncodeSrgb = context.EncodeSrgb ? 1u : 0u };
-        vk.CmdPushConstants(commandBuffer: commandBuffer, layout: layouts.PostLayout,
-            stageFlags: ShaderStageFlags.FragmentBit, offset: 0,
-            size: (uint)sizeof(ToneMapPushConstants), pValues: &push);
+        vk.CmdPushConstants(
+            commandBuffer: commandBuffer,
+            layout: layouts.PostLayout,
+            stageFlags: ShaderStageFlags.FragmentBit,
+            offset: 0,
+            size: (uint)sizeof(ToneMapPushConstants),
+            pValues: &push
+        );
         vk.CmdDraw(commandBuffer: commandBuffer, vertexCount: 3, instanceCount: 1, firstVertex: 0, firstInstance: 0);
         vk.CmdEndRendering(commandBuffer);
     }

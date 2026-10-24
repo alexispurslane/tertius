@@ -37,10 +37,19 @@ public sealed class BackJet : IComponent
     /// 1.5 s. At full thrust 30 puffs leave each second at 3 m/s, so that in the cabin's air they stop within about 2 m of
     /// the person (docs/plans/blue-danube-demo.md, "The plumes").
     /// </summary>
-    public static Plume Plume { get; } = new(
-        Look: new(Life: 1.5f, StartRadius: 0.04f, EndRadius: 0.3f, TemperatureRatio: 0.75f,
-            Shading: PuffShading.Lit(new(0.85f, 0.87f, 0.9f))),
-        FullRate: 30, Speed: 3, Spread: 0.2f);
+    public static Plume Plume { get; } =
+        new(
+            Look: new(
+                Life: 1.5f,
+                StartRadius: 0.04f,
+                EndRadius: 0.3f,
+                TemperatureRatio: 0.75f,
+                Shading: PuffShading.Lit(new(0.85f, 0.87f, 0.9f))
+            ),
+            FullRate: 30,
+            Speed: 3,
+            Spread: 0.2f
+        );
 
     /// <summary>Where the jet sits on the person, in meters, in the person's axes: on its back, at its chest's height.</summary>
     public static Vector3 Place { get; } = new(0, 0.3f, 0.3f);
@@ -54,12 +63,15 @@ public sealed class BackJet : IComponent
     /// Spawns a back jet as a part of the running entity, at <see cref="Place"/> with the entity's rotation. It becomes live
     /// at the sync point of the tick, so a force sent to it in the same tick reaches it in the next.
     /// </summary>
-    public static Entity Spawn(Self self) => self.Spawn(new()
-    {
-        AttachTo = self.Entity,
-        AttachOffset = new(Place, Quaternion.Identity),
-        Components = [new BackJet()]
-    });
+    public static Entity Spawn(Self self) =>
+        self.Spawn(
+            new()
+            {
+                AttachTo = self.Entity,
+                AttachOffset = new(Place, Quaternion.Identity),
+                Components = [new BackJet()],
+            }
+        );
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {

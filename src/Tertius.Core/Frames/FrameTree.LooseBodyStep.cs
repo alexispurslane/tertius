@@ -20,7 +20,7 @@ public sealed partial class FrameTree
             ProperAcceleration = properAccelerationTheStepFound[id],
             Turns = turns[id],
             TurnsStep = turnsStep,
-            Medium = medium[id]
+            Medium = medium[id],
         };
     }
 }

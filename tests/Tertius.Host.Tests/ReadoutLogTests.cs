@@ -24,25 +24,56 @@ public sealed class ReadoutLogTests
     /// </summary>
     private const double GroundRate = 0.5;
 
-    private static readonly Scene Drop = new("readout-drop", (world, _) =>
-    {
-        var scene = new SceneInstance();
-        FrameHandle earth = Ground(world, G);
-        scene.Add("earth", earth.Entity);
-        scene.Add("person", world.Spawn(new() { Frame = earth, Pose = At(0, 5), Body = Ball() }));
-        scene.Add("station", world.Spawn(new()
+    private static readonly Scene Drop = new(
+        "readout-drop",
+        (world, _) =>
         {
-            Frame = earth,
-            Pose = new(new(30, 5, 0), DQuaternion.FromAxisAngle(-Double3.UnitZ, Math.PI / 2)),
-            Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static)
-        }));
-        scene.Add("camera", world.Spawn(new() { Frame = earth, Pose = At(0, 2, 10), Render = new RenderData() }));
-        return scene;
-    });
+            var scene = new SceneInstance();
+            FrameHandle earth = Ground(world, G);
+            scene.Add("earth", earth.Entity);
+            scene.Add(
+                "person",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = earth,
+                        Pose = At(0, 5),
+                        Body = Ball(),
+                    }
+                )
+            );
+            scene.Add(
+                "station",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = earth,
+                        Pose = new(new(30, 5, 0), DQuaternion.FromAxisAngle(-Double3.UnitZ, Math.PI / 2)),
+                        Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static),
+                    }
+                )
+            );
+            scene.Add(
+                "camera",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = earth,
+                        Pose = At(0, 2, 10),
+                        Render = new RenderData(),
+                    }
+                )
+            );
+            return scene;
+        }
+    );
 
     /// <summary>A film of 3 frames every 2 ticks, then a film of 2 frames every tick: frames after ticks 2, 4, 6, 7 and 8.</summary>
-    private static readonly Script TwoFilms = new("readout-drop",
-        [new(new CameraStep("camera")), new(new FilmStep("a", 3, 2)), new(new FilmStep("b", 2, 1))], new(16, 16));
+    private static readonly Script TwoFilms = new(
+        "readout-drop",
+        [new(new CameraStep("camera")), new(new FilmStep("a", 3, 2)), new(new FilmStep("b", 2, 1))],
+        new(16, 16)
+    );
 
     private static IReadOnlyList<ReadoutRow> Rows => ReadoutLog.Record(TwoFilms, [Drop]);
 
@@ -52,43 +83,73 @@ public sealed class ReadoutLogTests
     /// <see cref="GroundRate"/>. The <c>person</c> is a static box that stands still in earth-surface, 10 m from the axis
     /// on its +X. The <c>station</c> is a static box in earth, 10 m out on earth's +X.
     /// </summary>
-    private static readonly Scene Turning = new("readout-turning", (world, _) =>
-    {
-        var scene = new SceneInstance();
-        FrameHandle earth = world.CreateRootFrame(new(FrameBounds.Sphere(1e4f)));
-        scene.Add("earth", earth.Entity);
-        var spin = new FrameSpin(Tilt: DQuaternion.Identity, Rate: GroundRate, PhaseAtEpoch: Math.PI / 2);
-        Entity ground = world.Spawn(new()
+    private static readonly Scene Turning = new(
+        "readout-turning",
+        (world, _) =>
         {
-            Frame = earth,
-            Pose = new(Double3.Zero, spin.RotationAt(world.Time)),
-            FirstMove = new(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1))),
-            AsFrame = new(FrameBounds.Sphere(1e3f)),
-            Components = [new SpinMotion { Spin = spin }]
-        });
-        scene.Add("earth-surface", ground);
-        FrameHandle surface = world.GetOwnedFrame(ground);
-        var box = new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static);
-        scene.Add("person", world.Spawn(new() { Frame = surface, Pose = At(10), Body = box }));
-        scene.Add("station", world.Spawn(new() { Frame = earth, Pose = At(10), Body = box }));
-        scene.Add("camera", world.Spawn(new() { Frame = earth, Pose = At(0, 2, 20), Render = new RenderData() }));
-        return scene;
-    });
+            var scene = new SceneInstance();
+            FrameHandle earth = world.CreateRootFrame(new(FrameBounds.Sphere(1e4f)));
+            scene.Add("earth", earth.Entity);
+            var spin = new FrameSpin(Tilt: DQuaternion.Identity, Rate: GroundRate, PhaseAtEpoch: Math.PI / 2);
+            Entity ground = world.Spawn(
+                new()
+                {
+                    Frame = earth,
+                    Pose = new(Double3.Zero, spin.RotationAt(world.Time)),
+                    FirstMove = new(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1))),
+                    AsFrame = new(FrameBounds.Sphere(1e3f)),
+                    Components = [new SpinMotion { Spin = spin }],
+                }
+            );
+            scene.Add("earth-surface", ground);
+            FrameHandle surface = world.GetOwnedFrame(ground);
+            var box = new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static);
+            scene.Add(
+                "person",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = surface,
+                        Pose = At(10),
+                        Body = box,
+                    }
+                )
+            );
+            scene.Add(
+                "station",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = earth,
+                        Pose = At(10),
+                        Body = box,
+                    }
+                )
+            );
+            scene.Add(
+                "camera",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = earth,
+                        Pose = At(0, 2, 20),
+                        Render = new RenderData(),
+                    }
+                )
+            );
+            return scene;
+        }
+    );
 
     /// <summary>The time of a tick, in seconds: the engine's 60 ticks per second.</summary>
     private static double Seconds(long tick) => tick / 60.0;
 
     [Fact]
-    public void TheLogHasOneRowForEachFrameOfTheScriptWithTheFramesNameInOrder()
-    {
+    public void TheLogHasOneRowForEachFrameOfTheScriptWithTheFramesNameInOrder() =>
         Rows.Select(row => row.Frame).Should().Equal("a-000000", "a-000001", "a-000002", "b-000000", "b-000001");
-    }
 
     [Fact]
-    public void EachRowHoldsTheTickOfItsFrame()
-    {
-        Rows.Select(row => row.Tick).Should().Equal(2, 4, 6, 7, 8);
-    }
+    public void EachRowHoldsTheTickOfItsFrame() => Rows.Select(row => row.Tick).Should().Equal(2, 4, 6, 7, 8);
 
     [Fact]
     public void ARowHoldsThePersonsPositionInEarth()
@@ -112,7 +173,8 @@ public sealed class ReadoutLogTests
         IReadOnlyList<ReadoutRow> rows = Rows;
         rows[0].Speed.Should().BePositive();
         for (int i = 1; i < rows.Count; i++)
-            (rows[i].Speed - rows[i - 1].Speed).Should()
+            (rows[i].Speed - rows[i - 1].Speed)
+                .Should()
                 .BeApproximately(G * Seconds(rows[i].Tick - rows[i - 1].Tick), 1e-4);
     }
 
@@ -130,13 +192,21 @@ public sealed class ReadoutLogTests
         rows.Should().HaveCount(5);
         foreach (ReadoutRow row in rows)
         {
-            row.Speed.Should().BeApproximately(GroundRate * 10, 1e-4,
-                $"the person moves with the ground in earth at {row.Frame}");
+            row.Speed.Should()
+                .BeApproximately(GroundRate * 10, 1e-4, $"the person moves with the ground in earth at {row.Frame}");
             row.Position.Length.Should().BeApproximately(10, 1e-6);
-            Math.Abs(row.Position.X).Should().BeLessThan(1,
-                $"the ground stands a quarter turn from earth's axes at {row.Frame}, so the place in earth is not {row.Position}");
-            row.ToStation.Should().BeApproximately(Double3.Distance(row.Position, new(10, 0, 0)), 1e-6,
-                "the station's place is read in earth too");
+            Math.Abs(row.Position.X)
+                .Should()
+                .BeLessThan(
+                    1,
+                    $"the ground stands a quarter turn from earth's axes at {row.Frame}, so the place in earth is not {row.Position}"
+                );
+            row.ToStation.Should()
+                .BeApproximately(
+                    Double3.Distance(row.Position, new(10, 0, 0)),
+                    1e-6,
+                    "the station's place is read in earth too"
+                );
         }
     }
 
@@ -178,9 +248,13 @@ public sealed class ReadoutLogTests
     {
         string[] lines = ReadoutLog.ToCsv(Rows).TrimEnd('\n').Split('\n');
 
-        lines[0].Should().Be("frame,tick,x,y,z,speed,station,axis,felt," +
-                             "throw1_x,throw1_y,throw1_z,throw1_vx,throw1_vy,throw1_vz,throw1_time,throw1_land_x,throw1_land_y,throw1_land_z," +
-                             "throw2_x,throw2_y,throw2_z,throw2_vx,throw2_vy,throw2_vz,throw2_time,throw2_land_x,throw2_land_y,throw2_land_z");
+        lines[0]
+            .Should()
+            .Be(
+                "frame,tick,x,y,z,speed,station,axis,felt,"
+                    + "throw1_x,throw1_y,throw1_z,throw1_vx,throw1_vy,throw1_vz,throw1_time,throw1_land_x,throw1_land_y,throw1_land_z,"
+                    + "throw2_x,throw2_y,throw2_z,throw2_vx,throw2_vy,throw2_vz,throw2_time,throw2_land_x,throw2_land_y,throw2_land_z"
+            );
         lines.Should().HaveCount(6);
         lines[1].Should().StartWith("a-000000,2,0,");
     }
@@ -219,7 +293,7 @@ public sealed class ReadoutLogTests
         ReadoutRow landed = before with
         {
             FirstThrow = new ThrowReadout(release, new ThrowLanding(0.83, new(-99.5, -2, 9.4))),
-            SecondThrow = new ThrowReadout(release with { Velocity = -release.Velocity }, null)
+            SecondThrow = new ThrowReadout(release with { Velocity = -release.Velocity }, null),
         };
 
         string csv = ReadoutLog.ToCsv([before, flying, landed]);
@@ -237,26 +311,35 @@ public sealed class ReadoutLogTests
     [Fact]
     public void TheLogOfTheExitsScriptHoldsEachThrowFromItsBoxsFlightRecorder()
     {
-        Script script =
-            Script.Parse(File.ReadAllText(Path.Combine(HostTesting.RepositoryRoot(), "scripts", "demo-exit.json")));
+        var script = Script.Parse(
+            File.ReadAllText(Path.Combine(HostTesting.RepositoryRoot(), "scripts", "demo-exit.json"))
+        );
 
         IReadOnlyList<ReadoutRow> rows = ReadoutLog.Record(script, DemoScenes.All);
 
-        rows.TakeWhile(row => !row.Frame.StartsWith("spinward", StringComparison.Ordinal)).Should()
+        rows.TakeWhile(row => !row.Frame.StartsWith("spinward", StringComparison.Ordinal))
+            .Should()
             .OnlyContain(row => row.FirstThrow == null && row.SecondThrow == null);
         ReadoutRow last = rows[^1];
         foreach (ThrowReadout? readout in new[] { last.FirstThrow, last.SecondThrow })
         {
             ThrowReadout thrown = readout!.Value;
-            ThrowLanding line = thrown.Release.Landing(DemoScenes.SpinStation.Rate, DemoScenes.DemoStation.WheelFloor,
-                DemoScenes.WheelCoda.BoxHalf);
+            ThrowLanding line = thrown.Release.Landing(
+                DemoScenes.SpinStation.Rate,
+                DemoScenes.DemoStation.WheelFloor,
+                DemoScenes.WheelCoda.BoxHalf
+            );
             Double3.Distance(thrown.Landing!.Value.Place, line.Place).Should().BeLessThan(1e-3);
         }
 
         static Double3 Spinward(ThrowReadout? thrown) => WheelFloor.SpinwardAt(thrown!.Value.Release.Place);
-        Double3.Dot(last.FirstThrow!.Value.Release.Velocity, Spinward(last.FirstThrow)).Should()
+        Double3
+            .Dot(last.FirstThrow!.Value.Release.Velocity, Spinward(last.FirstThrow))
+            .Should()
             .BePositive("the first throw goes spinward");
-        Double3.Dot(last.SecondThrow!.Value.Release.Velocity, Spinward(last.SecondThrow)).Should()
+        Double3
+            .Dot(last.SecondThrow!.Value.Release.Velocity, Spinward(last.SecondThrow))
+            .Should()
             .BeNegative("the second throw goes antispinward");
         int firstLanded = rows.ToList().FindIndex(row => row.FirstThrow?.Landing != null);
         rows[firstLanded - 1].FirstThrow.Should().NotBeNull("the release comes before the landing");
@@ -269,13 +352,18 @@ public sealed class ReadoutLogTests
         string folder = HostTesting.NewFolder();
         try
         {
-            string script = Path.Combine(folder, "two-films.json"), log = Path.Combine(folder, "log.csv");
+            string script = Path.Combine(folder, "two-films.json"),
+                log = Path.Combine(folder, "log.csv");
             File.WriteAllText(script, TwoFilms.ToJson());
             var output = new StringWriter();
             var error = new StringWriter();
 
-            int exit = Program.Readouts(args: ["--readouts", script, log], scenes: [Drop], output: output,
-                error: error);
+            int exit = Program.Readouts(
+                args: ["--readouts", script, log],
+                scenes: [Drop],
+                output: output,
+                error: error
+            );
 
             exit.Should().Be(ScriptCommand.Ok, error.ToString());
             ReadoutLog.FromCsv(File.ReadAllText(log)).Should().Equal(Rows);

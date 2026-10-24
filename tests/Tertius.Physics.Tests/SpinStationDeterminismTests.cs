@@ -26,20 +26,31 @@ public sealed class SpinStationDeterminismTests
         var backend = new JoltPhysicsBackend(new() { WorkerThreads = threads });
         var options = new WorldOptions
         {
-            MaxDegreeOfParallelism = threads, InitialCapacity = TestCapacity, DebugChecks = true, DisposePhysics = true
+            MaxDegreeOfParallelism = threads,
+            InitialCapacity = TestCapacity,
+            DebugChecks = true,
+            DisposePhysics = true,
+            NumericFrames = NumericFrameTesting.EveryGroupFalls with { CreateSpeed = 10, LeaveSpeed = 4 },
         };
-        options.NumericFrames = NumericFrameTesting.EveryGroupFalls with { CreateSpeed = 10, LeaveSpeed = 4 };
         using var world = new World(options, backend);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        FrameHandle station = world.GetOwnedFrame(world.Spawn(
-            new SpawnDesc { Frame = space, AsFrame = new(FrameBounds.Sphere(150)) }
-                .Spinning(world, new(Tilt: DQuaternion.Identity, Rate: StationRate), firstMove: true)));
-        world.Spawn(new()
-        {
-            Frame = station,
-            Pose = At(FloorRadius + 0.5),
-            Body = new(Shape: new BoxShapeDesc(new(0.5f, 20, 20)), Motion: BodyMotion.Static)
-        });
+        FrameHandle station = world.GetOwnedFrame(
+            world.Spawn(
+                new SpawnDesc { Frame = space, AsFrame = new(FrameBounds.Sphere(150)) }.Spinning(
+                    world,
+                    new(Tilt: DQuaternion.Identity, Rate: StationRate),
+                    firstMove: true
+                )
+            )
+        );
+        world.Spawn(
+            new()
+            {
+                Frame = station,
+                Pose = At(FloorRadius + 0.5),
+                Body = new(Shape: new BoxShapeDesc(new(0.5f, 20, 20)), Motion: BodyMotion.Static),
+            }
+        );
         var crate = new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10);
         var logs = new List<CollisionLog>();
         var bodies = new List<Entity>();
@@ -53,37 +64,56 @@ public sealed class SpinStationDeterminismTests
         }
 
         for (int i = 0; i < 3; i++)
-            Add(log => new() { Frame = station, Pose = At(FloorRadius - 0.5 - i), Body = crate, Components = log });
-        Add(log => new()
-        {
-            Frame = station,
-            Components = log,
-            Pose = At(FloorRadius - 1, 0, 8),
-            Body = new(Shape: new BoxShapeDesc(new(1, 2, 2)), Mass: 1000),
-            AsFrame = new(FrameBounds.Sphere(0.9f))
-        });
-        Add(log => new()
-        {
-            Frame = station, Pose = At(FloorRadius - 3, 0, -8), LinearVelocity = new(-12, 0, 4), Body = crate,
-            Components = log
-        });
+            Add(log =>
+                new()
+                {
+                    Frame = station,
+                    Pose = At(FloorRadius - 0.5 - i),
+                    Body = crate,
+                    Components = log,
+                }
+            );
+        Add(log =>
+            new()
+            {
+                Frame = station,
+                Components = log,
+                Pose = At(FloorRadius - 1, 0, 8),
+                Body = new(Shape: new BoxShapeDesc(new(1, 2, 2)), Mass: 1000),
+                AsFrame = new(FrameBounds.Sphere(0.9f)),
+            }
+        );
+        Add(log =>
+            new()
+            {
+                Frame = station,
+                Pose = At(FloorRadius - 3, 0, -8),
+                LinearVelocity = new(-12, 0, 4),
+                Body = crate,
+                Components = log,
+            }
+        );
         var restPlace = new Double3(50, 0, 10);
-        Add(log => new()
-        {
-            Frame = station,
-            Components = log,
-            Pose = new(restPlace, DQuaternion.Identity),
-            LinearVelocity = -Double3.Cross(new(0, StationRate, 0), restPlace),
-            Body = crate
-        });
-        Add(log => new()
-        {
-            Frame = station,
-            Components = log,
-            Pose = At(60, 5, -10),
-            AngularVelocity = new(1, 2, 0),
-            Body = new(Shape: new SphereShapeDesc(0.5f), Mass: 10)
-        });
+        Add(log =>
+            new()
+            {
+                Frame = station,
+                Components = log,
+                Pose = new(restPlace, DQuaternion.Identity),
+                LinearVelocity = -Double3.Cross(new(0, StationRate, 0), restPlace),
+                Body = crate,
+            }
+        );
+        Add(log =>
+            new()
+            {
+                Frame = station,
+                Components = log,
+                Pose = At(60, 5, -10),
+                AngularVelocity = new(1, 2, 0),
+                Body = new(Shape: new SphereShapeDesc(0.5f), Mass: 10),
+            }
+        );
 
         var lines = new List<string>();
         for (int tick = 0; tick < 300; tick++)
@@ -95,11 +125,13 @@ public sealed class SpinStationDeterminismTests
             {
                 FrameHandle home = world.PhysicsHomeOf(body);
                 homes.Add(
-                    $"{world.GetFrame(body)}/{(home == station ? "station" : world.Frames.Numeric(home).ToString())}");
+                    $"{world.GetFrame(body)}/{(home == station ? "station" : world.Frames.Numeric(home).ToString())}"
+                );
                 Double3 position = world.PoseIn(body, station).Position;
                 Double3 velocity = world.VelocityIn(body, station);
-                foreach (double value in new[]
-                             { position.X, position.Y, position.Z, velocity.X, velocity.Y, velocity.Z })
+                foreach (
+                    double value in new[] { position.X, position.Y, position.Z, velocity.X, velocity.Y, velocity.Z }
+                )
                     hash.Add(BitConverter.DoubleToInt64Bits(value));
             }
 
@@ -107,8 +139,12 @@ public sealed class SpinStationDeterminismTests
         }
 
         for (int i = 0; i < logs.Count; i++)
-            lines.AddRange(logs[i].Seen.Select(seen =>
-                $"body {i} hit {seen.Other} at {seen.Tick} with {BitConverter.SingleToInt32Bits(seen.Impulse)}"));
+            lines.AddRange(
+                logs[i]
+                    .Seen.Select(seen =>
+                        $"body {i} hit {seen.Other} at {seen.Tick} with {BitConverter.SingleToInt32Bits(seen.Impulse)}"
+                    )
+            );
         world.Errors.Should().BeEmpty();
         return lines;
     }
@@ -120,8 +156,9 @@ public sealed class SpinStationDeterminismTests
         List<string> second = Trace(1);
         List<string> parallel = Trace(4);
 
-        first.Should().Contain(line => line.Contains("Falling"),
-            "some bodies fall in numeric frames below the station");
+        first
+            .Should()
+            .Contain(line => line.Contains("Falling"), "some bodies fall in numeric frames below the station");
         first.Should().Contain(line => line.StartsWith("body "), "the crates hit each other and the floor");
         second.Should().Equal(first);
         parallel.Should().Equal(first);

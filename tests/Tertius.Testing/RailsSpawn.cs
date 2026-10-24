@@ -29,11 +29,17 @@ public static class RailsSpawn
         double mu = KeplerOrbit.MuFrom(world.Frames.Gravity(desc.Frame));
         double time = world.Time;
         (Double3 position, Double3 velocity) = orbit.StateAt(time, mu);
-        MotionIntent first =
-            firstMove ? new MotionIntent(orbit.Sample(mu, FirstStepEnd(world), world.DeltaTime)) : default;
-        return With(desc: desc, pose: new(position, orbit.RotationAt(time, mu)), velocity: velocity,
+        MotionIntent first = firstMove
+            ? new MotionIntent(orbit.Sample(mu, FirstStepEnd(world), world.DeltaTime))
+            : default;
+        return With(
+            desc: desc,
+            pose: new(position, orbit.RotationAt(time, mu)),
+            velocity: velocity,
             angularVelocity: orbit.AngularVelocityAt(time, mu).ToVector3(),
-            firstMove: first, rails: new KeplerMotion { Orbit = orbit });
+            firstMove: first,
+            rails: new KeplerMotion { Orbit = orbit }
+        );
     }
 
     /// <summary>
@@ -46,12 +52,14 @@ public static class RailsSpawn
     /// of the next tick, at the place of <paramref name="desc"/>.
     /// </summary>
     public static SpawnDesc Spinning(this SpawnDesc desc, World world, FrameSpin spin, bool firstMove = false) =>
-        With(desc: desc, pose: new(desc.Pose.Position, spin.RotationAt(world.Time)), velocity: Double3.Zero,
+        With(
+            desc: desc,
+            pose: new(desc.Pose.Position, spin.RotationAt(world.Time)),
+            velocity: Double3.Zero,
             angularVelocity: spin.AngularVelocity.ToVector3(),
-            firstMove: firstMove
-                ? new MotionIntent(spin.Sample(desc.Pose.Position, FirstStepEnd(world)))
-                : default,
-            rails: new SpinMotion { Spin = spin });
+            firstMove: firstMove ? new MotionIntent(spin.Sample(desc.Pose.Position, FirstStepEnd(world))) : default,
+            rails: new SpinMotion { Spin = spin }
+        );
 
     /// <summary>The end of the first step of an entity spawned now, outside a tick: the end of the step of the next tick.</summary>
     private static double FirstStepEnd(World world) => world.TimeAt(world.TickNumber + 1);
@@ -63,31 +71,40 @@ public static class RailsSpawn
     /// motion intents and teleports move, and a rails component moves a plain kinematic body and an entity without a body by
     /// its samples alone, so those take the pose and no velocities.
     /// </summary>
-    private static SpawnDesc With(SpawnDesc desc, DPose pose, Double3 velocity, Vector3 angularVelocity,
-        MotionIntent firstMove, IComponent rails) => new()
-    {
-        Frame = desc.Frame,
-        Pose = pose,
-        LinearVelocity = TakesSpawnVelocity(desc) ? velocity : Double3.Zero,
-        AngularVelocity = TakesSpawnVelocity(desc) ? angularVelocity : Vector3.Zero,
-        FirstMove = firstMove,
-        Body = desc.Body,
-        Render = desc.Render,
-        Components = [rails, .. desc.Components],
-        AsFrame = desc.AsFrame,
-        AttachTo = desc.AttachTo,
-        AttachOffset = desc.AttachOffset,
-        Subscriptions = desc.Subscriptions
-    };
+    private static SpawnDesc With(
+        SpawnDesc desc,
+        DPose pose,
+        Double3 velocity,
+        Vector3 angularVelocity,
+        MotionIntent firstMove,
+        IComponent rails
+    ) =>
+        new()
+        {
+            Frame = desc.Frame,
+            Pose = pose,
+            LinearVelocity = TakesSpawnVelocity(desc) ? velocity : Double3.Zero,
+            AngularVelocity = TakesSpawnVelocity(desc) ? angularVelocity : Vector3.Zero,
+            FirstMove = firstMove,
+            Body = desc.Body,
+            Render = desc.Render,
+            Components = [rails, .. desc.Components],
+            AsFrame = desc.AsFrame,
+            AttachTo = desc.AttachTo,
+            AttachOffset = desc.AttachOffset,
+            Subscriptions = desc.Subscriptions,
+        };
 
     /// <summary>
     /// True when the spawn of <paramref name="desc"/> takes a velocity: a kinematic hull, the body of a frame that is not a
     /// root, or a dynamic body or a character that is not attached.
     /// </summary>
-    private static bool TakesSpawnVelocity(SpawnDesc desc) => desc.AttachTo.IsNull && desc.Body?.Motion switch
-    {
-        BodyMotion.Kinematic => desc.AsFrame is not null && !desc.Frame.IsNull,
-        BodyMotion.Dynamic or BodyMotion.Character => true,
-        _ => false
-    };
+    private static bool TakesSpawnVelocity(SpawnDesc desc) =>
+        desc.AttachTo.IsNull
+        && desc.Body?.Motion switch
+        {
+            BodyMotion.Kinematic => desc.AsFrame is not null && !desc.Frame.IsNull,
+            BodyMotion.Dynamic or BodyMotion.Character => true,
+            _ => false,
+        };
 }

@@ -142,8 +142,13 @@ public sealed class EntityQueryRunTests
         t.SpawnAt(new(6, 0, 0), new Flammable());
         Entity edge = t.SpawnAt(new(0, 0, -5), new Flammable());
         var found = new List<Entity>();
-        Entity asker = t.SpawnAt(default, Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            self.Snapshot.Find(EntityQuery.With<Flammable>().Near(5)).CopyTo(found)));
+        Entity asker = t.SpawnAt(
+            default,
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                    self.Snapshot.Find(EntityQuery.With<Flammable>().Near(5)).CopyTo(found)
+            )
+        );
 
         t.World.Tick();
 
@@ -316,8 +321,9 @@ public sealed class EntityQueryRunTests
         Snapshot snapshot = t.World.Snapshot;
         EntityQuery stored = EntityQuery.With<Metal>().Without<Wet>().Near(t.Root, new(10, 0, 0), 5).In(t.Root);
 
-        List<Entity> chain =
-            Found(snapshot.Entities.With<Metal>().Without<Wet>().Near(t.Root, new(10, 0, 0), 5).In(t.Root));
+        List<Entity> chain = Found(
+            snapshot.Entities.With<Metal>().Without<Wet>().Near(t.Root, new(10, 0, 0), 5).In(t.Root)
+        );
 
         chain.Should().Equal(Found(snapshot.Find(stored))).And.HaveCount(5);
     }
@@ -328,11 +334,13 @@ public sealed class EntityQueryRunTests
         using var t = new TestWorld();
         for (int i = 0; i < 10; i++)
             t.SpawnAt(new(i, 0, 0), new Metal());
-        FoundEntities chain = t.World.Snapshot.Entities
-            .Near(t.Root, default, 8).Near(t.Root, new(9, 0, 0), 8)
+        FoundEntities chain = t
+            .World.Snapshot.Entities.Near(t.Root, default, 8)
+            .Near(t.Root, new(9, 0, 0), 8)
             .Where(static (s, e) => X(s, e) != 4)
             .Where(static (s, e) => X(s, e) != 5)
-            .In(t.Root).In(t.Root);
+            .In(t.Root)
+            .In(t.Root);
 
         chain.Count().Should().Be(6, "the entities at x 1 to 8, but not those at 4 and 5");
     }
@@ -343,10 +351,20 @@ public sealed class EntityQueryRunTests
         using var t = new TestWorld();
         t.SpawnAt(new(1, 0, 0), new Metal());
         int count = -1;
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            count = self.Snapshot.Entities.With<Metal>().Near(5).Near(6).Where(static (s, e) => true)
-                .Where(static (s, e) => true)
-                .In(self.Frame).In(self.Frame).Count()));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                    count = self
+                        .Snapshot.Entities.With<Metal>()
+                        .Near(5)
+                        .Near(6)
+                        .Where(static (s, e) => true)
+                        .Where(static (s, e) => true)
+                        .In(self.Frame)
+                        .In(self.Frame)
+                        .Count()
+            )
+        );
 
         t.World.Tick();
 
@@ -537,7 +555,8 @@ public sealed class EntityQueryRunTests
         t.SpawnWith(new Metal());
         t.SpawnWith(new Wet());
 
-        PlanOf(t.World.Snapshot.Find(EntityQuery.Without<Wet>().Where(static (s, e) => true))).Should()
+        PlanOf(t.World.Snapshot.Find(EntityQuery.Without<Wet>().Where(static (s, e) => true)))
+            .Should()
             .Be((QueryIndex.All, t.World.Stats.LiveEntities));
     }
 
@@ -583,27 +602,38 @@ public sealed class EntityQueryRunTests
             for (int i = 0; i < 300; i++)
             {
                 int me = i;
-                t.SpawnAt(new(i * 0.5, 0, 0), Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-                {
-                    int stored = self.Snapshot.Find(NearbyFlammable).Count();
-                    int chain = self.Snapshot.Entities.With<Flammable>().Near(4).Where(static (s, e) => true).Count();
-                    lock (results)
-                    {
-                        results.Add(self.Tick * 10_000_000 + me * 10_000 + stored * 100 + chain);
-                    }
-
-                    if ((self.Tick + me) % 4 == 0)
-                    {
-                        if (self.GetComponent<Flammable>() is { } flammable)
-                            self.RemoveComponent(flammable);
-                        else
-                            self.AddComponent(new Flammable());
-                        self.SetTransform(self.PoseIn(self.Frame) with
+                t.SpawnAt(
+                    new(i * 0.5, 0, 0),
+                    Lambda.OnTick(
+                        (self, scoped ref events, scoped ref outbox) =>
                         {
-                            Position = self.PoseIn(self.Frame).Position + new Double3(0, 0.7, 0)
-                        });
-                    }
-                }));
+                            int stored = self.Snapshot.Find(NearbyFlammable).Count();
+                            int chain = self
+                                .Snapshot.Entities.With<Flammable>()
+                                .Near(4)
+                                .Where(static (s, e) => true)
+                                .Count();
+                            lock (results)
+                            {
+                                results.Add(self.Tick * 10_000_000 + me * 10_000 + stored * 100 + chain);
+                            }
+
+                            if ((self.Tick + me) % 4 == 0)
+                            {
+                                if (self.GetComponent<Flammable>() is { } flammable)
+                                    self.RemoveComponent(flammable);
+                                else
+                                    self.AddComponent(new Flammable());
+                                self.SetTransform(
+                                    self.PoseIn(self.Frame) with
+                                    {
+                                        Position = self.PoseIn(self.Frame).Position + new Double3(0, 0.7, 0),
+                                    }
+                                );
+                            }
+                        }
+                    )
+                );
             }
 
             t.World.Run(10);

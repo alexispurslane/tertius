@@ -31,8 +31,12 @@ public sealed class PlumeTests : IDisposable
     /// <paramref name="components"/>, and fits its jets.</summary>
     private void Launch(FrameHandle frame, DQuaternion turn, params IComponent[] components)
     {
-        shuttle = Shuttle.Park(world: world, frame: frame, pose: new(Double3.Zero, turn),
-            components: [new Unpark(), .. components]);
+        shuttle = Shuttle.Park(
+            world: world,
+            frame: frame,
+            pose: new(Double3.Zero, turn),
+            components: [new Unpark(), .. components]
+        );
         Shuttle.FitJets(world, shuttle);
     }
 
@@ -52,10 +56,8 @@ public sealed class PlumeTests : IDisposable
         return [];
     }
 
-    private static void ShouldBeNear(Double3 actual, Double3 expected, double tolerance, string because)
-    {
+    private static void ShouldBeNear(Double3 actual, Double3 expected, double tolerance, string because) =>
         (actual - expected).Length.Should().BeLessThan(tolerance, $"{because}: the value is {actual}, not {expected}");
-    }
 
     /// <summary>
     /// A plume's rate grows with the square root of the throttle, from none at 0 to its full rate at 1, so a jet at a
@@ -112,7 +114,9 @@ public sealed class PlumeTests : IDisposable
         {
             plume.Look.IsValid.Should().BeTrue();
             plume.Look.TemperatureRatio.Should().BeLessThan(1);
-            plume.Look.Shading.TryGetValue(out LitPuffs _).Should()
+            plume
+                .Look.Shading.TryGetValue(out LitPuffs _)
+                .Should()
                 .BeTrue("cold gas only scatters the light that reaches it");
             plume.FullRate.Should().BePositive();
         }
@@ -196,21 +200,27 @@ public sealed class PlumeTests : IDisposable
     [Fact]
     public void EachPartsPuffsLeaveAgainstItsPush()
     {
-        DQuaternion turn = DQuaternion.FromAxisAngle(new Double3(1, 2, -0.5).Normalized(), 0.7);
+        var turn = DQuaternion.FromAxisAngle(new Double3(1, 2, -0.5).Normalized(), 0.7);
         Launch(space, turn);
 
         Tick(world, 2);
 
-        ShouldBeNear(actual: ExhaustOf(Control.MainEnginePart, space), expected: turn.Rotate(Double3.UnitZ),
+        ShouldBeNear(
+            actual: ExhaustOf(Control.MainEnginePart, space),
+            expected: turn.Rotate(Double3.UnitZ),
             tolerance: 1e-6,
-            because: "the main engine blows aft");
+            because: "the main engine blows aft"
+        );
         for (int pair = 0; pair < ShuttleJets.PairCount; pair++)
         {
             JetPair each = Control.Layout.Pairs[pair];
             foreach ((Jet jet, bool second) in new[] { (each.First, false), (each.Second, true) })
-                ShouldBeNear(actual: ExhaustOf(Control.JetParts[ShuttleJetControl.PartIndex(pair, second)], space),
-                    expected: -turn.Rotate(jet.Push), tolerance: 1e-6,
-                    because: $"{jet.Id} blows against its push");
+                ShouldBeNear(
+                    actual: ExhaustOf(Control.JetParts[ShuttleJetControl.PartIndex(pair, second)], space),
+                    expected: -turn.Rotate(jet.Push),
+                    tolerance: 1e-6,
+                    because: $"{jet.Id} blows against its push"
+                );
         }
     }
 
@@ -225,24 +235,29 @@ public sealed class PlumeTests : IDisposable
     public void TheBackJetsEmitterFollowsItsForceAndBlowsAgainstIt(float x, float y, float z)
     {
         var force = new Vector3(x, y, z);
-        DQuaternion turn = DQuaternion.FromAxisAngle(new Double3(-0.3, 1, 0.4).Normalized(), 1.1);
+        var turn = DQuaternion.FromAxisAngle(new Double3(-0.3, 1, 0.4).Normalized(), 1.1);
         var person = new JetForceFor(force);
-        Entity body = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = new(Double3.Zero, turn),
-            Body = new(Shape: new BoxShapeDesc(new(0.3f, 0.9f, 0.3f)), Mass: 70),
-            Components = [person]
-        });
+        Entity body = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = new(Double3.Zero, turn),
+                Body = new(Shape: new BoxShapeDesc(new(0.3f, 0.9f, 0.3f)), Mass: 70),
+                Components = [person],
+            }
+        );
 
         Tick(world, 5);
 
         // The box is no character, so the jet's lever turns it: the force is in its axes as they are now.
         DQuaternion now = world.PoseIn(body, space).Rotation;
         EmitterOf(person.Jet).Should().Be(BackJet.Plume.At(force.Length() / PersonControl.ThrustForce));
-        ShouldBeNear(actual: ExhaustOf(person.Jet, space), expected: -now.Rotate(((Double3)force).Normalized()),
+        ShouldBeNear(
+            actual: ExhaustOf(person.Jet, space),
+            expected: -now.Rotate(((Double3)force).Normalized()),
             tolerance: 1e-6,
-            because: "the back jet blows against its force");
+            because: "the back jet blows against its force"
+        );
     }
 
     /// <summary>A back jet that gets a force of zero makes no puffs.</summary>
@@ -250,13 +265,15 @@ public sealed class PlumeTests : IDisposable
     public void ABackJetWithNoForceMakesNoPuffs()
     {
         var person = new JetForceFor(Vector3.Zero);
-        world.Spawn(new()
-        {
-            Frame = space,
-            Pose = DPose.Identity,
-            Body = new(Shape: new BoxShapeDesc(new(0.3f, 0.9f, 0.3f)), Mass: 70),
-            Components = [person]
-        });
+        world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = DPose.Identity,
+                Body = new(Shape: new BoxShapeDesc(new(0.3f, 0.9f, 0.3f)), Mass: 70),
+                Components = [person],
+            }
+        );
 
         Tick(world, 30);
 
@@ -274,8 +291,9 @@ public sealed class PlumeTests : IDisposable
     public void ABurnsPuffsFallBehindTheHullInItsFrame(bool air)
     {
         FrameHandle frame = air
-            ? world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(0, -9.81f, 0)),
-                DemoScenes.Air.Filling(null)))
+            ? world.CreateRootFrame(
+                new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(0, -9.81f, 0)), DemoScenes.Air.Filling(null))
+            )
             : space;
         Launch(frame, DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 3), new ThrottleFor(int.MaxValue, 1));
 
@@ -285,7 +303,9 @@ public sealed class PlumeTests : IDisposable
         puffs.Should().NotBeEmpty();
         DPose hull = world.PoseIn(shuttle, frame);
         foreach (Puff puff in puffs)
-            hull.Inverse().TransformPoint(puff.Place).Z.Should()
+            hull.Inverse()
+                .TransformPoint(puff.Place)
+                .Z.Should()
                 .BeGreaterThan(Shuttle.NozzleZ, "a puff falls behind the hull");
     }
 
@@ -333,16 +353,19 @@ public sealed class PlumeTests : IDisposable
     public void ABadThrottleClearsTheEmitterOfAPartThatHadPushed(bool jet, float bad)
     {
         Launch(space, DQuaternion.Identity);
-        IComponent part =
-            jet ? new JetThruster(Control.Layout.Pairs[0].First) : new MainEngine(Shuttle.MainEngineThrust);
+        IComponent part = jet
+            ? new JetThruster(Control.Layout.Pairs[0].First)
+            : new MainEngine(Shuttle.MainEngineThrust);
         var driver = new ThrottleBy(tick => tick < 6 ? 0.5f : bad);
-        Entity engine = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = DPose.Identity,
-            Body = new(Shape: new BoxShapeDesc(new(1, 1, 1)), Mass: 100),
-            Components = [driver, part]
-        });
+        Entity engine = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = DPose.Identity,
+                Body = new(Shape: new BoxShapeDesc(new(1, 1, 1)), Mass: 100),
+                Components = [driver, part],
+            }
+        );
 
         Tick(world, 5);
         EmitterOf(engine).Should().Be(jet ? JetThruster.Plume.At(0.5f) : MainEngine.Plume.At(0.5f), "the part pushed");
@@ -361,15 +384,18 @@ public sealed class PlumeTests : IDisposable
     public void APartThatHadPushedClearsItsEmitterInTheFirstTickWithoutAThrottle(bool jet)
     {
         Launch(space, DQuaternion.Identity);
-        IComponent part =
-            jet ? new JetThruster(Control.Layout.Pairs[0].First) : new MainEngine(Shuttle.MainEngineThrust);
-        Entity engine = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = DPose.Identity,
-            Body = new(Shape: new BoxShapeDesc(new(1, 1, 1)), Mass: 100),
-            Components = [new ThrottleBy(tick => tick < 6 ? 0.5f : null), part]
-        });
+        IComponent part = jet
+            ? new JetThruster(Control.Layout.Pairs[0].First)
+            : new MainEngine(Shuttle.MainEngineThrust);
+        Entity engine = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = DPose.Identity,
+                Body = new(Shape: new BoxShapeDesc(new(1, 1, 1)), Mass: 100),
+                Components = [new ThrottleBy(tick => tick < 6 ? 0.5f : null), part],
+            }
+        );
 
         Tick(world, 6);
         EmitterOf(engine).CanMakePuffs.Should().BeTrue("the part pushed");
@@ -386,15 +412,19 @@ public sealed class PlumeTests : IDisposable
     public void ABackJetThatHadPushedClearsItsEmitterWhenTheForceStopsOrIsNotFinite(bool notFinite)
     {
         Vector3 afterPush = notFinite ? new(float.NaN, 0, 0) : Vector3.Zero;
-        var person = new JetForceBy(tick => tick < 6 ? new(0, 0, -50) : afterPush,
-            silentAfter: notFinite ? int.MaxValue : 6);
-        world.Spawn(new()
-        {
-            Frame = space,
-            Pose = DPose.Identity,
-            Body = new(Shape: new BoxShapeDesc(new(0.3f, 0.9f, 0.3f)), Mass: 70),
-            Components = [person]
-        });
+        var person = new JetForceBy(
+            tick => tick < 6 ? new(0, 0, -50) : afterPush,
+            silentAfter: notFinite ? int.MaxValue : 6
+        );
+        world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = DPose.Identity,
+                Body = new(Shape: new BoxShapeDesc(new(0.3f, 0.9f, 0.3f)), Mass: 70),
+                Components = [person],
+            }
+        );
 
         Tick(world, 6);
         EmitterOf(person.Jet).CanMakePuffs.Should().BeTrue("the jet pushed");

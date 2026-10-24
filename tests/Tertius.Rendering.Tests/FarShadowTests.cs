@@ -17,16 +17,31 @@ public sealed class FarShadowTests
     private static readonly MeshId Sphere = new(0);
 
     private static RenderInstance Caster(Vector3 position, float radius, bool visible = true) =>
-        RenderInstance.Create(mesh: Sphere, material: new(0), position: position, rotation: Quaternion.Identity,
-            scale: new(radius), boundingRadius: 0, hemisphere: HemisphereUp.Even,
-            flags: (visible ? RenderFlags.Visible : RenderFlags.None) | RenderFlags.CastsShadow, entityIndex: 0,
-            part: 0);
+        RenderInstance.Create(
+            mesh: Sphere,
+            material: new(0),
+            position: position,
+            rotation: Quaternion.Identity,
+            scale: new(radius),
+            boundingRadius: 0,
+            hemisphere: HemisphereUp.Even,
+            flags: (visible ? RenderFlags.Visible : RenderFlags.None) | RenderFlags.CastsShadow,
+            entityIndex: 0,
+            part: 0
+        );
 
     private static PreparedScene Prepare(RenderSnapshot snapshot, float alpha = 1f)
     {
         var scene = new PreparedScene();
-        new SceneBatcher().Prepare(snapshot: snapshot, alpha: alpha, width: 1600, height: 900, meshes: Meshes,
-            materialCount: 8, scene: scene);
+        new SceneBatcher().Prepare(
+            snapshot: snapshot,
+            alpha: alpha,
+            width: 1600,
+            height: 900,
+            meshes: Meshes,
+            materialCount: 8,
+            scene: scene
+        );
         return scene;
     }
 
@@ -163,8 +178,14 @@ public sealed class FarShadowTests
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX);
         // A star: drawn, but the light itself, so it casts no shadow.
         snapshot.Instances.Add(
-            Gpu.Instance(mesh: Sphere, material: new(0), position: new(1.5e11f, 0, 0), scale: new(7e8f),
-                flags: RenderFlags.Celestial));
+            Gpu.Instance(
+                mesh: Sphere,
+                material: new(0),
+                position: new(1.5e11f, 0, 0),
+                scale: new(7e8f),
+                flags: RenderFlags.Celestial
+            )
+        );
 
         FarShadows(Prepare(snapshot)).Should().BeEmpty();
     }
@@ -204,7 +225,9 @@ public sealed class FarShadowTests
 
         PreparedScene scene = Prepare(snapshot);
 
-        FarShadows(scene).Select(shadow => shadow.Z).Should()
+        FarShadows(scene)
+            .Select(shadow => shadow.Z)
+            .Should()
             .Equal(Enumerable.Range(0, 20).Select(i => -5_000f - i * 2_000));
         scene.Constants.OccluderCount.Should().Be(20u);
     }
@@ -217,8 +240,6 @@ public sealed class FarShadowTests
     [InlineData(3_000, 100, true)]
     [InlineData(6.371e6, 6.371e6 + 2, true)]
     [InlineData(6e6, 3e7, false)]
-    public void TheShadowMapsTakeACasterWhoseBoundingSphereComesWithin2Km(float radius, float distance, bool mapped)
-    {
+    public void TheShadowMapsTakeACasterWhoseBoundingSphereComesWithin2Km(float radius, float distance, bool mapped) =>
         ShadowCascades.TakesCaster(distance, radius).Should().Be(mapped);
-    }
 }

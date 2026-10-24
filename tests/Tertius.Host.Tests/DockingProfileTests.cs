@@ -13,7 +13,9 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class DockingProfileTests
 {
-    private const double Rate = DemoScenes.SpinStation.Rate, Duration = 30, Tick = 1.0 / 60;
+    private const double Rate = DemoScenes.SpinStation.Rate,
+        Duration = 30,
+        Tick = 1.0 / 60;
 
     private static readonly SpinUpProfile Profile = new(Rate, Duration, DemoStation.DockedRotation);
 
@@ -29,7 +31,10 @@ public sealed class DockingProfileTests
         Profile.Lag(Duration / 2).Should().BeApproximately(Rate * Duration / 8, 1e-12);
         Profile.Lag(Duration).Should().Be(0);
         Profile.Lag(Duration + 5).Should().Be(0);
-        Profile.Target(Duration).AngularVelocityTo(DemoStation.DockedRotation, 1).Length.Should()
+        Profile
+            .Target(Duration)
+            .AngularVelocityTo(DemoStation.DockedRotation, 1)
+            .Length.Should()
             .BeLessThan(1e-12, "at the end the target is the docked rotation");
     }
 
@@ -47,10 +52,13 @@ public sealed class DockingProfileTests
         Profile.TurnRate(Duration + 5).Should().Be(0);
         foreach (double elapsed in new[] { 1.0, 7.5, 15, 22.5, 29 })
         {
-            (Rate + Profile.TurnRate(elapsed)).Should().BeApproximately(Rate * elapsed / Duration, 1e-15,
-                "the turn among the stars grows steadily");
+            (Rate + Profile.TurnRate(elapsed))
+                .Should()
+                .BeApproximately(Rate * elapsed / Duration, 1e-15, "the turn among the stars grows steadily");
             double derivative = (Profile.Lag(elapsed + 1e-4) - Profile.Lag(elapsed - 1e-4)) / 2e-4;
-            Profile.TurnRate(elapsed).Should()
+            Profile
+                .TurnRate(elapsed)
+                .Should()
                 .BeApproximately(derivative, 1e-8, "the feed-forward is the derivative of the lag");
         }
 
@@ -82,7 +90,9 @@ public sealed class DockingProfileTests
 
         caught.Count.Should().BeInRange(4, 5);
         double turn = 2 * Math.PI / (Rate * Tick);
-        caught.Zip(caught.Skip(1), (a, b) => b - a).Should()
+        caught
+            .Zip(caught.Skip(1), (a, b) => b - a)
+            .Should()
             .OnlyContain(gap => gap >= Math.Floor(turn) && gap <= Math.Ceiling(turn));
     }
 
@@ -99,7 +109,9 @@ public sealed class DockingProfileTests
         Profile.RollAngle(DQuaternion.FromAxisAngle(Double3.UnitY, -0.3) * first).Should().BeApproximately(0.3, 1e-12);
         Profile.RollAngle(DQuaternion.FromAxisAngle(Double3.UnitY, 3) * first).Should().BeApproximately(-3, 1e-12);
         Profile.RollAngle(first).Should().BeApproximately(0, 1e-12);
-        Profile.RollAngle(DQuaternion.FromAxisAngle(Double3.UnitX, 0.01) * first).Should()
+        Profile
+            .RollAngle(DQuaternion.FromAxisAngle(Double3.UnitX, 0.01) * first)
+            .Should()
             .BeApproximately(0, 1e-3, "a tilt of the nose leaves the roll");
     }
 }

@@ -30,8 +30,8 @@ internal static class JsonCase
 {
     /// <summary>The case <typeparamref name="TCase"/> of <typeparamref name="TUnion"/>, which scripts call
     /// <paramref name="name"/>.</summary>
-    public static JsonCase<TUnion> Of<TCase, TUnion>(string name, Func<TCase, TUnion> wrap) where TCase : class =>
-        new(name, typeof(TCase), held => wrap((TCase)held));
+    public static JsonCase<TUnion> Of<TCase, TUnion>(string name, Func<TCase, TUnion> wrap)
+        where TCase : class => new(name, typeof(TCase), held => wrap((TCase)held));
 }
 
 /// <summary>
@@ -74,8 +74,9 @@ internal sealed class JsonCases<TUnion>(string key, string what, params JsonCase
         if (reader.TokenType != JsonTokenType.StartObject)
             throw new UnionJsonException($"The JSON value could not be converted to {typeToConvert}.");
         JsonCase<TUnion> found = FindCase(reader);
-        object held = JsonSerializer.Deserialize(ref reader, InfoOf(found, options)) ??
-                      throw new UnionJsonException($"The {what} is null.");
+        object held =
+            JsonSerializer.Deserialize(ref reader, InfoOf(found, options))
+            ?? throw new UnionJsonException($"The {what} is null.");
         return found.Wrap(held);
     }
 
@@ -121,9 +122,10 @@ internal sealed class JsonCases<TUnion>(string key, string what, params JsonCase
             reader.Skip();
         }
 
-        return found ??
-               throw new UnionJsonException(
-                   $"{(IsVowel(what[0]) ? "An" : "A")} {what} needs a \"{key}\" key. {KindsMessage}");
+        return found
+            ?? throw new UnionJsonException(
+                $"{(IsVowel(what[0]) ? "An" : "A")} {what} needs a \"{key}\" key. {KindsMessage}"
+            );
     }
 
     private JsonCase<TUnion> CaseNamed(ref Utf8JsonReader reader)
@@ -154,7 +156,8 @@ internal sealed class JsonCases<TUnion>(string key, string what, params JsonCase
             if (properties[i].Name == key)
                 return info;
         throw new InvalidOperationException(
-            $"The options give {found.Type.Name} no \"{key}\" member, so a {what} would lose its kind. Use the options of ScriptJson.");
+            $"The options give {found.Type.Name} no \"{key}\" member, so a {what} would lose its kind. Use the options of ScriptJson."
+        );
     }
 
     private static bool IsVowel(char letter) => "aeiou".Contains(letter);
@@ -164,14 +167,17 @@ internal sealed class JsonCases<TUnion>(string key, string what, params JsonCase
 /// <see cref="JsonCases{TUnion}"/>.</summary>
 internal sealed class ScriptStepJsonConverter : JsonConverter<ScriptStep>
 {
-    internal static readonly JsonCases<ScriptStep> Cases = new("do", "step",
+    internal static readonly JsonCases<ScriptStep> Cases = new(
+        "do",
+        "step",
         JsonCase.Of("run", (RunStep step) => new ScriptStep(step)),
         JsonCase.Of("post", (PostStep step) => new ScriptStep(step)),
         JsonCase.Of("dump", (DumpStep step) => new ScriptStep(step)),
         JsonCase.Of("capture", (CaptureStep step) => new ScriptStep(step)),
         JsonCase.Of("camera", (CameraStep step) => new ScriptStep(step)),
         JsonCase.Of("film", (FilmStep step) => new ScriptStep(step)),
-        JsonCase.Of("outlines", (OutlinesStep step) => new ScriptStep(step)));
+        JsonCase.Of("outlines", (OutlinesStep step) => new ScriptStep(step))
+    );
 
     // System.Text.Json gives a null to the converter of a struct. It reads as the default step, which holds no case, and
     // Script.CheckSteps names its step number.
@@ -191,11 +197,14 @@ internal sealed class ScriptStepJsonConverter : JsonConverter<ScriptStep>
 /// <see cref="JsonCases{TUnion}"/>.</summary>
 internal sealed class MessageTargetJsonConverter : JsonConverter<MessageTarget>
 {
-    internal static readonly JsonCases<MessageTarget> Cases = new("kind", "event target",
+    internal static readonly JsonCases<MessageTarget> Cases = new(
+        "kind",
+        "event target",
         JsonCase.Of("entity", (ToEntity target) => new MessageTarget(target)),
         JsonCase.Of("topic", (ToTopic target) => new MessageTarget(target)),
         JsonCase.Of("frame", (ToFrame target) => new MessageTarget(target)),
-        JsonCase.Of("broadcast", (ToEveryone target) => new MessageTarget(target)));
+        JsonCase.Of("broadcast", (ToEveryone target) => new MessageTarget(target))
+    );
 
     // System.Text.Json gives a null to the converter of a struct. A post needs a target, so a null is an error here.
     public override MessageTarget Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>

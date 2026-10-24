@@ -17,26 +17,38 @@ public sealed class FrameTreeFollowedTests
 
     /// <summary>A sample at rest 5 m along +X.</summary>
     private static MotionSample Sample =>
-        new(Pose: new(new(5, 0, 0), DQuaternion.Identity), ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
-            Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
-            AngularAcceleration: Double3.Zero);
+        new(
+            Pose: new(new(5, 0, 0), DQuaternion.Identity),
+            ChordVelocity: Double3.Zero,
+            Velocity: Double3.Zero,
+            Acceleration: Double3.Zero,
+            AngularVelocity: Double3.Zero,
+            AngularAcceleration: Double3.Zero
+        );
 
     private readonly FrameTree frames = new();
     private readonly FrameHandle root;
 
     public FrameTreeFollowedTests()
     {
-        root = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
-            frameBounds: FrameBounds.Sphere(1e9f));
+        root = frames.Create(
+            frameOwner: new(1, 1),
+            parent: FrameHandle.Null,
+            localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f)
+        );
     }
 
     /// <summary>A frame of the owner <paramref name="id"/>, 100 m along +X in <paramref name="parent"/>, with a hull of
     /// <paramref name="motion"/>.</summary>
     private FrameHandle Child(uint id, FrameHandle parent, BodyMotion? motion)
     {
-        FrameHandle frame = frames.Create(frameOwner: new(id, 1), parent: parent,
+        FrameHandle frame = frames.Create(
+            frameOwner: new(id, 1),
+            parent: parent,
             localPose: new(new(100, 0, 0), DQuaternion.Identity),
-            frameBounds: FrameBounds.Sphere(10));
+            frameBounds: FrameBounds.Sphere(10)
+        );
         frames.SetHullMotion(frame, motion);
         return frame;
     }
@@ -55,8 +67,10 @@ public sealed class FrameTreeFollowedTests
     /// relative to its parent.
     /// </summary>
     private void FollowRails(FrameHandle frame) =>
-        frames.TakeStepRecords(stepIntents: Only(frame, new() { Frame = frames.Parent(frame), Move = new(Sample) }),
-            step: Step);
+        frames.TakeStepRecords(
+            stepIntents: Only(frame, new() { Frame = frames.Parent(frame), Move = new(Sample) }),
+            step: Step
+        );
 
     [Fact]
     public void ANewFrameFollowedNothing()
@@ -81,8 +95,10 @@ public sealed class FrameTreeFollowedTests
     {
         FrameHandle moon = Child(2, root, motion: null);
 
-        frames.TakeStepRecords(stepIntents: Only(moon, new() { Frame = root, Move = new(new EndPose(Sample.Pose)) }),
-            step: Step);
+        frames.TakeStepRecords(
+            stepIntents: Only(moon, new() { Frame = root, Move = new(new EndPose(Sample.Pose)) }),
+            step: Step
+        );
 
         frames.Followed(moon).Should().Be(FollowKind.Kinematic);
     }
@@ -104,8 +120,11 @@ public sealed class FrameTreeFollowedTests
         var owners = new StepOwners();
         owners.Writes[moon] = Sample.Pose;
 
-        frames.TakeStepRecords(stepIntents: Only(moon, new() { Frame = root, Move = new(Sample) }), step: Step,
-            owners: owners);
+        frames.TakeStepRecords(
+            stepIntents: Only(moon, new() { Frame = root, Move = new(Sample) }),
+            step: Step,
+            owners: owners
+        );
 
         frames.Followed(moon).Should().Be(FollowKind.Static, "the write comes last, so it wins for one tick");
     }
@@ -130,7 +149,9 @@ public sealed class FrameTreeFollowedTests
 
         frames.Reparent(moon, root);
 
-        frames.Followed(moon).Should()
+        frames
+            .Followed(moon)
+            .Should()
             .Be(FollowKind.Rails, "the kind describes the step that ended, as the frame's row does");
     }
 
@@ -182,8 +203,10 @@ public sealed class FrameTreeFollowedTests
     {
         FrameHandle ship = Child(2, root, BodyMotion.Dynamic);
 
-        frames.FollowKindInStep(ship, StepIntents.Changing(ship, BodyMotion.Static)).Should().Be(FollowKind.Static,
-            "the change of motion of the step counts, not the stored motion of the step before");
+        frames
+            .FollowKindInStep(ship, StepIntents.Changing(ship, BodyMotion.Static))
+            .Should()
+            .Be(FollowKind.Static, "the change of motion of the step counts, not the stored motion of the step before");
     }
 
     [Theory]
@@ -193,10 +216,14 @@ public sealed class FrameTreeFollowedTests
     {
         FrameHandle station = Child(2, root, motion);
 
-        frames.FollowKindInStep(station, Only(station, new() { Frame = root, Move = new(Sample) }))
-            .Should().Be(FollowKind.Rails);
-        frames.FollowKindInStep(station, Only(station, new() { Frame = root, Move = new(new EndPose(Sample.Pose)) }))
-            .Should().Be(FollowKind.Kinematic);
+        frames
+            .FollowKindInStep(station, Only(station, new() { Frame = root, Move = new(Sample) }))
+            .Should()
+            .Be(FollowKind.Rails);
+        frames
+            .FollowKindInStep(station, Only(station, new() { Frame = root, Move = new(new EndPose(Sample.Pose)) }))
+            .Should()
+            .Be(FollowKind.Kinematic);
     }
 
     /// <summary>
@@ -210,7 +237,10 @@ public sealed class FrameTreeFollowedTests
         FrameHandle dock = Child(2, root, BodyMotion.Static);
         var intent = new PhysicsIntent
         {
-            Frame = root, Flags = IntentFlags.Teleport, TeleportPose = Sample.Pose, Move = new(new EndPose(Sample.Pose))
+            Frame = root,
+            Flags = IntentFlags.Teleport,
+            TeleportPose = Sample.Pose,
+            Move = new(new EndPose(Sample.Pose)),
         };
 
         frames.FollowKindInStep(dock, Only(dock, intent)).Should().Be(FollowKind.Static);
@@ -222,10 +252,17 @@ public sealed class FrameTreeFollowedTests
     public void TheRecordOfATeleportWithoutAMotionIntentIsStatic(BodyMotion motion)
     {
         FrameHandle ship = Child(2, root, motion);
-        var teleport = new PhysicsIntent { Frame = root, Flags = IntentFlags.Teleport, TeleportPose = Sample.Pose };
+        var teleport = new PhysicsIntent
+        {
+            Frame = root,
+            Flags = IntentFlags.Teleport,
+            TeleportPose = Sample.Pose,
+        };
 
         frames.FollowKindInStep(ship, Only(ship, teleport)).Should().Be(FollowKind.Static);
-        frames.FollowKindInStep(ship, []).Should()
+        frames
+            .FollowKindInStep(ship, [])
+            .Should()
             .Be(FollowKind.Static, "a slot past the end of the intents holds none");
     }
 }

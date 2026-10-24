@@ -21,17 +21,25 @@ public sealed class EntityTableGrowthTests
     /// i + 1, has a Recorder that wants Ping, and has a body if i is odd and an owned frame if i is a multiple of three.
     /// </summary>
     private static Entity[] SpawnDistinct(EntityTable table, int count) =>
-    [
-        .. Enumerable.Range(0, count).Select(i =>
-        {
-            Entity entity = table.Reserve();
-            table.Activate(entity: entity, row: RowAt(i), render: new() { Scale = new(i + 1) },
-                components: [new Recorder()], wants: [EventMask.Of<Ping>()],
-                body: i % 2 == 1 ? TestWorld.Ball : null, bodyCenterOfMass: Vector3.Zero,
-                ownedFrame: i % 3 == 0 ? OwnedFrame : FrameHandle.Null);
-            return entity;
-        })
-    ];
+        [
+            .. Enumerable
+                .Range(0, count)
+                .Select(i =>
+                {
+                    Entity entity = table.Reserve();
+                    table.Activate(
+                        entity: entity,
+                        row: RowAt(i),
+                        render: new() { Scale = new(i + 1) },
+                        components: [new Recorder()],
+                        wants: [EventMask.Of<Ping>()],
+                        body: i % 2 == 1 ? TestWorld.Ball : null,
+                        bodyCenterOfMass: Vector3.Zero,
+                        ownedFrame: i % 3 == 0 ? OwnedFrame : FrameHandle.Null
+                    );
+                    return entity;
+                }),
+        ];
 
     [Fact]
     public void GrowingTheTablesKeepsEveryRowOfEveryEntity()
@@ -131,7 +139,8 @@ public sealed class EntityTableGrowthTests
     public void GrowingKeepsTheIntentsThatThePhysicsStepWillRead()
     {
         EntityTable table = TableSupport.NewTable();
-        Entity a = table.SpawnLiveWith(TestWorld.Ball), b = table.SpawnLiveWith(TestWorld.Ball);
+        Entity a = table.SpawnLiveWith(TestWorld.Ball),
+            b = table.SpawnLiveWith(TestWorld.Ball);
         table.BeginTick(spawnPoolSize: 0);
         table.WritableIntent(a).Force = new(1, 0, 0);
         table.WritableIntent(b).Force = new(2, 0, 0);
@@ -170,8 +179,16 @@ public sealed class EntityTableGrowthTests
         table.PendingIntent(bodied).Force.Should().Be(new Vector3(0, 9, 0));
         table.AssertInvariants();
         foreach (Entity entity in spawned)
-            table.Activate(entity: entity, row: default, render: new(), components: [], wants: [], body: null,
-                bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
+            table.Activate(
+                entity: entity,
+                row: default,
+                render: new(),
+                components: [],
+                wants: [],
+                body: null,
+                bodyCenterOfMass: Vector3.Zero,
+                ownedFrame: FrameHandle.Null
+            );
         table.SwapIntents(keep: true);
         table.CopyDirtyRows();
         table.EndTick();

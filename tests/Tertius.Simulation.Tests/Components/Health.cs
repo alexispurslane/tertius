@@ -11,7 +11,7 @@ namespace Tertius.Simulation.Tests;
 /// The fields are public and the class has a parameterless constructor, because the blueprint tests build it from a
 /// <see cref="ComponentSpec"/>, which sets fields and properties by name. <see cref="Side"/>, <see cref="Name"/> and
 /// <see cref="Armor"/> are plain data for those tests and do nothing in <see cref="Handle"/>. <see cref="Armor"/> is
-/// not the <see cref="Tertius.Simulation.Tests.Armor"/> component, which is what reduces damage.
+/// not the <see cref="Tests.Armor"/> component, which is what reduces damage.
 /// </remarks>
 public sealed class Health : IComponent
 {

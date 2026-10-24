@@ -21,25 +21,49 @@ public sealed class LoftedHullTests
     /// How far a hole's side moves in from its cell's side: half a rib at a rib place, half a mullion at a fold between two
     /// cells of glass, and 0.1 m next to a solid cell.
     /// </summary>
-    private const double RibSurround = 0.1, FoldSurround = 0.06, SolidSurround = 0.1;
+    private const double RibSurround = 0.1,
+        FoldSurround = 0.06,
+        SolidSurround = 0.1;
 
     /// <summary>The full cross-section, from z = -5 to the tail at z = 8, corners 0 to 9 counterclockwise seen from +Z.</summary>
     private static readonly Vector2[] Full =
     [
-        new(-2.8f, -2), new(2.8f, -2), new(3, -1.8f), new(3, -1.2f), new(3, 1.2f), new(2.2f, 2), new(-2.2f, 2),
-        new(-3, 1.2f), new(-3, -1.2f), new(-3, -1.8f)
+        new(-2.8f, -2),
+        new(2.8f, -2),
+        new(3, -1.8f),
+        new(3, -1.2f),
+        new(3, 1.2f),
+        new(2.2f, 2),
+        new(-2.2f, 2),
+        new(-3, 1.2f),
+        new(-3, -1.2f),
+        new(-3, -1.8f),
     ];
 
     /// <summary>The nose's front, at z = -8, with the same corners.</summary>
     private static readonly Vector2[] Front =
     [
-        new(-2.2f, -2), new(2.2f, -2), new(2.4f, -1.8f), new(2.4f, -1.2f), new(2.4f, -0.2f), new(1.6f, 0.6f),
-        new(-1.6f, 0.6f), new(-2.4f, -0.2f), new(-2.4f, -1.2f), new(-2.4f, -1.8f)
+        new(-2.2f, -2),
+        new(2.2f, -2),
+        new(2.4f, -1.8f),
+        new(2.4f, -1.2f),
+        new(2.4f, -0.2f),
+        new(1.6f, 0.6f),
+        new(-1.6f, 0.6f),
+        new(-2.4f, -0.2f),
+        new(-2.4f, -1.2f),
+        new(-2.4f, -1.8f),
     ];
 
     /// <summary>The doorway, <see cref="Shuttle.Hatch"/>, through the starboard wall.</summary>
-    private static readonly (double X0, double X1, double Y0, double Y1, double Z0, double Z1) Doorway = (2.8, 3, -1.7,
-        0.4, 1.4, 2.6);
+    private static readonly (double X0, double X1, double Y0, double Y1, double Z0, double Z1) Doorway = (
+        2.8,
+        3,
+        -1.7,
+        0.4,
+        1.4,
+        2.6
+    );
 
     /// <summary>The pocket, 1.4 m square and 0.6 m deep, and its housing, 1.8 m square from z = 7.2 to the aft wall at 7.8.</summary>
     private static readonly (double Half, double Z0) Pocket = (0.7, 7.4);
@@ -51,13 +75,19 @@ public sealed class LoftedHullTests
 
     /// <summary>The five glass edges, from the table of edges, with the names of their panes.</summary>
     private static readonly (int Edge, string Name)[] GlassEdges =
-        [(3, "starboard"), (4, "starboard-bevel"), (5, "roof"), (6, "port-bevel"), (7, "port")];
+    [
+        (3, "starboard"),
+        (4, "starboard-bevel"),
+        (5, "roof"),
+        (6, "port-bevel"),
+        (7, "port"),
+    ];
 
     /// <summary>The faces of each pane's hole, the convex hull of its corners at both skins: its reveals and its two openings.</summary>
     private static readonly List<(Vector3 Normal, float Offset)>[] HoleHulls =
     [
-        .. ExpectedPanes().Select(pane =>
-            HullPlanes([.. pane.Outer.Concat(pane.Inner).Select(corner => corner.ToVector3())]))
+        .. ExpectedPanes()
+            .Select(pane => HullPlanes([.. pane.Outer.Concat(pane.Inner).Select(corner => corner.ToVector3())])),
     ];
 
     /// <summary>A small box hull, 4 m wide, 3 m tall and 6 m long, in three bays of 2 m.</summary>
@@ -82,8 +112,11 @@ public sealed class LoftedHullTests
         double least = double.MaxValue;
         for (int i = 0; i < polygon.Length; i++)
         {
-            Vector2 a = polygon[i], b = polygon[(i + 1) % polygon.Length];
-            double ex = b.X - a.X, ey = b.Y - a.Y, length = Math.Sqrt(ex * ex + ey * ey);
+            Vector2 a = polygon[i],
+                b = polygon[(i + 1) % polygon.Length];
+            double ex = b.X - a.X,
+                ey = b.Y - a.Y,
+                length = Math.Sqrt(ex * ex + ey * ey);
             // The inside lies to the left of each edge.
             least = Math.Min(least, (ex * (y - a.Y) - ey * (x - a.X)) / length);
         }
@@ -97,17 +130,23 @@ public sealed class LoftedHullTests
     private static bool InInnerLoft(Vector3 p) => Math.Abs(p.Z) <= 8 - Wall && Inside(OuterAt(p.Z), p.X, p.Y) >= Wall;
 
     private static bool InHousing(Vector3 p) =>
-        Math.Abs(p.X) <= Housing.Half && Math.Abs(p.Y - PocketY) <= Housing.Half && p.Z >= Housing.Z0 &&
-        p.Z <= Housing.Z1;
+        Math.Abs(p.X) <= Housing.Half
+        && Math.Abs(p.Y - PocketY) <= Housing.Half
+        && p.Z >= Housing.Z0
+        && p.Z <= Housing.Z1;
 
     private static bool InCabin(Vector3 p) => InInnerLoft(p) && !InHousing(p);
 
     private static bool InDoorway(Vector3 p) =>
-        p.X >= Doorway.X0 && p.X <= Doorway.X1 && p.Y >= Doorway.Y0 && p.Y <= Doorway.Y1 && p.Z >= Doorway.Z0 &&
-        p.Z <= Doorway.Z1;
+        p.X >= Doorway.X0
+        && p.X <= Doorway.X1
+        && p.Y >= Doorway.Y0
+        && p.Y <= Doorway.Y1
+        && p.Z >= Doorway.Z0
+        && p.Z <= Doorway.Z1;
 
-    private static bool InPocket(Vector3 p) => Math.Abs(p.X) <= Pocket.Half && Math.Abs(p.Y - PocketY) <= Pocket.Half &&
-                                               p.Z >= Pocket.Z0 && p.Z <= 8;
+    private static bool InPocket(Vector3 p) =>
+        Math.Abs(p.X) <= Pocket.Half && Math.Abs(p.Y - PocketY) <= Pocket.Half && p.Z >= Pocket.Z0 && p.Z <= 8;
 
     /// <summary>True when the cell of <paramref name="edge"/> in <paramref name="bay"/> holds glass: the five glass edges in bays 1 to 8, but the starboard upper side in bay 6, where the hatch is.</summary>
     private static bool HoldsGlass(int edge, int bay) =>
@@ -145,7 +184,8 @@ public sealed class LoftedHullTests
 
         (Double3 Point, Double3 Along) Line(int edge)
         {
-            Vector2 a = section[edge], b = section[(edge + 1) % n];
+            Vector2 a = section[edge],
+                b = section[(edge + 1) % n];
             Double3 along = new Double3(b.X - a.X, b.Y - a.Y, 0).Normalized();
             return (new Double3(a.X, a.Y, z) + Wall * new Double3(-along.Y, along.X, 0), along);
         }
@@ -167,7 +207,8 @@ public sealed class LoftedHullTests
         var lines = new (Double3 Point, Double3 Along)[n];
         for (int i = 0; i < n; i++)
         {
-            Double3 along = (polygon[(i + 1) % n] - polygon[i]).Normalized(), inward = Double3.Cross(normal, along);
+            Double3 along = (polygon[(i + 1) % n] - polygon[i]).Normalized(),
+                inward = Double3.Cross(normal, along);
             if (Double3.Dot(inward, middle - polygon[i]) < 0)
                 inward = -inward;
             lines[i] = (polygon[i] + inward * distances[i], along);
@@ -182,9 +223,9 @@ public sealed class LoftedHullTests
     /// <summary>Where two lines in one plane meet.</summary>
     private static Double3 Meet((Double3 Point, Double3 Along) a, (Double3 Point, Double3 Along) b)
     {
-        Double3 cross = Double3.Cross(a.Along, b.Along);
-        return a.Point +
-               a.Along * (Double3.Dot(Double3.Cross(b.Point - a.Point, b.Along), cross) / cross.LengthSquared);
+        var cross = Double3.Cross(a.Along, b.Along);
+        return a.Point
+            + a.Along * (Double3.Dot(Double3.Cross(b.Point - a.Point, b.Along), cross) / cross.LengthSquared);
     }
 
     /// <summary>
@@ -198,27 +239,46 @@ public sealed class LoftedHullTests
         var panes = new List<ExpectedPane>();
         int[] upper = [3, 4, 5, 6, 7, 8];
         double[] nose = [RibSurround, RibSurround, RibSurround, RibSurround, RibSurround, SolidSurround];
-        panes.Add(new("pane-nose", MovedIn([.. upper.Select(k => Corner(-8, k))], nose),
-            MovedIn([.. upper.Select(k => InnerCorner(-8 + Wall, k))], nose)));
+        panes.Add(
+            new(
+                "pane-nose",
+                MovedIn([.. upper.Select(k => Corner(-8, k))], nose),
+                MovedIn([.. upper.Select(k => InnerCorner(-8 + Wall, k))], nose)
+            )
+        );
         for (int bay = 1; bay <= 8; bay++)
             foreach ((int edge, string name) in GlassEdges)
             {
                 if (!HoldsGlass(edge, bay))
                     continue;
-                double z0 = Ribs[bay - 1], z1 = Ribs[bay], innerZ0 = bay == 1 ? -8 + Wall : z0;
+                double z0 = Ribs[bay - 1],
+                    z1 = Ribs[bay],
+                    innerZ0 = bay == 1 ? -8 + Wall : z0;
                 double[] surrounds =
                 [
-                    RibSurround, HoldsGlass(edge + 1, bay) ? FoldSurround : SolidSurround, RibSurround,
-                    HoldsGlass(edge - 1, bay) ? FoldSurround : SolidSurround
+                    RibSurround,
+                    HoldsGlass(edge + 1, bay) ? FoldSurround : SolidSurround,
+                    RibSurround,
+                    HoldsGlass(edge - 1, bay) ? FoldSurround : SolidSurround,
                 ];
-                panes.Add(new($"pane-{name}-{bay}",
-                    MovedIn([Corner(z0, edge), Corner(z0, edge + 1), Corner(z1, edge + 1), Corner(z1, edge)],
-                        surrounds),
-                    MovedIn(
-                    [
-                        InnerCorner(innerZ0, edge), InnerCorner(innerZ0, edge + 1), InnerCorner(z1, edge + 1),
-                        InnerCorner(z1, edge)
-                    ], surrounds)));
+                panes.Add(
+                    new(
+                        $"pane-{name}-{bay}",
+                        MovedIn(
+                            [Corner(z0, edge), Corner(z0, edge + 1), Corner(z1, edge + 1), Corner(z1, edge)],
+                            surrounds
+                        ),
+                        MovedIn(
+                            [
+                                InnerCorner(innerZ0, edge),
+                                InnerCorner(innerZ0, edge + 1),
+                                InnerCorner(z1, edge + 1),
+                                InnerCorner(z1, edge),
+                            ],
+                            surrounds
+                        )
+                    )
+                );
             }
 
         return [.. panes];
@@ -249,10 +309,7 @@ public sealed class LoftedHullTests
     }
 
     [Fact]
-    public void TheHullsMeshIsClosed()
-    {
-        MeshChecks.ExpectClosed(Shuttle.Loft.Mesh());
-    }
+    public void TheHullsMeshIsClosed() => MeshChecks.ExpectClosed(Shuttle.Loft.Mesh());
 
     /// <summary>
     /// Each triangle has the drawn solid behind it and the outside in front of it, 5 mm away. The thinnest part of the
@@ -260,10 +317,8 @@ public sealed class LoftedHullTests
     /// triangle's normal.
     /// </summary>
     [Fact]
-    public void TheHullsMeshFacesOutOfItsSolid()
-    {
+    public void TheHullsMeshFacesOutOfItsSolid() =>
         MeshChecks.ExpectFacingOut(mesh: Shuttle.Loft.Mesh(), inside: InSolid, probe: 0.005f, maxNormalAngle: 0.001f);
-    }
 
     /// <summary>
     /// A segment across the starboard wall, from 0.5 m inside the cabin to 0.5 m outside the hull, crosses no triangle at
@@ -276,8 +331,10 @@ public sealed class LoftedHullTests
     public void TheHatchIsAHoleThroughTheStarboardWallAndTheGlassBreaksAroundIt()
     {
         MeshData mesh = Shuttle.Loft.Mesh();
-        double middleY = (Doorway.Y0 + Doorway.Y1) / 2, middleZ = (Doorway.Z0 + Doorway.Z1) / 2;
-        double halfY = (Doorway.Y1 - Doorway.Y0) / 2, halfZ = (Doorway.Z1 - Doorway.Z0) / 2;
+        double middleY = (Doorway.Y0 + Doorway.Y1) / 2,
+            middleZ = (Doorway.Z0 + Doorway.Z1) / 2;
+        double halfY = (Doorway.Y1 - Doorway.Y0) / 2,
+            halfZ = (Doorway.Z1 - Doorway.Z0) / 2;
 
         int Across(double y, double z) =>
             MeshChecks.Crossings(mesh, new(2.3f, (float)y, (float)z), new(3.5f, (float)y, (float)z));
@@ -286,23 +343,32 @@ public sealed class LoftedHullTests
         foreach (double sy in new[] { -1.0, 1 })
         {
             foreach (double sz in new[] { -1.0, 1 })
-                Across(middleY + sy * (halfY - 0.05), middleZ + sz * (halfZ - 0.05)).Should()
+                Across(middleY + sy * (halfY - 0.05), middleZ + sz * (halfZ - 0.05))
+                    .Should()
                     .Be(0, $"the doorway is open 5 cm inside its corner ({sy}, {sz})");
-            Across(middleY + sy * (halfY + 0.05), middleZ).Should()
+            Across(middleY + sy * (halfY + 0.05), middleZ)
+                .Should()
                 .Be(2, $"the wall is closed 5 cm past the doorway's side {sy} in y");
-            Across(middleY, middleZ + sy * (halfZ + 0.05)).Should()
+            Across(middleY, middleZ + sy * (halfZ + 0.05))
+                .Should()
                 .Be(2, $"the wall is closed 5 cm past the doorway's side {sy} in z");
             // The points lie off the edges of the panel's triangles, where a segment would cross two triangles at once.
-            Across(0.93, middleZ + sy * (halfZ + 0.17)).Should().Be(2,
-                $"the panel is solid in the glass band beside the doorway, on its side {sy} in z");
+            Across(0.93, middleZ + sy * (halfZ + 0.17))
+                .Should()
+                .Be(2, $"the panel is solid in the glass band beside the doorway, on its side {sy} in z");
         }
 
         Across(1.03, middleZ + 0.07).Should().Be(2, "the panel is solid in the glass band above the doorway");
         Shuttle.Loft.Panes().Should().NotContain(pane => pane.Id == "pane-starboard-6");
-        Shuttle.Loft.Panes().Should().NotContain(
-            pane => pane.Outer.All(corner => Math.Abs(corner.X - 3) < 1e-4) &&
-                    pane.Outer.Any(corner => corner.Z > 1 && corner.Z < 3),
-            "no pane lies in the hatch's panel");
+        Shuttle
+            .Loft.Panes()
+            .Should()
+            .NotContain(
+                pane =>
+                    pane.Outer.All(corner => Math.Abs(corner.X - 3) < 1e-4)
+                    && pane.Outer.Any(corner => corner.Z > 1 && corner.Z < 3),
+                "no pane lies in the hatch's panel"
+            );
     }
 
     /// <summary>
@@ -336,39 +402,74 @@ public sealed class LoftedHullTests
             for (int i = 0; i < pane.Outer.Length; i++)
             {
                 int match = Array.FindIndex(want.Outer, corner => Double3.Distance(corner, pane.Outer[i]) < 1e-4);
-                match.Should().BeGreaterThanOrEqualTo(0,
-                    $"the outer corner {pane.Outer[i]} of {want.Id} is a corner of its hole");
-                Double3.Distance(want.Inner[match], pane.Inner[i]).Should().BeLessThan(1e-4,
-                    $"the inner corner {pane.Inner[i]} of {want.Id} matches its outer corner {pane.Outer[i]}");
+                match
+                    .Should()
+                    .BeGreaterThanOrEqualTo(
+                        0,
+                        $"the outer corner {pane.Outer[i]} of {want.Id} is a corner of its hole"
+                    );
+                Double3
+                    .Distance(want.Inner[match], pane.Inner[i])
+                    .Should()
+                    .BeLessThan(
+                        1e-4,
+                        $"the inner corner {pane.Inner[i]} of {want.Id} matches its outer corner {pane.Outer[i]}"
+                    );
             }
         }
 
-        ExpectCorners(panes.Single(p => p.Id == "pane-nose").Outer,
-        [
-            new(2.3, -1.1, -8), new(2.3, -0.241, -8), new(1.559, 0.5, -8), new(-1.559, 0.5, -8), new(-2.3, -0.241, -8),
-            new(-2.3, -1.1, -8)
-        ], "pane-nose");
-        ExpectBox(actual: panes.Single(p => p.Id == "pane-starboard-4").Outer, min: new(3, -1.1, -2.9),
+        ExpectCorners(
+            panes.Single(p => p.Id == "pane-nose").Outer,
+            [
+                new(2.3, -1.1, -8),
+                new(2.3, -0.241, -8),
+                new(1.559, 0.5, -8),
+                new(-1.559, 0.5, -8),
+                new(-2.3, -0.241, -8),
+                new(-2.3, -1.1, -8),
+            ],
+            "pane-nose"
+        );
+        ExpectBox(
+            actual: panes.Single(p => p.Id == "pane-starboard-4").Outer,
+            min: new(3, -1.1, -2.9),
             max: new(3, 1.14, -1.1),
-            what: "pane-starboard-4");
-        ExpectBox(actual: panes.Single(p => p.Id == "pane-starboard-5").Outer, min: new(3, -1.1, -0.9),
+            what: "pane-starboard-4"
+        );
+        ExpectBox(
+            actual: panes.Single(p => p.Id == "pane-starboard-5").Outer,
+            min: new(3, -1.1, -0.9),
             max: new(3, 1.14, 0.9),
-            what: "pane-starboard-5");
-        ExpectBox(actual: panes.Single(p => p.Id == "pane-port-7").Outer, min: new(-3, -1.1, 3.1),
+            what: "pane-starboard-5"
+        );
+        ExpectBox(
+            actual: panes.Single(p => p.Id == "pane-port-7").Outer,
+            min: new(-3, -1.1, 3.1),
             max: new(-3, 1.14, 4.9),
-            what: "pane-port-7");
-        ExpectBox(actual: panes.Single(p => p.Id == "pane-roof-4").Outer, min: new(-2.14, 2, -2.9),
+            what: "pane-port-7"
+        );
+        ExpectBox(
+            actual: panes.Single(p => p.Id == "pane-roof-4").Outer,
+            min: new(-2.14, 2, -2.9),
             max: new(2.14, 2, -1.1),
-            what: "pane-roof-4");
+            what: "pane-roof-4"
+        );
 
         foreach (ExpectedPane want in expected)
         {
-            Double3 outer = Middle(want.Outer), inner = Middle(want.Inner), through = (outer - inner).Normalized();
-            MeshChecks.Crossings(mesh, (inner - 0.5 * through).ToVector3(), (outer + 0.5 * through).ToVector3())
-                .Should().Be(0, $"{want.Id} is open at its middle");
-            Double3[] outerIn = MovedIn(want.Outer, 0.05), innerIn = MovedIn(want.Inner, 0.05);
+            Double3 outer = Middle(want.Outer),
+                inner = Middle(want.Inner),
+                through = (outer - inner).Normalized();
+            MeshChecks
+                .Crossings(mesh, (inner - 0.5 * through).ToVector3(), (outer + 0.5 * through).ToVector3())
+                .Should()
+                .Be(0, $"{want.Id} is open at its middle");
+            Double3[] outerIn = MovedIn(want.Outer, 0.05),
+                innerIn = MovedIn(want.Inner, 0.05);
             for (int i = 0; i < outerIn.Length; i++)
-                MeshChecks.Crossings(mesh, outerIn[i].ToVector3(), innerIn[i].ToVector3()).Should()
+                MeshChecks
+                    .Crossings(mesh, outerIn[i].ToVector3(), innerIn[i].ToVector3())
+                    .Should()
                     .Be(0, $"{want.Id} is open 5 cm inside its corner {want.Outer[i]}");
             Double3 normal = want.Normal;
             Double3[] middle = [.. want.Outer.Zip(want.Inner, (o, n) => (o + n) / 2)];
@@ -377,12 +478,14 @@ public sealed class LoftedHullTests
             {
                 Double3 side = (middle[i] + middle[(i + 1) % middle.Length]) / 2,
                     along = (middle[(i + 1) % middle.Length] - middle[i]).Normalized();
-                Double3 outward = Double3.Cross(normal, along);
+                var outward = Double3.Cross(normal, along);
                 if (Double3.Dot(outward, side - center) < 0)
                     outward = -outward;
                 Double3 point = side + 0.05 * outward;
-                MeshChecks.Crossings(mesh, point.ToVector3(), (point + 0.5 * normal).ToVector3()).Should().Be(1,
-                    $"the wall is solid 5 cm outside the side {i} of {want.Id}, at {point}");
+                MeshChecks
+                    .Crossings(mesh, point.ToVector3(), (point + 0.5 * normal).ToVector3())
+                    .Should()
+                    .Be(1, $"the wall is solid 5 cm outside the side {i} of {want.Id}, at {point}");
             }
         }
     }
@@ -396,7 +499,8 @@ public sealed class LoftedHullTests
 
     private static void ExpectBox(Vector3[] actual, Double3 min, Double3 max, string what)
     {
-        Double3 lowest = actual.Aggregate(Vector3.Min), highest = actual.Aggregate(Vector3.Max);
+        Double3 lowest = actual.Aggregate(Vector3.Min),
+            highest = actual.Aggregate(Vector3.Max);
         Double3.Distance(lowest, min).Should().BeLessThan(1e-4, $"{what} reaches down to {min}, not {lowest}");
         Double3.Distance(highest, max).Should().BeLessThan(1e-4, $"{what} reaches up to {max}, not {highest}");
     }
@@ -414,7 +518,8 @@ public sealed class LoftedHullTests
         panes.Select(pane => pane.Id).Should().BeEquivalentTo(ExpectedPanes().Select(pane => pane.Id));
         foreach (HullPane pane in panes)
         {
-            pane.Outer.Concat(pane.Inner).Should()
+            pane.Outer.Concat(pane.Inner)
+                .Should()
                 .OnlyContain(corner => corner.Y >= -1.1f - 1e-4f, $"{pane.Id} starts above the sill");
             if (pane.Id == "pane-nose")
             {
@@ -429,9 +534,12 @@ public sealed class LoftedHullTests
             {
                 corner.Z.Should().BeInRange((float)Ribs[bay - 1], (float)Ribs[bay], $"{pane.Id} lies in bay {bay}");
                 Vector2[] section = OuterAt(corner.Z);
-                Vector2 a = section[edge], b = section[(edge + 1) % section.Length];
-                double ex = b.X - a.X, ey = b.Y - a.Y;
-                Math.Abs((ex * (corner.Y - a.Y) - ey * (corner.X - a.X)) / Math.Sqrt(ex * ex + ey * ey)).Should()
+                Vector2 a = section[edge],
+                    b = section[(edge + 1) % section.Length];
+                double ex = b.X - a.X,
+                    ey = b.Y - a.Y;
+                Math.Abs((ex * (corner.Y - a.Y) - ey * (corner.X - a.X)) / Math.Sqrt(ex * ex + ey * ey))
+                    .Should()
                     .BeLessThan(1e-4, $"{pane.Id} lies on edge {edge}");
             }
         }
@@ -455,7 +563,9 @@ public sealed class LoftedHullTests
             Double3[] middle = [.. want.Outer.Zip(want.Inner, (o, n) => (o + n) / 2)];
             double plane = (Double3.Dot(normal, want.Outer[0]) + Double3.Dot(normal, want.Inner[0])) / 2;
             Double3[] outline = MovedIn(middle, -0.01);
-            Double3.Distance(pane.Center, Middle(middle)).Should()
+            Double3
+                .Distance(pane.Center, Middle(middle))
+                .Should()
                 .BeLessThan(1e-4, $"{want.Id} lies round its own middle");
 
             // How far a point lies outside the outline, across the nearest side's line: below 0 inside it.
@@ -481,21 +591,33 @@ public sealed class LoftedHullTests
             foreach (Vertex vertex in pane.Mesh.Vertices)
             {
                 Double3 p = (Double3)vertex.Position + pane.Center;
-                Math.Abs(Math.Abs(Double3.Dot(normal, p) - plane) - 0.01).Should().BeLessThan(1e-5,
-                    $"the vertex at {p} of {want.Id} lies on a face 1 cm from the middle of the wall");
-                Outside(p).Should().BeLessThan(1e-4,
-                    $"the vertex at {p} of {want.Id} lies within the outline 1 cm out from the hole");
+                Math.Abs(Math.Abs(Double3.Dot(normal, p) - plane) - 0.01)
+                    .Should()
+                    .BeLessThan(
+                        1e-5,
+                        $"the vertex at {p} of {want.Id} lies on a face 1 cm from the middle of the wall"
+                    );
+                Outside(p)
+                    .Should()
+                    .BeLessThan(1e-4, $"the vertex at {p} of {want.Id} lies within the outline 1 cm out from the hole");
             }
 
             Double3[] flats = [.. pane.Mesh.Vertices.Select(v => Flat((Double3)v.Position + pane.Center))];
             foreach (Double3 corner in outline)
-                flats.Min(flat => Double3.Distance(flat, corner)).Should()
+                flats
+                    .Min(flat => Double3.Distance(flat, corner))
+                    .Should()
                     .BeLessThan(1e-4, $"{want.Id} reaches its outline's corner {corner}");
-            MeshChecks.ExpectFacingOut(mesh: pane.Mesh, inside: local =>
-            {
-                Double3 p = (Double3)local + pane.Center;
-                return Math.Abs(Double3.Dot(normal, p) - plane) < 0.01 && Outside(p) < 0;
-            }, probe: 0.002f, maxNormalAngle: 0.001f);
+            MeshChecks.ExpectFacingOut(
+                mesh: pane.Mesh,
+                inside: local =>
+                {
+                    Double3 p = (Double3)local + pane.Center;
+                    return Math.Abs(Double3.Dot(normal, p) - plane) < 0.01 && Outside(p) < 0;
+                },
+                probe: 0.002f,
+                maxNormalAngle: 0.001f
+            );
         }
     }
 
@@ -513,9 +635,17 @@ public sealed class LoftedHullTests
 
         FirstMet(0, PocketY).Should().BeApproximately(7.4f, 1e-4f, "the pocket is 0.6 m deep");
         double outside = Pocket.Half + 0.05;
-        foreach ((double x, double y) in new[]
-                     { (outside, PocketY), (-outside, PocketY), (0, PocketY + outside), (0, PocketY - outside) })
-            FirstMet(x, y).Should()
+        foreach (
+            (double x, double y) in new[]
+            {
+                (outside, PocketY),
+                (-outside, PocketY),
+                (0, PocketY + outside),
+                (0, PocketY - outside),
+            }
+        )
+            FirstMet(x, y)
+                .Should()
                 .BeApproximately(8f, 1e-4f, $"the tail face is flat at ({x}, {y}), outside the pocket");
     }
 
@@ -527,7 +657,7 @@ public sealed class LoftedHullTests
         for (int j = i + 1; j < points.Count; j++)
         for (int k = j + 1; k < points.Count; k++)
         {
-            Vector3 normal = Vector3.Cross(points[j] - points[i], points[k] - points[i]);
+            var normal = Vector3.Cross(points[j] - points[i], points[k] - points[i]);
             if (normal.Length() < 1e-6f)
                 continue;
             normal = Vector3.Normalize(normal);
@@ -560,24 +690,26 @@ public sealed class LoftedHullTests
         [
             .. trueCorners.Select(c => new Vector3(Front[c], -8)),
             .. trueCorners.Select(c => new Vector3(Full[c], -5)),
-            .. trueCorners.Select(c => new Vector3(Full[c], 8))
+            .. trueCorners.Select(c => new Vector3(Full[c], 8)),
         ];
 
         ShapeDesc shape = Shuttle.Loft.Shape();
 
         ConvexHullShapeDesc hull = shape.Should().BeOfType<ConvexHullShapeDesc>().Subject;
         hull.Points.Should().BeEquivalentTo(expected);
-        hull.ConvexRadius.Should().Be(ShapeDesc.DefaultConvexRadius,
-            "its edges meet the ramp's foot with the box's rounding");
+        hull.ConvexRadius.Should()
+            .Be(ShapeDesc.DefaultConvexRadius, "its edges meet the ramp's foot with the box's rounding");
         List<(Vector3 Normal, float Offset)> planes = HullPlanes(hull.Points);
         foreach (Vertex vertex in Shuttle.Loft.Mesh().Vertices)
         {
             Vector3 p = vertex.Position;
             Beyond(planes, p).Should().BeLessThan(1e-3f, $"the vertex at {p} lies in the hull");
-            bool onOuterSkin = (Math.Abs(Inside(OuterAt(p.Z), p.X, p.Y)) < 1e-4 && !InDoorway(p)) ||
-                               (Math.Abs(Math.Abs(p.Z) - 8) < 1e-4 && !InPocket(p with { Z = 7.9f }));
+            bool onOuterSkin =
+                (Math.Abs(Inside(OuterAt(p.Z), p.X, p.Y)) < 1e-4 && !InDoorway(p))
+                || (Math.Abs(Math.Abs(p.Z) - 8) < 1e-4 && !InPocket(p with { Z = 7.9f }));
             if (onOuterSkin)
-                Beyond(planes, p).Should()
+                Beyond(planes, p)
+                    .Should()
                     .BeGreaterThan(-1e-3f, $"the vertex at {p} of the outer skin lies on the hull");
         }
     }
@@ -592,20 +724,29 @@ public sealed class LoftedHullTests
     {
         (Vector3 Min, Vector3 Max, List<(Vector3 Normal, float Offset)> Planes)[] pieces =
         [
-            .. Shuttle.Loft.Interior()
+            .. Shuttle
+                .Loft.Interior()
                 .Select(child =>
                 {
                     child.Pose.Should().Be(Pose.Identity);
                     ConvexHullShapeDesc hull = child.Shape.Should().BeOfType<ConvexHullShapeDesc>().Subject;
                     hull.ConvexRadius.Should().Be(0, "the pieces meet the drawn skins exactly");
-                    return (Min: hull.Points.Aggregate(Vector3.Min), Max: hull.Points.Aggregate(Vector3.Max),
-                        Planes: HullPlanes(hull.Points));
-                })
+                    return (
+                        Min: hull.Points.Aggregate(Vector3.Min),
+                        Max: hull.Points.Aggregate(Vector3.Max),
+                        Planes: HullPlanes(hull.Points)
+                    );
+                }),
         ];
-        pieces.Should().HaveCount(22,
-            "eight faces in the nose and in the body, the starboard side's in four, the two end walls and the housing");
+        pieces
+            .Should()
+            .HaveCount(
+                22,
+                "eight faces in the nose and in the body, the starboard side's in four, the two end walls and the housing"
+            );
 
-        const float step = 0.05f, offset = 0.0123f;
+        const float step = 0.05f,
+            offset = 0.0123f;
         int checkedPoints = 0;
         for (float x = -3.1f + offset; x < 3.1f; x += step)
         for (float y = -2.1f + offset; y < 2.1f; y += step)
@@ -618,8 +759,14 @@ public sealed class LoftedHullTests
             int count = 0;
             foreach ((Vector3 Min, Vector3 Max, List<(Vector3 Normal, float Offset)> Planes) piece in pieces)
             {
-                if (p.X < piece.Min.X || p.Y < piece.Min.Y || p.Z < piece.Min.Z || p.X > piece.Max.X ||
-                    p.Y > piece.Max.Y || p.Z > piece.Max.Z)
+                if (
+                    p.X < piece.Min.X
+                    || p.Y < piece.Min.Y
+                    || p.Z < piece.Min.Z
+                    || p.X > piece.Max.X
+                    || p.Y > piece.Max.Y
+                    || p.Z > piece.Max.Z
+                )
                     continue;
                 if (Beyond(piece.Planes, p) < 0)
                     count++;
@@ -661,18 +808,25 @@ public sealed class LoftedHullTests
     public void TheMassOfAFrustumIsTheFrustumsMass()
     {
         static Vector2[] Square(float half) =>
-        [
-            new(1 - half, -0.5f - half), new(1 + half, -0.5f - half), new(1 + half, -0.5f + half),
-            new(1 - half, -0.5f + half)
-        ];
+            [
+                new(1 - half, -0.5f - half),
+                new(1 + half, -0.5f - half),
+                new(1 + half, -0.5f + half),
+                new(1 - half, -0.5f + half),
+            ];
 
         var frustum = new LoftedHull([new(0, Square(1)), new(3, Square(0.5f))], wall: 0.1f, ribs: [0]);
-        const double a = 2, b = 1, h = 3, m = 7;
-        double volume = h * (a * a + a * b + b * b) / 3, rho = m / volume;
+        const double a = 2,
+            b = 1,
+            h = 3,
+            m = 7;
+        double volume = h * (a * a + a * b + b * b) / 3,
+            rho = m / volume;
         double center = h * (a * a + 2 * a * b + 3 * b * b) / (4 * (a * a + a * b + b * b));
         double s4 = h * (a * a * a * a + a * a * a * b + a * a * b * b + a * b * b * b + b * b * b * b) / 5;
         double s2t2 = h * h * h * (a * a + 3 * a * b + 6 * b * b) / 30;
-        double across = rho * (s4 / 12 + s2t2) - m * center * center, along = rho * s4 / 6;
+        double across = rho * (s4 / 12 + s2t2) - m * center * center,
+            along = rho * s4 / 6;
 
         HullMass mass = frustum.MassOf((float)m);
 
@@ -685,13 +839,17 @@ public sealed class LoftedHullTests
     /// <summary>Each component within a relative 1e-6 of the largest, as <see cref="LoftedHull.MassOf"/> rounds to floats once.</summary>
     private static void ExpectNear(Vector3 actual, Vector3 expected, string what)
     {
-        float scale = MathF.Max(1,
-            MathF.Max(MathF.Abs(expected.X), MathF.Max(MathF.Abs(expected.Y), MathF.Abs(expected.Z))));
+        float scale = MathF.Max(
+            1,
+            MathF.Max(MathF.Abs(expected.X), MathF.Max(MathF.Abs(expected.Y), MathF.Abs(expected.Z)))
+        );
         (actual - expected).Length().Should().BeLessThan(1e-6f * scale, $"{what} is {actual}, not {expected}");
     }
 
     private static void ExpectNear(Quaternion actual, Quaternion expected, string what) =>
-        MathF.Abs(Quaternion.Dot(actual, expected)).Should()
+        MathF
+            .Abs(Quaternion.Dot(actual, expected))
+            .Should()
             .BeGreaterThan(1 - 1e-6f, $"{what} are {actual}, not {expected}");
 
     private static LoftedHull SmallBox() =>
@@ -758,8 +916,8 @@ public sealed class LoftedHullTests
     public void ACrossSectionBetweenRibPlacesIsAnError()
     {
         Vector2[] smaller = [new(-1.5f, -1.5f), new(1.5f, -1.5f), new(1.5f, 1), new(-1.5f, 1)];
-        Action build = () => new LoftedHull([new(-3, smaller), new(0, BoxSection), new(3, BoxSection)], wall: 0.2f,
-            ribs: [-3, -1, 1]);
+        Action build = () =>
+            new LoftedHull([new(-3, smaller), new(0, BoxSection), new(3, BoxSection)], wall: 0.2f, ribs: [-3, -1, 1]);
 
         build.Should().Throw<ArgumentException>().WithMessage("*rib place*");
     }
@@ -807,9 +965,11 @@ public sealed class LoftedHullTests
     [Fact]
     public void APaneInTheDoorsPanelIsAnError()
     {
-        Action glass = () => SmallBox()
-            .Door(door: new(new(1.8f, -1, -0.5f), new(2, 1, 0.5f)), bay: 2, fromCorner: 1, toCorner: 2)
-            .Surrounds(rib: 0.1f, fold: 0.06f, solid: 0.1f).Glass("pane", edge: 1, bay: 2);
+        Action glass = () =>
+            SmallBox()
+                .Door(door: new(new(1.8f, -1, -0.5f), new(2, 1, 0.5f)), bay: 2, fromCorner: 1, toCorner: 2)
+                .Surrounds(rib: 0.1f, fold: 0.06f, solid: 0.1f)
+                .Glass("pane", edge: 1, bay: 2);
 
         glass.Should().Throw<ArgumentException>().WithMessage("*door*");
     }
@@ -818,7 +978,9 @@ public sealed class LoftedHullTests
     public void TwoPanesInOneCellAreAnError()
     {
         Action glass = () =>
-            SmallBox().Surrounds(rib: 0.1f, fold: 0.06f, solid: 0.1f).Glass("first", edge: 1, bay: 2)
+            SmallBox()
+                .Surrounds(rib: 0.1f, fold: 0.06f, solid: 0.1f)
+                .Glass("first", edge: 1, bay: 2)
                 .Glass("second", edge: 1, bay: 2);
 
         glass.Should().Throw<ArgumentException>().WithMessage("*holds a pane*");
@@ -838,7 +1000,9 @@ public sealed class LoftedHullTests
     public void ASecondPaneInTheFrontIsAnError()
     {
         Action glass = () =>
-            SmallBox().Surrounds(rib: 0.1f, fold: 0.06f, solid: 0.1f).NoseGlass("first", fromCorner: 1, toCorner: 3)
+            SmallBox()
+                .Surrounds(rib: 0.1f, fold: 0.06f, solid: 0.1f)
+                .NoseGlass("first", fromCorner: 1, toCorner: 3)
                 .NoseGlass("second", fromCorner: 1, toCorner: 3);
 
         glass.Should().Throw<InvalidOperationException>().WithMessage("*front holds a pane*");
@@ -858,8 +1022,11 @@ public sealed class LoftedHullTests
     [Fact]
     public void ADoorAfterTheGlassIsAnError()
     {
-        Action door = () => SmallBox().Surrounds(rib: 0.1f, fold: 0.06f, solid: 0.1f).Glass("pane", edge: 1, bay: 2)
-            .Door(door: new(new(1.8f, -1, -0.5f), new(2, 1, 0.5f)), bay: 2, fromCorner: 1, toCorner: 2);
+        Action door = () =>
+            SmallBox()
+                .Surrounds(rib: 0.1f, fold: 0.06f, solid: 0.1f)
+                .Glass("pane", edge: 1, bay: 2)
+                .Door(door: new(new(1.8f, -1, -0.5f), new(2, 1, 0.5f)), bay: 2, fromCorner: 1, toCorner: 2);
 
         door.Should().Throw<InvalidOperationException>().WithMessage("*before the glass*");
     }

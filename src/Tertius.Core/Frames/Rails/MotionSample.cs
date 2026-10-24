@@ -19,7 +19,8 @@ public readonly record struct MotionSample(
     Double3 Velocity,
     Double3 Acceleration,
     Double3 AngularVelocity,
-    Double3 AngularAcceleration)
+    Double3 AngularAcceleration
+)
 {
     /// <summary>
     /// This sample in another frame, which the two relations call the parent: <paramref name="start"/> and
@@ -41,6 +42,7 @@ public readonly record struct MotionSample(
             Velocity: end.VelocityToParent(place, Velocity),
             Acceleration: end.AccelerationToParent(place, Velocity, Acceleration),
             AngularVelocity: end.AngularToParent(AngularVelocity),
-            AngularAcceleration: end.AngularAccelerationToParent(AngularAcceleration, AngularVelocity));
+            AngularAcceleration: end.AngularAccelerationToParent(AngularAcceleration, AngularVelocity)
+        );
     }
 }

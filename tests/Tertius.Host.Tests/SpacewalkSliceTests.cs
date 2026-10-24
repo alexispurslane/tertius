@@ -41,7 +41,9 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
     // In the ship's axes, a person's center is 2.6 m below the ship's center when it stands on the chamber floor, and 2.4 m
     // below it when it floats at the height of the hatch's sill. The hatch is 1.2 m wide, centered on z = 10 m, so the
     // capsule of radius 0.3 m passes through it only within 0.3 m of z = 10 m. The chamber spans x from -9.5 m to -6.5 m.
-    private const double OnTheFloor = -2.6, OnTheSill = -2.4, HatchZ = 10;
+    private const double OnTheFloor = -2.6,
+        OnTheSill = -2.4,
+        HatchZ = 10;
 
     // The radius of the person's bounding sphere, which the hand-off uses, in meters: the capsule is 1.8 m tall.
     private const double PersonRadius = 0.9;
@@ -61,7 +63,8 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
     /// </summary>
     private (Double3 Position, Double3 Velocity) RelativeToShip(string name)
     {
-        EntityRecord person = Dump(name).Entity("person"), ship = Dump(name).Entity("ship");
+        EntityRecord person = Dump(name).Entity("person"),
+            ship = Dump(name).Entity("ship");
         if (person.Pose.Frame == "ship")
             return (person.Pose.Position, person.Velocity);
         person.Pose.Frame.Should().Be("earth");
@@ -95,14 +98,21 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
         foreach (string name in InShipGoingOut.Concat(InShipComingBack))
             Dump(name).Entity("person").Pose.Frame.Should().Be("ship", $"the person is in the ship's frame in {name}");
         foreach (string name in InEarth)
-            Dump(name).Entity("person").Pose.Frame.Should()
+            Dump(name)
+                .Entity("person")
+                .Pose.Frame.Should()
                 .Be("earth", $"the person is past the ship's bubble in {name}");
         // The capsule's radius is 0.3 m, but the hand-off uses the radius of the capsule's bounding sphere, 0.9 m. The
         // person leaves the ship's frame once its center lies more than 0.9 m plus the margin outside the bubble. The
         // margin is the larger of 2 percent of the bubble's largest radius, 1.11 m, and that sphere's radius. The person
         // comes back into the ship's frame on its first touch of the bubble, once its center lies 0.9 m or less outside it.
-        ShipBubble.Outside(RelativeToShip("leaving").Position).Should().BeLessThan(PersonRadius + ShipBubble.Margin);
-        ShipBubble.Outside(RelativeToShip("in-earth").Position).Should()
+        ShipBubble
+            .Outside(RelativeToShip("leaving").Position)
+            .Should()
+            .BeLessThan(PersonRadius + ShipBubble.Margin);
+        ShipBubble
+            .Outside(RelativeToShip("in-earth").Position)
+            .Should()
             .BeGreaterThan(PersonRadius + ShipBubble.Margin);
         ShipBubble.Outside(RelativeToShip("returning").Position).Should().BeGreaterThan(PersonRadius);
         ShipBubble.Outside(RelativeToShip("back-in-ship").Position).Should().BeLessThanOrEqualTo(PersonRadius);
@@ -141,7 +151,8 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
     [Fact]
     public void InEarthAThrustTowardTheShipTurnsTheDriftAwayFromItAround()
     {
-        Double3 before = RelativeToShip("in-earth").Velocity, after = RelativeToShip("turned-back").Velocity;
+        Double3 before = RelativeToShip("in-earth").Velocity,
+            after = RelativeToShip("turned-back").Velocity;
 
         before.X.Should().BeApproximately(-0.3, 0.005, "the person drifts slowly away from the ship");
         after.X.Should().BeApproximately(0.3, 0.005, "the person drifts slowly back toward the ship");
@@ -151,7 +162,9 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
         // 1.5 m/s², that adds 0.6 m/s along the person's view, the ship's +X. One tick of thrust adds 0.025 m/s. Jolt keeps
         // velocities as floats, and at the 7.7 km/s of the orbit a float has steps of 0.5 mm/s. While the person thrusts,
         // each tick rounds the person's velocity and the ship's differently, so the thrust turns about 0.003 m/s sideways.
-        (after.X - before.X).Should().BeApproximately(24 * 1.5 / 60, 2e-3);
+        (after.X - before.X)
+            .Should()
+            .BeApproximately(24 * 1.5 / 60, 2e-3);
         Double3.Distance(after - before, new(24 * 1.5 / 60, 0, 0)).Should().BeLessThan(0.01);
     }
 
@@ -170,8 +183,7 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
     [Theory]
     [InlineData("leaving", "in-earth")]
     [InlineData("returning", "back-in-ship")]
-    public void AHandOffTurnsThePersonsUpIntoTheAxesOfItsNewFrame(string before, string after)
-    {
+    public void AHandOffTurnsThePersonsUpIntoTheAxesOfItsNewFrame(string before, string after) =>
         // In the ship's frame, the person's up turns with the ship. In earth, it stays where it is. So if a hand-off
         // turns the person's rotation into the axes of its new frame, the person's up in earth's axes turns at most as
         // far as the ship does between a dump before the hand-off and a dump after it. In this scene the ship's +Y
@@ -179,7 +191,6 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
         // Earth's gravity would pass here too. The physics test CharacterOrbitHandOffTests covers that, with a ship
         // whose +Y is not along the radius.
         Angle(UpInEarth(before), UpInEarth(after)).Should().BeLessThan(ShipTurn(before, after) + 1e-5);
-    }
 
     [Fact]
     public void ThePersonDriftsInThroughTheHatchAndStandsOnTheChamberFloor()
@@ -188,13 +199,16 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
         Double3 at = person.Pose.Position;
 
         person.Pose.Frame.Should().Be("ship");
-        RelativeToShip("back-in-ship").Velocity.X.Should()
+        RelativeToShip("back-in-ship")
+            .Velocity.X.Should()
             .BeInRange(0.2, 0.4, "the person came back into the ship's frame slowly");
         at.X.Should().BeInRange(-9.2, -6.8, "the capsule of radius 0.3 m is inside the chamber");
         at.Y.Should().BeApproximately(OnTheFloor, 0.005);
         at.Z.Should().BeInRange(HatchZ - 0.3, HatchZ + 0.3, "the capsule fits through the hatch only there");
         person.Standing.Should().BeTrue();
-        new Vector2((float)person.Velocity.X, (float)person.Velocity.Z).Length().Should()
+        new Vector2((float)person.Velocity.X, (float)person.Velocity.Z)
+            .Length()
+            .Should()
             .BeLessThan(1e-3f, "the person landed and stands still");
     }
 
@@ -206,7 +220,8 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
 
         // While the person fell freely in earth, the ship turned under it, about 0.008 rad. The person keeps that tilt in the
         // ship's frame until the cabin's gravity stands it on the floor. Physics leaves a tilt of less than 1e-3 rad alone.
-        TiltInShip("back-in-ship").Should()
+        TiltInShip("back-in-ship")
+            .Should()
             .BeInRange(ShipTurn(InEarth[0], InEarth[^1]), ShipTurn("leaving", "back-in-ship"));
         TiltInShip("returned").Should().BeLessThan(1e-3);
     }
@@ -228,7 +243,8 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
     /// </summary>
     private static (int Rows, int Columns) ShipExtent(Png image)
     {
-        int[] litInRow = new int[image.Height], litInColumn = new int[image.Width];
+        int[] litInRow = new int[image.Height],
+            litInColumn = new int[image.Width];
         for (int y = 0; y < 520; y++)
         for (int x = 0; x < image.Width; x++)
         {
@@ -252,7 +268,8 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
     /// </summary>
     private static (int First, int Last) LitThroughTheHatch(Png image, int from, int to)
     {
-        int first = image.Width, last = -1;
+        int first = image.Width,
+            last = -1;
         for (int y = 300; y < 470; y++)
         for (int x = from; x < to; x++)
         {
@@ -288,7 +305,8 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
         rows.Should().BeCloseTo((int)Math.Round(8 * pixelsPerMeter), 2, "the hull is 8 m tall");
         columns.Should().Be(image.Width, "the hull is 60 m long, longer than the view is wide at that distance");
         (first + last).Should().BeCloseTo(image.Width - 1, 2, "the hatch is in the middle of the image");
-        (last - first + 1).Should()
+        (last - first + 1)
+            .Should()
             .BeCloseTo((int)Math.Round(1.2 * pixelsPerMeter), 2, "the hatch's sill is 1.2 m wide");
         (int r, int g, int b) earth = image.Average(640, 690);
         (earth.b > earth.r + 60).Should().BeTrue($"Earth's blue fills the bottom of the image, not {earth}");

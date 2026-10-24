@@ -43,21 +43,37 @@ public sealed class DemoFrameCostMeasurement
         {
             // As the command makes them.
             using var world = new World(new() { DisposePhysics = true }, new JoltPhysicsBackend());
-            using var vulkan = VulkanRenderer.CreateHeadless(new()
-                { Width = script.Window.Width, Height = script.Window.Height, Impostors = false, Validation = false });
+            using var vulkan = VulkanRenderer.CreateHeadless(
+                new()
+                {
+                    Width = script.Window.Width,
+                    Height = script.Window.Height,
+                    Impostors = false,
+                    Validation = false,
+                }
+            );
             var timed = new TimedRenderer(vulkan);
             SceneInstance scene = DemoScenes.All.Single(s => s.Name == script.Scene).Build(world, vulkan);
-            using var playback =
-                new HeadlessPlayback(timed, script.Window, new VideoFile(Path.Combine(folder, "demo.mkv"), 60));
+            using var playback = new HeadlessPlayback(
+                timed,
+                script.Window,
+                new VideoFile(Path.Combine(folder, "demo.mkv"), 60)
+            );
             var watched = new TimedPlayback(playback, timed);
             long start = Stopwatch.GetTimestamp();
             ScriptRunner.Run(script: script, world: world, scene: scene, outputFolder: null, playback: watched);
             long ran = Stopwatch.GetTimestamp();
             playback.Finish();
             long finished = Stopwatch.GetTimestamp();
-            File.WriteAllText(reportPath,
-                Report(script: script, frames: watched.Frames, run: TimedRenderer.Seconds(ran - start),
-                    finish: TimedRenderer.Seconds(finished - ran)));
+            File.WriteAllText(
+                reportPath,
+                Report(
+                    script: script,
+                    frames: watched.Frames,
+                    run: TimedRenderer.Seconds(ran - start),
+                    finish: TimedRenderer.Seconds(finished - ran)
+                )
+            );
         }
         finally
         {
@@ -71,7 +87,10 @@ public sealed class DemoFrameCostMeasurement
         int last = full.Steps.ToList().FindIndex(step => step.Value is FilmStep film && film.Name == lastFilm);
         return last < 0
             ? throw new InvalidOperationException($"The script has no film '{lastFilm}' to end the measurement at.")
-            : full with { Steps = [.. full.Steps.Take(last + 1)] };
+            : full with
+            {
+                Steps = [.. full.Steps.Take(last + 1)],
+            };
     }
 
     /// <summary>
@@ -81,7 +100,7 @@ public sealed class DemoFrameCostMeasurement
     [Fact]
     public void TheStretchEndsAtItsLastFilmAndRefusesAFilmThatTheScriptLacks()
     {
-        Script full = Script.Load(Path.Combine(RepositoryRoot(), "scripts", "blue-danube.json"));
+        var full = Script.Load(Path.Combine(RepositoryRoot(), "scripts", "blue-danube.json"));
 
         Script stretch = Stretch(full, LastFilm);
         Action missing = () => Stretch(full, "no-such-film");
@@ -96,14 +115,19 @@ public sealed class DemoFrameCostMeasurement
         static string Ms(double seconds) => (seconds * 1000).ToString("F2", CultureInfo.InvariantCulture);
         var report = new StringBuilder();
         report.AppendLine("# The frame time of the demo scene").AppendLine();
-        report.AppendLine(
-                $"Machine: {Machine()}, {Environment.ProcessorCount} logical processors, {RuntimeInformation.OSDescription}. Optimized build of Host: {IsOptimized()}. Validation off.")
+        report
+            .AppendLine(
+                $"Machine: {Machine()}, {Environment.ProcessorCount} logical processors, {RuntimeInformation.OSDescription}. Optimized build of Host: {IsOptimized()}. Validation off."
+            )
+            .AppendLine();
+        report
+            .AppendLine(
+                $"scripts/blue-danube.json from its start through the film {LastFilm}, {frames.Count} frames at {script.Window.Width}x{script.Window.Height} into a video at 60 frames per second. Wall-clock means per frame, in ms."
+            )
             .AppendLine();
         report.AppendLine(
-                $"scripts/blue-danube.json from its start through the film {LastFilm}, {frames.Count} frames at {script.Window.Width}x{script.Window.Height} into a video at 60 frames per second. Wall-clock means per frame, in ms.")
-            .AppendLine();
-        report.AppendLine(
-            "| Film | Camera | Frames | Ticks per frame | Ticks | Snapshot, draw, fence wait and readback | Video's pipe write | All |");
+            "| Film | Camera | Frames | Ticks per frame | Ticks | Snapshot, draw, fence wait and readback | Video's pipe write | All |"
+        );
         report.AppendLine("|---|---|---|---|---|---|---|---|");
         string camera = "";
         foreach (ScriptStep step in script.Steps)
@@ -117,18 +141,22 @@ public sealed class DemoFrameCostMeasurement
                 draw = own.Average(frame => frame.Capture - frame.Sink),
                 sink = own.Average(frame => frame.Sink);
             report.AppendLine(
-                $"| {film.Name} | {camera} | {own.Count} | {film.Every} | {Ms(ticks)} | {Ms(draw)} | {Ms(sink)} | {Ms(ticks + draw + sink)} |");
+                $"| {film.Name} | {camera} | {own.Count} | {film.Every} | {Ms(ticks)} | {Ms(draw)} | {Ms(sink)} | {Ms(ticks + draw + sink)} |"
+            );
         }
 
         report.AppendLine();
         report.AppendLine(
-            $"- The whole stretch: {Ms(run / frames.Count)} ms per frame, and the end of the video (`Finish`) {Ms(finish)} ms once.");
+            $"- The whole stretch: {Ms(run / frames.Count)} ms per frame, and the end of the video (`Finish`) {Ms(finish)} ms once."
+        );
         return report.ToString();
     }
 
     private static bool IsOptimized() =>
-        typeof(ScriptCommand).Assembly.GetCustomAttributes(typeof(DebuggableAttribute), false)
-            .OfType<DebuggableAttribute>().All(a => !a.IsJITOptimizerDisabled);
+        typeof(ScriptCommand)
+            .Assembly.GetCustomAttributes(typeof(DebuggableAttribute), false)
+            .OfType<DebuggableAttribute>()
+            .All(a => !a.IsJITOptimizerDisabled);
 
     /// <summary>The processor's name, from sysctl on macOS, or the architecture elsewhere.</summary>
     private static string Machine()
@@ -136,7 +164,10 @@ public sealed class DemoFrameCostMeasurement
         try
         {
             var start = new ProcessStartInfo("sysctl", "-n machdep.cpu.brand_string")
-                { UseShellExecute = false, RedirectStandardOutput = true };
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+            };
             using Process sysctl = Process.Start(start)!;
             string name = sysctl.StandardOutput.ReadToEnd().Trim();
             sysctl.WaitForExit();

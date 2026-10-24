@@ -37,6 +37,7 @@ public sealed class EntityTableInvariantTests
         Action check = table.AssertInvariants;
         check.Should().Throw<ContractException>();
     }
+
 #if TERTIUS_CONTRACTS
     [Fact]
     public void AColumnEntryInASlotThatWasNeverUsedFailsAContractWhenTheTableTakesTheSlot()

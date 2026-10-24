@@ -1,7 +1,7 @@
 using System.Numerics;
 using Tertius.Simulation;
-using static Tertius.Testing.WorldTesting;
 using static Tertius.Testing.NumericFrameTesting;
+using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -54,12 +54,22 @@ public sealed class NumericHomeHandOffTests
     private static readonly NumericFrameOptions WithoutLookahead = new() { LookaheadTime = 0, SplitMargin = 0 };
 
     /// <summary>A hull of 4 m by 4 m by 4 m and 1000 kg that nothing slows down and that does not bounce.</summary>
-    private static readonly BodyDesc ShipHull = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0,
-        LinearDamping: 0, AngularDamping: 0);
+    private static readonly BodyDesc ShipHull = new(
+        Shape: new BoxShapeDesc(new(2)),
+        Mass: 1000,
+        Restitution: 0,
+        LinearDamping: 0,
+        AngularDamping: 0
+    );
 
     /// <summary>A crate of 2 m by 2 m by 2 m and 2 kg that nothing slows down and that does not bounce.</summary>
-    private static readonly BodyDesc CrateBody = new(Shape: new BoxShapeDesc(new(1)), Mass: 2, Restitution: 0,
-        LinearDamping: 0, AngularDamping: 0);
+    private static readonly BodyDesc CrateBody = new(
+        Shape: new BoxShapeDesc(new(1)),
+        Mass: 2,
+        Restitution: 0,
+        LinearDamping: 0,
+        AngularDamping: 0
+    );
 
     /// <summary>The ship rests at the origin of space.</summary>
     private static readonly ShipMotion AtRest = new(Vector3.Zero, Thrusts: false);
@@ -84,8 +94,10 @@ public sealed class NumericHomeHandOffTests
     /// <paramref name="numericFrames"/> is false, with none.
     /// </summary>
     private static World NewWorld(bool numericFrames, out FaultInjectingBackend faults) =>
-        NewWorldWithFaults(faults: out faults,
-            configure: options => options.NumericFrames = numericFrames ? WithoutLookahead : WithoutNumericFrames);
+        NewWorldWithFaults(
+            faults: out faults,
+            configure: options => options.NumericFrames = numericFrames ? WithoutLookahead : WithoutNumericFrames
+        );
 
     /// <summary>The ship scene.</summary>
     /// <param name="Station">The parked station beside the ship, or null when the scene has none.</param>
@@ -102,7 +114,8 @@ public sealed class NumericHomeHandOffTests
         FrameHandle Station,
         Entity StationCrate,
         Pilot CratePilot,
-        Double3 ThrowVelocity);
+        Double3 ThrowVelocity
+    );
 
     /// <summary>How the ship moves in space.</summary>
     /// <param name="Velocity">The ship's velocity in space, in m/s.</param>
@@ -122,51 +135,80 @@ public sealed class NumericHomeHandOffTests
     /// its center and a bubble of radius 40 m, which overlaps the ship's. A crate rests at (-28, 0, 0) in the station, 32 m
     /// from the ship's center, outside the ship's bubble.
     /// </summary>
-    private static ShipScene CrateThrownInAShip(World world, ShipMotion shipMotion, Double3 throwDirection,
+    private static ShipScene CrateThrownInAShip(
+        World world,
+        ShipMotion shipMotion,
+        Double3 throwDirection,
         bool withStation = false,
-        GravityField shipGravity = default)
+        GravityField shipGravity = default
+    )
     {
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
-        Entity shipOwner = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(0),
-            LinearVelocity = shipMotion.Velocity,
-            Body = ShipHull,
-            AsFrame = new(FrameBounds.Sphere(ShipRadius), shipGravity),
-            Components = shipMotion.Thrusts
-                ? [new Thruster(ShipHull.Mass) { Direction = Vector3.Normalize(shipMotion.Velocity) }]
-                : []
-        });
+        Entity shipOwner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(0),
+                LinearVelocity = shipMotion.Velocity,
+                Body = ShipHull,
+                AsFrame = new(FrameBounds.Sphere(ShipRadius), shipGravity),
+                Components = shipMotion.Thrusts
+                    ? [new Thruster(ShipHull.Mass) { Direction = Vector3.Normalize(shipMotion.Velocity) }]
+                    : [],
+            }
+        );
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
         var crateFrames = new FrameChangedLog();
         var cratePilot = new Pilot();
-        Entity crate = world.Spawn(new()
-        {
-            Frame = ship,
-            Pose = new(throwDirection * 5, DQuaternion.Identity),
-            Body = CrateBody,
-            Components =
-                [crateFrames, new Thruster(CrateBody.Mass) { Direction = throwDirection.ToVector3() }, cratePilot]
-        });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = ship,
+                Pose = new(throwDirection * 5, DQuaternion.Identity),
+                Body = CrateBody,
+                Components =
+                [
+                    crateFrames,
+                    new Thruster(CrateBody.Mass) { Direction = throwDirection.ToVector3() },
+                    cratePilot,
+                ],
+            }
+        );
         FrameHandle station = FrameHandle.Null;
         Entity stationCrate = Entity.Null;
         if (withStation)
         {
-            Entity stationOwner = world.Spawn(new()
-            {
-                Frame = space,
-                Pose = At(60),
-                Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Static),
-                AsFrame = new(FrameBounds.Sphere(40))
-            });
+            Entity stationOwner = world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Pose = At(60),
+                    Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Static),
+                    AsFrame = new(FrameBounds.Sphere(40)),
+                }
+            );
             station = world.GetOwnedFrame(stationOwner);
-            stationCrate = world.Spawn(new() { Frame = station, Pose = At(-28), Body = CrateBody });
+            stationCrate = world.Spawn(
+                new()
+                {
+                    Frame = station,
+                    Pose = At(-28),
+                    Body = CrateBody,
+                }
+            );
         }
 
-        return new(Space: space, ShipOwner: shipOwner, Ship: ship, Crate: crate, CrateFrames: crateFrames,
-            Station: station, StationCrate: stationCrate, CratePilot: cratePilot,
-            ThrowVelocity: throwDirection * ThrowSpeed);
+        return new(
+            Space: space,
+            ShipOwner: shipOwner,
+            Ship: ship,
+            Crate: crate,
+            CrateFrames: crateFrames,
+            Station: station,
+            StationCrate: stationCrate,
+            CratePilot: cratePilot,
+            ThrowVelocity: throwDirection * ThrowSpeed
+        );
     }
 
     /// <summary>
@@ -196,8 +238,13 @@ public sealed class NumericHomeHandOffTests
         FrameHandle home = world.PhysicsHomeOf(scene.Crate);
         if (numericFrames)
         {
-            world.Frames.Numeric(home).Should().Be(NumericMode.Falling,
-                "the crate thrusts and flies at 60 m/s relative to the ship, so it gets a falling numeric frame");
+            world
+                .Frames.Numeric(home)
+                .Should()
+                .Be(
+                    NumericMode.Falling,
+                    "the crate thrusts and flies at 60 m/s relative to the ship, so it gets a falling numeric frame"
+                );
             world.Frames.SemanticOf(home).Should().Be(scene.Ship, "the crate's falling frame is a frame of the ship");
         }
         else
@@ -207,7 +254,6 @@ public sealed class NumericHomeHandOffTests
 
         world.GetFrame(scene.Crate).Should().Be(scene.Ship);
     }
-
 
     /// <summary>What a run of the ship scene saw, tick by tick, after its first tick.</summary>
     /// <param name="ShipTreeParent">The ship's tree parent after the first tick: space, or a numeric frame of space.</param>
@@ -228,7 +274,8 @@ public sealed class NumericHomeHandOffTests
         Double3 Position,
         Double3 Velocity,
         List<FrameChanged> Seen,
-        List<HandOff> HandOffsOut);
+        List<HandOff> HandOffsOut
+    );
 
     /// <summary>
     /// Throws the crate in the ship scene (see <see cref="WarmUpAndThrow"/>), runs it for 61 ticks from the throw on, and
@@ -237,12 +284,20 @@ public sealed class NumericHomeHandOffTests
     /// has no ghost in the ship, its own semantic frame, and, with numeric frames, that it falls in a numeric frame until it
     /// leaves.
     /// </summary>
-    private static Run ThrowTheCrate(bool numericFrames, ShipMotion shipMotion, Double3 throwDirection,
-        GravityField shipGravity = default)
+    private static Run ThrowTheCrate(
+        bool numericFrames,
+        ShipMotion shipMotion,
+        Double3 throwDirection,
+        GravityField shipGravity = default
+    )
     {
         using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
-        ShipScene scene = CrateThrownInAShip(world: world, shipMotion: shipMotion, throwDirection: throwDirection,
-            shipGravity: shipGravity);
+        ShipScene scene = CrateThrownInAShip(
+            world: world,
+            shipMotion: shipMotion,
+            throwDirection: throwDirection,
+            shipGravity: shipGravity
+        );
         WarmUpAndThrow(world, scene);
         world.Tick();
         CrateHomeShouldBe(world, scene, numericFrames);
@@ -254,8 +309,12 @@ public sealed class NumericHomeHandOffTests
         for (int tick = 1; tick <= Ticks; tick++)
         {
             world.Tick();
-            faults.Jolt.HasGhostIn(scene.Crate, scene.Ship).Should().BeFalse(
-                $"after tick {tick} the crate is in the ship or in space, and the bubble that it sticks out of is the ship's, not a sibling's");
+            faults
+                .Jolt.HasGhostIn(scene.Crate, scene.Ship)
+                .Should()
+                .BeFalse(
+                    $"after tick {tick} the crate is in the ship or in space, and the bubble that it sticks out of is the ship's, not a sibling's"
+                );
             if (faults.Jolt.HasGhostIn(scene.Crate, scene.Space))
                 ghostTicks.Add(tick);
             if (shipTreeParent != scene.Space && faults.Jolt.HasGhostIn(scene.Crate, shipTreeParent))
@@ -263,21 +322,32 @@ public sealed class NumericHomeHandOffTests
             if (leftAt < 0 && world.GetFrame(scene.Crate) == scene.Space)
                 leftAt = tick;
             if (numericFrames && leftAt < 0)
-                CrateShouldFall(world, scene,
-                    $"after tick {tick} the crate still falls in its numeric frame below the ship");
+                CrateShouldFall(
+                    world,
+                    scene,
+                    $"after tick {tick} the crate still falls in its numeric frame below the ship"
+                );
         }
 
         world.Errors.Should().BeEmpty();
         List<HandOff> handOffsOut =
         [
-            .. faults.Outputs.SelectMany(output => output.HandOffs).Where(h =>
-                h.Entity == scene.Crate && (h.To == scene.Space || h.To == shipTreeParent))
+            .. faults
+                .Outputs.SelectMany(output => output.HandOffs)
+                .Where(h => h.Entity == scene.Crate && (h.To == scene.Space || h.To == shipTreeParent)),
         ];
-        return new(Space: scene.Space, Ship: scene.Ship, ShipTreeParent: shipTreeParent, GhostTicks: ghostTicks,
-            TreeParentGhostTicks: treeParentGhostTicks, LeftAt: leftAt,
+        return new(
+            Space: scene.Space,
+            Ship: scene.Ship,
+            ShipTreeParent: shipTreeParent,
+            GhostTicks: ghostTicks,
+            TreeParentGhostTicks: treeParentGhostTicks,
+            LeftAt: leftAt,
             Position: world.PoseIn(scene.Crate, scene.Space).Position,
             Velocity: world.VelocityIn(scene.Crate, scene.Space),
-            Seen: scene.CrateFrames.Seen, HandOffsOut: handOffsOut);
+            Seen: scene.CrateFrames.Seen,
+            HandOffsOut: handOffsOut
+        );
     }
 
     /// <summary>Checks that the crate had a ghost in space exactly while it stuck out of the ship's bubble, before it left.</summary>
@@ -286,8 +356,8 @@ public sealed class NumericHomeHandOffTests
         // The crate sticks out from 28.27 m from the ship's center on, after 0.39 s, and leaves after 0.47 s.
         run.GhostTicks.Should().NotBeEmpty("the crate sticks out of the ship's bubble before it leaves");
         run.GhostTicks.Count.Should().BeInRange(4, 6, "the crate sticks out for about 0.09 s");
-        run.GhostTicks.Should().Equal(Enumerable.Range(run.GhostTicks[0], run.GhostTicks.Count),
-            "the crate sticks out until it leaves");
+        run.GhostTicks.Should()
+            .Equal(Enumerable.Range(run.GhostTicks[0], run.GhostTicks.Count), "the crate sticks out until it leaves");
         run.GhostTicks[^1].Should().Be(run.LeftAt - 1, "the real crate replaces its ghost in space when it leaves");
     }
 
@@ -303,10 +373,13 @@ public sealed class NumericHomeHandOffTests
         run.Seen.Should().ContainSingle("the crate's semantic frame changes once");
         run.Seen[0].From.Should().Be(run.Ship);
         run.Seen[0].To.Should().Be(run.Space);
-        run.HandOffsOut.Should().ContainSingle("one hand-off moves the crate out of the ship")
-            .Which.To.Should().Be(run.Space, "the ship's hull is in the system of space");
+        run.HandOffsOut.Should()
+            .ContainSingle("one hand-off moves the crate out of the ship")
+            .Which.To.Should()
+            .Be(run.Space, "the ship's hull is in the system of space");
         GhostInSpaceWhileItSticksOut(run);
-        (run.Velocity - new Double3(ThrowSpeed, 20, 0)).Length.Should()
+        (run.Velocity - new Double3(ThrowSpeed, 20, 0))
+            .Length.Should()
             .BeLessThan(1e-2, "nothing slows the crate down");
     }
 
@@ -319,27 +392,47 @@ public sealed class NumericHomeHandOffTests
     [Fact]
     public void ACrateThrownFastInsideAShipLeavesItAtTheSameTickPlaceAndVelocityAsWithoutNumericFrames()
     {
-        Run withNumericFrames = ThrowTheCrate(numericFrames: true, shipMotion: Drift, throwDirection: new(1, 0, 0),
-            shipGravity: ShipGravity);
-        Run withoutNumericFrames = ThrowTheCrate(numericFrames: false, shipMotion: Drift, throwDirection: new(1, 0, 0),
-            shipGravity: ShipGravity);
+        Run withNumericFrames = ThrowTheCrate(
+            numericFrames: true,
+            shipMotion: Drift,
+            throwDirection: new(1, 0, 0),
+            shipGravity: ShipGravity
+        );
+        Run withoutNumericFrames = ThrowTheCrate(
+            numericFrames: false,
+            shipMotion: Drift,
+            throwDirection: new(1, 0, 0),
+            shipGravity: ShipGravity
+        );
 
-        withoutNumericFrames.Velocity.Y.Should().BeInRange(20 - 9.81 * 0.55, 20 - 9.81 * 0.4,
-            "the crate fell in the ship's gravity for about 0.5 s");
+        withoutNumericFrames
+            .Velocity.Y.Should()
+            .BeInRange(20 - 9.81 * 0.55, 20 - 9.81 * 0.4, "the crate fell in the ship's gravity for about 0.5 s");
         withoutNumericFrames.LeftAt.Should().BeInRange(28, 30);
-        withNumericFrames.LeftAt.Should().Be(withoutNumericFrames.LeftAt,
-            "the crate leaves the bubble of its home's semantic frame, although its home is a numeric frame");
-        withNumericFrames.GhostTicks.Should()
+        withNumericFrames
+            .LeftAt.Should()
+            .Be(
+                withoutNumericFrames.LeftAt,
+                "the crate leaves the bubble of its home's semantic frame, although its home is a numeric frame"
+            );
+        withNumericFrames
+            .GhostTicks.Should()
             .Equal(withoutNumericFrames.GhostTicks, "the crate sticks out of the same bubble");
         (withNumericFrames.Position - withoutNumericFrames.Position).Length.Should().BeLessThan(1e-3);
         (withNumericFrames.Velocity - withoutNumericFrames.Velocity).Length.Should().BeLessThan(1e-2);
     }
 
     /// <summary>The one ghost of <paramref name="entity"/> in the system of <paramref name="frame"/>.</summary>
-    private static JoltPhysicsBackend.BodyFacts
-        GhostOf(FaultInjectingBackend faults, Entity entity, FrameHandle frame) =>
-        faults.Jolt.BodiesIn(frame).Single(facts =>
-            BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, entity));
+    private static JoltPhysicsBackend.BodyFacts GhostOf(
+        FaultInjectingBackend faults,
+        Entity entity,
+        FrameHandle frame
+    ) =>
+        faults
+            .Jolt.BodiesIn(frame)
+            .Single(facts =>
+                BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, entity)
+            );
 
     /// <summary>
     /// A ghost follows the chord of its real body. In the ship's gravity, the crate's falling frame accelerates, so its
@@ -349,11 +442,16 @@ public sealed class NumericHomeHandOffTests
     [InlineData(true)]
     [InlineData(false)]
     public void TheGhostInSpaceOfACrateThatSticksOutOfAShipHasTheCratesPlaceAndItsVelocityOverTheLastStep(
-        bool numericFrames)
+        bool numericFrames
+    )
     {
         using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
-        ShipScene scene = CrateThrownInAShip(world: world, shipMotion: Drift, throwDirection: new(1, 0, 0),
-            shipGravity: ShipGravity);
+        ShipScene scene = CrateThrownInAShip(
+            world: world,
+            shipMotion: Drift,
+            throwDirection: new(1, 0, 0),
+            shipGravity: ShipGravity
+        );
         WarmUpAndThrow(world, scene);
         world.Tick();
         CrateHomeShouldBe(world, scene, numericFrames);
@@ -364,9 +462,11 @@ public sealed class NumericHomeHandOffTests
         JoltPhysicsBackend.BodyFacts ghost = GhostOf(faults, scene.Crate, scene.Space);
         Double3 velocity = world.VelocityIn(scene.Crate, scene.Space);
         velocity.Y.Should().BeLessThan(20 - 3, "the crate has fallen in the ship's gravity for about 0.4 s");
-        (ghost.Position - world.PoseIn(scene.Crate, scene.Space).Position).Length.Should().BeLessThan(1e-5,
-            "the ghost is where the crate is in space");
-        (ghost.LinearVelocity - velocity).Length.Should()
+        (ghost.Position - world.PoseIn(scene.Crate, scene.Space).Position)
+            .Length.Should()
+            .BeLessThan(1e-5, "the ghost is where the crate is in space");
+        (ghost.LinearVelocity - velocity)
+            .Length.Should()
             .BeLessThan(1e-4, "the ghost moves in space with the crate's chord");
         world.Errors.Should().BeEmpty();
     }
@@ -379,8 +479,7 @@ public sealed class NumericHomeHandOffTests
     /// tree parent, as a body in the ship's own system does.
     /// </summary>
     [Fact]
-    public void
-        ACrateThrownFastInsideAFallingShipHasAGhostInTheShipsTreeParentAndLeavesTheShipAsItDoesWithoutNumericFrames()
+    public void ACrateThrownFastInsideAFallingShipHasAGhostInTheShipsTreeParentAndLeavesTheShipAsItDoesWithoutNumericFrames()
     {
         Run withNumericFrames = ThrowTheCrate(numericFrames: true, shipMotion: Fall, throwDirection: new(0, 1, 0));
         Run withoutNumericFrames = ThrowTheCrate(numericFrames: false, shipMotion: Fall, throwDirection: new(0, 1, 0));
@@ -388,15 +487,24 @@ public sealed class NumericHomeHandOffTests
         withoutNumericFrames.ShipTreeParent.Should().Be(withoutNumericFrames.Space);
         withoutNumericFrames.LeftAt.Should().BeInRange(28, 30);
         GhostInSpaceWhileItSticksOut(withoutNumericFrames);
-        withNumericFrames.ShipTreeParent.Should()
+        withNumericFrames
+            .ShipTreeParent.Should()
             .NotBe(withNumericFrames.Space, "the ship's hull falls in a numeric frame");
         withNumericFrames.LeftAt.Should().Be(withoutNumericFrames.LeftAt);
-        withNumericFrames.TreeParentGhostTicks.Should().Equal(withoutNumericFrames.GhostTicks,
-            "the crate is partly in the ship's tree parent while it sticks out, with numeric frames or without");
-        withNumericFrames.GhostTicks.Should()
+        withNumericFrames
+            .TreeParentGhostTicks.Should()
+            .Equal(
+                withoutNumericFrames.GhostTicks,
+                "the crate is partly in the ship's tree parent while it sticks out, with numeric frames or without"
+            );
+        withNumericFrames
+            .GhostTicks.Should()
             .BeEmpty("no body of space may touch the crate's ghost, so the system of space keeps none");
-        withNumericFrames.HandOffsOut.Should().ContainSingle().Which.To.Should().Be(withNumericFrames.ShipTreeParent,
-            "the crate leaves into the ship's tree parent");
+        withNumericFrames
+            .HandOffsOut.Should()
+            .ContainSingle()
+            .Which.To.Should()
+            .Be(withNumericFrames.ShipTreeParent, "the crate leaves into the ship's tree parent");
         withNumericFrames.Seen.Should().ContainSingle().Which.To.Should().Be(withNumericFrames.Space);
         withoutNumericFrames.Seen.Should().ContainSingle().Which.To.Should().Be(withoutNumericFrames.Space);
         (withNumericFrames.Position - withoutNumericFrames.Position).Length.Should().BeLessThan(1e-3);
@@ -411,33 +519,47 @@ public sealed class NumericHomeHandOffTests
     /// station, and the place of the thrown crate there.
     /// </summary>
     private static (int Ticks, Double3 Position, Double3 Velocity, Double3 PusherPosition) PushTheStationsCrate(
-        bool numericFrames)
+        bool numericFrames
+    )
     {
         using World world = NewWorld(numericFrames, out _);
-        ShipScene scene = CrateThrownInAShip(world: world, shipMotion: AtRest, throwDirection: new(1, 0, 0),
-            withStation: true);
+        ShipScene scene = CrateThrownInAShip(
+            world: world,
+            shipMotion: AtRest,
+            throwDirection: new(1, 0, 0),
+            withStation: true
+        );
         WarmUpAndThrow(world, scene);
         world.Tick();
         CrateHomeShouldBe(world, scene, numericFrames);
 
-        int ticks = TickUntil(world, () =>
-        {
-            bool pushed = world.VelocityIn(scene.StationCrate, scene.Station).Length > 10;
-            if (numericFrames && !pushed)
-                CrateShouldFall(world, scene,
-                    "the thrown crate falls in its numeric frame until its ghost pushes the station's crate");
-            return pushed;
-        }, Ticks);
+        int ticks = TickUntil(
+            world,
+            () =>
+            {
+                bool pushed = world.VelocityIn(scene.StationCrate, scene.Station).Length > 10;
+                if (numericFrames && !pushed)
+                    CrateShouldFall(
+                        world,
+                        scene,
+                        "the thrown crate falls in its numeric frame until its ghost pushes the station's crate"
+                    );
+                return pushed;
+            },
+            Ticks
+        );
 
         world.Errors.Should().BeEmpty();
-        return (ticks, world.PoseIn(scene.StationCrate, scene.Station).Position,
+        return (
+            ticks,
+            world.PoseIn(scene.StationCrate, scene.Station).Position,
             world.VelocityIn(scene.StationCrate, scene.Station),
-            world.PoseIn(scene.Crate, scene.Station).Position);
+            world.PoseIn(scene.Crate, scene.Station).Position
+        );
     }
 
     [Fact]
-    public void
-        ACrateThatSticksOutOfAShipFromANumericFramePushesACrateInAStationBesideTheShipAsItDoesWithoutNumericFrames()
+    public void ACrateThatSticksOutOfAShipFromANumericFramePushesACrateInAStationBesideTheShipAsItDoesWithoutNumericFrames()
     {
         (int Ticks, Double3 Position, Double3 Velocity, Double3 PusherPosition) withNumericFrames =
             PushTheStationsCrate(numericFrames: true);
@@ -446,16 +568,28 @@ public sealed class NumericHomeHandOffTests
 
         // The front of the thrown crate reaches the back of the station's, 31 m from the ship's center, 0.42 s after the
         // throw. The thrown crate then sticks out of the ship's bubble and touches the station's, a sibling of the ship.
-        withoutNumericFrames.Ticks.Should().BeInRange(22, 28,
-            "the ghost of the thrown crate in the station reaches the station's crate after about 0.42 s");
+        withoutNumericFrames
+            .Ticks.Should()
+            .BeInRange(
+                22,
+                28,
+                "the ghost of the thrown crate in the station reaches the station's crate after about 0.42 s"
+            );
         withoutNumericFrames.Velocity.X.Should().BeGreaterThan(10, "the ghost pushed the crate along +X");
-        (withoutNumericFrames.Position.X - withoutNumericFrames.PusherPosition.X).Should().BeGreaterThan(1.9,
-            "the station's crate is in front of the thrown one, which did not pass through it");
-        withNumericFrames.Ticks.Should().Be(withoutNumericFrames.Ticks,
-            "the thrown crate has a ghost at the same place in the station, a semantic sibling of its home's semantic frame");
-        (withNumericFrames.Position - withoutNumericFrames.Position).Length.Should()
+        (withoutNumericFrames.Position.X - withoutNumericFrames.PusherPosition.X)
+            .Should()
+            .BeGreaterThan(1.9, "the station's crate is in front of the thrown one, which did not pass through it");
+        withNumericFrames
+            .Ticks.Should()
+            .Be(
+                withoutNumericFrames.Ticks,
+                "the thrown crate has a ghost at the same place in the station, a semantic sibling of its home's semantic frame"
+            );
+        (withNumericFrames.Position - withoutNumericFrames.Position)
+            .Length.Should()
             .BeLessThan(1e-3, "the ghost pushed the crate to the same place");
-        (withNumericFrames.Velocity - withoutNumericFrames.Velocity).Length.Should()
+        (withNumericFrames.Velocity - withoutNumericFrames.Velocity)
+            .Length.Should()
             .BeLessThan(1e-2, "the ghost moves at the same velocity");
     }
 
@@ -463,7 +597,15 @@ public sealed class NumericHomeHandOffTests
     /// <paramref name="radius"/> m.</summary>
     private static FrameHandle EmptyFrame(World world, FrameHandle parent, DPose pose, float radius) =>
         world.GetOwnedFrame(
-            world.Spawn(new() { Frame = parent, Pose = pose, AsFrame = new(FrameBounds.Sphere(radius)) }));
+            world.Spawn(
+                new()
+                {
+                    Frame = parent,
+                    Pose = pose,
+                    AsFrame = new(FrameBounds.Sphere(radius)),
+                }
+            )
+        );
 
     /// <summary>
     /// The reconcile at the start of a step drops each ghost that the frame tree does not allow, and the ghost pass at the
@@ -489,19 +631,24 @@ public sealed class NumericHomeHandOffTests
         CrateHomeShouldBe(world, scene, numericFrames: true);
         FrameHandle treeParent = world.Frames.TreeParent(scene.Ship);
         if (shipFalls)
-            world.Frames.Numeric(treeParent).Should().Be(NumericMode.Falling,
-                "the ship's hull thrusts at 60 m/s, so it falls in a numeric frame");
+            world
+                .Frames.Numeric(treeParent)
+                .Should()
+                .Be(NumericMode.Falling, "the ship's hull thrusts at 60 m/s, so it falls in a numeric frame");
         else
             treeParent.Should().Be(scene.Space, "the ship's hull rests at the origin of space");
 
-        bool HasItsGhosts() => faults.Jolt.HasGhostIn(scene.Crate, treeParent) &&
-                               (shipFalls || faults.Jolt.HasGhostIn(scene.Crate, scene.Station));
+        bool HasItsGhosts() =>
+            faults.Jolt.HasGhostIn(scene.Crate, treeParent)
+            && (shipFalls || faults.Jolt.HasGhostIn(scene.Crate, scene.Station));
 
         TickUntil(world, HasItsGhosts, Ticks);
         HasItsGhosts().Should().BeTrue("about 0.4 s after the throw the crate sticks out of the ship's bubble");
         CrateShouldFall(world, scene, "the crate that sticks out of the ship falls in its numeric frame");
         if (shipFalls)
-            faults.Jolt.HasGhostIn(scene.Crate, scene.Space).Should()
+            faults
+                .Jolt.HasGhostIn(scene.Crate, scene.Space)
+                .Should()
                 .BeFalse("no body of space may touch the crate's ghost");
 
         // A change far away makes the backend reconcile. The ship is still a semantic child of space.
@@ -509,13 +656,21 @@ public sealed class NumericHomeHandOffTests
         world.Frames.Update();
         faults.Jolt.ApplyChanges(new(), world.Frames);
 
-        faults.Jolt.HasGhostIn(scene.Crate, treeParent).Should().BeTrue(
-            "the crate sticks out of the ship, the semantic frame of its home, so it is partly in the ship's tree parent, the home of the ship's hull");
+        faults
+            .Jolt.HasGhostIn(scene.Crate, treeParent)
+            .Should()
+            .BeTrue(
+                "the crate sticks out of the ship, the semantic frame of its home, so it is partly in the ship's tree parent, the home of the ship's hull"
+            );
         if (shipFalls)
-            faults.Jolt.HasGhostIn(scene.Crate, scene.Space).Should()
+            faults
+                .Jolt.HasGhostIn(scene.Crate, scene.Space)
+                .Should()
                 .BeFalse("the tree allows the crate no ghost in the ship's semantic parent");
         else
-            faults.Jolt.HasGhostIn(scene.Crate, scene.Station).Should()
+            faults
+                .Jolt.HasGhostIn(scene.Crate, scene.Station)
+                .Should()
                 .BeTrue("the crate touches the bubble of the station, a semantic sibling of the ship");
         world.Tick();
         world.Errors.Should().BeEmpty();

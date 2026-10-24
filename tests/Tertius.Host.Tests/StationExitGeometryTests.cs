@@ -22,9 +22,21 @@ public sealed class StationExitGeometryTests : IDisposable
 
     public StationExitGeometryTests()
     {
-        world = new(new() { MaxDegreeOfParallelism = 1, DebugChecks = false, DisposePhysics = true }, backend);
-        Entity station = DemoStation.Spawn(world: world, parent: RendezvousAutopilotTests.Earth(world), scene: scene,
-            resources: RenderResources.None);
+        world = new(
+            new()
+            {
+                MaxDegreeOfParallelism = 1,
+                DebugChecks = false,
+                DisposePhysics = true,
+            },
+            backend
+        );
+        Entity station = DemoStation.Spawn(
+            world: world,
+            parent: RendezvousAutopilotTests.Earth(world),
+            scene: scene,
+            resources: RenderResources.None
+        );
         frame = world.GetOwnedFrame(station);
         world.Tick();
     }
@@ -35,8 +47,16 @@ public sealed class StationExitGeometryTests : IDisposable
     private double? Ray(Double3 from, Double3 direction)
     {
         var hits = new List<RayCastHit>();
-        backend.CastRay(frame: frame, origin: from, direction: direction, start: 0, end: 120, filter: new EveryEntity(),
-            kind: RayCastKind.Nearest, hits: hits);
+        backend.CastRay(
+            frame: frame,
+            origin: from,
+            direction: direction,
+            start: 0,
+            end: 120,
+            filter: new EveryEntity(),
+            kind: RayCastKind.Nearest,
+            hits: hits
+        );
         return hits.Count == 0 ? null : hits[0].Distance;
     }
 
@@ -52,7 +72,8 @@ public sealed class StationExitGeometryTests : IDisposable
     private static double FloorX(double z)
     {
         z = -Math.Abs(z);
-        double step = Math.Tau / DemoStation.Segments, theta = Math.PI - step;
+        double step = Math.Tau / DemoStation.Segments,
+            theta = Math.PI - step;
         Double3 a = new(DemoStation.FloorRadius * Math.Cos(theta), 0, -DemoStation.FloorRadius * Math.Sin(theta)),
             b = new(-DemoStation.FloorRadius, 0, 0);
         return a.X + (b.X - a.X) * (z - a.Z) / (b.Z - a.Z);
@@ -66,19 +87,27 @@ public sealed class StationExitGeometryTests : IDisposable
     [Fact]
     public void TheChutesTopLiesInsideTheSpokeMouthAndItsFacesRunOnIntoTheTrough()
     {
-        BoundingBox hole = StationExit.DeckHole, mouth = DemoStation.SpokeMouth;
+        BoundingBox hole = StationExit.DeckHole,
+            mouth = DemoStation.SpokeMouth;
         hole.Min.X.Should().Be(mouth.Min.X, "the hole goes through the deck's wall");
         hole.Max.X.Should().Be(DemoStation.Deck);
         hole.Min.Y.Should().BeGreaterThanOrEqualTo(mouth.Min.Y);
         hole.Max.Y.Should().BeLessThanOrEqualTo(mouth.Max.Y);
         hole.Min.Z.Should().BeGreaterThanOrEqualTo(mouth.Min.Z);
         hole.Max.Z.Should().BeLessThanOrEqualTo(mouth.Max.Z);
-        ((double)hole.Min.Z).Should().BeApproximately(Chute.BackFace, 1e-6,
-            "the hole's antispinward face is the plane of the back plate's face");
-        ((double)hole.Max.Y).Should().BeApproximately(Chute.HalfWidth, 1e-6,
-            "the hole's face toward +Y is the plane of a rail's inner face");
-        ((double)hole.Min.Y).Should().BeApproximately(-Chute.HalfWidth, 1e-6,
-            "the hole's face toward -Y is the plane of a rail's inner face");
+        ((double)hole.Min.Z)
+            .Should()
+            .BeApproximately(
+                Chute.BackFace,
+                1e-6,
+                "the hole's antispinward face is the plane of the back plate's face"
+            );
+        ((double)hole.Max.Y)
+            .Should()
+            .BeApproximately(Chute.HalfWidth, 1e-6, "the hole's face toward +Y is the plane of a rail's inner face");
+        ((double)hole.Min.Y)
+            .Should()
+            .BeApproximately(-Chute.HalfWidth, 1e-6, "the hole's face toward -Y is the plane of a rail's inner face");
         Chute.Top.Should().Be(DemoStation.Deck, "the chute's faces start at the deck");
     }
 
@@ -87,8 +116,9 @@ public sealed class StationExitGeometryTests : IDisposable
     public void ARayDownTheTroughPassesTheDeckAndTheCeilingAndMeetsTheFloor()
     {
         var from = new Double3(-6, 0, -0.7);
-        Ray(from, -Double3.UnitX).Should().BeApproximately(-6 - FloorX(-0.7), 1e-3,
-            "nothing lies in the trough between the bay and the floor");
+        Ray(from, -Double3.UnitX)
+            .Should()
+            .BeApproximately(-6 - FloorX(-0.7), 1e-3, "nothing lies in the trough between the bay and the floor");
     }
 
     /// <summary>Rays along -X onto the deck beside the hole, inside the spoke's mouth and beyond it, meet the deck.</summary>
@@ -100,7 +130,8 @@ public sealed class StationExitGeometryTests : IDisposable
     [InlineData(1.5, 1.5)]
     [InlineData(5, 0)]
     public void TheDeckIsSolidBesideTheHole(double y, double z) =>
-        Ray(new(-6, y, z), -Double3.UnitX).Should()
+        Ray(new(-6, y, z), -Double3.UnitX)
+            .Should()
             .BeApproximately(2, 1e-3, $"the deck is solid at y = {y} m, z = {z} m");
 
     /// <summary>
@@ -123,7 +154,7 @@ public sealed class StationExitGeometryTests : IDisposable
             distance.Should().NotBeNull();
             // The ceiling's face toward the axis is a circle of 94.5 m, and its facets lie within 7 mm inside it.
             double face = Math.Sqrt(DemoStation.CeilingRadius * DemoStation.CeilingRadius - z * z);
-            distance!.Value.Should().BeApproximately(face - 90, 0.01, $"the ceiling is solid at y = {y} m, z = {z} m");
+            distance.Value.Should().BeApproximately(face - 90, 0.01, $"the ceiling is solid at y = {y} m, z = {z} m");
         }
         else
         {
@@ -135,15 +166,20 @@ public sealed class StationExitGeometryTests : IDisposable
     [Fact]
     public void TheTroughHasABackPlateAndTwoRails()
     {
-        Ray(new(-50, 0, 0), -Double3.UnitZ).Should()
+        Ray(new(-50, 0, 0), -Double3.UnitZ)
+            .Should()
             .BeApproximately(-Chute.BackFace, 1e-3, "the back plate's face lies at z = -1 m");
-        Ray(new(-50, 0, -0.7), Double3.UnitY).Should()
+        Ray(new(-50, 0, -0.7), Double3.UnitY)
+            .Should()
             .BeApproximately(Chute.HalfWidth, 1e-3, "a rail's inner face lies at y = 0.6 m");
-        Ray(new(-50, 0, -0.7), -Double3.UnitY).Should()
+        Ray(new(-50, 0, -0.7), -Double3.UnitY)
+            .Should()
             .BeApproximately(Chute.HalfWidth, 1e-3, "the other rail's inner face lies at y = -0.6 m");
-        Ray(new(-50, 0, -0.2), Double3.UnitY).Should().BeApproximately(1.75, 1e-3,
-            "the trough is open toward the spoke's middle beyond its rails");
-        Ray(new(-96, 0, -0.7), -Double3.UnitZ).Should()
+        Ray(new(-50, 0, -0.2), Double3.UnitY)
+            .Should()
+            .BeApproximately(1.75, 1e-3, "the trough is open toward the spoke's middle beyond its rails");
+        Ray(new(-96, 0, -0.7), -Double3.UnitZ)
+            .Should()
             .BeApproximately(-Chute.BackFace - 0.7, 1e-3, "the back plate runs on below the ceiling");
     }
 
@@ -152,7 +188,8 @@ public sealed class StationExitGeometryTests : IDisposable
     public void TheChuteEndsJustAboveTheWheelsFloor()
     {
         foreach (double z in new[] { Chute.BackFace - 0.1, Chute.BackFace + 0.6 })
-            (Chute.End - FloorX(z)).Should()
+            (Chute.End - FloorX(z))
+                .Should()
                 .BeInRange(0.02, 0.06, $"the trough's end lies just above the floor at z = {z} m");
     }
 
@@ -166,16 +203,20 @@ public sealed class StationExitGeometryTests : IDisposable
     {
         Waypoint[] way = StationExit.WayOut(FrameHandle.Null, frame);
         Double3 hatch = DemoStation.ParkedPose.TransformPoint(DemoScenes.Shuttle.Hatch.Center);
-        way[1].Position.Y.Should()
+        way[1]
+            .Position.Y.Should()
             .BeApproximately(hatch.Y, 1e-6, "the first waypoint outside lies in front of the hatch");
-        BoundingBox hull = DemoStation.ParkedBounds, hole = StationExit.DeckHole;
+        BoundingBox hull = DemoStation.ParkedBounds,
+            hole = StationExit.DeckHole;
         foreach (Waypoint point in way[1..3])
         {
             point.Frame.Should().Be(frame);
             point.Position.X.Should().BeApproximately(DemoStation.Deck + 0.9, 1e-6, "the person stands on the deck");
-            (point.Position.Z - StationExit.PersonRadius - hull.Max.Z).Should()
+            (point.Position.Z - StationExit.PersonRadius - hull.Max.Z)
+                .Should()
                 .BeGreaterThan(2, $"{point.Position} is clear of the hull");
-            (point.Position.Z - StationExit.PersonRadius - hole.Max.Z).Should()
+            (point.Position.Z - StationExit.PersonRadius - hole.Max.Z)
+                .Should()
                 .BeApproximately(0.5, 1e-6, $"{point.Position} is clear of the chute's top");
         }
     }
@@ -190,7 +231,8 @@ public sealed class StationExitGeometryTests : IDisposable
     public void TheCamerasSeeTheirPlaces()
     {
         DPose parked = DemoStation.ParkedPose;
-        BoundingBox hatch = DemoScenes.Shuttle.Hatch, hole = StationExit.DeckHole;
+        BoundingBox hatch = DemoScenes.Shuttle.Hatch,
+            hole = StationExit.DeckHole;
         var deck = new List<Double3>();
         foreach (double y in new double[] { hatch.Min.Y, hatch.Max.Y })
         foreach (double z in new double[] { hatch.Min.Z, hatch.Max.Z })
@@ -219,13 +261,23 @@ public sealed class StationExitGeometryTests : IDisposable
         foreach (double radius in new[] { DemoStation.FloorRadius, DemoStation.FloorRadius - 1.8 })
             wheel.Add(new(-Math.Sqrt(radius * radius - 4.5 * 4.5), 0, 4.5));
 
-        foreach ((string camera, List<Double3> points) in new[]
-                     { ("deck-camera", deck), ("spoke-camera", spoke), ("wheel-camera", wheel) })
+        foreach (
+            (string camera, List<Double3> points) in new[]
+            {
+                ("deck-camera", deck),
+                ("spoke-camera", spoke),
+                ("wheel-camera", wheel),
+            }
+        )
         {
             DPose view = world.PoseIn(scene[camera], frame);
             foreach (Double3 point in points)
-                Picture.Contains(Picture.Project(view, point, world.VerticalFov)).Should().BeTrue(
-                    $"{camera} sees {point}, which projects to {Picture.Project(view, point, world.VerticalFov)}");
+                Picture
+                    .Contains(Picture.Project(view, point, world.VerticalFov))
+                    .Should()
+                    .BeTrue(
+                        $"{camera} sees {point}, which projects to {Picture.Project(view, point, world.VerticalFov)}"
+                    );
         }
     }
 }

@@ -22,13 +22,22 @@ internal static class InheritanceDepth
         // A struct or an enum derives from a framework type, and an interface from none, so only a class can be deep.
         var type = (INamedTypeSymbol)context.Symbol;
         List<INamedTypeSymbol> chain = [type];
-        for (INamedTypeSymbol? parent = type.BaseType;
-             parent != null && SolutionTypes.Declares(parent, context.Compilation);
-             parent = parent.BaseType)
+        for (
+            INamedTypeSymbol? parent = type.BaseType;
+            parent != null && SolutionTypes.Declares(parent, context.Compilation);
+            parent = parent.BaseType
+        )
             chain.Add(parent);
         if (chain.Count <= MostLevels)
             return;
-        context.ReportDiagnostic(Diagnostic.Create(StyleRules.DeepInheritance, type.Locations[0], type.Name,
-            chain.Count, string.Join(" : ", chain.Select(level => level.Name))));
+        context.ReportDiagnostic(
+            Diagnostic.Create(
+                StyleRules.DeepInheritance,
+                type.Locations[0],
+                type.Name,
+                chain.Count,
+                string.Join(" : ", chain.Select(level => level.Name))
+            )
+        );
     }
 }

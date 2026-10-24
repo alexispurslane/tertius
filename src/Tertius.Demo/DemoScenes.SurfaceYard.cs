@@ -61,59 +61,96 @@ public static partial class DemoScenes
     private static SceneInstance SurfaceYard(World world, IRenderResources resources)
     {
         var scene = new SceneInstance();
-        FrameHandle surface = EarthSurface(world: world, resources: resources, scene: scene,
-            floorHalfExtents: YardFloorHalfExtents);
+        FrameHandle surface = EarthSurface(
+            world: world,
+            resources: resources,
+            scene: scene,
+            floorHalfExtents: YardFloorHalfExtents
+        );
 
         MeshId crateMesh = resources.CreateMesh(Primitives.Box(new(YardCrateHalfSize)));
-        var heavy = new CrateSpec(HalfExtents: new(YardCrateHalfSize), Mass: HeavyCrateMass, Mesh: crateMesh,
-            Material: resources.CreateMaterial(MaterialDesc.Color(new(x: 0.45f, y: 0.3f, z: 0.15f, w: 1))));
-        var light = new CrateSpec(HalfExtents: new(YardCrateHalfSize), Mass: LightCrateMass, Mesh: crateMesh,
-            Material: resources.CreateMaterial(MaterialDesc.Color(new(x: 0.95f, y: 0.5f, z: 0.1f, w: 1))));
+        var heavy = new CrateSpec(
+            HalfExtents: new(YardCrateHalfSize),
+            Mass: HeavyCrateMass,
+            Mesh: crateMesh,
+            Material: resources.CreateMaterial(MaterialDesc.Color(new(x: 0.45f, y: 0.3f, z: 0.15f, w: 1)))
+        );
+        var light = new CrateSpec(
+            HalfExtents: new(YardCrateHalfSize),
+            Mass: LightCrateMass,
+            Mesh: crateMesh,
+            Material: resources.CreateMaterial(MaterialDesc.Color(new(x: 0.95f, y: 0.5f, z: 0.1f, w: 1)))
+        );
 
         // The crates start just touching: the bottom of each on the top of the one below.
-        static DPose Stacked(int level, double z) => new(new(0, EarthRadius + YardCrateHalfSize * (2 * level + 1), z),
-            DQuaternion.Identity);
+        static DPose Stacked(int level, double z) =>
+            new(new(0, EarthRadius + YardCrateHalfSize * (2 * level + 1), z), DQuaternion.Identity);
 
         scene.Add("bottom-crate", world.Spawn(heavy.Spawn(surface, Stacked(0, 0), Double3.Zero)));
         scene.Add("middle-crate", world.Spawn(heavy.Spawn(surface, Stacked(1, 0), Double3.Zero)));
         // A crate as CrateSpec.Spawn makes it, with less friction, so that it slides off the stack quickly once pushed.
-        scene.Add("top-crate", world.Spawn(new()
-        {
-            Frame = surface,
-            Pose = Stacked(2, TopCrateOverhang),
-            Body = new(Shape: new BoxShapeDesc(light.HalfExtents), Mass: light.Mass, Friction: TopCrateFriction,
-                LinearDamping: 0, AngularDamping: 0),
-            Render = light.Drawn(),
-            Components = [new Crate(light)]
-        }));
+        scene.Add(
+            "top-crate",
+            world.Spawn(
+                new()
+                {
+                    Frame = surface,
+                    Pose = Stacked(2, TopCrateOverhang),
+                    Body = new(
+                        Shape: new BoxShapeDesc(light.HalfExtents),
+                        Mass: light.Mass,
+                        Friction: TopCrateFriction,
+                        LinearDamping: 0,
+                        AngularDamping: 0
+                    ),
+                    Render = light.Drawn(),
+                    Components = [new Crate(light)],
+                }
+            )
+        );
 
         // The capsule is 1.8 m tall, and its center rests 0.9 m above the floor. The eye is 1.65 m above the floor.
         var capsule = new CapsuleShapeDesc(0.6f, 0.3f);
-        scene.Add("person", world.Spawn(new()
-        {
-            Frame = surface,
-            Pose = new(new(0, EarthRadius + 0.95, YardPersonStartZ), DQuaternion.Identity),
-            Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: YardPersonMass),
-            Render = Drawn(resources: resources, mesh: Primitives.Box(new(0.3f, 0.9f, 0.3f)),
-                color: new(x: 0.2f, y: 0.45f, z: 0.8f, w: 1),
-                boundingRadius: 1),
-            Components = [new PersonControl(new(0, 0.75f, 0)), new Carry(capsule)],
-            Subscriptions = [Topics.Input]
-        }));
+        scene.Add(
+            "person",
+            world.Spawn(
+                new()
+                {
+                    Frame = surface,
+                    Pose = new(new(0, EarthRadius + 0.95, YardPersonStartZ), DQuaternion.Identity),
+                    Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: YardPersonMass),
+                    Render = Drawn(
+                        resources: resources,
+                        mesh: Primitives.Box(new(0.3f, 0.9f, 0.3f)),
+                        color: new(x: 0.2f, y: 0.45f, z: 0.8f, w: 1),
+                        boundingRadius: 1
+                    ),
+                    Components = [new PersonControl(new(0, 0.75f, 0)), new Carry(capsule)],
+                    Subscriptions = [Topics.Input],
+                }
+            )
+        );
 
-        Entity yardCamera = world.Spawn(new()
-        {
-            Frame = surface,
-            Pose = LookingAt(new(10, EarthRadius + 3, 4), new(0, EarthRadius + 0.8, 4)),
-            Render = new RenderData()
-        });
+        Entity yardCamera = world.Spawn(
+            new()
+            {
+                Frame = surface,
+                Pose = LookingAt(new(10, EarthRadius + 3, 4), new(0, EarthRadius + 0.8, 4)),
+                Render = new RenderData(),
+            }
+        );
         scene.Add("yard-camera", yardCamera);
-        scene.Add("stack-camera", world.Spawn(new()
-        {
-            Frame = surface,
-            Pose = LookingAt(new(4, EarthRadius + 1.5, -0.5), new(0, EarthRadius + 0.7, -0.5)),
-            Render = new RenderData()
-        }));
+        scene.Add(
+            "stack-camera",
+            world.Spawn(
+                new()
+                {
+                    Frame = surface,
+                    Pose = LookingAt(new(4, EarthRadius + 1.5, -0.5), new(0, EarthRadius + 0.7, -0.5)),
+                    Render = new RenderData(),
+                }
+            )
+        );
 
         // The sun frame's origin is where the light comes from: up, and to the cameras' side of the yard.
         SunAt(world: world, scene: scene, frame: surface, position: new(30, EarthRadius + 50, 20));
@@ -130,8 +167,12 @@ public static partial class DemoScenes
     /// Earth's center and Earth's point gravity, μ = <see cref="EarthMu"/>, and does not turn, so +Y is up at the pole, with
     /// the slab of <see cref="Floor"/> on it.
     /// </summary>
-    private static FrameHandle EarthSurface(World world, IRenderResources resources, SceneInstance scene,
-        Vector3 floorHalfExtents)
+    private static FrameHandle EarthSurface(
+        World world,
+        IRenderResources resources,
+        SceneInstance scene,
+        Vector3 floorHalfExtents
+    )
     {
         // The frame's bounds do not matter for a root frame, which nothing leaves.
         FrameHandle surface = world.CreateRootFrame(new(FrameBounds.Sphere(1e8f), GravityField.Point(EarthMu)));
@@ -146,29 +187,42 @@ public static partial class DemoScenes
     /// <paramref name="floorHalfExtents"/>, centered on the Y axis with its top at y = <see cref="EarthRadius"/>. The
     /// planet has no ground of its own (ticket ter-7u6t).
     /// </summary>
-    private static void Floor(World world, IRenderResources resources, SceneInstance scene, FrameHandle surface,
-        Vector3 floorHalfExtents)
-    {
-        scene.Add("floor", world.Spawn(new()
-        {
-            Frame = surface,
-            Pose = new(new(0, EarthRadius - floorHalfExtents.Y, 0), DQuaternion.Identity),
-            Body = new(Shape: new BoxShapeDesc(floorHalfExtents), Motion: BodyMotion.Static),
-            Render = Drawn(resources: resources, mesh: Primitives.Box(floorHalfExtents),
-                color: new(x: 0.4f, y: 0.4f, z: 0.38f, w: 1),
-                boundingRadius: MathF.Ceiling(floorHalfExtents.Length()))
-        }));
-    }
+    private static void Floor(
+        World world,
+        IRenderResources resources,
+        SceneInstance scene,
+        FrameHandle surface,
+        Vector3 floorHalfExtents
+    ) =>
+        scene.Add(
+            "floor",
+            world.Spawn(
+                new()
+                {
+                    Frame = surface,
+                    Pose = new(new(0, EarthRadius - floorHalfExtents.Y, 0), DQuaternion.Identity),
+                    Body = new(Shape: new BoxShapeDesc(floorHalfExtents), Motion: BodyMotion.Static),
+                    Render = Drawn(
+                        resources: resources,
+                        mesh: Primitives.Box(floorHalfExtents),
+                        color: new(x: 0.4f, y: 0.4f, z: 0.38f, w: 1),
+                        boundingRadius: MathF.Ceiling(floorHalfExtents.Length())
+                    ),
+                }
+            )
+        );
 
     /// <summary>The frame <c>sun</c> in <paramref name="frame"/>, whose origin at <paramref name="position"/> is where the world's light comes from.</summary>
     private static void SunAt(World world, SceneInstance scene, FrameHandle frame, Double3 position)
     {
-        Entity sun = world.Spawn(new()
-        {
-            Frame = frame,
-            Pose = new(position, DQuaternion.Identity),
-            AsFrame = new(FrameBounds.Sphere(1))
-        });
+        Entity sun = world.Spawn(
+            new()
+            {
+                Frame = frame,
+                Pose = new(position, DQuaternion.Identity),
+                AsFrame = new(FrameBounds.Sphere(1)),
+            }
+        );
         scene.Add("sun", sun);
         world.SunFrame = world.GetOwnedFrame(sun);
     }
@@ -182,7 +236,9 @@ public static partial class DemoScenes
         Double3 look = target - eye;
         double yaw = Math.Atan2(-look.X, -look.Z);
         double pitch = Math.Atan2(look.Y, Math.Sqrt(look.X * look.X + look.Z * look.Z));
-        return new(eye,
-            DQuaternion.FromAxisAngle(Double3.UnitY, yaw) * DQuaternion.FromAxisAngle(Double3.UnitX, pitch));
+        return new(
+            eye,
+            DQuaternion.FromAxisAngle(Double3.UnitY, yaw) * DQuaternion.FromAxisAngle(Double3.UnitX, pitch)
+        );
     }
 }

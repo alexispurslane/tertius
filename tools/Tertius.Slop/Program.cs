@@ -18,18 +18,17 @@ public static class Program
     private const string TextFlag = "--text";
 
     private const string Usage = """
-                                 usage: Tertius.Slop [-C folder] erosion|verbosity|all [root] [--text]
-                                        Tertius.Slop [-C folder] measure <tree> --branch <name> --source pre-commit|pre-push|seed
-                                        Tertius.Slop [-C folder] note <from> <tip> --branch <name> --source pre-commit|pre-push|seed
-                                        Tertius.Slop [-C folder] history [git log options and revisions]
-                                        Tertius.Slop [-C folder] summary <from> <tip>
-                                 """;
+        usage: Tertius.Slop [-C folder] erosion|verbosity|all [root] [--text]
+               Tertius.Slop [-C folder] measure <tree> --branch <name> --source pre-commit|pre-push|seed
+               Tertius.Slop [-C folder] note <from> <tip> --branch <name> --source pre-commit|pre-push|seed
+               Tertius.Slop [-C folder] history [git log options and revisions]
+               Tertius.Slop [-C folder] summary <from> <tip>
+        """;
 
     private static readonly string[] Metrics = ["erosion", "verbosity", "all"];
 
     /// <summary>Runs the command line on the console, with the jscpd of the search path, as the commit report does.</summary>
-    public static int Main(string[] args) =>
-        Run(args: args, output: Console.Out, error: Console.Error, jscpd: "jscpd");
+    public static int Main(string[] args) => Run(args: args, output: Console.Out, error: Console.Error, jscpd: "jscpd");
 
     /// <summary>
     /// Runs the command line: 0 after the command, 1 when git or jscpd fails, 2 for wrong arguments, a root without a
@@ -84,7 +83,7 @@ public static class Program
         {
             [var name] => (name, root),
             [var name, var folder] => (name, folder),
-            _ => null
+            _ => null,
         };
         if (request is not var (metric, folderRoot) || !Metrics.Contains(metric))
         {
@@ -105,18 +104,22 @@ public static class Program
     // The report of one known metric, as text or as JSON.
     private static string Report(string metric, string root, bool text, string jscpd)
     {
-        Codebase codebase = Codebase.Under(root);
+        var codebase = Codebase.Under(root);
         return metric switch
         {
             "erosion" when text => ErosionReport.Of(codebase).Describe(),
             "erosion" => JsonSerializer.Serialize(ErosionReport.Of(codebase), SlopJson.Default.ErosionReport),
             "verbosity" when text => VerbosityReport.Of(codebase, Clones.Find(root, jscpd)).Describe(),
-            "verbosity" => JsonSerializer.Serialize(VerbosityReport.Of(codebase, Clones.Find(root, jscpd)),
-                SlopJson.Default.VerbosityReport),
+            "verbosity" => JsonSerializer.Serialize(
+                VerbosityReport.Of(codebase, Clones.Find(root, jscpd)),
+                SlopJson.Default.VerbosityReport
+            ),
             "all" when text => SlopReport.Of(codebase, Clones.Find(root, jscpd)).Describe(),
-            "all" => JsonSerializer.Serialize(SlopReport.Of(codebase, Clones.Find(root, jscpd)),
-                SlopJson.Default.SlopReport),
-            _ => throw new UnreachableException($"{metric} is not one of the metrics that Run accepts.")
+            "all" => JsonSerializer.Serialize(
+                SlopReport.Of(codebase, Clones.Find(root, jscpd)),
+                SlopJson.Default.SlopReport
+            ),
+            _ => throw new UnreachableException($"{metric} is not one of the metrics that Run accepts."),
         };
     }
 }

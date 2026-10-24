@@ -22,26 +22,36 @@ internal static class GenericStructs
         {
             IInvocationOperation invocation => invocation.Instance,
             IPropertyReferenceOperation property => property.Instance,
-            _ => null
+            _ => null,
         };
-        if (receiver is not { Type: ITypeParameterSymbol parameter } || !IsHotPath(parameter) ||
-            ReadonlyName(receiver) is not { } name)
+        if (
+            receiver is not { Type: ITypeParameterSymbol parameter }
+            || !IsHotPath(parameter)
+            || ReadonlyName(receiver) is not { } name
+        )
             return;
-        context.ReportDiagnostic(Diagnostic.Create(StyleRules.CopiedGenericStruct, receiver.Syntax.GetLocation(), name,
-            parameter.Name));
+        context.ReportDiagnostic(
+            Diagnostic.Create(StyleRules.CopiedGenericStruct, receiver.Syntax.GetLocation(), name, parameter.Name)
+        );
     }
 
     /// <summary>Reports a conversion of a hot path type parameter to an interface type.</summary>
     public static void AnalyzeConversion(OperationAnalysisContext context)
     {
         var conversion = (IConversionOperation)context.Operation;
-        if (conversion is
-            {
-                Operand.Type: ITypeParameterSymbol parameter,
-                Type: { TypeKind: TypeKind.Interface } target
-            } && IsHotPath(parameter))
-            context.ReportDiagnostic(Diagnostic.Create(StyleRules.BoxedGenericStruct, conversion.Syntax.GetLocation(),
-                parameter.Name, target.ToDisplayString()));
+        if (
+            conversion
+                is { Operand.Type: ITypeParameterSymbol parameter, Type: { TypeKind: TypeKind.Interface } target }
+            && IsHotPath(parameter)
+        )
+            context.ReportDiagnostic(
+                Diagnostic.Create(
+                    StyleRules.BoxedGenericStruct,
+                    conversion.Syntax.GetLocation(),
+                    parameter.Name,
+                    target.ToDisplayString()
+                )
+            );
     }
 
     /// <summary>
@@ -52,20 +62,21 @@ internal static class GenericStructs
 
     /// <summary>True for a type parameter constrained to <c>struct</c> or <c>unmanaged</c> and an interface.</summary>
     private static bool IsHotPath(ITypeParameterSymbol parameter) =>
-        IsStructConstrained(parameter) &&
-        parameter.ConstraintTypes.Any(constraint => constraint.TypeKind == TypeKind.Interface);
+        IsStructConstrained(parameter)
+        && parameter.ConstraintTypes.Any(constraint => constraint.TypeKind == TypeKind.Interface);
 
     /// <summary>
     /// The name of the readonly field, or of the <c>in</c> or <c>ref readonly</c> parameter, that
     /// <paramref name="receiver"/> reads, or null for any other receiver.
     /// </summary>
-    private static string? ReadonlyName(IOperation receiver) => receiver switch
-    {
-        IFieldReferenceOperation { Field: { IsReadOnly: true } field } => field.Name,
-        IParameterReferenceOperation
+    private static string? ReadonlyName(IOperation receiver) =>
+        receiver switch
         {
-            Parameter: { RefKind: RefKind.In or RefKind.RefReadOnlyParameter } parameter
-        } => parameter.Name,
-        _ => null
-    };
+            IFieldReferenceOperation { Field: { IsReadOnly: true } field } => field.Name,
+            IParameterReferenceOperation
+            {
+                Parameter: { RefKind: RefKind.In or RefKind.RefReadOnlyParameter } parameter
+            } => parameter.Name,
+            _ => null,
+        };
 }

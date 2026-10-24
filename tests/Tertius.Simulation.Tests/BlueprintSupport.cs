@@ -12,9 +12,7 @@ public sealed class Weapon : IComponent
     public int Priority => 1;
     public EventMask Wants => EventMask.Of<Tick>();
 
-    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
-    {
-    }
+    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) { }
 }
 
 /// <summary>A component with an int field, and no fields that a test sets to anything else.</summary>
@@ -24,9 +22,7 @@ public sealed class Radio : IComponent
     public int Priority => 2;
     public EventMask Wants => EventMask.Of<Ping>();
 
-    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
-    {
-    }
+    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) { }
 }
 
 /// <summary>A component that a blueprint cannot build: its only constructor takes an argument.</summary>
@@ -36,9 +32,7 @@ public sealed class NeedsArgument(int value) : IComponent
     public int Priority => 0;
     public EventMask Wants => default;
 
-    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
-    {
-    }
+    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) { }
 }
 
 /// <summary>A component with a read-only field.</summary>
@@ -48,9 +42,7 @@ public sealed class Sealed : IComponent
     public int Priority => 0;
     public EventMask Wants => default;
 
-    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
-    {
-    }
+    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) { }
 }
 
 /// <summary>A component that a blueprint cannot build: the class is abstract.</summary>
@@ -59,9 +51,7 @@ public abstract class AbstractComponent : IComponent
     public int Priority => 0;
     public EventMask Wants => default;
 
-    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
-    {
-    }
+    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) { }
 }
 
 /// <summary>A component with one field that a blueprint sets.</summary>
@@ -71,9 +61,7 @@ public sealed class Boxed : IComponent
     public int Priority => 0;
     public EventMask Wants => default;
 
-    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
-    {
-    }
+    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) { }
 }
 
 /// <summary>A component that is a struct, not a class.</summary>
@@ -82,24 +70,18 @@ public struct ValueComponent : IComponent
     public readonly int Priority => 0;
     public readonly EventMask Wants => default;
 
-    public readonly void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
-    {
-    }
+    public readonly void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) { }
 }
 
 /// <summary>A component with no public constructor.</summary>
 public sealed class HiddenConstructor : IComponent
 {
-    private HiddenConstructor()
-    {
-    }
+    private HiddenConstructor() { }
 
     public int Priority => 0;
     public EventMask Wants => default;
 
-    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
-    {
-    }
+    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) { }
 }
 
 /// <summary>
@@ -124,9 +106,7 @@ public sealed class Labelled : IComponent
     public int Priority => 0;
     public EventMask Wants => default;
 
-    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
-    {
-    }
+    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) { }
 }
 
 /// <summary>The blueprints that several blueprint test files start from.</summary>
@@ -146,23 +126,29 @@ internal static class BlueprintSamples
     public static Blueprints Soldiers(Blueprints? into = null)
     {
         Blueprints blueprints = into ?? new Blueprints();
-        blueprints.Register(new(
-            Name: "soldier",
-            Components:
-            [
-                new(typeof(Health), Fields(("Max", 120), ("Current", 120f), ("Side", "Rebel"))),
-                new(typeof(Weapon), Fields(("Damage", 5.0), ("Range", 30)))
-            ],
-            Body: TestWorld.Ball,
-            Render: new RenderData { Mesh = new(4), Flags = RenderFlags.Visible }));
-        blueprints.Register(new(
-            Name: "officer",
-            Components:
-            [
-                new(typeof(Radio)),
-                new(typeof(Health), Fields(("Max", 150f), ("Name", "Boss"), ("Armor", 3)))
-            ],
-            Parent: "soldier"));
+        blueprints.Register(
+            new(
+                Name: "soldier",
+                Components:
+                [
+                    new(typeof(Health), Fields(("Max", 120), ("Current", 120f), ("Side", "Rebel"))),
+                    new(typeof(Weapon), Fields(("Damage", 5.0), ("Range", 30))),
+                ],
+                Body: TestWorld.Ball,
+                Render: new RenderData { Mesh = new(4), Flags = RenderFlags.Visible }
+            )
+        );
+        blueprints.Register(
+            new(
+                Name: "officer",
+                Components:
+                [
+                    new(typeof(Radio)),
+                    new(typeof(Health), Fields(("Max", 150f), ("Name", "Boss"), ("Armor", 3))),
+                ],
+                Parent: "soldier"
+            )
+        );
         return blueprints;
     }
 }

@@ -34,21 +34,31 @@ internal interface IOutputTarget : IDisposable
 internal static unsafe class QueueSubmission
 {
     /// <summary>One vkQueueSubmit2 of a frame's command buffer with optional wait and signal semaphores.</summary>
-    public static void Submit(VulkanDevice device, FrameResources frame, Semaphore wait, PipelineStageFlags2 waitStages,
-        Semaphore signal)
+    public static void Submit(
+        VulkanDevice device,
+        FrameResources frame,
+        Semaphore wait,
+        PipelineStageFlags2 waitStages,
+        Semaphore signal
+    )
     {
         var commandBuffer = new CommandBufferSubmitInfo
         {
             SType = StructureType.CommandBufferSubmitInfo,
-            CommandBuffer = frame.CommandBuffer
+            CommandBuffer = frame.CommandBuffer,
         };
         var waitInfo = new SemaphoreSubmitInfo
-            { SType = StructureType.SemaphoreSubmitInfo, Semaphore = wait, StageMask = waitStages };
+        {
+            SType = StructureType.SemaphoreSubmitInfo,
+            Semaphore = wait,
+            StageMask = waitStages,
+        };
         // The signal waits for everything, including the final layout transition to PRESENT_SRC.
         var signalInfo = new SemaphoreSubmitInfo
         {
-            SType = StructureType.SemaphoreSubmitInfo, Semaphore = signal,
-            StageMask = PipelineStageFlags2.AllCommandsBit
+            SType = StructureType.SemaphoreSubmitInfo,
+            Semaphore = signal,
+            StageMask = PipelineStageFlags2.AllCommandsBit,
         };
         var submit = new SubmitInfo2
         {
@@ -58,9 +68,10 @@ internal static unsafe class QueueSubmission
             CommandBufferInfoCount = 1,
             PCommandBufferInfos = &commandBuffer,
             SignalSemaphoreInfoCount = signal.Handle != 0 ? 1u : 0u,
-            PSignalSemaphoreInfos = &signalInfo
+            PSignalSemaphoreInfos = &signalInfo,
         };
-        device.Vk.QueueSubmit2(queue: device.Queue, submitCount: 1, pSubmits: &submit, fence: frame.Fence)
+        device
+            .Vk.QueueSubmit2(queue: device.Queue, submitCount: 1, pSubmits: &submit, fence: frame.Fence)
             .Check("vkQueueSubmit2");
     }
 }

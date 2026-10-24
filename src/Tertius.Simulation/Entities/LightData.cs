@@ -28,7 +28,8 @@ public readonly record struct SpotLightData(
     float Intensity,
     float Range,
     float InnerConeAngle,
-    float OuterConeAngle);
+    float OuterConeAngle
+);
 
 /// <summary>
 /// The dynamic light that an entity carries: a <see cref="PointLightData"/> or a <see cref="SpotLightData"/>. The default

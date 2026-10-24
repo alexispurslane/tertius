@@ -22,7 +22,9 @@ namespace Tertius.Demo;
 public sealed class FrameFollowCamera(FrameHandle reference, Double3 offset, Double3 forward, Double3 up) : IComponent
 {
     private readonly FrameHandle reference = reference;
-    private readonly Double3 offset = offset, forward = forward.Normalized(), up = up.Normalized();
+    private readonly Double3 offset = offset,
+        forward = forward.Normalized(),
+        up = up.Normalized();
 
     public int Priority => 0;
 
@@ -31,11 +33,16 @@ public sealed class FrameFollowCamera(FrameHandle reference, Double3 offset, Dou
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
         Entity subject = self.AttachedTo;
-        if (subject.IsNull || !self.Snapshot.Frames.IsAlive(reference) ||
-            !self.Snapshot.TryGetPoseIn(subject, reference, out DPose pose))
+        if (
+            subject.IsNull
+            || !self.Snapshot.Frames.IsAlive(reference)
+            || !self.Snapshot.TryGetPoseIn(subject, reference, out DPose pose)
+        )
             return;
         DQuaternion toSubject = pose.Rotation.Conjugate();
-        self.AttachOffset = new(toSubject.Rotate(offset).ToVector3(),
-            ChaseCamera.View(toSubject.Rotate(forward), toSubject.Rotate(up)));
+        self.AttachOffset = new(
+            toSubject.Rotate(offset).ToVector3(),
+            ChaseCamera.View(toSubject.Rotate(forward), toSubject.Rotate(up))
+        );
     }
 }

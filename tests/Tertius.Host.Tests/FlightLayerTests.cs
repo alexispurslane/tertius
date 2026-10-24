@@ -74,8 +74,13 @@ public sealed class FlightLayerTests : IDisposable
     public void TheActuatorsRunAfterEveryLayer()
     {
         Launch(
-            new Layer(priority: 2, target: QuarterTurn, throttle: 0.5f,
-                translation: new Double3(0, Shuttle.TranslationThrust, 0)));
+            new Layer(
+                priority: 2,
+                target: QuarterTurn,
+                throttle: 0.5f,
+                translation: new Double3(0, Shuttle.TranslationThrust, 0)
+            )
+        );
 
         Tick(world, 1200);
 

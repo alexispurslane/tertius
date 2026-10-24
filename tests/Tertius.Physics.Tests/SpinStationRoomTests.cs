@@ -24,8 +24,12 @@ public sealed class SpinStationRoomTests
     private const double FloorRadius = 100;
     private const double RoomRadius = 50;
 
-    private static readonly BodyDesc UndampedCrate =
-        new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
+    private static readonly BodyDesc UndampedCrate = new(
+        Shape: new BoxShapeDesc(new(0.5f)),
+        Mass: 10,
+        LinearDamping: 0,
+        AngularDamping: 0
+    );
 
     /// <summary>The station's rate as a vector in its axes, which are the axes of every room in it, in rad/s.</summary>
     private static readonly Double3 Omega = new(0, StationRate, 0);
@@ -35,22 +39,37 @@ public sealed class SpinStationRoomTests
     private static Station SpawnStation(World world)
     {
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        Entity owner = world.Spawn(new SpawnDesc { Frame = space, AsFrame = new(FrameBounds.Sphere(150)) }
-            .Spinning(world, new(Tilt: DQuaternion.Identity, Rate: StationRate), firstMove: true));
+        Entity owner = world.Spawn(
+            new SpawnDesc { Frame = space, AsFrame = new(FrameBounds.Sphere(150)) }.Spinning(
+                world,
+                new(Tilt: DQuaternion.Identity, Rate: StationRate),
+                firstMove: true
+            )
+        );
         FrameHandle frame = world.GetOwnedFrame(owner);
-        world.Spawn(new()
-        {
-            Frame = frame,
-            Pose = At(FloorRadius + 0.5),
-            Body = new(Shape: new BoxShapeDesc(new(0.5f, 10, 10)), Motion: BodyMotion.Static)
-        });
+        world.Spawn(
+            new()
+            {
+                Frame = frame,
+                Pose = At(FloorRadius + 0.5),
+                Body = new(Shape: new BoxShapeDesc(new(0.5f, 10, 10)), Motion: BodyMotion.Static),
+            }
+        );
         return new(space, frame);
     }
 
     /// <summary>A room at <paramref name="place"/> in <paramref name="parent"/>, with a bubble of <paramref name="radius"/> m.</summary>
     private static FrameHandle SpawnRoom(World world, FrameHandle parent, Double3 place, float radius) =>
-        world.GetOwnedFrame(world.Spawn(new()
-            { Frame = parent, Pose = new(place, DQuaternion.Identity), AsFrame = new(FrameBounds.Sphere(radius)) }));
+        world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = parent,
+                    Pose = new(place, DQuaternion.Identity),
+                    AsFrame = new(FrameBounds.Sphere(radius)),
+                }
+            )
+        );
 
     /// <summary>
     /// Reads, in every tick, the effective gravity that physics reads in the step beside it at <paramref name="place"/> in
@@ -69,8 +88,7 @@ public sealed class SpinStationRoomTests
     }
 
     [Fact]
-    public void
-        AStaticRoomInTheStationGivesItsContentsOnlyItsOwnRotationTermsInItsFirstStepAndOmegaSquaredTimesRPlusRFromItsSecond()
+    public void AStaticRoomInTheStationGivesItsContentsOnlyItsOwnRotationTermsInItsFirstStepAndOmegaSquaredTimesRPlusRFromItsSecond()
     {
         // A new frame gives no proper acceleration in its first step, and the first step 2 after its spawn derives it from
         // its rest in the turning station: ω² R toward the axis. The room's own turns are the station's from its first step.
@@ -86,10 +104,14 @@ public sealed class SpinStationRoomTests
 
         double rate2 = StationRate * StationRate;
         probe.Read.Should().HaveCount(3);
-        Double3.Distance(probe.Read[0], new(rate2 * r, 0, 0)).Should()
+        Double3
+            .Distance(probe.Read[0], new(rate2 * r, 0, 0))
+            .Should()
             .BeLessThan(1e-9, $"the first step reads {probe.Read[0]}");
         foreach (Double3 read in probe.Read.Skip(1))
-            Double3.Distance(read, new(rate2 * (RoomRadius + r), 0, 0)).Should()
+            Double3
+                .Distance(read, new(rate2 * (RoomRadius + r), 0, 0))
+                .Should()
                 .BeLessThan(1e-5, $"a later step reads {read}");
         Vector3 proper = world.Frames.ProperAcceleration(room);
         proper.X.Should().BeApproximately((float)(-rate2 * RoomRadius), 1e-5f, "the room is pushed toward the axis");
@@ -109,7 +131,14 @@ public sealed class SpinStationRoomTests
         Station station = SpawnStation(world);
         Tick(world, 3);
         FrameHandle room = SpawnRoom(world: world, parent: station.Frame, place: new(RoomRadius, 0, 0), radius: 30);
-        Entity crate = world.Spawn(new() { Frame = room, Pose = At(2), Body = UndampedCrate });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = room,
+                Pose = At(2),
+                Body = UndampedCrate,
+            }
+        );
         world.Tick();
         Double3 first = world.PoseIn(crate, station.Space).Position;
         world.Tick();
@@ -124,7 +153,9 @@ public sealed class SpinStationRoomTests
         }
 
         world.GetFrame(crate).Should().Be(room, "the crate stayed in the room's bubble");
-        Double3.Distance(world.PoseIn(crate, room).Position, At(2).Position).Should()
+        Double3
+            .Distance(world.PoseIn(crate, room).Position, At(2).Position)
+            .Should()
             .BeGreaterThan(5, "the station turned under the crate");
         worst.Should().BeLessThan(1e-4, "the crate keeps its inertial line");
         world.Errors.Should().BeEmpty();
@@ -161,11 +192,15 @@ public sealed class SpinStationRoomTests
         FrameHandle room = SpawnRoom(world: world, parent: station.Frame, place: new(RoomRadius, 0, 0), radius: 30);
         Tick(world, 2);
         var place = new Double3(2, 0, 0);
-        Entity crate = world.Spawn(new()
-        {
-            Frame = room, Pose = new(place, DQuaternion.Identity), Body = UndampedCrate,
-            LinearVelocity = -Double3.Cross(Omega, place + new Double3(RoomRadius, 0, 0))
-        });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = room,
+                Pose = new(place, DQuaternion.Identity),
+                Body = UndampedCrate,
+                LinearVelocity = -Double3.Cross(Omega, place + new Double3(RoomRadius, 0, 0)),
+            }
+        );
         Double3 start = world.PoseIn(crate, station.Space).Position;
 
         List<Double3> places = PlacesInSpace(world: world, crate: crate, space: station.Space, ticks: 90);
@@ -196,11 +231,15 @@ public sealed class SpinStationRoomTests
         FrameHandle room = SpawnRoom(world: world, parent: station.Frame, place: new(RoomRadius, 0, 0), radius: 5);
         Tick(world, 2);
         var place = new Double3(RoomRadius, 0, -8);
-        Entity crate = world.Spawn(new()
-        {
-            Frame = station.Frame, Pose = new(place, DQuaternion.Identity), Body = UndampedCrate,
-            LinearVelocity = -Double3.Cross(Omega, place)
-        });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = station.Frame,
+                Pose = new(place, DQuaternion.Identity),
+                Body = UndampedCrate,
+                LinearVelocity = -Double3.Cross(Omega, place),
+            }
+        );
 
         var frames = new List<FrameHandle>();
         var places = new List<Double3>();
@@ -212,16 +251,19 @@ public sealed class SpinStationRoomTests
         }
 
         double dt = 1.0 / 60;
-        int entry = frames.IndexOf(room), exit = frames.LastIndexOf(room) + 1;
+        int entry = frames.IndexOf(room),
+            exit = frames.LastIndexOf(room) + 1;
         entry.Should().BeInRange(5, 12, "the room's bubble reaches the crate after about 0.15 s");
         exit.Should().BeInRange(50, 60, "the room's bubble leaves the crate after about 0.9 s");
         frames.Skip(exit).Should().AllSatisfy(f => f.Should().Be(station.Frame), "the crate stays in the station");
         double inRoom = Double3.Distance(places[exit - 2], places[entry + 2]) / ((exit - entry - 4) * dt);
         double jerkTerm = Math.Pow(StationRate, 3) * RoomRadius * dt * dt / 6;
-        inRoom.Should().BeApproximately(jerkTerm, 4e-6,
-            "in the room the crate drifts only by the chord rule's third-order term");
+        inRoom
+            .Should()
+            .BeApproximately(jerkTerm, 4e-6, "in the room the crate drifts only by the chord rule's third-order term");
         double afterExit = Double3.Distance(places[149], places[exit + 2]) / ((147 - exit) * dt);
-        afterExit.Should()
+        afterExit
+            .Should()
             .BeLessThan(2e-5, "the crate rests in inertial space after both hand-offs, to the jerk's term");
         world.Errors.Should().BeEmpty();
     }
@@ -234,14 +276,16 @@ public sealed class SpinStationRoomTests
         // the ship's value as the step found it: the value of one sync point before.
         using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world);
-        Entity owner = world.Spawn(new()
-        {
-            Frame = station.Frame,
-            Pose = At(FloorRadius - 1),
-            Body = new(Shape: new BoxShapeDesc(new(1, 2, 2)), Mass: 1000),
-            // A bubble inside the hull, so that nothing hands into it.
-            AsFrame = new(FrameBounds.Sphere(0.5f))
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = station.Frame,
+                Pose = At(FloorRadius - 1),
+                Body = new(Shape: new BoxShapeDesc(new(1, 2, 2)), Mass: 1000),
+                // A bubble inside the hull, so that nothing hands into it.
+                AsFrame = new(FrameBounds.Sphere(0.5f)),
+            }
+        );
         FrameHandle ship = world.GetOwnedFrame(owner);
         FrameHandle room = SpawnRoom(world: world, parent: ship, place: Double3.Zero, radius: 0.1f);
         Tick(world, 3);
@@ -256,12 +300,20 @@ public sealed class SpinStationRoomTests
         }
 
         for (int k = 1; k < roomReads.Count; k++)
-            roomReads[k].Should().Be(shipReads[k - 1],
-                $"at tick {k} the room reads the ship's value of the sync point before");
-        Enumerable.Range(1, roomReads.Count - 1).Should().Contain(k => roomReads[k] != shipReads[k],
-            "the ship's value changes while the floor settles");
-        roomReads[^1].X.Should().BeApproximately((float)(-StationRate * StationRate * (FloorRadius - 1)), 2e-3f,
-            "the floor pushes the ship toward the axis");
+            roomReads[k]
+                .Should()
+                .Be(shipReads[k - 1], $"at tick {k} the room reads the ship's value of the sync point before");
+        Enumerable
+            .Range(1, roomReads.Count - 1)
+            .Should()
+            .Contain(k => roomReads[k] != shipReads[k], "the ship's value changes while the floor settles");
+        roomReads[^1]
+            .X.Should()
+            .BeApproximately(
+                (float)(-StationRate * StationRate * (FloorRadius - 1)),
+                2e-3f,
+                "the floor pushes the ship toward the axis"
+            );
         world.Errors.Should().BeEmpty();
     }
 }

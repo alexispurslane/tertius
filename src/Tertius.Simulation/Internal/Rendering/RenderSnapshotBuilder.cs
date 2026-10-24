@@ -17,7 +17,8 @@ internal readonly record struct RenderView(
     Vector3 SunColor,
     float SunIntensity,
     AmbientLight Ambient,
-    bool ShowFrameOutlines);
+    bool ShowFrameOutlines
+);
 
 /// <summary>
 /// Builds render snapshots from the front tables. Every frame's pose relative to the camera's frame is computed in
@@ -113,8 +114,6 @@ internal sealed partial class RenderSnapshotBuilder
     // What the outline build knows of each frame, by dense index, during one build with outlines.
     private OutlineFrame[] outlineFrames = [];
 
-    private int parallelThreshold = DefaultParallelThreshold;
-
     /// <param name="entities">The entity table whose front rows the builds read.</param>
     /// <param name="frames">The frame tree whose poses the builds compose.</param>
     /// <param name="workers">The workers on which a large build runs, or null to run every build on the calling thread.</param>
@@ -133,13 +132,13 @@ internal sealed partial class RenderSnapshotBuilder
     /// </summary>
     internal int ParallelThreshold
     {
-        get => parallelThreshold;
+        get;
         set
         {
             ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
-            parallelThreshold = value;
+            field = value;
         }
-    }
+    } = DefaultParallelThreshold;
 
     /// <summary>
     /// What a frame's gravity field means for the hemisphere ambient light, at this build. <see cref="Up"/> is the up of
@@ -194,15 +193,31 @@ internal sealed partial class RenderSnapshotBuilder
         snapshot.Time = view.Time;
         snapshot.Ambient = view.Ambient;
         snapshot.Camera = new()
-            { Rotation = Quaternion.Identity, PreviousRotation = Quaternion.Identity, VerticalFov = view.VerticalFov };
-        snapshot.Sun = new() { Direction = Vector3.UnitY, Color = view.SunColor, Intensity = view.SunIntensity };
+        {
+            Rotation = Quaternion.Identity,
+            PreviousRotation = Quaternion.Identity,
+            VerticalFov = view.VerticalFov,
+        };
+        snapshot.Sun = new()
+        {
+            Direction = Vector3.UnitY,
+            Color = view.SunColor,
+            Intensity = view.SunIntensity,
+        };
         snapshot.RootRotation = snapshot.PreviousRootRotation = Quaternion.Identity;
         snapshot.OriginInFrame = Double3.Zero;
         snapshot.OriginFrameId = 0;
         renderHasCamera = renderFollowsTick = false;
 
-        if (!TryGetCameraPose(camera: view.Camera, frame: out FrameHandle cameraFrame, home: out FrameHandle cameraHome,
-                inFrame: out DPose eyeInFrame, inHome: out DPose cameraPose))
+        if (
+            !TryGetCameraPose(
+                camera: view.Camera,
+                frame: out FrameHandle cameraFrame,
+                home: out FrameHandle cameraHome,
+                inFrame: out DPose eyeInFrame,
+                inHome: out DPose cameraPose
+            )
+        )
         {
             lastCamera = Entity.Null;
             return;
@@ -235,7 +250,7 @@ internal sealed partial class RenderSnapshotBuilder
             Rotation = cameraPose.Rotation.ToQuaternion(),
             PreviousPosition = (previousCamera.Position - renderOrigin).ToVector3(),
             PreviousRotation = previousCamera.Rotation.ToQuaternion(),
-            VerticalFov = view.VerticalFov
+            VerticalFov = view.VerticalFov,
         };
         int root = denseOfFrame[RootOf(cameraFrame).Index];
         snapshot.RootRotation = relCurrent[root].Rotation.ToQuaternion();
@@ -262,8 +277,13 @@ internal sealed partial class RenderSnapshotBuilder
     /// <summary>
     /// The camera's frame and physics home, and its eye pose in each: the entity pose composed with its view offset.
     /// </summary>
-    private bool TryGetCameraPose(Entity camera, out FrameHandle frame, out FrameHandle home, out DPose inFrame,
-        out DPose inHome)
+    private bool TryGetCameraPose(
+        Entity camera,
+        out FrameHandle frame,
+        out FrameHandle home,
+        out DPose inFrame,
+        out DPose inHome
+    )
     {
         frame = home = default;
         inFrame = inHome = default;
@@ -272,7 +292,8 @@ internal sealed partial class RenderSnapshotBuilder
         ref readonly TransformRow row = ref entities.FrontRow(camera);
         frame = row.Frame;
         home = row.PhysicsHome;
-        DPose entityPose = row.Pose, homePose = row.HomePose;
+        DPose entityPose = row.Pose,
+            homePose = row.HomePose;
         if (frame.IsNull)
         {
             // The owner of a root frame looks out from its own frame's origin.
@@ -318,8 +339,10 @@ internal sealed partial class RenderSnapshotBuilder
             FrameHandle parent = frames.TreeParent(frame);
             DPose local = locals[i];
             // A frame that is new, or that changed parent, has no usable previous local pose.
-            bool known = lastFrameStamp[frame.Index] == stamp - 1 && lastFrameHandle[frame.Index] == frame &&
-                         lastFrameParent[frame.Index] == parent;
+            bool known =
+                lastFrameStamp[frame.Index] == stamp - 1
+                && lastFrameHandle[frame.Index] == frame
+                && lastFrameParent[frame.Index] == parent;
             localPrevious[i] = known ? lastFrameLocal[frame.Index] : local;
             anyMoved |= !Poses.BitEquals(localPrevious[i], local);
 
@@ -354,14 +377,15 @@ internal sealed partial class RenderSnapshotBuilder
             }
         }
 
-        if (workers != null && renderSlotCount >= parallelThreshold)
+        if (workers != null && renderSlotCount >= ParallelThreshold)
             Parallel.For(fromInclusive: 0, toExclusive: chunkCount, parallelOptions: workers, body: renderChunk);
         else
             for (int c = 0; c < chunkCount; c++)
                 BuildChunk(c);
 
         // Join the chunks in order, so that the instance order does not depend on threads.
-        int instances = 0, lights = 0;
+        int instances = 0,
+            lights = 0;
         for (int c = 0; c < chunkCount; c++)
         {
             instances += instanceChunks[c].Count;
@@ -397,8 +421,15 @@ internal sealed partial class RenderSnapshotBuilder
             bool visible = (render.Flags & RenderFlags.Visible) != 0 && !render.Mesh.IsNone;
             if (!visible && !render.Light.HasValue)
                 continue;
-            if (!TryGetRenderPoses(entity: entity, current: out DPose current, previous: out DPose previous,
-                    dense: out int dense, place: out Vector3 place))
+            if (
+                !TryGetRenderPoses(
+                    entity: entity,
+                    current: out DPose current,
+                    previous: out DPose previous,
+                    dense: out int dense,
+                    place: out Vector3 place
+                )
+            )
                 continue;
 
             if (visible)
@@ -415,7 +446,8 @@ internal sealed partial class RenderSnapshotBuilder
                     hemisphere: HemisphereOf(dense, place, current.Position),
                     flags: render.Flags,
                     entityIndex: entity.Index,
-                    part: 0);
+                    part: 0
+                );
                 instance.PreviousPosition = (previous.Position - origin).ToVector3();
                 instance.PreviousRotation = previous.Rotation.ToQuaternion();
             }
@@ -425,34 +457,49 @@ internal sealed partial class RenderSnapshotBuilder
             {
                 case PointLightData
                 {
-                    Offset: var offset, Color: var color, Intensity: var intensity, Range: var range
+                    Offset: var offset,
+                    Color: var color,
+                    Intensity: var intensity,
+                    Range: var range
                 }:
                 {
                     DPose pose = LightPose(current, offset);
-                    lights.AddRef() =
-                        new PointRenderLight(Position: (pose.Position - origin).ToVector3(), Color: color,
-                            Intensity: intensity, Range: range);
+                    lights.AddRef() = new PointRenderLight(
+                        Position: (pose.Position - origin).ToVector3(),
+                        Color: color,
+                        Intensity: intensity,
+                        Range: range
+                    );
                     break;
                 }
                 case SpotLightData
                 {
-                    Offset: var offset, Color: var color, Intensity: var intensity, Range: var range,
-                    InnerConeAngle: var innerConeAngle, OuterConeAngle: var outerConeAngle
+                    Offset: var offset,
+                    Color: var color,
+                    Intensity: var intensity,
+                    Range: var range,
+                    InnerConeAngle: var innerConeAngle,
+                    OuterConeAngle: var outerConeAngle
                 }:
                 {
                     DPose pose = LightPose(current, offset);
                     lights.AddRef() = new SpotRenderLight(
                         Position: (pose.Position - origin).ToVector3(),
                         Direction: pose.Rotation.Rotate(LightForward).ToVector3(),
-                        Color: color, Intensity: intensity, Range: range, InnerConeAngle: innerConeAngle,
-                        OuterConeAngle: outerConeAngle);
+                        Color: color,
+                        Intensity: intensity,
+                        Range: range,
+                        InnerConeAngle: innerConeAngle,
+                        OuterConeAngle: outerConeAngle
+                    );
                     break;
                 }
                 case null:
                     break;
                 default:
                     throw new UnreachableException(
-                        $"The light {render.Light} has a case that the snapshot does not draw.");
+                        $"The light {render.Light} has a case that the snapshot does not draw."
+                    );
             }
         }
     }
@@ -475,8 +522,13 @@ internal sealed partial class RenderSnapshotBuilder
     /// <param name="dense">The dense index of the entity's own frame: the frame that it owns, or else the frame that it
     /// is in.</param>
     /// <param name="place">The entity's position in that frame: zero for a frame owner, which is its frame's origin.</param>
-    private bool TryGetRenderPoses(Entity entity, out DPose current, out DPose previous, out int dense,
-        out Vector3 place)
+    private bool TryGetRenderPoses(
+        Entity entity,
+        out DPose current,
+        out DPose previous,
+        out int dense,
+        out Vector3 place
+    )
     {
         FrameHandle own = entities.OwnedFrame(entity);
         if (!own.IsNull)
@@ -519,7 +571,12 @@ internal sealed partial class RenderSnapshotBuilder
         ref PoseMemory last = ref lastEntityPose[entity];
         if (renderInterpolate && last.Stamp == buildStamp - 1 && FrameSeen(last.Frame))
             previous = DPose.ComposeUnitParent(relPrevious[denseOfFrame[last.Frame.Index]], last.Pose);
-        last = new() { Pose = inHome, Frame = home, Stamp = buildStamp };
+        last = new()
+        {
+            Pose = inHome,
+            Frame = home,
+            Stamp = buildStamp,
+        };
         return true;
     }
 
@@ -529,22 +586,20 @@ internal sealed partial class RenderSnapshotBuilder
     /// away from the frame's origin; no field, or one that pulls nowhere, mixes evenly. The frame's proper acceleration
     /// does not count, so thrust never turns the up. (User)
     /// </summary>
-    private FrameHemisphere HemisphereOfFrame(FrameHandle frame, DQuaternion rotation)
-    {
-        return frames.Gravity(frame) switch
+    private FrameHemisphere HemisphereOfFrame(FrameHandle frame, DQuaternion rotation) =>
+        frames.Gravity(frame) switch
         {
             UniformGravity { Acceleration: var acceleration, Region: var region } when acceleration != Vector3.Zero =>
                 new()
                 {
                     Up = HemisphereUp.Along(rotation.Rotate((Double3)(-acceleration)).Normalized().ToVector3()),
                     HasRegion = region.HasValue,
-                    Region = region.GetValueOrDefault()
+                    Region = region.GetValueOrDefault(),
                 },
             PointGravity { Mu: > 0 } => new() { Up = HemisphereUp.AwayFrom(Vector3.Zero) },
             // A field without a pull, and no field, give the even mix.
-            UniformGravity or PointGravity or null => default
+            UniformGravity or PointGravity or null => default,
         };
-    }
 
     /// <summary>
     /// Which way is up for the hemisphere ambient light of a placed entity: its own frame's, at its place. A frame owner
@@ -575,8 +630,10 @@ internal sealed partial class RenderSnapshotBuilder
 
     /// <summary>True for a live frame that this build has placed.</summary>
     private bool FrameSeen(FrameHandle frame) =>
-        !frame.IsNull && (uint)frame.Index < (uint)frameSeen.Length && frameSeen[frame.Index] == buildStamp &&
-        genOfFrame[frame.Index] == frame.Generation;
+        !frame.IsNull
+        && (uint)frame.Index < (uint)frameSeen.Length
+        && frameSeen[frame.Index] == buildStamp
+        && genOfFrame[frame.Index] == frame.Generation;
 
     private void BuildSun(RenderSnapshot snapshot, in RenderView view)
     {
@@ -621,7 +678,7 @@ internal sealed partial class RenderSnapshotBuilder
             {
                 Mode = mode,
                 Parent = parent.IsNull ? -1 : denseOfFrame[parent.Index],
-                Sphere = mode == NumericMode.None ? frames.Bounds(frame).MaxRadius : 0
+                Sphere = mode == NumericMode.None ? frames.Bounds(frame).MaxRadius : 0,
             };
         }
 
@@ -661,15 +718,20 @@ internal sealed partial class RenderSnapshotBuilder
             ref readonly DPose pose = ref relCurrent[i];
             var center = (pose.Position - origin).ToVector3();
             float radius = (float)frame.Sphere;
-            snapshot.Outlines.Add(frame.Mode switch
-            {
-                NumericMode.None => new SemanticOutline(center, pose.Rotation.ToQuaternion(),
-                    frames.Bounds(denseFrames[i]).Radii),
-                NumericMode.Falling => new FallingOutline(center, radius),
-                NumericMode.Resting => new RestingOutline(center, radius),
-                NumericMode.Nesting => new NestingOutline(center, radius),
-                NumericMode.Following => new FollowingOutline(center, radius)
-            });
+            snapshot.Outlines.Add(
+                frame.Mode switch
+                {
+                    NumericMode.None => new SemanticOutline(
+                        center,
+                        pose.Rotation.ToQuaternion(),
+                        frames.Bounds(denseFrames[i]).Radii
+                    ),
+                    NumericMode.Falling => new FallingOutline(center, radius),
+                    NumericMode.Resting => new RestingOutline(center, radius),
+                    NumericMode.Nesting => new NestingOutline(center, radius),
+                    NumericMode.Following => new FollowingOutline(center, radius),
+                }
+            );
         }
     }
 

@@ -14,15 +14,16 @@ public sealed class InputEventTests
     private static readonly Vector2 Moved = new(3, -4);
 
     /// <summary>One event of every case, with the case that it must read back as.</summary>
-    public static TheoryData<InputEvent, object> EveryCase => new()
-    {
-        { InputEvent.KeyDown(KeyW), new KeyChanged(KeyW, true) },
-        { InputEvent.KeyUp(KeyW), new KeyChanged(KeyW, false) },
-        { InputEvent.MouseDown(1), new MouseButtonChanged(1, true) },
-        { InputEvent.MouseUp(1), new MouseButtonChanged(1, false) },
-        { InputEvent.MouseMove(Moved), new MouseMoved(Moved) },
-        { InputEvent.Scroll(Moved), new Scrolled(Moved) }
-    };
+    public static TheoryData<InputEvent, object> EveryCase =>
+        new()
+        {
+            { InputEvent.KeyDown(KeyW), new KeyChanged(KeyW, true) },
+            { InputEvent.KeyUp(KeyW), new KeyChanged(KeyW, false) },
+            { InputEvent.MouseDown(1), new MouseButtonChanged(1, true) },
+            { InputEvent.MouseUp(1), new MouseButtonChanged(1, false) },
+            { InputEvent.MouseMove(Moved), new MouseMoved(Moved) },
+            { InputEvent.Scroll(Moved), new Scrolled(Moved) },
+        };
 
     private static int CasesHeld(InputEvent e) =>
         (e.TryGetValue(out KeyChanged _) ? 1 : 0)
@@ -51,19 +52,20 @@ public sealed class InputEventTests
     [Fact]
     public void AKeyThatWentDownReadsBackAsItsCodeAndDown()
     {
-        InputEvent e = InputEvent.KeyDown(KeyW);
+        var e = InputEvent.KeyDown(KeyW);
 
         e.HasValue.Should().BeTrue();
         e.TryGetValue(out KeyChanged key).Should().BeTrue();
         key.Should().Be(new KeyChanged(KeyW, IsDown: true));
-        (e is KeyChanged { Code: var code, IsDown: var down } ? (code, down) : default).Should()
+        (e is KeyChanged { Code: var code, IsDown: var down } ? (code, down) : default)
+            .Should()
             .Be((KeyW, true), "a pattern match reads the same case");
     }
 
     [Fact]
     public void AKeyThatWentUpReadsBackAsItsCodeAndNotDown()
     {
-        InputEvent e = InputEvent.KeyUp(KeyW);
+        var e = InputEvent.KeyUp(KeyW);
 
         e.TryGetValue(out KeyChanged key).Should().BeTrue();
         key.Should().Be(new KeyChanged(KeyW, IsDown: false));
@@ -72,19 +74,20 @@ public sealed class InputEventTests
     [Fact]
     public void AMouseButtonThatWentDownReadsBackAsItsCodeAndDown()
     {
-        InputEvent e = InputEvent.MouseDown(2);
+        var e = InputEvent.MouseDown(2);
 
         e.HasValue.Should().BeTrue();
         e.TryGetValue(out MouseButtonChanged button).Should().BeTrue();
         button.Should().Be(new MouseButtonChanged(2, IsDown: true));
-        (e is MouseButtonChanged { Code: var code, IsDown: var down } ? (code, down) : default).Should()
+        (e is MouseButtonChanged { Code: var code, IsDown: var down } ? (code, down) : default)
+            .Should()
             .Be((2, true), "a pattern match reads the same case");
     }
 
     [Fact]
     public void AMouseButtonThatWentUpReadsBackAsItsCodeAndNotDown()
     {
-        InputEvent e = InputEvent.MouseUp(2);
+        var e = InputEvent.MouseUp(2);
 
         e.TryGetValue(out MouseButtonChanged button).Should().BeTrue();
         button.Should().Be(new MouseButtonChanged(2, IsDown: false));
@@ -93,24 +96,26 @@ public sealed class InputEventTests
     [Fact]
     public void AMouseMoveReadsBackAsItsDelta()
     {
-        InputEvent e = InputEvent.MouseMove(Moved);
+        var e = InputEvent.MouseMove(Moved);
 
         e.HasValue.Should().BeTrue();
         e.TryGetValue(out MouseMoved moved).Should().BeTrue();
         moved.Delta.Should().Be(Moved);
-        (e is MouseMoved { Delta: var delta } ? delta : default).Should()
+        (e is MouseMoved { Delta: var delta } ? delta : default)
+            .Should()
             .Be(Moved, "a pattern match reads the same case");
     }
 
     [Fact]
     public void AScrollReadsBackAsItsDelta()
     {
-        InputEvent e = InputEvent.Scroll(Moved);
+        var e = InputEvent.Scroll(Moved);
 
         e.HasValue.Should().BeTrue();
         e.TryGetValue(out Scrolled scrolled).Should().BeTrue();
         scrolled.Delta.Should().Be(Moved);
-        (e is Scrolled { Delta: var delta } ? delta : default).Should()
+        (e is Scrolled { Delta: var delta } ? delta : default)
+            .Should()
             .Be(Moved, "a pattern match reads the same case");
     }
 
@@ -125,21 +130,22 @@ public sealed class InputEventTests
     [Fact]
     public void AKeyAndAMouseButtonWithTheSameCodeAreKeptApart()
     {
-        InputEvent key = InputEvent.KeyDown(1);
-        InputEvent button = InputEvent.MouseDown(1);
+        var key = InputEvent.KeyDown(1);
+        var button = InputEvent.MouseDown(1);
 
         key.TryGetValue(out MouseButtonChanged keyAsButton).Should().BeFalse("a key is not a mouse button");
         button.TryGetValue(out KeyChanged buttonAsKey).Should().BeFalse("a mouse button is not a key");
-        keyAsButton.Should().Be(default(MouseButtonChanged),
-            "the code and the flag of a key do not leak out as a button");
+        keyAsButton
+            .Should()
+            .Be(default(MouseButtonChanged), "the code and the flag of a key do not leak out as a button");
         buttonAsKey.Should().Be(default(KeyChanged), "the code and the flag of a button do not leak out as a key");
     }
 
     [Fact]
     public void AMouseMoveAndAScrollWithTheSameDeltaAreKeptApart()
     {
-        InputEvent move = InputEvent.MouseMove(Moved);
-        InputEvent scroll = InputEvent.Scroll(Moved);
+        var move = InputEvent.MouseMove(Moved);
+        var scroll = InputEvent.Scroll(Moved);
 
         move.TryGetValue(out Scrolled moveAsScroll).Should().BeFalse("a mouse move is not a scroll");
         scroll.TryGetValue(out MouseMoved scrollAsMove).Should().BeFalse("a scroll is not a mouse move");
@@ -236,7 +242,7 @@ public sealed class InputEventTests
     [Fact]
     public void AnEventThatHoldsANaNEqualsItselfAndAnyCopyAndHashesTheSame()
     {
-        InputEvent nan = InputEvent.MouseMove(new(float.NaN, 1));
+        var nan = InputEvent.MouseMove(new(float.NaN, 1));
         InputEvent copy = nan;
 
         (nan == copy).Should().BeTrue("equality must agree with the hash, and NaN equals NaN there");
@@ -255,7 +261,7 @@ public sealed class InputEventTests
             "KeyDown" => InputEvent.KeyDown(87),
             "KeyUp" => InputEvent.KeyUp(87),
             "MouseDown" => InputEvent.MouseDown(87),
-            _ => InputEvent.MouseUp(87)
+            _ => InputEvent.MouseUp(87),
         };
 
         e.ToString().Should().Be(expected);
@@ -264,7 +270,10 @@ public sealed class InputEventTests
     [Fact]
     public void TheTextOfAMoveAndOfAScrollNamesTheirCase()
     {
-        InputEvent.MouseMove(new(1, 2)).ToString().Should()
+        InputEvent
+            .MouseMove(new(1, 2))
+            .ToString()
+            .Should()
             .Be($"InputEvent(MouseMoved {{ Delta = {new Vector2(1, 2)} }})");
         InputEvent.Scroll(new(1, 2)).ToString().Should().Be($"InputEvent(Scrolled {{ Delta = {new Vector2(1, 2)} }})");
     }
@@ -272,10 +281,14 @@ public sealed class InputEventTests
     [Fact]
     public void AnInputEventIsUnmanagedAndFitsInAPayload()
     {
-        RuntimeHelpers.IsReferenceOrContainsReferences<InputEvent>().Should()
+        RuntimeHelpers
+            .IsReferenceOrContainsReferences<InputEvent>()
+            .Should()
             .BeFalse("a payload is copied as raw bytes, so it can hold no reference");
         Unsafe.SizeOf<InputEvent>().Should().BeLessThanOrEqualTo(EventTypeRegistry.MaxPayloadSize);
-        EventTypeRegistry.Register<InputEvent>().Should()
+        EventTypeRegistry
+            .Register<InputEvent>()
+            .Should()
             .BeGreaterThanOrEqualTo(0, "registering a payload that is too large throws");
     }
 

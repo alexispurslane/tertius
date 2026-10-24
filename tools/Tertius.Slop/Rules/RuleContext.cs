@@ -16,8 +16,11 @@ public sealed class RuleContext
     private readonly IReadOnlySet<string> namesInStrings;
     private readonly IReadOnlySet<string> namesOutside;
 
-    private RuleContext(ILookup<string, SimpleNameSyntax> uses, IReadOnlySet<string> namesInStrings,
-        IReadOnlySet<string> namesOutside)
+    private RuleContext(
+        ILookup<string, SimpleNameSyntax> uses,
+        IReadOnlySet<string> namesInStrings,
+        IReadOnlySet<string> namesOutside
+    )
     {
         this.uses = uses;
         this.namesInStrings = namesInStrings;
@@ -26,11 +29,14 @@ public sealed class RuleContext
 
     /// <summary>The context of <paramref name="codebase"/>, read in parallel.</summary>
     public static RuleContext Of(Codebase codebase) =>
-        new(uses: codebase.Files.AsParallel()
+        new(
+            uses: codebase
+                .Files.AsParallel()
                 .SelectMany(file => file.Tree.GetRoot().DescendantNodes().OfType<SimpleNameSyntax>())
                 .ToLookup(name => name.Identifier.ValueText, StringComparer.Ordinal),
             namesInStrings: Codebase.NamesIn(string.Join('\n', codebase.Files.AsParallel().SelectMany(StringsIn))),
-            namesOutside: codebase.NamesOutside);
+            namesOutside: codebase.NamesOutside
+        );
 
     /// <summary>Every simple name in <c>src</c> that reads <paramref name="name"/>, such as a call of a method.</summary>
     public IEnumerable<SimpleNameSyntax> UsesOf(string name) => uses[name];
@@ -49,10 +55,14 @@ public sealed class RuleContext
 
     // The text of the string literals of a file, and of the text parts of its interpolated strings.
     private static IEnumerable<string> StringsIn(SourceFile file) =>
-        file.Tree.GetRoot().DescendantTokens()
-            .Where(token => token.IsKind(SyntaxKind.StringLiteralToken) ||
-                            token.IsKind(SyntaxKind.InterpolatedStringTextToken) ||
-                            token.IsKind(SyntaxKind.SingleLineRawStringLiteralToken) ||
-                            token.IsKind(SyntaxKind.MultiLineRawStringLiteralToken))
+        file
+            .Tree.GetRoot()
+            .DescendantTokens()
+            .Where(token =>
+                token.IsKind(SyntaxKind.StringLiteralToken)
+                || token.IsKind(SyntaxKind.InterpolatedStringTextToken)
+                || token.IsKind(SyntaxKind.SingleLineRawStringLiteralToken)
+                || token.IsKind(SyntaxKind.MultiLineRawStringLiteralToken)
+            )
             .Select(token => token.ValueText);
 }

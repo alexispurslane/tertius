@@ -27,7 +27,7 @@ public static class ScriptRunner
         ArgumentNullException.ThrowIfNull(script);
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(scene);
-        EventPayloads payloads = EventPayloads.FromLoadedAssemblies();
+        var payloads = EventPayloads.FromLoadedAssemblies();
         ReadyStep[] steps = MakeReady(script: script, world: world, scene: scene, playback: playback,
             payloads: payloads, lastDump: out int lastDump);
         JsonSerializerOptions dumpJson = ScriptJson.Dumps(scene);
@@ -125,7 +125,7 @@ public static class ScriptRunner
     private union ReadyStep(ReadyRun, ReadyPost, ReadyCamera, ReadyDump, ReadyCapture, ReadyFilm, ReadyOutlines)
     {
         // The built-in union's ToString gives only the name of the union.
-        public readonly override string ToString() => Value?.ToString() ?? "ReadyStep(none)";
+        public override readonly string ToString() => Value?.ToString() ?? "ReadyStep(none)";
     }
 
     private sealed record ReadyRun(int Ticks);

@@ -19,16 +19,23 @@ public sealed class WalkHeadingTests : IDisposable
 
     public void Dispose() => world.Dispose();
 
-    private Entity Person(FrameHandle frame, Double3 position, Double3 velocity = default,
-        params IComponent[] components) => world.Spawn(new()
-    {
-        Frame = frame,
-        Pose = new(position, DQuaternion.Identity),
-        Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70),
-        LinearVelocity = velocity.ToVector3(),
-        Render = new RenderData { ViewOffset = new(Eye, Quaternion.Identity) },
-        Components = [.. components, new WalkHeading()]
-    });
+    private Entity Person(
+        FrameHandle frame,
+        Double3 position,
+        Double3 velocity = default,
+        params IComponent[] components
+    ) =>
+        world.Spawn(
+            new()
+            {
+                Frame = frame,
+                Pose = new(position, DQuaternion.Identity),
+                Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70),
+                LinearVelocity = velocity.ToVector3(),
+                Render = new RenderData { ViewOffset = new(Eye, Quaternion.Identity) },
+                Components = [.. components, new WalkHeading()],
+            }
+        );
 
     /// <summary>A root frame with 9.81 m/s² of gravity and a floor whose top is at 0.</summary>
     private FrameHandle OnTheGround()
@@ -40,8 +47,9 @@ public sealed class WalkHeadingTests : IDisposable
 
     /// <summary>The way that <paramref name="person"/> faces, the view's -Z, in <paramref name="frame"/>.</summary>
     private Double3 Facing(Entity person, FrameHandle frame) =>
-        world.PoseIn(person, frame).Rotation
-            .Rotate((Double3)Vector3.Transform(-Vector3.UnitZ, world.GetRender(person).ViewOffset.Rotation));
+        world
+            .PoseIn(person, frame)
+            .Rotation.Rotate((Double3)Vector3.Transform(-Vector3.UnitZ, world.GetRender(person).ViewOffset.Rotation));
 
     /// <summary>The heading's angle about +Y from -Z, in radians, counterclockwise seen from above.</summary>
     private double Yaw(Entity person, FrameHandle frame)
@@ -83,10 +91,16 @@ public sealed class WalkHeadingTests : IDisposable
         }
 
         double step = WalkHeading.TurnRate / 60;
-        yaws.Zip(yaws.Skip(1), (a, b) => b - a).Should().AllSatisfy(change =>
-            change.Should().BeInRange(-step - 1e-6, 1e-6, "the heading turns clockwise, a tick of the rate at most"));
-        yaws.Take(23).Should().AllSatisfy(yaw =>
-            yaw.Should().BeGreaterThan(-Math.PI / 2 + 0.01, "a quarter turn takes 24 ticks at least"));
+        yaws.Zip(yaws.Skip(1), (a, b) => b - a)
+            .Should()
+            .AllSatisfy(change =>
+                change.Should().BeInRange(-step - 1e-6, 1e-6, "the heading turns clockwise, a tick of the rate at most")
+            );
+        yaws.Take(23)
+            .Should()
+            .AllSatisfy(yaw =>
+                yaw.Should().BeGreaterThan(-Math.PI / 2 + 0.01, "a quarter turn takes 24 ticks at least")
+            );
         yaws[^1].Should().BeApproximately(-Math.PI / 2, 0.02);
     }
 
@@ -98,14 +112,16 @@ public sealed class WalkHeadingTests : IDisposable
     public void ThePersonTurnsTowardItsWalkWhenItsHeadingWasAddedBeforeItsWalker()
     {
         FrameHandle ground = OnTheGround();
-        Entity person = world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = new(new(0, 0.95, 0), DQuaternion.Identity),
-            Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70),
-            Render = new RenderData { ViewOffset = new(Eye, Quaternion.Identity) },
-            Components = [new WalkHeading(), new SteadyWalk(new(2, 0, 0), ticks: 600)]
-        });
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = new(new(0, 0.95, 0), DQuaternion.Identity),
+                Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70),
+                Render = new RenderData { ViewOffset = new(Eye, Quaternion.Identity) },
+                Components = [new WalkHeading(), new SteadyWalk(new(2, 0, 0), ticks: 600)],
+            }
+        );
 
         Tick(world, 120);
 
@@ -172,8 +188,12 @@ public sealed class WalkHeadingTests : IDisposable
     public void ThePersonHoldsItsHeadingWhileItFloats()
     {
         FrameHandle space = Ground(world, 0);
-        Entity person = Person(space, Double3.Zero, velocity: Double3.UnitX,
-            components: new SteadyWalk(new(2, 0, 0), ticks: 600));
+        Entity person = Person(
+            space,
+            Double3.Zero,
+            velocity: Double3.UnitX,
+            components: new SteadyWalk(new(2, 0, 0), ticks: 600)
+        );
 
         Tick(world, 120);
 

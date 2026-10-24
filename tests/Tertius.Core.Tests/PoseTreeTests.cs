@@ -108,8 +108,10 @@ public sealed class PoseTreeTests
         {
             DPose expected = tree.Relative(n, b);
             DPose actual = result[tree.DenseIndex(n)];
-            Assert.True((expected.Position - actual.Position).Length < 1e-9,
-                $"{n}: {expected.Position} vs {actual.Position}");
+            Assert.True(
+                (expected.Position - actual.Position).Length < 1e-9,
+                $"{n}: {expected.Position} vs {actual.Position}"
+            );
         }
     }
 

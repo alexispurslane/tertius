@@ -25,8 +25,8 @@ public sealed class CollisionLayerTests
 
     /// <summary>The pair test of Jolt's <c>ObjectLayerPairFilterMask::ShouldCollide</c>, on the halves that Jolt reads.</summary>
     private static bool Collide(ObjectLayer a, ObjectLayer b) =>
-        (ObjectLayerPairFilterMask.GetGroup(a) & ObjectLayerPairFilterMask.GetMask(b)) != 0 &&
-        (ObjectLayerPairFilterMask.GetGroup(b) & ObjectLayerPairFilterMask.GetMask(a)) != 0;
+        (ObjectLayerPairFilterMask.GetGroup(a) & ObjectLayerPairFilterMask.GetMask(b)) != 0
+        && (ObjectLayerPairFilterMask.GetGroup(b) & ObjectLayerPairFilterMask.GetMask(a)) != 0;
 
     /// <summary>The kinds of Jolt body that the backend makes, each with the default groups and mask.</summary>
     public enum Kind
@@ -37,16 +37,17 @@ public sealed class CollisionLayerTests
         /// <summary>A dynamic or kinematic body, the inner body of a character, or the layer that a character moves with.</summary>
         Moving,
         FrameHull,
-        Ghost
+        Ghost,
     }
 
-    private static ObjectLayer DefaultLayer(Kind kind) => kind switch
-    {
-        Kind.Static => Layers.For(BodyLayer.Static, Solid, InAnySolid),
-        Kind.Moving => Layers.For(BodyLayer.Moving, Solid, InAnySolid),
-        Kind.FrameHull => Layers.FrameHull,
-        _ => Layers.For(BodyLayer.Ghost, Solid, InAnySolid)
-    };
+    private static ObjectLayer DefaultLayer(Kind kind) =>
+        kind switch
+        {
+            Kind.Static => Layers.For(BodyLayer.Static, Solid, InAnySolid),
+            Kind.Moving => Layers.For(BodyLayer.Moving, Solid, InAnySolid),
+            Kind.FrameHull => Layers.FrameHull,
+            _ => Layers.For(BodyLayer.Ghost, Solid, InAnySolid),
+        };
 
     private static CollisionGroup[] MakeThreeGroups()
     {
@@ -66,7 +67,7 @@ public sealed class CollisionLayerTests
     /// <summary>The mask whose any-of set is the subset <paramref name="bits"/>. The empty set is no condition.</summary>
     private static CollisionMask AnyOf(int bits)
     {
-        var mask = CollisionMask.Empty;
+        CollisionMask mask = CollisionMask.Empty;
         for (int i = 0; i < 3; i++)
             if ((bits & (1 << i)) != 0)
                 mask = mask.InAny(ThreeGroups[i]);
@@ -129,14 +130,17 @@ public sealed class CollisionLayerTests
         foreach (int b in Subsets)
         foreach (int anyB in Subsets)
         {
-            CollisionGroups groupsA = GroupsOf(a), groupsB = GroupsOf(b);
-            CollisionMask maskA = AnyOf(anyA), maskB = AnyOf(anyB);
+            CollisionGroups groupsA = GroupsOf(a),
+                groupsB = GroupsOf(b);
+            CollisionMask maskA = AnyOf(anyA),
+                maskB = AnyOf(anyB);
             bool expected = maskA.Matches(groupsB) && maskB.Matches(groupsA);
 
             bool actual = Collide(Layers.For(roleA, groupsA, maskA), Layers.For(roleB, groupsB, maskB));
 
-            actual.Should().Be(expected, "A is in {0} with {1}, and B is in {2} with {3}", groupsA, maskA, groupsB,
-                maskB);
+            actual
+                .Should()
+                .Be(expected, "A is in {0} with {1}, and B is in {2} with {3}", groupsA, maskA, groupsB, maskB);
         }
     }
 
@@ -146,9 +150,11 @@ public sealed class CollisionLayerTests
         foreach (int groups in Subsets)
         foreach (int any in Subsets)
         {
-            Collide(Layers.FrameHull, Layers.For(BodyLayer.Moving, GroupsOf(groups), AnyOf(any))).Should()
+            Collide(Layers.FrameHull, Layers.For(BodyLayer.Moving, GroupsOf(groups), AnyOf(any)))
+                .Should()
                 .BeFalse("a moving body in {0} with {1}", GroupsOf(groups), AnyOf(any));
-            Collide(Layers.FrameHull, Layers.For(BodyLayer.Ghost, GroupsOf(groups), AnyOf(any))).Should()
+            Collide(Layers.FrameHull, Layers.For(BodyLayer.Ghost, GroupsOf(groups), AnyOf(any)))
+                .Should()
                 .BeFalse("a ghost in {0} with {1}", GroupsOf(groups), AnyOf(any));
         }
     }
@@ -158,7 +164,8 @@ public sealed class CollisionLayerTests
     {
         foreach (int groups in Subsets)
         foreach (int any in Subsets)
-            Collide(Layers.FrameHull, Layers.For(BodyLayer.Static, GroupsOf(groups), AnyOf(any))).Should()
+            Collide(Layers.FrameHull, Layers.For(BodyLayer.Static, GroupsOf(groups), AnyOf(any)))
+                .Should()
                 .BeTrue("a static body in {0} with {1}", GroupsOf(groups), AnyOf(any));
         Collide(Layers.FrameHull, Layers.FrameHull).Should().BeTrue();
     }
@@ -169,7 +176,9 @@ public sealed class CollisionLayerTests
         var registry = new CollisionGroupRegistry();
         CollisionGroup ship = registry.Register("Ship");
 
-        Layers.For(BodyLayer.FrameHull, CollisionGroups.Of(ship), CollisionMask.Empty.InAny(ship)).Should()
+        Layers
+            .For(BodyLayer.FrameHull, CollisionGroups.Of(ship), CollisionMask.Empty.InAny(ship))
+            .Should()
             .Be(Layers.FrameHull);
         Layers.For(BodyLayer.FrameHull, Solid, InAnySolid).Should().Be(Layers.FrameHull);
     }

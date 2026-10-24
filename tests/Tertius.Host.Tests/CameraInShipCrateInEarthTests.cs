@@ -32,11 +32,14 @@ public sealed class CameraInShipCrateInEarthTests : IDisposable
     // than 100.9 m, the distance at which it would come back, so they stay in earth.
     private static readonly Double3[] CrateOffsets = [new(0, 12, 104), new(8, 20, 115)];
 
-    private readonly World world = new(new() { MaxDegreeOfParallelism = 1, DisposePhysics = true },
-        new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
+    private readonly World world = new(
+        new() { MaxDegreeOfParallelism = 1, DisposePhysics = true },
+        new JoltPhysicsBackend(JoltBackendOptions.Unpaced)
+    );
 
     private readonly SceneInstance scene;
-    private readonly FrameHandle earth, ship;
+    private readonly FrameHandle earth,
+        ship;
     private readonly Entity[] crates;
 
     public CameraInShipCrateInEarthTests()
@@ -54,8 +57,15 @@ public sealed class CameraInShipCrateInEarthTests : IDisposable
         Vector3 away = shipRotation.Rotate(new(0, 0, DriftSpeed));
         crates =
         [
-            .. CrateOffsets.Select(offset => world.Spawn(spec.Spawn(
-                earth, new(shipPose.Position + shipRotation.Rotate(offset), shipRotation), shipVelocity + away)))
+            .. CrateOffsets.Select(offset =>
+                world.Spawn(
+                    spec.Spawn(
+                        earth,
+                        new(shipPose.Position + shipRotation.Rotate(offset), shipRotation),
+                        shipVelocity + away
+                    )
+                )
+            ),
         ];
     }
 
@@ -86,7 +96,9 @@ public sealed class CameraInShipCrateInEarthTests : IDisposable
             world.RenderSnapshots.TryAcquireLatest(out RenderSnapshot snapshot).Should().BeTrue();
             foreach (Entity crate in crates)
             {
-                world.Snapshot.FrameOf(crate).Should()
+                world
+                    .Snapshot.FrameOf(crate)
+                    .Should()
                     .Be(earth, "the crate drifts away from the ship and stays in earth");
                 RenderInstance instance = snapshot.Instances.Single(i => i.EntityIndex == crate.Index);
                 Double3 seen = TruthInShipAxes(crate) - Eye;
@@ -100,7 +112,8 @@ public sealed class CameraInShipCrateInEarthTests : IDisposable
     [Fact]
     public void AskingForACrateInEarthInTheShipsFrameGivesItsPlaceInTheShipsAxesOnEveryTick()
     {
-        double worstPosition = 0, worstTurn = 0;
+        double worstPosition = 0,
+            worstTurn = 0;
         for (int tick = 0; tick < Ticks; tick++)
         {
             world.Tick();
@@ -111,13 +124,17 @@ public sealed class CameraInShipCrateInEarthTests : IDisposable
                 worstPosition = Math.Max(worstPosition, Double3.Distance(pose.Position, TruthInShipAxes(crate)));
                 DQuaternion truth = (shipTurn * world.Snapshot.PoseInOwnFrame(crate).Rotation).Normalized();
                 // Two unit quaternions turn the same way when their dot product is 1 or -1.
-                double dot = pose.Rotation.X * truth.X + pose.Rotation.Y * truth.Y + pose.Rotation.Z * truth.Z +
-                             pose.Rotation.W * truth.W;
+                double dot =
+                    pose.Rotation.X * truth.X
+                    + pose.Rotation.Y * truth.Y
+                    + pose.Rotation.Z * truth.Z
+                    + pose.Rotation.W * truth.W;
                 worstTurn = Math.Max(worstTurn, 1 - Math.Abs(dot));
             }
         }
 
-        worstPosition.Should()
+        worstPosition
+            .Should()
             .BeLessThan(1e-4, "the pose query puts the crate within 0.1 mm of the truth on every tick");
         worstTurn.Should().BeLessThan(1e-9, "the pose query turns the crate as the ship's inverse rotation turns it");
     }

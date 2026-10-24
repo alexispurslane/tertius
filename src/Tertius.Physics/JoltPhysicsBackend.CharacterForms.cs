@@ -77,7 +77,9 @@ public sealed partial class JoltPhysicsBackend
     // shapes. So the characters of one walking capsule share one native rigid capsule, whatever body descriptions they
     // have, and the table holds one entry for each walking capsule, which the shape cache keeps anyway (see RigidForm).
     private readonly Dictionary<CapsuleShapeDesc, CapsuleShapeDesc> rigidCapsules =
-        [with(ReferenceEqualityComparer.Instance)];
+    [
+        with(ReferenceEqualityComparer.Instance),
+    ];
 
     // Scratch for SwitchCharacterForms: the characters that change form in this step.
     private readonly List<BodyRecord> formSwitches = [];
@@ -96,12 +98,14 @@ public sealed partial class JoltPhysicsBackend
     /// <see cref="RigidBelow"/> on when <paramref name="touches"/> is true: it holds a contact that started and has not
     /// ended. A pure rule, which <see cref="SwitchCharacterForms"/> applies.
     /// </summary>
-    internal static BodyMotion NextCharacterMotion(BodyMotion current, float gravity, bool touches) => current switch
-    {
-        BodyMotion.Character when gravity < RigidBelow => BodyMotion.Dynamic,
-        BodyMotion.Dynamic when gravity >= WalkingFrom || (touches && gravity >= RigidBelow) => BodyMotion.Character,
-        BodyMotion.Static or BodyMotion.Kinematic or BodyMotion.Dynamic or BodyMotion.Character => current
-    };
+    internal static BodyMotion NextCharacterMotion(BodyMotion current, float gravity, bool touches) =>
+        current switch
+        {
+            BodyMotion.Character when gravity < RigidBelow => BodyMotion.Dynamic,
+            BodyMotion.Dynamic when gravity >= WalkingFrom || (touches && gravity >= RigidBelow) =>
+                BodyMotion.Character,
+            BodyMotion.Static or BodyMotion.Kinematic or BodyMotion.Dynamic or BodyMotion.Character => current,
+        };
 
     /// <summary>The mass of a character in kg: its description's, or 1 kg for a description without one, in both forms.</summary>
     private static float CharacterMass(BodyDesc desc) => desc.Mass > 0 ? desc.Mass : 1f;
@@ -137,7 +141,7 @@ public sealed partial class JoltPhysicsBackend
             Motion = BodyMotion.Dynamic,
             Mass = CharacterMass(desc),
             LinearDamping = 0,
-            AngularDamping = 0
+            AngularDamping = 0,
         };
     }
 
@@ -163,8 +167,8 @@ public sealed partial class JoltPhysicsBackend
                 float gravity = frames.EffectiveGravity(world.Frame, PrimaryPosition(member)).ToVector3().Length();
                 // The rule reads the touch only of a rigid character from RigidBelow on, and the test costs time in
                 // proportion to the pairs of the system, so it runs only then.
-                bool touches = member.Motion == BodyMotion.Dynamic && gravity >= RigidBelow &&
-                               world.HasStartedPair(member.Body);
+                bool touches =
+                    member.Motion == BodyMotion.Dynamic && gravity >= RigidBelow && world.HasStartedPair(member.Body);
                 if (NextCharacterMotion(member.Motion, gravity, touches) != member.Motion)
                     formSwitches.Add(member);
             }
@@ -190,8 +194,12 @@ public sealed partial class JoltPhysicsBackend
     private void BecomeRigid(BodyRecord record)
     {
         // Intents and the update of the step have not run yet, so nothing waits for the walking form's next update.
-        Contract.Requires(record.IsCharacter && record.Character is not null &&
-                          record.PendingVelocityChange == Vector3.Zero && record.PendingJump == 0);
+        Contract.Requires(
+            record.IsCharacter
+                && record.Character is not null
+                && record.PendingVelocityChange == Vector3.Zero
+                && record.PendingJump == 0
+        );
         CharacterVirtual character = record.Character;
         FrameHandle frame = record.Frame;
         var pose = new DPose(character.RPosition.ToDouble3(), character.Rotation.ToDouble());
@@ -199,12 +207,22 @@ public sealed partial class JoltPhysicsBackend
         RemovePrimary(record);
         record.Motion = BodyMotion.Dynamic;
         record.Standing = false;
-        CreatePrimary(record: record, frame: frame, pose: pose, linearVelocity: velocity, angularVelocity: Vector3.Zero,
-            upFromGravity: false);
+        CreatePrimary(
+            record: record,
+            frame: frame,
+            pose: pose,
+            linearVelocity: velocity,
+            angularVelocity: Vector3.Zero,
+            upFromGravity: false
+        );
         if (record.InstantVelocityStep == stepIndex)
             spawnedRigid.Add(record);
-        Contract.Ensures(record.Motion == BodyMotion.Dynamic && record.Character is null && record.Body.IsValid &&
-                         record.Frame == frame);
+        Contract.Ensures(
+            record.Motion == BodyMotion.Dynamic
+                && record.Character is null
+                && record.Body.IsValid
+                && record.Frame == frame
+        );
     }
 
     /// <summary>
@@ -216,18 +234,33 @@ public sealed partial class JoltPhysicsBackend
     /// </summary>
     private void BecomeWalking(BodyRecord record)
     {
-        Contract.Requires(record.IsCharacter && record.Character is null && record.Body.IsValid &&
-                          record.Motion == BodyMotion.Dynamic && !spawnedRigid.Contains(record));
+        Contract.Requires(
+            record.IsCharacter
+                && record.Character is null
+                && record.Body.IsValid
+                && record.Motion == BodyMotion.Dynamic
+                && !spawnedRigid.Contains(record)
+        );
         BodySnapshot s = ReadPrimary(record);
         FrameHandle frame = record.Frame;
         RemovePrimary(record);
         record.Motion = BodyMotion.Character;
-        CreatePrimary(record: record, frame: frame, pose: s.Pose, linearVelocity: s.Linear,
-            angularVelocity: Vector3.Zero, upFromGravity: false);
+        CreatePrimary(
+            record: record,
+            frame: frame,
+            pose: s.Pose,
+            linearVelocity: s.Linear,
+            angularVelocity: Vector3.Zero,
+            upFromGravity: false
+        );
         Contract.Assert(record.Character is not null && record.HasPrimary);
         record.Character.RefreshContacts(layer: PrimaryLayer(record), physicsSystem: record.World.System);
-        Contract.Ensures(record.Motion == BodyMotion.Character && record.Character is not null &&
-                         !record.Body.IsValid && record.Frame == frame);
+        Contract.Ensures(
+            record.Motion == BodyMotion.Character
+                && record.Character is not null
+                && !record.Body.IsValid
+                && record.Frame == frame
+        );
     }
 
     /// <summary>
@@ -259,7 +292,7 @@ public sealed partial class JoltPhysicsBackend
         {
             MaxSeparationDistance = CharacterPadding + CharacterContactReach,
             BackFaceMode = BackFaceMode.CollideWithBackFaces,
-            ActiveEdgeMode = ActiveEdgeMode.CollideOnlyWithActive
+            ActiveEdgeMode = ActiveEdgeMode.CollideOnlyWithActive,
         };
         BodyInterface bodies = world.System.BodyInterfaceNoLock;
         foreach (BodyRecord member in world.Members)
@@ -270,10 +303,15 @@ public sealed partial class JoltPhysicsBackend
             RMatrix4x4 transform = Matrix4x4.CreateFromQuaternion(bodies.GetRotation(member.Body));
             transform.Translation = position;
             rigidCharacterContacts.Clear();
-            world.System.NarrowPhaseQuery.CollideShape(shape: shapes.Get(member.Desc.Shape), scale: Vector3.One,
-                centerOfMassTransform: transform, settings: settings,
+            world.System.NarrowPhaseQuery.CollideShape(
+                shape: shapes.Get(member.Desc.Shape),
+                scale: Vector3.One,
+                centerOfMassTransform: transform,
+                settings: settings,
                 baseOffset: position,
-                collectorType: CollisionCollectorType.AllHit, results: rigidCharacterContacts);
+                collectorType: CollisionCollectorType.AllHit,
+                results: rigidCharacterContacts
+            );
             world.NoteRigidCharacterContacts(member.Body, rigidCharacterContacts);
         }
     }
@@ -287,8 +325,11 @@ public sealed partial class JoltPhysicsBackend
     {
         if (!record.IsCharacter)
         {
-            Contract.Invariant(record.Character is null && record.Motion != BodyMotion.Character &&
-                               ReferenceEquals(record.Material, record.Desc));
+            Contract.Invariant(
+                record.Character is null
+                    && record.Motion != BodyMotion.Character
+                    && ReferenceEquals(record.Material, record.Desc)
+            );
             return;
         }
 
@@ -300,8 +341,10 @@ public sealed partial class JoltPhysicsBackend
         Contract.Invariant(world.Bodies.GetMotionType(record.Body) == MotionType.Dynamic);
         BodyLockInterface locks = world.System.BodyLockInterface;
         locks.LockRead(record.Body, out BodyLockRead read);
-        bool translationOnly = read.Succeeded && read.Body is { MotionProperties: { IsNotNull: true } motion } &&
-                               motion.AllowedDOFs == TranslationOnly;
+        bool translationOnly =
+            read.Succeeded
+            && read.Body is { MotionProperties: { IsNotNull: true } motion }
+            && motion.AllowedDOFs == TranslationOnly;
         locks.UnlockRead(read);
         Contract.Invariant(translationOnly);
     }
@@ -312,7 +355,8 @@ public sealed partial class JoltPhysicsBackend
     /// </summary>
     private static void AssertCharacterCounts(FrameWorld world)
     {
-        int characters = 0, walking = 0;
+        int characters = 0,
+            walking = 0;
         foreach (BodyRecord member in world.Members)
         {
             if (member.IsCharacter)

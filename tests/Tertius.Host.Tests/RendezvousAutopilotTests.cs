@@ -51,8 +51,15 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
     /// these tests fly tens of thousands of ticks.
     /// </summary>
     internal static World NewWorld() =>
-        new(new() { MaxDegreeOfParallelism = 1, DebugChecks = false, DisposePhysics = true },
-            new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
+        new(
+            new()
+            {
+                MaxDegreeOfParallelism = 1,
+                DebugChecks = false,
+                DisposePhysics = true,
+            },
+            new JoltPhysicsBackend(JoltBackendOptions.Unpaced)
+        );
 
     /// <summary>A root frame with Earth's point gravity, which does not turn: the analogue of <c>earth</c>, which holds the station and the shuttle in orbit.</summary>
     internal static FrameHandle Earth(World world) =>
@@ -64,25 +71,37 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
     /// <paramref name="station"/> on <paramref name="plan"/>. The <paramref name="recorder"/> runs between the autopilot and
     /// the actuators.
     /// </summary>
-    internal static Entity Fly(World world, FrameHandle frame, Entity station, RendezvousPlan plan, Double3 position,
-        Double3 velocity, Recorder recorder)
+    internal static Entity Fly(
+        World world,
+        FrameHandle frame,
+        Entity station,
+        RendezvousPlan plan,
+        Double3 position,
+        Double3 velocity,
+        Recorder recorder
+    )
     {
-        Entity shuttle = world.Spawn(new()
-        {
-            Frame = frame,
-            Pose = new(position, AttitudeAutopilot.Facing(velocity, position)),
-            LinearVelocity = velocity,
-            Body = Shuttle.Body(BodyMotion.Dynamic),
-            AsFrame = new(new(Shuttle.Bubble)),
-            Components = [new RendezvousAutopilot(station, plan, Thrust), recorder]
-        });
+        Entity shuttle = world.Spawn(
+            new()
+            {
+                Frame = frame,
+                Pose = new(position, AttitudeAutopilot.Facing(velocity, position)),
+                LinearVelocity = velocity,
+                Body = Shuttle.Body(BodyMotion.Dynamic),
+                AsFrame = new(new(Shuttle.Bubble)),
+                Components = [new RendezvousAutopilot(station, plan, Thrust), recorder],
+            }
+        );
         Shuttle.FitActuators(world, shuttle);
         return shuttle;
     }
 
     /// <summary>The station's center, velocity and axis in <paramref name="frame"/>, as the world reads them now.</summary>
-    internal static (Double3 Position, Double3 Velocity, Double3 Axis) StationNow(World world, Entity station,
-        FrameHandle frame)
+    internal static (Double3 Position, Double3 Velocity, Double3 Axis) StationNow(
+        World world,
+        Entity station,
+        FrameHandle frame
+    )
     {
         DPose pose = world.PoseIn(station, frame);
         return (pose.Position, world.VelocityIn(station, frame), pose.Rotation.Rotate(Double3.UnitY));
@@ -96,22 +115,38 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
     {
         (Double3 place, Double3 velocity) = DemoStation.Orbit.StateAt(world.Time, Mu);
         Double3 axis = DemoStation.Orbit.RotationAt(world.Time, Mu).Rotate(Double3.UnitY);
-        Double3 arrival = new TransferGuidance(Mu).Arrival(stationPosition: place, stationVelocity: velocity,
-            axis: axis, arrivalDistance: RendezvousPlan.Demo.ArrivalDistance,
-            time: RendezvousPlan.Demo.TransferTime).Point;
+        Double3 arrival = new TransferGuidance(Mu)
+            .Arrival(
+                stationPosition: place,
+                stationVelocity: velocity,
+                axis: axis,
+                arrivalDistance: RendezvousPlan.Demo.ArrivalDistance,
+                time: RendezvousPlan.Demo.TransferTime
+            )
+            .Point;
         Double3 normal = TransferGuidance.OrbitNormal(place, velocity);
-        Double3 up = DQuaternion.FromAxisAngle(normal, -degrees * Math.PI / 180)
+        Double3 up = DQuaternion
+            .FromAxisAngle(normal, -degrees * Math.PI / 180)
             .Rotate((arrival - normal * Double3.Dot(arrival, normal)).Normalized());
-        return (up * Shuttle.ParkingOrbitRadius,
-            Double3.Cross(normal, up) * Math.Sqrt(Mu / Shuttle.ParkingOrbitRadius));
+        return (
+            up * Shuttle.ParkingOrbitRadius,
+            Double3.Cross(normal, up) * Math.Sqrt(Mu / Shuttle.ParkingOrbitRadius)
+        );
     }
 
     /// <summary>Spawns the shuttle on the parking circle at a transfer angle of <paramref name="degrees"/>, on the demo's plan.</summary>
     private void ParkAt(double degrees)
     {
         (Double3 position, Double3 velocity) = ParkingAt(degrees);
-        shuttle = Fly(world: world, frame: earth, station: station, plan: RendezvousPlan.Demo, position: position,
-            velocity: velocity, recorder: recorder);
+        shuttle = Fly(
+            world: world,
+            frame: earth,
+            station: station,
+            plan: RendezvousPlan.Demo,
+            position: position,
+            velocity: velocity,
+            recorder: recorder
+        );
     }
 
     /// <summary>
@@ -127,21 +162,37 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
     private double TransferAngleNow()
     {
         (Double3 place, Double3 velocity, Double3 axis) = StationNow(world, station, earth);
-        Double3 arrival = new TransferGuidance(Mu).Arrival(stationPosition: place, stationVelocity: velocity,
-            axis: axis, arrivalDistance: RendezvousPlan.Demo.ArrivalDistance,
-            time: RendezvousPlan.Demo.TransferTime).Point;
-        return TransferGuidance.TransferAngle(world.PoseIn(shuttle, earth).Position, arrival,
-            TransferGuidance.OrbitNormal(place, velocity)) * 180 / Math.PI;
+        Double3 arrival = new TransferGuidance(Mu)
+            .Arrival(
+                stationPosition: place,
+                stationVelocity: velocity,
+                axis: axis,
+                arrivalDistance: RendezvousPlan.Demo.ArrivalDistance,
+                time: RendezvousPlan.Demo.TransferTime
+            )
+            .Point;
+        return TransferGuidance.TransferAngle(
+                world.PoseIn(shuttle, earth).Position,
+                arrival,
+                TransferGuidance.OrbitNormal(place, velocity)
+            )
+            * 180
+            / Math.PI;
     }
 
     /// <summary>The steering of the transfer now, from the states that the world reads, for the arrival time of the autopilot's transfer.</summary>
     private TransferSteering SteeringNow(Transfer transfer)
     {
         (Double3 place, Double3 velocity, Double3 axis) = StationNow(world, station, earth);
-        return transfer.Guidance.Steer(shuttlePosition: world.PoseIn(shuttle, earth).Position,
-            shuttleVelocity: world.VelocityIn(shuttle, earth), stationPosition: place,
-            stationVelocity: velocity, axis: axis,
-            arrivalDistance: RendezvousPlan.Demo.ArrivalDistance, timeLeft: transfer.ArrivalTime - world.Time);
+        return transfer.Guidance.Steer(
+            shuttlePosition: world.PoseIn(shuttle, earth).Position,
+            shuttleVelocity: world.VelocityIn(shuttle, earth),
+            stationPosition: place,
+            stationVelocity: velocity,
+            axis: axis,
+            arrivalDistance: RendezvousPlan.Demo.ArrivalDistance,
+            timeLeft: transfer.ArrivalTime - world.Time
+        );
     }
 
     /// <summary>
@@ -174,10 +225,12 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
 
         Autopilot.State.Value.Should().BeOfType<Transfer>();
         waited.Should().BeGreaterThan(30 * 60, "the angle falls by 0.1 degrees in about 33 s");
-        TransferAngleNow().Should()
+        TransferAngleNow()
+            .Should()
             .BeApproximately(170, 0.001, "the transfer starts where the angle reaches 170 degrees");
-        recorder.TicksWithEvents.Should().Be(1,
-            "the autopilot added nothing while it waited, and burns in the tick of the window");
+        recorder
+            .TicksWithEvents.Should()
+            .Be(1, "the autopilot added nothing while it waited, and burns in the tick of the window");
     }
 
     /// <summary>
@@ -216,12 +269,22 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
         burn.Should().BeInRange(15 * 60, 50 * 60, "a burn of about 60 m/s at 3 m/s² with its trim in the last seconds");
         Autopilot.State.Value.Should().Be(transfer);
         double timeLeft = transfer.ArrivalTime - world.Time;
-        (Double3 landing, _) = KeplerOrbit.Propagate(position: world.PoseIn(shuttle, earth).Position,
-            velocity: world.VelocityIn(shuttle, earth), mu: Mu, time: timeLeft);
+        (Double3 landing, _) = KeplerOrbit.Propagate(
+            position: world.PoseIn(shuttle, earth).Position,
+            velocity: world.VelocityIn(shuttle, earth),
+            mu: Mu,
+            time: timeLeft
+        );
         (Double3 place, Double3 velocity, Double3 axis) = StationNow(world, station, earth);
-        Double3 arrival = transfer.Guidance
-            .Arrival(stationPosition: place, stationVelocity: velocity, axis: axis,
-                arrivalDistance: RendezvousPlan.Demo.ArrivalDistance, time: timeLeft).Point;
+        Double3 arrival = transfer
+            .Guidance.Arrival(
+                stationPosition: place,
+                stationVelocity: velocity,
+                axis: axis,
+                arrivalDistance: RendezvousPlan.Demo.ArrivalDistance,
+                time: timeLeft
+            )
+            .Point;
         Double3.Distance(landing, arrival).Should().BeLessThan(100);
     }
 
@@ -239,18 +302,26 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
         var transfer = (Transfer)Autopilot.State.Value;
         float last = 0;
 
-        TickUntil(world, () =>
-        {
-            if (recorder.Throttle is not float throttle)
-                return true;
-            last = throttle;
-            return false;
-        }, limit: 60 * 60);
+        TickUntil(
+            world,
+            () =>
+            {
+                if (recorder.Throttle is not float throttle)
+                    return true;
+                last = throttle;
+                return false;
+            },
+            limit: 60 * 60
+        );
 
         recorder.Throttle.Should().BeNull("the burn ended within a minute");
         SteeringNow(transfer).ToGain.Length.Should().BeInRange(0.075, TransferGuidance.SpeedTolerance);
-        ((double)last * Thrust / Shuttle.Mass).Should().BeLessThan(FrameTree.ZeroGravityThreshold / 2 * 1.2,
-            "the thrust of the burn falls to half the weightless threshold at its end");
+        ((double)last * Thrust / Shuttle.Mass)
+            .Should()
+            .BeLessThan(
+                FrameTree.ZeroGravityThreshold / 2 * 1.2,
+                "the thrust of the burn falls to half the weightless threshold at its end"
+            );
     }
 
     /// <summary>
@@ -274,8 +345,9 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
             fastest = Math.Max(fastest, world.AngularVelocityIn(shuttle, earth).Length());
         }
 
-        fastest.Should().BeInRange(RendezvousPlan.Demo.WeightlessTurnRate * 0.9,
-            RendezvousPlan.Demo.WeightlessTurnRate * 1.05);
+        fastest
+            .Should()
+            .BeInRange(RendezvousPlan.Demo.WeightlessTurnRate * 0.9, RendezvousPlan.Demo.WeightlessTurnRate * 1.05);
     }
 
     /// <summary>
@@ -307,7 +379,8 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
     {
         RendezvousPlan plan = RendezvousPlan.Demo with
         {
-            WindowOpens = opensDegrees * Math.PI / 180, WindowCloses = closesDegrees * Math.PI / 180
+            WindowOpens = opensDegrees * Math.PI / 180,
+            WindowCloses = closesDegrees * Math.PI / 180,
         };
 
         Action build = () => new RendezvousAutopilot(station, plan, Thrust);
@@ -329,7 +402,8 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
         end.FromArrival.Should().BeLessThan(10);
         end.RelativeSpeed.Should().BeLessThan(RendezvousAutopilot.BrakeEndSpeed);
         end.Time.Should().BeLessThan(run.ArrivalTime + 60);
-        run.Log.First(record => record.Time >= run.ArrivalTime).FromArrival.Should()
+        run.Log.First(record => record.Time >= run.ArrivalTime)
+            .FromArrival.Should()
             .BeLessThan(100, "the miss at the arrival time");
     }
 
@@ -393,9 +467,23 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
     public void TheAutopilotStopsWhenItsFrameHasNoPointGravity()
     {
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        Entity other = world.Spawn(new() { Frame = space, Pose = DPose.Identity, Body = Cube() });
-        shuttle = Fly(world: world, frame: space, station: other, plan: RendezvousPlan.Demo, position: new(0, 0, 100),
-            velocity: Double3.UnitX, recorder: recorder);
+        Entity other = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = DPose.Identity,
+                Body = Cube(),
+            }
+        );
+        shuttle = Fly(
+            world: world,
+            frame: space,
+            station: other,
+            plan: RendezvousPlan.Demo,
+            position: new(0, 0, 100),
+            velocity: Double3.UnitX,
+            recorder: recorder
+        );
         Order();
 
         Tick(world, 10);
@@ -447,25 +535,44 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
         /// degrees. The shuttle carries no crew, and the turn to the brake's direction must end in the 300 s, so the nose
         /// turns at the attitude autopilot's full rate in the trim and the coast too.
         /// </summary>
-        public static RendezvousPlan Plan { get; } = new(TransferTime: 300, ArrivalDistance: 400,
-            HoldDistance: DemoStation.HoldPoint.Y,
-            WindowOpens: 30 * Math.PI / 180, WindowCloses: 10 * Math.PI / 180,
-            WeightlessTurnRate: AttitudeAutopilot.MaxTurnRate);
+        public static RendezvousPlan Plan { get; } =
+            new(
+                TransferTime: 300,
+                ArrivalDistance: 400,
+                HoldDistance: DemoStation.HoldPoint.Y,
+                WindowOpens: 30 * Math.PI / 180,
+                WindowCloses: 10 * Math.PI / 180,
+                WeightlessTurnRate: AttitudeAutopilot.MaxTurnRate
+            );
 
         private readonly World world = NewWorld();
 
         public ShortPlanRun()
         {
             FrameHandle earth = Earth(world);
-            Entity station =
-                DemoStation.Spawn(world: world, parent: earth, scene: new(), resources: RenderResources.None);
+            Entity station = DemoStation.Spawn(
+                world: world,
+                parent: earth,
+                scene: new(),
+                resources: RenderResources.None
+            );
             KeplerOrbit orbit = DemoStation.Orbit;
-            (Double3 position, Double3 velocity) =
-                (orbit with { MeanAnomalyAtEpoch = orbit.MeanAnomalyAtEpoch - 5000 / orbit.SemiMajorAxis }).StateAt(
-                    world.Time, Mu);
-            Entity shuttle = Fly(world: world, frame: earth, station: station, plan: Plan, position: position,
-                velocity: velocity, recorder: new());
-            var autopilot = world.GetComponent<RendezvousAutopilot>(shuttle)!;
+            (Double3 position, Double3 velocity) = (
+                orbit with
+                {
+                    MeanAnomalyAtEpoch = orbit.MeanAnomalyAtEpoch - 5000 / orbit.SemiMajorAxis,
+                }
+            ).StateAt(world.Time, Mu);
+            Entity shuttle = Fly(
+                world: world,
+                frame: earth,
+                station: station,
+                plan: Plan,
+                position: position,
+                velocity: velocity,
+                recorder: new()
+            );
+            RendezvousAutopilot autopilot = world.GetComponent<RendezvousAutopilot>(shuttle)!;
             world.Post(Event.Create(target: shuttle, sender: Entity.Null, payload: new Rendezvous()));
             Tick(world, 2);
             ArrivalTime = autopilot.State.TryGetValue(out Transfer transfer) ? transfer.ArrivalTime : double.NaN;
@@ -478,12 +585,17 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
                 DPose pose = world.PoseIn(shuttle, earth);
                 Double3 offset = pose.Position - center;
                 Double3 nose = pose.Rotation.Rotate(-Double3.UnitZ);
-                Log.Add(new(Time: world.Time, State: autopilot.State.Value,
-                    FromArrival: Double3.Distance(offset, axis * Plan.ArrivalDistance),
-                    FromHold: Double3.Distance(offset, axis * Plan.HoldDistance),
-                    FromAxis: (offset - axis * Double3.Dot(offset, axis)).Length,
-                    RelativeSpeed: (world.VelocityIn(shuttle, earth) - stationVelocity).Length,
-                    NoseFromSlot: Math.Acos(Math.Clamp(Double3.Dot(nose, -axis), -1, 1)) * 180 / Math.PI));
+                Log.Add(
+                    new(
+                        Time: world.Time,
+                        State: autopilot.State.Value,
+                        FromArrival: Double3.Distance(offset, axis * Plan.ArrivalDistance),
+                        FromHold: Double3.Distance(offset, axis * Plan.HoldDistance),
+                        FromAxis: (offset - axis * Double3.Dot(offset, axis)).Length,
+                        RelativeSpeed: (world.VelocityIn(shuttle, earth) - stationVelocity).Length,
+                        NoseFromSlot: Math.Acos(Math.Clamp(Double3.Dot(nose, -axis), -1, 1)) * 180 / Math.PI
+                    )
+                );
                 if (autopilot.State.Value is Hold)
                     held++;
             }
@@ -510,7 +622,8 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
             double FromHold,
             double FromAxis,
             double RelativeSpeed,
-            double NoseFromSlot);
+            double NoseFromSlot
+        );
 
         public void Dispose() => world.Dispose();
     }

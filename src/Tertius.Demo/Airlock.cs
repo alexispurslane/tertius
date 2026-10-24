@@ -26,10 +26,14 @@ namespace Tertius.Demo;
 public sealed class Airlock(Entity innerDoor, Entity outerDoor, float cycleSeconds, bool outerOpenAtStart = false)
     : IComponent
 {
-    private readonly float cycleSeconds = cycleSeconds > 0 && float.IsFinite(cycleSeconds)
-        ? cycleSeconds
-        : throw new ArgumentOutOfRangeException(nameof(cycleSeconds), cycleSeconds,
-            "The cycle time must be positive and finite.");
+    private readonly float cycleSeconds =
+        cycleSeconds > 0 && float.IsFinite(cycleSeconds)
+            ? cycleSeconds
+            : throw new ArgumentOutOfRangeException(
+                nameof(cycleSeconds),
+                cycleSeconds,
+                "The cycle time must be positive and finite."
+            );
 
     // True while the outer door is the open one, or the one that the current cycle opens.
     private bool outerOpen = outerOpenAtStart;

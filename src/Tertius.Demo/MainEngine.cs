@@ -43,16 +43,29 @@ public sealed class MainEngine(float maxThrust) : IComponent
     /// 1 m across at the nozzle to 24 m. At full throttle 240 puffs leave each second at 30 m/s, tracer puffs far slower
     /// than real exhaust, which hang behind the shuttle and mark its path (docs/plans/blue-danube-demo.md, "The plumes").
     /// </summary>
-    public static Plume Plume { get; } = new(
-        Look: new(Life: 6, StartRadius: 1, EndRadius: 24, TemperatureRatio: 3,
-            Shading: PuffShading.Glow(new(1.2f, 0.6f, 0.22f))),
-        FullRate: 240, Speed: 30, Spread: 0.1f);
+    public static Plume Plume { get; } =
+        new(
+            Look: new(
+                Life: 6,
+                StartRadius: 1,
+                EndRadius: 24,
+                TemperatureRatio: 3,
+                Shading: PuffShading.Glow(new(1.2f, 0.6f, 0.22f))
+            ),
+            FullRate: 240,
+            Speed: 30,
+            Spread: 0.1f
+        );
 
     /// <summary>The force at full throttle, in newtons.</summary>
-    public float MaxThrust { get; } = maxThrust > 0 && float.IsFinite(maxThrust)
-        ? maxThrust
-        : throw new ArgumentOutOfRangeException(nameof(maxThrust), maxThrust,
-            "The thrust of an engine must be positive and finite.");
+    public float MaxThrust { get; } =
+        maxThrust > 0 && float.IsFinite(maxThrust)
+            ? maxThrust
+            : throw new ArgumentOutOfRangeException(
+                nameof(maxThrust),
+                maxThrust,
+                "The thrust of an engine must be positive and finite."
+            );
 
     // After the components of the same entity that add the throttle in the same tick, at priorities below 10.
     public int Priority => 10;
@@ -70,7 +83,8 @@ public sealed class MainEngine(float maxThrust) : IComponent
         if (!valid)
             throw new ArgumentOutOfRangeException(nameof(Throttle), throttle, "A throttle lies from 0 to 1.");
         if (throttle > 0)
-            self.Body.AddForce((Plume.PushedBodyRotation(self).Rotate(-Double3.UnitZ) * (throttle * MaxThrust))
-                .ToVector3());
+            self.Body.AddForce(
+                (Plume.PushedBodyRotation(self).Rotate(-Double3.UnitZ) * (throttle * MaxThrust)).ToVector3()
+            );
     }
 }

@@ -20,8 +20,11 @@ public sealed class WorldEffectiveGravityTests
     private static readonly FrameSpec Station = new(FrameBounds.Sphere(150));
     private static readonly Double3 Rim = new(100, 0, 0);
 
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
-        Mass: 70);
+    private static readonly BodyDesc Person = new(
+        Shape: new CapsuleShapeDesc(0.6f, 0.3f),
+        Motion: BodyMotion.Character,
+        Mass: 70
+    );
 
     private static FrameHandle Space(World world) => world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
 
@@ -34,15 +37,19 @@ public sealed class WorldEffectiveGravityTests
         const double spinUp = 0.5;
         using World world = NewWorld(backend: out _);
         double start = world.Time;
-        FrameHandle station =
-            world.GetOwnedFrame(world.Spawn(SpinUp.Spawning(new() { Frame = Space(world), AsFrame = Station }, world,
-                spinUp)));
+        FrameHandle station = world.GetOwnedFrame(
+            world.Spawn(SpinUp.Spawning(new() { Frame = Space(world), AsFrame = Station }, world, spinUp))
+        );
         Tick(world, 3);
 
         double rate = spinUp * (world.Time - start);
-        Double3.Distance(world.Frames.EffectiveGravity(station, Rim), new(rate * rate * 100, 0, spinUp * 100)).Should()
+        Double3
+            .Distance(world.Frames.EffectiveGravity(station, Rim), new(rate * rate * 100, 0, spinUp * 100))
+            .Should()
             .BeLessThan(1e-9);
-        world.Frames.LinearGravity(station, Rim).Should()
+        world
+            .Frames.LinearGravity(station, Rim)
+            .Should()
             .Be(Double3.Zero, "the station holds no field and does not accelerate");
         world.Errors.Should().BeEmpty();
     }
@@ -53,11 +60,21 @@ public sealed class WorldEffectiveGravityTests
         // The station holds no field, so only the centrifugal term pulls the person, outward along +X: its up at its creation
         // is against that, toward the axis.
         using World world = NewWorld(backend: out _);
-        FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = Space(world), AsFrame = Station }
-            .Spinning(world, StationSpin, firstMove: true)));
+        FrameHandle station = world.GetOwnedFrame(
+            world.Spawn(
+                new SpawnDesc { Frame = Space(world), AsFrame = Station }.Spinning(world, StationSpin, firstMove: true)
+            )
+        );
         Tick(world, 3);
 
-        Entity person = world.Spawn(new() { Frame = station, Pose = new(Rim, DQuaternion.Identity), Body = Person });
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = station,
+                Pose = new(Rim, DQuaternion.Identity),
+                Body = Person,
+            }
+        );
         world.Tick();
 
         Vector3 up = world.PoseInOwnFrame(person).Rotation.Rotate(Vector3.UnitY);

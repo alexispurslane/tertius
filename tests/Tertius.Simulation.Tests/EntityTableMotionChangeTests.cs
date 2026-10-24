@@ -44,12 +44,15 @@ public sealed class EntityTableMotionChangeTests
         Entity b = table.SpawnLiveWith(TestWorld.Ball);
         Entity c = table.SpawnLiveWith(TestWorld.Ball);
 
-        TickAndSwap(table, () =>
-        {
-            table.WriteMotionChange(c, BodyMotion.Kinematic);
-            table.WritableIntent(b).Force = new(1, 0, 0);
-            table.WriteMotionChange(a, BodyMotion.Static);
-        });
+        TickAndSwap(
+            table,
+            () =>
+            {
+                table.WriteMotionChange(c, BodyMotion.Kinematic);
+                table.WritableIntent(b).Force = new(1, 0, 0);
+                table.WriteMotionChange(a, BodyMotion.Static);
+            }
+        );
 
         FrontMotionChanges(table).Should().Equal(c, a);
         table.NextStepIntent(c).Motion.Should().Be(BodyMotion.Kinematic);
@@ -75,11 +78,14 @@ public sealed class EntityTableMotionChangeTests
         EntityTable table = TableSupport.NewTable();
         Entity a = table.SpawnLiveWith(TestWorld.Ball);
         Entity b = table.SpawnLiveWith(TestWorld.Ball);
-        TickAndSwap(table, () =>
-        {
-            table.WriteMotionChange(a, BodyMotion.Static);
-            table.WriteMotionChange(b, BodyMotion.Static);
-        });
+        TickAndSwap(
+            table,
+            () =>
+            {
+                table.WriteMotionChange(a, BodyMotion.Static);
+                table.WriteMotionChange(b, BodyMotion.Static);
+            }
+        );
 
         table.Release(a);
 
@@ -98,12 +104,16 @@ public sealed class EntityTableMotionChangeTests
         Entity a = table.SpawnLiveWith(TestWorld.Ball);
         Entity b = table.SpawnLiveWith(TestWorld.Ball);
 
-        TickAndSwap(table, () =>
-        {
-            table.WritableIntent(a).Force = new(1, 0, 0);
-            table.WriteMotionChange(a, BodyMotion.Static);
-            table.WritableIntent(b).Force = new(1, 0, 0);
-        }, keep: false);
+        TickAndSwap(
+            table,
+            () =>
+            {
+                table.WritableIntent(a).Force = new(1, 0, 0);
+                table.WriteMotionChange(a, BodyMotion.Static);
+                table.WritableIntent(b).Force = new(1, 0, 0);
+            },
+            keep: false
+        );
 
         table.IntentEntities.ToArray().Should().Equal(a);
         PhysicsIntent front = table.NextStepIntent(a);
@@ -124,7 +134,8 @@ public sealed class EntityTableMotionChangeTests
         table.WriteMotionChange(a, BodyMotion.Kinematic);
         table.WriteMotionChange(a, BodyMotion.Static);
 
-        (before, table.WrittenMotionChange(a), table.WrittenMotionChange(b)).Should()
+        (before, table.WrittenMotionChange(a), table.WrittenMotionChange(b))
+            .Should()
             .Be((null, BodyMotion.Static, null));
         table.EndGameplay();
         table.SwapIntents(keep: true);

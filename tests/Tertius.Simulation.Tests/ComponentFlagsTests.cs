@@ -74,10 +74,8 @@ public sealed class ComponentFlagsTests
     }
 
     [Fact]
-    public void ExceptKeepsTheTypesThatTheOtherSetLacks()
-    {
+    public void ExceptKeepsTheTypesThatTheOtherSetLacks() =>
         Ids(Of(1, 70, 400).Except(Of(70, 5))).Should().Equal(1, 400);
-    }
 
     [Fact]
     public void TwoSetsAreEqualWhenTheyHoldTheSameTypes()
@@ -91,7 +89,7 @@ public sealed class ComponentFlagsTests
     [Fact]
     public void TheFlagsOfAComponentListHoldTheTypeOfEachComponent()
     {
-        ComponentFlags flags = ComponentFlags.Of([new Flammable(), new Metal(), new Metal()]);
+        var flags = ComponentFlags.Of([new Flammable(), new Metal(), new Metal()]);
 
         flags.Contains<Flammable>().Should().BeTrue();
         flags.Contains<Metal>().Should().BeTrue();

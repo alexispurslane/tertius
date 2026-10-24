@@ -17,9 +17,11 @@ namespace Tertius.Benchmarks;
 [MemoryDiagnoser]
 public class NumericFrameUpdateBenchmarks
 {
-    [Params(10, 100)] public int Rocks;
+    [Params(10, 100)]
+    public int Rocks;
 
-    [Params(10, 100)] public int Bubbles;
+    [Params(10, 100)]
+    public int Bubbles;
 
     private readonly FrameTree frames = new();
     private readonly PhysicsChanges changes = new();
@@ -30,44 +32,55 @@ public class NumericFrameUpdateBenchmarks
     public void Setup()
     {
         uint next = 1;
-        FrameHandle space = frames.Create(frameOwner: new(next++, 1), parent: FrameHandle.Null,
-            localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
+        FrameHandle space = frames.Create(
+            frameOwner: new(next++, 1),
+            parent: FrameHandle.Null,
+            localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f)
+        );
         var list = new List<NumericBody>();
         for (int r = 0; r < Rocks; r++)
         {
             var position = new Double3(100 * r, 0, 0);
-            list.Add(new()
-            {
-                Entity = new(next++, 1),
-                Semantic = space,
-                Home = space,
-                Position = position,
-                HomePosition = position,
-                Velocity = new(60, 0, 0),
-                Radius = 1,
-                Mass = 1,
-                Character = true
-            });
+            list.Add(
+                new()
+                {
+                    Entity = new(next++, 1),
+                    Semantic = space,
+                    Home = space,
+                    Position = position,
+                    HomePosition = position,
+                    Velocity = new(60, 0, 0),
+                    Radius = 1,
+                    Mass = 1,
+                    Character = true,
+                }
+            );
         }
 
         for (int b = 0; b < Bubbles; b++)
         {
-            FrameHandle station = frames.Create(frameOwner: new(next++, 1), parent: space,
+            FrameHandle station = frames.Create(
+                frameOwner: new(next++, 1),
+                parent: space,
                 localPose: new(new(100 * b, 50, 0), DQuaternion.Identity),
-                frameBounds: FrameBounds.Sphere(40));
+                frameBounds: FrameBounds.Sphere(40)
+            );
             for (int c = 0; c < 10; c++)
             {
                 var position = new Double3(3 * c - 15, 0, 0);
-                list.Add(new()
-                {
-                    Entity = new(next++, 1),
-                    Semantic = station,
-                    Home = station,
-                    Position = position,
-                    HomePosition = position,
-                    Radius = 1,
-                    Mass = 1
-                });
+                list.Add(
+                    new()
+                    {
+                        Entity = new(next++, 1),
+                        Semantic = station,
+                        Home = station,
+                        Position = position,
+                        HomePosition = position,
+                        Radius = 1,
+                        Mass = 1,
+                    }
+                );
             }
         }
 
@@ -81,7 +94,7 @@ public class NumericFrameUpdateBenchmarks
                         bodies[i] = bodies[i] with
                         {
                             Home = move.To,
-                            HomePosition = bodies[i].Position - frames.HomeOffset(move.To, bodies[i].Semantic)
+                            HomePosition = bodies[i].Position - frames.HomeOffset(move.To, bodies[i].Semantic),
                         };
         };
         Update();
@@ -95,8 +108,13 @@ public class NumericFrameUpdateBenchmarks
     public void Update()
     {
         changes.Clear();
-        frames.UpdateNumericFrames(bodies: bodies, dt: 1.0 / 60, step: 1.0 / 60, changes: changes,
-            applyMoves: applyMoves);
+        frames.UpdateNumericFrames(
+            bodies: bodies,
+            dt: 1.0 / 60,
+            step: 1.0 / 60,
+            changes: changes,
+            applyMoves: applyMoves
+        );
     }
 }
 
@@ -120,9 +138,17 @@ public class NumericFramePlaceBenchmarks
     private const int Ships = 10;
 
     private static readonly Double3[] Axes =
-        [new(1, 0, 0), new(-1, 0, 0), new(0, 1, 0), new(0, -1, 0), new(0, 0, 1), new(0, 0, -1)];
+    [
+        new(1, 0, 0),
+        new(-1, 0, 0),
+        new(0, 1, 0),
+        new(0, -1, 0),
+        new(0, 0, 1),
+        new(0, 0, -1),
+    ];
 
-    [Params(1_000, 10_000)] public int ParentBodies;
+    [Params(1_000, 10_000)]
+    public int ParentBodies;
 
     private readonly FrameTree frames = new();
     private readonly PhysicsChanges changes = new();
@@ -133,20 +159,29 @@ public class NumericFramePlaceBenchmarks
     public void Setup()
     {
         uint next = 1;
-        FrameHandle space = frames.Create(frameOwner: new(next++, 1), parent: FrameHandle.Null,
-            localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
+        FrameHandle space = frames.Create(
+            frameOwner: new(next++, 1),
+            parent: FrameHandle.Null,
+            localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f)
+        );
         var list = new List<NumericBody>();
         var ships = new Double3[Ships];
         for (int s = 0; s < Ships; s++)
         {
             ships[s] = new(80 * s, 0, 0);
-            FrameHandle ship = frames.Create(frameOwner: new(next++, 1), parent: space,
+            FrameHandle ship = frames.Create(
+                frameOwner: new(next++, 1),
+                parent: space,
                 localPose: new(ships[s], DQuaternion.Identity),
-                frameBounds: FrameBounds.Sphere(40));
-            list.Add(Body(id: next++, frame: ship, position: Double3.Zero, velocity: new(60, 0, 0)) with
-            {
-                Character = true
-            });
+                frameBounds: FrameBounds.Sphere(40)
+            );
+            list.Add(
+                Body(id: next++, frame: ship, position: Double3.Zero, velocity: new(60, 0, 0)) with
+                {
+                    Character = true,
+                }
+            );
             foreach (Double3 axis in Axes)
                 list.Add(Body(id: next++, frame: ship, position: axis * 39.5, velocity: Double3.Zero));
         }
@@ -176,27 +211,34 @@ public class NumericFramePlaceBenchmarks
         Update();
         if (moved != 0 || frames.NumericCount != 0)
             throw new InvalidOperationException(
-                $"Expected a steady state without numeric frames, found {moved} moves and {frames.NumericCount} frames.");
+                $"Expected a steady state without numeric frames, found {moved} moves and {frames.NumericCount} frames."
+            );
         Console.WriteLine($"// {rocks} rocks.");
     }
 
-    private static NumericBody Body(uint id, FrameHandle frame, Double3 position, Double3 velocity) => new()
-    {
-        Entity = new(id, 1),
-        Semantic = frame,
-        Home = frame,
-        Position = position,
-        HomePosition = position,
-        Velocity = velocity,
-        Radius = 1,
-        Mass = 1
-    };
+    private static NumericBody Body(uint id, FrameHandle frame, Double3 position, Double3 velocity) =>
+        new()
+        {
+            Entity = new(id, 1),
+            Semantic = frame,
+            Home = frame,
+            Position = position,
+            HomePosition = position,
+            Velocity = velocity,
+            Radius = 1,
+            Mass = 1,
+        };
 
     [Benchmark]
     public void Update()
     {
         changes.Clear();
-        frames.UpdateNumericFrames(bodies: bodies, dt: 1.0 / 60, step: 1.0 / 60, changes: changes,
-            applyMoves: applyMoves);
+        frames.UpdateNumericFrames(
+            bodies: bodies,
+            dt: 1.0 / 60,
+            step: 1.0 / 60,
+            changes: changes,
+            applyMoves: applyMoves
+        );
     }
 }

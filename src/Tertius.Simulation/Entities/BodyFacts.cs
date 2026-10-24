@@ -45,4 +45,5 @@ public readonly record struct BodyFacts(
     Vector3 CenterOfMass,
     CollisionGroups CollisionGroups,
     CollisionMask CollisionMask,
-    bool IsSensor);
+    bool IsSensor
+);

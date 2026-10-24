@@ -43,7 +43,7 @@ public static class Program
             ["--generate", ..] => Generate(args, output, error),
             ["--readouts", ..] => Readouts(args: args, scenes: DemoScenes.All, output: output, error: error),
             ["--edit", ..] => EditCommand.Run(args: args, cuts: BlueDanubeEdit.Cuts, output: output, error: error),
-            _ => ScriptCommand.Run(args: args, scenes: DemoScenes.All, output: output, error: error)
+            _ => ScriptCommand.Run(args: args, scenes: DemoScenes.All, output: output, error: error),
         };
 
     /// <summary>
@@ -116,7 +116,8 @@ public static class Program
         if (!BlueDanube.Scenes.Contains(scene))
         {
             error.WriteLine(
-                $"--generate knows the sections of the scenes {string.Join(" and ", BlueDanube.Scenes)}, not of {scene}.");
+                $"--generate knows the sections of the scenes {string.Join(" and ", BlueDanube.Scenes)}, not of {scene}."
+            );
             error.WriteLine(GenerateUsage);
             return ScriptCommand.CommandLineError;
         }
@@ -153,15 +154,20 @@ public static class Program
         {
             if (step.Value is not FilmStep film)
                 continue;
-            output.WriteLine(FormattableString.Invariant(
-                $"{film.Name}: {film.Frames} frames, every {film.Every} ticks, from {tick / 60.0:F1} s"));
+            output.WriteLine(
+                FormattableString.Invariant(
+                    $"{film.Name}: {film.Frames} frames, every {film.Every} ticks, from {tick / 60.0:F1} s"
+                )
+            );
             tick += (long)film.Frames * film.Every;
         }
 
         // The cuts film a part of the long script, so only the long script has them.
-        foreach ((string file, string firstSection, string lastSection) in scene == BlueDanube.SceneName
-                     ? BlueDanube.Cuts
-                     : [])
+        foreach (
+            (string file, string firstSection, string lastSection) in scene == BlueDanube.SceneName
+                ? BlueDanube.Cuts
+                : []
+        )
         {
             // The folder of the script, which the check before the rehearsal found, or the root.
             string cut = Path.Combine(folder ?? Path.GetPathRoot(Path.GetFullPath(path)) ?? "", file);

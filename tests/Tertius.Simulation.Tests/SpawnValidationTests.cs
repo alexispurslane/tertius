@@ -12,29 +12,52 @@ public sealed class SpawnValidationTests
 {
     private static readonly FrameSpec SmallFrame = new(FrameBounds.Sphere(10));
 
-    public static TheoryData<string> Defects => new(
-        "no frame", "a destroyed frame", "an attached body", "an attached frame", "a null component",
-        "the same component twice", "a frame with no bubble", "a stale attachment parent",
-        "an attachment parent that owns a root frame");
+    public static TheoryData<string> Defects =>
+        new(
+            "no frame",
+            "a destroyed frame",
+            "an attached body",
+            "an attached frame",
+            "a null component",
+            "the same component twice",
+            "a frame with no bubble",
+            "a stale attachment parent",
+            "an attachment parent that owns a root frame"
+        );
 
     /// <summary>A description with the named defect. <paramref name="staleFrame"/> and <paramref name="staleParent"/> are handles that have been destroyed.</summary>
-    private static SpawnDesc WithDefect(string defect, FrameHandle root, FrameHandle staleFrame, Entity liveParent,
-        Entity staleParent)
+    private static SpawnDesc WithDefect(
+        string defect,
+        FrameHandle root,
+        FrameHandle staleFrame,
+        Entity liveParent,
+        Entity staleParent
+    )
     {
         var shared = new Recorder();
         return defect switch
         {
             "no frame" => new(),
             "a destroyed frame" => new() { Frame = staleFrame },
-            "an attached body" => new() { Frame = root, AttachTo = liveParent, Body = TestWorld.Ball },
-            "an attached frame" => new() { Frame = root, AttachTo = liveParent, AsFrame = SmallFrame },
+            "an attached body" => new()
+            {
+                Frame = root,
+                AttachTo = liveParent,
+                Body = TestWorld.Ball,
+            },
+            "an attached frame" => new()
+            {
+                Frame = root,
+                AttachTo = liveParent,
+                AsFrame = SmallFrame,
+            },
             "a null component" => new() { Frame = root, Components = [null!] },
             "the same component twice" => new() { Frame = root, Components = [shared, shared] },
             "a frame with no bubble" => new() { Frame = root, AsFrame = new(default) },
             "a stale attachment parent" => new() { Frame = root, AttachTo = staleParent },
             // The owner of a root frame is in no frame, so it has none to give a child.
             "an attachment parent that owns a root frame" => new() { AttachTo = root.Entity },
-            _ => throw new ArgumentOutOfRangeException(nameof(defect), defect, null)
+            _ => throw new ArgumentOutOfRangeException(nameof(defect), defect, null),
         };
     }
 
@@ -56,8 +79,13 @@ public sealed class SpawnValidationTests
     public void ADescriptionWithADefectIsRefusedWithAnArgumentError(string defect)
     {
         using TestWorld t = Prepared(out FrameHandle staleFrame, out Entity liveParent, out Entity staleParent);
-        SpawnDesc desc = WithDefect(defect: defect, root: t.Root, staleFrame: staleFrame, liveParent: liveParent,
-            staleParent: staleParent);
+        SpawnDesc desc = WithDefect(
+            defect: defect,
+            root: t.Root,
+            staleFrame: staleFrame,
+            liveParent: liveParent,
+            staleParent: staleParent
+        );
 
         Action spawn = () => t.World.Spawn(desc);
 
@@ -69,8 +97,13 @@ public sealed class SpawnValidationTests
     public void ARefusedSpawnTakesNoSlot(string defect)
     {
         using TestWorld t = Prepared(out FrameHandle staleFrame, out Entity liveParent, out Entity staleParent);
-        SpawnDesc desc = WithDefect(defect: defect, root: t.Root, staleFrame: staleFrame, liveParent: liveParent,
-            staleParent: staleParent);
+        SpawnDesc desc = WithDefect(
+            defect: defect,
+            root: t.Root,
+            staleFrame: staleFrame,
+            liveParent: liveParent,
+            staleParent: staleParent
+        );
         Entity before = t.SpawnWith();
 
         Record.Exception(() => t.World.Spawn(desc));
@@ -87,8 +120,13 @@ public sealed class SpawnValidationTests
     public void ARefusedSpawnMakesNoEntity(string defect)
     {
         using TestWorld t = Prepared(out FrameHandle staleFrame, out Entity liveParent, out Entity staleParent);
-        SpawnDesc desc = WithDefect(defect: defect, root: t.Root, staleFrame: staleFrame, liveParent: liveParent,
-            staleParent: staleParent);
+        SpawnDesc desc = WithDefect(
+            defect: defect,
+            root: t.Root,
+            staleFrame: staleFrame,
+            liveParent: liveParent,
+            staleParent: staleParent
+        );
         int liveBefore = t.World.Stats.LiveEntities;
 
         Record.Exception(() => t.World.Spawn(desc));
@@ -99,7 +137,7 @@ public sealed class SpawnValidationTests
     [Fact]
     public void ARefusedSpawnTellsPhysicsNothing()
     {
-        using TestWorld t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         List<PhysicsChanges> batches = faults.AppliedChanges;
         Record.Exception(() => t.World.Spawn(new() { Frame = default, Body = TestWorld.Ball }));
 
@@ -154,9 +192,7 @@ public sealed class SpawnValidationTests
         public int Priority => throw new InvalidOperationException("no priority");
         public EventMask Wants => default;
 
-        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
-        {
-        }
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) { }
     }
 
     /// <summary>A component whose wants cannot be read.</summary>
@@ -165,9 +201,7 @@ public sealed class SpawnValidationTests
         public int Priority => 0;
         public EventMask Wants => throw new InvalidOperationException("no wants");
 
-        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
-        {
-        }
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) { }
     }
 
     [Fact]
@@ -201,17 +235,21 @@ public sealed class SpawnValidationTests
     {
         using var t = new TestWorld();
         Exception? caught = null;
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            try
-            {
-                self.Spawn(new());
-            }
-            catch (ArgumentException ex)
-            {
-                caught = ex;
-            }
-        }));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    try
+                    {
+                        self.Spawn(new());
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        caught = ex;
+                    }
+                }
+            )
+        );
 
         t.Run(1);
 
@@ -224,21 +262,25 @@ public sealed class SpawnValidationTests
     {
         using var t = new TestWorld();
         Entity child = default;
-        Entity spawner = t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick != 0)
-                return;
-            try
-            {
-                self.Spawn(new());
-            }
-            catch (ArgumentException)
-            {
-                // Refused, as the previous test checks. This test looks only at the slot.
-            }
+        Entity spawner = t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick != 0)
+                        return;
+                    try
+                    {
+                        self.Spawn(new());
+                    }
+                    catch (ArgumentException)
+                    {
+                        // Refused, as the previous test checks. This test looks only at the slot.
+                    }
 
-            child = self.Spawn(new() { Frame = self.Frame });
-        }));
+                    child = self.Spawn(new() { Frame = self.Frame });
+                }
+            )
+        );
 
         t.Run(1);
 
@@ -250,11 +292,15 @@ public sealed class SpawnValidationTests
     public void ARefusedSpawnThatEscapesTheComponentIsReportedAsAnError()
     {
         using var t = new TestWorld();
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick == 0)
-                self.Spawn(new());
-        }));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 0)
+                        self.Spawn(new());
+                }
+            )
+        );
         int before = t.World.Stats.LiveEntities;
 
         t.Run(1);
@@ -280,26 +326,44 @@ public sealed class SpawnValidationTests
         var component = new Recorder();
         Entity target = t.SpawnWith(component);
         InvalidOperationException? caught = null;
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            try
-            {
-                switch (operation)
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
                 {
-                    case "Spawn": t.World.Spawn(new() { Frame = t.Root }); break;
-                    case "Destroy": t.World.Destroy(target); break;
-                    case "AddComponent": t.World.AddComponent(target, new Recorder()); break;
-                    case "RemoveComponent": t.World.RemoveComponent(target, component); break;
-                    case "Subscribe": t.World.Subscribe(target, topic); break;
-                    case "Unsubscribe": t.World.Unsubscribe(target, topic); break;
-                    default: t.World.PublishRenderSnapshot(); break;
+                    try
+                    {
+                        switch (operation)
+                        {
+                            case "Spawn":
+                                t.World.Spawn(new() { Frame = t.Root });
+                                break;
+                            case "Destroy":
+                                t.World.Destroy(target);
+                                break;
+                            case "AddComponent":
+                                t.World.AddComponent(target, new Recorder());
+                                break;
+                            case "RemoveComponent":
+                                t.World.RemoveComponent(target, component);
+                                break;
+                            case "Subscribe":
+                                t.World.Subscribe(target, topic);
+                                break;
+                            case "Unsubscribe":
+                                t.World.Unsubscribe(target, topic);
+                                break;
+                            default:
+                                t.World.PublishRenderSnapshot();
+                                break;
+                        }
+                    }
+                    catch (InvalidOperationException ex)
+                    {
+                        caught = ex;
+                    }
                 }
-            }
-            catch (InvalidOperationException ex)
-            {
-                caught = ex;
-            }
-        }));
+            )
+        );
         int liveBefore = t.World.Stats.LiveEntities;
 
         t.Run(1);

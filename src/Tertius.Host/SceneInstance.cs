@@ -36,7 +36,8 @@ public sealed class SceneInstance
         if (!IsSceneId(id))
             throw new ArgumentException(
                 $"'{id}' is not a scene id. Use lowercase letters, digits, '_', '.' and '-', start with a letter or a digit, and write at most 64 characters.",
-                nameof(id));
+                nameof(id)
+            );
         if (entity.IsNull)
             throw new ArgumentException($"The null entity cannot have the scene id '{id}'.", nameof(entity));
         if (entities.TryGetValue(id, out Entity holder))

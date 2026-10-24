@@ -15,8 +15,14 @@ internal sealed unsafe class GpuBuffer : IDisposable
     /// <summary>The last synchronized GPU use. See <see cref="BarrierBatch"/>.</summary>
     public ResourceState State;
 
-    private GpuBuffer(VulkanDevice device, DeviceAllocator allocator, Buffer handle, MemoryAllocation memory,
-        ulong size, string name)
+    private GpuBuffer(
+        VulkanDevice device,
+        DeviceAllocator allocator,
+        Buffer handle,
+        MemoryAllocation memory,
+        ulong size,
+        string name
+    )
     {
         this.device = device;
         this.allocator = allocator;
@@ -33,8 +39,14 @@ internal sealed unsafe class GpuBuffer : IDisposable
     /// <summary>The CPU address of the buffer's first byte, or null when it is not host-visible.</summary>
     public byte* Mapped => memory.Mapped;
 
-    public static GpuBuffer Create(VulkanDevice device, DeviceAllocator allocator, ulong size, BufferUsageFlags usage,
-        MemoryUsage memoryUsage, string name)
+    public static GpuBuffer Create(
+        VulkanDevice device,
+        DeviceAllocator allocator,
+        ulong size,
+        BufferUsageFlags usage,
+        MemoryUsage memoryUsage,
+        string name
+    )
     {
         ArgumentOutOfRangeException.ThrowIfZero(size);
         var info = new BufferCreateInfo
@@ -42,17 +54,26 @@ internal sealed unsafe class GpuBuffer : IDisposable
             SType = StructureType.BufferCreateInfo,
             Size = size,
             Usage = usage,
-            SharingMode = SharingMode.Exclusive
+            SharingMode = SharingMode.Exclusive,
         };
-        device.Vk.CreateBuffer(device: device.Device, pCreateInfo: &info, pAllocator: null, pBuffer: out Buffer buffer)
+        device
+            .Vk.CreateBuffer(device: device.Device, pCreateInfo: &info, pAllocator: null, pBuffer: out Buffer buffer)
             .Check("vkCreateBuffer");
         try
         {
             device.Vk.GetBufferMemoryRequirements(device.Device, buffer, out MemoryRequirements requirements);
-            MemoryAllocation memory =
-                allocator.Allocate(requirements: requirements, usage: memoryUsage, linear: true, name: name);
-            Result bind = device.Vk.BindBufferMemory(device: device.Device, buffer: buffer, memory: memory.Memory,
-                memoryOffset: memory.Offset);
+            MemoryAllocation memory = allocator.Allocate(
+                requirements: requirements,
+                usage: memoryUsage,
+                linear: true,
+                name: name
+            );
+            Result bind = device.Vk.BindBufferMemory(
+                device: device.Device,
+                buffer: buffer,
+                memory: memory.Memory,
+                memoryOffset: memory.Offset
+            );
             if (bind != Result.Success)
             {
                 allocator.Free(memory);
@@ -61,7 +82,9 @@ internal sealed unsafe class GpuBuffer : IDisposable
 
             device.SetName(ObjectType.Buffer, buffer.Handle, name);
             return new(device: device, allocator: allocator, handle: buffer, memory: memory, size: size, name: name)
-                { State = new(ImageLayout.Undefined, PipelineStageFlags2.None, AccessFlags2.None) };
+            {
+                State = new(ImageLayout.Undefined, PipelineStageFlags2.None, AccessFlags2.None),
+            };
         }
         catch
         {
@@ -71,7 +94,8 @@ internal sealed unsafe class GpuBuffer : IDisposable
     }
 
     /// <summary>The mapped contents as <paramref name="count"/> elements of <typeparamref name="T"/>.</summary>
-    public Span<T> AsSpan<T>(int count) where T : unmanaged
+    public Span<T> AsSpan<T>(int count)
+        where T : unmanaged
     {
         if (memory.Mapped == null)
             throw new InvalidOperationException($"{Name} is not host-visible.");
@@ -81,7 +105,8 @@ internal sealed unsafe class GpuBuffer : IDisposable
     }
 
     /// <summary>Copies <paramref name="data"/> into the mapped buffer at <paramref name="byteOffset"/>.</summary>
-    public void Write<T>(ReadOnlySpan<T> data, ulong byteOffset = 0) where T : unmanaged
+    public void Write<T>(ReadOnlySpan<T> data, ulong byteOffset = 0)
+        where T : unmanaged
     {
         ulong bytes = (ulong)data.Length * (ulong)sizeof(T);
         if (memory.Mapped == null)

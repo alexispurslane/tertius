@@ -34,7 +34,8 @@ public readonly record struct ReadoutRow(
     double Axis,
     double Felt,
     ThrowReadout? FirstThrow = null,
-    ThrowReadout? SecondThrow = null);
+    ThrowReadout? SecondThrow = null
+);
 
 /// <summary>
 /// One throw of the coda, as the <see cref="FlightRecorder"/> of its box records it, in the station's own frame: its origin
@@ -63,7 +64,8 @@ public sealed class ReadoutLog : IPlayback
     // The cells of a row: nine for the person, then ten for each of the two throws.
     private const int Cells = 29;
 
-    private readonly Entity person, station;
+    private readonly Entity person,
+        station;
     private readonly FrameHandle earth;
     private readonly List<ReadoutRow> rows = [];
 
@@ -90,12 +92,21 @@ public sealed class ReadoutLog : IPlayback
         Double3 felt = world.Frames.FeltGravity(home, world.PoseIn(person, home).Position);
         // The station's axis is its +Y through its center. The part of the offset along the axis leaves the part across it.
         DPose stationPose = world.PoseIn(station, earth);
-        Double3 offset = position - stationPose.Position, axis = stationPose.Rotation.Rotate(Double3.UnitY);
-        rows.Add(new(Frame: name, Tick: world.TickNumber, Position: position,
-            Speed: world.VelocityIn(person, earth).Length,
-            ToStation: offset.Length, Axis: (offset - axis * Double3.Dot(offset, axis)).Length, Felt: felt.Length,
-            FirstThrow: ThrowOf(world, 0),
-            SecondThrow: ThrowOf(world, 1)));
+        Double3 offset = position - stationPose.Position,
+            axis = stationPose.Rotation.Rotate(Double3.UnitY);
+        rows.Add(
+            new(
+                Frame: name,
+                Tick: world.TickNumber,
+                Position: position,
+                Speed: world.VelocityIn(person, earth).Length,
+                ToStation: offset.Length,
+                Axis: (offset - axis * Double3.Dot(offset, axis)).Length,
+                Felt: felt.Length,
+                FirstThrow: ThrowOf(world, 0),
+                SecondThrow: ThrowOf(world, 1)
+            )
+        );
         return true;
     }
 
@@ -107,7 +118,7 @@ public sealed class ReadoutLog : IPlayback
     {
         if (world.GetComponent<BoxPlay>(person) is not { } play || index >= play.Thrown.Count)
             return null;
-        var recorder = world.GetComponent<FlightRecorder>(play.Thrown[index]);
+        FlightRecorder? recorder = world.GetComponent<FlightRecorder>(play.Thrown[index]);
         return recorder?.Release is { } release ? new ThrowReadout(release, recorder.Landing) : null;
     }
 
@@ -120,10 +131,13 @@ public sealed class ReadoutLog : IPlayback
     {
         ArgumentNullException.ThrowIfNull(script);
         ArgumentNullException.ThrowIfNull(scenes);
-        Scene scene = scenes.SingleOrDefault(s => s.Name == script.Scene) ??
-                      throw new ScriptException($"No scene is named '{script.Scene}'.");
-        using var world = new World(new() { DisposePhysics = true },
-            new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
+        Scene scene =
+            scenes.SingleOrDefault(s => s.Name == script.Scene)
+            ?? throw new ScriptException($"No scene is named '{script.Scene}'.");
+        using var world = new World(
+            new() { DisposePhysics = true },
+            new JoltPhysicsBackend(JoltBackendOptions.Unpaced)
+        );
         SceneInstance instance = scene.Build(world, RenderResources.None);
         var log = new ReadoutLog(world, instance);
         ScriptRunner.Run(script: script, world: world, scene: instance, outputFolder: null, playback: log);
@@ -137,8 +151,10 @@ public sealed class ReadoutLog : IPlayback
         StringBuilder text = new StringBuilder(Header).Append('\n');
         foreach (ReadoutRow row in rows)
         {
-            text.Append(CultureInfo.InvariantCulture,
-                $"{row.Frame},{row.Tick},{row.Position.X:R},{row.Position.Y:R},{row.Position.Z:R},{row.Speed:R},{row.ToStation:R},{row.Axis:R},{row.Felt:R}");
+            text.Append(
+                CultureInfo.InvariantCulture,
+                $"{row.Frame},{row.Tick},{row.Position.X:R},{row.Position.Y:R},{row.Position.Z:R},{row.Speed:R},{row.ToStation:R},{row.Axis:R},{row.Felt:R}"
+            );
             AppendThrow(text, row.FirstThrow);
             AppendThrow(text, row.SecondThrow);
             text.Append('\n');
@@ -152,12 +168,21 @@ public sealed class ReadoutLog : IPlayback
     {
         ThrowRelease? release = readout?.Release;
         ThrowLanding? landing = readout?.Landing;
-        foreach (double? value in new[]
-                 {
-                     release?.Place.X, release?.Place.Y, release?.Place.Z, release?.Velocity.X, release?.Velocity.Y,
-                     release?.Velocity.Z,
-                     landing?.Time, landing?.Place.X, landing?.Place.Y, landing?.Place.Z
-                 })
+        foreach (
+            double? value in new[]
+            {
+                release?.Place.X,
+                release?.Place.Y,
+                release?.Place.Z,
+                release?.Velocity.X,
+                release?.Velocity.Y,
+                release?.Velocity.Z,
+                landing?.Time,
+                landing?.Place.X,
+                landing?.Place.Y,
+                landing?.Place.Z,
+            }
+        )
             text.Append(CultureInfo.InvariantCulture, $",{value:R}");
     }
 
@@ -175,10 +200,19 @@ public sealed class ReadoutLog : IPlayback
             if (cells.Length != Cells)
                 throw new FormatException($"Line {i + 1} of the readout log has {cells.Length} cells, not {Cells}.");
             double Number(int cell) => double.Parse(cells[cell], NumberStyles.Float, CultureInfo.InvariantCulture);
-            rows.Add(new(Frame: cells[0], Tick: long.Parse(cells[1], CultureInfo.InvariantCulture),
-                Position: new(Number(2), Number(3), Number(4)), Speed: Number(5), ToStation: Number(6), Axis: Number(7),
-                Felt: Number(8),
-                FirstThrow: ReadThrow(cells, 9), SecondThrow: ReadThrow(cells, 19)));
+            rows.Add(
+                new(
+                    Frame: cells[0],
+                    Tick: long.Parse(cells[1], CultureInfo.InvariantCulture),
+                    Position: new(Number(2), Number(3), Number(4)),
+                    Speed: Number(5),
+                    ToStation: Number(6),
+                    Axis: Number(7),
+                    Felt: Number(8),
+                    FirstThrow: ReadThrow(cells, 9),
+                    SecondThrow: ReadThrow(cells, 19)
+                )
+            );
         }
 
         return rows;
@@ -191,9 +225,8 @@ public sealed class ReadoutLog : IPlayback
         if (cells[start] == "")
             return null;
         var release = new ThrowRelease(new(Number(0), Number(1), Number(2)), new(Number(3), Number(4), Number(5)));
-        ThrowLanding? landing = cells[start + 6] == ""
-            ? null
-            : new ThrowLanding(Number(6), new(Number(7), Number(8), Number(9)));
+        ThrowLanding? landing =
+            cells[start + 6] == "" ? null : new ThrowLanding(Number(6), new(Number(7), Number(8), Number(9)));
         return new ThrowReadout(release, landing);
     }
 }

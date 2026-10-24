@@ -213,8 +213,12 @@ internal sealed class ImpostorManager : IInstanceProcessor
         }
 
         ref State state = ref states[slot];
-        status = new(Impostor: state.Impostor, Tile: state.Tile, CapturedFrame: state.CapturedFrame,
-            ProjectedHeight: state.Height);
+        status = new(
+            Impostor: state.Impostor,
+            Tile: state.Tile,
+            CapturedFrame: state.CapturedFrame,
+            ProjectedHeight: state.Height
+        );
         return true;
     }
 
@@ -249,11 +253,14 @@ internal sealed class ImpostorManager : IInstanceProcessor
         {
             decisions[i] = -1;
             ref PreparedInstance instance = ref visible[i];
-            if ((instance.Flags & Excluded) != 0 || !(instance.Radius > 0f) ||
-                instance.Distance < MinimumDistance * instance.Radius)
+            if (
+                (instance.Flags & Excluded) != 0
+                || !(instance.Radius > 0f)
+                || instance.Distance < MinimumDistance * instance.Radius
+            )
                 continue;
             float height = ProjectedHeight(instance.Distance, instance.Radius, camera);
-            ImpostorKey key = ImpostorKey.Of(instance);
+            var key = ImpostorKey.Of(instance);
             ref int slot = ref CollectionsMarshal.GetValueRefOrAddDefault(lookup, key, out bool exists);
             if (!exists)
                 slot = AllocateState(key);
@@ -317,7 +324,8 @@ internal sealed class ImpostorManager : IInstanceProcessor
     /// <summary>Moves every object with a capture from the visible list to the impostor draws.</summary>
     private void EmitDraws(PreparedScene scene, Span<PreparedInstance> visible)
     {
-        int kept = 0, waiting = 0;
+        int kept = 0,
+            waiting = 0;
         for (int i = 0; i < visible.Length; i++)
         {
             int slot = decisions[i];
@@ -356,7 +364,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
             Tile = state.Tile,
             // The range of the center and any nearer range the sphere reaches: the billboard lies in the plane of
             // the center, so a farther range would clip it at its near plane.
-            Ranges = DepthRanges.OpaqueMask(instance.Depth, instance.Radius) & ~((1 << containing) - 1)
+            Ranges = DepthRanges.OpaqueMask(instance.Depth, instance.Radius) & ~((1 << containing) - 1),
         };
         tileUsed[state.Tile] = Frame;
         state.DrawnFrame = Frame;
@@ -367,19 +375,20 @@ internal sealed class ImpostorManager : IInstanceProcessor
         ref State state = ref states[slot];
         Vector3 toward = -instance.Position / instance.Distance;
         // Upright on screen: the camera's up axis made perpendicular to the view direction.
-        Vector3 right = Vector3.Cross(camera.Up, toward);
+        var right = Vector3.Cross(camera.Up, toward);
         if (right.LengthSquared() < 1e-8f)
             right = Vector3.Cross(camera.Forward, toward);
         right = Vector3.Normalize(right);
-        Vector3 up = Vector3.Cross(toward, right);
+        var up = Vector3.Cross(toward, right);
 
-        Quaternion inverse = Quaternion.Conjugate(instance.Rotation);
+        var inverse = Quaternion.Conjugate(instance.Rotation);
         state.View = Vector3.Transform(toward, inverse);
         state.Right = Vector3.Transform(right, inverse);
         state.Up = Vector3.Transform(up, inverse);
         state.Sun = light.HasSun ? Vector3.Transform(light.SunDirection, inverse) : Vector3.Zero;
         state.Scale = instance.Scale;
-        float distance = instance.Distance, radius = instance.Radius;
+        float distance = instance.Distance,
+            radius = instance.Radius;
         float tanHalfAngle = radius / MathF.Sqrt((distance - radius) * (distance + radius)) * MarginScale;
         state.EyeDistance = distance;
         state.Extent = distance * tanHalfAngle;
@@ -403,15 +412,15 @@ internal sealed class ImpostorManager : IInstanceProcessor
             Distance = distance,
             Radius = radius,
             TanHalfAngle = tanHalfAngle,
-            Hemisphere = instance.Hemisphere
+            Hemisphere = instance.Hemisphere,
         };
     }
 
     /// <summary>How far a capture is from what the object would look like now: an angle in radians, or a relative change.</summary>
     private static float CaptureError(in State state, in PreparedInstance instance, in SceneLight light)
     {
-        Quaternion inverse = Quaternion.Conjugate(instance.Rotation);
-        Vector3 toward = Vector3.Transform(-instance.Position / instance.Distance, inverse);
+        var inverse = Quaternion.Conjugate(instance.Rotation);
+        var toward = Vector3.Transform(-instance.Position / instance.Distance, inverse);
         float error = Angle(toward, state.View);
         error = MathF.Max(error, MathF.Abs(instance.Radius / instance.Distance - state.Parallax));
         if (light.HasSun)
@@ -497,7 +506,15 @@ internal sealed class ImpostorManager : IInstanceProcessor
                 Array.Resize(ref states, states.Length * 2);
         }
 
-        states[slot] = new() { Key = key, Live = true, Tile = -1, LastSeen = -1, CapturedFrame = -1, DrawnFrame = -1 };
+        states[slot] = new()
+        {
+            Key = key,
+            Live = true,
+            Tile = -1,
+            LastSeen = -1,
+            CapturedFrame = -1,
+            DrawnFrame = -1,
+        };
         return slot;
     }
 
@@ -570,16 +587,21 @@ internal sealed class ImpostorManager : IInstanceProcessor
         Vector3 Ground,
         Vector3 Up,
         Vector3 Local,
-        Vector3 LocalDirection)
+        Vector3 LocalDirection
+    )
     {
         private float Total => Sun.Length() + Sky.Length() + Ground.Length() + Local.Length();
 
         /// <summary>The change from <paramref name="a"/> to <paramref name="b"/> as a fraction of the larger total light.</summary>
         public static float Change(in LightSignature a, in LightSignature b)
         {
-            float difference = (a.Sun - b.Sun).Length() + (a.Sky - b.Sky).Length() + (a.Ground - b.Ground).Length() +
-                               (a.Up - b.Up).Length() +
-                               (a.Local - b.Local).Length() + (a.LocalDirection - b.LocalDirection).Length();
+            float difference =
+                (a.Sun - b.Sun).Length()
+                + (a.Sky - b.Sky).Length()
+                + (a.Ground - b.Ground).Length()
+                + (a.Up - b.Up).Length()
+                + (a.Local - b.Local).Length()
+                + (a.LocalDirection - b.LocalDirection).Length();
             return difference / MathF.Max(MathF.Max(a.Total, b.Total), 1e-6f);
         }
     }
@@ -614,11 +636,17 @@ internal sealed class ImpostorManager : IInstanceProcessor
         {
             Vector3 position = instance.Position;
             Vector3 sun = HasSun
-                ? sunRadiance * Eclipse.SunVisibility(position: position, sunDirection: SunDirection,
-                    sunAngularRadius: sunAngularRadius, occluders: occluders)
+                ? sunRadiance
+                    * Eclipse.SunVisibility(
+                        position: position,
+                        sunDirection: SunDirection,
+                        sunAngularRadius: sunAngularRadius,
+                        occluders: occluders
+                    )
                 : Vector3.Zero;
-            Vector3 local = Vector3.Zero, direction = Vector3.Zero;
-            Quaternion inverse = Quaternion.Conjugate(instance.Rotation);
+            Vector3 local = Vector3.Zero,
+                direction = Vector3.Zero;
+            var inverse = Quaternion.Conjugate(instance.Rotation);
             HemisphereUp hemisphere = instance.Hemisphere;
             // A center inside the object, such as a planet's own, gives every side its own up, so there is no one up to
             // compare.
@@ -626,7 +654,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
             {
                 UpAlong along => along.Direction,
                 UpAwayFrom away when away.Center.Length() > instance.Radius => Vector3.Normalize(-away.Center),
-                UpAwayFrom or null => Vector3.Zero
+                UpAwayFrom or null => Vector3.Zero,
             };
             Vector3 upInObject = Vector3.Transform(up, inverse) * (sky - ground).Length();
             if (!lights.IsEmpty)
@@ -636,8 +664,8 @@ internal sealed class ImpostorManager : IInstanceProcessor
                 {
                     // The lighting shader's range window and spot cone, at the center, with the window measured to
                     // the nearest point of the bounding sphere so that a light grazing the object counts.
-                    Vector3 toLight = new Vector3(light.PositionRange.X, light.PositionRange.Y, light.PositionRange.Z) -
-                                      position;
+                    Vector3 toLight =
+                        new Vector3(light.PositionRange.X, light.PositionRange.Y, light.PositionRange.Z) - position;
                     float distance = toLight.Length();
                     float range = light.PositionRange.W;
                     float nearest = MathF.Max(distance - radius, 0f);
@@ -649,13 +677,15 @@ internal sealed class ImpostorManager : IInstanceProcessor
                     Vector3 unit = toLight / distance;
                     if (light.RadianceKind.W > 0.5f)
                     {
-                        float cosAngle = Vector3.Dot(-unit,
-                            new(light.DirectionCosOuter.X, light.DirectionCosOuter.Y, light.DirectionCosOuter.Z));
+                        float cosAngle = Vector3.Dot(
+                            -unit,
+                            new(light.DirectionCosOuter.X, light.DirectionCosOuter.Y, light.DirectionCosOuter.Z)
+                        );
                         attenuation *= SmoothStep(light.DirectionCosOuter.W, light.Spot.X, cosAngle);
                     }
 
-                    Vector3 irradiance = new Vector3(light.RadianceKind.X, light.RadianceKind.Y, light.RadianceKind.Z) *
-                                         attenuation;
+                    Vector3 irradiance =
+                        new Vector3(light.RadianceKind.X, light.RadianceKind.Y, light.RadianceKind.Z) * attenuation;
                     local += irradiance;
                     direction += Vector3.Transform(unit, inverse) * irradiance.Length();
                 }
@@ -713,7 +743,9 @@ internal sealed class ImpostorManager : IInstanceProcessor
         {
             while (true)
             {
-                int best = i, left = 2 * i + 1, right = left + 1;
+                int best = i,
+                    left = 2 * i + 1,
+                    right = left + 1;
                 if (left < Count && Before(items[left], items[best]))
                     best = left;
                 if (right < Count && Before(items[right], items[best]))
@@ -739,8 +771,12 @@ internal static class Eclipse
     /// a planet's ground faces away from the sun at night anyway. Impostor captures get no shadow-map shadows, so every
     /// sphere counts here, also those of casters that the maps draw.
     /// </summary>
-    public static float SunVisibility(Vector3 position, Vector3 sunDirection, float sunAngularRadius,
-        ReadOnlySpan<Vector4> occluders)
+    public static float SunVisibility(
+        Vector3 position,
+        Vector3 sunDirection,
+        float sunAngularRadius,
+        ReadOnlySpan<Vector4> occluders
+    )
     {
         float sunRadius = MathF.Max(sunAngularRadius, 1e-5f);
         float visibility = 1f;
@@ -751,8 +787,10 @@ internal static class Eclipse
             if (distance <= occluder.W)
                 continue;
             float occluderRadius = MathF.Asin(occluder.W / distance);
-            float separation = MathF.Atan2(Vector3.Cross(toCenter, sunDirection).Length(),
-                Vector3.Dot(toCenter, sunDirection));
+            float separation = MathF.Atan2(
+                Vector3.Cross(toCenter, sunDirection).Length(),
+                Vector3.Dot(toCenter, sunDirection)
+            );
             visibility *= 1f - DiscCoverage(sunRadius, occluderRadius, separation);
         }
 
@@ -773,8 +811,12 @@ internal static class Eclipse
 
         if (separation <= MathF.Abs(occluderRadius - sunRadius))
             return occluderRadius >= sunRadius ? 1f : occluderRadius * occluderRadius / (sunRadius * sunRadius);
-        float d = separation, r1 = sunRadius, r2 = occluderRadius;
-        float d2 = d * d, r1s = r1 * r1, r2s = r2 * r2;
+        float d = separation,
+            r1 = sunRadius,
+            r2 = occluderRadius;
+        float d2 = d * d,
+            r1s = r1 * r1,
+            r2s = r2 * r2;
         float a1 = r1s * MathF.Acos(Math.Clamp((d2 + r1s - r2s) / (2f * d * r1), -1f, 1f));
         float a2 = r2s * MathF.Acos(Math.Clamp((d2 + r2s - r1s) / (2f * d * r2), -1f, 1f));
         float k = 0.5f * MathF.Sqrt(MathF.Max((-d + r1 + r2) * (d + r1 - r2) * (d - r1 + r2) * (d + r1 + r2), 0f));

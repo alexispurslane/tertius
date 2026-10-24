@@ -62,7 +62,7 @@ public readonly record struct TransferGuidance(double Mu)
     /// </summary>
     public static double TransferAngle(Double3 from, Double3 to, Double3 normal)
     {
-        Double3 cross = Double3.Cross(from, to);
+        var cross = Double3.Cross(from, to);
         double angle = Math.Atan2(Math.CopySign(cross.Length, Double3.Dot(cross, normal)), Double3.Dot(from, to));
         return angle < 0 ? angle + 2 * Math.PI : angle;
     }
@@ -81,10 +81,19 @@ public readonly record struct TransferGuidance(double Mu)
     /// it lies along the orbit's normal, about which the station turns.
     /// </summary>
     public (Double3 Point, Double3 StationVelocity) Arrival(
-        Double3 stationPosition, Double3 stationVelocity, Double3 axis, double arrivalDistance, double time)
+        Double3 stationPosition,
+        Double3 stationVelocity,
+        Double3 axis,
+        double arrivalDistance,
+        double time
+    )
     {
-        (Double3 position, Double3 velocity) =
-            KeplerOrbit.Propagate(position: stationPosition, velocity: stationVelocity, mu: Mu, time: time);
+        (Double3 position, Double3 velocity) = KeplerOrbit.Propagate(
+            position: stationPosition,
+            velocity: stationVelocity,
+            mu: Mu,
+            time: time
+        );
         return (position + axis * arrivalDistance, velocity);
     }
 
@@ -96,13 +105,24 @@ public readonly record struct TransferGuidance(double Mu)
     /// in a slow orbit the angle falls there before the last <see cref="CoastTime"/>. The angle left never nears 180
     /// degrees, because the transfer starts inside a window below 179 degrees and the angle only falls.
     /// </summary>
-    public bool Coasts(Double3 shuttlePosition, Double3 stationPosition, Double3 stationVelocity, Double3 axis,
-        double arrivalDistance, double timeLeft)
+    public bool Coasts(
+        Double3 shuttlePosition,
+        Double3 stationPosition,
+        Double3 stationVelocity,
+        Double3 axis,
+        double arrivalDistance,
+        double timeLeft
+    )
     {
         if (timeLeft <= CoastTime)
             return true;
-        Double3 arrival = Arrival(stationPosition: stationPosition, stationVelocity: stationVelocity, axis: axis,
-            arrivalDistance: arrivalDistance, time: timeLeft).Point;
+        Double3 arrival = Arrival(
+            stationPosition: stationPosition,
+            stationVelocity: stationVelocity,
+            axis: axis,
+            arrivalDistance: arrivalDistance,
+            time: timeLeft
+        ).Point;
         double angle = TransferAngle(shuttlePosition, arrival, OrbitNormal(stationPosition, stationVelocity));
         return angle is < CoastAngle or > 2 * Math.PI - CoastAngle;
     }
@@ -116,16 +136,31 @@ public readonly record struct TransferGuidance(double Mu)
     /// of 0 or below and a transfer angle within a degree of 0 or 180 degrees, so the autopilot steers only while it does
     /// not coast (see <see cref="Coasts"/>).
     /// </summary>
-    public TransferSteering Steer(Double3 shuttlePosition, Double3 shuttleVelocity, Double3 stationPosition,
+    public TransferSteering Steer(
+        Double3 shuttlePosition,
+        Double3 shuttleVelocity,
+        Double3 stationPosition,
         Double3 stationVelocity,
-        Double3 axis, double arrivalDistance, double timeLeft)
+        Double3 axis,
+        double arrivalDistance,
+        double timeLeft
+    )
     {
-        (Double3 arrival, Double3 stationAtArrival) =
-            Arrival(stationPosition: stationPosition, stationVelocity: stationVelocity, axis: axis,
-                arrivalDistance: arrivalDistance, time: timeLeft);
+        (Double3 arrival, Double3 stationAtArrival) = Arrival(
+            stationPosition: stationPosition,
+            stationVelocity: stationVelocity,
+            axis: axis,
+            arrivalDistance: arrivalDistance,
+            time: timeLeft
+        );
         Double3 normal = OrbitNormal(stationPosition, stationVelocity);
-        (Double3 needed, Double3 atArrival) = KeplerOrbit.Lambert(from: shuttlePosition, to: arrival,
-            timeOfFlight: timeLeft, mu: Mu, normal: normal);
+        (Double3 needed, Double3 atArrival) = KeplerOrbit.Lambert(
+            from: shuttlePosition,
+            to: arrival,
+            timeOfFlight: timeLeft,
+            mu: Mu,
+            normal: normal
+        );
         Double3 toGain = needed - shuttleVelocity;
         Double3 push = toGain / TrimTime;
         double length = push.Length;

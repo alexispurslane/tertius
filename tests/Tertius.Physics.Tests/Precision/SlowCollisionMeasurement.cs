@@ -55,7 +55,8 @@ public sealed class SlowCollisionMeasurement
         int Collisions,
         int Ended,
         double LargestOverlap,
-        double LargestTilt);
+        double LargestTilt
+    );
 
     /// <param name="FirstCollisionTick">The tick in which box A heard its first Collision, or -1.</param>
     /// <param name="FirstImpulse">The impulse of that Collision, in N·s, or 0.</param>
@@ -64,7 +65,8 @@ public sealed class SlowCollisionMeasurement
         long FirstCollisionTick,
         double FirstImpulse,
         double LargestDistance,
-        int Warnings);
+        int Warnings
+    );
 
     [Fact(Explicit = true)]
     public void SlowCollision()
@@ -94,43 +96,89 @@ public sealed class SlowCollisionMeasurement
             "largest_overlap_m",
             "largest_overlap_minus_v0_m",
             "largest_tilt_rad",
-            "warnings");
+            "warnings"
+        );
 
         int rowSets = 0;
         foreach (double approach in ApproachSpeeds)
         foreach (float restitution in Restitutions)
         {
-            PairRun reference = Run(speed: 0, direction: Double3.UnitX, origin: Double3.Zero, approach: approach,
-                restitution: restitution);
+            PairRun reference = Run(
+                speed: 0,
+                direction: Double3.UnitX,
+                origin: Double3.Zero,
+                approach: approach,
+                restitution: restitution
+            );
             foreach (Direction direction in Directions)
             foreach (double speed in Speeds)
             {
-                PairRun run = speed == 0
-                    ? reference
-                    : Run(speed: speed, direction: direction.Unit,
-                        origin: direction.Unit * (-speed * Ticks * (1f / 60) / 2), approach: approach,
-                        restitution: restitution);
-                Write(csv: csv, kind: "speed", direction: direction, speed: speed, approach: approach,
-                    restitution: restitution, run: run, reference: reference);
+                PairRun run =
+                    speed == 0
+                        ? reference
+                        : Run(
+                            speed: speed,
+                            direction: direction.Unit,
+                            origin: direction.Unit * (-speed * Ticks * (1f / 60) / 2),
+                            approach: approach,
+                            restitution: restitution
+                        );
+                Write(
+                    csv: csv,
+                    kind: "speed",
+                    direction: direction,
+                    speed: speed,
+                    approach: approach,
+                    restitution: restitution,
+                    run: run,
+                    reference: reference
+                );
                 rowSets++;
                 if (speed == 0)
                     continue;
-                PairRun control = Run(speed: 0, direction: direction.Unit, origin: direction.Unit * run.LargestDistance,
-                    approach: approach, restitution: restitution);
-                Write(csv: csv, kind: "distance-control", direction: direction, speed: 0, approach: approach,
-                    restitution: restitution, run: control, reference: reference);
+                PairRun control = Run(
+                    speed: 0,
+                    direction: direction.Unit,
+                    origin: direction.Unit * run.LargestDistance,
+                    approach: approach,
+                    restitution: restitution
+                );
+                Write(
+                    csv: csv,
+                    kind: "distance-control",
+                    direction: direction,
+                    speed: 0,
+                    approach: approach,
+                    restitution: restitution,
+                    run: control,
+                    reference: reference
+                );
                 rowSets++;
             }
         }
 
         csv.Save("slow-collision");
-        csv.Rows.Should().Be(rowSets * ReportTicks.Length).And.Be(ApproachSpeeds.Length * Restitutions.Length *
-                                                                  Directions.Length * (2 * Speeds.Length - 1) *
-                                                                  ReportTicks.Length);
+        csv.Rows.Should()
+            .Be(rowSets * ReportTicks.Length)
+            .And.Be(
+                ApproachSpeeds.Length
+                    * Restitutions.Length
+                    * Directions.Length
+                    * (2 * Speeds.Length - 1)
+                    * ReportTicks.Length
+            );
     }
 
-    private static void Write(Csv csv, string kind, Direction direction, double speed, double approach,
-        float restitution, PairRun run, PairRun reference)
+    private static void Write(
+        Csv csv,
+        string kind,
+        Direction direction,
+        double speed,
+        double approach,
+        float restitution,
+        PairRun run,
+        PairRun reference
+    )
     {
         // Jolt bounces a contact only when it approaches faster than 1 m/s (MinVelocityForRestitution), and in zero gravity
         // the engine keeps every bounce. Equal masses that bounce part with e times the approach speed.
@@ -144,18 +192,43 @@ public sealed class SlowCollisionMeasurement
             double time = ReportTicks[r] * (double)(1f / 60);
             Double3 shift = direction.Unit * (speed * time);
             (double relativeAlong, double relativeAcross) = Split(at.Relative, Double3.UnitX);
-            (double velocityErrorAlong, double velocityErrorAcross) =
-                Split(at.Relative - expected.Relative, Double3.UnitX);
-            (double positionErrorAlong, double positionErrorAcross) =
-                Split(at.MovedA - at.MovedB - (expected.MovedA - expected.MovedB), Double3.UnitX);
+            (double velocityErrorAlong, double velocityErrorAcross) = Split(
+                at.Relative - expected.Relative,
+                Double3.UnitX
+            );
+            (double positionErrorAlong, double positionErrorAcross) = Split(
+                at.MovedA - at.MovedB - (expected.MovedA - expected.MovedB),
+                Double3.UnitX
+            );
             Double3 meanError = (at.MovedA + at.MovedB) / 2 - shift - (expected.MovedA + expected.MovedB) / 2;
             (double meanErrorAlong, double meanErrorAcross) = Split(meanError, Double3.UnitX);
-            csv.Add(kind, direction.Name, speed, run.LargestDistance, approach, restitution, time,
-                relativeAlong, relativeAcross, analytic, velocityErrorAlong, velocityErrorAcross,
-                positionErrorAlong, positionErrorAcross, meanErrorAlong, meanErrorAcross,
-                run.FirstCollisionTick, run.FirstCollisionTick - reference.FirstCollisionTick, run.FirstImpulse,
-                at.Collisions, at.Ended, at.LargestOverlap, at.LargestOverlap - expected.LargestOverlap, at.LargestTilt,
-                run.Warnings);
+            csv.Add(
+                kind,
+                direction.Name,
+                speed,
+                run.LargestDistance,
+                approach,
+                restitution,
+                time,
+                relativeAlong,
+                relativeAcross,
+                analytic,
+                velocityErrorAlong,
+                velocityErrorAcross,
+                positionErrorAlong,
+                positionErrorAcross,
+                meanErrorAlong,
+                meanErrorAcross,
+                run.FirstCollisionTick,
+                run.FirstCollisionTick - reference.FirstCollisionTick,
+                run.FirstImpulse,
+                at.Collisions,
+                at.Ended,
+                at.LargestOverlap,
+                at.LargestOverlap - expected.LargestOverlap,
+                at.LargestTilt,
+                run.Warnings
+            );
         }
     }
 
@@ -173,13 +246,25 @@ public sealed class SlowCollisionMeasurement
         Double3 startA = origin - Double3.UnitX * half;
         Double3 startB = origin + Double3.UnitX * half;
         var logA = new CollisionLog();
-        Entity a = world.Spawn(new()
-        {
-            Frame = space, Pose = At(startA), LinearVelocity = common + Double3.UnitX * approach,
-            Body = BoxBody(restitution), Components = [logA]
-        });
-        Entity b = world.Spawn(new()
-            { Frame = space, Pose = At(startB), LinearVelocity = common, Body = BoxBody(restitution) });
+        Entity a = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(startA),
+                LinearVelocity = common + Double3.UnitX * approach,
+                Body = BoxBody(restitution),
+                Components = [logA],
+            }
+        );
+        Entity b = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(startB),
+                LinearVelocity = common,
+                Body = BoxBody(restitution),
+            }
+        );
 
         double largest = Math.Max(startA.Length, startB.Length);
         double largestOverlap = double.NegativeInfinity;
@@ -197,16 +282,27 @@ public sealed class SlowCollisionMeasurement
                 continue;
             int collisions = logA.Seen.Count(seen => seen.Other == b);
             int ended = logA.Ended.Count(seen => seen.Other == b);
-            reports.Add(new(MovedA: poseA.Position - startA, MovedB: poseB.Position - startB,
-                Relative: world.VelocityIn(a, space) - world.VelocityIn(b, space), Collisions: collisions, Ended: ended,
-                LargestOverlap: largestOverlap,
-                LargestTilt: largestTilt));
+            reports.Add(
+                new(
+                    MovedA: poseA.Position - startA,
+                    MovedB: poseB.Position - startB,
+                    Relative: world.VelocityIn(a, space) - world.VelocityIn(b, space),
+                    Collisions: collisions,
+                    Ended: ended,
+                    LargestOverlap: largestOverlap,
+                    LargestTilt: largestTilt
+                )
+            );
         }
 
         (long Tick, Entity Other, float Impulse) first = logA.Seen.FirstOrDefault(seen => seen.Other == b);
         bool hit = logA.Seen.Any(seen => seen.Other == b);
-        return new(Reports: [.. reports], FirstCollisionTick: hit ? first.Tick : -1,
-            FirstImpulse: hit ? first.Impulse : 0, LargestDistance: largest,
-            Warnings: warnings.Count + world.Errors.Count);
+        return new(
+            Reports: [.. reports],
+            FirstCollisionTick: hit ? first.Tick : -1,
+            FirstImpulse: hit ? first.Impulse : 0,
+            LargestDistance: largest,
+            Warnings: warnings.Count + world.Errors.Count
+        );
     }
 }

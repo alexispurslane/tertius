@@ -46,8 +46,7 @@ public sealed class ConditionalRuleTests
     [InlineData("if (a) { if (b) { x(); } y(); }")]
     [InlineData("if (a) { if (b) { x(); } else { y(); } }")]
     [InlineData("if (a) { if (b) { x(); } } else { y(); }")]
-    public void ANestedIfWithASiblingOrAnElseIsNotFlagged(string body) =>
-        Source.RulesInMethod(body).Should().BeEmpty();
+    public void ANestedIfWithASiblingOrAnElseIsNotFlagged(string body) => Source.RulesInMethod(body).Should().BeEmpty();
 
     [Fact]
     public void AConditionalExpressionWithTwoEqualBranchesIsFlagged() =>
@@ -62,29 +61,39 @@ public sealed class ConditionalRuleTests
     [InlineData("if (a) { return false; } else { return true; }")]
     [InlineData("x(); if (a) return true; return false;")]
     public void AnIfThatReturnsTrueOrFalseIsFlagged(string body) =>
-        Source.RulesIn($$"""
-                         class C
-                         {
-                             bool F()
-                             {
-                                 {{body}}
-                             }
-                         }
-                         """).Should().Contain("boolean-return-if-else");
+        Source
+            .RulesIn(
+                $$"""
+                class C
+                {
+                    bool F()
+                    {
+                        {{body}}
+                    }
+                }
+                """
+            )
+            .Should()
+            .Contain("boolean-return-if-else");
 
     [Theory]
     [InlineData("if (a) return true; return b;")]
     [InlineData("if (!a) return false; if (!b) return false; return true;")]
     public void AnIfThatReturnsABooleanBesideAnotherValueOrAtTheEndOfAGuardListIsNotFlagged(string body) =>
-        Source.RulesIn($$"""
-                         class C
-                         {
-                             bool F()
-                             {
-                                 {{body}}
-                             }
-                         }
-                         """).Should().BeEmpty("a list of guards is the form that STYLE.md prefers");
+        Source
+            .RulesIn(
+                $$"""
+                class C
+                {
+                    bool F()
+                    {
+                        {{body}}
+                    }
+                }
+                """
+            )
+            .Should()
+            .BeEmpty("a list of guards is the form that STYLE.md prefers");
 
     [Theory]
     [InlineData("return a ? true : false;")]
@@ -153,28 +162,41 @@ public sealed class ConditionalRuleTests
     [Theory]
     [InlineData("if (k == 1) return 10; if (k == 2) return 20; if (k == 3) return 30; return 0;")]
     [InlineData(
-        "if (k == Kind.A) { return 10; } else if (k == Kind.B) { return 20; } else if (k == Kind.C) { return 30; }")]
+        "if (k == Kind.A) { return 10; } else if (k == Kind.B) { return 20; } else if (k == Kind.C) { return 30; }"
+    )]
     public void ThreeBranchesThatReturnByComparingOneValueAreFlagged(string body) =>
         Source.RulesInMethod(body).Should().Contain("value-compare-return-ladder");
 
     [Fact]
     public void ALadderIsFlaggedOnceAtItsHead() =>
-        Source.Findings("""
-                        class C
-                        {
-                            int F()
-                            {
-                                if (k == 1) return 10;
-                                if (k == 2) return 20;
-                                if (k == 3) return 30;
-                                if (k == 4) return 40;
-                                return 0;
-                            }
-                        }
-                        """).Should().ContainSingle().Which.Should().Be(new Finding
-        {
-            Rule = "value-compare-return-ladder", File = Source.FileName, Line = 5, EndLine = 8
-        });
+        Source
+            .Findings(
+                """
+                class C
+                {
+                    int F()
+                    {
+                        if (k == 1) return 10;
+                        if (k == 2) return 20;
+                        if (k == 3) return 30;
+                        if (k == 4) return 40;
+                        return 0;
+                    }
+                }
+                """
+            )
+            .Should()
+            .ContainSingle()
+            .Which.Should()
+            .Be(
+                new Finding
+                {
+                    Rule = "value-compare-return-ladder",
+                    File = Source.FileName,
+                    Line = 5,
+                    EndLine = 8,
+                }
+            );
 
     [Fact]
     public void TwoBranchesThatReturnByComparingOneValueAreNotFlagged() =>

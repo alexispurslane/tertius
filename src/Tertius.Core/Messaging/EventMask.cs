@@ -29,7 +29,8 @@ public struct EventMask : IEquatable<EventMask>
         private ulong word;
     }
 
-    public static EventMask Of<T>() where T : unmanaged, IEventPayload => default(EventMask).And<T>();
+    public static EventMask Of<T>()
+        where T : unmanaged, IEventPayload => default(EventMask).And<T>();
 
     public static EventMask OfId(int typeId)
     {
@@ -39,7 +40,8 @@ public struct EventMask : IEquatable<EventMask>
     }
 
     /// <summary>Returns a copy of this mask that also contains <typeparamref name="T"/>.</summary>
-    public readonly EventMask And<T>() where T : unmanaged, IEventPayload
+    public readonly EventMask And<T>()
+        where T : unmanaged, IEventPayload
     {
         EventMask copy = this;
         copy.Add(EventType<T>.Id);
@@ -52,7 +54,8 @@ public struct EventMask : IEquatable<EventMask>
 
     public readonly bool Contains(int typeId) => (bits[typeId >> 6] & (1UL << (typeId & 63))) != 0;
 
-    public readonly bool Contains<T>() where T : unmanaged, IEventPayload => Contains(EventType<T>.Id);
+    public readonly bool Contains<T>()
+        where T : unmanaged, IEventPayload => Contains(EventType<T>.Id);
 
     public readonly bool Overlaps(in EventMask other)
     {
@@ -84,9 +87,9 @@ public struct EventMask : IEquatable<EventMask>
         return true;
     }
 
-    public readonly override bool Equals(object? obj) => obj is EventMask other && Equals(other);
+    public override readonly bool Equals(object? obj) => obj is EventMask other && Equals(other);
 
-    public readonly override int GetHashCode()
+    public override readonly int GetHashCode()
     {
         HashCode hash = default;
         for (int i = 0; i < Words; i++)
@@ -95,9 +98,10 @@ public struct EventMask : IEquatable<EventMask>
     }
 
     public static bool operator ==(EventMask a, EventMask b) => a.Equals(b);
+
     public static bool operator !=(EventMask a, EventMask b) => !a.Equals(b);
 
-    public readonly override string ToString()
+    public override readonly string ToString()
     {
         var names = new List<string>();
         for (int id = 0; id < Capacity; id++)

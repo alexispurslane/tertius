@@ -81,9 +81,8 @@ public readonly struct Fixed(float amount) : IEventPayload
 public sealed class Probe(EventMask wants) : IComponent
 {
     /// <summary>A probe that wants the test payloads and input.</summary>
-    public Probe() : this(EventMask.Of<Nudge>().And<Tag>().And<InputEvent>().And<Aim>().And<Spin>().And<Link>())
-    {
-    }
+    public Probe()
+        : this(EventMask.Of<Nudge>().And<Tag>().And<InputEvent>().And<Aim>().And<Spin>().And<Link>()) { }
 
     public int Priority => 0;
     public EventMask Wants => wants;
@@ -136,8 +135,8 @@ public sealed class SendOnce : IComponent
     public EventMask Wants => EventMask.Of<Tick>();
 
     /// <summary>A component that sends <paramref name="payload"/> to <paramref name="target"/> on its first tick.</summary>
-    public static SendOnce Of<T>(Target target, T payload) where T : unmanaged, IEventPayload =>
-        new((scoped ref outbox) => outbox.Send(target, payload));
+    public static SendOnce Of<T>(Target target, T payload)
+        where T : unmanaged, IEventPayload => new((scoped ref outbox) => outbox.Send(target, payload));
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
@@ -226,16 +225,20 @@ public static class HostTesting
     public static readonly Scene ProbesScene = new("probes", (world, _) => Probes(world));
 
     /// <summary>The scene "logger": the root frame <c>space</c> and one entity that logs "hello from the logger" on its first tick.</summary>
-    public static readonly Scene LoggerScene = new("logger", (world, _) =>
-    {
-        var scene = new SceneInstance();
-        FrameHandle space = Space(world);
-        scene.Add("space", space);
-        world.Spawn(new() { Frame = space, Components = [new LogsOnce("hello from the logger")] });
-        return scene;
-    });
+    public static readonly Scene LoggerScene = new(
+        "logger",
+        (world, _) =>
+        {
+            var scene = new SceneInstance();
+            FrameHandle space = Space(world);
+            scene.Add("space", space);
+            world.Spawn(new() { Frame = space, Components = [new LogsOnce("hello from the logger")] });
+            return scene;
+        }
+    );
 
     public static readonly Scene BoxOnFloorScene = new("box-on-floor", (world, _) => BoxOnFloor(world));
+
     public static DPose At(double x, double y = 0, double z = 0) => new(new(x, y, z), DQuaternion.Identity);
 
     /// <summary>A world with no physics, one gameplay thread and the invariant checks of every tick.</summary>
@@ -243,14 +246,29 @@ public static class HostTesting
 
     /// <summary>A world on the real Jolt backend, which it owns, with one gameplay thread and the invariant checks of every tick.</summary>
     public static World NewJoltWorld() =>
-        new(new() { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true },
-            new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
+        new(
+            new()
+            {
+                MaxDegreeOfParallelism = 1,
+                DebugChecks = true,
+                DisposePhysics = true,
+            },
+            new JoltPhysicsBackend(JoltBackendOptions.Unpaced)
+        );
 
-    private static FrameHandle Space(World world) =>
-        world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
+    private static FrameHandle Space(World world) => world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
 
     private static FrameHandle ChildFrame(World world, FrameHandle parent, DPose pose) =>
-        world.GetOwnedFrame(world.Spawn(new() { Frame = parent, Pose = pose, AsFrame = new(FrameBounds.Sphere(100)) }));
+        world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = parent,
+                    Pose = pose,
+                    AsFrame = new(FrameBounds.Sphere(100)),
+                }
+            )
+        );
 
     /// <summary>
     /// The scene "probes", with no physics. In the root frame <c>space</c>: <c>probe</c>, which subscribes to the topic
@@ -267,7 +285,17 @@ public static class HostTesting
         Entity probe = world.Spawn(new() { Frame = space, Components = [new Probe()] });
         world.Subscribe(probe, Topics.Get("test"));
         scene.Add("probe", probe);
-        scene.Add("bystander", world.Spawn(new() { Frame = space, Pose = At(1), Components = [new Probe()] }));
+        scene.Add(
+            "bystander",
+            world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Pose = At(1),
+                    Components = [new Probe()],
+                }
+            )
+        );
         scene.Add("crew", world.Spawn(new() { Frame = ship, Components = [new Probe()] }));
         return scene;
     }
@@ -300,24 +328,42 @@ public static class HostTesting
         var crateVelocity = new Double3(1, 2, 3);
         var crateSpin = new Double3(0.25, 0.5, 0.75);
         double step = world.DeltaTime;
-        var crateEnd = new DPose(At(1).Position + crateVelocity * step,
-            DQuaternion.FromAxisAngle(crateSpin / crateSpin.Length, crateSpin.Length * step));
-        scene.Add("crate", world.Spawn(new()
-        {
-            Frame = ship,
-            Pose = At(1),
-            FirstMove = new(new MotionSample(Pose: crateEnd, ChordVelocity: crateVelocity, Velocity: crateVelocity,
-                Acceleration: Double3.Zero, AngularVelocity: crateSpin,
-                AngularAcceleration: Double3.Zero))
-        }));
+        var crateEnd = new DPose(
+            At(1).Position + crateVelocity * step,
+            DQuaternion.FromAxisAngle(crateSpin / crateSpin.Length, crateSpin.Length * step)
+        );
+        scene.Add(
+            "crate",
+            world.Spawn(
+                new()
+                {
+                    Frame = ship,
+                    Pose = At(1),
+                    FirstMove = new(
+                        new MotionSample(
+                            Pose: crateEnd,
+                            ChordVelocity: crateVelocity,
+                            Velocity: crateVelocity,
+                            Acceleration: Double3.Zero,
+                            AngularVelocity: crateSpin,
+                            AngularAcceleration: Double3.Zero
+                        )
+                    ),
+                }
+            )
+        );
         FrameHandle shuttle = ChildFrame(world, ship, At(0, 0, 2));
         scene.Add("shuttle", shuttle);
         scene.Add("pod", world.Spawn(new() { Frame = shuttle, Pose = At(1) }));
-        scene.Add("moon", world.Spawn(new SpawnDesc
-        {
-            Frame = space,
-            AsFrame = new(FrameBounds.Sphere(100))
-        }.OnKeplerOrbit(world, KeplerOrbit.Circular(1000))));
+        scene.Add(
+            "moon",
+            world.Spawn(
+                new SpawnDesc { Frame = space, AsFrame = new(FrameBounds.Sphere(100)) }.OnKeplerOrbit(
+                    world,
+                    KeplerOrbit.Circular(1000)
+                )
+            )
+        );
         world.Spawn(new() { Frame = space, Pose = At(0, 5) });
         return scene;
     }
@@ -330,18 +376,32 @@ public static class HostTesting
     public static SceneInstance BoxOnFloor(World world)
     {
         var scene = new SceneInstance();
-        FrameHandle ground =
-            world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(0, -9.81f, 0))));
+        FrameHandle ground = world.CreateRootFrame(
+            new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(0, -9.81f, 0)))
+        );
         scene.Add("ground", ground);
-        scene.Add("floor", world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = At(0, -0.5),
-            Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Static)
-        }));
-        scene.Add("box",
-            world.Spawn(new()
-                { Frame = ground, Pose = At(0, 1.5), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10) }));
+        scene.Add(
+            "floor",
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = At(0, -0.5),
+                    Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Static),
+                }
+            )
+        );
+        scene.Add(
+            "box",
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = At(0, 1.5),
+                    Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10),
+                }
+            )
+        );
         return scene;
     }
 

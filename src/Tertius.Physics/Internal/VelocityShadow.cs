@@ -37,8 +37,12 @@ internal readonly record struct ShadowTracking(Double3 Chord, Double3 Place, Vec
     /// own velocity does when it moves.
     /// </summary>
     public ShadowTracking Moved(Double3 offset, Double3 velocity) =>
-        new(Chord: Chord + velocity, Place: Place + offset, JoltTarget: (JoltTarget + velocity).ToVector3(),
-            Step: Step);
+        new(
+            Chord: Chord + velocity,
+            Place: Place + offset,
+            JoltTarget: (JoltTarget + velocity).ToVector3(),
+            Step: Step
+        );
 }
 
 /// <summary>
@@ -51,10 +55,11 @@ internal readonly record struct ShadowTracking(Double3 Chord, Double3 Place, Vec
 internal readonly partial struct VelocityShadow
 {
     /// <summary>The shadow carried into another home, as <see cref="ShadowTracking.Moved"/> says, or none for none.</summary>
-    public VelocityShadow Moved(Double3 offset, Double3 velocity) => this switch
-    {
-        // The first arm names the union, so that the null arm's default is the empty shadow, not a zero tracking.
-        ShadowTracking tracking => new(tracking.Moved(offset, velocity)),
-        null => default
-    };
+    public VelocityShadow Moved(Double3 offset, Double3 velocity) =>
+        this switch
+        {
+            // The first arm names the union, so that the null arm's default is the empty shadow, not a zero tracking.
+            ShadowTracking tracking => new(tracking.Moved(offset, velocity)),
+            null => default,
+        };
 }

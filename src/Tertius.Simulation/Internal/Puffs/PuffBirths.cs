@@ -113,9 +113,16 @@ internal static class PuffBirths
     /// <param name="age">The newborn's age at the end of the step, in s (see <see cref="AgeAt"/>).</param>
     /// <param name="look">The index of the newborn's look in the look table.</param>
     /// <param name="dt">The length of the step, in s.</param>
-    public static Puff Newborn(in LooseBodyStep step, in DPose emitterPose, Double3 emitterVelocity,
+    public static Puff Newborn(
+        in LooseBodyStep step,
+        in DPose emitterPose,
+        Double3 emitterVelocity,
         in PuffEmitter emitter,
-        Double3 direction, double age, int look, double dt)
+        Double3 direction,
+        double age,
+        int look,
+        double dt
+    )
     {
         Double3 place = emitterPose.Position;
         Double3 ejection = emitterPose.Rotation.Rotate(direction) * emitter.Speed;
@@ -129,6 +136,12 @@ internal static class PuffBirths
         Double3 push = lift == 0 ? linear : linear - step.EffectiveGravity(at, linear) * lift;
         Double3 behind = instant - (push - instant * drag) * (0.5 * dt);
         Double3 chord = step.Turns.Turns ? step.Turns.Step.ChordBehind(at, behind, dt) : behind;
-        return new() { Place = at, Chord = chord, Age = (float)age, Look = look };
+        return new()
+        {
+            Place = at,
+            Chord = chord,
+            Age = (float)age,
+            Look = look,
+        };
     }
 }

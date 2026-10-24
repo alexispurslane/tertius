@@ -15,15 +15,22 @@ public sealed class RenderSnapshotLightingTests
     private static readonly Vector3 LampColor = new(1, 0.5f, 0.25f);
 
     /// <summary>A render row that carries a spot light, one meter above the entity, that draws nothing.</summary>
-    private static RenderData Lamp() => new()
-    {
-        Light = new SpotLightData(Offset: LampOffset, Color: LampColor, Intensity: 3, Range: 20, InnerConeAngle: 0.3f,
-            OuterConeAngle: 0.5f)
-    };
+    private static RenderData Lamp() =>
+        new()
+        {
+            Light = new SpotLightData(
+                Offset: LampOffset,
+                Color: LampColor,
+                Intensity: 3,
+                Range: 20,
+                InnerConeAngle: 0.3f,
+                OuterConeAngle: 0.5f
+            ),
+        };
 
     /// <summary>The same as <see cref="Lamp"/>, but a point light.</summary>
-    private static RenderData PointLamp() => new()
-        { Light = new PointLightData(Offset: LampOffset, Color: LampColor, Intensity: 3, Range: 20) };
+    private static RenderData PointLamp() =>
+        new() { Light = new PointLightData(Offset: LampOffset, Color: LampColor, Intensity: 3, Range: 20) };
 
     // ---- The camera ------------------------------------------------------------------------------------------------
 
@@ -31,11 +38,16 @@ public sealed class RenderSnapshotLightingTests
     public void TheViewOffsetOfTheCameraIsTurnedIntoItsRotation()
     {
         using var test = new TestWorld();
-        test.World.Camera = test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Render = new RenderData { ViewOffset = new(new(0, 1.7f, 0), PoseChecks.QuarterTurnAboutY.ToQuaternion()) }
-        });
+        test.World.Camera = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Render = new RenderData
+                {
+                    ViewOffset = new(new(0, 1.7f, 0), PoseChecks.QuarterTurnAboutY.ToQuaternion()),
+                },
+            }
+        );
 
         test.Run(1);
 
@@ -46,18 +58,22 @@ public sealed class RenderSnapshotLightingTests
     public void TheRotationOfTheCameraIsTheRotationOfItsEntityComposedWithItsViewOffset()
     {
         using var test = new TestWorld();
-        test.World.Camera = test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = new(Double3.Zero, PoseChecks.QuarterTurnAboutY),
-            Render = new RenderData { ViewOffset = new(Vector3.Zero, PoseChecks.QuarterTurnAboutY.ToQuaternion()) }
-        });
+        test.World.Camera = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = new(Double3.Zero, PoseChecks.QuarterTurnAboutY),
+                Render = new RenderData { ViewOffset = new(Vector3.Zero, PoseChecks.QuarterTurnAboutY.ToQuaternion()) },
+            }
+        );
 
         test.Run(1);
 
         // Two quarter turns about +Y make a half turn.
-        PoseChecks.AssertSameRotation(test.World.Latest().Camera.Rotation,
-            DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI));
+        PoseChecks.AssertSameRotation(
+            test.World.Latest().Camera.Rotation,
+            DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI)
+        );
     }
 
     [Fact]
@@ -79,13 +95,21 @@ public sealed class RenderSnapshotLightingTests
     {
         using var test = new TestWorld();
         // The camera's eye is 1.7 m above the origin of the root. The lamp stands at (5, 0, 0) and carries the light 1 m above itself.
-        test.World.Camera = test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Render = new RenderData { ViewOffset = new(new(0, 1.7f, 0), Quaternion.Identity) }
-        });
-        test.World.Spawn(new()
-            { Frame = test.Root, Pose = new(new(5, 0, 0), PoseChecks.QuarterTurnAboutY), Render = Lamp() });
+        test.World.Camera = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Render = new RenderData { ViewOffset = new(new(0, 1.7f, 0), Quaternion.Identity) },
+            }
+        );
+        test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = new(new(5, 0, 0), PoseChecks.QuarterTurnAboutY),
+                Render = Lamp(),
+            }
+        );
 
         test.Run(1);
 
@@ -99,13 +123,21 @@ public sealed class RenderSnapshotLightingTests
     {
         using var test = new TestWorld();
         // The same scene as for the spot light: the eye is 1.7 m above the origin, the lamp stands at (5, 0, 0) and carries the light 1 m above itself.
-        test.World.Camera = test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Render = new RenderData { ViewOffset = new(new(0, 1.7f, 0), Quaternion.Identity) }
-        });
-        test.World.Spawn(new()
-            { Frame = test.Root, Pose = new(new(5, 0, 0), PoseChecks.QuarterTurnAboutY), Render = PointLamp() });
+        test.World.Camera = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Render = new RenderData { ViewOffset = new(new(0, 1.7f, 0), Quaternion.Identity) },
+            }
+        );
+        test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = new(new(5, 0, 0), PoseChecks.QuarterTurnAboutY),
+                Render = PointLamp(),
+            }
+        );
 
         test.Run(1);
 
@@ -121,23 +153,35 @@ public sealed class RenderSnapshotLightingTests
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
         // The entity is turned a quarter about +Y, so the offset (0, 0, -2) of the light becomes (-2, 0, 0) from the entity at (5, 0, 0).
         Pose offset = new(new(0, 0, -2), Quaternion.Identity);
-        test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = new(new(5, 0, 0), PoseChecks.QuarterTurnAboutY),
-            Render = new RenderData
-                { Light = new PointLightData(Offset: offset, Color: LampColor, Intensity: 3, Range: 20) }
-        });
-        test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = new(new(5, 0, 0), PoseChecks.QuarterTurnAboutY),
-            Render = new RenderData
+        test.World.Spawn(
+            new()
             {
-                Light = new SpotLightData(Offset: offset, Color: LampColor, Intensity: 3, Range: 20,
-                    InnerConeAngle: 0.3f, OuterConeAngle: 0.5f)
+                Frame = test.Root,
+                Pose = new(new(5, 0, 0), PoseChecks.QuarterTurnAboutY),
+                Render = new RenderData
+                {
+                    Light = new PointLightData(Offset: offset, Color: LampColor, Intensity: 3, Range: 20),
+                },
             }
-        });
+        );
+        test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = new(new(5, 0, 0), PoseChecks.QuarterTurnAboutY),
+                Render = new RenderData
+                {
+                    Light = new SpotLightData(
+                        Offset: offset,
+                        Color: LampColor,
+                        Intensity: 3,
+                        Range: 20,
+                        InnerConeAngle: 0.3f,
+                        OuterConeAngle: 0.5f
+                    ),
+                },
+            }
+        );
 
         test.Run(1);
 
@@ -155,15 +199,23 @@ public sealed class RenderSnapshotLightingTests
         using var test = new TestWorld();
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
         Pose quarterTurnAboutY = new(Vector3.Zero, PoseChecks.QuarterTurnAboutY.ToQuaternion());
-        test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Render = new RenderData
+        test.World.Spawn(
+            new()
             {
-                Light = new SpotLightData(Offset: quarterTurnAboutY, Color: LampColor, Intensity: 3, Range: 20,
-                    InnerConeAngle: 0.3f, OuterConeAngle: 0.5f)
+                Frame = test.Root,
+                Render = new RenderData
+                {
+                    Light = new SpotLightData(
+                        Offset: quarterTurnAboutY,
+                        Color: LampColor,
+                        Intensity: 3,
+                        Range: 20,
+                        InnerConeAngle: 0.3f,
+                        OuterConeAngle: 0.5f
+                    ),
+                },
             }
-        });
+        );
 
         test.Run(1);
 
@@ -178,21 +230,35 @@ public sealed class RenderSnapshotLightingTests
         using var test = new TestWorld();
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
         // The default pose has a zeroed rotation. The builder reads it as the identity instead of making a NaN.
-        test.World.Spawn(new()
-        {
-            Frame = test.Root, Pose = TestWorld.At(5),
-            Render = new RenderData
-                { Light = new PointLightData(Offset: default, Color: LampColor, Intensity: 3, Range: 20) }
-        });
-        test.World.Spawn(new()
-        {
-            Frame = test.Root, Pose = TestWorld.At(6),
-            Render = new RenderData
+        test.World.Spawn(
+            new()
             {
-                Light = new SpotLightData(Offset: default, Color: LampColor, Intensity: 3, Range: 20,
-                    InnerConeAngle: 0.3f, OuterConeAngle: 0.5f)
+                Frame = test.Root,
+                Pose = TestWorld.At(5),
+                Render = new RenderData
+                {
+                    Light = new PointLightData(Offset: default, Color: LampColor, Intensity: 3, Range: 20),
+                },
             }
-        });
+        );
+        test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = TestWorld.At(6),
+                Render = new RenderData
+                {
+                    Light = new SpotLightData(
+                        Offset: default,
+                        Color: LampColor,
+                        Intensity: 3,
+                        Range: 20,
+                        InnerConeAngle: 0.3f,
+                        OuterConeAngle: 0.5f
+                    ),
+                },
+            }
+        );
 
         test.Run(1);
 
@@ -210,8 +276,14 @@ public sealed class RenderSnapshotLightingTests
     {
         using var test = new TestWorld();
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
-        test.World.Spawn(new()
-            { Frame = test.Root, Pose = new(new(5, 0, 0), PoseChecks.QuarterTurnAboutY), Render = Lamp() });
+        test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = new(new(5, 0, 0), PoseChecks.QuarterTurnAboutY),
+                Render = Lamp(),
+            }
+        );
 
         test.Run(1);
 
@@ -276,7 +348,14 @@ public sealed class RenderSnapshotLightingTests
         using var test = new TestWorld();
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
         RenderData lantern = Visible() with { Light = Lamp().Light };
-        Entity entity = test.World.Spawn(new() { Frame = test.Root, Pose = TestWorld.At(2), Render = lantern });
+        Entity entity = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = TestWorld.At(2),
+                Render = lantern,
+            }
+        );
 
         test.Run(1);
 
@@ -291,7 +370,13 @@ public sealed class RenderSnapshotLightingTests
         using var test = new TestWorld();
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
         // The default light holds no case. The first entity draws nothing, so only its light could put it in the snapshot.
-        test.World.Spawn(new() { Frame = test.Root, Render = new RenderData { Light = default } });
+        test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Render = new RenderData { Light = default },
+            }
+        );
         test.World.Spawn(new() { Frame = test.Root, Render = Visible() });
 
         test.Run(1);
@@ -306,7 +391,12 @@ public sealed class RenderSnapshotLightingTests
     {
         using var test = new TestWorld();
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
-        test.World.Ambient = new() { SkyColor = new(0.2f), GroundColor = new(0.1f), Intensity = 0.5f };
+        test.World.Ambient = new()
+        {
+            SkyColor = new(0.2f),
+            GroundColor = new(0.1f),
+            Intensity = 0.5f,
+        };
 
         test.Run(1);
 
@@ -336,12 +426,14 @@ public sealed class RenderSnapshotLightingTests
     {
         using var test = new TestWorld();
         test.World.SunFrame = test.SpawnStaticFrame(TestWorld.At(0, 100, 0), radius: 1e9f);
-        test.World.Camera = test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = TestWorld.At(100, 0, 0),
-            Render = new RenderData { ViewOffset = new(new(0, 100, 0), Quaternion.Identity) }
-        });
+        test.World.Camera = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = TestWorld.At(100, 0, 0),
+                Render = new RenderData { ViewOffset = new(new(0, 100, 0), Quaternion.Identity) },
+            }
+        );
 
         test.Run(1);
 
@@ -393,13 +485,17 @@ public sealed class RenderSnapshotLightingTests
     {
         using var test = new TestWorld();
         // The sun's radius is 7e8 m and it is 1.5e11 m away: atan(7e8 / 1.5e11) = 0.0046666328 rad.
-        test.World.SunFrame = test.World.GetOwnedFrame(test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = TestWorld.At(1.5e11),
-            AsFrame = new(FrameBounds.Sphere(1e9f)),
-            Render = new RenderData { BoundingRadius = 7e8f }
-        }));
+        test.World.SunFrame = test.World.GetOwnedFrame(
+            test.World.Spawn(
+                new()
+                {
+                    Frame = test.Root,
+                    Pose = TestWorld.At(1.5e11),
+                    AsFrame = new(FrameBounds.Sphere(1e9f)),
+                    Render = new RenderData { BoundingRadius = 7e8f },
+                }
+            )
+        );
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
 
         test.Run(1);

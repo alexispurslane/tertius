@@ -8,7 +8,8 @@ namespace Tertius.Simulation.Tests;
 /// </summary>
 public sealed class EntityTableComponentFlagsTests
 {
-    private static int Id<T>() where T : IComponent => ComponentTypes.IdOf(typeof(T));
+    private static int Id<T>()
+        where T : IComponent => ComponentTypes.IdOf(typeof(T));
 
     [Fact]
     public void ASpawnWritesBothCopiesOfTheFlagsAndListsTheEntityByEachType()

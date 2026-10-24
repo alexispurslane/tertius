@@ -20,7 +20,7 @@ public enum RayCastKind : byte
     Nearest,
 
     /// <summary>Every hit that the filter accepts, by distance. A body can be hit more than once, for example a mesh.</summary>
-    All
+    All,
 }
 
 /// <summary>
@@ -67,14 +67,15 @@ public readonly record struct QueryCapsule(float HalfHeight, float Radius);
 public readonly partial struct QueryShape
 {
     /// <summary>The radius of the smallest sphere about the shape's center that holds the shape, in meters. 0 for the default shape.</summary>
-    public double BoundingRadius => this switch
-    {
-        QuerySphere(var sphereRadius) => sphereRadius,
-        QueryBox(var boxHalfExtents) => ((Double3)boxHalfExtents).Length,
-        QueryCapsule { HalfHeight: var capsuleHalfHeight, Radius: var capsuleRadius } =>
-            (double)capsuleHalfHeight + capsuleRadius,
-        null => 0
-    };
+    public double BoundingRadius =>
+        this switch
+        {
+            QuerySphere(var sphereRadius) => sphereRadius,
+            QueryBox(var boxHalfExtents) => ((Double3)boxHalfExtents).Length,
+            QueryCapsule { HalfHeight: var capsuleHalfHeight, Radius: var capsuleRadius } => (double)capsuleHalfHeight
+                + capsuleRadius,
+            null => 0,
+        };
 
     public static QueryShape Sphere(float radius) => new(new QuerySphere(radius));
 
@@ -88,19 +89,22 @@ public readonly partial struct QueryShape
     /// more than 0, a half height of a capsule that is not finite and at least 0, or the default shape, which holds no
     /// shape. The message completes a sentence that names the shape.
     /// </summary>
-    public string? Problem() => this switch
-    {
-        QuerySphere(var sphereRadius) when !(sphereRadius > 0) || !float.IsFinite(sphereRadius) =>
-            $"is a sphere with a radius of {sphereRadius} m, which is not finite and more than 0",
-        QueryBox(var boxHalfExtents) when !(boxHalfExtents.X > 0 && boxHalfExtents.Y > 0 && boxHalfExtents.Z > 0)
-                                          || !float.IsFinite(boxHalfExtents.X + boxHalfExtents.Y + boxHalfExtents.Z) =>
-            $"is a box with half extents of {boxHalfExtents} m, which are not all finite and more than 0",
-        QueryCapsule { HalfHeight: var capsuleHalfHeight, Radius: var capsuleRadius } when !(capsuleRadius > 0) ||
-            !float.IsFinite(capsuleRadius)
-            || !(capsuleHalfHeight >= 0) ||
-            !float.IsFinite(capsuleHalfHeight) =>
-            $"is a capsule with a half height of {capsuleHalfHeight} m and a radius of {capsuleRadius} m, which need a finite radius of more than 0 and a finite half height of at least 0",
-        QuerySphere or QueryBox or QueryCapsule => null,
-        null => "is the default shape, which holds no sphere, box or capsule"
-    };
+    public string? Problem() =>
+        this switch
+        {
+            QuerySphere(var sphereRadius) when !(sphereRadius > 0) || !float.IsFinite(sphereRadius) =>
+                $"is a sphere with a radius of {sphereRadius} m, which is not finite and more than 0",
+            QueryBox(var boxHalfExtents)
+                when !(boxHalfExtents.X > 0 && boxHalfExtents.Y > 0 && boxHalfExtents.Z > 0)
+                    || !float.IsFinite(boxHalfExtents.X + boxHalfExtents.Y + boxHalfExtents.Z) =>
+                $"is a box with half extents of {boxHalfExtents} m, which are not all finite and more than 0",
+            QueryCapsule { HalfHeight: var capsuleHalfHeight, Radius: var capsuleRadius }
+                when !(capsuleRadius > 0)
+                    || !float.IsFinite(capsuleRadius)
+                    || !(capsuleHalfHeight >= 0)
+                    || !float.IsFinite(capsuleHalfHeight) =>
+                $"is a capsule with a half height of {capsuleHalfHeight} m and a radius of {capsuleRadius} m, which need a finite radius of more than 0 and a finite half height of at least 0",
+            QuerySphere or QueryBox or QueryCapsule => null,
+            null => "is the default shape, which holds no sphere, box or capsule",
+        };
 }

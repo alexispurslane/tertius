@@ -18,7 +18,8 @@ public sealed class WindowPlayback(
     CaptureMailbox captures,
     PngFolder? folder,
     Func<double> secondsSinceStart,
-    CancellationToken stop) : IPlayback
+    CancellationToken stop
+) : IPlayback
 {
     private readonly TickPacer pacer = pacer;
     private readonly PngFolder? folder = folder;
@@ -66,7 +67,8 @@ public sealed class WindowPlayback(
     {
         if (folder is null)
             throw new InvalidOperationException(
-                "Free play captures nothing, so its playback has no folder for captures.");
+                "Free play captures nothing, so its playback has no folder for captures."
+            );
         // The simulation thread publishes, and the render thread, the triple buffer's one reader, draws it.
         world.PublishRenderSnapshot();
         try

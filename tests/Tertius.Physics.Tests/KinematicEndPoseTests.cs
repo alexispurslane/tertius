@@ -31,8 +31,16 @@ public sealed class KinematicEndPoseTests
         {
             var end = new DPose(Place(self.TimeAt(self.Tick + 2), t0), DQuaternion.Identity);
             if (sample)
-                self.MoveOnRails(new(Pose: end, ChordVelocity: Velocity, Velocity: Velocity, Acceleration: Double3.Zero,
-                    AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero));
+                self.MoveOnRails(
+                    new(
+                        Pose: end,
+                        ChordVelocity: Velocity,
+                        Velocity: Velocity,
+                        Acceleration: Double3.Zero,
+                        AngularVelocity: Double3.Zero,
+                        AngularAcceleration: Double3.Zero
+                    )
+                );
             else
                 self.MoveKinematic(end);
         }
@@ -50,14 +58,16 @@ public sealed class KinematicEndPoseTests
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Scenes.AsteroidSpace(world);
         double t0 = world.Time;
-        Entity mover = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = new(Start, DQuaternion.Identity),
-            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Kinematic),
-            AsFrame = hull ? new FrameSpec(FrameBounds.Sphere(5)) : null,
-            Components = [new Line(t0, sample)]
-        });
+        Entity mover = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = new(Start, DQuaternion.Identity),
+                Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Kinematic),
+                AsFrame = hull ? new FrameSpec(FrameBounds.Sphere(5)) : null,
+                Components = [new Line(t0, sample)],
+            }
+        );
         Tick(world, 2);
 
         for (int i = 0; i < 60; i++)
@@ -66,12 +76,15 @@ public sealed class KinematicEndPoseTests
             Double3 end = Place(world.Time, t0);
             BodyState state = faults.Outputs[^1].Bodies.Single(s => s.Entity == mover);
             if (state.Pose.Position != end)
-                state.Pose.Position.Should().Be(end, "after step {0} the body sits exactly on its end pose",
-                    world.TickNumber - 1);
+                state
+                    .Pose.Position.Should()
+                    .Be(end, "after step {0} the body sits exactly on its end pose", world.TickNumber - 1);
         }
 
         world.Errors.Should().BeEmpty();
-        world.PhysicsHomeOf(mover).Should()
+        world
+            .PhysicsHomeOf(mover)
+            .Should()
             .Be(space, "the body stays in the system of space, where its pose needs no conversion");
     }
 }

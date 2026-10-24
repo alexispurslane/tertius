@@ -14,24 +14,26 @@ public sealed class ScriptRecorderTests
         post.Payload!.Value.Deserialize<InputEvent>(ScriptJson.Scripts);
 
     /// <summary>A step as one short line, so that a test states the steps it expects as text.</summary>
-    internal static string Describe(ScriptStep step) => step switch
-    {
-        RunStep run => $"run {run.Ticks}",
-        CameraStep camera => $"camera {camera.Entity}",
-        DumpStep dump => $"dump {dump.Name}",
-        PostStep { To: ToTopic topic } post => $"post {topic.Name} {post.Event} {Describe(PayloadOf(post))}",
-        _ => throw new InvalidOperationException($"The test does not describe the step {step}.")
-    };
+    internal static string Describe(ScriptStep step) =>
+        step switch
+        {
+            RunStep run => $"run {run.Ticks}",
+            CameraStep camera => $"camera {camera.Entity}",
+            DumpStep dump => $"dump {dump.Name}",
+            PostStep { To: ToTopic topic } post => $"post {topic.Name} {post.Event} {Describe(PayloadOf(post))}",
+            _ => throw new InvalidOperationException($"The test does not describe the step {step}."),
+        };
 
     // An input event as a script names its kind, then its code or its delta: a key that went down is "keyDown 87".
-    private static string Describe(InputEvent e) => e switch
-    {
-        KeyChanged { Code: var code, IsDown: var isDown } => $"{(isDown ? "keyDown" : "keyUp")} {code}",
-        MouseButtonChanged { Code: var code, IsDown: var isDown } => $"{(isDown ? "mouseDown" : "mouseUp")} {code}",
-        MouseMoved(var delta) => $"mouseMove {delta}",
-        Scrolled(var delta) => $"scroll {delta}",
-        null => throw new InvalidOperationException("The test does not describe the empty input event.")
-    };
+    private static string Describe(InputEvent e) =>
+        e switch
+        {
+            KeyChanged { Code: var code, IsDown: var isDown } => $"{(isDown ? "keyDown" : "keyUp")} {code}",
+            MouseButtonChanged { Code: var code, IsDown: var isDown } => $"{(isDown ? "mouseDown" : "mouseUp")} {code}",
+            MouseMoved(var delta) => $"mouseMove {delta}",
+            Scrolled(var delta) => $"scroll {delta}",
+            null => throw new InvalidOperationException("The test does not describe the empty input event."),
+        };
 
     internal static string[] Describe(Script script) => [.. script.Steps.Select(Describe)];
 
@@ -56,13 +58,16 @@ public sealed class ScriptRecorderTests
         recorder.Post(5, InputEvent.KeyUp(87));
         var script = recorder.ToScript(endTick: 8);
 
-        Describe(script).Should().Equal(
-            "camera chase",
-            "post input InputEvent keyDown 87",
-            "run 5",
-            "post input InputEvent keyUp 87",
-            "run 3",
-            "dump end");
+        Describe(script)
+            .Should()
+            .Equal(
+                "camera chase",
+                "post input InputEvent keyDown 87",
+                "run 5",
+                "post input InputEvent keyUp 87",
+                "run 3",
+                "dump end"
+            );
     }
 
     [Fact]
@@ -75,13 +80,16 @@ public sealed class ScriptRecorderTests
         recorder.Post(4, InputEvent.MouseDown(0));
         var script = recorder.ToScript(endTick: 4);
 
-        Describe(script).Should().Equal(
-            "camera chase",
-            "run 4",
-            "post input InputEvent keyDown 87",
-            "camera far",
-            "post input InputEvent mouseDown 0",
-            "dump end");
+        Describe(script)
+            .Should()
+            .Equal(
+                "camera chase",
+                "run 4",
+                "post input InputEvent keyDown 87",
+                "camera far",
+                "post input InputEvent mouseDown 0",
+                "dump end"
+            );
     }
 
     [Fact]
@@ -126,7 +134,7 @@ public sealed class ScriptRecorderTests
     public void ThePayloadReadsBackAsTheEventThatWasPostedToTheLastBit()
     {
         var recorder = new ScriptRecorder("orbit", Size, "chase");
-        InputEvent moved = InputEvent.MouseMove(new(0.1f, -1f / 3f));
+        var moved = InputEvent.MouseMove(new(0.1f, -1f / 3f));
 
         recorder.Post(2, moved);
 
@@ -172,9 +180,16 @@ public sealed class ScriptRecorderTests
         recorder.Post(4, InputEvent.KeyUp(87));
 
         again.Should().Equal(first);
-        Describe(recorder.ToScript(4)).Should().Equal(
-            "camera chase", "run 1", "post input InputEvent keyDown 87", "run 3", "post input InputEvent keyUp 87",
-            "dump end");
+        Describe(recorder.ToScript(4))
+            .Should()
+            .Equal(
+                "camera chase",
+                "run 1",
+                "post input InputEvent keyDown 87",
+                "run 3",
+                "post input InputEvent keyUp 87",
+                "dump end"
+            );
     }
 
     [Fact]
@@ -187,12 +202,14 @@ public sealed class ScriptRecorderTests
         recorder.Post(9, InputEvent.Scroll(new(0, 1)));
         var script = recorder.ToScript(20);
 
-        Script parsed = Script.Parse(script.ToJson());
+        var parsed = Script.Parse(script.ToJson());
 
         parsed.Scene.Should().Be("orbit");
         parsed.Window.Should().Be(new ScriptWindow(800, 600));
         parsed.Steps.Should().HaveCount(script.Steps.Count);
-        parsed.Steps.Select(step => step.Value!.GetType()).Should()
+        parsed
+            .Steps.Select(step => step.Value!.GetType())
+            .Should()
             .Equal(script.Steps.Select(step => step.Value!.GetType()));
         var moved = (PostStep)parsed.Steps[3].Value!;
         (PayloadOf(moved) == InputEvent.MouseMove(new(12.5f, -3f))).Should().BeTrue();
@@ -224,7 +241,7 @@ public sealed class ScriptRecorderTests
     {
         var recorder = new ScriptRecorder("orbit", Size, "chase");
 
-        using JsonDocument json = JsonDocument.Parse(recorder.ToScript(1).ToJson());
+        using var json = JsonDocument.Parse(recorder.ToScript(1).ToJson());
 
         json.RootElement.EnumerateObject().Select(property => property.Name).Should().Equal("scene", "window", "steps");
     }
@@ -237,7 +254,7 @@ public sealed class ScriptRecorderTests
         var recorder = new ScriptRecorder("probes", Size, "probe");
         recorder.Post(1, InputEvent.KeyDown(87));
         recorder.SwitchCamera(2, "crew");
-        Script script = Script.Parse(recorder.ToScript(3).ToJson());
+        var script = Script.Parse(recorder.ToScript(3).ToJson());
         using World world = NewJoltWorld();
         SceneInstance scene = Probes(world);
 

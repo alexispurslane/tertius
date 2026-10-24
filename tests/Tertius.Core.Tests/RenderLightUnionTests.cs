@@ -23,8 +23,15 @@ public sealed class RenderLightUnionTests
     /// <summary>A point light and a spot light that share every field that both cases have, so that only the case tells them apart.</summary>
     private static readonly PointRenderLight Lamp = new(Position: Here, Color: Warm, Intensity: 4, Range: 10);
 
-    private static readonly SpotRenderLight Beam = new(Position: Here, Direction: Down, Color: Warm, Intensity: 4,
-        Range: 10, InnerConeAngle: 0.3f, OuterConeAngle: 0.5f);
+    private static readonly SpotRenderLight Beam = new(
+        Position: Here,
+        Direction: Down,
+        Color: Warm,
+        Intensity: 4,
+        Range: 10,
+        InnerConeAngle: 0.3f,
+        OuterConeAngle: 0.5f
+    );
 
     /// <summary>The names of the cases whose <c>TryGetValue</c> answers true for the light.</summary>
     private static string[] CasesHeld(RenderLight light)
@@ -45,14 +52,15 @@ public sealed class RenderLightUnionTests
         return (point, spot);
     }
 
-    private static string ArmOf(RenderLight light) => light switch
-    {
-        PointRenderLight { Position: var position, Intensity: var intensity, Range: var range } =>
-            $"point {position.X} {intensity} {range}",
-        SpotRenderLight { Direction: var direction, InnerConeAngle: var inner, OuterConeAngle: var outer } =>
-            $"spot {direction.Y} {inner} {outer}",
-        null => "none"
-    };
+    private static string ArmOf(RenderLight light) =>
+        light switch
+        {
+            PointRenderLight { Position: var position, Intensity: var intensity, Range: var range } =>
+                $"point {position.X} {intensity} {range}",
+            SpotRenderLight { Direction: var direction, InnerConeAngle: var inner, OuterConeAngle: var outer } =>
+                $"spot {direction.Y} {inner} {outer}",
+            null => "none",
+        };
 
     // ---- The default value ---------------------------------------------------------------------------------------
 
@@ -106,8 +114,15 @@ public sealed class RenderLightUnionTests
     {
         // Every field of each case differs from every other field, so a swap of two fields shows.
         var point = new PointRenderLight(Position: new(1, 2, 3), Color: new(4, 5, 6), Intensity: 7, Range: 8);
-        var spot = new SpotRenderLight(Position: new(1, 2, 3), Direction: new(4, 5, 6), Color: new(7, 8, 9),
-            Intensity: 10, Range: 11, InnerConeAngle: 12, OuterConeAngle: 13);
+        var spot = new SpotRenderLight(
+            Position: new(1, 2, 3),
+            Direction: new(4, 5, 6),
+            Color: new(7, 8, 9),
+            Intensity: 10,
+            Range: 11,
+            InnerConeAngle: 12,
+            OuterConeAngle: 13
+        );
 
         new RenderLight(point).TryGetValue(out PointRenderLight heldPoint).Should().BeTrue();
         heldPoint.Position.Should().Be(new Vector3(1, 2, 3));
@@ -173,15 +188,13 @@ public sealed class RenderLightUnionTests
         total.Should().Be(2 * 10 * 100, "a point and a spot light of range 10 each, over 100 rounds");
     }
 
-    private static float ReadRange(in RenderLight light)
-    {
-        return light switch
+    private static float ReadRange(in RenderLight light) =>
+        light switch
         {
             PointRenderLight { Range: var range } => range,
             SpotRenderLight { Range: var range } => range,
-            null => 0
+            null => 0,
         };
-    }
 
     // ---- Equality ------------------------------------------------------------------------------------------------
 
@@ -191,16 +204,30 @@ public sealed class RenderLightUnionTests
         RenderLight[] first =
         [
             new PointRenderLight(Position: Here, Color: Warm, Intensity: 4, Range: 10),
-            new SpotRenderLight(Position: Here, Direction: Down, Color: Warm, Intensity: 4, Range: 10,
-                InnerConeAngle: 0.3f, OuterConeAngle: 0.5f),
-            default
+            new SpotRenderLight(
+                Position: Here,
+                Direction: Down,
+                Color: Warm,
+                Intensity: 4,
+                Range: 10,
+                InnerConeAngle: 0.3f,
+                OuterConeAngle: 0.5f
+            ),
+            default,
         ];
         RenderLight[] second =
         [
             new PointRenderLight(Position: Here, Color: Warm, Intensity: 4, Range: 10),
-            new SpotRenderLight(Position: Here, Direction: Down, Color: Warm, Intensity: 4, Range: 10,
-                InnerConeAngle: 0.3f, OuterConeAngle: 0.5f),
-            default
+            new SpotRenderLight(
+                Position: Here,
+                Direction: Down,
+                Color: Warm,
+                Intensity: 4,
+                Range: 10,
+                InnerConeAngle: 0.3f,
+                OuterConeAngle: 0.5f
+            ),
+            default,
         ];
 
         for (int i = 0; i < first.Length; i++)
@@ -244,16 +271,27 @@ public sealed class RenderLightUnionTests
         // The point light and the spot light share position, color, intensity and range, so only the case can tell them apart.
         RenderLight point = Lamp;
         RenderLight spot = Beam;
-        RenderLight spotWithoutDirectionOrCone = new SpotRenderLight(Position: Here, Direction: default, Color: Warm,
-            Intensity: 4, Range: 10, InnerConeAngle: 0, OuterConeAngle: 0);
+        RenderLight spotWithoutDirectionOrCone = new SpotRenderLight(
+            Position: Here,
+            Direction: default,
+            Color: Warm,
+            Intensity: 4,
+            Range: 10,
+            InnerConeAngle: 0,
+            OuterConeAngle: 0
+        );
 
         (point == spot).Should().BeFalse();
         (point != spot).Should().BeTrue();
         point.Equals(spot).Should().BeFalse();
         spot.Equals(point).Should().BeFalse();
         point.Equals((object)spot).Should().BeFalse();
-        point.Should().NotBe(spotWithoutDirectionOrCone,
-            "the spot fields of the spot light are all zero, as the point light has none");
+        point
+            .Should()
+            .NotBe(
+                spotWithoutDirectionOrCone,
+                "the spot fields of the spot light are all zero, as the point light has none"
+            );
     }
 
     [Fact]
@@ -261,12 +299,25 @@ public sealed class RenderLightUnionTests
     {
         RenderLight empty = default;
 
-        new RenderLight(new PointRenderLight(Position: default, Color: default, Intensity: 0, Range: 0)).Should()
+        new RenderLight(new PointRenderLight(Position: default, Color: default, Intensity: 0, Range: 0))
+            .Should()
             .NotBe(empty);
-        new RenderLight(new SpotRenderLight(Position: default, Direction: default, Color: default, Intensity: 0,
-            Range: 0, InnerConeAngle: 0, OuterConeAngle: 0)).Should().NotBe(empty);
+        new RenderLight(
+            new SpotRenderLight(
+                Position: default,
+                Direction: default,
+                Color: default,
+                Intensity: 0,
+                Range: 0,
+                InnerConeAngle: 0,
+                OuterConeAngle: 0
+            )
+        )
+            .Should()
+            .NotBe(empty);
         (empty != new RenderLight(new PointRenderLight(Position: default, Color: default, Intensity: 0, Range: 0)))
-            .Should().BeTrue();
+            .Should()
+            .BeTrue();
     }
 
     [Fact]
@@ -283,8 +334,18 @@ public sealed class RenderLightUnionTests
         // every set and every dictionary that holds it. So a NaN equals a NaN here, as it does in Vector3.Equals.
         RenderLight[] lights =
         [
-            Lamp with { Intensity = float.NaN }, Beam with { Position = new(float.NaN, 0, 0) },
-            Beam with { OuterConeAngle = float.NaN }
+            Lamp with
+            {
+                Intensity = float.NaN,
+            },
+            Beam with
+            {
+                Position = new(float.NaN, 0, 0),
+            },
+            Beam with
+            {
+                OuterConeAngle = float.NaN,
+            },
         ];
 
         foreach (RenderLight light in lights)
@@ -293,13 +354,15 @@ public sealed class RenderLightUnionTests
             {
                 PointRenderLight point => point,
                 SpotRenderLight spot => spot,
-                _ => default
+                _ => default,
             };
 
             light.Equals(light).Should().BeTrue($"{light} equals itself");
             (light == copy).Should().BeTrue($"{light} equals a copy of itself");
             (light != copy).Should().BeFalse($"{light} does not differ from a copy of itself");
-            light.GetHashCode().Should()
+            light
+                .GetHashCode()
+                .Should()
                 .Be(copy.GetHashCode(), $"{light} and its copy are equal, so they hash the same");
         }
     }
@@ -310,10 +373,18 @@ public sealed class RenderLightUnionTests
     public void ToStringNamesTheCaseAndItsFieldsAndSaysNoneForTheDefault()
     {
         default(RenderLight).ToString().Should().Be("RenderLight(none)");
-        new RenderLight(Lamp).ToString().Should().StartWith("RenderLight(").And.Contain(nameof(PointRenderLight)).And
-            .Contain("Range = 10");
-        new RenderLight(Beam).ToString().Should().StartWith("RenderLight(").And.Contain(nameof(SpotRenderLight)).And
-            .Contain("OuterConeAngle");
+        new RenderLight(Lamp)
+            .ToString()
+            .Should()
+            .StartWith("RenderLight(")
+            .And.Contain(nameof(PointRenderLight))
+            .And.Contain("Range = 10");
+        new RenderLight(Beam)
+            .ToString()
+            .Should()
+            .StartWith("RenderLight(")
+            .And.Contain(nameof(SpotRenderLight))
+            .And.Contain("OuterConeAngle");
     }
 
     // ---- Shape ---------------------------------------------------------------------------------------------------
@@ -327,11 +398,19 @@ public sealed class RenderLightUnionTests
         Type union = typeof(RenderLight);
 
         union.GetFields(publicInstance).Should().BeEmpty();
-        union.GetProperties(publicInstance).Select(property => property.PropertyType).Should()
+        union
+            .GetProperties(publicInstance)
+            .Select(property => property.PropertyType)
+            .Should()
             .OnlyContain(type => type == typeof(bool) || type == typeof(object));
-        union.GetConstructors().Select(constructor => constructor.GetParameters().Single().ParameterType)
-            .Should().BeEquivalentTo([typeof(PointRenderLight), typeof(SpotRenderLight)],
-                "a light is made from one case and nothing else");
+        union
+            .GetConstructors()
+            .Select(constructor => constructor.GetParameters().Single().ParameterType)
+            .Should()
+            .BeEquivalentTo(
+                [typeof(PointRenderLight), typeof(SpotRenderLight)],
+                "a light is made from one case and nothing else"
+            );
     }
 
     [Fact]

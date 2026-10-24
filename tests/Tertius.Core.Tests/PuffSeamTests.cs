@@ -18,8 +18,13 @@ public sealed class PuffSeamTests
     private static readonly Vector3 Pale = new(0.8f, 0.85f, 0.9f);
 
     /// <summary>A valid hot exhaust look: every number differs from the others, so a swap of two shows.</summary>
-    private static readonly PuffLook Exhaust = new(Life: 2, StartRadius: 0.5f, EndRadius: 3, TemperatureRatio: 3,
-        Shading: PuffShading.Glow(Orange));
+    private static readonly PuffLook Exhaust = new(
+        Life: 2,
+        StartRadius: 0.5f,
+        EndRadius: 3,
+        TemperatureRatio: 3,
+        Shading: PuffShading.Glow(Orange)
+    );
 
     /// <summary>The names of the cases whose <c>TryGetValue</c> answers true for the shading.</summary>
     private static string[] CasesHeld(PuffShading shading)
@@ -45,8 +50,8 @@ public sealed class PuffSeamTests
     [Fact]
     public void ThePuffShadingUnionHoldsOneCaseAndMatchesWithoutBoxing()
     {
-        PuffShading glow = PuffShading.Glow(Orange);
-        PuffShading lit = PuffShading.Lit(Pale);
+        var glow = PuffShading.Glow(Orange);
+        var lit = PuffShading.Lit(Pale);
 
         CasesHeld(glow).Should().Equal(nameof(GlowPuffs));
         CasesHeld(lit).Should().Equal(nameof(LitPuffs));
@@ -68,19 +73,21 @@ public sealed class PuffSeamTests
         });
 
         allocated.Should().Be(0);
-        total.Should().Be((6 + 0.5f + 100) * 100,
-            "a glow of red 6, an albedo of red 0.5 and the empty shading's 100, over 100 rounds");
+        total
+            .Should()
+            .Be(
+                (6 + 0.5f + 100) * 100,
+                "a glow of red 6, an albedo of red 0.5 and the empty shading's 100, over 100 rounds"
+            );
     }
 
-    private static float RedOf(in PuffShading shading)
-    {
-        return shading switch
+    private static float RedOf(in PuffShading shading) =>
+        shading switch
         {
             GlowPuffs(var radiance) => radiance.X,
             LitPuffs(var albedo) => albedo.X,
-            _ => 100
+            _ => 100,
         };
-    }
 
     [Fact]
     public void TheDefaultShadingHoldsNoCase()
@@ -115,8 +122,8 @@ public sealed class PuffSeamTests
     [Fact]
     public void TheSameColorAsAGlowAndAsAnAlbedoIsTwoDifferentShadings()
     {
-        PuffShading glow = PuffShading.Glow(Pale);
-        PuffShading lit = PuffShading.Lit(Pale);
+        var glow = PuffShading.Glow(Pale);
+        var lit = PuffShading.Lit(Pale);
 
         (glow == lit).Should().BeFalse();
         (glow != lit).Should().BeTrue();
@@ -163,7 +170,9 @@ public sealed class PuffSeamTests
 
             shading.Equals(shading).Should().BeTrue($"{shading} equals itself");
             (shading == copy).Should().BeTrue($"{shading} equals a copy of itself");
-            shading.GetHashCode().Should()
+            shading
+                .GetHashCode()
+                .Should()
                 .Be(copy.GetHashCode(), $"{shading} and its copy are equal, so they hash the same");
         }
     }
@@ -172,10 +181,20 @@ public sealed class PuffSeamTests
     public void ToStringNamesTheCaseAndItsColorAndSaysNoneForTheDefault()
     {
         default(PuffShading).ToString().Should().Be("PuffShading(none)");
-        PuffShading.Glow(Orange).ToString().Should().StartWith("PuffShading(").And.Contain(nameof(GlowPuffs)).And
-            .Contain("Radiance");
-        PuffShading.Lit(Pale).ToString().Should().StartWith("PuffShading(").And.Contain(nameof(LitPuffs)).And
-            .Contain("Albedo");
+        PuffShading
+            .Glow(Orange)
+            .ToString()
+            .Should()
+            .StartWith("PuffShading(")
+            .And.Contain(nameof(GlowPuffs))
+            .And.Contain("Radiance");
+        PuffShading
+            .Lit(Pale)
+            .ToString()
+            .Should()
+            .StartWith("PuffShading(")
+            .And.Contain(nameof(LitPuffs))
+            .And.Contain("Albedo");
     }
 
     [Fact]
@@ -196,11 +215,16 @@ public sealed class PuffSeamTests
         Type union = typeof(PuffShading);
 
         union.GetFields(publicInstance).Should().BeEmpty();
-        union.GetProperties(publicInstance).Select(property => property.PropertyType).Should()
+        union
+            .GetProperties(publicInstance)
+            .Select(property => property.PropertyType)
+            .Should()
             .OnlyContain(type => type == typeof(bool) || type == typeof(object));
-        union.GetConstructors().Select(constructor => constructor.GetParameters().Single().ParameterType)
-            .Should().BeEquivalentTo([typeof(GlowPuffs), typeof(LitPuffs)],
-                "a shading is made from one case and nothing else");
+        union
+            .GetConstructors()
+            .Select(constructor => constructor.GetParameters().Single().ParameterType)
+            .Should()
+            .BeEquivalentTo([typeof(GlowPuffs), typeof(LitPuffs)], "a shading is made from one case and nothing else");
     }
 
     // ---- Validity ------------------------------------------------------------------------------------------------
@@ -229,11 +253,14 @@ public sealed class PuffSeamTests
     public void ALookIsValidOnlyWithAPositiveLifeAndTemperatureRatioFiniteRadiiAndAShading()
     {
         Exhaust.IsValid.Should().BeTrue();
-        (Exhaust with { StartRadius = 0, EndRadius = 0 }).IsValid.Should()
+        (Exhaust with { StartRadius = 0, EndRadius = 0 })
+            .IsValid.Should()
             .BeTrue("a puff of no size is invisible, not wrong");
-        (Exhaust with { Shading = PuffShading.Lit(Pale), TemperatureRatio = 0.75f }).IsValid.Should()
+        (Exhaust with { Shading = PuffShading.Lit(Pale), TemperatureRatio = 0.75f })
+            .IsValid.Should()
             .BeTrue("cold gas");
-        (Exhaust with { Life = float.Epsilon, TemperatureRatio = float.Epsilon }).IsValid.Should()
+        (Exhaust with { Life = float.Epsilon, TemperatureRatio = float.Epsilon })
+            .IsValid.Should()
             .BeTrue("the least numbers above 0");
 
         float[] notFinite = [float.NaN, float.PositiveInfinity, float.NegativeInfinity];
@@ -250,7 +277,8 @@ public sealed class PuffSeamTests
         }
 
         (Exhaust with { Shading = default }).IsValid.Should().BeFalse("a look without a shading");
-        (Exhaust with { Shading = PuffShading.Glow(new(1, float.NaN, 1)) }).IsValid.Should()
+        (Exhaust with { Shading = PuffShading.Glow(new(1, float.NaN, 1)) })
+            .IsValid.Should()
             .BeFalse("a shading that is not valid");
         default(PuffLook).IsValid.Should().BeFalse("the default look, of the default emitter, makes no puffs");
     }
@@ -261,7 +289,15 @@ public sealed class PuffSeamTests
     public void ClearEmptiesThePuffsAndTheirLooksAndTheAgeStep()
     {
         var snapshot = new RenderSnapshot();
-        snapshot.Puffs.Add(new() { Position = Vector3.One, PreviousPosition = Vector3.Zero, Age = 0.5f, Look = 0 });
+        snapshot.Puffs.Add(
+            new()
+            {
+                Position = Vector3.One,
+                PreviousPosition = Vector3.Zero,
+                Age = 0.5f,
+                Look = 0,
+            }
+        );
         snapshot.PuffLooks.Add(Exhaust);
         snapshot.PuffAgeStep = 1 / 60f;
 
@@ -273,9 +309,7 @@ public sealed class PuffSeamTests
     }
 
     [Fact]
-    public void ARenderPuffIs32Bytes()
-    {
+    public void ARenderPuffIs32Bytes() =>
         // Two positions, an age and a look index. The snapshot carries one per live puff, up to the capacity.
         Unsafe.SizeOf<RenderPuff>().Should().Be(32);
-    }
 }

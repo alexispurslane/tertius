@@ -12,7 +12,13 @@ public sealed class StaleHandleWorldTests
     // StaleEntityException where it reads or writes the entity's data, and answer false where the goal already holds.
 
     private static readonly string[] NamesNoLiveEntity =
-        ["null", "never issued", "from the future", "destroyed", "destroyed and reused"];
+    [
+        "null",
+        "never issued",
+        "from the future",
+        "destroyed",
+        "destroyed and reused",
+    ];
 
     private static readonly Topic AnyTopic = Topics.Get("tests.stale.world.members");
 
@@ -22,8 +28,8 @@ public sealed class StaleHandleWorldTests
         [nameof(World.PoseIn)] = (world, entity) => _ = world.PoseIn(entity, world.Frames.AtDense(0)),
         [nameof(World.GetFrame)] = (world, entity) => _ = world.GetFrame(entity),
         [nameof(World.VelocityIn)] = (world, entity) => _ = world.VelocityIn(entity, world.Frames.AtDense(0)),
-        [nameof(World.AngularVelocityIn)] =
-            (world, entity) => _ = world.AngularVelocityIn(entity, world.Frames.AtDense(0)),
+        [nameof(World.AngularVelocityIn)] = (world, entity) =>
+            _ = world.AngularVelocityIn(entity, world.Frames.AtDense(0)),
         [nameof(World.GetRender)] = (world, entity) => _ = world.GetRender(entity),
         [nameof(World.GetOwnedFrame)] = (world, entity) => _ = world.GetOwnedFrame(entity),
         [nameof(World.GetComponents)] = (world, entity) => _ = world.GetComponents(entity),
@@ -32,7 +38,7 @@ public sealed class StaleHandleWorldTests
         [nameof(World.Subscribe)] = (world, entity) => world.Subscribe(entity, AnyTopic),
         [nameof(Snapshot.FrameOf)] = (world, entity) => _ = world.Snapshot.FrameOf(entity),
         [nameof(Snapshot.RenderOf)] = (world, entity) => _ = world.Snapshot.RenderOf(entity),
-        [nameof(Snapshot.HasBody)] = (world, entity) => _ = world.Snapshot.HasBody(entity)
+        [nameof(Snapshot.HasBody)] = (world, entity) => _ = world.Snapshot.HasBody(entity),
     };
 
     private static readonly Dictionary<string, Func<World, Entity, bool>> AnsweringFalse = new()
@@ -43,12 +49,12 @@ public sealed class StaleHandleWorldTests
         [nameof(World.Unsubscribe)] = (world, entity) => world.Unsubscribe(entity, AnyTopic),
         ["Snapshot.IsAlive"] = (world, entity) => world.Snapshot.IsAlive(entity),
         // The first live frame is the root, so the frame is live and only the entity can make the answer false.
-        [nameof(Snapshot.TryGetPoseIn)] =
-            (world, entity) => world.Snapshot.TryGetPoseIn(entity, world.Frames.AtDense(0), out _),
+        [nameof(Snapshot.TryGetPoseIn)] = (world, entity) =>
+            world.Snapshot.TryGetPoseIn(entity, world.Frames.AtDense(0), out _),
         [nameof(Snapshot.TryGetVelocityIn)] = (world, entity) =>
             world.Snapshot.TryGetVelocityIn(entity, world.Frames.AtDense(0), out _),
         [nameof(Snapshot.TryGetAngularVelocityIn)] = (world, entity) =>
-            world.Snapshot.TryGetAngularVelocityIn(entity, world.Frames.AtDense(0), out _)
+            world.Snapshot.TryGetAngularVelocityIn(entity, world.Frames.AtDense(0), out _),
     };
 
     /// <summary>A world in which <paramref name="stale"/> was destroyed and <paramref name="successor"/> took its slot.</summary>
@@ -58,7 +64,14 @@ public sealed class StaleHandleWorldTests
         stale = world.SpawnWith(root, new Recorder());
         world.Destroy(stale);
         successorsRecorder = new();
-        successor = world.Spawn(new() { Frame = root, Components = [successorsRecorder], Subscriptions = [Squad] });
+        successor = world.Spawn(
+            new()
+            {
+                Frame = root,
+                Components = [successorsRecorder],
+                Subscriptions = [Squad],
+            }
+        );
         successor.Index.Should().Be(stale.Index);
         return world;
     }
@@ -171,7 +184,7 @@ public sealed class StaleHandleWorldTests
             "from the future" => new(live.Index, live.Generation + 5),
             "destroyed" => DestroyedEntity(world, root),
             "destroyed and reused" => DestroyedAndReusedEntity(world, root),
-            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
         };
         return world;
     }
@@ -260,7 +273,9 @@ public sealed class StaleHandleWorldTests
     public void TheListOfLiveEntitiesIsInSlotOrderAndAddsToTheListItIsGiven()
     {
         using World world = TestWorld.Create(root: out FrameHandle root);
-        Entity first = world.SpawnWith(root), second = world.SpawnWith(root), third = world.SpawnWith(root);
+        Entity first = world.SpawnWith(root),
+            second = world.SpawnWith(root),
+            third = world.SpawnWith(root);
         world.Destroy(second);
         Entity fourth = world.SpawnWith(root);
         var live = new List<Entity> { Entity.Null };
@@ -302,8 +317,11 @@ public sealed class StaleHandleWorldTests
     public void AMessageToTheLiveEntityStillArrivesWhileTheStaleHandleIsIgnored()
     {
         using World world = WithReusedSlot(out Entity stale, out Entity successor, out Recorder successorsRecorder);
-        world.SpawnWith(world.GetFrame(successor), SendOnce.Of(target: stale, payload: new Ping { Value = 1 }),
-            SendOnce.Of(target: successor, payload: new Ping { Value = 2 }));
+        world.SpawnWith(
+            world.GetFrame(successor),
+            SendOnce.Of(target: stale, payload: new Ping { Value = 1 }),
+            SendOnce.Of(target: successor, payload: new Ping { Value = 2 })
+        );
 
         world.Run(3);
 
@@ -314,8 +332,10 @@ public sealed class StaleHandleWorldTests
     public void AMessageThatWasSentToAnEntityThatDiesInTheSameTickIsNotDeliveredToTheEntityThatTakesItsSlot()
     {
         using World world = TestWorld.Create(root: out FrameHandle root);
-        Entity doomed = world.SpawnWith(root,
-            Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy()));
+        Entity doomed = world.SpawnWith(
+            root,
+            Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy())
+        );
         world.SpawnWith(root, SendOnce.Of(target: doomed, payload: new Ping { Value = 1 }));
         world.Tick();
         world.IsAlive(doomed).Should().BeFalse();
@@ -354,14 +374,21 @@ public sealed class StaleHandleWorldTests
     public void AComponentThatKeptAHandleToADeadEntityFindsItDeadAndNotReplacedByTheEntityInItsSlot()
     {
         using World world = WithReusedSlot(out Entity stale, out Entity successor, out _);
-        bool staleIsAlive = true, successorIsAlive = false, stalePoseFound = true;
-        world.SpawnWith(world.GetFrame(successor), Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            Snapshot snapshot = self.Snapshot;
-            staleIsAlive = snapshot.IsAlive(stale);
-            successorIsAlive = snapshot.IsAlive(successor);
-            stalePoseFound = snapshot.TryGetPoseIn(stale, self.Frame, out _);
-        }));
+        bool staleIsAlive = true,
+            successorIsAlive = false,
+            stalePoseFound = true;
+        world.SpawnWith(
+            world.GetFrame(successor),
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    Snapshot snapshot = self.Snapshot;
+                    staleIsAlive = snapshot.IsAlive(stale);
+                    successorIsAlive = snapshot.IsAlive(successor);
+                    stalePoseFound = snapshot.TryGetPoseIn(stale, self.Frame, out _);
+                }
+            )
+        );
 
         world.Tick();
 
@@ -372,12 +399,18 @@ public sealed class StaleHandleWorldTests
     public void AComponentThatReadsADeadEntitysPoseGetsAnErrorThatTheSchedulerReports()
     {
         using World world = WithReusedSlot(out Entity stale, out Entity successor, out _);
-        world.SpawnWith(world.GetFrame(successor),
-            Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Snapshot.PoseInOwnFrame(stale)));
+        world.SpawnWith(
+            world.GetFrame(successor),
+            Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Snapshot.PoseInOwnFrame(stale))
+        );
 
         world.Tick();
 
-        world.Errors.Should().ContainSingle().Which.Should().Contain(nameof(StaleEntityException)).And
-            .Contain(stale.ToString());
+        world
+            .Errors.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Contain(nameof(StaleEntityException))
+            .And.Contain(stale.ToString());
     }
 }

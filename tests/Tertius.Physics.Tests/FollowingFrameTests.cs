@@ -26,14 +26,24 @@ public sealed class FollowingFrameTests
     /// leaves the bubble along +Y stays within the merge test's reach of the hull. It is kinematic, so only its motion intents
     /// move it.
     /// </summary>
-    private static readonly BodyDesc Hull = new(Shape: new CompoundShapeDesc([
-        new(new BoxShapeDesc(new(2)), new(Vector3.Zero, Quaternion.Identity)),
-        new(new BoxShapeDesc(new(8, 0.25f, 8)), new(new(0, 20, 0), Quaternion.Identity))
-    ]), Motion: BodyMotion.Kinematic, Mass: 1e5f, Restitution: 0);
+    private static readonly BodyDesc Hull = new(
+        Shape: new CompoundShapeDesc([
+            new(new BoxShapeDesc(new(2)), new(Vector3.Zero, Quaternion.Identity)),
+            new(new BoxShapeDesc(new(8, 0.25f, 8)), new(new(0, 20, 0), Quaternion.Identity)),
+        ]),
+        Motion: BodyMotion.Kinematic,
+        Mass: 1e5f,
+        Restitution: 0
+    );
 
     /// <summary>A crate, a box of 50 cm and 2 kg that nothing slows down and that does not bounce.</summary>
-    private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.25f)), Mass: 2, Restitution: 0,
-        LinearDamping: 0, AngularDamping: 0);
+    private static readonly BodyDesc Crate = new(
+        Shape: new BoxShapeDesc(new(0.25f)),
+        Mass: 2,
+        Restitution: 0,
+        LinearDamping: 0,
+        AngularDamping: 0
+    );
 
     // ---- A plain kinematic body as the anchor ------------------------------------------------------------------------
 
@@ -56,15 +66,17 @@ public sealed class FollowingFrameTests
     {
         World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
-        Entity owner = world.Spawn(new()
-        {
-            Frame = space,
-            Body = Hull,
-            AsFrame = new(FrameBounds.Sphere(BubbleRadius)),
-            LinearVelocity = Drift,
-            FirstMove = new(new EndPose(new(Drift * world.DeltaTime, DQuaternion.Identity))),
-            Components = [new KinematicDrift(Drift)]
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = Hull,
+                AsFrame = new(FrameBounds.Sphere(BubbleRadius)),
+                LinearVelocity = Drift,
+                FirstMove = new(new EndPose(new(Drift * world.DeltaTime, DQuaternion.Identity))),
+                Components = [new KinematicDrift(Drift)],
+            }
+        );
         return (world, space, owner, world.GetOwnedFrame(owner));
     }
 
@@ -81,24 +93,36 @@ public sealed class FollowingFrameTests
         {
             world.Tick();
             FrameHandle home = world.PhysicsHomeOf(owner);
-            world.Frames.Numeric(home).Should().Be(NumericMode.Following,
-                "the hull moves at 2 km/s, so it lives in a following frame");
-            world.Frames.TreeParent(frame).Should()
+            world
+                .Frames.Numeric(home)
+                .Should()
+                .Be(NumericMode.Following, "the hull moves at 2 km/s, so it lives in a following frame");
+            world
+                .Frames.TreeParent(frame)
+                .Should()
                 .Be(home, "the hull's frame hangs at the origin of the following frame");
 
             for (int tick = 0; tick < 600; tick++)
             {
                 world.Tick();
-                world.PhysicsHomeOf(owner).Should()
+                world
+                    .PhysicsHomeOf(owner)
+                    .Should()
                     .Be(home, "the hull keeps its following frame at tick {0}", world.TickNumber);
-                world.Frames.TreeLocalPose(frame).Position.Should().Be(Double3.Zero,
-                    "the hull rests at the origin at tick {0}", world.TickNumber);
-                world.Frames.TreeLinearVelocity(frame).Should()
+                world
+                    .Frames.TreeLocalPose(frame)
+                    .Position.Should()
+                    .Be(Double3.Zero, "the hull rests at the origin at tick {0}", world.TickNumber);
+                world
+                    .Frames.TreeLinearVelocity(frame)
+                    .Should()
                     .Be(Double3.Zero, "an end pose's record has no velocity past its chord");
                 DPose pose = world.PoseIn(owner, space);
-                (pose.Position - Drift * world.Time).Length.Should().BeLessThan(1e-6,
-                    "the hull is on the line of the drift at tick {0}", world.TickNumber);
-                (world.VelocityIn(owner, space) - Drift).Length.Should()
+                (pose.Position - Drift * world.Time)
+                    .Length.Should()
+                    .BeLessThan(1e-6, "the hull is on the line of the drift at tick {0}", world.TickNumber);
+                (world.VelocityIn(owner, space) - Drift)
+                    .Length.Should()
                     .BeLessThan(1e-9, "the hull moves at the drift's velocity");
             }
 
@@ -118,8 +142,15 @@ public sealed class FollowingFrameTests
         (World world, FrameHandle space, Entity owner, FrameHandle frame) = DriftingHull();
         using (world)
         {
-            Entity crate = world.Spawn(new()
-                { Frame = frame, Pose = At(0, 10), LinearVelocity = new(0, 1, 0), Body = Crate });
+            Entity crate = world.Spawn(
+                new()
+                {
+                    Frame = frame,
+                    Pose = At(0, 10),
+                    LinearVelocity = new(0, 1, 0),
+                    Body = Crate,
+                }
+            );
             var homes = new List<string>();
             double fastest = 0;
             for (int tick = 0; tick < 480; tick++)
@@ -137,19 +168,28 @@ public sealed class FollowingFrameTests
                 if (homes.Count == 0 || homes[^1] != kind)
                     homes.Add(kind);
                 if (home == hullHome)
-                    fastest = Math.Max(fastest,
-                        (world.VelocityIn(crate, space) - world.Frames.LinearVelocity(home)).Length);
+                    fastest = Math.Max(
+                        fastest,
+                        (world.VelocityIn(crate, space) - world.Frames.LinearVelocity(home)).Length
+                    );
             }
 
             world.Frames.Numeric(world.PhysicsHomeOf(owner)).Should().Be(NumericMode.Following);
-            homes.Should().Equal(["hull's frame", "following frame"],
-                "the crate leaves into the frame's tree parent and stays linked to the hull");
+            homes
+                .Should()
+                .Equal(
+                    ["hull's frame", "following frame"],
+                    "the crate leaves into the frame's tree parent and stays linked to the hull"
+                );
             world.GetFrame(crate).Should().Be(space, "gameplay sees the crate in space");
             fastest.Should().BeInRange(0.9, 1.1, "the crate is slow in the following frame");
-            (world.PoseIn(crate, space).Position - world.PoseIn(owner, space).Position -
-             new Double3(0, 10 + 480.0 / 60, 0)).Length
-                .Should().BeLessThan(0.01,
-                    "the crate drifts on in a straight line relative to the hull, 1 m/s for 480 ticks");
+            (
+                world.PoseIn(crate, space).Position
+                - world.PoseIn(owner, space).Position
+                - new Double3(0, 10 + 480.0 / 60, 0)
+            )
+                .Length.Should()
+                .BeLessThan(0.01, "the crate drifts on in a straight line relative to the hull, 1 m/s for 480 ticks");
             world.Errors.Should().BeEmpty();
         }
     }
@@ -180,22 +220,32 @@ public sealed class FollowingFrameTests
         {
             Tick(world, 2);
             FrameHandle home = world.PhysicsHomeOf(ball);
-            world.Frames.Numeric(home).Should().Be(NumericMode.Following,
-                "the ball moves at 2 km/s, so it lives in a following frame");
+            world
+                .Frames.Numeric(home)
+                .Should()
+                .Be(NumericMode.Following, "the ball moves at 2 km/s, so it lives in a following frame");
             world.Frames.Anchors(home, ball).Should().BeTrue("the ball is the anchor of its following frame");
             world.Frames.TreeParent(home).Should().Be(space);
 
             for (int tick = 0; tick < 600; tick++)
             {
                 world.Tick();
-                world.PhysicsHomeOf(ball).Should()
+                world
+                    .PhysicsHomeOf(ball)
+                    .Should()
                     .Be(home, "the ball keeps its following frame at tick {0}", world.TickNumber);
                 DPose pose = world.PoseIn(ball, space);
-                pose.Position.Should().Be(world.Frames.TreeLocalPose(home).Position,
-                    "the ball rests at the frame's origin at tick {0}", world.TickNumber);
-                (pose.Position - Drift * world.Time).Length.Should().BeLessThan(1e-6,
-                    "the ball is on the line of the drift at tick {0}", world.TickNumber);
-                (world.VelocityIn(ball, space) - Drift).Length.Should()
+                pose.Position.Should()
+                    .Be(
+                        world.Frames.TreeLocalPose(home).Position,
+                        "the ball rests at the frame's origin at tick {0}",
+                        world.TickNumber
+                    );
+                (pose.Position - Drift * world.Time)
+                    .Length.Should()
+                    .BeLessThan(1e-6, "the ball is on the line of the drift at tick {0}", world.TickNumber);
+                (world.VelocityIn(ball, space) - Drift)
+                    .Length.Should()
                     .BeLessThan(1e-9, "the ball moves at the drift's velocity");
             }
 
@@ -214,8 +264,15 @@ public sealed class FollowingFrameTests
         (World world, FrameHandle space, Entity ball) = DriftingBall();
         using (world)
         {
-            Entity crate = world.Spawn(new()
-                { Frame = space, Pose = At(0, 2), LinearVelocity = Drift + new Double3(0, 0.5, 0), Body = Crate });
+            Entity crate = world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Pose = At(0, 2),
+                    LinearVelocity = Drift + new Double3(0, 0.5, 0),
+                    Body = Crate,
+                }
+            );
             Tick(world, 2);
             FrameHandle home = world.PhysicsHomeOf(ball);
             world.Frames.Anchors(home, ball).Should().BeTrue("the ball lives in a following frame of its own");
@@ -225,16 +282,24 @@ public sealed class FollowingFrameTests
             for (int tick = 0; tick < 240; tick++)
             {
                 world.Tick();
-                world.PhysicsHomeOf(crate).Should()
+                world
+                    .PhysicsHomeOf(crate)
+                    .Should()
                     .Be(home, "the crate stays linked to the ball at tick {0}", world.TickNumber);
-                fastest = Math.Max(fastest,
-                    (world.VelocityIn(crate, space) - world.Frames.LinearVelocity(home)).Length);
+                fastest = Math.Max(
+                    fastest,
+                    (world.VelocityIn(crate, space) - world.Frames.LinearVelocity(home)).Length
+                );
             }
 
             fastest.Should().BeInRange(0.45, 0.55, "the crate is slow in the following frame");
-            (world.PoseIn(crate, space).Position - world.PoseIn(ball, space).Position -
-             new Double3(0, 2 + 0.5 * world.Time, 0)).Length
-                .Should().BeLessThan(0.01, "the crate drifts on in a straight line relative to the ball");
+            (
+                world.PoseIn(crate, space).Position
+                - world.PoseIn(ball, space).Position
+                - new Double3(0, 2 + 0.5 * world.Time, 0)
+            )
+                .Length.Should()
+                .BeLessThan(0.01, "the crate drifts on in a straight line relative to the ball");
             world.Errors.Should().BeEmpty();
         }
     }
@@ -249,10 +314,10 @@ public sealed class FollowingFrameTests
     {
         using World world = NewWorld(backend: out _);
         FrameHandle earth = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(Scenes.EarthMu)));
-        KeplerOrbit orbit = KeplerOrbit.Circular(6.8e6, phase: 0.4);
-        Entity ball =
-            world.Spawn(
-                new SpawnDesc { Frame = earth, Body = KinematicBall }.OnKeplerOrbit(world, orbit, firstMove: true));
+        var orbit = KeplerOrbit.Circular(6.8e6, phase: 0.4);
+        Entity ball = world.Spawn(
+            new SpawnDesc { Frame = earth, Body = KinematicBall }.OnKeplerOrbit(world, orbit, firstMove: true)
+        );
         Tick(world, 2);
         FrameHandle home = world.PhysicsHomeOf(ball);
         world.Frames.Anchors(home, ball).Should().BeTrue();
@@ -261,11 +326,19 @@ public sealed class FollowingFrameTests
         {
             world.Tick();
             world.PhysicsHomeOf(ball).Should().Be(home);
-            world.PoseIn(ball, earth).Should().Be(
-                new DPose(orbit.StateAt(world.Time, Scenes.EarthMu).Position,
-                    orbit.RotationAt(world.Time, Scenes.EarthMu)),
-                "the ball stands on its orbit at sync point {0}", world.TickNumber);
-            (world.VelocityIn(ball, earth) - orbit.StateAt(world.Time, Scenes.EarthMu).Velocity).Length.Should()
+            world
+                .PoseIn(ball, earth)
+                .Should()
+                .Be(
+                    new DPose(
+                        orbit.StateAt(world.Time, Scenes.EarthMu).Position,
+                        orbit.RotationAt(world.Time, Scenes.EarthMu)
+                    ),
+                    "the ball stands on its orbit at sync point {0}",
+                    world.TickNumber
+                );
+            (world.VelocityIn(ball, earth) - orbit.StateAt(world.Time, Scenes.EarthMu).Velocity)
+                .Length.Should()
                 .BeLessThan(1e-6);
         }
 
@@ -283,8 +356,15 @@ public sealed class FollowingFrameTests
         (World world, FrameHandle space, Entity ball) = DriftingBall();
         using (world)
         {
-            Entity crate = world.Spawn(new()
-                { Frame = space, Pose = At(0, 2), LinearVelocity = Drift + new Double3(0, 0.5, 0), Body = Crate });
+            Entity crate = world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Pose = At(0, 2),
+                    LinearVelocity = Drift + new Double3(0, 0.5, 0),
+                    Body = Crate,
+                }
+            );
             Tick(world, 60);
             FrameHandle home = world.PhysicsHomeOf(crate);
             world.Frames.Anchors(home, ball).Should().BeTrue();
@@ -295,7 +375,8 @@ public sealed class FollowingFrameTests
 
             world.PhysicsHomeOf(crate).Should().Be(home, "the crate keeps the frame");
             world.Frames.Numeric(home).Should().Be(NumericMode.Falling, "the frame lost its anchor and falls on");
-            (world.VelocityIn(crate, space) - velocity).Length.Should()
+            (world.VelocityIn(crate, space) - velocity)
+                .Length.Should()
                 .BeLessThan(1e-6, "the crate keeps its velocity in space");
             world.Errors.Should().BeEmpty();
         }
@@ -336,15 +417,24 @@ public sealed class FollowingFrameTests
         using World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
         var jump = new Double3(1_000, 0, 0);
-        Entity ball = world.Spawn(new()
-        {
-            Frame = space,
-            Body = KinematicBall,
-            FirstMove = new(new EndPose(new(Drift * world.DeltaTime, DQuaternion.Identity))),
-            Components = [new JumpingDrift(Drift, 60, jump)]
-        });
-        Entity crate = world.Spawn(new()
-            { Frame = space, Pose = At(0, 2), LinearVelocity = Drift + new Double3(0, 0.5, 0), Body = Crate });
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = KinematicBall,
+                FirstMove = new(new EndPose(new(Drift * world.DeltaTime, DQuaternion.Identity))),
+                Components = [new JumpingDrift(Drift, 60, jump)],
+            }
+        );
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(0, 2),
+                LinearVelocity = Drift + new Double3(0, 0.5, 0),
+                Body = Crate,
+            }
+        );
         // Tick 60 writes the teleport, and the step of tick 61 applies it.
         Tick(world, 61);
         FrameHandle home = world.PhysicsHomeOf(ball);
@@ -355,13 +445,16 @@ public sealed class FollowingFrameTests
         world.Tick();
 
         world.PhysicsHomeOf(ball).Should().Be(home, "the ball keeps its following frame");
-        world.PoseIn(ball, space).Position.Should().Be(world.Frames.TreeLocalPose(home).Position,
-            "the ball rests at the frame's origin again");
-        (world.PoseIn(ball, space).Position - (Drift * world.Time + jump)).Length.Should()
+        world
+            .PoseIn(ball, space)
+            .Position.Should()
+            .Be(world.Frames.TreeLocalPose(home).Position, "the ball rests at the frame's origin again");
+        (world.PoseIn(ball, space).Position - (Drift * world.Time + jump))
+            .Length.Should()
             .BeLessThan(1e-6, "the ball is 1 km ahead on its line");
-        (world.PoseIn(crate, space).Position - (crateBefore.Position + crateVelocity * world.DeltaTime)).Length.Should()
-            .BeLessThan(1e-6,
-                "the crate does not jump with the ball");
+        (world.PoseIn(crate, space).Position - (crateBefore.Position + crateVelocity * world.DeltaTime))
+            .Length.Should()
+            .BeLessThan(1e-6, "the crate does not jump with the ball");
         (world.VelocityIn(crate, space) - crateVelocity).Length.Should().BeLessThan(1e-6);
         world.Errors.Should().BeEmpty();
     }
@@ -371,21 +464,36 @@ public sealed class FollowingFrameTests
     /// its first motion intent, and 100 m ahead on its path a crate at rest with <paramref name="log"/>, and 8 m to the
     /// orbit's outer side a static rock of radius 1 m, which the ball misses.
     /// </summary>
-    private static (FrameHandle Space, Entity Ball, Entity Rock, Entity Crate) BallAndRock(World world,
-        CollisionLog log)
+    private static (FrameHandle Space, Entity Ball, Entity Rock, Entity Crate) BallAndRock(
+        World world,
+        CollisionLog log
+    )
     {
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(2e7f), GravityField.Point(4e10)));
-        Entity ball = world.Spawn(new SpawnDesc
-        {
-            Frame = space,
-            Body = new(Shape: new SphereShapeDesc(2), Motion: BodyMotion.Kinematic, Mass: 1e4f, Restitution: 0)
-        }.OnKeplerOrbit(world, FarOrbit, firstMove: true));
-        Entity rock = world.Spawn(new()
-        {
-            Frame = space, Pose = At(1e7 + 8, 0, -100),
-            Body = new(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Static)
-        });
-        Entity crate = world.Spawn(new() { Frame = space, Pose = At(1e7, 0, -100), Body = Crate, Components = [log] });
+        Entity ball = world.Spawn(
+            new SpawnDesc
+            {
+                Frame = space,
+                Body = new(Shape: new SphereShapeDesc(2), Motion: BodyMotion.Kinematic, Mass: 1e4f, Restitution: 0),
+            }.OnKeplerOrbit(world, FarOrbit, firstMove: true)
+        );
+        Entity rock = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(1e7 + 8, 0, -100),
+                Body = new(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Static),
+            }
+        );
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(1e7, 0, -100),
+                Body = Crate,
+                Components = [log],
+            }
+        );
         return (space, ball, rock, crate);
     }
 
@@ -401,8 +509,10 @@ public sealed class FollowingFrameTests
         var withLog = new CollisionLog();
         var withoutLog = new CollisionLog();
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
-        using World plain = NewWorld(backend: out _,
-            configure: options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
+        using World plain = NewWorld(
+            backend: out _,
+            configure: options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames
+        );
         (FrameHandle space, Entity ball, Entity rock, Entity crate) = BallAndRock(world, withLog);
         BallAndRock(plain, withoutLog);
         world.Tick();
@@ -411,7 +521,9 @@ public sealed class FollowingFrameTests
         world.Frames.Anchors(home, ball).Should().BeTrue("the ball lies beyond the distance of a following frame");
         FrameHandle rockHome = world.PhysicsHomeOf(rock);
         world.Frames.Numeric(rockHome).Should().Be(NumericMode.Resting, "the rock rests 10,000 km from the origin");
-        world.PhysicsHomeOf(crate).Should()
+        world
+            .PhysicsHomeOf(crate)
+            .Should()
             .Be(rockHome, "the group of the ball, the rock and the crate lives in the rock's home");
         world.Frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(ball, rockHome));
         world.Tick();
@@ -422,9 +534,13 @@ public sealed class FollowingFrameTests
         Tick(plain, 200);
 
         withLog.Seen.Should().NotBeEmpty("the ghost hits the crate");
-        withLog.Seen.Select(seen => (seen.Tick, seen.Other.Index)).Should().Equal(
-            withoutLog.Seen.Select(seen => (seen.Tick, seen.Other.Index)),
-            "the ghost hits the crate at the tick at which the ball does without numeric frames");
+        withLog
+            .Seen.Select(seen => (seen.Tick, seen.Other.Index))
+            .Should()
+            .Equal(
+                withoutLog.Seen.Select(seen => (seen.Tick, seen.Other.Index)),
+                "the ghost hits the crate at the tick at which the ball does without numeric frames"
+            );
         world.Errors.Should().BeEmpty();
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
         space.IsNull.Should().BeFalse();

@@ -12,14 +12,17 @@ public sealed class ThreadingTests
     {
         var buffer = new TripleBuffer<Box>(() => new());
         const long last = 200_000;
-        Task writer = Task.Run(() =>
-        {
-            for (long i = 1; i <= last; i++)
+        var writer = Task.Run(
+            () =>
             {
-                buffer.WriteBuffer.Value = i;
-                buffer.Publish();
-            }
-        }, TestContext.Current.CancellationToken);
+                for (long i = 1; i <= last; i++)
+                {
+                    buffer.WriteBuffer.Value = i;
+                    buffer.Publish();
+                }
+            },
+            TestContext.Current.CancellationToken
+        );
 
         long seen = 0;
         while (seen < last)

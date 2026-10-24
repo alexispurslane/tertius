@@ -61,9 +61,14 @@ public static class ScriptCommand
     /// when null), so that a
     /// test can wrap the real ones or make them fail.
     /// </summary>
-    internal static int Run(string[] args, IReadOnlyList<Scene> scenes, TextWriter output, TextWriter error,
+    internal static int Run(
+        string[] args,
+        IReadOnlyList<Scene> scenes,
+        TextWriter output,
+        TextWriter error,
         Func<RendererOptions, VulkanRenderer> createRenderer,
-        Func<VideoFile, ScriptWindow, FfmpegVideoSink>? startVideo = null)
+        Func<VideoFile, ScriptWindow, FfmpegVideoSink>? startVideo = null
+    )
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(scenes);
@@ -81,13 +86,21 @@ public static class ScriptCommand
             if (live is null)
             {
                 error.WriteLine(
-                    $"No scene is named '{sceneName}'. The scenes are: {string.Join(", ", scenes.Select(s => s.Name))}.");
+                    $"No scene is named '{sceneName}'. The scenes are: {string.Join(", ", scenes.Select(s => s.Name))}."
+                );
                 return ScriptError;
             }
 
-            return WindowHost.Run(sceneToBuild: live, script: null, scriptPath: null, outputFolder: null,
+            return WindowHost.Run(
+                sceneToBuild: live,
+                script: null,
+                scriptPath: null,
+                outputFolder: null,
                 speed: options.Speed,
-                recordPath: options.Record, output: output, error: error);
+                recordPath: options.Record,
+                output: output,
+                error: error
+            );
         }
 
         // ReadOptions gives a run that is not free play its script and its output folder.
@@ -113,7 +126,8 @@ public static class ScriptCommand
         if (options.Video is not null && !captures)
         {
             error.WriteLine(
-                $"--video makes a video of the captures, and {options.Script} has no capture or film step.");
+                $"--video makes a video of the captures, and {options.Script} has no capture or film step."
+            );
             error.WriteLine(Usage);
             return CommandLineError;
         }
@@ -122,28 +136,45 @@ public static class ScriptCommand
         if (scene is null)
         {
             error.WriteLine(
-                $"{options.Script}: no scene is named '{script.Scene}'. The scenes are: {string.Join(", ", scenes.Select(s => s.Name))}.");
+                $"{options.Script}: no scene is named '{script.Scene}'. The scenes are: {string.Join(", ", scenes.Select(s => s.Name))}."
+            );
             return ScriptError;
         }
 
         if (!options.Headless)
-            return WindowHost.Run(sceneToBuild: scene, script: script, scriptPath: options.Script,
-                outputFolder: options.Out, speed: options.Speed, recordPath: null, output: output,
-                error: error);
+            return WindowHost.Run(
+                sceneToBuild: scene,
+                script: script,
+                scriptPath: options.Script,
+                outputFolder: options.Out,
+                speed: options.Speed,
+                recordPath: null,
+                output: output,
+                error: error
+            );
 
-        using var world = new World(new() { DisposePhysics = true },
-            new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
+        using var world = new World(
+            new() { DisposePhysics = true },
+            new JoltPhysicsBackend(JoltBackendOptions.Unpaced)
+        );
         VulkanRenderer? renderer = null;
         if (captures)
             try
             {
-                renderer = createRenderer(new()
-                    { Width = script.Window.Width, Height = script.Window.Height, Impostors = false });
+                renderer = createRenderer(
+                    new()
+                    {
+                        Width = script.Window.Width,
+                        Height = script.Window.Height,
+                        Impostors = false,
+                    }
+                );
             }
             catch (Exception ex)
             {
                 error.WriteLine(
-                    $"Cannot start the headless renderer for the captures of {options.Script}: {ex.Message}");
+                    $"Cannot start the headless renderer for the captures of {options.Script}: {ex.Message}"
+                );
                 return ToolError;
             }
 
@@ -153,8 +184,12 @@ public static class ScriptCommand
         if (renderer != null)
             try
             {
-                playback = new(renderer: renderer, size: script.Window, target: target,
-                    startVideo: startVideo ?? FfmpegVideoSink.Start);
+                playback = new(
+                    renderer: renderer,
+                    size: script.Window,
+                    target: target,
+                    startVideo: startVideo ?? FfmpegVideoSink.Start
+                );
             }
             // Only a video target starts a tool, ffmpeg. Process.Start throws a Win32Exception when ffmpeg is not on the
             // search path or cannot start.
@@ -178,9 +213,13 @@ public static class ScriptCommand
         world.Log += error.WriteLine;
         try
         {
-            RunResult result = ScriptRunner.Run(script: script, world: world,
+            RunResult result = ScriptRunner.Run(
+                script: script,
+                world: world,
                 scene: scene.Build(world, renderer ?? RenderResources.None),
-                outputFolder: options.Out, playback: playback);
+                outputFolder: options.Out,
+                playback: playback
+            );
             playback?.Finish();
             WriteFiles(result: result, outputFolder: outFolder, target: target, output: output);
             return Ok;
@@ -232,7 +271,8 @@ public static class ScriptCommand
                 break;
             default:
                 throw new UnreachableException(
-                    $"The capture target {target} has a case that the command does not list.");
+                    $"The capture target {target} has a case that the command does not list."
+                );
         }
     }
 
@@ -250,7 +290,8 @@ public static class ScriptCommand
         bool Headless,
         double Speed,
         string? Record = null,
-        VideoFile? Video = null);
+        VideoFile? Video = null
+    );
 
     /// <summary>The options, or null and the problem for an unknown option, a missing value or a missing option.</summary>
     internal static Options? ReadOptions(string[] args, out string? problem)
@@ -269,8 +310,13 @@ public static class ScriptCommand
                 case "--headless":
                     headless = true;
                     break;
-                case "--script" or "--scene" or "--out" or "--speed" or "--record" or "--video" or "--fps"
-                    when i + 1 >= args.Length || string.IsNullOrWhiteSpace(args[i + 1]):
+                case "--script"
+                or "--scene"
+                or "--out"
+                or "--speed"
+                or "--record"
+                or "--video"
+                or "--fps" when i + 1 >= args.Length || string.IsNullOrWhiteSpace(args[i + 1]):
                     problem = $"{args[i]} needs a value.";
                     return null;
                 case "--script":
@@ -314,26 +360,44 @@ public static class ScriptCommand
             (not null, null) when output is null => "The option --out is missing.",
             _ when speedText != null && headless =>
                 "--speed applies to the window. A headless run runs its ticks back to back.",
-            _ when speedText != null &&
-                   !(double.TryParse(s: speedText, style: NumberStyles.Float, provider: CultureInfo.InvariantCulture,
-                         result: out speed) &&
-                     double.IsFinite(speed) && speed > 0) =>
-                $"--speed needs a positive number, such as 0.5 or 2, not '{speedText}'.",
+            _ when speedText != null
+                    && !(
+                        double.TryParse(
+                            s: speedText,
+                            style: NumberStyles.Float,
+                            provider: CultureInfo.InvariantCulture,
+                            result: out speed
+                        )
+                        && double.IsFinite(speed)
+                        && speed > 0
+                    ) => $"--speed needs a positive number, such as 0.5 or 2, not '{speedText}'.",
             _ when video != null && !headless =>
                 "--video applies to a headless run. The window writes PNG files, so add --headless or leave out --video.",
             _ when video != null && !VideoFile.HasVideoExtension(video) =>
                 $"The --video file's name ends in {VideoFile.Extension}, and '{video}' does not.",
             _ when fpsText != null && video is null => "--fps applies to a video, so give --video too.",
-            _ when fpsText != null &&
-                   !(int.TryParse(s: fpsText, style: NumberStyles.None, provider: CultureInfo.InvariantCulture,
-                         result: out fps) &&
-                     fps is >= VideoFile.MinFramesPerSecond and <= VideoFile.MaxFramesPerSecond) =>
+            _ when fpsText != null
+                    && !(
+                        int.TryParse(
+                            s: fpsText,
+                            style: NumberStyles.None,
+                            provider: CultureInfo.InvariantCulture,
+                            result: out fps
+                        ) && fps is >= VideoFile.MinFramesPerSecond and <= VideoFile.MaxFramesPerSecond
+                    ) =>
                 $"--fps needs a whole number from {VideoFile.MinFramesPerSecond} to {VideoFile.MaxFramesPerSecond}, not '{fpsText}'.",
-            _ => null
+            _ => null,
         };
         return problem is null
-            ? new Options(Script: script, Scene: scene, Out: output, Headless: headless, Speed: speed, Record: record,
-                Video: video is null ? null : new VideoFile(video, fps))
+            ? new Options(
+                Script: script,
+                Scene: scene,
+                Out: output,
+                Headless: headless,
+                Speed: speed,
+                Record: record,
+                Video: video is null ? null : new VideoFile(video, fps)
+            )
             : null;
     }
 }

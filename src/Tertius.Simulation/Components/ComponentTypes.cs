@@ -22,7 +22,6 @@ public static class ComponentTypes
     public const int Capacity = 512;
 
     private static readonly Lock Gate = new();
-    private static ComponentTypeRegistry? registry;
 
     /// <summary>How many component types have an id.</summary>
     public static int Count => Registry.Count;
@@ -31,14 +30,15 @@ public static class ComponentTypes
     {
         get
         {
-            ComponentTypeRegistry? current = Volatile.Read(ref registry);
+            ComponentTypeRegistry? current = Volatile.Read(ref field);
             if (current != null)
                 return current;
             lock (Gate)
             {
                 // A failed scan leaves the field null, so that each later call fails with the same clear error.
-                registry ??= new(MayDefineComponents(AppDomain.CurrentDomain.GetAssemblies()));
-                return registry;
+                field ??=
+                    new(MayDefineComponents(AppDomain.CurrentDomain.GetAssemblies()));
+                return field;
             }
         }
     }
@@ -80,8 +80,11 @@ public static class ComponentTypes
             grew = false;
             for (int i = rest.Count - 1; i >= 0; i--)
             {
-                if (!rest[i].GetReferencedAssemblies()
-                        .Any(reference => reference.Name is { } name && names.Contains(name)))
+                if (
+                    !rest[i]
+                        .GetReferencedAssemblies()
+                        .Any(reference => reference.Name is { } name && names.Contains(name))
+                )
                     continue;
                 if (rest[i].GetName().Name is { } name)
                     names.Add(name);
@@ -99,25 +102,24 @@ public static class ComponentTypes
 /// The id of the component type <typeparamref name="T"/>, cached after the first lookup. A lookup that throws is not
 /// cached, so each later use throws the same clear error, not a <see cref="TypeInitializationException"/>.
 /// </summary>
-internal static class ComponentType<T> where T : IComponent
+internal static class ComponentType<T>
+    where T : IComponent
 {
-    private static int id = -1;
-
     public static int Id
     {
         get
         {
-            int value = Volatile.Read(ref id);
+            int value = Volatile.Read(ref field);
             if (value < 0)
             {
                 // Two threads may both look it up. They get the same id, so the race does not matter.
                 value = ComponentTypes.IdOf(typeof(T));
-                Volatile.Write(ref id, value);
+                Volatile.Write(ref field, value);
             }
 
             return value;
         }
-    }
+    } = -1;
 }
 
 /// <summary>
@@ -161,7 +163,8 @@ internal sealed class ComponentTypeRegistry
             throw new InvalidOperationException(GenericProblem(generic));
         if (found.Count > ComponentTypes.Capacity)
             throw new InvalidOperationException(
-                $"The loaded assemblies define {found.Count} component types, but a process can have at most {ComponentTypes.Capacity}: component flags hold one bit for each type.");
+                $"The loaded assemblies define {found.Count} component types, but a process can have at most {ComponentTypes.Capacity}: component flags hold one bit for each type."
+            );
         foreach (Assembly assembly in scannedNow)
             scanned.Add(assembly, null);
         AddSorted(found);
@@ -187,7 +190,8 @@ internal sealed class ComponentTypeRegistry
         if (!IsConcreteComponent(type))
             throw new ArgumentException(
                 $"{type.FullName} is not a concrete component type: a class or struct that implements IComponent.",
-                nameof(type));
+                nameof(type)
+            );
         if (IsGeneric(type))
             throw new ArgumentException(GenericProblem([type]), nameof(type));
         lock (gate)
@@ -208,7 +212,8 @@ internal sealed class ComponentTypeRegistry
             // A type of a dynamic assembly, or one that the scan could not load.
             return types.Count == ComponentTypes.Capacity
                 ? throw new InvalidOperationException(
-                    $"{type.FullName} cannot get a component type id: a process can have at most {ComponentTypes.Capacity} component types, and every id is taken.")
+                    $"{type.FullName} cannot get a component type id: a process can have at most {ComponentTypes.Capacity} component types, and every id is taken."
+                )
                 : Add(type);
         }
     }

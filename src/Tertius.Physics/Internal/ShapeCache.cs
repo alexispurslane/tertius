@@ -39,15 +39,16 @@ internal sealed class ShapeCache : IDisposable
         shapes.Clear();
     }
 
-    private Shape Create(ShapeDesc desc) => desc switch
-    {
-        BoxShapeDesc box => CreateBox(box),
-        SphereShapeDesc sphere => CreateSphere(sphere.Radius),
-        CapsuleShapeDesc capsule => CreateCapsule(capsule),
-        ConvexHullShapeDesc hull => CreateHull(hull),
-        MeshShapeDesc mesh => CreateMesh(mesh),
-        CompoundShapeDesc compound => CreateCompound(compound)
-    };
+    private Shape Create(ShapeDesc desc) =>
+        desc switch
+        {
+            BoxShapeDesc box => CreateBox(box),
+            SphereShapeDesc sphere => CreateSphere(sphere.Radius),
+            CapsuleShapeDesc capsule => CreateCapsule(capsule),
+            ConvexHullShapeDesc hull => CreateHull(hull),
+            MeshShapeDesc mesh => CreateMesh(mesh),
+            CompoundShapeDesc compound => CreateCompound(compound),
+        };
 
     private static BoxShape CreateBox(BoxShapeDesc box)
     {
@@ -68,12 +69,14 @@ internal sealed class ShapeCache : IDisposable
 
     private static ConvexHullShape CreateHull(ConvexHullShapeDesc hull)
     {
-        using ConvexHullShapeSettings settings =
-            NativeOwnership.Owned(new ConvexHullShapeSettings(hull.Points.AsSpan(), hull.ConvexRadius));
+        using ConvexHullShapeSettings settings = NativeOwnership.Owned(
+            new ConvexHullShapeSettings(hull.Points.AsSpan(), hull.ConvexRadius)
+        );
         ConvexHullShape shape = NativeOwnership.Owned(new ConvexHullShape(settings));
         return shape.Handle == 0
             ? throw new ArgumentException(
-                $"is a convex hull that Jolt cannot build from its {hull.Points.Length} points: they may coincide or lie on a line")
+                $"is a convex hull that Jolt cannot build from its {hull.Points.Length} points: they may coincide or lie on a line"
+            )
             : shape;
     }
 
@@ -82,12 +85,14 @@ internal sealed class ShapeCache : IDisposable
         var triangles = new IndexedTriangle[mesh.Indices.Length / 3];
         for (int i = 0; i < triangles.Length; i++)
             triangles[i] = new(i1: mesh.Indices[3 * i], i2: mesh.Indices[3 * i + 1], i3: mesh.Indices[3 * i + 2]);
-        using MeshShapeSettings settings =
-            NativeOwnership.Owned(new MeshShapeSettings(mesh.Vertices.AsSpan(), triangles.AsSpan()));
+        using MeshShapeSettings settings = NativeOwnership.Owned(
+            new MeshShapeSettings(mesh.Vertices.AsSpan(), triangles.AsSpan())
+        );
         MeshShape shape = NativeOwnership.Owned(new MeshShape(settings));
         return shape.Handle == 0
             ? throw new ArgumentException(
-                "is a mesh that Jolt cannot build: Jolt drops a triangle whose corners lie on a line, and it may have dropped them all")
+                "is a mesh that Jolt cannot build: Jolt drops a triangle whose corners lie on a line, and it may have dropped them all"
+            )
             : shape;
     }
 
@@ -97,8 +102,11 @@ internal sealed class ShapeCache : IDisposable
         foreach (CompoundChild child in compound.Children)
         {
             Pose pose = child.Pose;
-            settings.AddShape(position: pose.Position, rotation: Quaternion.Normalize(pose.Rotation),
-                shape: Get(child.Shape));
+            settings.AddShape(
+                position: pose.Position,
+                rotation: Quaternion.Normalize(pose.Rotation),
+                shape: Get(child.Shape)
+            );
         }
 
         StaticCompoundShape shape = NativeOwnership.Owned(new StaticCompoundShape(settings));

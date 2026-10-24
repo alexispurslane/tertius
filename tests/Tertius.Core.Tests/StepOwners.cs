@@ -38,8 +38,13 @@ internal static class StepTwo
     /// applied <paramref name="stepIntents"/>, with what <paramref name="owners"/> says about the owners, or with no physics
     /// records, skips or writes (see <see cref="FrameTree.TakeStepRecords"/>).
     /// </summary>
-    public static void TakeStepRecords(this FrameTree frames, ReadOnlySpan<PhysicsIntent> stepIntents, double step,
-        StepOwners? owners = null, bool stepFailed = false)
+    public static void TakeStepRecords(
+        this FrameTree frames,
+        ReadOnlySpan<PhysicsIntent> stepIntents,
+        double step,
+        StepOwners? owners = null,
+        bool stepFailed = false
+    )
     {
         StepOwners facts = owners ?? new StepOwners();
         frames.TakeStepRecords(owners: ref facts, stepIntents: stepIntents, stepFailed: stepFailed, step: step);

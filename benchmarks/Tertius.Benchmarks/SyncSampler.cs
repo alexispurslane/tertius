@@ -45,7 +45,7 @@ internal static class SyncSampler
                 {
                     MaxDegreeOfParallelism = dop,
                     Entities = name.Contains("100k") ? 100_000 : 1_000,
-                    Jolt = name.EndsWith("Jolt")
+                    Jolt = name.EndsWith("Jolt"),
                 };
                 b.Setup();
                 return (b.Tick, b.Cleanup);
@@ -60,7 +60,10 @@ internal static class SyncSampler
             case "parts0":
             {
                 var b = new PartPushTickBenchmarks
-                    { MaxDegreeOfParallelism = dop, PartsPerCrate = name == "parts10k" ? 4 : 0 };
+                {
+                    MaxDegreeOfParallelism = dop,
+                    PartsPerCrate = name == "parts10k" ? 4 : 0,
+                };
                 b.Setup();
                 return (b.Tick, b.Cleanup);
             }
@@ -130,12 +133,16 @@ internal static class SyncSampler
         var providers = new List<EventPipeProvider>
         {
             new(name: "Microsoft-DotNETCore-SampleProfiler", eventLevel: EventLevel.Informational),
-            new(name: "Microsoft-Windows-DotNETRuntime", eventLevel: EventLevel.Informational,
-                keywords: (long)0x10 /* JIT */ | 0x8 /* Loader */)
+            new(
+                name: "Microsoft-Windows-DotNETRuntime",
+                eventLevel: EventLevel.Informational,
+                keywords: (long)0x10 /* JIT */
+                    | 0x8 /* Loader */
+            ),
         };
         using (EventPipeSession session = client.StartEventPipeSession(providers, requestRundown: true))
         {
-            Task copy = Task.Run(() =>
+            var copy = Task.Run(() =>
             {
                 using FileStream file = File.Create(tracePath);
                 session.EventStream.CopyTo(file);

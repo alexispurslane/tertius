@@ -36,8 +36,12 @@ internal sealed class Fixes(string rule, Func<CodeFixProvider> fix)
         Document document = DocumentOf(workspace, source);
         Diagnostic first = (await Diagnostics(document)).First();
         List<CodeAction> actions = [];
-        CodeFixContext context = new(document: document, diagnostic: first,
-            registerCodeFix: (action, _) => actions.Add(action), cancellationToken: cancel);
+        CodeFixContext context = new(
+            document: document,
+            diagnostic: first,
+            registerCodeFix: (action, _) => actions.Add(action),
+            cancellationToken: cancel
+        );
         await fix().RegisterCodeFixesAsync(context);
         return await Applied(document, actions.Single());
     }
@@ -51,8 +55,15 @@ internal sealed class Fixes(string rule, Func<CodeFixProvider> fix)
         Document document = DocumentOf(workspace, source);
         Diagnostic first = (await Diagnostics(document)).First();
         List<CodeAction> actions = [];
-        await fix().RegisterCodeFixesAsync(new(document: document, diagnostic: first,
-            registerCodeFix: (action, _) => actions.Add(action), cancellationToken: cancel));
+        await fix()
+            .RegisterCodeFixesAsync(
+                new(
+                    document: document,
+                    diagnostic: first,
+                    registerCodeFix: (action, _) => actions.Add(action),
+                    cancellationToken: cancel
+                )
+            );
         return actions.Count;
     }
 
@@ -76,34 +87,56 @@ internal sealed class Fixes(string rule, Func<CodeFixProvider> fix)
         ImmutableArray<Diagnostic> diagnostics = await Diagnostics(document);
         CodeFixProvider provider = fix();
         List<CodeAction> actions = [];
-        await provider.RegisterCodeFixesAsync(new(document: document, diagnostic: diagnostics.First(),
-            registerCodeFix: (action, _) => actions.Add(action), cancellationToken: cancel));
-        FixAllProvider fixAll = provider.GetFixAllProvider() ??
-                                throw new InvalidOperationException("The fix has no FixAllProvider.");
-        FixAllContext context = new(document: document, codeFixProvider: provider, scope: FixAllScope.Document,
-            codeActionEquivalenceKey: actions.Single().EquivalenceKey, diagnosticIds: [rule],
-            fixAllDiagnosticProvider: new Found(diagnostics), cancellationToken: cancel);
-        CodeAction action = await fixAll.GetFixAsync(context) ??
-                            throw new InvalidOperationException("The FixAllProvider gave no fix.");
+        await provider.RegisterCodeFixesAsync(
+            new(
+                document: document,
+                diagnostic: diagnostics.First(),
+                registerCodeFix: (action, _) => actions.Add(action),
+                cancellationToken: cancel
+            )
+        );
+        FixAllProvider fixAll =
+            provider.GetFixAllProvider() ?? throw new InvalidOperationException("The fix has no FixAllProvider.");
+        FixAllContext context = new(
+            document: document,
+            codeFixProvider: provider,
+            scope: FixAllScope.Document,
+            codeActionEquivalenceKey: actions.Single().EquivalenceKey,
+            diagnosticIds: [rule],
+            fixAllDiagnosticProvider: new Found(diagnostics),
+            cancellationToken: cancel
+        );
+        CodeAction action =
+            await fixAll.GetFixAsync(context) ?? throw new InvalidOperationException("The FixAllProvider gave no fix.");
         return untilClean ? await Applied(document, action) : await Changed(document, action);
     }
 
     /// <summary>A document of <paramref name="source"/> in a new project of <paramref name="workspace"/>.</summary>
     private static Document DocumentOf(AdhocWorkspace workspace, string source)
     {
-        Project project = workspace.AddProject(ProjectInfo.Create(id: ProjectId.CreateNewId(),
-            version: VersionStamp.Default, name: "Probe", assemblyName: "Probe", language: LanguageNames.CSharp,
-            compilationOptions: TestCompilation.Options, parseOptions: TestCompilation.Parse,
-            metadataReferences: TestCompilation.References));
+        Project project = workspace.AddProject(
+            ProjectInfo.Create(
+                id: ProjectId.CreateNewId(),
+                version: VersionStamp.Default,
+                name: "Probe",
+                assemblyName: "Probe",
+                language: LanguageNames.CSharp,
+                compilationOptions: TestCompilation.Options,
+                parseOptions: TestCompilation.Parse,
+                metadataReferences: TestCompilation.References
+            )
+        );
         return workspace.AddDocument(project.Id, "Probe.cs", SourceText.From(source));
     }
 
     private async Task<ImmutableArray<Diagnostic>> Diagnostics(Document document)
     {
         CancellationToken cancel = TestContext.Current.CancellationToken;
-        Compilation compilation = await document.Project.GetCompilationAsync(cancel) ??
-                                  throw new InvalidOperationException("The project has no compilation.");
-        ImmutableArray<Diagnostic> found = await compilation.WithAnalyzers([new StyleAnalyzer()])
+        Compilation compilation =
+            await document.Project.GetCompilationAsync(cancel)
+            ?? throw new InvalidOperationException("The project has no compilation.");
+        ImmutableArray<Diagnostic> found = await compilation
+            .WithAnalyzers([new StyleAnalyzer()])
             .GetAnalyzerDiagnosticsAsync(cancel);
         return [.. found.Where(diagnostic => diagnostic.Id == rule)];
     }
@@ -111,8 +144,7 @@ internal sealed class Fixes(string rule, Func<CodeFixProvider> fix)
     private async Task<string> Applied(Document document, CodeAction action)
     {
         string fixedSource = await Changed(document, action);
-        (await Analysis.Ids(rule, fixedSource)).Should()
-            .BeEmpty("the fix fixes every diagnostic of its rule");
+        (await Analysis.Ids(rule, fixedSource)).Should().BeEmpty("the fix fixes every diagnostic of its rule");
         return fixedSource;
     }
 
@@ -128,13 +160,19 @@ internal sealed class Fixes(string rule, Func<CodeFixProvider> fix)
     /// <summary>The diagnostics that the fix-all context hands to the provider: the ones that the test found.</summary>
     private sealed class Found(ImmutableArray<Diagnostic> diagnostics) : FixAllContext.DiagnosticProvider
     {
-        public override Task<IEnumerable<Diagnostic>> GetDocumentDiagnosticsAsync(Document document,
-            CancellationToken cancellationToken) => Task.FromResult<IEnumerable<Diagnostic>>(diagnostics);
+        public override Task<IEnumerable<Diagnostic>> GetDocumentDiagnosticsAsync(
+            Document document,
+            CancellationToken cancellationToken
+        ) => Task.FromResult<IEnumerable<Diagnostic>>(diagnostics);
 
-        public override Task<IEnumerable<Diagnostic>> GetProjectDiagnosticsAsync(Project project,
-            CancellationToken cancellationToken) => Task.FromResult<IEnumerable<Diagnostic>>([]);
+        public override Task<IEnumerable<Diagnostic>> GetProjectDiagnosticsAsync(
+            Project project,
+            CancellationToken cancellationToken
+        ) => Task.FromResult<IEnumerable<Diagnostic>>([]);
 
-        public override Task<IEnumerable<Diagnostic>> GetAllDiagnosticsAsync(Project project,
-            CancellationToken cancellationToken) => Task.FromResult<IEnumerable<Diagnostic>>(diagnostics);
+        public override Task<IEnumerable<Diagnostic>> GetAllDiagnosticsAsync(
+            Project project,
+            CancellationToken cancellationToken
+        ) => Task.FromResult<IEnumerable<Diagnostic>>(diagnostics);
     }
 }

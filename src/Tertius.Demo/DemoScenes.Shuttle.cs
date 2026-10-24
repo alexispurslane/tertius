@@ -123,8 +123,16 @@ public static partial class DemoScenes
         /// </summary>
         private static readonly Vector2[] Full =
         [
-            new(-2.8f, -2), new(2.8f, -2), new(3, -1.8f), new(3, -1.2f), new(3, 1.2f), new(2.2f, 2), new(-2.2f, 2),
-            new(-3, 1.2f), new(-3, -1.2f), new(-3, -1.8f)
+            new(-2.8f, -2),
+            new(2.8f, -2),
+            new(3, -1.8f),
+            new(3, -1.2f),
+            new(3, 1.2f),
+            new(2.2f, 2),
+            new(-2.2f, 2),
+            new(-3, 1.2f),
+            new(-3, -1.2f),
+            new(-3, -1.8f),
         ];
 
         /// <summary>
@@ -134,8 +142,16 @@ public static partial class DemoScenes
         /// </summary>
         private static readonly Vector2[] NoseFront =
         [
-            new(-2.2f, -2), new(2.2f, -2), new(2.4f, -1.8f), new(2.4f, -1.2f), new(2.4f, -0.2f), new(1.6f, 0.6f),
-            new(-1.6f, 0.6f), new(-2.4f, -0.2f), new(-2.4f, -1.2f), new(-2.4f, -1.8f)
+            new(-2.2f, -2),
+            new(2.2f, -2),
+            new(2.4f, -1.8f),
+            new(2.4f, -1.2f),
+            new(2.4f, -0.2f),
+            new(1.6f, 0.6f),
+            new(-1.6f, 0.6f),
+            new(-2.4f, -0.2f),
+            new(-2.4f, -1.2f),
+            new(-2.4f, -1.8f),
         ];
 
         /// <summary>
@@ -150,7 +166,13 @@ public static partial class DemoScenes
         /// over the roof.
         /// </summary>
         private static readonly (int Edge, string Name)[] GlassEdges =
-            [(3, "starboard"), (4, "starboard-bevel"), (5, "roof"), (6, "port-bevel"), (7, "port")];
+        [
+            (3, "starboard"),
+            (4, "starboard-bevel"),
+            (5, "roof"),
+            (6, "port-bevel"),
+            (7, "port"),
+        ];
 
         /// <summary>
         /// The shuttle's hull (docs/plans/blue-danube-demo.md, "The shuttle's tram shape and glass canopy"): the loft of
@@ -161,17 +183,22 @@ public static partial class DemoScenes
         /// the hatch's: 40 panes. Ribs and pillars are 0.2 m wide, mullions 0.12 m, and the glass stays 0.1 m from solid
         /// skin.
         /// </summary>
-        public static LoftedHull Loft { get; } = Enumerable.Range(1, Ribs.Length - 1)
-            .SelectMany(bay =>
-                GlassEdges.Where(glass => !(glass.Edge == 3 && bay == HatchBay))
-                    .Select(glass => (glass.Edge, glass.Name, Bay: bay)))
-            .Aggregate(
-                new LoftedHull([new(-Hull.Z, NoseFront), new(NoseStart, Full), new(Hull.Z, Full)], Wall, Ribs)
-                    .Door(door: Hatch, bay: HatchBay, fromCorner: 2, toCorner: 4)
-                    .TailPocket(half: 0.7f, depth: 0.6f, housing: Wall)
-                    .Surrounds(rib: 0.1f, fold: 0.06f, solid: 0.1f)
-                    .NoseGlass("pane-nose", fromCorner: 3, toCorner: 8),
-                (hull, glass) => hull.Glass($"pane-{glass.Name}-{glass.Bay}", glass.Edge, glass.Bay));
+        public static LoftedHull Loft { get; } =
+            Enumerable
+                .Range(1, Ribs.Length - 1)
+                .SelectMany(bay =>
+                    GlassEdges
+                        .Where(glass => !(glass.Edge == 3 && bay == HatchBay))
+                        .Select(glass => (glass.Edge, glass.Name, Bay: bay))
+                )
+                .Aggregate(
+                    new LoftedHull([new(-Hull.Z, NoseFront), new(NoseStart, Full), new(Hull.Z, Full)], Wall, Ribs)
+                        .Door(door: Hatch, bay: HatchBay, fromCorner: 2, toCorner: 4)
+                        .TailPocket(half: 0.7f, depth: 0.6f, housing: Wall)
+                        .Surrounds(rib: 0.1f, fold: 0.06f, solid: 0.1f)
+                        .NoseGlass("pane-nose", fromCorner: 3, toCorner: 8),
+                    (hull, glass) => hull.Glass($"pane-{glass.Name}-{glass.Bay}", glass.Edge, glass.Bay)
+                );
 
         /// <summary>The hull in its parent frame: the convex hull of the loft's corners, with the default convex radius.</summary>
         public static ShapeDesc HullShape { get; } = Loft.Shape();
@@ -180,11 +207,11 @@ public static partial class DemoScenes
         /// The hull in its own frame: the drawn hull's solid in convex pieces of convex radius 0, solid at the glass and open at
         /// the hatch, and the <see cref="Seat"/>. Every piece is sharp, so physics gives the body edge removal.
         /// </summary>
-        public static ShapeDesc InteriorShape { get; } = new CompoundShapeDesc(
-        [
-            .. Loft.Interior(),
-            new(new BoxShapeDesc(Seat.Extents, ConvexRadius: 0), new(Seat.Center, Quaternion.Identity))
-        ]);
+        public static ShapeDesc InteriorShape { get; } =
+            new CompoundShapeDesc([
+                .. Loft.Interior(),
+                new(new BoxShapeDesc(Seat.Extents, ConvexRadius: 0), new(Seat.Center, Quaternion.Identity)),
+            ]);
 
         /// <summary>
         /// The hull's moments of inertia about its principal axes, in kg·m², and those axes in the shuttle's axes, as physics
@@ -247,9 +274,12 @@ public static partial class DemoScenes
                 new[] { (Name: "fore", Z: -3f), (Name: "aft", Z: 3f) }.Select(place =>
                 {
                     var center = new Vector3(wall.Side * (Cabin.X - LampHalf.X), -Cabin.Y + 2.4f, place.Z);
-                    return (Id: $"lamp-{wall.Name}-{place.Name}",
-                        Panel: new BoundingBox(center - LampHalf, center + LampHalf));
-                }))
+                    return (
+                        Id: $"lamp-{wall.Name}-{place.Name}",
+                        Panel: new BoundingBox(center - LampHalf, center + LampHalf)
+                    );
+                })
+            ),
         ];
 
         /// <summary>The half extents of a lamp's panel, in meters: 0.05 m thick across the wall, 0.5 m tall and 0.15 m wide.</summary>
@@ -271,12 +301,16 @@ public static partial class DemoScenes
         /// autopilot docks in it.
         /// </summary>
         public static IComponent[] FlightControls(double climbHeight, LaunchPlane plane, Entity station) =>
-        [
-            new AscentAutopilot(maxThrust: MainEngineThrust, orbitRadius: ParkingOrbitRadius, climbHeight: climbHeight,
-                plane: plane),
-            new RendezvousAutopilot(station, RendezvousPlan.Demo, MainEngineThrust),
-            new DockingAutopilot(station)
-        ];
+            [
+                new AscentAutopilot(
+                    maxThrust: MainEngineThrust,
+                    orbitRadius: ParkingOrbitRadius,
+                    climbHeight: climbHeight,
+                    plane: plane
+                ),
+                new RendezvousAutopilot(station, RendezvousPlan.Demo, MainEngineThrust),
+                new DockingAutopilot(station),
+            ];
 
         /// <summary>
         /// Gives the spawned <paramref name="hull"/> the shuttle's actuators, outside a tick (docs/plans/blue-danube-demo.md,
@@ -295,8 +329,13 @@ public static partial class DemoScenes
         /// <summary>Spawns the shuttle's main engine and jets as parts of <paramref name="hull"/> and adds their control, as
         /// <see cref="FitActuators"/> does, without the attitude autopilot.</summary>
         public static ShuttleJetControl FitJets(World world, Entity hull) =>
-            ShuttleJetControl.Fit(world: world, hull: hull, mainThrust: MainEngineThrust, inertia: Inertia,
-                translationThrust: TranslationThrust);
+            ShuttleJetControl.Fit(
+                world: world,
+                hull: hull,
+                mainThrust: MainEngineThrust,
+                inertia: Inertia,
+                translationThrust: TranslationThrust
+            );
 
         /// <summary>
         /// Where the nozzle lies, in the shuttle's axes, for a hull whose center of mass lies at
@@ -315,19 +354,32 @@ public static partial class DemoScenes
         /// shuttle with no flight controls draws it too, and its mesh turns a quarter turn from the hull's axes, which the
         /// main engine's part keeps.
         /// </summary>
-        public static Entity SpawnNozzle(World world, FrameHandle cabin, SceneInstance scene,
-            IRenderResources resources, string prefix = "")
+        public static Entity SpawnNozzle(
+            World world,
+            FrameHandle cabin,
+            SceneInstance scene,
+            IRenderResources resources,
+            string prefix = ""
+        )
         {
             if (!world.Snapshot.TryGetBody(cabin.Entity, out BodyFacts hull))
                 throw new ArgumentException(
-                    $"The frame {cabin} has no owner with a body, so it has no hull for the nozzle.", nameof(cabin));
-            Entity nozzle = world.Spawn(new()
-            {
-                Frame = cabin,
-                Pose = NozzlePose(hull.CenterOfMass),
-                Render = Drawn(resources: resources, mesh: Nozzle.Mesh(), color: new(x: 0.18f, y: 0.18f, z: 0.2f, w: 1),
-                    boundingRadius: 0.7f)
-            });
+                    $"The frame {cabin} has no owner with a body, so it has no hull for the nozzle.",
+                    nameof(cabin)
+                );
+            Entity nozzle = world.Spawn(
+                new()
+                {
+                    Frame = cabin,
+                    Pose = NozzlePose(hull.CenterOfMass),
+                    Render = Drawn(
+                        resources: resources,
+                        mesh: Nozzle.Mesh(),
+                        color: new(x: 0.18f, y: 0.18f, z: 0.2f, w: 1),
+                        boundingRadius: 0.7f
+                    ),
+                }
+            );
             scene.Add(prefix.Length == 0 ? "nozzle" : $"{prefix}-nozzle", nozzle);
             return nozzle;
         }
@@ -335,8 +387,14 @@ public static partial class DemoScenes
         /// <summary>The hull's body with <paramref name="motion"/>: <see cref="HullShape"/>, <see cref="Mass"/>, no damping, and
         /// <see cref="InteriorShape"/>.</summary>
         public static BodyDesc Body(BodyMotion motion) =>
-            new(Shape: HullShape, Motion: motion, Mass: Mass, LinearDamping: 0, AngularDamping: 0,
-                InteriorShape: InteriorShape);
+            new(
+                Shape: HullShape,
+                Motion: motion,
+                Mass: Mass,
+                LinearDamping: 0,
+                AngularDamping: 0,
+                InteriorShape: InteriorShape
+            );
 
         /// <summary>
         /// The drawn hull of <see cref="Loft"/>, in light gray. It casts shadows and is never an impostor: a flat picture of
@@ -345,9 +403,12 @@ public static partial class DemoScenes
         /// </summary>
         public static RenderData DrawnHull(IRenderResources resources)
         {
-            RenderData render = Drawn(resources: resources, mesh: Loft.Mesh(),
+            RenderData render = Drawn(
+                resources: resources,
+                mesh: Loft.Mesh(),
                 color: new(x: 0.85f, y: 0.85f, z: 0.88f, w: 1),
-                boundingRadius: MathF.Ceiling(Hull.Length()));
+                boundingRadius: MathF.Ceiling(Hull.Length())
+            );
             render.Flags |= RenderFlags.NoImpostor;
             return render;
         }
@@ -360,25 +421,33 @@ public static partial class DemoScenes
         /// solid at the glass, and it casts no shadow, so sunlight comes in through the holes of the drawn hull. Each pane is
         /// its own instance round its own center, so the renderer sorts it at its real place.
         /// </summary>
-        public static void Panes(World world, FrameHandle cabin, SceneInstance scene, IRenderResources resources,
-            string prefix = "")
+        public static void Panes(
+            World world,
+            FrameHandle cabin,
+            SceneInstance scene,
+            IRenderResources resources,
+            string prefix = ""
+        )
         {
-            MaterialId glass = resources.CreateMaterial(new(BaseColor: new(x: 0.45f, y: 0.65f, z: 1, w: 0.2f),
-                SpecularIntensity: AntiReflective, Gloss: 0.9f));
+            MaterialId glass = resources.CreateMaterial(
+                new(BaseColor: new(x: 0.45f, y: 0.65f, z: 1, w: 0.2f), SpecularIntensity: AntiReflective, Gloss: 0.9f)
+            );
             foreach (HullPane pane in Glass)
             {
-                Entity entity = world.Spawn(new()
-                {
-                    Frame = cabin,
-                    Pose = new(pane.Center, DQuaternion.Identity),
-                    Render = new RenderData
+                Entity entity = world.Spawn(
+                    new()
                     {
-                        Mesh = resources.CreateMesh(pane.Mesh),
-                        Material = glass,
-                        BoundingRadius = pane.Mesh.Vertices.Max(vertex => vertex.Position.Length()),
-                        Flags = RenderFlags.Visible | RenderFlags.Transparent
+                        Frame = cabin,
+                        Pose = new(pane.Center, DQuaternion.Identity),
+                        Render = new RenderData
+                        {
+                            Mesh = resources.CreateMesh(pane.Mesh),
+                            Material = glass,
+                            BoundingRadius = pane.Mesh.Vertices.Max(vertex => vertex.Position.Length()),
+                            Flags = RenderFlags.Visible | RenderFlags.Transparent,
+                        },
                     }
-                });
+                );
                 scene.Add(prefix.Length == 0 ? pane.Id : $"{prefix}-{pane.Id}", entity);
             }
         }
@@ -392,25 +461,33 @@ public static partial class DemoScenes
         public static void SpawnLamps(World world, FrameHandle cabin, SceneInstance scene, IRenderResources resources)
         {
             MeshId mesh = resources.CreateMesh(Primitives.Box(LampHalf));
-            MaterialId material =
-                resources.CreateMaterial(new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), SpecularIntensity: 0,
-                    Emissive: new(6, 5.4f, 4.5f)));
+            MaterialId material = resources.CreateMaterial(
+                new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), SpecularIntensity: 0, Emissive: new(6, 5.4f, 4.5f))
+            );
             foreach ((string id, BoundingBox panel) in Lamps)
-                scene.Add(id, world.Spawn(new()
-                {
-                    Frame = cabin,
-                    Pose = new(panel.Center, DQuaternion.Identity),
-                    Render = new RenderData
-                    {
-                        Mesh = mesh,
-                        Material = material,
-                        BoundingRadius = LampHalf.Length(),
-                        Flags = RenderFlags.Visible,
-                        Light = new PointLightData(
-                            Offset: new(new(-MathF.Sign(panel.Center.X) * 0.3f, 0, 0), Quaternion.Identity),
-                            Color: new(1, 0.9f, 0.75f), Intensity: 50, Range: 10)
-                    }
-                }));
+                scene.Add(
+                    id,
+                    world.Spawn(
+                        new()
+                        {
+                            Frame = cabin,
+                            Pose = new(panel.Center, DQuaternion.Identity),
+                            Render = new RenderData
+                            {
+                                Mesh = mesh,
+                                Material = material,
+                                BoundingRadius = LampHalf.Length(),
+                                Flags = RenderFlags.Visible,
+                                Light = new PointLightData(
+                                    Offset: new(new(-MathF.Sign(panel.Center.X) * 0.3f, 0, 0), Quaternion.Identity),
+                                    Color: new(1, 0.9f, 0.75f),
+                                    Intensity: 50,
+                                    Range: 10
+                                ),
+                            },
+                        }
+                    )
+                );
         }
 
         /// <summary>
@@ -422,15 +499,23 @@ public static partial class DemoScenes
         /// field feels that gravity reversed, so the person in the parked cabin feels the weight of the ground. A new frame
         /// reads no proper acceleration during its first step, and the derived value from its second step on.
         /// </summary>
-        public static Entity Park(World world, FrameHandle frame, DPose pose, RenderData? render = null,
-            IReadOnlyList<IComponent>? components = null) => world.Spawn(new()
-        {
-            Frame = frame,
-            Pose = pose,
-            Body = Body(BodyMotion.Static),
-            AsFrame = new(new(Bubble), Medium: Air.Filling(CabinAir)),
-            Render = render,
-            Components = components ?? []
-        });
+        public static Entity Park(
+            World world,
+            FrameHandle frame,
+            DPose pose,
+            RenderData? render = null,
+            IReadOnlyList<IComponent>? components = null
+        ) =>
+            world.Spawn(
+                new()
+                {
+                    Frame = frame,
+                    Pose = pose,
+                    Body = Body(BodyMotion.Static),
+                    AsFrame = new(new(Bubble), Medium: Air.Filling(CabinAir)),
+                    Render = render,
+                    Components = components ?? [],
+                }
+            );
     }
 }

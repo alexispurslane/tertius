@@ -20,16 +20,31 @@ public sealed class BlueDanubeFilmRun : IDisposable
 
     public BlueDanubeFilmRun()
     {
-        Script full = Script.Load(Path.Combine(RepositoryRoot(), "scripts", "blue-danube.json"));
+        var full = Script.Load(Path.Combine(RepositoryRoot(), "scripts", "blue-danube.json"));
         int last = full.Steps.ToList().FindIndex(step => step.Value is FilmStep { Name: LastFilm });
         if (last < 0)
             throw new InvalidOperationException($"scripts/blue-danube.json has no film '{LastFilm}'.");
         Backend = new(JoltBackendOptions.Unpaced);
-        World = new(new() { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true }, Backend);
+        World = new(
+            new()
+            {
+                MaxDegreeOfParallelism = 1,
+                DebugChecks = true,
+                DisposePhysics = true,
+            },
+            Backend
+        );
         Scene = DemoScenes.All.Single(s => s.Name == full.Scene).Build(World, RenderResources.None);
-        ScriptRunner.Run(script: full with { Steps = [.. full.Steps.Take(last + 1)] }, world: World, scene: Scene,
+        ScriptRunner.Run(
+            script: full with
+            {
+                Steps = [.. full.Steps.Take(last + 1)],
+            },
+            world: World,
+            scene: Scene,
             outputFolder: null,
-            playback: new Recorder(this));
+            playback: new Recorder(this)
+        );
     }
 
     public World World { get; }
@@ -59,17 +74,27 @@ public sealed class BlueDanubeFilmRun : IDisposable
         bool Clear(Double3 toward)
         {
             var hits = new List<RayCastHit>();
-            Backend.CastRay(frame: surface, origin: view.Position, direction: (toward - view.Position).Normalized(),
-                start: 0, end: 1e4,
-                filter: new AcceptsEveryEntity(), kind: RayCastKind.Nearest, hits: hits);
+            Backend.CastRay(
+                frame: surface,
+                origin: view.Position,
+                direction: (toward - view.Position).Normalized(),
+                start: 0,
+                end: 1e4,
+                filter: new AcceptsEveryEntity(),
+                kind: RayCastKind.Nearest,
+                hits: hits
+            );
             return hits.Count == 0;
         }
 
-        return new(Name: name, Sun: Picture.Project(view, sun, World.VerticalFov),
+        return new(
+            Name: name,
+            Sun: Picture.Project(view, sun, World.VerticalFov),
             Moon: Picture.Project(view, moon, World.VerticalFov),
             Shuttle: Picture.Project(view, World.PoseIn(Scene["shuttle"], surface).Position, World.VerticalFov),
             SunClear: Clear(sun),
-            MoonClear: Clear(moon));
+            MoonClear: Clear(moon)
+        );
     }
 
     /// <summary>A query filter that accepts every entity.</summary>
@@ -80,19 +105,29 @@ public sealed class BlueDanubeFilmRun : IDisposable
 
     private FilmFrame Read(string name)
     {
-        Entity person = Scene["person"], pen = Scene["pen"];
-        FrameHandle frame = World.GetFrame(person), cabin = World.GetOwnedFrame(Scene["shuttle"]);
-        DPose view = World.PoseIn(World.Camera, frame), body = World.PoseIn(person, frame);
-        bool penInPicture = World.IsAlive(pen) &&
-                            Picture.Contains(
-                                Picture.Project(view, World.PoseIn(pen, frame).Position, World.VerticalFov));
+        Entity person = Scene["person"],
+            pen = Scene["pen"];
+        FrameHandle frame = World.GetFrame(person),
+            cabin = World.GetOwnedFrame(Scene["shuttle"]);
+        DPose view = World.PoseIn(World.Camera, frame),
+            body = World.PoseIn(person, frame);
+        bool penInPicture =
+            World.IsAlive(pen)
+            && Picture.Contains(Picture.Project(view, World.PoseIn(pen, frame).Position, World.VerticalFov));
         DPose inCabin = World.PoseIn(person, cabin);
-        return new(Name: name,
-            PersonCover: Picture.Cover(view: view, body: body, half: DemoSurface.PersonHalf,
-                verticalFov: World.VerticalFov), PenInPicture: penInPicture,
+        return new(
+            Name: name,
+            PersonCover: Picture.Cover(
+                view: view,
+                body: body,
+                half: DemoSurface.PersonHalf,
+                verticalFov: World.VerticalFov
+            ),
+            PenInPicture: penInPicture,
             View: World.PoseIn(World.Camera, cabin),
             Eye: inCabin.TransformPoint(World.GetRender(person).ViewOffset.Position),
-            VerticalFov: World.VerticalFov);
+            VerticalFov: World.VerticalFov
+        );
     }
 
     public void Dispose() => World.Dispose();
@@ -126,7 +161,8 @@ public sealed record FilmFrame(
     bool PenInPicture,
     DPose View,
     Double3 Eye,
-    double VerticalFov);
+    double VerticalFov
+);
 
 /// <summary>What the camera of one frame of the film <c>sky</c> sees.</summary>
 /// <param name="Name">The frame's name, such as <c>sky-000012</c>.</param>
@@ -147,7 +183,8 @@ public static class Picture
     /// </summary>
     public static Double3 Project(DPose view, Double3 point, double verticalFov)
     {
-        double tanY = Math.Tan(verticalFov / 2), tanX = tanY * BlueDanube.Window.Width / BlueDanube.Window.Height;
+        double tanY = Math.Tan(verticalFov / 2),
+            tanX = tanY * BlueDanube.Window.Width / BlueDanube.Window.Height;
         Double3 seen = view.Rotation.Conjugate().Rotate(point - view.Position);
         return new(seen.X / -seen.Z / tanX, seen.Y / -seen.Z / tanY, -seen.Z);
     }
@@ -169,13 +206,20 @@ public static class Picture
             top = double.NegativeInfinity;
         for (int corner = 0; corner < 8; corner++)
         {
-            var local = new Double3((corner & 1) == 0 ? -half.X : half.X, (corner & 2) == 0 ? -half.Y : half.Y,
-                (corner & 4) == 0 ? -half.Z : half.Z);
+            var local = new Double3(
+                (corner & 1) == 0 ? -half.X : half.X,
+                (corner & 2) == 0 ? -half.Y : half.Y,
+                (corner & 4) == 0 ? -half.Z : half.Z
+            );
             Double3 at = Project(view, body.TransformPoint(local), verticalFov);
             if (at.Z <= 0.05)
                 return 1;
-            (left, right, bottom, top) = (Math.Min(left, at.X), Math.Max(right, at.X), Math.Min(bottom, at.Y),
-                Math.Max(top, at.Y));
+            (left, right, bottom, top) = (
+                Math.Min(left, at.X),
+                Math.Max(right, at.X),
+                Math.Min(bottom, at.Y),
+                Math.Max(top, at.Y)
+            );
         }
 
         double width = Math.Max(Math.Min(right, 1) - Math.Max(left, -1), 0),
@@ -199,9 +243,13 @@ public sealed class BlueDanubeFilmTests(BlueDanubeFilmRun run) : IClassFixture<B
         foreach (SkyFrame frame in run.SkyFrames)
         {
             Picture.Contains(frame.Sun).Should().BeTrue($"the Sun is in the picture of {frame.Name}, at {frame.Sun}");
-            Picture.Contains(frame.Moon).Should()
+            Picture
+                .Contains(frame.Moon)
+                .Should()
                 .BeTrue($"the Moon is in the picture of {frame.Name}, at {frame.Moon}");
-            Picture.Contains(frame.Shuttle).Should()
+            Picture
+                .Contains(frame.Shuttle)
+                .Should()
                 .BeTrue($"the shuttle is in the picture of {frame.Name}, at {frame.Shuttle}");
             frame.SunClear.Should().BeTrue($"nothing on the ground hides the Sun in {frame.Name}");
             frame.MoonClear.Should().BeTrue($"nothing on the ground hides the Moon in {frame.Name}");
@@ -218,14 +266,18 @@ public sealed class BlueDanubeFilmTests(BlueDanubeFilmRun run) : IClassFixture<B
     public void TheFetchFilmShowsThePenAndThePersonNeverFillsThePicture()
     {
         List<FilmFrame> fetch =
-            [.. run.Frames.Where(frame => frame.Name.StartsWith("fetch-", StringComparison.Ordinal))];
+        [
+            .. run.Frames.Where(frame => frame.Name.StartsWith("fetch-", StringComparison.Ordinal)),
+        ];
 
         fetch.Should().NotBeEmpty();
         FilmFrame worst = fetch.MaxBy(frame => frame.PersonCover)!;
-        worst.PersonCover.Should().BeLessThanOrEqualTo(0.5,
-            $"in {worst.Name} the person covers {worst.PersonCover:P0} of the picture");
-        fetch.Should().OnlyContain(frame => frame.PenInPicture,
-            "the pen is in the picture in every frame of the fetch");
+        worst
+            .PersonCover.Should()
+            .BeLessThanOrEqualTo(0.5, $"in {worst.Name} the person covers {worst.PersonCover:P0} of the picture");
+        fetch
+            .Should()
+            .OnlyContain(frame => frame.PenInPicture, "the pen is in the picture in every frame of the fetch");
     }
 
     /// <summary>
@@ -237,15 +289,23 @@ public sealed class BlueDanubeFilmTests(BlueDanubeFilmRun run) : IClassFixture<B
     public void TheApronCameraSeesThePersonThroughTheGlassInSeatedOutside()
     {
         List<FilmFrame> seated =
-            [.. run.Frames.Where(frame => frame.Name.StartsWith("seated-outside-", StringComparison.Ordinal))];
+        [
+            .. run.Frames.Where(frame => frame.Name.StartsWith("seated-outside-", StringComparison.Ordinal)),
+        ];
 
         seated.Should().NotBeEmpty();
         foreach (FilmFrame frame in seated)
         {
-            Picture.Contains(Picture.Project(frame.View, frame.Eye, frame.VerticalFov)).Should()
+            Picture
+                .Contains(Picture.Project(frame.View, frame.Eye, frame.VerticalFov))
+                .Should()
                 .BeTrue($"the person's eye is in the picture of {frame.Name}");
-            Shuttle.Glass.Should().Contain(pane => PaneChecks.Through(pane, frame.View.Position, frame.Eye),
-                $"the camera sees the person's eye through the glass in {frame.Name}");
+            Shuttle
+                .Glass.Should()
+                .Contain(
+                    pane => PaneChecks.Through(pane, frame.View.Position, frame.Eye),
+                    $"the camera sees the person's eye through the glass in {frame.Name}"
+                );
         }
     }
 }

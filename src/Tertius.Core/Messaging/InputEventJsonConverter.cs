@@ -57,18 +57,20 @@ internal sealed class InputEventJsonConverter : JsonConverter<InputEvent>
                 if (kind != null)
                     throw new JsonException("The kind is given twice.");
                 reader.Read();
-                kind = reader.TokenType == JsonTokenType.String
-                    ? reader.GetString()
-                    : throw new JsonException("The kind must be a string, such as \"keyDown\".");
+                kind =
+                    reader.TokenType == JsonTokenType.String
+                        ? reader.GetString()
+                        : throw new JsonException("The kind must be a string, such as \"keyDown\".");
             }
             else if (reader.ValueTextEquals("code"u8))
             {
                 if (code != null)
                     throw new JsonException("The code is given twice.");
                 reader.Read();
-                code = reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out int value)
-                    ? value
-                    : throw new JsonException("The code must be an integer.");
+                code =
+                    reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out int value)
+                        ? value
+                        : throw new JsonException("The code must be an integer.");
             }
             else if (reader.ValueTextEquals("delta"u8))
             {
@@ -80,12 +82,14 @@ internal sealed class InputEventJsonConverter : JsonConverter<InputEvent>
             else
             {
                 throw new JsonException(
-                    $"The member '{reader.GetString()}' is not a member of an input event. The members are kind, code and delta.");
+                    $"The member '{reader.GetString()}' is not a member of an input event. The members are kind, code and delta."
+                );
             }
 
         if (kind == null)
             throw new JsonException(
-                $"An input event needs a kind: {KeyDown}, {KeyUp}, {MouseDown}, {MouseUp}, {MouseMove} or {Scroll}.");
+                $"An input event needs a kind: {KeyDown}, {KeyUp}, {MouseDown}, {MouseUp}, {MouseMove} or {Scroll}."
+            );
         if (Is(kind, KeyDown))
             return InputEvent.KeyDown(CodeOf(kind, code, delta));
         if (Is(kind, KeyUp))
@@ -99,7 +103,8 @@ internal sealed class InputEventJsonConverter : JsonConverter<InputEvent>
         if (Is(kind, Scroll))
             return InputEvent.Scroll(DeltaOf(kind, code, delta));
         throw new JsonException(
-            $"'{kind}' is not an input event kind. The kinds are {KeyDown}, {KeyUp}, {MouseDown}, {MouseUp}, {MouseMove} and {Scroll}.");
+            $"'{kind}' is not an input event kind. The kinds are {KeyDown}, {KeyUp}, {MouseDown}, {MouseUp}, {MouseMove} and {Scroll}."
+        );
     }
 
     public override void Write(Utf8JsonWriter writer, InputEvent value, JsonSerializerOptions options)
@@ -123,7 +128,8 @@ internal sealed class InputEventJsonConverter : JsonConverter<InputEvent>
                 break;
             default:
                 throw new UnreachableException(
-                    $"The input event {value} has a case that the converter does not write.");
+                    $"The input event {value} has a case that the converter does not write."
+                );
         }
     }
 

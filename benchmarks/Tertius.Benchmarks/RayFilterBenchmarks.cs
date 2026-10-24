@@ -13,9 +13,7 @@ public sealed class RayMarker : IComponent
     public int Priority => 0;
     public EventMask Wants => default;
 
-    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
-    {
-    }
+    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) { }
 }
 
 /// <summary>
@@ -42,9 +40,11 @@ public unsafe class RayFilterBenchmarks
     private static readonly RVector3 Origin = new(0, 0, 0);
     private static readonly Vector3 Direction = new(1000, 0, 0);
 
-    [Params(256)] public int Bodies;
+    [Params(256)]
+    public int Bodies;
 
-    [Params(false, true)] public bool OnlyFarthestMatches;
+    [Params(false, true)]
+    public bool OnlyFarthestMatches;
 
     private World world = null!;
     private Lock gate = null!;
@@ -70,21 +70,27 @@ public unsafe class RayFilterBenchmarks
         gate = backend.Gate;
         world = new(new() { MaxDegreeOfParallelism = 1, DisposePhysics = true }, backend);
         FrameHandle root = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        asker = world.Spawn(new()
-        {
-            Frame = root,
-            Pose = new(Double3.Zero, DQuaternion.Identity),
-            Body = new(Shape: new SphereShapeDesc(0.5f), Motion: BodyMotion.Static)
-        });
-        var boxes = new List<Entity> { asker };
-        for (int i = 0; i < Bodies; i++)
-            boxes.Add(world.Spawn(new()
+        asker = world.Spawn(
+            new()
             {
                 Frame = root,
-                Pose = new(new(3 + 2 * i, 0, 0), DQuaternion.Identity),
-                Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static),
-                Components = i == Bodies - 1 ? [new RayMarker()] : []
-            }));
+                Pose = new(Double3.Zero, DQuaternion.Identity),
+                Body = new(Shape: new SphereShapeDesc(0.5f), Motion: BodyMotion.Static),
+            }
+        );
+        var boxes = new List<Entity> { asker };
+        for (int i = 0; i < Bodies; i++)
+            boxes.Add(
+                world.Spawn(
+                    new()
+                    {
+                        Frame = root,
+                        Pose = new(new(3 + 2 * i, 0, 0), DQuaternion.Identity),
+                        Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static),
+                        Components = i == Bodies - 1 ? [new RayMarker()] : [],
+                    }
+                )
+            );
         world.Tick();
         byIndex = new Entity[boxes.Max(static e => e.Index) + 1];
         foreach (Entity e in boxes)
@@ -129,9 +135,14 @@ public unsafe class RayFilterBenchmarks
     {
         lock (gate)
         {
-            return narrowPhase.CastRay(origin: Origin, direction: Direction, hit: out RayCastResult hit,
-                broadPhaseFilter: broadPhaseFilter, objectLayerFilter: groupFilter,
-                bodyFilter: bodyFilter)
+            return narrowPhase.CastRay(
+                origin: Origin,
+                direction: Direction,
+                hit: out RayCastResult hit,
+                broadPhaseFilter: broadPhaseFilter,
+                objectLayerFilter: groupFilter,
+                bodyFilter: bodyFilter
+            )
                 ? hit.Fraction
                 : -1;
         }
@@ -143,9 +154,14 @@ public unsafe class RayFilterBenchmarks
         lock (gate)
         {
             sorted.Clear();
-            narrowPhase.CastRay(origin: Origin, direction: Direction, settings: new(),
-                collectorType: CollisionCollectorType.ClosestHit, results: sorted,
-                bodyFilter: bodyFilter);
+            narrowPhase.CastRay(
+                origin: Origin,
+                direction: Direction,
+                settings: new(),
+                collectorType: CollisionCollectorType.ClosestHit,
+                results: sorted,
+                bodyFilter: bodyFilter
+            );
             return sorted.Count > 0 ? sorted[0].Fraction : -1;
         }
     }
@@ -156,8 +172,13 @@ public unsafe class RayFilterBenchmarks
         lock (gate)
         {
             sorted.Clear();
-            narrowPhase.CastRay(origin: Origin, direction: Direction, settings: new(),
-                collectorType: CollisionCollectorType.AllHitSorted, results: sorted);
+            narrowPhase.CastRay(
+                origin: Origin,
+                direction: Direction,
+                settings: new(),
+                collectorType: CollisionCollectorType.AllHitSorted,
+                results: sorted
+            );
             foreach (RayCastResult hit in sorted)
                 if (Accepts(hit.BodyID))
                     return hit.Fraction;
@@ -171,8 +192,13 @@ public unsafe class RayFilterBenchmarks
         lock (gate)
         {
             nearest = 1.0000001f;
-            narrowPhase.CastRay(origin: Origin, direction: Direction, settings: new(), callback: &OnHit,
-                userData: GCHandle.ToIntPtr(self));
+            narrowPhase.CastRay(
+                origin: Origin,
+                direction: Direction,
+                settings: new(),
+                callback: &OnHit,
+                userData: GCHandle.ToIntPtr(self)
+            );
             return nearest <= 1 ? nearest : -1;
         }
     }

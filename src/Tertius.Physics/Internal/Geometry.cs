@@ -35,14 +35,14 @@ internal static class Rotations
     /// <summary>The smallest turn of <paramref name="rotation"/> that puts its local +Y axis on <paramref name="up"/>.</summary>
     public static Quaternion AlignUp(Quaternion rotation, Vector3 up)
     {
-        Vector3 current = Vector3.Transform(Vector3.UnitY, rotation);
+        var current = Vector3.Transform(Vector3.UnitY, rotation);
         float dot = Vector3.Dot(current, up);
         if (dot > 0.9999995f)
             return rotation;
         Quaternion turn;
         if (dot < -0.9999995f)
         {
-            Vector3 axis = Vector3.Cross(current, Vector3.UnitX);
+            var axis = Vector3.Cross(current, Vector3.UnitX);
             if (axis.LengthSquared() < 1e-6f)
                 axis = Vector3.Cross(current, Vector3.UnitZ);
             turn = Quaternion.CreateFromAxisAngle(Vector3.Normalize(axis), MathF.PI);
@@ -62,7 +62,7 @@ internal static class Rotations
     /// </summary>
     public static Vector3 TurnToward(Vector3 from, Vector3 to, float maxAngle)
     {
-        Vector3 cross = Vector3.Cross(from, to);
+        var cross = Vector3.Cross(from, to);
         float sine = cross.Length();
         float angle = MathF.Atan2(sine, Vector3.Dot(from, to));
         if (angle <= maxAngle)

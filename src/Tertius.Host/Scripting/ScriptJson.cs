@@ -64,28 +64,37 @@ internal static class ScriptJson
     private sealed class OneLinePerStepConverter(JsonSerializerOptions lineOptions)
         : JsonConverter<IReadOnlyList<ScriptStep>>
     {
-        public override IReadOnlyList<ScriptStep> Read(ref Utf8JsonReader reader, Type typeToConvert,
-            JsonSerializerOptions options) =>
-            throw new NotSupportedException("The recording options only write.");
+        public override IReadOnlyList<ScriptStep> Read(
+            ref Utf8JsonReader reader,
+            Type typeToConvert,
+            JsonSerializerOptions options
+        ) => throw new NotSupportedException("The recording options only write.");
 
-        public override void Write(Utf8JsonWriter writer, IReadOnlyList<ScriptStep> value,
-            JsonSerializerOptions options)
+        public override void Write(
+            Utf8JsonWriter writer,
+            IReadOnlyList<ScriptStep> value,
+            JsonSerializerOptions options
+        )
         {
             writer.WriteStartArray();
             // The writer adds no new line or indentation before a raw value, so each line starts with its own. The writer
             // adds the comma before it, and the new line and the indentation of the closing bracket.
             string indentation = "\n" + new string(options.IndentCharacter, options.IndentSize * writer.CurrentDepth);
             foreach (ScriptStep step in value)
-                writer.WriteRawValue(indentation + JsonSerializer.Serialize(step, lineOptions),
-                    skipInputValidation: true);
+                writer.WriteRawValue(
+                    indentation + JsonSerializer.Serialize(step, lineOptions),
+                    skipInputValidation: true
+                );
             writer.WriteEndArray();
         }
     }
 
     private static JsonSerializerOptions Reading(World? world, SceneInstance? scene)
     {
-        JsonSerializerOptions options = Common(JsonNumberHandling.Strict,
-            new() { Modifiers = { LeaveOutReadOnlyPayloadMembers } });
+        JsonSerializerOptions options = Common(
+            JsonNumberHandling.Strict,
+            new() { Modifiers = { LeaveOutReadOnlyPayloadMembers } }
+        );
         options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: false));
         options.Converters.Add(new FiniteSingleConverter());
         options.Converters.Add(new FiniteDoubleConverter());
@@ -112,7 +121,7 @@ internal static class ScriptJson
             WriteIndented = true,
             NewLine = "\n",
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-            TypeInfoResolver = resolver
+            TypeInfoResolver = resolver,
         };
         options.Converters.Add(new Vector2Converter());
         options.Converters.Add(new Vector3Converter());
@@ -186,8 +195,11 @@ internal static class ScriptJson
         public override Vector3 Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             StartArray(ref reader, Form);
-            var value = new Vector3(NextSingle(ref reader, Form), NextSingle(ref reader, Form),
-                NextSingle(ref reader, Form));
+            var value = new Vector3(
+                NextSingle(ref reader, Form),
+                NextSingle(ref reader, Form),
+                NextSingle(ref reader, Form)
+            );
             EndArray(ref reader, Form);
             return value;
         }
@@ -203,8 +215,11 @@ internal static class ScriptJson
         public override Double3 Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             StartArray(ref reader, Form);
-            var value = new Double3(NextDouble(ref reader, Form), NextDouble(ref reader, Form),
-                NextDouble(ref reader, Form));
+            var value = new Double3(
+                NextDouble(ref reader, Form),
+                NextDouble(ref reader, Form),
+                NextDouble(ref reader, Form)
+            );
             EndArray(ref reader, Form);
             return value;
         }
@@ -220,8 +235,12 @@ internal static class ScriptJson
         public override Quaternion Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             StartArray(ref reader, Form);
-            var value = new Quaternion(x: NextSingle(ref reader, Form), y: NextSingle(ref reader, Form),
-                z: NextSingle(ref reader, Form), w: NextSingle(ref reader, Form));
+            var value = new Quaternion(
+                x: NextSingle(ref reader, Form),
+                y: NextSingle(ref reader, Form),
+                z: NextSingle(ref reader, Form),
+                w: NextSingle(ref reader, Form)
+            );
             EndArray(ref reader, Form);
             return value;
         }
@@ -237,8 +256,12 @@ internal static class ScriptJson
         public override DQuaternion Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             StartArray(ref reader, Form);
-            var value = new DQuaternion(X: NextDouble(ref reader, Form), Y: NextDouble(ref reader, Form),
-                Z: NextDouble(ref reader, Form), W: NextDouble(ref reader, Form));
+            var value = new DQuaternion(
+                X: NextDouble(ref reader, Form),
+                Y: NextDouble(ref reader, Form),
+                Z: NextDouble(ref reader, Form),
+                W: NextDouble(ref reader, Form)
+            );
             EndArray(ref reader, Form);
             return value;
         }
@@ -264,8 +287,11 @@ internal static class ScriptJson
     private sealed class EntityConverter(SceneInstance scene, World? world = null) : JsonConverter<Entity>
     {
         public override Entity Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
-            LiveEntity(reader.GetString() ?? throw new JsonException("An entity is a scene id."), scene,
-                world ?? throw WriteOnly());
+            LiveEntity(
+                reader.GetString() ?? throw new JsonException("An entity is a scene id."),
+                scene,
+                world ?? throw WriteOnly()
+            );
 
         public override void Write(Utf8JsonWriter writer, Entity value, JsonSerializerOptions options)
         {
@@ -281,8 +307,8 @@ internal static class ScriptJson
     {
         public override FrameHandle Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            string id = reader.GetString() ??
-                        throw new JsonException("A frame is the scene id of the entity that owns it.");
+            string id =
+                reader.GetString() ?? throw new JsonException("A frame is the scene id of the entity that owns it.");
             World live = world ?? throw WriteOnly();
             FrameHandle frame = live.GetOwnedFrame(LiveEntity(id, scene, live));
             return frame.IsNull ? throw new JsonException($"The entity '{id}' owns no frame.") : frame;

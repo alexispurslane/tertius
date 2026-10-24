@@ -40,7 +40,7 @@ internal sealed unsafe class GeometryPass : RenderPass
             VertexInput = VertexInput.Mesh,
             DepthTest = true,
             DepthWrite = true,
-            DepthCompare = CompareOp.Greater
+            DepthCompare = CompareOp.Greater,
         }.Create(device, shaders);
     }
 
@@ -80,7 +80,7 @@ internal sealed unsafe class GeometryPass : RenderPass
                     LoadOp = first ? AttachmentLoadOp.Clear : AttachmentLoadOp.Load,
                     StoreOp = AttachmentStoreOp.Store,
                     // Zero everywhere: distance 0 marks sky for the lighting pass.
-                    ClearValue = new(new ClearColorValue(float32_0: 0f, float32_1: 0f, float32_2: 0f, float32_3: 0f))
+                    ClearValue = new(new ClearColorValue(float32_0: 0f, float32_1: 0f, float32_2: 0f, float32_3: 0f)),
                 };
             var depth = new RenderingAttachmentInfo
             {
@@ -90,7 +90,7 @@ internal sealed unsafe class GeometryPass : RenderPass
                 LoadOp = AttachmentLoadOp.Clear,
                 // The next range clears depth again and later passes use the G-buffer distance instead.
                 StoreOp = AttachmentStoreOp.DontCare,
-                ClearValue = new(depthStencil: new ClearDepthStencilValue(DepthRanges.ClearDepth(range), 0))
+                ClearValue = new(depthStencil: new ClearDepthStencilValue(DepthRanges.ClearDepth(range), 0)),
             };
             var rendering = new RenderingInfo
             {
@@ -99,7 +99,7 @@ internal sealed unsafe class GeometryPass : RenderPass
                 LayerCount = 1,
                 ColorAttachmentCount = (uint)gbuffer.Length,
                 PColorAttachments = colors,
-                PDepthAttachment = &depth
+                PDepthAttachment = &depth,
             };
             vk.CmdBeginRendering(commandBuffer, &rendering);
             // Every range: a range drawer may have bound its own pipeline. Sets and dynamic state stay.
@@ -129,33 +129,54 @@ internal sealed unsafe class GeometryPass : RenderPass
     {
         ulong offset = 0;
         Buffer vertexBuffer = context.Geometry.VertexBuffer.Handle;
-        context.Vk.CmdBindVertexBuffers(commandBuffer: context.CommandBuffer, firstBinding: 0, bindingCount: 1,
-            pBuffers: &vertexBuffer, pOffsets: &offset);
-        context.Vk.CmdBindIndexBuffer(commandBuffer: context.CommandBuffer, buffer: context.Geometry.IndexBuffer.Handle,
-            offset: 0, indexType: IndexType.Uint32);
+        context.Vk.CmdBindVertexBuffers(
+            commandBuffer: context.CommandBuffer,
+            firstBinding: 0,
+            bindingCount: 1,
+            pBuffers: &vertexBuffer,
+            pOffsets: &offset
+        );
+        context.Vk.CmdBindIndexBuffer(
+            commandBuffer: context.CommandBuffer,
+            buffer: context.Geometry.IndexBuffer.Handle,
+            offset: 0,
+            indexType: IndexType.Uint32
+        );
     }
 
     /// <summary>
     /// Sets the mesh-pass push constants. The main view has its eye at the origin; a shadow cascade or an impostor
     /// capture passes its own matrix. <paramref name="layout"/> defaults to <see cref="DescriptorLayouts.SceneLayout"/>.
     /// </summary>
-    public static void PushDraw(FrameContext context, Matrix4x4 viewProjection, Vector3 eye = default,
-        PipelineLayout layout = default)
+    public static void PushDraw(
+        FrameContext context,
+        Matrix4x4 viewProjection,
+        Vector3 eye = default,
+        PipelineLayout layout = default
+    )
     {
         var push = new DrawPushConstants { ViewProj = viewProjection, Eye = new(eye, 1f) };
-        context.Vk.CmdPushConstants(commandBuffer: context.CommandBuffer,
+        context.Vk.CmdPushConstants(
+            commandBuffer: context.CommandBuffer,
             layout: layout.Handle != 0 ? layout : context.Layouts.SceneLayout,
-            stageFlags: ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit, offset: 0,
-            size: (uint)sizeof(DrawPushConstants), pValues: &push);
+            stageFlags: ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit,
+            offset: 0,
+            size: (uint)sizeof(DrawPushConstants),
+            pValues: &push
+        );
     }
 
     /// <summary>One multi-draw over a run of this frame's indirect commands.</summary>
     public static void DrawIndirect(FrameContext context, CommandRange commands)
     {
         uint stride = (uint)Unsafe.SizeOf<DrawIndexedIndirectCommand>();
-        context.Vk.CmdDrawIndexedIndirect(commandBuffer: context.CommandBuffer,
+        context.Vk.CmdDrawIndexedIndirect(
+            commandBuffer: context.CommandBuffer,
             buffer: context.Frame.Commands.Buffer.Handle,
-            offset: (ulong)commands.First * stride, drawCount: (uint)commands.Count, stride: stride);
+            offset: (ulong)commands.First * stride,
+            drawCount: (uint)commands.Count,
+            stride: stride
+        );
         context.IndirectDrawCalls++;
     }
 

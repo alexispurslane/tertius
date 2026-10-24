@@ -22,65 +22,105 @@ public class OutlineRenderBenchmarks
     private VulkanRenderer renderer = null!;
     private RenderSnapshot snapshot = null!;
 
-    [Params(0, 10, 100, 1000)] public int Outlines;
+    [Params(0, 10, 100, 1000)]
+    public int Outlines;
 
     [GlobalSetup]
     public void Setup()
     {
-        renderer = VulkanRenderer.CreateHeadless(new()
-        {
-            Validation = false,
-            Width = 1280,
-            Height = 720,
-            FramesInFlight = 1,
-            Impostors = false
-        });
+        renderer = VulkanRenderer.CreateHeadless(
+            new()
+            {
+                Validation = false,
+                Width = 1280,
+                Height = 720,
+                FramesInFlight = 1,
+                Impostors = false,
+            }
+        );
         MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
         MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
-        MaterialId gray =
-            renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.55f, y: 0.55f, z: 0.55f, w: 1), gloss: 0.3f));
+        MaterialId gray = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.55f, y: 0.55f, z: 0.55f, w: 1), gloss: 0.3f)
+        );
         snapshot = new()
         {
             Camera = new()
-                { Rotation = Quaternion.Identity, PreviousRotation = Quaternion.Identity, VerticalFov = MathF.PI / 3 },
+            {
+                Rotation = Quaternion.Identity,
+                PreviousRotation = Quaternion.Identity,
+                VerticalFov = MathF.PI / 3,
+            },
             Sun = new()
             {
-                Direction = Vector3.Normalize(new(0.4f, 0.8f, 0.5f)), Color = Vector3.One, Intensity = 3,
-                AngularRadius = 0.00467f
+                Direction = Vector3.Normalize(new(0.4f, 0.8f, 0.5f)),
+                Color = Vector3.One,
+                Intensity = 3,
+                AngularRadius = 0.00467f,
             },
-            Ambient = new() { SkyColor = new(0.09f, 0.11f, 0.15f), GroundColor = new(0.05f), Intensity = 1 }
+            Ambient = new()
+            {
+                SkyColor = new(0.09f, 0.11f, 0.15f),
+                GroundColor = new(0.05f),
+                Intensity = 1,
+            },
         };
-        HemisphereUp up = HemisphereUp.Along(Vector3.UnitY);
-        snapshot.Instances.Add(RenderInstance.Create(mesh: plane, material: gray, position: new(0, -2, -200),
-            rotation: Quaternion.Identity,
-            scale: new(250, 1, 250), boundingRadius: 0, hemisphere: up,
-            flags: RenderFlags.Visible | RenderFlags.CastsShadow));
+        var up = HemisphereUp.Along(Vector3.UnitY);
+        snapshot.Instances.Add(
+            RenderInstance.Create(
+                mesh: plane,
+                material: gray,
+                position: new(0, -2, -200),
+                rotation: Quaternion.Identity,
+                scale: new(250, 1, 250),
+                boundingRadius: 0,
+                hemisphere: up,
+                flags: RenderFlags.Visible | RenderFlags.CastsShadow
+            )
+        );
         var random = new Random(7);
         for (int i = 0; i < 100; i++)
         {
             float depth = 10 + 190 * random.NextSingle();
             var position = new Vector3((random.NextSingle() * 2 - 1) * depth, -1, -depth);
-            snapshot.Instances.Add(RenderInstance.Create(mesh: box, material: gray, position: position,
-                rotation: Quaternion.CreateFromYawPitchRoll(random.NextSingle() * 3, 0, 0),
-                scale: new(2), boundingRadius: 0, hemisphere: up, flags: RenderFlags.Visible | RenderFlags.CastsShadow,
-                entityIndex: (uint)i + 1));
+            snapshot.Instances.Add(
+                RenderInstance.Create(
+                    mesh: box,
+                    material: gray,
+                    position: position,
+                    rotation: Quaternion.CreateFromYawPitchRoll(random.NextSingle() * 3, 0, 0),
+                    scale: new(2),
+                    boundingRadius: 0,
+                    hemisphere: up,
+                    flags: RenderFlags.Visible | RenderFlags.CastsShadow,
+                    entityIndex: (uint)i + 1
+                )
+            );
         }
 
         for (int i = 0; i < Outlines; i++)
         {
             float depth = 20 + 380 * random.NextSingle();
-            var center = new Vector3((random.NextSingle() * 2 - 1) * depth,
-                (random.NextSingle() * 2 - 1) * depth * 0.5f, -depth);
+            var center = new Vector3(
+                (random.NextSingle() * 2 - 1) * depth,
+                (random.NextSingle() * 2 - 1) * depth * 0.5f,
+                -depth
+            );
             float radius = 1 + 19 * random.NextSingle();
-            snapshot.Outlines.Add((i % 5) switch
-            {
-                0 => new SemanticOutline(center, Quaternion.CreateFromYawPitchRoll(i, i * 0.3f, 0),
-                    new(radius, radius * 0.7f, radius * 0.9f)),
-                1 => new FallingOutline(center, radius),
-                2 => new RestingOutline(center, radius),
-                3 => new NestingOutline(center, radius),
-                _ => new FollowingOutline(center, radius)
-            });
+            snapshot.Outlines.Add(
+                (i % 5) switch
+                {
+                    0 => new SemanticOutline(
+                        center,
+                        Quaternion.CreateFromYawPitchRoll(i, i * 0.3f, 0),
+                        new(radius, radius * 0.7f, radius * 0.9f)
+                    ),
+                    1 => new FallingOutline(center, radius),
+                    2 => new RestingOutline(center, radius),
+                    3 => new NestingOutline(center, radius),
+                    _ => new FollowingOutline(center, radius),
+                }
+            );
         }
 
         // The first frames upload the meshes and the materials and grow the buffers.

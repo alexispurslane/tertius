@@ -11,7 +11,8 @@ namespace Tertius.Rendering.Tests;
 [Collection(GpuCollection.Name)]
 public sealed class ReferenceImageRenderTests
 {
-    private const int Width = 320, Height = 180;
+    private const int Width = 320,
+        Height = 180;
     private static readonly Vector3 BoxCenter = new(0, 0, -4);
 
     private static string Folder
@@ -31,12 +32,21 @@ public sealed class ReferenceImageRenderTests
         try
         {
             MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-            MaterialId white =
-                renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), gloss: 0.5f));
+            MaterialId white = renderer.CreateMaterial(
+                MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), gloss: 0.5f)
+            );
             RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.5f));
-            snapshot.Instances.Add(Gpu.Instance(mesh: box, material: white, position: BoxCenter + offset,
-                scale: Vector3.One,
-                rotation: Quaternion.CreateFromYawPitchRoll(0.6f, 0.3f, 0), radius: 0.87f, entity: 1));
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: box,
+                    material: white,
+                    position: BoxCenter + offset,
+                    scale: Vector3.One,
+                    rotation: Quaternion.CreateFromYawPitchRoll(0.6f, 0.3f, 0),
+                    radius: 0.87f,
+                    entity: 1
+                )
+            );
             return Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: name);
         }
         finally
@@ -64,14 +74,18 @@ public sealed class ReferenceImageRenderTests
         ReferenceImages.Verify(actual: RenderBox("reference-box-in-place"), referencePath: reference, approve: true);
 
         Action check = () =>
-            ReferenceImages.Verify(actual: RenderBox("reference-box-moved", offset: new(1.6f, 0, 0)),
+            ReferenceImages.Verify(
+                actual: RenderBox("reference-box-moved", offset: new(1.6f, 0, 0)),
                 referencePath: reference,
-                approve: false);
+                approve: false
+            );
 
         check.Should().Throw<FailException>();
-        Capture heatMap = Capture.Load(Path.Combine(Folder, "box-moved.flip.png"));
-        heatMap.MeanLuma(Gpu.Project(point: BoxCenter, width: Width, height: Height), 2)
-            .Should().BeGreaterThan(0.5f, "the box moved 1.6 m to the right, clear of its old place, which became sky");
+        var heatMap = Capture.Load(Path.Combine(Folder, "box-moved.flip.png"));
+        heatMap
+            .MeanLuma(Gpu.Project(point: BoxCenter, width: Width, height: Height), 2)
+            .Should()
+            .BeGreaterThan(0.5f, "the box moved 1.6 m to the right, clear of its old place, which became sky");
         heatMap.MeanLuma(new(20, 20), 2).Should().BeLessThan(0.02f, "the sky far from the box did not change");
     }
 }

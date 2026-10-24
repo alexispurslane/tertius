@@ -51,7 +51,7 @@ internal sealed class SyncProfile
         "2 (end) puffs: PuffTable.Step",
         "7 (end) puffs: PuffTable.AddNewborns",
         "5b carry the pushes of the parts",
-        "5c rehomes, intents of dying frames, frees"
+        "5c rehomes, intents of dying frames, frees",
     ];
 
     internal readonly long[] Totals = new long[Names.Length];

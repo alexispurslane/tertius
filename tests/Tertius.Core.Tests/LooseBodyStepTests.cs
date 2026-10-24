@@ -34,13 +34,23 @@ public sealed class LooseBodyStepTests
 
     public LooseBodyStepTests()
     {
-        space = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
-            frameBounds: FrameBounds.Sphere(1e9f));
+        space = frames.Create(
+            frameOwner: new(1, 1),
+            parent: FrameHandle.Null,
+            localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f)
+        );
     }
 
     private FrameHandle Frame(GravityField field, MediumField medium = default) =>
-        frames.Create(frameOwner: new(nextOwner++, 1), parent: space, localPose: DPose.Identity,
-            frameBounds: FrameBounds.Sphere(1e5f), field: field, medium: medium);
+        frames.Create(
+            frameOwner: new(nextOwner++, 1),
+            parent: space,
+            localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e5f),
+            field: field,
+            medium: medium
+        );
 
     private PhysicsIntent[] Intents(FrameHandle frame, MotionIntent? move)
     {
@@ -71,10 +81,17 @@ public sealed class LooseBodyStepTests
 
     private static MotionIntent Spin(double stepEnd) => new(StationSpin.Sample(Double3.Zero, stepEnd));
 
-    private static MotionIntent SpinningUp(double stepEnd) => new(new MotionSample(
-        Pose: new(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, 0.5 * SpinUpRate * stepEnd * stepEnd)),
-        ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero,
-        AngularVelocity: new(0, SpinUpRate * stepEnd, 0), AngularAcceleration: new(0, SpinUpRate, 0)));
+    private static MotionIntent SpinningUp(double stepEnd) =>
+        new(
+            new MotionSample(
+                Pose: new(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, 0.5 * SpinUpRate * stepEnd * stepEnd)),
+                ChordVelocity: Double3.Zero,
+                Velocity: Double3.Zero,
+                Acceleration: Double3.Zero,
+                AngularVelocity: new(0, SpinUpRate * stepEnd, 0),
+                AngularAcceleration: new(0, SpinUpRate, 0)
+            )
+        );
 
     /// <summary>A station that has spun steadily for three steps.</summary>
     private FrameHandle SpinningStation(GravityField field, MediumField medium = default)
@@ -130,11 +147,15 @@ public sealed class LooseBodyStepTests
         {
             LooseBodyStep step = frames.LastLooseBodyStep(frame);
             foreach (Double3 place in Places)
-                step.EffectiveGravity(place, step.LinearGravity(place)).Should()
+                step.EffectiveGravity(place, step.LinearGravity(place))
+                    .Should()
                     .Be(frames.EffectiveGravity(frame, place));
         }
 
-        frames.Turns(spinningUp).AngularAcceleration(Step).Should()
+        frames
+            .Turns(spinningUp)
+            .AngularAcceleration(Step)
+            .Should()
             .NotBe(Double3.Zero, "the spin-up gives an Euler term");
     }
 
@@ -158,11 +179,14 @@ public sealed class LooseBodyStepTests
         {
             // The expression of ApplyTurningUpdate (src/Tertius.Physics/JoltPhysicsBackend.Step.cs), for a body whose home is
             // its semantic frame: the home's acceleration and velocity are zero.
-            Double3 homeAcceleration = Double3.Zero, homeVelocity = Double3.Zero;
+            Double3 homeAcceleration = Double3.Zero,
+                homeVelocity = Double3.Zero;
             Double3 field = linears[i] + homeAcceleration;
-            Double3 physics = behind + turns.FreeChange(Places[i], behind, Step) +
-                              (turns.Step.Turn.Rotate(field) - homeAcceleration) * Step
-                              - homeVelocity;
+            Double3 physics =
+                behind
+                + turns.FreeChange(Places[i], behind, Step)
+                + (turns.Step.Turn.Rotate(field) - homeAcceleration) * Step
+                - homeVelocity;
 
             step.ChordAhead(place: Places[i], chord: behind, lift: 0, drag: 0, dt: Step).Should().Be(physics);
         }
@@ -190,13 +214,21 @@ public sealed class LooseBodyStepTests
     {
         FrameHandle frame = StillFrame(StationField);
         var thrust = new Double3(0, 1.5, 0);
-        var accelerating = new MotionIntent(new MotionSample(Pose: DPose.Identity, ChordVelocity: Double3.Zero,
-            Velocity: Double3.Zero, Acceleration: thrust,
-            AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero));
+        var accelerating = new MotionIntent(
+            new MotionSample(
+                Pose: DPose.Identity,
+                ChordVelocity: Double3.Zero,
+                Velocity: Double3.Zero,
+                Acceleration: thrust,
+                AngularVelocity: Double3.Zero,
+                AngularAcceleration: Double3.Zero
+            )
+        );
 
         RunStep(Intents(frame, accelerating));
 
-        ((Double3)frames.ProperAcceleration(frame)).Should()
+        ((Double3)frames.ProperAcceleration(frame))
+            .Should()
             .Be(thrust, "step 2 stored the proper acceleration of the step that ended");
         LooseBodyStep found = frames.LastLooseBodyStep(frame);
         found.ProperAcceleration.Should().Be(Double3.Zero, "the step that ended found the frame at rest");
@@ -222,7 +254,9 @@ public sealed class LooseBodyStepTests
         // update acts on it, and only on its motion, which the drag holds at a rounding error of the update.
         Double3.Distance(neutralPlace, Rim).Should().BeLessThan(1e-3, "the neutral body stays where it started");
         neutralChord.Length.Should().BeLessThan(1e-4);
-        Double3.Distance(freePlace, Rim).Should()
+        Double3
+            .Distance(freePlace, Rim)
+            .Should()
             .BeGreaterThan(100, "a body that the medium does not hold flies off on its inertial line");
     }
 
@@ -233,7 +267,8 @@ public sealed class LooseBodyStepTests
     /// </summary>
     private static (Double3 Place, Double3 Chord) Fly(in LooseBodyStep step, Double3 start, double lift, int steps)
     {
-        Double3 place = start, chord = Double3.Zero;
+        Double3 place = start,
+            chord = Double3.Zero;
         for (int k = 0; k < steps; k++)
         {
             chord = step.ChordAhead(place: place, chord: chord, lift: lift, drag: step.Medium.Drag * lift, dt: Step);
@@ -249,10 +284,16 @@ public sealed class LooseBodyStepTests
         // A frame that does not turn: the push is g (1 − β).
         FrameHandle ground = StillFrame(GravityField.Uniform(new(0, -G, 0)), Air);
         LooseBodyStep still = frames.LastLooseBodyStep(ground);
-        ExpectNear(still.ChordAhead(place: Rim, chord: Double3.Zero, lift: 3, drag: 0, dt: Step),
-            new(0, 2 * G * Step, 0), 1e-9);
-        ExpectNear(still.ChordAhead(place: Rim, chord: Double3.Zero, lift: 0.75, drag: 0, dt: Step),
-            new(0, -0.25 * G * Step, 0), 1e-9);
+        ExpectNear(
+            still.ChordAhead(place: Rim, chord: Double3.Zero, lift: 3, drag: 0, dt: Step),
+            new(0, 2 * G * Step, 0),
+            1e-9
+        );
+        ExpectNear(
+            still.ChordAhead(place: Rim, chord: Double3.Zero, lift: 0.75, drag: 0, dt: Step),
+            new(0, -0.25 * G * Step, 0),
+            1e-9
+        );
 
         // A station without a field: the effective gravity is the centrifugal term, outward along +X at the rim. A light body
         // moves toward the axis, and a heavy one moves outward, slower than a free body. The push acts in the axes at the
@@ -261,12 +302,21 @@ public sealed class LooseBodyStepTests
         LooseBodyStep spinning = frames.LastLooseBodyStep(station);
         DQuaternion turn = spinning.Turns.Step.Turn;
         double outward = StationRate * StationRate * Rim.X * Step;
-        ExpectNear(spinning.ChordAhead(place: Rim, chord: Double3.Zero, lift: 3, drag: 0, dt: Step),
-            turn.Rotate(new Double3(-2 * outward, 0, 0)), 1e-6);
-        ExpectNear(spinning.ChordAhead(place: Rim, chord: Double3.Zero, lift: 0.75, drag: 0, dt: Step),
-            turn.Rotate(new Double3(0.25 * outward, 0, 0)), 1e-6);
-        ExpectNear(spinning.ChordAhead(place: Rim, chord: Double3.Zero, lift: 0, drag: 0, dt: Step),
-            turn.Rotate(new Double3(outward, 0, 0)), 1e-6);
+        ExpectNear(
+            spinning.ChordAhead(place: Rim, chord: Double3.Zero, lift: 3, drag: 0, dt: Step),
+            turn.Rotate(new Double3(-2 * outward, 0, 0)),
+            1e-6
+        );
+        ExpectNear(
+            spinning.ChordAhead(place: Rim, chord: Double3.Zero, lift: 0.75, drag: 0, dt: Step),
+            turn.Rotate(new Double3(0.25 * outward, 0, 0)),
+            1e-6
+        );
+        ExpectNear(
+            spinning.ChordAhead(place: Rim, chord: Double3.Zero, lift: 0, drag: 0, dt: Step),
+            turn.Rotate(new Double3(outward, 0, 0)),
+            1e-6
+        );
     }
 
     [Fact]
@@ -278,7 +328,8 @@ public sealed class LooseBodyStepTests
         const double drag = 6;
 
         step.ChordAhead(place: Rim, chord: chord, lift: 1, drag: drag, dt: Step).Should().Be(chord / (1 + drag * Step));
-        step.ChordAhead(place: Rim, chord: chord, lift: 1, drag: 0, dt: Step).Should()
+        step.ChordAhead(place: Rim, chord: chord, lift: 1, drag: 0, dt: Step)
+            .Should()
             .Be(chord, "no drag keeps the chord exactly");
     }
 

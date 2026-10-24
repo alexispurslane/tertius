@@ -10,11 +10,11 @@ internal readonly record struct LightBasis(Vector3 X, Vector3 Y, Vector3 Z)
     /// <summary>A basis that depends only on the sun direction, so it is the same every frame while the sun stands still.</summary>
     public static LightBasis FromSunDirection(Vector3 sunDirection)
     {
-        Vector3 z = Vector3.Normalize(sunDirection);
+        var z = Vector3.Normalize(sunDirection);
         // Any fixed reference that is not parallel to z. The switch happens only for a sun almost straight overhead
         // (or underfoot), where the basis turns once.
         Vector3 reference = MathF.Abs(z.Y) < 0.99f ? Vector3.UnitY : Vector3.UnitX;
-        Vector3 x = Vector3.Normalize(Vector3.Cross(reference, z));
+        var x = Vector3.Normalize(Vector3.Cross(reference, z));
         return new(x, Vector3.Cross(z, x), z);
     }
 
@@ -129,7 +129,8 @@ internal static class ShadowCascades
     private static float[] ComputeSplits()
     {
         float[] splits = new float[Count];
-        double near = DepthRanges.NearPlane, far = Distance;
+        double near = DepthRanges.NearPlane,
+            far = Distance;
         for (int i = 1; i <= Count; i++)
         {
             double t = (double)i / Count;
@@ -146,8 +147,12 @@ internal static class ShadowCascades
     /// The smallest sphere that holds the view frustum between view depths <paramref name="near"/> and
     /// <paramref name="far"/>. Its center is on the view axis at depth <c>CenterDepth</c>.
     /// </summary>
-    public static (float CenterDepth, float Radius) BoundingSphere(float near, float far, float tanHalfX,
-        float tanHalfY)
+    public static (float CenterDepth, float Radius) BoundingSphere(
+        float near,
+        float far,
+        float tanHalfX,
+        float tanHalfY
+    )
     {
         // The slice's corners are at lateral distance depth · k from the axis. The center that is equally far from
         // the near and far corners is at (f + n)(1 + k²) / 2. If that lies beyond the far plane, the far corners
@@ -176,8 +181,8 @@ internal static class ShadowCascades
     /// </remarks>
     public static Double3 Anchor(Double3 originInFrame, Vector3 cameraOffset)
     {
-        bool finite = double.IsFinite(originInFrame.X) && double.IsFinite(originInFrame.Y) &&
-                      double.IsFinite(originInFrame.Z);
+        bool finite =
+            double.IsFinite(originInFrame.X) && double.IsFinite(originInFrame.Y) && double.IsFinite(originInFrame.Z);
         return (finite ? -originInFrame : Double3.Zero) - cameraOffset;
     }
 
@@ -190,8 +195,14 @@ internal static class ShadowCascades
     /// <param name="depthRangeScale">How many times deeper than wide each cascade box is.</param>
     /// <param name="anchor">A world-fixed point in camera-relative world space (see <see cref="Anchor"/>). The texel grid passes through it.</param>
     /// <param name="cascades">Receives the cascades.</param>
-    public static void Fit(in CameraView camera, in LightBasis light, int mapSize, float depthRangeScale,
-        Double3 anchor, ref ShadowCascadeArray cascades)
+    public static void Fit(
+        in CameraView camera,
+        in LightBasis light,
+        int mapSize,
+        float depthRangeScale,
+        Double3 anchor,
+        ref ShadowCascadeArray cascades
+    )
     {
         double anchorX = Double3.Dot(anchor, light.X);
         double anchorY = Double3.Dot(anchor, light.Y);
@@ -199,8 +210,12 @@ internal static class ShadowCascades
         {
             float near = i == 0 ? DepthRanges.NearPlane : BlendStart(i - 1);
             float far = Splits[i];
-            (float centerDepth, float radius) = BoundingSphere(near: near, far: far, tanHalfX: camera.TanHalfX,
-                tanHalfY: camera.TanHalfY);
+            (float centerDepth, float radius) = BoundingSphere(
+                near: near,
+                far: far,
+                tanHalfX: camera.TanHalfX,
+                tanHalfY: camera.TanHalfY
+            );
             float texel = 2f * radius / (mapSize - 2 * MarginTexels);
             float halfExtent = 0.5f * texel * mapSize;
 
@@ -218,8 +233,12 @@ internal static class ShadowCascades
             cascade.TexelSize = texel;
             cascade.NearDepth = near;
             cascade.FarDepth = far;
-            cascade.ViewProjection = ViewProjection(light: light, center: center, halfExtent: halfExtent,
-                depthHalfRange: cascade.DepthHalfRange);
+            cascade.ViewProjection = ViewProjection(
+                light: light,
+                center: center,
+                halfExtent: halfExtent,
+                depthHalfRange: cascade.DepthHalfRange
+            );
         }
     }
 
@@ -232,11 +251,26 @@ internal static class ShadowCascades
     {
         float lateral = 1f / halfExtent;
         float depth = 0.5f / depthHalfRange;
-        Vector3 x = light.X * lateral, y = light.Y * lateral, z = light.Z * depth;
+        Vector3 x = light.X * lateral,
+            y = light.Y * lateral,
+            z = light.Z * depth;
         return new(
-            m11: x.X, m12: y.X, m13: z.X, m14: 0f,
-            m21: x.Y, m22: y.Y, m23: z.Y, m24: 0f,
-            m31: x.Z, m32: y.Z, m33: z.Z, m34: 0f,
-            m41: -center.X * lateral, m42: -center.Y * lateral, m43: 0.5f - center.Z * depth, m44: 1f);
+            m11: x.X,
+            m12: y.X,
+            m13: z.X,
+            m14: 0f,
+            m21: x.Y,
+            m22: y.Y,
+            m23: z.Y,
+            m24: 0f,
+            m31: x.Z,
+            m32: y.Z,
+            m33: z.Z,
+            m34: 0f,
+            m41: -center.X * lateral,
+            m42: -center.Y * lateral,
+            m43: 0.5f - center.Z * depth,
+            m44: 1f
+        );
     }
 }

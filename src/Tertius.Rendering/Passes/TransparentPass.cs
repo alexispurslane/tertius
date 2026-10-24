@@ -29,7 +29,7 @@ internal sealed unsafe class TransparentPass : RenderPass
             ColorFormats = [RenderTargets.HdrFormat],
             VertexInput = VertexInput.Mesh,
             DepthClamp = true,
-            Blend = BlendMode.Alpha
+            Blend = BlendMode.Alpha,
         }.Create(device, shaders);
         puffPipeline = new GraphicsPipelineDesc
         {
@@ -42,7 +42,7 @@ internal sealed unsafe class TransparentPass : RenderPass
             // The square faces the eye, and its winding does not matter.
             CullMode = CullModeFlags.None,
             DepthClamp = true,
-            Blend = BlendMode.Additive
+            Blend = BlendMode.Additive,
         }.Create(device, shaders);
     }
 
@@ -76,7 +76,7 @@ internal sealed unsafe class TransparentPass : RenderPass
             ImageView = targets.Hdr.View,
             ImageLayout = ImageLayout.ColorAttachmentOptimal,
             LoadOp = AttachmentLoadOp.Load,
-            StoreOp = AttachmentStoreOp.Store
+            StoreOp = AttachmentStoreOp.Store,
         };
         var rendering = new RenderingInfo
         {
@@ -84,7 +84,7 @@ internal sealed unsafe class TransparentPass : RenderPass
             RenderArea = new(new Offset2D(0, 0), targets.Extent),
             LayerCount = 1,
             ColorAttachmentCount = 1,
-            PColorAttachments = &color
+            PColorAttachments = &color,
         };
         vk.CmdBeginRendering(commandBuffer, &rendering);
         DrawRuns(context: context, scene: scene, vk: vk, commandBuffer: commandBuffer);
@@ -115,8 +115,13 @@ internal sealed unsafe class TransparentPass : RenderPass
                         break;
                     case PuffSprites { First: var first, Count: var count }:
                         Bind(vk: vk, commandBuffer: commandBuffer, bound: ref bound, wanted: puffPipeline);
-                        vk.CmdDraw(commandBuffer: commandBuffer, vertexCount: 6, instanceCount: (uint)count,
-                            firstVertex: 0, firstInstance: (uint)first);
+                        vk.CmdDraw(
+                            commandBuffer: commandBuffer,
+                            vertexCount: 6,
+                            instanceCount: (uint)count,
+                            firstVertex: 0,
+                            firstInstance: (uint)first
+                        );
                         break;
                     case null:
                         // The scene batcher adds a run of meshes or of puffs, never an empty run.

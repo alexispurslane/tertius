@@ -32,8 +32,12 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
     /// <summary>A seeded entity that moves, talks in every delivery mode, spawns, destroys and subscribes.</summary>
     private sealed class Chatter(ConcurrentDictionary<int, byte> threads) : IComponent
     {
-        private static readonly EventMask WantsMask =
-            EventMask.Of<Tick>().And<Ping>().And<Spawned>().And<FrameChanged>().And<Collision>();
+        private static readonly EventMask WantsMask = EventMask
+            .Of<Tick>()
+            .And<Ping>()
+            .And<Spawned>()
+            .And<FrameChanged>()
+            .And<Collision>();
 
         private readonly List<Entity> neighbors = [];
 
@@ -75,13 +79,19 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
             if (self.Body.Exists)
                 self.Body.AddForce(new((float)(Next() - 0.5), 0, (float)(Next() - 0.5)));
             else
-                self.SetTransform(self.PoseInOwnFrame() with
-                {
-                    Position = self.PoseInOwnFrame().Position + new Double3(Next() - 0.5, 0, Next() - 0.5)
-                });
+                self.SetTransform(
+                    self.PoseInOwnFrame() with
+                    {
+                        Position = self.PoseInOwnFrame().Position + new Double3(Next() - 0.5, 0, Next() - 0.5),
+                    }
+                );
 
-            self.Snapshot.QueryRadius(frame: self.Frame, center: self.PoseInOwnFrame().Position, radius: 30,
-                results: neighbors);
+            self.Snapshot.QueryRadius(
+                frame: self.Frame,
+                center: self.PoseInOwnFrame().Position,
+                radius: 30,
+                results: neighbors
+            );
             neighbors.Remove(self.Entity);
             int value = (int)(Rng & 0xFFFF);
             if (neighbors.Count > 0 && Next() < 0.3)
@@ -102,16 +112,19 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
             {
                 Children++;
                 bool withBody = Next() < 0.3;
-                Entity child = self.Spawn(new()
-                {
-                    Frame = self.Frame,
-                    Pose = self.PoseInOwnFrame(),
-                    Body = withBody ? TestWorld.Ball : null,
-                    Components = Next() < 0.5
-                        ? [new Chatter(threads) { Rng = Rng ^ 0x9E3779B97F4A7C15UL }, new Shield()]
-                        : [new Chatter(threads) { Rng = Rng ^ 0xD1B54A32D192ED03UL }],
-                    Subscriptions = Next() < 0.5 ? [Chat] : []
-                });
+                Entity child = self.Spawn(
+                    new()
+                    {
+                        Frame = self.Frame,
+                        Pose = self.PoseInOwnFrame(),
+                        Body = withBody ? TestWorld.Ball : null,
+                        Components =
+                            Next() < 0.5
+                                ? [new Chatter(threads) { Rng = Rng ^ 0x9E3779B97F4A7C15UL }, new Shield()]
+                                : [new Chatter(threads) { Rng = Rng ^ 0xD1B54A32D192ED03UL }],
+                        Subscriptions = Next() < 0.5 ? [Chat] : [],
+                    }
+                );
                 outbox.Send(child, new Ping { Value = value + 5 });
             }
 
@@ -161,7 +174,8 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
         int Contacts,
         int Errors,
         int FallingFrameTicks,
-        int RestingFrameTicks);
+        int RestingFrameTicks
+    );
 
     /// <summary>
     /// Runs the workload on <paramref name="maxDop"/> workers and returns what it ended in, and how many different threads
@@ -171,27 +185,37 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
     {
         var threads = new ConcurrentDictionary<int, byte>();
         // Debug checks are off: the invariant tests run them over a workload that churns more. Here they would only slow the four runs.
-        using World world = WorldTesting.NewWorldWithFaults(faults: out FaultInjectingBackend faults,
+        using World world = WorldTesting.NewWorldWithFaults(
+            faults: out FaultInjectingBackend faults,
             debugChecks: false,
             configure: options =>
             {
                 options.MaxDegreeOfParallelism = maxDop;
                 options.ChunkSize = 16;
                 options.SpawnPoolSize = 16;
-            });
+            }
+        );
         // The Kepler frame below takes its G·M from the point gravity of the root, which also pulls the bodies in the root.
         FrameHandle root = world.CreateRootFrame(new(FrameBounds.Sphere(1e12f), GravityField.Point(1e8)));
         FrameHandle west = world.SpawnStaticFrame(root, TestWorld.At(-1000), radius: 200);
-        FrameHandle east = world.GetOwnedFrame(world.Spawn(new SpawnDesc
-        {
-            Frame = root,
-            AsFrame = new(FrameBounds.Sphere(200))
-        }.OnKeplerOrbit(world, KeplerOrbit.Circular(1000, spinRate: 0.05))));
+        FrameHandle east = world.GetOwnedFrame(
+            world.Spawn(
+                new SpawnDesc { Frame = root, AsFrame = new(FrameBounds.Sphere(200)) }.OnKeplerOrbit(
+                    world,
+                    KeplerOrbit.Circular(1000, spinRate: 0.05)
+                )
+            )
+        );
 
         var random = new Random(seed);
         for (int i = 0; i < 160; i++)
         {
-            FrameHandle frame = (i % 3) switch { 0 => west, 1 => east, _ => root };
+            FrameHandle frame = (i % 3) switch
+            {
+                0 => west,
+                1 => east,
+                _ => root,
+            };
             bool hasBody = i % 4 == 0;
             // Every other body is shot along +X at 120 to 160 m/s, so that it leaves the bubble of its frame, which has a radius
             // of 200 m, within the run. Jolt then hands it off to the parent frame. Its Chatter pushes it on every tick, so after
@@ -199,20 +223,23 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
             // speed is above the 50 m/s from which a group that thrusts falls.
             double speed = hasBody && i % 8 == 0 ? 120 + random.NextDouble() * 40 : random.NextDouble();
             double distance = frame == root ? RootGroupDistance : 0;
-            world.Spawn(new()
-            {
-                Frame = frame,
-                Pose = TestWorld.At(random.NextDouble() * 60 - 30, 0, random.NextDouble() * 60 - 30 + distance),
-                Body = hasBody ? TestWorld.Ball : null,
-                Render = new RenderData { Mesh = new(i % 3), Flags = RenderFlags.Visible },
-                // Only a body takes a spawn velocity: motion intents move an entity without one. The speed is drawn for
-                // every entity, so the random scatter stays the same.
-                LinearVelocity = hasBody ? new(speed, 0, 0) : Double3.Zero,
-                Components = i % 5 == 0
-                    ? [new Chatter(threads) { Rng = (ulong)random.NextInt64() | 1 }, new Shield()]
-                    : [new Chatter(threads) { Rng = (ulong)random.NextInt64() | 1 }],
-                Subscriptions = i % 2 == 0 ? [Chat] : []
-            });
+            world.Spawn(
+                new()
+                {
+                    Frame = frame,
+                    Pose = TestWorld.At(random.NextDouble() * 60 - 30, 0, random.NextDouble() * 60 - 30 + distance),
+                    Body = hasBody ? TestWorld.Ball : null,
+                    Render = new RenderData { Mesh = new(i % 3), Flags = RenderFlags.Visible },
+                    // Only a body takes a spawn velocity: motion intents move an entity without one. The speed is drawn for
+                    // every entity, so the random scatter stays the same.
+                    LinearVelocity = hasBody ? new(speed, 0, 0) : Double3.Zero,
+                    Components =
+                        i % 5 == 0
+                            ? [new Chatter(threads) { Rng = (ulong)random.NextInt64() | 1 }, new Shield()]
+                            : [new Chatter(threads) { Rng = (ulong)random.NextInt64() | 1 }],
+                    Subscriptions = i % 2 == 0 ? [Chat] : [],
+                }
+            );
         }
 
         // In each frame, two balls on a collision course 45 m beside the scatter, so that Jolt sends contacts whatever the
@@ -221,20 +248,23 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
         {
             double distance = frame == root ? RootGroupDistance : 0;
             foreach (int side in new[] { -1, 1 })
-                world.Spawn(new()
-                {
-                    Frame = frame,
-                    Pose = TestWorld.At(5 * side, 0, 45 + distance),
-                    LinearVelocity = new(-4 * side, 0, 0),
-                    Body = TestWorld.Ball,
-                    Components = [new Chatter(threads) { Rng = (ulong)random.NextInt64() | 1 }]
-                });
+                world.Spawn(
+                    new()
+                    {
+                        Frame = frame,
+                        Pose = TestWorld.At(5 * side, 0, 45 + distance),
+                        LinearVelocity = new(-4 * side, 0, 0),
+                        Body = TestWorld.Ball,
+                        Components = [new Chatter(threads) { Rng = (ulong)random.NextInt64() | 1 }],
+                    }
+                );
         }
 
         world.Camera = world.Spawn(new() { Frame = west, Render = new RenderData() });
 
         long messages = 0;
-        int fallingFrameTicks = 0, restingFrameTicks = 0;
+        int fallingFrameTicks = 0,
+            restingFrameTicks = 0;
         var frames = new List<FrameHandle>();
         for (int tick = 0; tick < ticks; tick++)
         {
@@ -246,19 +276,34 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
             restingFrameTicks += frames.Count(frame => world.Frames.Numeric(frame) == NumericMode.Resting);
         }
 
-        ulong hash = WorldHash.Of(world, static (soFar, component) => component switch
-        {
-            Chatter c => WorldHash.Mix(WorldHash.Mix(WorldHash.Mix(soFar, c.Hash), c.Rng),
-                (ulong)(c.Children * 1000 + c.Received)),
-            Shield s => WorldHash.Mix(soFar, (ulong)s.Refused),
-            _ => soFar
-        });
+        ulong hash = WorldHash.Of(
+            world,
+            static (soFar, component) =>
+                component switch
+                {
+                    Chatter c => WorldHash.Mix(
+                        WorldHash.Mix(WorldHash.Mix(soFar, c.Hash), c.Rng),
+                        (ulong)(c.Children * 1000 + c.Received)
+                    ),
+                    Shield s => WorldHash.Mix(soFar, (ulong)s.Refused),
+                    _ => soFar,
+                }
+        );
         int handOffs = faults.Outputs.Sum(output => output.HandOffs.Count);
         int contacts = faults.Outputs.Sum(output => output.Contacts.Count);
         return (
-            new(Hash: hash, Stats: world.Stats, Messages: messages, HandOffs: handOffs, Contacts: contacts,
-                Errors: world.Errors.Count, FallingFrameTicks: fallingFrameTicks,
-                RestingFrameTicks: restingFrameTicks), threads.Count);
+            new(
+                Hash: hash,
+                Stats: world.Stats,
+                Messages: messages,
+                HandOffs: handOffs,
+                Contacts: contacts,
+                Errors: world.Errors.Count,
+                FallingFrameTicks: fallingFrameTicks,
+                RestingFrameTicks: restingFrameTicks
+            ),
+            threads.Count
+        );
     }
 
     /// <summary>The four runs, made once for the whole class: two on one worker and two on eight, alternating.</summary>

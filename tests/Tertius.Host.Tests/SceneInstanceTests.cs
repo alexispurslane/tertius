@@ -92,10 +92,8 @@ public sealed class SceneInstanceTests
     [InlineData("a/b", false)]
     [InlineData(".hidden", false)]
     [InlineData("_box", false)]
-    public void ASceneIdHasLowercaseLettersDigitsAndThreeMarksAndAtMost64Characters(string id, bool valid)
-    {
+    public void ASceneIdHasLowercaseLettersDigitsAndThreeMarksAndAtMost64Characters(string id, bool valid) =>
         SceneInstance.IsSceneId(id).Should().Be(valid);
-    }
 
     private static SceneInstance WithViews()
     {
@@ -119,16 +117,10 @@ public sealed class SceneInstanceTests
     }
 
     [Fact]
-    public void ACameraThatIsNoViewGoesToTheFirstView()
-    {
-        WithViews().NextView(Box).Should().Be(Chase);
-    }
+    public void ACameraThatIsNoViewGoesToTheFirstView() => WithViews().NextView(Box).Should().Be(Chase);
 
     [Fact]
-    public void ACameraWithNoSceneIdGoesToTheFirstView()
-    {
-        WithViews().NextView(new(99, 1)).Should().Be(Chase);
-    }
+    public void ACameraWithNoSceneIdGoesToTheFirstView() => WithViews().NextView(new(99, 1)).Should().Be(Chase);
 
     [Fact]
     public void ThreeViewsCycleForwardInTheOrderThatTheSceneAddedThem()

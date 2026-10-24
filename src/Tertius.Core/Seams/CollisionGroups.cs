@@ -142,7 +142,8 @@ public sealed class CollisionGroupRegistry
             return group;
         if (names.Count == CollisionGroup.Capacity)
             throw new InvalidOperationException(
-                $"The collision group \"{name}\" cannot be registered: a game has at most {CollisionGroup.Capacity} collision groups, and every one already has a name.");
+                $"The collision group \"{name}\" cannot be registered: a game has at most {CollisionGroup.Capacity} collision groups, and every one already has a name."
+            );
         names.Add(name);
         return CollisionGroup.FromIndex(names.Count - 1);
     }

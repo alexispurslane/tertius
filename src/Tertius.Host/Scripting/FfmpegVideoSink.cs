@@ -22,7 +22,8 @@ public sealed class FfmpegVideoSink : ICaptureSink, IDisposable
     private readonly Stream input;
     private readonly string path;
 
-    private readonly int width, height;
+    private readonly int width,
+        height;
 
     // The last lines of ffmpeg's error output. A thread-pool callback adds them as ffmpeg writes them, so that ffmpeg never
     // blocks on a full error pipe.
@@ -66,9 +67,19 @@ public sealed class FfmpegVideoSink : ICaptureSink, IDisposable
         ArgumentNullException.ThrowIfNull(size);
         string full = Path.GetFullPath(video.Path);
         var start = new ProcessStartInfo(program)
-            { RedirectStandardInput = true, RedirectStandardError = true, UseShellExecute = false };
-        foreach (string argument in Arguments(path: full, width: size.Width, height: size.Height,
-                     framesPerSecond: video.FramesPerSecond))
+        {
+            RedirectStandardInput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        foreach (
+            string argument in Arguments(
+                path: full,
+                width: size.Width,
+                height: size.Height,
+                framesPerSecond: video.FramesPerSecond
+            )
+        )
             start.ArgumentList.Add(argument);
         var ffmpeg = new Process { StartInfo = start };
         try
@@ -104,12 +115,32 @@ public sealed class FfmpegVideoSink : ICaptureSink, IDisposable
     /// shorter second run leaves no frame of the first one.
     /// </summary>
     private static string[] Arguments(string path, int width, int height, int framesPerSecond) =>
-    [
-        "-hide_banner", "-loglevel", "error", "-nostats",
-        "-f", "rawvideo", "-pixel_format", "rgb0", "-video_size", $"{width}x{height}",
-        "-framerate", framesPerSecond.ToString(CultureInfo.InvariantCulture), "-i", "pipe:0",
-        "-c:v", "libx264rgb", "-qp", "0", "-preset", "veryfast", "-f", "matroska", "-y", path
-    ];
+        [
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-nostats",
+            "-f",
+            "rawvideo",
+            "-pixel_format",
+            "rgb0",
+            "-video_size",
+            $"{width}x{height}",
+            "-framerate",
+            framesPerSecond.ToString(CultureInfo.InvariantCulture),
+            "-i",
+            "pipe:0",
+            "-c:v",
+            "libx264rgb",
+            "-qp",
+            "0",
+            "-preset",
+            "veryfast",
+            "-f",
+            "matroska",
+            "-y",
+            path,
+        ];
 
     /// <summary>
     /// Writes the pixels of the next frame into ffmpeg's input. The write blocks only while ffmpeg's input queue is full.
@@ -125,7 +156,8 @@ public sealed class FfmpegVideoSink : ICaptureSink, IDisposable
         if (image.Width != width || image.Height != height)
             throw new ArgumentException(
                 $"A frame of {image.Width}x{image.Height} pixels does not fit the video {path}, which is {width}x{height}.",
-                nameof(image));
+                nameof(image)
+            );
         try
         {
             input.Write(image.Rgba);
@@ -175,9 +207,7 @@ public sealed class FfmpegVideoSink : ICaptureSink, IDisposable
         {
             File.Delete(path);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
 
     // Closes ffmpeg's input and waits for ffmpeg to exit. The wait without a timeout also waits until the callback has read
@@ -190,9 +220,7 @@ public sealed class FfmpegVideoSink : ICaptureSink, IDisposable
             input.Dispose();
         }
         // ffmpeg may have closed its end of the pipe already.
-        catch (IOException)
-        {
-        }
+        catch (IOException) { }
 
         ffmpeg.WaitForExit();
     }
@@ -205,8 +233,13 @@ public sealed class FfmpegVideoSink : ICaptureSink, IDisposable
             lines = [.. errorLines];
         }
 
-        return new(path: path, exitCode: ffmpeg.ExitCode, framesWritten: FramesWritten, errorLines: lines,
-            inner: inner);
+        return new(
+            path: path,
+            exitCode: ffmpeg.ExitCode,
+            framesWritten: FramesWritten,
+            errorLines: lines,
+            inner: inner
+        );
     }
 
     private void KeepErrorLine(object sender, DataReceivedEventArgs line)
@@ -230,10 +263,17 @@ public sealed class VideoStreamException(
     int exitCode,
     int framesWritten,
     IReadOnlyList<string> errorLines,
-    Exception? inner) : IOException(
-    Describe(path: path, exitCode: exitCode, framesWritten: framesWritten,
-        errorLines: errorLines ?? throw new ArgumentNullException(nameof(errorLines))),
-    inner)
+    Exception? inner
+)
+    : IOException(
+        Describe(
+            path: path,
+            exitCode: exitCode,
+            framesWritten: framesWritten,
+            errorLines: errorLines ?? throw new ArgumentNullException(nameof(errorLines))
+        ),
+        inner
+    )
 {
     /// <summary>The file of the video.</summary>
     public string Path { get; } = path;
@@ -249,7 +289,9 @@ public sealed class VideoStreamException(
 
     private static string Describe(string path, int exitCode, int framesWritten, IReadOnlyList<string> errorLines) =>
         $"ffmpeg stopped with exit code {exitCode} after {framesWritten} frames of the video {path}."
-        + (errorLines.Count == 0
-            ? " It wrote no error output."
-            : $" The last lines of its error output:{Environment.NewLine}{string.Join(Environment.NewLine, errorLines)}");
+        + (
+            errorLines.Count == 0
+                ? " It wrote no error output."
+                : $" The last lines of its error output:{Environment.NewLine}{string.Join(Environment.NewLine, errorLines)}"
+        );
 }

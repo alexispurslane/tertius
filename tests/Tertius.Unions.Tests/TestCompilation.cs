@@ -19,15 +19,22 @@ internal static class TestCompilation
         IEnumerable<MetadataReference> references = platform
             .Append(typeof(GeneratedUnionAttribute).Assembly.Location)
             .Select(path => MetadataReference.CreateFromFile(path));
-        return CSharpCompilation.Create(assemblyName: "Probe",
+        return CSharpCompilation.Create(
+            assemblyName: "Probe",
             syntaxTrees:
             [
-                CSharpSyntaxTree.ParseText(text: source, options: Parse,
-                    cancellationToken: TestContext.Current.CancellationToken)
+                CSharpSyntaxTree.ParseText(
+                    text: source,
+                    options: Parse,
+                    cancellationToken: TestContext.Current.CancellationToken
+                ),
             ],
             references: references,
-            options: new(outputKind: OutputKind.DynamicallyLinkedLibrary,
+            options: new(
+                outputKind: OutputKind.DynamicallyLinkedLibrary,
                 nullableContextOptions: NullableContextOptions.Enable,
-                generalDiagnosticOption: ReportDiagnostic.Error));
+                generalDiagnosticOption: ReportDiagnostic.Error
+            )
+        );
     }
 }

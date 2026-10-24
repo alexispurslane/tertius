@@ -20,10 +20,7 @@ public sealed class UnionAnalyzer : DiagnosticAnalyzer
 
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-    [
-        ClosedSetRules.HandWrittenUnion, ClosedSetRules.BoxedCase, ClosedSetRules.OpenHierarchy,
-        ClosedSetRules.KindTag
-    ];
+    [ClosedSetRules.HandWrittenUnion, ClosedSetRules.BoxedCase, ClosedSetRules.OpenHierarchy, ClosedSetRules.KindTag];
 
     /// <inheritdoc/>
     public override void Initialize(AnalysisContext context)
@@ -40,11 +37,13 @@ public sealed class UnionAnalyzer : DiagnosticAnalyzer
         if (IsHandWrittenUnion(type))
             context.ReportDiagnostic(Diagnostic.Create(ClosedSetRules.HandWrittenUnion, type.Locations[0], type.Name));
         if (BoxedCase(type, context) is { } boxed)
-            context.ReportDiagnostic(Diagnostic.Create(ClosedSetRules.BoxedCase, type.Locations[0], type.Name,
-                boxed.ToDisplayString()));
+            context.ReportDiagnostic(
+                Diagnostic.Create(ClosedSetRules.BoxedCase, type.Locations[0], type.Name, boxed.ToDisplayString())
+            );
         if (KindBesideFields(type) is { } kind)
-            context.ReportDiagnostic(Diagnostic.Create(ClosedSetRules.KindTag, type.Locations[0], type.Name,
-                kind.ToDisplayString()));
+            context.ReportDiagnostic(
+                Diagnostic.Create(ClosedSetRules.KindTag, type.Locations[0], type.Name, kind.ToDisplayString())
+            );
     }
 
     /// <summary>
@@ -52,8 +51,9 @@ public sealed class UnionAnalyzer : DiagnosticAnalyzer
     /// built-in union with <c>[Union]</c> only in metadata, so its source symbol does not carry it.
     /// </summary>
     private static bool IsHandWrittenUnion(INamedTypeSymbol type) =>
-        type.TypeKind == TypeKind.Struct && HasAttribute(type, UnionAttribute) &&
-        !HasAttribute(type, GeneratedUnionAttribute);
+        type.TypeKind == TypeKind.Struct
+        && HasAttribute(type, UnionAttribute)
+        && !HasAttribute(type, GeneratedUnionAttribute);
 
     /// <summary>
     /// The first struct case of a built-in <c>union</c> declaration, or null. The cases of a built-in union are the
@@ -62,11 +62,14 @@ public sealed class UnionAnalyzer : DiagnosticAnalyzer
     private static ITypeSymbol? BoxedCase(INamedTypeSymbol type, SymbolAnalysisContext context)
     {
         bool builtIn = type.DeclaringSyntaxReferences.Any(reference =>
-            reference.GetSyntax(context.CancellationToken) is TypeDeclarationSyntax { Keyword.ValueText: "union" });
+            reference.GetSyntax(context.CancellationToken) is TypeDeclarationSyntax { Keyword.ValueText: "union" }
+        );
         return !builtIn
             ? null
-            : type.InstanceConstructors
-                .Where(constructor => constructor.IsImplicitlyDeclared && constructor.Parameters.Length == 1)
+            : type
+                .InstanceConstructors.Where(constructor =>
+                    constructor.IsImplicitlyDeclared && constructor.Parameters.Length == 1
+                )
                 .Select(constructor => constructor.Parameters[0].Type)
                 .FirstOrDefault(caseType => caseType.IsValueType);
     }
@@ -77,22 +80,27 @@ public sealed class UnionAnalyzer : DiagnosticAnalyzer
     /// </summary>
     private static ITypeSymbol? KindBesideFields(INamedTypeSymbol type)
     {
-        ISymbol? kind = type.GetMembers("Kind").FirstOrDefault(member =>
-            !member.IsStatic && TypeOf(member) is { TypeKind: TypeKind.Enum });
+        ISymbol? kind = type.GetMembers("Kind")
+            .FirstOrDefault(member => !member.IsStatic && TypeOf(member) is { TypeKind: TypeKind.Enum });
         if (kind == null)
             return null;
-        bool others = type.GetMembers().OfType<IFieldSymbol>().Any(field =>
-            !field.IsStatic && !SymbolEqualityComparer.Default.Equals(field, kind) &&
-            !SymbolEqualityComparer.Default.Equals(field.AssociatedSymbol, kind));
+        bool others = type.GetMembers()
+            .OfType<IFieldSymbol>()
+            .Any(field =>
+                !field.IsStatic
+                && !SymbolEqualityComparer.Default.Equals(field, kind)
+                && !SymbolEqualityComparer.Default.Equals(field.AssociatedSymbol, kind)
+            );
         return others ? TypeOf(kind) : null;
     }
 
-    private static ITypeSymbol? TypeOf(ISymbol member) => member switch
-    {
-        IFieldSymbol field => field.Type,
-        IPropertySymbol property => property.Type,
-        _ => null
-    };
+    private static ITypeSymbol? TypeOf(ISymbol member) =>
+        member switch
+        {
+            IFieldSymbol field => field.Type,
+            IPropertySymbol property => property.Type,
+            _ => null,
+        };
 
     private static bool HasAttribute(INamedTypeSymbol type, string name) =>
         type.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() == name);

@@ -15,9 +15,13 @@ public static class WorldTestingGrowth
     /// when it needs one more. The backend writes a warning with "so it grew" to <paramref name="warnings"/> each time it
     /// doubles a system. <paramref name="configure"/> changes any other option of the world before it is created.
     /// </summary>
-    public static World NewWorldWithFaultsAndSmallSystems(int maxBodiesPerFrame, out FaultInjectingBackend faults,
+    public static World NewWorldWithFaultsAndSmallSystems(
+        int maxBodiesPerFrame,
+        out FaultInjectingBackend faults,
         List<string>? warnings = null,
-        bool debugChecks = true, Action<WorldOptions>? configure = null)
+        bool debugChecks = true,
+        Action<WorldOptions>? configure = null
+    )
     {
         Action<string>? log = warnings is null
             ? null
@@ -31,8 +35,10 @@ public static class WorldTestingGrowth
         faults = new(new(JoltBackendOptions.Unpaced with { MaxBodiesPerFrame = maxBodiesPerFrame, Log = log }));
         var options = new WorldOptions
         {
-            MaxDegreeOfParallelism = 1, InitialCapacity = WorldTesting.TestCapacity, DebugChecks = debugChecks,
-            DisposePhysics = true
+            MaxDegreeOfParallelism = 1,
+            InitialCapacity = WorldTesting.TestCapacity,
+            DebugChecks = debugChecks,
+            DisposePhysics = true,
         };
         configure?.Invoke(options);
         return new(options, faults);

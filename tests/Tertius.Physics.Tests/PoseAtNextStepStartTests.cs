@@ -35,8 +35,11 @@ public sealed class PoseAtNextStepStartTests
     /// in two ticks: the first reads where the entity starts the next step, in a tick whose running step has no motion intent,
     /// and the second reads where the entity stands once that step ended.
     /// </summary>
-    private static (Seen Gap, Seen After) ReadAcrossAStepWithoutAMotionIntent(World world, Entity entity,
-        IComponent motion)
+    private static (Seen Gap, Seen After) ReadAcrossAStepWithoutAMotionIntent(
+        World world,
+        Entity entity,
+        IComponent motion
+    )
     {
         world.RemoveComponent(entity, motion).Should().BeTrue();
         world.Tick();
@@ -64,10 +67,14 @@ public sealed class PoseAtNextStepStartTests
         Tick(world, 10);
         world.Frames.Numeric(world.Frames.TreeParent(world.GetOwnedFrame(hull))).Should().Be(NumericMode.Following);
 
-        (Seen gap, Seen after) =
-            ReadAcrossAStepWithoutAMotionIntent(world, hull, world.GetComponent<KeplerMotion>(hull)!);
+        (Seen gap, Seen after) = ReadAcrossAStepWithoutAMotionIntent(
+            world,
+            hull,
+            world.GetComponent<KeplerMotion>(hull)!
+        );
 
-        (after.Now.Position - gap.Now.Position).Length.Should()
+        (after.Now.Position - gap.Now.Position)
+            .Length.Should()
             .BeLessThan(1e-6, "the following frame holds the hull still over the step");
         (gap.NextStepStart.Position - after.Now.Position).Length.Should().BeLessThan(1e-6);
         gap.NextStepStart.Rotation.Should()
@@ -86,16 +93,24 @@ public sealed class PoseAtNextStepStartTests
     {
         using World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
-        Entity ball = world.Spawn(KinematicDrift.Drifting(
-            new() { Frame = space, Body = Ball() with { Motion = BodyMotion.Kinematic } },
-            world, new(1_200, 0, 0)));
+        Entity ball = world.Spawn(
+            KinematicDrift.Drifting(
+                new() { Frame = space, Body = Ball() with { Motion = BodyMotion.Kinematic } },
+                world,
+                new(1_200, 0, 0)
+            )
+        );
         Tick(world, 10);
         world.Frames.Numeric(world.PhysicsHomeOf(ball)).Should().Be(NumericMode.Following);
 
-        (Seen gap, Seen after) =
-            ReadAcrossAStepWithoutAMotionIntent(world, ball, world.GetComponent<KinematicDrift>(ball)!);
+        (Seen gap, Seen after) = ReadAcrossAStepWithoutAMotionIntent(
+            world,
+            ball,
+            world.GetComponent<KinematicDrift>(ball)!
+        );
 
-        (after.Now.Position - gap.Now.Position).Length.Should()
+        (after.Now.Position - gap.Now.Position)
+            .Length.Should()
             .BeLessThan(1e-6, "the following frame holds the ball still over the step");
         (gap.NextStepStart.Position - after.Now.Position).Length.Should().BeLessThan(1e-6);
         gap.NextStepStart.Rotation.Should().Be(after.Now.Rotation);
@@ -112,8 +127,15 @@ public sealed class PoseAtNextStepStartTests
         using World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
         var reader = new Reader();
-        Entity ball = world.Spawn(new()
-            { Frame = space, Body = Ball(), LinearVelocity = new(1_200, 0, 0), Components = [reader] });
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = Ball(),
+                LinearVelocity = new(1_200, 0, 0),
+                Components = [reader],
+            }
+        );
         Tick(world, 10);
         world.Frames.Numeric(world.PhysicsHomeOf(ball)).Should().Be(NumericMode.Falling);
 

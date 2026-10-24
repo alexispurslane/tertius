@@ -13,10 +13,8 @@ public sealed class TickPacerTests
     [InlineData(1, 0.02)]
     [InlineData(0.5, 0.04)]
     [InlineData(2, 0.01)]
-    public void ATickLastsItsSimulationTimeDividedByTheSpeedOnTheWallClock(double speed, double seconds)
-    {
+    public void ATickLastsItsSimulationTimeDividedByTheSpeedOnTheWallClock(double speed, double seconds) =>
         new TickPacer(0.02, speed).SecondsPerTick.Should().BeApproximately(seconds, 1e-15);
-    }
 
     [Fact]
     public void EachTickStartsOneTickLengthAfterThePreviousOne()
@@ -32,17 +30,16 @@ public sealed class TickPacerTests
     [InlineData(0.01, 0.5)]
     [InlineData(0.05, 1)]
     [InlineData(-0.01, 0)]
-    public void TheAlphaGrowsFromTheNewestSnapshotOverOneTickAndStopsAtOne(double secondsSincePublish, float alpha)
-    {
+    public void TheAlphaGrowsFromTheNewestSnapshotOverOneTickAndStopsAtOne(double secondsSincePublish, float alpha) =>
         new TickPacer(0.02, 1).Alpha(secondsSincePublish).Should().BeApproximately(alpha, 1e-6f);
-    }
 
     [Fact]
-    public void TheAlphaFollowsTheWallClockLengthOfATick()
-    {
+    public void TheAlphaFollowsTheWallClockLengthOfATick() =>
         // At half speed, a tick lasts 0.04 s, so 0.01 s after a snapshot is a quarter of the way.
-        new TickPacer(0.02, 0.5).Alpha(0.01).Should().BeApproximately(0.25f, 1e-6f);
-    }
+        new TickPacer(0.02, 0.5)
+            .Alpha(0.01)
+            .Should()
+            .BeApproximately(0.25f, 1e-6f);
 
     [Theory]
     [InlineData(0.02, 0)]
@@ -143,7 +140,7 @@ public sealed class FlyCameraTests
 
         camera.Turn(new(0, 100_000));
 
-        Vector3 forward = Vector3.Transform(-Vector3.UnitZ, camera.Rotation);
+        var forward = Vector3.Transform(-Vector3.UnitZ, camera.Rotation);
         forward.Y.Should().BeLessThan(-0.99f, "the view looks almost straight down");
         forward.Z.Should().BeLessThan(0, "the view does not flip over backwards");
     }
@@ -154,7 +151,12 @@ public sealed class FlyCameraTests
         var camera = new FlyCamera();
         camera.Start(Quaternion.Identity);
         Moved(camera, FlyKey.Left);
-        var render = new RenderCamera { Position = Vector3.One, PreviousPosition = Vector3.UnitX, VerticalFov = 1.1f };
+        var render = new RenderCamera
+        {
+            Position = Vector3.One,
+            PreviousPosition = Vector3.UnitX,
+            VerticalFov = 1.1f,
+        };
 
         camera.Apply(ref render);
 
@@ -336,10 +338,11 @@ public sealed class CaptureMailboxTests
     {
         var mailbox = new CaptureMailbox();
         var sink = new Sink();
-        Task request = Task.Run(() => mailbox.RequestAndWait(sink, CancellationToken.None), TestStop);
+        var request = Task.Run(() => mailbox.RequestAndWait(sink, CancellationToken.None), TestStop);
 
         TakeWithin(mailbox).Should().BeSameAs(sink);
-        (await EndsWithin(request, TimeSpan.FromMilliseconds(100))).Should()
+        (await EndsWithin(request, TimeSpan.FromMilliseconds(100)))
+            .Should()
             .BeFalse("the request is taken but the sink has no pixels yet");
 
         mailbox.Done();
@@ -350,7 +353,7 @@ public sealed class CaptureMailboxTests
     public async Task ARequestIsTakenOnce()
     {
         var mailbox = new CaptureMailbox();
-        Task request = Task.Run(() => mailbox.RequestAndWait(new Sink(), CancellationToken.None), TestStop);
+        var request = Task.Run(() => mailbox.RequestAndWait(new Sink(), CancellationToken.None), TestStop);
         TakeWithin(mailbox);
 
         mailbox.TryTake(out _).Should().BeFalse();
@@ -363,16 +366,16 @@ public sealed class CaptureMailboxTests
     {
         // The closing only bounds the test: a request that waited would end with OperationCanceledException.
         using var closing = new CancellationTokenSource(TimeSpan.FromSeconds(1));
-        FluentActions.Invoking(() => new CaptureMailbox().RequestAndWait(null!, closing.Token))
-            .Should().Throw<ArgumentNullException>(
-                "a request with no sink would wait for a capture that the render thread never sees");
+        FluentActions
+            .Invoking(() => new CaptureMailbox().RequestAndWait(null!, closing.Token))
+            .Should()
+            .Throw<ArgumentNullException>(
+                "a request with no sink would wait for a capture that the render thread never sees"
+            );
     }
 
     [Fact]
-    public void WithNoRequestThereIsNothingToTake()
-    {
-        new CaptureMailbox().TryTake(out _).Should().BeFalse();
-    }
+    public void WithNoRequestThereIsNothingToTake() => new CaptureMailbox().TryTake(out _).Should().BeFalse();
 
     [Fact]
     public async Task ARequestStopsWaitingWhenTheWindowCloses()
@@ -380,9 +383,11 @@ public sealed class CaptureMailboxTests
         var mailbox = new CaptureMailbox();
         using var closing = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
 
-        Task request = Task.Run(() => mailbox.RequestAndWait(new Sink(), closing.Token), TestStop);
+        var request = Task.Run(() => mailbox.RequestAndWait(new Sink(), closing.Token), TestStop);
 
-        await FluentActions.Awaiting(() => request.WaitAsync(Bound, TestStop)).Should()
+        await FluentActions
+            .Awaiting(() => request.WaitAsync(Bound, TestStop))
+            .Should()
             .ThrowAsync<OperationCanceledException>();
     }
 
@@ -391,8 +396,10 @@ public sealed class CaptureMailboxTests
     {
         var mailbox = new CaptureMailbox();
         using var closing = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
-        Task request = Task.Run(() => mailbox.RequestAndWait(new Sink(), closing.Token), TestStop);
-        await FluentActions.Awaiting(() => request.WaitAsync(Bound, TestStop)).Should()
+        var request = Task.Run(() => mailbox.RequestAndWait(new Sink(), closing.Token), TestStop);
+        await FluentActions
+            .Awaiting(() => request.WaitAsync(Bound, TestStop))
+            .Should()
             .ThrowAsync<OperationCanceledException>();
 
         mailbox.TryTake(out _).Should().BeFalse("the render thread must not draw a capture that nobody waits for");
@@ -406,8 +413,13 @@ public sealed class WindowPlaybackTests
     public void TheFirstTickRunsAtOnce()
     {
         var reads = new List<double>();
-        var playback = new WindowPlayback(pacer: new(0.02, 1), captures: new(), folder: new("unused"),
-            secondsSinceStart: Clock(reads, 0), stop: CancellationToken.None);
+        var playback = new WindowPlayback(
+            pacer: new(0.02, 1),
+            captures: new(),
+            folder: new("unused"),
+            secondsSinceStart: Clock(reads, 0),
+            stop: CancellationToken.None
+        );
 
         playback.WaitForTick().Should().BeTrue();
         reads.Should().Equal(0);
@@ -417,9 +429,13 @@ public sealed class WindowPlaybackTests
     public void ALaterTickWaitsForItsStartTime()
     {
         var reads = new List<double>();
-        var playback = new WindowPlayback(pacer: new(0.02, 1), captures: new(), folder: new("unused"),
+        var playback = new WindowPlayback(
+            pacer: new(0.02, 1),
+            captures: new(),
+            folder: new("unused"),
             secondsSinceStart: Clock(reads, 0, 0, 0.03),
-            stop: CancellationToken.None);
+            stop: CancellationToken.None
+        );
 
         playback.WaitForTick();
         playback.WaitForTick().Should().BeTrue();
@@ -432,22 +448,28 @@ public sealed class WindowPlaybackTests
     /// A clock that answers each read with the next value of the list. A read past the end fails the test, so a mutant
     /// that waits forever on a frozen clock fails instead of hanging the run.
     /// </summary>
-    private static Func<double> Clock(List<double> reads, params double[] values) => () =>
-    {
-        if (reads.Count >= values.Length)
-            throw new InvalidOperationException(
-                $"The clock was read {reads.Count + 1} times, more than the {values.Length} that the test expects.");
-        reads.Add(values[reads.Count]);
-        return reads[^1];
-    };
+    private static Func<double> Clock(List<double> reads, params double[] values) =>
+        () =>
+        {
+            if (reads.Count >= values.Length)
+                throw new InvalidOperationException(
+                    $"The clock was read {reads.Count + 1} times, more than the {values.Length} that the test expects."
+                );
+            reads.Add(values[reads.Count]);
+            return reads[^1];
+        };
 
     [Fact]
     public void ATickLateByLessThanOneTickRunsAtOnceAndKeepsTheSchedule()
     {
         var reads = new List<double>();
-        var playback = new WindowPlayback(pacer: new(0.02, 1), captures: new(), folder: new("unused"),
+        var playback = new WindowPlayback(
+            pacer: new(0.02, 1),
+            captures: new(),
+            folder: new("unused"),
             secondsSinceStart: Clock(reads, 0, 0.03, 0.04),
-            stop: CancellationToken.None);
+            stop: CancellationToken.None
+        );
 
         for (int i = 0; i < 3; i++)
             playback.WaitForTick().Should().BeTrue();
@@ -460,9 +482,13 @@ public sealed class WindowPlaybackTests
     public void AfterAStallTheScheduleMovesSoTheTicksAfterItKeepTheirPace()
     {
         var reads = new List<double>();
-        var playback = new WindowPlayback(pacer: new(0.02, 1), captures: new(), folder: new("unused"),
+        var playback = new WindowPlayback(
+            pacer: new(0.02, 1),
+            captures: new(),
+            folder: new("unused"),
             secondsSinceStart: Clock(reads, 0, 0.5, 0.5, 0.52),
-            stop: CancellationToken.None);
+            stop: CancellationToken.None
+        );
 
         for (int i = 0; i < 3; i++)
             playback.WaitForTick().Should().BeTrue();
@@ -476,8 +502,13 @@ public sealed class WindowPlaybackTests
     public void EachStallMovesTheScheduleAgain()
     {
         var reads = new List<double>();
-        var playback = new WindowPlayback(pacer: new(0.02, 1), captures: new(), folder: new("unused"),
-            secondsSinceStart: Clock(reads, 0, 0.5, 0.5, 0.52, 1.0, 1.0, 1.02), stop: CancellationToken.None);
+        var playback = new WindowPlayback(
+            pacer: new(0.02, 1),
+            captures: new(),
+            folder: new("unused"),
+            secondsSinceStart: Clock(reads, 0, 0.5, 0.5, 0.52, 1.0, 1.0, 1.02),
+            stop: CancellationToken.None
+        );
 
         for (int i = 0; i < 5; i++)
             playback.WaitForTick().Should().BeTrue();
@@ -490,8 +521,13 @@ public sealed class WindowPlaybackTests
     public void NoTickRunsAfterTheWindowCloses()
     {
         using var closing = new CancellationTokenSource();
-        var playback = new WindowPlayback(pacer: new(0.02, 1), captures: new(), folder: new("unused"),
-            secondsSinceStart: () => 0, stop: closing.Token);
+        var playback = new WindowPlayback(
+            pacer: new(0.02, 1),
+            captures: new(),
+            folder: new("unused"),
+            secondsSinceStart: () => 0,
+            stop: closing.Token
+        );
         closing.Cancel();
 
         playback.WaitForTick().Should().BeFalse();
@@ -501,8 +537,13 @@ public sealed class WindowPlaybackTests
     public void AWaitForALaterTickEndsWhenTheWindowCloses()
     {
         using var closing = new CancellationTokenSource();
-        var playback = new WindowPlayback(pacer: new(3600, 1), captures: new(), folder: new("unused"),
-            secondsSinceStart: () => 0, stop: closing.Token);
+        var playback = new WindowPlayback(
+            pacer: new(3600, 1),
+            captures: new(),
+            folder: new("unused"),
+            secondsSinceStart: () => 0,
+            stop: closing.Token
+        );
         playback.WaitForTick().Should().BeTrue();
         closing.CancelAfter(TimeSpan.FromMilliseconds(50));
 
@@ -517,8 +558,13 @@ public sealed class WindowPlaybackTests
     {
         using var closing = new CancellationTokenSource();
         // At this speed, one tick lasts about 190 days of wall clock, longer than one wait can be.
-        var playback = new WindowPlayback(pacer: new(1.0 / 60, 1e-9), captures: new(), folder: new("unused"),
-            secondsSinceStart: () => 0, stop: closing.Token);
+        var playback = new WindowPlayback(
+            pacer: new(1.0 / 60, 1e-9),
+            captures: new(),
+            folder: new("unused"),
+            secondsSinceStart: () => 0,
+            stop: closing.Token
+        );
         playback.WaitForTick().Should().BeTrue();
         closing.CancelAfter(TimeSpan.FromMilliseconds(50));
 
@@ -535,7 +581,8 @@ public sealed class WindowPlaybackTests
     /// within the same bound: it rethrows on the test thread what the render thread threw.
     /// </summary>
     private static Task ServeOneCapture(CaptureMailbox mailbox, Action<ICaptureSink> draw) =>
-        Task.Factory.StartNew(action: () =>
+        Task.Factory.StartNew(
+            action: () =>
             {
                 try
                 {
@@ -545,8 +592,11 @@ public sealed class WindowPlaybackTests
                 {
                     mailbox.Done();
                 }
-            }, cancellationToken: CancellationToken.None, creationOptions: TaskCreationOptions.LongRunning,
-            scheduler: TaskScheduler.Default);
+            },
+            cancellationToken: CancellationToken.None,
+            creationOptions: TaskCreationOptions.LongRunning,
+            scheduler: TaskScheduler.Default
+        );
 
     [Fact]
     public async Task ACapturePublishesTheStateOfItsMomentForTheRenderThread()
@@ -557,8 +607,13 @@ public sealed class WindowPlaybackTests
         world.PublishRenderSnapshot();
         world.RenderSnapshots.TryAcquireLatest(out _);
         var mailbox = new CaptureMailbox();
-        var playback = new WindowPlayback(pacer: new(0.02, 1), captures: mailbox, folder: new("unused"),
-            secondsSinceStart: () => 0, stop: CancellationToken.None);
+        var playback = new WindowPlayback(
+            pacer: new(0.02, 1),
+            captures: mailbox,
+            folder: new("unused"),
+            secondsSinceStart: () => 0,
+            stop: CancellationToken.None
+        );
         bool fresh = false;
         Task renderThread = ServeOneCapture(mailbox, sink => fresh = world.RenderSnapshots.TryAcquireLatest(out _));
 
@@ -575,8 +630,13 @@ public sealed class WindowPlaybackTests
         string folder = HostTesting.NewFolder();
         string path = Path.Combine(folder, "shot.png");
         var mailbox = new CaptureMailbox();
-        var playback = new WindowPlayback(pacer: new(0.02, 1), captures: mailbox, folder: new(folder),
-            secondsSinceStart: () => 0, stop: CancellationToken.None);
+        var playback = new WindowPlayback(
+            pacer: new(0.02, 1),
+            captures: mailbox,
+            folder: new(folder),
+            secondsSinceStart: () => 0,
+            stop: CancellationToken.None
+        );
         // The render thread hands the sink the pixels of the frame that it drew: here one pixel.
         Task renderThread = ServeOneCapture(mailbox, sink => sink.Take(new([200, 100, 50, 0], 1, 1)));
 
@@ -592,8 +652,13 @@ public sealed class WindowPlaybackTests
     {
         using World world = HostTesting.NewWorld();
         using var closing = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
-        var playback = new WindowPlayback(pacer: new(0.02, 1), captures: new(), folder: new("unused"),
-            secondsSinceStart: () => 0, stop: closing.Token);
+        var playback = new WindowPlayback(
+            pacer: new(0.02, 1),
+            captures: new(),
+            folder: new("unused"),
+            secondsSinceStart: () => 0,
+            stop: closing.Token
+        );
 
         // Nobody serves the capture, so only the closing ends the wait.
         bool captured = await Task.Run(() => playback.Capture(world, "x"), TestContext.Current.CancellationToken)

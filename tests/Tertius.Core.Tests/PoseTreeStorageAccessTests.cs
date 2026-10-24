@@ -15,8 +15,10 @@ public sealed class PoseTreeStorageAccessTests
     [InlineData(nameof(PoseTree<>.Generations))]
     public void APoseTreeShowsItsStorageOnlyInsideTheCoreModule(string member)
     {
-        PropertyInfo? property = typeof(PoseTree<Pose>).GetProperty(member,
-            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+        PropertyInfo? property = typeof(PoseTree<Pose>).GetProperty(
+            member,
+            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance
+        );
 
         property.Should().NotBeNull();
         MethodInfo getter = property!.GetGetMethod(nonPublic: true)!;

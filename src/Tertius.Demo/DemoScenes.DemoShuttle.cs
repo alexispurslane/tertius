@@ -32,75 +32,143 @@ public static partial class DemoScenes
     private static SceneInstance DemoShuttle(World world, IRenderResources resources)
     {
         var scene = new SceneInstance();
-        FrameHandle ground =
-            world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(0, -9.81f, 0))));
+        FrameHandle ground = world.CreateRootFrame(
+            new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(0, -9.81f, 0)))
+        );
         scene.Add("ground", ground);
-        scene.Add("floor", world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = new(new(0, -0.5, 0), DQuaternion.Identity),
-            Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Static),
-            Render = Drawn(resources: resources, mesh: Primitives.Box(new(50, 0.5f, 50)),
-                color: new(x: 0.35f, y: 0.35f, z: 0.35f, w: 1),
-                boundingRadius: 71)
-        }));
-        scene.Add("pad", world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = new(new(0, ShuttlePadHalf.Y, 0), DQuaternion.Identity),
-            Body = new(Shape: new BoxShapeDesc(ShuttlePadHalf), Motion: BodyMotion.Static),
-            Render = Drawn(resources: resources, mesh: Primitives.Box(ShuttlePadHalf),
-                color: new(x: 0.55f, y: 0.55f, z: 0.52f, w: 1),
-                boundingRadius: ShuttlePadHalf.Length())
-        }));
+        scene.Add(
+            "floor",
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = new(new(0, -0.5, 0), DQuaternion.Identity),
+                    Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Static),
+                    Render = Drawn(
+                        resources: resources,
+                        mesh: Primitives.Box(new(50, 0.5f, 50)),
+                        color: new(x: 0.35f, y: 0.35f, z: 0.35f, w: 1),
+                        boundingRadius: 71
+                    ),
+                }
+            )
+        );
+        scene.Add(
+            "pad",
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = new(new(0, ShuttlePadHalf.Y, 0), DQuaternion.Identity),
+                    Body = new(Shape: new BoxShapeDesc(ShuttlePadHalf), Motion: BodyMotion.Static),
+                    Render = Drawn(
+                        resources: resources,
+                        mesh: Primitives.Box(ShuttlePadHalf),
+                        color: new(x: 0.55f, y: 0.55f, z: 0.52f, w: 1),
+                        boundingRadius: ShuttlePadHalf.Length()
+                    ),
+                }
+            )
+        );
 
-        Entity standing = world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = new(new(0, 2 * ShuttlePadHalf.Y + Shuttle.Hull.Z + 0.01, 0),
-                DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2)),
-            Body = Shuttle.Body(BodyMotion.Dynamic),
-            AsFrame = new(new(Shuttle.Bubble)),
-            Render = Shuttle.DrawnHull(resources)
-        });
+        Entity standing = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = new(
+                    new(0, 2 * ShuttlePadHalf.Y + Shuttle.Hull.Z + 0.01, 0),
+                    DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2)
+                ),
+                Body = Shuttle.Body(BodyMotion.Dynamic),
+                AsFrame = new(new(Shuttle.Bubble)),
+                Render = Shuttle.DrawnHull(resources),
+            }
+        );
         scene.Add("standing", standing);
-        Shuttle.SpawnNozzle(world: world, cabin: world.GetOwnedFrame(standing), scene: scene, resources: resources,
-            prefix: "standing");
-        Shuttle.Panes(world: world, cabin: world.GetOwnedFrame(standing), scene: scene, resources: resources,
-            prefix: "standing");
-        Entity lying = Shuttle.Park(world: world, frame: ground,
+        Shuttle.SpawnNozzle(
+            world: world,
+            cabin: world.GetOwnedFrame(standing),
+            scene: scene,
+            resources: resources,
+            prefix: "standing"
+        );
+        Shuttle.Panes(
+            world: world,
+            cabin: world.GetOwnedFrame(standing),
+            scene: scene,
+            resources: resources,
+            prefix: "standing"
+        );
+        Entity lying = Shuttle.Park(
+            world: world,
+            frame: ground,
             pose: new(new(LyingShuttleX, Shuttle.Hull.Y, 0), DQuaternion.Identity),
-            render: Shuttle.DrawnHull(resources));
+            render: Shuttle.DrawnHull(resources)
+        );
         scene.Add("lying", lying);
-        Shuttle.SpawnNozzle(world: world, cabin: world.GetOwnedFrame(lying), scene: scene, resources: resources,
-            prefix: "lying");
-        Shuttle.Panes(world: world, cabin: world.GetOwnedFrame(lying), scene: scene, resources: resources,
-            prefix: "lying");
+        Shuttle.SpawnNozzle(
+            world: world,
+            cabin: world.GetOwnedFrame(lying),
+            scene: scene,
+            resources: resources,
+            prefix: "lying"
+        );
+        Shuttle.Panes(
+            world: world,
+            cabin: world.GetOwnedFrame(lying),
+            scene: scene,
+            resources: resources,
+            prefix: "lying"
+        );
 
-        Entity camera = world.Spawn(new()
-            { Frame = ground, Pose = LookingAt(new(-28, 7, 32), new(7, 5, 0)), Render = new RenderData() });
+        Entity camera = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = LookingAt(new(-28, 7, 32), new(7, 5, 0)),
+                Render = new RenderData(),
+            }
+        );
         scene.Add("side-camera", camera);
-        scene.Add("tail-camera", world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = LookingAt(new(LyingShuttleX + 2, 1, Shuttle.Hull.Z + 9), new(LyingShuttleX, 1.9, Shuttle.Hull.Z)),
-            Render = new RenderData()
-        }));
-        scene.Add("nose-camera", world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = LookingAt(new(LyingShuttleX + 3, 6, -Shuttle.Hull.Z - 9), new(LyingShuttleX, 1.5, -Shuttle.Hull.Z)),
-            Render = new RenderData()
-        }));
+        scene.Add(
+            "tail-camera",
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = LookingAt(
+                        new(LyingShuttleX + 2, 1, Shuttle.Hull.Z + 9),
+                        new(LyingShuttleX, 1.9, Shuttle.Hull.Z)
+                    ),
+                    Render = new RenderData(),
+                }
+            )
+        );
+        scene.Add(
+            "nose-camera",
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = LookingAt(
+                        new(LyingShuttleX + 3, 6, -Shuttle.Hull.Z - 9),
+                        new(LyingShuttleX, 1.5, -Shuttle.Hull.Z)
+                    ),
+                    Render = new RenderData(),
+                }
+            )
+        );
         world.Camera = camera;
 
         // The sun frame's origin is where the light comes from: up, to the port side and aft of the shuttles.
-        Entity sun = world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = new(new(-30, 50, 40), DQuaternion.Identity),
-            AsFrame = new(FrameBounds.Sphere(1))
-        });
+        Entity sun = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = new(new(-30, 50, 40), DQuaternion.Identity),
+                AsFrame = new(FrameBounds.Sphere(1)),
+            }
+        );
         scene.Add("sun", sun);
         world.SunFrame = world.GetOwnedFrame(sun);
 

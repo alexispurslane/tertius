@@ -24,10 +24,16 @@ internal sealed unsafe class ShaderLibrary(VulkanDevice device) : IDisposable
             {
                 SType = StructureType.ShaderModuleCreateInfo,
                 CodeSize = (nuint)code.Length,
-                PCode = (uint*)p
+                PCode = (uint*)p,
             };
-            device.Vk.CreateShaderModule(device: device.Device, pCreateInfo: &info, pAllocator: null,
-                pShaderModule: out module).Check($"vkCreateShaderModule({file})");
+            device
+                .Vk.CreateShaderModule(
+                    device: device.Device,
+                    pCreateInfo: &info,
+                    pAllocator: null,
+                    pShaderModule: out module
+                )
+                .Check($"vkCreateShaderModule({file})");
         }
 
         device.SetName(ObjectType.ShaderModule, module.Handle, file);
@@ -38,9 +44,9 @@ internal sealed unsafe class ShaderLibrary(VulkanDevice device) : IDisposable
     public static byte[] LoadSpirv(string file)
     {
         string resource = $"Tertius.Rendering.Shaders.{file}.spv";
-        using Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(resource)
-                              ?? throw new FileNotFoundException(
-                                  $"The shader {resource} is not embedded. Was it compiled by the build?");
+        using Stream stream =
+            Assembly.GetExecutingAssembly().GetManifestResourceStream(resource)
+            ?? throw new FileNotFoundException($"The shader {resource} is not embedded. Was it compiled by the build?");
         byte[] code = new byte[stream.Length];
         stream.ReadExactly(code);
         return code.Length < 20 || BitConverter.ToUInt32(code, 0) != 0x07230203

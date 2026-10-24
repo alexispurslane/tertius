@@ -52,7 +52,8 @@ public struct ComponentFlags : IEquatable<ComponentFlags>
     }
 
     /// <summary>True if the set holds the type <typeparamref name="T"/>.</summary>
-    public readonly bool Contains<T>() where T : IComponent => Contains(ComponentType<T>.Id);
+    public readonly bool Contains<T>()
+        where T : IComponent => Contains(ComponentType<T>.Id);
 
     public readonly bool Contains(int id) => (bits[id >> 6] & (1UL << (id & 63))) != 0;
 
@@ -100,9 +101,9 @@ public struct ComponentFlags : IEquatable<ComponentFlags>
         return true;
     }
 
-    public readonly override bool Equals(object? obj) => obj is ComponentFlags other && Equals(other);
+    public override readonly bool Equals(object? obj) => obj is ComponentFlags other && Equals(other);
 
-    public readonly override int GetHashCode()
+    public override readonly int GetHashCode()
     {
         HashCode hash = default;
         for (int i = 0; i < Words; i++)
@@ -111,9 +112,10 @@ public struct ComponentFlags : IEquatable<ComponentFlags>
     }
 
     public static bool operator ==(ComponentFlags a, ComponentFlags b) => a.Equals(b);
+
     public static bool operator !=(ComponentFlags a, ComponentFlags b) => !a.Equals(b);
 
-    public readonly override string ToString()
+    public override readonly string ToString()
     {
         var names = new List<string>();
         foreach (int id in this)
@@ -127,17 +129,16 @@ public struct ComponentFlags : IEquatable<ComponentFlags>
         private readonly ComponentFlags flags;
         private int word;
         private ulong rest;
-        private int current;
 
         internal Enumerator(in ComponentFlags flags)
         {
             this.flags = flags;
             word = 0;
             rest = flags.bits[0];
-            current = -1;
+            Current = -1;
         }
 
-        public readonly int Current => current;
+        public int Current { get; private set; }
 
         public bool MoveNext()
         {
@@ -150,7 +151,7 @@ public struct ComponentFlags : IEquatable<ComponentFlags>
 
             int bit = BitOperations.TrailingZeroCount(rest);
             rest &= rest - 1;
-            current = (word << 6) | bit;
+            Current = (word << 6) | bit;
             return true;
         }
     }

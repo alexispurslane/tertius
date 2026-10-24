@@ -31,12 +31,13 @@ public readonly partial struct PuffShading
     /// Whether the shading holds a case, and every channel of its color is finite and 0 or more. An emitter whose look has
     /// a shading that is not valid makes no puffs.
     /// </summary>
-    public bool IsValid => this switch
-    {
-        GlowPuffs(var radiance) => IsColor(radiance),
-        LitPuffs(var albedo) => IsColor(albedo),
-        null => false
-    };
+    public bool IsValid =>
+        this switch
+        {
+            GlowPuffs(var radiance) => IsColor(radiance),
+            LitPuffs(var albedo) => IsColor(albedo),
+            null => false,
+        };
 
     /// <summary>Glow puffs that emit <paramref name="radiance"/> at their birth, in linear RGB, in HDR units.</summary>
     public static PuffShading Glow(Vector3 radiance) => new(new GlowPuffs(radiance));
@@ -71,18 +72,24 @@ public readonly record struct PuffLook(
     float StartRadius,
     float EndRadius,
     float TemperatureRatio,
-    PuffShading Shading)
+    PuffShading Shading
+)
 {
     /// <summary>
     /// Whether every number is finite, <see cref="Life"/> and <see cref="TemperatureRatio"/> are above 0, both radii are 0 or
     /// more, and <see cref="Shading"/> is valid. An emitter whose look is not valid makes no puffs, without an error, as a
     /// light whose range or intensity is zero or less is left out.
     /// </summary>
-    public bool IsValid => IsPositive(Life) && IsPositive(TemperatureRatio) && IsRadius(StartRadius) &&
-                           IsRadius(EndRadius) && Shading.IsValid;
+    public bool IsValid =>
+        IsPositive(Life)
+        && IsPositive(TemperatureRatio)
+        && IsRadius(StartRadius)
+        && IsRadius(EndRadius)
+        && Shading.IsValid;
 
     // A NaN fails each comparison, and the finite check leaves out an infinity.
     private static bool IsPositive(float value) => value > 0 && float.IsFinite(value);
+
     private static bool IsRadius(float value) => value >= 0 && float.IsFinite(value);
 }
 

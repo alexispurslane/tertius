@@ -50,29 +50,35 @@ internal static class Flip
     {
         { 10135552.0 / 24577794, 8788810.0 / 24577794, 4435075.0 / 24577794 },
         { 2613072.0 / 12288897, 8788810.0 / 12288897, 887015.0 / 12288897 },
-        { 1425312.0 / 73733382, 8788810.0 / 73733382, 70074185.0 / 73733382 }
+        { 1425312.0 / 73733382, 8788810.0 / 73733382, 70074185.0 / 73733382 },
     };
 
     private static readonly double[,] XyzToRgb = Invert(RgbToXyz);
 
     /// <summary>The XYZ of white, linear RGB (1, 1, 1): the row sums of <see cref="RgbToXyz"/>.</summary>
-    private static readonly (double X, double Y, double Z) White =
-        (RgbToXyz[0, 0] + RgbToXyz[0, 1] + RgbToXyz[0, 2], RgbToXyz[1, 0] + RgbToXyz[1, 1] + RgbToXyz[1, 2],
-            RgbToXyz[2, 0] + RgbToXyz[2, 1] + RgbToXyz[2, 2]);
+    private static readonly (double X, double Y, double Z) White = (
+        RgbToXyz[0, 0] + RgbToXyz[0, 1] + RgbToXyz[0, 2],
+        RgbToXyz[1, 0] + RgbToXyz[1, 1] + RgbToXyz[1, 2],
+        RgbToXyz[2, 0] + RgbToXyz[2, 1] + RgbToXyz[2, 2]
+    );
 
     /// <summary>The linear light of each sRGB byte.</summary>
     private static readonly float[] LinearOfByte =
     [
-        .. Enumerable.Range(0, 256).Select(v =>
-        {
-            double c = v / 255.0;
-            return (float)(c <= 0.04045 ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4));
-        })
+        .. Enumerable
+            .Range(0, 256)
+            .Select(v =>
+            {
+                double c = v / 255.0;
+                return (float)(c <= 0.04045 ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4));
+            }),
     ];
 
     /// <summary>cmax: the color error of pure green against pure blue, the largest that FLIP scales to.</summary>
-    private static readonly double LargestColorError =
-        Math.Pow(HyAB(HuntLab(LinearToXyz(0, 1, 0)), HuntLab(LinearToXyz(0, 0, 1))), ColorExponent);
+    private static readonly double LargestColorError = Math.Pow(
+        HyAB(HuntLab(LinearToXyz(0, 1, 0)), HuntLab(LinearToXyz(0, 0, 1))),
+        ColorExponent
+    );
 
     /// <summary>The contrast sensitivity filter of one opponent channel: a1, b1, a2, b2 of the paper (b in degrees²).</summary>
     private readonly record struct Sensitivity(double A1, double B1, double A2, double B2);
@@ -86,14 +92,18 @@ internal static class Flip
         if (reference.Width != test.Width || reference.Height != test.Height)
             throw new ArgumentException(
                 $"FLIP compares images of one size, not {reference.Width}×{reference.Height} and {test.Width}×{test.Height}.",
-                nameof(test));
+                nameof(test)
+            );
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pixelsPerDegree);
 
-        Opponent referenceOpponent = Opponent.Of(reference);
-        Opponent testOpponent = Opponent.Of(test);
+        var referenceOpponent = Opponent.Of(reference);
+        var testOpponent = Opponent.Of(test);
         float[] colorError = ColorError(referenceOpponent, testOpponent, pixelsPerDegree);
-        float[] featureDifference =
-            FeatureDifference(referenceOpponent.Lightness, testOpponent.Lightness, pixelsPerDegree);
+        float[] featureDifference = FeatureDifference(
+            referenceOpponent.Lightness,
+            testOpponent.Lightness,
+            pixelsPerDegree
+        );
 
         float[] values = new float[colorError.Length];
         for (int i = 0; i < values.Length; i++)
@@ -112,11 +122,15 @@ internal static class Flip
         float[] error = new float[reference.Lightness.Values.Length];
         for (int i = 0; i < error.Length; i++)
         {
-            double e = Math.Pow(HyAB(HuntLab(filteredReference.XyzAt(i)), HuntLab(filteredTest.XyzAt(i))),
-                ColorExponent);
-            error[i] = (float)(e < cutoff
-                ? ValueAtCutoff / cutoff * e
-                : ValueAtCutoff + (e - cutoff) / (LargestColorError - cutoff) * (1 - ValueAtCutoff));
+            double e = Math.Pow(
+                HyAB(HuntLab(filteredReference.XyzAt(i)), HuntLab(filteredTest.XyzAt(i))),
+                ColorExponent
+            );
+            error[i] = (float)(
+                e < cutoff
+                    ? ValueAtCutoff / cutoff * e
+                    : ValueAtCutoff + (e - cutoff) / (LargestColorError - cutoff) * (1 - ValueAtCutoff)
+            );
         }
 
         return error;
@@ -153,8 +167,10 @@ internal static class Flip
         float[] difference = new float[referenceEdges.Length];
         for (int i = 0; i < difference.Length; i++)
         {
-            float change = MathF.Max(MathF.Abs(referenceEdges[i] - testEdges[i]),
-                MathF.Abs(referencePoints[i] - testPoints[i]));
+            float change = MathF.Max(
+                MathF.Abs(referenceEdges[i] - testEdges[i]),
+                MathF.Abs(referencePoints[i] - testPoints[i])
+            );
             difference[i] = (float)Math.Pow(change / Math.Sqrt(2), FeatureExponent);
         }
 
@@ -232,9 +248,11 @@ internal static class Flip
     }
 
     private static (double X, double Y, double Z) LinearToXyz(double r, double g, double b) =>
-        (RgbToXyz[0, 0] * r + RgbToXyz[0, 1] * g + RgbToXyz[0, 2] * b,
+        (
+            RgbToXyz[0, 0] * r + RgbToXyz[0, 1] * g + RgbToXyz[0, 2] * b,
             RgbToXyz[1, 0] * r + RgbToXyz[1, 1] * g + RgbToXyz[1, 2] * b,
-            RgbToXyz[2, 0] * r + RgbToXyz[2, 1] * g + RgbToXyz[2, 2] * b);
+            RgbToXyz[2, 0] * r + RgbToXyz[2, 1] * g + RgbToXyz[2, 2] * b
+        );
 
     /// <summary>
     /// CIELAB of an XYZ color, after the paper clamps it to the sRGB gamut in linear RGB, with a* and b* scaled by
@@ -246,7 +264,9 @@ internal static class Flip
         double g = Math.Clamp(XyzToRgb[1, 0] * xyz.X + XyzToRgb[1, 1] * xyz.Y + XyzToRgb[1, 2] * xyz.Z, 0, 1);
         double b = Math.Clamp(XyzToRgb[2, 0] * xyz.X + XyzToRgb[2, 1] * xyz.Y + XyzToRgb[2, 2] * xyz.Z, 0, 1);
         (double x, double y, double z) = LinearToXyz(r, g, b);
-        double fx = LabCurve(x / White.X), fy = LabCurve(y / White.Y), fz = LabCurve(z / White.Z);
+        double fx = LabCurve(x / White.X),
+            fy = LabCurve(y / White.Y),
+            fz = LabCurve(z / White.Z);
         double lightness = 116 * fy - 16;
         return (lightness, 500 * (fx - fy) * lightness / 100, 200 * (fy - fz) * lightness / 100);
     }
@@ -277,7 +297,7 @@ internal static class Flip
         {
             { (e * k - f * h) / determinant, (c * h - b * k) / determinant, (b * f - c * e) / determinant },
             { (f * g - d * k) / determinant, (a * k - c * g) / determinant, (c * d - a * f) / determinant },
-            { (d * h - e * g) / determinant, (b * g - a * h) / determinant, (a * e - b * d) / determinant }
+            { (d * h - e * g) / determinant, (b * g - a * h) / determinant, (a * e - b * d) / determinant },
         };
     }
 
@@ -294,28 +314,41 @@ internal static class Flip
             float[] cz = new float[count];
             for (int i = 0; i < count; i++)
             {
-                (double x, double luminance, double z) = LinearToXyz(LinearOfByte[image.Rgba[4 * i]],
-                    LinearOfByte[image.Rgba[4 * i + 1]], LinearOfByte[image.Rgba[4 * i + 2]]);
-                double xr = x / White.X, yr = luminance / White.Y, zr = z / White.Z;
+                (double x, double luminance, double z) = LinearToXyz(
+                    LinearOfByte[image.Rgba[4 * i]],
+                    LinearOfByte[image.Rgba[4 * i + 1]],
+                    LinearOfByte[image.Rgba[4 * i + 2]]
+                );
+                double xr = x / White.X,
+                    yr = luminance / White.Y,
+                    zr = z / White.Z;
                 y[i] = (float)(116 * yr - 16);
                 cx[i] = (float)(500 * (xr - yr));
                 cz[i] = (float)(200 * (yr - zr));
             }
 
-            return new(new(image.Width, image.Height, y), new(image.Width, image.Height, cx),
-                new(image.Width, image.Height, cz));
+            return new(
+                new(image.Width, image.Height, y),
+                new(image.Width, image.Height, cx),
+                new(image.Width, image.Height, cz)
+            );
         }
 
-        public Opponent Filtered(int radius, double pixelsPerDegree) => new(
-            FilterChannel(channel: Lightness, filter: Achromatic, radius: radius, pixelsPerDegree: pixelsPerDegree),
-            FilterChannel(channel: redGreen, filter: RedGreen, radius: radius, pixelsPerDegree: pixelsPerDegree),
-            FilterChannel(channel: blueYellow, filter: BlueYellow, radius: radius, pixelsPerDegree: pixelsPerDegree));
+        public Opponent Filtered(int radius, double pixelsPerDegree) =>
+            new(
+                FilterChannel(channel: Lightness, filter: Achromatic, radius: radius, pixelsPerDegree: pixelsPerDegree),
+                FilterChannel(channel: redGreen, filter: RedGreen, radius: radius, pixelsPerDegree: pixelsPerDegree),
+                FilterChannel(channel: blueYellow, filter: BlueYellow, radius: radius, pixelsPerDegree: pixelsPerDegree)
+            );
 
         public (double X, double Y, double Z) XyzAt(int i)
         {
             double y = (Lightness.Values[i] + 16.0) / 116;
-            return ((y + redGreen.Values[i] / 500.0) * White.X, y * White.Y,
-                (y - blueYellow.Values[i] / 200.0) * White.Z);
+            return (
+                (y + redGreen.Values[i] / 500.0) * White.X,
+                y * White.Y,
+                (y - blueYellow.Values[i] / 200.0) * White.Z
+            );
         }
     }
 

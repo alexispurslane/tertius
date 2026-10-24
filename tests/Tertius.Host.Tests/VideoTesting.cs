@@ -14,11 +14,13 @@ public static class VideoTesting
     /// </summary>
     public static List<byte[]> DecodeFrames(string path, int width, int height)
     {
-        byte[] all = RunTool("ffmpeg",
-            ["-hide_banner", "-loglevel", "error", "-i", path, "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1"]);
+        byte[] all = RunTool(
+            "ffmpeg",
+            ["-hide_banner", "-loglevel", "error", "-i", path, "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1"]
+        );
         int frameBytes = width * height * 3;
-        all.Length.Should().Be(all.Length / frameBytes * frameBytes, "the decoded video holds whole frames of {0}x{1}",
-            width, height);
+        all.Length.Should()
+            .Be(all.Length / frameBytes * frameBytes, "the decoded video holds whole frames of {0}x{1}", width, height);
         var frames = new List<byte[]>();
         for (int start = 0; start < all.Length; start += frameBytes)
             frames.Add(all[start..(start + frameBytes)]);
@@ -63,7 +65,11 @@ public static class VideoTesting
     private static byte[] RunTool(string tool, IEnumerable<string> arguments)
     {
         var start = new ProcessStartInfo(tool)
-            { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
         foreach (string argument in arguments)
             start.ArgumentList.Add(argument);
         using Process process = Process.Start(start)!;

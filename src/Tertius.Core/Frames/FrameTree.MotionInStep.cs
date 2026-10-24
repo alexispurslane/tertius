@@ -11,9 +11,13 @@ namespace Tertius;
 public sealed partial class FrameTree
 {
     /// <summary>A frame at rest in itself: where a composition of levels starts.</summary>
-    private static readonly FrameMotion NoMotion = new(Pose: DPose.Identity, Velocity: Double3.Zero,
-        AngularVelocity: Double3.Zero, Acceleration: Double3.Zero,
-        AngularAcceleration: Double3.Zero);
+    private static readonly FrameMotion NoMotion = new(
+        Pose: DPose.Identity,
+        Velocity: Double3.Zero,
+        AngularVelocity: Double3.Zero,
+        Acceleration: Double3.Zero,
+        AngularAcceleration: Double3.Zero
+    );
 
     /// <summary>
     /// The motion of <paramref name="of"/> relative to <paramref name="to"/>, in <paramref name="to"/> axes, over a step of
@@ -38,18 +42,32 @@ public sealed partial class FrameTree
     /// frame are predicted from them. A null frame is the virtual root above every root frame. The intents and the marks
     /// are by entity slot; a slot past their end holds no intent and does not die. The walk allocates nothing.
     /// </summary>
-    internal (FrameMotion Start, FrameMotion End) MotionRelativeInStep(FrameHandle of, FrameHandle to,
+    internal (FrameMotion Start, FrameMotion End) MotionRelativeInStep(
+        FrameHandle of,
+        FrameHandle to,
         ReadOnlySpan<PhysicsIntent> stepIntents,
-        double step, ReadOnlySpan<bool> dying = default)
+        double step,
+        ReadOnlySpan<bool> dying = default
+    )
     {
         Contract.Requires(step > 0);
         FrameHandle common = of;
         while (!common.IsNull && common != to && !IsAncestorOrNull(common, to))
             common = TreeParent(common);
-        (FrameMotion ofStart, FrameMotion ofEnd) = ChainInStep(frame: of, ancestor: common, stepIntents: stepIntents,
-            step: step, dying: dying);
-        (FrameMotion toStart, FrameMotion toEnd) = ChainInStep(frame: to, ancestor: common, stepIntents: stepIntents,
-            step: step, dying: dying);
+        (FrameMotion ofStart, FrameMotion ofEnd) = ChainInStep(
+            frame: of,
+            ancestor: common,
+            stepIntents: stepIntents,
+            step: step,
+            dying: dying
+        );
+        (FrameMotion toStart, FrameMotion toEnd) = ChainInStep(
+            frame: to,
+            ancestor: common,
+            stepIntents: stepIntents,
+            step: step,
+            dying: dying
+        );
         return (toStart.Inverse().MotionToParent(ofStart), toEnd.Inverse().MotionToParent(ofEnd));
     }
 
@@ -58,15 +76,24 @@ public sealed partial class FrameTree
     /// at both ends of the step: the levels between them composed from <paramref name="frame"/> up, as the pose tree
     /// composes a chain of poses (see <see cref="MotionRelativeInStep"/>).
     /// </summary>
-    private (FrameMotion Start, FrameMotion End) ChainInStep(FrameHandle frame, FrameHandle ancestor,
+    private (FrameMotion Start, FrameMotion End) ChainInStep(
+        FrameHandle frame,
+        FrameHandle ancestor,
         ReadOnlySpan<PhysicsIntent> stepIntents,
-        double step, ReadOnlySpan<bool> dying)
+        double step,
+        ReadOnlySpan<bool> dying
+    )
     {
-        FrameMotion start = NoMotion, end = NoMotion;
+        FrameMotion start = NoMotion,
+            end = NoMotion;
         for (FrameHandle x = frame; x != ancestor; x = TreeParent(x))
         {
-            (FrameMotion levelStart, FrameMotion levelEnd) =
-                LevelInStep(frame: x, stepIntents: stepIntents, step: step, dying: dying);
+            (FrameMotion levelStart, FrameMotion levelEnd) = LevelInStep(
+                frame: x,
+                stepIntents: stepIntents,
+                step: step,
+                dying: dying
+            );
             start = levelStart.MotionToParent(start);
             end = levelEnd.MotionToParent(end);
         }
@@ -76,13 +103,22 @@ public sealed partial class FrameTree
 
     /// <summary>The motion of <paramref name="frame"/> relative to its tree parent at both ends of the step, by the rules of
     /// <see cref="MotionRelativeInStep"/>.</summary>
-    private (FrameMotion Start, FrameMotion End) LevelInStep(FrameHandle frame, ReadOnlySpan<PhysicsIntent> stepIntents,
-        double step, ReadOnlySpan<bool> dying)
+    private (FrameMotion Start, FrameMotion End) LevelInStep(
+        FrameHandle frame,
+        ReadOnlySpan<PhysicsIntent> stepIntents,
+        double step,
+        ReadOnlySpan<bool> dying
+    )
     {
         int id = Node(frame).Id;
         DPose tree = TreeLocalPose(frame);
-        var now = new FrameMotion(Pose: tree, Velocity: linearVelocity[id], AngularVelocity: angularVelocity[id],
-            Acceleration: Double3.Zero, AngularAcceleration: Double3.Zero);
+        var now = new FrameMotion(
+            Pose: tree,
+            Velocity: linearVelocity[id],
+            AngularVelocity: angularVelocity[id],
+            Acceleration: Double3.Zero,
+            AngularAcceleration: Double3.Zero
+        );
         if (numeric[id] != NumericMode.None)
             return (now, NumericLevelEnd(frame: frame, local: tree, stepIntents: stepIntents, step: step));
         uint slot = owner[id].Index;
@@ -95,31 +131,57 @@ public sealed partial class FrameTree
         BodyMotion? stored = treeParent.IsNull ? null : hullMotion[id];
         FollowKind kind = FollowKindOf(HullMotionInStep(stored, slot, stepIntents), slot, stepIntents);
         DPose start = tree;
-        if (TeleportsAt(slot: slot, stepIntents: stepIntents, hull: stored.HasValue, kind: kind,
-                pose: out DPose teleport))
+        if (
+            TeleportsAt(
+                slot: slot,
+                stepIntents: stepIntents,
+                hull: stored.HasValue,
+                kind: kind,
+                pose: out DPose teleport
+            )
+        )
             // The teleport is relative to the owner's frame, the semantic parent, and the numeric frames between never turn.
-            start = new(treeParent == parent ? teleport.Position : teleport.Position - HomeOffset(treeParent, parent),
-                teleport.Rotation.Normalized());
+            start = new(
+                treeParent == parent ? teleport.Position : teleport.Position - HomeOffset(treeParent, parent),
+                teleport.Rotation.Normalized()
+            );
 
         FrameMotion end;
         switch (kind)
         {
             case FollowKind.Rails or FollowKind.Kinematic:
                 StepRecordInStep(frame: frame, stepIntents: stepIntents, step: step, record: out MotionSample record);
-                end = InTreeParent(treeParent: treeParent, parent: parent,
-                    inParent: new(Pose: record.Pose, Velocity: record.Velocity, AngularVelocity: record.AngularVelocity,
+                end = InTreeParent(
+                    treeParent: treeParent,
+                    parent: parent,
+                    inParent: new(
+                        Pose: record.Pose,
+                        Velocity: record.Velocity,
+                        AngularVelocity: record.AngularVelocity,
                         Acceleration: record.Acceleration,
-                        AngularAcceleration: record.AngularAcceleration), stepIntents: stepIntents, step: step);
+                        AngularAcceleration: record.AngularAcceleration
+                    ),
+                    stepIntents: stepIntents,
+                    step: step
+                );
                 break;
             case FollowKind.Physics:
-                end = InTreeParent(treeParent: treeParent, parent: parent,
+                end = InTreeParent(
+                    treeParent: treeParent,
+                    parent: parent,
                     inParent: HullPrediction(id: id, treeParent: treeParent, parent: parent, start: start, step: step),
                     stepIntents: stepIntents,
-                    step: step);
+                    step: step
+                );
                 break;
             case FollowKind.Static:
-                end = new(Pose: start, Velocity: Double3.Zero, AngularVelocity: Double3.Zero,
-                    Acceleration: Double3.Zero, AngularAcceleration: Double3.Zero);
+                end = new(
+                    Pose: start,
+                    Velocity: Double3.Zero,
+                    AngularVelocity: Double3.Zero,
+                    Acceleration: Double3.Zero,
+                    AngularAcceleration: Double3.Zero
+                );
                 break;
             default:
                 throw new UnreachableException($"A frame has the follow kind {kind}, which is not a member.");
@@ -152,10 +214,13 @@ public sealed partial class FrameTree
         ref readonly FrameTurns parentTurns = ref turns[parent.Index];
         if (parentTurns.Turns)
             acceleration += parentTurns.Coriolis(velocity);
-        return new(Pose: new(place + (velocity + acceleration * (step / 2)) * step, rotation),
+        return new(
+            Pose: new(place + (velocity + acceleration * (step / 2)) * step, rotation),
             Velocity: velocity + acceleration * step,
             AngularVelocity: spin,
-            Acceleration: acceleration, AngularAcceleration: angularAcceleration[id]);
+            Acceleration: acceleration,
+            AngularAcceleration: angularAcceleration[id]
+        );
     }
 
     /// <summary>
@@ -164,8 +229,13 @@ public sealed partial class FrameTree
     /// between the two, each at the end of the step (see <see cref="NumericLevelEnd"/>), which never turn. In a semantic
     /// tree parent it is <paramref name="inParent"/> itself.
     /// </summary>
-    private FrameMotion InTreeParent(FrameHandle treeParent, FrameHandle parent, in FrameMotion inParent,
-        ReadOnlySpan<PhysicsIntent> stepIntents, double step)
+    private FrameMotion InTreeParent(
+        FrameHandle treeParent,
+        FrameHandle parent,
+        in FrameMotion inParent,
+        ReadOnlySpan<PhysicsIntent> stepIntents,
+        double step
+    )
     {
         if (treeParent == parent)
             return inParent;
@@ -187,27 +257,43 @@ public sealed partial class FrameTree
     /// next <see cref="BeginStep"/> fixes anew from nearly the same field. A resting frame does not move. A numeric frame
     /// never turns.
     /// </summary>
-    private FrameMotion NumericLevelEnd(FrameHandle frame, in DPose local, ReadOnlySpan<PhysicsIntent> stepIntents,
-        double step)
+    private FrameMotion NumericLevelEnd(
+        FrameHandle frame,
+        in DPose local,
+        ReadOnlySpan<PhysicsIntent> stepIntents,
+        double step
+    )
     {
         int id = Node(frame).Id;
         Double3 velocity = linearVelocity[id];
         if (numeric[id] == NumericMode.Following)
         {
             MotionSample plan = AnchorPlanInStep(frame, stepIntents, step);
-            return new(Pose: new(plan.Pose.Position, local.Rotation), Velocity: plan.Velocity,
+            return new(
+                Pose: new(plan.Pose.Position, local.Rotation),
+                Velocity: plan.Velocity,
                 AngularVelocity: Double3.Zero,
-                Acceleration: (plan.ChordVelocity - velocity) / step, AngularAcceleration: Double3.Zero);
+                Acceleration: (plan.ChordVelocity - velocity) / step,
+                AngularAcceleration: Double3.Zero
+            );
         }
 
         if (numeric[id] != NumericMode.Falling)
-            return new(Pose: local, Velocity: velocity, AngularVelocity: Double3.Zero, Acceleration: Double3.Zero,
-                AngularAcceleration: Double3.Zero);
+            return new(
+                Pose: local,
+                Velocity: velocity,
+                AngularVelocity: Double3.Zero,
+                Acceleration: Double3.Zero,
+                AngularAcceleration: Double3.Zero
+            );
         Double3 acceleration = stepAcceleration[id];
         Double3 chord = velocity + acceleration * step;
-        return new(Pose: new(local.Position + chord * step, local.Rotation),
+        return new(
+            Pose: new(local.Position + chord * step, local.Rotation),
             Velocity: chord + acceleration * (0.5 * step),
-            AngularVelocity: Double3.Zero, Acceleration: acceleration,
-            AngularAcceleration: Double3.Zero);
+            AngularVelocity: Double3.Zero,
+            Acceleration: acceleration,
+            AngularAcceleration: Double3.Zero
+        );
     }
 }

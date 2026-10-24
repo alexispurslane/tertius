@@ -11,7 +11,8 @@ namespace Tertius.Rendering.Tests;
 [Collection(GpuCollection.Name)]
 public sealed class PuffRenderTests
 {
-    private const int Width = 640, Height = 360;
+    private const int Width = 640,
+        Height = 360;
 
     /// <summary>The camera of puffs-soft.png: turned down by 0.3 rad, so that it sees the floor at a fair angle.</summary>
     private static readonly Quaternion SoftCamera = Gpu.PitchDown(0.3f);
@@ -20,11 +21,20 @@ public sealed class PuffRenderTests
 
     /// <summary>A still puff of look <paramref name="look"/>.</summary>
     private static RenderPuff Puff(Vector3 position, float age, int look = 0) =>
-        new() { Position = position, PreviousPosition = position, Age = age, Look = look };
+        new()
+        {
+            Position = position,
+            PreviousPosition = position,
+            Age = age,
+            Look = look,
+        };
 
     /// <summary>Renders <paramref name="snapshot"/> once without its puffs and once with them.</summary>
-    private static (Capture Without, Capture With) RenderBoth(VulkanRenderer renderer, RenderSnapshot snapshot,
-        string name)
+    private static (Capture Without, Capture With) RenderBoth(
+        VulkanRenderer renderer,
+        RenderSnapshot snapshot,
+        string name
+    )
     {
         List<RenderPuff> puffs = [.. snapshot.Puffs];
         snapshot.Puffs.Clear();
@@ -60,18 +70,28 @@ public sealed class PuffRenderTests
         MaterialId ground = renderer.CreateMaterial(
             MaterialDesc.Color(new(x: 0.08f, y: 0.08f, z: 0.08f, w: 1), gloss: 0.1f) with
             {
-                SpecularIntensity = 0f
-            });
+                SpecularIntensity = 0f,
+            }
+        );
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.4f, 0.8f), sunIntensity: 0.5f);
-        snapshot.Instances.Add(Gpu.Instance(mesh: plane, material: ground, position: new(0, -2, -30),
-            scale: new(40, 1, 40)));
-        snapshot.PuffLooks.Add(new(Life: 2f, StartRadius: 0.4f, EndRadius: 1.2f, TemperatureRatio: 3f,
-            Shading: PuffShading.Glow(new(3f, 1.2f, 0.3f))));
+        snapshot.Instances.Add(
+            Gpu.Instance(mesh: plane, material: ground, position: new(0, -2, -30), scale: new(40, 1, 40))
+        );
+        snapshot.PuffLooks.Add(
+            new(
+                Life: 2f,
+                StartRadius: 0.4f,
+                EndRadius: 1.2f,
+                TemperatureRatio: 3f,
+                Shading: PuffShading.Glow(new(3f, 1.2f, 0.3f))
+            )
+        );
         for (int i = 0; i < 9; i++)
         {
             float share = i / 8f;
-            snapshot.Puffs.Add(Puff(new(-4.5f + 9 * share, -1.3f + 4.6f * share, -8 - 6 * share),
-                age: 0.1f + 1.7f * share));
+            snapshot.Puffs.Add(
+                Puff(new(-4.5f + 9 * share, -1.3f + 4.6f * share, -8 - 6 * share), age: 0.1f + 1.7f * share)
+            );
         }
 
         return snapshot;
@@ -92,14 +112,19 @@ public sealed class PuffRenderTests
             {
                 Vector3 added = with.Color(x, y) - without.Color(x, y);
                 // One level of the 8-bit output for the rounding.
-                MathF.Min(added.X, MathF.Min(added.Y, added.Z)).Should().BeGreaterThanOrEqualTo(-1.5f / 255,
-                    "additive puffs only brighten, at pixel ({0}, {1})", x, y);
+                MathF
+                    .Min(added.X, MathF.Min(added.Y, added.Z))
+                    .Should()
+                    .BeGreaterThanOrEqualTo(-1.5f / 255, "additive puffs only brighten, at pixel ({0}, {1})", x, y);
             }
 
-            Vector3 first = snapshot.Puffs[0].Position, last = snapshot.Puffs[8].Position;
-            Added(with, without, Pixel(first)).Should()
+            Vector3 first = snapshot.Puffs[0].Position,
+                last = snapshot.Puffs[8].Position;
+            Added(with, without, Pixel(first))
+                .Should()
                 .BeGreaterThan(0.05f, "the young puff in front of the ground glows");
-            Added(with, without, Pixel(last)).Should()
+            Added(with, without, Pixel(last))
+                .Should()
                 .BeGreaterThan(0.005f, "the old puff against the sky still glows, faintly");
             Verify(with, "puffs-glow");
         }
@@ -122,21 +147,37 @@ public sealed class PuffRenderTests
         MaterialId ground = renderer.CreateMaterial(
             MaterialDesc.Color(new(x: 0.3f, y: 0.3f, z: 0.3f, w: 1), gloss: 0.2f) with
             {
-                SpecularIntensity = 0f
-            });
+                SpecularIntensity = 0f,
+            }
+        );
         MaterialId glass = renderer.CreateMaterial(
             MaterialDesc.Color(new(x: 0.6f, y: 0.7f, z: 0.8f, w: 0.2f), gloss: 0.2f) with
             {
-                SpecularIntensity = 0f
-            });
+                SpecularIntensity = 0f,
+            }
+        );
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.6f, 0.8f), sunIntensity: 0.6f);
-        snapshot.Instances.Add(Gpu.Instance(mesh: plane, material: ground, position: new(0, -2, -30),
-            scale: new(40, 1, 40)));
-        snapshot.Instances.Add(Gpu.Instance(mesh: box, material: glass, position: new(-3.5f, 0.5f, -8),
-            scale: new(7, 5, 0.05f),
-            flags: RenderFlags.Transparent));
-        snapshot.PuffLooks.Add(new(Life: 2f, StartRadius: 0.6f, EndRadius: 0.6f, TemperatureRatio: 3f,
-            Shading: PuffShading.Glow(new(0.5f, 0.25f, 0.08f))));
+        snapshot.Instances.Add(
+            Gpu.Instance(mesh: plane, material: ground, position: new(0, -2, -30), scale: new(40, 1, 40))
+        );
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: box,
+                material: glass,
+                position: new(-3.5f, 0.5f, -8),
+                scale: new(7, 5, 0.05f),
+                flags: RenderFlags.Transparent
+            )
+        );
+        snapshot.PuffLooks.Add(
+            new(
+                Life: 2f,
+                StartRadius: 0.6f,
+                EndRadius: 0.6f,
+                TemperatureRatio: 3f,
+                Shading: PuffShading.Glow(new(0.5f, 0.25f, 0.08f))
+            )
+        );
         behind = [new(-2.4f, 1.2f, -12), new(2.4f, 1.2f, -12)];
         inFront = [new(-1f, -0.5f, -5), new(1f, -0.5f, -5)];
         snapshot.Puffs.Add(Puff(behind[0], age: 0f));
@@ -163,10 +204,12 @@ public sealed class PuffRenderTests
             float frontPane = Added(with, without, Pixel(inFront[0])),
                 frontOpen = Added(with, without, Pixel(inFront[1]));
             behindOpen.Should().BeGreaterThan(0.02f);
-            behindPane.Should().BeLessThan(0.9f * behindOpen,
-                "the pane of alpha 0.2 lets 80 % of a puff behind it through");
-            frontPane.Should().BeApproximately(frontOpen, 0.15f * frontOpen,
-                "a puff in front of the pane adds to it in full");
+            behindPane
+                .Should()
+                .BeLessThan(0.9f * behindOpen, "the pane of alpha 0.2 lets 80 % of a puff behind it through");
+            frontPane
+                .Should()
+                .BeApproximately(frontOpen, 0.15f * frontOpen, "a puff in front of the pane adds to it in full");
             Verify(with, "puffs-glass");
         }
         finally
@@ -191,19 +234,36 @@ public sealed class PuffRenderTests
         MaterialId gray = renderer.CreateMaterial(
             MaterialDesc.Color(new(x: 0.35f, y: 0.35f, z: 0.35f, w: 1), gloss: 0.2f) with
             {
-                SpecularIntensity = 0f
-            });
+                SpecularIntensity = 0f,
+            }
+        );
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.7f, 0.6f), sunIntensity: 1.5f);
         snapshot.Camera.Rotation = SoftCamera;
         snapshot.Camera.PreviousRotation = SoftCamera;
-        snapshot.Instances.Add(Gpu.Instance(mesh: plane, material: gray, position: new(0, -3, -10),
-            scale: new(20, 1, 20)));
-        snapshot.Instances.Add(Gpu.Instance(mesh: box, material: gray, position: new(0, 0, -10.2f),
-            scale: new(20, 6, 0.4f)));
-        snapshot.PuffLooks.Add(new(Life: 2f, StartRadius: 1.2f, EndRadius: 1.2f, TemperatureRatio: 3f,
-            Shading: PuffShading.Glow(new(2f, 0.9f, 0.25f))));
-        snapshot.PuffLooks.Add(new(Life: 2f, StartRadius: 1f, EndRadius: 1f, TemperatureRatio: 3f,
-            Shading: PuffShading.Glow(new(0.3f, 0.2f, 0.1f))));
+        snapshot.Instances.Add(
+            Gpu.Instance(mesh: plane, material: gray, position: new(0, -3, -10), scale: new(20, 1, 20))
+        );
+        snapshot.Instances.Add(
+            Gpu.Instance(mesh: box, material: gray, position: new(0, 0, -10.2f), scale: new(20, 6, 0.4f))
+        );
+        snapshot.PuffLooks.Add(
+            new(
+                Life: 2f,
+                StartRadius: 1.2f,
+                EndRadius: 1.2f,
+                TemperatureRatio: 3f,
+                Shading: PuffShading.Glow(new(2f, 0.9f, 0.25f))
+            )
+        );
+        snapshot.PuffLooks.Add(
+            new(
+                Life: 2f,
+                StartRadius: 1f,
+                EndRadius: 1f,
+                TemperatureRatio: 3f,
+                Shading: PuffShading.Glow(new(0.3f, 0.2f, 0.1f))
+            )
+        );
         cutting = new(-2f, -2.4f, -9.5f);
         snapshot.Puffs.Add(Puff(cutting, age: 0f));
         snapshot.Puffs.Add(Puff(new(0.4f, -0.5f, -0.3f), age: 0f, look: 1));
@@ -225,7 +285,8 @@ public sealed class PuffRenderTests
             // is seen at 17°, so the fade within one radius of it spans about 0.3 of the radius on the screen: 5 px to 8 px.
             // A hard cut would drop the whole light of the puff in one pixel.
             Vector2 center = SoftPixel(cutting);
-            float largestStep = 0f, brightest = 0f;
+            float largestStep = 0f,
+                brightest = 0f;
             for (int y = 1; y < Height; y++)
             {
                 float added = Added(with, without, new(center.X, y));
@@ -234,15 +295,23 @@ public sealed class PuffRenderTests
             }
 
             for (int x = 1; x < Width; x++)
-                largestStep = MathF.Max(largestStep,
-                    MathF.Abs(Added(with, without, new(x, center.Y)) - Added(with, without, new(x - 1, center.Y))));
+                largestStep = MathF.Max(
+                    largestStep,
+                    MathF.Abs(Added(with, without, new(x, center.Y)) - Added(with, without, new(x - 1, center.Y)))
+                );
             brightest.Should().BeGreaterThan(0.1f);
-            largestStep.Should().BeLessThan(0.25f * brightest,
-                "a puff fades within one radius of a surface and of the eye");
-            Added(with, without, center).Should()
+            largestStep
+                .Should()
+                .BeLessThan(0.25f * brightest, "a puff fades within one radius of a surface and of the eye");
+            Added(with, without, center)
+                .Should()
                 .BeGreaterThan(0.02f, "the puff 0.5 m in front of the wall still shows");
-            Added(with, without, SoftPixel(new(-2f, -3.4f, -9.5f))).Should().BeLessThan(0.002f,
-                "the part of the puff's square below the floor is behind the floor, so it draws nothing");
+            Added(with, without, SoftPixel(new(-2f, -3.4f, -9.5f)))
+                .Should()
+                .BeLessThan(
+                    0.002f,
+                    "the part of the puff's square below the floor is behind the floor, so it draws nothing"
+                );
             Verify(with, "puffs-soft");
         }
         finally
@@ -264,13 +333,22 @@ public sealed class PuffRenderTests
         MaterialId ground = renderer.CreateMaterial(
             MaterialDesc.Color(new(x: 0.25f, y: 0.27f, z: 0.22f, w: 1), gloss: 0.1f) with
             {
-                SpecularIntensity = 0f
-            });
+                SpecularIntensity = 0f,
+            }
+        );
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.5f, 0.8f), sunIntensity: 2f);
-        snapshot.Instances.Add(Gpu.Instance(mesh: plane, material: ground, position: new(0, -300, -20_000),
-            scale: new(30_000, 1, 30_000)));
-        snapshot.PuffLooks.Add(new(Life: 12f, StartRadius: 20f, EndRadius: 68f, TemperatureRatio: 3f,
-            Shading: PuffShading.Glow(new(4f, 1.8f, 0.5f))));
+        snapshot.Instances.Add(
+            Gpu.Instance(mesh: plane, material: ground, position: new(0, -300, -20_000), scale: new(30_000, 1, 30_000))
+        );
+        snapshot.PuffLooks.Add(
+            new(
+                Life: 12f,
+                StartRadius: 20f,
+                EndRadius: 68f,
+                TemperatureRatio: 3f,
+                Shading: PuffShading.Glow(new(4f, 1.8f, 0.5f))
+            )
+        );
         first = new(0, 0, -2_500);
         firstRadius = 20f;
         for (int i = 0; i < 12; i++)
@@ -298,8 +376,12 @@ public sealed class PuffRenderTests
             Vector2 center = Pixel(first);
             Added(with, without, center).Should().BeGreaterThan(0.05f, "the center of the far puff glows");
             foreach (Vector2 direction in new[] { Vector2.UnitY, -Vector2.UnitY, -Vector2.UnitX })
-                Added(with, without, center + direction * (pixels + 1.5f)).Should().BeLessThan(0.003f,
-                    "a puff is drawn at its true size, with no least size on the screen, so nothing shows beyond its radius");
+                Added(with, without, center + direction * (pixels + 1.5f))
+                    .Should()
+                    .BeLessThan(
+                        0.003f,
+                        "a puff is drawn at its true size, with no least size on the screen, so nothing shows beyond its radius"
+                    );
             Verify(with, "puffs-far");
         }
         finally

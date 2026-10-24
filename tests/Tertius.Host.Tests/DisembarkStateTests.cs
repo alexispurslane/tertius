@@ -10,12 +10,24 @@ public sealed class DisembarkStateTests
 {
     private static readonly DisembarkState[] States =
     [
-        new Aboard(), new Walking(new(0, 0)), new Walking(new(3, 0)), new Sliding(), new Strolling(new(0, 0)),
-        new Strolling(new(1, 0)), new Arrived(), new Halted()
+        new Aboard(),
+        new Walking(new(0, 0)),
+        new Walking(new(3, 0)),
+        new Sliding(),
+        new Strolling(new(0, 0)),
+        new Strolling(new(1, 0)),
+        new Arrived(),
+        new Halted(),
     ];
 
     private static readonly DisembarkEvent[] Events =
-        [new LeaveShip(), new Dropped(), new Landed(), new WalkDone(), new StationGone()];
+    [
+        new LeaveShip(),
+        new Dropped(),
+        new Landed(),
+        new WalkDone(),
+        new StationGone(),
+    ];
 
     [Fact]
     public void AnOrderToLeaveTheShipStartsTheWalkAtItsFirstWaypoint() =>
@@ -53,7 +65,7 @@ public sealed class DisembarkStateTests
             {
                 (Aboard, LeaveShip) or (Walking, Dropped) or (Sliding, Landed) or (Strolling, WalkDone) => true,
                 (Walking or Sliding or Strolling, StationGone) => true,
-                _ => false
+                _ => false,
             };
             DisembarkState? next = DisembarkState.Next(state, change);
             if (row)
@@ -95,8 +107,9 @@ public sealed class DisembarkStateTests
         default(DisembarkState).Value.Should().Be(new Aboard());
         ((DisembarkState)new Walking(new(2, 0))).Should().Be((DisembarkState)new Walking(new(2, 0)));
         ((DisembarkState)new Walking(new(2, 0))).Should().NotBe((DisembarkState)new Walking(new(3, 0)));
-        ((DisembarkState)new Walking(new(2, 0))).Should().NotBe((DisembarkState)new Walking(new(2, 0.5)),
-            "the pace is data of the case too");
+        ((DisembarkState)new Walking(new(2, 0)))
+            .Should()
+            .NotBe((DisembarkState)new Walking(new(2, 0.5)), "the pace is data of the case too");
         ((DisembarkState)new Strolling(new(1, 0.5))).Value.Should().Be(new Strolling(new(1, 0.5)));
         ((DisembarkState)new Walking(new(2, 0))).Should().NotBe((DisembarkState)new Strolling(new(2, 0)));
     }

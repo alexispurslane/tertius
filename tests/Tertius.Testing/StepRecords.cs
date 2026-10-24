@@ -11,10 +11,23 @@ public static class StepRecords
     /// acceleration, and <paramref name="measured"/> as the proper acceleration that physics measured, which only a dynamic
     /// hull has.
     /// </summary>
-    public static FrameStepRecord Of(FrameHandle frame, in DPose pose, Double3 velocity = default,
+    public static FrameStepRecord Of(
+        FrameHandle frame,
+        in DPose pose,
+        Double3 velocity = default,
         Vector3 angularVelocity = default,
-        Vector3? measured = null) =>
-        new(frame,
-            new(Pose: pose, ChordVelocity: velocity, Velocity: velocity, Acceleration: Double3.Zero,
-                AngularVelocity: angularVelocity, AngularAcceleration: Double3.Zero), measured);
+        Vector3? measured = null
+    ) =>
+        new(
+            frame,
+            new(
+                Pose: pose,
+                ChordVelocity: velocity,
+                Velocity: velocity,
+                Acceleration: Double3.Zero,
+                AngularVelocity: angularVelocity,
+                AngularAcceleration: Double3.Zero
+            ),
+            measured
+        );
 }

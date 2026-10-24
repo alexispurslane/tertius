@@ -23,9 +23,16 @@ public sealed class EntityTablePushTests
     private static Entity Root(EntityTable table)
     {
         Entity entity = table.Reserve();
-        table.Activate(entity: entity, row: new() { Frame = Space, PhysicsHome = Space }, render: new(), components: [],
-            wants: [], body: TestWorld.Ball,
-            bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
+        table.Activate(
+            entity: entity,
+            row: new() { Frame = Space, PhysicsHome = Space },
+            render: new(),
+            components: [],
+            wants: [],
+            body: TestWorld.Ball,
+            bodyCenterOfMass: Vector3.Zero,
+            ownedFrame: FrameHandle.Null
+        );
         return entity;
     }
 
@@ -43,11 +50,14 @@ public sealed class EntityTablePushTests
         EntityTable table = TableSupport.NewTable();
         Entity part = Part(table);
 
-        TickAndSwap(table, () =>
-        {
-            table.WritablePush(part).Force += new Vector3(1, 0, 0);
-            table.WritablePush(part).Force += new Vector3(2, 0, 0);
-        });
+        TickAndSwap(
+            table,
+            () =>
+            {
+                table.WritablePush(part).Force += new Vector3(1, 0, 0);
+                table.WritablePush(part).Force += new Vector3(2, 0, 0);
+            }
+        );
 
         table.FrontPushers.ToArray().Should().Equal(part);
         table.FrontIntents.Span[(int)part.Index].Force.Should().Be(new Vector3(3, 0, 0));
@@ -63,15 +73,20 @@ public sealed class EntityTablePushTests
         EntityTable table = TableSupport.NewTable();
         // Chunks of 4 slots: the first part is in chunk 1, the second in chunk 0.
         Entity root = Root(table);
-        Entity filler1 = Part(table), filler2 = Part(table), early = Part(table);
+        Entity filler1 = Part(table),
+            filler2 = Part(table),
+            early = Part(table);
         Entity late = Part(table);
 
-        TickAndSwap(table, () =>
-        {
-            table.WritablePush(late).Force += new Vector3(1, 0, 0);
-            table.WritableIntent(root).Force += new Vector3(0, 1, 0);
-            table.WritablePush(early).Torque += new Vector3(0, 0, 1);
-        });
+        TickAndSwap(
+            table,
+            () =>
+            {
+                table.WritablePush(late).Force += new Vector3(1, 0, 0);
+                table.WritableIntent(root).Force += new Vector3(0, 1, 0);
+                table.WritablePush(early).Torque += new Vector3(0, 0, 1);
+            }
+        );
 
         table.FrontPushers.ToArray().Should().Equal(early, late);
         table.IntentEntities.ToArray().Should().Equal(root);
@@ -117,8 +132,10 @@ public sealed class EntityTablePushTests
         Entity root = Root(table);
         TickAndSwap(table, () => { });
 
-        table.AddPush(root,
-            new(Force: new(1, 2, 3), Torque: new(4, 5, 6), Impulse: new(7, 8, 9), AngularImpulse: new(10, 11, 12)));
+        table.AddPush(
+            root,
+            new(Force: new(1, 2, 3), Torque: new(4, 5, 6), Impulse: new(7, 8, 9), AngularImpulse: new(10, 11, 12))
+        );
 
         table.IntentEntities.ToArray().Should().Equal(root);
         PhysicsIntent intent = table.NextStepIntent(root);
@@ -136,14 +153,19 @@ public sealed class EntityTablePushTests
     {
         EntityTable table = TableSupport.NewTable();
         Entity root = Root(table);
-        TickAndSwap(table, () =>
-        {
-            table.WritableIntent(root).Force += new Vector3(1, 0, 0);
-            table.WritableIntent(root).Flags |= IntentFlags.SetAngularVelocity;
-        });
+        TickAndSwap(
+            table,
+            () =>
+            {
+                table.WritableIntent(root).Force += new Vector3(1, 0, 0);
+                table.WritableIntent(root).Flags |= IntentFlags.SetAngularVelocity;
+            }
+        );
 
-        table.AddPush(root,
-            new(Force: new(5, 0, 0), Torque: Double3.Zero, Impulse: Double3.Zero, AngularImpulse: Double3.Zero));
+        table.AddPush(
+            root,
+            new(Force: new(5, 0, 0), Torque: Double3.Zero, Impulse: Double3.Zero, AngularImpulse: Double3.Zero)
+        );
 
         table.IntentEntities.ToArray().Should().Equal(root);
         table.NextStepIntent(root).Force.Should().Be(new Vector3(5, 0, 0));
@@ -158,9 +180,16 @@ public sealed class EntityTablePushTests
         EntityTable table = TableSupport.NewTable();
         Entity entity = table.Reserve();
 
-        table.Activate(entity: entity, row: new() { Frame = Space, PhysicsHome = Space }, render: new(), components: [],
-            wants: [], body: TestWorld.Ball,
-            bodyCenterOfMass: new(0.25f, -1, 3), ownedFrame: FrameHandle.Null);
+        table.Activate(
+            entity: entity,
+            row: new() { Frame = Space, PhysicsHome = Space },
+            render: new(),
+            components: [],
+            wants: [],
+            body: TestWorld.Ball,
+            bodyCenterOfMass: new(0.25f, -1, 3),
+            ownedFrame: FrameHandle.Null
+        );
 
         table.BodyCenterOfMass(entity).Should().Be(new Vector3(0.25f, -1, 3));
         table.AssertInvariants();

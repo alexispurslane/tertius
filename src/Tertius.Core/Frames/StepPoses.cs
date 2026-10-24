@@ -23,8 +23,12 @@ internal readonly record struct StepPoses(DPose Start, DPose End)
     public Double3 ChordToParent(Double3 pointInFrame, Double3 chord, double dt) =>
         // The move of the frame's origin comes first, so that a frame far from its parent's origin adds no rounding of its
         // place to the turn of the body's coordinates.
-        (End.Position - Start.Position + End.Rotation.Rotate(pointInFrame) -
-         Start.Rotation.Rotate(pointInFrame - chord * dt)) / dt;
+        (
+            End.Position
+            - Start.Position
+            + End.Rotation.Rotate(pointInFrame)
+            - Start.Rotation.Rotate(pointInFrame - chord * dt)
+        ) / dt;
 
     /// <summary>
     /// The chord in the frame of a body that ends the step at <paramref name="pointInParent"/> with the chord

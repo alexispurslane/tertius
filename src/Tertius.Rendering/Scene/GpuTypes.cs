@@ -28,11 +28,19 @@ internal struct GpuInstance
     /// </summary>
     public Vector4 Hemisphere;
 
-    public static GpuInstance From(Vector3 position, Quaternion rotation, Vector3 scale, uint material,
-        HemisphereUp hemisphere = default)
+    public static GpuInstance From(
+        Vector3 position,
+        Quaternion rotation,
+        Vector3 scale,
+        uint material,
+        HemisphereUp hemisphere = default
+    )
     {
         // Rotation matrix columns from the unit quaternion, then scaled per axis: M = T · R · S.
-        float x = rotation.X, y = rotation.Y, z = rotation.Z, w = rotation.W;
+        float x = rotation.X,
+            y = rotation.Y,
+            z = rotation.Z,
+            w = rotation.W;
         float xx = x * x,
             yy = y * y,
             zz = z * z,
@@ -57,8 +65,8 @@ internal struct GpuInstance
                 UpAlong { Direction: var direction } => new(direction, 1),
                 // The center moves with the instance, so it is exact wherever the instance is interpolated to.
                 UpAwayFrom { Center: var center } => new(position + center, 2),
-                null => Vector4.Zero
-            }
+                null => Vector4.Zero,
+            },
         };
     }
 
@@ -72,7 +80,7 @@ internal struct GpuInstance
             ModelRow0 = new(x: axisX.X, y: axisY.X, z: axisZ.X, w: origin.X),
             ModelRow1 = new(x: axisX.Y, y: axisY.Y, z: axisZ.Y, w: origin.Y),
             ModelRow2 = new(x: axisX.Z, y: axisY.Z, z: axisZ.Z, w: origin.Z),
-            Material = material
+            Material = material,
         };
 
     private static float InverseSquare(float s) => s != 0 ? 1f / (s * s) : 0f;

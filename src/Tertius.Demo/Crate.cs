@@ -21,19 +21,24 @@ public readonly record struct CrateSpec(
     float Mass,
     MeshId Mesh,
     MaterialId Material,
-    bool NoImpostor = false)
+    bool NoImpostor = false
+)
 {
     /// <summary>The radius of the crate's bounding sphere, in meters.</summary>
     public float BoundingRadius => HalfExtents.Length();
 
     /// <summary>The render row of the crate, and of a drawn copy of it.</summary>
-    public RenderData Drawn() => new()
-    {
-        Mesh = Mesh,
-        Material = Material,
-        BoundingRadius = BoundingRadius,
-        Flags = RenderFlags.Visible | RenderFlags.CastsShadow | (NoImpostor ? RenderFlags.NoImpostor : RenderFlags.None)
-    };
+    public RenderData Drawn() =>
+        new()
+        {
+            Mesh = Mesh,
+            Material = Material,
+            BoundingRadius = BoundingRadius,
+            Flags =
+                RenderFlags.Visible
+                | RenderFlags.CastsShadow
+                | (NoImpostor ? RenderFlags.NoImpostor : RenderFlags.None),
+        };
 
     /// <summary>
     /// A drawn copy of the crate in the hands of <paramref name="holder"/>, in <paramref name="frame"/>, the holder's frame,
@@ -43,14 +48,15 @@ public readonly record struct CrateSpec(
     /// crate in a person's hands, and the pen's place and turn where the hand takes it for the pen in a
     /// <see cref="Passenger"/>'s hand.
     /// </summary>
-    public SpawnDesc HeldCopy(FrameHandle frame, Entity holder, Pose view, Pose grip) => new()
-    {
-        Frame = frame,
-        AttachTo = holder,
-        AttachOffset = HeldInView.Place(view, grip),
-        Render = Drawn(),
-        Components = [new HeldInView(grip)]
-    };
+    public SpawnDesc HeldCopy(FrameHandle frame, Entity holder, Pose view, Pose grip) =>
+        new()
+        {
+            Frame = frame,
+            AttachTo = holder,
+            AttachOffset = HeldInView.Place(view, grip),
+            Render = Drawn(),
+            Components = [new HeldInView(grip)],
+        };
 
     /// <summary>
     /// A loose crate at <paramref name="pose"/> in <paramref name="frame"/>, which moves at <paramref name="velocity"/> in
@@ -58,15 +64,16 @@ public readonly record struct CrateSpec(
     /// and then the components <paramref name="more"/>. Throws <see cref="ArgumentOutOfRangeException"/> if the size or the
     /// mass is not positive and finite.
     /// </summary>
-    public SpawnDesc Spawn(FrameHandle frame, DPose pose, Double3 velocity, params IComponent[] more) => new()
-    {
-        Frame = frame,
-        Pose = pose,
-        LinearVelocity = velocity,
-        Body = new(Shape: new BoxShapeDesc(HalfExtents), Mass: Mass, LinearDamping: 0, AngularDamping: 0),
-        Render = Drawn(),
-        Components = [new Crate(this), .. more]
-    };
+    public SpawnDesc Spawn(FrameHandle frame, DPose pose, Double3 velocity, params IComponent[] more) =>
+        new()
+        {
+            Frame = frame,
+            Pose = pose,
+            LinearVelocity = velocity,
+            Body = new(Shape: new BoxShapeDesc(HalfExtents), Mass: Mass, LinearDamping: 0, AngularDamping: 0),
+            Render = Drawn(),
+            Components = [new Crate(this), .. more],
+        };
 }
 
 /// <summary>
@@ -107,12 +114,17 @@ public sealed class Crate(CrateSpec spec) : IComponent
     /// </summary>
     public const int AnswerTicks = 2;
 
-    private readonly CrateSpec spec = IsPositiveAndFinite(spec.HalfExtents.X) &&
-                                      IsPositiveAndFinite(spec.HalfExtents.Y) &&
-                                      IsPositiveAndFinite(spec.HalfExtents.Z) && IsPositiveAndFinite(spec.Mass)
-        ? spec
-        : throw new ArgumentOutOfRangeException(nameof(spec), spec,
-            "A crate's size and mass must be positive and finite.");
+    private readonly CrateSpec spec =
+        IsPositiveAndFinite(spec.HalfExtents.X)
+        && IsPositiveAndFinite(spec.HalfExtents.Y)
+        && IsPositiveAndFinite(spec.HalfExtents.Z)
+        && IsPositiveAndFinite(spec.Mass)
+            ? spec
+            : throw new ArgumentOutOfRangeException(
+                nameof(spec),
+                spec,
+                "A crate's size and mass must be positive and finite."
+            );
 
     // The number of the tick on which the crate sent its last offer, or null if it has sent none.
     private long? offeredOn;

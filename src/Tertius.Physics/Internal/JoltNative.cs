@@ -21,18 +21,27 @@ internal static class JoltNative
     // and DllImport needs no source generator: the generator does not load in Stryker.NET's bundled compiler, which
     // then cannot build the project for mutation testing.
 
-    [DllImport(Library, EntryPoint = "JPH_ContactManifold_GetWorldSpaceContactPointOn1",
-        CallingConvention = CallingConvention.Cdecl)]
+    [DllImport(
+        Library,
+        EntryPoint = "JPH_ContactManifold_GetWorldSpaceContactPointOn1",
+        CallingConvention = CallingConvention.Cdecl
+    )]
     public static extern void ContactPointOn1(nint manifold, uint index, RVector3* result);
 
-    [DllImport(Library, EntryPoint = "JPH_ContactManifold_GetWorldSpaceContactPointOn2",
-        CallingConvention = CallingConvention.Cdecl)]
+    [DllImport(
+        Library,
+        EntryPoint = "JPH_ContactManifold_GetWorldSpaceContactPointOn2",
+        CallingConvention = CallingConvention.Cdecl
+    )]
     public static extern void ContactPointOn2(nint manifold, uint index, RVector3* result);
 
     // JoltPhysicsSharp binds this one correctly, but only on a managed Body, which it looks up in a locked table and can
     // allocate. This takes the body pointer of a BodyLockRead instead, so a ray cast allocates nothing.
-    [DllImport(Library, EntryPoint = "JPH_Body_GetWorldSpaceSurfaceNormal",
-        CallingConvention = CallingConvention.Cdecl)]
+    [DllImport(
+        Library,
+        EntryPoint = "JPH_Body_GetWorldSpaceSurfaceNormal",
+        CallingConvention = CallingConvention.Cdecl
+    )]
     public static extern void SurfaceNormal(nint body, uint subShapeId, RVector3* position, Vector3* normal);
 
     // ---- The contact listener ----
@@ -48,8 +57,11 @@ internal static class JoltNative
     [DllImport(Library, EntryPoint = "JPH_ContactListener_Destroy", CallingConvention = CallingConvention.Cdecl)]
     public static extern void ContactListenerDestroy(nint listener);
 
-    [DllImport(Library, EntryPoint = "JPH_PhysicsSystem_SetContactListener",
-        CallingConvention = CallingConvention.Cdecl)]
+    [DllImport(
+        Library,
+        EntryPoint = "JPH_PhysicsSystem_SetContactListener",
+        CallingConvention = CallingConvention.Cdecl
+    )]
     public static extern void PhysicsSystemSetContactListener(nint system, nint listener);
 
     // ---- What a contact callback reads, on the body and manifold pointers that Jolt passes ----
@@ -74,12 +86,18 @@ internal static class JoltNative
     [DllImport(Library, EntryPoint = "JPH_ContactManifold_GetPointCount", CallingConvention = CallingConvention.Cdecl)]
     public static extern uint ManifoldPointCount(nint manifold);
 
-    [DllImport(Library, EntryPoint = "JPH_ContactManifold_GetWorldSpaceNormal",
-        CallingConvention = CallingConvention.Cdecl)]
+    [DllImport(
+        Library,
+        EntryPoint = "JPH_ContactManifold_GetWorldSpaceNormal",
+        CallingConvention = CallingConvention.Cdecl
+    )]
     public static extern void ManifoldNormal(nint manifold, Vector3* result);
 
-    [DllImport(Library, EntryPoint = "JPH_ContactManifold_GetPenetrationDepth",
-        CallingConvention = CallingConvention.Cdecl)]
+    [DllImport(
+        Library,
+        EntryPoint = "JPH_ContactManifold_GetPenetrationDepth",
+        CallingConvention = CallingConvention.Cdecl
+    )]
     public static extern float ManifoldPenetrationDepth(nint manifold);
 
     // What the minimum rebound reads of a body's push, as Jolt does when it takes that push off a rebound. Only a dynamic
@@ -102,12 +120,18 @@ internal static class JoltNative
     [DllImport(Library, EntryPoint = "JPH_Body_GetInverseInertia", CallingConvention = CallingConvention.Cdecl)]
     public static extern void BodyInverseInertia(nint body, Matrix4x4* inverseInertia);
 
-    [DllImport(Library, EntryPoint = "JPH_Body_GetMotionPropertiesUnchecked",
-        CallingConvention = CallingConvention.Cdecl)]
+    [DllImport(
+        Library,
+        EntryPoint = "JPH_Body_GetMotionPropertiesUnchecked",
+        CallingConvention = CallingConvention.Cdecl
+    )]
     public static extern nint BodyMotionProperties(nint body);
 
-    [DllImport(Library, EntryPoint = "JPH_MotionProperties_GetInverseMassUnchecked",
-        CallingConvention = CallingConvention.Cdecl)]
+    [DllImport(
+        Library,
+        EntryPoint = "JPH_MotionProperties_GetInverseMassUnchecked",
+        CallingConvention = CallingConvention.Cdecl
+    )]
     public static extern float MotionPropertiesInverseMass(nint properties);
 
     // What a report reads of the two bodies of a contact with a ghost, which meets only what its real body meets (see

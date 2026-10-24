@@ -33,15 +33,22 @@ public sealed class BlueDanubeScriptTests
 
             exit.Should().Be(ScriptCommand.Ok, error.ToString());
             output.ToString().Split('\n')[0].Trim().Should().Be(written);
-            File.ReadAllText(written).Should().Be(File.ReadAllText(CheckedIn),
-                "scripts/blue-danube.json must be what the generator writes: run `dotnet run --project src/Tertius.Demo -- --generate scripts/blue-danube.json`");
+            File.ReadAllText(written)
+                .Should()
+                .Be(
+                    File.ReadAllText(CheckedIn),
+                    "scripts/blue-danube.json must be what the generator writes: run `dotnet run --project src/Tertius.Demo -- --generate scripts/blue-danube.json`"
+                );
             BlueDanube.Cuts.Should().NotBeEmpty();
             foreach ((string file, _, _) in BlueDanube.Cuts)
             {
                 output.ToString().Should().Contain(Path.Combine(folder, file));
-                File.ReadAllText(Path.Combine(folder, file)).Should().Be(
-                    File.ReadAllText(Path.Combine(RepositoryRoot(), "scripts", file)),
-                    $"scripts/{file} must be what the generator writes beside the long script");
+                File.ReadAllText(Path.Combine(folder, file))
+                    .Should()
+                    .Be(
+                        File.ReadAllText(Path.Combine(RepositoryRoot(), "scripts", file)),
+                        $"scripts/{file} must be what the generator writes beside the long script"
+                    );
             }
         }
         finally
@@ -58,12 +65,17 @@ public sealed class BlueDanubeScriptTests
     [Fact]
     public void TheCheckedInScriptPassesTheChecksOfARun()
     {
-        Script script = Script.Load(CheckedIn);
+        var script = Script.Load(CheckedIn);
         using World world = NewJoltWorld();
         SceneInstance scene = DemoScenes.All.Single(s => s.Name == script.Scene).Build(world, RenderResources.None);
 
-        RunResult result = ScriptRunner.Run(script: script, world: world, scene: scene, outputFolder: null,
-            playback: new StopsAtOnce());
+        RunResult result = ScriptRunner.Run(
+            script: script,
+            world: world,
+            scene: scene,
+            outputFolder: null,
+            playback: new StopsAtOnce()
+        );
 
         result.Stopped.Should().BeTrue();
         world.TickNumber.Should().Be(0);
@@ -106,9 +118,12 @@ public sealed class BlueDanubeScriptTests
     [Fact]
     public void TheGeneratorReportsAFileErrorWhenItCannotWriteTheScript()
     {
-        string path = Path.Combine(path1: Path.GetTempPath(), path2: Guid.NewGuid().ToString("N"),
+        string path = Path.Combine(
+            path1: Path.GetTempPath(),
+            path2: Guid.NewGuid().ToString("N"),
             path3: "no-such-folder",
-            path4: "blue-danube.json");
+            path4: "blue-danube.json"
+        );
         var output = new StringWriter();
         var error = new StringWriter();
 

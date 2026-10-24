@@ -8,7 +8,7 @@ public sealed class FrameTests
     [Fact]
     public void SphereBoundsDistances()
     {
-        FrameBounds b = FrameBounds.Sphere(100);
+        var b = FrameBounds.Sphere(100);
         Assert.Equal(-100, b.SignedDistance(Double3.Zero));
         Assert.Equal(50, b.SignedDistance(new(150, 0, 0)), 9);
         Assert.True(b.Touches(new(105, 0, 0), 6));
@@ -39,7 +39,7 @@ public sealed class FrameTests
     [Fact]
     public void PointGravityIsInverseSquare()
     {
-        GravityField g = GravityField.Point(3.986004418e14);
+        var g = GravityField.Point(3.986004418e14);
         Vector3 surface = g.At(new(0, 6.371e6, 0));
         Assert.Equal(-9.82, surface.Y, 2);
         Vector3 twice = g.At(new(0, 2 * 6.371e6, 0));
@@ -49,7 +49,7 @@ public sealed class FrameTests
     [Fact]
     public void UniformGravityRespectsRegion()
     {
-        GravityField g = GravityField.Uniform(new(0, -9.81f, 0), new BoundingBox(new(-10), new(10)));
+        var g = GravityField.Uniform(new(0, -9.81f, 0), new BoundingBox(new(-10), new(10)));
         Assert.Equal(-9.81f, g.At(new(0, 0, 0)).Y);
         Assert.Equal(0, g.At(new(0, 20, 0)).Y);
     }
@@ -57,8 +57,9 @@ public sealed class FrameTests
     [Fact]
     public void CircularOrbitKeepsRadiusAndSpeed()
     {
-        const double mu = 3.986004418e14, r = 7e6;
-        KeplerOrbit orbit = KeplerOrbit.Circular(r);
+        const double mu = 3.986004418e14,
+            r = 7e6;
+        var orbit = KeplerOrbit.Circular(r);
         double speed = Math.Sqrt(mu / r);
         for (double t = 0; t < orbit.Period(mu); t += orbit.Period(mu) / 17)
         {
@@ -73,9 +74,18 @@ public sealed class FrameTests
     [Fact]
     public void EllipticOrbitConservesEnergyAndReturnsAfterOnePeriod()
     {
-        var orbit = new KeplerOrbit(SemiMajorAxis: 1e7, Eccentricity: 0.6, Inclination: 0.4,
-            LongitudeOfAscendingNode: 1.0, ArgumentOfPeriapsis: 0.5, MeanAnomalyAtEpoch: 0.3, Epoch: 0,
-            AxialTilt: DQuaternion.Identity, SpinRate: 0, SpinPhaseAtEpoch: 0);
+        var orbit = new KeplerOrbit(
+            SemiMajorAxis: 1e7,
+            Eccentricity: 0.6,
+            Inclination: 0.4,
+            LongitudeOfAscendingNode: 1.0,
+            ArgumentOfPeriapsis: 0.5,
+            MeanAnomalyAtEpoch: 0.3,
+            Epoch: 0,
+            AxialTilt: DQuaternion.Identity,
+            SpinRate: 0,
+            SpinPhaseAtEpoch: 0
+        );
         const double mu = 3.986004418e14;
         double energy = -mu / (2 * orbit.SemiMajorAxis);
         (Double3 p0, _) = orbit.StateAt(0, mu);
@@ -93,10 +103,21 @@ public sealed class FrameTests
     [Fact]
     public void OrbitVelocityIsDerivativeOfPosition()
     {
-        var orbit = new KeplerOrbit(SemiMajorAxis: 2e7, Eccentricity: 0.3, Inclination: 0.2,
-            LongitudeOfAscendingNode: 0.1, ArgumentOfPeriapsis: 1.1, MeanAnomalyAtEpoch: 0, Epoch: 0,
-            AxialTilt: DQuaternion.Identity, SpinRate: 0, SpinPhaseAtEpoch: 0);
-        const double mu = 3.986004418e14, t = 1234.5, h = 1e-3;
+        var orbit = new KeplerOrbit(
+            SemiMajorAxis: 2e7,
+            Eccentricity: 0.3,
+            Inclination: 0.2,
+            LongitudeOfAscendingNode: 0.1,
+            ArgumentOfPeriapsis: 1.1,
+            MeanAnomalyAtEpoch: 0,
+            Epoch: 0,
+            AxialTilt: DQuaternion.Identity,
+            SpinRate: 0,
+            SpinPhaseAtEpoch: 0
+        );
+        const double mu = 3.986004418e14,
+            t = 1234.5,
+            h = 1e-3;
         (Double3 pa, _) = orbit.StateAt(t - h, mu);
         (Double3 pb, _) = orbit.StateAt(t + h, mu);
         (_, Double3 v) = orbit.StateAt(t, mu);
@@ -108,7 +129,7 @@ public sealed class FrameTests
     public void SpinRotatesAboutLocalY()
     {
         const double mu = 3.986004418e14;
-        KeplerOrbit orbit = KeplerOrbit.Circular(0, spinRate: Math.PI / 2);
+        var orbit = KeplerOrbit.Circular(0, spinRate: Math.PI / 2);
         DQuaternion q = orbit.RotationAt(1, mu);
         Double3 x = q.Rotate(Double3.UnitX);
         Assert.True((x - new Double3(0, 0, -1)).Length < 1e-12);
@@ -119,11 +140,18 @@ public sealed class FrameTests
     public void FrameTreeVelocityConversionIncludesSpin()
     {
         var frames = new FrameTree();
-        FrameHandle root = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
-            frameBounds: FrameBounds.Sphere(1e12f));
-        FrameHandle station = frames.Create(frameOwner: new(2, 1), parent: root,
+        FrameHandle root = frames.Create(
+            frameOwner: new(1, 1),
+            parent: FrameHandle.Null,
+            localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e12f)
+        );
+        FrameHandle station = frames.Create(
+            frameOwner: new(2, 1),
+            parent: root,
             localPose: new(new(1000, 0, 0), DQuaternion.Identity),
-            frameBounds: FrameBounds.Sphere(200));
+            frameBounds: FrameBounds.Sphere(200)
+        );
         frames.SetTreeLinearVelocity(station, new(0, 0, 50));
         frames.SetAngularVelocity(station, new(0, 0.1f, 0));
         frames.Update();
@@ -142,14 +170,24 @@ public sealed class FrameTests
     public void FrameTreeReparentKeepsPose()
     {
         var frames = new FrameTree();
-        FrameHandle root = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
-            frameBounds: FrameBounds.Sphere(1e9f));
-        FrameHandle carrier = frames.Create(frameOwner: new(2, 1), parent: root,
+        FrameHandle root = frames.Create(
+            frameOwner: new(1, 1),
+            parent: FrameHandle.Null,
+            localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f)
+        );
+        FrameHandle carrier = frames.Create(
+            frameOwner: new(2, 1),
+            parent: root,
             localPose: new(new(5000, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, 0.5)),
-            frameBounds: FrameBounds.Sphere(400));
-        FrameHandle fighter = frames.Create(frameOwner: new(3, 1), parent: root,
+            frameBounds: FrameBounds.Sphere(400)
+        );
+        FrameHandle fighter = frames.Create(
+            frameOwner: new(3, 1),
+            parent: root,
             localPose: new(new(5100, 10, 0), DQuaternion.Identity),
-            frameBounds: FrameBounds.Sphere(15));
+            frameBounds: FrameBounds.Sphere(15)
+        );
         frames.SetTreeLinearVelocity(carrier, new(10, 0, 0));
         frames.SetTreeLinearVelocity(fighter, new(12, 0, 0));
         frames.Update();
@@ -169,10 +207,18 @@ public sealed class FrameTests
     public void FrameTreeRejectsStaleHandles()
     {
         var frames = new FrameTree();
-        FrameHandle root = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
-            frameBounds: FrameBounds.Sphere(10));
-        FrameHandle child = frames.Create(frameOwner: new(2, 1), parent: root, localPose: DPose.Identity,
-            frameBounds: FrameBounds.Sphere(1));
+        FrameHandle root = frames.Create(
+            frameOwner: new(1, 1),
+            parent: FrameHandle.Null,
+            localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(10)
+        );
+        FrameHandle child = frames.Create(
+            frameOwner: new(2, 1),
+            parent: root,
+            localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1)
+        );
         frames.Destroy(child);
         Assert.False(frames.IsAlive(child));
         Assert.Throws<InvalidOperationException>(() => frames.LocalPose(child));

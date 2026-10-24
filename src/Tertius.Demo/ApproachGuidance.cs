@@ -29,7 +29,8 @@ public readonly record struct ApproachGuidance(
     double SpeedCap,
     double FinalRate,
     double VelocityTime,
-    double MaxAcceleration)
+    double MaxAcceleration
+)
 {
     /// <summary>
     /// The law of the brake, which stops the shuttle at the arrival point with the main engine, and the translation
@@ -38,33 +39,37 @@ public readonly record struct ApproachGuidance(
     /// so the law has room to follow its curve. It has no speed cap. It takes the error of the velocity in 0.5 s.
     /// </summary>
     public static ApproachGuidance ForBrake() =>
-        new(BrakeAcceleration: 0.8 * TransferGuidance.BurnAcceleration, SpeedCap: double.PositiveInfinity,
-            FinalRate: 0.5, VelocityTime: 0.5,
-            MaxAcceleration: TransferGuidance.BurnAcceleration);
+        new(
+            BrakeAcceleration: 0.8 * TransferGuidance.BurnAcceleration,
+            SpeedCap: double.PositiveInfinity,
+            FinalRate: 0.5,
+            VelocityTime: 0.5,
+            MaxAcceleration: TransferGuidance.BurnAcceleration
+        );
 
     /// <summary>
     /// The law of the glide and the hold, which flies the shuttle along the axis to the hold point on the translation
     /// thrusters alone, with a correction of at most 0.2 m/s². Its curve brakes at 0.05 m/s², and it flies at 5 m/s at
     /// most. It takes the error of the velocity in 2 s. The docking's spin-up holds the hold point with it.
     /// </summary>
-    public static ApproachGuidance ForGlide() => new(BrakeAcceleration: 0.05, SpeedCap: 5, FinalRate: 0.1,
-        VelocityTime: 2, MaxAcceleration: 0.2);
+    public static ApproachGuidance ForGlide() =>
+        new(BrakeAcceleration: 0.05, SpeedCap: 5, FinalRate: 0.1, VelocityTime: 2, MaxAcceleration: 0.2);
 
     /// <summary>
     /// The law of the docking's entry, which flies the shuttle along the station's axis through the slot to the entry's
     /// end: 2 m/s at most, a braking curve of 0.1 m/s², a final rate of 0.2 /s, the error of the velocity taken in 1 s, and
     /// a correction of at most 0.3 m/s².
     /// </summary>
-    public static ApproachGuidance ForEntry() => new(BrakeAcceleration: 0.1, SpeedCap: 2, FinalRate: 0.2,
-        VelocityTime: 1, MaxAcceleration: 0.3);
+    public static ApproachGuidance ForEntry() =>
+        new(BrakeAcceleration: 0.1, SpeedCap: 2, FinalRate: 0.2, VelocityTime: 1, MaxAcceleration: 0.3);
 
     /// <summary>
     /// The law of the docking's move out, which flies the shuttle from the axis to the landing point in the corner of the
     /// deck: 0.5 m/s at most, a braking curve of 0.05 m/s², a final rate of 0.2 /s, the error of the velocity taken in 1 s,
     /// and a correction of at most 0.3 m/s².
     /// </summary>
-    public static ApproachGuidance ForMoveOut() => new(BrakeAcceleration: 0.05, SpeedCap: 0.5, FinalRate: 0.2,
-        VelocityTime: 1, MaxAcceleration: 0.3);
+    public static ApproachGuidance ForMoveOut() =>
+        new(BrakeAcceleration: 0.05, SpeedCap: 0.5, FinalRate: 0.2, VelocityTime: 1, MaxAcceleration: 0.3);
 
     /// <summary>
     /// The free acceleration, in m/s², in axes that turn at <paramref name="rate"/> about their origin, of a body whose
@@ -74,8 +79,12 @@ public readonly record struct ApproachGuidance(
     /// caller turns into the axes. The turn must be steady, so it has no Euler term. With no turn, it is the difference of
     /// gravity alone.
     /// </summary>
-    public static Double3 FreeAcceleration(Double3 rate, Double3 centerOfMass, Double3 velocity,
-        Double3 gravityDifference) =>
+    public static Double3 FreeAcceleration(
+        Double3 rate,
+        Double3 centerOfMass,
+        Double3 velocity,
+        Double3 gravityDifference
+    ) =>
         -Double3.Cross(rate, Double3.Cross(rate, centerOfMass)) - 2 * Double3.Cross(rate, velocity) + gravityDifference;
 
     /// <summary>

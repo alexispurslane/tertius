@@ -99,7 +99,11 @@ public sealed class QueryShapeCacheTests
 #if TERTIUS_CONTRACTS
         ask.Should().Throw<ContractException>();
 #else
-        ask.Should().Throw<ArgumentException>().WithMessage("The default shape holds no sphere, box or capsule*").Which.ParamName.Should().Be("shape");
+        ask.Should()
+            .Throw<ArgumentException>()
+            .WithMessage("The default shape holds no sphere, box or capsule*")
+            .Which.ParamName.Should()
+            .Be("shape");
 #endif
         cache.Count.Should().Be(0);
     }

@@ -31,9 +31,16 @@ public sealed class EntityTableTests
         EntityTable table = TableSupport.NewTable();
         Entity entity = table.Reserve();
 
-        table.Activate(entity: entity, row: RowAt(2), render: new(), components: [new Recorder()],
-            wants: [EventMask.Of<Ping>()], body: null, bodyCenterOfMass: Vector3.Zero,
-            ownedFrame: FrameHandle.Null);
+        table.Activate(
+            entity: entity,
+            row: RowAt(2),
+            render: new(),
+            components: [new Recorder()],
+            wants: [EventMask.Of<Ping>()],
+            body: null,
+            bodyCenterOfMass: Vector3.Zero,
+            ownedFrame: FrameHandle.Null
+        );
 
         table.IsAlive(entity).Should().BeTrue();
         table.LiveCount.Should().Be(1);
@@ -106,7 +113,9 @@ public sealed class EntityTableTests
         // First in, first out: the order in which slots are reused depends only on the order of the releases, which the
         // sync point fixes, so the handles of later spawns are the same in every run.
         EntityTable table = TableSupport.NewTable();
-        Entity a = table.SpawnLive(), b = table.SpawnLive(), c = table.SpawnLive();
+        Entity a = table.SpawnLive(),
+            b = table.SpawnLive(),
+            c = table.SpawnLive();
         table.Release(c);
         table.Release(a);
         table.Release(b);
@@ -499,8 +508,9 @@ public sealed class EntityTableTests
 
     private static void SetGeneration(EntityTable table, uint slot, uint generation)
     {
-        uint[] generations =
-            (uint[])typeof(EntityTable).GetField("generation", BindingFlags.NonPublic | BindingFlags.Instance)!
+        uint[] generations = (uint[])
+            typeof(EntityTable)
+                .GetField("generation", BindingFlags.NonPublic | BindingFlags.Instance)!
                 .GetValue(table)!;
         generations[slot] = generation;
     }

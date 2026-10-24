@@ -35,13 +35,14 @@ public readonly partial struct GravityField
     /// and with finite corners of its region when it has one. A point mass is valid with a finite G·M that is not
     /// negative. Any other field would give the bodies of the frame a force that is not finite.
     /// </summary>
-    public bool IsValid => this switch
-    {
-        UniformGravity { Acceleration: var acceleration, Region: var region } =>
-            IsFinite(acceleration) && (region is not { } box || (IsFinite(box.Min) && IsFinite(box.Max))),
-        PointGravity { Mu: var mu } => double.IsFinite(mu) && mu >= 0,
-        null => true
-    };
+    public bool IsValid =>
+        this switch
+        {
+            UniformGravity { Acceleration: var acceleration, Region: var region } => IsFinite(acceleration)
+                && (region is not { } box || (IsFinite(box.Min) && IsFinite(box.Max))),
+            PointGravity { Mu: var mu } => double.IsFinite(mu) && mu >= 0,
+            null => true,
+        };
 
     /// <summary>
     /// True for a point mass with a finite G·M above 0 (see <see cref="PointGravity.CanBeOrbited"/>). Only such a field
@@ -64,13 +65,16 @@ public readonly partial struct GravityField
     /// <summary>
     /// Like <see cref="At"/>, in doubles, for a caller that subtracts another acceleration before it narrows the result.
     /// </summary>
-    public Double3 AtPrecise(Double3 position) => this switch
-    {
-        UniformGravity { Acceleration: var acceleration, Region: var region } =>
-            region is { } box && !box.Contains(position.ToVector3()) ? Double3.Zero : acceleration,
-        PointGravity { Mu: var mu } => PullAt(position, mu),
-        null => Double3.Zero
-    };
+    public Double3 AtPrecise(Double3 position) =>
+        this switch
+        {
+            UniformGravity { Acceleration: var acceleration, Region: var region } => region is { } box
+            && !box.Contains(position.ToVector3())
+                ? Double3.Zero
+                : acceleration,
+            PointGravity { Mu: var mu } => PullAt(position, mu),
+            null => Double3.Zero,
+        };
 
     /// <summary>The pull of a point mass of gravitational parameter <paramref name="mu"/>, in m³/s², at the origin.</summary>
     private static Double3 PullAt(Double3 position, double mu)

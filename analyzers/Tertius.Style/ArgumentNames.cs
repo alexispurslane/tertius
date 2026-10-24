@@ -39,9 +39,10 @@ internal static class ArgumentNames
             return null;
         ImmutableArray<(SyntaxNode Argument, string Parameter)> unnamed =
         [
-            .. PositionalArguments(argumentList).Take(counted)
+            .. PositionalArguments(argumentList)
+                .Take(counted)
                 .Select((argument, index) => (Argument: argument, Parameter: parameters[index].Name))
-                .Where(pair => !IsNamed(pair.Argument))
+                .Where(pair => !IsNamed(pair.Argument)),
         ];
         return unnamed.IsEmpty ? null : new UnnamedArguments(target, unnamed);
     }
@@ -50,12 +51,13 @@ internal static class ArgumentNames
     /// The arguments that bind to parameters, in order. An attribute's assignments to its properties come after them,
     /// and always carry their names.
     /// </summary>
-    private static IReadOnlyList<SyntaxNode> PositionalArguments(SyntaxNode argumentList) => argumentList switch
-    {
-        ArgumentListSyntax list => [.. list.Arguments],
-        AttributeArgumentListSyntax list => [.. list.Arguments.Where(argument => argument.NameEquals == null)],
-        _ => []
-    };
+    private static IReadOnlyList<SyntaxNode> PositionalArguments(SyntaxNode argumentList) =>
+        argumentList switch
+        {
+            ArgumentListSyntax list => [.. list.Arguments],
+            AttributeArgumentListSyntax list => [.. list.Arguments.Where(argument => argument.NameEquals == null)],
+            _ => [],
+        };
 
     private static bool IsNamed(SyntaxNode argument) =>
         argument is ArgumentSyntax { NameColon: not null } or AttributeArgumentSyntax { NameColon: not null };
@@ -64,4 +66,5 @@ internal static class ArgumentNames
 /// <summary>A call that breaks TS0002: its target, and each argument that needs a name, with that name.</summary>
 internal readonly record struct UnnamedArguments(
     IMethodSymbol Target,
-    ImmutableArray<(SyntaxNode Argument, string Parameter)> Arguments);
+    ImmutableArray<(SyntaxNode Argument, string Parameter)> Arguments
+);

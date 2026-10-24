@@ -27,7 +27,24 @@ internal static class ContactRuns
 
     /// <summary>The common speeds V, in m/s. 7,672 m/s is the speed of a low Earth orbit.</summary>
     public static readonly double[] Speeds =
-        [0, 1, 10, 50, 100, 200, 500, 1000, 2000, 5000, 7672, 10000, 20000, 50000, 100000, 300000];
+    [
+        0,
+        1,
+        10,
+        50,
+        100,
+        200,
+        500,
+        1000,
+        2000,
+        5000,
+        7672,
+        10000,
+        20000,
+        50000,
+        100000,
+        300000,
+    ];
 
     public static readonly Direction AlongX = new("x", Double3.UnitX);
 
@@ -57,34 +74,41 @@ internal static class ContactRuns
     /// </summary>
     public static World NewWorld(out JoltPhysicsBackend backend, List<string> warnings)
     {
-        backend = new(new()
-        {
-            WorkerThreads = 1,
-            MaxLinearVelocity = SpeedLimit,
-            Log = message =>
+        backend = new(
+            new()
             {
-                lock (warnings)
+                WorkerThreads = 1,
+                MaxLinearVelocity = SpeedLimit,
+                Log = message =>
                 {
-                    warnings.Add(message);
-                }
+                    lock (warnings)
+                    {
+                        warnings.Add(message);
+                    }
+                },
             }
-        });
+        );
         var options = new WorldOptions
-            { MaxDegreeOfParallelism = 1, DisposePhysics = true, NumericFrames = WithoutNumericFrames };
+        {
+            MaxDegreeOfParallelism = 1,
+            DisposePhysics = true,
+            NumericFrames = WithoutNumericFrames,
+        };
         return new(options, backend);
     }
 
     /// <summary>The root frame that every scene runs in: a uniform field of <paramref name="gravity"/> m/s², or none when it is zero.</summary>
     public static FrameHandle Space(World world, Vector3 gravity) =>
-        world.CreateRootFrame(new(FrameBounds.Sphere(SpaceRadius),
-            gravity == Vector3.Zero ? default : GravityField.Uniform(gravity)));
+        world.CreateRootFrame(
+            new(FrameBounds.Sphere(SpaceRadius), gravity == Vector3.Zero ? default : GravityField.Uniform(gravity))
+        );
 
     public static DPose At(Double3 position) => new(position, DQuaternion.Identity);
 
     /// <summary>The rotation that turns +X onto the unit vector <paramref name="d"/>, the shortest one.</summary>
     public static DQuaternion TurnXOnto(Double3 d)
     {
-        Double3 axis = Double3.Cross(Double3.UnitX, d);
+        var axis = Double3.Cross(Double3.UnitX, d);
         double sine = axis.Length;
         return sine < 1e-12
             ? DQuaternion.Identity
@@ -126,8 +150,10 @@ internal static class ContactRuns
         public void Add(params object[] values)
         {
             if (values.Length != columns)
-                throw new ArgumentException($"A row has {values.Length} values, and the header {columns} columns.",
-                    nameof(values));
+                throw new ArgumentException(
+                    $"A row has {values.Length} values, and the header {columns} columns.",
+                    nameof(values)
+                );
             text.AppendLine(string.Join(',', values.Select(Format)));
             Rows++;
         }
@@ -141,14 +167,15 @@ internal static class ContactRuns
             return path;
         }
 
-        private static string Format(object value) => value switch
-        {
-            double d => d.ToString("R", CultureInfo.InvariantCulture),
-            float f => f.ToString("R", CultureInfo.InvariantCulture),
-            bool b => b ? "true" : "false",
-            string s when s.Contains(',') || s.Contains('"') => '"' + s.Replace("\"", "\"\"") + '"',
-            IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
-            _ => value.ToString() ?? ""
-        };
+        private static string Format(object value) =>
+            value switch
+            {
+                double d => d.ToString("R", CultureInfo.InvariantCulture),
+                float f => f.ToString("R", CultureInfo.InvariantCulture),
+                bool b => b ? "true" : "false",
+                string s when s.Contains(',') || s.Contains('"') => '"' + s.Replace("\"", "\"\"") + '"',
+                IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
+                _ => value.ToString() ?? "",
+            };
     }
 }

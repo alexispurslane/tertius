@@ -98,16 +98,19 @@ public sealed class Walker(IReadOnlyList<Waypoint> path) : IComponent
 
             // The way to the waypoint, in its frame's axes, then in the axes of the character's frame, without its part
             // along the character's up.
-            Double3 way = frames.Relative(target.Frame, self.Frame).Rotation
-                .Rotate(target.Position - self.PoseIn(target.Frame).Position);
+            Double3 way = frames
+                .Relative(target.Frame, self.Frame)
+                .Rotation.Rotate(target.Position - self.PoseIn(target.Frame).Position);
             Double3 up = self.PoseIn(self.Frame).Rotation.Rotate(Double3.UnitY);
             Double3 across = way - Double3.Dot(way, up) * up;
             double distance = across.Length;
             bool last = next == path.Length - 1;
             if (distance > (last ? StopRadius : ArrivalRadius))
             {
-                double pace = Math.Min(last ? Math.Min(speed, StopRate * distance) : speed,
-                    walk.Pace + StartAcceleration * self.DeltaTime);
+                double pace = Math.Min(
+                    last ? Math.Min(speed, StopRate * distance) : speed,
+                    walk.Pace + StartAcceleration * self.DeltaTime
+                );
                 self.Body.MoveCharacter((across * (pace / distance)).ToVector3());
                 return new(next, pace);
             }

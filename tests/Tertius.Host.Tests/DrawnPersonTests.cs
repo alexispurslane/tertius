@@ -32,7 +32,9 @@ public sealed class DrawnPersonTests : IDisposable
     public void ThePersonIsDrawnByAnAttachedBodyWithAVisorOnItsFront(string name)
     {
         SceneInstance scene = Build(name);
-        Entity person = scene["person"], body = scene["person-body"], visor = scene["person-visor"];
+        Entity person = scene["person"],
+            body = scene["person-body"],
+            visor = scene["person-visor"];
 
         world.Tick();
 
@@ -48,7 +50,8 @@ public sealed class DrawnPersonTests : IDisposable
         (bodyAt - DemoSurface.BodyCenter).Length.Should().BeLessThan(1e-3);
         Double3 visorAt = drawn.Rotation.Conjugate().Rotate(world.PoseIn(visor, frame).Position - drawn.Position);
         (visorAt - DemoSurface.VisorCenter).Length.Should().BeLessThan(1e-3);
-        (DemoSurface.BodyCenter + DemoSurface.VisorCenter).Y.Should()
+        (DemoSurface.BodyCenter + DemoSurface.VisorCenter)
+            .Y.Should()
             .BeApproximately(DemoSurface.Eye.Y, 0.01f, "the visor is at the eye's height");
         world.Errors.Should().BeEmpty();
     }
@@ -61,8 +64,9 @@ public sealed class DrawnPersonTests : IDisposable
     public void TheBodyIsWiderThanDeepAndTheVisorStandsOutOfItsFront()
     {
         DemoSurface.BodyHalf.X.Should().BeGreaterThan(1.5f * DemoSurface.BodyHalf.Z);
-        (DemoSurface.VisorCenter.Z + DemoSurface.VisorHalf.Z).Should().BeApproximately(-DemoSurface.BodyHalf.Z, 1e-6f,
-            "the visor's back lies on the body's front");
+        (DemoSurface.VisorCenter.Z + DemoSurface.VisorHalf.Z)
+            .Should()
+            .BeApproximately(-DemoSurface.BodyHalf.Z, 1e-6f, "the visor's back lies on the body's front");
     }
 
     /// <summary>
@@ -90,8 +94,8 @@ public sealed class DrawnPersonTests : IDisposable
             {
                 Vector3 at = Vector3.Transform(corner, turn) + new Vector3(0, lift, 0);
                 MathF.Sqrt(at.X * at.X + at.Z * at.Z).Should().BeLessThanOrEqualTo(half.X, $"at {degrees} degrees");
-                at.Y.Should().BeInRange(-half.Y - 1e-6f, half.Y + 1e-6f,
-                    $"at {degrees} degrees and a lift of {lift} m");
+                at.Y.Should()
+                    .BeInRange(-half.Y - 1e-6f, half.Y + 1e-6f, $"at {degrees} degrees and a lift of {lift} m");
             }
         }
     }
@@ -105,7 +109,7 @@ public sealed class DrawnPersonTests : IDisposable
     {
         SceneInstance scene = Build(BlueDanube.SceneName);
 
-        Vector3 facing = Vector3.Transform(-Vector3.UnitZ, world.GetRender(scene["person"]).ViewOffset.Rotation);
+        var facing = Vector3.Transform(-Vector3.UnitZ, world.GetRender(scene["person"]).ViewOffset.Rotation);
 
         Vector3.Distance(facing, -Vector3.UnitX).Should().BeLessThan(1e-5f);
     }

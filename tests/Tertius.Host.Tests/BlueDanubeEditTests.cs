@@ -21,8 +21,9 @@ public sealed class BlueDanubeEditTests
         CutList cuts = BlueDanubeEdit.Cuts;
         IEnumerable<string> named =
         [
-            .. cuts.Parts.Select(p => p.FirstFilm), .. cuts.Trims.Select(t => t.Film),
-            .. cuts.Panels.SelectMany(p => (string[])[p.FirstFilm, p.LastFilm])
+            .. cuts.Parts.Select(p => p.FirstFilm),
+            .. cuts.Trims.Select(t => t.Film),
+            .. cuts.Panels.SelectMany(p => (string[])[p.FirstFilm, p.LastFilm]),
         ];
 
         named.Should().OnlyContain(film => IndexOf(film) >= 0);
@@ -33,10 +34,19 @@ public sealed class BlueDanubeEditTests
     {
         List<ReadoutRow> rows =
         [
-            .. Films.SelectMany(film => Enumerable.Range(0, film.Frames).Select(k =>
-                new ReadoutRow(Frame: $"{film.Name}-{k:000000}", Tick: film.FirstTick,
-                    Position: new(DemoScenes.EarthRadius, 0, 0), Speed: 0, ToStation: 0, Axis: 0,
-                    Felt: 0)))
+            .. Films.SelectMany(film =>
+                Enumerable
+                    .Range(0, film.Frames)
+                    .Select(k => new ReadoutRow(
+                        Frame: $"{film.Name}-{k:000000}",
+                        Tick: film.FirstTick,
+                        Position: new(DemoScenes.EarthRadius, 0, 0),
+                        Speed: 0,
+                        ToStation: 0,
+                        Axis: 0,
+                        Felt: 0
+                    ))
+            ),
         ];
 
         Action cut = () => EditSubtitles.Film(Stretch.Of(Films, BlueDanubeEdit.Cuts.Trims), rows, BlueDanubeEdit.Cuts);
@@ -125,14 +135,15 @@ public sealed class BlueDanubeEditTests
     }
 
     [Fact]
-    public void TheOutlinesShowWhereTheFramesMatter()
-    {
+    public void TheOutlinesShowWhereTheFramesMatter() =>
         // The walk into the parked shuttle's bubble, the falling frame that forms round the shuttle early in the climb, the
         // hand-off out of the turning ground later in the climb, the shuttle's own frame in orbit, the station's bubble at
         // the rim, and the entry into the station's turning bubble (docs/plans/blue-danube-demo.md, "The frames made visible").
-        Films.Where(film => film.Outlines).Select(film => film.Name).Should().Equal("boarding", "climb-low",
-            "climb-high", "orbit", "glide-rim", "entry");
-    }
+        Films
+            .Where(film => film.Outlines)
+            .Select(film => film.Name)
+            .Should()
+            .Equal("boarding", "climb-low", "climb-high", "orbit", "glide-rim", "entry");
 
     [Fact]
     public void TheParkingOrbitPanelSpansTheCoastFromTheInsertionToTheTransferBurn()

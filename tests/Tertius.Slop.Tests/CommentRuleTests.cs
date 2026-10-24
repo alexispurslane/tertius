@@ -13,10 +13,20 @@ public sealed class CommentRuleTests
     [InlineData("// ==========")]
     [InlineData("//------------------------------")]
     public void ABannerCommentIsFlagged(string comment) =>
-        Source.Findings($"{comment}\nclass C {{ }}").Should().ContainSingle().Which.Should().Be(new Finding
-        {
-            Rule = "section-banner-comment", File = Source.FileName, Line = 1, EndLine = 1
-        });
+        Source
+            .Findings($"{comment}\nclass C {{ }}")
+            .Should()
+            .ContainSingle()
+            .Which.Should()
+            .Be(
+                new Finding
+                {
+                    Rule = "section-banner-comment",
+                    File = Source.FileName,
+                    Line = 1,
+                    EndLine = 1,
+                }
+            );
 
     [Theory]
     [InlineData("// a-b")]
@@ -27,173 +37,265 @@ public sealed class CommentRuleTests
 
     [Fact]
     public void ACommentWhoseWordsAreMostlyTheNamesInTheStatementUnderItIsFlagged() =>
-        Source.Findings("""
-                        class C
-                        {
-                            void F()
-                            {
-                                Prepare();
-                                // Add the body to the world.
-                                world.Add(body);
-                            }
-                        }
-                        """).Should().ContainSingle().Which.Should().Be(new Finding
-        {
-            Rule = "comment-repeats-code", File = Source.FileName, Line = 6, EndLine = 6
-        });
+        Source
+            .Findings(
+                """
+                class C
+                {
+                    void F()
+                    {
+                        Prepare();
+                        // Add the body to the world.
+                        world.Add(body);
+                    }
+                }
+                """
+            )
+            .Should()
+            .ContainSingle()
+            .Which.Should()
+            .Be(
+                new Finding
+                {
+                    Rule = "comment-repeats-code",
+                    File = Source.FileName,
+                    Line = 6,
+                    EndLine = 6,
+                }
+            );
 
     [Fact]
     public void EveryLineOfARepeatingCommentIsFlagged() =>
-        Source.Findings("""
-                        class C
-                        {
-                            void F()
-                            {
-                                Prepare();
-                                // Step the world
-                                // with the step.
-                                world.Step(step);
-                            }
-                        }
-                        """).Should().ContainSingle().Which.Should().Be(new Finding
-        {
-            Rule = "comment-repeats-code", File = Source.FileName, Line = 6, EndLine = 7
-        });
+        Source
+            .Findings(
+                """
+                class C
+                {
+                    void F()
+                    {
+                        Prepare();
+                        // Step the world
+                        // with the step.
+                        world.Step(step);
+                    }
+                }
+                """
+            )
+            .Should()
+            .ContainSingle()
+            .Which.Should()
+            .Be(
+                new Finding
+                {
+                    Rule = "comment-repeats-code",
+                    File = Source.FileName,
+                    Line = 6,
+                    EndLine = 7,
+                }
+            );
 
     [Fact]
     public void ACommentThatGivesAReasonIsNotFlagged() =>
-        Source.RulesIn("""
-                       class C
-                       {
-                           void F()
-                           {
-                               Prepare();
-                               // Jolt keeps one allocator per thread, so the lock serializes the native work.
-                               lock (gate) { world.Step(step); }
-                           }
-                       }
-                       """).Should().BeEmpty();
+        Source
+            .RulesIn(
+                """
+                class C
+                {
+                    void F()
+                    {
+                        Prepare();
+                        // Jolt keeps one allocator per thread, so the lock serializes the native work.
+                        lock (gate) { world.Step(step); }
+                    }
+                }
+                """
+            )
+            .Should()
+            .BeEmpty();
 
     [Fact]
     public void ACommentWithMoreThanAFifthOfItsWordsOutsideTheCodeIsNotFlagged() =>
-        Source.RulesIn("""
-                       class C
-                       {
-                           void F()
-                           {
-                               Prepare();
-                               // The section starts at its camera step, the last before its film.
-                               int start = steps.Take(film).FindLastIndex(step => step is CameraStep);
-                           }
-                       }
-                       """).Should().BeEmpty();
+        Source
+            .RulesIn(
+                """
+                class C
+                {
+                    void F()
+                    {
+                        Prepare();
+                        // The section starts at its camera step, the last before its film.
+                        int start = steps.Take(film).FindLastIndex(step => step is CameraStep);
+                    }
+                }
+                """
+            )
+            .Should()
+            .BeEmpty();
 
     [Fact]
     public void TheDocCommentOfALocalFunctionIsNotFlagged() =>
-        Source.RulesIn("""
-                       class C
-                       {
-                           void F()
-                           {
-                               Prepare();
-                               /// Adds the body to the world.
-                               void AddBody(Body body) => world.Add(body);
-                               AddBody(a);
-                               AddBody(b);
-                           }
-                       }
-                       """).Should().BeEmpty();
+        Source
+            .RulesIn(
+                """
+                class C
+                {
+                    void F()
+                    {
+                        Prepare();
+                        /// Adds the body to the world.
+                        void AddBody(Body body) => world.Add(body);
+                        AddBody(a);
+                        AddBody(b);
+                    }
+                }
+                """
+            )
+            .Should()
+            .BeEmpty();
 
     [Fact]
     public void TheCodeInTheBlockOfAStatementDoesNotCount() =>
-        Source.RulesIn("""
-                       class C
-                       {
-                           void F()
-                           {
-                               Prepare();
-                               // Step the world.
-                               lock (gate) { world.Step(); }
-                           }
-                       }
-                       """).Should().BeEmpty();
+        Source
+            .RulesIn(
+                """
+                class C
+                {
+                    void F()
+                    {
+                        Prepare();
+                        // Step the world.
+                        lock (gate) { world.Step(); }
+                    }
+                }
+                """
+            )
+            .Should()
+            .BeEmpty();
 
     [Fact]
     public void ACommentSeparatedFromTheCodeByABlankLineIsNotFlagged() =>
-        Source.RulesIn("""
-                       class C
-                       {
-                           void F()
-                           {
-                               Prepare();
-                               // Add the body to the world.
+        Source
+            .RulesIn(
+                """
+                class C
+                {
+                    void F()
+                    {
+                        Prepare();
+                        // Add the body to the world.
 
-                               world.Add(body);
-                           }
-                       }
-                       """).Should().BeEmpty();
+                        world.Add(body);
+                    }
+                }
+                """
+            )
+            .Should()
+            .BeEmpty();
 
     [Fact]
     public void ACommentWithOneWordIsNotFlagged() =>
-        Source.RulesIn("""
-                       class C
-                       {
-                           void F()
-                           {
-                               Prepare();
-                               // Add.
-                               world.Add(body);
-                           }
-                       }
-                       """).Should().BeEmpty();
+        Source
+            .RulesIn(
+                """
+                class C
+                {
+                    void F()
+                    {
+                        Prepare();
+                        // Add.
+                        world.Add(body);
+                    }
+                }
+                """
+            )
+            .Should()
+            .BeEmpty();
 
     [Fact]
     public void ADocSummaryThatOnlyRepeatsTheMemberNameIsFlagged() =>
-        Source.Findings("""
-                        class C
-                        {
-                            /// <summary>The id.</summary>
-                            public string Id { get; }
-                        }
-                        """).Should().ContainSingle().Which.Should().Be(new Finding
-        {
-            Rule = "doc-comment-repeats-name", File = Source.FileName, Line = 3, EndLine = 3
-        });
+        Source
+            .Findings(
+                """
+                class C
+                {
+                    /// <summary>The id.</summary>
+                    public string Id { get; }
+                }
+                """
+            )
+            .Should()
+            .ContainSingle()
+            .Which.Should()
+            .Be(
+                new Finding
+                {
+                    Rule = "doc-comment-repeats-name",
+                    File = Source.FileName,
+                    Line = 3,
+                    EndLine = 3,
+                }
+            );
 
     [Fact]
     public void EveryLineOfADocSummaryThatRepeatsTheNameIsFlagged() =>
-        Source.Findings("""
-                        class C
-                        {
-                            /// <summary>
-                            /// Gets the body mass.
-                            /// </summary>
-                            /// <remarks>In kilograms.</remarks>
-                            float BodyMass;
-                        }
-                        """).Should().ContainSingle().Which.Should().Be(new Finding
-        {
-            Rule = "doc-comment-repeats-name", File = Source.FileName, Line = 3, EndLine = 5
-        });
+        Source
+            .Findings(
+                """
+                class C
+                {
+                    /// <summary>
+                    /// Gets the body mass.
+                    /// </summary>
+                    /// <remarks>In kilograms.</remarks>
+                    float BodyMass;
+                }
+                """
+            )
+            .Should()
+            .ContainSingle()
+            .Which.Should()
+            .Be(
+                new Finding
+                {
+                    Rule = "doc-comment-repeats-name",
+                    File = Source.FileName,
+                    Line = 3,
+                    EndLine = 5,
+                }
+            );
 
     [Fact]
     public void ADocParamThatOnlyRepeatsTheParameterNameIsFlagged() =>
-        Source.Findings("""
-                        class C
-                        {
-                            /// <summary>Moves the body to a pose.</summary>
-                            /// <param name="pose">The pose.</param>
-                            void Move(Pose pose) { Use(pose, 0); }
-                        }
-                        """).Should().ContainSingle().Which.Should().Be(new Finding
-        {
-            Rule = "doc-comment-repeats-name", File = Source.FileName, Line = 4, EndLine = 4
-        });
+        Source
+            .Findings(
+                """
+                class C
+                {
+                    /// <summary>Moves the body to a pose.</summary>
+                    /// <param name="pose">The pose.</param>
+                    void Move(Pose pose) { Use(pose, 0); }
+                }
+                """
+            )
+            .Should()
+            .ContainSingle()
+            .Which.Should()
+            .Be(
+                new Finding
+                {
+                    Rule = "doc-comment-repeats-name",
+                    File = Source.FileName,
+                    Line = 4,
+                    EndLine = 4,
+                }
+            );
 
     [Theory]
     [InlineData("/// <summary>The id of the rule.</summary>\nstring Id;")]
     [InlineData("/// <summary>The <see cref=\"Body\"/> of the crate.</summary>\nBody Crate;")]
-    [InlineData("/// <param name=\"pose\">The pose in the frame of the parent.</param>\nvoid Move(Pose pose) { Use(pose, 0); }")]
+    [InlineData(
+        "/// <param name=\"pose\">The pose in the frame of the parent.</param>\nvoid Move(Pose pose) { Use(pose, 0); }"
+    )]
     [InlineData("// The id.\nstring Id;")]
     public void ADocCommentThatSaysMoreThanTheNameOrAPlainCommentIsNotFlagged(string member) =>
         Source.RulesIn($"class C\n{{\n{member}\n}}").Should().BeEmpty();
@@ -202,35 +304,52 @@ public sealed class CommentRuleTests
     [InlineData("// world.Remove(body);")]
     [InlineData("// var mass = body.Mass * 2;")]
     public void ACommentThatHoldsAStatementIsFlaggedAsCommentedOutCode(string comment) =>
-        Source.Findings($$"""
-                          class C
-                          {
-                              void F()
-                              {
-                                  {{comment}}
-                                  Use(2);
-                              }
-                          }
-                          """).Should().ContainSingle().Which.Should().Be(new Finding
-        {
-            Rule = "commented-out-code", File = Source.FileName, Line = 5, EndLine = 5
-        });
+        Source
+            .Findings(
+                $$"""
+                class C
+                {
+                    void F()
+                    {
+                        {{comment}}
+                        Use(2);
+                    }
+                }
+                """
+            )
+            .Should()
+            .ContainSingle()
+            .Which.Should()
+            .Be(
+                new Finding
+                {
+                    Rule = "commented-out-code",
+                    File = Source.FileName,
+                    Line = 5,
+                    EndLine = 5,
+                }
+            );
 
     [Theory]
     [InlineData("// Wake the body before the push.")]
     [InlineData("// Every step runs once per tick;")]
     [InlineData("// See ARCHITECTURE.md, \"Bubbles\".")]
     public void ACommentInWordsIsNotCommentedOutCode(string comment) =>
-        Source.RulesIn($$"""
-                         class C
-                         {
-                             void F()
-                             {
-                                 {{comment}}
-                                 Use(2);
-                             }
-                         }
-                         """).Should().BeEmpty();
+        Source
+            .RulesIn(
+                $$"""
+                class C
+                {
+                    void F()
+                    {
+                        {{comment}}
+                        Use(2);
+                    }
+                }
+                """
+            )
+            .Should()
+            .BeEmpty();
 
     [Theory]
     [InlineData("// TODO: merge the two tables.")]
@@ -247,13 +366,18 @@ public sealed class CommentRuleTests
 
     [Fact]
     public void ARegionAndItsEndAreFlagged() =>
-        Source.Findings("""
-                        class C
-                        {
-                            #region Fields
-                            int x;
-                            #endregion
-                        }
-                        """).Select(finding => (finding.Rule, finding.Line)).Should()
+        Source
+            .Findings(
+                """
+                class C
+                {
+                    #region Fields
+                    int x;
+                    #endregion
+                }
+                """
+            )
+            .Select(finding => (finding.Rule, finding.Line))
+            .Should()
             .Equal(("region", 3), ("region", 5));
 }

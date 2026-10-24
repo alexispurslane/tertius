@@ -31,10 +31,12 @@ public readonly ref struct FoundEntities
     }
 
     /// <inheritdoc cref="EntityQuery.With{T}"/>
-    public FoundEntities With<T>() where T : IComponent => new(snapshot, query.With<T>(), stack);
+    public FoundEntities With<T>()
+        where T : IComponent => new(snapshot, query.With<T>(), stack);
 
     /// <inheritdoc cref="EntityQuery.Without{T}"/>
-    public FoundEntities Without<T>() where T : IComponent => new(snapshot, query.Without<T>(), stack);
+    public FoundEntities Without<T>()
+        where T : IComponent => new(snapshot, query.Without<T>(), stack);
 
     /// <inheritdoc cref="EntityQuery.InAll"/>
     public FoundEntities InAll(CollisionGroup group) => new(snapshot, query.InAll(group), stack);
@@ -146,7 +148,6 @@ public readonly ref struct FoundEntities
         private readonly ReadOnlySpan<Entity> candidates;
         private Entity[]? buffer;
         private int index;
-        private Entity current;
 
         internal Enumerator(scoped in Snapshot snapshot, scoped in EntityQuery query, scoped in StackFilters stack)
         {
@@ -154,7 +155,7 @@ public readonly ref struct FoundEntities
             this.query = query;
             this.stack = stack;
             index = -1;
-            current = Entity.Null;
+            Current = Entity.Null;
             QueryPlan plan = QueryPlanner.Choose(snapshot, query, stack.Items);
             Index = plan.Index;
             CandidateCount = plan.Count;
@@ -167,9 +168,15 @@ public readonly ref struct FoundEntities
                 case QueryIndex.Grid:
                     // The grid lists the entities of a cell in no order, so the run sorts them into entity index order.
                     buffer = QueryBuffers.Rent(plan.Count);
-                    Span<Entity> near = buffer.AsSpan(0,
-                        snapshot.World.Spatial.CollectNear(frame: plan.Frame, center: plan.Point, radius: plan.Radius,
-                            into: buffer));
+                    Span<Entity> near = buffer.AsSpan(
+                        0,
+                        snapshot.World.Spatial.CollectNear(
+                            frame: plan.Frame,
+                            center: plan.Point,
+                            radius: plan.Radius,
+                            into: buffer
+                        )
+                    );
                     near.Sort();
                     candidates = near;
                     break;
@@ -187,7 +194,7 @@ public readonly ref struct FoundEntities
         /// <summary>How many candidates the index gives, before the filters: an upper bound of the matches.</summary>
         internal readonly int CandidateCount { get; }
 
-        public readonly Entity Current => current;
+        public Entity Current { get; private set; }
 
         public bool MoveNext()
         {
@@ -199,7 +206,7 @@ public readonly ref struct FoundEntities
                     Entity entity = all.Current;
                     if (query.Matches(snapshot, entity, more))
                     {
-                        current = entity;
+                        Current = entity;
                         return true;
                     }
                 }
@@ -212,7 +219,7 @@ public readonly ref struct FoundEntities
                 Entity entity = candidates[index];
                 if (query.Matches(snapshot, entity, more))
                 {
-                    current = entity;
+                    Current = entity;
                     return true;
                 }
             }
@@ -260,7 +267,8 @@ internal struct StackFilters
     {
         if (count == Capacity)
             throw new InvalidOperationException(
-                $"A chain from Snapshot.Entities keeps at most {Capacity} In, Near and Where filters beyond its first of each. Store the query as a static readonly EntityQuery instead.");
+                $"A chain from Snapshot.Entities keeps at most {Capacity} In, Near and Where filters beyond its first of each. Store the query as a static readonly EntityQuery instead."
+            );
         StackFilters copy = this;
         copy.items[copy.count++] = filter;
         return copy;

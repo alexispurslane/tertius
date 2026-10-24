@@ -28,16 +28,23 @@ public sealed class FirstMotionIntentTests
     [InlineData("kinematic hull", true)]
     [InlineData("no body", false)]
     [InlineData("no body", true)]
-    public void ANewFrameOnRailsWithAFirstMotionIntentStandsOnItsRailsAtTheFirstSyncPointAfterItsSpawn(string body,
-        bool inTick)
+    public void ANewFrameOnRailsWithAFirstMotionIntentStandsOnItsRailsAtTheFirstSyncPointAfterItsSpawn(
+        string body,
+        bool inTick
+    )
     {
         using World world = NewWorld(backend: out _);
         FrameHandle space = Scenes.AsteroidSpace(world);
         // A circular orbit of 50 km moves at 632 m/s, too slow and too near for a numeric frame.
-        KeplerOrbit orbit = KeplerOrbit.Circular(50_000, phase: 0.3);
+        var orbit = KeplerOrbit.Circular(50_000, phase: 0.3);
         double mu = KeplerOrbit.MuFrom(world.Frames.Gravity(space));
         BodyDesc? hull = body == "kinematic hull" ? Box(BodyMotion.Kinematic) : null;
-        var desc = new SpawnDesc { Frame = space, Body = hull, AsFrame = SmallBubble };
+        var desc = new SpawnDesc
+        {
+            Frame = space,
+            Body = hull,
+            AsFrame = SmallBubble,
+        };
         Entity owner;
         if (inTick)
         {
@@ -55,13 +62,19 @@ public sealed class FirstMotionIntentTests
 
         world.Tick();
 
-        world.Frames.Followed(frame).Should()
+        world
+            .Frames.Followed(frame)
+            .Should()
             .Be(FollowKind.Rails, "the frame followed its first motion intent in its first step");
         for (int tick = 0; tick < 10; tick++)
         {
-            world.Frames.LocalPose(frame).Should().Be(
-                new DPose(orbit.StateAt(world.Time, mu).Position, orbit.RotationAt(world.Time, mu)),
-                "the frame stands on its orbit from the first sync point after its spawn on, and its KeplerMotion's first teleport moves nothing");
+            world
+                .Frames.LocalPose(frame)
+                .Should()
+                .Be(
+                    new DPose(orbit.StateAt(world.Time, mu).Position, orbit.RotationAt(world.Time, mu)),
+                    "the frame stands on its orbit from the first sync point after its spawn on, and its KeplerMotion's first teleport moves nothing"
+                );
             world.Tick();
         }
 
@@ -73,25 +86,38 @@ public sealed class FirstMotionIntentTests
     {
         using World world = NewWorld(backend: out _);
         FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(Scenes.EarthMu)));
-        FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
-        {
-            Frame = planet,
-            Body = Box(BodyMotion.Kinematic),
-            AsFrame = new(FrameBounds.Sphere(20))
-        }.OnKeplerOrbit(world, KeplerOrbit.Circular(StationRadius), firstMove: true)));
+        FrameHandle station = world.GetOwnedFrame(
+            world.Spawn(
+                new SpawnDesc
+                {
+                    Frame = planet,
+                    Body = Box(BodyMotion.Kinematic),
+                    AsFrame = new(FrameBounds.Sphere(20)),
+                }.OnKeplerOrbit(world, KeplerOrbit.Circular(StationRadius), firstMove: true)
+            )
+        );
         var start = new Double3(0, 3, 0);
-        Entity crate = world.Spawn(new()
-            { Frame = station, Pose = new(start, DQuaternion.Identity), Body = Ball(0.25f) });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = station,
+                Pose = new(start, DQuaternion.Identity),
+                Body = Ball(0.25f),
+            }
+        );
 
         for (int tick = 0; tick < 120; tick++)
         {
             world.Tick();
-            world.Frames.ProperAcceleration(station).Should().Be(Vector3.Zero,
-                "the station falls freely on its orbit from its first step");
+            world
+                .Frames.ProperAcceleration(station)
+                .Should()
+                .Be(Vector3.Zero, "the station falls freely on its orbit from its first step");
         }
 
         world.GetFrame(crate).Should().Be(station);
-        (world.PoseInOwnFrame(crate).Position - start).Length.Should()
+        (world.PoseInOwnFrame(crate).Position - start)
+            .Length.Should()
             .BeLessThan(1e-9, "nothing pulled on the crate in the station");
         world.Errors.Should().BeEmpty();
     }
@@ -110,7 +136,7 @@ public sealed class FirstMotionIntentTests
         {
             Frame = space,
             Body = steer ? Ball() : Ball() with { Motion = BodyMotion.Kinematic },
-            FirstMove = steer ? new(new SteerTarget(Turned)) : new MotionIntent(new EndPose(Turned))
+            FirstMove = steer ? new(new SteerTarget(Turned)) : new MotionIntent(new EndPose(Turned)),
         };
         Entity body = SpawnThenTick(world: world, space: space, desc: desc, inTick: inTick);
 
@@ -119,9 +145,11 @@ public sealed class FirstMotionIntentTests
         // Nothing stands between the ball and its pose, and no gravity acts in space, so a steer target carries the dynamic
         // ball there too, to the rounding of Jolt's float velocities.
         DPose pose = world.PoseInOwnFrame(body);
-        (pose.Position - Turned.Position).Length.Should()
+        (pose.Position - Turned.Position)
+            .Length.Should()
             .BeLessThan(steer ? 1e-4 : 1e-6, "the body ends its first step on the pose");
-        Math.Abs(Dot(pose.Rotation, Turned.Rotation)).Should()
+        Math.Abs(Dot(pose.Rotation, Turned.Rotation))
+            .Should()
             .BeApproximately(1, 1e-6, "the body turned to the pose's rotation");
         world.Errors.Should().BeEmpty();
     }
@@ -135,22 +163,32 @@ public sealed class FirstMotionIntentTests
         FrameHandle space = Space(world);
         bool frame = kind == "frame without a body with a full sample";
         var moved = new DPose(new(0.3, 0, 0), DQuaternion.Identity);
-        var sample = new MotionSample(Pose: moved, ChordVelocity: new(18, 0, 0), Velocity: new(18, 0, 0),
-            Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
-        Entity entity = world.Spawn(new()
-        {
-            Frame = space,
-            Body = frame ? null : Ball() with { Motion = BodyMotion.Kinematic },
-            AsFrame = frame ? SmallBubble : null,
-            FirstMove = frame ? new(sample) : new MotionIntent(new EndPose(moved))
-        });
+        var sample = new MotionSample(
+            Pose: moved,
+            ChordVelocity: new(18, 0, 0),
+            Velocity: new(18, 0, 0),
+            Acceleration: Double3.Zero,
+            AngularVelocity: Double3.Zero,
+            AngularAcceleration: Double3.Zero
+        );
+        Entity entity = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = frame ? null : Ball() with { Motion = BodyMotion.Kinematic },
+                AsFrame = frame ? SmallBubble : null,
+                FirstMove = frame ? new(sample) : new MotionIntent(new EndPose(moved)),
+            }
+        );
         world.Tick();
-        (world.PoseIn(entity, space).Position - moved.Position).Length.Should()
+        (world.PoseIn(entity, space).Position - moved.Position)
+            .Length.Should()
             .BeLessThan(1e-6, "the first step carried it");
 
         world.Tick();
 
-        (world.PoseIn(entity, space).Position - moved.Position).Length.Should()
+        (world.PoseIn(entity, space).Position - moved.Position)
+            .Length.Should()
             .BeLessThan(1e-6, "no motion intent followed the first");
         world.VelocityIn(entity, space).Should().Be(Double3.Zero, "it holds still in its second step");
         world.Errors.Should().BeEmpty();
@@ -162,23 +200,31 @@ public sealed class FirstMotionIntentTests
         using World world = NewWorld(backend: out _);
         FrameHandle space = Scenes.AsteroidSpace(world);
         double mu = KeplerOrbit.MuFrom(world.Frames.Gravity(space));
-        KeplerOrbit orbit = KeplerOrbit.Circular(5_000);
-        FrameHandle frame = world.GetOwnedFrame(world.Spawn(new SpawnDesc
-        {
-            Frame = space,
-            Body = Box(BodyMotion.Kinematic),
-            AsFrame = SmallBubble
-        }.OnKeplerOrbit(world, orbit, firstMove: true)));
+        var orbit = KeplerOrbit.Circular(5_000);
+        FrameHandle frame = world.GetOwnedFrame(
+            world.Spawn(
+                new SpawnDesc
+                {
+                    Frame = space,
+                    Body = Box(BodyMotion.Kinematic),
+                    AsFrame = SmallBubble,
+                }.OnKeplerOrbit(world, orbit, firstMove: true)
+            )
+        );
         MotionSample first = orbit.Sample(mu, world.TimeAt(world.TickNumber + 1), world.DeltaTime);
 
         world.Tick();
 
         world.Frames.InFollowingFrame(frame).Should().BeTrue("a hull at 2 km/s gets a following frame at its spawn");
         FrameHandle following = world.Frames.TreeParent(frame);
-        world.Frames.TreeLocalPose(following).Position.Should().Be(first.Pose.Position,
-            "the following frame landed on the first motion intent");
+        world
+            .Frames.TreeLocalPose(following)
+            .Position.Should()
+            .Be(first.Pose.Position, "the following frame landed on the first motion intent");
         world.Frames.LinearVelocity(following).Should().Be(first.ChordVelocity);
-        world.Frames.TreeLocalPose(frame).Position.Should()
+        world
+            .Frames.TreeLocalPose(frame)
+            .Position.Should()
             .Be(Double3.Zero, "the hull stands at the origin of its following frame");
         world.Errors.Should().BeEmpty();
     }
@@ -208,9 +254,16 @@ public sealed class FirstMotionIntentTests
         FrameHandle space = Space(world);
         Entity parent = world.Spawn(new() { Frame = space });
         var endPose = new MotionIntent(new EndPose(Turned));
-        var sample = new MotionIntent(new MotionSample(Pose: Turned, ChordVelocity: Double3.Zero,
-            Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
-            AngularAcceleration: Double3.Zero));
+        var sample = new MotionIntent(
+            new MotionSample(
+                Pose: Turned,
+                ChordVelocity: Double3.Zero,
+                Velocity: Double3.Zero,
+                Acceleration: Double3.Zero,
+                AngularVelocity: Double3.Zero,
+                AngularAcceleration: Double3.Zero
+            )
+        );
         var steer = new MotionIntent(new SteerTarget(Turned));
         (SpawnDesc desc, string reason) = kind switch
         {
@@ -218,28 +271,72 @@ public sealed class FirstMotionIntentTests
             "character" => (
                 new()
                 {
-                    Frame = space, Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character),
-                    FirstMove = endPose
+                    Frame = space,
+                    Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character),
+                    FirstMove = endPose,
                 },
-                "*character*"),
-            "end pose on a dynamic body" => (new() { Frame = space, Body = Ball(), FirstMove = endPose },
-                "*Dynamic body*end pose*"),
+                "*character*"
+            ),
+            "end pose on a dynamic body" => (
+                new()
+                {
+                    Frame = space,
+                    Body = Ball(),
+                    FirstMove = endPose,
+                },
+                "*Dynamic body*end pose*"
+            ),
             "full sample on a dynamic hull" => (
-                new() { Frame = space, Body = Box(BodyMotion.Dynamic), AsFrame = SmallBubble, FirstMove = sample },
-                "*Dynamic body*full sample*"),
+                new()
+                {
+                    Frame = space,
+                    Body = Box(BodyMotion.Dynamic),
+                    AsFrame = SmallBubble,
+                    FirstMove = sample,
+                },
+                "*Dynamic body*full sample*"
+            ),
             "end pose on a static body" => (
-                new() { Frame = space, Body = Ball() with { Motion = BodyMotion.Static }, FirstMove = endPose },
-                "*Static body*end pose*"),
+                new()
+                {
+                    Frame = space,
+                    Body = Ball() with { Motion = BodyMotion.Static },
+                    FirstMove = endPose,
+                },
+                "*Static body*end pose*"
+            ),
             "full sample on a static hull" => (
-                new() { Frame = space, Body = Box(BodyMotion.Static), AsFrame = SmallBubble, FirstMove = sample },
-                "*Static body*full sample*"),
+                new()
+                {
+                    Frame = space,
+                    Body = Box(BodyMotion.Static),
+                    AsFrame = SmallBubble,
+                    FirstMove = sample,
+                },
+                "*Static body*full sample*"
+            ),
             "steer target on a kinematic body" => (
-                new() { Frame = space, Body = Ball() with { Motion = BodyMotion.Kinematic }, FirstMove = steer },
-                "*Kinematic body*steer target*"),
-            "steer target on an entity without a body" => (new() { Frame = space, FirstMove = steer },
-                "*no body*steer target*"),
-            _ => (new SpawnDesc { Body = Box(BodyMotion.Dynamic), AsFrame = SmallBubble, FirstMove = steer },
-                "*root frame*steer target*")
+                new()
+                {
+                    Frame = space,
+                    Body = Ball() with { Motion = BodyMotion.Kinematic },
+                    FirstMove = steer,
+                },
+                "*Kinematic body*steer target*"
+            ),
+            "steer target on an entity without a body" => (
+                new() { Frame = space, FirstMove = steer },
+                "*no body*steer target*"
+            ),
+            _ => (
+                new SpawnDesc
+                {
+                    Body = Box(BodyMotion.Dynamic),
+                    AsFrame = SmallBubble,
+                    FirstMove = steer,
+                },
+                "*root frame*steer target*"
+            ),
         };
 
         Exception? refusal = SpawnRefusal(world: world, space: space, desc: desc, inTick: inTick);
@@ -266,18 +363,34 @@ public sealed class FirstMotionIntentTests
         using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
         var endPose = new MotionIntent(new EndPose(Turned));
-        var sample = new MotionIntent(new MotionSample(Pose: Turned, ChordVelocity: Double3.Zero,
-            Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
-            AngularAcceleration: Double3.Zero));
+        var sample = new MotionIntent(
+            new MotionSample(
+                Pose: Turned,
+                ChordVelocity: Double3.Zero,
+                Velocity: Double3.Zero,
+                Acceleration: Double3.Zero,
+                AngularVelocity: Double3.Zero,
+                AngularAcceleration: Double3.Zero
+            )
+        );
         SpawnDesc desc = kind switch
         {
             "full sample on a plain kinematic body" => new()
-                { Frame = space, Body = Ball() with { Motion = BodyMotion.Kinematic }, FirstMove = sample },
+            {
+                Frame = space,
+                Body = Ball() with { Motion = BodyMotion.Kinematic },
+                FirstMove = sample,
+            },
             "end pose on a kinematic hull" => new()
-                { Frame = space, Body = Box(BodyMotion.Kinematic), AsFrame = SmallBubble, FirstMove = endPose },
+            {
+                Frame = space,
+                Body = Box(BodyMotion.Kinematic),
+                AsFrame = SmallBubble,
+                FirstMove = endPose,
+            },
             "end pose on an entity without a body" => new() { Frame = space, FirstMove = endPose },
             "full sample on an entity without a body" => new() { Frame = space, FirstMove = sample },
-            _ => new() { AsFrame = SmallBubble, FirstMove = endPose }
+            _ => new() { AsFrame = SmallBubble, FirstMove = endPose },
         };
 
         SpawnRefusal(world: world, space: space, desc: desc, inTick: inTick).Should().BeNull();
@@ -301,30 +414,52 @@ public sealed class FirstMotionIntentTests
         {
             "end pose at a place that is not finite" => new()
             {
-                Frame = space, Body = kinematic,
-                FirstMove = new(new EndPose(new(new(double.NaN, 0, 0), DQuaternion.Identity)))
+                Frame = space,
+                Body = kinematic,
+                FirstMove = new(new EndPose(new(new(double.NaN, 0, 0), DQuaternion.Identity))),
             },
             "end pose with a zero rotation" => new()
-                { Frame = space, Body = kinematic, FirstMove = new(new EndPose(new(Double3.Zero, zero))) },
+            {
+                Frame = space,
+                Body = kinematic,
+                FirstMove = new(new EndPose(new(Double3.Zero, zero))),
+            },
             "full sample with a velocity that is not finite" => new()
             {
-                Frame = space, AsFrame = SmallBubble,
-                FirstMove = new(new MotionSample(Pose: at, ChordVelocity: Double3.Zero,
-                    Velocity: new(0, double.PositiveInfinity, 0), Acceleration: Double3.Zero,
-                    AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero))
+                Frame = space,
+                AsFrame = SmallBubble,
+                FirstMove = new(
+                    new MotionSample(
+                        Pose: at,
+                        ChordVelocity: Double3.Zero,
+                        Velocity: new(0, double.PositiveInfinity, 0),
+                        Acceleration: Double3.Zero,
+                        AngularVelocity: Double3.Zero,
+                        AngularAcceleration: Double3.Zero
+                    )
+                ),
             },
             "full sample with a zero rotation" => new()
             {
-                Frame = space, AsFrame = SmallBubble,
-                FirstMove = new(new MotionSample(Pose: new(Double3.Zero, zero), ChordVelocity: Double3.Zero,
-                    Velocity: Double3.Zero, Acceleration: Double3.Zero,
-                    AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero))
+                Frame = space,
+                AsFrame = SmallBubble,
+                FirstMove = new(
+                    new MotionSample(
+                        Pose: new(Double3.Zero, zero),
+                        ChordVelocity: Double3.Zero,
+                        Velocity: Double3.Zero,
+                        Acceleration: Double3.Zero,
+                        AngularVelocity: Double3.Zero,
+                        AngularAcceleration: Double3.Zero
+                    )
+                ),
             },
             _ => new()
             {
-                Frame = space, Body = Ball(),
-                FirstMove = new(new SteerTarget(new(Double3.Zero, new(X: 0, Y: double.NaN, Z: 0, W: 1))))
-            }
+                Frame = space,
+                Body = Ball(),
+                FirstMove = new(new SteerTarget(new(Double3.Zero, new(X: 0, Y: double.NaN, Z: 0, W: 1)))),
+            },
         };
 
         world.Invoking(w => w.Spawn(desc)).Should().Throw<ArgumentException>();
@@ -336,30 +471,47 @@ public sealed class FirstMotionIntentTests
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
-        DQuaternion turn = DQuaternion.FromAxisAngle(Double3.UnitZ, 0.4);
+        var turn = DQuaternion.FromAxisAngle(Double3.UnitZ, 0.4);
         var doubled = new DQuaternion(X: 2 * turn.X, Y: 2 * turn.Y, Z: 2 * turn.Z, W: 2 * turn.W);
-        FrameHandle frame = world.GetOwnedFrame(world.Spawn(new()
-        {
-            Frame = space,
-            AsFrame = SmallBubble,
-            FirstMove = new(new MotionSample(Pose: new(Double3.Zero, doubled), ChordVelocity: Double3.Zero,
-                Velocity: Double3.Zero, Acceleration: Double3.Zero,
-                AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero))
-        }));
-        Entity body = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(5),
-            Body = Ball() with { Motion = BodyMotion.Kinematic },
-            FirstMove = new(new EndPose(new(new(5, 0, 0), doubled)))
-        });
+        FrameHandle frame = world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    AsFrame = SmallBubble,
+                    FirstMove = new(
+                        new MotionSample(
+                            Pose: new(Double3.Zero, doubled),
+                            ChordVelocity: Double3.Zero,
+                            Velocity: Double3.Zero,
+                            Acceleration: Double3.Zero,
+                            AngularVelocity: Double3.Zero,
+                            AngularAcceleration: Double3.Zero
+                        )
+                    ),
+                }
+            )
+        );
+        Entity body = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(5),
+                Body = Ball() with { Motion = BodyMotion.Kinematic },
+                FirstMove = new(new EndPose(new(new(5, 0, 0), doubled))),
+            }
+        );
 
         world.Tick();
 
-        world.Frames.LocalPose(frame).Rotation.Should().Be(doubled.Normalized(),
-            "the frame takes its first motion intent with a unit rotation");
-        faults.Intents.Single(record => record.Entity == body).Intent.Move.AimPose.Rotation.IsUnit.Should().BeTrue(
-            "the World stores the first motion intent with a unit rotation");
+        world
+            .Frames.LocalPose(frame)
+            .Rotation.Should()
+            .Be(doubled.Normalized(), "the frame takes its first motion intent with a unit rotation");
+        faults
+            .Intents.Single(record => record.Entity == body)
+            .Intent.Move.AimPose.Rotation.IsUnit.Should()
+            .BeTrue("the World stores the first motion intent with a unit rotation");
         world.Errors.Should().BeEmpty();
     }
 
@@ -453,17 +605,19 @@ public sealed class FirstMotionIntentTests
             // Only a kinematic hull takes the orbit's velocities: a spawn refuses a velocity on an entity without a body,
             // which only its motion intents move.
             bool hull = desc.Body is not null;
-            Spawned = self.Spawn(new()
-            {
-                Frame = desc.Frame,
-                Pose = new(place, orbit.RotationAt(live, mu)),
-                LinearVelocity = hull ? velocity : Double3.Zero,
-                AngularVelocity = hull ? orbit.AngularVelocityAt(live, mu).ToVector3() : Vector3.Zero,
-                FirstMove = new(orbit.Sample(mu, self.TimeAt(self.Tick + 2), self.DeltaTime)),
-                Body = desc.Body,
-                AsFrame = desc.AsFrame,
-                Components = [new KeplerMotion { Orbit = orbit }]
-            });
+            Spawned = self.Spawn(
+                new()
+                {
+                    Frame = desc.Frame,
+                    Pose = new(place, orbit.RotationAt(live, mu)),
+                    LinearVelocity = hull ? velocity : Double3.Zero,
+                    AngularVelocity = hull ? orbit.AngularVelocityAt(live, mu).ToVector3() : Vector3.Zero,
+                    FirstMove = new(orbit.Sample(mu, self.TimeAt(self.Tick + 2), self.DeltaTime)),
+                    Body = desc.Body,
+                    AsFrame = desc.AsFrame,
+                    Components = [new KeplerMotion { Orbit = orbit }],
+                }
+            );
         }
     }
 }

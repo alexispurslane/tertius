@@ -21,12 +21,18 @@ public sealed class GhostTests
     private static BodyDesc BoxBody(float half) =>
         new(Shape: new BoxShapeDesc(new(half)), Mass: 1, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
 
-    private static FrameHandle Space(World world) =>
-        world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
+    private static FrameHandle Space(World world) => world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
 
     /// <summary>A frame without a body, as a child of <paramref name="parent"/>. Returns the entity that owns it.</summary>
     private static Entity BubbleOwner(World world, FrameHandle parent, DPose pose, float radius) =>
-        world.Spawn(new() { Frame = parent, Pose = pose, AsFrame = new(FrameBounds.Sphere(radius)) });
+        world.Spawn(
+            new()
+            {
+                Frame = parent,
+                Pose = pose,
+                AsFrame = new(FrameBounds.Sphere(radius)),
+            }
+        );
 
     private static FrameHandle Bubble(World world, FrameHandle parent, DPose pose, float radius) =>
         world.GetOwnedFrame(BubbleOwner(world: world, parent: parent, pose: pose, radius: radius));
@@ -40,14 +46,16 @@ public sealed class GhostTests
         FrameHandle bubble = Bubble(world: world, parent: space, pose: new(center, DQuaternion.Identity), radius: 20);
         const float radius = 0.5f;
         var pilot = new Pilot();
-        Entity ball = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(28),
-            LinearVelocity = new Vector3(3, 0, 0),
-            Body = BallBody(radius),
-            Components = [pilot]
-        });
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(28),
+                LinearVelocity = new Vector3(3, 0, 0),
+                Body = BallBody(radius),
+                Components = [pilot],
+            }
+        );
 
         // Outside and not touching: no ghost.
         world.Tick();
@@ -98,18 +106,27 @@ public sealed class GhostTests
         var blockDesc = new BodyDesc(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic);
         var pilot = new Pilot();
         var blockLog = new CollisionLog();
-        Entity block = world.Spawn(new()
-            { Frame = bubble, Pose = At(10), Body = blockDesc, Components = [pilot, blockLog] });
+        Entity block = world.Spawn(
+            new()
+            {
+                Frame = bubble,
+                Pose = At(10),
+                Body = blockDesc,
+                Components = [pilot, blockLog],
+            }
+        );
         // A ball in the parent flies at the part that sticks out. It never touches the child's bubble.
         var ballLog = new CollisionLog();
-        Entity ball = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(16),
-            LinearVelocity = new Vector3(-5, 0, 0),
-            Body = BallBody(0.25f),
-            Components = [ballLog]
-        });
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(16),
+                LinearVelocity = new Vector3(-5, 0, 0),
+                Body = BallBody(0.25f),
+                Components = [ballLog],
+            }
+        );
 
         world.Tick();
         faults.Jolt.HasGhostIn(block, space).Should().BeTrue();
@@ -122,7 +139,9 @@ public sealed class GhostTests
         world.VelocityInOwnFrame(ball).X.Should().BeGreaterThan(-0.5f);
         faults.Outputs.SelectMany(output => output.HandOffs).Should().BeEmpty();
         // The ghost pushed, but the block did not move: ghosts never push back on the real body.
-        (world.PoseInOwnFrame(block).Position - new Double3(10, 0, 0)).Length.Should().BeLessThan(1e-6);
+        (world.PoseInOwnFrame(block).Position - new Double3(10, 0, 0))
+            .Length.Should()
+            .BeLessThan(1e-6);
         ContactStarted contact = faults.Outputs.SelectMany(output => output.Contacts).Should().ContainSingle().Subject;
         new[] { contact.A, contact.B }.Should().BeEquivalentTo([block, ball]);
         contact.Frame.Should().Be(space, "the parent's system holds the ghost and the ball");
@@ -149,7 +168,14 @@ public sealed class GhostTests
         FrameHandle left = world.GetOwnedFrame(leftOwner);
         FrameHandle right = Bubble(world: world, parent: space, pose: At(10.4), radius: 10);
         // The ball enters the right bubble and sticks out of it: space and the left frame hold ghosts of it.
-        Entity ball = world.Spawn(new() { Frame = space, Pose = At(0), Body = BallBody(1f) });
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(0),
+                Body = BallBody(1f),
+            }
+        );
         world.Tick();
         world.GetFrame(ball).Should().Be(right);
         faults.Jolt.HasGhostIn(ball, left).Should().BeTrue();
@@ -172,19 +198,28 @@ public sealed class GhostTests
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
-        DQuaternion rotation = DQuaternion.FromAxisAngle(Double3.UnitZ, 0.7);
+        var rotation = DQuaternion.FromAxisAngle(Double3.UnitZ, 0.7);
         FrameHandle bubble = Bubble(world: world, parent: space, pose: new(new(-30, 5, 2), rotation), radius: 10);
         // A kinematic body at the child's edge, sticking out of the bubble.
         var desc = new BodyDesc(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Kinematic);
-        Entity rider = world.Spawn(new() { Frame = bubble, Pose = At(0, 0, 9.8), Body = desc });
+        Entity rider = world.Spawn(
+            new()
+            {
+                Frame = bubble,
+                Pose = At(0, 0, 9.8),
+                Body = desc,
+            }
+        );
         // A probe ball in the parent, placed so that it rests against where the ghost will be.
-        Entity probe = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = new(new DPose(new(-30, 5, 2), rotation).TransformPoint(new(0, 0, 11.6)), DQuaternion.Identity),
-            LinearVelocity = rotation.Rotate(new(0, 0, -1)),
-            Body = BallBody(0.5f)
-        });
+        Entity probe = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = new(new DPose(new(-30, 5, 2), rotation).TransformPoint(new(0, 0, 11.6)), DQuaternion.Identity),
+                LinearVelocity = rotation.Rotate(new(0, 0, -1)),
+                Body = BallBody(0.5f),
+            }
+        );
 
         Tick(world, 30);
 
@@ -202,29 +237,42 @@ public sealed class GhostTests
         FrameHandle space = Space(world);
         // A static station whose hull is a triangle mesh: a wall facing -X at x = 15, inside both bubbles. Jolt
         // ignores the back faces of triangles, so the winding must face the ship.
-        var wall = new MeshShapeDesc([new(-15, -5, -5), new(-15, 5, -5), new(-15, 5, 5), new(-15, -5, 5)],
-            [0, 2, 1, 0, 3, 2]);
-        Entity stationOwner = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(30),
-            Body = new(Shape: wall, Motion: BodyMotion.Static, InteriorShape: new SphereShapeDesc(1)),
-            AsFrame = new(FrameBounds.Sphere(20))
-        });
+        var wall = new MeshShapeDesc(
+            [new(-15, -5, -5), new(-15, 5, -5), new(-15, 5, 5), new(-15, -5, 5)],
+            [0, 2, 1, 0, 3, 2]
+        );
+        Entity stationOwner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(30),
+                Body = new(Shape: wall, Motion: BodyMotion.Static, InteriorShape: new SphereShapeDesc(1)),
+                AsFrame = new(FrameBounds.Sphere(20)),
+            }
+        );
         FrameHandle station = world.GetOwnedFrame(stationOwner);
         // A ship next to it, at rest, whose bubble overlaps the station's.
-        Entity shipOwner = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(0),
-            Body = new(Shape: new SphereShapeDesc(2), Mass: 1000, InteriorShape: new SphereShapeDesc(1)),
-            AsFrame = new(FrameBounds.Sphere(20))
-        });
+        Entity shipOwner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(0),
+                Body = new(Shape: new SphereShapeDesc(2), Mass: 1000, InteriorShape: new SphereShapeDesc(1)),
+                AsFrame = new(FrameBounds.Sphere(20)),
+            }
+        );
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
         // A crate in the ship flies at the station's wall. It stays in the ship until it leaves the ship's bubble,
         // so it must hit the wall's ghost in the ship's system.
-        Entity crate = world.Spawn(new()
-            { Frame = ship, Pose = At(10), LinearVelocity = new Vector3(4, 0, 0), Body = BoxBody(0.5f) });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = ship,
+                Pose = At(10),
+                LinearVelocity = new Vector3(4, 0, 0),
+                Body = BoxBody(0.5f),
+            }
+        );
 
         world.Tick();
         faults.Jolt.HasGhostIn(stationOwner, ship).Should().BeTrue();

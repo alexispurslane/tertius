@@ -18,59 +18,88 @@ public sealed class FrameMotionCompositionTests
         MiddleVelocity = new(2, -7, 0.5),
         MiddleAcceleration = new(-0.3, 0.8, 1.1);
 
-    private static readonly Double3 MiddleSpin = new(0.1, 0.31321, -0.05), MiddleSpinUp = new(0.02, -0.01, 0.2);
+    private static readonly Double3 MiddleSpin = new(0.1, 0.31321, -0.05),
+        MiddleSpinUp = new(0.02, -0.01, 0.2);
     private static readonly DQuaternion MiddleAxes = DQuaternion.FromAxisAngle(new(1, -2, 0.5), 0.9);
 
     private static readonly Double3 InnerPlace = new(30, 4, -9),
         InnerVelocity = new(1.5, -0.5, 4),
         InnerAcceleration = new(0.25, 2, -1);
 
-    private static readonly Double3 InnerSpin = new(-0.6, 1.2, 0.4), InnerSpinUp = new(0.3, 0.1, -0.5);
+    private static readonly Double3 InnerSpin = new(-0.6, 1.2, 0.4),
+        InnerSpinUp = new(0.3, 0.1, -0.5);
     private static readonly DQuaternion InnerAxes = DQuaternion.FromAxisAngle(new(2, 1, -1), 0.3);
 
-    private static readonly FrameMotion Middle = new(Pose: new(MiddlePlace, MiddleAxes), Velocity: MiddleVelocity,
+    private static readonly FrameMotion Middle = new(
+        Pose: new(MiddlePlace, MiddleAxes),
+        Velocity: MiddleVelocity,
         AngularVelocity: MiddleSpin,
-        Acceleration: MiddleAcceleration, AngularAcceleration: MiddleSpinUp);
+        Acceleration: MiddleAcceleration,
+        AngularAcceleration: MiddleSpinUp
+    );
 
-    private static readonly FrameMotion Inner = new(Pose: new(InnerPlace, InnerAxes), Velocity: InnerVelocity,
+    private static readonly FrameMotion Inner = new(
+        Pose: new(InnerPlace, InnerAxes),
+        Velocity: InnerVelocity,
         AngularVelocity: InnerSpin,
-        Acceleration: InnerAcceleration, AngularAcceleration: InnerSpinUp);
+        Acceleration: InnerAcceleration,
+        AngularAcceleration: InnerSpinUp
+    );
 
     private static void ExpectNear(Double3 actual, Double3 expected, double tolerance, string what) =>
         Double3.Distance(actual, expected).Should().BeLessThan(tolerance, $"{what}: {actual} is not {expected}");
 
     private static void ExpectNear(DQuaternion actual, DQuaternion expected, double tolerance, string what) =>
-        (2 * DQuaternion.Identity.AngularVelocityTo(actual * expected.Conjugate(), 2).Length).Should()
-        .BeLessThan(tolerance, $"{what}: {actual} is not {expected}");
+        (2 * DQuaternion.Identity.AngularVelocityTo(actual * expected.Conjugate(), 2).Length)
+            .Should()
+            .BeLessThan(tolerance, $"{what}: {actual} is not {expected}");
 
     [Fact]
     public void AMotionThroughAMiddleFrameIsTheMotionOfTheInnerFrameInTheParent()
     {
         Double3 PlaceInParent(double t) =>
-            MiddlePlace + MiddleVelocity * t + MiddleAcceleration * (0.5 * t * t) +
-            AxesAt(spin: MiddleSpin, spinUp: MiddleSpinUp, start: MiddleAxes, t: t)
+            MiddlePlace
+            + MiddleVelocity * t
+            + MiddleAcceleration * (0.5 * t * t)
+            + AxesAt(spin: MiddleSpin, spinUp: MiddleSpinUp, start: MiddleAxes, t: t)
                 .Rotate(InnerPlace + InnerVelocity * t + InnerAcceleration * (0.5 * t * t));
 
-        DQuaternion AxesInParent(double t) => AxesAt(spin: MiddleSpin, spinUp: MiddleSpinUp, start: MiddleAxes, t: t) *
-                                              AxesAt(spin: InnerSpin, spinUp: InnerSpinUp, start: InnerAxes, t: t);
+        DQuaternion AxesInParent(double t) =>
+            AxesAt(spin: MiddleSpin, spinUp: MiddleSpinUp, start: MiddleAxes, t: t)
+            * AxesAt(spin: InnerSpin, spinUp: InnerSpinUp, start: InnerAxes, t: t);
 
-        const double h = 1e-3, k = 1e-4;
+        const double h = 1e-3,
+            k = 1e-4;
         Double3 AngularVelocityAt(double t) => AxesInParent(t - k).AngularVelocityTo(AxesInParent(t + k), 2 * k);
 
         FrameMotion composed = Middle.MotionToParent(Inner);
 
         ExpectNear(actual: composed.Pose.Position, expected: PlaceInParent(0), tolerance: 1e-12, what: "the place");
         ExpectNear(actual: composed.Pose.Rotation, expected: AxesInParent(0), tolerance: 1e-12, what: "the rotation");
-        ExpectNear(actual: composed.Velocity, expected: (PlaceInParent(h) - PlaceInParent(-h)) / (2 * h),
-            tolerance: 1e-4, what: "the velocity");
-        ExpectNear(actual: composed.Acceleration,
-            expected: (PlaceInParent(h) - PlaceInParent(0) * 2 + PlaceInParent(-h)) / (h * h), tolerance: 1e-4,
-            what: "the acceleration");
-        ExpectNear(actual: composed.AngularVelocity, expected: AngularVelocityAt(0), tolerance: 1e-6,
-            what: "the angular velocity");
-        ExpectNear(actual: composed.AngularAcceleration,
-            expected: (AngularVelocityAt(h) - AngularVelocityAt(-h)) / (2 * h), tolerance: 1e-5,
-            what: "the angular acceleration");
+        ExpectNear(
+            actual: composed.Velocity,
+            expected: (PlaceInParent(h) - PlaceInParent(-h)) / (2 * h),
+            tolerance: 1e-4,
+            what: "the velocity"
+        );
+        ExpectNear(
+            actual: composed.Acceleration,
+            expected: (PlaceInParent(h) - PlaceInParent(0) * 2 + PlaceInParent(-h)) / (h * h),
+            tolerance: 1e-4,
+            what: "the acceleration"
+        );
+        ExpectNear(
+            actual: composed.AngularVelocity,
+            expected: AngularVelocityAt(0),
+            tolerance: 1e-6,
+            what: "the angular velocity"
+        );
+        ExpectNear(
+            actual: composed.AngularAcceleration,
+            expected: (AngularVelocityAt(h) - AngularVelocityAt(-h)) / (2 * h),
+            tolerance: 1e-5,
+            what: "the angular acceleration"
+        );
     }
 
     [Fact]
@@ -83,15 +112,31 @@ public sealed class FrameMotionCompositionTests
         foreach ((FrameMotion motion, string what) in new[] { (itself, "the frame"), (parentInItself, "the parent") })
         {
             ExpectNear(actual: motion.Pose.Position, expected: Double3.Zero, tolerance: 1e-12, what: $"{what}'s place");
-            ExpectNear(actual: motion.Pose.Rotation, expected: DQuaternion.Identity, tolerance: 1e-12,
-                what: $"{what}'s rotation");
+            ExpectNear(
+                actual: motion.Pose.Rotation,
+                expected: DQuaternion.Identity,
+                tolerance: 1e-12,
+                what: $"{what}'s rotation"
+            );
             ExpectNear(actual: motion.Velocity, expected: Double3.Zero, tolerance: 1e-12, what: $"{what}'s velocity");
-            ExpectNear(actual: motion.Acceleration, expected: Double3.Zero, tolerance: 1e-12,
-                what: $"{what}'s acceleration");
-            ExpectNear(actual: motion.AngularVelocity, expected: Double3.Zero, tolerance: 1e-12,
-                what: $"{what}'s angular velocity");
-            ExpectNear(actual: motion.AngularAcceleration, expected: Double3.Zero, tolerance: 1e-12,
-                what: $"{what}'s angular acceleration");
+            ExpectNear(
+                actual: motion.Acceleration,
+                expected: Double3.Zero,
+                tolerance: 1e-12,
+                what: $"{what}'s acceleration"
+            );
+            ExpectNear(
+                actual: motion.AngularVelocity,
+                expected: Double3.Zero,
+                tolerance: 1e-12,
+                what: $"{what}'s angular velocity"
+            );
+            ExpectNear(
+                actual: motion.AngularAcceleration,
+                expected: Double3.Zero,
+                tolerance: 1e-12,
+                what: $"{what}'s angular acceleration"
+            );
         }
     }
 

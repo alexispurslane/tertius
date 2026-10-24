@@ -85,7 +85,7 @@ public enum RenderFlags : uint
     NoImpostor = 1 << 3,
 
     /// <summary>A sky object such as a star or planet. It is never an impostor.</summary>
-    Celestial = 1 << 4
+    Celestial = 1 << 4,
 }
 
 /// <summary>
@@ -132,21 +132,23 @@ public struct RenderInstance
         HemisphereUp hemisphere,
         RenderFlags flags = RenderFlags.Visible,
         uint entityIndex = 0,
-        ushort part = 0) => new()
-    {
-        EntityIndex = entityIndex,
-        Part = part,
-        Mesh = mesh,
-        Material = material,
-        Flags = flags,
-        Position = position,
-        Rotation = rotation,
-        Scale = scale,
-        PreviousPosition = position,
-        PreviousRotation = rotation,
-        BoundingRadius = boundingRadius,
-        Hemisphere = hemisphere
-    };
+        ushort part = 0
+    ) =>
+        new()
+        {
+            EntityIndex = entityIndex,
+            Part = part,
+            Mesh = mesh,
+            Material = material,
+            Flags = flags,
+            Position = position,
+            Rotation = rotation,
+            Scale = scale,
+            PreviousPosition = position,
+            PreviousRotation = rotation,
+            BoundingRadius = boundingRadius,
+            Hemisphere = hemisphere,
+        };
 }
 
 /// <summary>The camera. Its current position is the render origin, so <see cref="Position"/> is zero.</summary>
@@ -282,7 +284,8 @@ public sealed record MaterialDesc(
     Vector3 Emissive = default,
     TextureId Albedo = default,
     TextureId Normal = default,
-    TextureId SpecularGloss = default)
+    TextureId SpecularGloss = default
+)
 {
     public static MaterialDesc Color(Vector4 color, float gloss = 0.5f) => new(BaseColor: color, Gloss: gloss);
 }

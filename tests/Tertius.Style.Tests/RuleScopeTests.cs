@@ -16,14 +16,20 @@ public sealed class RuleScopeTests
 
     [Fact]
     public async Task TheRuleOfSealedClassesHoldsEverywhereButTheBenchmarks() =>
-        (await FoldersThatReport("TS0006", folder => $"public class In_{folder};")).Should()
-        .Equal(["src", "tests", "analyzers"], "BenchmarkDotNet takes only benchmark classes that are not sealed");
+        (await FoldersThatReport("TS0006", folder => $"public class In_{folder};"))
+            .Should()
+            .Equal(["src", "tests", "analyzers"], "BenchmarkDotNet takes only benchmark classes that are not sealed");
 
     [Fact]
     public async Task TheRuleOfTryMethodsHoldsEverywhereButTheTests() =>
-        (await FoldersThatReport("TS0009",
-            folder => $"public static class In_{folder} {{ public static void TryFirstFindsTheMatch() {{ }} }}"))
-        .Should().Equal(["src", "benchmarks", "analyzers"], "a test name may start with the Try method that it pins");
+        (
+            await FoldersThatReport(
+                "TS0009",
+                folder => $"public static class In_{folder} {{ public static void TryFirstFindsTheMatch() {{ }} }}"
+            )
+        )
+            .Should()
+            .Equal(["src", "benchmarks", "analyzers"], "a test name may start with the Try method that it pins");
 
     /// <summary>
     /// The folders, of <see cref="Folders"/>, in which <paramref name="rule"/> reports the source that
@@ -34,27 +40,51 @@ public sealed class RuleScopeTests
         CancellationToken cancel = TestContext.Current.CancellationToken;
         string root = Repository.Root();
         using AdhocWorkspace workspace = new();
-        Project project = workspace.AddProject(ProjectInfo.Create(id: ProjectId.CreateNewId(),
-            version: VersionStamp.Default, name: "Probe", assemblyName: "Probe", language: LanguageNames.CSharp,
-            compilationOptions: TestCompilation.Options, parseOptions: TestCompilation.Parse,
-            metadataReferences: TestCompilation.References));
+        Project project = workspace.AddProject(
+            ProjectInfo.Create(
+                id: ProjectId.CreateNewId(),
+                version: VersionStamp.Default,
+                name: "Probe",
+                assemblyName: "Probe",
+                language: LanguageNames.CSharp,
+                compilationOptions: TestCompilation.Options,
+                parseOptions: TestCompilation.Parse,
+                metadataReferences: TestCompilation.References
+            )
+        );
         string editorConfig = Path.Combine(root, ".editorconfig");
-        project = project.AddAnalyzerConfigDocument(name: ".editorconfig",
-            text: SourceText.From(await File.ReadAllTextAsync(editorConfig, cancel)), filePath: editorConfig).Project;
+        project = project
+            .AddAnalyzerConfigDocument(
+                name: ".editorconfig",
+                text: SourceText.From(await File.ReadAllTextAsync(editorConfig, cancel)),
+                filePath: editorConfig
+            )
+            .Project;
         foreach (string folder in Folders)
-            project = project.AddDocument(name: "Probe.cs", text: source(folder),
-                filePath: Path.Combine(path1: root, path2: folder, path3: "Probe", path4: "Probe.cs")).Project;
-        Compilation compilation = await project.GetCompilationAsync(cancel) ??
-                                  throw new InvalidOperationException("The project has no compilation.");
+            project = project
+                .AddDocument(
+                    name: "Probe.cs",
+                    text: source(folder),
+                    filePath: Path.Combine(path1: root, path2: folder, path3: "Probe", path4: "Probe.cs")
+                )
+                .Project;
+        Compilation compilation =
+            await project.GetCompilationAsync(cancel)
+            ?? throw new InvalidOperationException("The project has no compilation.");
 
         ImmutableArray<Diagnostic> found = await compilation
-            .WithAnalyzers([new StyleAnalyzer()], project.AnalyzerOptions).GetAnalyzerDiagnosticsAsync(cancel);
+            .WithAnalyzers([new StyleAnalyzer()], project.AnalyzerOptions)
+            .GetAnalyzerDiagnosticsAsync(cancel);
 
         return
         [
-            .. Folders.Where(folder => found.Any(diagnostic =>
-                diagnostic.Id == rule && Path.GetRelativePath(root, diagnostic.Location.SourceTree!.FilePath)
-                    .StartsWith(folder + Path.DirectorySeparatorChar, StringComparison.Ordinal)))
+            .. Folders.Where(folder =>
+                found.Any(diagnostic =>
+                    diagnostic.Id == rule
+                    && Path.GetRelativePath(root, diagnostic.Location.SourceTree!.FilePath)
+                        .StartsWith(folder + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+                )
+            ),
         ];
     }
 }

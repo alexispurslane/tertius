@@ -29,12 +29,26 @@ public sealed class WorldWakeTests
         {
             "destroy a static table" => new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static),
             "teleport a kinematic platform away" => new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic),
-            _ => new(Shape: new BoxShapeDesc(new(1)), Mass: 100)
+            _ => new(Shape: new BoxShapeDesc(new(1)), Mass: 100),
         };
         var pilot = new Pilot();
-        Entity support =
-            world.Spawn(new() { Frame = ground, Pose = At(0, 1), Body = supportDesc, Components = [pilot] });
-        Entity box = world.Spawn(new() { Frame = ground, Pose = At(0, 2.5), Body = Cube() });
+        Entity support = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 1),
+                Body = supportDesc,
+                Components = [pilot],
+            }
+        );
+        Entity box = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 2.5),
+                Body = Cube(),
+            }
+        );
         world.Tick();
         TickUntil(world, () => !IsAwake(backend, ground, box), 600);
         Tick(world, 30);
@@ -46,7 +60,9 @@ public sealed class WorldWakeTests
             pilot.Once = body => body.Teleport(At(20, 1));
         Tick(world, 180);
 
-        world.PoseInOwnFrame(box).Position.Y.Should()
+        world
+            .PoseInOwnFrame(box)
+            .Position.Y.Should()
             .BeApproximately(0.5, 0.01, "nothing holds the box up any more, so it falls to the floor");
         world.Errors.Should().BeEmpty();
     }
@@ -63,21 +79,25 @@ public sealed class WorldWakeTests
         using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
-        Entity platformOwner = world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = At(0, 1),
-            Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static, Mass: 1000),
-            AsFrame = new(FrameBounds.Sphere(3))
-        });
+        Entity platformOwner = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 1),
+                Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static, Mass: 1000),
+                AsFrame = new(FrameBounds.Sphere(3)),
+            }
+        );
         FrameHandle platform = world.GetOwnedFrame(platformOwner);
-        Entity lander = world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = At(0, 2.5),
-            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 100),
-            AsFrame = new(FrameBounds.Sphere(3))
-        });
+        Entity lander = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 2.5),
+                Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 100),
+                AsFrame = new(FrameBounds.Sphere(3)),
+            }
+        );
         world.Tick();
         TickUntil(world, () => !IsAwake(backend, ground, lander), 600);
         Tick(world, 30);
@@ -86,7 +106,9 @@ public sealed class WorldWakeTests
         world.Frames.SetLocalPose(platform, At(20, 1));
         Tick(world, 180);
 
-        world.PoseInOwnFrame(lander).Position.Y.Should()
+        world
+            .PoseInOwnFrame(lander)
+            .Position.Y.Should()
             .BeApproximately(0.5, 0.01, "the platform went away, so the lander falls to the floor");
         world.Errors.Should().BeEmpty();
     }
@@ -116,8 +138,10 @@ public sealed class WorldWakeTests
         world.Frames.LocalPose(platform).Should().Be(At(0, 1), "the teleport acts in the next step");
         world.Tick();
 
-        world.Frames.LocalPose(platform).Should().Be(target,
-            "the frame takes the teleport's pose, in doubles, at the next sync point");
+        world
+            .Frames.LocalPose(platform)
+            .Should()
+            .Be(target, "the frame takes the teleport's pose, in doubles, at the next sync point");
         world.Frames.LinearVelocity(platform).Should().Be(Double3.Zero);
         world.Frames.AngularVelocity(platform).Should().Be(Vector3.Zero);
         world.PoseInOwnFrame(owner).Should().Be(target, "the owner's row is the float view of its frame");
@@ -154,8 +178,10 @@ public sealed class WorldWakeTests
         IsAwake(backend, ground, landerA).Should().BeTrue("the platform left lander A");
         IsAwake(backend, ground, landerB).Should().BeTrue("the platform came down next to lander B");
         Tick(world, 180);
-        world.PoseInOwnFrame(landerA).Position.Y.Should().BeApproximately(0.5, 0.01,
-            "nothing holds lander A up any more, so it falls to the floor");
+        world
+            .PoseInOwnFrame(landerA)
+            .Position.Y.Should()
+            .BeApproximately(0.5, 0.01, "nothing holds lander A up any more, so it falls to the floor");
         world.Errors.Should().BeEmpty();
     }
 
@@ -182,28 +208,37 @@ public sealed class WorldWakeTests
     }
 
     /// <summary>The owner of a parked platform at (0, 1, 0) in <paramref name="ground"/>: a static frame whose hull is a box 2 m wide.</summary>
-    private static Entity Platform(World world, FrameHandle ground, params IComponent[] components) => world.Spawn(new()
-    {
-        Frame = ground,
-        Pose = At(0, 1),
-        Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static),
-        AsFrame = new(FrameBounds.Sphere(3)),
-        Components = components
-    });
+    private static Entity Platform(World world, FrameHandle ground, params IComponent[] components) =>
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 1),
+                Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static),
+                AsFrame = new(FrameBounds.Sphere(3)),
+                Components = components,
+            }
+        );
 
     /// <summary>The owner of a lander at <paramref name="pose"/> in <paramref name="ground"/>: a frame whose dynamic hull is a box 1 m wide.</summary>
-    private static Entity Lander(World world, FrameHandle ground, DPose pose) => world.Spawn(new()
-    {
-        Frame = ground,
-        Pose = pose,
-        Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 100),
-        AsFrame = new(FrameBounds.Sphere(3))
-    });
+    private static Entity Lander(World world, FrameHandle ground, DPose pose) =>
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = pose,
+                Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 100),
+                AsFrame = new(FrameBounds.Sphere(3)),
+            }
+        );
 
     /// <summary>Where Jolt holds the hull of <paramref name="owner"/> in the system of <paramref name="frame"/>.</summary>
     private static Double3 HullPosition(JoltPhysicsBackend backend, FrameHandle frame, Entity owner) =>
-        backend.BodiesIn(frame).Single(facts =>
-                BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner))
+        backend
+            .BodiesIn(frame)
+            .Single(facts =>
+                BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner)
+            )
             .Position;
 
     /// <summary>
@@ -216,8 +251,22 @@ public sealed class WorldWakeTests
         using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
-        Entity crate = world.Spawn(new() { Frame = ground, Pose = At(0, 0.5), Body = Cube() });
-        Entity box = world.Spawn(new() { Frame = ground, Pose = At(5, 0.5), Body = Cube() });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 0.5),
+                Body = Cube(),
+            }
+        );
+        Entity box = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(5, 0.5),
+                Body = Cube(),
+            }
+        );
         world.Tick();
         TickUntil(world, () => !IsAwake(backend, ground, box) && !IsAwake(backend, ground, crate), 600);
 

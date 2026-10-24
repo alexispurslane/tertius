@@ -46,8 +46,7 @@ internal struct CameraView
         // A side plane through the eye has normal (±1, 0, −tan) / √(1 + tan²) in (x, y, depth) coordinates.
         float scaleX = MathF.Sqrt(1 + TanHalfX * TanHalfX);
         float scaleY = MathF.Sqrt(1 + TanHalfY * TanHalfY);
-        return MathF.Abs(x) - depth * TanHalfX > radius * scaleX ||
-               MathF.Abs(y) - depth * TanHalfY > radius * scaleY;
+        return MathF.Abs(x) - depth * TanHalfX > radius * scaleX || MathF.Abs(y) - depth * TanHalfY > radius * scaleY;
     }
 }
 
@@ -141,7 +140,12 @@ internal sealed class PreparedScene
     /// transparent instances and the puffs of a range are sorted together back to front, and each stretch of one kind is one
     /// run. The pass draws the far range first.
     /// </summary>
-    public readonly List<TransparentRun>[] Transparent = [[], [], []];
+    public readonly List<TransparentRun>[] Transparent =
+    [
+        [],
+        [],
+        [],
+    ];
 
     /// <summary>The puffs to draw, in the order of the runs of <see cref="Transparent"/>.</summary>
     public GpuPuff[] Puffs = new GpuPuff[64];

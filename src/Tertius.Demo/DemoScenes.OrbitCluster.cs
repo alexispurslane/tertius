@@ -57,8 +57,10 @@ public static partial class DemoScenes
         (Double3 position, Double3 velocity) = ShipOrbit.StateAt(time, EarthMu);
         DQuaternion rotation = ShipOrbit.RotationAt(time, EarthMu);
         Double3 arm = rotation.Rotate(offset);
-        return (new(position + arm, rotation),
-            velocity + Double3.Cross(ShipOrbit.AngularVelocityAt(time, EarthMu), arm));
+        return (
+            new(position + arm, rotation),
+            velocity + Double3.Cross(ShipOrbit.AngularVelocityAt(time, EarthMu), arm)
+        );
     }
 
     /// <summary>
@@ -97,50 +99,65 @@ public static partial class DemoScenes
         var capsule = new CapsuleShapeDesc(0.6f, 0.3f);
         (DPose walkerPose, Double3 walkerVelocity) = BesideTheShip(SpacewalkerStart, world.Time);
         var suit = new Vector4(x: 0.95f, y: 0.8f, z: 0.2f, w: 1);
-        Entity spacewalker = world.Spawn(new()
-        {
-            Frame = earth,
-            Pose = walkerPose,
-            LinearVelocity = walkerVelocity,
-            Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: 70),
-            Render = new RenderData
+        Entity spacewalker = world.Spawn(
+            new()
             {
-                Mesh = resources.CreateMesh(Primitives.Box(new(0.3f, 0.9f, 0.3f))),
-                Material = resources.CreateMaterial(new(BaseColor: suit, Emissive: MarkerGlow(suit))),
-                BoundingRadius = 1,
-                Flags = RenderFlags.Visible | RenderFlags.CastsShadow
-            },
-            Components = [new PersonControl(new(0, 0.75f, 0)), new Carry(capsule)],
-            Subscriptions = [Topics.Input]
-        });
+                Frame = earth,
+                Pose = walkerPose,
+                LinearVelocity = walkerVelocity,
+                Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: 70),
+                Render = new RenderData
+                {
+                    Mesh = resources.CreateMesh(Primitives.Box(new(0.3f, 0.9f, 0.3f))),
+                    Material = resources.CreateMaterial(new(BaseColor: suit, Emissive: MarkerGlow(suit))),
+                    BoundingRadius = 1,
+                    Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
+                },
+                Components = [new PersonControl(new(0, 0.75f, 0)), new Carry(capsule)],
+                Subscriptions = [Topics.Input],
+            }
+        );
         scene.Add("spacewalker", spacewalker);
 
         var orange = new Vector4(x: 1, y: 0.45f, z: 0.1f, w: 1);
-        var crate = new CrateSpec(HalfExtents: ClusterCrateHalfExtents, Mass: 50,
+        var crate = new CrateSpec(
+            HalfExtents: ClusterCrateHalfExtents,
+            Mass: 50,
             Mesh: resources.CreateMesh(Primitives.Box(ClusterCrateHalfExtents)),
-            Material: resources.CreateMaterial(new(BaseColor: orange, Emissive: MarkerGlow(orange))));
-        foreach ((string id, Double3 offset) in new[]
-                     { ("crate-above", CrateAboveStart), ("crate-below", CrateBelowStart) })
+            Material: resources.CreateMaterial(new(BaseColor: orange, Emissive: MarkerGlow(orange)))
+        );
+        foreach (
+            (string id, Double3 offset) in new[] { ("crate-above", CrateAboveStart), ("crate-below", CrateBelowStart) }
+        )
         {
             (DPose pose, Double3 velocity) = BesideTheShip(offset, world.Time);
             scene.Add(id, world.Spawn(crate.Spawn(earth, pose, velocity)));
         }
 
-        scene.Add("thrown-crate",
-            world.Spawn(crate.Spawn(shipFrame, new(ThrownCrateStart, DQuaternion.Identity), ThrownCrateVelocity)));
+        scene.Add(
+            "thrown-crate",
+            world.Spawn(crate.Spawn(shipFrame, new(ThrownCrateStart, DQuaternion.Identity), ThrownCrateVelocity))
+        );
 
         // A view looks along its -Z. A quarter turn about +Y turns that to +X, toward the ship's port side, after a tilt
         // about the view's own +X has tipped it down by WatchTilt. The view stands 160 m from the point 95 m ahead of the
         // ship's center, back along its line of sight: 138.6 m to port and 80 m up. So the spacewalker's whole way, from
         // the hatch to 225 m ahead, and both crates fit in it.
-        scene.Add("watch", world.Spawn(new()
-        {
-            Frame = shipFrame,
-            Pose = new(new(-138.6, 80, -95),
-                DQuaternion.FromAxisAngle(Double3.UnitY, -Math.PI / 2) *
-                DQuaternion.FromAxisAngle(Double3.UnitX, -WatchTilt)),
-            Render = new RenderData()
-        }));
+        scene.Add(
+            "watch",
+            world.Spawn(
+                new()
+                {
+                    Frame = shipFrame,
+                    Pose = new(
+                        new(-138.6, 80, -95),
+                        DQuaternion.FromAxisAngle(Double3.UnitY, -Math.PI / 2)
+                            * DQuaternion.FromAxisAngle(Double3.UnitX, -WatchTilt)
+                    ),
+                    Render = new RenderData(),
+                }
+            )
+        );
         scene.AddView("spacewalker");
         scene.AddView("watch");
         world.Camera = spacewalker;

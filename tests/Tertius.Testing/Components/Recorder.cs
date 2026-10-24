@@ -16,9 +16,8 @@ public sealed class Recorder(EventMask wants, int priority = 0) : IComponent
     public readonly List<RunRecord> History = [];
 
     /// <summary>A recorder that wants <see cref="Ping"/>.</summary>
-    public Recorder() : this(EventMask.Of<Ping>())
-    {
-    }
+    public Recorder()
+        : this(EventMask.Of<Ping>()) { }
 
     public int Priority { get; } = priority;
     public EventMask Wants { get; } = wants;

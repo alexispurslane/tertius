@@ -30,7 +30,7 @@ public static class EditCommand
 
     /// <summary>The fonts of the subtitles, from macOS. The edit links them into a folder of its own for libass.</summary>
     public static IReadOnlyList<string> Fonts { get; } =
-        ["/System/Library/Fonts/Avenir Next.ttc", "/System/Library/Fonts/Menlo.ttc"];
+    ["/System/Library/Fonts/Avenir Next.ttc", "/System/Library/Fonts/Menlo.ttc"];
 
     private sealed record Options(
         string Output,
@@ -39,7 +39,8 @@ public static class EditCommand
         string Readouts,
         string? Music,
         double MusicStart,
-        string? MusicCredit);
+        string? MusicCredit
+    );
 
     /// <summary>
     /// Runs <c>--edit</c> with the cut list <paramref name="cuts"/>. Returns the exit code of <see cref="ScriptCommand"/>: 0;
@@ -77,7 +78,8 @@ public static class EditCommand
         }
 
         string parts = options.Output + ".parts";
-        int width, height;
+        int width,
+            height;
         try
         {
             if (!File.Exists(options.Master))
@@ -117,9 +119,16 @@ public static class EditCommand
             return ScriptCommand.FileError;
         }
 
-        List<string> arguments = Arguments(stretches: stretches, cuts: cuts, master: options.Master,
-            music: options.Music, musicStart: options.MusicStart,
-            output: options.Output, width: width, height: height);
+        List<string> arguments = Arguments(
+            stretches: stretches,
+            cuts: cuts,
+            master: options.Master,
+            music: options.Music,
+            musicStart: options.MusicStart,
+            output: options.Output,
+            width: width,
+            height: height
+        );
         try
         {
             (int exit, string errors) = RunTool(tool: "ffmpeg", arguments: arguments, folder: parts);
@@ -136,9 +145,14 @@ public static class EditCommand
         }
 
         int videoFrames = cuts.Opening.Frames + stretches.Sum(s => s.Count) + cuts.Closing.Frames;
-        output.WriteLine(string.Format(provider: CultureInfo.InvariantCulture, format: "{0}: {1:F1} s",
-            arg0: options.Output,
-            arg1: videoFrames / (double)Stretch.FramesPerSecond));
+        output.WriteLine(
+            string.Format(
+                provider: CultureInfo.InvariantCulture,
+                format: "{0}: {1:F1} s",
+                arg0: options.Output,
+                arg1: videoFrames / (double)Stretch.FramesPerSecond
+            )
+        );
         return ScriptCommand.Ok;
     }
 
@@ -155,8 +169,19 @@ public static class EditCommand
         for (int i = 0; i < rest.Length; i += 2)
         {
             string key = rest[i];
-            if (key is not ("--script" or "--master" or "--readouts" or "--music" or "--music-start"
-                    or "--music-credit") || i + 1 >= rest.Length || values.ContainsKey(key))
+            if (
+                key
+                    is not (
+                        "--script"
+                        or "--master"
+                        or "--readouts"
+                        or "--music"
+                        or "--music-start"
+                        or "--music-credit"
+                    )
+                || i + 1 >= rest.Length
+                || values.ContainsKey(key)
+            )
             {
                 error.WriteLine($"Unknown, repeated or empty option '{key}'.");
                 return null;
@@ -179,9 +204,18 @@ public static class EditCommand
         }
 
         double start = 0;
-        if (values.TryGetValue("--music-start", out string? startText) &&
-            !(double.TryParse(s: startText, style: NumberStyles.Float, provider: CultureInfo.InvariantCulture,
-                result: out start) && start >= 0))
+        if (
+            values.TryGetValue("--music-start", out string? startText)
+            && !(
+                double.TryParse(
+                    s: startText,
+                    style: NumberStyles.Float,
+                    provider: CultureInfo.InvariantCulture,
+                    result: out start
+                )
+                && start >= 0
+            )
+        )
         {
             error.WriteLine("--music-start must be a number of seconds, 0 or more.");
             return null;
@@ -194,11 +228,15 @@ public static class EditCommand
             return null;
         }
 
-        return new(Output: Path.GetFullPath(output), Script: Path.GetFullPath(values["--script"]),
+        return new(
+            Output: Path.GetFullPath(output),
+            Script: Path.GetFullPath(values["--script"]),
             Master: Path.GetFullPath(values["--master"]),
             Readouts: Path.GetFullPath(values["--readouts"]),
-            Music: music == null ? null : Path.GetFullPath(music), MusicStart: start,
-            MusicCredit: values.GetValueOrDefault("--music-credit"));
+            Music: music == null ? null : Path.GetFullPath(music),
+            MusicStart: start,
+            MusicCredit: values.GetValueOrDefault("--music-credit")
+        );
     }
 
     /// <summary>Writes the subtitle files and the folder of fonts into <paramref name="parts"/>.</summary>
@@ -207,16 +245,17 @@ public static class EditCommand
         Directory.CreateDirectory(parts);
         File.WriteAllText(Path.Combine(parts, "film.ass"), film);
         File.WriteAllText(Path.Combine(parts, "opening.ass"), EditSubtitles.Card(cuts.Opening));
-        TitleCard closing = options.Music == null
-            ? cuts.Closing
-            : cuts.Closing with
-            {
-                Lines =
-                [
-                    .. cuts.Closing.Lines,
-                    new("Music: " + (options.MusicCredit ?? Path.GetFileName(options.Music)), 24, Gray: true)
-                ]
-            };
+        TitleCard closing =
+            options.Music == null
+                ? cuts.Closing
+                : cuts.Closing with
+                {
+                    Lines =
+                    [
+                        .. cuts.Closing.Lines,
+                        new("Music: " + (options.MusicCredit ?? Path.GetFileName(options.Music)), 24, Gray: true),
+                    ],
+                };
         File.WriteAllText(Path.Combine(parts, "closing.ass"), EditSubtitles.Card(closing));
         string fonts = Path.Combine(parts, "fonts");
         Directory.CreateDirectory(fonts);
@@ -233,8 +272,16 @@ public static class EditCommand
     /// 60 s, the subtitles, and then the selection of the kept frames. The cards are black frames with their subtitles.
     /// The cards and the film fade from and to black, and the three join in order.
     /// </summary>
-    public static List<string> Arguments(IReadOnlyList<Stretch> stretches, CutList cuts, string master, string? music,
-        double musicStart, string output, int width, int height)
+    public static List<string> Arguments(
+        IReadOnlyList<Stretch> stretches,
+        CutList cuts,
+        string master,
+        string? music,
+        double musicStart,
+        string output,
+        int width,
+        int height
+    )
     {
         double film = stretches.Sum(s => s.Count) / (double)Stretch.FramesPerSecond;
         // Each card lasts its whole frames, as its subtitles count them. For a time between two frames, ffmpeg would make
@@ -245,32 +292,65 @@ public static class EditCommand
         string select = string.Join("+", stretches.Select(s => $"between(n,{s.From},{s.From + s.Count - 1})"));
         CultureInfo invariant = CultureInfo.InvariantCulture;
 
-        string Card(string name, double seconds) => string.Format(invariant,
-            "color=c=black:s={0}x{1}:r=60:d={2},settb=1/60,setpts=N,ass={3}.ass:fontsdir=fonts,fade=t=in:st=0:d={4},fade=t=out:st={5}:d={4},format=yuv420p,setsar=1[{3}]",
-            width, height, seconds, name, Fade, seconds - Fade);
+        string Card(string name, double seconds) =>
+            string.Format(
+                invariant,
+                "color=c=black:s={0}x{1}:r=60:d={2},settb=1/60,setpts=N,ass={3}.ass:fontsdir=fonts,fade=t=in:st=0:d={4},fade=t=out:st={5}:d={4},format=yuv420p,setsar=1[{3}]",
+                width,
+                height,
+                seconds,
+                name,
+                Fade,
+                seconds - Fade
+            );
 
-        string graph = string.Join(";",
-            string.Format(invariant,
+        string graph = string.Join(
+            ";",
+            string.Format(
+                invariant,
                 "[0:v]settb=1/60,setpts=N,ass=film.ass:fontsdir=fonts,select='{0}',settb=1/60,setpts=N,fade=t=in:st=0:d={1},fade=t=out:st={2}:d={3},format=yuv420p,setsar=1[film]",
-                select, Fade, film - FilmFadeOut, FilmFadeOut),
+                select,
+                Fade,
+                film - FilmFadeOut,
+                FilmFadeOut
+            ),
             Card("opening", opening),
             Card("closing", closing),
-            "[opening][film][closing]concat=n=3:v=1:a=0[v]");
+            "[opening][film][closing]concat=n=3:v=1:a=0[v]"
+        );
         List<string> arguments = ["-hide_banner", "-loglevel", "error", "-nostats", "-i", master];
         if (music != null)
         {
             arguments.AddRange(["-i", music]);
-            graph += string.Format(invariant,
+            graph += string.Format(
+                invariant,
                 ";[1:a]atrim=start={0},asetpts=PTS-STARTPTS,afade=t=in:st=0:d={1},afade=t=out:st={2}:d={3},apad,atrim=end={4}[a]",
-                musicStart, MusicFadeIn, length - MusicFadeOut, MusicFadeOut, length);
+                musicStart,
+                MusicFadeIn,
+                length - MusicFadeOut,
+                MusicFadeOut,
+                length
+            );
         }
 
         arguments.AddRange(["-filter_complex", graph, "-map", "[v]"]);
         if (music != null)
             arguments.AddRange(["-map", "[a]", "-c:a", "aac", "-b:a", "192k"]);
         arguments.AddRange([
-            "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-r", "60", "-movflags",
-            "+faststart", "-y", output
+            "-c:v",
+            "libx264",
+            "-preset",
+            "medium",
+            "-crf",
+            "18",
+            "-pix_fmt",
+            "yuv420p",
+            "-r",
+            "60",
+            "-movflags",
+            "+faststart",
+            "-y",
+            output,
         ]);
         return arguments;
     }
@@ -278,25 +358,48 @@ public static class EditCommand
     /// <summary>The master's count of frames, its width and its height, from ffprobe.</summary>
     private static (int Frames, int Width, int Height) ProbeMaster(string master)
     {
-        (int exit, string text) = RunTool(tool: "ffprobe",
+        (int exit, string text) = RunTool(
+            tool: "ffprobe",
             arguments:
             [
-                "-v", "error", "-select_streams", "v:0", "-count_packets", "-show_entries",
-                "stream=nb_read_packets,width,height", "-of", "csv=p=0", master
-            ], folder: null, standardOutput: true);
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-count_packets",
+                "-show_entries",
+                "stream=nb_read_packets,width,height",
+                "-of",
+                "csv=p=0",
+                master,
+            ],
+            folder: null,
+            standardOutput: true
+        );
         if (exit != 0)
             throw new IOException($"ffprobe cannot read the master {master}: {text}");
         string[] cells = text.Trim().Split(',');
-        return (int.Parse(cells[2], CultureInfo.InvariantCulture), int.Parse(cells[0], CultureInfo.InvariantCulture),
-            int.Parse(cells[1], CultureInfo.InvariantCulture));
+        return (
+            int.Parse(cells[2], CultureInfo.InvariantCulture),
+            int.Parse(cells[0], CultureInfo.InvariantCulture),
+            int.Parse(cells[1], CultureInfo.InvariantCulture)
+        );
     }
 
     /// <summary>Runs a tool of the dev shell in <paramref name="folder"/>, and returns its exit code with its standard output, or the last lines of its errors.</summary>
-    private static (int Exit, string Text) RunTool(string tool, IEnumerable<string> arguments, string? folder,
-        bool standardOutput = false)
+    private static (int Exit, string Text) RunTool(
+        string tool,
+        IEnumerable<string> arguments,
+        string? folder,
+        bool standardOutput = false
+    )
     {
         var start = new ProcessStartInfo(tool)
-            { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
         if (folder != null)
             start.WorkingDirectory = folder;
         foreach (string argument in arguments)
@@ -306,8 +409,10 @@ public static class EditCommand
         Task<string> errors = process.StandardError.ReadToEndAsync();
         Task<string> text = process.StandardOutput.ReadToEndAsync();
         process.WaitForExit();
-        string lastErrors = string.Join('\n',
-            errors.Result.Split('\n', StringSplitOptions.RemoveEmptyEntries).TakeLast(FfmpegVideoSink.ErrorLinesKept));
+        string lastErrors = string.Join(
+            '\n',
+            errors.Result.Split('\n', StringSplitOptions.RemoveEmptyEntries).TakeLast(FfmpegVideoSink.ErrorLinesKept)
+        );
         return (process.ExitCode, standardOutput && process.ExitCode == 0 ? text.Result : lastErrors);
     }
 }

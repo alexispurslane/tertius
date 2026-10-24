@@ -33,15 +33,17 @@ public sealed class PhysicsHandOffTests
             Station = Test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
             BallLog = new(EventMask.Of<FrameChanged>().And<Ping>());
             Scenes.Approach flight = Scenes.ApproachToBubble(world: Test.World, into: Station, tick: handOffOnTick);
-            Ball = Test.World.Spawn(new()
-            {
-                Frame = Test.Root,
-                Pose = flight.Pose,
-                LinearVelocity = flight.Velocity,
-                AngularVelocity = AnySpin,
-                Body = WorldTesting.Ball(),
-                Components = [BallLog]
-            });
+            Ball = Test.World.Spawn(
+                new()
+                {
+                    Frame = Test.Root,
+                    Pose = flight.Pose,
+                    LinearVelocity = flight.Velocity,
+                    AngularVelocity = AnySpin,
+                    Body = WorldTesting.Ball(),
+                    Components = [BallLog],
+                }
+            );
         }
 
         public FaultInjectingBackend Faults { get; }
@@ -104,8 +106,10 @@ public sealed class PhysicsHandOffTests
         scene.Test.Run(4);
 
         // The sync point of tick 0 sends it, so the ball handles it during tick 1.
-        (long tick, Event received) =
-            scene.BallLog.Seen.Should().ContainSingle(s => s.Event.Is<FrameChanged>()).Subject;
+        (long tick, Event received) = scene
+            .BallLog.Seen.Should()
+            .ContainSingle(s => s.Event.Is<FrameChanged>())
+            .Subject;
         tick.Should().Be(1);
         received.As<FrameChanged>().From.Should().Be(scene.Test.Root);
         received.As<FrameChanged>().To.Should().Be(scene.Station);
@@ -116,8 +120,9 @@ public sealed class PhysicsHandOffTests
     {
         using var scene = new Scene();
         // Each tick, one sender tells each frame's topic the tick. A message sent in tick t reaches its recipients in tick t + 1.
-        scene.Test.SpawnWith(SendEvery.Of(target: scene.Station.Topic,
-            payloadAt: tick => new Ping { Value = 200 + (int)tick }));
+        scene.Test.SpawnWith(
+            SendEvery.Of(target: scene.Station.Topic, payloadAt: tick => new Ping { Value = 200 + (int)tick })
+        );
 
         scene.Test.Run(4);
 
@@ -130,8 +135,9 @@ public sealed class PhysicsHandOffTests
     public void AnEntityNoLongerHearsTheTopicOfItsOldFrameAfterTheHandOff()
     {
         using var scene = new Scene(handOffOnTick: 1);
-        scene.Test.SpawnWith(SendEvery.Of(target: scene.Test.Root.Topic,
-            payloadAt: tick => new Ping { Value = 100 + (int)tick }));
+        scene.Test.SpawnWith(
+            SendEvery.Of(target: scene.Test.Root.Topic, payloadAt: tick => new Ping { Value = 100 + (int)tick })
+        );
 
         scene.Test.Run(4);
 
@@ -144,8 +150,9 @@ public sealed class PhysicsHandOffTests
     public void AnEntityHearsItsOldFramesTopicUntilTheSyncPointOfTheHandOffAndNotFromThenOn()
     {
         using var scene = new Scene(handOffOnTick: 2);
-        scene.Test.SpawnWith(SendEvery.Of(target: scene.Test.Root.Topic,
-            payloadAt: tick => new Ping { Value = 100 + (int)tick }));
+        scene.Test.SpawnWith(
+            SendEvery.Of(target: scene.Test.Root.Topic, payloadAt: tick => new Ping { Value = 100 + (int)tick })
+        );
 
         scene.Test.Run(5);
 
@@ -158,7 +165,7 @@ public sealed class PhysicsHandOffTests
     [Fact]
     public void AHandOffOfAFrameOwnerMovesTheFrameUnderTheNewParent()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         FrameHandle carrier = test.SpawnStaticFrame(TestWorld.At(1000), radius: 500);
         Entity fighterOwner = SpawnFighter(test, TestWorld.At(1100), out FrameHandle fighter);
 
@@ -175,7 +182,7 @@ public sealed class PhysicsHandOffTests
     [Fact]
     public void ThePassengersOfAFrameOwnerThatWasHandedOffStayInTheFrameAndRideAlong()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         FrameHandle carrier = test.SpawnStaticFrame(TestWorld.At(1000), radius: 500);
         Entity fighterOwner = SpawnFighter(test, TestWorld.At(1100), out FrameHandle fighter);
         Entity pilot = test.World.SpawnAt(fighter, new(0, 1, 0));
@@ -197,13 +204,21 @@ public sealed class PhysicsHandOffTests
     [Fact]
     public void AHandOffOfAnEntityThatNoLongerExistsBreaksAContract()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
         Entity gone = test.World.Spawn(new() { Frame = test.Root, Body = TestWorld.Ball });
         test.World.Destroy(gone);
         faults.EditOutput = output =>
-            output.HandOffs.Add(new(Entity: gone, From: test.Root, To: station, Pose: TestWorld.At(9),
-                LinearVelocity: default, AngularVelocity: default));
+            output.HandOffs.Add(
+                new(
+                    Entity: gone,
+                    From: test.Root,
+                    To: station,
+                    Pose: TestWorld.At(9),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
 
         Action tick = test.World.Tick;
 
@@ -213,12 +228,20 @@ public sealed class PhysicsHandOffTests
     [Fact]
     public void AHandOffOfAnEntityWithoutABodyBreaksAContract()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
         Entity bodiless = test.SpawnAt(new(3, 0, 0));
         faults.EditOutput = output =>
-            output.HandOffs.Add(new(Entity: bodiless, From: test.Root, To: station, Pose: TestWorld.At(9),
-                LinearVelocity: default, AngularVelocity: default));
+            output.HandOffs.Add(
+                new(
+                    Entity: bodiless,
+                    From: test.Root,
+                    To: station,
+                    Pose: TestWorld.At(9),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
 
         Action tick = test.World.Tick;
 
@@ -228,13 +251,28 @@ public sealed class PhysicsHandOffTests
     [Fact]
     public void AHandOffToAFrameThatIsGoneBreaksAContract()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         FrameHandle gone = test.SpawnStaticFrame(TestWorld.At(0), radius: 10);
         test.World.Destroy(gone.Entity);
-        Entity ball = test.World.Spawn(new() { Frame = test.Root, Pose = TestWorld.At(3), Body = TestWorld.Ball });
+        Entity ball = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = TestWorld.At(3),
+                Body = TestWorld.Ball,
+            }
+        );
         faults.EditOutput = output =>
-            output.HandOffs.Add(new(Entity: ball, From: test.Root, To: gone, Pose: TestWorld.At(9),
-                LinearVelocity: default, AngularVelocity: default));
+            output.HandOffs.Add(
+                new(
+                    Entity: ball,
+                    From: test.Root,
+                    To: gone,
+                    Pose: TestWorld.At(9),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
 
         Action tick = test.World.Tick;
 
@@ -244,12 +282,28 @@ public sealed class PhysicsHandOffTests
     [Fact]
     public void AHandOffFromAFrameThatTheEntityIsNotInBreaksAContract()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
         FrameHandle dock = test.SpawnStaticFrame(TestWorld.At(-500), radius: 100);
-        Entity ball = test.World.Spawn(new() { Frame = test.Root, Pose = TestWorld.At(3), Body = TestWorld.Ball });
-        faults.EditOutput = output => output.HandOffs.Add(new(Entity: ball, From: dock, To: station,
-            Pose: TestWorld.At(9), LinearVelocity: default, AngularVelocity: default));
+        Entity ball = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = TestWorld.At(3),
+                Body = TestWorld.Ball,
+            }
+        );
+        faults.EditOutput = output =>
+            output.HandOffs.Add(
+                new(
+                    Entity: ball,
+                    From: dock,
+                    To: station,
+                    Pose: TestWorld.At(9),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
 
         Action tick = test.World.Tick;
 
@@ -259,12 +313,20 @@ public sealed class PhysicsHandOffTests
     [Fact]
     public void AHandOffOfTheOwnerOfARootFrameBreaksAContract()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         Entity islandOwner = SpawnRootWithBody(test);
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
         faults.EditOutput = output =>
-            output.HandOffs.Add(new(Entity: islandOwner, From: test.Root, To: station, Pose: TestWorld.At(9),
-                LinearVelocity: default, AngularVelocity: default));
+            output.HandOffs.Add(
+                new(
+                    Entity: islandOwner,
+                    From: test.Root,
+                    To: station,
+                    Pose: TestWorld.At(9),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
 
         Action tick = test.World.Tick;
 
@@ -274,11 +336,26 @@ public sealed class PhysicsHandOffTests
     [Fact]
     public void AHandOffIntoTheFrameThatTheEntityIsInBreaksAContract()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
-        Entity ball = test.World.Spawn(new() { Frame = test.Root, Pose = TestWorld.At(3), Body = TestWorld.Ball });
+        using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        Entity ball = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = TestWorld.At(3),
+                Body = TestWorld.Ball,
+            }
+        );
         faults.EditOutput = output =>
-            output.HandOffs.Add(new(Entity: ball, From: test.Root, To: test.Root, Pose: TestWorld.At(9),
-                LinearVelocity: default, AngularVelocity: default));
+            output.HandOffs.Add(
+                new(
+                    Entity: ball,
+                    From: test.Root,
+                    To: test.Root,
+                    Pose: TestWorld.At(9),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
 
         Action tick = test.World.Tick;
 
@@ -288,16 +365,39 @@ public sealed class PhysicsHandOffTests
     [Fact]
     public void ASecondHandOffOfOneEntityInOneStepBreaksAContract()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
         FrameHandle dock = test.SpawnStaticFrame(TestWorld.At(-500), radius: 100);
-        Entity ball = test.World.Spawn(new() { Frame = test.Root, Pose = TestWorld.At(3), Body = TestWorld.Ball });
+        Entity ball = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = TestWorld.At(3),
+                Body = TestWorld.Ball,
+            }
+        );
         faults.EditOutput = output =>
         {
-            output.HandOffs.Add(new(Entity: ball, From: test.Root, To: station, Pose: TestWorld.At(9),
-                LinearVelocity: default, AngularVelocity: default));
-            output.HandOffs.Add(new(Entity: ball, From: test.Root, To: dock, Pose: TestWorld.At(9),
-                LinearVelocity: default, AngularVelocity: default));
+            output.HandOffs.Add(
+                new(
+                    Entity: ball,
+                    From: test.Root,
+                    To: station,
+                    Pose: TestWorld.At(9),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
+            output.HandOffs.Add(
+                new(
+                    Entity: ball,
+                    From: test.Root,
+                    To: dock,
+                    Pose: TestWorld.At(9),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
         };
 
         Action tick = test.World.Tick;
@@ -308,15 +408,31 @@ public sealed class PhysicsHandOffTests
     [Fact]
     public void TwoShipsThatAStepHandsIntoEachOtherBreakAContract()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         Entity first = SpawnFighter(test, TestWorld.At(0), out FrameHandle firstFrame);
         Entity second = SpawnFighter(test, TestWorld.At(100), out FrameHandle secondFrame);
         faults.EditOutput = output =>
         {
-            output.HandOffs.Add(new(Entity: first, From: test.Root, To: secondFrame, Pose: TestWorld.At(-100),
-                LinearVelocity: default, AngularVelocity: default));
-            output.HandOffs.Add(new(Entity: second, From: test.Root, To: firstFrame, Pose: TestWorld.At(100),
-                LinearVelocity: default, AngularVelocity: default));
+            output.HandOffs.Add(
+                new(
+                    Entity: first,
+                    From: test.Root,
+                    To: secondFrame,
+                    Pose: TestWorld.At(-100),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
+            output.HandOffs.Add(
+                new(
+                    Entity: second,
+                    From: test.Root,
+                    To: firstFrame,
+                    Pose: TestWorld.At(100),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
         };
 
         Action tick = test.World.Tick;
@@ -327,12 +443,20 @@ public sealed class PhysicsHandOffTests
     [Fact]
     public void AHandOffThatTheFrameTreeRefusesBreaksAContract()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         Entity fighterOwner = SpawnFighter(test, TestWorld.At(0), out FrameHandle fighter);
         FrameHandle cockpit = test.World.SpawnStaticFrame(fighter, TestWorld.At(1), radius: 2);
         faults.EditOutput = output =>
-            output.HandOffs.Add(new(Entity: fighterOwner, From: test.Root, To: cockpit, Pose: TestWorld.At(0),
-                LinearVelocity: default, AngularVelocity: default));
+            output.HandOffs.Add(
+                new(
+                    Entity: fighterOwner,
+                    From: test.Root,
+                    To: cockpit,
+                    Pose: TestWorld.At(0),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
 
         Action tick = test.World.Tick;
 
@@ -345,16 +469,25 @@ public sealed class PhysicsHandOffTests
     [InlineData(BodyMotion.Kinematic)]
     public void AHandOffOfTheOwnerOfAFrameWithoutADynamicHullBreaksAContract(BodyMotion motion)
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         Entity owner = SpawnFrameWithHull(test, motion, out FrameHandle frame);
         FrameHandle yard = test.SpawnStaticFrame(TestWorld.At(5), radius: 100);
         faults.EditOutput = output =>
-            output.HandOffs.Add(new(Entity: owner, From: test.Root, To: yard, Pose: TestWorld.At(-5),
-                LinearVelocity: default, AngularVelocity: default));
+            output.HandOffs.Add(
+                new(
+                    Entity: owner,
+                    From: test.Root,
+                    To: yard,
+                    Pose: TestWorld.At(-5),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
 
         Action tick = test.World.Tick;
 
-        tick.Should().Throw<ContractException>()
+        tick.Should()
+            .Throw<ContractException>()
             .WithMessage($"*hand-off of {owner}*hull of {frame}*only a dynamic hull hands off*");
     }
 #else
@@ -367,15 +500,34 @@ public sealed class PhysicsHandOffTests
         using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
         Entity gone = test.World.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball });
-        Entity bystander = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(7), Body =
- TestWorld.Ball });
+        Entity bystander = test.World.Spawn(
+            new SpawnDesc
+            {
+                Frame = test.Root,
+                Pose = TestWorld.At(7),
+                Body = TestWorld.Ball,
+            }
+        );
         test.World.Destroy(gone);
-        faults.EditOutput =
- output => output.HandOffs.Add(new HandOff(Entity: gone, From: test.Root, To: station, Pose: TestWorld.At(9), LinearVelocity: default, AngularVelocity: default));
+        faults.EditOutput = output =>
+            output.HandOffs.Add(
+                new HandOff(
+                    Entity: gone,
+                    From: test.Root,
+                    To: station,
+                    Pose: TestWorld.At(9),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
 
         test.Run(1);
 
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"hand-off of {gone}").And.Contain("no longer exists");
+        test.World.Errors.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Contain($"hand-off of {gone}")
+            .And.Contain("no longer exists");
         test.World.GetFrame(bystander).Should().Be(test.Root);
         test.World.PoseInOwnFrame(bystander).Position.X.Should().Be(7);
     }
@@ -386,12 +538,25 @@ public sealed class PhysicsHandOffTests
         using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
         Entity bodiless = test.SpawnAt(new Double3(3, 0, 0));
-        faults.EditOutput =
- output => output.HandOffs.Add(new HandOff(Entity: bodiless, From: test.Root, To: station, Pose: TestWorld.At(9), LinearVelocity: default, AngularVelocity: default));
+        faults.EditOutput = output =>
+            output.HandOffs.Add(
+                new HandOff(
+                    Entity: bodiless,
+                    From: test.Root,
+                    To: station,
+                    Pose: TestWorld.At(9),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
 
         test.Run(1);
 
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"hand-off of {bodiless}").And.Contain("has no body");
+        test.World.Errors.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Contain($"hand-off of {bodiless}")
+            .And.Contain("has no body");
         test.World.GetFrame(bodiless).Should().Be(test.Root);
         test.World.PoseInOwnFrame(bodiless).Position.Should().Be(new Double3(3, 0, 0));
     }
@@ -402,10 +567,25 @@ public sealed class PhysicsHandOffTests
         using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         FrameHandle gone = test.SpawnStaticFrame(TestWorld.At(0), radius: 10);
         test.World.Destroy(gone.Entity);
-        Entity ball = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(3), Body =
- TestWorld.Ball });
-        faults.EditOutput =
- output => output.HandOffs.Add(new HandOff(Entity: ball, From: test.Root, To: gone, Pose: TestWorld.At(9), LinearVelocity: default, AngularVelocity: default));
+        Entity ball = test.World.Spawn(
+            new SpawnDesc
+            {
+                Frame = test.Root,
+                Pose = TestWorld.At(3),
+                Body = TestWorld.Ball,
+            }
+        );
+        faults.EditOutput = output =>
+            output.HandOffs.Add(
+                new HandOff(
+                    Entity: ball,
+                    From: test.Root,
+                    To: gone,
+                    Pose: TestWorld.At(9),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
 
         test.Run(1);
 
@@ -424,9 +604,34 @@ public sealed class PhysicsHandOffTests
         // What the Jolt backend reports with a hand-off: the body state and the frame state in the target frame.
         faults.EditNextOutput = output =>
         {
-            output.Bodies.Add(new BodyState(Entity: fighterOwner, Frame: gone, Pose: TestWorld.At(-1), LinearVelocity: AnyVelocity, AngularVelocity: AnySpin));
-            output.HandOffs.Add(new HandOff(Entity: fighterOwner, From: test.Root, To: gone, Pose: TestWorld.At(-1), LinearVelocity: AnyVelocity, AngularVelocity: AnySpin));
-            output.Frames.Add(StepRecords.Of(frame: fighter, pose: TestWorld.At(-1), velocity: new Double3(1, 2, 3), angularVelocity: AnySpin, measured: Vector3.Zero));
+            output.Bodies.Add(
+                new BodyState(
+                    Entity: fighterOwner,
+                    Frame: gone,
+                    Pose: TestWorld.At(-1),
+                    LinearVelocity: AnyVelocity,
+                    AngularVelocity: AnySpin
+                )
+            );
+            output.HandOffs.Add(
+                new HandOff(
+                    Entity: fighterOwner,
+                    From: test.Root,
+                    To: gone,
+                    Pose: TestWorld.At(-1),
+                    LinearVelocity: AnyVelocity,
+                    AngularVelocity: AnySpin
+                )
+            );
+            output.Frames.Add(
+                StepRecords.Of(
+                    frame: fighter,
+                    pose: TestWorld.At(-1),
+                    velocity: new Double3(1, 2, 3),
+                    angularVelocity: AnySpin,
+                    measured: Vector3.Zero
+                )
+            );
         };
 
         test.Run(1);
@@ -448,8 +653,25 @@ public sealed class PhysicsHandOffTests
         test.World.Destroy(gone.Entity);
         faults.EditNextOutput = output =>
         {
-            output.Bodies.Add(new BodyState(Entity: fighterOwner, Frame: gone, Pose: TestWorld.At(0), LinearVelocity: default, AngularVelocity: default));
-            output.HandOffs.Add(new HandOff(Entity: fighterOwner, From: test.Root, To: cockpit, Pose: TestWorld.At(0), LinearVelocity: default, AngularVelocity: default));
+            output.Bodies.Add(
+                new BodyState(
+                    Entity: fighterOwner,
+                    Frame: gone,
+                    Pose: TestWorld.At(0),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
+            output.HandOffs.Add(
+                new HandOff(
+                    Entity: fighterOwner,
+                    From: test.Root,
+                    To: cockpit,
+                    Pose: TestWorld.At(0),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
         };
 
         test.Run(1);
@@ -466,14 +688,33 @@ public sealed class PhysicsHandOffTests
         using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
         FrameHandle dock = test.SpawnStaticFrame(TestWorld.At(-500), radius: 100);
-        Entity ball = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(3), Body =
- TestWorld.Ball });
-        faults.EditOutput =
- output => output.HandOffs.Add(new HandOff(Entity: ball, From: dock, To: station, Pose: TestWorld.At(9), LinearVelocity: default, AngularVelocity: default));
+        Entity ball = test.World.Spawn(
+            new SpawnDesc
+            {
+                Frame = test.Root,
+                Pose = TestWorld.At(3),
+                Body = TestWorld.Ball,
+            }
+        );
+        faults.EditOutput = output =>
+            output.HandOffs.Add(
+                new HandOff(
+                    Entity: ball,
+                    From: dock,
+                    To: station,
+                    Pose: TestWorld.At(9),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
 
         test.Run(1);
 
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"hand-off of {ball}").And.Contain($"{ball} is in {test.Root}, not in {dock}");
+        test.World.Errors.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Contain($"hand-off of {ball}")
+            .And.Contain($"{ball} is in {test.Root}, not in {dock}");
         test.World.GetFrame(ball).Should().Be(test.Root);
         test.World.PoseInOwnFrame(ball).Should().Be(TestWorld.At(3));
     }
@@ -485,11 +726,28 @@ public sealed class PhysicsHandOffTests
         Entity islandOwner = SpawnRootWithBody(test);
         FrameHandle island = test.World.GetOwnedFrame(islandOwner);
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
-        faults.EditOutputOfTick(0, output => output.HandOffs.Add(new HandOff(Entity: islandOwner, From: test.Root, To: station, Pose: TestWorld.At(9), LinearVelocity: default, AngularVelocity: default)));
+        faults.EditOutputOfTick(
+            0,
+            output =>
+                output.HandOffs.Add(
+                    new HandOff(
+                        Entity: islandOwner,
+                        From: test.Root,
+                        To: station,
+                        Pose: TestWorld.At(9),
+                        LinearVelocity: default,
+                        AngularVelocity: default
+                    )
+                )
+        );
 
         test.Run(1);
 
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"hand-off of {islandOwner}").And.Contain($"{islandOwner} is in no frame");
+        test.World.Errors.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Contain($"hand-off of {islandOwner}")
+            .And.Contain($"{islandOwner} is in no frame");
         test.World.Frames.Parent(island).Should().Be(FrameHandle.Null, "a root frame stays a root");
         test.World.GetFrame(islandOwner).Should().Be(FrameHandle.Null);
         test.World.AssertInvariants();
@@ -498,16 +756,36 @@ public sealed class PhysicsHandOffTests
     [Theory]
     [InlineData(BodyMotion.Static)]
     [InlineData(BodyMotion.Kinematic)]
-    public void AHandOffOfTheOwnerOfAFrameWithoutADynamicHullIsReportedOnceAndTheFrameStaysUnderItsParent(BodyMotion motion)
+    public void AHandOffOfTheOwnerOfAFrameWithoutADynamicHullIsReportedOnceAndTheFrameStaysUnderItsParent(
+        BodyMotion motion
+    )
     {
         using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         Entity owner = SpawnFrameWithHull(test, motion, out FrameHandle frame);
         FrameHandle yard = test.SpawnStaticFrame(TestWorld.At(5), radius: 100);
-        faults.EditOutputOfTick(0, output => output.HandOffs.Add(new HandOff(Entity: owner, From: test.Root, To: yard, Pose: TestWorld.At(-5), LinearVelocity: default, AngularVelocity: default)));
+        faults.EditOutputOfTick(
+            0,
+            output =>
+                output.HandOffs.Add(
+                    new HandOff(
+                        Entity: owner,
+                        From: test.Root,
+                        To: yard,
+                        Pose: TestWorld.At(-5),
+                        LinearVelocity: default,
+                        AngularVelocity: default
+                    )
+                )
+        );
 
         test.Run(1);
 
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"hand-off of {owner}").And.Contain($"hull of {frame}").And.Contain("only a dynamic hull hands off");
+        test.World.Errors.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Contain($"hand-off of {owner}")
+            .And.Contain($"hull of {frame}")
+            .And.Contain("only a dynamic hull hands off");
         test.World.Frames.Parent(frame).Should().Be(test.Root);
         test.World.GetFrame(owner).Should().Be(test.Root);
         test.World.AssertInvariants();
@@ -517,14 +795,33 @@ public sealed class PhysicsHandOffTests
     public void AHandOffIntoTheFrameThatTheEntityIsInIsReportedOnceAndChangesNothing()
     {
         using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
-        Entity ball = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(3), Body =
- TestWorld.Ball });
-        faults.EditOutput =
- output => output.HandOffs.Add(new HandOff(Entity: ball, From: test.Root, To: test.Root, Pose: TestWorld.At(9), LinearVelocity: default, AngularVelocity: default));
+        Entity ball = test.World.Spawn(
+            new SpawnDesc
+            {
+                Frame = test.Root,
+                Pose = TestWorld.At(3),
+                Body = TestWorld.Ball,
+            }
+        );
+        faults.EditOutput = output =>
+            output.HandOffs.Add(
+                new HandOff(
+                    Entity: ball,
+                    From: test.Root,
+                    To: test.Root,
+                    Pose: TestWorld.At(9),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
 
         test.Run(1);
 
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"hand-off of {ball}").And.Contain($"into {test.Root}, which it is in already");
+        test.World.Errors.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Contain($"hand-off of {ball}")
+            .And.Contain($"into {test.Root}, which it is in already");
         test.World.PoseInOwnFrame(ball).Should().Be(TestWorld.At(3));
     }
 
@@ -534,17 +831,45 @@ public sealed class PhysicsHandOffTests
         using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
         FrameHandle dock = test.SpawnStaticFrame(TestWorld.At(-500), radius: 100);
-        Entity ball = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(3), Body =
- TestWorld.Ball });
+        Entity ball = test.World.Spawn(
+            new SpawnDesc
+            {
+                Frame = test.Root,
+                Pose = TestWorld.At(3),
+                Body = TestWorld.Ball,
+            }
+        );
         faults.EditNextOutput = output =>
         {
-            output.HandOffs.Add(new HandOff(Entity: ball, From: test.Root, To: station, Pose: TestWorld.At(9), LinearVelocity: default, AngularVelocity: default));
-            output.HandOffs.Add(new HandOff(Entity: ball, From: test.Root, To: dock, Pose: TestWorld.At(9), LinearVelocity: default, AngularVelocity: default));
+            output.HandOffs.Add(
+                new HandOff(
+                    Entity: ball,
+                    From: test.Root,
+                    To: station,
+                    Pose: TestWorld.At(9),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
+            output.HandOffs.Add(
+                new HandOff(
+                    Entity: ball,
+                    From: test.Root,
+                    To: dock,
+                    Pose: TestWorld.At(9),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
         };
 
         test.Run(1);
 
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"hand-off of {ball}").And.Contain("another hand-off in this step");
+        test.World.Errors.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Contain($"hand-off of {ball}")
+            .And.Contain("another hand-off in this step");
         test.World.GetFrame(ball).Should().Be(test.Root, "the first hand-off is part of the skipped update");
         test.World.PoseInOwnFrame(ball).Should().Be(TestWorld.At(3));
     }
@@ -557,8 +882,26 @@ public sealed class PhysicsHandOffTests
         Entity second = SpawnFighter(test, TestWorld.At(100), out FrameHandle secondFrame);
         faults.EditNextOutput = output =>
         {
-            output.HandOffs.Add(new HandOff(Entity: first, From: test.Root, To: secondFrame, Pose: TestWorld.At(-100), LinearVelocity: default, AngularVelocity: default));
-            output.HandOffs.Add(new HandOff(Entity: second, From: test.Root, To: firstFrame, Pose: TestWorld.At(100), LinearVelocity: default, AngularVelocity: default));
+            output.HandOffs.Add(
+                new HandOff(
+                    Entity: first,
+                    From: test.Root,
+                    To: secondFrame,
+                    Pose: TestWorld.At(-100),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
+            output.HandOffs.Add(
+                new HandOff(
+                    Entity: second,
+                    From: test.Root,
+                    To: firstFrame,
+                    Pose: TestWorld.At(100),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
         };
 
         test.Run(1);
@@ -581,9 +924,35 @@ public sealed class PhysicsHandOffTests
         faults.EditNextOutput = output =>
         {
             // The body state skips the first ship's whole update, so its hand-off moves nothing.
-            output.Bodies.Add(new BodyState(Entity: first, Frame: gone, Pose: TestWorld.At(0), LinearVelocity: default, AngularVelocity: default));
-            output.HandOffs.Add(new HandOff(Entity: first, From: test.Root, To: secondFrame, Pose: TestWorld.At(-100), LinearVelocity: default, AngularVelocity: default));
-            output.HandOffs.Add(new HandOff(Entity: second, From: test.Root, To: firstFrame, Pose: TestWorld.At(100), LinearVelocity: default, AngularVelocity: default));
+            output.Bodies.Add(
+                new BodyState(
+                    Entity: first,
+                    Frame: gone,
+                    Pose: TestWorld.At(0),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
+            output.HandOffs.Add(
+                new HandOff(
+                    Entity: first,
+                    From: test.Root,
+                    To: secondFrame,
+                    Pose: TestWorld.At(-100),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
+            output.HandOffs.Add(
+                new HandOff(
+                    Entity: second,
+                    From: test.Root,
+                    To: firstFrame,
+                    Pose: TestWorld.At(100),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
         };
 
         test.Run(1);
@@ -600,7 +969,20 @@ public sealed class PhysicsHandOffTests
         using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         Entity fighterOwner = SpawnFighter(test, TestWorld.At(0), out FrameHandle fighter);
         FrameHandle cockpit = test.World.SpawnStaticFrame(fighter, TestWorld.At(1), radius: 2);
-        faults.EditOutputOfTick(0, output => output.HandOffs.Add(new HandOff(Entity: fighterOwner, From: test.Root, To: cockpit, Pose: TestWorld.At(0), LinearVelocity: default, AngularVelocity: default)));
+        faults.EditOutputOfTick(
+            0,
+            output =>
+                output.HandOffs.Add(
+                    new HandOff(
+                        Entity: fighterOwner,
+                        From: test.Root,
+                        To: cockpit,
+                        Pose: TestWorld.At(0),
+                        LinearVelocity: default,
+                        AngularVelocity: default
+                    )
+                )
+        );
 
         test.Run(1);
 
@@ -617,7 +999,20 @@ public sealed class PhysicsHandOffTests
         var log = new Recorder(EventMask.Of<FrameChanged>());
         Entity fighterOwner = SpawnFighter(test, TestWorld.At(0), out FrameHandle fighter, log);
         FrameHandle cockpit = test.World.SpawnStaticFrame(fighter, TestWorld.At(1), radius: 2);
-        faults.EditOutputOfTick(0, output => output.HandOffs.Add(new HandOff(Entity: fighterOwner, From: test.Root, To: cockpit, Pose: TestWorld.At(0), LinearVelocity: default, AngularVelocity: default)));
+        faults.EditOutputOfTick(
+            0,
+            output =>
+                output.HandOffs.Add(
+                    new HandOff(
+                        Entity: fighterOwner,
+                        From: test.Root,
+                        To: cockpit,
+                        Pose: TestWorld.At(0),
+                        LinearVelocity: default,
+                        AngularVelocity: default
+                    )
+                )
+        );
 
         test.Run(3);
 
@@ -629,6 +1024,7 @@ public sealed class PhysicsHandOffTests
     {
         /// <summary>The owner's body state in the refused target frame.</summary>
         BodyState,
+
         /// <summary>
         /// The owner's body state in the refused target frame, and the owned frame's state relative to that target:
         /// what the Jolt backend reports for every hand-off that it executes.
@@ -650,24 +1046,51 @@ public sealed class PhysicsHandOffTests
         public RefusedHandOffScene(RefusedReport report, params IComponent[] ownerComponents)
         {
             Test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
-            Owner = Test.World.Spawn(new SpawnDesc
-            {
-                Frame = Test.Root,
-                Pose = TestWorld.At(100),
-                LinearVelocity = OwnVelocity,
-                AngularVelocity = OwnSpin,
-                AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
-                Body = new BodyDesc(Shape: new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
-                Components = ownerComponents,
-            });
+            Owner = Test.World.Spawn(
+                new SpawnDesc
+                {
+                    Frame = Test.Root,
+                    Pose = TestWorld.At(100),
+                    LinearVelocity = OwnVelocity,
+                    AngularVelocity = OwnSpin,
+                    AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
+                    Body = new BodyDesc(Shape: new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
+                    Components = ownerComponents,
+                }
+            );
             Fighter = Test.World.GetOwnedFrame(Owner);
             Cockpit = Test.World.SpawnStaticFrame(Fighter, TestWorld.At(1), radius: 2);
             faults.EditNextOutput = output =>
             {
-                output.Bodies.Add(new BodyState(Entity: Owner, Frame: Cockpit, Pose: TestWorld.At(-1), LinearVelocity: AnyVelocity, AngularVelocity: AnySpin));
-                output.HandOffs.Add(new HandOff(Entity: Owner, From: Test.Root, To: Cockpit, Pose: TestWorld.At(-1), LinearVelocity: AnyVelocity, AngularVelocity: AnySpin));
+                output.Bodies.Add(
+                    new BodyState(
+                        Entity: Owner,
+                        Frame: Cockpit,
+                        Pose: TestWorld.At(-1),
+                        LinearVelocity: AnyVelocity,
+                        AngularVelocity: AnySpin
+                    )
+                );
+                output.HandOffs.Add(
+                    new HandOff(
+                        Entity: Owner,
+                        From: Test.Root,
+                        To: Cockpit,
+                        Pose: TestWorld.At(-1),
+                        LinearVelocity: AnyVelocity,
+                        AngularVelocity: AnySpin
+                    )
+                );
                 if (report == RefusedReport.BodyAndFrameState)
-                    output.Frames.Add(StepRecords.Of(frame: Fighter, pose: TestWorld.At(-1), velocity: new Double3(1, 2, 3), angularVelocity: AnySpin, measured: new Vector3(0, -2, 0)));
+                    output.Frames.Add(
+                        StepRecords.Of(
+                            frame: Fighter,
+                            pose: TestWorld.At(-1),
+                            velocity: new Double3(1, 2, 3),
+                            angularVelocity: AnySpin,
+                            measured: new Vector3(0, -2, 0)
+                        )
+                    );
             };
         }
 
@@ -733,10 +1156,12 @@ public sealed class PhysicsHandOffTests
         var log = new Recorder(EventMask.Of<Ping>());
         using var scene = new RefusedHandOffScene(report, log);
         // Each tick, one sender tells each frame's topic the tick. A message sent in tick t reaches its recipients in tick t + 1.
-        scene.Test.SpawnWith(SendEvery.Of<Ping>(target: scene.Test.Root.Topic, payloadAt: tick => new Ping { Value =
- 100 + (int)tick }));
-        scene.Test.SpawnWith(SendEvery.Of<Ping>(target: scene.Cockpit.Topic, payloadAt: tick => new Ping { Value =
- 200 + (int)tick }));
+        scene.Test.SpawnWith(
+            SendEvery.Of<Ping>(target: scene.Test.Root.Topic, payloadAt: tick => new Ping { Value = 100 + (int)tick })
+        );
+        scene.Test.SpawnWith(
+            SendEvery.Of<Ping>(target: scene.Cockpit.Topic, payloadAt: tick => new Ping { Value = 200 + (int)tick })
+        );
 
         scene.Test.Run(3);
 
@@ -755,18 +1180,20 @@ public sealed class PhysicsHandOffTests
         string error = scene.World.Errors.Should().ContainSingle().Subject;
         error.Should().Contain($"refused the hand-off of {scene.Owner} from {scene.Test.Root} to {scene.Cockpit}");
     }
-
 #endif
 
     /// <summary>
     /// A second root frame, an island of radius 100 m, whose owner has a body: only the static interior in its own frame,
     /// because a root frame has no parent for a hull.
     /// </summary>
-    private static Entity SpawnRootWithBody(TestWorld test) => test.World.Spawn(new()
-    {
-        AsFrame = new(FrameBounds.Sphere(100)),
-        Body = new(Shape: new SphereShapeDesc(5), Motion: BodyMotion.Static)
-    });
+    private static Entity SpawnRootWithBody(TestWorld test) =>
+        test.World.Spawn(
+            new()
+            {
+                AsFrame = new(FrameBounds.Sphere(100)),
+                Body = new(Shape: new SphereShapeDesc(5), Motion: BodyMotion.Static),
+            }
+        );
 
     /// <summary>
     /// A frame of radius 10 m near the origin of the root, whose owner has a hull in the root with <paramref name="motion"/>,
@@ -782,27 +1209,33 @@ public sealed class PhysicsHandOffTests
             Frame = test.Root,
             Pose = TestWorld.At(0),
             AsFrame = new(FrameBounds.Sphere(10)),
-            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: motion)
+            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: motion),
         };
-        Entity owner = test.World.Spawn(motion == BodyMotion.Kinematic
-            ? desc.OnKeplerOrbit(test.World, KeplerOrbit.Circular(1))
-            : desc);
+        Entity owner = test.World.Spawn(
+            motion == BodyMotion.Kinematic ? desc.OnKeplerOrbit(test.World, KeplerOrbit.Circular(1)) : desc
+        );
         frame = test.World.GetOwnedFrame(owner);
         return owner;
     }
 
     /// <summary>A small ship: a frame that physics moves, whose owner has a hull body in the parent frame.</summary>
-    private static Entity SpawnFighter(TestWorld test, DPose pose, out FrameHandle frame,
-        params IComponent[] components)
+    private static Entity SpawnFighter(
+        TestWorld test,
+        DPose pose,
+        out FrameHandle frame,
+        params IComponent[] components
+    )
     {
-        Entity owner = test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = pose,
-            AsFrame = new(FrameBounds.Sphere(10)),
-            Body = new(Shape: new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
-            Components = components
-        });
+        Entity owner = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = pose,
+                AsFrame = new(FrameBounds.Sphere(10)),
+                Body = new(Shape: new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
+                Components = components,
+            }
+        );
         frame = test.World.GetOwnedFrame(owner);
         return owner;
     }

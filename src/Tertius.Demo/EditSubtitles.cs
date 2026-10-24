@@ -14,7 +14,9 @@ public static class EditSubtitles
     /// <summary>How long a part's title shows, in frames: 4 s.</summary>
     public const int TitleFrames = 4 * Stretch.FramesPerSecond;
 
-    private const string White = "&HF2F2F2&", Gray = "&HA0A0A0&", Amber = "&H00B0FF&";
+    private const string White = "&HF2F2F2&",
+        Gray = "&HA0A0A0&",
+        Amber = "&H00B0FF&";
 
     /// <summary>The legend of the frame outlines: the color of each kind of frame, from ARCHITECTURE.md, "The overlay pass", in ASS order (blue, green, red).</summary>
     private static readonly (string Color, string Kind)[] Legend =
@@ -23,7 +25,7 @@ public static class EditSubtitles
         ("&HB48FE5&", "falling frame"),
         ("&H58B4C9&", "following frame"),
         ("&HB6C14F&", "resting frame"),
-        ("&HF08CB5&", "nesting frame")
+        ("&HF08CB5&", "nesting frame"),
     ];
 
     /// <summary>The time of frame <paramref name="frame"/> of a video at 60 frames per second, rounded down to the hundredth:
@@ -31,8 +33,14 @@ public static class EditSubtitles
     public static string Time(int frame)
     {
         long centis = frame * 100L / Stretch.FramesPerSecond;
-        return string.Format(CultureInfo.InvariantCulture, "{0}:{1:00}:{2:00}.{3:00}", centis / 360_000,
-            centis / 6_000 % 60, centis / 100 % 60, centis % 100);
+        return string.Format(
+            CultureInfo.InvariantCulture,
+            "{0}:{1:00}:{2:00}.{3:00}",
+            centis / 360_000,
+            centis / 6_000 % 60,
+            centis / 100 % 60,
+            centis % 100
+        );
     }
 
     /// <summary>
@@ -54,21 +62,37 @@ public static class EditSubtitles
                 ReadoutRow row = rows[frame];
                 Event(text: text, from: frame, to: frame + 1, style: "Readout", body: Boxed(ReadoutText.Lines(row)));
                 string rate = ReadoutText.Rate(stretch.Film.Every);
-                Event(text: text, from: frame, to: frame + 1, style: "Clock",
-                    body: Boxed([ReadoutText.Clock(row.Tick)]) + "\\N" +
-                          Colored(stretch.Film.Every == 1 ? Gray : Amber, Boxed([rate])));
+                Event(
+                    text: text,
+                    from: frame,
+                    to: frame + 1,
+                    style: "Clock",
+                    body: Boxed([ReadoutText.Clock(row.Tick)])
+                        + "\\N"
+                        + Colored(stretch.Film.Every == 1 ? Gray : Amber, Boxed([rate]))
+                );
             }
 
             if (stretch.Film.Outlines)
-                Event(text: text, from: stretch.From, to: stretch.From + stretch.Count, style: "Legend",
-                    body: LegendText());
+                Event(
+                    text: text,
+                    from: stretch.From,
+                    to: stretch.From + stretch.Count,
+                    style: "Legend",
+                    body: LegendText()
+                );
         }
 
         foreach (EditPart part in cuts.Parts)
         {
             Stretch first = Find(stretches, part.FirstFilm, "part");
-            Event(text: text, from: first.From, to: first.From + TitleFrames, style: "Title",
-                body: $"{{\\fad(600,600)}}{Plain(part.Title)}\\N{{\\fs24\\c{Gray}}}{Plain(part.Subtitle)}");
+            Event(
+                text: text,
+                from: first.From,
+                to: first.From + TitleFrames,
+                style: "Title",
+                body: $"{{\\fad(600,600)}}{Plain(part.Title)}\\N{{\\fs24\\c{Gray}}}{Plain(part.Subtitle)}"
+            );
         }
 
         foreach (PanelSpan span in cuts.Panels)
@@ -78,8 +102,13 @@ public static class EditSubtitles
             ReadoutRow first = rows[stretches[start].Film.FirstFrame];
             for (int index = start; index <= end; index++)
             for (int frame = stretches[index].From; frame < stretches[index].From + stretches[index].Count; frame++)
-                Event(text: text, from: frame, to: frame + 1, style: "Panel",
-                    body: Boxed(span.Panel(first, rows[frame])));
+                Event(
+                    text: text,
+                    from: frame,
+                    to: frame + 1,
+                    style: "Panel",
+                    body: Boxed(span.Panel(first, rows[frame]))
+                );
         }
 
         return text.ToString();
@@ -90,22 +119,27 @@ public static class EditSubtitles
     {
         ArgumentNullException.ThrowIfNull(card);
         var text = new StringBuilder(Header());
-        string lines = string.Join("\\N",
-            card.Lines.Select(line => $"{{\\fs{line.Size}\\c{(line.Gray ? Gray : White)}}}{Plain(line.Text)}"));
+        string lines = string.Join(
+            "\\N",
+            card.Lines.Select(line => $"{{\\fs{line.Size}\\c{(line.Gray ? Gray : White)}}}{Plain(line.Text)}")
+        );
         Event(text: text, from: 0, to: card.Frames, style: "Card", body: lines);
         return text.ToString();
     }
 
     private static Stretch Find(IReadOnlyList<Stretch> stretches, string film, string what) =>
-        stretches.FirstOrDefault(stretch => stretch.Film.Name == film) ?? throw new ArgumentException(
-            $"A {what} of the cut list names the film '{film}', which the script does not have.", nameof(film));
+        stretches.FirstOrDefault(stretch => stretch.Film.Name == film)
+        ?? throw new ArgumentException(
+            $"A {what} of the cut list names the film '{film}', which the script does not have.",
+            nameof(film)
+        );
 
     private static void Event(StringBuilder text, int from, int to, string style, string body) =>
         text.Append(CultureInfo.InvariantCulture, $"Dialogue: 0,{Time(from)},{Time(to)},{style},,0,0,0,,{body}\n");
 
     /// <summary>Lines for a box of monospaced text: braces kept out of the override codes, and every space a hard space, which libass never drops.</summary>
-    private static string Boxed(IEnumerable<string> lines) => string.Join("\\N",
-        lines.Select(line => Plain(line).Replace(" ", "\\h", StringComparison.Ordinal)));
+    private static string Boxed(IEnumerable<string> lines) =>
+        string.Join("\\N", lines.Select(line => Plain(line).Replace(" ", "\\h", StringComparison.Ordinal)));
 
     private static string Colored(string color, string body) => $"{{\\c{color}}}{body}";
 
@@ -113,8 +147,12 @@ public static class EditSubtitles
     private static string Plain(string text) => text.Replace('{', '(').Replace('}', ')').Replace('\\', '/');
 
     private static string LegendText() =>
-        Boxed(["FRAMES"]) + "\\N" + string.Join("\\N",
-            Legend.Select(entry => $"{{\\c{entry.Color}}}●{{\\c{White}}}" + Boxed([" " + entry.Kind])));
+        Boxed(["FRAMES"])
+        + "\\N"
+        + string.Join(
+            "\\N",
+            Legend.Select(entry => $"{{\\c{entry.Color}}}●{{\\c{White}}}" + Boxed([" " + entry.Kind]))
+        );
 
     /// <summary>The script info and the styles, at 1280 by 720. A box style draws its text on a black box at 60 %.</summary>
     private static string Header() =>

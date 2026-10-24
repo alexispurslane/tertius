@@ -17,8 +17,10 @@ public sealed class FrameTurnTests
     private const double Step = 1.0 / 60;
 
     /// <summary>One step of 1 s of a frame that turns steadily by a quarter turn per second about +Z.</summary>
-    private static readonly FrameTurn Quarter = new(DQuaternion.FromAxisAngle(Double3.UnitZ, -QuarterTurn),
-        new(0, 0, QuarterTurn));
+    private static readonly FrameTurn Quarter = new(
+        DQuaternion.FromAxisAngle(Double3.UnitZ, -QuarterTurn),
+        new(0, 0, QuarterTurn)
+    );
 
     // ---- The angular form -------------------------------------------------------------------------------------
 
@@ -65,7 +67,10 @@ public sealed class FrameTurnTests
         // acceleration of pi/2 rad/s² from pi/4 rad/s, at 3 pi/4 rad/s and 5 pi/4 rad/s at the ends of the two steps. The
         // body rests at (1, 0, 0) in inertial space, so in the frame's axes it is at (1, 0, 0), (0, -1, 0) and, three quarter
         // turns after the start, (0, 1, 0). The chord goes from (-1, -1, 0) to (0, 2, 0): a change of (1, 3, 0).
-        FrameTurn last = Quarter with { AngularVelocity = new(0, 0, 3 * Math.PI / 4) };
+        FrameTurn last = Quarter with
+        {
+            AngularVelocity = new(0, 0, 3 * Math.PI / 4),
+        };
         var step = new FrameTurn(DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI), new(0, 0, 5 * Math.PI / 4));
 
         ExpectNear(new FrameTurns(step, last).FreeChange(new(0, -1, 0), new(-1, -1, 0), 1), new(1, 3, 0));
@@ -102,8 +107,11 @@ public sealed class FrameTurnTests
     [InlineData(true, false, true)]
     [InlineData(false, true, true)]
     [InlineData(true, true, true)]
-    public void AFrameIsATurningFrameWhenEitherOfItsTwoTurnsIsNotTheIdentity(bool stepTurns, bool lastTurns,
-        bool expected)
+    public void AFrameIsATurningFrameWhenEitherOfItsTwoTurnsIsNotTheIdentity(
+        bool stepTurns,
+        bool lastTurns,
+        bool expected
+    )
     {
         var turns = new FrameTurns(stepTurns ? Quarter : FrameTurn.None, lastTurns ? Quarter : FrameTurn.None);
 
@@ -113,18 +121,14 @@ public sealed class FrameTurnTests
     // ---- The chord rule ---------------------------------------------------------------------------------------
 
     [Fact]
-    public void TheChordBehindTheVelocityOfABodyAtRestInInertialSpaceIsTheChangeOfItsPlaceInTheFramesAxes()
-    {
+    public void TheChordBehindTheVelocityOfABodyAtRestInInertialSpaceIsTheChangeOfItsPlaceInTheFramesAxes() =>
         // At t = 1 the body that rests at (1, 0, 0) in inertial space is at (0, -1, 0) in the frame's axes, and it moves
         // relative to them at -ω × x = (-pi/2, 0, 0). Over the step that ended it went from (1, 0, 0) to (0, -1, 0).
         ExpectNear(Quarter.ChordBehind(new(0, -1, 0), new(-QuarterTurn, 0, 0), 1), new(-1, -1, 0));
-    }
 
     [Fact]
-    public void TheInstantVelocityAtTheEndOfTheChordOfABodyAtRestInInertialSpaceIsMinusTheFramesTurnAtItsPlace()
-    {
+    public void TheInstantVelocityAtTheEndOfTheChordOfABodyAtRestInInertialSpaceIsMinusTheFramesTurnAtItsPlace() =>
         ExpectNear(Quarter.InstantAtEnd(new(0, -1, 0), new(-1, -1, 0), 1), new(-QuarterTurn, 0, 0));
-    }
 
     [Fact]
     public void TheChordBehindAndTheInstantVelocityAtTheEndUndoEachOther()
@@ -172,17 +176,13 @@ public sealed class FrameTurnTests
     }
 
     [Fact]
-    public void TheAngularChordBehindAnInstantAngularVelocityIsTheTurnOfTheBodyInTheFramesAxesOverTheStepThatEnded()
-    {
+    public void TheAngularChordBehindAnInstantAngularVelocityIsTheTurnOfTheBodyInTheFramesAxesOverTheStepThatEnded() =>
         // Relative to the frame the body turns at (pi/2, 0, 0) - (0, 0, pi/2).
         ExpectNear(Quarter.AngularChordBehind(new(QuarterTurn, 0, -QuarterTurn), 1), AngularChordOfTheStepThatEnded);
-    }
 
     [Fact]
-    public void TheInstantAngularVelocityAtTheEndOfAnAngularChordIsTheBodysInertialTurnLessTheFrames()
-    {
+    public void TheInstantAngularVelocityAtTheEndOfAnAngularChordIsTheBodysInertialTurnLessTheFrames() =>
         ExpectNear(Quarter.InstantAngularAtEnd(AngularChordOfTheStepThatEnded, 1), new(QuarterTurn, 0, -QuarterTurn));
-    }
 
     [Fact]
     public void TheAngularChordBehindAndTheInstantAngularVelocityAtTheEndUndoEachOther()
@@ -216,21 +216,24 @@ public sealed class FrameTurnTests
     {
         var turns = new FrameTurns(Quarter, Quarter);
 
-        ExpectNear(turns.AngularChordAhead(AngularChordOfTheStepThatEnded, Double3.Zero, 1),
-            AngularChordOfTheStepInFlight);
+        ExpectNear(
+            turns.AngularChordAhead(AngularChordOfTheStepThatEnded, Double3.Zero, 1),
+            AngularChordOfTheStepInFlight
+        );
     }
 
     [Fact]
-    public void
-        AnAngularVelocityChangeAtTheStartOfTheStepJoinsTheInertialAngularVelocityBeforeTheTurnOfTheStepInFlight()
+    public void AnAngularVelocityChangeAtTheStartOfTheStepJoinsTheInertialAngularVelocityBeforeTheTurnOfTheStepInFlight()
     {
         // The body rests in inertial space, so over the step that ended it turned with the frame's coordinates, by
         // (0, 0, -pi/2). An angular impulse at the start of the step in flight gives it (pi/2, 0, 0) in the axes of that
         // moment: the same inertial angular velocity as the body above.
         var turns = new FrameTurns(Quarter, Quarter);
 
-        ExpectNear(turns.AngularChordAhead(new(0, 0, -QuarterTurn), new(QuarterTurn, 0, 0), 1),
-            AngularChordOfTheStepInFlight);
+        ExpectNear(
+            turns.AngularChordAhead(new(0, 0, -QuarterTurn), new(QuarterTurn, 0, 0), 1),
+            AngularChordOfTheStepInFlight
+        );
     }
 
     [Fact]
@@ -250,7 +253,9 @@ public sealed class FrameTurnTests
 
         double end = 600 * Step;
         ExpectNear(chord, OrientationAt(end - Step).AngularVelocityTo(OrientationAt(end), Step), 1e-9);
-        OrientationAt(end).AngularVelocityTo(orientation, 1).Length.Should()
+        OrientationAt(end)
+            .AngularVelocityTo(orientation, 1)
+            .Length.Should()
             .BeLessThan(1e-9, "the body's orientation stays on its inertial turn");
     }
 
@@ -259,8 +264,16 @@ public sealed class FrameTurnTests
     [Fact]
     public void TheAngularAccelerationIsTheMeanChangeOfTheInertialAngularVelocityOverTheStepInFlight()
     {
-        var turns = new FrameTurns(Quarter with { AngularVelocity = new(0, 0, 2) },
-            Quarter with { AngularVelocity = new(0, 0, 1) });
+        var turns = new FrameTurns(
+            Quarter with
+            {
+                AngularVelocity = new(0, 0, 2),
+            },
+            Quarter with
+            {
+                AngularVelocity = new(0, 0, 1),
+            }
+        );
 
         ExpectNear(turns.AngularAcceleration(0.5), new(0, 0, 2));
     }
@@ -279,8 +292,16 @@ public sealed class FrameTurnTests
     {
         // From 1 to 2 rad/s about +Z in 0.5 s is 2 rad/s². At (3, 0, 0) the floor moves along +Y faster and faster, so a
         // free body falls behind it: -α × r = (0, -6, 0).
-        var turns = new FrameTurns(Quarter with { AngularVelocity = new(0, 0, 2) },
-            Quarter with { AngularVelocity = new(0, 0, 1) });
+        var turns = new FrameTurns(
+            Quarter with
+            {
+                AngularVelocity = new(0, 0, 2),
+            },
+            Quarter with
+            {
+                AngularVelocity = new(0, 0, 1),
+            }
+        );
 
         ExpectNear(turns.Euler(new(3, 0, 0), 0.5), new(0, -6, 0));
     }
@@ -320,8 +341,8 @@ public sealed class FrameTurnTests
         /// the station's axes, plus the station's own spin about its +Y.
         /// </summary>
         private static Double3 AngularVelocityAt(double t) =>
-            SpinAt(t).Conjugate().Rotate(Tilt.Conjugate().Rotate(ParentAxis * ParentRate)) +
-            Double3.UnitY * (Rate + SpinUp * t);
+            SpinAt(t).Conjugate().Rotate(Tilt.Conjugate().Rotate(ParentAxis * ParentRate))
+            + Double3.UnitY * (Rate + SpinUp * t);
 
         /// <summary>
         /// The turn from <paramref name="from"/> to <paramref name="to"/>: how the station's coordinates of an inertial
@@ -348,8 +369,9 @@ public sealed class FrameTurnTests
         public static DQuaternion TumblingBodyOrientationAt(double t)
         {
             var spin = new Double3(0.4, -1.1, 2.3);
-            return AxesAt(t).Conjugate() * DQuaternion.FromAxisAngle(spin, spin.Length * t) *
-                   DQuaternion.FromAxisAngle(new(1, 2, 3), 0.7);
+            return AxesAt(t).Conjugate()
+                * DQuaternion.FromAxisAngle(spin, spin.Length * t)
+                * DQuaternion.FromAxisAngle(new(1, 2, 3), 0.7);
         }
     }
 }

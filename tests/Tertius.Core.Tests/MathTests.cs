@@ -10,9 +10,9 @@ public sealed class MathTests
     public void DQuaternion_RotateMatchesFloatQuaternion()
     {
         var q = Quaternion.CreateFromYawPitchRoll(0.3f, -1.1f, 2.0f);
-        DQuaternion dq = DQuaternion.FromQuaternion(q);
+        var dq = DQuaternion.FromQuaternion(q);
         var v = new Vector3(1.5f, -2f, 0.25f);
-        Vector3 expected = Vector3.Transform(v, q);
+        var expected = Vector3.Transform(v, q);
         Vector3 actual = dq.Rotate(v);
         Assert.True(Vector3.Distance(expected, actual) < 1e-5f, $"{expected} vs {actual}");
     }
@@ -23,18 +23,18 @@ public sealed class MathTests
         var a = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.7f);
         var b = Quaternion.CreateFromAxisAngle(Vector3.UnitY, -1.3f);
         var v = new Vector3(0.2f, 1f, -3f);
-        Vector3 expected = Vector3.Transform(v, a * b);
+        var expected = Vector3.Transform(v, a * b);
         Vector3 actual = (DQuaternion.FromQuaternion(a) * DQuaternion.FromQuaternion(b)).Rotate(v);
         Assert.True(Vector3.Distance(expected, actual) < 1e-5f);
         // (a * b) rotates by b first, then a.
-        Vector3 stepwise = Vector3.Transform(Vector3.Transform(v, b), a);
+        var stepwise = Vector3.Transform(Vector3.Transform(v, b), a);
         Assert.True(Vector3.Distance(stepwise, actual) < 1e-5f);
     }
 
     [Fact]
     public void DQuaternion_AngularVelocityToTurnsAboutTheAxisInTheParentsAxesAtTheAngleOverTheTime()
     {
-        DQuaternion from = DQuaternion.FromAxisAngle(Double3.UnitX, 0.6);
+        var from = DQuaternion.FromAxisAngle(Double3.UnitX, 0.6);
         DQuaternion to = DQuaternion.FromAxisAngle(Double3.UnitZ, 0.5) * from;
 
         Double3 omega = from.AngularVelocityTo(to, 0.25);
@@ -46,7 +46,7 @@ public sealed class MathTests
     public void DQuaternion_AngularVelocityToTurnsTheShortWay()
     {
         // A turn of 1.5π about +Z is the same rotation as a turn of 0.5π about -Z, the short way.
-        DQuaternion to = DQuaternion.FromAxisAngle(Double3.UnitZ, 1.5 * Math.PI);
+        var to = DQuaternion.FromAxisAngle(Double3.UnitZ, 1.5 * Math.PI);
 
         Double3 omega = DQuaternion.Identity.AngularVelocityTo(to, 1);
 
@@ -56,7 +56,7 @@ public sealed class MathTests
     [Fact]
     public void DQuaternion_AngularVelocityToTheSameRotationIsZeroWhateverItsSign()
     {
-        DQuaternion q = DQuaternion.FromAxisAngle(new Double3(1, 2, 3).Normalized(), 0.8);
+        var q = DQuaternion.FromAxisAngle(new Double3(1, 2, 3).Normalized(), 0.8);
         var negated = new DQuaternion(X: -q.X, Y: -q.Y, Z: -q.Z, W: -q.W);
 
         Assert.Equal(Double3.Zero, q.AngularVelocityTo(q, 1.0 / 60));
@@ -67,7 +67,7 @@ public sealed class MathTests
     public void DPose_ComposeWithInverseIsIdentity()
     {
         var p = new DPose(new(6e6, -2.5, 1e3), DQuaternion.FromAxisAngle(new(1, 2, 3), 0.9));
-        DPose id = DPose.Compose(p, p.Inverse());
+        var id = DPose.Compose(p, p.Inverse());
         Assert.True(id.Position.Length < 1e-8);
         Assert.True(Math.Abs(Math.Abs(id.Rotation.W) - 1) < Eps);
     }

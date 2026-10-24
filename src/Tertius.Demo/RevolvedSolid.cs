@@ -96,7 +96,8 @@ public sealed class RevolvedSolid
     private readonly bool convex;
 
     /// <summary>The cosine and sine of θ_k, for each of the segments.</summary>
-    private readonly double[] cos, sin;
+    private readonly double[] cos,
+        sin;
 
     /// <summary>For each segment, true when it is left out (see <see cref="LeavingOut"/>).</summary>
     private readonly bool[] open;
@@ -147,7 +148,10 @@ public sealed class RevolvedSolid
         ExpectBends(radius, segments, nameof(segments));
         return new(
             corners: [new(0, -halfHeight), new(radius, -halfHeight), new(radius, halfHeight), new(0, halfHeight)],
-            smooth: false, convex: true, segments: segments);
+            smooth: false,
+            convex: true,
+            segments: segments
+        );
     }
 
     /// <summary>
@@ -160,15 +164,24 @@ public sealed class RevolvedSolid
     {
         Positive(innerRadius, nameof(innerRadius));
         if (!(float.IsFinite(outerRadius) && outerRadius > innerRadius))
-            throw new ArgumentOutOfRangeException(nameof(outerRadius), outerRadius,
-                $"The outer radius must be finite and more than the inner radius {innerRadius}.");
+            throw new ArgumentOutOfRangeException(
+                nameof(outerRadius),
+                outerRadius,
+                $"The outer radius must be finite and more than the inner radius {innerRadius}."
+            );
         Positive(halfWidth, nameof(halfWidth));
         return new(
             corners:
             [
-                new(innerRadius, -halfWidth), new(outerRadius, -halfWidth), new(outerRadius, halfWidth),
-                new(innerRadius, halfWidth)
-            ], smooth: false, convex: false, segments: segments);
+                new(innerRadius, -halfWidth),
+                new(outerRadius, -halfWidth),
+                new(outerRadius, halfWidth),
+                new(innerRadius, halfWidth),
+            ],
+            smooth: false,
+            convex: false,
+            segments: segments
+        );
     }
 
     /// <summary>
@@ -185,8 +198,11 @@ public sealed class RevolvedSolid
     {
         Positive(minorRadius, nameof(minorRadius));
         if (!(float.IsFinite(majorRadius) && majorRadius > minorRadius))
-            throw new ArgumentOutOfRangeException(nameof(majorRadius), majorRadius,
-                $"The major radius must be finite and more than the minor radius {minorRadius}, so that the torus has a hole.");
+            throw new ArgumentOutOfRangeException(
+                nameof(majorRadius),
+                majorRadius,
+                $"The major radius must be finite and more than the minor radius {minorRadius}, so that the torus has a hole."
+            );
         ArgumentOutOfRangeException.ThrowIfLessThan(sides, 3);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(sides, MaxHullPoints / 2);
         ExpectBends(minorRadius, sides, nameof(sides));
@@ -251,8 +267,9 @@ public sealed class RevolvedSolid
 
         if (smooth)
             for (int i = 0; i < corners.Length; i++)
-                profile.Add((i,
-                    Vector2.Normalize(EdgeNormal((i + corners.Length - 1) % corners.Length) + EdgeNormal(i))));
+                profile.Add(
+                    (i, Vector2.Normalize(EdgeNormal((i + corners.Length - 1) % corners.Length) + EdgeNormal(i)))
+                );
 
         int n = Segments;
         var vertices = new Vertex[n * profile.Count];
@@ -266,7 +283,7 @@ public sealed class RevolvedSolid
                 {
                     Position = Point(corner, k),
                     Normal = new((float)(normal.X * cos[k]), normal.Y, (float)(-normal.X * sin[k])),
-                    Tangent = tangent
+                    Tangent = tangent,
                 };
             }
         }
@@ -279,8 +296,10 @@ public sealed class RevolvedSolid
             int next = (k + 1) % n;
             foreach ((int from, int to) in edges)
             {
-                uint a = (uint)(k * profile.Count + from), aNext = (uint)(next * profile.Count + from);
-                uint b = (uint)(k * profile.Count + to), bNext = (uint)(next * profile.Count + to);
+                uint a = (uint)(k * profile.Count + from),
+                    aNext = (uint)(next * profile.Count + from);
+                uint b = (uint)(k * profile.Count + to),
+                    bNext = (uint)(next * profile.Count + to);
                 // Seen from outside, the profile's edge runs from a to b and the segment from θ_k to θ_(k+1), so a, aNext,
                 // bNext, b goes counterclockwise. An end on the axis is one point at both angles, so its triangle drops out.
                 if (corners[profile[from].Corner].X != 0)
@@ -305,14 +324,18 @@ public sealed class RevolvedSolid
             Vector3 normal = facesBack ? -along : along;
             uint first = (uint)all.Count;
             for (int c = 0; c < corners.Length; c++)
-                all.Add(new()
-                {
-                    Position = Point(c, k), Normal = normal,
-                    Tangent = new(x: (float)cos[k], y: 0, z: (float)-sin[k], w: 1)
-                });
+                all.Add(
+                    new()
+                    {
+                        Position = Point(c, k),
+                        Normal = normal,
+                        Tangent = new(x: (float)cos[k], y: 0, z: (float)-sin[k], w: 1),
+                    }
+                );
             for (int c = 1; c + 1 < corners.Length; c++)
             {
-                uint b = first + (uint)c, d = first + (uint)c + 1;
+                uint b = first + (uint)c,
+                    d = first + (uint)c + 1;
                 indices.AddRange(facesBack ? [first, b, d] : [first, d, b]);
             }
         }
@@ -336,16 +359,23 @@ public sealed class RevolvedSolid
         if (convex)
             return new ConvexHullShapeDesc(
                 [.. Enumerable.Range(0, n).SelectMany(k => all.Where(c => corners[c].X != 0).Select(c => Point(c, k)))],
-                ConvexRadius: 0);
+                ConvexRadius: 0
+            );
         var children = new List<CompoundChild>(n);
         for (int k = 0; k < n; k++)
         {
             if (open[k])
                 continue;
             int next = (k + 1) % n;
-            children.Add(new(
-                new ConvexHullShapeDesc([.. all.SelectMany(c => new[] { Point(c, k), Point(c, next) })],
-                    ConvexRadius: 0), Pose.Identity));
+            children.Add(
+                new(
+                    new ConvexHullShapeDesc(
+                        [.. all.SelectMany(c => new[] { Point(c, k), Point(c, next) })],
+                        ConvexRadius: 0
+                    ),
+                    Pose.Identity
+                )
+            );
         }
 
         return new CompoundShapeDesc([.. children]);
@@ -378,8 +408,11 @@ public sealed class RevolvedSolid
     {
         double bend = radius * (1 - Math.Cos(Math.Tau / count));
         if (!(bend > HullTolerance))
-            throw new ArgumentOutOfRangeException(name, count,
-                $"{count} corners on a circle of {radius} m bend by {bend * 1000:0.###} mm at each corner, and Jolt drops a corner of a hull that bends by {HullTolerance * 1000} mm or less, so the collision shape would not match the mesh. Use fewer.");
+            throw new ArgumentOutOfRangeException(
+                name,
+                count,
+                $"{count} corners on a circle of {radius} m bend by {bend * 1000:0.###} mm at each corner, and Jolt drops a corner of a hull that bends by {HullTolerance * 1000} mm or less, so the collision shape would not match the mesh. Use fewer."
+            );
     }
 
     private static void Positive(float value, string name)

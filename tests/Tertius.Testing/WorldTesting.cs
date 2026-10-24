@@ -25,8 +25,12 @@ public static class WorldTesting
     /// invariants at the end of every tick, which costs about 0.5 ms a tick in a Debug build. <paramref name="configure"/>
     /// changes any other option before the world is created, for example the membership rules of numeric frames.
     /// </summary>
-    public static World NewWorld(out JoltPhysicsBackend backend, List<string>? warnings = null, bool debugChecks = true,
-        Action<WorldOptions>? configure = null)
+    public static World NewWorld(
+        out JoltPhysicsBackend backend,
+        List<string>? warnings = null,
+        bool debugChecks = true,
+        Action<WorldOptions>? configure = null
+    )
     {
         backend = NewBackend(warnings);
         return new(NewOptions(debugChecks, configure), backend);
@@ -36,9 +40,12 @@ public static class WorldTesting
     /// Like <see cref="NewWorld"/>, but the world runs on a <see cref="FaultInjectingBackend"/> around a new real backend.
     /// With no edit and no exception set, it behaves as the world of <see cref="NewWorld"/>.
     /// </summary>
-    public static World NewWorldWithFaults(out FaultInjectingBackend faults, List<string>? warnings = null,
+    public static World NewWorldWithFaults(
+        out FaultInjectingBackend faults,
+        List<string>? warnings = null,
         bool debugChecks = true,
-        Action<WorldOptions>? configure = null)
+        Action<WorldOptions>? configure = null
+    )
     {
         faults = new(NewBackend(warnings));
         return new(NewOptions(debugChecks, configure), faults);
@@ -62,7 +69,10 @@ public static class WorldTesting
     {
         var options = new WorldOptions
         {
-            MaxDegreeOfParallelism = 1, InitialCapacity = TestCapacity, DebugChecks = debugChecks, DisposePhysics = true
+            MaxDegreeOfParallelism = 1,
+            InitialCapacity = TestCapacity,
+            DebugChecks = debugChecks,
+            DisposePhysics = true,
         };
         configure?.Invoke(options);
         return options;
@@ -73,12 +83,15 @@ public static class WorldTesting
         world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(0, -g, 0))));
 
     /// <summary>A static floor of 100 m by 100 m whose top is at <paramref name="top"/>.</summary>
-    public static Entity Floor(World world, FrameHandle frame, double top = 0) => world.Spawn(new()
-    {
-        Frame = frame,
-        Pose = At(0, top - 0.5),
-        Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Static)
-    });
+    public static Entity Floor(World world, FrameHandle frame, double top = 0) =>
+        world.Spawn(
+            new()
+            {
+                Frame = frame,
+                Pose = At(0, top - 0.5),
+                Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Static),
+            }
+        );
 
     /// <summary>A dynamic cube with sides of 1 m.</summary>
     public static BodyDesc Cube(float mass = 10) => new(Shape: new BoxShapeDesc(new(0.5f)), Mass: mass);
@@ -88,12 +101,53 @@ public static class WorldTesting
     {
         Vector3[] v =
         [
-            new(-half, -half, -half), new(half, -half, -half), new(half, half, -half), new(-half, half, -half),
-            new(-half, -half, half), new(half, -half, half), new(half, half, half), new(-half, half, half)
+            new(-half, -half, -half),
+            new(half, -half, -half),
+            new(half, half, -half),
+            new(-half, half, -half),
+            new(-half, -half, half),
+            new(half, -half, half),
+            new(half, half, half),
+            new(-half, half, half),
         ];
         int[] faces =
         [
-            0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 4, 7, 0, 7, 3, 1, 2, 6, 1, 6, 5, 0, 1, 5, 0, 5, 4, 3, 7, 6, 3, 6, 2
+            0,
+            2,
+            1,
+            0,
+            3,
+            2,
+            4,
+            5,
+            6,
+            4,
+            6,
+            7,
+            0,
+            4,
+            7,
+            0,
+            7,
+            3,
+            1,
+            2,
+            6,
+            1,
+            6,
+            5,
+            0,
+            1,
+            5,
+            0,
+            5,
+            4,
+            3,
+            7,
+            6,
+            3,
+            6,
+            2,
         ];
         return new(v, faces);
     }
@@ -105,8 +159,12 @@ public static class WorldTesting
     /// <summary>True while Jolt simulates the primary body of <paramref name="entity"/> in the system of
     /// <paramref name="frame"/>.</summary>
     public static bool IsAwake(JoltPhysicsBackend backend, FrameHandle frame, Entity entity) =>
-        backend.BodiesIn(frame).Single(facts =>
-            BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, entity)).Active;
+        backend
+            .BodiesIn(frame)
+            .Single(facts =>
+                BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, entity)
+            )
+            .Active;
 
     /// <summary>Ticks until <paramref name="done"/> holds, at most <paramref name="limit"/> times. Returns the ticks it ran.</summary>
     public static int TickUntil(World world, Func<bool> done, int limit)

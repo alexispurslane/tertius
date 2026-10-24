@@ -52,8 +52,10 @@ public sealed class FlipTests
     public void GreenAgainstBlueScoresTheLargestError()
     {
         // FLIP scales its color error by the distance of pure green from pure blue, so that pair scores 1.
-        FlipMap map = Flip.Compare(TestImages.Uniform(width: Size, height: Size, r: 0, g: 255, b: 0),
-            TestImages.Uniform(width: Size, height: Size, r: 0, g: 0, b: 255));
+        FlipMap map = Flip.Compare(
+            TestImages.Uniform(width: Size, height: Size, r: 0, g: 255, b: 0),
+            TestImages.Uniform(width: Size, height: Size, r: 0, g: 0, b: 255)
+        );
 
         map.Values.Should().AllSatisfy(value => value.Should().BeApproximately(1f, 1e-4f));
     }
@@ -71,10 +73,16 @@ public sealed class FlipTests
     [Fact]
     public void TheDifferenceIsTheSameInBothDirections()
     {
-        Capture a = TestImages.Fill(Size, Size,
-            (x, y) => ((byte)(x * 7), (byte)(200 - y * 5), (byte)(x > 10 && y > 12 ? 230 : 40)));
-        Capture b = TestImages.Fill(Size, Size,
-            (x, y) => ((byte)(255 - x * 3), (byte)(y * 6), (byte)(x > 14 && y > 9 ? 20 : 180)));
+        Capture a = TestImages.Fill(
+            Size,
+            Size,
+            (x, y) => ((byte)(x * 7), (byte)(200 - y * 5), (byte)(x > 10 && y > 12 ? 230 : 40))
+        );
+        Capture b = TestImages.Fill(
+            Size,
+            Size,
+            (x, y) => ((byte)(255 - x * 3), (byte)(y * 6), (byte)(x > 14 && y > 9 ? 20 : 180))
+        );
 
         FlipMap forward = Flip.Compare(a, b);
         FlipMap backward = Flip.Compare(b, a);
@@ -85,8 +93,14 @@ public sealed class FlipTests
 
     /// <summary>A checker of one-pixel black and white squares, and gray 188, whose linear light 0.5029 is its mean.</summary>
     private static (Capture Checker, Capture Gray) CheckerAndItsMeanGray(int size) =>
-        (TestImages.Fill(size, size, (x, y) => (x + y) % 2 == 0 ? ((byte)0, (byte)0, (byte)0) : ((byte)255, (byte)255, (byte)255)),
-            TestImages.Gray(size, size, 188));
+        (
+            TestImages.Fill(
+                size,
+                size,
+                (x, y) => (x + y) % 2 == 0 ? ((byte)0, (byte)0, (byte)0) : ((byte)255, (byte)255, (byte)255)
+            ),
+            TestImages.Gray(size, size, 188)
+        );
 
     /// <summary>The values of the pixels at least <paramref name="margin"/> pixels from every border.</summary>
     private static IEnumerable<float> Interior(FlipMap map, int margin)
@@ -123,7 +137,8 @@ public sealed class FlipTests
 
         for (int y = 2; y < 30; y++)
         for (int x = 2; x < 30; x++)
-            map[x, y].Should()
+            map[x, y]
+                .Should()
                 .BeApproximately((x + y) % 2 == 0 ? 0.99588f : 0.93958f, 2e-3f, "at pixel ({0}, {1})", x, y);
     }
 
@@ -134,8 +149,13 @@ public sealed class FlipTests
         // White against gray 128 has the color error 0.84455, which is the score where neither image has an edge.
         // At column 16 the step has edge strength 1 − 0.21586 = 0.78414, so f = (0.78414 / √2)^0.5 = 0.74463, and the
         // score is 0.84455^0.25537 = 0.95777. Where the colors agree the score is 0, whatever the edges.
-        Capture step = TestImages.GrayWith(width: Size, height: 16, value: 128, changed: (x, _) => x >= 16,
-            changedValue: 255);
+        Capture step = TestImages.GrayWith(
+            width: Size,
+            height: 16,
+            value: 128,
+            changed: (x, _) => x >= 16,
+            changedValue: 255
+        );
 
         FlipMap map = Flip.Compare(TestImages.Gray(Size, 16, 128), step, CoarseView);
 
@@ -153,8 +173,13 @@ public sealed class FlipTests
         // A line of gray 128 (linear light 0.21586) in column 16 of a black image. Gray 128 against black has the
         // color error 0.93389. At its center the line has point strength 0.21586 and edge strength 0, so
         // f = (0.21586 / √2)^0.5 = 0.39069, and the score is 0.93389^0.60931 = 0.95918.
-        Capture line = TestImages.GrayWith(width: Size, height: 16, value: 0, changed: (x, _) => x == 16,
-            changedValue: 128);
+        Capture line = TestImages.GrayWith(
+            width: Size,
+            height: 16,
+            value: 0,
+            changed: (x, _) => x == 16,
+            changedValue: 128
+        );
 
         FlipMap map = Flip.Compare(TestImages.Gray(Size, 16, 0), line, CoarseView);
 
@@ -181,7 +206,14 @@ public sealed class FlipTests
         heatMap.Height.Should().Be(1);
         heatMap.Luma(0, 0).Should().BeLessThan(0.02f, "no error draws black");
         for (int x = 1; x < values.Length; x++)
-            heatMap.Luma(x, 0).Should().BeGreaterThan(heatMap.Luma(x - 1, 0),
-                "an error of {0} draws brighter than one of {1}", values[x], values[x - 1]);
+            heatMap
+                .Luma(x, 0)
+                .Should()
+                .BeGreaterThan(
+                    heatMap.Luma(x - 1, 0),
+                    "an error of {0} draws brighter than one of {1}",
+                    values[x],
+                    values[x - 1]
+                );
     }
 }

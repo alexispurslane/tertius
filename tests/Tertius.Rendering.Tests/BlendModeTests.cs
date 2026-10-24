@@ -24,9 +24,11 @@ public sealed class BlendModeTests
 
         ((bool)state.BlendEnable).Should().BeTrue();
         (state.SrcColorBlendFactor, state.DstColorBlendFactor, state.ColorBlendOp)
-            .Should().Be((BlendFactor.SrcAlpha, BlendFactor.OneMinusSrcAlpha, BlendOp.Add));
+            .Should()
+            .Be((BlendFactor.SrcAlpha, BlendFactor.OneMinusSrcAlpha, BlendOp.Add));
         (state.SrcAlphaBlendFactor, state.DstAlphaBlendFactor, state.AlphaBlendOp)
-            .Should().Be((BlendFactor.One, BlendFactor.OneMinusSrcAlpha, BlendOp.Add));
+            .Should()
+            .Be((BlendFactor.One, BlendFactor.OneMinusSrcAlpha, BlendOp.Add));
         state.ColorWriteMask.Should().Be(AllChannels);
     }
 
@@ -37,9 +39,11 @@ public sealed class BlendModeTests
 
         ((bool)state.BlendEnable).Should().BeTrue();
         (state.SrcColorBlendFactor, state.DstColorBlendFactor, state.ColorBlendOp)
-            .Should().Be((BlendFactor.One, BlendFactor.One, BlendOp.Add));
+            .Should()
+            .Be((BlendFactor.One, BlendFactor.One, BlendOp.Add));
         (state.SrcAlphaBlendFactor, state.DstAlphaBlendFactor, state.AlphaBlendOp)
-            .Should().Be((BlendFactor.Zero, BlendFactor.One, BlendOp.Add));
+            .Should()
+            .Be((BlendFactor.Zero, BlendFactor.One, BlendOp.Add));
         state.ColorWriteMask.Should().Be(AllChannels);
     }
 }

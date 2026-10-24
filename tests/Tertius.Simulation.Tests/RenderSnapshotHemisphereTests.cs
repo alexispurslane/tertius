@@ -14,12 +14,16 @@ public sealed class RenderSnapshotHemisphereTests
     private static readonly DQuaternion QuarterTurnAboutX = DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2);
 
     private static FrameHandle Frame(TestWorld test, DPose pose, GravityField gravity) =>
-        test.World.GetOwnedFrame(test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = pose,
-            AsFrame = new(FrameBounds.Sphere(100), gravity)
-        }));
+        test.World.GetOwnedFrame(
+            test.World.Spawn(
+                new()
+                {
+                    Frame = test.Root,
+                    Pose = pose,
+                    AsFrame = new(FrameBounds.Sphere(100), gravity),
+                }
+            )
+        );
 
     private static HemisphereUp HemisphereOf(TestWorld test, Entity entity)
     {
@@ -72,13 +76,15 @@ public sealed class RenderSnapshotHemisphereTests
     public void APlanetsOwnCenterIsExactlyAtTheInstance()
     {
         using var test = new TestWorld();
-        Entity planet = test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = new(new(0, -3e6, 1e5), DQuaternion.Identity),
-            AsFrame = new(FrameBounds.Sphere(1e6f), GravityField.Point(4e14)),
-            Render = RenderSnapshotSupport.Visible()
-        });
+        Entity planet = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = new(new(0, -3e6, 1e5), DQuaternion.Identity),
+                AsFrame = new(FrameBounds.Sphere(1e6f), GravityField.Point(4e14)),
+                Render = RenderSnapshotSupport.Visible(),
+            }
+        );
 
         HemisphereUp up = HemisphereOf(test, planet);
 
@@ -130,14 +136,18 @@ public sealed class RenderSnapshotHemisphereTests
     {
         using var test = new TestWorld();
         // The hull sits in the root frame, which has no gravity, but it is the ship: the cabin's field holds at its origin.
-        Entity hull = test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = new(new(0, 0, -5), QuarterTurnAboutX),
-            AsFrame = new(FrameBounds.Sphere(100),
-                GravityField.Uniform(new(0, -9.81f, 0), new BoundingBox(new(-1), new(1)))),
-            Render = RenderSnapshotSupport.Visible()
-        });
+        Entity hull = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = new(new(0, 0, -5), QuarterTurnAboutX),
+                AsFrame = new(
+                    FrameBounds.Sphere(100),
+                    GravityField.Uniform(new(0, -9.81f, 0), new BoundingBox(new(-1), new(1)))
+                ),
+                Render = RenderSnapshotSupport.Visible(),
+            }
+        );
 
         HemisphereUp up = HemisphereOf(test, hull);
 
@@ -151,8 +161,11 @@ public sealed class RenderSnapshotHemisphereTests
     public void AFieldThatPullsNowhereMixesTheSkyAndTheGroundEvenly(string kind)
     {
         using var test = new TestWorld();
-        FrameHandle weightless = Frame(test, DPose.Identity,
-            kind == "a uniform field" ? GravityField.Uniform(Vector3.Zero) : GravityField.Point(0));
+        FrameHandle weightless = Frame(
+            test,
+            DPose.Identity,
+            kind == "a uniform field" ? GravityField.Uniform(Vector3.Zero) : GravityField.Point(0)
+        );
         Entity box = test.Show(weightless, new(new(0, 2, 0), DQuaternion.Identity));
 
         HemisphereOf(test, box).HasValue.Should().BeFalse();

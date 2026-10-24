@@ -34,7 +34,8 @@ public sealed class InternalEdgeRemovalTests
     /// </summary>
     private const double Sideways = 0.0005;
 
-    private const float PersonHalfHeight = 0.6f, PersonRadius = 0.3f;
+    private const float PersonHalfHeight = 0.6f,
+        PersonRadius = 0.3f;
 
     /// <summary>The length of a tick of the test world, in s.</summary>
     private const double TickSeconds = 1.0 / 60;
@@ -44,10 +45,9 @@ public sealed class InternalEdgeRemovalTests
     private static readonly BoxShapeDesc SharpBox = new(new(1), ConvexRadius: 0);
 
     /// <summary>Two boxes of convex radius 0 side by side along X, whose faces meet flat at x = 0.</summary>
-    private static readonly CompoundShapeDesc TwoSharpBoxes = new(
-    [
+    private static readonly CompoundShapeDesc TwoSharpBoxes = new([
         new(SharpBox, new(new(-1, 0, 0), Quaternion.Identity)),
-        new(SharpBox, new(new(1, 0, 0), Quaternion.Identity))
+        new(SharpBox, new(new(1, 0, 0), Quaternion.Identity)),
     ]);
 
     private static readonly Vector3[] Tetrahedron = [new(1, 0, 0), new(-1, 0, 0), new(0, 2, 0), new(0, 0, -3)];
@@ -68,76 +68,86 @@ public sealed class InternalEdgeRemovalTests
     /// flat tops meet at x = 0 and the height 0, in the groove that their rounded edges leave. The floor's body leaves
     /// the flag off, because it has a rounded child.
     /// </summary>
-    private static readonly CompoundShapeDesc DefaultBoxFloor = new(
-    [
+    private static readonly CompoundShapeDesc DefaultBoxFloor = new([
         new(new BoxShapeDesc(new(1, 0.25f, 2)), new(new(-1, -0.25f, 0), Quaternion.Identity)),
-        new(new BoxShapeDesc(new(1, 0.25f, 2)), new(new(1, -0.25f, 0), Quaternion.Identity))
+        new(new BoxShapeDesc(new(1, 0.25f, 2)), new(new(1, -0.25f, 0), Quaternion.Identity)),
     ]);
 
-    private static CompoundShapeDesc Beside(ShapeDesc first, ShapeDesc second) => new(
-    [
-        new(first, new(new(-1, 0, 0), Quaternion.Identity)),
-        new(second, new(new(1, 0, 0), Quaternion.Identity))
-    ]);
+    private static CompoundShapeDesc Beside(ShapeDesc first, ShapeDesc second) =>
+        new([new(first, new(new(-1, 0, 0), Quaternion.Identity)), new(second, new(new(1, 0, 0), Quaternion.Identity))]);
 
-    public static TheoryData<string, bool> Shapes() => new()
-    {
-        { "box", false },
-        { "box of convex radius 0", false },
-        { "sphere", false },
-        { "capsule", false },
-        { "convex hull", false },
-        { "mesh", true },
-        { "compound of boxes of convex radius 0", true },
-        { "compound of hulls of convex radius 0", true },
-        { "compound that holds a mesh", true },
-        { "compound of a compound of boxes of convex radius 0", true },
-        { "compound of boxes of convex radius 0 that do not meet", true },
-        { "compound of default boxes", false },
-        { "compound of default hulls", false },
-        { "compound of a box of convex radius 0 and a default box", false },
-        { "compound of a box of convex radius 0 and a sphere", false },
-        { "compound of a box of convex radius 0 and a capsule", false },
-        { "compound of a box of convex radius 0 and a compound of default boxes", false }
-    };
+    public static TheoryData<string, bool> Shapes() =>
+        new()
+        {
+            { "box", false },
+            { "box of convex radius 0", false },
+            { "sphere", false },
+            { "capsule", false },
+            { "convex hull", false },
+            { "mesh", true },
+            { "compound of boxes of convex radius 0", true },
+            { "compound of hulls of convex radius 0", true },
+            { "compound that holds a mesh", true },
+            { "compound of a compound of boxes of convex radius 0", true },
+            { "compound of boxes of convex radius 0 that do not meet", true },
+            { "compound of default boxes", false },
+            { "compound of default hulls", false },
+            { "compound of a box of convex radius 0 and a default box", false },
+            { "compound of a box of convex radius 0 and a sphere", false },
+            { "compound of a box of convex radius 0 and a capsule", false },
+            { "compound of a box of convex radius 0 and a compound of default boxes", false },
+        };
 
-    private static ShapeDesc Shape(string name) => name switch
-    {
-        "box" => new BoxShapeDesc(new(1)),
-        "box of convex radius 0" => SharpBox,
-        "sphere" => new SphereShapeDesc(1),
-        "capsule" => new CapsuleShapeDesc(1, 0.5f),
-        "convex hull" => new ConvexHullShapeDesc(Tetrahedron),
-        "mesh" => Triangle,
-        "compound of boxes of convex radius 0" => TwoSharpBoxes,
-        "compound of hulls of convex radius 0" => Beside(new ConvexHullShapeDesc(Tetrahedron, 0),
-            new ConvexHullShapeDesc(Tetrahedron, 0)),
-        "compound that holds a mesh" => new CompoundShapeDesc([new(Triangle, new(Vector3.Zero, Quaternion.Identity))]),
-        "compound of a compound of boxes of convex radius 0" => new CompoundShapeDesc([
-            new(TwoSharpBoxes, Pose.Identity)
-        ]),
-        // The predicate checks what the pieces are, not that they meet: where no pieces meet, the flag drops nothing.
-        "compound of boxes of convex radius 0 that do not meet" => new CompoundShapeDesc(
-        [
-            new(SharpBox, new(new(-5, 0, 0), Quaternion.Identity)),
-            new(SharpBox, new(new(5, 0, 0), Quaternion.Identity))
-        ]),
-        "compound of default boxes" => Beside(new BoxShapeDesc(new(1)), new BoxShapeDesc(new(1))),
-        "compound of default hulls" => Beside(new ConvexHullShapeDesc(Tetrahedron),
-            new ConvexHullShapeDesc(Tetrahedron)),
-        "compound of a box of convex radius 0 and a default box" => Beside(SharpBox, new BoxShapeDesc(new(1))),
-        "compound of a box of convex radius 0 and a sphere" => Beside(SharpBox, new SphereShapeDesc(1)),
-        "compound of a box of convex radius 0 and a capsule" => Beside(SharpBox, new CapsuleShapeDesc(1, 0.5f)),
-        "compound of a box of convex radius 0 and a compound of default boxes" =>
-            Beside(SharpBox, Beside(new BoxShapeDesc(new(1)), new BoxShapeDesc(new(1)))),
-        _ => throw new ArgumentOutOfRangeException(nameof(name))
-    };
+    private static ShapeDesc Shape(string name) =>
+        name switch
+        {
+            "box" => new BoxShapeDesc(new(1)),
+            "box of convex radius 0" => SharpBox,
+            "sphere" => new SphereShapeDesc(1),
+            "capsule" => new CapsuleShapeDesc(1, 0.5f),
+            "convex hull" => new ConvexHullShapeDesc(Tetrahedron),
+            "mesh" => Triangle,
+            "compound of boxes of convex radius 0" => TwoSharpBoxes,
+            "compound of hulls of convex radius 0" => Beside(
+                new ConvexHullShapeDesc(Tetrahedron, 0),
+                new ConvexHullShapeDesc(Tetrahedron, 0)
+            ),
+            "compound that holds a mesh" => new CompoundShapeDesc([
+                new(Triangle, new(Vector3.Zero, Quaternion.Identity)),
+            ]),
+            "compound of a compound of boxes of convex radius 0" => new CompoundShapeDesc([
+                new(TwoSharpBoxes, Pose.Identity),
+            ]),
+            // The predicate checks what the pieces are, not that they meet: where no pieces meet, the flag drops nothing.
+            "compound of boxes of convex radius 0 that do not meet" => new CompoundShapeDesc([
+                new(SharpBox, new(new(-5, 0, 0), Quaternion.Identity)),
+                new(SharpBox, new(new(5, 0, 0), Quaternion.Identity)),
+            ]),
+            "compound of default boxes" => Beside(new BoxShapeDesc(new(1)), new BoxShapeDesc(new(1))),
+            "compound of default hulls" => Beside(
+                new ConvexHullShapeDesc(Tetrahedron),
+                new ConvexHullShapeDesc(Tetrahedron)
+            ),
+            "compound of a box of convex radius 0 and a default box" => Beside(SharpBox, new BoxShapeDesc(new(1))),
+            "compound of a box of convex radius 0 and a sphere" => Beside(SharpBox, new SphereShapeDesc(1)),
+            "compound of a box of convex radius 0 and a capsule" => Beside(SharpBox, new CapsuleShapeDesc(1, 0.5f)),
+            "compound of a box of convex radius 0 and a compound of default boxes" => Beside(
+                SharpBox,
+                Beside(new BoxShapeDesc(new(1)), new BoxShapeDesc(new(1)))
+            ),
+            _ => throw new ArgumentOutOfRangeException(nameof(name)),
+        };
 
     /// <summary>The flag of the Jolt body of <paramref name="kind"/> that stands for <paramref name="entity"/> in the system of
     /// <paramref name="frame"/>.</summary>
-    private static bool RemovesInternalEdges(JoltPhysicsBackend backend, FrameHandle frame, Entity entity,
-        BodyKind kind) =>
-        backend.BodiesIn(frame)
+    private static bool RemovesInternalEdges(
+        JoltPhysicsBackend backend,
+        FrameHandle frame,
+        Entity entity,
+        BodyKind kind
+    ) =>
+        backend
+            .BodiesIn(frame)
             .Single(facts => BodyUserData.Kind(facts.UserData) == kind && BodyUserData.Names(facts.UserData, entity))
             .EnhancedInternalEdgeRemoval;
 
@@ -165,19 +175,23 @@ public sealed class InternalEdgeRemovalTests
     {
         using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
-        Entity compound = world.Spawn(new()
-        {
-            Frame = space,
-            Body = new(Shape: TwoSharpBoxes, Mass: 1000),
-            AsFrame = new(FrameBounds.Sphere(30))
-        });
-        Entity box = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(50),
-            Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000),
-            AsFrame = new(FrameBounds.Sphere(30))
-        });
+        Entity compound = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = new(Shape: TwoSharpBoxes, Mass: 1000),
+                AsFrame = new(FrameBounds.Sphere(30)),
+            }
+        );
+        Entity box = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(50),
+                Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000),
+                AsFrame = new(FrameBounds.Sphere(30)),
+            }
+        );
         Tick(world, 3);
 
         RemovesInternalEdges(backend: backend, frame: world.GetOwnedFrame(box), entity: compound, kind: BodyKind.Ghost)
@@ -198,30 +212,46 @@ public sealed class InternalEdgeRemovalTests
     {
         using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
-        Entity boxHull = world.Spawn(new()
-        {
-            Frame = space,
-            Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, InteriorShape: TwoSharpBoxes),
-            AsFrame = new(FrameBounds.Sphere(10))
-        });
-        Entity compoundHull = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(100),
-            Body = new(Shape: TwoSharpBoxes, Mass: 1000, InteriorShape: new BoxShapeDesc(new(2))),
-            AsFrame = new(FrameBounds.Sphere(10))
-        });
+        Entity boxHull = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, InteriorShape: TwoSharpBoxes),
+                AsFrame = new(FrameBounds.Sphere(10)),
+            }
+        );
+        Entity compoundHull = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(100),
+                Body = new(Shape: TwoSharpBoxes, Mass: 1000, InteriorShape: new BoxShapeDesc(new(2))),
+                AsFrame = new(FrameBounds.Sphere(10)),
+            }
+        );
         world.Tick();
 
-        RemovesInternalEdges(backend: backend, frame: space, entity: boxHull, kind: BodyKind.Primary).Should()
+        RemovesInternalEdges(backend: backend, frame: space, entity: boxHull, kind: BodyKind.Primary)
+            .Should()
             .BeFalse("the hull is a box");
-        RemovesInternalEdges(backend: backend, frame: world.GetOwnedFrame(boxHull), entity: boxHull,
-                kind: BodyKind.Interior).Should()
+        RemovesInternalEdges(
+                backend: backend,
+                frame: world.GetOwnedFrame(boxHull),
+                entity: boxHull,
+                kind: BodyKind.Interior
+            )
+            .Should()
             .BeTrue("the interior is a compound");
-        RemovesInternalEdges(backend: backend, frame: space, entity: compoundHull, kind: BodyKind.Primary).Should()
+        RemovesInternalEdges(backend: backend, frame: space, entity: compoundHull, kind: BodyKind.Primary)
+            .Should()
             .BeTrue("the hull is a compound");
-        RemovesInternalEdges(backend: backend, frame: world.GetOwnedFrame(compoundHull), entity: compoundHull,
-                kind: BodyKind.Interior).Should()
+        RemovesInternalEdges(
+                backend: backend,
+                frame: world.GetOwnedFrame(compoundHull),
+                entity: compoundHull,
+                kind: BodyKind.Interior
+            )
+            .Should()
             .BeFalse("the interior is a box");
         world.Errors.Should().BeEmpty();
     }
@@ -238,18 +268,31 @@ public sealed class InternalEdgeRemovalTests
         using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
-        var raft = new CompoundShapeDesc(
-        [
+        var raft = new CompoundShapeDesc([
             new(SharpPlank, new(new(-0.5f, 0, 0), Quaternion.Identity)),
-            new(SharpPlank, new(new(0.5f, 0, 0), Quaternion.Identity))
+            new(SharpPlank, new(new(0.5f, 0, 0), Quaternion.Identity)),
         ]);
         const double landing = 0.010;
 
-        Entity SpawnRaft() => world.Spawn(new()
-            { Frame = ground, Pose = At(0, 0.125), Body = new(Shape: raft, Mass: 100) });
+        Entity SpawnRaft() =>
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = At(0, 0.125),
+                    Body = new(Shape: raft, Mass: 100),
+                }
+            );
 
-        Entity SpawnBall() => world.Spawn(new()
-            { Frame = ground, Pose = At(landing, 0.25 + 0.25 + 0.1), Body = Ball(0.25f) });
+        Entity SpawnBall() =>
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = At(landing, 0.25 + 0.25 + 0.1),
+                    Body = Ball(0.25f),
+                }
+            );
 
         Entity first = raftFirst ? SpawnRaft() : SpawnBall();
         Entity second = raftFirst ? SpawnBall() : SpawnRaft();
@@ -274,8 +317,12 @@ public sealed class InternalEdgeRemovalTests
     {
         double side = BallOnRaft(raftFirst: false);
 
-        side.Should().BeInRange(-Sideways, Sideways,
-            "the raft is the pair's second body, so its flag removes the edge at its joint");
+        side.Should()
+            .BeInRange(
+                -Sideways,
+                Sideways,
+                "the raft is the pair's second body, so its flag removes the edge at its joint"
+            );
     }
 
     /// <summary>
@@ -311,23 +358,35 @@ public sealed class InternalEdgeRemovalTests
     /// Physics sets the flag on every character. After the first tick, which creates the Jolt character, the reference
     /// run of a test, whose <paramref name="removesEdges"/> is false, clears it.
     /// </summary>
-    private static Entity PersonOnGroove(World world, JoltPhysicsBackend backend, FrameHandle ground, double x,
-        bool removesEdges, Walker walker)
+    private static Entity PersonOnGroove(
+        World world,
+        JoltPhysicsBackend backend,
+        FrameHandle ground,
+        double x,
+        bool removesEdges,
+        Walker walker
+    )
     {
         world.Spawn(new() { Frame = ground, Body = new(Shape: DefaultBoxFloor, Motion: BodyMotion.Static) });
-        Entity person = world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = At(x, PersonRadius + PersonHalfHeight + 0.01),
-            Body = new(Shape: new CapsuleShapeDesc(PersonHalfHeight, PersonRadius), Motion: BodyMotion.Character,
-                Mass: 70),
-            Components = [walker]
-        });
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(x, PersonRadius + PersonHalfHeight + 0.01),
+                Body = new(
+                    Shape: new CapsuleShapeDesc(PersonHalfHeight, PersonRadius),
+                    Motion: BodyMotion.Character,
+                    Mass: 70
+                ),
+                Components = [walker],
+            }
+        );
         world.Tick();
         lock (backend.Gate)
         {
-            CharacterVirtual character = backend.CharacterOf(person) ??
-                                         throw new InvalidOperationException("The person is not a walking character.");
+            CharacterVirtual character =
+                backend.CharacterOf(person)
+                ?? throw new InvalidOperationException("The person is not a walking character.");
             character.EnhancedInternalEdgeRemoval.Should().BeTrue("physics sets the flag on every character");
             if (!removesEdges)
                 character.EnhancedInternalEdgeRemoval = false;
@@ -346,8 +405,14 @@ public sealed class InternalEdgeRemovalTests
     {
         using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
-        Entity person = PersonOnGroove(world: world, backend: backend, ground: ground, x: 0, removesEdges: removesEdges,
-            walker: new());
+        Entity person = PersonOnGroove(
+            world: world,
+            backend: backend,
+            ground: ground,
+            x: 0,
+            removesEdges: removesEdges,
+            walker: new()
+        );
         Tick(world, 180);
         world.IsStanding(person).Should().BeTrue();
         world.Errors.Should().BeEmpty();
@@ -369,8 +434,9 @@ public sealed class InternalEdgeRemovalTests
         (double x, double lift) = StandInGroove(removesEdges: true);
         (double xWithout, double liftWithout) = StandInGroove(removesEdges: false);
 
-        Math.Abs(x).Should().BeInRange(0.0005, 0.002,
-            "the character keeps the contact with one rounded edge and moves off the other");
+        Math.Abs(x)
+            .Should()
+            .BeInRange(0.0005, 0.002, "the character keeps the contact with one rounded edge and moves off the other");
         lift.Should().BeInRange(-GrooveDepth, -GrooveDepth + 0.0005);
         Math.Abs(xWithout).Should().BeLessThan(0.00001, "without the flag the character keeps both contacts");
         liftWithout.Should().BeApproximately(-GrooveDepth, 0.00005);
@@ -386,11 +452,19 @@ public sealed class InternalEdgeRemovalTests
         using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         var walker = new Walker();
-        Entity person = PersonOnGroove(world: world, backend: backend, ground: ground, x: -1.5,
-            removesEdges: removesEdges, walker: walker);
+        Entity person = PersonOnGroove(
+            world: world,
+            backend: backend,
+            ground: ground,
+            x: -1.5,
+            removesEdges: removesEdges,
+            walker: walker
+        );
         Tick(world, 59);
         walker.Speed = speed;
-        double lowest = double.MaxValue, highest = double.MinValue, slowest = double.MaxValue;
+        double lowest = double.MaxValue,
+            highest = double.MinValue,
+            slowest = double.MaxValue;
         double last = world.PoseIn(person, ground).Position.X;
         for (int t = 0; t < 1000 && last < 1.5; t++)
         {
@@ -420,8 +494,10 @@ public sealed class InternalEdgeRemovalTests
     public void ACharacterThatWalksAcrossAGrooveOfTwoDefaultBoxesWalksAsWithoutEdgeRemoval(float speed)
     {
         (double lowest, double highest, double slowest) = WalkAcrossGroove(removesEdges: true, speed);
-        (double lowestWithout, double highestWithout, double slowestWithout) =
-            WalkAcrossGroove(removesEdges: false, speed);
+        (double lowestWithout, double highestWithout, double slowestWithout) = WalkAcrossGroove(
+            removesEdges: false,
+            speed
+        );
 
         lowest.Should().BeApproximately(lowestWithout, 0.00001);
         highest.Should().BeApproximately(highestWithout, 0.00001);

@@ -43,18 +43,19 @@ public sealed class HeadlessPlayback : IPlayback, IDisposable
     /// folder of the video cannot be made.
     /// </summary>
     /// <exception cref="ArgumentException"><paramref name="target"/> is the default value, which holds no case.</exception>
-    public HeadlessPlayback(IRenderer renderer, ScriptWindow size, CaptureTarget target) : this(renderer: renderer,
-        size: size, target: target,
-        startVideo: FfmpegVideoSink.Start)
-    {
-    }
+    public HeadlessPlayback(IRenderer renderer, ScriptWindow size, CaptureTarget target)
+        : this(renderer: renderer, size: size, target: target, startVideo: FfmpegVideoSink.Start) { }
 
     /// <summary>
     /// <see cref="HeadlessPlayback(IRenderer, ScriptWindow, CaptureTarget)"/> with the function that starts the video's
     /// ffmpeg, so that the command can take it from a test.
     /// </summary>
-    internal HeadlessPlayback(IRenderer renderer, ScriptWindow size, CaptureTarget target,
-        Func<VideoFile, ScriptWindow, FfmpegVideoSink> startVideo)
+    internal HeadlessPlayback(
+        IRenderer renderer,
+        ScriptWindow size,
+        CaptureTarget target,
+        Func<VideoFile, ScriptWindow, FfmpegVideoSink> startVideo
+    )
     {
         ArgumentNullException.ThrowIfNull(renderer);
         ArgumentNullException.ThrowIfNull(size);
@@ -80,7 +81,7 @@ public sealed class HeadlessPlayback : IPlayback, IDisposable
         {
             PngFolder folder => new PngCaptureSink(folder.PathOf(name)),
             VideoFile => video ?? throw new UnreachableException("The constructor starts the video of a video target."),
-            null => throw new InvalidOperationException("The headless playback has no capture target.")
+            null => throw new InvalidOperationException("The headless playback has no capture target."),
         };
         world.PublishRenderSnapshot();
         // A snapshot was published just now, so the latest one is that one.

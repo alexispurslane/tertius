@@ -23,28 +23,39 @@ public sealed class CapturedImageTests
     [Theory]
     [InlineData(23)]
     [InlineData(25)]
-    public void AnImageWhosePixelsAreNotFourBytesForEachPixelOfItsSizeIsRefused(int bytes)
-    {
-        FluentActions.Invoking(() => { _ = new CapturedImage(new byte[bytes], 3, 2); })
-            .Should().Throw<ArgumentException>().WithParameterName("rgba");
-    }
+    public void AnImageWhosePixelsAreNotFourBytesForEachPixelOfItsSizeIsRefused(int bytes) =>
+        FluentActions
+            .Invoking(() =>
+            {
+                _ = new CapturedImage(new byte[bytes], 3, 2);
+            })
+            .Should()
+            .Throw<ArgumentException>()
+            .WithParameterName("rgba");
 
     [Theory]
     [InlineData(0, 2)]
     [InlineData(3, 0)]
     [InlineData(-1, 2)]
     [InlineData(3, -1)]
-    public void AnImageOfNoPixelsIsRefused(int width, int height)
-    {
-        FluentActions.Invoking(() => { _ = new CapturedImage([], width, height); })
-            .Should().Throw<ArgumentOutOfRangeException>();
-    }
+    public void AnImageOfNoPixelsIsRefused(int width, int height) =>
+        FluentActions
+            .Invoking(() =>
+            {
+                _ = new CapturedImage([], width, height);
+            })
+            .Should()
+            .Throw<ArgumentOutOfRangeException>();
 
     [Fact]
-    public void ASizeWhoseByteCountOverflowsAnIntegerIsRefused()
-    {
+    public void ASizeWhoseByteCountOverflowsAnIntegerIsRefused() =>
         // 65,536 × 65,536 × 4 bytes is 2^34, which wraps to 0 in 32-bit arithmetic and so would match an empty span.
-        FluentActions.Invoking(() => { _ = new CapturedImage([], 65_536, 65_536); })
-            .Should().Throw<ArgumentException>().WithParameterName("rgba");
-    }
+        FluentActions
+            .Invoking(() =>
+            {
+                _ = new CapturedImage([], 65_536, 65_536);
+            })
+            .Should()
+            .Throw<ArgumentException>()
+            .WithParameterName("rgba");
 }

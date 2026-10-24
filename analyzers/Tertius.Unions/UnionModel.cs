@@ -26,7 +26,8 @@ internal sealed record UnionModel(
     EquatableArray<CaseModel> Cases,
     EquatableArray<SlotModel> Slots,
     bool HasZeroCase,
-    string HintName);
+    string HintName
+);
 
 /// <summary>One case of a union.</summary>
 /// <param name="Type">The fully qualified case type.</param>
@@ -76,8 +77,7 @@ internal readonly struct EquatableArray<T>(ImmutableArray<T> items) : IEquatable
         return hash;
     }
 
-    public IEnumerator<T> GetEnumerator() =>
-        ((IEnumerable<T>)(items.IsDefault ? [] : items)).GetEnumerator();
+    public IEnumerator<T> GetEnumerator() => ((IEnumerable<T>)(items.IsDefault ? [] : items)).GetEnumerator();
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }

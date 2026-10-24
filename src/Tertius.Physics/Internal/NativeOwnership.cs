@@ -25,13 +25,16 @@ namespace Tertius.Physics;
 /// disposes then stays in memory. It is never freed out of order or twice.
 /// </para>
 /// </remarks>
-[SuppressMessage("Usage", "CA1816",
-    Justification =
-        "These helpers turn off the finalizer of a JoltPhysicsSharp object whose native lifetime this module owns, which is the point of the class.")]
+[SuppressMessage(
+    "Usage",
+    "CA1816",
+    Justification = "These helpers turn off the finalizer of a JoltPhysicsSharp object whose native lifetime this module owns, which is the point of the class."
+)]
 internal static class NativeOwnership
 {
     /// <summary>Makes <see cref="NativeObject.Dispose()"/> of <paramref name="native"/> destroy the native object, and turns off its finalizer.</summary>
-    public static T Owned<T>(T native) where T : NativeObject
+    public static T Owned<T>(T native)
+        where T : NativeObject
     {
         SetOwnsHandle(native, true);
         GC.SuppressFinalize(native);
@@ -42,7 +45,8 @@ internal static class NativeOwnership
     /// Makes <see cref="NativeObject.Dispose()"/> of <paramref name="native"/> leave the native object alone, and turns off its
     /// finalizer. Use it for an object that another native object frees.
     /// </summary>
-    public static T Disowned<T>(T native) where T : NativeObject
+    public static T Disowned<T>(T native)
+        where T : NativeObject
     {
         SetOwnsHandle(native, false);
         GC.SuppressFinalize(native);

@@ -15,7 +15,9 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class ChaseCameraTests : IDisposable
 {
-    private const double Behind = 3.5, Above = 0.8, Ahead = 2;
+    private const double Behind = 3.5,
+        Above = 0.8,
+        Ahead = 2;
 
     private static readonly Vector3 Eye = new(0, 0.75f, 0);
 
@@ -26,28 +28,39 @@ public sealed class ChaseCameraTests : IDisposable
 
     public void Dispose() => world.Dispose();
 
-    private Entity Person(FrameHandle frame, Double3 position, params IComponent[] components) => world.Spawn(new()
-    {
-        Frame = frame,
-        Pose = new(position, DQuaternion.Identity),
-        Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70),
-        Render = new RenderData { ViewOffset = new(Eye, Quaternion.Identity) },
-        Components = components
-    });
+    private Entity Person(FrameHandle frame, Double3 position, params IComponent[] components) =>
+        world.Spawn(
+            new()
+            {
+                Frame = frame,
+                Pose = new(position, DQuaternion.Identity),
+                Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70),
+                Render = new RenderData { ViewOffset = new(Eye, Quaternion.Identity) },
+                Components = components,
+            }
+        );
 
     /// <summary>A chase camera on <paramref name="person"/>, which starts at the framing behind the eye along
     /// <paramref name="behind"/>.</summary>
-    private Entity Camera(Entity person, Vector3 behind) => world.Spawn(new()
-    {
-        AttachTo = person,
-        AttachOffset = new(Eye + new Vector3(0, (float)Above, 0) + behind * (float)Behind, Quaternion.Identity),
-        Render = new RenderData(),
-        Components =
-        [
-            new ChaseCamera(behind: Behind, above: Above, ahead: Ahead, subjectHalf: Half,
-                verticalFov: world.VerticalFov)
-        ]
-    });
+    private Entity Camera(Entity person, Vector3 behind) =>
+        world.Spawn(
+            new()
+            {
+                AttachTo = person,
+                AttachOffset = new(Eye + new Vector3(0, (float)Above, 0) + behind * (float)Behind, Quaternion.Identity),
+                Render = new RenderData(),
+                Components =
+                [
+                    new ChaseCamera(
+                        behind: Behind,
+                        above: Above,
+                        ahead: Ahead,
+                        subjectHalf: Half,
+                        verticalFov: world.VerticalFov
+                    ),
+                ],
+            }
+        );
 
     /// <summary>Where the person's eye is in <paramref name="frame"/>.</summary>
     private Double3 EyeOf(Entity person, FrameHandle frame) => world.PoseIn(person, frame).TransformPoint(Eye);
@@ -88,11 +101,14 @@ public sealed class ChaseCameraTests : IDisposable
         DPose view = world.PoseIn(camera, ground);
         Double3.Distance(view.Position, new(0, 2.45, 3.5)).Should().BeLessThan(0.01);
         view.Rotation.Rotate(-Double3.UnitZ).X.Should().BeApproximately(0, 1e-3);
-        Double3 nearFoot = view.Rotation.Conjugate()
+        Double3 nearFoot = view
+            .Rotation.Conjugate()
             .Rotate(world.PoseIn(person, ground).TransformPoint(new(0.3, -0.9, 0.3)) - view.Position);
-        (nearFoot.Y / -nearFoot.Z / Math.Tan(world.VerticalFov / 2)).Should()
+        (nearFoot.Y / -nearFoot.Z / Math.Tan(world.VerticalFov / 2))
+            .Should()
             .BeApproximately(-ChaseCamera.FrameMargin, 0.01);
-        Degrees(view.Rotation.Rotate(Double3.UnitY), Double3.UnitY).Should()
+        Degrees(view.Rotation.Rotate(Double3.UnitY), Double3.UnitY)
+            .Should()
             .BeLessThan(15, "the view's up leans only by its look down");
     }
 
@@ -119,8 +135,8 @@ public sealed class ChaseCameraTests : IDisposable
             Double3 back = world.PoseIn(camera, ground).Position - EyeOf(person, ground);
             back.Length.Should().BeInRange(1, 5, $"at tick {world.TickNumber}");
             // The leg that the person walks now ends at the waypoint with the number of the legs measured so far.
-            Double3 toEnd = path[Math.Min(behind.Count, legs.Length - 1)].Position -
-                            world.PoseIn(person, ground).Position;
+            Double3 toEnd =
+                path[Math.Min(behind.Count, legs.Length - 1)].Position - world.PoseIn(person, ground).Position;
             if (behind.Count < legs.Length && (toEnd with { Y = 0 }).Length < 1)
                 behind.Add(Degrees(back with { Y = 0 }, -legs[behind.Count]));
         }
@@ -140,22 +156,29 @@ public sealed class ChaseCameraTests : IDisposable
     public void TheCameraRisesOnceWithThePersonWhenThePersonClimbsAStairAndNeverFallsBack()
     {
         FrameHandle ground = OnTheGround();
-        world.Spawn(new()
-        {
-            Frame = ground, Pose = At(8, 0.15),
-            Body = new(Shape: new BoxShapeDesc(new(5, 0.15f, 5)), Motion: BodyMotion.Static)
-        });
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(8, 0.15),
+                Body = new(Shape: new BoxShapeDesc(new(5, 0.15f, 5)), Motion: BodyMotion.Static),
+            }
+        );
         Entity person = Person(ground, new(0, 0.95, 0), new Walker([new(ground, new(7, 1.2, 0))]));
         Entity camera = Camera(person, -Vector3.UnitX);
         Tick(world, 30);
-        double last = world.PoseIn(camera, ground).Position.Y, lastEye = EyeOf(person, ground).Y, highest = last;
+        double last = world.PoseIn(camera, ground).Position.Y,
+            lastEye = EyeOf(person, ground).Y,
+            highest = last;
         long climbedAt = -1;
 
         while (climbedAt < 0 ? world.TickNumber < 330 : world.TickNumber < climbedAt + 60)
         {
             world.Tick();
-            double y = world.PoseIn(camera, ground).Position.Y, eye = EyeOf(person, ground).Y;
-            (y - last - (eye - lastEye)).Should()
+            double y = world.PoseIn(camera, ground).Position.Y,
+                eye = EyeOf(person, ground).Y;
+            (y - last - (eye - lastEye))
+                .Should()
                 .BeGreaterThan(-1e-3, $"at tick {world.TickNumber} the camera fell back");
             highest = Math.Max(highest, y);
             y.Should().BeGreaterThan(highest - 0.01, $"at tick {world.TickNumber} the camera fell back");
@@ -197,9 +220,11 @@ public sealed class ChaseCameraTests : IDisposable
             Double3 before = positions[i - 1] - 2 * positions[i - 2] + positions[i - 3],
                 now = positions[i] - 2 * positions[i - 1] + positions[i - 2];
             bool zigzag = before.Length > 0.01 && Double3.Dot(before, now) < -0.5 * Double3.Dot(before, before);
-            zigzag.Should()
+            zigzag
+                .Should()
                 .BeFalse(
-                    $"after {i + 3} ticks the camera's way bent by {before.Length:F3} m and then by {now.Length:F3} m back");
+                    $"after {i + 3} ticks the camera's way bent by {before.Length:F3} m and then by {now.Length:F3} m back"
+                );
         }
     }
 
@@ -214,11 +239,14 @@ public sealed class ChaseCameraTests : IDisposable
     public void TheCameraStopsShortOfAWallBehindThePerson()
     {
         FrameHandle ground = OnTheGround();
-        world.Spawn(new()
-        {
-            Frame = ground, Pose = At(0, 2, 1.25),
-            Body = new(Shape: new BoxShapeDesc(new(5, 2, 0.25f)), Motion: BodyMotion.Static)
-        });
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 2, 1.25),
+                Body = new(Shape: new BoxShapeDesc(new(5, 2, 0.25f)), Motion: BodyMotion.Static),
+            }
+        );
         Entity person = Person(ground, new(0, 0.95, 0));
         Entity camera = Camera(person, Vector3.UnitZ);
         Tick(world, 2);
@@ -242,11 +270,14 @@ public sealed class ChaseCameraTests : IDisposable
     public void TheCameraMovesBackOutSmoothlyWhenTheWallBehindThePersonGoes()
     {
         FrameHandle ground = OnTheGround();
-        Entity wall = world.Spawn(new()
-        {
-            Frame = ground, Pose = At(0, 2, 1.25),
-            Body = new(Shape: new BoxShapeDesc(new(5, 2, 0.25f)), Motion: BodyMotion.Static)
-        });
+        Entity wall = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 2, 1.25),
+                Body = new(Shape: new BoxShapeDesc(new(5, 2, 0.25f)), Motion: BodyMotion.Static),
+            }
+        );
         Entity person = Person(ground, new(0, 0.95, 0));
         Entity camera = Camera(person, Vector3.UnitZ);
         Tick(world, 60);
@@ -274,11 +305,17 @@ public sealed class ChaseCameraTests : IDisposable
     public void TheCameraFollowsThePersonIntoAShipsFrameSmoothly()
     {
         FrameHandle ground = OnTheGround();
-        Entity shuttle = Shuttle.Park(world: world, frame: ground,
-            pose: new(new(0, Shuttle.Hull.Y, 0), DQuaternion.Identity));
+        Entity shuttle = Shuttle.Park(
+            world: world,
+            frame: ground,
+            pose: new(new(0, Shuttle.Hull.Y, 0), DQuaternion.Identity)
+        );
         FrameHandle cabin = world.GetOwnedFrame(shuttle);
-        Entity person = Person(ground, new(16, 0.95, Shuttle.Hatch.Center.Z),
-            new Walker([new(cabin, Shuttle.OutsideHatch)]));
+        Entity person = Person(
+            ground,
+            new(16, 0.95, Shuttle.Hatch.Center.Z),
+            new Walker([new(cabin, Shuttle.OutsideHatch)])
+        );
         Entity camera = Camera(person, Vector3.UnitX);
         world.Tick();
         Double3 last = world.PoseIn(camera, ground).Position;

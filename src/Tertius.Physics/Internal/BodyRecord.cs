@@ -23,7 +23,7 @@ internal enum BodyKind : byte
     Ghost = 3,
 
     /// <summary>The kinematic inner body of a character in its walking form.</summary>
-    CharacterInner = 4
+    CharacterInner = 4,
 }
 
 /// <summary>Packs the kind and the entity into a Jolt body's 64-bit user data.</summary>
@@ -173,7 +173,8 @@ internal sealed class BodyRecord
     /// For a dynamic hull: Jolt's velocities after the intents of the step, which can set them or add an impulse, and
     /// before the update, for its frame's acceleration and angular acceleration over the step.
     /// </summary>
-    public Vector3 VelocityAfterIntents, AngularVelocityAfterIntents;
+    public Vector3 VelocityAfterIntents,
+        AngularVelocityAfterIntents;
 
     /// <summary>
     /// For a dynamic hull: its acceleration and angular acceleration in the last update, in the axes of its home: the
@@ -197,7 +198,8 @@ internal sealed class BodyRecord
     /// doubles. The update of a turning frame takes each change out of Jolt's velocity, which it reads as the chord of the
     /// step that ended, and puts it back as a change of the step in flight (docs/plans/spin-gravity.md, "Impulses").
     /// </summary>
-    public Double3 ImpulseVelocityChange, ImpulseAngularVelocityChange;
+    public Double3 ImpulseVelocityChange,
+        ImpulseAngularVelocityChange;
 
     /// <summary>The step whose intent teleported the body, or -1.</summary>
     public long TeleportStep = -1;

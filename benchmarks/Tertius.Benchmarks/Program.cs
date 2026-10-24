@@ -32,8 +32,10 @@ public static class Program
         // ter-sn28: --rowcopy <rows> <rounds> times the copy of the rows that gameplay wrote (see RowCopyBenchmarks).
         if (args.Length == 3 && args[0] == "--rowcopy")
         {
-            RowCopyBenchmarks.Run(int.Parse(args[1], CultureInfo.InvariantCulture),
-                int.Parse(args[2], CultureInfo.InvariantCulture));
+            RowCopyBenchmarks.Run(
+                int.Parse(args[1], CultureInfo.InvariantCulture),
+                int.Parse(args[2], CultureInfo.InvariantCulture)
+            );
             return;
         }
 
@@ -52,8 +54,8 @@ public static class Program
 
         // In-process: the benchmarks run in this process on this SDK, so BenchmarkDotNet does not need to generate,
         // restore and build a separate project for a preview runtime.
-        IConfig config = DefaultConfig.Instance
-            .AddJob(Job.ShortRun.WithToolchain(InProcessEmitToolchain.Instance))
+        IConfig config = DefaultConfig
+            .Instance.AddJob(Job.ShortRun.WithToolchain(InProcessEmitToolchain.Instance))
             .AddDiagnoser(MemoryDiagnoser.Default)
             .WithArtifactsPath(Path.Combine(AppContext.BaseDirectory, "BenchmarkDotNet.Artifacts"));
 

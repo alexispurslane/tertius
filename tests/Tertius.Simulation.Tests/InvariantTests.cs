@@ -15,8 +15,10 @@ public sealed class InvariantTests(ITestOutputHelper output)
     // ---- The hull motion ------------------------------------------------------------------------------------------
 
     /// <summary>A triangle mesh, which only a static body or the interior of a frame can have.</summary>
-    private static readonly MeshShapeDesc Ramp = new([new(-5, 0, -5), new(5, 0, -5), new(5, 2, 5), new(-5, 2, 5)],
-        [0, 2, 1, 0, 3, 2]);
+    private static readonly MeshShapeDesc Ramp = new(
+        [new(-5, 0, -5), new(5, 0, -5), new(5, 2, 5), new(-5, 2, 5)],
+        [0, 2, 1, 0, 3, 2]
+    );
 
     // ---- The invariants hold ---------------------------------------------------------------------------------------
 
@@ -35,7 +37,9 @@ public sealed class InvariantTests(ITestOutputHelper output)
         output.WriteLine($"seed {seed}: {workload.World.Stats}");
         output.WriteLine(workload.Tally.ToString());
         output.WriteLine(workload.History.ToString());
-        workload.World.Errors.Where(error => error.Contains("Exception")).Should()
+        workload
+            .World.Errors.Where(error => error.Contains("Exception"))
+            .Should()
             .BeEmpty($"seed {seed}: a component or the engine threw");
     }
 
@@ -95,13 +99,17 @@ public sealed class InvariantTests(ITestOutputHelper output)
 
     /// <summary>A frame 100 m along +X in the root of <paramref name="test"/>, with a static hull of <paramref name="hull"/>, or without a body.</summary>
     private static FrameHandle StaticFrame(TestWorld test, BodyDesc? hull) =>
-        test.World.GetOwnedFrame(test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = TestWorld.At(100),
-            AsFrame = new(FrameBounds.Sphere(10)),
-            Body = hull
-        }));
+        test.World.GetOwnedFrame(
+            test.World.Spawn(
+                new()
+                {
+                    Frame = test.Root,
+                    Pose = TestWorld.At(100),
+                    AsFrame = new(FrameBounds.Sphere(10)),
+                    Body = hull,
+                }
+            )
+        );
 
     [Theory]
     [InlineData("a dynamic motion for a hull without mass")]
@@ -112,17 +120,22 @@ public sealed class InvariantTests(ITestOutputHelper output)
     {
         using var test = new TestWorld();
         bool mesh = why == "a kinematic motion for a mesh hull";
-        FrameHandle dock = StaticFrame(test,
-            new(Shape: mesh ? Ramp : new BoxShapeDesc(new(2)), Motion: BodyMotion.Static, Mass: 0));
+        FrameHandle dock = StaticFrame(
+            test,
+            new(Shape: mesh ? Ramp : new BoxShapeDesc(new(2)), Motion: BodyMotion.Static, Mass: 0)
+        );
         test.World.AssertInvariants();
 
-        test.World.Frames.SetHullMotion(dock, why switch
-        {
-            "a dynamic motion for a hull without mass" => BodyMotion.Dynamic,
-            "a kinematic motion for a mesh hull" => BodyMotion.Kinematic,
-            "the character motion" => BodyMotion.Character,
-            _ => null
-        });
+        test.World.Frames.SetHullMotion(
+            dock,
+            why switch
+            {
+                "a dynamic motion for a hull without mass" => BodyMotion.Dynamic,
+                "a kinematic motion for a mesh hull" => BodyMotion.Kinematic,
+                "the character motion" => BodyMotion.Character,
+                _ => null,
+            }
+        );
 
         test.World.Invoking(w => w.AssertInvariants()).Should().Throw<ContractException>(why);
     }
@@ -193,8 +206,9 @@ public sealed class InvariantTests(ITestOutputHelper output)
     }
 
     /// <summary>Puts an entity of one frame into the member set of another, the way a bug in the sync point could.</summary>
-    private static (Entity Entity, FrameHandle Right, FrameHandle Wrong)
-        MoveSomeEntityIntoTheWrongMemberSet(World world)
+    private static (Entity Entity, FrameHandle Right, FrameHandle Wrong) MoveSomeEntityIntoTheWrongMemberSet(
+        World world
+    )
     {
         Entity victim = LiveEntitiesOf(world).First(e => !world.GetFrame(e).IsNull && world.GetOwnedFrame(e).IsNull);
         FrameHandle right = world.GetFrame(victim);
@@ -222,7 +236,9 @@ public sealed class InvariantTests(ITestOutputHelper output)
         List<string> problems = workload.FindViolations(afterTick: true);
 
         problems.Should().Contain(p => p.Contains(victim.ToString()) && p.Contains("member of"));
-        workload.World.Invoking(w => w.AssertInvariants()).Should()
+        workload
+            .World.Invoking(w => w.AssertInvariants())
+            .Should()
             .Throw<ContractException>("the topic sets check the same rule on their own");
     }
 
@@ -237,7 +253,9 @@ public sealed class InvariantTests(ITestOutputHelper output)
 
         world.Entities.SetBackTransform(victim, row);
 
-        workload.FindViolations(afterTick: true).Should()
+        workload
+            .FindViolations(afterTick: true)
+            .Should()
             .Contain(p => p.Contains(victim.ToString()) && p.Contains("front row"));
     }
 
@@ -247,7 +265,9 @@ public sealed class InvariantTests(ITestOutputHelper output)
         using ChaoticWorkload workload = WarmedUp();
         World world = workload.World;
         Entity[] candidates =
-            [.. LiveEntitiesOf(world).Where(e => !world.GetFrame(e).IsNull && world.Attachments.ParentOf(e).IsNull)];
+        [
+            .. LiveEntitiesOf(world).Where(e => !world.GetFrame(e).IsNull && world.Attachments.ParentOf(e).IsNull),
+        ];
         Entity child = candidates[0];
         Entity parent = candidates.First(e => world.GetFrame(e) != world.GetFrame(child));
 
@@ -255,7 +275,9 @@ public sealed class InvariantTests(ITestOutputHelper output)
         // an entity that is live in another frame skips that, and that is the damage.
         world.Attachments.Attach(child, parent, Pose.Identity);
 
-        workload.FindViolations(afterTick: true).Should()
+        workload
+            .FindViolations(afterTick: true)
+            .Should()
             .Contain(p => p.Contains(child.ToString()) && p.Contains("its parent"));
     }
 
@@ -286,10 +308,17 @@ public sealed class InvariantTests(ITestOutputHelper output)
 
         topics.Unsubscribe(listener, chatter).Should().BeTrue();
 
-        workload.FindViolations(afterTick: true).Should().Contain(p =>
-            p.Contains(listener.ToString()) && p.Contains("does not hear that topic"));
-        workload.FindViolations(afterTick: false).Should().NotContain(p => p.Contains("does not hear that topic"),
-            "after a change between ticks the inboxes still hold the old mail, so the audit does not compare them with the sets");
+        workload
+            .FindViolations(afterTick: true)
+            .Should()
+            .Contain(p => p.Contains(listener.ToString()) && p.Contains("does not hear that topic"));
+        workload
+            .FindViolations(afterTick: false)
+            .Should()
+            .NotContain(
+                p => p.Contains("does not hear that topic"),
+                "after a change between ticks the inboxes still hold the old mail, so the audit does not compare them with the sets"
+            );
     }
 
     [Fact]
@@ -297,8 +326,8 @@ public sealed class InvariantTests(ITestOutputHelper output)
     {
         using ChaoticWorkload workload = WarmedUp();
         World world = workload.World;
-        Entity victim = LiveEntitiesOf(world).First(e =>
-            !world.GetFrame(e).IsNull && world.Entities.Body(e) == null && world.GetOwnedFrame(e).IsNull);
+        Entity victim = LiveEntitiesOf(world)
+            .First(e => !world.GetFrame(e).IsNull && world.Entities.Body(e) == null && world.GetOwnedFrame(e).IsNull);
         FrameHandle oldFrame = world.GetFrame(victim);
         FrameHandle otherFrame = FramesOf(world).First(f => f != oldFrame);
 

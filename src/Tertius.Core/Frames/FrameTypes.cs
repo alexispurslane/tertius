@@ -11,6 +11,7 @@ public record struct FrameBounds(Vector3 Radii)
     public readonly float MaxRadius => MathF.Max(Radii.X, MathF.Max(Radii.Y, Radii.Z));
     public readonly float MinRadius => MathF.Min(Radii.X, MathF.Min(Radii.Y, Radii.Z));
     public readonly bool IsSphere => Radii.X == Radii.Y && Radii.Y == Radii.Z;
+
     public static FrameBounds Sphere(float radius) => new(new(radius));
 
     /// <summary>
@@ -52,8 +53,11 @@ public record struct FrameBounds(Vector3 Radii)
     {
         // Scaled by the radii, the ellipsoid is the unit sphere: |o + t·d|² = 1, or a·t² + b·t + c = 0.
         var radii = (Double3)Radii;
-        Double3 o = origin / radii, d = direction / radii;
-        double a = Double3.Dot(d, d), b = 2 * Double3.Dot(o, d), c = Double3.Dot(o, o) - 1;
+        Double3 o = origin / radii,
+            d = direction / radii;
+        double a = Double3.Dot(d, d),
+            b = 2 * Double3.Dot(o, d),
+            c = Double3.Dot(o, o) - 1;
         double discriminant = b * b - 4 * a * c;
         if (!(a > 0) || discriminant < 0)
         {
@@ -63,7 +67,8 @@ public record struct FrameBounds(Vector3 Radii)
 
         // The form that never subtracts two nearly equal numbers: q has the sign of b, and the roots are q/a and c/q.
         double q = -0.5 * (b + (b >= 0 ? Math.Sqrt(discriminant) : -Math.Sqrt(discriminant)));
-        double t0 = q / a, t1 = q != 0 ? c / q : -t0;
+        double t0 = q / a,
+            t1 = q != 0 ? c / q : -t0;
         entry = Math.Min(t0, t1);
         exit = Math.Max(t0, t1);
         return true;

@@ -1,8 +1,8 @@
 using JoltPhysicsSharp;
 using Tertius.Simulation;
 using static Tertius.Testing.ContactNews;
-using static Tertius.Testing.WorldTesting;
 using static Tertius.Testing.NumericFrameTesting;
+using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -28,12 +28,21 @@ public sealed class MeshGhostTests
     private static readonly BodyDesc MeshWall = new(Shape: MeshCube(1), Motion: BodyMotion.Static, Mass: 0);
 
     /// <summary>A crate of 10 kg, a box of 1 m that nothing slows down on its own.</summary>
-    private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0,
-        AngularDamping: 0);
+    private static readonly BodyDesc Crate = new(
+        Shape: new BoxShapeDesc(new(0.5f)),
+        Mass: 10,
+        LinearDamping: 0,
+        AngularDamping: 0
+    );
 
     /// <summary>A ball of 1 kg with a radius of 0.5 m and a restitution of 0.5, which nothing slows down on its own.</summary>
-    private static readonly BodyDesc BouncyBall = new(Shape: new SphereShapeDesc(0.5f), Mass: 1, Restitution: 0.5f,
-        LinearDamping: 0, AngularDamping: 0);
+    private static readonly BodyDesc BouncyBall = new(
+        Shape: new SphereShapeDesc(0.5f),
+        Mass: 1,
+        Restitution: 0.5f,
+        LinearDamping: 0,
+        AngularDamping: 0
+    );
 
     /// <summary>
     /// What a body that flew at a mesh wall did: its place and velocity in the ground frame at the end, what it heard of
@@ -46,7 +55,8 @@ public sealed class MeshGhostTests
         List<ContactNews> Heard,
         long? StartTick,
         long? EndTick,
-        float Impulse);
+        float Impulse
+    );
 
     /// <summary>
     /// With no gravity, a body of <paramref name="body"/> flies along +X at <paramref name="speed"/> m/s at a static wall:
@@ -62,32 +72,63 @@ public sealed class MeshGhostTests
     /// home, the ground frame's own system, and meets the real wall there (ter-dhkf). No frame keeps a ghost of the wall. The
     /// run checks all three before the contact step.
     /// </summary>
-    private static WallRun FlyAtAMeshWall(bool numericFrames, NumericFrameOptions numeric, BodyDesc body, double reach,
-        double speed, double gap)
+    private static WallRun FlyAtAMeshWall(
+        bool numericFrames,
+        NumericFrameOptions numeric,
+        BodyDesc body,
+        double reach,
+        double speed,
+        double gap
+    )
     {
-        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults,
-            configure: options => options.NumericFrames = numericFrames ? numeric : WithoutNumericFrames);
+        using World world = NewWorldWithFaults(
+            faults: out FaultInjectingBackend faults,
+            configure: options => options.NumericFrames = numericFrames ? numeric : WithoutNumericFrames
+        );
         FrameHandle ground = Ground(world, 0);
         var wallLog = new CollisionLog();
-        Entity wall = world.Spawn(new() { Frame = ground, Body = MeshWall, Components = [wallLog] });
+        Entity wall = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Body = MeshWall,
+                Components = [wallLog],
+            }
+        );
         var log = new CollisionLog();
         double start = -1 - reach - gap - ContactStep * speed * world.DeltaTime;
-        Entity mover = world.Spawn(new()
-        {
-            Frame = ground, Pose = At(start), LinearVelocity = new(speed, 0, 0), Body = body,
-            Components = [log, new Thruster(body.Mass)]
-        });
-        Entity twin = world.Spawn(new()
-        {
-            Frame = ground, Pose = At(start, 1_000), LinearVelocity = new(speed, 0, 0), Body = body,
-            Components = [new Thruster(body.Mass)]
-        });
+        Entity mover = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(start),
+                LinearVelocity = new(speed, 0, 0),
+                Body = body,
+                Components = [log, new Thruster(body.Mass)],
+            }
+        );
+        Entity twin = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(start, 1_000),
+                LinearVelocity = new(speed, 0, 0),
+                Body = body,
+                Components = [new Thruster(body.Mass)],
+            }
+        );
 
         Tick(world, ContactStep - 1);
-        world.Frames.Numeric(world.PhysicsHomeOf(twin)).Should().Be(
-            numericFrames ? NumericMode.Falling : NumericMode.None,
-            "the twin of the body, which no anchor links, falls in a numeric frame of its own, when there are numeric frames");
-        world.PhysicsHomeOf(mover).Should()
+        world
+            .Frames.Numeric(world.PhysicsHomeOf(twin))
+            .Should()
+            .Be(
+                numericFrames ? NumericMode.Falling : NumericMode.None,
+                "the twin of the body, which no anchor links, falls in a numeric frame of its own, when there are numeric frames"
+            );
+        world
+            .PhysicsHomeOf(mover)
+            .Should()
             .Be(ground, "the body joins the wall's home, with numeric frames or without");
         faults.Jolt.GhostCount(wall).Should().Be(0, "the wall is a real body of the body's system");
         log.Seen.Should().BeEmpty("the body has not reached the wall yet");
@@ -97,11 +138,15 @@ public sealed class MeshGhostTests
         wallLog.NewsOf(mover).Should().Equal(log.NewsOf(wall), "the wall hears what the body hears");
         List<(long Tick, Entity Other, float Impulse)> seen = [.. log.Seen.Where(s => s.Other == wall)];
         List<(long Tick, Entity Other)> ended = [.. log.Ended.Where(e => e.Other == wall)];
-        return new(Scene: numericFrames ? "with numeric frames" : "without numeric frames",
-            Position: world.PoseIn(mover, ground).Position, Velocity: world.VelocityIn(mover, ground),
+        return new(
+            Scene: numericFrames ? "with numeric frames" : "without numeric frames",
+            Position: world.PoseIn(mover, ground).Position,
+            Velocity: world.VelocityIn(mover, ground),
             Heard: log.NewsOf(wall),
-            StartTick: seen.Count > 0 ? seen[0].Tick : null, EndTick: ended.Count > 0 ? ended[0].Tick : null,
-            Impulse: seen.Count > 0 ? seen[0].Impulse : 0);
+            StartTick: seen.Count > 0 ? seen[0].Tick : null,
+            EndTick: ended.Count > 0 ? ended[0].Tick : null,
+            Impulse: seen.Count > 0 ? seen[0].Impulse : 0
+        );
     }
 
     /// <summary>
@@ -118,22 +163,42 @@ public sealed class MeshGhostTests
     [InlineData(false, 60.0, 0.01)]
     [InlineData(true, 20.0, 0.17)]
     public void ACrateThatFliesAtAStaticMeshWallJoinsItsHomeAndStopsAtItAsItDoesWithoutNumericFrames(
-        bool everyBodyFalls, double speed, double gap)
+        bool everyBodyFalls,
+        double speed,
+        double gap
+    )
     {
         NumericFrameOptions numeric = everyBodyFalls ? EveryGroupFalls : new();
-        WallRun without = FlyAtAMeshWall(numericFrames: false, numeric: numeric, body: Crate, reach: 0.5, speed: speed,
-            gap: gap);
-        WallRun with = FlyAtAMeshWall(numericFrames: true, numeric: numeric, body: Crate, reach: 0.5, speed: speed,
-            gap: gap);
+        WallRun without = FlyAtAMeshWall(
+            numericFrames: false,
+            numeric: numeric,
+            body: Crate,
+            reach: 0.5,
+            speed: speed,
+            gap: gap
+        );
+        WallRun with = FlyAtAMeshWall(
+            numericFrames: true,
+            numeric: numeric,
+            body: Crate,
+            reach: 0.5,
+            speed: speed,
+            gap: gap
+        );
 
         foreach (WallRun run in new[] { without, with })
         {
-            run.Position.X.Should().BeApproximately(-1.5, 0.03, "the crate stops with its front at the wall's face {0}",
-                run.Scene);
+            run.Position.X.Should()
+                .BeApproximately(-1.5, 0.03, "the crate stops with its front at the wall's face {0}", run.Scene);
             run.Velocity.Length.Should().BeLessThan(0.05, "the crate stopped at the wall {0}", run.Scene);
             run.Heard.Should().Equal([Started], "the crate hears one Collision {0}", run.Scene);
-            run.Impulse.Should().BeApproximately((float)(10 * speed), (float)(10 * speed) * 0.05f,
-                "the crate of 10 kg stopped from its speed {0}", run.Scene);
+            run.Impulse.Should()
+                .BeApproximately(
+                    (float)(10 * speed),
+                    (float)(10 * speed) * 0.05f,
+                    "the crate of 10 kg stopped from its speed {0}",
+                    run.Scene
+                );
         }
 
         with.Position.X.Should().BeApproximately(without.Position.X, 0.01);
@@ -154,18 +219,30 @@ public sealed class MeshGhostTests
     public void ABallThatFliesAtAStaticMeshWallJoinsItsHomeAndBouncesOffItAsItDoesWithoutNumericFrames()
     {
         var numeric = new NumericFrameOptions();
-        WallRun without = FlyAtAMeshWall(numericFrames: false, numeric: numeric, body: BouncyBall, reach: 0.5,
-            speed: 60, gap: 0.01);
-        WallRun with = FlyAtAMeshWall(numericFrames: true, numeric: numeric, body: BouncyBall, reach: 0.5, speed: 60,
-            gap: 0.01);
+        WallRun without = FlyAtAMeshWall(
+            numericFrames: false,
+            numeric: numeric,
+            body: BouncyBall,
+            reach: 0.5,
+            speed: 60,
+            gap: 0.01
+        );
+        WallRun with = FlyAtAMeshWall(
+            numericFrames: true,
+            numeric: numeric,
+            body: BouncyBall,
+            reach: 0.5,
+            speed: 60,
+            gap: 0.01
+        );
 
         foreach (WallRun run in new[] { without, with })
         {
             run.Velocity.X.Should()
                 .BeApproximately(-30, 0.5, "the ball bounced off the wall at half its speed {0}", run.Scene);
             run.Position.X.Should().BeLessThan(-1.5 - 20 * 0.5, "the ball flew back from the wall {0}", run.Scene);
-            run.Heard.Should().Equal([Started, Ended], "the ball hears one Collision and one CollisionEnded {0}",
-                run.Scene);
+            run.Heard.Should()
+                .Equal([Started, Ended], "the ball hears one Collision and one CollisionEnded {0}", run.Scene);
         }
 
         with.Velocity.X.Should().BeApproximately(without.Velocity.X, 0.05);
@@ -188,16 +265,24 @@ public sealed class MeshGhostTests
     /// </summary>
     private static PushRun PushACrateFromRestAtAMeshWall(bool numericFrames)
     {
-        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults,
-            configure: options => options.NumericFrames = numericFrames ? EveryGroupFalls : WithoutNumericFrames);
+        using World world = NewWorldWithFaults(
+            faults: out FaultInjectingBackend faults,
+            configure: options => options.NumericFrames = numericFrames ? EveryGroupFalls : WithoutNumericFrames
+        );
         FrameHandle ground = Ground(world, 0);
         Entity wall = world.Spawn(new() { Frame = ground, Body = MeshWall });
         var log = new CollisionLog();
         var pilot = new Pilot();
-        Entity crate = world.Spawn(new()
-        {
-            Frame = ground, Pose = At(-6), LinearVelocity = new(3, 0, 0), Body = Crate, Components = [log, pilot]
-        });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(-6),
+                LinearVelocity = new(3, 0, 0),
+                Body = Crate,
+                Components = [log, pilot],
+            }
+        );
         double Gap() => -1.5 - world.PoseIn(crate, ground).Position.X;
 
         TickUntil(world, () => Gap() < 0.45, 200);
@@ -231,8 +316,14 @@ public sealed class MeshGhostTests
         PushRun with = PushACrateFromRestAtAMeshWall(numericFrames: true);
 
         without.Seen.Should().ContainSingle();
-        without.Seen[0].Impulse.Should().BeApproximately((float)(10 * without.V1), (float)(10 * without.V1) * 0.05f,
-            "the crate of 10 kg stopped from v₁");
+        without
+            .Seen[0]
+            .Impulse.Should()
+            .BeApproximately(
+                (float)(10 * without.V1),
+                (float)(10 * without.V1) * 0.05f,
+                "the crate of 10 kg stopped from v₁"
+            );
         with.Seen.Should().ContainSingle();
         with.Seen[0].Tick.Should().Be(without.Seen[0].Tick, "the crate meets the wall in the same step");
         with.Seen[0].Impulse.Should().BeApproximately(without.Seen[0].Impulse, without.Seen[0].Impulse * 0.02f);
@@ -254,39 +345,64 @@ public sealed class MeshGhostTests
         Entity ShipOwner,
         FrameHandle Ship,
         Pilot ShipPilot,
-        Entity Crate);
+        Entity Crate
+    );
 
     private static DockScene CrateOnAStationsMeshHull(World world)
     {
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
-        var hull = new MeshShapeDesc([new(-20, 0, -20), new(20, 0, -20), new(20, 0, 20), new(-20, 0, 20)],
-            [0, 2, 1, 0, 3, 2]);
-        Entity station = world.Spawn(new()
-        {
-            Frame = space,
-            Body = new(Shape: hull, Motion: BodyMotion.Static, InteriorShape: new SphereShapeDesc(1)),
-            AsFrame = new(FrameBounds.Sphere(3))
-        });
+        var hull = new MeshShapeDesc(
+            [new(-20, 0, -20), new(20, 0, -20), new(20, 0, 20), new(-20, 0, 20)],
+            [0, 2, 1, 0, 3, 2]
+        );
+        Entity station = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = new(Shape: hull, Motion: BodyMotion.Static, InteriorShape: new SphereShapeDesc(1)),
+                AsFrame = new(FrameBounds.Sphere(3)),
+            }
+        );
         var pilot = new Pilot();
-        Entity shipOwner = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(12, 20),
-            Body = new(Shape: new SphereShapeDesc(2), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
-                InteriorShape: new SphereShapeDesc(1)),
-            AsFrame = new(FrameBounds.Sphere(30), GravityField.Uniform(new(0, -G, 0))),
-            Components = [pilot]
-        });
+        Entity shipOwner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(12, 20),
+                Body = new(
+                    Shape: new SphereShapeDesc(2),
+                    Mass: 1000,
+                    LinearDamping: 0,
+                    AngularDamping: 0,
+                    InteriorShape: new SphereShapeDesc(1)
+                ),
+                AsFrame = new(FrameBounds.Sphere(30), GravityField.Uniform(new(0, -G, 0))),
+                Components = [pilot],
+            }
+        );
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
-        Entity crate = world.Spawn(new() { Frame = ship, Pose = At(0, -19.5), Body = Cube() });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = ship,
+                Pose = At(0, -19.5),
+                Body = Cube(),
+            }
+        );
         return new(Space: space, Station: station, ShipOwner: shipOwner, Ship: ship, ShipPilot: pilot, Crate: crate);
     }
 
     /// <summary>The one ghost of <paramref name="entity"/> in the system of <paramref name="frame"/>, as Jolt holds it.</summary>
-    private static JoltPhysicsBackend.BodyFacts
-        GhostOf(FaultInjectingBackend faults, Entity entity, FrameHandle frame) =>
-        faults.Jolt.BodiesIn(frame).Single(facts =>
-            BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, entity));
+    private static JoltPhysicsBackend.BodyFacts GhostOf(
+        FaultInjectingBackend faults,
+        Entity entity,
+        FrameHandle frame
+    ) =>
+        faults
+            .Jolt.BodiesIn(frame)
+            .Single(facts =>
+                BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, entity)
+            );
 
     /// <summary>
     /// The ghost of a mesh is static while it holds still in its system, as its real body does, so that Jolt never
@@ -303,7 +419,8 @@ public sealed class MeshGhostTests
         DockScene scene = CrateOnAStationsMeshHull(world);
         Tick(world, 120);
 
-        GhostOf(faults, scene.Station, scene.Ship).Motion.Should()
+        GhostOf(faults, scene.Station, scene.Ship)
+            .Motion.Should()
             .Be(MotionType.Static, "the ship hangs at rest beside the station");
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
         IsAwake(faults.Jolt, scene.Ship, scene.Crate).Should().BeFalse("the crate stands on a ghost that holds still");
@@ -314,13 +431,15 @@ public sealed class MeshGhostTests
         JoltPhysicsBackend.BodyFacts moving = GhostOf(faults, scene.Station, scene.Ship);
         moving.Motion.Should().Be(MotionType.Kinematic, "the ghost moves in the ship's system");
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
-        (moving.LinearVelocity - new Double3(0, -1, 0)).Length.Should()
+        (moving.LinearVelocity - new Double3(0, -1, 0))
+            .Length.Should()
             .BeLessThan(1e-3, "the hull moves down at 1 m/s in the rising ship");
         IsAwake(faults.Jolt, scene.Ship, scene.Crate).Should().BeTrue("the floor fell away under the crate");
 
         scene.ShipPilot.Once = body => body.SetVelocity(Double3.Zero);
         Tick(world, 180);
-        GhostOf(faults, scene.Station, scene.Ship).Motion.Should()
+        GhostOf(faults, scene.Station, scene.Ship)
+            .Motion.Should()
             .Be(MotionType.Static, "the ship hangs at rest again");
         IsAwake(faults.Jolt, scene.Ship, scene.Crate).Should().BeFalse("the crate stands on the still ghost again");
         world.Errors.Should().BeEmpty();
@@ -343,8 +462,9 @@ public sealed class MeshGhostTests
         ghost.Motion.Should().Be(MotionType.Kinematic);
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
 
-        faults.Jolt.SystemOf(station)!.BodyInterface.SetMotionType(ghost.Id, MotionType.Static,
-            Activation.DontActivate);
+        faults
+            .Jolt.SystemOf(station)!
+            .BodyInterface.SetMotionType(ghost.Id, MotionType.Static, Activation.DontActivate);
 
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().Throw<ContractException>();
     }
@@ -359,9 +479,10 @@ public sealed class MeshGhostTests
     [InlineData(true)]
     public void AGrowthKeepsTheMotionAndTheStateOfAMeshGhost(bool shipRises)
     {
-        using World world =
-            WorldTestingGrowth.NewWorldWithFaultsAndSmallSystems(maxBodiesPerFrame: 4,
-                faults: out FaultInjectingBackend faults);
+        using World world = WorldTestingGrowth.NewWorldWithFaultsAndSmallSystems(
+            maxBodiesPerFrame: 4,
+            faults: out FaultInjectingBackend faults
+        );
         DockScene scene = CrateOnAStationsMeshHull(world);
         Tick(world, 3);
         if (shipRises)
@@ -376,11 +497,14 @@ public sealed class MeshGhostTests
         uint capacity = faults.Jolt.CapacityOf(scene.Ship);
         int room = (int)capacity - faults.Jolt.BodiesIn(scene.Ship).Count;
         for (int i = 0; i <= room; i++)
-            world.Spawn(new()
-            {
-                Frame = scene.Ship, Pose = At(3 * i - 6, 10),
-                Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static)
-            });
+            world.Spawn(
+                new()
+                {
+                    Frame = scene.Ship,
+                    Pose = At(3 * i - 6, 10),
+                    Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static),
+                }
+            );
         Entity marker = world.Spawn(new() { Frame = scene.Ship });
         world.Destroy(marker).Should().BeTrue();
 

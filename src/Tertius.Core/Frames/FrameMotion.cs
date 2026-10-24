@@ -20,7 +20,8 @@ internal readonly record struct FrameMotion(
     Double3 Velocity,
     Double3 AngularVelocity,
     Double3 Acceleration,
-    Double3 AngularAcceleration)
+    Double3 AngularAcceleration
+)
 {
     public DPose PoseToParent(in DPose local) => DPose.Compose(Pose, local);
 
@@ -32,12 +33,14 @@ internal readonly record struct FrameMotion(
     /// composes level by level with it, from the inner end, as the pose tree composes poses
     /// (see <see cref="FrameTree.MotionRelativeInStep"/>).
     /// </summary>
-    public FrameMotion MotionToParent(in FrameMotion local) => new(
-        Pose: PoseToParent(local.Pose),
-        Velocity: VelocityToParent(local.Pose.Position, local.Velocity),
-        AngularVelocity: AngularToParent(local.AngularVelocity),
-        Acceleration: AccelerationToParent(local.Pose.Position, local.Velocity, local.Acceleration),
-        AngularAcceleration: AngularAccelerationToParent(local.AngularAcceleration, local.AngularVelocity));
+    public FrameMotion MotionToParent(in FrameMotion local) =>
+        new(
+            Pose: PoseToParent(local.Pose),
+            Velocity: VelocityToParent(local.Pose.Position, local.Velocity),
+            AngularVelocity: AngularToParent(local.AngularVelocity),
+            Acceleration: AccelerationToParent(local.Pose.Position, local.Velocity, local.Acceleration),
+            AngularAcceleration: AngularAccelerationToParent(local.AngularAcceleration, local.AngularVelocity)
+        );
 
     /// <summary>
     /// The motion of the parent in this frame, in the frame's axes: the inverse pose, and the motion of the parent's origin
@@ -46,24 +49,28 @@ internal readonly record struct FrameMotion(
     /// <see cref="AngularAccelerationFromParent"/>). So <c>m.Inverse().MotionToParent(m)</c> is the frame
     /// at rest in itself.
     /// </summary>
-    public FrameMotion Inverse() => new(
-        Pose: Pose.Inverse(),
-        Velocity: VelocityFromParent(Double3.Zero, Double3.Zero),
-        AngularVelocity: AngularFromParent(Double3.Zero),
-        Acceleration: AccelerationFromParent(Double3.Zero, Double3.Zero, Double3.Zero),
-        AngularAcceleration: AngularAccelerationFromParent(Double3.Zero, Double3.Zero));
+    public FrameMotion Inverse() =>
+        new(
+            Pose: Pose.Inverse(),
+            Velocity: VelocityFromParent(Double3.Zero, Double3.Zero),
+            AngularVelocity: AngularFromParent(Double3.Zero),
+            Acceleration: AccelerationFromParent(Double3.Zero, Double3.Zero, Double3.Zero),
+            AngularAcceleration: AngularAccelerationFromParent(Double3.Zero, Double3.Zero)
+        );
 
     public DPose PoseFromParent(in DPose parentPose) => DPose.Compose(Pose.Inverse(), parentPose);
 
     /// <summary>The velocity in the parent of a point that moves with <paramref name="velocity"/> in the frame.</summary>
     public Double3 VelocityToParent(Double3 pointInFrame, Double3 velocity) =>
-        Pose.TransformDirection(velocity) + Velocity +
-        Double3.Cross(AngularVelocity, Pose.TransformDirection(pointInFrame));
+        Pose.TransformDirection(velocity)
+        + Velocity
+        + Double3.Cross(AngularVelocity, Pose.TransformDirection(pointInFrame));
 
     /// <summary>The velocity in the frame of a point that moves with <paramref name="velocity"/> in the parent.</summary>
     public Double3 VelocityFromParent(Double3 pointInParent, Double3 velocity) =>
-        Pose.InverseTransformDirection(velocity - Velocity -
-                                       Double3.Cross(AngularVelocity, pointInParent - Pose.Position));
+        Pose.InverseTransformDirection(
+            velocity - Velocity - Double3.Cross(AngularVelocity, pointInParent - Pose.Position)
+        );
 
     /// <summary>
     /// The acceleration in the parent of a point at <paramref name="pointInFrame"/> that moves with
@@ -74,9 +81,11 @@ internal readonly record struct FrameMotion(
     public Double3 AccelerationToParent(Double3 pointInFrame, Double3 velocity, Double3 acceleration)
     {
         Double3 r = Pose.TransformDirection(pointInFrame);
-        return Pose.TransformDirection(acceleration) + Acceleration + Double3.Cross(AngularAcceleration, r) +
-               Double3.Cross(AngularVelocity, Double3.Cross(AngularVelocity, r)) +
-               2 * Double3.Cross(AngularVelocity, Pose.TransformDirection(velocity));
+        return Pose.TransformDirection(acceleration)
+            + Acceleration
+            + Double3.Cross(AngularAcceleration, r)
+            + Double3.Cross(AngularVelocity, Double3.Cross(AngularVelocity, r))
+            + 2 * Double3.Cross(AngularVelocity, Pose.TransformDirection(velocity));
     }
 
     /// <summary>
@@ -89,9 +98,13 @@ internal readonly record struct FrameMotion(
     {
         Double3 r = pointInParent - Pose.Position;
         Double3 relative = velocity - Velocity - Double3.Cross(AngularVelocity, r);
-        return Pose.InverseTransformDirection(acceleration - Acceleration - Double3.Cross(AngularAcceleration, r) -
-                                              Double3.Cross(AngularVelocity, Double3.Cross(AngularVelocity, r)) -
-                                              2 * Double3.Cross(AngularVelocity, relative));
+        return Pose.InverseTransformDirection(
+            acceleration
+                - Acceleration
+                - Double3.Cross(AngularAcceleration, r)
+                - Double3.Cross(AngularVelocity, Double3.Cross(AngularVelocity, r))
+                - 2 * Double3.Cross(AngularVelocity, relative)
+        );
     }
 
     public Double3 AngularToParent(Double3 omega) => Pose.TransformDirection(omega) + AngularVelocity;
@@ -104,8 +117,9 @@ internal readonly record struct FrameMotion(
     /// time, α' = R α_b + α + ω × (R ω_b).
     /// </summary>
     public Double3 AngularAccelerationToParent(Double3 alpha, Double3 angularVelocity) =>
-        Pose.TransformDirection(alpha) + AngularAcceleration +
-        Double3.Cross(AngularVelocity, Pose.TransformDirection(angularVelocity));
+        Pose.TransformDirection(alpha)
+        + AngularAcceleration
+        + Double3.Cross(AngularVelocity, Pose.TransformDirection(angularVelocity));
 
     /// <summary>
     /// The angular acceleration in the frame of a body that turns at <paramref name="angularVelocity"/> and spins up at

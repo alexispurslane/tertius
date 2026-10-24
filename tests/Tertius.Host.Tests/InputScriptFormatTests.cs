@@ -21,7 +21,7 @@ public sealed class InputScriptFormatTests
         ["mouseDown"] = "code",
         ["mouseUp"] = "code",
         ["mouseMove"] = "delta",
-        ["scroll"] = "delta"
+        ["scroll"] = "delta",
     };
 
     private static IEnumerable<string> ScriptFiles() =>
@@ -29,25 +29,29 @@ public sealed class InputScriptFormatTests
 
     /// <summary>Every <c>InputEvent</c> post of every script in the folder, with the file that it is in and its step number.</summary>
     private static List<(string File, int Step, JsonElement Payload)> InputPosts() =>
-    [
-        .. ScriptFiles()
-            .SelectMany(path => Script.Load(path).Steps
-                .Select((step, index) => (File: Path.GetFileName(path), index, step))
-                .Where(x => x.step is PostStep { Event: "InputEvent" })
-                .Select(x => (x.File, Step: x.index, Payload: ((PostStep)x.step.Value!).Payload!.Value)))
-    ];
+        [
+            .. ScriptFiles()
+                .SelectMany(path =>
+                    Script
+                        .Load(path)
+                        .Steps.Select((step, index) => (File: Path.GetFileName(path), index, step))
+                        .Where(x => x.step is PostStep { Event: "InputEvent" })
+                        .Select(x => (x.File, Step: x.index, Payload: ((PostStep)x.step.Value!).Payload!.Value))
+                ),
+        ];
 
     private static string Number(float value) => value.ToString("R", CultureInfo.InvariantCulture);
 
     /// <summary>An input event as one line: the kind, then the code or the two numbers of the delta.</summary>
-    private static string Describe(InputEvent e) => e switch
-    {
-        KeyChanged { Code: var code, IsDown: var isDown } => $"{(isDown ? "keyDown" : "keyUp")} {code}",
-        MouseButtonChanged { Code: var code, IsDown: var isDown } => $"{(isDown ? "mouseDown" : "mouseUp")} {code}",
-        MouseMoved(var delta) => $"mouseMove [{Number(delta.X)}, {Number(delta.Y)}]",
-        Scrolled(var delta) => $"scroll [{Number(delta.X)}, {Number(delta.Y)}]",
-        null => throw new InvalidOperationException("The test does not describe the empty input event.")
-    };
+    private static string Describe(InputEvent e) =>
+        e switch
+        {
+            KeyChanged { Code: var code, IsDown: var isDown } => $"{(isDown ? "keyDown" : "keyUp")} {code}",
+            MouseButtonChanged { Code: var code, IsDown: var isDown } => $"{(isDown ? "mouseDown" : "mouseUp")} {code}",
+            MouseMoved(var delta) => $"mouseMove [{Number(delta.X)}, {Number(delta.Y)}]",
+            Scrolled(var delta) => $"scroll [{Number(delta.X)}, {Number(delta.Y)}]",
+            null => throw new InvalidOperationException("The test does not describe the empty input event."),
+        };
 
     /// <summary>What the payload says, as the same line, read from the raw JSON.</summary>
     private static string Expected(JsonElement payload)
@@ -76,7 +80,10 @@ public sealed class InputScriptFormatTests
 
         kinds.Should().NotBeEmpty().And.BeSubsetOf(MemberOfKind.Keys);
         // A kind with a code and a kind with a delta, so that the tests below compare posts of both forms.
-        kinds.Should().Contain(kind => MemberOfKind[kind] == "code").And.Contain(kind => MemberOfKind[kind] == "delta");
+        kinds
+            .Should()
+            .Contain(kind => MemberOfKind[kind] == "code")
+            .And.Contain(kind => MemberOfKind[kind] == "delta");
         posts.Select(post => post.File).Distinct().Count().Should().BeGreaterThanOrEqualTo(5);
     }
 
@@ -86,7 +93,10 @@ public sealed class InputScriptFormatTests
         foreach ((string file, int step, JsonElement payload) in InputPosts())
         {
             string kind = payload.GetProperty("kind").GetString()!;
-            payload.EnumerateObject().Select(property => property.Name).Should()
+            payload
+                .EnumerateObject()
+                .Select(property => property.Name)
+                .Should()
                 .BeEquivalentTo(["kind", MemberOfKind[kind]], because: $"{file} step {step}");
         }
     }
@@ -95,7 +105,8 @@ public sealed class InputScriptFormatTests
     public void EveryInputPostOfAScriptReadsAsItsJsonSays()
     {
         foreach ((string file, int step, JsonElement payload) in InputPosts())
-            Describe(payload.Deserialize<InputEvent>(ScriptJson.Scripts)).Should()
+            Describe(payload.Deserialize<InputEvent>(ScriptJson.Scripts))
+                .Should()
                 .Be(Expected(payload), because: $"{file} step {step}");
     }
 
@@ -110,16 +121,21 @@ public sealed class InputScriptFormatTests
         recorder.Post(0, InputEvent.MouseMove(new(12.5f, -3)));
         recorder.Post(0, InputEvent.Scroll(new(0, 1)));
 
-        Script written = Script.Parse(recorder.ToScript(endTick: 1).ToJson());
+        var written = Script.Parse(recorder.ToScript(endTick: 1).ToJson());
 
-        written.Steps.Select(step => step.Value).OfType<PostStep>().Select(post => post.Payload!.Value.GetRawText())
-            .Should().Equal(
+        written
+            .Steps.Select(step => step.Value)
+            .OfType<PostStep>()
+            .Select(post => post.Payload!.Value.GetRawText())
+            .Should()
+            .Equal(
                 """{"kind":"keyDown","code":87}""",
                 """{"kind":"keyUp","code":87}""",
                 """{"kind":"mouseDown","code":0}""",
                 """{"kind":"mouseUp","code":0}""",
                 """{"kind":"mouseMove","delta":[12.5,-3]}""",
-                """{"kind":"scroll","delta":[0,1]}""");
+                """{"kind":"scroll","delta":[0,1]}"""
+            );
     }
 
     /// <summary>The vector that <paramref name="read"/> reads, or null when it refuses the JSON.</summary>
@@ -143,10 +159,14 @@ public sealed class InputScriptFormatTests
     {
         var delta = new Vector2(x, y);
 
-        using JsonDocument written =
-            JsonDocument.Parse(JsonSerializer.Serialize(InputEvent.Scroll(delta), ScriptJson.Recordings));
+        using var written = JsonDocument.Parse(
+            JsonSerializer.Serialize(InputEvent.Scroll(delta), ScriptJson.Recordings)
+        );
 
-        written.RootElement.GetProperty("delta").GetRawText().Should()
+        written
+            .RootElement.GetProperty("delta")
+            .GetRawText()
+            .Should()
             .Be(JsonSerializer.Serialize(delta, ScriptJson.Recordings));
     }
 
@@ -162,12 +182,15 @@ public sealed class InputScriptFormatTests
     {
         Vector2? vector = ReadOrNull(() => JsonSerializer.Deserialize<Vector2>(array, ScriptJson.Scripts));
         Vector2? delta = ReadOrNull(() =>
-            JsonSerializer.Deserialize<InputEvent>($$"""{"kind":"scroll","delta":{{array}}}""", ScriptJson.Scripts)
-                switch
-                {
-                    Scrolled(var read) => read,
-                    _ => throw new InvalidOperationException("A scroll read as another case.")
-                });
+            JsonSerializer.Deserialize<InputEvent>(
+                $$"""{"kind":"scroll","delta":{{array}}}""",
+                ScriptJson.Scripts
+            ) switch
+            {
+                Scrolled(var read) => read,
+                _ => throw new InvalidOperationException("A scroll read as another case."),
+            }
+        );
 
         delta.Should().Be(vector);
     }

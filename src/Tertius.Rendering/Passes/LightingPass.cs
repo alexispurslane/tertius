@@ -22,7 +22,7 @@ internal sealed unsafe class LightingPass : RenderPass
             FragmentShader = "lighting.frag",
             Layout = layouts.SceneLayout,
             ColorFormats = [RenderTargets.HdrFormat],
-            CullMode = CullModeFlags.None
+            CullMode = CullModeFlags.None,
         }.Create(device, shaders);
     }
 
@@ -48,7 +48,7 @@ internal sealed unsafe class LightingPass : RenderPass
             ImageLayout = ImageLayout.ColorAttachmentOptimal,
             // Every pixel is written.
             LoadOp = AttachmentLoadOp.DontCare,
-            StoreOp = AttachmentStoreOp.Store
+            StoreOp = AttachmentStoreOp.Store,
         };
         var rendering = new RenderingInfo
         {
@@ -56,7 +56,7 @@ internal sealed unsafe class LightingPass : RenderPass
             RenderArea = new(new Offset2D(0, 0), targets.Extent),
             LayerCount = 1,
             ColorAttachmentCount = 1,
-            PColorAttachments = &color
+            PColorAttachments = &color,
         };
         vk.CmdBeginRendering(commandBuffer, &rendering);
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, pipeline);

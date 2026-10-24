@@ -25,6 +25,11 @@ public readonly record struct PuffEmitter(float Rate, float Speed, float Spread,
     /// the default emitter.
     /// </summary>
     public bool CanMakePuffs =>
-        float.IsFinite(Rate) && Rate > 0 && float.IsFinite(Speed) && Speed >= 0 && Spread >= 0 && Spread <= MathF.PI &&
-        Look.IsValid;
+        float.IsFinite(Rate)
+        && Rate > 0
+        && float.IsFinite(Speed)
+        && Speed >= 0
+        && Spread >= 0
+        && Spread <= MathF.PI
+        && Look.IsValid;
 }

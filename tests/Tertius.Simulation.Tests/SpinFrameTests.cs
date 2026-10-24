@@ -15,24 +15,33 @@ public sealed class SpinFrameTests
     private static readonly FrameSpin QuarterTurnPerSecond = new(Tilt: DQuaternion.Identity, Rate: Math.PI / 2);
 
     /// <summary>A mesh. Jolt never moves a mesh, so a hull of this shape can only be static.</summary>
-    private static readonly MeshShapeDesc Ramp = new([new(-5, 0, -5), new(5, 0, -5), new(5, 2, 5), new(-5, 2, 5)],
-        [0, 2, 1, 0, 3, 2]);
+    private static readonly MeshShapeDesc Ramp = new(
+        [new(-5, 0, -5), new(5, 0, -5), new(5, 2, 5), new(-5, 2, 5)],
+        [0, 2, 1, 0, 3, 2]
+    );
 
-    private static TestWorld NewWorld(double startTime = 0) => new(configure: options =>
-    {
-        options.TickRate = TicksPerSecond;
-        options.StartTime = startTime;
-    });
-
-    private static Entity SpawnSpinFrame(TestWorld test, FrameSpin spin, Double3 place = default,
-        params IComponent[] components) =>
-        test.World.Spawn(new SpawnDesc
+    private static TestWorld NewWorld(double startTime = 0) =>
+        new(configure: options =>
         {
-            Frame = test.Root,
-            Pose = new(place, DQuaternion.FromAxisAngle(Double3.UnitX, 1)),
-            AsFrame = new(FrameBounds.Sphere(100)),
-            Components = components
-        }.Spinning(test.World, spin));
+            options.TickRate = TicksPerSecond;
+            options.StartTime = startTime;
+        });
+
+    private static Entity SpawnSpinFrame(
+        TestWorld test,
+        FrameSpin spin,
+        Double3 place = default,
+        params IComponent[] components
+    ) =>
+        test.World.Spawn(
+            new SpawnDesc
+            {
+                Frame = test.Root,
+                Pose = new(place, DQuaternion.FromAxisAngle(Double3.UnitX, 1)),
+                AsFrame = new(FrameBounds.Sphere(100)),
+                Components = components,
+            }.Spinning(test.World, spin)
+        );
 
     // ---- How a spin frame moves ---------------------------------------------------------------------------------
 
@@ -117,15 +126,21 @@ public sealed class SpinFrameTests
     {
         using TestWorld test = NewWorld();
         var place = new Double3(5, 0, 0);
-        DQuaternion leaning = DQuaternion.FromAxisAngle(Double3.UnitZ, 1);
+        var leaning = DQuaternion.FromAxisAngle(Double3.UnitZ, 1);
         bool write = false;
-        Entity owner = SpawnSpinFrame(test, QuarterTurnPerSecond, place,
-            Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            {
-                if (write)
-                    self.SetTransform(new(place, leaning));
-                write = false;
-            }));
+        Entity owner = SpawnSpinFrame(
+            test,
+            QuarterTurnPerSecond,
+            place,
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (write)
+                        self.SetTransform(new(place, leaning));
+                    write = false;
+                }
+            )
+        );
         FrameHandle ground = test.World.GetOwnedFrame(owner);
         test.Run(3);
 
@@ -134,13 +149,19 @@ public sealed class SpinFrameTests
 
         test.World.Errors.Should().BeEmpty();
         test.World.Frames.LocalPose(ground).Position.Should().Be(place);
-        PoseChecks.AssertNear(test.World.Frames.LocalPose(ground).Rotation.Rotate(Double3.UnitX),
-            leaning.Rotate(Double3.UnitX), 1e-12);
+        PoseChecks.AssertNear(
+            test.World.Frames.LocalPose(ground).Rotation.Rotate(Double3.UnitX),
+            leaning.Rotate(Double3.UnitX),
+            1e-12
+        );
         test.Run(1);
 
         test.World.Frames.LocalPose(ground).Position.Should().Be(place);
-        PoseChecks.AssertNear(test.World.Frames.LocalPose(ground).Rotation.Rotate(Double3.UnitX),
-            QuarterTurnPerSecond.RotationAt(test.World.Time).Rotate(Double3.UnitX), 1e-12);
+        PoseChecks.AssertNear(
+            test.World.Frames.LocalPose(ground).Rotation.Rotate(Double3.UnitX),
+            QuarterTurnPerSecond.RotationAt(test.World.Time).Rotate(Double3.UnitX),
+            1e-12
+        );
     }
 
     /// <summary>
@@ -153,27 +174,35 @@ public sealed class SpinFrameTests
         using TestWorld test = NewWorld();
         var place = new Double3(5, 0, 0);
         bool write = false;
-        Entity owner = SpawnSpinFrame(test, QuarterTurnPerSecond, place,
-            Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            {
-                if (write)
-                    self.SetTransform(TestWorld.At(8));
-                write = false;
-            }));
+        Entity owner = SpawnSpinFrame(
+            test,
+            QuarterTurnPerSecond,
+            place,
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (write)
+                        self.SetTransform(TestWorld.At(8));
+                    write = false;
+                }
+            )
+        );
         FrameHandle ground = test.World.GetOwnedFrame(owner);
         test.Run(3);
 
         write = true;
         test.Run(1);
-        test.World.Frames.LocalPose(ground).Position.Should().Be(new Double3(8, 0, 0),
-            "the write moves the frame at the sync point of its tick");
+        test.World.Frames.LocalPose(ground)
+            .Position.Should()
+            .Be(new Double3(8, 0, 0), "the write moves the frame at the sync point of its tick");
 
         for (int tick = 0; tick < 4; tick++)
         {
             test.Run(1);
 
-            test.World.Frames.LocalPose(ground).Position.Should().Be(place,
-                "the spin's samples keep the place where the frame stood before the write");
+            test.World.Frames.LocalPose(ground)
+                .Position.Should()
+                .Be(place, "the spin's samples keep the place where the frame stood before the write");
         }
     }
 
@@ -199,12 +228,15 @@ public sealed class SpinFrameTests
     // ---- The spin sample matches the World ----------------------------------------------------------------------
 
     [Fact]
-    public void
-        After_a_sync_point_a_spin_frame_has_the_pose_the_linear_velocity_and_the_angular_velocity_of_its_spin_sample()
+    public void After_a_sync_point_a_spin_frame_has_the_pose_the_linear_velocity_and_the_angular_velocity_of_its_spin_sample()
     {
         using TestWorld test = NewWorld(startTime: 1);
-        var spin = new FrameSpin(Tilt: DQuaternion.FromAxisAngle(Double3.UnitZ, -0.4), Rate: 0.7, PhaseAtEpoch: 0.3,
-            Epoch: 2);
+        var spin = new FrameSpin(
+            Tilt: DQuaternion.FromAxisAngle(Double3.UnitZ, -0.4),
+            Rate: 0.7,
+            PhaseAtEpoch: 0.3,
+            Epoch: 2
+        );
         var place = new Double3(5, -6, 7);
         FrameHandle ground = test.World.GetOwnedFrame(SpawnSpinFrame(test, spin, place));
 
@@ -213,10 +245,12 @@ public sealed class SpinFrameTests
         MotionSample sample = spin.Sample(place, test.World.Time);
         test.World.Frames.LocalPose(ground).Should().Be(sample.Pose);
         // The ground hangs in the root, which is no numeric frame, so the stored velocity is the one relative to the parent.
-        test.World.Frames.TreeLinearVelocity(ground).Should()
+        test.World.Frames.TreeLinearVelocity(ground)
+            .Should()
             .Be(sample.Velocity, "a frame that turns in place does not move");
-        test.World.Frames.AngularVelocity(ground).Should().Be(sample.AngularVelocity.ToVector3(),
-            "the tree keeps the angular velocity in floats");
+        test.World.Frames.AngularVelocity(ground)
+            .Should()
+            .Be(sample.AngularVelocity.ToVector3(), "the tree keeps the angular velocity in floats");
     }
 
     // ---- Changing the motion ------------------------------------------------------------------------------
@@ -234,18 +268,21 @@ public sealed class SpinFrameTests
     public void AFrameThatGetsASpinMotionKeepsItsPlaceAndTurnsByItsSpinFromTheSecondSyncPoint()
     {
         using TestWorld test = NewWorld(startTime: 1 - 2.0 / TicksPerSecond);
-        Entity owner = test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = TestWorld.At(5),
-            AsFrame = new(FrameBounds.Sphere(100))
-        });
+        Entity owner = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = TestWorld.At(5),
+                AsFrame = new(FrameBounds.Sphere(100)),
+            }
+        );
         FrameHandle dock = test.World.GetOwnedFrame(owner);
 
         test.World.AddComponent(owner, new SpinMotion { Spin = QuarterTurnPerSecond });
         test.Run(1);
-        test.World.Frames.LocalPose(dock).Should().Be(TestWorld.At(5),
-            "the component's first sample acts in the step after its first tick");
+        test.World.Frames.LocalPose(dock)
+            .Should()
+            .Be(TestWorld.At(5), "the component's first sample acts in the step after its first tick");
         test.Run(1);
 
         test.World.Time.Should().Be(1);
@@ -267,19 +304,30 @@ public sealed class SpinFrameTests
     {
         using TestWorld test = NewWorld();
         var velocity = new Double3(10, 0, 0);
-        Lambda flight = Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            double stepEnd = self.TimeAt(self.Tick + 2);
-            self.MoveOnRails(new(Pose: new(velocity * stepEnd, DQuaternion.Identity), ChordVelocity: velocity,
-                Velocity: velocity, Acceleration: Double3.Zero,
-                AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero));
-        });
-        Entity owner = test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            AsFrame = new(FrameBounds.Sphere(100)),
-            Components = [flight]
-        });
+        var flight = Lambda.OnTick(
+            (self, scoped ref events, scoped ref outbox) =>
+            {
+                double stepEnd = self.TimeAt(self.Tick + 2);
+                self.MoveOnRails(
+                    new(
+                        Pose: new(velocity * stepEnd, DQuaternion.Identity),
+                        ChordVelocity: velocity,
+                        Velocity: velocity,
+                        Acceleration: Double3.Zero,
+                        AngularVelocity: Double3.Zero,
+                        AngularAcceleration: Double3.Zero
+                    )
+                );
+            }
+        );
+        Entity owner = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                AsFrame = new(FrameBounds.Sphere(100)),
+                Components = [flight],
+            }
+        );
         FrameHandle ship = test.World.GetOwnedFrame(owner);
         test.Run(TicksPerSecond);
         test.World.Frames.LinearVelocity(ship).Should().Be(velocity, "the ship flies before the swap");
@@ -288,15 +336,17 @@ public sealed class SpinFrameTests
         test.World.AddComponent(owner, new SpinMotion { Spin = QuarterTurnPerSecond });
         test.Run(1);
         Double3 parked = test.World.Frames.LocalPose(ship).Position;
-        parked.Should().Be(velocity * test.World.Time,
-            "the flight's last sample moves the ship in the step of the swap");
+        parked
+            .Should()
+            .Be(velocity * test.World.Time, "the flight's last sample moves the ship in the step of the swap");
 
         for (int tick = 0; tick < 4; tick++)
         {
             test.Run(1);
 
             test.World.Frames.LinearVelocity(ship).Should().Be(Double3.Zero);
-            test.World.Frames.AngularVelocity(ship).Should()
+            test.World.Frames.AngularVelocity(ship)
+                .Should()
                 .Be(new Vector3(0, MathF.PI / 2, 0), "the ship turns by its spin");
             test.World.Frames.LocalPose(ship).Position.Should().Be(parked, "a ship on a turntable turns in place");
         }
@@ -323,12 +373,15 @@ public sealed class SpinFrameTests
         using TestWorld test = NewWorld();
         int before = test.World.Stats.LiveEntities;
 
-        Action spawn = () => test.World.Spawn(new SpawnDesc
-        {
-            Frame = test.Root,
-            AsFrame = new(FrameBounds.Sphere(100)),
-            Body = new(Shape: Ramp, Motion: BodyMotion.Kinematic)
-        }.Spinning(test.World, QuarterTurnPerSecond));
+        Action spawn = () =>
+            test.World.Spawn(
+                new SpawnDesc
+                {
+                    Frame = test.Root,
+                    AsFrame = new(FrameBounds.Sphere(100)),
+                    Body = new(Shape: Ramp, Motion: BodyMotion.Kinematic),
+                }.Spinning(test.World, QuarterTurnPerSecond)
+            );
 
         spawn.Should().Throw<ArgumentException>().WithMessage("*kinematic*mesh*");
         test.World.Stats.LiveEntities.Should().Be(before);
@@ -338,16 +391,16 @@ public sealed class SpinFrameTests
     public void ASpinMotionWithASpinThatIsNotValidIsRefusedBeforeItReachesTheFrame()
     {
         using TestWorld test = NewWorld();
-        FrameHandle dock = test.World.GetOwnedFrame(test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            AsFrame = new(FrameBounds.Sphere(100))
-        }));
+        FrameHandle dock = test.World.GetOwnedFrame(
+            test.World.Spawn(new() { Frame = test.Root, AsFrame = new(FrameBounds.Sphere(100)) })
+        );
 
         // The component checks its spin, not the World: its setter refuses it.
         Action add = () =>
-            test.World.AddComponent(dock.Entity,
-                new SpinMotion { Spin = new(Tilt: DQuaternion.Identity, Rate: double.NaN) });
+            test.World.AddComponent(
+                dock.Entity,
+                new SpinMotion { Spin = new(Tilt: DQuaternion.Identity, Rate: double.NaN) }
+            );
 
         add.Should().Throw<ArgumentException>().WithMessage("*SpinMotion*spin*not valid*");
         test.World.GetComponent<SpinMotion>(dock.Entity).Should().BeNull();

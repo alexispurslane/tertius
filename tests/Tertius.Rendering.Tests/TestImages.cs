@@ -29,11 +29,20 @@ internal static class TestImages
         Uniform(width: width, height: height, r: value, g: value, b: value);
 
     /// <summary>A gray image with the pixels of <paramref name="changed"/> set to another gray.</summary>
-    public static Capture GrayWith(int width, int height, byte value, Func<int, int, bool> changed,
-        byte changedValue) =>
-        Fill(width, height, (x, y) =>
-        {
-            byte v = changed(x, y) ? changedValue : value;
-            return (v, v, v);
-        });
+    public static Capture GrayWith(
+        int width,
+        int height,
+        byte value,
+        Func<int, int, bool> changed,
+        byte changedValue
+    ) =>
+        Fill(
+            width,
+            height,
+            (x, y) =>
+            {
+                byte v = changed(x, y) ? changedValue : value;
+                return (v, v, v);
+            }
+        );
 }

@@ -20,7 +20,9 @@ namespace Tertius.Host.Tests;
 public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight flight)
     : IClassFixture<DockingAutopilotTests.DockingFlight>
 {
-    private const double Rate = DemoScenes.SpinStation.Rate, Tick = 1.0 / 60, Degree = Math.PI / 180;
+    private const double Rate = DemoScenes.SpinStation.Rate,
+        Tick = 1.0 / 60,
+        Degree = Math.PI / 180;
 
     private IReadOnlyList<DockingFlight.Record> Log => flight.Log;
 
@@ -59,12 +61,15 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
 
         start.Should().BePositive("the spin-up starts");
         (Log[start].Time - flight.OrderTime).Should().BeLessThanOrEqualTo(2 * Math.PI / Rate + Tick);
-        Log.Take(start).All(record => record.State.Value is Standby or Waiting).Should()
+        Log.Take(start)
+            .All(record => record.State.Value is Standby or Waiting)
+            .Should()
             .BeTrue("the docking waits until the start");
         Log.Take(start).Should().OnlyContain(record => !record.Added, "the docking adds nothing while it waits");
         var profile = new SpinUpProfile(Rate, DockingAutopilot.SpinUpTime, DemoStation.DockedRotation);
-        Math.Abs(profile.RollAngle(Log[start - 1].Pose.Rotation)).Should().BeLessThanOrEqualTo(Rate * Tick / 2 + 1e-4,
-            "the tick of the start read the roll angle inside the window");
+        Math.Abs(profile.RollAngle(Log[start - 1].Pose.Rotation))
+            .Should()
+            .BeLessThanOrEqualTo(Rate * Tick / 2 + 1e-4, "the tick of the start read the roll angle inside the window");
     }
 
     /// <summary>
@@ -90,7 +95,8 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
     [Fact]
     public void TheSpinUpEndsTurningWithTheStationWithTheBellyTowardTheDeck()
     {
-        DockingFlight.Record entry = FirstOf<Entry>(), start = FirstOf<SpinUp>();
+        DockingFlight.Record entry = FirstOf<Entry>(),
+            start = FirstOf<SpinUp>();
 
         (entry.Time - start.Time).Should().BeInRange(DockingAutopilot.SpinUpTime, DockingAutopilot.SpinUpTime + 2);
         entry.AngularVelocity.Length.Should().BeLessThan(0.005);
@@ -110,13 +116,15 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
         int inside = Log.ToList().FindIndex(record => record.Frame == flight.StationFrame);
 
         inside.Should().BePositive("the shuttle enters the station's frame");
-        DockingFlight.Record before = Log[inside - 1], after = Log[inside];
+        DockingFlight.Record before = Log[inside - 1],
+            after = Log[inside];
         before.Frame.Should().Be(flight.Earth);
         before.Pose.Position.Length.Should().BeInRange(128.5, 129.5, "the bounding sphere meets the bubble there");
         (after.Pose.Position - (before.Pose.Position + before.Velocity * Tick)).Length.Should().BeLessThan(1e-3);
         (after.Velocity - before.Velocity).Length.Should().BeLessThan(1e-3);
-        Log.Skip(inside).Should().OnlyContain(record =>
-            record.Frame == flight.StationFrame && record.CabinParent == flight.StationFrame);
+        Log.Skip(inside)
+            .Should()
+            .OnlyContain(record => record.Frame == flight.StationFrame && record.CabinParent == flight.StationFrame);
     }
 
     /// <summary>
@@ -129,22 +137,35 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
     {
         BoundingBox slot = DemoStation.Slot;
         DockingFlight.Record[] inTheSlot =
-            [.. Log.Where(record => record.HullMinY <= slot.Max.Y && record.HullMaxY >= slot.Min.Y)];
+        [
+            .. Log.Where(record => record.HullMinY <= slot.Max.Y && record.HullMaxY >= slot.Min.Y),
+        ];
 
         inTheSlot.Should().HaveCountGreaterThan(60 * 5, "the hull takes several seconds through the slot");
         foreach (DockingFlight.Record record in inTheSlot)
         {
             Math.Sqrt(record.Pose.Position.X * record.Pose.Position.X + record.Pose.Position.Z * record.Pose.Position.Z)
-                .Should().BeLessThan(0.25, $"the origin keeps to the axis at {record.Time:F2} s");
-            AngleBetween(record.Pose.Rotation, DemoStation.DockedRotation).Should().BeLessThan(Degree,
-                $"the hull keeps the docked rotation at {record.Time:F2} s");
-            record.HullMaxAbsX.Should().BeLessThanOrEqualTo(slot.Max.X - 0.5,
-                $"the hull keeps clear of the slot's edges along X at {record.Time:F2} s");
-            record.HullMaxAbsZ.Should().BeLessThanOrEqualTo(slot.Max.Z - 0.5,
-                $"the hull keeps clear of the slot's edges along Z at {record.Time:F2} s");
+                .Should()
+                .BeLessThan(0.25, $"the origin keeps to the axis at {record.Time:F2} s");
+            AngleBetween(record.Pose.Rotation, DemoStation.DockedRotation)
+                .Should()
+                .BeLessThan(Degree, $"the hull keeps the docked rotation at {record.Time:F2} s");
+            record
+                .HullMaxAbsX.Should()
+                .BeLessThanOrEqualTo(
+                    slot.Max.X - 0.5,
+                    $"the hull keeps clear of the slot's edges along X at {record.Time:F2} s"
+                );
+            record
+                .HullMaxAbsZ.Should()
+                .BeLessThanOrEqualTo(
+                    slot.Max.Z - 0.5,
+                    $"the hull keeps clear of the slot's edges along Z at {record.Time:F2} s"
+                );
         }
 
-        flight.FirstContactTime.Should()
+        flight
+            .FirstContactTime.Should()
             .BeGreaterThan(FirstOf<MoveOut>().Time, "nothing touches the hull before the move out");
     }
 
@@ -160,9 +181,14 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
         DockingFlight.Record[] entry = [.. Log.Where(record => record.State.Value is Entry)];
 
         entry.Should().HaveCountGreaterThan(60 * 60, "the entry takes about 90 s");
-        entry.Max(record =>
-            Math.Sqrt(record.Pose.Position.X * record.Pose.Position.X +
-                      record.Pose.Position.Z * record.Pose.Position.Z)).Should().BeLessThan(0.1);
+        entry
+            .Max(record =>
+                Math.Sqrt(
+                    record.Pose.Position.X * record.Pose.Position.X + record.Pose.Position.Z * record.Pose.Position.Z
+                )
+            )
+            .Should()
+            .BeLessThan(0.1);
     }
 
     /// <summary>
@@ -174,15 +200,20 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
     public void TheMoveOutKeepsTheHullOnItsCoRotatingPath()
     {
         DockingFlight.Record[] moveOut =
-            [.. Log.Where(record => record.State.Value is MoveOut && record.Time < flight.FirstContactTime)];
+        [
+            .. Log.Where(record => record.State.Value is MoveOut && record.Time < flight.FirstContactTime),
+        ];
 
         moveOut.Should().HaveCountGreaterThan(60 * 10, "the move out takes about half a minute");
-        Double3 from = moveOut[0].Pose.Position, to = DockingAutopilot.LandingPoint;
-        (from - DockingAutopilot.EntryEnd).Length.Should()
+        Double3 from = moveOut[0].Pose.Position,
+            to = DockingAutopilot.LandingPoint;
+        (from - DockingAutopilot.EntryEnd)
+            .Length.Should()
             .BeLessThanOrEqualTo(DockingAutopilot.EntryEndDistance * Math.Sqrt(2));
         foreach (DockingFlight.Record record in moveOut)
         {
-            Double3 offset = record.Pose.Position - from, line = (to - from).Normalized();
+            Double3 offset = record.Pose.Position - from,
+                line = (to - from).Normalized();
             double along = Math.Clamp(Double3.Dot(offset, line), 0, (to - from).Length);
             (offset - line * along).Length.Should().BeLessThan(0.3, $"the hull keeps its path at {record.Time:F2} s");
         }
@@ -220,7 +251,9 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
         DockingFlight.Record[] after = [.. Log.Skip(docked + 3)];
 
         after.Should().HaveCountGreaterThanOrEqualTo(60 * 10 - 3);
-        after.All(record => record.State.Value is Docked && !record.Added).Should()
+        after
+            .All(record => record.State.Value is Docked && !record.Added)
+            .Should()
             .BeTrue("the docked autopilot adds nothing");
         after.Max(record => (record.Pose.Position - after[0].Pose.Position).Length).Should().BeLessThan(1e-6);
         flight.Errors.Should().BeEmpty();
@@ -240,7 +273,8 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
 
         last.SeatGravity.Length.Should().BeApproximately(Rate * Rate * fromTheAxis, 0.01 * Rate * Rate * fromTheAxis);
         last.SeatGravity.Length.Should().BeApproximately(0.783, 0.01);
-        (Math.Acos(Double3.Dot(last.SeatGravity, -Double3.UnitY) / last.SeatGravity.Length) / Degree).Should()
+        (Math.Acos(Double3.Dot(last.SeatGravity, -Double3.UnitY) / last.SeatGravity.Length) / Degree)
+            .Should()
             .BeApproximately(30, 2);
         last.SeatGravity.X.Should().BeNegative("the gravity leans toward port");
     }
@@ -258,7 +292,7 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
         (Entity station, Entity shuttle, RendezvousAutopilotTests.Recorder recorder) = DockingFlight.AtTheHold(world);
         world.Post(Event.Create(target: shuttle, sender: Entity.Null, payload: new Dock()));
         Tick(world, 2);
-        var autopilot = world.GetComponent<DockingAutopilot>(shuttle)!;
+        DockingAutopilot autopilot = world.GetComponent<DockingAutopilot>(shuttle)!;
         autopilot.State.Value.Should().BeOfType<Waiting>();
 
         world.Destroy(station);
@@ -287,7 +321,7 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
             Earth = world.GetFrame(shuttle);
             StationFrame = world.GetOwnedFrame(station);
             FrameHandle cabin = world.GetOwnedFrame(shuttle);
-            var autopilot = world.GetComponent<DockingAutopilot>(shuttle)!;
+            DockingAutopilot autopilot = world.GetComponent<DockingAutopilot>(shuttle)!;
             Double3[] corners = [.. ((ConvexHullShapeDesc)Shuttle.HullShape).Points.Select(point => (Double3)point)];
             world.Post(Event.Create(target: shuttle, sender: Entity.Null, payload: new Dock()));
             OrderTime = world.Time;
@@ -306,16 +340,25 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
                 double euler = Double3.Cross((spin - lastSpin) / world.DeltaTime, seat).Length;
                 lastSpin = spin;
                 Double3[] hull = [.. corners.Select(pose.TransformPoint)];
-                Log.Add(new(Time: world.Time, State: autopilot.State, Added: recorder.TicksWithEvents > before,
-                    Frame: world.GetFrame(shuttle),
-                    CabinParent: world.Frames.Parent(cabin),
-                    Motion: world.Frames.HullMotion(cabin), Pose: pose,
-                    Velocity: world.VelocityIn(shuttle, StationFrame),
-                    AngularVelocity: world.AngularVelocityIn(shuttle, StationFrame),
-                    SeatEuler: euler, SeatGravity: world.Frames.FeltGravity(cabin, Shuttle.SeatStand),
-                    HullMinY: hull.Min(c => c.Y), HullMaxY: hull.Max(c => c.Y),
-                    HullMaxAbsX: hull.Max(c => Math.Abs(c.X)),
-                    HullMaxAbsZ: hull.Max(c => Math.Abs(c.Z))));
+                Log.Add(
+                    new(
+                        Time: world.Time,
+                        State: autopilot.State,
+                        Added: recorder.TicksWithEvents > before,
+                        Frame: world.GetFrame(shuttle),
+                        CabinParent: world.Frames.Parent(cabin),
+                        Motion: world.Frames.HullMotion(cabin),
+                        Pose: pose,
+                        Velocity: world.VelocityIn(shuttle, StationFrame),
+                        AngularVelocity: world.AngularVelocityIn(shuttle, StationFrame),
+                        SeatEuler: euler,
+                        SeatGravity: world.Frames.FeltGravity(cabin, Shuttle.SeatStand),
+                        HullMinY: hull.Min(c => c.Y),
+                        HullMaxY: hull.Max(c => c.Y),
+                        HullMaxAbsX: hull.Max(c => Math.Abs(c.X)),
+                        HullMaxAbsZ: hull.Max(c => Math.Abs(c.Z))
+                    )
+                );
                 if (autopilot.State.Value is Docked)
                     docked++;
             }
@@ -376,7 +419,8 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
             double HullMinY,
             double HullMaxY,
             double HullMaxAbsX,
-            double HullMaxAbsZ);
+            double HullMaxAbsZ
+        );
 
         /// <summary>
         /// Spawns the demo station in a root frame with Earth's point gravity, and the shuttle at the hold point at rest
@@ -384,27 +428,40 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
         /// recorder and the actuators. Returns the station, the shuttle and the recorder.
         /// </summary>
         internal static (Entity Station, Entity Shuttle, RendezvousAutopilotTests.Recorder Recorder) AtTheHold(
-            World world, IComponent? watcher = null)
+            World world,
+            IComponent? watcher = null
+        )
         {
             FrameHandle earth = RendezvousAutopilotTests.Earth(world);
-            Entity station =
-                DemoStation.Spawn(world: world, parent: earth, scene: new(), resources: RenderResources.None);
-            (Double3 center, Double3 velocity, Double3 axis) =
-                RendezvousAutopilotTests.StationNow(world, station, earth);
+            Entity station = DemoStation.Spawn(
+                world: world,
+                parent: earth,
+                scene: new(),
+                resources: RenderResources.None
+            );
+            (Double3 center, Double3 velocity, Double3 axis) = RendezvousAutopilotTests.StationNow(
+                world,
+                station,
+                earth
+            );
             Double3 hold = center + axis * DemoStation.HoldPoint.Y;
             var recorder = new RendezvousAutopilotTests.Recorder();
-            Entity shuttle = world.Spawn(new()
-            {
-                Frame = earth,
-                Pose = new(hold, AttitudeAutopilot.Facing(-axis, hold)),
-                LinearVelocity = velocity,
-                Body = Shuttle.Body(BodyMotion.Dynamic),
-                AsFrame = new(new(Shuttle.Bubble)),
-                Components =
-                [
-                    new DockingAutopilot(station), recorder, .. watcher is null ? Array.Empty<IComponent>() : [watcher]
-                ]
-            });
+            Entity shuttle = world.Spawn(
+                new()
+                {
+                    Frame = earth,
+                    Pose = new(hold, AttitudeAutopilot.Facing(-axis, hold)),
+                    LinearVelocity = velocity,
+                    Body = Shuttle.Body(BodyMotion.Dynamic),
+                    AsFrame = new(new(Shuttle.Bubble)),
+                    Components =
+                    [
+                        new DockingAutopilot(station),
+                        recorder,
+                        .. watcher is null ? Array.Empty<IComponent>() : [watcher],
+                    ],
+                }
+            );
             Shuttle.FitActuators(world, shuttle);
             return (station, shuttle, recorder);
         }

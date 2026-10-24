@@ -34,7 +34,8 @@ public sealed record FilmSection(
     int Hold = 0,
     IReadOnlyList<PostStep>? Posts = null,
     int Limit = FilmSection.DefaultLimit,
-    bool Outlines = false)
+    bool Outlines = false
+)
 {
     /// <summary>The <see cref="Limit"/> of a section that names none: 10 minutes of the engine's 60 ticks per second.</summary>
     public const int DefaultLimit = 36_000;
@@ -68,8 +69,10 @@ public static class FilmScript
         // As the command makes the world of a headless run, but with no puffs. Gameplay and physics read nothing of the
         // puffs (WorldOptions.PuffCapacity), so no cue sees them, and the rehearsal reaches each cue at the same tick. The
         // puffs of the demo's plumes took about half of the time of a rehearsal.
-        using var world = new World(new() { DisposePhysics = true, PuffCapacity = 0 },
-            new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
+        using var world = new World(
+            new() { DisposePhysics = true, PuffCapacity = 0 },
+            new JoltPhysicsBackend(JoltBackendOptions.Unpaced)
+        );
         SceneInstance instance = scene.Build(world, RenderResources.None);
         var steps = new List<ScriptStep>();
         // The outlines start off, as World.ShowFrameOutlines does, so a script with no section that shows them has no
@@ -81,7 +84,10 @@ public static class FilmScript
             ArgumentOutOfRangeException.ThrowIfNegative(section.Hold);
             ArgumentOutOfRangeException.ThrowIfLessThan(section.Limit, 1);
             List<ScriptStep> opening =
-                [new CameraStep(section.Camera), .. (section.Posts ?? []).Select(post => (ScriptStep)post)];
+            [
+                new CameraStep(section.Camera),
+                .. (section.Posts ?? []).Select(post => (ScriptStep)post),
+            ];
             if (section.Outlines != outlines)
                 opening.Insert(0, new OutlinesStep(section.Outlines));
             outlines = section.Outlines;
@@ -104,7 +110,8 @@ public static class FilmScript
         {
             if (frames * section.Every >= section.Limit)
                 throw new InvalidOperationException(
-                    $"The cue of the section '{section.Name}' did not hold within its limit of {section.Limit} ticks.");
+                    $"The cue of the section '{section.Name}' did not hold within its limit of {section.Limit} ticks."
+                );
             RunFrame();
         }
 

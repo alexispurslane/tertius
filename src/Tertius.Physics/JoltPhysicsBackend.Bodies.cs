@@ -22,8 +22,12 @@ public sealed partial class JoltPhysicsBackend
         if (record.Character is { } character)
         {
             var position = character.RPosition.ToDouble3();
-            return new(Pose: new(position, character.Rotation.ToDouble()), CenterOfMass: position,
-                Linear: character.LinearVelocity, Angular: Vector3.Zero);
+            return new(
+                Pose: new(position, character.Rotation.ToDouble()),
+                CenterOfMass: position,
+                Linear: character.LinearVelocity,
+                Angular: Vector3.Zero
+            );
         }
 
         BodyInterface bodies = record.World.Bodies;
@@ -31,8 +35,12 @@ public sealed partial class JoltPhysicsBackend
         bodies.GetRCenterOfMassPosition(record.Body, out RVector3 centerOfMass);
         bodies.GetLinearAndAngularVelocity(record.Body, out Vector3 linear, out Vector3 angular);
         Quaternion rotation = bodies.GetRotation(record.Body);
-        return new(Pose: new(origin.ToDouble3(), rotation.ToDouble()), CenterOfMass: centerOfMass.ToDouble3(),
-            Linear: linear, Angular: angular);
+        return new(
+            Pose: new(origin.ToDouble3(), rotation.ToDouble()),
+            CenterOfMass: centerOfMass.ToDouble3(),
+            Linear: linear,
+            Angular: angular
+        );
     }
 
     /// <summary>The body origin of the primary body, in its frame.</summary>
@@ -45,12 +53,13 @@ public sealed partial class JoltPhysicsBackend
         return origin.ToDouble3();
     }
 
-    private static MotionType ToMotionType(BodyMotion motion) => motion switch
-    {
-        BodyMotion.Static => MotionType.Static,
-        BodyMotion.Kinematic => MotionType.Kinematic,
-        BodyMotion.Dynamic or BodyMotion.Character => MotionType.Dynamic
-    };
+    private static MotionType ToMotionType(BodyMotion motion) =>
+        motion switch
+        {
+            BodyMotion.Static => MotionType.Static,
+            BodyMotion.Kinematic => MotionType.Kinematic,
+            BodyMotion.Dynamic or BodyMotion.Character => MotionType.Dynamic,
+        };
 
     /// <summary>
     /// The role of an ordinary body's layer, which is the description's layer with two exceptions. A static body on the
@@ -58,12 +67,13 @@ public sealed partial class JoltPhysicsBackend
     /// matter, and Jolt keeps static bodies out of the moving broad-phase tree. A character always has the Moving role,
     /// as its inner body and its movement always had the Moving layer.
     /// </summary>
-    private static BodyLayer RoleFor(BodyDesc desc) => desc.Motion switch
-    {
-        BodyMotion.Character => BodyLayer.Moving,
-        BodyMotion.Static when desc.Layer == BodyLayer.Moving => BodyLayer.Static,
-        BodyMotion.Static or BodyMotion.Kinematic or BodyMotion.Dynamic => desc.Layer
-    };
+    private static BodyLayer RoleFor(BodyDesc desc) =>
+        desc.Motion switch
+        {
+            BodyMotion.Character => BodyLayer.Moving,
+            BodyMotion.Static when desc.Layer == BodyLayer.Moving => BodyLayer.Static,
+            BodyMotion.Static or BodyMotion.Kinematic or BodyMotion.Dynamic => desc.Layer,
+        };
 
     /// <summary>
     /// The object layer of a record's primary body, which is also the layer that a character moves with. A frame's hull
@@ -105,11 +115,11 @@ public sealed partial class JoltPhysicsBackend
             return;
         }
 
-        BodyDesc desc = create.Desc ??
-                        throw new ArgumentException($"The BodyCreate for {entity} has no body description.");
+        BodyDesc desc =
+            create.Desc ?? throw new ArgumentException($"The BodyCreate for {entity} has no body description.");
         bool ownsFrame = frames.TryGetFrame(entity, out FrameHandle owned);
         // A root frame has no parent, so its owner has no hull, and its body is only the frame's static interior.
-        var role = BodyRole.OwnsNoFrame;
+        BodyRole role = BodyRole.OwnsNoFrame;
         if (ownsFrame)
             role = ParentOf(owned).IsNull ? BodyRole.OwnsRootFrame : BodyRole.Hull;
         BodyMotion motion = role == BodyRole.OwnsRootFrame ? BodyMotion.Static : desc.Motion;
@@ -122,9 +132,9 @@ public sealed partial class JoltPhysicsBackend
             Desc = desc,
             Material = desc.Motion == BodyMotion.Character ? RigidForm(desc) : desc,
             CollisionGroups = desc.CollisionGroups,
-            CollisionMask = desc.CollisionMask
+            CollisionMask = desc.CollisionMask,
+            Motion = motion,
         };
-        record.Motion = motion;
         if (ownsFrame)
         {
             record.OwnedFrame = owned;
@@ -152,7 +162,8 @@ public sealed partial class JoltPhysicsBackend
         else if (entity.Index < (uint)records.Length && records[entity.Index] is { } stale)
         {
             log(
-                $"Physics: {stale.Entity} still had a body when its slot was reused by {entity}. The old body is removed.");
+                $"Physics: {stale.Entity} still had a body when its slot was reused by {entity}. The old body is removed."
+            );
             DestroyRecord(stale.Entity);
         }
 
@@ -180,10 +191,14 @@ public sealed partial class JoltPhysicsBackend
                 record.Up = Vector3.Transform(Vector3.UnitY, create.Pose.Rotation.ToJolt());
                 var pose = new DPose(InHome(create.Frame, create.Pose.Position), create.Pose.Rotation);
                 // The spawn velocities are instant velocities. The next step makes their chords.
-                CreatePrimary(record: record, frame: create.Frame, pose: pose,
+                CreatePrimary(
+                    record: record,
+                    frame: create.Frame,
+                    pose: pose,
                     linearVelocity: LocalVelocity(create.Frame, create.LinearVelocity).ToVector3(),
                     angularVelocity: create.AngularVelocity,
-                    upFromGravity: true);
+                    upFromGravity: true
+                );
                 if (record.Character is not null)
                     record.InstantVelocityStep = stepIndex + 1;
                 else
@@ -212,18 +227,35 @@ public sealed partial class JoltPhysicsBackend
     /// another system does. The new body has no velocity shadow: a spawn, a hand-off and a switch of a character's form
     /// give it velocities that no update expected (see <see cref="BodyRecord.Shadow"/>).
     /// </summary>
-    private void CreatePrimary(BodyRecord record, FrameHandle frame, in DPose pose, Vector3 linearVelocity,
-        Vector3 angularVelocity, bool upFromGravity,
-        bool awake = true)
+    private void CreatePrimary(
+        BodyRecord record,
+        FrameHandle frame,
+        in DPose pose,
+        Vector3 linearVelocity,
+        Vector3 angularVelocity,
+        bool upFromGravity,
+        bool awake = true
+    )
     {
         record.Shadow = default;
         FrameWorld world = WorldFor(frame);
         if (record.Motion == BodyMotion.Character)
-            record.Character = CreateCharacter(record: record, world: world, pose: pose, linearVelocity: linearVelocity,
-                upFromGravity: upFromGravity);
+            record.Character = CreateCharacter(
+                record: record,
+                world: world,
+                pose: pose,
+                linearVelocity: linearVelocity,
+                upFromGravity: upFromGravity
+            );
         else
-            record.Body = CreateRigid(world: world, spec: PrimarySpec(record), pose: pose,
-                linearVelocity: linearVelocity, angularVelocity: angularVelocity, awake: awake);
+            record.Body = CreateRigid(
+                world: world,
+                spec: PrimarySpec(record),
+                pose: pose,
+                linearVelocity: linearVelocity,
+                angularVelocity: angularVelocity,
+                awake: awake
+            );
         record.Frame = frame;
         record.World = world;
         world.AddMember(record);
@@ -238,8 +270,14 @@ public sealed partial class JoltPhysicsBackend
     {
         DPose pose = frames.TreeLocalPose(record.OwnedFrame);
         (Vector3 linear, Vector3 angular) = HullVelocityFromTree(record, pose);
-        CreatePrimary(record: record, frame: parent, pose: pose, linearVelocity: linear, angularVelocity: angular,
-            upFromGravity: false);
+        CreatePrimary(
+            record: record,
+            frame: parent,
+            pose: pose,
+            linearVelocity: linear,
+            angularVelocity: angular,
+            upFromGravity: false
+        );
     }
 
     /// <summary>
@@ -267,8 +305,13 @@ public sealed partial class JoltPhysicsBackend
     private void CreateInterior(BodyRecord record)
     {
         FrameWorld world = WorldFor(record.OwnedFrame);
-        record.InteriorBody = CreateRigid(world: world, spec: InteriorSpec(record), pose: DPose.Identity,
-            linearVelocity: Vector3.Zero, angularVelocity: Vector3.Zero);
+        record.InteriorBody = CreateRigid(
+            world: world,
+            spec: InteriorSpec(record),
+            pose: DPose.Identity,
+            linearVelocity: Vector3.Zero,
+            angularVelocity: Vector3.Zero
+        );
         record.InteriorWorld = world;
     }
 
@@ -296,17 +339,23 @@ public sealed partial class JoltPhysicsBackend
         ulong UserData,
         BodyDesc Material,
         bool MotionChanges = false,
-        AllowedDOFs Freedom = AllowedDOFs.All);
+        AllowedDOFs Freedom = AllowedDOFs.All
+    );
 
     /// <summary>
     /// The spec of a record's primary rigid body: its own body, the rigid form of a character, or the hull of the frame that
     /// it owns. Its shape and material come from <see cref="BodyRecord.Material"/>.
     /// </summary>
     private static RigidSpec PrimarySpec(BodyRecord record) =>
-        new(Shape: record.Material.Shape, Motion: ToMotionType(record.Motion), Layer: PrimaryLayer(record),
-            UserData: BodyUserData.Encode(BodyKind.Primary, record.Entity), Material: record.Material,
+        new(
+            Shape: record.Material.Shape,
+            Motion: ToMotionType(record.Motion),
+            Layer: PrimaryLayer(record),
+            UserData: BodyUserData.Encode(BodyKind.Primary, record.Entity),
+            Material: record.Material,
             MotionChanges: record.IsHull && !record.HasMesh,
-            Freedom: record.IsCharacter ? TranslationOnly : AllowedDOFs.All);
+            Freedom: record.IsCharacter ? TranslationOnly : AllowedDOFs.All
+        );
 
     /// <summary>
     /// The spec of the interior of the frame that a record owns, in the frame's own system, with the Jolt motion of
@@ -314,10 +363,14 @@ public sealed partial class JoltPhysicsBackend
     /// mass (see <see cref="Settings"/>).
     /// </summary>
     private static RigidSpec InteriorSpec(BodyRecord record) =>
-        new(Shape: record.Desc.InteriorShape ?? record.Desc.Shape, Motion: InteriorMotion(record),
+        new(
+            Shape: record.Desc.InteriorShape ?? record.Desc.Shape,
+            Motion: InteriorMotion(record),
             Layer: InteriorLayer(record),
             UserData: BodyUserData.Encode(BodyKind.Interior, record.Entity),
-            Material: record.Desc, MotionChanges: true);
+            Material: record.Desc,
+            MotionChanges: true
+        );
 
     /// <summary>
     /// The Jolt motion of the interior of the frame that a record owns: static while the hull is static, and kinematic
@@ -344,8 +397,11 @@ public sealed partial class JoltPhysicsBackend
         MotionType motion = InteriorMotion(owner);
         if (bodies.GetMotionType(owner.InteriorBody) == motion)
             return false;
-        bodies.SetMotionType(owner.InteriorBody, motion,
-            motion == MotionType.Static ? Activation.DontActivate : Activation.Activate);
+        bodies.SetMotionType(
+            owner.InteriorBody,
+            motion,
+            motion == MotionType.Static ? Activation.DontActivate : Activation.Activate
+        );
         return true;
     }
 
@@ -357,9 +413,14 @@ public sealed partial class JoltPhysicsBackend
     /// creates it to allow that and gives it a mass (see <see cref="Settings"/>).
     /// </summary>
     private static RigidSpec GhostSpec(BodyRecord record, MotionType motion, ObjectLayer layer) =>
-        new(Shape: record.Desc.Shape, Motion: motion, Layer: layer,
-            UserData: BodyUserData.Encode(BodyKind.Ghost, record.Entity), Material: record.Desc,
-            MotionChanges: !record.IsMovable);
+        new(
+            Shape: record.Desc.Shape,
+            Motion: motion,
+            Layer: layer,
+            UserData: BodyUserData.Encode(BodyKind.Ghost, record.Entity),
+            Material: record.Desc,
+            MotionChanges: !record.IsMovable
+        );
 
     /// <summary>
     /// The Jolt motion of a ghost of a record's body that moves in its system with <paramref name="linear"/> m/s and
@@ -386,18 +447,31 @@ public sealed partial class JoltPhysicsBackend
     /// Creates a rigid body in the system of <paramref name="world"/>, which grows first if it is full. A body that moves is
     /// awake unless <paramref name="awake"/> is false.
     /// </summary>
-    private BodyID CreateRigid(FrameWorld world, in RigidSpec spec, in DPose pose, Vector3 linearVelocity,
-        Vector3 angularVelocity, bool awake = true)
+    private BodyID CreateRigid(
+        FrameWorld world,
+        in RigidSpec spec,
+        in DPose pose,
+        Vector3 linearVelocity,
+        Vector3 angularVelocity,
+        bool awake = true
+    )
     {
         EnsureRoom(world);
-        using BodyCreationSettings settings = Settings(spec: spec, position: pose.Position.ToJolt(),
+        using BodyCreationSettings settings = Settings(
+            spec: spec,
+            position: pose.Position.ToJolt(),
             rotation: pose.Rotation.ToJolt(),
-            linearVelocity: linearVelocity, angularVelocity: angularVelocity);
-        BodyID id = world.Bodies.CreateAndAddBody(settings,
-            spec.Motion == MotionType.Static || !awake ? Activation.DontActivate : Activation.Activate);
+            linearVelocity: linearVelocity,
+            angularVelocity: angularVelocity
+        );
+        BodyID id = world.Bodies.CreateAndAddBody(
+            settings,
+            spec.Motion == MotionType.Static || !awake ? Activation.DontActivate : Activation.Activate
+        );
         return id.IsInvalid
             ? throw new InvalidOperationException(
-                $"Jolt refused to create a body in {world.Frame}, although its system had room.")
+                $"Jolt refused to create a body in {world.Frame}, although its system had room."
+            )
             : id;
     }
 
@@ -405,13 +479,23 @@ public sealed partial class JoltPhysicsBackend
     /// The Jolt settings that create a rigid body from its spec and its state. Every rigid body comes from here, both when
     /// the backend creates it and when a growth moves it to a larger system.
     /// </summary>
-    private BodyCreationSettings Settings(in RigidSpec spec, RVector3 position, Quaternion rotation,
-        Vector3 linearVelocity, Vector3 angularVelocity)
+    private BodyCreationSettings Settings(
+        in RigidSpec spec,
+        RVector3 position,
+        Quaternion rotation,
+        Vector3 linearVelocity,
+        Vector3 angularVelocity
+    )
     {
         BodyDesc material = spec.Material;
         BodyCreationSettings settings = NativeOwnership.Owned(
-            new BodyCreationSettings(shape: shapes.Get(spec.Shape), position: position, rotation: rotation,
-                motionType: spec.Motion, objectLayer: spec.Layer)
+            new BodyCreationSettings(
+                shape: shapes.Get(spec.Shape),
+                position: position,
+                rotation: rotation,
+                motionType: spec.Motion,
+                objectLayer: spec.Layer
+            )
             {
                 UserData = spec.UserData,
                 Friction = material.Friction,
@@ -441,8 +525,9 @@ public sealed partial class JoltPhysicsBackend
                 // 0.8 mm deeper and roll to and fro for seconds, where without it the ball rests in the groove
                 // (ConvexRadiusTests). A convex body has no joints. Each body of an entity follows its own shape: a ghost
                 // has the body's shape, and an interior its own.
-                EnhancedInternalEdgeRemoval = spec.Shape.IsMadeOfSharpPieces()
-            });
+                EnhancedInternalEdgeRemoval = spec.Shape.IsMadeOfSharpPieces(),
+            }
+        );
         // Jolt gives a body that is or can become kinematic motion properties from its mass, but it cannot compute the mass
         // of a mesh, and would divide by zero. A mesh is never dynamic, and Jolt reads the mass only of a dynamic body, so
         // the mass of 1 kg only keeps Jolt's inverse mass finite. Of a mesh, only a ghost moves (see GhostMotion).
@@ -479,8 +564,13 @@ public sealed partial class JoltPhysicsBackend
     /// rotation turns to that up. Without it, the character keeps the record's last up and the rotation of
     /// <paramref name="pose"/>, as a character in free fall does.
     /// </summary>
-    private CharacterVirtual CreateCharacter(BodyRecord record, FrameWorld world, in DPose pose, Vector3 linearVelocity,
-        bool upFromGravity)
+    private CharacterVirtual CreateCharacter(
+        BodyRecord record,
+        FrameWorld world,
+        in DPose pose,
+        Vector3 linearVelocity,
+        bool upFromGravity
+    )
     {
         // The character's inner body takes a place in the system.
         EnsureRoom(world);
@@ -498,9 +588,13 @@ public sealed partial class JoltPhysicsBackend
 
         record.Standing = false;
         record.Held = false;
-        CharacterVirtual character =
-            NewCharacter(record: record, system: world.System, position: pose.Position.ToJolt(), rotation: rotation,
-                linearVelocity: linearVelocity);
+        CharacterVirtual character = NewCharacter(
+            record: record,
+            system: world.System,
+            position: pose.Position.ToJolt(),
+            rotation: rotation,
+            linearVelocity: linearVelocity
+        );
         world.WalkingCharacterCount++;
         return character;
     }
@@ -509,8 +603,13 @@ public sealed partial class JoltPhysicsBackend
     /// The character of a record in <paramref name="system"/>, with up along <see cref="BodyRecord.Up"/>. Every character
     /// comes from here, both when the backend creates it and when a growth moves it to a larger system.
     /// </summary>
-    private CharacterVirtual NewCharacter(BodyRecord record, PhysicsSystem system, RVector3 position,
-        Quaternion rotation, Vector3 linearVelocity)
+    private CharacterVirtual NewCharacter(
+        BodyRecord record,
+        PhysicsSystem system,
+        RVector3 position,
+        Quaternion rotation,
+        Vector3 linearVelocity
+    )
     {
         var capsule = (CapsuleShapeDesc)record.Desc.Shape;
         Shape shape = shapes.Get(capsule);
@@ -545,11 +644,17 @@ public sealed partial class JoltPhysicsBackend
             // the floor's flag, so it keeps both contacts of a groove. The flag adds about 2 % to the tick of 100
             // characters that walk across the joints of a ring's hulls, and nothing on its mesh
             // (EdgeRemovalBenchmarks).
-            EnhancedInternalEdgeRemoval = true
+            EnhancedInternalEdgeRemoval = true,
         };
-        CharacterVirtual character = NativeOwnership.Owned(new CharacterVirtual(settings: settings, position: position,
-            rotation: rotation,
-            userData: BodyUserData.Encode(BodyKind.CharacterInner, record.Entity), physicsSystem: system));
+        CharacterVirtual character = NativeOwnership.Owned(
+            new CharacterVirtual(
+                settings: settings,
+                position: position,
+                rotation: rotation,
+                userData: BodyUserData.Encode(BodyKind.CharacterInner, record.Entity),
+                physicsSystem: system
+            )
+        );
         character.LinearVelocity = linearVelocity;
         return character;
     }
@@ -680,8 +785,12 @@ public sealed partial class JoltPhysicsBackend
         bodies.GetRPosition(body, out RVector3 position);
         Quaternion rotation = bodies.GetRotation(body);
         Quaternion target = pose.Rotation.ToJolt();
-        var difference = new Vector4(x: rotation.X - target.X, y: rotation.Y - target.Y, z: rotation.Z - target.Z,
-            w: rotation.W - target.W);
+        var difference = new Vector4(
+            x: rotation.X - target.X,
+            y: rotation.Y - target.Y,
+            z: rotation.Z - target.Z,
+            w: rotation.W - target.W
+        );
         return (position.ToDouble3() - pose.Position).LengthSquared <= 1e-12 && difference.LengthSquared() <= 1e-12f;
     }
 
@@ -714,14 +823,18 @@ public sealed partial class JoltPhysicsBackend
         foreach (BodyRecord owner in frameOwners)
         {
             // The owner of a root frame has no hull, and the tree keeps no motion for it.
-            if (!owner.HasPrimary || frames.HullMotionInStep(owner.OwnedFrame, intents) is not { } motion ||
-                motion == owner.Motion)
+            if (
+                !owner.HasPrimary
+                || frames.HullMotionInStep(owner.OwnedFrame, intents) is not { } motion
+                || motion == owner.Motion
+            )
                 continue;
             if ((owner.Desc with { Motion = motion }).Problem(BodyRole.Hull) is { } problem)
             {
                 ReportBug(
-                    $"Physics: the running step gives the hull of {owner.Entity} the motion {motion}, but as a hull its body {problem}. " +
-                    $"Only a bug gives it that motion, so the hull keeps the motion {owner.Motion}.");
+                    $"Physics: the running step gives the hull of {owner.Entity} the motion {motion}, but as a hull its body {problem}. "
+                        + $"Only a bug gives it that motion, so the hull keeps the motion {owner.Motion}."
+                );
                 continue;
             }
 
@@ -766,8 +879,14 @@ public sealed partial class JoltPhysicsBackend
             var pose = new DPose(position.ToDouble3(), bodies.GetRotation(ghost.Body).ToDouble());
             bodies.GetLinearAndAngularVelocity(ghost.Body, out Vector3 linear, out Vector3 angular);
             RemoveGhostBody(ghost);
-            ghost.Body = CreateGhostBody(record: record, world: ghost.World, pose: pose, linear: linear,
-                angular: angular, role: ghost.Role);
+            ghost.Body = CreateGhostBody(
+                record: record,
+                world: ghost.World,
+                pose: pose,
+                linear: linear,
+                angular: angular,
+                role: ghost.Role
+            );
         }
     }
 
@@ -777,12 +896,22 @@ public sealed partial class JoltPhysicsBackend
     /// <paramref name="angular"/> there, with the Jolt motion of <see cref="GhostMotion"/>, and counts it among the ghosts
     /// of the system with the record's contact motion (see <see cref="FrameWorld.AddGhost"/>). Every ghost comes from here.
     /// </summary>
-    private BodyID CreateGhostBody(BodyRecord record, FrameWorld world, in DPose pose, Vector3 linear, Vector3 angular,
-        BodyLayer role)
+    private BodyID CreateGhostBody(
+        BodyRecord record,
+        FrameWorld world,
+        in DPose pose,
+        Vector3 linear,
+        Vector3 angular,
+        BodyLayer role
+    )
     {
-        BodyID id = CreateRigid(world: world,
-            spec: GhostSpec(record, GhostMotion(record, linear, angular), GhostLayer(record, role)), pose: pose,
-            linearVelocity: linear, angularVelocity: angular);
+        BodyID id = CreateRigid(
+            world: world,
+            spec: GhostSpec(record, GhostMotion(record, linear, angular), GhostLayer(record, role)),
+            pose: pose,
+            linearVelocity: linear,
+            angularVelocity: angular
+        );
         world.AddGhost(id, GhostContactMotion(record));
         return id;
     }
@@ -809,8 +938,12 @@ public sealed partial class JoltPhysicsBackend
         bodies.SetMotionType(hull, motion, activation);
         // The same motion quality as a hull that the backend creates with this motion (see Settings).
         bodies.SetMotionQuality(hull, motion == MotionType.Dynamic ? MotionQuality.LinearCast : MotionQuality.Discrete);
-        bodies.SetRPositionAndRotation(bodyID: hull, position: pose.Position.ToJolt(), rotation: pose.Rotation.ToJolt(),
-            activationMode: activation);
+        bodies.SetRPositionAndRotation(
+            bodyID: hull,
+            position: pose.Position.ToJolt(),
+            rotation: pose.Rotation.ToJolt(),
+            activationMode: activation
+        );
         if (moves && motion == MotionType.Static)
             world.WakeAround(hull);
         // Jolt stops a body that becomes static.

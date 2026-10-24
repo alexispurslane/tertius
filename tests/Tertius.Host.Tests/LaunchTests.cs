@@ -17,22 +17,31 @@ public sealed class LaunchTests : IDisposable
     public LaunchTests()
     {
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        Entity ship = world.Spawn(new()
-        {
-            Frame = space,
-            LinearVelocity = new(20, 0, 0),
-            Body = new(Shape: new SphereShapeDesc(0.5f), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
-                InteriorShape: new SphereShapeDesc(0.05f)),
-            AsFrame = new(FrameBounds.Sphere(100))
-        });
+        Entity ship = world.Spawn(
+            new()
+            {
+                Frame = space,
+                LinearVelocity = new(20, 0, 0),
+                Body = new(
+                    Shape: new SphereShapeDesc(0.5f),
+                    Mass: 1000,
+                    LinearDamping: 0,
+                    AngularDamping: 0,
+                    InteriorShape: new SphereShapeDesc(0.05f)
+                ),
+                AsFrame = new(FrameBounds.Sphere(100)),
+            }
+        );
         frame = world.GetOwnedFrame(ship);
-        crate = world.Spawn(new()
-        {
-            Frame = frame,
-            Pose = new(new(0, 0, 10), DQuaternion.Identity),
-            Body = new(Shape: new BoxShapeDesc(new(0.2f)), Mass: 5, LinearDamping: 0, AngularDamping: 0),
-            Components = [new Launchable()]
-        });
+        crate = world.Spawn(
+            new()
+            {
+                Frame = frame,
+                Pose = new(new(0, 0, 10), DQuaternion.Identity),
+                Body = new(Shape: new BoxShapeDesc(new(0.2f)), Mass: 5, LinearDamping: 0, AngularDamping: 0),
+                Components = [new Launchable()],
+            }
+        );
         world.Tick();
     }
 

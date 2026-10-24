@@ -35,8 +35,10 @@ internal sealed class SwitchStatements
     // a closed hierarchy reads it, so the first such switch builds it.
     private readonly Lazy<Dictionary<INamedTypeSymbol, List<INamedTypeSymbol>>> subtypes;
 
-    private SwitchStatements(Compilation compilation) =>
+    private SwitchStatements(Compilation compilation)
+    {
         subtypes = new(() => DirectSubtypes(compilation));
+    }
 
     public static void Start(CompilationStartAnalysisContext context)
     {
@@ -52,13 +54,24 @@ internal sealed class SwitchStatements
         string name = type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
         List<string> missing = Missing(statement, set);
         if (missing.Count > 0)
-            context.ReportDiagnostic(Diagnostic.Create(StyleRules.UnnamedCase,
-                ((SwitchStatementSyntax)statement.Syntax).SwitchKeyword.GetLocation(), name,
-                $"does not name {Listed(missing)}"));
+            context.ReportDiagnostic(
+                Diagnostic.Create(
+                    StyleRules.UnnamedCase,
+                    ((SwitchStatementSyntax)statement.Syntax).SwitchKeyword.GetLocation(),
+                    name,
+                    $"does not name {Listed(missing)}"
+                )
+            );
         foreach (ISwitchCaseOperation section in statement.Cases.Where(section => !OnlyThrowsUnreachable(section)))
         foreach (IDefaultCaseClauseOperation label in section.Clauses.OfType<IDefaultCaseClauseOperation>())
-            context.ReportDiagnostic(Diagnostic.Create(StyleRules.UnnamedCase, label.Syntax.GetLocation(), name,
-                "has a default section that does more than throw UnreachableException"));
+            context.ReportDiagnostic(
+                Diagnostic.Create(
+                    StyleRules.UnnamedCase,
+                    label.Syntax.GetLocation(),
+                    name,
+                    "has a default section that does more than throw UnreachableException"
+                )
+            );
     }
 
     /// <summary>The closed set that <paramref name="type"/> is, or null for a type that is no closed set.</summary>
@@ -68,14 +81,17 @@ internal sealed class SwitchStatements
             return new ClosedSet(
                 Cases:
                 [
-                    .. type.InstanceConstructors
-                        .Where(constructor => constructor is
-                            { DeclaredAccessibility: Accessibility.Public, Parameters.Length: 1 })
-                        .Select(constructor => constructor.Parameters[0].Type)
+                    .. type
+                        .InstanceConstructors.Where(constructor =>
+                            constructor is { DeclaredAccessibility: Accessibility.Public, Parameters.Length: 1 }
+                        )
+                        .Select(constructor => constructor.Parameters[0].Type),
                 ],
-                HasEmptyValue: ZeroCase(type) == null);
-        return IsDeclaredWith(type, "closed", context) &&
-               subtypes.Value.TryGetValue(type.OriginalDefinition, out List<INamedTypeSymbol>? cases)
+                HasEmptyValue: ZeroCase(type) == null
+            );
+        return
+            IsDeclaredWith(type, "closed", context)
+            && subtypes.Value.TryGetValue(type.OriginalDefinition, out List<INamedTypeSymbol>? cases)
             ? new ClosedSet(Cases: [.. cases], HasEmptyValue: false)
             : null;
     }
@@ -88,13 +104,18 @@ internal sealed class SwitchStatements
     {
         var named = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
         bool namesNull = false;
-        foreach (IPatternCaseClauseOperation label in statement.Cases.SelectMany(section => section.Clauses)
-                     .OfType<IPatternCaseClauseOperation>().Where(label => label.Guard == null))
+        foreach (
+            IPatternCaseClauseOperation label in statement
+                .Cases.SelectMany(section => section.Clauses)
+                .OfType<IPatternCaseClauseOperation>()
+                .Where(label => label.Guard == null)
+        )
             Name(label.Pattern, named, ref namesNull);
         List<string> missing =
         [
-            .. set.Cases.Where(type => !named.Contains(type))
-                .Select(type => type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat))
+            .. set
+                .Cases.Where(type => !named.Contains(type))
+                .Select(type => type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)),
         ];
         if (set.HasEmptyValue && !namesNull)
             missing.Add("null");
@@ -121,14 +142,15 @@ internal sealed class SwitchStatements
     }
 
     /// <summary>The type whose every value <paramref name="pattern"/> matches, or null.</summary>
-    private static ITypeSymbol? TypeMatchedInFull(IPatternOperation pattern) => pattern switch
-    {
-        ITypePatternOperation type => type.MatchedType,
-        IDeclarationPatternOperation { MatchedType: { } type } => type,
-        IRecursivePatternOperation { MatchedType: { } type } recursive when MatchesAll(recursive) => type,
-        // Any other pattern, such as a subpattern that tests a value, a relation or a negation, names no case in full.
-        _ => null
-    };
+    private static ITypeSymbol? TypeMatchedInFull(IPatternOperation pattern) =>
+        pattern switch
+        {
+            ITypePatternOperation type => type.MatchedType,
+            IDeclarationPatternOperation { MatchedType: { } type } => type,
+            IRecursivePatternOperation { MatchedType: { } type } recursive when MatchesAll(recursive) => type,
+            // Any other pattern, such as a subpattern that tests a value, a relation or a negation, names no case in full.
+            _ => null,
+        };
 
     /// <summary>
     /// True for a property or positional pattern whose subpatterns all match every value. The input of each subpattern
@@ -137,11 +159,18 @@ internal sealed class SwitchStatements
     /// </summary>
     private static bool MatchesAll(IRecursivePatternOperation pattern) =>
         pattern.PropertySubpatterns.All(property =>
-            MatchesAll(property.Pattern, DeclaredType(property.Member) ?? property.Pattern.InputType)) &&
-        pattern.DeconstructionSubpatterns.Select((element, index) =>
-                MatchesAll(element, pattern.DeconstructSymbol is IMethodSymbol deconstruct
-                    ? deconstruct.Parameters[index].Type
-                    : element.InputType))
+            MatchesAll(property.Pattern, DeclaredType(property.Member) ?? property.Pattern.InputType)
+        )
+        && pattern
+            .DeconstructionSubpatterns.Select(
+                (element, index) =>
+                    MatchesAll(
+                        element,
+                        pattern.DeconstructSymbol is IMethodSymbol deconstruct
+                            ? deconstruct.Parameters[index].Type
+                            : element.InputType
+                    )
+            )
             .All(matches => matches);
 
     /// <summary>
@@ -150,42 +179,46 @@ internal sealed class SwitchStatements
     /// <c>string</c> that is not nullable. The compiler reads a switch expression that way when it checks for a missing
     /// case.
     /// </summary>
-    private static bool MatchesAll(IPatternOperation pattern, ITypeSymbol input) => pattern switch
-    {
-        IDiscardPatternOperation or IDeclarationPatternOperation { MatchesNull: true } => true,
-        IDeclarationPatternOperation { MatchedType: { } type } => IsEveryValueOf(type, input),
-        ITypePatternOperation { MatchedType: var type } => IsEveryValueOf(type, input),
-        _ => false
-    };
+    private static bool MatchesAll(IPatternOperation pattern, ITypeSymbol input) =>
+        pattern switch
+        {
+            IDiscardPatternOperation or IDeclarationPatternOperation { MatchesNull: true } => true,
+            IDeclarationPatternOperation { MatchedType: { } type } => IsEveryValueOf(type, input),
+            ITypePatternOperation { MatchedType: var type } => IsEveryValueOf(type, input),
+            _ => false,
+        };
 
     /// <summary>The declared type of the property or field that a property subpattern reads, or null.</summary>
-    private static ITypeSymbol? DeclaredType(IOperation member) => member switch
-    {
-        IPropertyReferenceOperation { Property.Type: var type } => type,
-        IFieldReferenceOperation { Field.Type: var type } => type,
-        _ => null
-    };
+    private static ITypeSymbol? DeclaredType(IOperation member) =>
+        member switch
+        {
+            IPropertyReferenceOperation { Property.Type: var type } => type,
+            IFieldReferenceOperation { Field.Type: var type } => type,
+            _ => null,
+        };
 
     /// <summary>
     /// True when every value of <paramref name="input"/> is a <paramref name="type"/>, which is not null. Roslyn gives
     /// a struct that is not <c>Nullable&lt;T&gt;</c> the annotation <c>NotAnnotated</c> even where nullable is off.
     /// </summary>
     private static bool IsEveryValueOf(ITypeSymbol type, ITypeSymbol input) =>
-        input.NullableAnnotation == NullableAnnotation.NotAnnotated &&
-        SymbolEqualityComparer.Default.Equals(type, input);
+        input.NullableAnnotation == NullableAnnotation.NotAnnotated
+        && SymbolEqualityComparer.Default.Equals(type, input);
 
     /// <summary>True for a section whose only statement throws a new <c>UnreachableException</c>.</summary>
     private static bool OnlyThrowsUnreachable(ISwitchCaseOperation section) =>
-        section.Body.Length == 1 && section.Body[0] is IThrowOperation { Exception: { } thrown } &&
-        Unconverted(thrown) is IObjectCreationOperation { Type: { } type } &&
-        type.ToDisplayString() == UnreachableException;
+        section.Body.Length == 1
+        && section.Body[0] is IThrowOperation { Exception: { } thrown }
+        && Unconverted(thrown) is IObjectCreationOperation { Type: { } type }
+        && type.ToDisplayString() == UnreachableException;
 
     private static IOperation Unconverted(IOperation operation) =>
         operation is IConversionOperation { IsImplicit: true } conversion ? conversion.Operand : operation;
 
     /// <summary>The <c>ZeroCase</c> that the <c>[GeneratedUnion]</c> of <paramref name="union"/> names, or null.</summary>
     private static ITypeSymbol? ZeroCase(INamedTypeSymbol union) =>
-        union.GetAttributes()
+        union
+            .GetAttributes()
             .Where(attribute => attribute.AttributeClass?.ToDisplayString() == GeneratedUnionAttribute)
             .SelectMany(attribute => attribute.NamedArguments)
             .Where(argument => argument.Key == "ZeroCase")
@@ -202,9 +235,12 @@ internal sealed class SwitchStatements
     /// </summary>
     private static bool IsDeclaredWith(INamedTypeSymbol type, string word, OperationAnalysisContext context) =>
         type.DeclaringSyntaxReferences.Any(reference =>
-            reference.GetSyntax(context.CancellationToken) is TypeDeclarationSyntax declaration &&
-            (declaration.Keyword.ValueText == word ||
-             declaration.Modifiers.Any(modifier => modifier.ValueText == word)));
+            reference.GetSyntax(context.CancellationToken) is TypeDeclarationSyntax declaration
+            && (
+                declaration.Keyword.ValueText == word
+                || declaration.Modifiers.Any(modifier => modifier.ValueText == word)
+            )
+        );
 
     /// <summary>The direct subtypes of each class that a type of <paramref name="compilation"/> derives from.</summary>
     private static Dictionary<INamedTypeSymbol, List<INamedTypeSymbol>> DirectSubtypes(Compilation compilation)

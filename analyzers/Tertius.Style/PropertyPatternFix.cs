@@ -37,39 +37,64 @@ public sealed class PropertyPatternFix : CodeFixProvider
     /// the next pass.
     /// </summary>
     public override FixAllProvider GetFixAllProvider() =>
-        FixAllProvider.Create(async (context, document, diagnostics) => await Rewritten(document,
-                diagnostics.Select(diagnostic => diagnostic.Location.SourceSpan), context.CancellationToken)
-            .ConfigureAwait(false));
+        FixAllProvider.Create(
+            async (context, document, diagnostics) =>
+                await Rewritten(
+                        document,
+                        diagnostics.Select(diagnostic => diagnostic.Location.SourceSpan),
+                        context.CancellationToken
+                    )
+                    .ConfigureAwait(false)
+        );
 
     /// <inheritdoc/>
     public override async Task RegisterCodeFixesAsync(CodeFixContext context)
     {
-        if (await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false) is not
-                { } root ||
-            await context.Document.GetSemanticModelAsync(context.CancellationToken).ConfigureAwait(false) is not
-                { } model)
+        if (
+            await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false) is not { } root
+            || await context.Document.GetSemanticModelAsync(context.CancellationToken).ConfigureAwait(false)
+                is not { } model
+        )
             return;
         foreach (Diagnostic diagnostic in context.Diagnostics)
-            if (Rewrite(root.FindNode(diagnostic.Location.SourceSpan, getInnermostNodeForTie: true), model,
-                    context.CancellationToken) is not null)
-                context.RegisterCodeFix(CodeAction.Create(title: "Use a property pattern",
-                    createChangedDocument: cancel =>
-                        Rewritten(context.Document, [diagnostic.Location.SourceSpan], cancel),
-                    equivalenceKey: EquivalenceKey), diagnostic);
+            if (
+                Rewrite(
+                    root.FindNode(diagnostic.Location.SourceSpan, getInnermostNodeForTie: true),
+                    model,
+                    context.CancellationToken
+                )
+                is not null
+            )
+                context.RegisterCodeFix(
+                    CodeAction.Create(
+                        title: "Use a property pattern",
+                        createChangedDocument: cancel =>
+                            Rewritten(context.Document, [diagnostic.Location.SourceSpan], cancel),
+                        equivalenceKey: EquivalenceKey
+                    ),
+                    diagnostic
+                );
     }
 
     /// <summary>The document with the positional pattern at each of <paramref name="spans"/> rewritten.</summary>
-    private static async Task<Document> Rewritten(Document document, IEnumerable<TextSpan> spans,
-        CancellationToken cancel)
+    private static async Task<Document> Rewritten(
+        Document document,
+        IEnumerable<TextSpan> spans,
+        CancellationToken cancel
+    )
     {
-        if (await document.GetSyntaxRootAsync(cancel).ConfigureAwait(false) is not { } root ||
-            await document.GetSemanticModelAsync(cancel).ConfigureAwait(false) is not { } model)
+        if (
+            await document.GetSyntaxRootAsync(cancel).ConfigureAwait(false) is not { } root
+            || await document.GetSemanticModelAsync(cancel).ConfigureAwait(false) is not { } model
+        )
             return document;
         List<TextChange> changes = [];
-        foreach (TextChange change in spans
-                     .Select(span => Rewrite(root.FindNode(span, getInnermostNodeForTie: true), model, cancel))
-                     .OfType<TextChange>()
-                     .OrderBy(change => change.Span.Start))
+        foreach (
+            TextChange change in spans
+                .Select(span => Rewrite(root.FindNode(span, getInnermostNodeForTie: true), model, cancel))
+                .OfType<TextChange>()
+                .OrderBy(change => change.Span.Start)
+        )
             if (changes.Count == 0 || changes[changes.Count - 1].Span.End <= change.Span.Start)
                 changes.Add(change);
         SourceText text = await document.GetTextAsync(cancel).ConfigureAwait(false);
@@ -82,11 +107,15 @@ public sealed class PropertyPatternFix : CodeFixProvider
     /// </summary>
     private static TextChange? Rewrite(SyntaxNode node, SemanticModel model, CancellationToken cancel)
     {
-        if (node is not PositionalPatternClauseSyntax { Parent: RecursivePatternSyntax pattern } clause ||
-            model.GetOperation(pattern, cancel) is not IRecursivePatternOperation
-            {
-                MatchedType: { } matched, DeconstructSymbol: IMethodSymbol deconstruct
-            })
+        if (
+            node is not PositionalPatternClauseSyntax { Parent: RecursivePatternSyntax pattern } clause
+            || model.GetOperation(pattern, cancel)
+                is not IRecursivePatternOperation
+                {
+                    MatchedType: { } matched,
+                    DeconstructSymbol: IMethodSymbol deconstruct
+                }
+        )
             return null;
         IParameterSymbol[] outs = [.. deconstruct.Parameters.Where(parameter => parameter.RefKind == RefKind.Out)];
         List<string> parts = [];
@@ -105,8 +134,7 @@ public sealed class PropertyPatternFix : CodeFixProvider
             parts.AddRange(properties.Subpatterns.Select(OneLine));
         string braces = parts.Count == 0 ? "{ }" : $"{{ {string.Join(", ", parts)} }}";
         int end = pattern.PropertyPatternClause?.Span.End ?? clause.Span.End;
-        return new TextChange(TextSpan.FromBounds(clause.SpanStart, end),
-            pattern.Type is null ? braces : " " + braces);
+        return new TextChange(TextSpan.FromBounds(clause.SpanStart, end), pattern.Type is null ? braces : " " + braces);
     }
 
     /// <summary>The text of <paramref name="node"/> on one line: one space wherever its tokens have trivia between them.</summary>
@@ -133,11 +161,15 @@ public sealed class PropertyPatternFix : CodeFixProvider
     {
         string[] names =
         [
-            .. Bases(type).SelectMany(each => each.GetMembers())
-                .Where(member => member is IPropertySymbol or IFieldSymbol { IsImplicitlyDeclared: false } &&
-                                 !member.IsStatic &&
-                                 string.Equals(member.Name, parameter, StringComparison.OrdinalIgnoreCase))
-                .Select(member => member.Name).Distinct()
+            .. Bases(type)
+                .SelectMany(each => each.GetMembers())
+                .Where(member =>
+                    member is IPropertySymbol or IFieldSymbol { IsImplicitlyDeclared: false }
+                    && !member.IsStatic
+                    && string.Equals(member.Name, parameter, StringComparison.OrdinalIgnoreCase)
+                )
+                .Select(member => member.Name)
+                .Distinct(),
         ];
         return names.Length == 1 ? names[0] : null;
     }

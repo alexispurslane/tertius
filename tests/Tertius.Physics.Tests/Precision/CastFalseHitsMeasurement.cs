@@ -12,7 +12,8 @@ public sealed class CastFalseHitsMeasurement
     private static readonly MovingPair.Member Box = new(
         new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0),
         _ => 0.5,
-        TurnsOntoD: true);
+        TurnsOntoD: true
+    );
 
     [Fact(Explicit = true)]
     public void CastFalseHits()

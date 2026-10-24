@@ -19,7 +19,8 @@ internal readonly record struct RawContact(
     Vector3 Normal,
     float NormalVelocity,
     bool Touches,
-    bool Sensor = false)
+    bool Sensor = false
+)
 {
     public ulong PairKey => FrameWorld.PairKey(Body1, Body2);
 }
@@ -40,10 +41,12 @@ internal readonly record struct SystemLimits(int MaxBodies, int MaxBodyPairs, in
     /// Twice every limit. The number of bodies stops at <see cref="BodyID.MaxBodyIndex"/>, the most that a body ID can
     /// count, and the other limits stop at <see cref="int.MaxValue"/>.
     /// </summary>
-    public SystemLimits Doubled() => new(
-        (int)Math.Min(2L * MaxBodies, BodyID.MaxBodyIndex),
-        (int)Math.Min(2L * MaxBodyPairs, int.MaxValue),
-        (int)Math.Min(2L * MaxContactConstraints, int.MaxValue));
+    public SystemLimits Doubled() =>
+        new(
+            (int)Math.Min(2L * MaxBodies, BodyID.MaxBodyIndex),
+            (int)Math.Min(2L * MaxBodyPairs, int.MaxValue),
+            (int)Math.Min(2L * MaxContactConstraints, int.MaxValue)
+        );
 }
 
 /// <summary>
@@ -98,9 +101,11 @@ internal sealed class FrameWorld : IDisposable
     private static readonly Comparison<RawContact> ByPairAndPoint = static (a, b) =>
     {
         int c = a.PairKey.CompareTo(b.PairKey);
-        if (c != 0) return c;
+        if (c != 0)
+            return c;
         c = a.Point.X.CompareTo(b.Point.X);
-        if (c != 0) return c;
+        if (c != 0)
+            return c;
         c = a.Point.Y.CompareTo(b.Point.Y);
         return c != 0 ? c : a.Point.Z.CompareTo(b.Point.Z);
     };
@@ -175,7 +180,8 @@ internal sealed class FrameWorld : IDisposable
     /// frame's push or turn since then wakes the bodies once the change of the acceleration that they feel relative to the
     /// frame, which the test bounds, passes the wake threshold (see JoltPhysicsBackend.FeltChangeWakes).
     /// </summary>
-    public Double3 WakeAngularVelocity, WakeAngularAcceleration;
+    public Double3 WakeAngularVelocity,
+        WakeAngularAcceleration;
 
     /// <summary>
     /// How fast the origin of <see cref="Frame"/> accelerates relative to its semantic frame in the current step, in
@@ -320,8 +326,11 @@ internal sealed class FrameWorld : IDisposable
     {
         BodyLockInterface locks = System.BodyLockInterface;
         locks.LockRead(body, out BodyLockRead read);
-        bool can = read.Succeeded && read.Body is { MotionProperties: { IsNotNull: true } motion }
-                                  && float.IsFinite(motion.InverseMassUnchecked) && motion.InverseMassUnchecked > 0;
+        bool can =
+            read.Succeeded
+            && read.Body is { MotionProperties: { IsNotNull: true } motion }
+            && float.IsFinite(motion.InverseMassUnchecked)
+            && motion.InverseMassUnchecked > 0;
         locks.UnlockRead(read);
         return can;
     }
@@ -343,9 +352,12 @@ internal sealed class FrameWorld : IDisposable
         {
             bodies.GetRPosition(ghost, out RVector3 position);
             Quaternion rotation = bodies.GetRotation(ghost);
-            bodies.SetRPositionAndRotation(bodyID: ghost, position: (position.ToDouble3() - offset).ToJolt(),
+            bodies.SetRPositionAndRotation(
+                bodyID: ghost,
+                position: (position.ToDouble3() - offset).ToJolt(),
                 rotation: rotation,
-                activationMode: Activation.DontActivate);
+                activationMode: Activation.DontActivate
+            );
             if (velocity == Double3.Zero)
                 continue;
             // Jolt gives a static body no velocity.
@@ -365,15 +377,19 @@ internal sealed class FrameWorld : IDisposable
     {
         // The system frees its tables when it is destroyed.
         var layers = new Layers.Tables();
-        PhysicsSystem system = NativeOwnership.Owned(new PhysicsSystem(new()
-        {
-            MaxBodies = limits.MaxBodies,
-            MaxBodyPairs = limits.MaxBodyPairs,
-            MaxContactConstraints = limits.MaxContactConstraints,
-            ObjectLayerPairFilter = layers.Pairs,
-            BroadPhaseLayerInterface = layers.BroadPhase,
-            ObjectVsBroadPhaseLayerFilter = layers.ObjectVsBroadPhase
-        }));
+        PhysicsSystem system = NativeOwnership.Owned(
+            new PhysicsSystem(
+                new()
+                {
+                    MaxBodies = limits.MaxBodies,
+                    MaxBodyPairs = limits.MaxBodyPairs,
+                    MaxContactConstraints = limits.MaxContactConstraints,
+                    ObjectLayerPairFilter = layers.Pairs,
+                    BroadPhaseLayerInterface = layers.BroadPhase,
+                    ObjectVsBroadPhaseLayerFilter = layers.ObjectVsBroadPhase,
+                }
+            )
+        );
         // JoltPhysicsSharp gave the system a listener of its own, which would now call the backend's callbacks with its
         // own user data. Replace it before anything can update the system.
         listener.Attach(system);
@@ -522,10 +538,18 @@ internal sealed class FrameWorld : IDisposable
             // Jolt's contact normal points out of the other body, toward the character. A contact's normal points from
             // its first body, here the inner body, to its second.
             Vector3 normal = -contact.ContactNormal;
-            characterHits.Add(new(Body1: inner, Body2: contact.BodyB, UserData1: character.UserData,
-                UserData2: contact.UserData,
-                Point: contact.RPosition.ToDouble3(),
-                Normal: normal, NormalVelocity: Vector3.Dot(contact.LinearVelocity - velocity, normal), Touches: true));
+            characterHits.Add(
+                new(
+                    Body1: inner,
+                    Body2: contact.BodyB,
+                    UserData1: character.UserData,
+                    UserData2: contact.UserData,
+                    Point: contact.RPosition.ToDouble3(),
+                    Normal: normal,
+                    NormalVelocity: Vector3.Dot(contact.LinearVelocity - velocity, normal),
+                    Touches: true
+                )
+            );
         }
     }
 
@@ -800,8 +824,12 @@ internal sealed class FrameWorld : IDisposable
     /// <param name="approachSpeed">How fast the bodies approach along the contact's normal, in m/s, as Jolt measures it for its rebound. Below zero, how fast they move apart.</param>
     /// <param name="approachAcceleration">How fast the accumulated forces accelerate the bodies toward each other along the normal, in m/s². Below zero, apart.</param>
     /// <param name="deltaTime">The length of the step, in seconds.</param>
-    internal static float KeptRestitution(float restitution, float approachSpeed, float approachAcceleration,
-        float deltaTime)
+    internal static float KeptRestitution(
+        float restitution,
+        float approachSpeed,
+        float approachAcceleration,
+        float deltaTime
+    )
     {
         float pull = MathF.Max(approachAcceleration, 0f);
         float rebound = restitution * (approachSpeed - pull * deltaTime);
@@ -822,8 +850,12 @@ internal sealed class FrameWorld : IDisposable
         float approach = BounceApproach(body1: body1, body2: body2, manifold: manifold, normal: out Vector3 normal);
         return approach <= 0f
             ? 0f
-            : KeptRestitution(restitution: restitution, approachSpeed: approach,
-                approachAcceleration: ApproachAcceleration(body1, body2, normal), deltaTime: updateDeltaTime);
+            : KeptRestitution(
+                restitution: restitution,
+                approachSpeed: approach,
+                approachAcceleration: ApproachAcceleration(body1, body2, normal),
+                deltaTime: updateDeltaTime
+            );
     }
 
     /// <summary>
@@ -851,20 +883,26 @@ internal sealed class FrameWorld : IDisposable
         if (count == 0)
             return 0f;
 
-        RVector3 com1, com2;
-        Vector3 linear1, angular1, linear2, angular2;
+        RVector3 com1,
+            com2;
+        Vector3 linear1,
+            angular1,
+            linear2,
+            angular2;
         JoltNative.BodyCenterOfMass(body1, &com1);
         JoltNative.BodyCenterOfMass(body2, &com2);
         JoltNative.BodyLinearVelocity(body1, &linear1);
         JoltNative.BodyAngularVelocity(body1, &angular1);
         JoltNative.BodyLinearVelocity(body2, &linear2);
         JoltNative.BodyAngularVelocity(body2, &angular2);
-        Double3 center1 = com1.ToDouble3(), center2 = com2.ToDouble3();
+        Double3 center1 = com1.ToDouble3(),
+            center2 = com2.ToDouble3();
 
         float fastest = 0f;
         for (uint i = 0; i < count; i++)
         {
-            RVector3 p1, p2;
+            RVector3 p1,
+                p2;
             JoltNative.ContactPointOn1(manifold, i, &p1);
             JoltNative.ContactPointOn2(manifold, i, &p2);
             Double3 middle = 0.5 * (p1.ToDouble3() + p2.ToDouble3());
@@ -929,13 +967,24 @@ internal sealed class FrameWorld : IDisposable
     public unsafe void OnContactAdded(nint body1, nint body2, nint manifold, ContactSettings* settings)
     {
         if (settings->CombinedRestitution > 0f)
-            settings->CombinedRestitution = KeptRestitution(body1: body1, body2: body2, manifold: manifold,
-                restitution: settings->CombinedRestitution);
-        ulong data1 = JoltNative.BodyUserData(body1), data2 = JoltNative.BodyUserData(body2);
+            settings->CombinedRestitution = KeptRestitution(
+                body1: body1,
+                body2: body2,
+                manifold: manifold,
+                restitution: settings->CombinedRestitution
+            );
+        ulong data1 = JoltNative.BodyUserData(body1),
+            data2 = JoltNative.BodyUserData(body2);
         if (!IsReported(data1, data2) || !ContactMotionsMeet(body1: body1, data1: data1, body2: body2, data2: data2))
             return;
-        RawContact contact = Describe(body1: body1, body2: body2, data1: data1, data2: data2, manifold: manifold,
-            sensor: settings->IsSensor);
+        RawContact contact = Describe(
+            body1: body1,
+            body2: body2,
+            data1: data1,
+            data2: data2,
+            manifold: manifold,
+            sensor: settings->IsSensor
+        );
         lock (contactGate)
         {
             added.Add(contact);
@@ -952,13 +1001,22 @@ internal sealed class FrameWorld : IDisposable
     {
         float restitution = settings->CombinedRestitution;
         if (restitution > 0f)
-            settings->CombinedRestitution =
-                KeptRestitution(body1: body1, body2: body2, manifold: manifold, restitution: restitution);
+            settings->CombinedRestitution = KeptRestitution(
+                body1: body1,
+                body2: body2,
+                manifold: manifold,
+                restitution: restitution
+            );
         if (pending.Count == 0 || !pending.Contains(PairKey(JoltNative.BodyId(body1), JoltNative.BodyId(body2))))
             return;
-        RawContact contact = Describe(body1: body1, body2: body2, data1: JoltNative.BodyUserData(body1),
+        RawContact contact = Describe(
+            body1: body1,
+            body2: body2,
+            data1: JoltNative.BodyUserData(body1),
             data2: JoltNative.BodyUserData(body2),
-            manifold: manifold, sensor: settings->IsSensor);
+            manifold: manifold,
+            sensor: settings->IsSensor
+        );
         if (!contact.Touches)
             return;
         lock (contactGate)
@@ -983,13 +1041,24 @@ internal sealed class FrameWorld : IDisposable
     /// </summary>
     private RawContact Describe(nint body1, nint body2, ulong data1, ulong data2, nint manifold, bool sensor)
     {
-        float normalVelocity = NormalVelocity(body1: body1, body2: body2, manifold: manifold, point: out Double3 point,
-            normal: out Vector3 normal);
-        return new(Body1: new(JoltNative.BodyId(body1)), Body2: new(JoltNative.BodyId(body2)), UserData1: data1,
-            UserData2: data2, Point: point, Normal: normal,
+        float normalVelocity = NormalVelocity(
+            body1: body1,
+            body2: body2,
+            manifold: manifold,
+            point: out Double3 point,
+            normal: out Vector3 normal
+        );
+        return new(
+            Body1: new(JoltNative.BodyId(body1)),
+            Body2: new(JoltNative.BodyId(body2)),
+            UserData1: data1,
+            UserData2: data2,
+            Point: point,
+            Normal: normal,
             NormalVelocity: normalVelocity,
             Touches: Touches(JoltNative.ManifoldPenetrationDepth(manifold), normalVelocity, updateDeltaTime),
-            Sensor: sensor);
+            Sensor: sensor
+        );
     }
 
     /// <summary>
@@ -998,8 +1067,13 @@ internal sealed class FrameWorld : IDisposable
     /// manifold's points on the first body, or the first body's center of mass when the manifold has none.
     /// <paramref name="normal"/> is the manifold's normal, from the first body to the second.
     /// </summary>
-    private static unsafe float NormalVelocity(nint body1, nint body2, nint manifold, out Double3 point,
-        out Vector3 normal)
+    private static unsafe float NormalVelocity(
+        nint body1,
+        nint body2,
+        nint manifold,
+        out Double3 point,
+        out Vector3 normal
+    )
     {
         uint count = JoltNative.ManifoldPointCount(manifold);
         point = Double3.Zero;
@@ -1024,7 +1098,8 @@ internal sealed class FrameWorld : IDisposable
         Vector3 direction;
         JoltNative.ManifoldNormal(manifold, &direction);
         normal = direction;
-        Vector3 v1 = PointVelocity(body1, point), v2 = PointVelocity(body2, point);
+        Vector3 v1 = PointVelocity(body1, point),
+            v2 = PointVelocity(body2, point);
         return Vector3.Dot(v2 - v1, direction);
     }
 
@@ -1047,22 +1122,28 @@ internal sealed class FrameWorld : IDisposable
     /// pair with a ghost.
     /// </summary>
     private bool ContactMotionsMeet(nint body1, ulong data1, nint body2, ulong data2) =>
-        (BodyUserData.Kind(data1) != BodyKind.Ghost && BodyUserData.Kind(data2) != BodyKind.Ghost) ||
-        ContactMotion(body1, data1) is not { } motion1 || ContactMotion(body2, data2) is not { } motion2 ||
-        MotionsMeet(a: motion1, aIsSensor: JoltNative.BodyIsSensor(body1) != 0, b: motion2,
-            bIsSensor: JoltNative.BodyIsSensor(body2) != 0);
+        (BodyUserData.Kind(data1) != BodyKind.Ghost && BodyUserData.Kind(data2) != BodyKind.Ghost)
+        || ContactMotion(body1, data1) is not { } motion1
+        || ContactMotion(body2, data2) is not { } motion2
+        || MotionsMeet(
+            a: motion1,
+            aIsSensor: JoltNative.BodyIsSensor(body1) != 0,
+            b: motion2,
+            bIsSensor: JoltNative.BodyIsSensor(body2) != 0
+        );
 
     /// <summary>
     /// The contact motion of a body that Jolt passes to a report: for a ghost, its entry in the table of ghosts, or null
     /// when it has none; for a character's inner body, <see cref="MotionType.Dynamic"/>, since a character counts as
     /// dynamic; for any other body, its Jolt motion.
     /// </summary>
-    private MotionType? ContactMotion(nint body, ulong data) => BodyUserData.Kind(data) switch
-    {
-        BodyKind.Ghost => GhostContactMotion(new(JoltNative.BodyId(body))),
-        BodyKind.CharacterInner => MotionType.Dynamic,
-        BodyKind.Primary or BodyKind.Interior or BodyKind.None => JoltMotion(body)
-    };
+    private MotionType? ContactMotion(nint body, ulong data) =>
+        BodyUserData.Kind(data) switch
+        {
+            BodyKind.Ghost => GhostContactMotion(new(JoltNative.BodyId(body))),
+            BodyKind.CharacterInner => MotionType.Dynamic,
+            BodyKind.Primary or BodyKind.Interior or BodyKind.None => JoltMotion(body),
+        };
 
     /// <summary>The motion that Jolt gives <paramref name="body"/>.</summary>
     private static MotionType JoltMotion(nint body)
@@ -1080,8 +1161,10 @@ internal sealed class FrameWorld : IDisposable
     /// that is Jolt's whole rule. A character counts as dynamic: its own collisions find every body that its layer meets.
     /// </summary>
     internal static bool MotionsMeet(MotionType a, bool aIsSensor, MotionType b, bool bIsSensor) =>
-        a == MotionType.Dynamic || b == MotionType.Dynamic ||
-        (a == MotionType.Kinematic && bIsSensor) || (b == MotionType.Kinematic && aIsSensor);
+        a == MotionType.Dynamic
+        || b == MotionType.Dynamic
+        || (a == MotionType.Kinematic && bIsSensor)
+        || (b == MotionType.Kinematic && aIsSensor);
 
     /// <summary>
     /// What the pair test reads of one body of a system: its object layer, its Jolt motion, its contact motion and whether
@@ -1092,7 +1175,8 @@ internal sealed class FrameWorld : IDisposable
         ObjectLayer Layer,
         MotionType Motion,
         MotionType ContactMotion,
-        bool IsSensor);
+        bool IsSensor
+    );
 
     /// <summary>
     /// The pair test: true when Jolt and the contact filter can make a contact between <paramref name="a"/> and
@@ -1110,12 +1194,12 @@ internal sealed class FrameWorld : IDisposable
     /// comes only from a bug: the pair test reports it and judges the ghost by its Jolt motion, as the filter does. Call it
     /// on the physics thread, between updates.
     /// </summary>
-    public bool CanTouch(BodyID a, BodyID b) => SideOf(a) is { } x && SideOf(b) is { } y &&
-                                                Layers.Meet(x.Layer, y.Layer) && MotionsMeet(a: x.Motion,
-                                                    aIsSensor: x.IsSensor,
-                                                    b: y.Motion, bIsSensor: y.IsSensor) &&
-                                                MotionsMeet(a: x.ContactMotion, aIsSensor: x.IsSensor,
-                                                    b: y.ContactMotion, bIsSensor: y.IsSensor);
+    public bool CanTouch(BodyID a, BodyID b) =>
+        SideOf(a) is { } x
+        && SideOf(b) is { } y
+        && Layers.Meet(x.Layer, y.Layer)
+        && MotionsMeet(a: x.Motion, aIsSensor: x.IsSensor, b: y.Motion, bIsSensor: y.IsSensor)
+        && MotionsMeet(a: x.ContactMotion, aIsSensor: x.IsSensor, b: y.ContactMotion, bIsSensor: y.IsSensor);
 
     /// <summary>
     /// What the pair test reads of <paramref name="body"/>, or null when it is not in this system. A ghost without a contact
@@ -1140,8 +1224,12 @@ internal sealed class FrameWorld : IDisposable
                     ghostWithoutContactMotion = true;
             }
 
-            side = new PairSide(Layer: jolt.ObjectLayer, Motion: motion, ContactMotion: contactMotion,
-                IsSensor: jolt.IsSensor);
+            side = new PairSide(
+                Layer: jolt.ObjectLayer,
+                Motion: motion,
+                ContactMotion: contactMotion,
+                IsSensor: jolt.IsSensor
+            );
         }
 
         locks.UnlockRead(read);
@@ -1149,8 +1237,9 @@ internal sealed class FrameWorld : IDisposable
         // lock, because in a Debug build it throws.
         if (ghostWithoutContactMotion)
             reportBug(
-                $"Physics: the ghost {body.ID} in the system of {Frame} has no contact motion. Only a bug leaves such a ghost, " +
-                "so the pair test judged it by its Jolt motion.");
+                $"Physics: the ghost {body.ID} in the system of {Frame} has no contact motion. Only a bug leaves such a ghost, "
+                    + "so the pair test judged it by its Jolt motion."
+            );
         return side;
     }
 
@@ -1169,7 +1258,8 @@ internal sealed class FrameWorld : IDisposable
     private static unsafe Vector3 PointVelocity(nint body, Double3 point)
     {
         RVector3 com;
-        Vector3 linear, angular;
+        Vector3 linear,
+            angular;
         JoltNative.BodyCenterOfMass(body, &com);
         JoltNative.BodyLinearVelocity(body, &linear);
         JoltNative.BodyAngularVelocity(body, &angular);

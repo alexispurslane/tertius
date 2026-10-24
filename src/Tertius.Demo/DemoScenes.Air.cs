@@ -25,8 +25,13 @@ public static partial class DemoScenes
 
         /// <summary>Earth's air, for earth-surface, whose origin is Earth's center: it thins with height above
         /// <see cref="EarthRadius"/>.</summary>
-        public static MediumField Earth => MediumField.Planet(radius: EarthRadius, surfaceDensity: SurfaceDensity,
-            scaleHeight: ScaleHeight, drag: Drag);
+        public static MediumField Earth =>
+            MediumField.Planet(
+                radius: EarthRadius,
+                surfaceDensity: SurfaceDensity,
+                scaleHeight: ScaleHeight,
+                drag: Drag
+            );
 
         /// <summary>Air at the surface's density that fills <paramref name="region"/> of a frame, in its axes, or the whole frame when it is null.</summary>
         public static MediumField Filling(BoundingBox? region) => MediumField.Uniform(SurfaceDensity, Drag, region);

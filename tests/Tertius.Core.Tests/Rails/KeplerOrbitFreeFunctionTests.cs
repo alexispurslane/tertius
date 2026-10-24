@@ -27,10 +27,15 @@ public sealed class KeplerOrbitFreeFunctionTests
         (Double3 before, _) = Tight.StateAt(10 - Step, TightMu);
         (Double3 now, Double3 velocity) = Tight.StateAt(10, TightMu);
         Double3 chord = KeplerOrbit.Chord(position: now, velocity: velocity, mu: TightMu, step: Step);
-        (chord - (now - before) / Step).Length.Should().BeLessThan(3e-5,
-            "the series stops at the jerk, so it leaves out the snap of 100 m/s⁴ times the cube of the step over 24, 2e-5 m/s");
-        (chord - velocity).Length.Should().BeGreaterThan(0.8,
-            "the chord lags the instant velocity by half a step of the 100 m/s² acceleration");
+        (chord - (now - before) / Step)
+            .Length.Should()
+            .BeLessThan(
+                3e-5,
+                "the series stops at the jerk, so it leaves out the snap of 100 m/s⁴ times the cube of the step over 24, 2e-5 m/s"
+            );
+        (chord - velocity)
+            .Length.Should()
+            .BeGreaterThan(0.8, "the chord lags the instant velocity by half a step of the 100 m/s² acceleration");
     }
 
     [Fact]
@@ -54,20 +59,16 @@ public sealed class KeplerOrbitFreeFunctionTests
     // ---- The G·M of an orbit -------------------------------------------------------------------------------------
 
     [Fact]
-    public void AnOrbitTakesItsGMFromAPointFieldThatCanBeOrbited()
-    {
+    public void AnOrbitTakesItsGMFromAPointFieldThatCanBeOrbited() =>
         KeplerOrbit.MuFrom(GravityField.Point(Mu)).Should().Be(Mu);
-    }
 
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
     [InlineData(double.NaN)]
     [InlineData(double.PositiveInfinity)]
-    public void AnOrbitTakesNoGMFromAPointFieldThatCannotBeOrbited(double mu)
-    {
+    public void AnOrbitTakesNoGMFromAPointFieldThatCannotBeOrbited(double mu) =>
         KeplerOrbit.MuFrom(GravityField.Point(mu)).Should().Be(0);
-    }
 
     [Fact]
     public void AnOrbitTakesNoGMFromAUniformField()
@@ -79,8 +80,5 @@ public sealed class KeplerOrbitFreeFunctionTests
     }
 
     [Fact]
-    public void AnOrbitTakesNoGMFromNoGravity()
-    {
-        KeplerOrbit.MuFrom(GravityField.None).Should().Be(0);
-    }
+    public void AnOrbitTakesNoGMFromNoGravity() => KeplerOrbit.MuFrom(GravityField.None).Should().Be(0);
 }

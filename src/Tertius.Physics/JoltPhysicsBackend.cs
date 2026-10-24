@@ -88,9 +88,11 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         this.options = options ?? new JoltBackendOptions();
         log = this.options.Log ?? (static message => Trace.TraceWarning(message));
         JoltRuntime.EnsureInitialized();
-        jobs = NativeOwnership.Owned(this.options.WorkerThreads > 0
-            ? new(new() { numThreads = this.options.WorkerThreads })
-            : new JobSystemThreadPool());
+        jobs = NativeOwnership.Owned(
+            this.options.WorkerThreads > 0
+                ? new(new() { numThreads = this.options.WorkerThreads })
+                : new JobSystemThreadPool()
+        );
     }
 
     /// <summary>
@@ -196,7 +198,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <summary>One change of a batch failed. Only a bug sends such a change. <see cref="ApplyChanges"/> goes on with the next one.</summary>
     private void ChangeFailed(string change, Exception ex) =>
         ReportBug(
-            $"Physics could not {change}: {ex.GetType().Name}: {ex.Message} Only a bug sends such a change, so it was skipped.");
+            $"Physics could not {change}: {ex.GetType().Name}: {ex.Message} Only a bug sends such a change, so it was skipped."
+        );
 
     /// <summary>
     /// Reports a state that only a bug produces, which the backend found and skipped. It breaks a contract in a Debug build.
@@ -299,8 +302,11 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(context.Frames);
         if (!(context.DeltaTime > 0))
-            throw new ArgumentOutOfRangeException(nameof(context), context.DeltaTime,
-                "The step needs a positive delta time.");
+            throw new ArgumentOutOfRangeException(
+                nameof(context),
+                context.DeltaTime,
+                "The step needs a positive delta time."
+            );
 
         lock (Gate)
         {
@@ -460,8 +466,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// True when <paramref name="entity"/> is a character in its rigid form: its body is a dynamic Jolt body, not a Jolt
     /// character. Tests check which form a character has.
     /// </summary>
-    internal bool HasRigidForm(Entity entity) => Find(entity) is
-        { Desc.Motion: BodyMotion.Character, Character: null, HasPrimary: true };
+    internal bool HasRigidForm(Entity entity) =>
+        Find(entity) is { Desc.Motion: BodyMotion.Character, Character: null, HasPrimary: true };
 
     /// <summary>The physics system of <paramref name="frame"/>, or null when the frame has none. Tests check that the backend frees it.</summary>
     internal PhysicsSystem? SystemOf(FrameHandle frame) => ExistingWorld(frame)?.System;
@@ -495,7 +501,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         Quaternion InertiaRotation,
         float LinearDamping,
         float AngularDamping,
-        bool EnhancedInternalEdgeRemoval);
+        bool EnhancedInternalEdgeRemoval
+    );
 
     /// <summary>
     /// The velocity shadow of the body of <paramref name="entity"/> after the last step (see <see cref="BodyRecord.Shadow"/>),
@@ -530,7 +537,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             {
                 bodies.GetRPosition(id, out RVector3 position);
                 bodies.GetLinearAndAngularVelocity(id, out Vector3 linear, out Vector3 angular);
-                float inverseMass = 0, linearDamping = 0, angularDamping = 0;
+                float inverseMass = 0,
+                    linearDamping = 0,
+                    angularDamping = 0;
                 Vector3 inverseInertia = Vector3.Zero;
                 Quaternion inertiaRotation = Quaternion.Identity;
                 bool edgeRemoval = false;
@@ -549,16 +558,29 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 }
 
                 locks.UnlockRead(read);
-                facts.Add(new(Id: id, UserData: bodies.GetUserData(id), Motion: bodies.GetMotionType(id),
-                    Layer: bodies.GetObjectLayer(id),
-                    Shape: bodies.GetShape(id)?.Handle ?? 0, Quality: bodies.GetMotionQuality(id),
-                    Position: position.ToDouble3(),
-                    Rotation: bodies.GetRotation(id),
-                    LinearVelocity: linear, AngularVelocity: angular, Active: bodies.IsActive(id),
-                    Friction: bodies.GetFriction(id), Restitution: bodies.GetRestitution(id),
-                    InverseMass: inverseMass,
-                    InverseInertia: inverseInertia, InertiaRotation: inertiaRotation, LinearDamping: linearDamping,
-                    AngularDamping: angularDamping, EnhancedInternalEdgeRemoval: edgeRemoval));
+                facts.Add(
+                    new(
+                        Id: id,
+                        UserData: bodies.GetUserData(id),
+                        Motion: bodies.GetMotionType(id),
+                        Layer: bodies.GetObjectLayer(id),
+                        Shape: bodies.GetShape(id)?.Handle ?? 0,
+                        Quality: bodies.GetMotionQuality(id),
+                        Position: position.ToDouble3(),
+                        Rotation: bodies.GetRotation(id),
+                        LinearVelocity: linear,
+                        AngularVelocity: angular,
+                        Active: bodies.IsActive(id),
+                        Friction: bodies.GetFriction(id),
+                        Restitution: bodies.GetRestitution(id),
+                        InverseMass: inverseMass,
+                        InverseInertia: inverseInertia,
+                        InertiaRotation: inertiaRotation,
+                        LinearDamping: linearDamping,
+                        AngularDamping: angularDamping,
+                        EnhancedInternalEdgeRemoval: edgeRemoval
+                    )
+                );
             }
         }
 
@@ -582,8 +604,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
 
     /// <summary>The parent of a frame, including the hand-offs of the current step, which the frame tree does not show yet.</summary>
     private FrameHandle ParentOf(FrameHandle frame) =>
-        parentOverrides.TryGetValue(frame.Index, out (FrameHandle Frame, FrameHandle Parent) link) &&
-        link.Frame == frame
+        parentOverrides.TryGetValue(frame.Index, out (FrameHandle Frame, FrameHandle Parent) link)
+        && link.Frame == frame
             ? link.Parent
             : frames.TreeParent(frame);
 
@@ -654,7 +676,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             if (ExistingWorld(world.Frame) != world)
                 continue;
             log(
-                $"Physics: {world.Frame} left the frame tree, but no FramesDestroyed change came with it. Its system is removed.");
+                $"Physics: {world.Frame} left the frame tree, but no FramesDestroyed change came with it. Its system is removed."
+            );
             DisposeWorld(world);
         }
 
@@ -744,8 +767,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             if (record.IsHull)
             {
                 hulls++;
-                Contract.Invariant(record.InteriorBody.IsValid &&
-                                   record.InteriorWorld == ExistingWorld(record.OwnedFrame));
+                Contract.Invariant(
+                    record.InteriorBody.IsValid && record.InteriorWorld == ExistingWorld(record.OwnedFrame)
+                );
             }
             else
             {
@@ -774,9 +798,11 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 Contract.Invariant(ghost.World.HasGhost(ghost.Body));
                 Contract.Invariant(ghost.World.Bodies.GetObjectLayer(ghost.Body) == GhostLayer(record, ghost.Role));
                 Contract.Invariant(ghost.World.GhostContactMotion(ghost.Body) == GhostContactMotion(record));
-                Contract.Invariant(record.IsMovable
-                    ? ghost.World.Bodies.GetMotionType(ghost.Body) == MotionType.Kinematic
-                    : ghost.World.CanMove(ghost.Body));
+                Contract.Invariant(
+                    record.IsMovable
+                        ? ghost.World.Bodies.GetMotionType(ghost.Body) == MotionType.Kinematic
+                        : ghost.World.CanMove(ghost.Body)
+                );
             }
 
             recordGhosts += ghosts.Count;
@@ -817,7 +843,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         if (world is not null)
         {
             log(
-                $"Physics: {world.Frame} was replaced by {frame} without a FramesDestroyed change. Its system is discarded.");
+                $"Physics: {world.Frame} was replaced by {frame} without a FramesDestroyed change. Its system is discarded."
+            );
             DisposeWorld(world);
         }
 
@@ -839,7 +866,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         if (frames.IsAlive(frame))
         {
             log(
-                $"Physics: {frame} is in FramesDestroyed but still in the frame tree. Its system stays until the frame leaves the tree.");
+                $"Physics: {frame} is in FramesDestroyed but still in the frame tree. Its system stays until the frame leaves the tree."
+            );
             return;
         }
 
@@ -893,7 +921,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             else
             {
                 log(
-                    $"Physics: {member.Entity} was still in {frame} when the frame was destroyed. Its body is removed.");
+                    $"Physics: {member.Entity} was still in {frame} when the frame was destroyed. Its body is removed."
+                );
                 DestroyRecord(member.Entity);
             }
         }
@@ -952,9 +981,15 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     private MotionSample PredictRecord(FrameHandle frame)
     {
         BodyRecord? hull = OwnerRecord(frame);
-        if ((hull is null || hull.Motion == BodyMotion.Kinematic) &&
-            frames.StepRecordInStep(frame: frame, stepIntents: stepIntents.Span, step: stepDt,
-                record: out MotionSample move))
+        if (
+            (hull is null || hull.Motion == BodyMotion.Kinematic)
+            && frames.StepRecordInStep(
+                frame: frame,
+                stepIntents: stepIntents.Span,
+                step: stepDt,
+                record: out MotionSample move
+            )
+        )
         {
             if (hull is { HasPrimary: true } && frames.InFollowingFrame(frame))
             {
@@ -964,7 +999,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                     Pose = new(target.Position, move.Pose.Rotation),
                     ChordVelocity = Double3.Zero,
                     Velocity = Double3.Zero,
-                    Acceleration = Double3.Zero
+                    Acceleration = Double3.Zero,
                 };
             }
 
@@ -978,10 +1013,22 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         // A static hull, or a kinematic hull without a motion intent, that teleported in the step stands at the teleport's
         // pose in its home, the frame's tree parent, at rest.
         return hull is { HasPrimary: true } && hull.TeleportStep == stepIndex
-            ? new(Pose: hull.TeleportPose, ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
-                Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero)
-            : new(Pose: frames.TreeLocalPose(frame), ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
-                Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
+            ? new(
+                Pose: hull.TeleportPose,
+                ChordVelocity: Double3.Zero,
+                Velocity: Double3.Zero,
+                Acceleration: Double3.Zero,
+                AngularVelocity: Double3.Zero,
+                AngularAcceleration: Double3.Zero
+            )
+            : new(
+                Pose: frames.TreeLocalPose(frame),
+                ChordVelocity: Double3.Zero,
+                Velocity: Double3.Zero,
+                Acceleration: Double3.Zero,
+                AngularVelocity: Double3.Zero,
+                AngularAcceleration: Double3.Zero
+            );
     }
 
     /// <summary>
@@ -992,9 +1039,13 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     private FrameMotion MotionOf(FrameHandle frame)
     {
         MotionSample record = StepRecordOf(frame);
-        return new(Pose: record.Pose, Velocity: record.ChordVelocity, AngularVelocity: record.AngularVelocity,
+        return new(
+            Pose: record.Pose,
+            Velocity: record.ChordVelocity,
+            AngularVelocity: record.AngularVelocity,
             Acceleration: record.Acceleration,
-            AngularAcceleration: record.AngularAcceleration);
+            AngularAcceleration: record.AngularAcceleration
+        );
     }
 
     /// <summary>
@@ -1033,12 +1084,19 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 // InstantVelocity), in place of half a step of the rotation terms that the update gave it. The acceleration
                 // of a hand-off holds that turn's part already (see HandedOffVelocities).
                 if (hull.HandOffStep != stepIndex && StepEnd(hull.Frame) is { } moment)
-                    velocity += moment.InstantAtEndChange(s.Pose.Position, chord, stepDt) -
-                                (Double3)hull.FrameAcceleration.Turning * half;
+                    velocity +=
+                        moment.InstantAtEndChange(s.Pose.Position, chord, stepDt)
+                        - (Double3)hull.FrameAcceleration.Turning * half;
             }
 
-            record = new(Pose: s.Pose, ChordVelocity: chord, Velocity: velocity, Acceleration: acceleration,
-                AngularVelocity: s.Angular, AngularAcceleration: hull.AngularAcceleration);
+            record = new(
+                Pose: s.Pose,
+                ChordVelocity: chord,
+                Velocity: velocity,
+                Acceleration: acceleration,
+                AngularVelocity: s.Angular,
+                AngularAcceleration: hull.AngularAcceleration
+            );
             return true;
         }
 

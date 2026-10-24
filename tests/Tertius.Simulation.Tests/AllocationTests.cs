@@ -36,10 +36,12 @@ public sealed class AllocationTests
                 Total += 3;
             events.Of<Ping>().Where(static (ref p) => p.Value < 0).Remove();
             events.Where(static (ref e) => e.Is<Ping>() && e.As<Ping>().Value < 0).Remove();
-            self.SetTransform(self.PoseInOwnFrame() with
-            {
-                Position = self.PoseInOwnFrame().Position + new Double3(0.001, 0, 0)
-            });
+            self.SetTransform(
+                self.PoseInOwnFrame() with
+                {
+                    Position = self.PoseInOwnFrame().Position + new Double3(0.001, 0, 0),
+                }
+            );
             self.Render.Scale.X = 1;
             if (self.Snapshot.IsAlive(Neighbor))
                 outbox.Send(Neighbor, new Ping { Value = 1 });
@@ -110,14 +112,16 @@ public sealed class AllocationTests
         var t = new TestWorld(debugChecks: false);
         Entity previous = default;
         for (int i = 0; i < 2000; i++)
-            previous = t.World.Spawn(new()
-            {
-                Frame = t.Root,
-                Pose = TestWorld.At(i % 50, i / 50, 0),
-                Render = new RenderData { Mesh = new(1), Flags = RenderFlags.Visible },
-                Components = [new Busy(previous, topic)],
-                Subscriptions = i % 10 == 0 ? [topic] : []
-            });
+            previous = t.World.Spawn(
+                new()
+                {
+                    Frame = t.Root,
+                    Pose = TestWorld.At(i % 50, i / 50, 0),
+                    Render = new RenderData { Mesh = new(1), Flags = RenderFlags.Visible },
+                    Components = [new Busy(previous, topic)],
+                    Subscriptions = i % 10 == 0 ? [topic] : [],
+                }
+            );
         t.World.Camera = previous;
         return t;
     }
@@ -142,8 +146,10 @@ public sealed class AllocationTests
     {
         private static readonly EntityQuery TypeOnly = EntityQuery.With<Flammable>().Without<Wet>();
 
-        private static readonly EntityQuery Inline =
-            EntityQuery.With<Flammable>().Near(6).Where(static (s, e) => (e.Index & 1) == 0);
+        private static readonly EntityQuery Inline = EntityQuery
+            .With<Flammable>()
+            .Near(6)
+            .Where(static (s, e) => (e.Index & 1) == 0);
 
         public long Total;
         public int GridRuns;
@@ -155,8 +161,14 @@ public sealed class AllocationTests
             foreach (Entity entity in self.Snapshot.Find(TypeOnly))
                 Total += entity.Index;
             Total += self.Snapshot.Find(Inline).Count();
-            FoundEntities chain = self.Snapshot.Entities.With<Flammable>().Near(3).Near(4)
-                .Where(static (s, e) => (e.Index & 3) != 0).Where(static (s, e) => true).In(self.Frame).In(self.Frame);
+            FoundEntities chain = self
+                .Snapshot.Entities.With<Flammable>()
+                .Near(3)
+                .Near(4)
+                .Where(static (s, e) => (e.Index & 3) != 0)
+                .Where(static (s, e) => true)
+                .In(self.Frame)
+                .In(self.Frame);
             FoundEntities.Enumerator run = chain.GetEnumerator();
             if (run.Index == QueryIndex.Grid)
                 GridRuns++;

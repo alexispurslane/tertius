@@ -42,7 +42,8 @@ public readonly record struct SpinUpProfile(double Rate, double Duration, DQuate
     /// </summary>
     public double RollAngle(DQuaternion rotation)
     {
-        Double3 roof = Across(rotation.Rotate(Double3.UnitY)), first = Across(Target(0).Rotate(Double3.UnitY));
+        Double3 roof = Across(rotation.Rotate(Double3.UnitY)),
+            first = Across(Target(0).Rotate(Double3.UnitY));
         return Math.Atan2(Double3.Dot(Double3.UnitY, Double3.Cross(roof, first)), Double3.Dot(roof, first));
     }
 

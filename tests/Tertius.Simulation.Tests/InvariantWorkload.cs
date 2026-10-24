@@ -18,15 +18,20 @@ internal sealed class WorkloadTally
         Moves,
         OffsetChanges;
 
-    public int HandOffs, FrameStates, Contacts, OutsideSpawns, OutsideDestroys, OutsideFrameDestroys;
+    public int HandOffs,
+        FrameStates,
+        Contacts,
+        OutsideSpawns,
+        OutsideDestroys,
+        OutsideFrameDestroys;
 
     /// <summary>Entity-ticks: the sum, over the ticks, of the live entities at the end of each tick.</summary>
     public long EntityTicks;
 
     public override string ToString() =>
-        $"spawns {Spawns} (attached {AttachedSpawns}, with a body {BodySpawns}, as a frame {FrameSpawns}), destroys {Destroys}, destroy messages {DestroyMessages}, " +
-        $"subscription changes {Subscriptions}, component changes {ComponentChanges}, moves {Moves}, attach offset changes {OffsetChanges}, hand-offs {HandOffs}, " +
-        $"frame states {FrameStates}, contacts {Contacts}, outside-tick spawns {OutsideSpawns}, destroys {OutsideDestroys}, frame destroys {OutsideFrameDestroys}";
+        $"spawns {Spawns} (attached {AttachedSpawns}, with a body {BodySpawns}, as a frame {FrameSpawns}), destroys {Destroys}, destroy messages {DestroyMessages}, "
+        + $"subscription changes {Subscriptions}, component changes {ComponentChanges}, moves {Moves}, attach offset changes {OffsetChanges}, hand-offs {HandOffs}, "
+        + $"frame states {FrameStates}, contacts {Contacts}, outside-tick spawns {OutsideSpawns}, destroys {OutsideDestroys}, frame destroys {OutsideFrameDestroys}";
 }
 
 /// <summary>
@@ -54,15 +59,42 @@ internal sealed class ChaoticWorkload : IDisposable
     /// </summary>
     private static readonly PuffEmitter[] Jets =
     [
-        new(Rate: 90, Speed: 4, Spread: 0.5f,
-            Look: new(Life: 2, StartRadius: 0.1f, EndRadius: 0.5f, TemperatureRatio: 3,
-                Shading: PuffShading.Glow(new(4, 3, 2)))),
-        new(Rate: 45, Speed: 2, Spread: 1.2f,
-            Look: new(Life: 1.5f, StartRadius: 0.2f, EndRadius: 1, TemperatureRatio: 0.75f,
-                Shading: PuffShading.Lit(new(0.6f)))),
-        new(Rate: 120, Speed: 9, Spread: 0.1f,
-            Look: new(Life: 0.3f, StartRadius: 0.1f, EndRadius: 0.2f, TemperatureRatio: 2,
-                Shading: PuffShading.Glow(new(1, 2, 3))))
+        new(
+            Rate: 90,
+            Speed: 4,
+            Spread: 0.5f,
+            Look: new(
+                Life: 2,
+                StartRadius: 0.1f,
+                EndRadius: 0.5f,
+                TemperatureRatio: 3,
+                Shading: PuffShading.Glow(new(4, 3, 2))
+            )
+        ),
+        new(
+            Rate: 45,
+            Speed: 2,
+            Spread: 1.2f,
+            Look: new(
+                Life: 1.5f,
+                StartRadius: 0.2f,
+                EndRadius: 1,
+                TemperatureRatio: 0.75f,
+                Shading: PuffShading.Lit(new(0.6f))
+            )
+        ),
+        new(
+            Rate: 120,
+            Speed: 9,
+            Spread: 0.1f,
+            Look: new(
+                Life: 0.3f,
+                StartRadius: 0.1f,
+                EndRadius: 0.2f,
+                TemperatureRatio: 2,
+                Shading: PuffShading.Glow(new(1, 2, 3))
+            )
+        ),
     ];
 
     private static readonly MediumField[] Media =
@@ -70,7 +102,7 @@ internal sealed class ChaoticWorkload : IDisposable
         MediumField.Uniform(1.225f, 2, new BoundingBox(new(-10), new(10))),
         MediumField.Planet(radius: 5, surfaceDensity: 1.225f, scaleHeight: 8500, drag: 1),
         MediumField.Uniform(0.5f, 0.5f),
-        MediumField.None
+        MediumField.None,
     ];
 
     private readonly Random random;
@@ -85,23 +117,33 @@ internal sealed class ChaoticWorkload : IDisposable
     /// emitters, two frames hold media, a medium changes between ticks, and the capacity is the World's cap. Without one, the
     /// run is the same as before puffs existed.
     /// </param>
-    public ChaoticWorkload(int seed, int chunkSize = 8, bool debugChecks = true, int initialEntities = 40,
+    public ChaoticWorkload(
+        int seed,
+        int chunkSize = 8,
+        bool debugChecks = true,
+        int initialEntities = 40,
         int maxDegreeOfParallelism = 1,
-        int? puffCapacity = null)
+        int? puffCapacity = null
+    )
     {
         Seed = seed;
         Puffs = puffCapacity is not null;
         random = new(seed);
         sampler = new(seed ^ 0x5EED);
         faults = new(new(new() { WorkerThreads = 2 }));
-        World = TestWorld.Create(root: out FrameHandle root, maxDop: maxDegreeOfParallelism, physics: faults,
-            chunkSize: chunkSize, debugChecks: debugChecks,
+        World = TestWorld.Create(
+            root: out FrameHandle root,
+            maxDop: maxDegreeOfParallelism,
+            physics: faults,
+            chunkSize: chunkSize,
+            debugChecks: debugChecks,
             configure: options =>
             {
                 options.DisposePhysics = true;
                 if (puffCapacity is { } capacity)
                     options.PuffCapacity = capacity;
-            });
+            }
+        );
         Root = root;
         // A frame that loses its parent moves to the next frame up, and a Kepler frame takes its G·M from the point gravity of
         // its parent, so the root has one too. It is so weak that it moves nothing: 1e-3 m³/s² pulls a body at 15 m with 4e-6 m/s².
@@ -111,24 +153,38 @@ internal sealed class ChaoticWorkload : IDisposable
         East = SpawnFrame(parent: root, pose: TestWorld.At(500), spec: new(FrameBounds.Sphere(300)));
         FrameHandle bay = SpawnFrame(parent: East, pose: TestWorld.At(10), spec: new(FrameBounds.Sphere(40)));
         // The Kepler frame orbits a star, far from every other frame. The star's gravity is strong, and nothing is spawned in it.
-        star = SpawnFrame(parent: root, pose: TestWorld.At(0, 0, -30000),
-            spec: new(FrameBounds.Sphere(10000), GravityField.Point(1e6)));
-        KeplerOrbit starOrbit = KeplerOrbit.Circular(2000, spinRate: 0.1);
-        FrameHandle orbit = SpawnFrame(parent: star, pose: DPose.Identity,
-            spec: new(FrameBounds.Sphere(300)), rails: desc => desc.OnKeplerOrbit(World, starOrbit));
+        star = SpawnFrame(
+            parent: root,
+            pose: TestWorld.At(0, 0, -30000),
+            spec: new(FrameBounds.Sphere(10000), GravityField.Point(1e6))
+        );
+        var starOrbit = KeplerOrbit.Circular(2000, spinRate: 0.1);
+        FrameHandle orbit = SpawnFrame(
+            parent: star,
+            pose: DPose.Identity,
+            spec: new(FrameBounds.Sphere(300)),
+            rails: desc => desc.OnKeplerOrbit(World, starOrbit)
+        );
 
         // The shuttle is a frame whose hull is a body: physics drives the frame, and hands the hull off between frames. It
         // flies at 6 m/s, so that Jolt sends the state of its frame in every step.
-        Entity shuttleOwner = World.Spawn(new()
-        {
-            Frame = root,
-            Pose = TestWorld.At(50),
-            LinearVelocity = new Vector3(6, 0, 0),
-            AsFrame = new(FrameBounds.Sphere(10)),
-            Body = new(Shape: new SphereShapeDesc(5), Layer: BodyLayer.FrameHull, LinearDamping: 0, AngularDamping: 0),
-            // It refuses Destroy messages, so that the frame that physics drives lives through the run and gets its state every step.
-            Components = [new Invulnerable()]
-        });
+        Entity shuttleOwner = World.Spawn(
+            new()
+            {
+                Frame = root,
+                Pose = TestWorld.At(50),
+                LinearVelocity = new Vector3(6, 0, 0),
+                AsFrame = new(FrameBounds.Sphere(10)),
+                Body = new(
+                    Shape: new SphereShapeDesc(5),
+                    Layer: BodyLayer.FrameHull,
+                    LinearDamping: 0,
+                    AngularDamping: 0
+                ),
+                // It refuses Destroy messages, so that the frame that physics drives lives through the run and gets its state every step.
+                Components = [new Invulnerable()],
+            }
+        );
         FrameHandle shuttle = World.GetOwnedFrame(shuttleOwner);
         World.Camera = shuttleOwner;
 
@@ -188,7 +244,9 @@ internal sealed class ChaoticWorkload : IDisposable
         catch (Exception ex)
         {
             throw new InvalidOperationException(
-                $"seed {Seed}: tick {World.TickNumber} threw {ex.GetType().Name}: {ex.Message}", ex);
+                $"seed {Seed}: tick {World.TickNumber} threw {ex.GetType().Name}: {ex.Message}",
+                ex
+            );
         }
 
         Tally.EntityTicks += World.Stats.LiveEntities;
@@ -216,8 +274,8 @@ internal sealed class ChaoticWorkload : IDisposable
     }
 
     /// <summary>The violations that the cross-checks find in the state as it is now. Empty if it is sound.</summary>
-    public List<string> FindViolations(bool afterTick) => InvariantCrossChecks.Find(world: World, history: History,
-        inboxesCurrent: afterTick, sampler: sampler);
+    public List<string> FindViolations(bool afterTick) =>
+        InvariantCrossChecks.Find(world: World, history: History, inboxesCurrent: afterTick, sampler: sampler);
 
     private void Check(string when, bool afterTick)
     {
@@ -320,19 +378,23 @@ internal sealed class ChaoticWorkload : IDisposable
         // The drift is drawn for every entity, so that the random sequence stays the same. Only a body takes it, because
         // motion intents move an entity without one, and a spawn refuses its velocity.
         var drift = new Vector3(random.Next(-1, 2), 0, 0);
-        World.Spawn(new()
-        {
-            Frame = frame,
-            Pose = pose,
-            Body = withBody ? TestWorld.Ball : null,
-            LinearVelocity = withBody ? drift : Vector3.Zero,
-            Render = WithEmitter(
-                random.Next(2) == 0
-                    ? new RenderData { Mesh = new(1 + random.Next(3)), Flags = RenderFlags.Visible }
-                    : null, pose),
-            Components = [NewChurn()],
-            Subscriptions = random.Next(3) == 0 ? [Chatter] : []
-        });
+        World.Spawn(
+            new()
+            {
+                Frame = frame,
+                Pose = pose,
+                Body = withBody ? TestWorld.Ball : null,
+                LinearVelocity = withBody ? drift : Vector3.Zero,
+                Render = WithEmitter(
+                    random.Next(2) == 0
+                        ? new RenderData { Mesh = new(1 + random.Next(3)), Flags = RenderFlags.Visible }
+                        : null,
+                    pose
+                ),
+                Components = [NewChurn()],
+                Subscriptions = random.Next(3) == 0 ? [Chatter] : [],
+            }
+        );
         if (withBody)
             Tally.BodySpawns++;
     }
@@ -341,10 +403,19 @@ internal sealed class ChaoticWorkload : IDisposable
     /// Spawns a frame without a body in <paramref name="parent"/> at <paramref name="pose"/>, after <paramref name="rails"/>, when
     /// it is given, puts it on its rails (see <see cref="RailsSpawn"/>).
     /// </summary>
-    private FrameHandle SpawnFrame(FrameHandle parent, DPose pose, FrameSpec spec,
-        Func<SpawnDesc, SpawnDesc>? rails = null)
+    private FrameHandle SpawnFrame(
+        FrameHandle parent,
+        DPose pose,
+        FrameSpec spec,
+        Func<SpawnDesc, SpawnDesc>? rails = null
+    )
     {
-        var desc = new SpawnDesc { Frame = parent, Pose = pose, AsFrame = spec };
+        var desc = new SpawnDesc
+        {
+            Frame = parent,
+            Pose = pose,
+            AsFrame = spec,
+        };
         return World.GetOwnedFrame(World.Spawn(rails is null ? desc : rails(desc)));
     }
 
@@ -398,48 +469,63 @@ internal sealed class ChaoticWorkload : IDisposable
             if (!events.Of<Tick>().Any() || self.Frame.IsNull)
                 return;
             WorkloadTally tally = workload.Tally;
-            DPose here = new(self.PoseInOwnFrame().Position + new Double3(Next(21) - 10, 0, Next(21) - 10),
-                DQuaternion.Identity);
+            DPose here = new(
+                self.PoseInOwnFrame().Position + new Double3(Next(21) - 10, 0, Next(21) - 10),
+                DQuaternion.Identity
+            );
             int roll = Next(100);
             if (roll < 3)
             {
-                self.Spawn(new() { Frame = self.Frame, Pose = here, Components = [Child(1)] });
+                self.Spawn(
+                    new()
+                    {
+                        Frame = self.Frame,
+                        Pose = here,
+                        Components = [Child(1)],
+                    }
+                );
                 tally.Spawns++;
             }
             else if (roll < 5 && !self.Body.Exists)
             {
                 // The child may itself be a parent later, so chains grow.
-                self.Spawn(new()
-                {
-                    Frame = self.Frame,
-                    AttachTo = self.Entity,
-                    AttachOffset = new(new(Next(5) - 2, 0, Next(5) - 2), Quaternion.Identity),
-                    Components = [Child(4)]
-                });
+                self.Spawn(
+                    new()
+                    {
+                        Frame = self.Frame,
+                        AttachTo = self.Entity,
+                        AttachOffset = new(new(Next(5) - 2, 0, Next(5) - 2), Quaternion.Identity),
+                        Components = [Child(4)],
+                    }
+                );
                 tally.AttachedSpawns++;
             }
             else if (roll < 7)
             {
-                self.Spawn(new()
-                {
-                    Frame = self.Frame,
-                    Pose = here,
-                    Body = TestWorld.Ball,
-                    LinearVelocity = new Vector3(Next(3) - 1, 0, 0),
-                    Components = [Child(2)]
-                });
+                self.Spawn(
+                    new()
+                    {
+                        Frame = self.Frame,
+                        Pose = here,
+                        Body = TestWorld.Ball,
+                        LinearVelocity = new Vector3(Next(3) - 1, 0, 0),
+                        Components = [Child(2)],
+                    }
+                );
                 tally.BodySpawns++;
             }
             else if (roll < 8)
             {
-                self.Spawn(new()
-                {
-                    Frame = self.Frame,
-                    Pose = here,
-                    AsFrame = new(FrameBounds.Sphere(20)),
-                    Components = [Child(3)],
-                    Subscriptions = [Chatter]
-                });
+                self.Spawn(
+                    new()
+                    {
+                        Frame = self.Frame,
+                        Pose = here,
+                        AsFrame = new(FrameBounds.Sphere(20)),
+                        Components = [Child(3)],
+                        Subscriptions = [Chatter],
+                    }
+                );
                 tally.FrameSpawns++;
             }
             else if (roll < 13)
@@ -449,8 +535,12 @@ internal sealed class ChaoticWorkload : IDisposable
             }
             else if (roll < 17)
             {
-                self.Snapshot.QueryRadius(frame: self.Frame, center: self.PoseInOwnFrame().Position, radius: 40,
-                    results: neighbors);
+                self.Snapshot.QueryRadius(
+                    frame: self.Frame,
+                    center: self.PoseInOwnFrame().Position,
+                    radius: 40,
+                    results: neighbors
+                );
                 neighbors.Remove(workload.Root.Entity);
                 if (neighbors.Count > 0)
                 {

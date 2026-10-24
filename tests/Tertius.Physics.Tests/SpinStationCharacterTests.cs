@@ -37,8 +37,11 @@ public sealed class SpinStationCharacterTests
     /// <see cref="APersonWhoLeavesTheStationIntoAParentThatSpinsUpKeepsItsInertialLine"/>, in rad/s².</summary>
     private const double OuterSpinUp = 0.02;
 
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
-        Mass: PersonMass);
+    private static readonly BodyDesc Person = new(
+        Shape: new CapsuleShapeDesc(0.6f, 0.3f),
+        Motion: BodyMotion.Character,
+        Mass: PersonMass
+    );
 
     private sealed record Station(FrameHandle Space, FrameHandle Frame)
     {
@@ -49,21 +52,35 @@ public sealed class SpinStationCharacterTests
     private static Station SpawnStation(World world)
     {
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        Entity owner = world.Spawn(new SpawnDesc { Frame = space, AsFrame = new(FrameBounds.Sphere(150)) }
-            .Spinning(world, new(Tilt: DQuaternion.Identity, Rate: StationRate), firstMove: true));
+        Entity owner = world.Spawn(
+            new SpawnDesc { Frame = space, AsFrame = new(FrameBounds.Sphere(150)) }.Spinning(
+                world,
+                new(Tilt: DQuaternion.Identity, Rate: StationRate),
+                firstMove: true
+            )
+        );
         FrameHandle frame = world.GetOwnedFrame(owner);
-        world.Spawn(new()
-        {
-            Frame = frame,
-            Pose = At(FloorRadius + 0.5),
-            Body = new(Shape: new BoxShapeDesc(new(0.5f, 10, 10)), Motion: BodyMotion.Static)
-        });
+        world.Spawn(
+            new()
+            {
+                Frame = frame,
+                Pose = At(FloorRadius + 0.5),
+                Body = new(Shape: new BoxShapeDesc(new(0.5f, 10, 10)), Motion: BodyMotion.Static),
+            }
+        );
         return new(space, frame);
     }
 
     private static Entity SpawnPerson(World world, Station station, Double3 place, Pilot pilot) =>
-        world.Spawn(new()
-            { Frame = station.Frame, Pose = new(place, DQuaternion.Identity), Body = Person, Components = [pilot] });
+        world.Spawn(
+            new()
+            {
+                Frame = station.Frame,
+                Pose = new(place, DQuaternion.Identity),
+                Body = Person,
+                Components = [pilot],
+            }
+        );
 
     /// <summary>One tick's end: the time, the station's pose in inertial space, and the person's place in inertial space.</summary>
     private readonly record struct Sample(double Time, DPose Station, Double3 Inertial, bool Standing)
@@ -73,8 +90,12 @@ public sealed class SpinStationCharacterTests
     }
 
     private static Sample Take(World world, Station station, Entity person) =>
-        new(Time: world.Time, Station: station.Pose(world), Inertial: world.PoseIn(person, station.Space).Position,
-            Standing: world.IsStanding(person));
+        new(
+            Time: world.Time,
+            Station: station.Pose(world),
+            Inertial: world.PoseIn(person, station.Space).Position,
+            Standing: world.IsStanding(person)
+        );
 
     /// <summary>The station's angular velocity in inertial space, from the poses of two samples one step apart.</summary>
     private static Double3 AngularVelocity(Sample a, Sample b) =>
@@ -87,9 +108,15 @@ public sealed class SpinStationCharacterTests
     /// <paramref name="omega"/>, in inertial axes, from its pose at <paramref name="at"/>: the time after the start and the
     /// place in the station's coordinates.
     /// </summary>
-    private static (double Time, Double3 Place) Landing(Sample at, Double3 omega, Double3 start, Double3 velocity,
+    private static (double Time, Double3 Place) Landing(
+        Sample at,
+        Double3 omega,
+        Double3 start,
+        Double3 velocity,
         double planeX,
-        double from, double until)
+        double from,
+        double until
+    )
     {
         Double3 InStation(double s)
         {
@@ -99,7 +126,8 @@ public sealed class SpinStationCharacterTests
 
         double Gap(double s) => InStation(s).X - planeX;
         const double step = 1e-4;
-        double lo = from, hi = from + step;
+        double lo = from,
+            hi = from + step;
         while (hi < until && !(Gap(lo) < 0 && Gap(hi) >= 0))
         {
             lo = hi;
@@ -138,8 +166,12 @@ public sealed class SpinStationCharacterTests
         // velocity of its spawn place on the station, and the floor turns up under it. It then stands, and the ground holds it.
         using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world);
-        Entity person = SpawnPerson(world: world, station: station, place: new(StandingRadius - 0.03, 0, 0),
-            pilot: new());
+        Entity person = SpawnPerson(
+            world: world,
+            station: station,
+            place: new(StandingRadius - 0.03, 0, 0),
+            pilot: new()
+        );
         Tick(world, 60);
 
         int standing = 0;
@@ -149,8 +181,10 @@ public sealed class SpinStationCharacterTests
             world.Tick();
             if (world.IsStanding(person))
                 standing++;
-            worstHeight = Math.Max(worstHeight,
-                Math.Abs(world.PoseIn(person, station.Frame).Position.X - StandingRadius));
+            worstHeight = Math.Max(
+                worstHeight,
+                Math.Abs(world.PoseIn(person, station.Frame).Position.X - StandingRadius)
+            );
         }
 
         standing.Should().Be(600);
@@ -174,15 +208,22 @@ public sealed class SpinStationCharacterTests
         using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world);
         var pilot = new Pilot();
-        Entity person = SpawnPerson(world: world, station: station, place: new(StandingRadius - 0.03, 0, 0),
-            pilot: pilot);
-        TickUntil(world, () => world.IsStanding(person), 60).Should()
+        Entity person = SpawnPerson(
+            world: world,
+            station: station,
+            place: new(StandingRadius - 0.03, 0, 0),
+            pilot: pilot
+        );
+        TickUntil(world, () => world.IsStanding(person), 60)
+            .Should()
             .BeLessThan(60, "the person lands and stands on the floor");
         Tick(world, 10);
 
         const float speed = 2;
-        int standing = 0, steps = 0;
-        double worstSpeed = 0, worstHeight = 0;
+        int standing = 0,
+            steps = 0;
+        double worstSpeed = 0,
+            worstHeight = 0;
         foreach (float along in new[] { -speed, speed })
         {
             pilot.EveryTick = body => body.MoveCharacter(new(0, 0, along));
@@ -194,8 +235,10 @@ public sealed class SpinStationCharacterTests
                 steps++;
                 if (world.IsStanding(person))
                     standing++;
-                worstHeight = Math.Max(worstHeight,
-                    Math.Abs(world.PoseIn(person, station.Frame).Position.X - StandingRadius));
+                worstHeight = Math.Max(
+                    worstHeight,
+                    Math.Abs(world.PoseIn(person, station.Frame).Position.X - StandingRadius)
+                );
                 // The tick writes the walk, and the step of the next tick applies it, so the first step of each walk still
                 // moves with the walk before.
                 if (tick == 0)
@@ -208,13 +251,17 @@ public sealed class SpinStationCharacterTests
         }
 
         standing.Should().Be(steps, "the person stands in every step of its walk");
-        worstSpeed.Should().BeLessThan(1e-4,
-            "the person moves at its asked speed along the floor, spinward and antispinward");
+        worstSpeed
+            .Should()
+            .BeLessThan(1e-4, "the person moves at its asked speed along the floor, spinward and antispinward");
         worstHeight.Should().BeLessThan(1e-3, "the person rests on the floor while it walks");
-        world.PoseIn(person, station.Frame).Position.Z.Should()
+        world
+            .PoseIn(person, station.Frame)
+            .Position.Z.Should()
             .BeApproximately(0, 0.1, "the walk back undoes the walk out");
         TestContext.Current.TestOutputHelper?.WriteLine(
-            $"walk: worst speed error {worstSpeed:E2} m/s, worst height {worstHeight:E2} m");
+            $"walk: worst speed error {worstSpeed:E2} m/s, worst height {worstHeight:E2} m"
+        );
         world.Errors.Should().BeEmpty();
     }
 
@@ -228,8 +275,12 @@ public sealed class SpinStationCharacterTests
         using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world);
         var pilot = new Pilot();
-        Entity person = SpawnPerson(world: world, station: station, place: new(StandingRadius - 0.01, 0, 0),
-            pilot: pilot);
+        Entity person = SpawnPerson(
+            world: world,
+            station: station,
+            place: new(StandingRadius - 0.01, 0, 0),
+            pilot: pilot
+        );
         Tick(world, 60);
         var samples = new List<Sample>();
         world.Tick();
@@ -249,17 +300,32 @@ public sealed class SpinStationCharacterTests
         Double3 x0 = start.InStation;
         Double3 up0 = -new Double3(x0.X, 0, x0.Z).Normalized();
         Double3 omega = AngularVelocity(samples[0], start);
-        Double3 velocity = start.Station.Rotation.Rotate(up0 * 3) +
-                           Double3.Cross(omega, start.Inertial - start.Station.Position);
-        (double time, Double3 place) = Landing(at: start, omega: omega, start: start.Inertial, velocity: velocity,
-            planeX: x0.X, from: 1e-3, until: 1);
+        Double3 velocity =
+            start.Station.Rotation.Rotate(up0 * 3) + Double3.Cross(omega, start.Inertial - start.Station.Position);
+        (double time, Double3 place) = Landing(
+            at: start,
+            omega: omega,
+            start: start.Inertial,
+            velocity: velocity,
+            planeX: x0.X,
+            from: 1e-3,
+            until: 1
+        );
 
         int landed = FirstConstrainedStep(samples, 3);
         landed.Should().BeGreaterThan(3, "the person flew and landed");
-        Sample last = samples[landed - 1], before = samples[landed - 2];
+        Sample last = samples[landed - 1],
+            before = samples[landed - 2];
         double dt = world.DeltaTime;
-        (double measuredTime, Double3 measured) = Landing(at: last, omega: omega, start: last.Inertial,
-            velocity: (last.Inertial - before.Inertial) / dt, planeX: x0.X, from: -dt, until: 3 * dt);
+        (double measuredTime, Double3 measured) = Landing(
+            at: last,
+            omega: omega,
+            start: last.Inertial,
+            velocity: (last.Inertial - before.Inertial) / dt,
+            planeX: x0.X,
+            from: -dt,
+            until: 3 * dt
+        );
 
         Double3.Distance(measured, place).Should().BeLessThan(7e-6);
         (last.Time - start.Time + measuredTime).Should().BeApproximately(time, 1e-4);
@@ -283,16 +349,19 @@ public sealed class SpinStationCharacterTests
         pilot.Once = body => body.SetVelocity(velocity);
         world.Tick();
         Sample set = Take(world, station, person);
-        Double3 inertialVelocity = set.Station.Rotation.Rotate(velocity) +
-                                   Double3.Cross(AngularVelocity(before, set), set.Inertial - set.Station.Position);
+        Double3 inertialVelocity =
+            set.Station.Rotation.Rotate(velocity)
+            + Double3.Cross(AngularVelocity(before, set), set.Inertial - set.Station.Position);
 
         double worst = 0;
         for (int tick = 0; tick < 60; tick++)
         {
             world.Tick();
             Sample s = Take(world, station, person);
-            worst = Math.Max(worst,
-                Double3.Distance(s.Inertial, set.Inertial + inertialVelocity * (s.Time - set.Time)));
+            worst = Math.Max(
+                worst,
+                Double3.Distance(s.Inertial, set.Inertial + inertialVelocity * (s.Time - set.Time))
+            );
         }
 
         worst.Should().BeLessThan(1e-5);
@@ -309,15 +378,26 @@ public sealed class SpinStationCharacterTests
         using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world);
         Tick(world, 3);
-        FrameHandle room = world.GetOwnedFrame(world.Spawn(new()
-        {
-            Frame = station.Frame,
-            Pose = At(50),
-            AsFrame = new(FrameBounds.Sphere(30))
-        }));
+        FrameHandle room = world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = station.Frame,
+                    Pose = At(50),
+                    AsFrame = new(FrameBounds.Sphere(30)),
+                }
+            )
+        );
         // The room reads its push from its second step on.
         Tick(world, 3);
-        Entity person = world.Spawn(new() { Frame = room, Pose = At(2), Body = Person });
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = room,
+                Pose = At(2),
+                Body = Person,
+            }
+        );
         Tick(world, 2);
         Double3 first = world.PoseIn(person, station.Space).Position;
         double firstTime = world.Time;
@@ -328,9 +408,13 @@ public sealed class SpinStationCharacterTests
         for (int tick = 0; tick < 60; tick++)
         {
             world.Tick();
-            worst = Math.Max(worst,
-                Double3.Distance(world.PoseIn(person, station.Space).Position,
-                    first + velocity * (world.Time - firstTime)));
+            worst = Math.Max(
+                worst,
+                Double3.Distance(
+                    world.PoseIn(person, station.Space).Position,
+                    first + velocity * (world.Time - firstTime)
+                )
+            );
         }
 
         world.PhysicsHomeOf(person).Should().Be(room, "the person stays in the room");
@@ -366,21 +450,29 @@ public sealed class SpinStationCharacterTests
         Double3 oldVelocity = (impulse.Inertial - before[^2].Inertial) / dt;
         double worstBefore = 0;
         for (int n = 0; n < before.Count; n++)
-            worstBefore = Math.Max(worstBefore,
-                Double3.Distance(before[n].Inertial, impulse.Inertial + oldVelocity * (before[n].Time - impulse.Time)));
+            worstBefore = Math.Max(
+                worstBefore,
+                Double3.Distance(before[n].Inertial, impulse.Inertial + oldVelocity * (before[n].Time - impulse.Time))
+            );
         Double3 newVelocity = oldVelocity + impulse.Station.Rotation.Rotate(Double3.UnitZ);
         double worstAfter = 0;
         for (int tick = 0; tick < 60; tick++)
         {
             world.Tick();
             Sample s = Take(world, station, person);
-            worstAfter = Math.Max(worstAfter,
-                Double3.Distance(s.Inertial, impulse.Inertial + newVelocity * (s.Time - impulse.Time)));
+            worstAfter = Math.Max(
+                worstAfter,
+                Double3.Distance(s.Inertial, impulse.Inertial + newVelocity * (s.Time - impulse.Time))
+            );
         }
 
         worstBefore.Should().BeLessThan(1e-5, "a person in the air moves on its inertial line");
-        worstAfter.Should().BeLessThan(1e-5,
-            "the impulse's change is turned with the station's axes of its moment, not one step more");
+        worstAfter
+            .Should()
+            .BeLessThan(
+                1e-5,
+                "the impulse's change is turned with the station's axes of its moment, not one step more"
+            );
         world.Errors.Should().BeEmpty();
     }
 
@@ -407,29 +499,46 @@ public sealed class SpinStationCharacterTests
     [InlineData(1)]
     [InlineData(-1)]
     public void APersonWhoWalksOnAPlankInTheStationPressesItWithTheEffectiveGravityAndTheCoriolisTermAlongItsNormal(
-        int side)
+        int side
+    )
     {
         using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
         Station station = SpawnStation(world);
-        const double ridgeX = 95, ridgeRadius = 0.05, halfThickness = 0.25;
-        world.Spawn(new()
-        {
-            Frame = station.Frame, Pose = At(ridgeX),
-            Body = new(Shape: new CapsuleShapeDesc(2, (float)ridgeRadius), Motion: BodyMotion.Static)
-        });
+        const double ridgeX = 95,
+            ridgeRadius = 0.05,
+            halfThickness = 0.25;
+        world.Spawn(
+            new()
+            {
+                Frame = station.Frame,
+                Pose = At(ridgeX),
+                Body = new(Shape: new CapsuleShapeDesc(2, (float)ridgeRadius), Motion: BodyMotion.Static),
+            }
+        );
         const double plankX = ridgeX - ridgeRadius - halfThickness;
-        Entity plank = world.Spawn(new()
-        {
-            Frame = station.Frame,
-            Pose = At(plankX),
-            Body = new(Shape: new BoxShapeDesc(new((float)halfThickness, 2, 5)), Mass: PlankMass, LinearDamping: 0,
-                AngularDamping: 0)
-        });
+        Entity plank = world.Spawn(
+            new()
+            {
+                Frame = station.Frame,
+                Pose = At(plankX),
+                Body = new(
+                    Shape: new BoxShapeDesc(new((float)halfThickness, 2, 5)),
+                    Mass: PlankMass,
+                    LinearDamping: 0,
+                    AngularDamping: 0
+                ),
+            }
+        );
         var pilot = new Pilot();
         // The person starts 1 cm above the plank's face toward the axis, and lands on it in about 20 ticks.
-        Entity person = SpawnPerson(world: world, station: station,
-            place: new(plankX - halfThickness - 0.9 - 0.01, 0, 2 * side), pilot: pilot);
-        TickUntil(world, () => world.IsStanding(person), 60).Should()
+        Entity person = SpawnPerson(
+            world: world,
+            station: station,
+            place: new(plankX - halfThickness - 0.9 - 0.01, 0, 2 * side),
+            pilot: pilot
+        );
+        TickUntil(world, () => world.IsStanding(person), 60)
+            .Should()
             .BeLessThan(60, "the person lands and stands on the plank");
 
         var omega = new Double3(0, StationRate, 0);
@@ -443,10 +552,16 @@ public sealed class SpinStationCharacterTests
         void Read()
         {
             DPose pose = world.PoseIn(plank, station.Frame);
-            reads.Add((2 * Math.Atan2(pose.Rotation.Y, pose.Rotation.W), pose,
-                world.PoseIn(person, station.Frame).Position,
-                world.VelocityIn(person, station.Frame), IsAwake(backend, station.Frame, plank),
-                world.IsStanding(person)));
+            reads.Add(
+                (
+                    2 * Math.Atan2(pose.Rotation.Y, pose.Rotation.W),
+                    pose,
+                    world.PoseIn(person, station.Frame).Position,
+                    world.VelocityIn(person, station.Frame),
+                    IsAwake(backend, station.Frame, plank),
+                    world.IsStanding(person)
+                )
+            );
         }
 
         // The angular acceleration of the plank about the ridge, in rad/s², that the person's press and the effective
@@ -457,14 +572,14 @@ public sealed class SpinStationCharacterTests
             (_, DPose pose, Double3 place, _, _, _) = reads[start];
             Double3 velocity = reads[end].Velocity;
             Double3 away = new Double3(place.X, 0, place.Z).Normalized();
-            Double3 weight = StationRate * StationRate * new Double3(place.X, 0, place.Z) -
-                             2 * Double3.Cross(omega, velocity);
+            Double3 weight =
+                StationRate * StationRate * new Double3(place.X, 0, place.Z) - 2 * Double3.Cross(omega, velocity);
             // The press acts where the person's lower sphere touches the plank, along the plank's normal away from the person.
             Double3 press = PersonMass * Double3.Dot(weight, away) * pose.Rotation.Rotate(Double3.UnitX);
             Double3 contact = place + 0.9 * away;
-            double torque = Double3.Cross(contact - ridge, press).Y
-                            + StationRate * StationRate * PlankMass *
-                            Double3.Cross(pose.Position - ridge, pose.Position).Y;
+            double torque =
+                Double3.Cross(contact - ridge, press).Y
+                + StationRate * StationRate * PlankMass * Double3.Cross(pose.Position - ridge, pose.Position).Y;
             return torque / inertia;
         }
 
@@ -484,14 +599,28 @@ public sealed class SpinStationCharacterTests
         int checkedSteps = 0;
         for (int n = 3; n < reads.Count - 1; n++)
         {
-            if (!(reads[n - 2].Awake && reads[n - 1].Awake && reads[n].Awake && reads[n].Standing &&
-                  reads[n + 1].Standing))
+            if (
+                !(
+                    reads[n - 2].Awake
+                    && reads[n - 1].Awake
+                    && reads[n].Awake
+                    && reads[n].Standing
+                    && reads[n + 1].Standing
+                )
+            )
                 continue;
-            double measured = (reads[n].Turn - 2 * reads[n - 1].Turn + reads[n - 2].Turn) * world.Options.TickRate *
-                              world.Options.TickRate;
+            double measured =
+                (reads[n].Turn - 2 * reads[n - 1].Turn + reads[n - 2].Turn)
+                * world.Options.TickRate
+                * world.Options.TickRate;
             double target = Expected(n - 1, n);
-            measured.Should().BeApproximately(target, 0.02 * Math.Abs(target),
-                $"the plank reads the press of the effective gravity and the Coriolis term in the step that ends at read {n}");
+            measured
+                .Should()
+                .BeApproximately(
+                    target,
+                    0.02 * Math.Abs(target),
+                    $"the plank reads the press of the effective gravity and the Coriolis term in the step that ends at read {n}"
+                );
             checkedSteps++;
         }
 
@@ -519,16 +648,22 @@ public sealed class SpinStationCharacterTests
         double half = Math.Atan(CrossingJump / (StationRate * StandingRadius));
         double landing = 2 * half - Math.Sin(2 * half);
         // A turn about +Y by the landing angle takes the station's +X onto the far floor's normal away from the axis.
-        DQuaternion far = DQuaternion.FromAxisAngle(Double3.UnitY, landing);
-        world.Spawn(new()
-        {
-            Frame = station.Frame,
-            Pose = new(far.Rotate(new Double3(FloorRadius + 0.5, 0, 0)), far),
-            Body = new(Shape: new BoxShapeDesc(new(0.5f, 10, 10)), Motion: BodyMotion.Static)
-        });
+        var far = DQuaternion.FromAxisAngle(Double3.UnitY, landing);
+        world.Spawn(
+            new()
+            {
+                Frame = station.Frame,
+                Pose = new(far.Rotate(new Double3(FloorRadius + 0.5, 0, 0)), far),
+                Body = new(Shape: new BoxShapeDesc(new(0.5f, 10, 10)), Motion: BodyMotion.Static),
+            }
+        );
         var pilot = new Pilot();
-        Entity person = SpawnPerson(world: world, station: station, place: new(StandingRadius - 0.01, 0, 0),
-            pilot: pilot);
+        Entity person = SpawnPerson(
+            world: world,
+            station: station,
+            place: new(StandingRadius - 0.01, 0, 0),
+            pilot: pilot
+        );
         Tick(world, 60);
         world.IsStanding(person).Should().BeTrue("the person stands on the floor of its takeoff");
         Send(world, pilot, body => body.Jump((float)CrossingJump));
@@ -547,9 +682,12 @@ public sealed class SpinStationCharacterTests
         double tilt = Math.Acos(Math.Clamp(Double3.Dot(ups[landed - 1], StationUpAt(last.InStation)), -1, 1));
         tilt.Should().BeLessThan(1e-3, "the person comes down upright, its up against the gravity where it lands");
         Double3 end = samples[^1].InStation;
-        Math.Atan2(-end.Z, end.X).Should()
+        Math.Atan2(-end.Z, end.X)
+            .Should()
             .BeApproximately(landing, 1e-3, "it lands on the far floor where its inertial line meets it");
-        samples.Skip(landed + 2).Should()
+        samples
+            .Skip(landed + 2)
+            .Should()
             .OnlyContain(s => s.Standing, "it stands on the far floor from the tick after it lands on");
         Double3.Distance(ups[^1], StationUpAt(end)).Should().BeLessThan(1e-3);
         world.PhysicsHomeOf(person).Should().Be(station.Frame, "the person stays in the station's own system");
@@ -568,7 +706,9 @@ public sealed class SpinStationCharacterTests
         Tick(world, 3);
 
         backend.HasRigidForm(nearHub).Should().BeTrue("the centrifugal term near the hub is too weak to stand on");
-        backend.HasRigidForm(farther).Should()
+        backend
+            .HasRigidForm(farther)
+            .Should()
             .BeFalse("the centrifugal term at 2 m from the axis is enough to stand on");
         world.Errors.Should().BeEmpty();
     }
@@ -593,18 +733,26 @@ public sealed class SpinStationCharacterTests
     /// from the station's axis the effective gravity is ω² r = 13.7 m/s², so the person keeps its walking form, and it touches
     /// nothing on its way out of the bubble of 150 m.
     /// </summary>
-    private static Entity SpawnOutwardPerson(World world, FrameHandle frame, in DPose pose, Double3 frameSpin,
-        out Double3 place, out Double3 velocity)
+    private static Entity SpawnOutwardPerson(
+        World world,
+        FrameHandle frame,
+        in DPose pose,
+        Double3 frameSpin,
+        out Double3 place,
+        out Double3 velocity
+    )
     {
         var start = new Double3(140, 0, 0);
         var inertialVelocity = new Double3(10, 0, 0);
-        Entity person = world.Spawn(new()
-        {
-            Frame = frame,
-            Pose = new(start, DQuaternion.Identity),
-            LinearVelocity = inertialVelocity - Double3.Cross(frameSpin, start),
-            Body = Person
-        });
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = frame,
+                Pose = new(start, DQuaternion.Identity),
+                LinearVelocity = inertialVelocity - Double3.Cross(frameSpin, start),
+                Body = Person,
+            }
+        );
         place = pose.TransformPoint(start);
         velocity = pose.Rotation.Rotate(inertialVelocity);
         return person;
@@ -621,28 +769,41 @@ public sealed class SpinStationCharacterTests
         Station station = SpawnStation(world);
         Tick(world, 30);
         double start = world.Time;
-        Entity person = SpawnOutwardPerson(world: world, frame: station.Frame, pose: station.Pose(world),
+        Entity person = SpawnOutwardPerson(
+            world: world,
+            frame: station.Frame,
+            pose: station.Pose(world),
             frameSpin: new(0, StationRate, 0),
             place: out Double3 place,
-            velocity: out Double3 velocity);
+            velocity: out Double3 velocity
+        );
 
         double worstPlace = 0;
-        int ticks = TickUntil(world, () =>
-        {
-            worstPlace = Math.Max(worstPlace,
-                Double3.Distance(world.PoseIn(person, station.Space).Position,
-                    place + velocity * (world.Time - start)));
-            return world.GetFrame(person) == station.Space;
-        }, 200);
+        int ticks = TickUntil(
+            world,
+            () =>
+            {
+                worstPlace = Math.Max(
+                    worstPlace,
+                    Double3.Distance(
+                        world.PoseIn(person, station.Space).Position,
+                        place + velocity * (world.Time - start)
+                    )
+                );
+                return world.GetFrame(person) == station.Space;
+            },
+            200
+        );
 
         ticks.Should().BeLessThan(200, "the person leaves the bubble of 150 m within 2 s");
         Double3.Distance(world.VelocityIn(person, station.Space), velocity).Should().BeLessThan(1e-4);
         for (int tick = 0; tick < 60; tick++)
         {
             world.Tick();
-            worstPlace = Math.Max(worstPlace,
-                Double3.Distance(world.PoseIn(person, station.Space).Position,
-                    place + velocity * (world.Time - start)));
+            worstPlace = Math.Max(
+                worstPlace,
+                Double3.Distance(world.PoseIn(person, station.Space).Position, place + velocity * (world.Time - start))
+            );
         }
 
         worstPlace.Should().BeLessThan(1e-4);
@@ -661,36 +822,59 @@ public sealed class SpinStationCharacterTests
         using World world = NewWorld(backend: out _, debugChecks: false);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         double spinStart = world.Time;
-        FrameHandle outer = world.GetOwnedFrame(world.Spawn(SpinUp.Spawning(
-            new() { Frame = space, AsFrame = new(FrameBounds.Sphere(1e4f)) }, world, OuterSpinUp)));
+        FrameHandle outer = world.GetOwnedFrame(
+            world.Spawn(
+                SpinUp.Spawning(new() { Frame = space, AsFrame = new(FrameBounds.Sphere(1e4f)) }, world, OuterSpinUp)
+            )
+        );
         // The tilt takes the spin's pole, +Y, to +X.
         var spin = new FrameSpin(Tilt: DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2), Rate: StationRate);
-        FrameHandle station = world.GetOwnedFrame(world.Spawn(
-            new SpawnDesc { Frame = outer, AsFrame = new(FrameBounds.Sphere(150)) }
-                .Spinning(world, spin, firstMove: true)));
+        FrameHandle station = world.GetOwnedFrame(
+            world.Spawn(
+                new SpawnDesc { Frame = outer, AsFrame = new(FrameBounds.Sphere(150)) }.Spinning(
+                    world,
+                    spin,
+                    firstMove: true
+                )
+            )
+        );
         Tick(world, world.Options.TickRate);
         DPose pose = world.Frames.Relative(station, space);
-        Double3 inSpace = new Double3(0, OuterSpinUp * (world.Time - spinStart), 0) +
-                          world.Frames.Relative(outer, space).Rotation.Rotate(spin.AngularVelocity);
+        Double3 inSpace =
+            new Double3(0, OuterSpinUp * (world.Time - spinStart), 0)
+            + world.Frames.Relative(outer, space).Rotation.Rotate(spin.AngularVelocity);
         double start = world.Time;
-        Entity person = SpawnOutwardPerson(world: world, frame: station, pose: pose,
+        Entity person = SpawnOutwardPerson(
+            world: world,
+            frame: station,
+            pose: pose,
             frameSpin: pose.Rotation.Conjugate().Rotate(inSpace),
-            place: out Double3 place, velocity: out Double3 velocity);
+            place: out Double3 place,
+            velocity: out Double3 velocity
+        );
 
         double worstPlace = 0;
-        int ticks = TickUntil(world, () =>
-        {
-            worstPlace = Math.Max(worstPlace,
-                Double3.Distance(world.PoseIn(person, space).Position, place + velocity * (world.Time - start)));
-            return world.GetFrame(person) == outer;
-        }, 200);
+        int ticks = TickUntil(
+            world,
+            () =>
+            {
+                worstPlace = Math.Max(
+                    worstPlace,
+                    Double3.Distance(world.PoseIn(person, space).Position, place + velocity * (world.Time - start))
+                );
+                return world.GetFrame(person) == outer;
+            },
+            200
+        );
         ticks.Should().BeLessThan(200, "the person leaves the bubble of 150 m within 2 s");
 
         for (int tick = 0; tick < 120; tick++)
         {
             world.Tick();
-            worstPlace = Math.Max(worstPlace,
-                Double3.Distance(world.PoseIn(person, space).Position, place + velocity * (world.Time - start)));
+            worstPlace = Math.Max(
+                worstPlace,
+                Double3.Distance(world.PoseIn(person, space).Position, place + velocity * (world.Time - start))
+            );
         }
 
         world.GetFrame(person).Should().Be(outer);

@@ -42,12 +42,16 @@ public sealed class ContactLifetimeTests
         public Entity Floor { get; }
 
         /// <summary>The number of contacts between <paramref name="a"/> and <paramref name="b"/> that Jolt reported so far.</summary>
-        public int ContactsOf(Entity a, Entity b) => Faults.Outputs.SelectMany(output => output.Contacts)
-            .Count(contact => (contact.A == a && contact.B == b) || (contact.A == b && contact.B == a));
+        public int ContactsOf(Entity a, Entity b) =>
+            Faults
+                .Outputs.SelectMany(output => output.Contacts)
+                .Count(contact => (contact.A == a && contact.B == b) || (contact.A == b && contact.B == a));
 
         /// <summary>The number of ends of contacts between <paramref name="a"/> and <paramref name="b"/> that Jolt reported so far.</summary>
-        public int EndsOf(Entity a, Entity b) => Faults.Outputs.SelectMany(output => output.ContactsEnded)
-            .Count(ended => (ended.A == a && ended.B == b) || (ended.A == b && ended.B == a));
+        public int EndsOf(Entity a, Entity b) =>
+            Faults
+                .Outputs.SelectMany(output => output.ContactsEnded)
+                .Count(ended => (ended.A == a && ended.B == b) || (ended.A == b && ended.B == a));
 
         /// <summary>True while Jolt simulates the body of <paramref name="entity"/> in the system of the ground.</summary>
         public bool IsAwake(Entity entity) => WorldTesting.IsAwake(Faults.Jolt, Frame, entity);
@@ -56,18 +60,32 @@ public sealed class ContactLifetimeTests
         /// A kinematic block that slides slowly, high above the far end of the floor, and touches nothing. It is always
         /// awake, so the system of the ground steps every tick, also while every other body sleeps.
         /// </summary>
-        public void KeepSteppingTheSystem() => World.Spawn(KinematicDrift.Drifting(new()
-        {
-            Frame = Frame,
-            Pose = At(-40, 20),
-            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Kinematic)
-        }, World, new(0, 0, 0.1)));
+        public void KeepSteppingTheSystem() =>
+            World.Spawn(
+                KinematicDrift.Drifting(
+                    new()
+                    {
+                        Frame = Frame,
+                        Pose = At(-40, 20),
+                        Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Kinematic),
+                    },
+                    World,
+                    new(0, 0, 0.1)
+                )
+            );
 
         /// <summary>Adds a box of 1 m that rests on the floor, and ticks until it is asleep.</summary>
         public Entity SleepingBox(params IComponent[] components)
         {
-            Entity box = World.Spawn(new()
-                { Frame = Frame, Pose = At(0, 0.5), Body = BoxDesc(mass: 10), Components = components });
+            Entity box = World.Spawn(
+                new()
+                {
+                    Frame = Frame,
+                    Pose = At(0, 0.5),
+                    Body = BoxDesc(mass: 10),
+                    Components = components,
+                }
+            );
             World.Tick();
             TickUntil(World, () => !IsAwake(box), 180);
             IsAwake(box).Should().BeFalse("the box rests on the floor, so it falls asleep");
@@ -78,14 +96,21 @@ public sealed class ContactLifetimeTests
         /// <summary>Adds a lander, a frame with a dynamic hull, 2 m above the floor.</summary>
         public FrameHandle Lander()
         {
-            Entity owner = World.Spawn(new()
-            {
-                Frame = Frame,
-                Pose = At(0, 2),
-                Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0, LinearDamping: 0,
-                    AngularDamping: 0),
-                AsFrame = new(FrameBounds.Sphere(1))
-            });
+            Entity owner = World.Spawn(
+                new()
+                {
+                    Frame = Frame,
+                    Pose = At(0, 2),
+                    Body = new(
+                        Shape: new BoxShapeDesc(new(2)),
+                        Mass: 1000,
+                        Restitution: 0,
+                        LinearDamping: 0,
+                        AngularDamping: 0
+                    ),
+                    AsFrame = new(FrameBounds.Sphere(1)),
+                }
+            );
             return World.GetOwnedFrame(owner);
         }
 
@@ -123,8 +148,14 @@ public sealed class ContactLifetimeTests
         Entity box = ground.SleepingBox();
         Tick(ground.World, 30);
 
-        Entity ball = ground.World.Spawn(new()
-            { Frame = ground.Frame, Pose = At(0, 2), Body = BallDesc(0.25f, mass: 1) });
+        Entity ball = ground.World.Spawn(
+            new()
+            {
+                Frame = ground.Frame,
+                Pose = At(0, 2),
+                Body = BallDesc(0.25f, mass: 1),
+            }
+        );
         Tick(ground.World, 60);
 
         ground.ContactsOf(ball, box).Should().Be(1, "the ball hit the box");
@@ -141,12 +172,14 @@ public sealed class ContactLifetimeTests
         Tick(ground.World, 30);
 
         for (int i = 0; i < 8; i++)
-            ground.World.Spawn(new()
-            {
-                Frame = ground.Frame,
-                Pose = At(3 * i, -100),
-                Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static)
-            });
+            ground.World.Spawn(
+                new()
+                {
+                    Frame = ground.Frame,
+                    Pose = At(3 * i, -100),
+                    Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static),
+                }
+            );
         Tick(ground.World, 30);
         ground.Faults.Jolt.CapacityOf(ground.Frame).Should().Be(16, "the system grew");
         ground.ChangeGravity();
@@ -181,7 +214,9 @@ public sealed class ContactLifetimeTests
 
         ground.World.SetMotionNextTick(owner: lander.Entity, motion: BodyMotion.Static);
         Tick(ground.World, 60);
-        ground.EndsOf(lander.Entity, ground.Floor).Should()
+        ground
+            .EndsOf(lander.Entity, ground.Floor)
+            .Should()
             .Be(1, "a parked lander is a static body, which touches no static body");
         ground.World.SetMotionNextTick(owner: lander.Entity, motion: BodyMotion.Dynamic);
         Tick(ground.World, 60);
@@ -205,16 +240,26 @@ public sealed class ContactLifetimeTests
     {
         using var ground = new Ground();
 
-        Entity Spawn(double y, BodyMotion motion, float bubble) => ground.World.Spawn(new()
-        {
-            Frame = ground.Frame,
-            Pose = At(0, y),
-            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: motion, Mass: 1000, Restitution: 0, LinearDamping: 0,
-                AngularDamping: 0),
-            AsFrame = new(FrameBounds.Sphere(bubble))
-        });
+        Entity Spawn(double y, BodyMotion motion, float bubble) =>
+            ground.World.Spawn(
+                new()
+                {
+                    Frame = ground.Frame,
+                    Pose = At(0, y),
+                    Body = new(
+                        Shape: new BoxShapeDesc(new(2)),
+                        Motion: motion,
+                        Mass: 1000,
+                        Restitution: 0,
+                        LinearDamping: 0,
+                        AngularDamping: 0
+                    ),
+                    AsFrame = new(FrameBounds.Sphere(bubble)),
+                }
+            );
 
-        Entity lander = default, platform = default;
+        Entity lander = default,
+            platform = default;
         if (landerFirst)
             lander = Spawn(6, BodyMotion.Dynamic, 4);
         platform = Spawn(2, BodyMotion.Static, 3.5f);
@@ -247,24 +292,37 @@ public sealed class ContactLifetimeTests
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         Entity floor = Floor(world, space);
-        Entity owner = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(0, 2.01),
-            Body = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0, LinearDamping: 0,
-                AngularDamping: 0),
-            AsFrame = new(FrameBounds.Sphere(4))
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(0, 2.01),
+                Body = new(
+                    Shape: new BoxShapeDesc(new(2)),
+                    Mass: 1000,
+                    Restitution: 0,
+                    LinearDamping: 0,
+                    AngularDamping: 0
+                ),
+                AsFrame = new(FrameBounds.Sphere(4)),
+            }
+        );
         Tick(world, 3);
-        faults.Jolt.PendingPairCount(space).Should().BeGreaterThan(0,
-            "Jolt found the hull and the floor within its speculative contact distance");
+        faults
+            .Jolt.PendingPairCount(space)
+            .Should()
+            .BeGreaterThan(0, "Jolt found the hull and the floor within its speculative contact distance");
 
         world.SetMotionNextTick(owner: owner, motion: BodyMotion.Static);
         Tick(world, 5);
 
-        faults.Outputs.SelectMany(output => output.Contacts).Should()
+        faults
+            .Outputs.SelectMany(output => output.Contacts)
+            .Should()
             .NotContain(contact => contact.A == floor || contact.B == floor);
-        faults.Outputs.SelectMany(output => output.ContactsEnded).Should()
+        faults
+            .Outputs.SelectMany(output => output.ContactsEnded)
+            .Should()
             .NotContain(ended => ended.A == floor || ended.B == floor);
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
         world.Errors.Should().BeEmpty();
@@ -287,7 +345,9 @@ public sealed class ContactLifetimeTests
         ground.World.Tick();
         Tick(ground.World, 120);
 
-        ground.World.PoseInOwnFrame(box).Position.Y.Should()
+        ground
+            .World.PoseInOwnFrame(box)
+            .Position.Y.Should()
             .BeApproximately(0.5, 0.01, "the box fell back onto the floor");
         ground.ContactsOf(ground.Floor, box).Should().Be(2, "the box left the floor and landed again");
         ground.World.Errors.Should().BeEmpty();
@@ -314,7 +374,9 @@ public sealed class ContactLifetimeTests
         ground.World.SetMotionNextTick(owner: lander.Entity, motion: BodyMotion.Dynamic);
         Tick(ground.World, 120);
 
-        ground.World.Frames.LocalPose(lander).Position.Y.Should()
+        ground
+            .World.Frames.LocalPose(lander)
+            .Position.Y.Should()
             .BeApproximately(2, 0.01, "the lander fell back onto the floor");
         ground.ContactsOf(lander.Entity, ground.Floor).Should().Be(2, "the lander left the floor and landed again");
         ground.World.Errors.Should().BeEmpty();

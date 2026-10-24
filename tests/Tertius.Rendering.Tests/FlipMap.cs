@@ -17,7 +17,7 @@ internal sealed class FlipMap
         (0.5f, new(0.550f, 0.161f, 0.506f)),
         (0.75f, new(0.869f, 0.288f, 0.409f)),
         (0.9f, new(0.993f, 0.553f, 0.384f)),
-        (1f, new(0.987f, 0.991f, 0.750f))
+        (1f, new(0.987f, 0.991f, 0.750f)),
     ];
 
     private readonly float[] values;
@@ -25,8 +25,10 @@ internal sealed class FlipMap
     public FlipMap(int width, int height, float[] values)
     {
         if (values.Length != width * height)
-            throw new ArgumentException($"A {width}×{height} map needs {width * height} values, not {values.Length}.",
-                nameof(values));
+            throw new ArgumentException(
+                $"A {width}×{height} map needs {width * height} values, not {values.Length}.",
+                nameof(values)
+            );
         Width = width;
         Height = height;
         this.values = values;

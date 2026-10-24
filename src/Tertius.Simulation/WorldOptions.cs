@@ -60,19 +60,31 @@ public sealed class WorldOptions
         if (ChunkSize <= 0)
             throw new ArgumentOutOfRangeException(nameof(ChunkSize), ChunkSize, "The chunk size must be positive.");
         if (MaxDegreeOfParallelism is 0 or < -1)
-            throw new ArgumentOutOfRangeException(nameof(MaxDegreeOfParallelism), MaxDegreeOfParallelism,
-                "Use -1 or a positive number.");
+            throw new ArgumentOutOfRangeException(
+                nameof(MaxDegreeOfParallelism),
+                MaxDegreeOfParallelism,
+                "Use -1 or a positive number."
+            );
         if (SpawnPoolSize < 0)
-            throw new ArgumentOutOfRangeException(nameof(SpawnPoolSize), SpawnPoolSize,
-                "The spawn pool size cannot be negative.");
+            throw new ArgumentOutOfRangeException(
+                nameof(SpawnPoolSize),
+                SpawnPoolSize,
+                "The spawn pool size cannot be negative."
+            );
         if (InitialCapacity < 0)
-            throw new ArgumentOutOfRangeException(nameof(InitialCapacity), InitialCapacity,
-                "The capacity cannot be negative.");
+            throw new ArgumentOutOfRangeException(
+                nameof(InitialCapacity),
+                InitialCapacity,
+                "The capacity cannot be negative."
+            );
         if (MaxErrors < 0)
             throw new ArgumentOutOfRangeException(nameof(MaxErrors), MaxErrors, "The error limit cannot be negative.");
         if (PuffCapacity < 0)
-            throw new ArgumentOutOfRangeException(nameof(PuffCapacity), PuffCapacity,
-                "The puff capacity cannot be negative.");
+            throw new ArgumentOutOfRangeException(
+                nameof(PuffCapacity),
+                PuffCapacity,
+                "The puff capacity cannot be negative."
+            );
         if (!double.IsFinite(StartTime))
             throw new ArgumentOutOfRangeException(nameof(StartTime), StartTime, "The start time must be finite.");
         ArgumentNullException.ThrowIfNull(NumericFrames);

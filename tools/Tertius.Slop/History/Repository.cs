@@ -17,8 +17,13 @@ public sealed class Repository(string folder)
     // The variables by which a hook points git at its repository, its index or its objects.
     private static readonly string[] HookVariables =
     [
-        "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY",
-        "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_PREFIX"
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_COMMON_DIR",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_PREFIX",
     ];
 
     /// <summary>The commits that <c>git log</c> lists for <paramref name="arguments"/>, newest first, with their notes.</summary>
@@ -28,15 +33,18 @@ public sealed class Repository(string folder)
         string log = Git(["log", $"--notes={NotesRef}", "--format=%H%x1f%P%x1f%cI%x1f%B%x1f%N%x1e", .. arguments]);
         return
         [
-            .. log.Split('\x1e').Select(record => record.TrimStart('\n')).Where(record => record.Length > 0)
-                .Select(record => record.Split('\x1f')).Select(fields => new Commit
+            .. log.Split('\x1e')
+                .Select(record => record.TrimStart('\n'))
+                .Where(record => record.Length > 0)
+                .Select(record => record.Split('\x1f'))
+                .Select(fields => new Commit
                 {
                     Sha = fields[0],
                     FirstParent = fields[1].Split(' ')[0] is { Length: > 0 } parent ? parent : null,
                     Date = DateTimeOffset.Parse(fields[2], CultureInfo.InvariantCulture),
                     Message = fields[3].TrimEnd(),
-                    Note = SlopNote.Parse(fields[4])
-                })
+                    Note = SlopNote.Parse(fields[4]),
+                }),
         ];
     }
 
@@ -48,11 +56,7 @@ public sealed class Repository(string folder)
     public SlopReport Measure(string tree, string jscpd)
     {
         // An archive of a path that the tree does not hold fails, and an old commit can lack the benchmarks.
-        string[] folders =
-        [
-            .. Git(["ls-tree", "--name-only", tree]).Split('\n')
-                .Where(Codebase.Folders.Contains)
-        ];
+        string[] folders = [.. Git(["ls-tree", "--name-only", tree]).Split('\n').Where(Codebase.Folders.Contains)];
         string root = Directory.CreateTempSubdirectory("tertius-slop-tree-").FullName;
         try
         {
@@ -83,7 +87,7 @@ public sealed class Repository(string folder)
         {
             0 => false,
             1 => true,
-            _ => throw new InvalidOperationException($"git diff of {commit.Sha} failed with exit code {exit}.")
+            _ => throw new InvalidOperationException($"git diff of {commit.Sha} failed with exit code {exit}."),
         };
     }
 
@@ -116,7 +120,9 @@ public sealed class Repository(string folder)
     {
         var start = new ProcessStartInfo("git")
         {
-            WorkingDirectory = folder, RedirectStandardOutput = true, RedirectStandardError = true
+            WorkingDirectory = folder,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
         };
         foreach (string argument in arguments)
             start.ArgumentList.Add(argument);

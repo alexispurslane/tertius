@@ -1,8 +1,8 @@
 using System.Numerics;
 using Tertius.Frames.Rails;
 using Tertius.Simulation;
-using static Tertius.Testing.WorldTesting;
 using static Tertius.Testing.NumericFrameTesting;
+using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -25,8 +25,12 @@ public sealed class DynamicHullRecordTests
     private static readonly double OrbitSpeed = Math.Sqrt(EarthMu / OrbitRadius);
 
     /// <summary>A hull of 10 m and 10 t that nothing slows down.</summary>
-    private static readonly BodyDesc Hull = new(Shape: new BoxShapeDesc(new(5)), Mass: 1e4f, LinearDamping: 0,
-        AngularDamping: 0);
+    private static readonly BodyDesc Hull = new(
+        Shape: new BoxShapeDesc(new(5)),
+        Mass: 1e4f,
+        LinearDamping: 0,
+        AngularDamping: 0
+    );
 
     /// <summary>The gravity of the station in its own axes, in m/s², which acts on what is inside it.</summary>
     private static readonly Vector3 StationGravity = new(0, -3, 0);
@@ -47,22 +51,37 @@ public sealed class DynamicHullRecordTests
     /// A ship whose frame physics drives, at <paramref name="start"/> in <paramref name="frame"/>, with the instant velocity
     /// <paramref name="velocity"/> and the angular velocity <paramref name="spin"/>, in rad/s.
     /// </summary>
-    private static Entity Ship(World world, FrameHandle frame, Double3 start, Double3 velocity, BodyDesc hull,
+    private static Entity Ship(
+        World world,
+        FrameHandle frame,
+        Double3 start,
+        Double3 velocity,
+        BodyDesc hull,
         float bubble,
-        Vector3 spin = default) => world.Spawn(new()
-    {
-        Frame = frame,
-        Pose = new(start, DQuaternion.Identity),
-        LinearVelocity = velocity,
-        AngularVelocity = spin,
-        Body = hull,
-        AsFrame = new(FrameBounds.Sphere(bubble))
-    });
+        Vector3 spin = default
+    ) =>
+        world.Spawn(
+            new()
+            {
+                Frame = frame,
+                Pose = new(start, DQuaternion.Identity),
+                LinearVelocity = velocity,
+                AngularVelocity = spin,
+                Body = hull,
+                AsFrame = new(FrameBounds.Sphere(bubble)),
+            }
+        );
 
     /// <summary>A ship in low orbit, 400 km above Earth, which falls in a numeric frame of its own within its first ticks.</summary>
     private static Entity ShipInOrbit(World world, FrameHandle earth) =>
-        Ship(world: world, frame: earth, start: new(OrbitRadius, 0, 0), velocity: new(0, 0, OrbitSpeed), hull: Hull,
-            bubble: 20);
+        Ship(
+            world: world,
+            frame: earth,
+            start: new(OrbitRadius, 0, 0),
+            velocity: new(0, 0, OrbitSpeed),
+            hull: Hull,
+            bubble: 20
+        );
 
     /// <summary>
     /// A station of 10 m whose frame physics drives, with a bubble of 200 m and the gravity <paramref name="stationGravity"/>
@@ -70,13 +89,17 @@ public sealed class DynamicHullRecordTests
     /// <see cref="StationTurn"/>. Nothing slows it down.
     /// </summary>
     private static FrameHandle TurnedStation(World world, FrameHandle frame, Vector3 stationGravity) =>
-        world.GetOwnedFrame(world.Spawn(new()
-        {
-            Frame = frame,
-            Pose = new(Double3.Zero, StationTurn),
-            Body = new(Shape: new BoxShapeDesc(new(5)), Mass: 1e6f, LinearDamping: 0, AngularDamping: 0),
-            AsFrame = new(FrameBounds.Sphere(200), GravityField.Uniform(stationGravity))
-        }));
+        world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = frame,
+                    Pose = new(Double3.Zero, StationTurn),
+                    Body = new(Shape: new BoxShapeDesc(new(5)), Mass: 1e6f, LinearDamping: 0, AngularDamping: 0),
+                    AsFrame = new(FrameBounds.Sphere(200), GravityField.Uniform(stationGravity)),
+                }
+            )
+        );
 
     /// <summary>The hull of a ship of 8 m by 4 m by 2 m and 1 t, with the linear damping <paramref name="damping"/> and the angular damping
     /// <paramref name="angularDamping"/>.</summary>
@@ -91,14 +114,25 @@ public sealed class DynamicHullRecordTests
     /// bubble after about 55 ticks. In a world without numeric frames both hulls stay in the system of
     /// <paramref name="frame"/> until the hand-off.
     /// </summary>
-    private static (FrameHandle Station, Entity Ship, FrameHandle ShipFrame) ShipThatFliesIntoAStation(World world,
+    private static (FrameHandle Station, Entity Ship, FrameHandle ShipFrame) ShipThatFliesIntoAStation(
+        World world,
         FrameHandle frame,
-        Vector3 stationGravity, float shipDamping = 0, float shipAngularDamping = 0, Vector3 shipSpin = default)
+        Vector3 stationGravity,
+        float shipDamping = 0,
+        float shipAngularDamping = 0,
+        Vector3 shipSpin = default
+    )
     {
         FrameHandle station = TurnedStation(world, frame, stationGravity);
-        Entity ship = Ship(world: world, frame: frame, start: new(260, 0, 0), velocity: Approach,
-            hull: ShipHull(shipDamping, shipAngularDamping), bubble: 10,
-            spin: shipSpin);
+        Entity ship = Ship(
+            world: world,
+            frame: frame,
+            start: new(260, 0, 0),
+            velocity: Approach,
+            hull: ShipHull(shipDamping, shipAngularDamping),
+            bubble: 10,
+            spin: shipSpin
+        );
         return (station, ship, world.GetOwnedFrame(ship));
     }
 
@@ -118,9 +152,10 @@ public sealed class DynamicHullRecordTests
         // the spawn's instant velocity. The instant velocity at the end of each step is half a step of the step's gravity
         // past the chord. The ship's numeric frame falls at Earth's field at its origin, about 8.7 m/s², so a velocity that
         // missed half a step of it would be 7 cm/s off.
-        GravityField field = GravityField.Point(EarthMu);
+        var field = GravityField.Point(EarthMu);
         double dt = world.DeltaTime;
-        Double3 position = start, chord = startVelocity - field.AtPrecise(start) * (dt / 2);
+        Double3 position = start,
+            chord = startVelocity - field.AtPrecise(start) * (dt / 2);
         for (int tick = 1; tick <= 10; tick++)
         {
             Double3 gravity = field.AtPrecise(position);
@@ -129,8 +164,9 @@ public sealed class DynamicHullRecordTests
             world.Tick();
 
             Double3 instant = chord + gravity * (dt / 2);
-            (world.VelocityIn(ship, earth) - instant).Length.Should().BeLessThan(1e-5,
-                "the ship reads the instant velocity of its orbit in Earth after {0} ticks", tick);
+            (world.VelocityIn(ship, earth) - instant)
+                .Length.Should()
+                .BeLessThan(1e-5, "the ship reads the instant velocity of its orbit in Earth after {0} ticks", tick);
         }
 
         InFallingFrame(world, ship).Should().BeTrue();
@@ -149,29 +185,42 @@ public sealed class DynamicHullRecordTests
     {
         using World placed = NewWorld(backend: out _);
         using World alone = NewWorld(backend: out _);
-        FrameHandle placedEarth = Earth(placed), aloneEarth = Earth(alone);
-        KeplerOrbit orbit = KeplerOrbit.Circular(OrbitRadius);
-        Entity placedShip = placed.Spawn(new SpawnDesc
-        {
-            Frame = placedEarth,
-            Body = Hull with { Motion = BodyMotion.Kinematic },
-            AsFrame = new(FrameBounds.Sphere(20))
-        }.OnKeplerOrbit(placed, orbit));
+        FrameHandle placedEarth = Earth(placed),
+            aloneEarth = Earth(alone);
+        var orbit = KeplerOrbit.Circular(OrbitRadius);
+        Entity placedShip = placed.Spawn(
+            new SpawnDesc
+            {
+                Frame = placedEarth,
+                Body = Hull with { Motion = BodyMotion.Kinematic },
+                AsFrame = new(FrameBounds.Sphere(20)),
+            }.OnKeplerOrbit(placed, orbit)
+        );
         (Double3 start, Double3 startVelocity) = orbit.StateAt(alone.Time, EarthMu);
-        Entity aloneShip = Ship(world: alone, frame: aloneEarth, start: start, velocity: startVelocity, hull: Hull,
-            bubble: 20);
+        Entity aloneShip = Ship(
+            world: alone,
+            frame: aloneEarth,
+            start: start,
+            velocity: startVelocity,
+            hull: Hull,
+            bubble: 20
+        );
         Tick(placed, 3);
         Tick(alone, 3);
         placed.Frames.Numeric(placed.PhysicsHomeOf(placedShip)).Should().Be(NumericMode.Following);
 
-        placed.SetMotionNextTick(owner: placedShip, motion: BodyMotion.Dynamic,
-            remove: placed.GetComponent<KeplerMotion>(placedShip));
+        placed.SetMotionNextTick(
+            owner: placedShip,
+            motion: BodyMotion.Dynamic,
+            remove: placed.GetComponent<KeplerMotion>(placedShip)
+        );
         Tick(placed, 60);
         Tick(alone, 60);
         InFallingFrame(placed, placedShip).Should().BeTrue();
 
         // A chord that half a step of the numeric frame's acceleration put off would move the ship 7 cm away in the second.
-        (placed.PoseIn(placedShip, placedEarth).Position - alone.PoseIn(aloneShip, aloneEarth).Position).Length.Should()
+        (placed.PoseIn(placedShip, placedEarth).Position - alone.PoseIn(aloneShip, aloneEarth).Position)
+            .Length.Should()
             .BeLessThan(1e-4);
         placed.Errors.Should().BeEmpty();
     }
@@ -181,8 +230,11 @@ public sealed class DynamicHullRecordTests
     {
         using World world = NewWorldWithoutNumericFrames(out _);
         FrameHandle ground = Ground(world, 9.81f);
-        (FrameHandle station, Entity ship, FrameHandle shipFrame) =
-            ShipThatFliesIntoAStation(world: world, frame: ground, stationGravity: StationGravity);
+        (FrameHandle station, Entity ship, FrameHandle shipFrame) = ShipThatFliesIntoAStation(
+            world: world,
+            frame: ground,
+            stationGravity: StationGravity
+        );
 
         // Both fall alike in the ground, so the ship flies at the station with one velocity until the end of the step in which
         // it enters, and then it falls in the station's gravity. A hand-off that added half a step of the ground's gravity,
@@ -196,9 +248,14 @@ public sealed class DynamicHullRecordTests
             if (entered < 0 && world.Frames.Parent(shipFrame) == station)
                 entered = tick;
             Double3 expected = entered < 0 ? before : before + (Double3)StationGravity * ((tick - entered) * dt);
-            (world.VelocityIn(ship, station) - expected).Length.Should().BeLessThan(1e-4,
-                "the ship has the velocity of its flight in the station after {0} ticks, and it entered after {1}",
-                tick, entered);
+            (world.VelocityIn(ship, station) - expected)
+                .Length.Should()
+                .BeLessThan(
+                    1e-4,
+                    "the ship has the velocity of its flight in the station after {0} ticks, and it entered after {1}",
+                    tick,
+                    entered
+                );
         }
 
         entered.Should().BeGreaterThan(0).And.BeLessThan(65, "the ship entered the station with ticks to spare");
@@ -211,8 +268,12 @@ public sealed class DynamicHullRecordTests
         using World world = NewWorldWithoutNumericFrames(out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         const float damping = 0.1f;
-        (FrameHandle station, Entity ship, FrameHandle shipFrame) =
-            ShipThatFliesIntoAStation(world: world, frame: space, stationGravity: Vector3.Zero, shipDamping: damping);
+        (FrameHandle station, Entity ship, FrameHandle shipFrame) = ShipThatFliesIntoAStation(
+            world: world,
+            frame: space,
+            stationGravity: Vector3.Zero,
+            shipDamping: damping
+        );
 
         // With no gravity in space or in the station, the station rests, and the damping slows the ship by 0.17 % a tick, the same in space and in the
         // station. So its velocity in the station changes smoothly, by 1.5e-4 m/s from one change to the next. A hand-off
@@ -229,9 +290,14 @@ public sealed class DynamicHullRecordTests
 
         entered.Should().BeGreaterThan(1).And.BeLessThan(80, "the ship entered the station with ticks to spare");
         for (int i = 1; i + 1 < velocities.Count; i++)
-            (velocities[i - 1] - velocities[i] * 2 + velocities[i + 1]).Length.Should().BeLessThan(1e-3,
-                "the velocity in the station changes smoothly after {0} ticks, and the ship entered after {1}", i + 1,
-                entered);
+            (velocities[i - 1] - velocities[i] * 2 + velocities[i + 1])
+                .Length.Should()
+                .BeLessThan(
+                    1e-3,
+                    "the velocity in the station changes smoothly after {0} ticks, and the ship entered after {1}",
+                    i + 1,
+                    entered
+                );
         world.Errors.Should().BeEmpty();
     }
 
@@ -240,8 +306,11 @@ public sealed class DynamicHullRecordTests
     {
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
         FrameHandle ground = Ground(world, 9.81f);
-        (FrameHandle station, _, FrameHandle shipFrame) =
-            ShipThatFliesIntoAStation(world: world, frame: ground, stationGravity: StationGravity);
+        (FrameHandle station, _, FrameHandle shipFrame) = ShipThatFliesIntoAStation(
+            world: world,
+            frame: ground,
+            stationGravity: StationGravity
+        );
 
         TickUntil(world, () => world.Frames.Parent(shipFrame) == station, 70);
 
@@ -258,9 +327,13 @@ public sealed class DynamicHullRecordTests
     {
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        (FrameHandle station, _, FrameHandle shipFrame) = ShipThatFliesIntoAStation(world: world, frame: space,
+        (FrameHandle station, _, FrameHandle shipFrame) = ShipThatFliesIntoAStation(
+            world: world,
+            frame: space,
             stationGravity: Vector3.Zero,
-            shipAngularDamping: 0.1f, shipSpin: new(0.5f, 0, 0));
+            shipAngularDamping: 0.1f,
+            shipSpin: new(0.5f, 0, 0)
+        );
 
         TickUntil(world, () => world.Frames.Parent(shipFrame) == station, 80);
 
@@ -273,11 +346,12 @@ public sealed class DynamicHullRecordTests
         MotionSample inSpace = faults.Outputs[^2].Frames.Single(r => r.Frame == shipFrame).Motion;
         MotionSample inStation = faults.Outputs[^1].Frames.Single(r => r.Frame == shipFrame).Motion;
         inSpace.AngularAcceleration.X.Should().BeInRange(-0.05, -0.04, "the damping slows the spin in space");
-        new Double3(0, inSpace.AngularAcceleration.Y, inSpace.AngularAcceleration.Z).Length.Should().BeLessThan(1e-4,
-            "the spin stays about X");
-        (inStation.AngularAcceleration - StationTurn.Conjugate().Rotate(inSpace.AngularAcceleration)).Length.Should()
-            .BeLessThan(1e-3,
-                "the record in the station holds the angular acceleration in the station's axes");
+        new Double3(0, inSpace.AngularAcceleration.Y, inSpace.AngularAcceleration.Z)
+            .Length.Should()
+            .BeLessThan(1e-4, "the spin stays about X");
+        (inStation.AngularAcceleration - StationTurn.Conjugate().Rotate(inSpace.AngularAcceleration))
+            .Length.Should()
+            .BeLessThan(1e-3, "the record in the station holds the angular acceleration in the station's axes");
         world.Errors.Should().BeEmpty();
     }
 
@@ -287,9 +361,17 @@ public sealed class DynamicHullRecordTests
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         FrameHandle station = TurnedStation(world, space, Vector3.Zero);
-        FrameHandle shipFrame = world.GetOwnedFrame(Ship(world: world, frame: station, start: new(150, 0, 0),
-            velocity: new(60, 0, 0),
-            hull: ShipHull(0, 0.1f), bubble: 10, spin: new(0.5f, 0, 0)));
+        FrameHandle shipFrame = world.GetOwnedFrame(
+            Ship(
+                world: world,
+                frame: station,
+                start: new(150, 0, 0),
+                velocity: new(60, 0, 0),
+                hull: ShipHull(0, 0.1f),
+                bubble: 10,
+                spin: new(0.5f, 0, 0)
+            )
+        );
 
         TickUntil(world, () => world.Frames.Parent(shipFrame) == space, 120);
 
@@ -301,9 +383,9 @@ public sealed class DynamicHullRecordTests
         MotionSample inStation = faults.Outputs[^2].Frames.Single(r => r.Frame == shipFrame).Motion;
         MotionSample inSpace = faults.Outputs[^1].Frames.Single(r => r.Frame == shipFrame).Motion;
         inStation.AngularAcceleration.X.Should().BeInRange(-0.05, -0.04, "the damping slows the spin in the station");
-        (inSpace.AngularAcceleration - StationTurn.Rotate(inStation.AngularAcceleration)).Length.Should().BeLessThan(
-            1e-3,
-            "the record in space holds the angular acceleration in the axes of space");
+        (inSpace.AngularAcceleration - StationTurn.Rotate(inStation.AngularAcceleration))
+            .Length.Should()
+            .BeLessThan(1e-3, "the record in space holds the angular acceleration in the axes of space");
         world.Errors.Should().BeEmpty();
     }
 }

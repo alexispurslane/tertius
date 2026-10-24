@@ -37,8 +37,16 @@ internal static class RowCopyBenchmarks
             for (int i = 0; i < rows; i++)
             {
                 Live[i] = Entities.Reserve();
-                Entities.Activate(entity: Live[i], row: new(), render: new(), components: [], wants: [], body: null,
-                    bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
+                Entities.Activate(
+                    entity: Live[i],
+                    row: new(),
+                    render: new(),
+                    components: [],
+                    wants: [],
+                    body: null,
+                    bodyCenterOfMass: Vector3.Zero,
+                    ownedFrame: FrameHandle.Null
+                );
             }
 
             Entities.TakeMoved();
@@ -49,17 +57,19 @@ internal static class RowCopyBenchmarks
         {
             long now = ++tick;
             Entities.BeginTick(spawnPoolSize: 0);
-            Parallel.For(fromInclusive: 0, toExclusive: (Live.Length + ChunkSize - 1) / ChunkSize,
-                parallelOptions: AllWorkers, body: chunk =>
+            Parallel.For(
+                fromInclusive: 0,
+                toExclusive: (Live.Length + ChunkSize - 1) / ChunkSize,
+                parallelOptions: AllWorkers,
+                body: chunk =>
                 {
                     for (int i = chunk * ChunkSize, end = Math.Min(Live.Length, i + ChunkSize); i < end; i++)
                         Entities.WritableTransform(Live[i]).Position = new(now, i, 0);
-                });
+                }
+            );
             Entities.EndGameplay();
             long spinEnd = Stopwatch.GetTimestamp() + Stopwatch.Frequency / 5000;
-            while (Stopwatch.GetTimestamp() < spinEnd)
-            {
-            }
+            while (Stopwatch.GetTimestamp() < spinEnd) { }
 
             long start = Stopwatch.GetTimestamp();
             Entities.CopyDirtyRows();
@@ -75,7 +85,10 @@ internal static class RowCopyBenchmarks
     {
         EngineEvents.Register();
         (string Name, Table Table)[] variants =
-            [("sync thread", new(rows, parallel: false)), ("all workers", new(rows, parallel: true))];
+        [
+            ("sync thread", new(rows, parallel: false)),
+            ("all workers", new(rows, parallel: true)),
+        ];
         List<double>[] medians = [.. variants.Select(_ => new List<double>())];
         double[] times = new double[40];
         for (int round = 0; round < rounds; round++)
@@ -95,7 +108,8 @@ internal static class RowCopyBenchmarks
             List<double> m = medians[v];
             m.Sort();
             Console.WriteLine(
-                $"ROWCOPY|{rows} rows|{variants[v].Name}|median {m[m.Count / 2]:F1} us|min {m[0]:F1}|max {m[^1]:F1}|{m.Count} rounds");
+                $"ROWCOPY|{rows} rows|{variants[v].Name}|median {m[m.Count / 2]:F1} us|min {m[0]:F1}|max {m[^1]:F1}|{m.Count} rounds"
+            );
         }
     }
 }

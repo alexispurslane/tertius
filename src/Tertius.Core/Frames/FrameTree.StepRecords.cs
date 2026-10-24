@@ -41,7 +41,8 @@ public sealed partial class FrameTree
         FrameHandle Frame,
         int Dense,
         FrameHandle TreeParent,
-        FrameHandle Parent);
+        FrameHandle Parent
+    );
 
     /// <summary>
     /// Step 2 of the sync point, once, after the physics output of a step of <paramref name="step"/> seconds that applied
@@ -88,8 +89,12 @@ public sealed partial class FrameTree
     /// not add, remove or move a frame, which would replace the arrays that the walk reads: a contract checks it after each
     /// frame.
     /// </summary>
-    internal void TakeStepRecords<TOwners>(ref TOwners owners, ReadOnlySpan<PhysicsIntent> stepIntents, bool stepFailed,
-        double step)
+    internal void TakeStepRecords<TOwners>(
+        ref TOwners owners,
+        ReadOnlySpan<PhysicsIntent> stepIntents,
+        bool stepFailed,
+        double step
+    )
         where TOwners : struct, IFrameOwnerFacts
     {
         properAcceleration.AsSpan().CopyTo(properAccelerationTheStepFound);
@@ -104,7 +109,8 @@ public sealed partial class FrameTree
             if (numeric[id] != NumericMode.None)
                 continue;
             int p = parents[dense];
-            FrameHandle treeParent = FrameHandle.Null, parent = FrameHandle.Null;
+            FrameHandle treeParent = FrameHandle.Null,
+                parent = FrameHandle.Null;
             if (p >= 0)
             {
                 treeParent = HandleOf(ids[p], generations);
@@ -114,31 +120,62 @@ public sealed partial class FrameTree
                 parent = s == p ? treeParent : HandleOf(ids[s], generations);
             }
 
-            TakeStepRecord(owners: ref owners,
+            TakeStepRecord(
+                owners: ref owners,
                 taker: new(Frame: HandleOf(id, generations), Dense: dense, TreeParent: treeParent, Parent: parent),
-                locals: locals, stepIntents: stepIntents,
-                stepFailed: stepFailed, step: step);
+                locals: locals,
+                stepIntents: stepIntents,
+                stepFailed: stepFailed,
+                step: step
+            );
             Contract.Assert(poses.Version == shape, "The owner facts added, removed or moved a frame during the pass.");
         }
     }
 
     /// <summary>One frame of <see cref="TakeStepRecords"/>, by the rules of its summary.</summary>
-    private void TakeStepRecord<TOwners>(ref TOwners owners, in RecordTaker taker, Span<DPose> locals,
+    private void TakeStepRecord<TOwners>(
+        ref TOwners owners,
+        in RecordTaker taker,
+        Span<DPose> locals,
         ReadOnlySpan<PhysicsIntent> stepIntents,
-        bool stepFailed, double step) where TOwners : struct, IFrameOwnerFacts
+        bool stepFailed,
+        double step
+    )
+        where TOwners : struct, IFrameOwnerFacts
     {
         FrameHandle frame = taker.Frame;
         bool hull = !taker.TreeParent.IsNull && hullMotion[frame.Index].HasValue;
         if (owners.TryGetHullRecord(frame, out FrameStepRecord released))
-            FollowAt(taker: taker, locals: locals, record: released.Motion, inTreeParent: true,
+            FollowAt(
+                taker: taker,
+                locals: locals,
+                record: released.Motion,
+                inTreeParent: true,
                 kind: FollowKindAt(taker, stepIntents),
-                measured: released.ProperAcceleration, step: step);
+                measured: released.ProperAcceleration,
+                step: step
+            );
         // A frame without a hull hangs in its semantic parent, so its tree pose is its pose there, which FollowAt checks.
-        else if (!hull && StepRecordOfIntent(slot: frame.Entity.Index, parent: taker.Parent,
-                     standing: locals[taker.Dense], stepIntents: stepIntents, step: step,
-                     record: out MotionSample move))
-            FollowAt(taker: taker, locals: locals, record: move, inTreeParent: false,
-                kind: FollowKindAt(taker, stepIntents), measured: null, step: step);
+        else if (
+            !hull
+            && StepRecordOfIntent(
+                slot: frame.Entity.Index,
+                parent: taker.Parent,
+                standing: locals[taker.Dense],
+                stepIntents: stepIntents,
+                step: step,
+                record: out MotionSample move
+            )
+        )
+            FollowAt(
+                taker: taker,
+                locals: locals,
+                record: move,
+                inTreeParent: false,
+                kind: FollowKindAt(taker, stepIntents),
+                measured: null,
+                step: step
+            );
         else if (!(hull && stepFailed) && !owners.IsSkipped(frame))
             HoldStillAt(taker, locals, step);
 
@@ -148,10 +185,23 @@ public sealed partial class FrameTree
         {
             if (written.Rotation != locals[taker.Dense].Rotation)
                 withoutLastTurn[frame.Index] = true;
-            var rest = new MotionSample(Pose: written, ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
-                Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
-            FollowAt(taker: taker, locals: locals, record: rest, inTreeParent: false, kind: FollowKind.Static,
-                measured: null, step: step);
+            var rest = new MotionSample(
+                Pose: written,
+                ChordVelocity: Double3.Zero,
+                Velocity: Double3.Zero,
+                Acceleration: Double3.Zero,
+                AngularVelocity: Double3.Zero,
+                AngularAcceleration: Double3.Zero
+            );
+            FollowAt(
+                taker: taker,
+                locals: locals,
+                record: rest,
+                inTreeParent: false,
+                kind: FollowKind.Static,
+                measured: null,
+                step: step
+            );
         }
     }
 
@@ -161,9 +211,15 @@ public sealed partial class FrameTree
     /// tree parent when <paramref name="inTreeParent"/>, and else to its semantic parent, which is then the same frame:
     /// only a frame with a hull hangs in a numeric frame (see the class summary).
     /// </summary>
-    private void FollowAt(in RecordTaker taker, Span<DPose> locals, in MotionSample record, bool inTreeParent,
+    private void FollowAt(
+        in RecordTaker taker,
+        Span<DPose> locals,
+        in MotionSample record,
+        bool inTreeParent,
         FollowKind kind,
-        Vector3? measured, double step)
+        Vector3? measured,
+        double step
+    )
     {
         Contract.Requires(record.Pose.Rotation.IsUnit && (inTreeParent || taker.TreeParent == taker.Parent));
         int id = taker.Frame.Index;
@@ -172,9 +228,8 @@ public sealed partial class FrameTree
         AngularVelocityForWrite(id) = record.AngularVelocity.ToVector3();
         angularAcceleration[id] = record.AngularAcceleration;
         followKind[id] = kind;
-        properAcceleration[id] = measured ??
-                                 ProperAccelerationOf(taker: taker, inTreeParent: inTreeParent, record: record,
-                                     step: step);
+        properAcceleration[id] =
+            measured ?? ProperAccelerationOf(taker: taker, inTreeParent: inTreeParent, record: record, step: step);
     }
 
     /// <summary>The frame holds still in its tree parent over a step of <paramref name="dt"/> seconds, by the rules of
@@ -183,15 +238,19 @@ public sealed partial class FrameTree
     {
         int id = taker.Frame.Index;
         FrameHandle treeParent = taker.TreeParent;
-        LinearVelocityForWrite(id) = treeParent == taker.Parent
-            ? Double3.Zero
-            : HomeInstantVelocityOverChord(treeParent, taker.Parent, dt);
+        LinearVelocityForWrite(id) =
+            treeParent == taker.Parent ? Double3.Zero : HomeInstantVelocityOverChord(treeParent, taker.Parent, dt);
         AngularVelocityForWrite(id) = Vector3.Zero;
         angularAcceleration[id] = Double3.Zero;
         followKind[id] = FollowKind.Static;
-        var rest = new MotionSample(Pose: locals[taker.Dense], ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
-            Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
-            AngularAcceleration: Double3.Zero);
+        var rest = new MotionSample(
+            Pose: locals[taker.Dense],
+            ChordVelocity: Double3.Zero,
+            Velocity: Double3.Zero,
+            Acceleration: Double3.Zero,
+            AngularVelocity: Double3.Zero,
+            AngularAcceleration: Double3.Zero
+        );
         properAcceleration[id] = ProperAccelerationOf(taker: taker, inTreeParent: true, record: rest, step: dt);
     }
 
@@ -243,8 +302,10 @@ public sealed partial class FrameTree
             gravity = FieldTheStepFound(parent.Index, start);
             ref readonly FrameTurns parentTurns = ref turns[parent.Index];
             if (parentTurns.Turns)
-                gravity += parentTurns.Centrifugal(start) + parentTurns.Euler(start, step) +
-                           parentTurns.Coriolis(record.ChordVelocity);
+                gravity +=
+                    parentTurns.Centrifugal(start)
+                    + parentTurns.Euler(start, step)
+                    + parentTurns.Coriolis(record.ChordVelocity);
         }
 
         return record.Pose.Rotation.Conjugate().Rotate(record.Acceleration - gravity).ToVector3();
@@ -268,7 +329,7 @@ public sealed partial class FrameTree
         {
             Pose = new(InSemantic(treeParent, semantic, record.Pose.Position), record.Pose.Rotation),
             ChordVelocity = record.ChordVelocity + HomeVelocity(treeParent, semantic),
-            Acceleration = record.Acceleration + HomeAcceleration(treeParent, semantic)
+            Acceleration = record.Acceleration + HomeAcceleration(treeParent, semantic),
         };
     }
 

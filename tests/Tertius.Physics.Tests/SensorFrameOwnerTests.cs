@@ -51,7 +51,7 @@ public sealed class SensorFrameOwnerTests
         Frame,
 
         /// <summary>A sibling frame of the ship's frame, on the ghost of the hull.</summary>
-        Sibling
+        Sibling,
     }
 
     /// <summary>A box of <see cref="HullHalf"/> and 1000 kg with <paramref name="motion"/> that nothing slows down.</summary>
@@ -61,7 +61,9 @@ public sealed class SensorFrameOwnerTests
     /// <summary>A sensor ball of <see cref="SensorRadius"/> and 1 kg with <paramref name="motion"/> that nothing slows down.</summary>
     private static BodyDesc SensorBall(BodyMotion motion) =>
         new(Shape: new SphereShapeDesc(SensorRadius), Motion: motion, Mass: 1, LinearDamping: 0, AngularDamping: 0)
-            { IsSensor = true };
+        {
+            IsSensor = true,
+        };
 
     /// <summary>The scene of <see cref="ShipAndSensor"/>: the ship's owner and the sensor, with what each heard, and the sensor's home.</summary>
     private sealed record Scene(
@@ -69,7 +71,8 @@ public sealed class SensorFrameOwnerTests
         Entity Sensor,
         CollisionLog OwnerLog,
         CollisionLog SensorLog,
-        FrameHandle Home);
+        FrameHandle Home
+    );
 
     /// <summary>
     /// A ship at the origin of space, with no gravity: a hull of <see cref="Box"/> with <paramref name="hull"/>, which holds
@@ -81,27 +84,47 @@ public sealed class SensorFrameOwnerTests
     {
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         var ownerLog = new CollisionLog();
-        Entity owner = world.Spawn(new()
-        {
-            Frame = space, Body = Box(hull), AsFrame = new(FrameBounds.Sphere(ShipRadius)), Components = [ownerLog]
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = Box(hull),
+                AsFrame = new(FrameBounds.Sphere(ShipRadius)),
+                Components = [ownerLog],
+            }
+        );
         (FrameHandle home, double x) = place switch
         {
             Place.Parent => (space, SensorX),
             Place.Frame => (world.GetOwnedFrame(owner), SensorX),
-            _ => (Bubble(world: world, parent: space, x: SiblingX, radius: SiblingRadius), SensorX - SiblingX)
+            _ => (Bubble(world: world, parent: space, x: SiblingX, radius: SiblingRadius), SensorX - SiblingX),
         };
         var sensorLog = new CollisionLog();
-        Entity sensorEntity = world.Spawn(new()
-            { Frame = home, Pose = At(x), Body = SensorBall(sensor), Components = [sensorLog] });
+        Entity sensorEntity = world.Spawn(
+            new()
+            {
+                Frame = home,
+                Pose = At(x),
+                Body = SensorBall(sensor),
+                Components = [sensorLog],
+            }
+        );
         return new(Owner: owner, Sensor: sensorEntity, OwnerLog: ownerLog, SensorLog: sensorLog, Home: home);
     }
 
     /// <summary>A frame without a body and with no gravity, with a bubble of <paramref name="radius"/> m at x =
     /// <paramref name="x"/> in <paramref name="parent"/>.</summary>
     private static FrameHandle Bubble(World world, FrameHandle parent, double x, float radius) =>
-        world.GetOwnedFrame(world.Spawn(new()
-            { Frame = parent, Pose = At(x), AsFrame = new(FrameBounds.Sphere(radius)) }));
+        world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = parent,
+                    Pose = At(x),
+                    AsFrame = new(FrameBounds.Sphere(radius)),
+                }
+            )
+        );
 
     /// <summary>
     /// The table of case 3: a sensor detects the owner as a body of the hull's motion, by Jolt's rule. A dynamic sensor
@@ -143,8 +166,11 @@ public sealed class SensorFrameOwnerTests
     /// </summary>
     [Theory]
     [MemberData(nameof(EveryPlaceOfASensor))]
-    public void ASensorDetectsAShipInEveryFrameWhenTheSensorIsDynamicOrTheShipsHullMoves(BodyMotion sensor,
-        BodyMotion hull, Place place)
+    public void ASensorDetectsAShipInEveryFrameWhenTheSensorIsDynamicOrTheShipsHullMoves(
+        BodyMotion sensor,
+        BodyMotion hull,
+        Place place
+    )
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         Scene scene = ShipAndSensor(world: world, hull: hull, sensor: sensor, place: place);
@@ -174,16 +200,32 @@ public sealed class SensorFrameOwnerTests
     /// </summary>
     [Theory]
     [MemberData(nameof(EveryPairOfMotions))]
-    public void ASensorDetectsAPlainBodyOfTheHullsShapeWhenTheSensorIsDynamicOrTheBodyMoves(BodyMotion sensor,
-        BodyMotion body)
+    public void ASensorDetectsAPlainBodyOfTheHullsShapeWhenTheSensorIsDynamicOrTheBodyMoves(
+        BodyMotion sensor,
+        BodyMotion body
+    )
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         var boxLog = new CollisionLog();
-        Entity box = world.Spawn(new() { Frame = space, Body = Box(body), Components = [boxLog] });
+        Entity box = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = Box(body),
+                Components = [boxLog],
+            }
+        );
         var sensorLog = new CollisionLog();
-        Entity sensorEntity = world.Spawn(new()
-            { Frame = space, Pose = At(SensorX), Body = SensorBall(sensor), Components = [sensorLog] });
+        Entity sensorEntity = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(SensorX),
+                Body = SensorBall(sensor),
+                Components = [sensorLog],
+            }
+        );
         Tick(world, 10);
 
         List<ContactNews> expected = Detects(sensor, body) ? [Started] : [];
@@ -307,17 +349,23 @@ public sealed class SensorFrameOwnerTests
     public void TheInvariantsFindAnInteriorWhoseJoltMotionDoesNotFollowTheHulls()
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
-        Scene scene = ShipAndSensor(world: world, hull: BodyMotion.Kinematic, sensor: BodyMotion.Static,
-            place: Place.Parent);
+        Scene scene = ShipAndSensor(
+            world: world,
+            hull: BodyMotion.Kinematic,
+            sensor: BodyMotion.Static,
+            place: Place.Parent
+        );
         world.Tick();
         FrameHandle ship = world.GetOwnedFrame(scene.Owner);
-        JoltPhysicsBackend.BodyFacts interior = faults.Jolt.BodiesIn(ship)
+        JoltPhysicsBackend.BodyFacts interior = faults
+            .Jolt.BodiesIn(ship)
             .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Interior);
         interior.Motion.Should().Be(MotionType.Kinematic, "the hull moves");
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
 
-        faults.Jolt.SystemOf(ship)!.BodyInterface.SetMotionType(interior.Id, MotionType.Static,
-            Activation.DontActivate);
+        faults
+            .Jolt.SystemOf(ship)!
+            .BodyInterface.SetMotionType(interior.Id, MotionType.Static, Activation.DontActivate);
 
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().Throw<ContractException>();
     }
@@ -344,8 +392,11 @@ public sealed class SensorFrameOwnerTests
         world.Frames.Reparent(ship, FrameHandle.Null);
         Tick(world, 10);
 
-        faults.Jolt.BodiesIn(ship).Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Interior).Motion
-            .Should().Be(MotionType.Static, "the interior of a root frame is always static");
+        faults
+            .Jolt.BodiesIn(ship)
+            .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Interior)
+            .Motion.Should()
+            .Be(MotionType.Static, "the interior of a root frame is always static");
         scene.SensorLog.NewsOf(scene.Owner).Should().Equal(Started, Ended);
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
     }
@@ -363,15 +414,26 @@ public sealed class SensorFrameOwnerTests
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
-        Entity owner = world.Spawn(new()
-        {
-            Frame = ground, Pose = At(0, HullHalf), Body = Box(BodyMotion.Dynamic),
-            AsFrame = new(FrameBounds.Sphere(10))
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, HullHalf),
+                Body = Box(BodyMotion.Dynamic),
+                AsFrame = new(FrameBounds.Sphere(10)),
+            }
+        );
         FrameHandle lander = world.GetOwnedFrame(owner);
         var crateLog = new CollisionLog();
-        Entity crate = world.Spawn(new()
-            { Frame = lander, Pose = At(0, HullHalf + 0.5), Body = Cube(), Components = [crateLog] });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = lander,
+                Pose = At(0, HullHalf + 0.5),
+                Body = Cube(),
+                Components = [crateLog],
+            }
+        );
         Tick(world, 30);
         crateLog.NewsOf(owner).Should().Equal(Started);
 
@@ -381,7 +443,9 @@ public sealed class SensorFrameOwnerTests
         Tick(world, 30);
 
         world.GetFrame(crate).Should().Be(lander);
-        world.PoseIn(crate, lander).Position.Y.Should()
+        world
+            .PoseIn(crate, lander)
+            .Position.Y.Should()
             .BeApproximately(HullHalf + 0.5, 0.05, "the crate rests on the interior");
         crateLog.NewsOf(owner).Should().Equal(Started);
         AllIsWell(world, faults);

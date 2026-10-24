@@ -41,7 +41,8 @@ internal sealed class SyncProfileReport
 
         for (int i = 0; i < totals.Length; i++)
             Console.WriteLine(
-                $"SYNCPROFILE|{scene}|{SyncProfile.Names[i]}|{means[i]:F2}|{(sum == 0 ? 0 : 100 * means[i] / sum):F1}");
+                $"SYNCPROFILE|{scene}|{SyncProfile.Names[i]}|{means[i]:F2}|{(sum == 0 ? 0 : 100 * means[i] / sum):F1}"
+            );
         Console.WriteLine($"SYNCPROFILE|{scene}|total over {syncs} ticks|{sum:F2}|100.0");
     }
 }

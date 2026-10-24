@@ -22,8 +22,14 @@ public sealed class LightDataUnionTests
     /// <summary>A point light and a spot light that share every field that both cases have, so that only the case tells them apart.</summary>
     private static readonly PointLightData Lamp = new(Offset: Above, Color: Warm, Intensity: 4, Range: 10);
 
-    private static readonly SpotLightData Beam = new(Offset: Above, Color: Warm, Intensity: 4, Range: 10,
-        InnerConeAngle: 0.3f, OuterConeAngle: 0.5f);
+    private static readonly SpotLightData Beam = new(
+        Offset: Above,
+        Color: Warm,
+        Intensity: 4,
+        Range: 10,
+        InnerConeAngle: 0.3f,
+        OuterConeAngle: 0.5f
+    );
 
     /// <summary>The names of the cases whose <c>TryGetValue</c> answers true for the light.</summary>
     private static string[] CasesHeld(LightData light)
@@ -44,12 +50,13 @@ public sealed class LightDataUnionTests
         return (point, spot);
     }
 
-    private static string ArmOf(LightData light) => light switch
-    {
-        PointLightData { Intensity: var intensity, Range: var range } => $"point {intensity} {range}",
-        SpotLightData { InnerConeAngle: var inner, OuterConeAngle: var outer } => $"spot {inner} {outer}",
-        null => "none"
-    };
+    private static string ArmOf(LightData light) =>
+        light switch
+        {
+            PointLightData { Intensity: var intensity, Range: var range } => $"point {intensity} {range}",
+            SpotLightData { InnerConeAngle: var inner, OuterConeAngle: var outer } => $"spot {inner} {outer}",
+            null => "none",
+        };
 
     // ---- The default value ---------------------------------------------------------------------------------------
 
@@ -69,7 +76,9 @@ public sealed class LightDataUnionTests
     {
         new RenderData().Light.HasValue.Should().BeFalse("the parameterless constructor sets no light");
         default(RenderData).Light.HasValue.Should().BeFalse("a zeroed row carries no light either");
-        new RenderData { Mesh = new(1) }.Light.HasValue.Should().BeFalse("setting other fields leaves the light out");
+        new RenderData { Mesh = new(1) }
+            .Light.HasValue.Should()
+            .BeFalse("setting other fields leaves the light out");
     }
 
     // ---- One constructor and one TryGetValue per case ------------------------------------------------------------
@@ -111,8 +120,14 @@ public sealed class LightDataUnionTests
     {
         // The numbers of each case differ from each other, so a swap of two fields shows.
         var point = new PointLightData(Offset: Turned, Color: new(4, 5, 6), Intensity: 7, Range: 8);
-        var spot = new SpotLightData(Offset: Turned, Color: new(4, 5, 6), Intensity: 7, Range: 8, InnerConeAngle: 9,
-            OuterConeAngle: 10);
+        var spot = new SpotLightData(
+            Offset: Turned,
+            Color: new(4, 5, 6),
+            Intensity: 7,
+            Range: 8,
+            InnerConeAngle: 9,
+            OuterConeAngle: 10
+        );
 
         new LightData(point).TryGetValue(out PointLightData heldPoint).Should().BeTrue();
         heldPoint.Offset.Should().Be(Turned);
@@ -187,15 +202,13 @@ public sealed class LightDataUnionTests
         total.Should().Be(2 * 10 * 100, "a point and a spot light of range 10 each, over 100 rounds");
     }
 
-    private static float ReadRange(in LightData light)
-    {
-        return light switch
+    private static float ReadRange(in LightData light) =>
+        light switch
         {
             PointLightData { Range: var range } => range,
             SpotLightData { Range: var range } => range,
-            null => 0
+            null => 0,
         };
-    }
 
     // ---- Equality ------------------------------------------------------------------------------------------------
 
@@ -205,16 +218,28 @@ public sealed class LightDataUnionTests
         LightData[] first =
         [
             new PointLightData(Offset: Above, Color: Warm, Intensity: 4, Range: 10),
-            new SpotLightData(Offset: Above, Color: Warm, Intensity: 4, Range: 10, InnerConeAngle: 0.3f,
-                OuterConeAngle: 0.5f),
-            default
+            new SpotLightData(
+                Offset: Above,
+                Color: Warm,
+                Intensity: 4,
+                Range: 10,
+                InnerConeAngle: 0.3f,
+                OuterConeAngle: 0.5f
+            ),
+            default,
         ];
         LightData[] second =
         [
             new PointLightData(Offset: Above, Color: Warm, Intensity: 4, Range: 10),
-            new SpotLightData(Offset: Above, Color: Warm, Intensity: 4, Range: 10, InnerConeAngle: 0.3f,
-                OuterConeAngle: 0.5f),
-            default
+            new SpotLightData(
+                Offset: Above,
+                Color: Warm,
+                Intensity: 4,
+                Range: 10,
+                InnerConeAngle: 0.3f,
+                OuterConeAngle: 0.5f
+            ),
+            default,
         ];
 
         for (int i = 0; i < first.Length; i++)
@@ -257,16 +282,23 @@ public sealed class LightDataUnionTests
         // The point light and the spot light share offset, color, intensity and range, so only the case can tell them apart.
         LightData point = Lamp;
         LightData spot = Beam;
-        LightData spotWithoutCone = new SpotLightData(Offset: Above, Color: Warm, Intensity: 4, Range: 10,
-            InnerConeAngle: 0, OuterConeAngle: 0);
+        LightData spotWithoutCone = new SpotLightData(
+            Offset: Above,
+            Color: Warm,
+            Intensity: 4,
+            Range: 10,
+            InnerConeAngle: 0,
+            OuterConeAngle: 0
+        );
 
         (point == spot).Should().BeFalse();
         (point != spot).Should().BeTrue();
         point.Equals(spot).Should().BeFalse();
         spot.Equals(point).Should().BeFalse();
         point.Equals((object)spot).Should().BeFalse();
-        point.Should().NotBe(spotWithoutCone,
-            "the cone angles of the spot light are all zero, as the point light has none");
+        point
+            .Should()
+            .NotBe(spotWithoutCone, "the cone angles of the spot light are all zero, as the point light has none");
     }
 
     [Fact]
@@ -274,11 +306,23 @@ public sealed class LightDataUnionTests
     {
         LightData empty = default;
 
-        new LightData(new PointLightData(Offset: default, Color: default, Intensity: 0, Range: 0)).Should()
+        new LightData(new PointLightData(Offset: default, Color: default, Intensity: 0, Range: 0))
+            .Should()
             .NotBe(empty);
-        new LightData(new SpotLightData(Offset: default, Color: default, Intensity: 0, Range: 0, InnerConeAngle: 0,
-            OuterConeAngle: 0)).Should().NotBe(empty);
-        (empty != new LightData(new PointLightData(Offset: default, Color: default, Intensity: 0, Range: 0))).Should()
+        new LightData(
+            new SpotLightData(
+                Offset: default,
+                Color: default,
+                Intensity: 0,
+                Range: 0,
+                InnerConeAngle: 0,
+                OuterConeAngle: 0
+            )
+        )
+            .Should()
+            .NotBe(empty);
+        (empty != new LightData(new PointLightData(Offset: default, Color: default, Intensity: 0, Range: 0)))
+            .Should()
             .BeTrue();
     }
 
@@ -297,8 +341,18 @@ public sealed class LightDataUnionTests
         var notANumberPose = new Pose(new(float.NaN, 0, 0), Quaternion.Identity);
         LightData[] lights =
         [
-            Lamp with { Intensity = float.NaN }, Beam with { Offset = notANumberPose },
-            Beam with { OuterConeAngle = float.NaN }
+            Lamp with
+            {
+                Intensity = float.NaN,
+            },
+            Beam with
+            {
+                Offset = notANumberPose,
+            },
+            Beam with
+            {
+                OuterConeAngle = float.NaN,
+            },
         ];
 
         foreach (LightData light in lights)
@@ -307,13 +361,15 @@ public sealed class LightDataUnionTests
             {
                 PointLightData point => point,
                 SpotLightData spot => spot,
-                _ => default
+                _ => default,
             };
 
             light.Equals(light).Should().BeTrue($"{light} equals itself");
             (light == copy).Should().BeTrue($"{light} equals a copy of itself");
             (light != copy).Should().BeFalse($"{light} does not differ from a copy of itself");
-            light.GetHashCode().Should()
+            light
+                .GetHashCode()
+                .Should()
                 .Be(copy.GetHashCode(), $"{light} and its copy are equal, so they hash the same");
         }
     }
@@ -324,10 +380,18 @@ public sealed class LightDataUnionTests
     public void ToStringNamesTheCaseAndItsFieldsAndSaysNoneForTheDefault()
     {
         default(LightData).ToString().Should().Be("LightData(none)");
-        new LightData(Lamp).ToString().Should().StartWith("LightData(").And.Contain(nameof(PointLightData)).And
-            .Contain("Range = 10");
-        new LightData(Beam).ToString().Should().StartWith("LightData(").And.Contain(nameof(SpotLightData)).And
-            .Contain("OuterConeAngle");
+        new LightData(Lamp)
+            .ToString()
+            .Should()
+            .StartWith("LightData(")
+            .And.Contain(nameof(PointLightData))
+            .And.Contain("Range = 10");
+        new LightData(Beam)
+            .ToString()
+            .Should()
+            .StartWith("LightData(")
+            .And.Contain(nameof(SpotLightData))
+            .And.Contain("OuterConeAngle");
     }
 
     // ---- Shape ---------------------------------------------------------------------------------------------------
@@ -341,10 +405,18 @@ public sealed class LightDataUnionTests
         Type union = typeof(LightData);
 
         union.GetFields(publicInstance).Should().BeEmpty();
-        union.GetProperties(publicInstance).Select(property => property.PropertyType).Should()
+        union
+            .GetProperties(publicInstance)
+            .Select(property => property.PropertyType)
+            .Should()
             .OnlyContain(type => type == typeof(bool) || type == typeof(object));
-        union.GetConstructors().Select(constructor => constructor.GetParameters().Single().ParameterType)
-            .Should().BeEquivalentTo([typeof(PointLightData), typeof(SpotLightData)],
-                "a light is made from one case and nothing else");
+        union
+            .GetConstructors()
+            .Select(constructor => constructor.GetParameters().Single().ParameterType)
+            .Should()
+            .BeEquivalentTo(
+                [typeof(PointLightData), typeof(SpotLightData)],
+                "a light is made from one case and nothing else"
+            );
     }
 }

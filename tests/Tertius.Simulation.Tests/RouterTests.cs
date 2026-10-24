@@ -175,7 +175,9 @@ public class RouterTests
         var everyone = new List<Entity>();
         for (int i = 0; i < 10; i++)
             everyone.Add(h.Spawn(EventMask.Of<Ping>()));
-        Entity first = everyone[0], quiet = everyone[4], last = everyone[^1];
+        Entity first = everyone[0],
+            quiet = everyone[4],
+            last = everyone[^1];
         h.Router.Post(Event.Create(target: last, sender: Entity.Null, payload: new Ping { Value = 1 }));
 
         // Each broadcast touches every slot, and the direct sends jump between the two ends.
@@ -200,7 +202,11 @@ public class RouterTests
     {
         RouterHarness h = NewHarness();
         Entity[] entities =
-            [h.Spawn(EventMask.Of<Ping>()), h.Spawn(EventMask.Of<Ping>()), h.Spawn(EventMask.Of<Ping>())];
+        [
+            h.Spawn(EventMask.Of<Ping>()),
+            h.Spawn(EventMask.Of<Ping>()),
+            h.Spawn(EventMask.Of<Ping>()),
+        ];
 
         // 300 direct sends, value i to entity i mod 3, then 50 broadcasts: 350 events and 300 + 150 deliveries.
         for (int i = 0; i < 300; i++)

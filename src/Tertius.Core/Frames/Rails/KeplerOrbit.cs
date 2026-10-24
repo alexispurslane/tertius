@@ -10,7 +10,7 @@ public enum KeplerAttitude : byte
     /// Faces the parent, as a station in low orbit does: the belly (-Y) points at the parent, and the nose (-Z) points
     /// along the motion across the horizon. The tilt and the spin are not used.
     /// </summary>
-    FacesParent
+    FacesParent,
 }
 
 /// <summary>
@@ -37,7 +37,8 @@ public record struct KeplerOrbit(
     DQuaternion AxialTilt,
     double SpinRate,
     double SpinPhaseAtEpoch,
-    KeplerAttitude Attitude = KeplerAttitude.Spin)
+    KeplerAttitude Attitude = KeplerAttitude.Spin
+)
 {
     /// <summary>
     /// The angle within which <see cref="Lambert"/> refuses a transfer angle near 0, π or 2π, in radians: 1 degree. At 0
@@ -98,15 +99,22 @@ public record struct KeplerOrbit(
     /// the parent: the component does, in every tick (see <see cref="MuFrom"/>).
     /// </summary>
     public readonly bool IsValid =>
-        SemiMajorAxis > 0 && double.IsFinite(SemiMajorAxis) &&
-        Eccentricity >= 0 && Eccentricity < 1 &&
-        double.IsFinite(Inclination) && double.IsFinite(LongitudeOfAscendingNode) &&
-        double.IsFinite(ArgumentOfPeriapsis) &&
-        double.IsFinite(MeanAnomalyAtEpoch) && double.IsFinite(Epoch) && double.IsFinite(SpinRate) &&
-        double.IsFinite(SpinPhaseAtEpoch) &&
-        double.IsFinite(AxialTilt.X) && double.IsFinite(AxialTilt.Y) && double.IsFinite(AxialTilt.Z) &&
-        double.IsFinite(AxialTilt.W) &&
-        Attitude is KeplerAttitude.Spin or KeplerAttitude.FacesParent;
+        SemiMajorAxis > 0
+        && double.IsFinite(SemiMajorAxis)
+        && Eccentricity >= 0
+        && Eccentricity < 1
+        && double.IsFinite(Inclination)
+        && double.IsFinite(LongitudeOfAscendingNode)
+        && double.IsFinite(ArgumentOfPeriapsis)
+        && double.IsFinite(MeanAnomalyAtEpoch)
+        && double.IsFinite(Epoch)
+        && double.IsFinite(SpinRate)
+        && double.IsFinite(SpinPhaseAtEpoch)
+        && double.IsFinite(AxialTilt.X)
+        && double.IsFinite(AxialTilt.Y)
+        && double.IsFinite(AxialTilt.Z)
+        && double.IsFinite(AxialTilt.W)
+        && Attitude is KeplerAttitude.Spin or KeplerAttitude.FacesParent;
 
     /// <summary>The spin of the attitude <see cref="KeplerAttitude.Spin"/>: the axial tilt, then the spin about +Y.</summary>
     private readonly FrameSpin Spin =>
@@ -114,9 +122,18 @@ public record struct KeplerOrbit(
 
     /// <summary>A circular orbit in the reference plane.</summary>
     public static KeplerOrbit Circular(double radius, double phase = 0, double spinRate = 0) =>
-        new(SemiMajorAxis: radius, Eccentricity: 0, Inclination: 0, LongitudeOfAscendingNode: 0, ArgumentOfPeriapsis: 0,
-            MeanAnomalyAtEpoch: phase, Epoch: 0, AxialTilt: DQuaternion.Identity, SpinRate: spinRate,
-            SpinPhaseAtEpoch: 0);
+        new(
+            SemiMajorAxis: radius,
+            Eccentricity: 0,
+            Inclination: 0,
+            LongitudeOfAscendingNode: 0,
+            ArgumentOfPeriapsis: 0,
+            MeanAnomalyAtEpoch: phase,
+            Epoch: 0,
+            AxialTilt: DQuaternion.Identity,
+            SpinRate: spinRate,
+            SpinPhaseAtEpoch: 0
+        );
 
     /// <summary>
     /// The G·M that a Kepler orbit takes from <paramref name="parentGravity"/>, the gravity of its parent frame, in m³/s²:
@@ -155,22 +172,24 @@ public record struct KeplerOrbit(
     /// and the nose along the motion across the horizon. The G·M <paramref name="mu"/> of the parent counts only for
     /// <see cref="KeplerAttitude.FacesParent"/>, which turns with the frame's place on its orbit.
     /// </summary>
-    public readonly DQuaternion RotationAt(double time, double mu) => Attitude switch
-    {
-        KeplerAttitude.Spin => Spin.RotationAt(time),
-        KeplerAttitude.FacesParent => FacingParentAtAnomaly(EccentricAnomalyAt(time, mu, out double turns), turns)
-    };
+    public readonly DQuaternion RotationAt(double time, double mu) =>
+        Attitude switch
+        {
+            KeplerAttitude.Spin => Spin.RotationAt(time),
+            KeplerAttitude.FacesParent => FacingParentAtAnomaly(EccentricAnomalyAt(time, mu, out double turns), turns),
+        };
 
     /// <summary>
     /// The frame's angular velocity in parent axes at <paramref name="time"/>, in radians per second. The G·M
     /// <paramref name="mu"/> of the parent counts only for <see cref="KeplerAttitude.FacesParent"/>. A frame that faces a
     /// parent without G·M rests at the parent's origin and does not turn.
     /// </summary>
-    public readonly Double3 AngularVelocityAt(double time, double mu) => Attitude switch
-    {
-        KeplerAttitude.Spin => Spin.AngularVelocity,
-        KeplerAttitude.FacesParent => FacingAngularVelocityAt(time, mu)
-    };
+    public readonly Double3 AngularVelocityAt(double time, double mu) =>
+        Attitude switch
+        {
+            KeplerAttitude.Spin => Spin.AngularVelocity,
+            KeplerAttitude.FacesParent => FacingAngularVelocityAt(time, mu),
+        };
 
     /// <summary>The angular velocity of <see cref="AngularVelocityAt"/> for <see cref="KeplerAttitude.FacesParent"/>.</summary>
     private readonly Double3 FacingAngularVelocityAt(double time, double mu)
@@ -185,11 +204,12 @@ public record struct KeplerOrbit(
     /// h = r × v is constant on a two-body orbit, so only r² changes: dω/dt = h · d(1/r²)/dt = -2 h (r · v) / r⁴. That is
     /// zero at the apsides and on a circular orbit. A frame that faces a parent without G·M does not turn.
     /// </summary>
-    public readonly Double3 AngularAccelerationAt(double time, double mu) => Attitude switch
-    {
-        KeplerAttitude.Spin => Double3.Zero,
-        KeplerAttitude.FacesParent => FacingAngularAccelerationAt(time, mu)
-    };
+    public readonly Double3 AngularAccelerationAt(double time, double mu) =>
+        Attitude switch
+        {
+            KeplerAttitude.Spin => Double3.Zero,
+            KeplerAttitude.FacesParent => FacingAngularAccelerationAt(time, mu),
+        };
 
     /// <summary>The angular acceleration of <see cref="AngularAccelerationAt"/> for <see cref="KeplerAttitude.FacesParent"/>.</summary>
     private readonly Double3 FacingAngularAccelerationAt(double time, double mu)
@@ -221,16 +241,21 @@ public record struct KeplerOrbit(
         bool faces = Attitude switch
         {
             KeplerAttitude.Spin => false,
-            KeplerAttitude.FacesParent => true
+            KeplerAttitude.FacesParent => true,
         };
         DQuaternion rotation = faces ? FacingParentAtAnomaly(eccentric, turns) : Spin.RotationAt(stepEnd);
         Double3 angularVelocity = faces ? FacingAngularVelocity(position, velocity) : Spin.AngularVelocity;
         // At the parent's origin, the chord and the pull would divide zero by zero.
         Double3 chord = orbits ? Chord(position: position, velocity: velocity, mu: mu, step: step) : Double3.Zero;
         Double3 acceleration = orbits ? Acceleration(position - chord * step, mu) : Double3.Zero;
-        return new(Pose: new(position, rotation), ChordVelocity: chord, Velocity: velocity, Acceleration: acceleration,
+        return new(
+            Pose: new(position, rotation),
+            ChordVelocity: chord,
+            Velocity: velocity,
+            Acceleration: acceleration,
             AngularVelocity: angularVelocity,
-            AngularAcceleration: (angularVelocity - AngularVelocityAt(stepEnd - step, mu)) / step);
+            AngularAcceleration: (angularVelocity - AngularVelocityAt(stepEnd - step, mu)) / step
+        );
     }
 
     /// <summary>
@@ -282,8 +307,12 @@ public record struct KeplerOrbit(
     /// <exception cref="ArgumentOutOfRangeException">The G·M is not finite or not above 0, the position is not finite or is
     /// at the center, the velocity is not finite, or the time is not finite. Or Newton's method does not converge in
     /// <see cref="PropagationIterations"/> steps, which happens only on a hyperbola over more than about 1e28 s.</exception>
-    public static (Double3 Position, Double3 Velocity) Propagate(Double3 position, Double3 velocity, double mu,
-        double time)
+    public static (Double3 Position, Double3 Velocity) Propagate(
+        Double3 position,
+        Double3 velocity,
+        double mu,
+        double time
+    )
     {
         CheckGravity(mu);
         CheckPlace(position, nameof(position));
@@ -302,7 +331,8 @@ public record struct KeplerOrbit(
         // The universal Kepler function grows with χ, as its slope is the distance from the center. It is below 0 at
         // χ = 0 for a time above 0, so the solution lies above 0, and the other way round. Each value of the function
         // narrows this range, and a step that leaves the range, or that shrinks by less than half, gives way to halving.
-        double low = time > 0 ? 0 : double.NegativeInfinity, high = time > 0 ? double.PositiveInfinity : 0;
+        double low = time > 0 ? 0 : double.NegativeInfinity,
+            high = time > 0 ? double.PositiveInfinity : 0;
         double lastStep = double.PositiveInfinity;
         bool converged = false;
         for (int i = 0; i < PropagationIterations; i++)
@@ -346,15 +376,18 @@ public record struct KeplerOrbit(
         }
 
         if (!converged)
-            throw new ArgumentOutOfRangeException(nameof(time), time,
-                "Newton's method found no universal variable for this time: a hyperbola over more than about 1e28 s.");
+            throw new ArgumentOutOfRangeException(
+                nameof(time),
+                time,
+                "Newton's method found no universal variable for this time: a hyperbola over more than about 1e28 s."
+            );
 
         double zEnd = alpha * chi * chi;
         (double cEnd, double sEnd) = Stumpff(zEnd);
         Double3 later = position * (1 - chi * chi / r0 * cEnd) + velocity * (time - chi * chi * chi * sEnd / sqrtMu);
         double r = later.Length;
-        Double3 laterVelocity = position * (sqrtMu / (r * r0) * chi * (zEnd * sEnd - 1)) +
-                                velocity * (1 - chi * chi / r * cEnd);
+        Double3 laterVelocity =
+            position * (sqrtMu / (r * r0) * chi * (zEnd * sEnd - 1)) + velocity * (1 - chi * chi / r * cEnd);
         return (later, laterVelocity);
     }
 
@@ -377,35 +410,50 @@ public record struct KeplerOrbit(
     /// <exception cref="ArgumentException">The angle about the normal from <paramref name="from"/> to <paramref name="to"/>
     /// lies within <see cref="LambertRefusedAngle"/> of 0 or π, where the two points and the center do not define the path's
     /// plane, and a small move of a point turns it far.</exception>
-    public static (Double3 Departure, Double3 Arrival) Lambert(Double3 from, Double3 to, double timeOfFlight, double mu,
-        Double3 normal)
+    public static (Double3 Departure, Double3 Arrival) Lambert(
+        Double3 from,
+        Double3 to,
+        double timeOfFlight,
+        double mu,
+        Double3 normal
+    )
     {
         CheckGravity(mu);
         CheckPlace(from, nameof(from));
         CheckPlace(to, nameof(to));
         if (!(timeOfFlight > 0 && double.IsFinite(timeOfFlight)))
-            throw new ArgumentOutOfRangeException(nameof(timeOfFlight), timeOfFlight,
-                "The time of flight must be finite and above zero.");
+            throw new ArgumentOutOfRangeException(
+                nameof(timeOfFlight),
+                timeOfFlight,
+                "The time of flight must be finite and above zero."
+            );
         if (!IsFinite(normal) || normal.LengthSquared == 0)
             throw new ArgumentOutOfRangeException(nameof(normal), normal, "The normal must be finite and not zero.");
 
-        double r1 = from.Length, r2 = to.Length;
-        Double3 cross = Double3.Cross(from, to);
-        double sin = cross.Length / (r1 * r2), cos = Double3.Dot(from, to) / (r1 * r2);
+        double r1 = from.Length,
+            r2 = to.Length;
+        var cross = Double3.Cross(from, to);
+        double sin = cross.Length / (r1 * r2),
+            cos = Double3.Dot(from, to) / (r1 * r2);
         if (Double3.Dot(cross, normal) < 0)
             sin = -sin;
         double angle = Math.Atan2(sin, cos);
         if (angle < 0)
             angle += 2 * Math.PI;
-        if (angle < LambertRefusedAngle || angle > 2 * Math.PI - LambertRefusedAngle ||
-            Math.Abs(angle - Math.PI) < LambertRefusedAngle)
+        if (
+            angle < LambertRefusedAngle
+            || angle > 2 * Math.PI - LambertRefusedAngle
+            || Math.Abs(angle - Math.PI) < LambertRefusedAngle
+        )
             throw new ArgumentException(
                 $"The transfer angle of {angle * 180 / Math.PI:F3} degrees lies within a degree of 0 or 180 degrees, where the path has no plane.",
-                nameof(to));
+                nameof(to)
+            );
 
         double a = sin * Math.Sqrt(r1 * r2 / (1 - cos));
         double sqrtMu = Math.Sqrt(mu);
-        double low = LambertLowestZ, high = LambertHighestZ;
+        double low = LambertLowestZ,
+            high = LambertHighestZ;
         for (int i = 0; i < LambertBisections && high - low > LambertZTolerance; i++)
         {
             double middle = (low + high) / 2;
@@ -418,10 +466,15 @@ public record struct KeplerOrbit(
         double z = (low + high) / 2;
         double time = LambertTime(z: z, r1: r1, r2: r2, a: a, sqrtMu: sqrtMu, y: out double y);
         if (!(Math.Abs(time - timeOfFlight) <= LambertTimeTolerance * timeOfFlight))
-            throw new ArgumentOutOfRangeException(nameof(timeOfFlight), timeOfFlight,
-                "The path that takes this time between these points is faster than the search covers: a hyperbola whose anomaly turns by more than 2π.");
+            throw new ArgumentOutOfRangeException(
+                nameof(timeOfFlight),
+                timeOfFlight,
+                "The path that takes this time between these points is faster than the search covers: a hyperbola whose anomaly turns by more than 2π."
+            );
 
-        double f = 1 - y / r1, g = a * Math.Sqrt(y / mu), gDot = 1 - y / r2;
+        double f = 1 - y / r1,
+            g = a * Math.Sqrt(y / mu),
+            gDot = 1 - y / r2;
         return ((to - from * f) / g, (to * gDot - from) / g);
     }
 
@@ -447,11 +500,14 @@ public record struct KeplerOrbit(
     private static (double C, double S) Stumpff(double z)
     {
         if (Math.Abs(z) < StumpffSeriesLimit)
-            return (1.0 / 2 - z * (1.0 / 24 - z * (1.0 / 720 - z * (1.0 / 40320 - z / 3628800))),
-                1.0 / 6 - z * (1.0 / 120 - z * (1.0 / 5040 - z * (1.0 / 362880 - z / 39916800))));
+            return (
+                1.0 / 2 - z * (1.0 / 24 - z * (1.0 / 720 - z * (1.0 / 40320 - z / 3628800))),
+                1.0 / 6 - z * (1.0 / 120 - z * (1.0 / 5040 - z * (1.0 / 362880 - z / 39916800)))
+            );
         if (z > 0)
         {
-            double x = Math.Sqrt(z), half = Math.Sin(x / 2);
+            double x = Math.Sqrt(z),
+                half = Math.Sin(x / 2);
             // 1 - cos x as 2 sin² (x / 2), which keeps its digits near x = 2π, the end of Lambert's search.
             return (2 * half * half / z, (x - Math.Sin(x)) / (z * x));
         }
@@ -469,8 +525,11 @@ public record struct KeplerOrbit(
     private static void CheckPlace(Double3 place, string name)
     {
         if (!IsFinite(place) || place.LengthSquared == 0)
-            throw new ArgumentOutOfRangeException(name, place,
-                "The place must be finite and away from the center of the gravity.");
+            throw new ArgumentOutOfRangeException(
+                name,
+                place,
+                "The place must be finite and away from the center of the gravity."
+            );
     }
 
     private static bool IsFinite(Double3 v) => double.IsFinite(v.X) && double.IsFinite(v.Y) && double.IsFinite(v.Z);
@@ -515,14 +574,17 @@ public record struct KeplerOrbit(
     {
         double e = Eccentricity;
         double n = MeanMotion(mu);
-        double cosE = Math.Cos(eccentric), sinE = Math.Sin(eccentric);
+        double cosE = Math.Cos(eccentric),
+            sinE = Math.Sin(eccentric);
         double a = SemiMajorAxis;
         double b = a * Math.Sqrt(1 - e * e);
 
         // Perifocal frame: P toward periapsis, Q 90 degrees ahead in the direction of motion.
-        double px = a * (cosE - e), qy = b * sinE;
+        double px = a * (cosE - e),
+            qy = b * sinE;
         double edot = n / (1 - e * cosE);
-        double vpx = -a * sinE * edot, vqy = b * cosE * edot;
+        double vpx = -a * sinE * edot,
+            vqy = b * cosE * edot;
 
         DQuaternion orient = PerifocalToParent();
         // Perifocal axes in a Y-up frame: P = +X, Q = -Z, so that +Y is the orbit normal (counterclockwise seen from +Y).
@@ -541,9 +603,9 @@ public record struct KeplerOrbit(
     private readonly DQuaternion FacingParentAtAnomaly(double eccentric, double turns)
     {
         double e = Eccentricity;
-        double trueAnomaly = 2 * Math.Atan2(Math.Sqrt(1 + e) * Math.Sin(eccentric / 2),
-            Math.Sqrt(1 - e) * Math.Cos(eccentric / 2));
-        DQuaternion atPeriapsis = DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2);
+        double trueAnomaly =
+            2 * Math.Atan2(Math.Sqrt(1 + e) * Math.Sin(eccentric / 2), Math.Sqrt(1 - e) * Math.Cos(eccentric / 2));
+        var atPeriapsis = DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2);
         return PerifocalToParent() * DQuaternion.FromAxisAngle(Double3.UnitY, trueAnomaly + turns) * atPeriapsis;
     }
 
@@ -561,9 +623,9 @@ public record struct KeplerOrbit(
     private readonly DQuaternion PerifocalToParent()
     {
         // Rotations about +Y (the reference normal) and +X (the line of nodes), in the order Ω, i, ω.
-        DQuaternion node = DQuaternion.FromAxisAngle(Double3.UnitY, LongitudeOfAscendingNode);
-        DQuaternion tilt = DQuaternion.FromAxisAngle(Double3.UnitX, Inclination);
-        DQuaternion periapsis = DQuaternion.FromAxisAngle(Double3.UnitY, ArgumentOfPeriapsis);
+        var node = DQuaternion.FromAxisAngle(Double3.UnitY, LongitudeOfAscendingNode);
+        var tilt = DQuaternion.FromAxisAngle(Double3.UnitX, Inclination);
+        var periapsis = DQuaternion.FromAxisAngle(Double3.UnitY, ArgumentOfPeriapsis);
         return node * tilt * periapsis;
     }
 }

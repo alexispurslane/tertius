@@ -17,73 +17,107 @@ public sealed class SealedClassTests
         (await Analysis.Ids("TS0006", "internal record R(int X);")).Should().Equal("TS0006");
 
     [Fact]
-    public async Task ANestedClassIsReported() =>
-        (await Analysis.Ids("TS0006", """
-                                      public static class Outer
-                                      {
-                                          private class Inner;
-                                      }
-                                      """)).Should().Equal("TS0006");
+    public async Task ANestedClassIsReported() => (
+            await Analysis.Ids(
+                "TS0006",
+                """
+                public static class Outer
+                {
+                    private class Inner;
+                }
+                """
+            )
+        ).Should().Equal("TS0006");
 
     [Fact]
-    public async Task APartialClassIsReportedOnce() =>
-        (await Analysis.Ids("TS0006", """
-                                      public partial class P { public int A; }
-                                      public partial class P { public int B; }
-                                      """)).Should().Equal("TS0006");
+    public async Task APartialClassIsReportedOnce() => (
+            await Analysis.Ids(
+                "TS0006",
+                """
+                public partial class P { public int A; }
+                public partial class P { public int B; }
+                """
+            )
+        ).Should().Equal("TS0006");
 
     [Fact]
     public async Task TheMessageNamesTheClassAndTheSection() =>
-        (await Analysis.Diagnostics("TS0006", "public class Crate;")).Single().GetMessage().Should()
-        .Contain("Crate").And.Contain("(STYLE.md, \"Seal types, and keep them internal\")");
+        (await Analysis.Diagnostics("TS0006", "public class Crate;"))
+            .Single()
+            .GetMessage()
+            .Should()
+            .Contain("Crate")
+            .And.Contain("(STYLE.md, \"Seal types, and keep them internal\")");
 
     [Fact]
-    public async Task SealedAbstractAndStaticClassesAreNotReported() =>
-        (await Analysis.Ids("TS0006", """
-                                      public sealed class A;
-                                      public abstract class B;
-                                      public static class C;
-                                      """)).Should().BeEmpty();
+    public async Task SealedAbstractAndStaticClassesAreNotReported() => (
+            await Analysis.Ids(
+                "TS0006",
+                """
+                public sealed class A;
+                public abstract class B;
+                public static class C;
+                """
+            )
+        ).Should().BeEmpty();
 
     [Fact]
-    public async Task ABaseOfAnotherClassIsNotReported() =>
-        (await Analysis.Ids("TS0006", """
-                                      public class Base { public virtual int Size => 1; }
-                                      public sealed class Derived : Base { public override int Size => 2; }
-                                      """)).Should().BeEmpty();
+    public async Task ABaseOfAnotherClassIsNotReported() => (
+            await Analysis.Ids(
+                "TS0006",
+                """
+                public class Base { public virtual int Size => 1; }
+                public sealed class Derived : Base { public override int Size => 2; }
+                """
+            )
+        ).Should().BeEmpty();
 
     [Fact]
-    public async Task AGenericBaseOfAClassThatDerivesFromAConstructedTypeIsNotReported() =>
-        (await Analysis.Ids("TS0006", """
-                                      public class Box<T> { public T? Value; }
-                                      public sealed class IntBox : Box<int>;
-                                      """)).Should().BeEmpty();
+    public async Task AGenericBaseOfAClassThatDerivesFromAConstructedTypeIsNotReported() => (
+            await Analysis.Ids(
+                "TS0006",
+                """
+                public class Box<T> { public T? Value; }
+                public sealed class IntBox : Box<int>;
+                """
+            )
+        ).Should().BeEmpty();
 
     [Fact]
-    public async Task StructsInterfacesAndRecordStructsAreNotReported() =>
-        (await Analysis.Ids("TS0006", """
-                                      public struct S;
-                                      public interface I;
-                                      public readonly record struct R(int X);
-                                      public enum E { A }
-                                      """)).Should().BeEmpty();
+    public async Task StructsInterfacesAndRecordStructsAreNotReported() => (
+            await Analysis.Ids(
+                "TS0006",
+                """
+                public struct S;
+                public interface I;
+                public readonly record struct R(int X);
+                public enum E { A }
+                """
+            )
+        ).Should().BeEmpty();
 
     [Fact]
     public async Task AClosedBaseWithoutASubtypeIsNotReported() =>
-        (await Analysis.Ids("TS0006", "public closed record Shape;")).Should()
-        .BeEmpty("a closed record is the base of a closed hierarchy");
+        (await Analysis.Ids("TS0006", "public closed record Shape;"))
+            .Should()
+            .BeEmpty("a closed record is the base of a closed hierarchy");
 
     [Fact]
     public async Task TheProgramOfTopLevelStatementsIsNotReported() =>
-        (await Analysis.Diagnostics("TS0006", TestCompilation.Program("System.Console.WriteLine(1);"))).Should()
-        .BeEmpty("the compiler declares the class of the top-level statements");
+        (await Analysis.Diagnostics("TS0006", TestCompilation.Program("System.Console.WriteLine(1);")))
+            .Should()
+            .BeEmpty("the compiler declares the class of the top-level statements");
 
     [Fact]
-    public async Task GeneratedCodeIsNotAnalyzed() =>
-        (await Analysis.Ids("TS0006", """
-                                      // <auto-generated/>
-                                      public class C;
-                                      """)).Should().BeEmpty();
+    public async Task GeneratedCodeIsNotAnalyzed() => (
+            await Analysis.Ids(
+                "TS0006",
+                """
+                // <auto-generated/>
+                public class C;
+                """
+            )
+        ).Should().BeEmpty();
 
     // The code fix
 
@@ -93,21 +127,37 @@ public sealed class SealedClassTests
 
     [Fact]
     public async Task TheFixSealsBeforePartialAndUnsafe() =>
-        (await Fixes.Seal.First("""
-                                internal unsafe partial class C;
-                                """)).Should().Be("""
-                                                  internal sealed unsafe partial class C;
-                                                  """);
+        (
+            await Fixes.Seal.First(
+                """
+                internal unsafe partial class C;
+                """
+            )
+        )
+            .Should()
+            .Be(
+                """
+                internal sealed unsafe partial class C;
+                """
+            );
 
     [Fact]
     public async Task TheFixSealsFirstWhenNoAccessModifierComesBeforeIt() =>
-        (await Fixes.Seal.First("""
-                                /// <summary>A crate.</summary>
-                                partial class C;
-                                """)).Should().Be("""
-                                                  /// <summary>A crate.</summary>
-                                                  sealed partial class C;
-                                                  """);
+        (
+            await Fixes.Seal.First(
+                """
+                /// <summary>A crate.</summary>
+                partial class C;
+                """
+            )
+        )
+            .Should()
+            .Be(
+                """
+                /// <summary>A crate.</summary>
+                sealed partial class C;
+                """
+            );
 
     [Fact]
     public async Task TheFixSealsARecord() =>
@@ -115,39 +165,63 @@ public sealed class SealedClassTests
 
     [Fact]
     public async Task TheFixKeepsTheDocCommentAndTheAttributesOfAClassWithoutModifiers() =>
-        (await Fixes.Seal.First("""
-                                /// <summary>A crate.</summary>
-                                [System.Obsolete]
-                                class C;
-                                """)).Should().Be("""
-                                                  /// <summary>A crate.</summary>
-                                                  [System.Obsolete]
-                                                  sealed class C;
-                                                  """);
+        (
+            await Fixes.Seal.First(
+                """
+                /// <summary>A crate.</summary>
+                [System.Obsolete]
+                class C;
+                """
+            )
+        )
+            .Should()
+            .Be(
+                """
+                /// <summary>A crate.</summary>
+                [System.Obsolete]
+                sealed class C;
+                """
+            );
 
     [Fact]
     public async Task TheFixKeepsTheDocCommentOfAClassWithoutAttributesOrModifiers() =>
-        (await Fixes.Seal.First("""
-                                /// <summary>A crate.</summary>
-                                class C;
-                                """)).Should().Be("""
-                                                  /// <summary>A crate.</summary>
-                                                  sealed class C;
-                                                  """);
+        (
+            await Fixes.Seal.First(
+                """
+                /// <summary>A crate.</summary>
+                class C;
+                """
+            )
+        )
+            .Should()
+            .Be(
+                """
+                /// <summary>A crate.</summary>
+                sealed class C;
+                """
+            );
 
     [Fact]
     public async Task TheFixAllSealsEveryClass() =>
-        (await Fixes.Seal.All("""
-                              public class A;
-                              public static class Outer
-                              {
-                                  private class Inner;
-                              }
-                              """)).Should().Be("""
-                                                public sealed class A;
-                                                public static class Outer
-                                                {
-                                                    private sealed class Inner;
-                                                }
-                                                """);
+        (
+            await Fixes.Seal.All(
+                """
+                public class A;
+                public static class Outer
+                {
+                    private class Inner;
+                }
+                """
+            )
+        )
+            .Should()
+            .Be(
+                """
+                public sealed class A;
+                public static class Outer
+                {
+                    private sealed class Inner;
+                }
+                """
+            );
 }

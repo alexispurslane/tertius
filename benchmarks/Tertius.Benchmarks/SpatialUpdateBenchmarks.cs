@@ -21,12 +21,14 @@ public class SpatialUpdateBenchmarks
     private Entity[] movers = [];
     private bool shifted;
 
-    [Params(16384, 32768, 65536, 98304)] public int Moved { get; set; }
+    [Params(16384, 32768, 65536, 98304)]
+    public int Moved { get; set; }
 
     [Params(UpdateMode.CopyOnly, UpdateMode.TakeOnly, UpdateMode.OneThread, UpdateMode.Workers)]
     public UpdateMode Mode { get; set; }
 
-    [Params(false, true)] public bool ChangeCells { get; set; }
+    [Params(false, true)]
+    public bool ChangeCells { get; set; }
 
     public enum UpdateMode
     {
@@ -40,7 +42,7 @@ public class SpatialUpdateBenchmarks
         OneThread,
 
         /// <summary>Updates the index with the workers, however few entities moved.</summary>
-        Workers
+        Workers,
     }
 
     [GlobalSetup]
@@ -52,18 +54,32 @@ public class SpatialUpdateBenchmarks
             Mode == UpdateMode.Workers ? new ParallelOptions { MaxDegreeOfParallelism = -1 } : null;
         spatial = new(entities, frames, workers) { ParallelThreshold = 1 };
         // The owner of the root is a handle that the table never hands out, so it is in no grid.
-        FrameHandle root = frames.Create(frameOwner: new((uint)Moved + 1000, 1), parent: FrameHandle.Null,
+        FrameHandle root = frames.Create(
+            frameOwner: new((uint)Moved + 1000, 1),
+            parent: FrameHandle.Null,
             localPose: DPose.Identity,
-            frameBounds: FrameBounds.Sphere(1e12f));
+            frameBounds: FrameBounds.Sphere(1e12f)
+        );
         double spacing = ChangeCells ? 40 : 2;
         movers = new Entity[Moved];
         for (int i = 0; i < Moved; i++)
         {
             movers[i] = entities.Reserve();
             var row = new TransformRow
-                { Frame = root, Pose = new(new(i % 300 * spacing, i / 300 * spacing, 0), DQuaternion.Identity) };
-            entities.Activate(entity: movers[i], row: row, render: new(), components: [], wants: [], body: null,
-                bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
+            {
+                Frame = root,
+                Pose = new(new(i % 300 * spacing, i / 300 * spacing, 0), DQuaternion.Identity),
+            };
+            entities.Activate(
+                entity: movers[i],
+                row: row,
+                render: new(),
+                components: [],
+                wants: [],
+                body: null,
+                bodyCenterOfMass: Vector3.Zero,
+                ownedFrame: FrameHandle.Null
+            );
         }
 
         entities.CopyDirtyRows();

@@ -35,7 +35,13 @@ internal sealed class RenderTargets : IDisposable
 
     /// <summary>The G-buffer color formats in attachment order, matching the outputs of Shaders/gbuffer.frag.</summary>
     public static readonly Format[] GBufferFormats =
-        [AlbedoFormat, NormalFormat, SpecularGlossFormat, EmissiveFormat, DistanceFormat];
+    [
+        AlbedoFormat,
+        NormalFormat,
+        SpecularGlossFormat,
+        EmissiveFormat,
+        DistanceFormat,
+    ];
 
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
@@ -79,28 +85,82 @@ internal sealed class RenderTargets : IDisposable
         Create(extent);
     }
 
-    [MemberNotNull(nameof(Albedo), nameof(Normal), nameof(SpecularGloss), nameof(Emissive), nameof(Distance),
-        nameof(Depth), nameof(Hdr))]
+    [MemberNotNull(
+        nameof(Albedo),
+        nameof(Normal),
+        nameof(SpecularGloss),
+        nameof(Emissive),
+        nameof(Distance),
+        nameof(Depth),
+        nameof(Hdr)
+    )]
     private void Create(Extent2D extent)
     {
         const ImageUsageFlags target = ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit;
         Extent = extent;
-        Albedo = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: AlbedoFormat,
-            usage: target, mipLevels: 1, name: "g-buffer albedo");
-        Normal = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: NormalFormat,
-            usage: target, mipLevels: 1, name: "g-buffer normal");
-        SpecularGloss = GpuImage.Create(device: device, allocator: allocator, extent: extent,
-            format: SpecularGlossFormat, usage: target, mipLevels: 1,
-            name: "g-buffer specular-gloss");
-        Emissive = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: EmissiveFormat,
-            usage: target, mipLevels: 1, name: "g-buffer emissive");
-        Distance = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: DistanceFormat,
-            usage: target, mipLevels: 1, name: "g-buffer distance");
-        Depth = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: DepthFormat,
-            usage: ImageUsageFlags.DepthStencilAttachmentBit, mipLevels: 1,
-            name: "depth");
-        Hdr = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: HdrFormat, usage: target,
-            mipLevels: 1, name: "hdr");
+        Albedo = GpuImage.Create(
+            device: device,
+            allocator: allocator,
+            extent: extent,
+            format: AlbedoFormat,
+            usage: target,
+            mipLevels: 1,
+            name: "g-buffer albedo"
+        );
+        Normal = GpuImage.Create(
+            device: device,
+            allocator: allocator,
+            extent: extent,
+            format: NormalFormat,
+            usage: target,
+            mipLevels: 1,
+            name: "g-buffer normal"
+        );
+        SpecularGloss = GpuImage.Create(
+            device: device,
+            allocator: allocator,
+            extent: extent,
+            format: SpecularGlossFormat,
+            usage: target,
+            mipLevels: 1,
+            name: "g-buffer specular-gloss"
+        );
+        Emissive = GpuImage.Create(
+            device: device,
+            allocator: allocator,
+            extent: extent,
+            format: EmissiveFormat,
+            usage: target,
+            mipLevels: 1,
+            name: "g-buffer emissive"
+        );
+        Distance = GpuImage.Create(
+            device: device,
+            allocator: allocator,
+            extent: extent,
+            format: DistanceFormat,
+            usage: target,
+            mipLevels: 1,
+            name: "g-buffer distance"
+        );
+        Depth = GpuImage.Create(
+            device: device,
+            allocator: allocator,
+            extent: extent,
+            format: DepthFormat,
+            usage: ImageUsageFlags.DepthStencilAttachmentBit,
+            mipLevels: 1,
+            name: "depth"
+        );
+        Hdr = GpuImage.Create(
+            device: device,
+            allocator: allocator,
+            extent: extent,
+            format: HdrFormat,
+            usage: target,
+            mipLevels: 1,
+            name: "hdr"
+        );
         GBuffer = [Albedo, Normal, SpecularGloss, Emissive, Distance];
         for (int i = 0; i < GBuffer.Length; i++)
             layouts.WriteImage(set: GBufferSet, binding: (uint)i, arrayElement: 0, image: GBuffer[i]);
@@ -112,17 +172,23 @@ internal sealed class RenderTargets : IDisposable
         foreach (Format format in (Format[])[.. GBufferFormats, HdrFormat])
         {
             FormatFeatureFlags features = device.FormatProperties(format).OptimalTilingFeatures;
-            if ((features & (FormatFeatureFlags.ColorAttachmentBit | FormatFeatureFlags.SampledImageBit)) !=
-                (FormatFeatureFlags.ColorAttachmentBit | FormatFeatureFlags.SampledImageBit))
+            if (
+                (features & (FormatFeatureFlags.ColorAttachmentBit | FormatFeatureFlags.SampledImageBit))
+                != (FormatFeatureFlags.ColorAttachmentBit | FormatFeatureFlags.SampledImageBit)
+            )
                 throw new NotSupportedException(
-                    $"{format} cannot be a sampled color attachment on {device.DeviceName}.");
+                    $"{format} cannot be a sampled color attachment on {device.DeviceName}."
+                );
         }
 
-        if ((device.FormatProperties(HdrFormat).OptimalTilingFeatures & FormatFeatureFlags.ColorAttachmentBlendBit) ==
-            0)
+        if (
+            (device.FormatProperties(HdrFormat).OptimalTilingFeatures & FormatFeatureFlags.ColorAttachmentBlendBit) == 0
+        )
             throw new NotSupportedException($"{HdrFormat} does not support blending on {device.DeviceName}.");
-        if ((device.FormatProperties(DepthFormat).OptimalTilingFeatures &
-             FormatFeatureFlags.DepthStencilAttachmentBit) == 0)
+        if (
+            (device.FormatProperties(DepthFormat).OptimalTilingFeatures & FormatFeatureFlags.DepthStencilAttachmentBit)
+            == 0
+        )
             throw new NotSupportedException($"{DepthFormat} cannot be a depth attachment on {device.DeviceName}.");
     }
 

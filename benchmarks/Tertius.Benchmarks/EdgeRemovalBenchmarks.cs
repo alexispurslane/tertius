@@ -60,15 +60,26 @@ namespace Tertius.Benchmarks;
 public class EdgeRemovalBenchmarks
 {
     private const int Segments = 256;
-    private const float Inner = 20, Outer = 20.5f, HalfWidth = 5;
-    private const int Lanes = 20, PerLane = 20;
+    private const float Inner = 20,
+        Outer = 20.5f,
+        HalfWidth = 5;
+    private const int Lanes = 20,
+        PerLane = 20;
     private const float Half = 0.15f;
-    private const int CharacterLanes = 10, CharactersPerLane = 10;
-    private const float PersonHalfHeight = 0.6f, PersonRadius = 0.3f, WalkSpeed = 3;
+    private const int CharacterLanes = 10,
+        CharactersPerLane = 10;
+    private const float PersonHalfHeight = 0.6f,
+        PersonRadius = 0.3f,
+        WalkSpeed = 3;
 
     /// <summary>The ring's profile, counterclockwise with ρ to the right and y up, as in <c>RevolvedSolid.Ring</c>.</summary>
     private static readonly Vector2[] Profile =
-        [new(Inner, -HalfWidth), new(Outer, -HalfWidth), new(Outer, HalfWidth), new(Inner, HalfWidth)];
+    [
+        new(Inner, -HalfWidth),
+        new(Outer, -HalfWidth),
+        new(Outer, HalfWidth),
+        new(Inner, HalfWidth),
+    ];
 
     [Params(RingFloor.Hulls, RingFloor.Mesh)]
     public RingFloor Floor;
@@ -76,7 +87,8 @@ public class EdgeRemovalBenchmarks
     [Params(FloorLoad.BallsAndBoxes, FloorLoad.Balls, FloorLoad.Characters)]
     public FloorLoad Load;
 
-    [Params(false, true)] public bool EdgeRemoval;
+    [Params(false, true)]
+    public bool EdgeRemoval;
 
     private World world = null!;
     private JoltPhysicsBackend backend = null!;
@@ -86,7 +98,7 @@ public class EdgeRemovalBenchmarks
     public enum RingFloor
     {
         Hulls,
-        Mesh
+        Mesh,
     }
 
     /// <summary>What stands on the floor: 200 boxes and 200 balls, 400 balls, or 100 characters that walk.</summary>
@@ -94,7 +106,7 @@ public class EdgeRemovalBenchmarks
     {
         BallsAndBoxes,
         Balls,
-        Characters
+        Characters,
     }
 
     /// <summary>
@@ -142,12 +154,15 @@ public class EdgeRemovalBenchmarks
         backend = new(new() { WorkerThreads = 2 });
         world = new(new() { MaxDegreeOfParallelism = 1, DisposePhysics = true }, backend);
         frame = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(9.81f, 0, 0))));
-        world.Spawn(new()
-        {
-            Frame = frame,
-            Body = new(Shape: Floor == RingFloor.Hulls ? RingHulls() : RingMesh(), Motion: BodyMotion.Static)
-        });
-        List<Entity> slidingBoxes = [], slidingBalls = [];
+        world.Spawn(
+            new()
+            {
+                Frame = frame,
+                Body = new(Shape: Floor == RingFloor.Hulls ? RingHulls() : RingMesh(), Motion: BodyMotion.Static),
+            }
+        );
+        List<Entity> slidingBoxes = [],
+            slidingBalls = [];
         if (Load == FloorLoad.Characters)
             people = SpawnCharacters();
         else
@@ -159,7 +174,8 @@ public class EdgeRemovalBenchmarks
         else
             SetEdgeRemoval(backend, frame, EdgeRemoval);
         // Two seconds: the resting boxes fall asleep, and the sliding lanes and the walkers have turned twice.
-        double tilt = 0, lift = 0;
+        double tilt = 0,
+            lift = 0;
         for (int i = 0; i < 120; i++)
         {
             world.Tick();
@@ -169,18 +185,19 @@ public class EdgeRemovalBenchmarks
                 lift = Math.Max(lift, LiftFromFloor(world.PoseIn(ball, frame)));
         }
 
-        string motion = Load == FloorLoad.Characters
-            ? ""
-            : $", a sliding ball rises up to {lift * 1000:F2} mm" + (slidingBoxes.Count > 0
-                ? $", a sliding box tilts up to {tilt * 180 / Math.PI:F2}°"
-                : "");
+        string motion =
+            Load == FloorLoad.Characters
+                ? ""
+                : $", a sliding ball rises up to {lift * 1000:F2} mm"
+                    + (slidingBoxes.Count > 0 ? $", a sliding box tilts up to {tilt * 180 / Math.PI:F2}°" : "");
         Console.WriteLine($"// {Floor}, {Load}, edge removal {EdgeRemoval}, after 2 s: {State()}{motion}.");
     }
 
     /// <summary>How many of the balls and boxes are awake, or how many of the characters are on the floor.</summary>
-    private string State() => Load == FloorLoad.Characters
-        ? $"{people.Count(person => world.PoseIn(person, frame).Position.X > Inner * 0.9)} of {people.Count} characters on the floor"
-        : $"{backend.BodiesIn(frame).Count(body => body.Active && body.Motion == MotionType.Dynamic)} of {Lanes * PerLane} bodies awake";
+    private string State() =>
+        Load == FloorLoad.Characters
+            ? $"{people.Count(person => world.PoseIn(person, frame).Position.X > Inner * 0.9)} of {people.Count} characters on the floor"
+            : $"{backend.BodiesIn(frame).Count(body => body.Active && body.Motion == MotionType.Dynamic)} of {Lanes * PerLane} bodies awake";
 
     /// <summary>
     /// The angle, in radians, between the up of a body at <paramref name="pose"/>, its local +Y, and the direction from
@@ -188,7 +205,8 @@ public class EdgeRemovalBenchmarks
     /// </summary>
     private static double TiltFromFloor(DPose pose)
     {
-        Double3 p = pose.Position, up = pose.Rotation.Rotate(Double3.UnitY);
+        Double3 p = pose.Position,
+            up = pose.Rotation.Rotate(Double3.UnitY);
         Double3 inward = new Double3(-p.X, 0, -p.Z).Normalized();
         return Math.Acos(Math.Clamp(Double3.Dot(up, inward), -1, 1));
     }
@@ -200,7 +218,8 @@ public class EdgeRemovalBenchmarks
     private static double LiftFromFloor(DPose pose)
     {
         Double3 p = pose.Position;
-        double step = Math.Tau / Segments, middle = (Math.Floor(Math.Atan2(-p.Z, p.X) / step) + 0.5) * step;
+        double step = Math.Tau / Segments,
+            middle = (Math.Floor(Math.Atan2(-p.Z, p.X) / step) + 0.5) * step;
         double apothem = Inner * Math.Cos(Math.PI / Segments);
         return apothem - (p.X * Math.Cos(middle) - p.Z * Math.Sin(middle)) - Half;
     }
@@ -211,25 +230,29 @@ public class EdgeRemovalBenchmarks
     /// </summary>
     private (List<Entity> SlidingBoxes, List<Entity> SlidingBalls) SpawnBallsAndBoxes(bool withBoxes)
     {
-        List<Entity> slidingBoxes = [], slidingBalls = [];
+        List<Entity> slidingBoxes = [],
+            slidingBalls = [];
         var box = new BoxShapeDesc(new(Half));
         var ball = new SphereShapeDesc(Half);
         for (int lane = 0; lane < Lanes; lane++)
         {
-            bool boxes = withBoxes && lane % 2 == 0, slides = lane / 2 % 2 == 0;
+            bool boxes = withBoxes && lane % 2 == 0,
+                slides = lane / 2 % 2 == 0;
             double y = (lane - (Lanes - 1) / 2.0) * 0.5;
             // A row of resting balls touches, so that each holds the next on the curved floor.
             double spacing = !slides && !boxes ? 2 * Half + 0.001 : 0.45;
             for (int i = 0; i < PerLane; i++)
             {
                 double theta = (i - (PerLane - 1) / 2.0) * spacing / Inner;
-                Entity body = world.Spawn(new()
-                {
-                    Frame = frame,
-                    Pose = OnFloor(theta, y),
-                    Body = new(Shape: boxes ? box : ball, Mass: boxes ? 10 : 1),
-                    Components = slides ? [new Shuttle()] : []
-                });
+                Entity body = world.Spawn(
+                    new()
+                    {
+                        Frame = frame,
+                        Pose = OnFloor(theta, y),
+                        Body = new(Shape: boxes ? box : ball, Mass: boxes ? 10 : 1),
+                        Components = slides ? [new Shuttle()] : [],
+                    }
+                );
                 if (slides)
                     (boxes ? slidingBoxes : slidingBalls).Add(body);
             }
@@ -248,7 +271,7 @@ public class EdgeRemovalBenchmarks
     {
         var capsule = new CapsuleShapeDesc(PersonHalfHeight, PersonRadius);
         // The character's up, its local +Y, is -X, against the gravity.
-        DQuaternion upright = DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2);
+        var upright = DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2);
         double step = Math.Tau / Segments;
         var people = new List<Entity>();
         for (int lane = 0; lane < CharacterLanes; lane++)
@@ -258,16 +281,23 @@ public class EdgeRemovalBenchmarks
             double middle = (Math.Floor(theta / step) + 0.5) * step;
             var inward = new Double3(-Math.Cos(middle), 0, Math.Sin(middle));
             double floor = Inner * Math.Cos(Math.PI / Segments) / Math.Cos(theta - middle);
-            var floorPoint = new Double3(floor * Math.Cos(theta), (lane - (CharacterLanes - 1) / 2.0) * 0.9,
-                -floor * Math.Sin(theta));
+            var floorPoint = new Double3(
+                floor * Math.Cos(theta),
+                (lane - (CharacterLanes - 1) / 2.0) * 0.9,
+                -floor * Math.Sin(theta)
+            );
             Double3 lowerCenter = floorPoint + (PersonRadius + 0.01) * inward;
-            people.Add(world.Spawn(new()
-            {
-                Frame = frame,
-                Pose = new(lowerCenter - PersonHalfHeight * Double3.UnitX, upright),
-                Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: 70),
-                Components = [new Walker()]
-            }));
+            people.Add(
+                world.Spawn(
+                    new()
+                    {
+                        Frame = frame,
+                        Pose = new(lowerCenter - PersonHalfHeight * Double3.UnitX, upright),
+                        Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: 70),
+                        Components = [new Walker()],
+                    }
+                )
+            );
         }
 
         return people;
@@ -279,9 +309,10 @@ public class EdgeRemovalBenchmarks
         lock (backend.Gate)
         {
             foreach (Entity person in people)
-                (backend.CharacterOf(person) ??
-                 throw new InvalidOperationException("A person is not a walking character."))
-                    .EnhancedInternalEdgeRemoval = on;
+                (
+                    backend.CharacterOf(person)
+                    ?? throw new InvalidOperationException("A person is not a walking character.")
+                ).EnhancedInternalEdgeRemoval = on;
         }
     }
 
@@ -313,8 +344,8 @@ public class EdgeRemovalBenchmarks
         double middle = (Math.Floor(theta / step) + 0.5) * step;
         double floor = Inner * Math.Cos(Math.PI / Segments) / Math.Cos(theta - middle);
         var radial = new Double3(Math.Cos(theta), 0, -Math.Sin(theta));
-        DQuaternion turn = DQuaternion.FromAxisAngle(Double3.UnitY, theta) *
-                           DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2);
+        DQuaternion turn =
+            DQuaternion.FromAxisAngle(Double3.UnitY, theta) * DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2);
         return (turn.Rotate(Double3.UnitY) + radial).Length > 1e-9
             ? throw new InvalidOperationException("The body's up does not face the axis.")
             : new((floor - Half - 0.001) * radial + new Double3(0, y, 0), turn);
@@ -332,11 +363,13 @@ public class EdgeRemovalBenchmarks
     {
         var children = new CompoundChild[Segments];
         for (int k = 0; k < Segments; k++)
-            children[k] =
-                new(
-                    new ConvexHullShapeDesc(
-                        [.. Profile.SelectMany(c => new[] { Point(c, k), Point(c, (k + 1) % Segments) })],
-                        ConvexRadius: 0), Pose.Identity);
+            children[k] = new(
+                new ConvexHullShapeDesc(
+                    [.. Profile.SelectMany(c => new[] { Point(c, k), Point(c, (k + 1) % Segments) })],
+                    ConvexRadius: 0
+                ),
+                Pose.Identity
+            );
         return new(children);
     }
 
@@ -361,7 +394,10 @@ public class EdgeRemovalBenchmarks
             int next = (k + 1) % Segments;
             for (int e = 0; e < Profile.Length; e++)
             {
-                int a = k * perAngle + 2 * e, b = a + 1, aNext = next * perAngle + 2 * e, bNext = aNext + 1;
+                int a = k * perAngle + 2 * e,
+                    b = a + 1,
+                    aNext = next * perAngle + 2 * e,
+                    bNext = aNext + 1;
                 indices.AddRange([a, aNext, bNext, a, bNext, b]);
             }
         }
@@ -388,7 +424,12 @@ public class EdgeRemovalBenchmarks
         foreach (RingFloor floor in Enum.GetValues<RingFloor>())
         foreach (bool on in new[] { false, true })
         {
-            var scene = new EdgeRemovalBenchmarks { Floor = floor, Load = load, EdgeRemoval = on };
+            var scene = new EdgeRemovalBenchmarks
+            {
+                Floor = floor,
+                Load = load,
+                EdgeRemoval = on,
+            };
             scene.Setup();
             scenes.Add(scene);
         }
@@ -405,15 +446,18 @@ public class EdgeRemovalBenchmarks
 
         for (int i = 0; i < scenes.Count; i += 2)
         {
-            double off = totals[i] / rounds, on = totals[i + 1] / rounds;
+            double off = totals[i] / rounds,
+                on = totals[i + 1] / rounds;
             Console.WriteLine(
-                $"{scenes[i].Load} on the {scenes[i].Floor}: {off:F1} us a tick without the flag, {on:F1} us with it, {(on / off - 1) * 100:+0.0;-0.0} %");
+                $"{scenes[i].Load} on the {scenes[i].Floor}: {off:F1} us a tick without the flag, {on:F1} us with it, {(on / off - 1) * 100:+0.0;-0.0} %"
+            );
         }
 
         foreach (EdgeRemovalBenchmarks scene in scenes)
         {
             Console.WriteLine(
-                $"// {scene.Floor}, {scene.Load}, edge removal {scene.EdgeRemoval}, after the rounds: {scene.State()}.");
+                $"// {scene.Floor}, {scene.Load}, edge removal {scene.EdgeRemoval}, after the rounds: {scene.State()}."
+            );
             scene.Cleanup();
         }
     }

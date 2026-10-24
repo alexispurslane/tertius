@@ -6,7 +6,7 @@ namespace Tertius.Testing;
 public enum ContactNews
 {
     Started,
-    Ended
+    Ended,
 }
 
 /// <summary>
@@ -32,13 +32,13 @@ public sealed class CollisionLog : IComponent
         for (int i = 0; i < events.Count; i++)
             if (events[i].Is<Collision>())
             {
-                var collision = events[i].As<Collision>();
+                Collision collision = events[i].As<Collision>();
                 Seen.Add((self.Tick, collision.Other, collision.Impulse));
                 heard.Add((collision.Other, ContactNews.Started));
             }
             else if (events[i].Is<CollisionEnded>())
             {
-                var ended = events[i].As<CollisionEnded>();
+                CollisionEnded ended = events[i].As<CollisionEnded>();
                 Ended.Add((self.Tick, ended.Other));
                 heard.Add((ended.Other, ContactNews.Ended));
             }

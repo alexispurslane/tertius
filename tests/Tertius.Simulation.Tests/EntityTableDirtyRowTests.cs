@@ -86,11 +86,14 @@ public class EntityTableDirtyRowTests
     public void AnEntityWithBothRowsWrittenGetsBothCopiedForward()
     {
         (EntityTable table, Entity[] e) = Settled(1);
-        Gameplay(table, () =>
-        {
-            table.WritableRender(e[0]).Scale = new(3);
-            table.WritableTransform(e[0]) = TestWorld.At(6);
-        });
+        Gameplay(
+            table,
+            () =>
+            {
+                table.WritableRender(e[0]).Scale = new(3);
+                table.WritableTransform(e[0]) = TestWorld.At(6);
+            }
+        );
 
         table.CopyDirtyRows();
 
@@ -132,11 +135,14 @@ public class EntityTableDirtyRowTests
     public void AnEntityWrittenTwiceInOneTickIsCopiedAndListedAsMovedOnce()
     {
         (EntityTable table, Entity[] e) = Settled(1);
-        Gameplay(table, () =>
-        {
-            table.WritableTransform(e[0]) = TestWorld.At(4);
-            table.WritableTransform(e[0]) = TestWorld.At(8);
-        });
+        Gameplay(
+            table,
+            () =>
+            {
+                table.WritableTransform(e[0]) = TestWorld.At(4);
+                table.WritableTransform(e[0]) = TestWorld.At(8);
+            }
+        );
 
         table.CopyDirtyRows();
 
@@ -164,13 +170,18 @@ public class EntityTableDirtyRowTests
         // Entities in slots 0, 4 and 8 are in chunks 0, 1 and 2. Each chunk's worker writes its own entity; the workers
         // may finish in any order, but the result must not show it.
         (EntityTable table, Entity[] e) = Settled(2 * ChunkSize + 1);
-        Entity inChunk0 = e[0], inChunk1 = e[ChunkSize], inChunk2 = e[2 * ChunkSize];
-        Gameplay(table, () =>
-        {
-            table.WritableTransform(inChunk2) = TestWorld.At(20);
-            table.WritableTransform(inChunk0) = TestWorld.At(21);
-            table.WritableTransform(inChunk1) = TestWorld.At(22);
-        });
+        Entity inChunk0 = e[0],
+            inChunk1 = e[ChunkSize],
+            inChunk2 = e[2 * ChunkSize];
+        Gameplay(
+            table,
+            () =>
+            {
+                table.WritableTransform(inChunk2) = TestWorld.At(20);
+                table.WritableTransform(inChunk0) = TestWorld.At(21);
+                table.WritableTransform(inChunk1) = TestWorld.At(22);
+            }
+        );
 
         table.CopyDirtyRows();
 
@@ -181,7 +192,8 @@ public class EntityTableDirtyRowTests
     public void RowsWrittenByGameplayAreCopiedBeforeRowsWrittenBySyncPoint()
     {
         (EntityTable table, Entity[] e) = Settled(2 * ChunkSize);
-        Entity syncWritten = e[1], gameplayWritten = e[ChunkSize];
+        Entity syncWritten = e[1],
+            gameplayWritten = e[ChunkSize];
         Gameplay(table, () => table.WritableTransform(gameplayWritten) = TestWorld.At(30));
         table.SetBackTransform(syncWritten, RowAt(31));
 
@@ -250,25 +262,27 @@ public class EntityTableDirtyRowTests
     }
 
     /// <summary>A transform row at x = 1, in no frame, with a unit rotation and some velocities, so that every field has a value.</summary>
-    private static TransformRow BaseRow() => new()
-    {
-        Pose = TestWorld.At(1),
-        LinearVelocity = new(1, 2, 3),
-        AngularVelocity = new(4, 5, 6)
-    };
-
-    private static TransformRow ChangedIn(string field) => field switch
-    {
-        "frame" => BaseRow() with { Frame = SomeFrame },
-        "position" => BaseRow() with { Pose = TestWorld.At(2) },
-        "rotation" => BaseRow() with
+    private static TransformRow BaseRow() =>
+        new()
         {
-            Pose = BaseRow().Pose with { Rotation = DQuaternion.FromAxisAngle(Double3.UnitY, 0.5) }
-        },
-        "linear velocity" => BaseRow() with { LinearVelocity = new(1, 2, 4) },
-        "angular velocity" => BaseRow() with { AngularVelocity = new(4, 5, 7) },
-        _ => throw new ArgumentOutOfRangeException(nameof(field), field, null)
-    };
+            Pose = TestWorld.At(1),
+            LinearVelocity = new(1, 2, 3),
+            AngularVelocity = new(4, 5, 6),
+        };
+
+    private static TransformRow ChangedIn(string field) =>
+        field switch
+        {
+            "frame" => BaseRow() with { Frame = SomeFrame },
+            "position" => BaseRow() with { Pose = TestWorld.At(2) },
+            "rotation" => BaseRow() with
+            {
+                Pose = BaseRow().Pose with { Rotation = DQuaternion.FromAxisAngle(Double3.UnitY, 0.5) },
+            },
+            "linear velocity" => BaseRow() with { LinearVelocity = new(1, 2, 4) },
+            "angular velocity" => BaseRow() with { AngularVelocity = new(4, 5, 7) },
+            _ => throw new ArgumentOutOfRangeException(nameof(field), field, null),
+        };
 
     [Theory]
     [InlineData("frame")]

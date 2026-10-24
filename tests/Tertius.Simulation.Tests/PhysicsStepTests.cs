@@ -27,8 +27,10 @@ public sealed class PhysicsStepTests
     public void ThePhysicsTimeOfAStepIsTheSimulationTimeAtTheStartOfItsTick()
     {
         // 64 ticks per second is a power of two, so every time is exact: the step of tick 4 starts 4/64 s = 0.0625 s in.
-        using World world =
-            NewWorldWithFaults(faults: out FaultInjectingBackend faults, configure: options => options.TickRate = 64);
+        using World world = NewWorldWithFaults(
+            faults: out FaultInjectingBackend faults,
+            configure: options => options.TickRate = 64
+        );
         Ground(world, 9.81f);
 
         world.Run(5);
@@ -56,8 +58,10 @@ public sealed class PhysicsStepTests
 
         world.Run(5);
 
-        faults.Steps.Should().HaveCount(5).And
-            .OnlyContain(s => s.ThreadId != Environment.CurrentManagedThreadId && !s.OnPoolThread);
+        faults
+            .Steps.Should()
+            .HaveCount(5)
+            .And.OnlyContain(s => s.ThreadId != Environment.CurrentManagedThreadId && !s.OnPoolThread);
     }
 
     [Fact]
@@ -76,8 +80,10 @@ public sealed class PhysicsStepTests
     [Fact]
     public void TheWorldLeavesThePhysicsBackendUndisposedByDefault()
     {
-        World world = NewWorld(backend: out JoltPhysicsBackend backend,
-            configure: options => options.DisposePhysics = false);
+        World world = NewWorld(
+            backend: out JoltPhysicsBackend backend,
+            configure: options => options.DisposePhysics = false
+        );
         using (backend)
         {
             world.Dispose();
@@ -91,8 +97,10 @@ public sealed class PhysicsStepTests
     [Fact]
     public void TheWorldDisposesThePhysicsBackendWhenAsked()
     {
-        World world = NewWorld(backend: out JoltPhysicsBackend backend,
-            configure: options => options.DisposePhysics = true);
+        World world = NewWorld(
+            backend: out JoltPhysicsBackend backend,
+            configure: options => options.DisposePhysics = true
+        );
 
         world.Dispose();
 
@@ -120,7 +128,14 @@ public sealed class PhysicsStepTests
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle ground = Ground(world, 9.81f);
         DPose spawnPose = At(1, 10);
-        Entity ball = world.Spawn(new() { Frame = ground, Pose = spawnPose, Body = Ball() });
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = spawnPose,
+                Body = Ball(),
+            }
+        );
         // Jolt writes the real state of the ball into the output. Then the step fails.
         BodyState written = default;
         faults.EditNextOutput = output =>
@@ -137,9 +152,15 @@ public sealed class PhysicsStepTests
         // The world also clears that output, so the next step does not carry the state of the step that failed.
         world.Run(1);
 
-        faults.Outputs.Should().ContainSingle("the step that threw has no entry").Which.Bodies
-            .Count(state => state.Entity == ball).Should().Be(1);
-        world.PoseInOwnFrame(ball).Should()
+        faults
+            .Outputs.Should()
+            .ContainSingle("the step that threw has no entry")
+            .Which.Bodies.Count(state => state.Entity == ball)
+            .Should()
+            .Be(1);
+        world
+            .PoseInOwnFrame(ball)
+            .Should()
             .Be(faults.Outputs.Single().Bodies.Single(state => state.Entity == ball).Pose);
     }
 
@@ -149,7 +170,14 @@ public sealed class PhysicsStepTests
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle ground = Ground(world, 9.81f);
         DPose spawnPose = At(1, 10);
-        Entity ball = world.Spawn(new() { Frame = ground, Pose = spawnPose, Body = Ball() });
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = spawnPose,
+                Body = Ball(),
+            }
+        );
         faults.ThrowFromStep = new InvalidOperationException("solver exploded");
 
         world.Run(3);
@@ -171,13 +199,15 @@ public sealed class PhysicsStepTests
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        Entity ship = world.Spawn(new()
-        {
-            Frame = space,
-            Body = Ball(),
-            LinearVelocity = new(5, 0, 0),
-            AsFrame = new(FrameBounds.Sphere(2))
-        });
+        Entity ship = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = Ball(),
+                LinearVelocity = new(5, 0, 0),
+                AsFrame = new(FrameBounds.Sphere(2)),
+            }
+        );
         FrameHandle frame = world.GetOwnedFrame(ship);
         world.Run(2);
         Double3 velocity = world.Frames.LinearVelocity(frame);
@@ -197,14 +227,21 @@ public sealed class PhysicsStepTests
     public void AFailedStepLeavesTheAnchorOfAFollowingFrameWithTheVelocityThatItHadInIt()
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
-        Entity hull = Scenes.FastKeplerHull(world, Scenes.AsteroidSpace(world),
-            Ball() with { Motion = BodyMotion.Kinematic });
+        Entity hull = Scenes.FastKeplerHull(
+            world,
+            Scenes.AsteroidSpace(world),
+            Ball() with
+            {
+                Motion = BodyMotion.Kinematic,
+            }
+        );
         FrameHandle frame = world.GetOwnedFrame(hull);
         world.Run(5);
         world.Frames.Numeric(world.Frames.TreeParent(frame)).Should().Be(NumericMode.Following);
         Double3 velocity = world.Frames.TreeLinearVelocity(frame);
-        velocity.Should().NotBe(Double3.Zero,
-            "the sample's instant velocity is half a step of its acceleration past its chord");
+        velocity
+            .Should()
+            .NotBe(Double3.Zero, "the sample's instant velocity is half a step of its acceleration past its chord");
         faults.ThrowFromStep = new InvalidOperationException("solver exploded");
 
         world.Run(1);
@@ -219,7 +256,14 @@ public sealed class PhysicsStepTests
         faults.ThrowFromApplyChanges = new InvalidOperationException("cannot create the body");
         FrameHandle ground = Ground(world, 9.81f);
 
-        world.Spawn(new() { Frame = ground, Pose = At(0, 10), Body = Ball() });
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 10),
+                Body = Ball(),
+            }
+        );
         world.Run(2);
 
         world.Errors.Should().ContainSingle().Which.Should().Contain("cannot create the body");
@@ -235,8 +279,11 @@ public sealed class PhysicsStepTests
 
         Action tick = world.Tick;
 
-        tick.Should().Throw<ContractException>().WithMessage("*the backend is broken")
-            .Which.StackTrace.Should().Contain($"{nameof(FaultInjectingBackend)}.{nameof(FaultInjectingBackend.Step)}");
+        tick.Should()
+            .Throw<ContractException>()
+            .WithMessage("*the backend is broken")
+            .Which.StackTrace.Should()
+            .Contain($"{nameof(FaultInjectingBackend)}.{nameof(FaultInjectingBackend.Step)}");
         world.Errors.Should().BeEmpty("a broken contract is not a failed step");
     }
 
@@ -249,7 +296,9 @@ public sealed class PhysicsStepTests
 
         Action tick = world.Tick;
 
-        tick.Should().Throw<ContractException>().WithMessage("*the backend is broken")
+        tick.Should()
+            .Throw<ContractException>()
+            .WithMessage("*the backend is broken")
             .Which.StackTrace.Should()
             .Contain($"{nameof(FaultInjectingBackend)}.{nameof(FaultInjectingBackend.ApplyChanges)}");
         world.Errors.Should().BeEmpty("a broken contract is not a failure to apply changes");

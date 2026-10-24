@@ -75,7 +75,8 @@ internal sealed class FreeList
             throw new ArgumentOutOfRangeException(nameof(size));
 
         // Index of the first free range that starts after the freed one.
-        int lo = 0, hi = free.Count;
+        int lo = 0,
+            hi = free.Count;
         while (lo < hi)
         {
             int mid = (lo + hi) >>> 1;
@@ -88,8 +89,10 @@ internal sealed class FreeList
         int next = lo;
         bool mergePrevious = next > 0 && free[next - 1].Offset + free[next - 1].Size == offset;
         bool mergeNext = next < free.Count && offset + size == free[next].Offset;
-        if ((next > 0 && free[next - 1].Offset + free[next - 1].Size > offset) ||
-            (next < free.Count && offset + size > free[next].Offset))
+        if (
+            (next > 0 && free[next - 1].Offset + free[next - 1].Size > offset)
+            || (next < free.Count && offset + size > free[next].Offset)
+        )
             throw new InvalidOperationException($"Double free or overlap at offset {offset}, size {size}.");
 
         if (mergePrevious && mergeNext)

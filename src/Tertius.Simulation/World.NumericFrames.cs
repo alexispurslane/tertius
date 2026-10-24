@@ -56,16 +56,18 @@ public sealed partial class World
             // and the update counts it as a static anchor in either motion, which fixes each group that it links in that
             // system (docs/plans/numeric-frames.md, "Anchors"). A root frame has an interior and no hull.
             if (!own.IsNull)
-                numericBodies.Add(new()
-                {
-                    Entity = entity,
-                    Semantic = own,
-                    Home = own,
-                    Radius = Entities.BodyInteriorBoundingRadius(entity),
-                    Mass = desc.Mass > 0 ? desc.Mass : 1,
-                    Static = true,
-                    Fixed = true
-                });
+                numericBodies.Add(
+                    new()
+                    {
+                        Entity = entity,
+                        Semantic = own,
+                        Home = own,
+                        Radius = Entities.BodyInteriorBoundingRadius(entity),
+                        Mass = desc.Mass > 0 ? desc.Mass : 1,
+                        Static = true,
+                        Fixed = true,
+                    }
+                );
             ref readonly TransformRow row = ref Entities.BackRow(entity);
             if (row.Frame.IsNull)
                 continue;
@@ -75,33 +77,39 @@ public sealed partial class World
             Contract.Assert(own.IsNull || hullMotion.HasValue);
             BodyMotion motion = hullMotion ?? desc.Motion;
             double mass = desc.Mass > 0 ? desc.Mass : 1;
-            numericBodies.Add(new()
-            {
-                Entity = entity,
-                Semantic = row.Frame,
-                Home = row.PhysicsHome,
-                Position = row.Pose.Position,
-                HomePosition = row.HomePose.Position,
-                Velocity = SemanticVelocity(entity, row, own),
-                Radius = Entities.BodyBoundingRadius(entity),
-                Mass = mass,
-                Character = motion == BodyMotion.Character,
-                ThrustAcceleration = ThrustAcceleration(entity, motion, mass),
-                Static = motion == BodyMotion.Static,
-                // A kinematic body, hull or plain, moves only by its motion intents and teleports, so it lives in a following
-                // frame of its own when they move it fast or far (docs/plans/numeric-frames.md, "Following frames").
-                Kinematic = motion == BodyMotion.Kinematic,
-                // A hull that is not dynamic moves only as its frame's step records say.
-                Fixed = !own.IsNull && motion != BodyMotion.Dynamic,
-                Sensor = desc.IsSensor,
-                OwnedFrame = own
-            });
+            numericBodies.Add(
+                new()
+                {
+                    Entity = entity,
+                    Semantic = row.Frame,
+                    Home = row.PhysicsHome,
+                    Position = row.Pose.Position,
+                    HomePosition = row.HomePose.Position,
+                    Velocity = SemanticVelocity(entity, row, own),
+                    Radius = Entities.BodyBoundingRadius(entity),
+                    Mass = mass,
+                    Character = motion == BodyMotion.Character,
+                    ThrustAcceleration = ThrustAcceleration(entity, motion, mass),
+                    Static = motion == BodyMotion.Static,
+                    // A kinematic body, hull or plain, moves only by its motion intents and teleports, so it lives in a following
+                    // frame of its own when they move it fast or far (docs/plans/numeric-frames.md, "Following frames").
+                    Kinematic = motion == BodyMotion.Kinematic,
+                    // A hull that is not dynamic moves only as its frame's step records say.
+                    Fixed = !own.IsNull && motion != BodyMotion.Dynamic,
+                    Sensor = desc.IsSensor,
+                    OwnedFrame = own,
+                }
+            );
         }
 
         Profile.Lap(23);
-        Frames.UpdateNumericFrames(bodies: CollectionsMarshal.AsSpan(numericBodies), dt: dt, step: DeltaTime,
+        Frames.UpdateNumericFrames(
+            bodies: CollectionsMarshal.AsSpan(numericBodies),
+            dt: dt,
+            step: DeltaTime,
             changes: physicsChanges,
-            applyMoves: applyNumericMoves ??= ApplyNumericMoves);
+            applyMoves: applyNumericMoves ??= ApplyNumericMoves
+        );
         Profile.Lap(24);
         ApplyPhysicsChanges();
         pendingCreates.Clear();
@@ -192,9 +200,10 @@ public sealed partial class World
             TransformRow row = Entities.BackRow(entity);
             Double3 velocity = SemanticVelocity(entity, row, own);
             // Through the homes' lowest common ancestor, so that no large number enters between two nearby homes.
-            row.HomePosition = home == semantic
-                ? row.Pose.Position
-                : row.HomePose.Position + Frames.Relative(row.PhysicsHome, home).Position;
+            row.HomePosition =
+                home == semantic
+                    ? row.Pose.Position
+                    : row.HomePose.Position + Frames.Relative(row.PhysicsHome, home).Position;
             row.PhysicsHome = home;
             row.LinearVelocity = (velocity - Frames.HomeVelocity(home, semantic)).ToVector3();
             Entities.SetBackTransform(entity, row);

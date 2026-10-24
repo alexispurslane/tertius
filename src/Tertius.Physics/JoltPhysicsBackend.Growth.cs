@@ -6,8 +6,9 @@ namespace Tertius.Physics;
 
 public sealed partial class JoltPhysicsBackend
 {
-    private static readonly Comparer<BodyID> ByIndex =
-        Comparer<BodyID>.Create(static (a, b) => a.Index.CompareTo(b.Index));
+    private static readonly Comparer<BodyID> ByIndex = Comparer<BodyID>.Create(
+        static (a, b) => a.Index.CompareTo(b.Index)
+    );
 
     // Scratch for a growth: the IDs of the bodies of the full system, its characters, and the inner bodies that changed ID.
     private BodyID[] growthIds = new BodyID[256];
@@ -49,7 +50,8 @@ public sealed partial class JoltPhysicsBackend
         SystemLimits limits = world.Limits.Doubled();
         if (limits.MaxBodies <= world.Limits.MaxBodies)
             throw new InvalidOperationException(
-                $"The system of {world.Frame} holds {world.Limits.MaxBodies} bodies, the most that Jolt allows.");
+                $"The system of {world.Frame} holds {world.Limits.MaxBodies} bodies, the most that Jolt allows."
+            );
 
         PhysicsSystem full = world.System;
         BodyInterface from = world.Bodies;
@@ -79,7 +81,8 @@ public sealed partial class JoltPhysicsBackend
             if (record is null)
             {
                 ReportBug(
-                    $"Physics: {id} in {world.Frame} belongs to no entity. Only a bug leaves such a body. The growth of the system leaves it behind.");
+                    $"Physics: {id} in {world.Frame} belongs to no entity. Only a bug leaves such a body. The growth of the system leaves it behind."
+                );
                 continue;
             }
 
@@ -91,15 +94,22 @@ public sealed partial class JoltPhysicsBackend
                 BodyKind.Ghost => GhostSpec(record, from.GetMotionType(id), from.GetObjectLayer(id)),
                 // The loop skips a character's inner body above, and the engine gives every body that it makes a kind.
                 BodyKind.CharacterInner or BodyKind.None => throw new UnreachableException(
-                    $"Physics: {id} has the body kind {kind}, which the growth of a system does not copy.")
+                    $"Physics: {id} has the body kind {kind}, which the growth of a system does not copy."
+                ),
             };
             from.GetRPosition(id, out RVector3 position);
             from.GetLinearAndAngularVelocity(id, out Vector3 linear, out Vector3 angular);
-            using BodyCreationSettings settings = Settings(spec: spec, position: position,
-                rotation: from.GetRotation(id), linearVelocity: linear, angularVelocity: angular);
+            using BodyCreationSettings settings = Settings(
+                spec: spec,
+                position: position,
+                rotation: from.GetRotation(id),
+                linearVelocity: linear,
+                angularVelocity: angular
+            );
             if (to.CreateBodyWithID(id, settings) is null)
                 throw new InvalidOperationException(
-                    $"Jolt refused to move {id} into the grown system of {world.Frame}.");
+                    $"Jolt refused to move {id} into the grown system of {world.Frame}."
+                );
             to.AddBody(id, from.IsActive(id) ? Activation.Activate : Activation.DontActivate);
         }
 
@@ -107,8 +117,7 @@ public sealed partial class JoltPhysicsBackend
         foreach (BodyRecord member in world.Members)
             if (member.Character is { } character)
                 growthCharacters.Add((member, character));
-        growthCharacters.Sort(static (a, b) =>
-            a.Character.InnerBodyID.Index.CompareTo(b.Character.InnerBodyID.Index));
+        growthCharacters.Sort(static (a, b) => a.Character.InnerBodyID.Index.CompareTo(b.Character.InnerBodyID.Index));
         renamedBodies.Clear();
         for (int i = 0; i < growthCharacters.Count; i++)
         {
@@ -119,8 +128,13 @@ public sealed partial class JoltPhysicsBackend
             Vector3 velocity = old.LinearVelocity;
             BodyID oldInner = old.InnerBodyID;
             old.Dispose();
-            CharacterVirtual renewed = NewCharacter(record: member, system: larger, position: position,
-                rotation: rotation, linearVelocity: velocity);
+            CharacterVirtual renewed = NewCharacter(
+                record: member,
+                system: larger,
+                position: position,
+                rotation: rotation,
+                linearVelocity: velocity
+            );
             member.Character = renewed;
             growthCharacters[i] = (member, renewed);
             renamedBodies[oldInner.ID] = renewed.InnerBodyID.ID;
@@ -135,8 +149,9 @@ public sealed partial class JoltPhysicsBackend
         growthCharacters.Clear();
 
         log(
-            $"Physics: the system of {world.Frame} was full with {count} bodies, so it grew to hold {limits.MaxBodies}. " +
-            "Raise JoltBackendOptions.MaxBodiesPerFrame to avoid the pause.");
+            $"Physics: the system of {world.Frame} was full with {count} bodies, so it grew to hold {limits.MaxBodies}. "
+                + "Raise JoltBackendOptions.MaxBodiesPerFrame to avoid the pause."
+        );
         Contract.Ensures(world.System == larger && !world.IsFull);
     }
 }

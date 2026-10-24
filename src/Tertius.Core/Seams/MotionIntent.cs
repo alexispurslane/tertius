@@ -34,13 +34,14 @@ public readonly partial struct MotionIntent
     /// physics steers a dynamic body toward, which contacts and gravity can keep the body from. The empty union gives the
     /// default pose.
     /// </summary>
-    public DPose AimPose => this switch
-    {
-        EndPose(var pose) => pose,
-        MotionSample full => full.Pose,
-        SteerTarget(var pose) => pose,
-        null => default
-    };
+    public DPose AimPose =>
+        this switch
+        {
+            EndPose(var pose) => pose,
+            MotionSample full => full.Pose,
+            SteerTarget(var pose) => pose,
+            null => default,
+        };
 
     /// <summary>
     /// How a frame follows when it takes the record of this intent (docs/plans/rails-components.md, "The follow kind"):
@@ -48,13 +49,14 @@ public readonly partial struct MotionIntent
     /// <see cref="FollowKind.Static"/> for a steer target and the empty union, which give no record (see
     /// <see cref="FrameTree.FollowKindInStep"/>).
     /// </summary>
-    internal FollowKind FollowKind => this switch
-    {
-        MotionSample => FollowKind.Rails,
-        EndPose => FollowKind.Kinematic,
-        SteerTarget => FollowKind.Static,
-        null => FollowKind.Static
-    };
+    internal FollowKind FollowKind =>
+        this switch
+        {
+            MotionSample => FollowKind.Rails,
+            EndPose => FollowKind.Kinematic,
+            SteerTarget => FollowKind.Static,
+            null => FollowKind.Static,
+        };
 
     /// <summary>
     /// The step record of this intent, the entity's motion over a step that starts at <paramref name="stepStart"/> and lasts
@@ -71,7 +73,7 @@ public readonly partial struct MotionIntent
             MotionSample sample => (true, sample),
             EndPose(var end) => (true, KinematicRecord(stepStart, end, step)),
             SteerTarget => (false, default),
-            null => (false, default)
+            null => (false, default),
         };
         return recorded;
     }
@@ -84,8 +86,14 @@ public readonly partial struct MotionIntent
     {
         Double3 chord = (end.Position - stepStart.Position) / step;
         Double3 spin = stepStart.Rotation.AngularVelocityTo(end.Rotation, step);
-        return new(Pose: end, ChordVelocity: chord, Velocity: chord, Acceleration: Double3.Zero, AngularVelocity: spin,
-            AngularAcceleration: Double3.Zero);
+        return new(
+            Pose: end,
+            ChordVelocity: chord,
+            Velocity: chord,
+            Acceleration: Double3.Zero,
+            AngularVelocity: spin,
+            AngularAcceleration: Double3.Zero
+        );
     }
 
     /// <summary>
@@ -97,13 +105,14 @@ public readonly partial struct MotionIntent
     /// <paramref name="end"/> and keep their case, and the frames' motion gives them no velocity. A full sample converts by
     /// <see cref="MotionSample.Converted"/>. The empty union stays empty.
     /// </summary>
-    internal MotionIntent Converted(in FrameMotion start, in FrameMotion end, double step) => this switch
-    {
-        EndPose(var pose) => new(new EndPose(end.PoseToParent(pose))),
-        MotionSample sample => new(sample.Converted(start, end, step)),
-        SteerTarget(var pose) => new(new SteerTarget(end.PoseToParent(pose))),
-        null => this
-    };
+    internal MotionIntent Converted(in FrameMotion start, in FrameMotion end, double step) =>
+        this switch
+        {
+            EndPose(var pose) => new(new EndPose(end.PoseToParent(pose))),
+            MotionSample sample => new(sample.Converted(start, end, step)),
+            SteerTarget(var pose) => new(new SteerTarget(end.PoseToParent(pose))),
+            null => this,
+        };
 
     /// <summary>
     /// Which rule of the guard refuses this motion intent for an entity in the step that applies it, or
@@ -142,7 +151,7 @@ public readonly partial struct MotionIntent
         {
             BodyMotion.Dynamic => MotionIntentRefusal.None,
             null => MotionIntentRefusal.SteerWithoutBody,
-            BodyMotion.Static or BodyMotion.Kinematic or BodyMotion.Character => MotionIntentRefusal.NeedsDynamicBody
+            BodyMotion.Static or BodyMotion.Kinematic or BodyMotion.Character => MotionIntentRefusal.NeedsDynamicBody,
         };
     }
 
@@ -165,7 +174,7 @@ public readonly partial struct MotionIntent
             EndPose => "an end pose",
             MotionSample => "a full sample",
             SteerTarget => "a steer target",
-            null => "no motion intent"
+            null => "no motion intent",
         };
         return refusal switch
         {
@@ -180,7 +189,7 @@ public readonly partial struct MotionIntent
                 "owns a root frame, whose body is only the frame's static interior, so it has nothing to steer with a steer target",
             MotionIntentRefusal.SteerWithoutBody => "has no body, so it has nothing to steer with a steer target",
             MotionIntentRefusal.NeedsDynamicBody =>
-                $"has a {motion} body, so it cannot take a steer target: only a dynamic body takes one"
+                $"has a {motion} body, so it cannot take a steer target: only a dynamic body takes one",
         };
     }
 }
@@ -207,5 +216,5 @@ internal enum MotionIntentRefusal : byte
     SteerWithoutBody,
 
     /// <summary>A steer target needs a dynamic body.</summary>
-    NeedsDynamicBody
+    NeedsDynamicBody,
 }

@@ -44,8 +44,6 @@ internal sealed partial class SpatialIndex
     private int movedCount;
     private Action<int>? findItemMoves;
 
-    private int parallelThreshold = DefaultParallelThreshold;
-
     /// <param name="entities">The entity table whose front rows the grids index.</param>
     /// <param name="frames">The frame tree whose frames have the grids.</param>
     /// <param name="workers">
@@ -66,13 +64,13 @@ internal sealed partial class SpatialIndex
     /// </summary>
     internal int ParallelThreshold
     {
-        get => parallelThreshold;
+        get;
         set
         {
             ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
-            parallelThreshold = value;
+            field = value;
         }
-    }
+    } = DefaultParallelThreshold;
 
     /// <summary>The case of a <see cref="Placement"/> of an entity that a grid lists.</summary>
     /// <param name="Frame">The index of the frame whose grid lists the entity.</param>
@@ -108,7 +106,7 @@ internal sealed partial class SpatialIndex
         ReadOnlySpan<Entity> moved = entities.TakeMoved();
         if (moves.Length < moved.Length)
             moves = new Move[Math.Max(moved.Length, moves.Length * 2)];
-        if (workers == null || moved.Length < parallelThreshold)
+        if (workers == null || moved.Length < ParallelThreshold)
         {
             Apply(moves.AsSpan(0, FindMoves(moved, moves)));
             return;
@@ -121,8 +119,12 @@ internal sealed partial class SpatialIndex
         moved.CopyTo(movedForWorkers);
         movedCount = moved.Length;
         int items = Math.Min(movedCount, ParallelItems);
-        Parallel.For(fromInclusive: 0, toExclusive: items, parallelOptions: workers,
-            body: findItemMoves ??= FindItemMoves);
+        Parallel.For(
+            fromInclusive: 0,
+            toExclusive: items,
+            parallelOptions: workers,
+            body: findItemMoves ??= FindItemMoves
+        );
         for (int item = 0; item < items; item++)
             Apply(moves.AsSpan(ItemStart(item, items), movesPerItem[item]));
     }
@@ -215,8 +217,9 @@ internal sealed partial class SpatialIndex
                 continue;
             placed++;
             Contract.Invariant(at.Frame == row.Frame.Index && at.Cell == SpatialGrid.CellOf(row.Pose.Position));
-            Contract.Invariant(grids[at.Frame] is { } grid && grid.TryGetCell(at.Cell, out List<Entity>? cell) &&
-                               cell.Contains(entity));
+            Contract.Invariant(
+                grids[at.Frame] is { } grid && grid.TryGetCell(at.Cell, out List<Entity>? cell) && cell.Contains(entity)
+            );
         }
 
         int listed = 0;
@@ -264,7 +267,8 @@ internal sealed partial class SpatialIndex
     private void FindItemMoves(int item)
     {
         int items = Math.Min(movedCount, ParallelItems);
-        int start = ItemStart(item, items), length = ItemStart(item + 1, items) - start;
+        int start = ItemStart(item, items),
+            length = ItemStart(item + 1, items) - start;
         movesPerItem[item] = FindMoves(movedForWorkers.AsSpan(start, length), moves.AsSpan(start, length));
     }
 

@@ -15,10 +15,7 @@ public sealed class PngCaptureSinkTests : IDisposable
     // Three by two pixels, each with a different alpha byte, none of them 255. A new array for each call, so that no test
     // sees what another test did to its array.
     private static byte[] Pixels() =>
-    [
-        200, 10, 20, 0, 30, 220, 40, 7, 50, 60, 240, 128,
-        1, 2, 3, 254, 90, 100, 110, 33, 255, 255, 255, 64
-    ];
+        [200, 10, 20, 0, 30, 220, 40, 7, 50, 60, 240, 128, 1, 2, 3, 254, 90, 100, 110, 33, 255, 255, 255, 64];
 
     private static ImageResult Decode(string path) =>
         ImageResult.FromMemory(File.ReadAllBytes(path), ColorComponents.RedGreenBlueAlpha);
@@ -60,16 +57,15 @@ public sealed class PngCaptureSinkTests : IDisposable
 
         Write(path: path, rgba: Pixels(), width: 3, height: 2);
 
-        new FileInfo(path).Length.Should().BeLessThan(1000,
-            "the new image replaces the old file, with none of the old bytes left after it");
+        new FileInfo(path)
+            .Length.Should()
+            .BeLessThan(1000, "the new image replaces the old file, with none of the old bytes left after it");
         Decode(path).Width.Should().Be(3);
     }
 
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    public void ASinkWithNoPathIsRefused(string path)
-    {
+    public void ASinkWithNoPathIsRefused(string path) =>
         FluentActions.Invoking(() => new PngCaptureSink(path)).Should().Throw<ArgumentException>();
-    }
 }

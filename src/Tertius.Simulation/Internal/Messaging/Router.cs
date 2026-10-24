@@ -74,9 +74,8 @@ internal sealed class Router
     private int chunkCount;
     private int[] outboxStarts = new int[16];
     private int[] blockChunks = new int[2];
-    private readonly Action<int> fillBlock, sortRange;
-
-    private int parallelThreshold = DefaultParallelThreshold;
+    private readonly Action<int> fillBlock,
+        sortRange;
 
     /// <param name="entities">The entity table whose chunks hold the outboxes, and whose slots the inboxes follow.</param>
     /// <param name="topics">The topic sets that a topic message expands into.</param>
@@ -98,13 +97,13 @@ internal sealed class Router
     /// </summary>
     internal int ParallelThreshold
     {
-        get => parallelThreshold;
+        get;
         set
         {
             ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
-            parallelThreshold = value;
+            field = value;
         }
-    }
+    } = DefaultParallelThreshold;
 
     /// <summary>
     /// How many blocks a routing on the workers cuts the chunks into, and the most slot ranges it cuts the slots into.
@@ -276,7 +275,8 @@ internal sealed class Router
         {
             int target = engineCount + (int)(messages * b / blockCount);
             // The first chunk whose outbox starts at or after the target, by bisection: the starts never decrease.
-            int low = blockChunks[b - 1], high = chunkCount;
+            int low = blockChunks[b - 1],
+                high = chunkCount;
             while (low < high)
             {
                 int mid = (low + high) >>> 1;
@@ -340,7 +340,8 @@ internal sealed class Router
     /// </summary>
     private void FillBlock(int block)
     {
-        int firstChunk = blockChunks[block], endChunk = blockChunks[block + 1];
+        int firstChunk = blockChunks[block],
+            endChunk = blockChunks[block + 1];
         ReadOnlySpan<ChunkState> chunks = entities.Chunks;
         Event[] items = routed.Items;
         for (int c = firstChunk; c < endChunk; c++)

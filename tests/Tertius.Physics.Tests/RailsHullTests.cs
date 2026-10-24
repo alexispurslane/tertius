@@ -13,15 +13,22 @@ namespace Tertius.Physics.Tests;
 public sealed class RailsHullTests
 {
     /// <summary>A sample at (1, 2, 3) with no motion.</summary>
-    private static readonly MotionSample Parked =
-        new(Pose: new(new(1, 2, 3), DQuaternion.Identity), ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
-            Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
-            AngularAcceleration: Double3.Zero);
+    private static readonly MotionSample Parked = new(
+        Pose: new(new(1, 2, 3), DQuaternion.Identity),
+        ChordVelocity: Double3.Zero,
+        Velocity: Double3.Zero,
+        Acceleration: Double3.Zero,
+        AngularVelocity: Double3.Zero,
+        AngularAcceleration: Double3.Zero
+    );
 
     private static readonly KeplerOrbit Orbit = KeplerOrbit.Circular(5_000, phase: 0.3, spinRate: 0.2);
 
-    private static readonly FrameSpin Spin = new(Tilt: DQuaternion.FromAxisAngle(Double3.UnitZ, 0.4), Rate: 0.5,
-        PhaseAtEpoch: 0.1);
+    private static readonly FrameSpin Spin = new(
+        Tilt: DQuaternion.FromAxisAngle(Double3.UnitZ, 0.4),
+        Rate: 0.5,
+        PhaseAtEpoch: 0.1
+    );
 
     private static readonly Double3 SpinPlace = new(4_000, 300, -200);
 
@@ -51,8 +58,12 @@ public sealed class RailsHullTests
 
         Tick(world, 1);
 
-        world.Errors.Should().ContainSingle().Which.Should().Contain(owner.ToString()).And
-            .Contain(nameof(InvalidOperationException));
+        world
+            .Errors.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Contain(owner.ToString())
+            .And.Contain(nameof(InvalidOperationException));
         NextSample(world, owner, out _).Should().BeFalse();
     }
 
@@ -74,12 +85,14 @@ public sealed class RailsHullTests
     {
         using World world = NewWorld(backend: out _);
         // A root frame has no parent, so its owner's body is the frame's static interior, not a hull.
-        Entity owner = world.Spawn(new()
-        {
-            Body = new(Shape: new BoxShapeDesc(new(5)), Motion: BodyMotion.Static),
-            AsFrame = new(FrameBounds.Sphere(1e6f)),
-            Components = [new WritesSample(Parked)]
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Body = new(Shape: new BoxShapeDesc(new(5)), Motion: BodyMotion.Static),
+                AsFrame = new(FrameBounds.Sphere(1e6f)),
+                Components = [new WritesSample(Parked)],
+            }
+        );
 
         Tick(world, 1);
 
@@ -105,10 +118,15 @@ public sealed class RailsHullTests
         world.SetMotionNextTick(owner: owner, motion: BodyMotion.Dynamic, remove: rails);
         Tick(world, 2);
 
-        faults.Moves.Should().Contain(record => record.Entity == frame.Entity && record.Tick == 2,
-            "step 2 moves the kinematic hull by the sample of tick 1");
-        faults.Moves.Should().NotContain(record => record.Entity == frame.Entity && record.Tick == 3,
-            "step 3 moves a dynamic hull");
+        faults
+            .Moves.Should()
+            .Contain(
+                record => record.Entity == frame.Entity && record.Tick == 2,
+                "step 2 moves the kinematic hull by the sample of tick 1"
+            );
+        faults
+            .Moves.Should()
+            .NotContain(record => record.Entity == frame.Entity && record.Tick == 3, "step 3 moves a dynamic hull");
         world.Errors.Should().BeEmpty();
     }
 
@@ -134,8 +152,10 @@ public sealed class RailsHullTests
 
         BodyState hull = faults.Outputs[^1].Bodies.Single(state => state.Entity == owner);
         hull.Pose.Position.Should().Be(Parked.Pose.Position);
-        (hull.LinearVelocity - new Vector3(0, -600, 0)).Length().Should().BeLessThan(0.01f,
-            "the target moved the hull from the teleport's pose over the step");
+        (hull.LinearVelocity - new Vector3(0, -600, 0))
+            .Length()
+            .Should()
+            .BeLessThan(0.01f, "the target moved the hull from the teleport's pose over the step");
         world.Frames.LocalPose(frame).Should().Be(Parked.Pose);
         world.Errors.Should().BeEmpty();
     }
@@ -184,29 +204,37 @@ public sealed class RailsHullTests
         Entity owner = Hull(world, space, BodyMotion.Kinematic, rails, pilot);
         FrameHandle frame = world.GetOwnedFrame(owner);
         Tick(world, 4);
-        world.Frames.Numeric(world.Frames.TreeParent(frame)).Should()
+        world
+            .Frames.Numeric(world.Frames.TreeParent(frame))
+            .Should()
             .Be(NumericMode.Following, "the hull moves at 2 km/s");
 
         // Tick 3 wrote the last sample, for step 4. Steps 5 and 6 have none, and the teleport of tick 6 acts in step 7.
         world.RemoveComponent(owner, rails);
         Tick(world, 2);
         DPose there = world.PoseIn(owner, space);
-        world.VelocityIn(owner, space).Should()
+        world
+            .VelocityIn(owner, space)
+            .Should()
             .Be(Double3.Zero, "the following frame holds the hull still without a sample");
-        world.Frames.TreeParent(frame).Should().Be(space,
-            "the still hull is slow and near the origin, so it leaves its following frame");
+        world
+            .Frames.TreeParent(frame)
+            .Should()
+            .Be(space, "the still hull is slow and near the origin, so it leaves its following frame");
         pilot.Once = body => body.Teleport(new(there.Position + new Double3(0, 100, 0), DQuaternion.Identity));
         Tick(world, 2);
 
         for (int i = 0; i < 10; i++)
         {
-            (world.PoseIn(owner, space).Position - (there.Position + new Double3(0, 100, 0))).Length
-                .Should().BeLessThan(1e-6, "the hull holds still where the teleport put it at sync point {0}",
-                    world.TickNumber);
-            Double3 apart = HullPosition(backend, world.Frames.TreeParent(frame), owner) -
-                            world.Frames.TreeLocalPose(frame).Position;
-            apart.Length.Should().BeLessThan(1e-6, "the hull stands where its frame is at sync point {0}",
-                world.TickNumber);
+            (world.PoseIn(owner, space).Position - (there.Position + new Double3(0, 100, 0)))
+                .Length.Should()
+                .BeLessThan(1e-6, "the hull holds still where the teleport put it at sync point {0}", world.TickNumber);
+            Double3 apart =
+                HullPosition(backend, world.Frames.TreeParent(frame), owner)
+                - world.Frames.TreeLocalPose(frame).Position;
+            apart
+                .Length.Should()
+                .BeLessThan(1e-6, "the hull stands where its frame is at sync point {0}", world.TickNumber);
             Tick(world, 1);
         }
 
@@ -233,13 +261,17 @@ public sealed class RailsHullTests
         FrameHandle frame = world.GetOwnedFrame(owner);
         Tick(world, 4);
         FrameHandle following = world.Frames.TreeParent(frame);
-        world.Frames.Numeric(following).Should()
+        world
+            .Frames.Numeric(following)
+            .Should()
             .Be(NumericMode.Following, "the hull is 9,000 km from the origin of space");
 
         world.RemoveComponent(owner, rails);
         Tick(world, 2);
         DPose there = world.PoseIn(owner, space);
-        world.VelocityIn(owner, space).Should()
+        world
+            .VelocityIn(owner, space)
+            .Should()
             .Be(Double3.Zero, "the following frame holds the hull still without a sample");
         pilot.Once = body => body.Teleport(new(there.Position + new Double3(0, 100, 0), DQuaternion.Identity));
         for (int i = 0; i < 12; i++)
@@ -247,25 +279,35 @@ public sealed class RailsHullTests
             world.Tick();
             world.Frames.TreeParent(frame).Should().Be(following, "the far hull keeps its following frame");
             MotionSample released = faults.Outputs[^1].Frames.Single(record => record.Frame == frame).Motion;
-            released.Velocity.Should().Be(Double3.Zero, "the still hull's record is at rest at sync point {0}",
-                world.TickNumber);
+            released
+                .Velocity.Should()
+                .Be(Double3.Zero, "the still hull's record is at rest at sync point {0}", world.TickNumber);
             if (i == 1)
             {
-                (released.Pose.Position - new Double3(0, 100, 0)).Length
-                    .Should().BeLessThan(1e-6,
-                        "the record of the teleport's step stands at the teleport's pose in the frame's system");
+                (released.Pose.Position - new Double3(0, 100, 0))
+                    .Length.Should()
+                    .BeLessThan(
+                        1e-6,
+                        "the record of the teleport's step stands at the teleport's pose in the frame's system"
+                    );
                 continue;
             }
 
-            released.Pose.Position.Should().Be(Double3.Zero,
-                "physics releases the still hull's record at the frame's origin at sync point {0}", world.TickNumber);
+            released
+                .Pose.Position.Should()
+                .Be(
+                    Double3.Zero,
+                    "physics releases the still hull's record at the frame's origin at sync point {0}",
+                    world.TickNumber
+                );
             if (i < 2)
                 continue;
-            (world.PoseIn(owner, space).Position - (there.Position + new Double3(0, 100, 0))).Length
-                .Should().BeLessThan(1e-6, "the hull holds still where the teleport put it at sync point {0}",
-                    world.TickNumber);
-            HullPosition(faults.Jolt, following, owner).Should().Be(Double3.Zero,
-                "Jolt's hull stands at the frame's origin at sync point {0}", world.TickNumber);
+            (world.PoseIn(owner, space).Position - (there.Position + new Double3(0, 100, 0)))
+                .Length.Should()
+                .BeLessThan(1e-6, "the hull holds still where the teleport put it at sync point {0}", world.TickNumber);
+            HullPosition(faults.Jolt, following, owner)
+                .Should()
+                .Be(Double3.Zero, "Jolt's hull stands at the frame's origin at sync point {0}", world.TickNumber);
         }
 
         world.Errors.Should().BeEmpty();
@@ -291,15 +333,21 @@ public sealed class RailsHullTests
         var log = new List<string>();
         world.Log += log.Add;
         FrameHandle space = Scenes.AsteroidSpace(world);
-        Entity owner = kind == "dynamic hull"
-            ? Hull(world, space, BodyMotion.Dynamic, Rails(component))
-            : world.Spawn(new()
-            {
-                Frame = space,
-                Pose = new(SpinPlace, DQuaternion.Identity),
-                Body = Ball() with { Motion = kind == "static plain body" ? BodyMotion.Static : BodyMotion.Dynamic },
-                Components = [Rails(component)]
-            });
+        Entity owner =
+            kind == "dynamic hull"
+                ? Hull(world, space, BodyMotion.Dynamic, Rails(component))
+                : world.Spawn(
+                    new()
+                    {
+                        Frame = space,
+                        Pose = new(SpinPlace, DQuaternion.Identity),
+                        Body = Ball() with
+                        {
+                            Motion = kind == "static plain body" ? BodyMotion.Static : BodyMotion.Dynamic,
+                        },
+                        Components = [Rails(component)],
+                    }
+                );
 
         Tick(world, 3);
 
@@ -309,7 +357,7 @@ public sealed class RailsHullTests
         PhysicsIntent next = world.Entities.NextStepIntent(owner);
         next.Move.HasValue.Should().BeFalse();
         (next.Flags & IntentFlags.Teleport).Should().Be(IntentFlags.None);
-        log.Where(line => line.Contains(owner.ToString())).Should().ContainSingle().Which.Should().Contain(reason!);
+        log.Where(line => line.Contains(owner.ToString())).Should().ContainSingle().Which.Should().Contain(reason);
         world.Errors.Should().BeEmpty();
     }
 
@@ -319,7 +367,8 @@ public sealed class RailsHullTests
     [InlineData("KeplerMotion")]
     [InlineData("SpinMotion")]
     public void TheFirstSampleOfARailsComponentComesWithATeleportOfItsHullToTheRailsPoseAtTheStartOfTheStep(
-        string component)
+        string component
+    )
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         Entity owner = Hull(world, Scenes.AsteroidSpace(world), BodyMotion.Kinematic, Rails(component));
@@ -328,7 +377,9 @@ public sealed class RailsHullTests
 
         // Tick 0 wrote the first sample and the teleport, which step 1 applies first: at the start of step 1.
         IntentRecord[] teleports =
-            [.. faults.Intents.Where(r => r.Entity == owner && (r.Intent.Flags & IntentFlags.Teleport) != 0)];
+        [
+            .. faults.Intents.Where(r => r.Entity == owner && (r.Intent.Flags & IntentFlags.Teleport) != 0),
+        ];
         teleports.Should().ContainSingle().Which.Tick.Should().Be(1);
         teleports[0].Intent.TeleportPose.Should().Be(RailsPose(component, world.TimeAt(1)));
         NextSample(world, owner, out _).Should().BeTrue();
@@ -347,8 +398,11 @@ public sealed class RailsHullTests
         Tick(world, 2);
 
         // The new component first ran in tick 3, so step 4 teleports the hull.
-        faults.Intents.Where(r => r.Entity == owner && (r.Intent.Flags & IntentFlags.Teleport) != 0).Select(r => r.Tick)
-            .Should().Equal(1, 4);
+        faults
+            .Intents.Where(r => r.Entity == owner && (r.Intent.Flags & IntentFlags.Teleport) != 0)
+            .Select(r => r.Tick)
+            .Should()
+            .Equal(1, 4);
     }
 
     // ---- Helpers ------------------------------------------------------------------------------------------------
@@ -358,19 +412,24 @@ public sealed class RailsHullTests
     /// <paramref name="motion"/>. A rails component among <paramref name="components"/> puts the hull on its rails.
     /// </summary>
     private static Entity Hull(World world, FrameHandle space, BodyMotion motion, params IComponent[] components) =>
-        world.Spawn(new()
-        {
-            Frame = space,
-            Pose = new(SpinPlace, DQuaternion.FromAxisAngle(Double3.UnitX, 1)),
-            Body = Ball() with { Motion = motion },
-            AsFrame = new(FrameBounds.Sphere(0.01f)),
-            Components = components
-        });
+        world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = new(SpinPlace, DQuaternion.FromAxisAngle(Double3.UnitX, 1)),
+                Body = Ball() with { Motion = motion },
+                AsFrame = new(FrameBounds.Sphere(0.01f)),
+                Components = components,
+            }
+        );
 
     /// <summary>Where Jolt holds the hull of <paramref name="owner"/> in the system of <paramref name="frame"/>.</summary>
     private static Double3 HullPosition(JoltPhysicsBackend backend, FrameHandle frame, Entity owner) =>
-        backend.BodiesIn(frame).Single(facts =>
-                BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner))
+        backend
+            .BodiesIn(frame)
+            .Single(facts =>
+                BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner)
+            )
             .Position;
 
     private static IComponent Rails(string component) =>

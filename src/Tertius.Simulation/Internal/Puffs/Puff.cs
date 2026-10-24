@@ -45,7 +45,13 @@ internal struct Puff
         }
 
         Double3 chord = step.ChordAhead(place: Place, chord: Chord, lift: lift, drag: step.Medium.Drag * lift, dt: dt);
-        return new() { Place = Place + chord * dt, Chord = chord, Age = Age + dt, Look = Look };
+        return new()
+        {
+            Place = Place + chord * dt,
+            Chord = chord,
+            Age = Age + dt,
+            Look = Look,
+        };
     }
 }
 
@@ -69,7 +75,8 @@ internal readonly ref struct PuffView(
     ReadOnlySpan<Puff> rows,
     ReadOnlySpan<PuffRange> ranges,
     ReadOnlySpan<PuffLook> looks,
-    double step)
+    double step
+)
 {
     /// <summary>The live rows, packed from index 0.</summary>
     public ReadOnlySpan<Puff> Rows { get; } = rows;
