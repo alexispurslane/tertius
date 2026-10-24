@@ -1,5 +1,4 @@
 using System.Numerics;
-using System.Runtime.CompilerServices;
 
 namespace Tertius.Physics;
 
@@ -45,28 +44,16 @@ internal readonly record struct ShadowTracking(Double3 Chord, Double3 Place, Vec
 /// A dynamic body's velocity shadow: <see cref="ShadowTracking"/>, or none. The default holds no case: the body has no
 /// shadow, and the next update starts from Jolt's velocity. Only a dynamic body whose system's semantic frame is a turning
 /// frame keeps one (docs/plans/spin-gravity.md, fork F8).
-/// This is a custom C# 15 union. <see cref="HasValue"/> and <see cref="TryGetValue"/> let the compiler pattern-match it
-/// without boxing. <see cref="Value"/> boxes, so use it only for debugging.
+/// This is a generated union (docs/plans/union-tooling.md): the union generator writes its members.
 /// </summary>
-[Union]
-internal readonly struct VelocityShadow(ShadowTracking tracking)
+[GeneratedUnion(typeof(ShadowTracking))]
+internal readonly partial struct VelocityShadow
 {
-    private readonly ShadowTracking tracking = tracking;
-
-    public bool HasValue { get; } = true;
-
-    /// <summary>The case as an object. It boxes, so use it only for debugging.</summary>
-    public object? Value => HasValue ? tracking : null;
-
-    public bool TryGetValue(out ShadowTracking value)
-    {
-        value = tracking;
-        return HasValue;
-    }
-
     /// <summary>The shadow carried into another home, as <see cref="ShadowTracking.Moved"/> says, or none for none.</summary>
-    public VelocityShadow Moved(Double3 offset, Double3 velocity) =>
-        HasValue ? new VelocityShadow(tracking.Moved(offset, velocity)) : default;
-
-    public override string ToString() => HasValue ? $"VelocityShadow({tracking})" : "VelocityShadow(none)";
+    public VelocityShadow Moved(Double3 offset, Double3 velocity) => this switch
+    {
+        // The first arm names the union, so that the null arm's default is the empty shadow, not a zero tracking.
+        ShadowTracking tracking => new VelocityShadow(tracking.Moved(offset, velocity)),
+        null => default
+    };
 }
