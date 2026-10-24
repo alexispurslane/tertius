@@ -1,5 +1,4 @@
 using System.Numerics;
-using System.Runtime.CompilerServices;
 using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering;
@@ -98,71 +97,10 @@ internal readonly record struct PuffSprites(int First, int Count);
 /// <summary>
 /// One stretch of the transparent pass's sorted list of one depth range that one draw covers: <see cref="MeshCommands"/>
 /// or <see cref="PuffSprites"/>. The empty value is the all-zero default, and it holds no case.
+/// This is a generated union (docs/plans/union-tooling.md): the union generator writes its members.
 /// </summary>
-/// <remarks>
-/// This is a custom C# 15 union. <see cref="HasValue"/> and the <c>TryGetValue</c> methods let the compiler pattern-match
-/// it without boxing. <see cref="Value"/> boxes, so use it only for debugging. Both cases keep their first index and their
-/// count in the same place, because a value holds only one case.
-/// </remarks>
-[Union]
-internal readonly struct TransparentRun : IEquatable<TransparentRun>
-{
-    private const byte KindNone = 0, KindMeshes = 1, KindPuffs = 2;
-
-    private readonly int first;
-    private readonly int count;
-    private readonly byte kind;
-
-    public TransparentRun(MeshCommands meshes)
-    {
-        kind = KindMeshes;
-        first = meshes.Commands.First;
-        count = meshes.Commands.Count;
-    }
-
-    public TransparentRun(PuffSprites puffs)
-    {
-        kind = KindPuffs;
-        first = puffs.First;
-        count = puffs.Count;
-    }
-
-    /// <summary>False for the default value, which holds no case.</summary>
-    public bool HasValue => kind != KindNone;
-
-    public object? Value => kind switch
-    {
-        KindMeshes => new MeshCommands(new(first, count)),
-        KindPuffs => new PuffSprites(first, count),
-        _ => null
-    };
-
-    public bool TryGetValue(out MeshCommands value)
-    {
-        value = kind == KindMeshes ? new MeshCommands(new(first, count)) : default;
-        return kind == KindMeshes;
-    }
-
-    public bool TryGetValue(out PuffSprites value)
-    {
-        value = kind == KindPuffs ? new PuffSprites(first, count) : default;
-        return kind == KindPuffs;
-    }
-
-    public bool Equals(TransparentRun other) => kind == other.kind && first == other.first && count == other.count;
-    public override bool Equals(object? obj) => obj is TransparentRun other && Equals(other);
-    public override int GetHashCode() => HashCode.Combine(kind, first, count);
-    public static bool operator ==(TransparentRun a, TransparentRun b) => a.Equals(b);
-    public static bool operator !=(TransparentRun a, TransparentRun b) => !a.Equals(b);
-
-    // A null arm and no discard arm: the compiler checks that every case has an arm, so a new case without one fails the build.
-    public override string ToString() => this switch
-    {
-        MeshCommands meshes => $"TransparentRun({meshes})",
-        PuffSprites puffs => $"TransparentRun({puffs})",
-        null => "TransparentRun(none)"
-    };
-}
+[GeneratedUnion(typeof(MeshCommands), typeof(PuffSprites))]
+internal readonly partial struct TransparentRun;
 
 /// <summary>
 /// Everything the CPU prepares for one frame: camera, visible instances, the sorted GPU instance array, indirect
