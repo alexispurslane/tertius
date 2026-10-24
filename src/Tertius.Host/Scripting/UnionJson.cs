@@ -35,7 +35,7 @@ internal static class JsonCase
 }
 
 /// <summary>
-/// The JSON form of a custom union whose cases are records: one JSON object with a key, such as <c>do</c> or <c>kind</c>,
+/// The JSON form of a union whose cases are records: one JSON object with a key, such as <c>do</c> or <c>kind</c>,
 /// whose string value names the case, and with the members of the case beside it, in any order. A converter of the union
 /// holds one of these.
 /// </summary>

@@ -1,7 +1,5 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics;
 using System.Globalization;
-using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -89,7 +87,7 @@ public sealed record Script(
                 case null:
                     throw new ScriptException($"step {number}: a step cannot be null.");
                 // JSON cannot read such a post, but code can build one, because the target is a struct.
-                case PostStep { To.HasValue: false }:
+                case PostStep { To: null }:
                     throw new ScriptException($"step {number} (post): an event target cannot be null.");
                 case RunStep { Ticks: < 1 } run:
                     throw new ScriptException(
@@ -166,79 +164,24 @@ public sealed record Script(
 /// One step of a script: a <see cref="RunStep"/>, a <see cref="PostStep"/>, a <see cref="DumpStep"/>, a
 /// <see cref="CaptureStep"/>, a <see cref="CameraStep"/>, a <see cref="FilmStep"/> or an <see cref="OutlinesStep"/>. Its
 /// <c>do</c> key names the case in JSON (<see cref="ScriptStepJsonConverter"/>).
-/// This is a custom C# 15 union. <see cref="HasValue"/> and the <c>TryGetValue</c> methods let the compiler pattern-match
-/// it, and a <c>switch</c> over it names every case. The cases are classes, so <see cref="Value"/> does not box.
-/// The default value holds no case: it is the JSON <c>null</c>, and <see cref="Script.Parse"/> and the runner refuse it.
+/// This is a built-in C# 15 union: a <c>switch</c> over it names every case, and an <c>is</c> pattern tests one. The cases
+/// are classes, so it is a struct around one reference, and <c>Value</c> does not box.
+/// The default value holds no case and matches the <c>null</c> pattern. It is the JSON <c>null</c>, and
+/// <see cref="Script.Parse"/> and the runner refuse it. A null case makes the default value too.
 /// </summary>
-[Union]
 [JsonConverter(typeof(ScriptStepJsonConverter))]
-public readonly struct ScriptStep : IEquatable<ScriptStep>
+public union ScriptStep(RunStep, PostStep, DumpStep, CaptureStep, CameraStep, FilmStep, OutlinesStep)
+    : IEquatable<ScriptStep>
 {
-    // The held case, or null for the default value.
-
-    public ScriptStep(RunStep run)
-    {
-        ArgumentNullException.ThrowIfNull(run);
-        Value = run;
-    }
-
-    public ScriptStep(PostStep post)
-    {
-        ArgumentNullException.ThrowIfNull(post);
-        Value = post;
-    }
-
-    public ScriptStep(DumpStep dump)
-    {
-        ArgumentNullException.ThrowIfNull(dump);
-        Value = dump;
-    }
-
-    public ScriptStep(CaptureStep capture)
-    {
-        ArgumentNullException.ThrowIfNull(capture);
-        Value = capture;
-    }
-
-    public ScriptStep(CameraStep camera)
-    {
-        ArgumentNullException.ThrowIfNull(camera);
-        Value = camera;
-    }
-
-    public ScriptStep(FilmStep film)
-    {
-        ArgumentNullException.ThrowIfNull(film);
-        Value = film;
-    }
-
-    public ScriptStep(OutlinesStep outlines)
-    {
-        ArgumentNullException.ThrowIfNull(outlines);
-        Value = outlines;
-    }
-
-    /// <summary>False for the default value, which holds no case.</summary>
-    public bool HasValue => Value != null;
-
-    /// <summary>The held case, or null for the default value.</summary>
-    public object? Value { get; }
-
-    public bool TryGetValue([NotNullWhen(true)] out RunStep? value) => (value = Value as RunStep) != null;
-    public bool TryGetValue([NotNullWhen(true)] out PostStep? value) => (value = Value as PostStep) != null;
-    public bool TryGetValue([NotNullWhen(true)] out DumpStep? value) => (value = Value as DumpStep) != null;
-    public bool TryGetValue([NotNullWhen(true)] out CaptureStep? value) => (value = Value as CaptureStep) != null;
-    public bool TryGetValue([NotNullWhen(true)] out CameraStep? value) => (value = Value as CameraStep) != null;
-    public bool TryGetValue([NotNullWhen(true)] out FilmStep? value) => (value = Value as FilmStep) != null;
-    public bool TryGetValue([NotNullWhen(true)] out OutlinesStep? value) => (value = Value as OutlinesStep) != null;
-
     // The held case decides equality, by the value equality of its record. Two cases of different types are never equal.
+    // The built-in union has only the equality of ValueType, which reads the field by reflection, and no == operator.
     public bool Equals(ScriptStep other) => Equals(Value, other.Value);
     public override bool Equals(object? obj) => obj is ScriptStep other && Equals(other);
     public override int GetHashCode() => Value?.GetHashCode() ?? 0;
     public static bool operator ==(ScriptStep a, ScriptStep b) => a.Equals(b);
     public static bool operator !=(ScriptStep a, ScriptStep b) => !a.Equals(b);
 
+    // The built-in union's ToString gives only the name of the union.
     public override string ToString() => Value?.ToString() ?? "ScriptStep(none)";
 }
 
@@ -342,58 +285,22 @@ public sealed record ScriptWindow(int Width, int Height)
 /// The recipient of a posted or recorded event, in the form that scripts and dumps write: a <see cref="ToEntity"/>, a
 /// <see cref="ToTopic"/>, a <see cref="ToFrame"/> or a <see cref="ToEveryone"/>. Its <c>kind</c> key names the case in
 /// JSON (<see cref="MessageTargetJsonConverter"/>).
-/// This is a custom C# 15 union, like the engine's <c>Target</c>, and like <see cref="ScriptStep"/> its cases are classes.
-/// The default value holds no case. JSON refuses it, and <see cref="Script.CheckSteps"/> refuses a post step built in code
-/// with it.
+/// This is a built-in C# 15 union, like <see cref="ScriptStep"/>, and like it its cases are classes. The default value
+/// holds no case and matches the <c>null</c> pattern, and a null case makes it too. JSON refuses it, and
+/// <see cref="Script.CheckSteps"/> refuses a post step built in code with it.
 /// </summary>
-[Union]
 [JsonConverter(typeof(MessageTargetJsonConverter))]
-public readonly struct MessageTarget : IEquatable<MessageTarget>
+public union MessageTarget(ToEntity, ToTopic, ToFrame, ToEveryone) : IEquatable<MessageTarget>
 {
-    // The held case, or null for the default value.
-
-    public MessageTarget(ToEntity entity)
-    {
-        ArgumentNullException.ThrowIfNull(entity);
-        Value = entity;
-    }
-
-    public MessageTarget(ToTopic topic)
-    {
-        ArgumentNullException.ThrowIfNull(topic);
-        Value = topic;
-    }
-
-    public MessageTarget(ToFrame frame)
-    {
-        ArgumentNullException.ThrowIfNull(frame);
-        Value = frame;
-    }
-
-    public MessageTarget(ToEveryone everyone)
-    {
-        ArgumentNullException.ThrowIfNull(everyone);
-        Value = everyone;
-    }
-
-    /// <summary>False for the default value, which holds no case.</summary>
-    public bool HasValue => Value != null;
-
-    /// <summary>The held case, or null for the default value.</summary>
-    public object? Value { get; }
-
-    public bool TryGetValue([NotNullWhen(true)] out ToEntity? value) => (value = Value as ToEntity) != null;
-    public bool TryGetValue([NotNullWhen(true)] out ToTopic? value) => (value = Value as ToTopic) != null;
-    public bool TryGetValue([NotNullWhen(true)] out ToFrame? value) => (value = Value as ToFrame) != null;
-    public bool TryGetValue([NotNullWhen(true)] out ToEveryone? value) => (value = Value as ToEveryone) != null;
-
     // The held case decides equality, by the value equality of its record. Two cases of different types are never equal.
+    // The built-in union has only the equality of ValueType, which reads the field by reflection, and no == operator.
     public bool Equals(MessageTarget other) => Equals(Value, other.Value);
     public override bool Equals(object? obj) => obj is MessageTarget other && Equals(other);
     public override int GetHashCode() => Value?.GetHashCode() ?? 0;
     public static bool operator ==(MessageTarget a, MessageTarget b) => a.Equals(b);
     public static bool operator !=(MessageTarget a, MessageTarget b) => !a.Equals(b);
 
+    // The built-in union's ToString gives only the name of the union.
     public override string ToString() => Value?.ToString() ?? "MessageTarget(none)";
 }
 

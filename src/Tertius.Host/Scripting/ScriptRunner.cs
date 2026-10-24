@@ -1,5 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Tertius.Simulation;
 
@@ -114,60 +112,11 @@ public static class ScriptRunner
 
     /// <summary>
     /// A step after its checks, with every name in it resolved. Running it cannot fail for a reason of the script. This is a
-    /// custom C# 15 union, like <see cref="ScriptStep"/>, so that a step and its ready form are the same kind of thing.
+    /// built-in C# 15 union, like <see cref="ScriptStep"/>, so that a step and its ready form are the same kind of thing.
     /// </summary>
-    [Union]
-    private readonly struct ReadyStep
+    private union ReadyStep(ReadyRun, ReadyPost, ReadyCamera, ReadyDump, ReadyCapture, ReadyFilm, ReadyOutlines)
     {
-        public ReadyStep(ReadyRun run)
-        {
-            Value = run;
-        }
-
-        public ReadyStep(ReadyPost post)
-        {
-            Value = post;
-        }
-
-        public ReadyStep(ReadyCamera camera)
-        {
-            Value = camera;
-        }
-
-        public ReadyStep(ReadyDump dump)
-        {
-            Value = dump;
-        }
-
-        public ReadyStep(ReadyCapture capture)
-        {
-            Value = capture;
-        }
-
-        public ReadyStep(ReadyFilm film)
-        {
-            Value = film;
-        }
-
-        public ReadyStep(ReadyOutlines outlines)
-        {
-            Value = outlines;
-        }
-
-        public bool HasValue => Value != null;
-
-        public object? Value { get; }
-
-        public bool TryGetValue([NotNullWhen(true)] out ReadyRun? value) => (value = Value as ReadyRun) != null;
-        public bool TryGetValue([NotNullWhen(true)] out ReadyPost? value) => (value = Value as ReadyPost) != null;
-        public bool TryGetValue([NotNullWhen(true)] out ReadyCamera? value) => (value = Value as ReadyCamera) != null;
-        public bool TryGetValue([NotNullWhen(true)] out ReadyDump? value) => (value = Value as ReadyDump) != null;
-        public bool TryGetValue([NotNullWhen(true)] out ReadyCapture? value) => (value = Value as ReadyCapture) != null;
-        public bool TryGetValue([NotNullWhen(true)] out ReadyFilm? value) => (value = Value as ReadyFilm) != null;
-
-        public bool TryGetValue([NotNullWhen(true)] out ReadyOutlines? value) =>
-            (value = Value as ReadyOutlines) != null;
-
+        // The built-in union's ToString gives only the name of the union.
         public override string ToString() => Value?.ToString() ?? "ReadyStep(none)";
     }
 
