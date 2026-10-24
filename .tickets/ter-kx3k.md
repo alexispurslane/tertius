@@ -1,6 +1,6 @@
 ---
 id: ter-kx3k
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-22T12:58:25Z
