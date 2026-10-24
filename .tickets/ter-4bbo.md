@@ -1,6 +1,6 @@
 ---
 id: ter-4bbo
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-24T20:22:35Z
