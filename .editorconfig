@@ -122,12 +122,12 @@ dotnet_style_prefer_simplified_boolean_expressions = true
 dotnet_diagnostic.IDE0075.severity = suggestion
 # no == true
 dotnet_diagnostic.IDE0100.severity = suggestion
-dotnet_style_prefer_conditional_expression_over_assignment = true
+dotnet_style_prefer_conditional_expression_over_assignment = false
 # an if that assigns, to a conditional expression
-dotnet_diagnostic.IDE0045.severity = suggestion
-dotnet_style_prefer_conditional_expression_over_return = true
+dotnet_diagnostic.IDE0045.severity = none
+dotnet_style_prefer_conditional_expression_over_return = false
 # an if that returns, to a conditional expression
-dotnet_diagnostic.IDE0046.severity = suggestion
+dotnet_diagnostic.IDE0046.severity = none
 dotnet_style_prefer_inferred_tuple_names = true
 dotnet_style_prefer_inferred_anonymous_type_member_names = true
 # inferred member names
