@@ -1415,46 +1415,58 @@ internal sealed partial class EntityTable
     /// <summary>Checks every invariant in the class comment. O(slots in use). Outside the gameplay part of a tick.</summary>
     internal void AssertInvariants()
     {
+        AssertTableShape();
+        var scan = new InvariantScan(slotCount);
+        AssertFreeAndIntentLists(scan);
+        AssertChunkBooks(scan);
+        AssertSyncPointLists(scan);
+        AssertSlots(scan);
+        AssertTotals(scan);
+        AssertEmitterInvariants();
+    }
+
+    /// <summary>Checks that the size of every per-slot table and of the chunks agrees with the capacity.</summary>
+    private void AssertTableShape()
+    {
         Contract.Invariant(!GameplayRunning);
         Contract.Invariant(slotCount <= Capacity && ChunkCountFor(Capacity) <= chunks.Length &&
                            books.Length == chunks.Length);
         Contract.Invariant(generation.Length == Capacity && state.Length == Capacity &&
                            bodySlots.WordCount == BodySlots.WordsFor(Capacity));
+    }
 
-        bool[] inFreeList = new bool[slotCount];
+    /// <summary>Checks the free list, the front intent list and the front motion changers, and marks the slots in them.</summary>
+    private void AssertFreeAndIntentLists(InvariantScan scan)
+    {
         foreach (uint slot in freeSlots)
         {
-            Contract.Invariant(slot < (uint)slotCount && state[slot] == SlotState.Free && !inFreeList[slot]);
-            inFreeList[slot] = true;
+            Contract.Invariant(slot < (uint)slotCount && state[slot] == SlotState.Free && !scan.InFreeList[slot]);
+            scan.InFreeList[slot] = true;
         }
 
-        bool[] inIntentList = new bool[slotCount];
         foreach (Entity entity in frontIntentEntities.AsSpan())
         {
             // An entity that died since the swap leaves the list when the list is next read.
             Contract.Invariant(IsAlive(entity) || intentEntitiesMayHoldDead);
             if (IsAlive(entity))
             {
-                Contract.Invariant(!inIntentList[entity.Index]);
-                inIntentList[entity.Index] = true;
+                Contract.Invariant(!scan.InIntentList[entity.Index]);
+                scan.InIntentList[entity.Index] = true;
             }
         }
 
-        bool[] frontMotionChangerListed = new bool[slotCount];
         foreach (Entity changer in frontMotionChangers)
         {
             if (!IsAlive(changer))
                 continue;
-            Contract.Invariant(!frontMotionChangerListed[changer.Index]);
-            frontMotionChangerListed[changer.Index] = true;
+            Contract.Invariant(!scan.FrontMotionChangerListed[changer.Index]);
+            scan.FrontMotionChangerListed[changer.Index] = true;
         }
+    }
 
-        bool[] dirtyListed = new bool[slotCount];
-        bool[] intentWriterListed = new bool[slotCount];
-        bool[] pusherListed = new bool[slotCount];
-        bool[] motionChangerListed = new bool[slotCount];
-        bool[] pooled = new bool[slotCount];
-        int pooledCount = 0;
+    /// <summary>Checks the book of every chunk, and marks the slots in the lists of the books.</summary>
+    private void AssertChunkBooks(InvariantScan scan)
+    {
         // The lists of a copy on the workers are empty outside CopyDirtyRows, which joins and empties them.
         Contract.Invariant(componentCopies.Count == 0);
         for (int c = 0; c < books.Length; c++)
@@ -1462,80 +1474,107 @@ internal sealed partial class EntityTable
             ChunkBook book = books[c];
             Contract.Invariant(book.Moved.Count == 0 && book.ComponentCopies.Count == 0);
             foreach (uint slot in book.DirtySlots)
-                dirtyListed[slot] = true;
-            foreach (Entity writer in book.IntentWriters)
-            {
-                Contract.Invariant((int)writer.Index / chunkSize == c);
-                // A writer that died since it wrote is skipped by the swap.
-                if (!IsAlive(writer))
-                    continue;
-                Contract.Invariant((flags[writer.Index] & SlotFlags.IntentRegistered) != 0 &&
-                                   !intentWriterListed[writer.Index]);
-                intentWriterListed[writer.Index] = true;
-            }
-
-            foreach (Entity pusher in book.Pushers)
-            {
-                Contract.Invariant((int)pusher.Index / chunkSize == c);
-                if (!IsAlive(pusher))
-                    continue;
-                uint p = pusher.Index;
-                Contract.Invariant((flags[p] & SlotFlags.IntentRegistered) != 0 && !pusherListed[p] &&
-                                   !intentWriterListed[p] && records[p].Body == null);
-                pusherListed[p] = true;
-            }
-
-            foreach (Entity changer in book.MotionChangers)
-            {
-                Contract.Invariant((int)changer.Index / chunkSize == c);
-                if (!IsAlive(changer))
-                    continue;
-                Contract.Invariant(intentWriterListed[changer.Index] && !motionChangerListed[changer.Index]);
-                motionChangerListed[changer.Index] = true;
-            }
-
-            foreach (uint slot in book.SpawnPool)
-            {
-                Contract.Invariant(state[slot] == SlotState.Reserved && !pooled[slot]);
-                pooled[slot] = true;
-                pooledCount++;
-            }
-
-            int live = 0;
-            for (int slot = c * chunkSize, end = Math.Min(slot + chunkSize, slotCount); slot < end; slot++)
-                if (state[slot] == SlotState.Live)
-                    live++;
-            Contract.Invariant(book.LiveCount == live);
+                scan.DirtyListed[slot] = true;
+            // The order is the dependency: a pusher is no writer, and a motion changer is a writer.
+            AssertIntentWriters(c, book, scan);
+            AssertPushers(c, book, scan);
+            AssertMotionChangers(c, book, scan);
+            AssertSpawnPool(book, scan);
+            AssertLiveCount(c, book);
         }
+    }
 
+    private void AssertIntentWriters(int chunk, ChunkBook book, InvariantScan scan)
+    {
+        foreach (Entity writer in book.IntentWriters)
+        {
+            Contract.Invariant((int)writer.Index / chunkSize == chunk);
+            // A writer that died since it wrote is skipped by the swap.
+            if (!IsAlive(writer))
+                continue;
+            Contract.Invariant((flags[writer.Index] & SlotFlags.IntentRegistered) != 0 &&
+                               !scan.IntentWriterListed[writer.Index]);
+            scan.IntentWriterListed[writer.Index] = true;
+        }
+    }
+
+    private void AssertPushers(int chunk, ChunkBook book, InvariantScan scan)
+    {
+        foreach (Entity pusher in book.Pushers)
+        {
+            Contract.Invariant((int)pusher.Index / chunkSize == chunk);
+            if (!IsAlive(pusher))
+                continue;
+            uint p = pusher.Index;
+            Contract.Invariant((flags[p] & SlotFlags.IntentRegistered) != 0 && !scan.PusherListed[p] &&
+                               !scan.IntentWriterListed[p] && records[p].Body == null);
+            scan.PusherListed[p] = true;
+        }
+    }
+
+    private void AssertMotionChangers(int chunk, ChunkBook book, InvariantScan scan)
+    {
+        foreach (Entity changer in book.MotionChangers)
+        {
+            Contract.Invariant((int)changer.Index / chunkSize == chunk);
+            if (!IsAlive(changer))
+                continue;
+            Contract.Invariant(scan.IntentWriterListed[changer.Index] && !scan.MotionChangerListed[changer.Index]);
+            scan.MotionChangerListed[changer.Index] = true;
+        }
+    }
+
+    private void AssertSpawnPool(ChunkBook book, InvariantScan scan)
+    {
+        foreach (uint slot in book.SpawnPool)
+        {
+            Contract.Invariant(state[slot] == SlotState.Reserved && !scan.Pooled[slot]);
+            scan.Pooled[slot] = true;
+            scan.PooledCount++;
+        }
+    }
+
+    private void AssertLiveCount(int chunk, ChunkBook book)
+    {
+        int live = 0;
+        for (int slot = chunk * chunkSize, end = Math.Min(slot + chunkSize, slotCount); slot < end; slot++)
+            if (state[slot] == SlotState.Live)
+                live++;
+        Contract.Invariant(book.LiveCount == live);
+    }
+
+    /// <summary>Checks the lists that the sync point owns: the dirty slots, the front pushers and the moved entities.</summary>
+    private void AssertSyncPointLists(InvariantScan scan)
+    {
         foreach (uint slot in syncDirty)
-            dirtyListed[slot] = true;
-        bool[] frontPusherListed = new bool[slotCount];
+            scan.DirtyListed[slot] = true;
+        var frontPusherListed = new bool[slotCount];
         foreach (Entity pusher in frontPushers)
         {
             if (!IsAlive(pusher))
                 continue;
             uint p = pusher.Index;
-            Contract.Invariant(!frontPusherListed[p] && records[p].Body == null && !inIntentList[p] &&
+            Contract.Invariant(!frontPusherListed[p] && records[p].Body == null && !scan.InIntentList[p] &&
                                IsDefault(in frontIntent[p]));
             frontPusherListed[p] = true;
         }
 
-        bool[] movedListed = new bool[slotCount];
         foreach (Entity entity in moved)
             if (IsAlive(entity))
-                movedListed[entity.Index] = true;
+                scan.MovedListed[entity.Index] = true;
+    }
 
-        int liveSlots = 0, reserved = 0, indexed = 0;
+    /// <summary>Checks every slot in use, and counts the reserved slots, the live slots and the component index entries.</summary>
+    private void AssertSlots(InvariantScan scan)
+    {
         for (int slot = 0; slot < slotCount; slot++)
         {
             SlotState s = state[slot];
-            SlotFlags f = flags[slot];
             Contract.Invariant(generation[slot] != 0);
             if (s == SlotState.Free)
-                Contract.Invariant(inFreeList[slot]);
+                Contract.Invariant(scan.InFreeList[slot]);
             if (s == SlotState.Reserved)
-                reserved++;
+                scan.Reserved++;
             Contract.Invariant(bodySlots.Contains((uint)slot) == (s == SlotState.Live && records[slot].Body != null));
             if (s != SlotState.Live)
             {
@@ -1544,62 +1583,108 @@ internal sealed partial class EntityTable
                 continue;
             }
 
-            liveSlots++;
+            scan.LiveSlots++;
             ref readonly Record rec = ref records[slot];
-            Contract.Invariant(rec.Components != null && rec.Wants != null &&
-                               rec.Components.Length == rec.Wants.Length);
-            Contract.Invariant(masks[slot] == MaskOf(rec.Wants));
-            if ((f & SlotFlags.TransformDirty) == 0)
-                Contract.Invariant(BitEquals(frontTransform[slot], backTransform[slot]));
-            if ((f & SlotFlags.RenderDirty) == 0)
-                Contract.Invariant(BitEquals(frontRender[slot], backRender[slot]));
-            if ((f & SlotFlags.ComponentsDirty) == 0)
-                Contract.Invariant(frontComponents[slot] == backComponents[slot]);
-            if ((f & SlotFlags.CollisionDirty) == 0)
-                Contract.Invariant(frontCollision[slot] == backCollision[slot]);
-            if ((f & RowsDirty) != 0)
-                Contract.Invariant(dirtyListed[slot]);
-            Contract.Invariant(backComponents[slot] == ComponentFlags.Of(rec.Components));
-            if (rec.Body == null)
-                Contract.Invariant(frontCollision[slot] == default && backCollision[slot] == default);
-            Contract.Invariant(rec.BodyBoundingRadius == (rec.Body is { } body ? CheckedRadius(body.Shape) : 0));
-            Contract.Invariant(rec.InteriorBoundingRadius ==
-                               (rec.Body?.InteriorShape is { } inside
-                                   ? CheckedRadius(inside)
-                                   : rec.BodyBoundingRadius));
-            Contract.Invariant(rec.Body == null
-                ? rec.BodyCenterOfMass == Vector3.Zero
-                : IsFinite(rec.BodyCenterOfMass));
-            var live = new Entity((uint)slot, generation[slot]);
-            foreach (int id in frontComponents[slot])
-            {
-                Contract.Invariant(componentIndex.With(id).BinarySearch(live) >= 0);
-                indexed++;
-            }
-
-            if ((f & SlotFlags.GameplayWroteTransform) != 0)
-                Contract.Invariant((f & SlotFlags.TransformDirty) != 0 && rec.Body == null);
-            if ((f & SlotFlags.IntentRegistered) == 0)
-                Contract.Invariant(IsDefault(in backIntent[slot]));
-            else
-                Contract.Invariant(intentWriterListed[slot] || pusherListed[slot]);
-            Contract.Invariant((backIntent[slot].Flags & IntentFlags.SetMotion) != 0 == motionChangerListed[slot]);
-            if (!inIntentList[slot])
-                Contract.Invariant(IsDefault(in frontIntent[slot]));
-            Contract.Invariant((frontIntent[slot].Flags & IntentFlags.SetMotion) != 0 ==
-                               frontMotionChangerListed[slot]);
-            if ((f & SlotFlags.FrontMoved) != 0)
-                Contract.Invariant(movedListed[slot]);
+            AssertLiveRecord(slot, in rec);
+            AssertRowsAgreeWithFlags(slot, scan);
+            AssertComponentIndex(slot, scan);
+            AssertLiveIntents(slot, in rec, scan);
         }
+    }
 
-        Contract.Invariant(liveSlots == LiveCount);
-        Contract.Invariant(reserved == pooledCount + reservationsOut);
+    private void AssertLiveRecord(int slot, in Record rec)
+    {
+        Contract.Invariant(rec.Components != null && rec.Wants != null &&
+                           rec.Components.Length == rec.Wants.Length);
+        Contract.Invariant(masks[slot] == MaskOf(rec.Wants));
+        Contract.Invariant(backComponents[slot] == ComponentFlags.Of(rec.Components));
+        if (rec.Body == null)
+            Contract.Invariant(frontCollision[slot] == default && backCollision[slot] == default);
+        Contract.Invariant(rec.BodyBoundingRadius == (rec.Body is { } body ? CheckedRadius(body.Shape) : 0));
+        Contract.Invariant(rec.InteriorBoundingRadius ==
+                           (rec.Body?.InteriorShape is { } inside
+                               ? CheckedRadius(inside)
+                               : rec.BodyBoundingRadius));
+        Contract.Invariant(rec.Body == null
+            ? rec.BodyCenterOfMass == Vector3.Zero
+            : IsFinite(rec.BodyCenterOfMass));
+    }
+
+    /// <summary>Checks that a row without its dirty bit equals its back row, and that a dirty slot is listed.</summary>
+    private void AssertRowsAgreeWithFlags(int slot, InvariantScan scan)
+    {
+        SlotFlags f = flags[slot];
+        if ((f & SlotFlags.TransformDirty) == 0)
+            Contract.Invariant(BitEquals(frontTransform[slot], backTransform[slot]));
+        if ((f & SlotFlags.RenderDirty) == 0)
+            Contract.Invariant(BitEquals(frontRender[slot], backRender[slot]));
+        if ((f & SlotFlags.ComponentsDirty) == 0)
+            Contract.Invariant(frontComponents[slot] == backComponents[slot]);
+        if ((f & SlotFlags.CollisionDirty) == 0)
+            Contract.Invariant(frontCollision[slot] == backCollision[slot]);
+        if ((f & RowsDirty) != 0)
+            Contract.Invariant(scan.DirtyListed[slot]);
+    }
+
+    private void AssertComponentIndex(int slot, InvariantScan scan)
+    {
+        var live = new Entity((uint)slot, generation[slot]);
+        foreach (int id in frontComponents[slot])
+        {
+            Contract.Invariant(componentIndex.With(id).BinarySearch(live) >= 0);
+            scan.Indexed++;
+        }
+    }
+
+    private void AssertLiveIntents(int slot, in Record rec, InvariantScan scan)
+    {
+        SlotFlags f = flags[slot];
+        if ((f & SlotFlags.GameplayWroteTransform) != 0)
+            Contract.Invariant((f & SlotFlags.TransformDirty) != 0 && rec.Body == null);
+        if ((f & SlotFlags.IntentRegistered) == 0)
+            Contract.Invariant(IsDefault(in backIntent[slot]));
+        else
+            Contract.Invariant(scan.IntentWriterListed[slot] || scan.PusherListed[slot]);
+        Contract.Invariant((backIntent[slot].Flags & IntentFlags.SetMotion) != 0 == scan.MotionChangerListed[slot]);
+        if (!scan.InIntentList[slot])
+            Contract.Invariant(IsDefault(in frontIntent[slot]));
+        Contract.Invariant((frontIntent[slot].Flags & IntentFlags.SetMotion) != 0 ==
+                           scan.FrontMotionChangerListed[slot]);
+        if ((f & SlotFlags.FrontMoved) != 0)
+            Contract.Invariant(scan.MovedListed[slot]);
+    }
+
+    /// <summary>Checks the totals that the scan of the slots counted against the counts that the table keeps.</summary>
+    private void AssertTotals(InvariantScan scan)
+    {
+        Contract.Invariant(scan.LiveSlots == LiveCount);
+        Contract.Invariant(scan.Reserved == scan.PooledCount + reservationsOut);
         // Each live entity is in the set of every type of its front flags, so equal totals leave no other entries.
         int listed = 0;
         for (int id = 0; id < ComponentTypes.Capacity; id++)
             listed += componentIndex.With(id).Length;
-        Contract.Invariant(listed == indexed);
-        AssertEmitterInvariants();
+        Contract.Invariant(listed == scan.Indexed);
+    }
+
+    /// <summary>
+    /// What the steps of <see cref="AssertInvariants"/> hand to each other: for each list, which slots it holds, as marks
+    /// sized by <see cref="SlotCount"/>, and the totals that the scan of the slots counts.
+    /// </summary>
+    private sealed class InvariantScan(int slotCount)
+    {
+        public readonly bool[] InFreeList = new bool[slotCount];
+        public readonly bool[] InIntentList = new bool[slotCount];
+        public readonly bool[] FrontMotionChangerListed = new bool[slotCount];
+        public readonly bool[] DirtyListed = new bool[slotCount];
+        public readonly bool[] IntentWriterListed = new bool[slotCount];
+        public readonly bool[] PusherListed = new bool[slotCount];
+        public readonly bool[] MotionChangerListed = new bool[slotCount];
+        public readonly bool[] Pooled = new bool[slotCount];
+        public readonly bool[] MovedListed = new bool[slotCount];
+        public int PooledCount;
+        public int Reserved;
+        public int LiveSlots;
+        public int Indexed;
     }
 
     // ---- Private --------------------------------------------------------------------------------------------------
