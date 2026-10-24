@@ -12,19 +12,19 @@ internal interface IFrameOwnerFacts
 {
     /// <summary>
     /// The record that physics released for the hull of <paramref name="frame"/> in the step that ended, relative to the
-    /// frame's tree parent, with the proper acceleration that physics measured beside it for a dynamic hull. False when
+    /// frame's tree parent, with the proper acceleration that physics measured beside it for a dynamic hull. Null when
     /// physics released none for it.
     /// </summary>
-    bool TryGetHullRecord(FrameHandle frame, out FrameStepRecord record);
+    FrameStepRecord? HullRecord(FrameHandle frame);
 
     /// <summary>True when the check of the physics output skipped the update of the owner of <paramref name="frame"/> in the step.</summary>
     bool IsSkipped(FrameHandle frame);
 
     /// <summary>
     /// The pose that gameplay wrote for the owner of <paramref name="frame"/> in the tick, with its rotation made unit length,
-    /// relative to the owner's frame, which is the frame's semantic parent. False when gameplay wrote none.
+    /// relative to the owner's frame, which is the frame's semantic parent. Null when gameplay wrote none.
     /// </summary>
-    bool TryGetTransformWrite(FrameHandle frame, out DPose pose);
+    DPose? TransformWrite(FrameHandle frame);
 }
 
 /// <summary>
@@ -145,7 +145,7 @@ public sealed partial class FrameTree
     {
         FrameHandle frame = taker.Frame;
         bool hull = !taker.TreeParent.IsNull && hullMotion[frame.Index].HasValue;
-        if (owners.TryGetHullRecord(frame, out FrameStepRecord released))
+        if (owners.HullRecord(frame) is { } released)
             FollowAt(
                 taker: taker,
                 locals: locals,
@@ -181,7 +181,7 @@ public sealed partial class FrameTree
 
         // Physics owns the transform of a hull, so only an owner without one writes it. A write that turns the frame jumps
         // its axes against inertial space, so its next step has no last turn (see BeginStep).
-        if (!hull && owners.TryGetTransformWrite(frame, out DPose written))
+        if (!hull && owners.TransformWrite(frame) is { } written)
         {
             if (written.Rotation != locals[taker.Dense].Rotation)
                 withoutLastTurn[frame.Index] = true;

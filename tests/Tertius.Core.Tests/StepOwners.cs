@@ -15,12 +15,12 @@ internal readonly struct StepOwners() : IFrameOwnerFacts
     public HashSet<FrameHandle> Skipped { get; } = [];
     public Dictionary<FrameHandle, DPose> Writes { get; } = [];
 
-    public bool TryGetHullRecord(FrameHandle frame, out FrameStepRecord record) =>
-        HullRecords.TryGetValue(frame, out record);
+    public FrameStepRecord? HullRecord(FrameHandle frame) =>
+        HullRecords.TryGetValue(frame, out FrameStepRecord record) ? record : null;
 
     public bool IsSkipped(FrameHandle frame) => Skipped.Contains(frame);
 
-    public bool TryGetTransformWrite(FrameHandle frame, out DPose pose) => Writes.TryGetValue(frame, out pose);
+    public DPose? TransformWrite(FrameHandle frame) => Writes.TryGetValue(frame, out DPose pose) ? pose : null;
 
     /// <summary>A step record that physics released for the hull of <paramref name="frame"/>, with no measured proper acceleration.</summary>
     public StepOwners WithHullRecord(FrameHandle frame, in MotionSample record, Vector3? measured = null)

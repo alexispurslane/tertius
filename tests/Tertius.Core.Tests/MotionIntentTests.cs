@@ -60,7 +60,9 @@ public sealed class MotionIntentTests
     {
         var intent = new MotionIntent(new EndPose(End));
 
-        intent.TryRecordFrom(Start, Step, out MotionSample record).Should().BeTrue();
+        MotionSample? recorded = intent.RecordFrom(Start, Step);
+        recorded.Should().NotBeNull();
+        MotionSample record = recorded.GetValueOrDefault();
 
         record.Pose.Should().Be(End, "the record ends exactly on the end pose");
         Distance(record.ChordVelocity, (End.Position - Start.Position) / Step).Should().BeLessThan(1e-12);
@@ -78,23 +80,20 @@ public sealed class MotionIntentTests
     {
         var intent = new MotionIntent(Sample);
 
-        intent.TryRecordFrom(Start, Step, out MotionSample fromStart).Should().BeTrue();
-        intent.TryRecordFrom(End, Step, out MotionSample fromEnd).Should().BeTrue();
-
-        fromStart.Should().Be(Sample);
-        fromEnd.Should().Be(Sample);
+        intent.RecordFrom(Start, Step).Should().Be(Sample);
+        intent.RecordFrom(End, Step).Should().Be(Sample);
     }
 
     [Fact]
     public void ASteerTargetGivesNoStepRecord() =>
         new MotionIntent(new SteerTarget(End))
-            .TryRecordFrom(Start, Step, out _)
+            .RecordFrom(Start, Step)
             .Should()
-            .BeFalse("physics measures the motion of a dynamic body that it steers");
+            .BeNull("physics measures the motion of a dynamic body that it steers");
 
     [Fact]
     public void NoMotionIntentGivesNoStepRecord() =>
-        default(MotionIntent).TryRecordFrom(Start, Step, out _).Should().BeFalse();
+        default(MotionIntent).RecordFrom(Start, Step).Should().BeNull();
 
     [Fact]
     public void TheStepStartsAtTheTeleportPoseWhenTheSameIntentTeleports()
@@ -109,7 +108,7 @@ public sealed class MotionIntentTests
 
         intent.StepRecord(Start, Step, out MotionSample record).Should().BeTrue();
 
-        new MotionIntent(new EndPose(End)).TryRecordFrom(teleport, Step, out MotionSample fromTeleport);
+        MotionSample? fromTeleport = new MotionIntent(new EndPose(End)).RecordFrom(teleport, Step);
         record.Should().Be(fromTeleport, "the teleport puts the entity at its pose before the step moves it");
     }
 
@@ -124,7 +123,7 @@ public sealed class MotionIntentTests
 
         intent.StepRecord(Start, Step, out MotionSample record).Should().BeTrue();
 
-        new MotionIntent(new EndPose(End)).TryRecordFrom(Start, Step, out MotionSample fromStanding);
+        MotionSample? fromStanding = new MotionIntent(new EndPose(End)).RecordFrom(Start, Step);
         record.Should().Be(fromStanding, "a teleport pose without its flag is no teleport");
     }
 

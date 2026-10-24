@@ -52,11 +52,8 @@ internal static class RenderSnapshotSupport
     /// <summary>The snapshot that the last tick published. It checks that one was published since the last call.</summary>
     public static RenderSnapshot Latest(this World world)
     {
-        world
-            .RenderSnapshots.TryAcquireLatest(out RenderSnapshot snapshot)
-            .Should()
-            .BeTrue("a snapshot is published at the end of every tick");
-        return snapshot;
+        world.RenderSnapshots.AcquireLatest().Should().NotBeNull("a snapshot is published at the end of every tick");
+        return world.RenderSnapshots.ReadBuffer;
     }
 
     /// <summary>The one instance that <paramref name="entity"/> contributes to the snapshot.</summary>

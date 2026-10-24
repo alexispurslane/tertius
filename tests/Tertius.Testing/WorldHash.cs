@@ -37,8 +37,9 @@ public static class WorldHash
                 hash = mixComponent(hash, component);
         }
 
-        if (!world.RenderSnapshots.TryAcquireLatest(out RenderSnapshot snapshot))
-            throw new InvalidOperationException(
+        RenderSnapshot snapshot =
+            world.RenderSnapshots.AcquireLatest()
+            ?? throw new InvalidOperationException(
                 "The sync point publishes a render snapshot every tick, so the world has ticked at least once."
             );
         foreach (RenderInstance instance in snapshot.Instances)

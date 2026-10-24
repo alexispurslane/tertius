@@ -34,7 +34,7 @@ public sealed class SceneInstanceTests
         var scene = new SceneInstance();
         scene.Add("box", Box);
 
-        scene.TryGetEntity("crate", out _).Should().BeFalse();
+        scene.EntityOf("crate").Should().BeNull();
         Action lookup = () => _ = scene["crate"];
         lookup.Should().Throw<KeyNotFoundException>().Which.Message.Should().Contain("crate");
     }

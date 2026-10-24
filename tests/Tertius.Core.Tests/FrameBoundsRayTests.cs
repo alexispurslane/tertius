@@ -14,14 +14,8 @@ public sealed class FrameBoundsRayTests
     {
         var bubble = FrameBounds.Sphere(5);
 
-        bool crosses = bubble.TryIntersectLine(
-            origin: new(-10, 0, 0),
-            direction: Double3.UnitX,
-            entry: out double entry,
-            exit: out double exit
-        );
+        (double entry, double exit) = Crossing(bubble, origin: new(-10, 0, 0), direction: Double3.UnitX);
 
-        Assert.True(crosses);
         Assert.Equal(5, entry, 1e-12);
         Assert.Equal(15, exit, 1e-12);
     }
@@ -31,30 +25,9 @@ public sealed class FrameBoundsRayTests
     {
         var bubble = new FrameBounds(new(4, 2, 1));
 
-        Assert.True(
-            bubble.TryIntersectLine(
-                origin: new(-10, 0, 0),
-                direction: Double3.UnitX,
-                entry: out double x0,
-                exit: out double x1
-            )
-        );
-        Assert.True(
-            bubble.TryIntersectLine(
-                origin: new(0, -10, 0),
-                direction: Double3.UnitY,
-                entry: out double y0,
-                exit: out double y1
-            )
-        );
-        Assert.True(
-            bubble.TryIntersectLine(
-                origin: new(0, 0, 10),
-                direction: -Double3.UnitZ,
-                entry: out double z0,
-                exit: out double z1
-            )
-        );
+        (double x0, double x1) = Crossing(bubble, origin: new(-10, 0, 0), direction: Double3.UnitX);
+        (double y0, double y1) = Crossing(bubble, origin: new(0, -10, 0), direction: Double3.UnitY);
+        (double z0, double z1) = Crossing(bubble, origin: new(0, 0, 10), direction: -Double3.UnitZ);
 
         Assert.Equal((6.0, 14.0), (Math.Round(x0, 12), Math.Round(x1, 12)));
         Assert.Equal((8.0, 12.0), (Math.Round(y0, 12), Math.Round(y1, 12)));
@@ -66,9 +39,7 @@ public sealed class FrameBoundsRayTests
     {
         var bubble = FrameBounds.Sphere(5);
 
-        Assert.False(
-            bubble.TryIntersectLine(origin: new(-10, 5.001, 0), direction: Double3.UnitX, entry: out _, exit: out _)
-        );
+        Assert.Null(bubble.IntersectLine(origin: new(-10, 5.001, 0), direction: Double3.UnitX));
     }
 
     [Fact]
@@ -76,14 +47,7 @@ public sealed class FrameBoundsRayTests
     {
         var bubble = FrameBounds.Sphere(5);
 
-        Assert.True(
-            bubble.TryIntersectLine(
-                origin: new(1, 0, 0),
-                direction: Double3.UnitZ,
-                entry: out double entry,
-                exit: out double exit
-            )
-        );
+        (double entry, double exit) = Crossing(bubble, origin: new(1, 0, 0), direction: Double3.UnitZ);
 
         // The line x = 1, y = 0 meets x² + z² = 25 at z = ±√24.
         Assert.Equal(-Math.Sqrt(24), entry, 1e-12);
@@ -95,14 +59,7 @@ public sealed class FrameBoundsRayTests
     {
         var bubble = FrameBounds.Sphere(5);
 
-        Assert.True(
-            bubble.TryIntersectLine(
-                origin: new(-10, 0, 0),
-                direction: new(2, 0, 0),
-                entry: out double entry,
-                exit: out double exit
-            )
-        );
+        (double entry, double exit) = Crossing(bubble, origin: new(-10, 0, 0), direction: new(2, 0, 0));
 
         Assert.Equal(2.5, entry, 1e-12);
         Assert.Equal(7.5, exit, 1e-12);
@@ -116,14 +73,7 @@ public sealed class FrameBoundsRayTests
         var origin = new Double3(-60, -15, 3);
         Double3 direction = new Double3(3, 1, 0.2).Normalized();
 
-        Assert.True(
-            bubble.TryIntersectLine(
-                origin: origin,
-                direction: direction,
-                entry: out double entry,
-                exit: out double exit
-            )
-        );
+        (double entry, double exit) = Crossing(bubble, origin: origin, direction: direction);
 
         Assert.True(entry < exit);
         foreach (double t in new[] { entry, exit })
@@ -135,5 +85,13 @@ public sealed class FrameBoundsRayTests
 
         Double3 middle = origin + direction * (0.5 * (entry + exit));
         Assert.True(middle.X * middle.X / 1600 + middle.Y * middle.Y / 400 + middle.Z * middle.Z / 100 < 1);
+    }
+
+    /// <summary>Where the line crosses the bubble, after checking that it does.</summary>
+    private static (double Entry, double Exit) Crossing(FrameBounds bubble, Double3 origin, Double3 direction)
+    {
+        (double Entry, double Exit)? crossing = bubble.IntersectLine(origin, direction);
+        Assert.NotNull(crossing);
+        return crossing.GetValueOrDefault();
     }
 }

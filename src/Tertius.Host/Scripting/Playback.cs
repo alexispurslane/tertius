@@ -85,7 +85,7 @@ public sealed class HeadlessPlayback : IPlayback, IDisposable
         };
         world.PublishRenderSnapshot();
         // A snapshot was published just now, so the latest one is that one.
-        world.RenderSnapshots.TryAcquireLatest(out RenderSnapshot snapshot);
+        RenderSnapshot snapshot = world.RenderSnapshots.AcquireLatest() ?? world.RenderSnapshots.ReadBuffer;
         renderer.CaptureNextFrame(sink);
         renderer.Render(snapshot, alpha: 1f);
         return true;

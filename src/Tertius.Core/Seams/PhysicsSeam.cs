@@ -531,13 +531,17 @@ public struct PhysicsIntent
 
     /// <summary>
     /// The step record of <see cref="Move"/>, the one read that turns the motion intent into the entity's motion over the
-    /// step, which lasts <paramref name="step"/> seconds (see <see cref="MotionIntent.TryRecordFrom"/>). If the intent
+    /// step, which lasts <paramref name="step"/> seconds (see <see cref="MotionIntent.RecordFrom"/>). If the intent
     /// teleports, the step starts at <see cref="TeleportPose"/>. Else it starts at <paramref name="standing"/>, the pose of
     /// the entity at the start of the step, relative to <see cref="Frame"/>. False without a motion intent and for a steer
     /// target.
     /// </summary>
-    public readonly bool StepRecord(in DPose standing, double step, out MotionSample record) =>
-        Move.TryRecordFrom(StepStart(standing), step, out record);
+    public readonly bool StepRecord(in DPose standing, double step, out MotionSample record)
+    {
+        MotionSample? recorded = Move.RecordFrom(StepStart(standing), step);
+        record = recorded.GetValueOrDefault();
+        return recorded.HasValue;
+    }
 
     /// <summary>
     /// The step record of a kinematic body that takes the intent, in a step of <paramref name="step"/> seconds: the record of
@@ -550,9 +554,8 @@ public struct PhysicsIntent
     public readonly MotionSample StepRecordOrStill(in DPose standing, double step)
     {
         DPose start = StepStart(standing);
-        return Move.TryRecordFrom(start, step, out MotionSample record)
-            ? record
-            : new(Pose: start, ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero,
+        return Move.RecordFrom(start, step)
+            ?? new(Pose: start, ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero,
                 AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
     }
 

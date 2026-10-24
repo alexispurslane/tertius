@@ -240,12 +240,10 @@ internal sealed class PhysicsQueryRunner(
                     bubble.Radii * (float)(ContentScale(link.Child) + reach / bubble.MinRadius)
                 );
                 if (
-                    !region.TryIntersectLine(
+                    region.IntersectLine(
                         origin: toChild.TransformPoint(from),
-                        direction: toChild.Rotation.Rotate(line),
-                        entry: out double entry,
-                        exit: out double exit
-                    )
+                        direction: toChild.Rotation.Rotate(line)
+                    ) is not var (entry, exit)
                 )
                     continue;
                 double start = Math.Max(0, entry),
@@ -264,12 +262,10 @@ internal sealed class PhysicsQueryRunner(
                 double inner = 1 - reach / bubble.MinRadius;
                 if (
                     inner > 0
-                    && new FrameBounds(bubble.Radii * (float)inner).TryIntersectLine(
+                    && new FrameBounds(bubble.Radii * (float)inner).IntersectLine(
                         origin: toVisit.TransformPoint(from),
-                        direction: toVisit.Rotation.Rotate(line),
-                        entry: out double entry,
-                        exit: out double exit
-                    )
+                        direction: toVisit.Rotation.Rotate(line)
+                    ) is var (entry, exit)
                     && entry <= start
                     && start < exit
                 )

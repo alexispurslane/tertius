@@ -109,7 +109,8 @@ public sealed class WorldNumericNestingTests
     {
         World world = scene.World;
         world.Snapshot.TryGetPoseIn(scene.Crate, scene.Pod, out DPose inSnapshot).Should().BeTrue();
-        world.RenderSnapshots.TryAcquireLatest(out RenderSnapshot render).Should().BeTrue();
+        world.RenderSnapshots.AcquireLatest().Should().NotBeNull();
+        RenderSnapshot render = world.RenderSnapshots.ReadBuffer;
         RenderInstance instance = render
             .Instances.Should()
             .ContainSingle(i => i.EntityIndex == scene.Crate.Index)
