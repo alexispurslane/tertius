@@ -48,7 +48,7 @@ internal static class UnionWriter
         for (int i = 0; i < union.Slots.Count; i++)
         {
             text.AppendLine($"    // Holds {union.Slots[i].Holds}.");
-            text.AppendLine($"    private readonly {union.Slots[i].Type} slot{i};");
+            text.AppendLine($"    private readonly {union.Slots[i].FieldType} slot{i};");
         }
 
         text.AppendLine("    private readonly byte kind;");
@@ -82,12 +82,17 @@ internal static class UnionWriter
         text.AppendLine("    /// <summary>False only for the empty value, which holds no case.</summary>");
         text.AppendLine($"    public bool HasValue => {(union.HasZeroCase ? "true" : "kind != KindNone")};");
         text.AppendLine();
-        text.AppendLine("    /// <summary>The held case, boxed, or null for the empty value. For debugging only.</summary>");
-        text.AppendLine("    public object? Value => kind switch");
+        // A union with a zero case has no empty value, so its Value is never null. Only its constructors set the kind.
+        text.AppendLine(union.HasZeroCase
+            ? "    /// <summary>The held case, boxed. For debugging only.</summary>"
+            : "    /// <summary>The held case, boxed, or null for the empty value. For debugging only.</summary>");
+        text.AppendLine($"    public object{(union.HasZeroCase ? "" : "?")} Value => kind switch");
         text.AppendLine("    {");
         foreach (CaseModel c in union.Cases)
-            text.AppendLine($"        {c.KindName} => {Read(c)},");
-        text.AppendLine("        _ => null");
+            text.AppendLine($"        {c.KindName} => {Read(union, c)},");
+        text.AppendLine(union.HasZeroCase
+            ? "        _ => throw new global::System.Diagnostics.UnreachableException($\"The kind {kind} is no case.\")"
+            : "        _ => null");
         text.AppendLine("    };");
         foreach (CaseModel c in union.Cases)
         {
@@ -95,7 +100,7 @@ internal static class UnionWriter
             text.AppendLine($"    /// <summary>True and the case when this value holds a {c.Display}. Otherwise false and the default.</summary>");
             text.AppendLine($"    public bool TryGetValue(out {c.Type} value)");
             text.AppendLine("    {");
-            text.AppendLine($"        value = kind == {c.KindName} ? {Read(c)} : default;");
+            text.AppendLine($"        value = kind == {c.KindName} ? {Read(union, c)} : default;");
             text.AppendLine($"        return kind == {c.KindName};");
             text.AppendLine("    }");
         }
@@ -141,10 +146,13 @@ internal static class UnionWriter
         text.AppendLine("    private static bool SlotEquals<T>(T a, T b) => global::System.Collections.Generic.EqualityComparer<T>.Default.Equals(a, b);");
     }
 
-    /// <summary>The expression that builds case <paramref name="c"/> from its slots.</summary>
-    private static string Read(CaseModel c) => c.Whole
+    /// <summary>
+    /// The expression that builds case <paramref name="c"/> from its slots. A reference slot is nullable, but the held case
+    /// filled it, so it gives back what the case put in.
+    /// </summary>
+    private static string Read(UnionModel union, CaseModel c) => c.Whole
         ? $"slot{c.Values[0].Slot}"
-        : $"new {c.Type}({string.Join(", ", c.Values.Select(v => $"slot{v.Slot}"))})";
+        : $"new {c.Type}({string.Join(", ", c.Values.Select(v => $"slot{v.Slot}{(union.Slots[v.Slot].IsReference ? "!" : "")}"))})";
 
     /// <summary>The hash of the kind and the values of case <paramref name="c"/>.</summary>
     private static string Hash(CaseModel c)

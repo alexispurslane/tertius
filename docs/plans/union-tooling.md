@@ -43,6 +43,8 @@ The k-th value of type `T` in a case goes into slot k of type `T`. For example, 
 
 The generator builds a field-stored case again with its constructor, so a case must come back with the same bits. A property initializer that changes a parameter, such as a normalized direction, breaks that. So the generator stores such a case as one value. Today every struct case is a positional record, except three plain event structs of the demo: `Dock`, `LeaveShip` and `PlayWithBoxes`.
 
+A slot of a reference type is a nullable field, because it holds null while the union holds a case that does not fill it, such as the `string` of the demo's `Lost` while `DockingEvent` holds `Dock`. The read of the case that filled it gives back what the case put in.
+
 The slots have no names of meaning: `slot0`, `slot1` and so on. A comment in the generated file names the case values in each slot. A hand-written member reads a case through its pattern or `TryGetValue`, never through a slot. The kind byte is the last field. The slots come before it, the most aligned first, so that the struct has the least padding.
 
 ### Generated members
@@ -52,7 +54,7 @@ The slots have no names of meaning: `slot0`, `slot1` and so on. A comment in the
 | A constructor per case | Stores the case and its kind. |
 | An implicit conversion per case | `RenderLight light = new PointRenderLight(...)`. |
 | `HasValue` | False only for the empty value. |
-| `Value` | The held case, boxed, or null. For debugging only. |
+| `Value` | The held case, boxed, or null for the empty value. For debugging only. A union with a `ZeroCase` has no empty value, so its `Value` is `object`, never null. |
 | `TryGetValue(out T)` per case | If the union holds the case, true and the case. Otherwise false and `default`. |
 | `IEquatable<T>`, `Equals`, `GetHashCode`, `==`, `!=` | The kind and the fields of the held case. Each field compares with its own `Equals`, so NaN equals NaN, as the records compare. |
 | `ToString` | `RenderLight(PointRenderLight { ... })`, or `RenderLight(none)`. |

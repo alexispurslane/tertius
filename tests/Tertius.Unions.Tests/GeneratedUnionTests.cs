@@ -84,6 +84,20 @@ public class GeneratedUnionTests
     }
 
     [Fact]
+    public void AReferenceThatOnlyOneCaseHoldsComesBackFromThatCase()
+    {
+        var named = new MaybeNamed(new Named("pen"));
+        var busy = new MaybeNamed(new Busy(3));
+
+        named.TryGetValue(out Named back).Should().BeTrue();
+        back.Name.Should().Be("pen");
+        busy.TryGetValue(out Named _).Should().BeFalse();
+        busy.Value.Should().Be(new Busy(3));
+        busy.Should().Be(new MaybeNamed(new Busy(3)));
+        busy.Should().NotBe(named);
+    }
+
+    [Fact]
     public void TwoValuesOfOneCaseWithEqualFieldsAreEqual()
     {
         var a = new Label(new Tagged("crate", 3));
@@ -220,6 +234,18 @@ public class GeneratedUnionTests
         machine.TryGetValue(out Busy _).Should().BeFalse();
         machine.Value.Should().Be(new Idle());
         machine.ToString().Should().Be($"Machine({new Idle()})");
+    }
+
+    /// <summary>A union with a zero case has no empty value, so its <c>Value</c> is never null, and its type says so.</summary>
+    [Fact]
+    public void TheValueOfAUnionWithAZeroCaseIsNeverNull()
+    {
+        var nullability = new System.Reflection.NullabilityInfoContext();
+
+        nullability.Create(typeof(Machine).GetProperty(nameof(Machine.Value))!).ReadState.Should()
+            .Be(System.Reflection.NullabilityState.NotNull);
+        nullability.Create(typeof(Label).GetProperty(nameof(Label.Value))!).ReadState.Should()
+            .Be(System.Reflection.NullabilityState.Nullable, "a union without a zero case has the empty value");
     }
 
     [Fact]

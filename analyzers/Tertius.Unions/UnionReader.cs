@@ -156,7 +156,7 @@ internal static class UnionReader
     /// </summary>
     private sealed class SlotTable
     {
-        private readonly List<(string Type, int Alignment, List<string> Holds)> slots = [];
+        private readonly List<(string Type, bool IsReference, int Alignment, List<string> Holds)> slots = [];
         private readonly Dictionary<string, List<int>> byType = [];
         private readonly Dictionary<string, int> usedInCase = [];
 
@@ -172,7 +172,7 @@ internal static class UnionReader
             if (used == ofType.Count)
             {
                 ofType.Add(slots.Count);
-                slots.Add((key, Alignment(type, 0), []));
+                slots.Add((key, type.IsReferenceType, Alignment(type, 0), []));
             }
 
             int slot = ofType[used];
@@ -187,7 +187,7 @@ internal static class UnionReader
             int[] renumber = new int[slots.Count];
             for (int position = 0; position < order.Length; position++)
                 renumber[order[position]] = position;
-            return ([.. order.Select(i => new SlotModel(slots[i].Type, string.Join(", ", slots[i].Holds)))], renumber);
+            return ([.. order.Select(i => new SlotModel(slots[i].Type, slots[i].IsReference, string.Join(", ", slots[i].Holds)))], renumber);
         }
 
         /// <summary>The alignment of a field of <paramref name="type"/>, in bytes, as the runtime lays out a struct.</summary>
