@@ -2,11 +2,17 @@
 
 The pre-commit hook runs it after the build. It never fails the commit: it is a report.
 
-- Duplicates: jscpd scans src/ and tests/. The script prints each clone with a copy that holds a changed line.
+- Duplicates: jscpd scans src/. The script prints each clone with a copy that holds a changed line.
 - Complexity and length: every compile writes its diagnostics to obj/<configuration>/<framework>/analyzers.sarif
   (Directory.Build.targets), and the pre-commit hook builds Checked. The script reads CA1502 (cyclomatic complexity)
   and MA0051 (method length) from the projects of the staged files and prints each one whose method holds a changed
-  line.
+  line. Test code gets the length rule only.
+
+Test code repeats its setup on purpose, so that each test reads on its own, and a test's branches are its checks. So
+the report leaves tests/ out of the duplicates and the complexity.
+
+When the report names anything, it ends with a prompt to refactor what the commit touches. The code improves a little
+at each change that passes through it, not all at once and not never.
 
 A changed line is a line that the staged diff adds or edits. A deletion counts as a change of the line after it.
 """
@@ -21,6 +27,12 @@ from urllib.parse import unquote, urlparse
 ROOT = Path(subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True,
                            check=True).stdout.strip())
 RULES = {"CA1502": "complexity", "MA0051": "length"}
+TEST_RULES = {"MA0051"}
+REFACTOR_PROMPT = """\
+Refactor now: this commit touches the code above, so improve it in this commit, as far as the task allows. Split a
+long or complex method into named steps, and merge a duplicated block into one shared method. A flat switch with one
+arm per case of a closed set is already its clearest form, so leave it. The code gets better a little at each change
+that passes through it, not all at once and not never."""
 
 
 def changed_lines():
@@ -51,10 +63,11 @@ def project_relative(path):
 
 
 def report_clones(changed):
+    """Prints the clones in src/ with a copy that holds a changed line. True if it printed any."""
     by_name = {project_relative(f): (f, lines) for f, lines in changed.items()}
     with tempfile.TemporaryDirectory() as out:
         subprocess.run(
-            ["jscpd", "src", "tests", "--format", "csharp", "--min-tokens", "70", "--mode", "mild",
+            ["jscpd", "src", "--format", "csharp", "--min-tokens", "70", "--mode", "mild",
              "--reporters", "json", "--output", out, "--silent"],
             check=True, capture_output=True, cwd=ROOT)
         report = json.loads((Path(out) / "jscpd-report.json").read_text())
@@ -64,11 +77,13 @@ def report_clones(changed):
         return entry is not None and touches(entry[1], fragment["start"], fragment["end"])
 
     clones = [d for d in report["duplicates"] if hit(d["firstFile"]) or hit(d["secondFile"])]
-    if clones:
-        print(f"jscpd: {len(clones)} duplicated block(s) hold changed lines:")
-        for d in clones:
-            a, b = d["firstFile"], d["secondFile"]
-            print(f"  {d['lines']} lines: {a['name']}:{a['start']}-{a['end']} and {b['name']}:{b['start']}-{b['end']}")
+    if not clones:
+        return False
+    print(f"jscpd: {len(clones)} duplicated block(s) hold changed lines:")
+    for d in clones:
+        a, b = d["firstFile"], d["secondFile"]
+        print(f"  {d['lines']} lines: {a['name']}:{a['start']}-{a['end']} and {b['name']}:{b['start']}-{b['end']}")
+    return True
 
 
 def skip_literal(text, i):
@@ -135,6 +150,7 @@ def method_end_line(text, start):
 
 
 def report_metrics(changed):
+    """Prints the methods over a limit that hold a changed line, without the complexity of tests. True if any."""
     projects = set()
     for f in changed:
         for parent in (ROOT / f).parents:
@@ -150,7 +166,7 @@ def report_metrics(changed):
                 location = result["locations"][0]["physicalLocation"]
                 path = Path(unquote(urlparse(location["artifactLocation"]["uri"]).path))
                 name = str(path.relative_to(ROOT)) if path.is_relative_to(ROOT) else None
-                if name not in changed:
+                if name not in changed or name.startswith("tests/") and result["ruleId"] not in TEST_RULES:
                     continue
                 text = path.read_text()
                 first = location["region"]["startLine"]
@@ -159,20 +175,25 @@ def report_metrics(changed):
                 last = method_end_line(text, offset)
                 if touches(changed[name], first, last):
                     found.append(f"  {name}:{first} {RULES[result['ruleId']]}: {result['message']['text']}")
-    if found:
-        print(f"Complexity and length: {len(found)} changed method(s) are over a limit:")
-        print("\n".join(sorted(set(found))))
+    if not found:
+        return False
+    print(f"Complexity and length: {len(set(found))} changed method(s) are over a limit:")
+    print("\n".join(sorted(set(found))))
+    return True
 
 
 def main():
     changed = changed_lines()
     if not changed:
         return
+    reported = False
     for report in (report_clones, report_metrics):
         try:
-            report(changed)
+            reported = report(changed) or reported
         except Exception as error:  # a report never stops the commit
             print(f"{report.__name__} failed: {error}", file=sys.stderr)
+    if reported:
+        print(REFACTOR_PROMPT)
 
 
 if __name__ == "__main__":
