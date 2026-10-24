@@ -1,6 +1,6 @@
 ---
 id: ter-2ku2
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-24T16:12:09Z
