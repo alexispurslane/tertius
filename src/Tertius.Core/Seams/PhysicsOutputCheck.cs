@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 
 namespace Tertius;
@@ -38,6 +39,8 @@ public enum PhysicsOutputKind : byte
 /// <param name="Kind">The list that holds the output.</param>
 /// <param name="Index">The output's index in that list.</param>
 /// <param name="Message">What the sync point does with the output and why, for example "ignored the body state of ...".</param>
+[SuppressMessage("Tertius.Unions", "TU0005",
+    Justification = "The kind names the list of the output. The index and the message mean something for every kind.")]
 public readonly record struct PhysicsOutputFault(PhysicsOutputKind Kind, int Index, string Message);
 
 /// <summary>

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Tertius.Demo;
 using Tertius.Host.Scripting;
 using Tertius.Rendering;
@@ -11,6 +12,9 @@ namespace Tertius.Host.Tests;
 /// backend, with the headless renderer for its captures. A test class takes a subclass as its fixture, so that all of its
 /// tests read the one run.
 /// </summary>
+[SuppressMessage("Tertius.Unions", "TU0004",
+    Justification =
+        "An open set: the base of the test fixtures, one per checked-in script. A new script adds a fixture, and no code switches over them.")]
 public abstract class CheckedInRun : IDisposable
 {
     protected CheckedInRun(string name) : this(name, beforeEachTick: null)

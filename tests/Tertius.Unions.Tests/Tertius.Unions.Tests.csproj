@@ -7,7 +7,7 @@
     <ProjectReference Include="../../src/Tertius.Core/Tertius.Core.csproj" />
     <!-- The driver tests run the generator in process, on compilations that they build. -->
     <ProjectReference Include="../../analyzers/Tertius.Unions/Tertius.Unions.csproj" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="5.9.0" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="AwesomeAssertions" />
     <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />

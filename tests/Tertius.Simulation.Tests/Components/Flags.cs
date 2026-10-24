@@ -1,9 +1,14 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
 /// The base of the flag components: components with no state and no behavior, which other entities ask about through
 /// the snapshot. It handles no events, so the scheduler never runs it.
 /// </summary>
+[SuppressMessage("Tertius.Unions", "TU0004",
+    Justification =
+        "An open set: flags are components, and the set of components is open by design. Other entities ask for a flag by its type, never through a switch over the flags.")]
 public abstract class Flag : IComponent
 {
     public int Priority => 0;

@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Tertius.Simulation;
 
 /// <summary>The case of a <see cref="PhysicsQuestion"/> that asks for a ray cast: <c>CastRay</c> and <c>CastRayAll</c>.</summary>
@@ -5,6 +7,8 @@ namespace Tertius.Simulation;
 /// <param name="Direction">The direction of the ray, in the axes of the request's frame. It is a unit vector.</param>
 /// <param name="Length">How far the ray reaches, in meters. It is finite and more than 0.</param>
 /// <param name="Kind">Whether the answer is the nearest hit alone or every hit.</param>
+[SuppressMessage("Tertius.Unions", "TU0005",
+    Justification = "The kind says how many hits the answer holds. The origin, the direction and the length mean something for every kind.")]
 internal readonly record struct RayQuestion(Double3 Origin, Double3 Direction, double Length, RayCastKind Kind);
 
 /// <summary>The case that asks for a shape cast: <c>CastShape</c>.</summary>

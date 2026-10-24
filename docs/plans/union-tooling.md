@@ -75,11 +75,12 @@ The analyzer lives in the same project as the generator. Its rules are errors, s
 |---|---|---|
 | `TU0001` | A hand-written `[Union]` struct | `[GeneratedUnion]` |
 | `TU0002` | A built-in `union` with a struct case, which boxes the case | `[GeneratedUnion]` |
-| `TU0003` | A `[GeneratedUnion]` with a class case | A built-in `union` |
-| `TU0004` | An abstract record or class whose subtypes in the assembly are all sealed, and which is not `closed` | `closed record`, or a union |
+| `TU0004` | An abstract record or class whose subtypes in the assembly are all sealed, at least one, and which is not `closed` | `closed record`, or a union |
 | `TU0005` | A struct or class with an enum field or property named `Kind`, beside other instance fields | A union of one case per kind |
 
-`TU0005` is a heuristic. A type that it reports by mistake suppresses it with a reason.
+The design had a rule `TU0003` for a `[GeneratedUnion]` with a class case, fixed by a built-in `union`. The generator already refuses that case with its error `TU1002`, whose message names the same fix. A second rule would report the same mistake twice, so `TU1002` is its one report, and the analyzer has no `TU0003`. The ticket of the analyzer (ter-c3rf) decided this.
+
+`TU0004` and `TU0005` are heuristics. `TU0004` also reports an open set whose subtypes happen to be sealed today, and `TU0005` a kind that every field shares. A type that one of them reports by mistake suppresses it with a reason. The analyzer found six such types in the code; ARCHITECTURE.md, "Unions", names them.
 
 ## Conversion
 
