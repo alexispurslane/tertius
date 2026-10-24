@@ -243,11 +243,33 @@ Two rules keep this form free of cost:
 
 ### Composition
 
-- Prefer composition over inheritance: a type holds its parts and passes calls through to them. A primary constructor keeps the parts short to declare, such as `public sealed class Carry(CapsuleShapeDesc body) : IComponent`.
+Always share behavior through default interface methods. A type gets behavior by implementing the interface that holds it, and it overrides a default method only where its behavior differs. Never hold a part only to pass calls through to it, and never inherit from a class to get its behavior.
+
+```csharp
+// Sketch
+internal interface IEventFilter
+{
+    bool MayMatch(in EventMask mask);
+    bool Matches(ref Event e);
+
+    // Every filter gets this, and a filter with a faster test overrides it.
+    bool MatchesAny(Span<Event> events)
+    {
+        foreach (ref Event e in events)
+            if (Matches(ref e))
+                return true;
+        return false;
+    }
+}
+```
+
+A default method also works on a hot path, with a struct type parameter. In cold code, the call boxes the struct. After warm-up, the JIT inlines a small default method and removes the box: a measurement on .NET 11 RC 1 found no allocation per call. Keep a default method that a hot path calls small, so that the JIT inlines it, and let the allocation tests make sure that it allocates nothing.
+
+- A type holds a part when the part is data that the type owns, not to borrow the part's behavior.
+- A primary constructor keeps the parts short to declare, such as `public sealed class Carry(CapsuleShapeDesc body) : IComponent`.
 - Never build an inheritance hierarchy more than 2 levels deep below `object`.
-- Use a default method in an interface for behavior that every implementation shares.
 - Use a static abstract member of an interface for a factory or a constant per type, such as `T.Zero`.
-- Use an extension member (a C# 14 `extension` block) for behavior that a type does not own.
+- Extension members, such as a C# 14 `extension` block, are allowed for behavior that a type does not own. A default interface method fits most such needs better, so expect to use few of them.
 - An abstract base with abstract or virtual members is an open set. A switch never chooses among its subtypes.
 
 ## Performance
