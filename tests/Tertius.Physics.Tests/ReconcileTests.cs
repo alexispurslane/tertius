@@ -170,11 +170,11 @@ public sealed class ReconcileTests
         for (int i = 0; i < 90; i++)
         {
             scene.World.Tick();
-            scene.Faults.Jolt.TryGetBodyFrame(scene.Ship.Entity, out FrameHandle hullFrame).Should().BeTrue();
+            FrameHandle hullFrame = scene.Faults.Jolt.BodyFrameOf(scene.Ship.Entity)!.Value;
             hullFrame
                 .Should()
                 .Be(scene.World.Frames.Parent(scene.Ship), "the ship's hull follows the tree after step {0}", i);
-            scene.Faults.Jolt.TryGetBodyFrame(scene.Skiff.Entity, out FrameHandle skiffFrame).Should().BeTrue();
+            FrameHandle skiffFrame = scene.Faults.Jolt.BodyFrameOf(scene.Skiff.Entity)!.Value;
             skiffFrame.Should().Be(scene.Storage, "the storage system grew to take the skiff's hull at step {0}", i);
         }
 
@@ -199,7 +199,7 @@ public sealed class ReconcileTests
         scene.World.Tick();
 
         scene.Faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
-        scene.Faults.Jolt.TryGetBodyFrame(scene.Skiff.Entity, out FrameHandle skiffFrame).Should().BeTrue();
+        FrameHandle skiffFrame = scene.Faults.Jolt.BodyFrameOf(scene.Skiff.Entity)!.Value;
         skiffFrame.Should().Be(scene.Storage);
         scene.World.Errors.Should().BeEmpty();
     }
@@ -248,7 +248,7 @@ public sealed class ReconcileTests
                 {
                     output.HandOffs[i] = output.HandOffs[i] with { From = carrier };
                     faults.EditNextChanges = _ =>
-                        faults.Jolt.TryGetBodyFrame(fighter.Entity, out hullFrameBeforeTheBatch);
+                        hullFrameBeforeTheBatch = faults.Jolt.BodyFrameOf(fighter.Entity) ?? FrameHandle.Null;
                 }
         };
 
@@ -271,7 +271,7 @@ public sealed class ReconcileTests
             .Be(carrier, "the step left the fighter's hull in the carrier's system, and the tree refused to follow");
         // The batch of the same sync point reconciled: it put the hull back where the tree has the fighter's frame.
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
-        faults.Jolt.TryGetBodyFrame(fighter.Entity, out FrameHandle hullFrame).Should().BeTrue();
+        FrameHandle hullFrame = faults.Jolt.BodyFrameOf(fighter.Entity)!.Value;
         hullFrame.Should().Be(space);
 
         // The fighter is still inside the carrier's bubble, so the next step hands it in, with a correct report this time.
@@ -284,7 +284,7 @@ public sealed class ReconcileTests
         world.Frames.Parent(fighter).Should().Be(carrier);
         // The batch of that sync point reconciled too, and found the hull where the tree has the fighter's frame.
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
-        faults.Jolt.TryGetBodyFrame(fighter.Entity, out hullFrame).Should().BeTrue();
+        hullFrame = faults.Jolt.BodyFrameOf(fighter.Entity)!.Value;
         hullFrame.Should().Be(carrier);
         world.Errors.Should().ContainSingle("only the first, refused report is an error");
 #endif

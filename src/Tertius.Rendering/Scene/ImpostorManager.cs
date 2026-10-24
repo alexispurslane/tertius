@@ -203,23 +203,19 @@ internal sealed class ImpostorManager : IInstanceProcessor
         return owner >= 0 ? states[owner].Key : null;
     }
 
-    /// <summary>The state of a key, if the manager remembers it.</summary>
-    public bool TryGetStatus(ImpostorKey key, out ImpostorStatus status)
+    /// <summary>The state of a key. Null when the manager does not remember the key.</summary>
+    public ImpostorStatus? Status(ImpostorKey key)
     {
         if (!lookup.TryGetValue(key, out int slot))
-        {
-            status = default;
-            return false;
-        }
+            return null;
 
         ref State state = ref states[slot];
-        status = new(
+        return new ImpostorStatus(
             Impostor: state.Impostor,
             Tile: state.Tile,
             CapturedFrame: state.CapturedFrame,
             ProjectedHeight: state.Height
         );
-        return true;
     }
 
     /// <summary>

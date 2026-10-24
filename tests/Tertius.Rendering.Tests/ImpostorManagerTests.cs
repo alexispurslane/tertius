@@ -52,11 +52,9 @@ public sealed class ImpostorManagerTests
 
         public ImpostorStatus Status(uint entity, ushort part = 0, MaterialId? material = null)
         {
-            Manager
-                .TryGetStatus(Key(entity, part, material), out ImpostorStatus status)
-                .Should()
-                .BeTrue("entity {0} part {1} must be known", entity, part);
-            return status;
+            ImpostorStatus? status = Manager.Status(Key(entity, part, material));
+            status.Should().NotBeNull("entity {0} part {1} must be known", entity, part);
+            return status.Value;
         }
     }
 
@@ -181,9 +179,9 @@ public sealed class ImpostorManagerTests
         PreparedScene scene = harness.Run(snapshot);
         scene.VisibleCount.Should().Be(3);
         harness.Manager.Draws.Length.Should().Be(1);
-        harness.Manager.TryGetStatus(Key(1), out _).Should().BeFalse("NoImpostor objects are never considered");
-        harness.Manager.TryGetStatus(Key(2), out _).Should().BeFalse("Celestial objects are never impostors");
-        harness.Manager.TryGetStatus(Key(3), out _).Should().BeFalse("Transparent objects are never impostors");
+        harness.Manager.Status(Key(1)).Should().BeNull("NoImpostor objects are never considered");
+        harness.Manager.Status(Key(2)).Should().BeNull("Celestial objects are never impostors");
+        harness.Manager.Status(Key(3)).Should().BeNull("Transparent objects are never impostors");
         harness.Status(4).Impostor.Should().BeTrue();
     }
 
@@ -844,14 +842,14 @@ public sealed class ImpostorManagerTests
         RenderSnapshot empty = Snapshot();
         for (int i = 0; i < ImpostorManager.StateLifetime; i++)
             harness.Run(empty);
-        harness.Manager.TryGetStatus(Key(2), out _).Should().BeTrue("the lifetime has not run out yet");
+        harness.Manager.Status(Key(2)).Should().NotBeNull("the lifetime has not run out yet");
         harness.Run(empty);
         harness
-            .Manager.TryGetStatus(Key(2), out _)
+            .Manager.Status(Key(2))
             .Should()
-            .BeFalse("a key without a tile is forgotten after its lifetime");
+            .BeNull("a key without a tile is forgotten after its lifetime");
         // The key with a tile is kept, so its capture can be reused.
-        harness.Manager.TryGetStatus(Key(1), out _).Should().BeTrue("a key that holds a tile is kept");
+        harness.Manager.Status(Key(1)).Should().NotBeNull("a key that holds a tile is kept");
         RenderSnapshot again = Snapshot();
         again.Instances.Add(Ball(entity: 1, position: new(-3, 0, -far)));
         harness.Run(again);

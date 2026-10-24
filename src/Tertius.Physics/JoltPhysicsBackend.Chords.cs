@@ -272,20 +272,19 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// The step record of the motion intent that aimed the plain kinematic body of <paramref name="record"/> in the current
-    /// step, relative to the body's semantic frame, when the body is still in the home where the step started; else false.
+    /// step, relative to the body's semantic frame, when the body is still in the home where the step started; else null.
     /// Jolt's velocity of the body is the chord of the step, to its float rounding, and its rotation a float, so the body
     /// state and a hand-off of the step take the record's instant velocity and rotation instead (docs/plans/
     /// rails-components.md, "The flow per kind of entity"). After a hand-off the body is in another home, and Jolt holds
     /// the velocity that the hand-off carried, which came from the record. A hull's frame takes its record from the frame
     /// tree (see <see cref="StepRecordOf"/>).
     /// </summary>
-    private bool TryAimedRecord(BodyRecord record, out MotionSample aimed)
-    {
-        aimed = record.AimedRecord;
-        return record is { IsHull: false, Motion: BodyMotion.Kinematic }
-            && record.KinematicTargetStep == stepIndex
-            && record.Frame == record.AimedHome;
-    }
+    private MotionSample? AimedRecordOf(BodyRecord record) =>
+        record is { IsHull: false, Motion: BodyMotion.Kinematic }
+        && record.KinematicTargetStep == stepIndex
+        && record.Frame == record.AimedHome
+            ? record.AimedRecord
+            : null;
 
     /// <summary>
     /// The instant velocity at the end of the step of the primary body of <paramref name="record"/>, whose state Jolt has
@@ -302,8 +301,8 @@ public sealed partial class JoltPhysicsBackend
     private Double3 InstantVelocity(BodyRecord record, in BodySnapshot s)
     {
         Contract.Requires(stepDt > 0 && record.HasPrimary);
-        // A plain kinematic body that a motion intent aimed moves as its step record says (see TryAimedRecord).
-        if (TryAimedRecord(record, out MotionSample aimed))
+        // A plain kinematic body that a motion intent aimed moves as its step record says (see AimedRecordOf).
+        if (AimedRecordOf(record) is { } aimed)
             return aimed.Velocity
                 + Double3.Cross(aimed.AngularVelocity, s.CenterOfMass - s.Pose.Position)
                 - InstantHomeVelocity(record.Frame, frames.SemanticOf(record.Frame));
@@ -344,7 +343,7 @@ public sealed partial class JoltPhysicsBackend
     private Vector3 InstantAngularVelocity(BodyRecord record, in BodySnapshot s)
     {
         Contract.Requires(stepDt > 0 && record.HasPrimary);
-        if (TryAimedRecord(record, out MotionSample aimed))
+        if (AimedRecordOf(record) is { } aimed)
             return aimed.AngularVelocity.ToVector3();
         if (record.Motion != BodyMotion.Dynamic || !record.World.Bodies.IsActive(record.Body))
             return s.Angular;
@@ -366,7 +365,7 @@ public sealed partial class JoltPhysicsBackend
     /// Jolt's next step, or the character's next update, carries on, and which the next step's two-turn update reads as the
     /// turn of the step that ended. The turn's part of the chord counts in that
     /// acceleration over half a step, so that a hull's step record keeps the instant velocity that the hand-off carried (see
-    /// <see cref="TryHullRecord"/>). Call it only after the update of a step.
+    /// <see cref="HullRecordOf"/>). Call it only after the update of a step.
     /// </summary>
     private (Vector3 Linear, Vector3 Angular, Double3 Acceleration) HandedOffVelocities(
         BodyRecord record,
@@ -406,7 +405,7 @@ public sealed partial class JoltPhysicsBackend
             return ((local - chordAcceleration * half).ToVector3(), Vector3.Zero, chordAcceleration);
         }
 
-        // The chord plus half a step of the acceleration is the local velocity again (see TryHullRecord). In a turning frame
+        // The chord plus half a step of the acceleration is the local velocity again (see HullRecordOf). In a turning frame
         // the turn's part of the chord acts on the body's place at the end of the step, where the moment stands, and on its
         // instant velocity relative to the home's frame velocity after the step.
         Double3 acceleration = ChordAcceleration(record: record, home: to, center: fieldPlace, local: local);

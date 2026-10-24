@@ -121,7 +121,7 @@ public sealed class FrameHullTests
         );
         world.Tick();
 
-        backend.TryGetBodyFrame(ship, out FrameHandle hullFrame).Should().BeTrue();
+        FrameHandle hullFrame = backend.BodyFrameOf(ship)!.Value;
         hullFrame.Should().Be(space);
         backend.HasInterior(ship).Should().BeTrue();
         backend.SystemCount.Should().Be(2);
@@ -135,7 +135,7 @@ public sealed class FrameHullTests
             }
         );
         world.Tick();
-        backend.TryGetBodyFrame(root, out _).Should().BeFalse();
+        backend.BodyFrameOf(root).Should().BeNull();
         backend.HasInterior(root).Should().BeTrue();
         world.Errors.Should().BeEmpty();
     }
@@ -189,9 +189,9 @@ public sealed class FrameHullTests
         world.Destroy(ship);
         world.Tick();
 
-        faults.Jolt.TryGetBodyFrame(crate, out _).Should().BeFalse();
-        faults.Jolt.TryGetBodyFrame(stray, out _).Should().BeFalse();
-        faults.Jolt.TryGetBodyFrame(ship, out _).Should().BeFalse();
+        faults.Jolt.BodyFrameOf(crate).Should().BeNull();
+        faults.Jolt.BodyFrameOf(stray).Should().BeNull();
+        faults.Jolt.BodyFrameOf(ship).Should().BeNull();
         faults.Jolt.SystemCount.Should().Be(1);
         // Only the forgotten box is worth a warning. The crate and the ship went in the documented order.
         warnings.Should().ContainSingle().Which.Should().Contain(stray.ToString());
@@ -238,7 +238,7 @@ public sealed class FrameHullTests
         world.Tick();
 
         world.Frames.Parent(fighterFrame).Should().Be(space);
-        backend.TryGetBodyFrame(fighter, out FrameHandle hullFrame).Should().BeTrue();
+        FrameHandle hullFrame = backend.BodyFrameOf(fighter)!.Value;
         hullFrame.Should().Be(space);
         (world.Frames.LocalPose(fighterFrame).Position - fighterInSpace).Length.Should().BeLessThan(0.1);
         world.Frames.LinearVelocity(fighterFrame).X.Should().BeApproximately(1, 5e-4);
@@ -312,7 +312,7 @@ public sealed class FrameHullTests
 
         // The hull took the tree's motion as it was. Converting it again through the carrier would add the carrier's
         // 20 m/s and the 12 m/s of ω × r a second time; turning the body's own velocity would drop them.
-        backend.TryGetBodyFrame(fighter, out FrameHandle hullFrame).Should().BeTrue();
+        FrameHandle hullFrame = backend.BodyFrameOf(fighter)!.Value;
         hullFrame.Should().Be(space);
         world.Frames.Parent(fighterFrame).Should().Be(space);
         (world.Frames.LinearVelocity(fighterFrame) - velocity).Length.Should().BeLessThan(1e-4 * velocity.Length);
@@ -367,8 +367,8 @@ public sealed class FrameHullTests
 
         Tick(world, 3);
 
-        faults.Jolt.TryGetBodyFrame(shipOwner, out _).Should().BeFalse();
-        faults.Jolt.TryGetBodyFrame(towerOwner, out _).Should().BeFalse();
+        faults.Jolt.BodyFrameOf(shipOwner).Should().BeNull();
+        faults.Jolt.BodyFrameOf(towerOwner).Should().BeNull();
         faults.Jolt.HasInterior(shipOwner).Should().BeFalse();
         faults.Jolt.SystemCount.Should().Be(1);
         warnings.Should().Contain(w => w.Contains(shipOwner.ToString()));
@@ -422,7 +422,7 @@ public sealed class FrameHullTests
         );
         world.Tick();
         warnings.Should().Contain(w => w.Contains(bubble.ToString()) && w.Contains("still in the frame tree"));
-        faults.Jolt.TryGetBodyFrame(ball, out FrameHandle ballFrame).Should().BeTrue();
+        FrameHandle ballFrame = faults.Jolt.BodyFrameOf(ball)!.Value;
         ballFrame.Should().Be(bubble);
         faults.Jolt.SystemCount.Should().Be(2);
 
@@ -434,7 +434,7 @@ public sealed class FrameHullTests
         world.Tick();
         warnings.Should().Contain(w => w.Contains(bubble.ToString()) && w.Contains("left the frame tree"));
         warnings.Should().Contain(w => w.Contains(ball.ToString()));
-        faults.Jolt.TryGetBodyFrame(ball, out _).Should().BeFalse();
+        faults.Jolt.BodyFrameOf(ball).Should().BeNull();
         faults.Jolt.GhostCount(ball).Should().Be(0);
         faults.Jolt.SystemCount.Should().Be(1);
         world.Errors.Should().BeEmpty();
@@ -471,7 +471,7 @@ public sealed class FrameHullTests
         world.Frames.Reparent(shuttle, station);
         world.Tick();
 
-        faults.Jolt.TryGetBodyFrame(shuttleOwner, out FrameHandle hullFrame).Should().BeTrue();
+        FrameHandle hullFrame = faults.Jolt.BodyFrameOf(shuttleOwner)!.Value;
         hullFrame.Should().Be(station);
         world.GetFrame(shuttleOwner).Should().Be(station);
         (world.PoseIn(shuttleOwner, station).Position - new Double3(5, 0, 0)).Length.Should().BeLessThan(1e-6);
@@ -537,7 +537,7 @@ public sealed class FrameHullTests
             }
         );
         world.Tick();
-        faults.Jolt.TryGetBodyFrame(shuttleOwner, out FrameHandle hullFrame).Should().BeTrue();
+        FrameHandle hullFrame = faults.Jolt.BodyFrameOf(shuttleOwner)!.Value;
         hullFrame.Should().Be(station);
         faults.Jolt.HasGhostIn(shuttleOwner, station).Should().BeFalse();
 
@@ -549,7 +549,7 @@ public sealed class FrameHullTests
         // Later the shuttle is scrapped. Nothing of it stays behind in space or in the station.
         world.Destroy(shuttleOwner);
         Tick(world, 2);
-        faults.Jolt.TryGetBodyFrame(shuttleOwner, out _).Should().BeFalse();
+        faults.Jolt.BodyFrameOf(shuttleOwner).Should().BeNull();
         faults.Jolt.GhostCount(shuttleOwner).Should().Be(0);
         warnings.Should().BeEmpty();
         world.Errors.Should().BeEmpty();

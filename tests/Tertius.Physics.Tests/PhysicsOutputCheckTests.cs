@@ -252,7 +252,7 @@ public sealed class PhysicsOutputCheckTests
         );
 
         scene.World.IsAlive(scene.Wreck).Should().BeFalse();
-        scene.Faults.Jolt.TryGetBodyFrame(scene.Wreck, out _).Should().BeFalse();
+        scene.Faults.Jolt.BodyFrameOf(scene.Wreck).Should().BeNull();
     }
 
     [Fact]
@@ -297,7 +297,7 @@ public sealed class PhysicsOutputCheckTests
         );
 
         scene.World.IsAlive(scene.Wreck).Should().BeFalse();
-        scene.Faults.Jolt.TryGetBodyFrame(scene.Wreck, out _).Should().BeFalse();
+        scene.Faults.Jolt.BodyFrameOf(scene.Wreck).Should().BeNull();
     }
 
     [Fact]

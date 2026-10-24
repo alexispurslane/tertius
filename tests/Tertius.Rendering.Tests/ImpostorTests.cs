@@ -108,7 +108,7 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                     name: $"impostor-hysteresis-{frame++}-{h:0}px"
                 );
                 RenderStats stats = renderer.LastFrameStats;
-                renderer.Impostors!.TryGetStatus(key, out ImpostorStatus status).Should().BeTrue();
+                ImpostorStatus status = renderer.Impostors!.Status(key)!.Value;
                 status.ProjectedHeight.Should().BeApproximately(h, 0.5f);
                 status.Impostor.Should().Be(expected, "at {0} px", h);
                 stats.Impostors.Should().Be(expected ? 1 : 0);
@@ -183,17 +183,16 @@ public sealed class ImpostorTests(ITestOutputHelper output)
             ImpostorManager manager = renderer.Impostors!;
 
             int Tile(ushort part) =>
-                manager.TryGetStatus(
-                    new(
-                        EntityIndex: 4,
-                        Part: part,
-                        Mesh: assets.Sphere.Value,
-                        Material: MaterialStore.Slot(assets.Red)
-                    ),
-                    out ImpostorStatus status
-                )
-                    ? status.Tile
-                    : -1;
+                manager
+                    .Status(
+                        new(
+                            EntityIndex: 4,
+                            Part: part,
+                            Mesh: assets.Sphere.Value,
+                            Material: MaterialStore.Slot(assets.Red)
+                        )
+                    )
+                    ?.Tile ?? -1;
 
             Tile(0).Should().BeGreaterThanOrEqualTo(0);
             Tile(1).Should().BeGreaterThanOrEqualTo(0).And.NotBe(Tile(0), "each part has its own capture");
@@ -494,17 +493,16 @@ public sealed class ImpostorTests(ITestOutputHelper output)
             ImpostorManager manager = renderer.Impostors!;
 
             int Tile(int index) =>
-                manager.TryGetStatus(
-                    new(
-                        EntityIndex: (uint)index,
-                        Part: 0,
-                        Mesh: assets.Sphere.Value,
-                        Material: MaterialStore.Slot(materials[index])
-                    ),
-                    out ImpostorStatus s
-                )
-                    ? s.Tile
-                    : -1;
+                manager
+                    .Status(
+                        new(
+                            EntityIndex: (uint)index,
+                            Part: 0,
+                            Mesh: assets.Sphere.Value,
+                            Material: MaterialStore.Slot(materials[index])
+                        )
+                    )
+                    ?.Tile ?? -1;
 
             Vector3 TileColor(int tile)
             {

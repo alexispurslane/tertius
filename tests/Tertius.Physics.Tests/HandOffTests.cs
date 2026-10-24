@@ -627,7 +627,7 @@ public sealed class HandOffTests
         entry.To.Should().Be(carrier);
         world.Frames.Parent(fighter).Should().Be(carrier);
         world.GetFrame(fighterOwner).Should().Be(carrier);
-        faults.Jolt.TryGetBodyFrame(fighterOwner, out FrameHandle hullFrame).Should().BeTrue();
+        FrameHandle hullFrame = faults.Jolt.BodyFrameOf(fighterOwner)!.Value;
         hullFrame.Should().Be(carrier);
         // The fighter's own contents do not move.
         world.GetFrame(pilot).Should().Be(fighter);
@@ -722,7 +722,7 @@ public sealed class HandOffTests
         Tick(world, 3);
 
         HandOffsSent(faults).Should().BeEmpty();
-        faults.Jolt.TryGetBodyFrame(shipOwner, out FrameHandle hullFrame).Should().BeTrue();
+        FrameHandle hullFrame = faults.Jolt.BodyFrameOf(shipOwner)!.Value;
         hullFrame.Should().Be(space);
         world.Errors.Should().BeEmpty();
     }
@@ -859,7 +859,7 @@ public sealed class HandOffTests
         world.GetFrame(fighterOwner).Should().Be(space);
         world.Tick();
 
-        faults.Jolt.TryGetBodyFrame(fighterOwner, out FrameHandle hullFrame).Should().BeTrue();
+        FrameHandle hullFrame = faults.Jolt.BodyFrameOf(fighterOwner)!.Value;
         hullFrame.Should().Be(space);
         world.GetFrame(fighterOwner).Should().Be(space);
         (world.PoseInOwnFrame(fighterOwner).Position - inSpace.Position).Length.Should().BeLessThan(1e-6);
@@ -889,7 +889,7 @@ public sealed class HandOffTests
         Double3 expected = world.Frames.LocalPose(fighter).Position + new Double3(120 * (double)Dt, 0, 0);
         world.Tick();
 
-        faults.Jolt.TryGetBodyFrame(fighterOwner, out FrameHandle hullFrame).Should().BeTrue();
+        FrameHandle hullFrame = faults.Jolt.BodyFrameOf(fighterOwner)!.Value;
         hullFrame.Should().Be(space);
         world.GetFrame(fighterOwner).Should().Be(space);
         (world.PoseInOwnFrame(fighterOwner).Position - expected).Length.Should().BeLessThan(1e-5);
@@ -931,7 +931,7 @@ public sealed class HandOffTests
         Tick(world, 90);
 
         HandOffsSent(faults).Should().ContainSingle("the ship has no other frame to enter or leave");
-        faults.Jolt.TryGetBodyFrame(shipOwner, out FrameHandle hullFrame).Should().BeTrue();
+        FrameHandle hullFrame = faults.Jolt.BodyFrameOf(shipOwner)!.Value;
         hullFrame.Should().Be(space);
         world.Errors.Should().BeEmpty();
     }

@@ -239,7 +239,7 @@ internal sealed class BodyRecord
     /// For a plain kinematic body that a motion intent aimed in the step of <see cref="KinematicTargetStep"/>: the step record
     /// of that motion intent, relative to the body's semantic frame, in its axes, and the home that the body had then. The
     /// body state and a hand-off of that step take the record's pose and instant velocity (see
-    /// JoltPhysicsBackend.TryAimedRecord).
+    /// JoltPhysicsBackend.AimedRecordOf).
     /// </summary>
     public MotionSample AimedRecord;
 

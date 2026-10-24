@@ -438,12 +438,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         }
     }
 
-    /// <summary>The frame whose system holds the entity's primary body or character.</summary>
-    internal bool TryGetBodyFrame(Entity entity, out FrameHandle frame)
-    {
-        frame = Find(entity) is { HasPrimary: true } record ? record.Frame : FrameHandle.Null;
-        return !frame.IsNull;
-    }
+    /// <summary>The frame whose system holds the entity's primary body or character. Null when the entity has none.</summary>
+    internal FrameHandle? BodyFrameOf(Entity entity) =>
+        Find(entity) is { HasPrimary: true, Frame.IsNull: false } record ? record.Frame : null;
 
     internal int GhostCount(Entity entity) => Find(entity)?.Ghosts?.Count ?? 0;
 
@@ -939,7 +936,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// every frame from it: ghosts take its chord (see <see cref="MotionOf"/>), hand-offs its instant velocity (see
     /// <see cref="InstantMotionOf"/>). The owner's kind decides it:
     /// <list type="bullet">
-    /// <item>A dynamic hull: Jolt's state after the update (see <see cref="TryHullRecord"/>). Its instant velocity is relative
+    /// <item>A dynamic hull: Jolt's state after the update (see <see cref="HullRecordOf"/>). Its instant velocity is relative
     /// to the instant velocity of a numeric home, as every velocity that a hand-off carries. The record that physics
     /// releases for the tree differs there (see <see cref="WriteFrames"/>).</item>
     /// <item>A kinematic hull, or no body, whose owner has an end pose or a full sample: the record of that motion intent, in
@@ -958,8 +955,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// </summary>
     private MotionSample StepRecordOf(FrameHandle frame)
     {
-        if (TryHullRecord(frame, out MotionSample record))
-            return record;
+        if (HullRecordOf(frame) is { } hullRecord)
+            return hullRecord;
         int index = frame.Index;
         if (index >= predicted.Length)
         {
@@ -970,7 +967,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
 
         if (predictedStep[index] == stepIndex)
             return predicted[index];
-        record = PredictRecord(frame);
+        MotionSample record = PredictRecord(frame);
         predicted[index] = record;
         predictedStep[index] = stepIndex;
         return record;
@@ -1061,9 +1058,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// acceleration is the one that the hand-off made that chord with, in the new home's axes (see
     /// <see cref="HandedOffVelocities"/>), the instant velocity is the one that the hand-off carried, and the angular
     /// acceleration is the one of the update, converted into the new home by the full rule (see
-    /// <see cref="FrameMotion.AngularAccelerationToParent"/>). False for any other frame.
+    /// <see cref="FrameMotion.AngularAccelerationToParent"/>). Null for any other frame.
     /// </summary>
-    private bool TryHullRecord(FrameHandle frame, out MotionSample record)
+    private MotionSample? HullRecordOf(FrameHandle frame)
     {
         if (OwnerRecord(frame) is { Motion: BodyMotion.Dynamic, HasPrimary: true, Character: null } hull)
         {
@@ -1089,7 +1086,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                         - (Double3)hull.FrameAcceleration.Turning * half;
             }
 
-            record = new(
+            return new MotionSample(
                 Pose: s.Pose,
                 ChordVelocity: chord,
                 Velocity: velocity,
@@ -1097,10 +1094,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 AngularVelocity: s.Angular,
                 AngularAcceleration: hull.AngularAcceleration
             );
-            return true;
         }
 
-        record = default;
-        return false;
+        return null;
     }
 }

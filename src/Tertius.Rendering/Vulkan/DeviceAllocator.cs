@@ -130,7 +130,7 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
                 if (
                     block.Type == type
                     && block.Linear == linear
-                    && block.Space.TryAllocate(requirements.Size, alignment, out ulong offset)
+                    && block.Space.Allocate(requirements.Size, alignment) is { } offset
                 )
                 {
                     liveAllocations++;
@@ -155,8 +155,9 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
                 $"block {blocks.Count} (type {type}, {(linear ? "buffers" : "images")})"
             );
             blocks.Add(created);
-            if (!created.Space.TryAllocate(requirements.Size, alignment, out ulong first))
-                throw new InvalidOperationException("A new block cannot hold an allocation smaller than half a block.");
+            ulong first =
+                created.Space.Allocate(requirements.Size, alignment)
+                ?? throw new InvalidOperationException("A new block cannot hold an allocation smaller than half a block.");
             liveAllocations++;
             return new(
                 memory: created.Memory,
