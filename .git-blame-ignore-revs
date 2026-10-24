@@ -1,3 +1,5 @@
 # Commits that only reformat or clean up code. Run once: git config blame.ignoreRevsFile .git-blame-ignore-revs
 # Clean up the whole codebase (tools/cleanup.sh --all)
 393203cf7ce8af1706515046656c90c85b32ea7b
+# Clean up the whole codebase with Roslyn and CSharpier (tools/cleanup.sh --all, ter-lp73)
+93fbc0b449076eb2ddc398bcb327a1ec08c0a0ce
