@@ -7,7 +7,8 @@ namespace Tertius.Simulation.Tests;
 /// <see cref="NearEntity"/>, <see cref="NearPoint"/> and <see cref="WhereFilter"/>. The default value holds no case and
 /// passes every entity. These tests pin what a union promises: each case goes in through its constructor and comes out
 /// through its <c>TryGetValue</c>, no other <c>TryGetValue</c> answers true, equality needs the same case and the same
-/// fields, and a <c>switch</c> over the filter takes the arm of the case that it holds. The tests of <c>Passes</c> pin
+/// fields, and a <c>switch</c> over the filter takes the arm of the case that it holds. The factories refuse a case that
+/// breaks the invariants of its record. The tests of <c>Passes</c> pin
 /// what each case keeps; the query tests in <see cref="EntityQueryRunTests"/> pin the same through whole queries.
 /// </summary>
 public class QueryFilterUnionTests
@@ -209,39 +210,39 @@ public class QueryFilterUnionTests
         QueryFilter.Where(Always).Should().Be(new QueryFilter(new WhereFilter(Always)));
     }
 
-    // ---- The constructors check the invariants of the cases ------------------------------------------------------
+    // ---- The factories check the invariants of the cases ---------------------------------------------------------
+    // The generated constructors and implicit conversions store what they get. EntityQuery and FoundEntities build every
+    // filter through the factories, so the factories are where the checks live.
 
     [Fact]
-    public void EveryConstructorRefusesACaseThatBreaksTheInvariantsOfItsRecord()
+    public void EveryFactoryRefusesACaseThatBreaksTheInvariantsOfItsRecord()
     {
         var refused = new (string Why, Action Build, Type Exception)[]
         {
-            ("In with the null frame", () => _ = new QueryFilter(new InFilter(FrameHandle.Null)),
-                typeof(ArgumentException)),
-            ("NearAsker with a negative radius", () => _ = new QueryFilter(new NearAsker(-1)),
+            ("In with the null frame", () => _ = QueryFilter.In(FrameHandle.Null), typeof(ArgumentException)),
+            ("NearAsker with a negative radius", () => _ = QueryFilter.Near(-1), typeof(ArgumentOutOfRangeException)),
+            ("NearAsker with a NaN radius", () => _ = QueryFilter.Near(double.NaN),
                 typeof(ArgumentOutOfRangeException)),
-            ("NearAsker with a NaN radius", () => _ = new QueryFilter(new NearAsker(double.NaN)),
+            ("NearAsker with an infinite radius", () => _ = QueryFilter.Near(double.PositiveInfinity),
                 typeof(ArgumentOutOfRangeException)),
-            ("NearAsker with an infinite radius", () => _ = new QueryFilter(new NearAsker(double.PositiveInfinity)),
+            ("NearEntity with the null center", () => _ = QueryFilter.Near(Entity.Null, 1), typeof(ArgumentException)),
+            ("NearEntity with a negative radius", () => _ = QueryFilter.Near(Rock, -1),
                 typeof(ArgumentOutOfRangeException)),
-            ("NearEntity with the null center", () => _ = new QueryFilter(new NearEntity(Entity.Null, 1)),
-                typeof(ArgumentException)),
-            ("NearEntity with a negative radius", () => _ = new QueryFilter(new NearEntity(Rock, -1)),
+            ("NearEntity with a NaN radius", () => _ = QueryFilter.Near(Rock, double.NaN),
                 typeof(ArgumentOutOfRangeException)),
-            ("NearPoint with the null frame", () => _ = new QueryFilter(new NearPoint(FrameHandle.Null, Here, 1)),
+            ("NearPoint with the null frame", () => _ = QueryFilter.Near(FrameHandle.Null, Here, 1),
                 typeof(ArgumentException)),
-            ("NearPoint with a NaN x", () => _ = new QueryFilter(new NearPoint(Station, new(double.NaN, 0, 0), 1)),
+            ("NearPoint with a NaN x", () => _ = QueryFilter.Near(Station, new(double.NaN, 0, 0), 1),
                 typeof(ArgumentException)),
-            ("NearPoint with an infinite y",
-                () => _ = new QueryFilter(new NearPoint(Station, new(0, double.PositiveInfinity, 0), 1)),
+            ("NearPoint with an infinite y", () => _ = QueryFilter.Near(Station, new(0, double.PositiveInfinity, 0), 1),
                 typeof(ArgumentException)),
-            ("NearPoint with an infinite z",
-                () => _ = new QueryFilter(new NearPoint(Station, new(0, 0, double.NegativeInfinity), 1)),
+            ("NearPoint with an infinite z", () => _ = QueryFilter.Near(Station, new(0, 0, double.NegativeInfinity), 1),
                 typeof(ArgumentException)),
-            ("NearPoint with a negative radius", () => _ = new QueryFilter(new NearPoint(Station, Here, -1)),
+            ("NearPoint with a negative radius", () => _ = QueryFilter.Near(Station, Here, -1),
                 typeof(ArgumentOutOfRangeException)),
-            ("Where with a null predicate", () => _ = new QueryFilter(new WhereFilter(null!)),
-                typeof(ArgumentNullException))
+            ("NearPoint with an infinite radius", () => _ = QueryFilter.Near(Station, Here, double.PositiveInfinity),
+                typeof(ArgumentOutOfRangeException)),
+            ("Where with a null predicate", () => _ = QueryFilter.Where(null!), typeof(ArgumentNullException))
         };
 
         foreach ((string why, Action build, Type exception) in refused)
@@ -249,49 +250,12 @@ public class QueryFilterUnionTests
     }
 
     [Fact]
-    public void EveryImplicitConversionRefusesWhatItsConstructorRefuses()
-    {
-        // The default value of each case record breaks its invariants, except NearAsker, whose radius 0 is valid.
-        Action fromIn = () =>
-        {
-            QueryFilter filter = default(InFilter);
-        };
-        Action fromAsker = () =>
-        {
-            QueryFilter filter = new NearAsker(double.NaN);
-        };
-        Action fromEntity = () =>
-        {
-            QueryFilter filter = default(NearEntity);
-        };
-        Action fromPoint = () =>
-        {
-            QueryFilter filter = default(NearPoint);
-        };
-        Action fromWhere = () =>
-        {
-            QueryFilter filter = default(WhereFilter);
-        };
-
-        fromIn.Should().Throw<ArgumentException>();
-        fromAsker.Should().Throw<ArgumentOutOfRangeException>();
-        fromEntity.Should().Throw<ArgumentException>();
-        fromPoint.Should().Throw<ArgumentException>();
-        fromWhere.Should().Throw<ArgumentNullException>();
-    }
-
-    [Fact]
-    public void EveryConstructorAcceptsTheBoundaryOfItsInvariants()
+    public void EveryFactoryAcceptsTheBoundaryOfItsInvariants()
     {
         // A radius of exactly 0 and a point at the origin are valid.
-        Action build = () =>
-        {
-            _ = new QueryFilter(new NearAsker(0));
-            _ = new QueryFilter(new NearEntity(Rock, 0));
-            _ = new QueryFilter(new NearPoint(Station, Double3.Zero, 0));
-        };
-
-        build.Should().NotThrow();
+        QueryFilter.Near(0).Should().Be(new QueryFilter(new NearAsker(0)));
+        QueryFilter.Near(Rock, 0).Should().Be(new QueryFilter(new NearEntity(Rock, 0)));
+        QueryFilter.Near(Station, Double3.Zero, 0).Should().Be(new QueryFilter(new NearPoint(Station, Double3.Zero, 0)));
     }
 
     [Fact]
@@ -384,7 +348,7 @@ public class QueryFilterUnionTests
     public void AFilterWithACaseIsNeverEqualToTheEmptyFilterEvenWhenEveryFieldIsZero()
     {
         // NearAsker is the one case whose fields can all be zero. The other cases would need the null frame, the null
-        // center or the null predicate for that, and their constructors refuse those.
+        // center or the null predicate for that, and their factories refuse those.
         QueryFilter empty = default;
 
         new QueryFilter(new NearAsker(0)).Should().NotBe(empty);

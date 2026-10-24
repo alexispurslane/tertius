@@ -32,147 +32,46 @@ internal readonly record struct WhereFilter(EntityPredicate Predicate);
 /// stack. Every form tests a filter with <see cref="Passes"/>, so they share one filter code.
 /// </summary>
 /// <remarks>
-/// This is a custom C# 15 union of <see cref="InFilter"/>, <see cref="NearAsker"/>, <see cref="NearEntity"/>,
-/// <see cref="NearPoint"/> and <see cref="WhereFilter"/>. <see cref="HasValue"/> and the <c>TryGetValue</c> methods let
-/// the compiler pattern-match it without boxing. <see cref="Value"/> boxes, so use it only for debugging. The
-/// constructors, and so the implicit conversions and the static factories, refuse a case that breaks the invariants that
-/// its record documents, so a filter that holds a case always meets them. The default
-/// value holds no case: it is the empty filter, which passes every entity. The cases share their fields: the frame of
-/// <c>In</c> and of <c>NearPoint</c> is one field, and the radius of the three Near cases is one field. A case reads
-/// only its own fields, so the fields of the cases that a filter does not hold may hold anything and never matter.
+/// This is a generated union (docs/plans/union-tooling.md) of <see cref="InFilter"/>, <see cref="NearAsker"/>,
+/// <see cref="NearEntity"/>, <see cref="NearPoint"/> and <see cref="WhereFilter"/>. The default value holds no case: it
+/// is the empty filter, which passes every entity. The static factories <see cref="In"/>, <c>Near</c> and
+/// <see cref="Where"/> refuse a case that breaks the invariants that its record documents. EntityQuery and FoundEntities
+/// build every filter through them, so a filter that holds a case always meets the invariants. The generated
+/// constructors and implicit conversions store what they get and check nothing.
 /// </remarks>
-[Union]
-internal readonly struct QueryFilter : IEquatable<QueryFilter>
+[GeneratedUnion(typeof(InFilter), typeof(NearAsker), typeof(NearEntity), typeof(NearPoint), typeof(WhereFilter))]
+internal readonly partial struct QueryFilter
 {
-    private const byte KindNone = 0,
-        KindIn = 1,
-        KindNearAsker = 2,
-        KindNearEntity = 3,
-        KindNearPoint = 4,
-        KindWhere = 5;
+    // The factories check the invariants that the case records document. An exception names the parameter of the
+    // factory, because EntityQuery and FoundEntities pass their arguments straight to the factories and their callers
+    // know those names.
 
-    private readonly byte kind;
+    public static QueryFilter In(FrameHandle frame) =>
+        frame.IsNull
+            ? throw new ArgumentException("In needs a frame, not the null frame.", nameof(frame))
+            : new InFilter(frame);
 
-    /// <summary>The frame of <see cref="InFilter"/> and of <see cref="NearPoint"/>.</summary>
-    private readonly FrameHandle frame;
+    public static QueryFilter Near(double radius) => new NearAsker(CheckRadius(radius));
 
-    /// <summary>The center of <see cref="NearEntity"/>.</summary>
-    private readonly Entity centerEntity;
+    public static QueryFilter Near(Entity other, double radius) =>
+        other.IsNull
+            ? throw new ArgumentException("Near needs an entity as its center, not the null handle.", nameof(other))
+            : new NearEntity(other, CheckRadius(radius));
 
-    /// <summary>The center of <see cref="NearPoint"/>, in <see cref="frame"/>.</summary>
-    private readonly Double3 point;
-
-    /// <summary>The radius of the three Near cases, in meters.</summary>
-    private readonly double radius;
-
-    private readonly EntityPredicate? predicate;
-
-    // Every way to build a filter goes through these five constructors, so they check the invariants that the case
-    // records document. An exception names the parameter of the matching factory, because EntityQuery and FoundEntities
-    // pass their arguments straight to the factories and their callers know those names.
-
-    public QueryFilter(InFilter filter)
+    public static QueryFilter Near(FrameHandle frame, Double3 point, double radius)
     {
-        if (filter.Frame.IsNull)
-            throw new ArgumentException("In needs a frame, not the null frame.", "frame");
-        kind = KindIn;
-        frame = filter.Frame;
+        if (frame.IsNull)
+            throw new ArgumentException("Near needs the frame of its point, not the null frame.", nameof(frame));
+        if (!double.IsFinite(point.X) || !double.IsFinite(point.Y) || !double.IsFinite(point.Z))
+            throw new ArgumentException($"Near needs a finite point, not {point}.", nameof(point));
+        return new NearPoint(frame, point, CheckRadius(radius));
     }
 
-    public QueryFilter(NearAsker filter)
+    public static QueryFilter Where(EntityPredicate predicate)
     {
-        kind = KindNearAsker;
-        radius = CheckRadius(filter.Radius);
+        ArgumentNullException.ThrowIfNull(predicate);
+        return new WhereFilter(predicate);
     }
-
-    public QueryFilter(NearEntity filter)
-    {
-        if (filter.Other.IsNull)
-            throw new ArgumentException("Near needs an entity as its center, not the null handle.", "other");
-        kind = KindNearEntity;
-        centerEntity = filter.Other;
-        radius = CheckRadius(filter.Radius);
-    }
-
-    public QueryFilter(NearPoint filter)
-    {
-        if (filter.Frame.IsNull)
-            throw new ArgumentException("Near needs the frame of its point, not the null frame.", "frame");
-        Double3 center = filter.Point;
-        if (!double.IsFinite(center.X) || !double.IsFinite(center.Y) || !double.IsFinite(center.Z))
-            throw new ArgumentException($"Near needs a finite point, not {center}.", "point");
-        kind = KindNearPoint;
-        frame = filter.Frame;
-        point = center;
-        radius = CheckRadius(filter.Radius);
-    }
-
-    public QueryFilter(WhereFilter filter)
-    {
-        ArgumentNullException.ThrowIfNull(filter.Predicate, "predicate");
-        kind = KindWhere;
-        predicate = filter.Predicate;
-    }
-
-    /// <summary>False for the empty filter, which passes every entity.</summary>
-    public bool HasValue => kind != KindNone;
-
-    public object? Value => kind switch
-    {
-        KindIn => new InFilter(frame),
-        KindNearAsker => new NearAsker(radius),
-        KindNearEntity => new NearEntity(centerEntity, radius),
-        KindNearPoint => new NearPoint(frame, point, radius),
-        KindWhere => new WhereFilter(predicate!),
-        _ => null
-    };
-
-    public static implicit operator QueryFilter(InFilter filter) => new(filter);
-    public static implicit operator QueryFilter(NearAsker filter) => new(filter);
-    public static implicit operator QueryFilter(NearEntity filter) => new(filter);
-    public static implicit operator QueryFilter(NearPoint filter) => new(filter);
-    public static implicit operator QueryFilter(WhereFilter filter) => new(filter);
-
-    public bool TryGetValue(out InFilter value)
-    {
-        value = kind == KindIn ? new InFilter(frame) : default;
-        return kind == KindIn;
-    }
-
-    public bool TryGetValue(out NearAsker value)
-    {
-        value = kind == KindNearAsker ? new NearAsker(radius) : default;
-        return kind == KindNearAsker;
-    }
-
-    public bool TryGetValue(out NearEntity value)
-    {
-        value = kind == KindNearEntity ? new NearEntity(centerEntity, radius) : default;
-        return kind == KindNearEntity;
-    }
-
-    public bool TryGetValue(out NearPoint value)
-    {
-        value = kind == KindNearPoint ? new NearPoint(frame, point, radius) : default;
-        return kind == KindNearPoint;
-    }
-
-    public bool TryGetValue(out WhereFilter value)
-    {
-        value = kind == KindWhere ? new WhereFilter(predicate!) : default;
-        return kind == KindWhere;
-    }
-
-    public static QueryFilter In(FrameHandle frame) => new(new InFilter(frame));
-
-    public static QueryFilter Near(double radius) => new(new NearAsker(radius));
-
-    public static QueryFilter Near(Entity other, double radius) => new(new NearEntity(other, radius));
-
-    public static QueryFilter Near(FrameHandle frame, Double3 point, double radius) =>
-        new(new NearPoint(frame, point, radius));
-
-    public static QueryFilter Where(EntityPredicate predicate) => new(new WhereFilter(predicate));
 
     /// <summary>
     /// The frame and position of a Near filter's center in the snapshot. False when the center is not in a frame: the
@@ -253,40 +152,4 @@ internal readonly struct QueryFilter : IEquatable<QueryFilter>
             ? radius
             : throw new ArgumentOutOfRangeException(nameof(radius), radius,
                 "A Near radius must be finite and zero or more.");
-
-    // The held case alone decides equality: the fields of the other cases are not compared.
-    public bool Equals(QueryFilter other) => kind == other.kind && kind switch
-    {
-        KindIn => frame == other.frame,
-        KindNearAsker => radius == other.radius,
-        KindNearEntity => centerEntity == other.centerEntity && radius == other.radius,
-        KindNearPoint => frame == other.frame && point == other.point && radius == other.radius,
-        KindWhere => predicate == other.predicate,
-        _ => true
-    };
-
-    public override bool Equals(object? obj) => obj is QueryFilter filter && Equals(filter);
-
-    public override int GetHashCode() => kind switch
-    {
-        KindIn => HashCode.Combine(kind, frame),
-        KindNearAsker => HashCode.Combine(kind, radius),
-        KindNearEntity => HashCode.Combine(kind, centerEntity, radius),
-        KindNearPoint => HashCode.Combine(kind, frame, point, radius),
-        KindWhere => HashCode.Combine(kind, predicate),
-        _ => 0
-    };
-
-    public static bool operator ==(QueryFilter a, QueryFilter b) => a.Equals(b);
-    public static bool operator !=(QueryFilter a, QueryFilter b) => !a.Equals(b);
-
-    public override string ToString() => this switch
-    {
-        InFilter f => $"QueryFilter({f})",
-        NearAsker f => $"QueryFilter({f})",
-        NearEntity f => $"QueryFilter({f})",
-        NearPoint f => $"QueryFilter({f})",
-        WhereFilter f => $"QueryFilter({f})",
-        null => "QueryFilter(none)"
-    };
 }
