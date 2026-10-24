@@ -94,26 +94,30 @@ public sealed class WorldSleepTests
             .BeLessThan(-5, "the box tips off the ledge and falls to the ground");
     }
 
-    /// <summary>
-    /// The reviewer's probe S16. A box with the default damping is let go at rest 1 m above the floor in very weak
-    /// gravity. Damping holds it near g / 0.05 per second, so at 0.002 m/s² it falls at about 4 cm/s and lands after about
-    /// 43 s. The test runs for 60 s.
-    /// </summary>
-    [Theory]
-    [InlineData(0.002f)]
-    [InlineData(0.004f)]
-    [InlineData(0.006f)]
-    [InlineData(0.01f)]
-    public void ABoxLetGoInVeryWeakGravityFallsToTheFloor(float g)
+    /// <summary>The boxes in very weak gravity (tests/STYLE.md, "Long tests").</summary>
+    public sealed class BoxInVeryWeakGravity
     {
-        using World world = NewWorld(backend: out _, debugChecks: false);
-        FrameHandle ground = Ground(world, g);
-        Floor(world, ground);
-        Entity box = world.Spawn(new() { Frame = ground, Pose = At(0, 1.5), Body = Cube() });
+        /// <summary>
+        /// The reviewer's probe S16. A box with the default damping is let go at rest 1 m above the floor in very weak
+        /// gravity. Damping holds it near g / 0.05 per second, so at 0.002 m/s² it falls at about 4 cm/s and lands
+        /// after about 43 s. The test runs for 60 s.
+        /// </summary>
+        [Theory]
+        [InlineData(0.002f)]
+        [InlineData(0.004f)]
+        [InlineData(0.006f)]
+        [InlineData(0.01f)]
+        public void ABoxLetGoInVeryWeakGravityFallsToTheFloor(float g)
+        {
+            using World world = NewWorld(backend: out _, debugChecks: false);
+            FrameHandle ground = Ground(world, g);
+            Floor(world, ground);
+            Entity box = world.Spawn(new() { Frame = ground, Pose = At(0, 1.5), Body = Cube() });
 
-        Tick(world, 3600);
+            Tick(world, 3600);
 
-        world.PoseInOwnFrame(box).Position.Y.Should().BeApproximately(0.5, 0.01, "the box fell 1 m onto the floor");
+            world.PoseInOwnFrame(box).Position.Y.Should().BeApproximately(0.5, 0.01, "the box fell 1 m onto the floor");
+        }
     }
 
     /// <summary>

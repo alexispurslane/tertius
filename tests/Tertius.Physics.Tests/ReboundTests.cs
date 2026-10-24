@@ -156,41 +156,46 @@ public sealed class ReboundTests
         }
     }
 
-    /// <summary>
-    /// The limit follows the pull. Jolt takes the speed that the pull adds in the step off a rebound, and a stronger pull
-    /// brings a bounce back sooner. At 2 g and 3 g, a bounce whose rebound reached 1 m/s before the pull came off could
-    /// stay inside Jolt's 2 cm, so one drop reported one landing or two, depending on where its landing step began. Every
-    /// bounce that the rule keeps must leave the 2 cm, so every gap reports the same landings. The first column is the
-    /// gravity in g. No row lands again within the spread of landing speeds of the limit: a bounce from the air rises up
-    /// to 2 cm more, so a later landing can come up to about 0.1 m/s faster in one drop than in another, and a landing that
-    /// near the limit bounces in some drops and not in others under any limit.
-    /// </summary>
-    [Theory]
-    [InlineData(1f, 0.8f, 19)]
-    [InlineData(1f, 1f, 12)]
-    [InlineData(2f, 0.5f, 6)]
-    [InlineData(2f, 0.8f, 4)]
-    [InlineData(2f, 1f, 3)]
-    [InlineData(2f, 1f, 6)]
-    [InlineData(3f, 0.5f, 4)]
-    [InlineData(3f, 0.8f, 3)]
-    [InlineData(3f, 1f, 2)]
-    [InlineData(3f, 1f, 4)]
-    public void ADropReportsTheSameLandingsWhereverItsLandingStepBeginsInAnyGravity(float gravity, float restitution,
-        int fallSteps)
+    /// <summary>The drops in any gravity (tests/STYLE.md, "Long tests").</summary>
+    public sealed class DropsInAnyGravity
     {
-        float g = gravity * G;
-        List<ContactNews>? landings = null;
-        foreach (double gap in LandingGaps())
+        /// <summary>
+        /// The limit follows the pull. Jolt takes the speed that the pull adds in the step off a rebound, and a
+        /// stronger pull brings a bounce back sooner. At 2 g and 3 g, a bounce whose rebound reached 1 m/s before the
+        /// pull came off could stay inside Jolt's 2 cm, so one drop reported one landing or two, depending on where its
+        /// landing step began. Every bounce that the rule keeps must leave the 2 cm, so every gap reports the same
+        /// landings. The first column is the gravity in g. No row lands again within the spread of landing speeds of
+        /// the limit: a bounce from the air rises up to 2 cm more, so a later landing can come up to about 0.1 m/s
+        /// faster in one drop than in another, and a landing that near the limit bounces in some drops and not in
+        /// others under any limit.
+        /// </summary>
+        [Theory]
+        [InlineData(1f, 0.8f, 19)]
+        [InlineData(1f, 1f, 12)]
+        [InlineData(2f, 0.5f, 6)]
+        [InlineData(2f, 0.8f, 4)]
+        [InlineData(2f, 1f, 3)]
+        [InlineData(2f, 1f, 6)]
+        [InlineData(3f, 0.5f, 4)]
+        [InlineData(3f, 0.8f, 3)]
+        [InlineData(3f, 1f, 2)]
+        [InlineData(3f, 1f, 4)]
+        public void ADropReportsTheSameLandingsWhereverItsLandingStepBeginsInAnyGravity(float gravity,
+            float restitution, int fallSteps)
         {
-            Drop drop = DropBall(fallSteps: fallSteps, gap: gap, restitution: restitution, ticks: fallSteps + 240,
-                g: g);
+            float g = gravity * G;
+            List<ContactNews>? landings = null;
+            foreach (double gap in LandingGaps())
+            {
+                Drop drop = DropBall(fallSteps: fallSteps, gap: gap, restitution: restitution, ticks: fallSteps + 240,
+                    g: g);
 
-            string because = $"the landing step begins {gap * 100:F3} cm above the floor";
-            landings ??= drop.BallNews;
-            drop.BallNews.Should().Equal(landings, because);
-            drop.FloorNews.Should().Equal(landings, because);
-            drop.Flights.Should().OnlyContain(highest => highest > SpeculativeDistance, because);
+                string because = $"the landing step begins {gap * 100:F3} cm above the floor";
+                landings ??= drop.BallNews;
+                drop.BallNews.Should().Equal(landings, because);
+                drop.FloorNews.Should().Equal(landings, because);
+                drop.Flights.Should().OnlyContain(highest => highest > SpeculativeDistance, because);
+            }
         }
     }
 

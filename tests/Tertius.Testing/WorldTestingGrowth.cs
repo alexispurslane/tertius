@@ -29,7 +29,11 @@ public static class WorldTestingGrowth
                 }
             };
         faults = new(new(JoltBackendOptions.Unpaced with { MaxBodiesPerFrame = maxBodiesPerFrame, Log = log }));
-        var options = new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = debugChecks, DisposePhysics = true };
+        var options = new WorldOptions
+        {
+            MaxDegreeOfParallelism = 1, InitialCapacity = WorldTesting.TestCapacity, DebugChecks = debugChecks,
+            DisposePhysics = true
+        };
         configure?.Invoke(options);
         return new(options, faults);
     }

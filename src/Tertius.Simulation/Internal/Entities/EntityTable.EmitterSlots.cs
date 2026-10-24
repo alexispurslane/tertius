@@ -116,11 +116,11 @@ internal sealed partial class EntityTable
     private void AssertEmitterInvariants()
     {
         Contract.Invariant(emitterSlots.WordCount == BodySlots.WordsFor(Capacity));
-        bool[] waiting = new bool[Capacity];
+        bool[] waiting = new bool[slotCount];
         foreach (Entity entity in newEmitters)
             if (IsAlive(entity))
                 waiting[entity.Index] = true;
-        for (int slot = 0; slot < Capacity; slot++)
+        for (int slot = 0; slot < slotCount; slot++)
         {
             bool emits = state[slot] == SlotState.Live && !waiting[slot] && frontRender[slot].Emitter.CanMakePuffs;
             Contract.Invariant(emitterSlots.Contains((uint)slot) == emits);

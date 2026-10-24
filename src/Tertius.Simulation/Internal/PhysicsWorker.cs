@@ -11,8 +11,11 @@ internal sealed class PhysicsWorker : IDisposable
     private readonly IPhysicsBackend backend;
     private readonly PhysicsStepOutput output;
     private readonly Thread thread;
-    private readonly SemaphoreSlim start = new(0, 1);
-    private readonly ManualResetEventSlim done = new(true);
+    // Both events block at once, with no spin. A spin and its yields before each block cost CPU and gave no speed: on
+    // 2026-10-24 the Blue Danube generator wrote the same script in the same wall time with 8 to 15 percent less CPU, and
+    // the Physics tests, which run many worlds at once, spent about 6 CPU-seconds in the yields.
+    private readonly ManualResetEventSlim start = new(false, spinCount: 0);
+    private readonly ManualResetEventSlim done = new(true, spinCount: 0);
     private PhysicsStepContext context;
     private ExceptionDispatchInfo? error;
     private volatile bool stopping;
@@ -36,7 +39,7 @@ internal sealed class PhysicsWorker : IDisposable
         error = null;
         running = true;
         done.Reset();
-        start.Release();
+        start.Set();
     }
 
     /// <summary>
@@ -57,6 +60,8 @@ internal sealed class PhysicsWorker : IDisposable
         while (true)
         {
             start.Wait();
+            // Begin sets the event again only after Wait saw this step done, so this reset cannot lose a step.
+            start.Reset();
             if (stopping)
                 return;
             try
@@ -77,7 +82,7 @@ internal sealed class PhysicsWorker : IDisposable
     {
         Wait();
         stopping = true;
-        start.Release();
+        start.Set();
         thread.Join();
         start.Dispose();
         done.Dispose();

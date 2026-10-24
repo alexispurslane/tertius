@@ -3,36 +3,66 @@ using AwesomeAssertions;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
-/// The entity table's invariant check finds a column entry in a slot that is not live: in a slot that was never used, which
-/// it checks in one pass over the unused tail of each column, and in a released slot, which it checks one by one.
+/// The entity table finds a column entry in a slot that is not live: in a slot that was never used, when the table first
+/// takes the slot, and in a released slot, in its invariant check. The check leaves the slots that were never used to
+/// their first use, so that its cost follows the slots in use and not the capacity.
 /// </summary>
 public sealed class EntityTableInvariantTests
 {
+#if TERTIUS_CONTRACTS
     [Fact]
-    public void AColumnEntryInASlotThatWasNeverUsedFailsTheCheck()
+    public void AColumnEntryInASlotThatWasNeverUsedFailsAContractWhenTheTableTakesTheSlot()
     {
         EntityTable table = TableSupport.NewTable();
         EntityTable.Column<int> numbers = table.AddColumn<int>();
         table.SpawnLive();
-        table.AssertInvariants();
 
-        numbers.AsSpan()[table.Capacity - 1] = 7;
+        numbers.AsSpan()[table.SlotCount] = 7;
 
-        Action check = table.AssertInvariants;
-        check.Should().Throw<ContractException>();
+        Action reserve = () => table.Reserve();
+        reserve.Should().Throw<ContractException>().WithMessage("Precondition*");
     }
 
     [Fact]
-    public void AReferenceLeftInASlotThatWasNeverUsedFailsTheCheck()
+    public void AReferenceLeftInASlotThatWasNeverUsedFailsAContractWhenTheTableTakesTheSlot()
     {
         EntityTable table = TableSupport.NewTable();
         EntityTable.Column<string?> names = table.AddColumn<string?>();
         table.SpawnLive();
 
-        names.AsSpan()[table.Capacity - 1] = "left over";
+        names.AsSpan()[table.SlotCount] = "left over";
+
+        Action reserve = () => table.Reserve();
+        reserve.Should().Throw<ContractException>().WithMessage("Precondition*");
+    }
+
+    [Fact]
+    public void AColumnEntryInASlotThatASpawnTookPastItsPoolFailsAContractWhenTheTableCoversTheSlot()
+    {
+        EntityTable table = TableSupport.NewTable();
+        EntityTable.Column<int> numbers = table.AddColumn<int>();
+        Entity spawner = table.SpawnLive();
+        table.BeginTick(spawnPoolSize: 0);
+        Entity spawned = table.ReserveForSpawn(spawner);
+
+        numbers.AsSpan()[(int)spawned.Index] = 7;
+
+        Action end = () => table.EndGameplay();
+        end.Should().Throw<ContractException>().WithMessage("Precondition*");
+    }
+#endif
+
+    [Fact]
+    public void TheInvariantCheckLeavesASlotThatWasNeverUsedToItsFirstUse()
+    {
+        EntityTable table = TableSupport.NewTable();
+        EntityTable.Column<int> numbers = table.AddColumn<int>();
+        table.SpawnLive();
+
+        numbers.AsSpan()[table.Capacity - 1] = 7;
 
         Action check = table.AssertInvariants;
-        check.Should().Throw<ContractException>();
+        check.Should().NotThrow("a scan of every slot that was never used made the check cost O(capacity) per tick");
     }
 
     [Fact]
