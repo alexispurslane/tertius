@@ -104,8 +104,8 @@ public sealed class ManualStrJoin : IRule
         _ => []
     };
 
-    // Whether a value is a string by its syntax: a string literal, an interpolated string, a ToString call or
-    // string.Format.
+    // Whether a value is a string by its syntax: a string literal, an interpolated string, a ToString call,
+    // string.Format, or a sum with one of these.
     private static bool IsText(ExpressionSyntax value) => value switch
     {
         LiteralExpressionSyntax literal => literal.IsKind(SyntaxKind.StringLiteralExpression),
@@ -115,6 +115,7 @@ public sealed class ManualStrJoin : IRule
                 Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: var name }
             } =>
             name is "ToString" or "Format",
+        BinaryExpressionSyntax sum when sum.IsKind(SyntaxKind.AddExpression) => IsText(sum.Left) || IsText(sum.Right),
         _ => false
     };
 

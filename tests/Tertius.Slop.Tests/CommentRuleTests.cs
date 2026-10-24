@@ -88,6 +88,36 @@ public class CommentRuleTests
                        """).Should().BeEmpty();
 
     [Fact]
+    public void TheDocCommentOfALocalFunctionIsNotFlagged() =>
+        Source.RulesIn("""
+                       class C
+                       {
+                           void F()
+                           {
+                               Prepare();
+                               /// Adds the body to the world.
+                               void AddBody(Body body) => world.Add(body);
+                               AddBody(a);
+                               AddBody(b);
+                           }
+                       }
+                       """).Should().BeEmpty();
+
+    [Fact]
+    public void TheCodeInTheBlockOfAStatementDoesNotCount() =>
+        Source.RulesIn("""
+                       class C
+                       {
+                           void F()
+                           {
+                               Prepare();
+                               // Step the world.
+                               lock (gate) { world.Step(); }
+                           }
+                       }
+                       """).Should().BeEmpty();
+
+    [Fact]
     public void ACommentSeparatedFromTheCodeByABlankLineIsNotFlagged() =>
         Source.RulesIn("""
                        class C

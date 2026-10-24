@@ -50,6 +50,17 @@ public sealed class ClonesTests : IDisposable
     }
 
     [Fact]
+    public void AJscpdThatFailsFailsTheClones()
+    {
+        Write("src/A.cs", "class A { }");
+
+        // false is a program that exits with code 1, whatever its arguments.
+        Action find = () => Clones.Find(root, "false");
+
+        find.Should().Throw<InvalidOperationException>().WithMessage("*exit code 1*");
+    }
+
+    [Fact]
     public void AMissingJscpdFailsWithAMessageThatNamesTheDevShell()
     {
         Write("src/A.cs", "class A { }");

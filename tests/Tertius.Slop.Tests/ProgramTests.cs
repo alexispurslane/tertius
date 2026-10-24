@@ -37,9 +37,19 @@ public sealed class ProgramTests : IDisposable
     }
 
     [Fact]
+    public void AVerbosityWithoutJscpdPrintsWhyAndFails()
+    {
+        int exit = Program.Run(args: ["verbosity", root], output: output, error: error,
+            jscpd: "jscpd-that-is-not-installed");
+
+        (exit, output.ToString()).Should().Be((2, ""));
+        error.ToString().Should().Contain("nix develop");
+    }
+
+    [Fact]
     public void TheErosionCommandPrintsTheReportAsJson()
     {
-        int exit = Program.Run(["erosion", root], output, error);
+        int exit = Run("erosion", root);
 
         exit.Should().Be(0);
         using JsonDocument json = JsonDocument.Parse(output.ToString());
@@ -54,7 +64,7 @@ public sealed class ProgramTests : IDisposable
     [Fact]
     public void TheJsonNamesEachTopFunctionWithItsPlaceAndMeasures()
     {
-        Program.Run(["erosion", root], output, error);
+        Run("erosion", root);
 
         using JsonDocument json = JsonDocument.Parse(output.ToString());
         JsonElement top = json.RootElement.GetProperty("topFunctions").EnumerateArray().Should().ContainSingle()
@@ -68,7 +78,7 @@ public sealed class ProgramTests : IDisposable
     [Fact]
     public void TheTextFlagPrintsTheReportForAPerson()
     {
-        int exit = Program.Run(["erosion", root, "--text"], output, error);
+        int exit = Run("erosion", root, "--text");
 
         exit.Should().Be(0);
         output.ToString().Should().Contain("Erosion 0.000").And.Contain("C.F").And.Contain("src/C.cs:3");
@@ -79,7 +89,7 @@ public sealed class ProgramTests : IDisposable
     {
         File.WriteAllText(Path.Combine(root, "src", "D.cs"), "class D { int G() => a ? x : x; }");
 
-        int exit = Program.Run(["verbosity", root], output, error);
+        int exit = Run("verbosity", root);
 
         exit.Should().Be(0);
         using JsonDocument json = JsonDocument.Parse(output.ToString());
@@ -96,7 +106,7 @@ public sealed class ProgramTests : IDisposable
     {
         File.WriteAllText(Path.Combine(root, "src", "D.cs"), "class D { int G() => a ? x : x; }");
 
-        Program.Run(["verbosity", root], output, error);
+        Run("verbosity", root);
 
         using JsonDocument json = JsonDocument.Parse(output.ToString());
         JsonElement top = json.RootElement.GetProperty("topFindings").EnumerateArray().Should().ContainSingle().Subject;
@@ -108,7 +118,7 @@ public sealed class ProgramTests : IDisposable
     [Fact]
     public void TheVerbosityJsonGivesTheMessageAndSourceOfEachRule()
     {
-        Program.Run(["verbosity", root], output, error);
+        Run("verbosity", root);
 
         using JsonDocument json = JsonDocument.Parse(output.ToString());
         JsonElement rule = json.RootElement.GetProperty("rules").EnumerateArray()
@@ -123,7 +133,7 @@ public sealed class ProgramTests : IDisposable
     {
         File.WriteAllText(Path.Combine(root, "src", "D.cs"), "class D { int G() => a ? x : x; }");
 
-        int exit = Program.Run(["verbosity", root, "--text"], output, error);
+        int exit = Run("verbosity", root, "--text");
 
         exit.Should().Be(0);
         output.ToString().Should().Contain("Verbosity 0.111").And.Contain("ternary-same-value")
@@ -133,7 +143,7 @@ public sealed class ProgramTests : IDisposable
     [Fact]
     public void TheAllCommandPrintsBothReportsInOneJsonObject()
     {
-        int exit = Program.Run(["all", root], output, error);
+        int exit = Run("all", root);
 
         exit.Should().Be(0);
         using JsonDocument json = JsonDocument.Parse(output.ToString());
@@ -145,7 +155,7 @@ public sealed class ProgramTests : IDisposable
     [Fact]
     public void TheTextFlagPrintsBothReportsOfTheAllCommand()
     {
-        int exit = Program.Run(["all", root, "--text"], output, error);
+        int exit = Run("all", root, "--text");
 
         exit.Should().Be(0);
         output.ToString().Should().Contain("Erosion 0.000").And.Contain("Verbosity 0.000");
@@ -154,7 +164,7 @@ public sealed class ProgramTests : IDisposable
     [Fact]
     public void AnUnknownMetricPrintsTheUsageAndFails()
     {
-        int exit = Program.Run(["sloppiness", root], output, error);
+        int exit = Run("sloppiness", root);
 
         (exit, output.ToString()).Should().Be((2, ""));
         error.ToString().Should().Contain("usage");
@@ -163,7 +173,7 @@ public sealed class ProgramTests : IDisposable
     [Fact]
     public void MoreThanAMetricAndARootPrintTheUsageAndFail()
     {
-        int exit = Program.Run(["erosion", root, "extra"], output, error);
+        int exit = Run("erosion", root, "extra");
 
         (exit, output.ToString()).Should().Be((2, ""));
         error.ToString().Should().Contain("usage");
@@ -173,7 +183,7 @@ public sealed class ProgramTests : IDisposable
     public void WithoutARootTheCurrentFolderIsTheRoot()
     {
         // The tests run in their output folder, which has no src folder.
-        int exit = Program.Run(["erosion"], output, error);
+        int exit = Run("erosion");
 
         exit.Should().Be(2);
         error.ToString().Should().Contain("no src folder under the root \".\"");
@@ -182,9 +192,12 @@ public sealed class ProgramTests : IDisposable
     [Fact]
     public void ARootWithoutASrcFolderFails()
     {
-        int exit = Program.Run(["erosion", Path.Combine(root, "src")], output, error);
+        int exit = Run("erosion", Path.Combine(root, "src"));
 
         exit.Should().Be(2);
         error.ToString().Should().Contain("no src folder");
     }
+
+    // The command line with the jscpd of the search path, as Main runs it.
+    private int Run(params string[] args) => Program.Run(args: args, output: output, error: error, jscpd: "jscpd");
 }

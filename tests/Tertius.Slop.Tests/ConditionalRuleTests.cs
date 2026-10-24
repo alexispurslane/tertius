@@ -8,10 +8,11 @@ namespace Tertius.Slop.Tests;
 /// </summary>
 public class ConditionalRuleTests
 {
-    [Fact]
-    public void AnElseIfThatRepeatsAnEarlierConditionOfItsChainIsFlagged() =>
-        Source.RulesInMethod("if (a) { x(); } else if (b) { y(); } else if (a) { z(); }")
-            .Should().Equal("duplicated-if-condition");
+    [Theory]
+    [InlineData("if (a) { x(); } else if (b) { y(); } else if (a) { z(); }")]
+    [InlineData("if (a) { x(); } else if (b) { y(); } else if (b) { z(); }")]
+    public void AnElseIfThatRepeatsAnEarlierConditionOfItsChainIsFlagged(string body) =>
+        Source.RulesInMethod(body).Should().Equal("duplicated-if-condition");
 
     [Fact]
     public void AnElseIfChainWithDistinctConditionsIsNotFlagged() =>
@@ -21,6 +22,7 @@ public class ConditionalRuleTests
     [InlineData("m = a > b ? a : b;")]
     [InlineData("m = a < b ? a : b;")]
     [InlineData("m = a >= b ? b : a;")]
+    [InlineData("m = (a > b) ? a : b;")]
     [InlineData("if (a > b) m = a; else m = b;")]
     [InlineData("if (a <= b) { m = b; } else { m = a; }")]
     public void AHandWrittenMinimumOrMaximumIsFlagged(string body) =>
@@ -118,9 +120,11 @@ public class ConditionalRuleTests
     public void AnIfWithAnEmptyBranchAndAnElseIsFlagged() =>
         Source.RulesInMethod("if (a) { } else { x(); }").Should().Equal("empty-if-branch");
 
-    [Fact]
-    public void AnIfWithStatementsInBothBranchesIsNotFlaggedAsEmpty() =>
-        Source.RulesInMethod("if (a) { y(); } else { x(); }").Should().BeEmpty();
+    [Theory]
+    [InlineData("if (a) { y(); } else { x(); }")]
+    [InlineData("if (a) { }")]
+    public void AnIfWithStatementsInBothBranchesOrWithoutAnElseIsNotFlaggedAsEmpty(string body) =>
+        Source.RulesInMethod(body).Should().BeEmpty();
 
     [Theory]
     [InlineData("if (s is Circle c) { x(c); } else if (s is Square q) { y(q); }")]
@@ -131,6 +135,7 @@ public class ConditionalRuleTests
     [Theory]
     [InlineData("if (s is Circle) x(); if (t is Square) y();")]
     [InlineData("if (s is null) x(); if (s is { Length: > 0 }) y();")]
+    [InlineData("if (s is { Length: > 0 }) x(); if (s is { Length: 0 }) y();")]
     [InlineData("if (s is Circle) x(); z(); if (s is Square) y();")]
     public void TypeTestsOfDifferentValuesOrNotInARowAreNotFlagged(string body) =>
         Source.RulesInMethod(body).Should().BeEmpty();
@@ -153,11 +158,31 @@ public class ConditionalRuleTests
         Source.RulesInMethod(body).Should().Contain("value-compare-return-ladder");
 
     [Fact]
+    public void ALadderIsFlaggedOnceAtItsHead() =>
+        Source.Findings("""
+                        class C
+                        {
+                            int F()
+                            {
+                                if (k == 1) return 10;
+                                if (k == 2) return 20;
+                                if (k == 3) return 30;
+                                if (k == 4) return 40;
+                                return 0;
+                            }
+                        }
+                        """).Should().ContainSingle().Which.Should().Be(new Finding
+        {
+            Rule = "value-compare-return-ladder", File = Source.FileName, Line = 5, EndLine = 8
+        });
+
+    [Fact]
     public void TwoBranchesThatReturnByComparingOneValueAreNotFlagged() =>
         Source.RulesInMethod("if (k == 1) return 10; if (k == 2) return 20; return 0;").Should().BeEmpty();
 
     [Theory]
     [InlineData("if (x is null) x = y;")]
+    [InlineData("if (null == x) x = y;")]
     [InlineData("if (x == null) { x = y; }")]
     public void AnIfThatAssignsANullVariableIsFlagged(string body) =>
         Source.RulesInMethod(body).Should().Equal("verbose-none-default");

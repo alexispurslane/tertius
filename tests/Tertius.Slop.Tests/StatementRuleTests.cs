@@ -63,6 +63,7 @@ public class StatementRuleTests
     [InlineData("foreach (var x in xs) s += $\"{x},\";")]
     [InlineData("while (a) { s += \"x\"; }")]
     [InlineData("for (int i = 0; i < n; i++) s += i.ToString();")]
+    [InlineData("foreach (var p in parts) line += \" \" + p;")]
     public void AddingAStringToAVariableInALoopIsFlagged(string body) =>
         Source.RulesInMethod(body).Should().Equal("manual-str-join");
 

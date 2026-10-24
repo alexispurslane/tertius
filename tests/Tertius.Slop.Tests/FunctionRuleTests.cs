@@ -13,6 +13,8 @@ public class FunctionRuleTests
     [InlineData("int Count(string s, int from) { return Counter.Count(s, from); }")]
     [InlineData("void Reset() { this.inner.Reset(); }")]
     [InlineData("T Get<T>(int id) => store.Get<T>(id);")]
+    [InlineData(
+        "void Move(Body body, Pose to, double time, bool wake) => mover.Move(body: body, to: to, time: time, wake: wake);")]
     public void AMethodWhoseWholeBodyPassesItsParametersToAnotherMethodIsFlagged(string method) =>
         Source.RulesIn($"class C {{ {method} }}").Should().Equal("pass-through-method");
 
@@ -59,7 +61,8 @@ public class FunctionRuleTests
     [InlineData("public int Twice(int x) => x * 2;")]
     [InlineData("private int Twice(int x)\n{\n    int y = x;\n    y = y * 2;\n    return y;\n}")]
     [InlineData("[Conditional(\"DEBUG\")] private int Twice(int x) => x * 2;")]
-    public void APublicLongerOrAttributedMethodCalledOnceIsNotFlagged(string callee) =>
+    [InlineData("private partial int Twice(int x);\nprivate partial int Twice(int x) => x * 2;")]
+    public void APublicLongerAttributedOrPartialMethodCalledOnceIsNotFlagged(string callee) =>
         Source.RulesIn($$"""
                          class C
                          {
@@ -100,6 +103,8 @@ public class FunctionRuleTests
     [InlineData("List<int> t = new(); Use(t); return 0;")]
     [InlineData("using var t = Open(); return Read(t);")]
     [InlineData("var t = a + b; t++; return 0;")]
+    [InlineData("const int t = 2; return t * a;")]
+    [InlineData("bool done = Step(); Use(done); return 0;")]
     public void ALocalThatIsUsedAgainOrLaterOrNamesAConditionIsNotFlagged(string body) =>
         Source.RulesInMethod(body).Should().BeEmpty();
 
@@ -118,6 +123,43 @@ public class FunctionRuleTests
     [InlineData("private void F(Body? body) { if (body is null) return; body.Push(); }")]
     [InlineData("private void F<T>(T item) { if (item is null) return; Use(item); }")]
     [InlineData("private void F(Body body) { if (other is null) return; body.Push(); }")]
+    [InlineData("private void F(Body body) { if (body is null) Log(); body.Push(); }")]
     public void ANullGuardOfAPublicApiANullableParameterOrAnotherValueIsNotFlagged(string method) =>
         Source.RulesIn($"class C {{ {method} }}").Should().BeEmpty();
+
+    [Fact]
+    public void ANullGuardOfAnInterfaceMemberIsNotFlagged() =>
+        Source.RulesIn("interface I { void F(Body body) { ArgumentNullException.ThrowIfNull(body); body.Push(); } }")
+            .Should().BeEmpty();
+
+    [Fact]
+    public void ANullGuardOfALocalFunctionInAPublicMethodIsFlagged() =>
+        Source.RulesIn("""
+                       class C
+                       {
+                           public void F(Body body)
+                           {
+                               void Push(Body each) { ArgumentNullException.ThrowIfNull(each); each.Push(); each.Wake(); }
+                               Push(body);
+                               Push(body);
+                           }
+                       }
+                       """).Should().Equal("guard-repeats-caller-check");
+
+    [Fact]
+    public void AShortMethodWhoseInliningWouldMakeItsCallerTooLongIsNotFlagged()
+    {
+        string calls = string.Join("\n", Enumerable.Range(0, 60).Select(i => $"        Use({i});"));
+        Source.RulesIn($$"""
+                         class C
+                         {
+                             int F(int x)
+                             {
+                         {{calls}}
+                                 return Twice(x) + 1;
+                             }
+                             private int Twice(int x) => x * 2;
+                         }
+                         """).Should().BeEmpty();
+    }
 }

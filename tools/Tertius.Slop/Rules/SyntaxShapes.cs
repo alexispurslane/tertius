@@ -165,13 +165,15 @@ internal static class SyntaxShapes
     {
         /// <summary>
         /// Whether the call only passes <paramref name="parameters"/> on: its arguments are exactly those names, in
-        /// order, and it names its target without using them, as <c>F(a, b)</c> or <c>part.F(a, b)</c>, where the receiver
-        /// is <c>this</c>, <c>base</c> or a chain of names.
+        /// order, and it names its target without using them, as <c>F(a, b)</c> or <c>part.F(a, b)</c>, where the
+        /// receiver is <c>this</c>, <c>base</c> or a chain of names. An argument can have a name, as TS0002 asks for
+        /// a target with more than 3 parameters. The syntax does not show the target's parameters, so the names of the
+        /// arguments do not count.
         /// </summary>
         public bool PassesOn(IReadOnlyCollection<string> parameters)
         {
             IEnumerable<string?> arguments = call.ArgumentList.Arguments.Select(argument =>
-                argument is { NameColon: null, Expression: IdentifierNameSyntax name }
+                argument is { Expression: IdentifierNameSyntax name }
                     ? name.Identifier.ValueText
                     : null);
             bool namedTarget = call.Expression switch

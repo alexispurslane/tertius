@@ -52,6 +52,8 @@ public class ExceptionRuleTests
     [InlineData("catch (FormatException) { return 0; }")]
     [InlineData("catch (Exception e) { Log(e); return 0; }")]
     [InlineData("catch (Exception) { return fallback; }")]
+    [InlineData("catch (Exception) { return [fallback]; }")]
+    [InlineData("catch (Exception e) when (e is IOException) { return 0; }")]
     public void ASpecificCatchOrACatchThatDoesMoreIsNotFlaggedAsASentinel(string clause) =>
         Source.RulesInMethod($"try {{ return Parse(s); }} {clause}").Should().BeEmpty();
 
@@ -101,6 +103,13 @@ public class ExceptionRuleTests
                              }
                          }
                          """).Should().BeEmpty("a public API keeps guards that are always on");
+
+    [Theory]
+    [InlineData("interface I { void F(Body a, Body b) { if (a is null) return; if (b is null) return; a.Push(b); } }")]
+    [InlineData(
+        "class C { public Body Held { set { if (value is null) return; if (other is null) return; held = value; } } }")]
+    public void TheNullGuardsOfAnInterfaceMemberOrAPublicAccessorAreNotFlagged(string type) =>
+        Source.RulesIn(type).Should().BeEmpty();
 
     [Fact]
     public void ANonPublicFunctionWithOneNullGuardAndOnePatternBindingIsNotFlagged() =>

@@ -111,6 +111,16 @@ public class VerbosityReportTests
     }
 
     [Fact]
+    public void TheTextNamesOnlyTheRulesThatFoundSomething()
+    {
+        var codebase = new Codebase([SourceFile.Parse("src/A.cs", MinMax)]);
+
+        string text = VerbosityReport.Of(codebase, Clones.FromReport(Report())).Describe();
+
+        text.Should().Contain("manual-min-max").And.NotContain("ternary-same-value");
+    }
+
+    [Fact]
     public void TheTopFindingsAreTheLongestFirstThenByFileAndLine()
     {
         var codebase = new Codebase([

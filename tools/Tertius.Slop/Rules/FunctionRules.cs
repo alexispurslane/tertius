@@ -82,16 +82,13 @@ public sealed class LowUseShortFunction : IRule
         _ => null
     };
 
-    // Private by its modifiers: private and not protected, or no access modifier at all. An override, an abstract or
-    // partial declaration and an extern method keep their declaration.
+    // Private by its modifiers: private and not protected, or no access modifier at all. A partial method keeps its
+    // declaration. An override or an abstract method is never private (CS0621), and an extern method has no body.
     private static bool IsPrivate(SyntaxTokenList modifiers)
     {
-        bool keepsDeclaration = modifiers.Any(SyntaxKind.OverrideKeyword) ||
-                                modifiers.Any(SyntaxKind.AbstractKeyword) ||
-                                modifiers.Any(SyntaxKind.PartialKeyword) || modifiers.Any(SyntaxKind.ExternKeyword);
         bool widened = modifiers.Any(SyntaxKind.PublicKeyword) || modifiers.Any(SyntaxKind.ProtectedKeyword) ||
                        modifiers.Any(SyntaxKind.InternalKeyword);
-        return !keepsDeclaration && !widened;
+        return !modifiers.Any(SyntaxKind.PartialKeyword) && !widened;
     }
 
     // The call that a name is the target of, as F(...) or this.F(...), or null for another use, such as a method group.
