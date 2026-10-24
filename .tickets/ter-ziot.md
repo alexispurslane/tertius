@@ -1,7 +1,7 @@
 ---
 id: ter-ziot
 status: open
-deps: [ter-qxfo]
+deps: []
 links: []
 created: 2026-10-24T19:35:51Z
 type: task
@@ -19,3 +19,7 @@ Add a rule to analyzers/Tertius.Style that enforces the doc comment limits of ST
 **2026-10-24T19:39:05Z**
 
 The user approved the doc comment rules of STYLE.md, "Comments", on 2026-10-24: 50 words for summary and remarks, 20 per param, returns and typeparam, 25 per invariant item outside the 50.
+
+**2026-10-24T21:00:29Z**
+
+Changed by the user on 2026-10-24: a hit of this rule must never fail the build. Give it the severity Info (DiagnosticSeverity.Info, suggestion in .editorconfig), so that the IDE and csharp-ls show it, but TreatWarningsAsErrors does not make it an error. It no longer waits for the strip pass, which is on hold, so it starts with hits. Report the hit count instead of fixing them.

@@ -31,3 +31,7 @@ Run it after the second batch of style rules merges, because that batch touches 
 **2026-10-24T19:39:05Z**
 
 The user approved the doc comment rules of STYLE.md, "Comments", on 2026-10-24: 50 words for summary and remarks, 20 per param, returns and typeparam, 25 per invariant item outside the 50.
+
+**2026-10-24T21:00:29Z**
+
+On hold: the user said on 2026-10-24 to leave the doc comments alone for now. Do not start this pass until the user asks for it.

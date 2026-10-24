@@ -107,29 +107,28 @@ internal sealed class SwitchStatements
     /// </summary>
     private static void Name(IPatternOperation pattern, HashSet<ITypeSymbol> named, ref bool namesNull)
     {
-        switch (pattern)
+        if (pattern is IBinaryPatternOperation { OperatorKind: BinaryOperatorKind.Or } either)
         {
-            case IBinaryPatternOperation { OperatorKind: BinaryOperatorKind.Or } either:
-                Name(either.LeftPattern, named, ref namesNull);
-                Name(either.RightPattern, named, ref namesNull);
-                break;
-            case ITypePatternOperation type:
-                named.Add(type.MatchedType);
-                break;
-            case IDeclarationPatternOperation { MatchedType: { } type }:
-                named.Add(type);
-                break;
-            case IRecursivePatternOperation { MatchedType: { } type } recursive when MatchesAll(recursive):
-                named.Add(type);
-                break;
-            case IConstantPatternOperation { Value.ConstantValue: { HasValue: true, Value: null } }:
-                namesNull = true;
-                break;
-            default:
-                // Any other pattern, such as a subpattern that tests a value, a relation or a negation, names no case in full.
-                break;
+            Name(either.LeftPattern, named, ref namesNull);
+            Name(either.RightPattern, named, ref namesNull);
+            return;
         }
+
+        if (pattern is IConstantPatternOperation { Value.ConstantValue: { HasValue: true, Value: null } })
+            namesNull = true;
+        else if (TypeMatchedInFull(pattern) is { } type)
+            named.Add(type);
     }
+
+    /// <summary>The type whose every value <paramref name="pattern"/> matches, or null.</summary>
+    private static ITypeSymbol? TypeMatchedInFull(IPatternOperation pattern) => pattern switch
+    {
+        ITypePatternOperation type => type.MatchedType,
+        IDeclarationPatternOperation { MatchedType: { } type } => type,
+        IRecursivePatternOperation { MatchedType: { } type } recursive when MatchesAll(recursive) => type,
+        // Any other pattern, such as a subpattern that tests a value, a relation or a negation, names no case in full.
+        _ => null
+    };
 
     /// <summary>
     /// True for a property or positional pattern whose subpatterns all match every value. The input of each subpattern
