@@ -1,6 +1,6 @@
 # C# style for Tertius
 
-This guide covers the code in `src`. The code in `tests` has its own guide, [tests/STYLE.md](tests/STYLE.md). The guide holds the rules that no tool enforces, and names the tool for the rules that one does. `.editorconfig` and `tools/cleanup.sh` own formatting, member layout, `using` order and the modern syntax fixes.
+This guide covers the code in `src`. The code in `tests` has its own guide, [tests/STYLE.md](tests/STYLE.md). The guide holds the rules that no tool enforces, and names the tool for the rules that one does. The style analyzer's rules, `TS0001` to `TS0003` (ARCHITECTURE.md, "Style analyzer"), are each a warning, an error through `TreatWarningsAsErrors`, so a hit fails the build. `.editorconfig` and `tools/cleanup.sh` own formatting, member layout, `using` order and the modern syntax fixes.
 
 When a reason can beat a rule, the rule says "prefer". When nothing beats a rule, it says "always" or "never". Most examples are real code from `src`. An example that starts with the comment `// Sketch` shows the form with made-up names.
 
@@ -61,7 +61,7 @@ A union with invariants checks them in factory methods, because a generated cons
 
 ### Name a type only when it earns a name
 
-If a group of values appears in only a few places, use a tuple with named elements instead of a struct. Never use a tuple whose elements have no names: no `Item1`, and no `(int, double)` in a signature.
+If a group of values appears in only a few places, use a tuple with named elements instead of a struct. Never use a tuple whose elements have no names: no `Item1`, and no `(int, double)` in a signature (tool: TS0001).
 
 ```csharp
 (bool recorded, record) = this switch
@@ -102,7 +102,7 @@ Push(body, impulse);
 return true;
 ```
 
-Never use `!` to silence the compiler in business logic. Generated code that reads a reference slot is the one place for it. Never return null for an empty collection. Return an empty one.
+Never use `!` to silence the compiler (tool: TS0003). Generated code that reads a reference slot is the one place for it. A state that only a bug produces gets a contract, such as `Contract.Requires(record.HasPrimary)`, which narrows the type as `!` did. Where `!` cannot go, `#pragma warning disable TS0003` with a comment says why. Never return null for an empty collection. Return an empty one.
 
 ## Control flow
 
@@ -180,7 +180,7 @@ The table of `Next` ends in a discard arm, because the pairs of state and event 
 
 Write C# that reads like Swift: each value at a call names its role.
 
-- If a constructor or a method takes more than 3 parameters, always name every argument at each call.
+- If a constructor or a method takes more than 3 parameters, always name every argument at each call. The arguments of a `params` list stay positional, and the `params` parameter does not count toward the 3 (tool: TS0002, with a code fix that names the arguments).
 - If more than 3 members need values, use an object initializer, or `required` and `init` members, instead of a long positional constructor.
 
 ```csharp
