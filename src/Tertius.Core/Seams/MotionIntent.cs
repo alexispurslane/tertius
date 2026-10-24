@@ -34,30 +34,27 @@ public readonly partial struct MotionIntent
     /// physics steers a dynamic body toward, which contacts and gravity can keep the body from. The empty union gives the
     /// default pose.
     /// </summary>
-    public DPose AimPose =>
-        TryGetValue(out EndPose end) ? end.Pose
-        : TryGetValue(out MotionSample full) ? full.Pose
-        : TryGetValue(out SteerTarget steer) ? steer.Pose
-        : default;
+    public DPose AimPose => this switch
+    {
+        EndPose(var pose) => pose,
+        MotionSample full => full.Pose,
+        SteerTarget(var pose) => pose,
+        null => default
+    };
 
     /// <summary>
     /// How a frame follows when it takes the record of this intent (docs/plans/rails-components.md, "The follow kind"):
     /// <see cref="FollowKind.Rails"/> for a full sample, <see cref="FollowKind.Kinematic"/> for an end pose, and
-    /// <see cref="FollowKind.Static"/> for a steer target and the empty union, which give no record. It reads the case alone,
-    /// so it copies no field (see <see cref="FrameTree.FollowKindInStep"/>).
+    /// <see cref="FollowKind.Static"/> for a steer target and the empty union, which give no record (see
+    /// <see cref="FrameTree.FollowKindInStep"/>).
     /// </summary>
-    /// <remarks>
-    /// This member, <see cref="AimPose"/> and <see cref="TryRecordFrom"/> run for every entity with an intent in every step,
-    /// so they test the cases with a type pattern without a designation or with <c>TryGetValue</c>, not with a switch
-    /// expression. A switch expression over a union, and a pattern that binds a value, first copy the whole union, 184
-    /// bytes, and the JIT keeps that copy. A bare type pattern reads only the kind, and <c>TryGetValue</c> reads the slots of
-    /// its own case (measured with <c>DOTNET_JitDisasm</c> on .NET 11 RC 1). The cost is that a new case does not fail the
-    /// build here: a new case must be added to these three members by hand.
-    /// </remarks>
-    internal FollowKind FollowKind =>
-        this is MotionSample ? FollowKind.Rails
-        : this is EndPose ? FollowKind.Kinematic
-        : FollowKind.Static;
+    internal FollowKind FollowKind => this switch
+    {
+        MotionSample => FollowKind.Rails,
+        EndPose => FollowKind.Kinematic,
+        SteerTarget => FollowKind.Static,
+        null => FollowKind.Static
+    };
 
     /// <summary>
     /// The step record of this intent, the entity's motion over a step that starts at <paramref name="stepStart"/> and lasts
@@ -69,20 +66,14 @@ public readonly partial struct MotionIntent
     /// </summary>
     public bool TryRecordFrom(in DPose stepStart, double step, out MotionSample record)
     {
-        if (TryGetValue(out MotionSample sample))
+        (bool recorded, record) = this switch
         {
-            record = sample;
-            return true;
-        }
-
-        if (TryGetValue(out EndPose end))
-        {
-            record = KinematicRecord(stepStart, end.Pose, step);
-            return true;
-        }
-
-        record = default;
-        return false;
+            MotionSample sample => (true, sample),
+            EndPose(var end) => (true, KinematicRecord(stepStart, end, step)),
+            SteerTarget => (false, default(MotionSample)),
+            null => (false, default(MotionSample))
+        };
+        return recorded;
     }
 
     /// <summary>
