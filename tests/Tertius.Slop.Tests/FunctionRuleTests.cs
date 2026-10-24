@@ -87,24 +87,40 @@ public sealed class FunctionRuleTests
                        """).Should().BeEmpty("the caller has CC 10, and the callee would add 1");
 
     [Theory]
-    [InlineData("var total = a + b; return Scale(total);")]
-    [InlineData("string name = Describe(x); Print(name); return 0;")]
-    public void ALocalThatOnlyFeedsTheNextStatementIsFlagged(string body) =>
+    [InlineData("var result = a + b; return Scale(result);")]
+    [InlineData("string data = Describe(x); Print(data); return 0;")]
+    [InlineData("var tmp = a + b; return Scale(tmp);")]
+    public void ALocalWithAGenericNameThatOnlyFeedsTheNextStatementIsFlagged(string body) =>
         Source.RulesInMethod(body).Should().Equal("single-use-local");
 
     [Theory]
-    [InlineData("var t = a + b; Use(t); return t;")]
-    [InlineData("var t = a + b; Use(a); return t;")]
+    [InlineData("var total = a + b; return total;")]
+    [InlineData("var scale = a + b; return Resize(scale: scale);")]
+    [InlineData("var scale = a + b; Resize(body, scale: scale); return 0;")]
+    public void ALocalThatTheNextStatementOnlyReturnsOrPassesToAParameterOfTheSameNameIsFlagged(string body) =>
+        Source.RulesInMethod(body).Should().Equal("single-use-local");
+
+    [Theory]
+    [InlineData("var total = a + b; return Scale(total);")]
+    [InlineData("string name = Describe(x); Print(name); return 0;")]
+    [InlineData("var scale = a + b; return Resize(size: scale);")]
+    [InlineData("var total = a + b; return total + 1;")]
+    public void ALocalWhoseNameSaysWhatItHoldsIsNotFlagged(string body) =>
+        Source.RulesInMethod(body).Should().BeEmpty("a named intermediate value makes the expression clearer");
+
+    [Theory]
+    [InlineData("var result = a + b; Use(result); return result;")]
+    [InlineData("var result = a + b; Use(a); return result;")]
     [InlineData("bool finite = a && b; if (!finite) return 0; return 1;")]
     [InlineData("var finite = a > 0; if (!finite) return 0; return 1;")]
-    [InlineData("var t = a + b; foreach (var x in xs) Use(t, x); return 0;")]
-    [InlineData("var t = a + b; ys = xs.Select(x => x + t); return 0;")]
-    [InlineData("var t = a + b; Change(ref t); return 0;")]
-    [InlineData("List<int> t = new(); Use(t); return 0;")]
-    [InlineData("using var t = Open(); return Read(t);")]
-    [InlineData("var t = a + b; t++; return 0;")]
-    [InlineData("const int t = 2; return t * a;")]
-    [InlineData("bool done = Step(); Use(done); return 0;")]
+    [InlineData("var result = a + b; foreach (var x in xs) Use(result, x); return 0;")]
+    [InlineData("var result = a + b; ys = xs.Select(x => x + result); return 0;")]
+    [InlineData("var result = a + b; Change(ref result); return 0;")]
+    [InlineData("List<int> result = new(); Use(result); return 0;")]
+    [InlineData("using var result = Open(); return Read(result);")]
+    [InlineData("var result = a + b; result++; return 0;")]
+    [InlineData("const int result = 2; return result * a;")]
+    [InlineData("bool result = Step(); Use(result); return 0;")]
     public void ALocalThatIsUsedAgainOrLaterOrNamesAConditionIsNotFlagged(string body) =>
         Source.RulesInMethod(body).Should().BeEmpty();
 
@@ -160,6 +176,6 @@ public sealed class FunctionRuleTests
                              }
                              private int Twice(int x) => x * 2;
                          }
-                         """).Should().BeEmpty();
+                         """).Should().NotContain("low-use-short-function");
     }
 }

@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -26,15 +27,10 @@ public sealed class PassThroughMethod : IRule
         if (node is not MethodDeclarationSyntax { AttributeLists.Count: 0, ExplicitInterfaceSpecifier: null } method ||
             method.Modifiers.Any(SyntaxKind.OverrideKeyword))
             return [];
-        ExpressionSyntax? body = method switch
-        {
-            { ExpressionBody.Expression: var expression } => expression,
-            { Body.Statements: [ReturnStatementSyntax { Expression: { } returned }] } => returned,
-            { Body.Statements: [ExpressionStatementSyntax { Expression: var done }] } => done,
-            _ => null
-        };
         string[] parameters = [.. method.ParameterList.Parameters.Select(parameter => parameter.Identifier.ValueText)];
-        return body is InvocationExpressionSyntax call && call.PassesOn(parameters) ? [method.Span] : [];
+        return method.SingleExpression is InvocationExpressionSyntax call && call.PassesOn(parameters)
+            ? [method.Span]
+            : [];
     }
 }
 
@@ -61,7 +57,7 @@ public sealed class LowUseShortFunction : IRule
             return [];
         var callee = new Function(node);
         SimpleNameSyntax[] uses = [.. context.UsesOf(name).Where(use => !use.Ancestors().Contains(node))];
-        if (callee.Sloc > MostSloc || uses is not [var use] || CallOf(use) is not { } call || IsDispatch(call) ||
+        if (callee.Sloc > MostSloc || uses is not [var use] || use.Call is not { } call || IsDispatch(call) ||
             Function.Holding(call) is not { } caller)
             return [];
         bool callerStaysSimple = caller.Complexity + callee.Complexity - 1 <= ErosionReport.ComplexityLimit;
@@ -91,15 +87,6 @@ public sealed class LowUseShortFunction : IRule
         return !modifiers.Any(SyntaxKind.PartialKeyword) && !widened;
     }
 
-    // The call that a name is the target of, as F(...) or this.F(...), or null for another use, such as a method group.
-    private static InvocationExpressionSyntax? CallOf(SimpleNameSyntax use) => use.Parent switch
-    {
-        InvocationExpressionSyntax call when call.Expression == use => call,
-        MemberAccessExpressionSyntax { Parent: InvocationExpressionSyntax call } access
-            when access.Name == use && call.Expression == access => call,
-        _ => null
-    };
-
     // Whether a call is the whole job of one case of a switch. The state machines of STYLE.md give each case a method of
     // its own, so such a method stays.
     private static bool IsDispatch(InvocationExpressionSyntax call) => call.Parent switch
@@ -111,11 +98,22 @@ public sealed class LowUseShortFunction : IRule
     };
 }
 
-/// <summary>A local that only feeds the next statement.</summary>
+/// <summary>A local whose name adds nothing and that only feeds the next statement.</summary>
+/// <remarks>
+/// A named intermediate value makes an expression clearer, so the rule flags only a name that says nothing about the
+/// value: a generic name, or the name of what the next statement does with it, when it only returns the local or
+/// passes it to a parameter of the same name. The user narrowed the rule to this on 2026-10-24.
+/// </remarks>
 public sealed class SingleUseLocal : IRule
 {
+    private static readonly FrozenSet<string> GenericNames = FrozenSet.ToFrozenSet(
+        ["result", "res", "ret", "temp", "tmp", "value", "val", "data", "output", "obj", "item"],
+        StringComparer.Ordinal);
+
     public string Id => "single-use-local";
-    public string Message => "A local that only feeds the next statement: write its value there.";
+
+    public string Message =>
+        "A local with a generic name, or one that the next statement only returns or passes to a parameter of the same name: write its value there.";
 
     public string Source =>
         "The user; STYLE.md, \"Names\" (remove a variable that only exists as scratch for another one)";
@@ -132,13 +130,24 @@ public sealed class SingleUseLocal : IRule
         IdentifierNameSyntax[] uses =
         [
             .. local.FollowingStatements.SelectMany(statement => statement.DescendantNodes())
-                .OfType<IdentifierNameSyntax>().Where(use => use.Identifier.ValueText == name)
+                .OfType<IdentifierNameSyntax>()
+                .Where(use => use.Identifier.ValueText == name && use.Parent is not NameColonSyntax)
         ];
         return local.NextStatement is { } next && !IsLoop(next) && uses is [var only] &&
                next.Span.Contains(only.Span) &&
-               CanTakeValue(only, next)
+               CanTakeValue(only, next) && (GenericNames.Contains(name) || OnlyHandsOn(only, next))
             ? [local.Span]
             : [];
+    }
+
+    // Whether the next statement only returns the use, or passes it to a parameter whose name is the local's. A
+    // parameter shows its name only in a named argument.
+    private static bool OnlyHandsOn(IdentifierNameSyntax use, StatementSyntax next)
+    {
+        bool returned = next is ReturnStatementSyntax { Expression: { } value } && value.Unwrapped == use;
+        bool passedByName = use.Parent is ArgumentSyntax { NameColon.Name.Identifier.ValueText: var parameter } &&
+                            parameter == use.Identifier.ValueText;
+        return returned || passedByName;
     }
 
     // A local keeps its name when STYLE.md asks for one ("Name the parts of a complex condition") or when its value

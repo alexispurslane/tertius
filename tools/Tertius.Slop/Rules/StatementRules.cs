@@ -150,3 +150,100 @@ public sealed class LongTupleUnpacking : IRule
         _ => []
     };
 }
+
+// The verbosity rules of the user's about statements.
+
+/// <summary>A list or an array made only to loop over it.</summary>
+public sealed class MaterializeToLoop : IRule
+{
+    public string Id => "materialize-to-loop";
+
+    public string Message =>
+        "A ToList or ToArray made only to loop over: loop over the sequence, unless the loop changes its source.";
+
+    public string Source => "The user";
+
+    public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context) => node switch
+    {
+        CommonForEachStatementSyntax
+        {
+            Expression: InvocationExpressionSyntax
+            {
+                Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "ToList" or "ToArray" },
+                ArgumentList.Arguments.Count: 0
+            } copy
+        } => [copy.Span],
+        _ => []
+    };
+}
+
+/// <summary>A run of more than 10 statements with no blank line and no branch to group them.</summary>
+public sealed class StatementWall : IRule
+{
+    private const int MostStatements = 10;
+
+    public string Id => "statement-wall";
+
+    public string Message =>
+        "More than 10 statements in a row with no blank line and no branch: group them with blank lines or methods.";
+
+    public string Source => "The user";
+
+    public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context)
+    {
+        if (node is not BlockSyntax { Statements: var statements } block)
+            return [];
+        SourceText text = block.SyntaxTree.GetText();
+        var walls = new List<TextSpan>();
+        int start = 0;
+        for (int index = 1; index <= statements.Count; index++)
+        {
+            bool runGoesOn = index < statements.Count && IsPlain(statements[index - 1]) && IsPlain(statements[index]) &&
+                             !BlankLineBetween(text, statements[index - 1], statements[index]);
+            if (runGoesOn)
+                continue;
+            if (index - start > MostStatements)
+                walls.Add(TextSpan.FromBounds(statements[start].SpanStart, statements[index - 1].Span.End));
+            start = index;
+        }
+
+        return walls;
+    }
+
+    // A statement that is no branch, loop or block, so it groups nothing.
+    private static bool IsPlain(StatementSyntax statement) =>
+        statement is ExpressionStatementSyntax or LocalDeclarationStatementSyntax or ReturnStatementSyntax
+            or ThrowStatementSyntax or BreakStatementSyntax or ContinueStatementSyntax or YieldStatementSyntax
+            or EmptyStatementSyntax or GotoStatementSyntax;
+
+    private static bool BlankLineBetween(SourceText text, StatementSyntax first, StatementSyntax second)
+    {
+        int after = text.Lines.GetLineFromPosition(first.Span.End).LineNumber + 1;
+        int before = text.Lines.GetLineFromPosition(second.SpanStart).LineNumber;
+        return Enumerable.Range(after, Math.Max(0, before - after))
+            .Any(line => string.IsNullOrWhiteSpace(text.Lines[line].ToString()));
+    }
+}
+
+/// <summary>Output to the console outside the Main method, which hands the console's writers to the program.</summary>
+public sealed class ConsoleOutput : IRule
+{
+    public string Id => "console-output";
+
+    public string Message =>
+        "Output to the console: write to the TextWriter that Main hands to the program, or to the World's log.";
+
+    public string Source => "The user";
+
+    public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context) => node switch
+    {
+        MemberAccessExpressionSyntax
+            {
+                Expression: IdentifierNameSyntax { Identifier.ValueText: "Console" }
+                    or MemberAccessExpressionSyntax { Name.Identifier.ValueText: "Console" },
+                Name.Identifier.ValueText: "Write" or "WriteLine" or "Out" or "Error"
+            } access
+            when access.HoldingMethodName != "Main" => [access.Span],
+        _ => []
+    };
+}

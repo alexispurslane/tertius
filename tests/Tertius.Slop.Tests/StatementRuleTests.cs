@@ -82,4 +82,67 @@ public sealed class StatementRuleTests
     [Fact]
     public void DeconstructingFourValuesIsNotFlagged() =>
         Source.RulesInMethod("var (a, b, c, d) = t;").Should().BeEmpty();
+
+    [Theory]
+    [InlineData("foreach (var x in xs.ToList()) Use(x);")]
+    [InlineData("foreach (var x in xs.Where(Live).ToArray()) Use(x);")]
+    public void AListOrArrayMadeOnlyToLoopOverIsFlagged(string body) =>
+        Source.RulesInMethod(body).Should().Equal("materialize-to-loop");
+
+    [Theory]
+    [InlineData("foreach (var x in xs.Where(Live)) Use(x);")]
+    [InlineData("foreach (var x in xs.ToList(capacity)) Use(x);")]
+    [InlineData("Use(xs.ToList());")]
+    public void ALoopOverAQueryOrAListThatIsKeptIsNotFlagged(string body) =>
+        Source.RulesInMethod(body).Should().BeEmpty();
+
+    [Fact]
+    public void ARunOfMoreThanTenPlainStatementsWithNoBlankLineIsFlagged() =>
+        Source.Findings(Method(Lines(11))).Should().ContainSingle().Which.Should().Be(new Finding
+        {
+            Rule = "statement-wall", File = Source.FileName, Line = 5, EndLine = 15
+        });
+
+    [Fact]
+    public void ARunOfTenStatementsIsNotFlagged() =>
+        Source.RulesIn(Method(Lines(10))).Should().BeEmpty();
+
+    [Fact]
+    public void ABlankLineBreaksARunOfStatements() =>
+        Source.RulesIn(Method($"{Lines(6)}\n\n{Lines(6)}")).Should().BeEmpty();
+
+    [Fact]
+    public void ABranchBreaksARunOfStatements() =>
+        Source.RulesIn(Method($"{Lines(6)}\n        if (a) Use(a);\n{Lines(6)}")).Should().BeEmpty();
+
+    [Theory]
+    [InlineData("Console.WriteLine(x);")]
+    [InlineData("Console.Error.Write(x);")]
+    [InlineData("System.Console.Out.WriteLine(x);")]
+    public void ConsoleOutputOutsideTheMainMethodIsFlagged(string body) =>
+        Source.RulesInMethod(body).Should().Equal("console-output");
+
+    [Fact]
+    public void TheMainMethodThatHandsTheConsoleToTheProgramIsNotFlagged() =>
+        Source.RulesIn("""
+                       static class Program
+                       {
+                           public static int Main(string[] args) => Run(args, Console.Out, Console.Error);
+                       }
+                       """).Should().BeEmpty();
+
+    // A class whose one method has the body text.
+    private static string Method(string body) => $$"""
+                                                   class C
+                                                   {
+                                                       void F()
+                                                       {
+                                                   {{body}}
+                                                       }
+                                                   }
+                                                   """;
+
+    // Lines of plain statements, one per line, with no blank line between.
+    private static string Lines(int count) =>
+        string.Join('\n', Enumerable.Range(0, count).Select(i => $"        Use({i});"));
 }

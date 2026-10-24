@@ -11,16 +11,27 @@ namespace Tertius.Slop.Rules;
 /// </summary>
 internal static class SyntaxShapes
 {
-    // Whether an expression only names a value: this, base, a name, a type, or a member of one of these.
-    private static bool IsChainOfNames(ExpressionSyntax expression) => expression switch
-    {
-        ThisExpressionSyntax or BaseExpressionSyntax or SimpleNameSyntax or PredefinedTypeSyntax => true,
-        MemberAccessExpressionSyntax access => IsChainOfNames(access.Expression),
-        _ => false
-    };
+    private static readonly string[] ReportWords = ["Log", "Write", "Print", "Trace", "Report", "Warn"];
+
+    /// <summary>
+    /// Whether <paramref name="name"/> names a Try method: Try and an upper-case letter, the shape of STYLE.md
+    /// ("Expected failures").
+    /// </summary>
+    public static bool IsTryName(string? name) => name is ['T', 'r', 'y', var next, ..] && char.IsUpper(next);
 
     extension(SyntaxNode node)
     {
+        /// <summary>
+        /// The name of the method or local function that holds the node, or null in another function or outside every
+        /// function.
+        /// </summary>
+        public string? HoldingMethodName => Function.Holding(node)?.Node switch
+        {
+            MethodDeclarationSyntax method => method.Identifier.ValueText,
+            LocalFunctionStatementSyntax local => local.Identifier.ValueText,
+            _ => null
+        };
+
         /// <summary>
         /// Whether a function belongs to the public API: a public or protected member, or a member of an interface. A
         /// public API keeps guards that are always on (STYLE.md, "Errors and contracts").
@@ -116,6 +127,14 @@ internal static class SyntaxShapes
 
     extension(ExpressionSyntax expression)
     {
+        /// <summary>Whether the expression only names a value: this, base, a name, a type, or a member of one of these.</summary>
+        public bool IsChainOfNames => expression switch
+        {
+            ThisExpressionSyntax or BaseExpressionSyntax or SimpleNameSyntax or PredefinedTypeSyntax => true,
+            MemberAccessExpressionSyntax access => access.Expression.IsChainOfNames,
+            _ => false
+        };
+
         /// <summary>The expression inside any parentheses.</summary>
         public ExpressionSyntax Unwrapped => expression is ParenthesizedExpressionSyntax parenthesized
             ? parenthesized.Expression.Unwrapped
@@ -179,13 +198,72 @@ internal static class SyntaxShapes
             bool namedTarget = call.Expression switch
             {
                 SimpleNameSyntax => true,
-                MemberAccessExpressionSyntax access => IsChainOfNames(access.Expression),
+                MemberAccessExpressionSyntax access => access.Expression.IsChainOfNames,
                 _ => false
             };
             bool targetUsesAParameter = call.Expression.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>()
                 .Any(name => parameters.Contains(name.Identifier.ValueText));
             return arguments.SequenceEqual(parameters) && namedTarget && !targetUsesAParameter;
         }
+
+        /// <summary>
+        /// Whether the call can report an error: the name of its target holds Log, Write, Print, Trace, Report or Warn,
+        /// such as <c>error.WriteLine</c> or <c>logger.LogWarning</c>.
+        /// </summary>
+        public bool Reports
+        {
+            get
+            {
+                string? target = call.Expression switch
+                {
+                    MemberAccessExpressionSyntax access => access.Name.Identifier.ValueText,
+                    SimpleNameSyntax name => name.Identifier.ValueText,
+                    _ => null
+                };
+                return target is not null && ReportWords.Any(word => target.Contains(word, StringComparison.Ordinal));
+            }
+        }
+    }
+
+    extension(SimpleNameSyntax use)
+    {
+        /// <summary>
+        /// The call that the name is the target of, as <c>F(...)</c> or <c>this.F(...)</c>, or null for another use, such
+        /// as a method group.
+        /// </summary>
+        public InvocationExpressionSyntax? Call => use.Parent switch
+        {
+            InvocationExpressionSyntax call when call.Expression == use => call,
+            MemberAccessExpressionSyntax { Parent: InvocationExpressionSyntax call } access
+                when access.Name == use && call.Expression == access => call,
+            _ => null
+        };
+    }
+
+    extension(MethodDeclarationSyntax method)
+    {
+        /// <summary>
+        /// The one expression that the method's whole body is: its expression body, the value of its one return, or its
+        /// one expression statement. Null for another body.
+        /// </summary>
+        public ExpressionSyntax? SingleExpression => method switch
+        {
+            { ExpressionBody.Expression: var expression } => expression,
+            { Body.Statements: [ReturnStatementSyntax { Expression: { } returned }] } => returned,
+            { Body.Statements: [ExpressionStatementSyntax { Expression: var done }] } => done,
+            _ => null
+        };
+    }
+
+    extension(ThrowStatementSyntax thrown)
+    {
+        /// <summary>Whether the throw rethrows the error of <paramref name="clause"/>: <c>throw;</c> or <c>throw e;</c>.</summary>
+        public bool Rethrows(CatchClauseSyntax clause) => thrown.Expression switch
+        {
+            null => true,
+            IdentifierNameSyntax { Identifier.ValueText: var name } => clause.Declaration?.Identifier.ValueText == name,
+            _ => false
+        };
     }
 
     extension(CatchClauseSyntax clause)

@@ -42,14 +42,21 @@ public sealed class Repository(string folder)
 
     /// <summary>
     /// The slop report of the <c>src</c> folder of a tree or a commit, from a copy of it in a temporary folder, so that
-    /// the working tree does not matter.
+    /// the working tree does not matter. The copy holds the tests, the benchmarks and the scripts too, because they use
+    /// the code (<see cref="Codebase.NamesOutside"/>).
     /// </summary>
     public SlopReport Measure(string tree, string jscpd)
     {
+        // An archive of a path that the tree does not hold fails, and an old commit can lack the benchmarks.
+        string[] folders =
+        [
+            .. Git(["ls-tree", "--name-only", tree]).Split('\n')
+                .Where(Codebase.Folders.Contains)
+        ];
         string root = Directory.CreateTempSubdirectory("tertius-slop-tree-").FullName;
         try
         {
-            using (Process archive = Start(["archive", "--format=tar", tree, "--", "src"]))
+            using (Process archive = Start(["archive", "--format=tar", tree, "--", .. folders]))
             {
                 Task<string> errors = archive.StandardError.ReadToEndAsync();
                 TarFile.ExtractToDirectory(archive.StandardOutput.BaseStream, root, overwriteFiles: false);

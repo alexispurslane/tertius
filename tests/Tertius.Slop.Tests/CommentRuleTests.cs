@@ -3,8 +3,9 @@ using AwesomeAssertions;
 namespace Tertius.Slop.Tests;
 
 /// <summary>
-/// The verbosity rules about comments (docs/plans/code-quality-tooling.md, decision 17): a decorative banner, from
-/// scb-check, and the user's rule for a comment that repeats the code under it.
+/// The verbosity rules about comments and directives (docs/plans/code-quality-tooling.md, decision 17): a decorative
+/// banner, from scb-check, and the user's rules for a comment that repeats the code under it, a doc comment that repeats
+/// a name, commented-out code, a TODO without a ticket and a region.
 /// </summary>
 public sealed class CommentRuleTests
 {
@@ -145,4 +146,114 @@ public sealed class CommentRuleTests
                            }
                        }
                        """).Should().BeEmpty();
+
+    [Fact]
+    public void ADocSummaryThatOnlyRepeatsTheMemberNameIsFlagged() =>
+        Source.Findings("""
+                        class C
+                        {
+                            /// <summary>The id.</summary>
+                            public string Id { get; }
+                        }
+                        """).Should().ContainSingle().Which.Should().Be(new Finding
+        {
+            Rule = "doc-comment-repeats-name", File = Source.FileName, Line = 3, EndLine = 3
+        });
+
+    [Fact]
+    public void EveryLineOfADocSummaryThatRepeatsTheNameIsFlagged() =>
+        Source.Findings("""
+                        class C
+                        {
+                            /// <summary>
+                            /// Gets the body mass.
+                            /// </summary>
+                            /// <remarks>In kilograms.</remarks>
+                            float BodyMass;
+                        }
+                        """).Should().ContainSingle().Which.Should().Be(new Finding
+        {
+            Rule = "doc-comment-repeats-name", File = Source.FileName, Line = 3, EndLine = 5
+        });
+
+    [Fact]
+    public void ADocParamThatOnlyRepeatsTheParameterNameIsFlagged() =>
+        Source.Findings("""
+                        class C
+                        {
+                            /// <summary>Moves the body to a pose.</summary>
+                            /// <param name="pose">The pose.</param>
+                            void Move(Pose pose) { Use(pose, 0); }
+                        }
+                        """).Should().ContainSingle().Which.Should().Be(new Finding
+        {
+            Rule = "doc-comment-repeats-name", File = Source.FileName, Line = 4, EndLine = 4
+        });
+
+    [Theory]
+    [InlineData("/// <summary>The id of the rule.</summary>\nstring Id;")]
+    [InlineData("/// <summary>The <see cref=\"Body\"/> of the crate.</summary>\nBody Crate;")]
+    [InlineData("/// <param name=\"pose\">The pose in the frame of the parent.</param>\nvoid Move(Pose pose) { Use(pose, 0); }")]
+    [InlineData("// The id.\nstring Id;")]
+    public void ADocCommentThatSaysMoreThanTheNameOrAPlainCommentIsNotFlagged(string member) =>
+        Source.RulesIn($"class C\n{{\n{member}\n}}").Should().BeEmpty();
+
+    [Theory]
+    [InlineData("// world.Remove(body);")]
+    [InlineData("// var mass = body.Mass * 2;")]
+    public void ACommentThatHoldsAStatementIsFlaggedAsCommentedOutCode(string comment) =>
+        Source.Findings($$"""
+                          class C
+                          {
+                              void F()
+                              {
+                                  {{comment}}
+                                  Use(2);
+                              }
+                          }
+                          """).Should().ContainSingle().Which.Should().Be(new Finding
+        {
+            Rule = "commented-out-code", File = Source.FileName, Line = 5, EndLine = 5
+        });
+
+    [Theory]
+    [InlineData("// Wake the body before the push.")]
+    [InlineData("// Every step runs once per tick;")]
+    [InlineData("// See ARCHITECTURE.md, \"Bubbles\".")]
+    public void ACommentInWordsIsNotCommentedOutCode(string comment) =>
+        Source.RulesIn($$"""
+                         class C
+                         {
+                             void F()
+                             {
+                                 {{comment}}
+                                 Use(2);
+                             }
+                         }
+                         """).Should().BeEmpty();
+
+    [Theory]
+    [InlineData("// TODO: merge the two tables.")]
+    [InlineData("// FIXME the order is wrong.")]
+    [InlineData("/* HACK: skip the first frame. */")]
+    public void ATodoWithoutATicketIdIsFlagged(string comment) =>
+        Source.RulesIn($"{comment}\nclass C {{ }}").Should().Equal("todo-without-ticket");
+
+    [Theory]
+    [InlineData("// TODO(ter-a3ya): merge the two tables.")]
+    [InlineData("// The todo list of the frame.")]
+    public void ATodoWithATicketIdOrTheWordInProseIsNotFlagged(string comment) =>
+        Source.RulesIn($"{comment}\nclass C {{ }}").Should().BeEmpty();
+
+    [Fact]
+    public void ARegionAndItsEndAreFlagged() =>
+        Source.Findings("""
+                        class C
+                        {
+                            #region Fields
+                            int x;
+                            #endregion
+                        }
+                        """).Select(finding => (finding.Rule, finding.Line)).Should()
+            .Equal(("region", 3), ("region", 5));
 }

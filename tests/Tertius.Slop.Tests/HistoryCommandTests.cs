@@ -60,6 +60,18 @@ public sealed class HistoryCommandTests : IDisposable
     }
 
     [Fact]
+    public void TheMeasureCommandReadsTheTestsOfTheTreeForTheUsesOfTheCode()
+    {
+        git.Write("src/A.cs", "static class A\n{\n    internal static int F() => 1;\n}\n");
+        git.Write("tests/ATests.cs", "static class ATests\n{\n    static int G() => A.F();\n}\n");
+        git.Commit("first");
+
+        Run("measure", "HEAD", "--branch", "main", "--source", "pre-commit");
+
+        SlopNote.Parse(output.ToString())!.Verbosity.Should().Be(0, "the test uses the class and its method");
+    }
+
+    [Fact]
     public void TheNoteCommandNotesTheCommitsThatChangeTheSourceAndThePushedTip()
     {
         git.Write("src/A.cs", Short);
