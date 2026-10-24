@@ -1,6 +1,6 @@
 ---
 id: ter-rnzy
-status: open
+status: in_progress
 deps: [ter-2x99]
 links: []
 created: 2026-10-24T16:22:41Z

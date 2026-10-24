@@ -6,7 +6,10 @@
 #      (tools/commit_report.py). The report never stops the commit.
 #   3. The tests of the changed code, in Checked (Debug's contracts with Release's optimized code): every test of a
 #      changed module, and the test classes of a changed test file. A failed test stops the commit.
-# The pre-push hook formats and modernizes the code, so this hook changes no file.
+#   4. The slop metrics of the staged tree (tools/Tertius.Slop measure), in parallel with the tests. After the tests
+#      pass, it leaves the note in the pending file slop-pending of the worktree's git folder, and the post-commit hook
+#      attaches it to the new commit under refs/notes/slop. The metrics never stop the commit.
+# The pre-push hook formats and modernizes the code, so this hook changes no file in the working tree.
 # To skip the hook once, run: git commit --no-verify
 set -euo pipefail
 
@@ -72,8 +75,13 @@ for f in "${files[@]}"; do
     esac
 done
 
+# The slop tool measures the staged tree after the build, so the build always holds it. An up-to-date project costs
+# the build almost nothing.
+build["tools/Tertius.Slop/Tertius.Slop.csproj"]=1
+
 solution=.pre-commit.slnx
-trap 'rm -f "$root/$solution"' EXIT
+slop_pid=
+trap 'rm -f "$root/$solution"; [[ -n "$slop_pid" ]] && kill "$slop_pid" 2> /dev/null; true' EXIT
 {
     echo "<Solution>"
     echo "  <Configurations><BuildType Name=\"Checked\" /></Configurations>"
@@ -90,6 +98,31 @@ fi
 
 python3 tools/commit_report.py >&2 || true
 
+# The slop metrics of the staged tree, which the commit will hold, measured from a copy of the tree. A pending file from
+# a commit that stopped after this hook is stale, so it goes first.
+slop_pending="$(git rev-parse --absolute-git-dir)/slop-pending"
+rm -f "$slop_pending"
+slop_tree=$(git write-tree)
+slop_out=$(mktemp "${TMPDIR:-/tmp}/tertius-pre-commit-slop.XXXXXX")
+dotnet tools/Tertius.Slop/bin/Checked/net11.0/Tertius.Slop.dll measure "$slop_tree" \
+    --branch "$(git branch --show-current)" --source pre-commit > "$slop_out" 2>&1 &
+slop_pid=$!
+
+# Leaves the measured note for the post-commit hook: the tree on the first line, the note on the second.
+finish_slop() {
+    local code=0
+    wait "$slop_pid" || code=$?
+    slop_pid=
+    if [[ $code -eq 0 ]]; then
+        printf '%s\n%s\n' "$slop_tree" "$(tail -1 "$slop_out")" > "$slop_pending.tmp"
+        mv "$slop_pending.tmp" "$slop_pending"
+    else
+        echo "pre-commit: the slop metrics failed, so this commit gets its note at the next push:" >&2
+        tail -5 "$slop_out" | sed 's/^/  /' >&2
+    fi
+    rm -f "$slop_out"
+}
+
 # The test runs go in parallel, one process per test project, each with its own log.
 runs=()
 for p in "${!whole[@]}"; do runs+=("$p|"); done
@@ -97,7 +130,10 @@ for p in "${!classes[@]}"; do
     [[ -n "${whole[$p]:-}" ]] && continue
     runs+=("$p|${classes[$p]}")
 done
-[[ ${#runs[@]} -eq 0 ]] && exit 0
+if [[ ${#runs[@]} -eq 0 ]]; then
+    finish_slop
+    exit 0
+fi
 
 logs=$(mktemp -d "${TMPDIR:-/tmp}/tertius-pre-commit-tests.XXXXXX")
 pids=()
@@ -135,3 +171,4 @@ if [[ $status -ne 0 ]]; then
     exit 1
 fi
 rm -rf "$logs"
+finish_slop
