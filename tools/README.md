@@ -155,9 +155,39 @@ The verbosity is the number of lines that a rule flags or that jscpd finds in a 
 
 The JSON of `verbosity` holds `verbosity`, `verboseLines`, `flaggedLines`, `cloneLines`, `sloc`, `fileCount`, `rules` and `topFindings`. `rules` holds every rule, ordered by id. Each one has its `id`, `message` and `source`, the number of its `findings`, and the number of `lines` that they cover. `topFindings` holds the 20 findings that cover the most lines, each with `rule`, `file`, `line` and `endLine`. The JSON of `all` holds the two reports as `erosion` and `verbosity`.
 
+### History
+
+The git hooks keep the metrics of each commit in a git note under `refs/notes/slop` ("Git hooks" below). A note is one line of JSON:
+
+```json
+{"erosion":0.3647,"verbosity":0.0363,"sloc":34450,"branch":"main","source":"pre-commit","measured":"2026-10-24T19:37:37+00:00"}
+```
+
+The source is `pre-commit`, `pre-push` or `seed`. Four commands of the tool write and read the notes. `-C <folder>` before a command runs it in that repository.
+
+- `measure <tree> --branch <name> --source <source>` prints the note of a tree or a commit. It measures a copy of the tree's `src`, so the working tree does not matter.
+- `note <from> <tip> --branch <name> --source <source>` attaches notes to the first-parent commits after `<from>` up to `<tip>`. It notes `<tip>`, and each commit that changes C# code under `src` and has no note.
+- `history [git log options and revisions]` prints the noted commits as CSV, newest first. The columns are commit, date, branch, tickets, erosion, verbosity and sloc. The tickets are the ticket ids in the commit message.
+- `summary <from> <tip>` prints the summary of the pre-push hook.
+
+The trend line of main:
+
+```bash
+nix develop --command dotnet run --project tools/Tertius.Slop -c Release -- history --first-parent main
+```
+
+```text
+commit,date,branch,tickets,erosion,verbosity,sloc
+1ce2750b2cfa84817d80a8e8ce7b28a11ffd7b42,2026-10-24T15:36:15-04:00,main,ter-hahu,0.364753502100709,0.036284470246734396,34450
+e771003357a4d17eabe48aeaecbae68824fa2eec,2026-10-24T13:13:25-04:00,main,,0.364753502100709,0.036284470246734396,34450
+f1fc418549cd5d5c36b927d078ae268840d8f55f,2026-10-24T13:03:25-04:00,main,ter-2ku2,0.36481280742898836,0.035098138195207414,33677
+```
+
+To read the notes of another clone, fetch them first: `git fetch origin refs/notes/slop:refs/notes/slop`.
+
 ### Exit codes and run time
 
-The exit code is 0 after a report, and 2 for wrong arguments, a root without a `src` folder, or a verbosity without jscpd.
+The exit code is 0 after a command. If git or jscpd fails, the exit code is 1. For wrong arguments, a root without a `src` folder, or a verbosity without jscpd, the exit code is 2.
 
 The built program reads all of `src/` (268 files). A run takes about 0.5 s for `erosion`, 0.9 s for `verbosity` and 1.2 s for `all`, of which jscpd takes 0.04 s. `dotnet run --no-build` adds about 0.5 s, and `dotnet run` with its check of the build adds about 0.9 s.
 
@@ -179,15 +209,16 @@ The build prints a warning for each link that has no page in the site. For examp
 
 ## Git hooks
 
-The folder `.githooks/` holds two git hooks. At its start, the dev shell sets `core.hooksPath` to that folder. Thus the hooks run after you enter the dev shell once. Outside the dev shell, a hook runs itself again inside it. To skip a hook once, add `--no-verify` to `git commit` or `git push`.
+The folder `.githooks/` holds three git hooks. At its start, the dev shell sets `core.hooksPath` to that folder. Thus the hooks run after you enter the dev shell once. Outside the dev shell, the pre-commit and pre-push hooks run themselves again inside it. The post-commit hook needs only git, so it never enters the dev shell. To skip the pre-commit or the pre-push hook once, add `--no-verify` to `git commit` or `git push`.
 
 ### Before a commit
 
-The pre-commit hook runs on every commit that stages C# files or projects. A commit with no such file, such as a ticket note, skips it. The hook changes no file. It does three things:
+The pre-commit hook runs on every commit that stages C# files or projects. A commit with no such file, such as a ticket note, skips it. The hook changes no file in the working tree. It does four things:
 
 1. It builds the projects that the commit changes and the test projects that test them, incrementally. The build runs every analyzer, and an error stops the commit.
 2. It prints a report for the changed lines only: the duplicated blocks (jscpd) and the methods over the complexity limit (CA1502) or the length limit (MA0051). Test code gets the length limit only. If the report names anything, it ends with a prompt to refactor that code in the same commit. The report never stops the commit.
 3. It runs the tests of the changed code in Checked, one process per test project, in parallel. A failed test stops the commit.
+4. It measures the slop metrics of the staged tree with `tools/Tertius.Slop measure`, in parallel with the tests. After the tests pass, it leaves the note in the file `slop-pending` of the worktree's git folder. The metrics never stop the commit.
 
 The tests of the changed code are:
 
@@ -207,12 +238,32 @@ If a staged file also holds unstaged changes, the hook says so. The build and th
 
 A changed line is a line that the staged diff adds or edits. Each compile writes its diagnostics to `obj/<configuration>/<framework>/analyzers.sarif`, and the report reads the complexity and length results from there. The limits are in `analyzers/CodeMetricsConfig.txt` (complexity) and `.editorconfig` (MA0051).
 
+### After a commit
+
+The post-commit hook attaches the pending slop note to the new commit, under `refs/notes/slop`. The hook compares the tree of the commit with the tree that the pre-commit hook measured. If the two trees are different, the commit gets no note. A commit without a pending note also gets no note here: a commit with `--no-verify`, a commit without C# changes, and a merge, which runs no post-commit hook. If such a commit changes C# code under `src`, the pre-push hook notes it.
+
 ### Before a push
 
-The pre-push hook does two things:
+The pre-push hook does three things:
 
 1. It runs `tools/cleanup.sh` on the C# files that the pushed commits change. If the cleanup changes a file, the hook builds the solution and commits the result as "Clean up code before push". Then it stops the push, because git chose the commits to push before the hook ran. Push again to send the cleanup commit too.
 2. It builds the docs site with `tools/docs.sh`. A DocFX error stops the push, and a link warning does not.
+3. It updates the slop history, and it never stops the push. For each pushed branch, it notes the pushed tip. It also notes each commit since the last push that changes C# code under `src` and has no note. Then it prints the metrics at the last push against now, and the commits that raised a metric the most. Last, it merges the remote's notes into `refs/notes/slop` and pushes them to the same remote.
+
+A sample of the summary:
+
+```text
+pre-push: slop since the last push:
+pre-push:   erosion    0.3591 -> 0.3648  +0.0057
+pre-push:   verbosity  0.0354 -> 0.0363  +0.0009
+pre-push:   sloc       34484 -> 34450  -34
+pre-push: the commits that raised the erosion the most:
+pre-push:   +0.0051  c774e05  ter-m0db  Merge the generated unions of Demo (ter-m0db)
+pre-push:   +0.0004  f1fc418  ter-2ku2  Merge the style analyzer (ter-2ku2)
+pre-push: the commits that raised the verbosity the most:
+pre-push:   +0.0012  e771003  (no ticket)  Clean up code before push
+pre-push:   +0.0009  c774e05  ter-m0db  Merge the generated unions of Demo (ter-m0db)
+```
 
 If a file that the cleanup must clean holds uncommitted changes, the hook stops before the cleanup. Commit or stash those changes, then push again. The cleanup can add a commit only to the branch that is checked out. For another pushed branch, it prints a note and skips that branch.
 

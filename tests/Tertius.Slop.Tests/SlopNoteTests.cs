@@ -19,11 +19,13 @@ public class SlopNoteTests
 
     [Fact]
     public void ANoteReadsBackFromItsLine() =>
-        SlopNote.Parse(Note(erosion: 0.365, verbosity: 0.036).ToLine()).Should().Be(Note(erosion: 0.365, verbosity: 0.036));
+        SlopNote.Parse(Note(erosion: 0.365, verbosity: 0.036).ToLine()).Should()
+            .Be(Note(erosion: 0.365, verbosity: 0.036));
 
     [Fact]
     public void TheFirstLineThatHoldsANoteIsTheNote() =>
-        SlopNote.Parse($"not a note\n{Note(erosion: 0.1, verbosity: 0.2).ToLine()}\n{Note(erosion: 0.3, verbosity: 0.4).ToLine()}\n")
+        SlopNote.Parse(
+                $"not a note\n{Note(erosion: 0.1, verbosity: 0.2).ToLine()}\n{Note(erosion: 0.3, verbosity: 0.4).ToLine()}\n")
             .Should().Be(Note(erosion: 0.1, verbosity: 0.2));
 
     [Theory]

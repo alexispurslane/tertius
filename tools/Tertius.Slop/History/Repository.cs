@@ -81,7 +81,8 @@ public sealed class Repository(string folder)
     }
 
     /// <summary>Attaches <paramref name="note"/> to the commit <paramref name="sha"/>, which has no note yet.</summary>
-    public void AddNote(string sha, SlopNote note) => Git(["notes", $"--ref={NotesRef}", "add", "-m", note.ToLine(), sha]);
+    public void AddNote(string sha, SlopNote note) =>
+        Git(["notes", $"--ref={NotesRef}", "add", "-m", note.ToLine(), sha]);
 
     private string Git(IReadOnlyList<string> arguments)
     {

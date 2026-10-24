@@ -13,6 +13,12 @@ public sealed record PushSummary
     /// <summary>The number of commits that each list of raises names at most.</summary>
     public const int RaiseCount = 3;
 
+    /// <summary>
+    /// The least change that counts as a raise: half the last digit that the summary shows, so that every raise it
+    /// names shows as at least +0.0001.
+    /// </summary>
+    public const double LeastRaise = 0.00005;
+
     /// <summary>The note at the last push, or null when no commit before the push has one.</summary>
     public required SlopNote? LastPush { get; init; }
 
@@ -70,14 +76,17 @@ public sealed record PushSummary
             $"  erosion    {last.Erosion:F4} -> {Now.Erosion:F4}  {Now.Erosion - last.Erosion:+0.0000;-0.0000;+0.0000}");
         text.AppendLine(CultureInfo.InvariantCulture,
             $"  verbosity  {last.Verbosity:F4} -> {Now.Verbosity:F4}  {Now.Verbosity - last.Verbosity:+0.0000;-0.0000;+0.0000}");
-        text.AppendLine(CultureInfo.InvariantCulture, $"  sloc       {last.Sloc} -> {Now.Sloc}  {Now.Sloc - last.Sloc:+0;-0;+0}");
+        text.AppendLine(CultureInfo.InvariantCulture,
+            $"  sloc       {last.Sloc} -> {Now.Sloc}  {Now.Sloc - last.Sloc:+0;-0;+0}");
         AppendRaises(text, "erosion", ErosionRaises);
         AppendRaises(text, "verbosity", VerbosityRaises);
         return text.ToString();
     }
 
     private static CommitRaise[] Largest(IEnumerable<CommitRaise> raises) =>
-        [.. raises.Where(raise => raise.Change > 0).OrderByDescending(raise => raise.Change).Take(RaiseCount)];
+    [
+        .. raises.Where(raise => raise.Change >= LeastRaise).OrderByDescending(raise => raise.Change).Take(RaiseCount)
+    ];
 
     private static void AppendRaises(StringBuilder text, string metric, IReadOnlyList<CommitRaise> raises)
     {

@@ -86,12 +86,10 @@ public enum NoteSource
     PreCommit,
 
     /// <summary>The pre-push hook, which notes the pushed commits that have no note.</summary>
-    [JsonStringEnumMemberName("pre-push")]
-    PrePush,
+    [JsonStringEnumMemberName("pre-push")] PrePush,
 
     /// <summary>A note made by hand for a commit from before the hooks.</summary>
-    [JsonStringEnumMemberName("seed")]
-    Seed
+    [JsonStringEnumMemberName("seed")] Seed
 }
 
 /// <summary>The JSON form of a note: one line, camel-case names, the source by name.</summary>

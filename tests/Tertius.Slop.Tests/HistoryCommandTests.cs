@@ -12,7 +12,13 @@ public sealed class HistoryCommandTests : IDisposable
 {
     // 4 lines of code, then 8.
     private const string Short = "class A\n{\n    int F() => 1;\n}\n";
-    private const string Long = "class A\n{\n    int F() => 1;\n    int G() => 2;\n    int H() => 3;\n    int I() => 4;\n    int J() => 5;\n}\n";
+
+    private const string Long =
+        "class A\n{\n    int F() => 1;\n    int G() => 2;\n    int H() => 3;\n    int I() => 4;\n    int J() => 5;\n}\n";
+
+    // One function with a cyclomatic complexity of 12, so an erosion of 1 when it is the only function.
+    private static readonly string Complex =
+        $"class C\n{{\n    int F(int x)\n    {{\n{string.Concat(Enumerable.Range(0, 11).Select(i => $"        if (x == {i}) return {i};\n"))}        return 0;\n    }}\n}}\n";
 
     private readonly GitFolder git = new();
     private readonly StringWriter output = new();
@@ -68,7 +74,7 @@ public sealed class HistoryCommandTests : IDisposable
         int exit = Run("note", first, tip, "--branch", "work", "--source", "pre-push");
 
         exit.Should().Be(0);
-        (git.NoteOf(first), git.NoteOf(docs)).Should().Be(((string?)null, (string?)null));
+        (git.NoteOf(first), git.NoteOf(docs)).Should().Be((null, null));
         SlopNote.Parse(git.NoteOf(source)!)!.Should().Match<SlopNote>(note =>
             note.Sloc == 8 && note.Branch == "work" && note.Source == NoteSource.PrePush);
         SlopNote.Parse(git.NoteOf(tip)!)!.Sloc.Should().Be(8);
@@ -84,9 +90,46 @@ public sealed class HistoryCommandTests : IDisposable
         string kept = SlopNoteTests.Note(erosion: 0.5, verbosity: 0.5, sloc: 999).ToLine();
         git.Git("notes", "--ref=slop", "add", "-m", kept, tip);
 
+        int exit = Run("note", first, tip, "--branch", "main", "--source", "pre-push");
+
+        (exit, git.NoteOf(tip)).Should().Be((0, kept));
+    }
+
+    [Fact]
+    public void TheNoteCommandNotesAMergeThatBringsSourceChangesToTheFirstParentLine()
+    {
+        git.Write("src/A.cs", Short);
+        string first = git.Commit("first");
+        git.Git("switch", "-q", "-c", "side");
+        git.Write("src/B.cs", Short);
+        git.Commit("on the side");
+        git.Git("switch", "-q", "main");
+        git.Write("README.md", "docs");
+        git.Commit("docs on main");
+        git.Git("merge", "-q", "--no-ff", "-m", "merge side", "side");
+        string merge = git.Git("rev-parse", "HEAD").Trim();
+        git.Write("README.md", "more docs");
+        string tip = git.Commit("docs again");
+
         Run("note", first, tip, "--branch", "main", "--source", "pre-push");
 
-        git.NoteOf(tip).Should().Be(kept);
+        SlopNote.Parse(git.NoteOf(merge)!)!.Sloc.Should().Be(8);
+    }
+
+    [Fact]
+    public void TheNoteCommandNotesAFirstCommitThatHoldsSource()
+    {
+        git.Write("src/A.cs", Short);
+        string root = git.Commit("root");
+        git.Write("README.md", "docs");
+        string tip = git.Commit("docs");
+        git.Git("switch", "-q", "--orphan", "other");
+        git.Write("src/C.cs", Short);
+        string other = git.Commit("an unrelated root");
+
+        Run("note", other, tip, "--branch", "main", "--source", "pre-push");
+
+        git.NoteOf(root).Should().NotBeNull();
     }
 
     [Fact]
@@ -145,6 +188,52 @@ public sealed class HistoryCommandTests : IDisposable
         exit.Should().Be(0);
         output.ToString().Should().Contain("erosion    0.0000 -> 1.0000  +1.0000").And
             .Contain($"+1.0000  {complex[..7]}  ter-ab12  ter-ab12: a complex function");
+    }
+
+    [Fact]
+    public void TheSummaryCommandNamesOnlyTheCommitsThatRaisedAMetricAgainstTheNoteBeforeThem()
+    {
+        git.Write("src/A.cs", Short);
+        string pushed = git.Commit("first");
+        NoteAt(pushed);
+        git.Write("src/A.cs", Complex);
+        string complex = git.Commit("ter-ab12: a complex function");
+        NoteAt(complex);
+        git.Write("src/B.cs", Long);
+        string simple = git.Commit("ter-cd34: simple functions beside it");
+        NoteAt(simple);
+
+        Run("summary", pushed, "HEAD");
+
+        output.ToString().Should().Contain($"+1.0000  {complex[..7]}").And.NotContain(simple[..7]);
+    }
+
+    [Fact]
+    public void TheSummaryCommandReadsTheNearestNoteBeforeAPushedTipWithoutOne()
+    {
+        git.Write("src/A.cs", Short);
+        string pushed = git.Commit("first");
+        NoteAt(pushed);
+        git.Write("src/A.cs", Complex);
+        NoteAt(git.Commit("ter-ab12: a complex function"));
+        git.Write("README.md", "docs");
+        git.Commit("docs only");
+
+        Run("summary", pushed, "HEAD");
+
+        output.ToString().Should().Contain("erosion    0.0000 -> 1.0000  +1.0000");
+    }
+
+    [Fact]
+    public void AHistoryCommandThatGitFailsForPrintsTheFailureAndExitsWithOne()
+    {
+        git.Write("src/A.cs", Short);
+        git.Commit("first");
+
+        int exit = Run("history", "no-such-commit");
+
+        exit.Should().Be(1);
+        error.ToString().Should().StartWith("Tertius.Slop: git log failed");
     }
 
     [Theory]

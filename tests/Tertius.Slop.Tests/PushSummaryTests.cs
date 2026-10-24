@@ -12,7 +12,8 @@ public class PushSummaryTests
     [Fact]
     public void TheSummaryComparesTheLastPushWithNow()
     {
-        PushSummary summary = PushSummary.Of(lastPush: SlopNoteTests.Note(erosion: 0.365, verbosity: 0.036, sloc: 34450),
+        PushSummary summary = PushSummary.Of(
+            lastPush: SlopNoteTests.Note(erosion: 0.365, verbosity: 0.036, sloc: 34450),
             now: SlopNoteTests.Note(erosion: 0.371, verbosity: 0.035, sloc: 34500), pushed: []);
 
         summary.Describe().Should()
@@ -50,6 +51,18 @@ public class PushSummaryTests
     }
 
     [Fact]
+    public void ARaiseTooSmallToShowInTheSummaryIsNoRaise()
+    {
+        Commit tiny = Pushed("1", "a", erosion: 0.30004);
+        Commit shown = Pushed("2", "b", erosion: 0.30010);
+
+        PushSummary summary = PushSummary.Of(lastPush: SlopNoteTests.Note(erosion: 0.30, verbosity: 0),
+            now: shown.Note!, pushed: [tiny, shown]);
+
+        summary.ErosionRaises.Select(raise => raise.Commit.Sha).Should().Equal("2");
+    }
+
+    [Fact]
     public void TheSummaryNamesTheTicketsAndTheSubjectOfACommitThatRaisedAMetric()
     {
         Commit raiser = Pushed("abcdef123456", "ter-2x99: the verbosity", erosion: 0.40);
@@ -58,6 +71,34 @@ public class PushSummaryTests
             pushed: [raiser]).Describe();
 
         text.Should().Contain("+0.1000  abcdef1  ter-2x99  ter-2x99: the verbosity");
+    }
+
+    [Fact]
+    public void ACommitRaisesTheVerbosityByTheChangeOfTheVerbosityAlone()
+    {
+        Commit raiser = SlopHistoryTests.Commit("ter-2x99: more words",
+                SlopNoteTests.Note(erosion: 0.30, verbosity: 0.05)) with
+            {
+                Sha = "abcdef123456"
+            };
+
+        PushSummary summary = PushSummary.Of(lastPush: SlopNoteTests.Note(erosion: 0.30, verbosity: 0.03),
+            now: raiser.Note!, pushed: [raiser]);
+
+        summary.ErosionRaises.Should().BeEmpty();
+        summary.VerbosityRaises.Select(raise => (raise.Commit.Sha, Math.Round(raise.Change, 4)))
+            .Should().Equal(("abcdef123456", 0.02));
+    }
+
+    [Fact]
+    public void TheSummarySaysSoWhenACommitThatRaisedAMetricNamesNoTicket()
+    {
+        Commit raiser = Pushed("abcdef123456", "Clean up code before push", erosion: 0.40);
+
+        string text = PushSummary.Of(lastPush: SlopNoteTests.Note(erosion: 0.30, verbosity: 0), now: raiser.Note!,
+            pushed: [raiser]).Describe();
+
+        text.Should().Contain("+0.1000  abcdef1  (no ticket)  Clean up code before push");
     }
 
     [Fact]
@@ -74,5 +115,8 @@ public class PushSummaryTests
 
     private static Commit Pushed(string sha, string message, double? erosion) =>
         SlopHistoryTests.Commit(message, erosion is { } value ? SlopNoteTests.Note(erosion: value, verbosity: 0) : null)
-            with { Sha = sha };
+            with
+            {
+                Sha = sha
+            };
 }

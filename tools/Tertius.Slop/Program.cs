@@ -16,6 +16,7 @@ namespace Tertius.Slop;
 public static class Program
 {
     private const string TextFlag = "--text";
+
     private const string Usage = """
                                  usage: Tertius.Slop [-C folder] erosion|verbosity|all [root] [--text]
                                         Tertius.Slop [-C folder] measure <tree> --branch <name> --source pre-commit|pre-push|seed
@@ -38,7 +39,7 @@ public static class Program
     public static int Run(string[] args, TextWriter output, TextWriter error, string jscpd)
     {
         (string folder, string[] command) = args is ["-C", var given, .. var rest] ? (given, rest) : (".", args);
-        var history = new HistoryCommands(repository: new Repository(folder), output: output, jscpd: jscpd);
+        var history = new HistoryCommands(repository: new(folder), output: output, jscpd: jscpd);
         try
         {
             switch (command)

@@ -60,7 +60,8 @@ internal sealed class GitFolder : IDisposable
         };
         foreach (string argument in arguments)
             start.ArgumentList.Add(argument);
-        foreach (string name in start.Environment.Keys.Where(key => key.StartsWith("GIT_", StringComparison.Ordinal)).ToList())
+        foreach (string name in start.Environment.Keys.Where(key => key.StartsWith("GIT_", StringComparison.Ordinal))
+                     .ToList())
             start.Environment.Remove(name);
         using Process git = Process.Start(start)!;
         Task<string> errors = git.StandardError.ReadToEndAsync();

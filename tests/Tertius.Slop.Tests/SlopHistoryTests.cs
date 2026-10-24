@@ -17,6 +17,7 @@ public class SlopHistoryTests
     [Theory]
     [InlineData("Clean up code before push")]
     [InlineData("ter-2x9: a short id, and a long one ter-2x999")]
+    [InlineData("Split the inter-face code")]
     public void AMessageWithoutATicketIdHasNoTickets(string message) =>
         Commit(message, note: null).Tickets.Should().BeEmpty();
 
@@ -35,12 +36,14 @@ public class SlopHistoryTests
             "a1,2026-10-24T12:00:00+00:00,main,ter-2x99 ter-ab12,0.365,0.036,34450\n");
     }
 
-    [Fact]
-    public void ABranchNameWithACommaOrAQuoteIsQuoted()
+    [Theory]
+    [InlineData("odd,name", "\"odd,name\"")]
+    [InlineData("say\"hi\"", "\"say\"\"hi\"\"\"")]
+    public void ABranchNameWithACommaOrAQuoteIsQuoted(string branch, string cell)
     {
-        SlopNote note = SlopNoteTests.Note(erosion: 0.5, verbosity: 0.25) with { Branch = "odd,\"name\"" };
+        SlopNote note = SlopNoteTests.Note(erosion: 0.5, verbosity: 0.25) with { Branch = branch };
 
-        new SlopHistory([Commit("x", note)]).Csv.Should().EndWith(",\"odd,\"\"name\"\"\",,0.5,0.25,34450\n");
+        new SlopHistory([Commit("x", note)]).Csv.Should().EndWith($",{cell},,0.5,0.25,34450\n");
     }
 
     internal static Commit Commit(string message, SlopNote? note) => new()
