@@ -48,7 +48,9 @@ internal static class UnionWriter
         for (int i = 0; i < union.Slots.Count; i++)
         {
             text.AppendLine($"    // Holds {union.Slots[i].Holds}.");
-            text.AppendLine($"    private readonly {union.Slots[i].Type} slot{i};");
+            SlotModel slot = union.Slots[i];
+            string nullable = slot.IsReference && !slot.Type.EndsWith("?") ? "?" : "";
+            text.AppendLine($"    private readonly {slot.Type}{nullable} slot{i};");
         }
 
         text.AppendLine("    private readonly byte kind;");
@@ -86,7 +88,7 @@ internal static class UnionWriter
         text.AppendLine("    public object? Value => kind switch");
         text.AppendLine("    {");
         foreach (CaseModel c in union.Cases)
-            text.AppendLine($"        {c.KindName} => {Read(c)},");
+            text.AppendLine($"        {c.KindName} => {Read(union, c)},");
         text.AppendLine("        _ => null");
         text.AppendLine("    };");
         foreach (CaseModel c in union.Cases)
@@ -95,7 +97,7 @@ internal static class UnionWriter
             text.AppendLine($"    /// <summary>True and the case when this value holds a {c.Display}. Otherwise false and the default.</summary>");
             text.AppendLine($"    public bool TryGetValue(out {c.Type} value)");
             text.AppendLine("    {");
-            text.AppendLine($"        value = kind == {c.KindName} ? {Read(c)} : default;");
+            text.AppendLine($"        value = kind == {c.KindName} ? {Read(union, c)} : default;");
             text.AppendLine($"        return kind == {c.KindName};");
             text.AppendLine("    }");
         }
@@ -141,10 +143,13 @@ internal static class UnionWriter
         text.AppendLine("    private static bool SlotEquals<T>(T a, T b) => global::System.Collections.Generic.EqualityComparer<T>.Default.Equals(a, b);");
     }
 
-    /// <summary>The expression that builds case <paramref name="c"/> from its slots.</summary>
-    private static string Read(CaseModel c) => c.Whole
+    /// <summary>
+    /// The expression that builds case <paramref name="c"/> from its slots. A reference slot is nullable, but the case
+    /// that holds it stored its own value there, so the read says that it is not null.
+    /// </summary>
+    private static string Read(UnionModel union, CaseModel c) => c.Whole
         ? $"slot{c.Values[0].Slot}"
-        : $"new {c.Type}({string.Join(", ", c.Values.Select(v => $"slot{v.Slot}"))})";
+        : $"new {c.Type}({string.Join(", ", c.Values.Select(v => $"slot{v.Slot}{(union.Slots[v.Slot].IsReference ? "!" : "")}"))})";
 
     /// <summary>The hash of the kind and the values of case <paramref name="c"/>.</summary>
     private static string Hash(CaseModel c)

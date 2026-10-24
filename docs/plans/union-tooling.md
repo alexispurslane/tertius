@@ -43,6 +43,8 @@ The k-th value of type `T` in a case goes into slot k of type `T`. For example, 
 
 The generator builds a field-stored case again with its constructor, so a case must come back with the same bits. A property initializer that changes a parameter, such as a normalized direction, breaks that. So the generator stores such a case as one value. Today every struct case is a positional record, except three plain event structs of the demo: `Dock`, `LeaveShip` and `PlayWithBoxes`.
 
+A slot of a reference type is declared nullable, because it is null in the empty value and in every case that does not use it. A case that holds it reads it back with `!`.
+
 The slots have no names of meaning: `slot0`, `slot1` and so on. A comment in the generated file names the case values in each slot. A hand-written member reads a case through its pattern or `TryGetValue`, never through a slot. The kind byte is the last field. The slots come before it, the most aligned first, so that the struct has the least padding.
 
 ### Generated members

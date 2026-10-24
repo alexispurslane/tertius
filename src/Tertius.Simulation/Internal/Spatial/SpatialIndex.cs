@@ -1,5 +1,3 @@
-using System.Runtime.CompilerServices;
-
 namespace Tertius.Simulation;
 
 /// <summary>
@@ -17,7 +15,7 @@ namespace Tertius.Simulation;
 /// </list>
 /// Query results are entity handles and never name a dead entity.
 /// </remarks>
-internal sealed class SpatialIndex
+internal sealed partial class SpatialIndex
 {
     /// <summary>The number of work items of an update on the workers, which share the moved entities in equal ranges.</summary>
     private const int ParallelItems = 32;
@@ -84,46 +82,13 @@ internal sealed class SpatialIndex
     /// <summary>
     /// Where one entity is in the grids: <see cref="InCell"/>, or in no grid. The empty value is <see cref="NotInGrid"/>,
     /// the all-zero default, so the row that the entity table clears for a released slot is in no grid.
-    /// This is a custom C# 15 union. <see cref="HasValue"/> and the <c>TryGetValue</c> method let the compiler
-    /// pattern-match it without boxing. <see cref="Value"/> boxes, so use it only for debugging.
+    /// This is a generated union (docs/plans/union-tooling.md).
     /// </summary>
-    [Union]
-    private readonly struct Placement(InCell inCell) : IEquatable<Placement>
+    [GeneratedUnion(typeof(InCell))]
+    private readonly partial struct Placement
     {
-        private const byte KindNotInGrid = 0, KindInCell = 1;
-
         /// <summary>In no grid.</summary>
         public static Placement NotInGrid => default;
-
-        private readonly byte kind = KindInCell;
-        private readonly int frame = inCell.Frame;
-        private readonly CellKey cell = inCell.Cell;
-
-        /// <summary>False for <see cref="NotInGrid"/>.</summary>
-        public bool HasValue => kind != KindNotInGrid;
-
-        public object? Value => kind == KindInCell ? new InCell(frame, cell) : null;
-
-        public static implicit operator Placement(InCell inCell) => new(inCell);
-
-        public bool TryGetValue(out InCell value)
-        {
-            value = kind == KindInCell ? new InCell(frame, cell) : default;
-            return kind == KindInCell;
-        }
-
-        // The fields of NotInGrid are always zero, so comparing every field compares the cases.
-        public bool Equals(Placement other) => kind == other.kind && frame == other.frame && cell == other.cell;
-        public override bool Equals(object? obj) => obj is Placement other && Equals(other);
-        public override int GetHashCode() => HashCode.Combine(kind, frame, cell);
-        public static bool operator ==(Placement a, Placement b) => a.Equals(b);
-        public static bool operator !=(Placement a, Placement b) => !a.Equals(b);
-
-        public override string ToString() => this switch
-        {
-            InCell at => $"Placement({at})",
-            null => "Placement(not in a grid)"
-        };
     }
 
     /// <summary>A moved entity and the placement that <see cref="Update"/> found for it, before the grids change.</summary>
