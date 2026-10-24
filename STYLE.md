@@ -6,19 +6,22 @@ When a reason can beat a rule, the rule says "prefer". When nothing beats a rule
 
 ## Priorities
 
-When speed and a rule of this guide pull apart, use this order:
+Slow code is never acceptable because it was easier to write. Within that, when speed and a rule of this guide pull apart, use this order:
 
-1. Performance beats sloppiness. Do not accept slow code because it was easier to write.
-2. Consistency beats general performance. When another form is a little faster in theory, keep the form of this guide.
-3. Benchmarked performance where it matters beats consistency. Break a rule only where a profile or a benchmark shows that the spot costs real time, and say so in a comment.
+1. Consistency beats general performance. When another form is a little faster in theory, keep the form of this guide.
+2. Benchmarked performance where it matters beats consistency. Break a rule only where a profile or a benchmark shows that the spot costs real time, and say so in a comment.
 
-Example: a switch over the 184-byte `MotionIntent` copies the whole union first. A measurement found 2 to 5 ns per call, so its members keep their switches.
+"Real time" means a share of the frame budget that a profile can see: about 16.7 ms per frame at 60 frames per second.
+
+Example: a switch over the 184-byte `MotionIntent` copies the whole union first. A measurement found 2 to 5 ns per call. Three members read the union once per step for each entity with a motion intent. For 1,000 such entities, that is at most 15 µs per step, under 0.1 percent of the frame budget. That is not real time, so the members keep their switches.
 
 ## Data
 
 ### Use pattern matching and destructuring
 
 Prefer pattern matching and destructuring over every other way to read data: over property chains, casts, `TryGetValue` chains and `is` tests with a body. A pattern states the shape that the code expects, and the compiler makes sure that a switch covers every case.
+
+Use a positional pattern, such as `EndPose(var pose)`, only for a type with one field. For a type with two or more fields, use a property pattern, such as `Taking { Throw: var index }`. A positional pattern binds by parameter order: a new field or a reordered one breaks every such pattern, or silently swaps two values of one type.
 
 ```csharp
 internal MotionIntent Converted(in FrameMotion start, in FrameMotion end, double step) => this switch
@@ -85,6 +88,11 @@ Write a range as a start and a count, never as a prefix-sum array read at `[i]` 
 ### Put a function into the type that it belongs to
 
 A function of an orbit is an instance method of `KeplerOrbit`. Math about two bodies that takes no orbit is a static method of `KeplerOrbit`, such as `KeplerOrbit.Chord(position, velocity, mu, step)`. Never write a static helper class such as `KeplerMath`. This holds for demo code too: if the function belongs to an engine type, it goes into the engine.
+
+### Seal types, and keep them internal
+
+- Every class is `sealed`, unless it is the base of a hierarchy that this guide allows.
+- Every type and member is `internal` or `private`, unless another module needs it. A member becomes `public` only when it is part of the engine's API for game code or mods.
 
 ## Nulls
 
@@ -157,7 +165,7 @@ return new NearPoint(frame, point, CheckRadius(radius));
 
 ### State machines
 
-If the state of a component, its changes, or its behavior per state is even a little complex, write a flat state machine:
+If a component has more than two states, or any data that belongs to only some of its states, write a flat state machine:
 
 1. One union holds the current state, with one case per phase. Never nest one machine inside the phase of another.
 2. One pure static method gives the next state: `Next(state, event)`. It reads only its two arguments, and it is the whole table of changes. Only `Next` changes the case.
@@ -263,7 +271,7 @@ internal interface IEventFilter
 }
 ```
 
-A default method also works on a hot path, with a struct type parameter. In cold code, the call boxes the struct. After warm-up, the JIT inlines a small default method and removes the box: a measurement on .NET 11 RC 1 found no allocation per call. Keep a default method that a hot path calls small, so that the JIT inlines it, and let the allocation tests make sure that it allocates nothing.
+A default method called on a struct through a type parameter boxes the struct, because the method body sees `this` as the interface. The JIT can remove the box only if it inlines the method: a measurement on .NET 11 RC 1 found no allocation per call for a small default method after warm-up, and one box per call in cold code. So an interface that a hot path calls has no default methods, unless a measurement of that call shows no allocation. Record the measurement in a comment on the method, and let an allocation test hold it.
 
 - A type holds a part when the part is data that the type owns, not to borrow the part's behavior.
 - A primary constructor keeps the parts short to declare, such as `public sealed class Carry(CapsuleShapeDesc body) : IComponent`.
@@ -277,7 +285,7 @@ A default method also works on a hot path, with a struct type parameter. In cold
 - Hot paths allocate nothing after warm-up. They use spans, `ref`, `in` and ref structs.
 - LINQ is the first choice outside hot paths. Deferred LINQ is 5 to 26 times slower than a loop on a hot path. There, build an API that reads like LINQ and allocates nothing, such as `foreach (ref Throttle each in events.Of<Throttle>())`.
 - Reflection runs only at load time, such as for blueprints.
-- Every expensive feature has a switch in its options, and its cost is measured.
+- Every expensive feature has a toggle in its options, and its cost is measured.
 
 ## Errors and contracts
 
@@ -286,6 +294,30 @@ A default method also works on a hot path, with a struct type parameter. In cold
 - A failed contract is a bug. Never catch one.
 - A state that only a bug produces fails a contract in Debug. Release skips it and records it in `World.Errors`.
 - Every member that takes an `Entity` checks its generation, in every build. A stale handle gives an explicit `null`, `false` or exception. No member between modules takes or returns a bare slot.
+
+### Expected failures
+
+A failure that can happen in correct code, such as a file that does not open or text that does not parse, is not a bug and not an argument error. A method that can fail this way is a `Try` method: it returns `bool` and gives its result in an `out` parameter, with `[NotNullWhen(true)]` or `[MaybeNullWhen(false)]` where the result is a reference. Do not write a result union for this.
+
+```csharp
+public readonly bool TryGet<T>(out T payload) where T : unmanaged, IEventPayload
+```
+
+If the caller needs the reason for a failure, the method gives it in a second `out` parameter. A method without `Try` in its name throws on such a failure, and its doc comment names the exception.
+
+### Disposal and ownership
+
+Release every resource that the stack and the garbage collector do not release, as early and as visibly as the scope allows: native memory, GPU objects, files, processes and physics backends.
+
+- Hold every `IDisposable` local in a `using` declaration. Use a `using` block only when the resource must go before the scope ends.
+- The type that creates a resource owns it, and its `Dispose` releases it, in the reverse order of creation.
+- Ownership never passes in silence. A hand-over is in the name of the member or in an explicit option, such as `WorldOptions.DisposePhysics`, which makes the World dispose the physics backend that it receives.
+- A type that owns a resource implements `IDisposable` and is `sealed`. It has no finalizer: a resource that escapes disposal is a bug for a test to find, not for the garbage collector to clean up.
+
+```csharp
+using var world = new World(new() { DisposePhysics = true },
+    ...
+```
 
 ## Names
 

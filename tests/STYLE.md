@@ -45,5 +45,5 @@ public sealed class Flammable : Flag;
 ## Determinism
 
 - Most tests run on one thread, so that they are deterministic and fast. A separate test covers parallel determinism.
-- A renderer test turns on deterministic rendering with the one switch in `RendererOptions`.
+- A renderer test turns on deterministic rendering with the one toggle in `RendererOptions`.
 - A test never depends on the time of day, a random seed that it does not set, or the order of a hash set.
