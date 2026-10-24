@@ -1,6 +1,6 @@
 ---
 id: ter-kke3
-status: open
+status: closed
 deps: [ter-ghts]
 links: []
 created: 2026-10-24T19:35:50Z
