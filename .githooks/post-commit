@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Attaches the slop note that the pre-commit hook measured to the new commit, under refs/notes/slop (see
+# tools/README.md, "Git hooks"). The pending file holds the measured tree on its first line and the note on its second.
+# The hook attaches the note only when the commit holds exactly that tree, so a note never describes another tree.
+# A commit without a pending note, such as a commit with --no-verify or without C# changes, gets none here. The
+# pre-push hook notes such a commit when it changes C# code under src.
+# The hook needs only git, so it never enters the dev shell, and it never fails the commit, which git already made.
+set -u
+
+pending="$(git rev-parse --absolute-git-dir)/slop-pending"
+[[ -f "$pending" ]] || exit 0
+{
+    read -r tree
+    read -r note
+} < "$pending"
+rm -f "$pending"
+[[ "$tree" == "$(git rev-parse 'HEAD^{tree}')" && -n "$note" ]] || exit 0
+
+# Every worktree shares refs/notes/slop, so a commit in another worktree can hold the ref's lock for a moment.
+for _ in 1 2 3 4 5; do
+    git notes --ref=refs/notes/slop add -f -m "$note" HEAD 2> /dev/null && exit 0
+    sleep 0.2
+done
+echo "post-commit: the slop note of $(git rev-parse --short HEAD) was not written, so the next push writes it." >&2
+exit 0

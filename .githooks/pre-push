@@ -4,6 +4,9 @@
 #      hook builds the solution, commits the result as one cleanup commit and stops the push, because git already
 #      chose the commits to push. Push again to send the cleanup commit too.
 #   2. tools/docs.sh builds the docs site. A DocFX error stops the push, and a link warning does not.
+#   3. The slop history (tools/Tertius.Slop): it notes each pushed commit that changes C# code under src and has no
+#      note, and the pushed tip, prints the metrics at the last push against now, and pushes refs/notes/slop to the
+#      same remote after a merge with the remote's notes. It never stops the push.
 # To skip the hook once, run: git push --no-verify
 set -euo pipefail
 
@@ -82,3 +85,36 @@ if ! bash tools/docs.sh > "$log" 2>&1; then
     echo "pre-push: the docs build failed, so the push stopped. The full log: $log" >&2
     exit 1
 fi
+
+# The slop history. The commits of a branch since its last push are the ones after the remote's commit, or after main
+# for a new branch. The docs build above built the solution in Release, so the tool is current.
+slop_history() {
+    local remote=$1 slop=tools/Tertius.Slop/bin/Release/net11.0/Tertius.Slop.dll
+    [[ -f "$slop" ]] || dotnet build tools/Tertius.Slop -c Release -v quiet -nologo > /dev/null || return 1
+    local local_ref local_sha remote_sha from
+    while read -r local_ref local_sha _ remote_sha; do
+        [[ "$local_ref" == refs/heads/* && -n "$local_sha" && "$local_sha" != "$zero" ]] || continue
+        if [[ "$remote_sha" != "$zero" ]] && git cat-file -e "$remote_sha^{commit}" 2> /dev/null; then
+            from=$remote_sha
+        else
+            from=$(git merge-base "$local_sha" main)
+        fi
+        [[ "$from" == "$local_sha" ]] && continue
+        echo "pre-push: measuring the pushed commits of ${local_ref#refs/heads/} that have no slop note..." >&2
+        dotnet "$slop" note "$from" "$local_sha" --branch "${local_ref#refs/heads/}" --source pre-push > /dev/null \
+            || echo "pre-push: the slop notes of ${local_ref#refs/heads/} failed." >&2
+        dotnet "$slop" summary "$from" "$local_sha" | sed 's/^/pre-push: /' >&2
+    done <<< "$TERTIUS_PUSH_REFS"
+
+    # Another clone can have pushed notes that this one lacks. Their union keeps both: a commit with two notes gets
+    # their lines in sorted order, and a reader takes the first line.
+    if git fetch -q "$remote" "+refs/notes/slop:refs/notes/slop-remote" 2> /dev/null; then
+        git notes --ref=refs/notes/slop merge -q -s cat_sort_uniq refs/notes/slop-remote ||
+            echo "pre-push: the merge of the remote's slop notes failed." >&2
+    fi
+    if git rev-parse -q --verify refs/notes/slop > /dev/null; then
+        git push -q --no-verify "$remote" refs/notes/slop ||
+            echo "pre-push: the push of refs/notes/slop failed, so the next push tries again." >&2
+    fi
+}
+slop_history "${1:-origin}" || echo "pre-push: the slop history failed. The push goes on." >&2
