@@ -1,0 +1,8 @@
+{
+  "csharp-ls": {
+    "command": "${CLAUDE_PROJECT_DIR}/tools/csharp-ls.sh",
+    "extensionToLanguage": { ".cs": "csharp" },
+    "startupTimeout": 180000,
+    "requestTimeout": 120000
+  }
+}
