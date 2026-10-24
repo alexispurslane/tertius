@@ -48,8 +48,8 @@ public sealed class SceneInstance
         ids.Add(entity, id);
     }
 
-    /// <summary>The entity with the scene id, or false for an unknown id.</summary>
-    public bool TryGetEntity(string id, out Entity entity) => entities.TryGetValue(id, out entity);
+    /// <summary>The entity with the scene id, or null for an unknown id.</summary>
+    public Entity? EntityOf(string id) => entities.TryGetValue(id, out Entity entity) ? entity : null;
 
     /// <summary>The scene id of the entity, or its debug form <c>#index.generation</c> if it has none.</summary>
     public string IdOf(Entity entity) =>

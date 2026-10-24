@@ -64,23 +64,20 @@ public readonly partial struct MotionIntent
     /// motion at a constant velocity from <paramref name="stepStart"/> to the end pose, as Jolt moves a kinematic body to
     /// its target (docs/plans/rails-components.md, "MoveKinematic as an end pose"): the chord is also the instant velocity,
     /// the angular velocity turns the start's rotation into the end's, and both accelerations are zero. A steer target gives
-    /// no record, because physics measures the motion of a dynamic body, and neither does the empty union: both return false.
+    /// no record, because physics measures the motion of a dynamic body, and neither does the empty union: both return null.
     /// </summary>
-    public bool TryRecordFrom(in DPose stepStart, double step, out MotionSample record)
-    {
-        (bool recorded, record) = this switch
+    public MotionSample? RecordFrom(in DPose stepStart, double step) =>
+        this switch
         {
-            MotionSample sample => (true, sample),
-            EndPose(var end) => (true, KinematicRecord(stepStart, end, step)),
-            SteerTarget => (false, default),
-            null => (false, default),
+            MotionSample sample => sample,
+            EndPose(var end) => KinematicRecord(stepStart, end, step),
+            SteerTarget => null,
+            null => null,
         };
-        return recorded;
-    }
 
     /// <summary>
     /// The record of a move at a constant velocity from <paramref name="stepStart"/> to <paramref name="end"/> over a step
-    /// of <paramref name="step"/> seconds (see <see cref="TryRecordFrom"/>).
+    /// of <paramref name="step"/> seconds (see <see cref="RecordFrom"/>).
     /// </summary>
     private static MotionSample KinematicRecord(in DPose stepStart, DPose end, double step)
     {

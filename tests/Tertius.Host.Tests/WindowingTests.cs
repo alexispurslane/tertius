@@ -314,7 +314,7 @@ public sealed class CaptureMailboxTests
     {
         var clock = Stopwatch.StartNew();
         ICaptureSink? sink;
-        while (!mailbox.TryTake(out sink))
+        while ((sink = mailbox.Take()) is null)
         {
             clock.Elapsed.Should().BeLessThan(Bound, "the request must arrive");
             Thread.Yield();
@@ -356,7 +356,7 @@ public sealed class CaptureMailboxTests
         var request = Task.Run(() => mailbox.RequestAndWait(new Sink(), CancellationToken.None), TestStop);
         TakeWithin(mailbox);
 
-        mailbox.TryTake(out _).Should().BeFalse();
+        mailbox.Take().Should().BeNull();
         mailbox.Done();
         await request.WaitAsync(Bound, TestStop);
     }
@@ -375,7 +375,7 @@ public sealed class CaptureMailboxTests
     }
 
     [Fact]
-    public void WithNoRequestThereIsNothingToTake() => new CaptureMailbox().TryTake(out _).Should().BeFalse();
+    public void WithNoRequestThereIsNothingToTake() => new CaptureMailbox().Take().Should().BeNull();
 
     [Fact]
     public async Task ARequestStopsWaitingWhenTheWindowCloses()
@@ -402,7 +402,7 @@ public sealed class CaptureMailboxTests
             .Should()
             .ThrowAsync<OperationCanceledException>();
 
-        mailbox.TryTake(out _).Should().BeFalse("the render thread must not draw a capture that nobody waits for");
+        mailbox.Take().Should().BeNull("the render thread must not draw a capture that nobody waits for");
     }
 }
 
@@ -605,7 +605,7 @@ public sealed class WindowPlaybackTests
         HostTesting.Probes(world);
         // The render thread has taken every snapshot so far.
         world.PublishRenderSnapshot();
-        world.RenderSnapshots.TryAcquireLatest(out _);
+        world.RenderSnapshots.AcquireLatest();
         var mailbox = new CaptureMailbox();
         var playback = new WindowPlayback(
             pacer: new(0.02, 1),
@@ -615,7 +615,7 @@ public sealed class WindowPlaybackTests
             stop: CancellationToken.None
         );
         bool fresh = false;
-        Task renderThread = ServeOneCapture(mailbox, sink => fresh = world.RenderSnapshots.TryAcquireLatest(out _));
+        Task renderThread = ServeOneCapture(mailbox, sink => fresh = world.RenderSnapshots.AcquireLatest() != null);
 
         playback.Capture(world, "x").Should().BeTrue();
 

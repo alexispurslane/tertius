@@ -52,7 +52,8 @@ public sealed class ShipWindowTests
         var resources = new RecordingResources();
         SceneInstance scene = DemoScenes.All.Single(s => s.Name == "orbit").Build(world, resources);
         world.PublishRenderSnapshot();
-        world.RenderSnapshots.TryAcquireLatest(out RenderSnapshot snapshot).Should().BeTrue();
+        world.RenderSnapshots.AcquireLatest().Should().NotBeNull();
+        RenderSnapshot snapshot = world.RenderSnapshots.ReadBuffer;
         return (snapshot, resources, scene);
     }
 

@@ -62,7 +62,8 @@ public sealed class PuffSnapshotTests
 
     private static RenderSnapshot Latest(World world)
     {
-        world.RenderSnapshots.TryAcquireLatest(out RenderSnapshot snapshot).Should().BeTrue();
+        world.RenderSnapshots.AcquireLatest().Should().NotBeNull();
+        RenderSnapshot snapshot = world.RenderSnapshots.ReadBuffer;
         return snapshot;
     }
 

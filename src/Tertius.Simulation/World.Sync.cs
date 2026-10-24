@@ -434,35 +434,25 @@ public sealed partial class World
     {
         // Without a physics backend, and after a step that failed, physics released no record, so the pass asks an empty
         // table for every frame.
-        public bool TryGetHullRecord(FrameHandle frame, out FrameStepRecord record)
-        {
-            if (world.stepRecords.Count == 0)
-            {
-                record = default;
-                return false;
-            }
-
-            return world.stepRecords.TryGetValue(frame, out record);
-        }
+        public FrameStepRecord? HullRecord(FrameHandle frame) =>
+            world.stepRecords.Count != 0 && world.stepRecords.TryGetValue(frame, out FrameStepRecord record)
+                ? record
+                : null;
 
         public bool IsSkipped(FrameHandle frame) => world.physicsOutputCheck.IsSkipped(frame.Entity);
 
         // Gameplay can write any rotation, but the local pose of a frame must be unit length (see FrameTree), so the world
         // normalizes it here, and the owner's row follows the frame (see MirrorFrameOwner). The write left the owner's row
         // at rest (see EntityTable.WritableTransform), and the frame takes it at rest.
-        public bool TryGetTransformWrite(FrameHandle frame, out DPose pose)
+        public DPose? TransformWrite(FrameHandle frame)
         {
             Entity owner = frame.Entity;
             if (!world.Entities.GameplayWroteTransform(owner))
-            {
-                pose = default;
-                return false;
-            }
+                return null;
 
             ref readonly TransformRow row = ref world.Entities.BackRow(owner);
             Contract.Assert(row.Frame == world.Frames.Parent(frame));
-            pose = row.Pose.WithUnitRotation();
-            return true;
+            return row.Pose.WithUnitRotation();
         }
     }
 

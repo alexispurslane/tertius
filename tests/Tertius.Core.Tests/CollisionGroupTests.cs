@@ -65,7 +65,7 @@ public sealed class CollisionGroupTests
 
         thirteenth.Should().Throw<InvalidOperationException>().WithMessage("*OneTooMany*12*");
         registry.Count.Should().Be(CollisionGroup.Capacity);
-        registry.TryGet("OneTooMany", out _).Should().BeFalse();
+        registry.Find("OneTooMany").Should().BeNull();
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public sealed class CollisionGroupTests
     {
         var registry = new CollisionGroupRegistry();
 
-        registry.TryGet("Debris", out _).Should().BeFalse();
+        registry.Find("Debris").Should().BeNull();
         Action lookUp = () => _ = registry["Debris"];
         lookUp.Should().Throw<KeyNotFoundException>().WithMessage("*Debris*");
     }

@@ -3735,7 +3735,7 @@ The renderer's description in ARCHITECTURE.md changes in one place. It knows not
 | Value | Writer: thread, moment | Readers: thread, moment |
 |---|---|---|
 | `World.ShowFrameOutlines` | The scene, calling thread, at its build. The `outlines` step, runner thread, between ticks. | `World.BuildRenderSnapshot`, which copies it into `RenderView`. At step 11, that runs on the sync thread: the simulation thread in the window, the calling thread in a headless run. Between ticks, `PublishRenderSnapshot` runs it on the calling thread. |
-| `RenderSnapshot.Outlines` | `RenderSnapshotBuilder.Build`, at the same threads and moments. `Clear` empties it. | `OutlinePass.Prepare`. In the window, the render thread runs it after `TryAcquireLatest`. In a headless capture, the calling thread runs it. |
+| `RenderSnapshot.Outlines` | `RenderSnapshotBuilder.Build`, at the same threads and moments. `Clear` empties it. | `OutlinePass.Prepare`. In the window, the render thread runs it after `AcquireLatest`. In a headless capture, the calling thread runs it. |
 | The contents radii | The builder, during one build | The builder, the same build |
 | `GpuOutline` records | `OutlinePass.Prepare`, render thread or calling thread | The vertex shader, on the GPU, in the same frame |
 | `RenderStats.Outlines` | `Render`, at its end | Tests, and the window's statistics |

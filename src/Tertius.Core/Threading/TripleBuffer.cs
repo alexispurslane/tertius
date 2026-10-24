@@ -2,7 +2,7 @@ namespace Tertius;
 
 /// <summary>
 /// Lock-free hand-over of the latest value from one writer thread to one reader thread. The writer fills
-/// <see cref="WriteBuffer"/> and calls <see cref="Publish"/>. The reader calls <see cref="TryAcquireLatest"/>.
+/// <see cref="WriteBuffer"/> and calls <see cref="Publish"/>. The reader calls <see cref="AcquireLatest"/>.
 /// Neither side ever waits for the other.
 /// </summary>
 public sealed class TripleBuffer<T>(Func<T> factory)
@@ -26,18 +26,17 @@ public sealed class TripleBuffer<T>(Func<T> factory)
         writeIndex = previous & 3;
     }
 
-    /// <summary>Takes the newest published buffer, if one arrived since the last call. Otherwise keeps the current one.</summary>
-    public bool TryAcquireLatest(out T latest)
+    /// <summary>
+    /// Takes the newest published buffer and returns it, if one arrived since the last call. Null when none arrived, and then
+    /// <see cref="ReadBuffer"/> stays the current one.
+    /// </summary>
+    public T? AcquireLatest()
     {
         if ((Volatile.Read(ref middle) & FreshBit) == 0)
-        {
-            latest = buffers[readIndex];
-            return false;
-        }
+            return null;
 
         int previous = Interlocked.Exchange(ref middle, readIndex);
         readIndex = previous & 3;
-        latest = buffers[readIndex];
-        return true;
+        return buffers[readIndex];
     }
 }

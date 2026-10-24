@@ -93,7 +93,8 @@ public sealed class CameraInShipCrateInEarthTests : IDisposable
         for (int tick = 0; tick < Ticks; tick++)
         {
             world.Tick();
-            world.RenderSnapshots.TryAcquireLatest(out RenderSnapshot snapshot).Should().BeTrue();
+            world.RenderSnapshots.AcquireLatest().Should().NotBeNull();
+            RenderSnapshot snapshot = world.RenderSnapshots.ReadBuffer;
             foreach (Entity crate in crates)
             {
                 world

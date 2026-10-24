@@ -70,7 +70,7 @@ internal sealed record SpinStationSample(
         live.Clear();
         world.CopyLiveEntities(live);
         Entity thrown = live.FirstOrDefault(e =>
-            world.GetComponent<Crate>(e) != null && !scene.TryGetEntity(scene.IdOf(e), out _)
+            world.GetComponent<Crate>(e) != null && scene.EntityOf(scene.IdOf(e)) is null
         );
         return new(
             Tick: world.TickNumber,

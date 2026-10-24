@@ -134,7 +134,7 @@ public sealed partial class FrameTree
     /// finished step:
     /// <list type="bullet">
     /// <item>An end pose or a full sample, which a kinematic hull or a frame without a hull follows: the record's rotation
-    /// and angular velocity (see <see cref="MotionIntent.TryRecordFrom"/>). The records of the rails components are exact, so
+    /// and angular velocity (see <see cref="MotionIntent.RecordFrom"/>). The records of the rails components are exact, so
     /// their turns hold no float rounding of a rate.</item>
     /// <item>A dynamic hull: the turn that Jolt gives the hull, predicted from its last record (fork F3 of the design). Its
     /// rate is the row's angular velocity plus the record's angular acceleration times the step (see
@@ -193,7 +193,7 @@ public sealed partial class FrameTree
             case FollowKind.Rails or FollowKind.Kinematic:
                 // The record's rotation and angular velocity depend only on the rotation where the step starts, which is
                 // all that the pose of the start gives here.
-                stepIntents[(int)slot].Move.TryRecordFrom(new(Double3.Zero, start), step, out MotionSample record);
+                MotionSample record = stepIntents[(int)slot].Move.RecordFrom(new(Double3.Zero, start), step) ?? default;
                 end = record.Pose.Rotation;
                 level = record.AngularVelocity;
                 break;

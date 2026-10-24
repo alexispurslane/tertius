@@ -455,7 +455,8 @@ public sealed class MessagingTopicTests
         var found = new List<Entity>();
         t.World.Snapshot.QueryRadius(frame: frames[^1], center: new(1, 2, 3), radius: 0.5, results: found);
         found.Should().HaveCount(1);
-        t.World.RenderSnapshots.TryAcquireLatest(out RenderSnapshot snapshot).Should().BeTrue();
+        t.World.RenderSnapshots.AcquireLatest().Should().NotBeNull();
+        RenderSnapshot snapshot = t.World.RenderSnapshots.ReadBuffer;
         snapshot.Instances.Count.Should().Be(40);
         RenderInstance last = snapshot.Instances.Single(instance => instance.Mesh == new MeshId(39));
         last.Position.Should().Be(new Vector3(39_001, 2, 3));

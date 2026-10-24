@@ -126,9 +126,7 @@ public sealed class CollisionGroupRegistry
 
     /// <summary>The group named <paramref name="name"/>. Throws <see cref="KeyNotFoundException"/> when no group has the name.</summary>
     public CollisionGroup this[string name] =>
-        TryGet(name, out CollisionGroup group)
-            ? group
-            : throw new KeyNotFoundException($"No collision group is named \"{name}\".");
+        Find(name) ?? throw new KeyNotFoundException($"No collision group is named \"{name}\".");
 
     /// <summary>
     /// The group named <paramref name="name"/>. A new name gets the next free group. A name that is already registered
@@ -138,7 +136,7 @@ public sealed class CollisionGroupRegistry
     public CollisionGroup Register(string name)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        if (TryGet(name, out CollisionGroup group))
+        if (Find(name) is { } group)
             return group;
         if (names.Count == CollisionGroup.Capacity)
             throw new InvalidOperationException(
@@ -148,11 +146,10 @@ public sealed class CollisionGroupRegistry
         return CollisionGroup.FromIndex(names.Count - 1);
     }
 
-    /// <summary>The group named <paramref name="name"/>, if one is registered.</summary>
-    public bool TryGet(string name, out CollisionGroup group)
+    /// <summary>The group named <paramref name="name"/>. Null when no group has the name.</summary>
+    public CollisionGroup? Find(string name)
     {
         int index = names.IndexOf(name);
-        group = index < 0 ? default : CollisionGroup.FromIndex(index);
-        return index >= 0;
+        return index < 0 ? null : CollisionGroup.FromIndex(index);
     }
 }

@@ -26,7 +26,7 @@ public sealed class ThreadingTests
 
         long seen = 0;
         while (seen < last)
-            if (buffer.TryAcquireLatest(out Box box))
+            if (buffer.AcquireLatest() is { } box)
             {
                 Assert.True(box.Value > seen, $"went backward: {box.Value} after {seen}");
                 seen = box.Value;
@@ -40,12 +40,13 @@ public sealed class ThreadingTests
     public void TripleBufferReportsNothingNew()
     {
         var buffer = new TripleBuffer<Box>(() => new());
-        Assert.False(buffer.TryAcquireLatest(out _));
+        Assert.Null(buffer.AcquireLatest());
         buffer.WriteBuffer.Value = 7;
         buffer.Publish();
-        Assert.True(buffer.TryAcquireLatest(out Box b));
+        Box? b = buffer.AcquireLatest();
+        Assert.NotNull(b);
         Assert.Equal(7, b.Value);
-        Assert.False(buffer.TryAcquireLatest(out Box same));
-        Assert.Same(b, same);
+        Assert.Null(buffer.AcquireLatest());
+        Assert.Same(b, buffer.ReadBuffer);
     }
 }

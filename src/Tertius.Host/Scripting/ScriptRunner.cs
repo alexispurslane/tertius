@@ -253,7 +253,7 @@ public static class ScriptRunner
 
     private static Entity LiveEntity(string id, World world, SceneInstance scene, string where)
     {
-        if (!scene.TryGetEntity(id, out Entity entity))
+        if (scene.EntityOf(id) is not { } entity)
             throw new ScriptException($"{where}: the scene has no entity with the id '{id}'.");
         if (!world.IsAlive(entity))
             throw new ScriptException($"{where}: the entity '{id}' is not alive.");

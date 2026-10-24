@@ -75,14 +75,14 @@ public class RenderSnapshotBenchmarks
         };
         world.ShowFrameOutlines = Outlines;
         world.PublishRenderSnapshot();
-        world.RenderSnapshots.TryAcquireLatest(out _);
+        world.RenderSnapshots.AcquireLatest();
     }
 
     [GlobalCleanup]
     public void Cleanup()
     {
         world.PublishRenderSnapshot();
-        world.RenderSnapshots.TryAcquireLatest(out RenderSnapshot snapshot);
+        RenderSnapshot snapshot = world.RenderSnapshots.AcquireLatest() ?? world.RenderSnapshots.ReadBuffer;
         Console.WriteLine(
             $"RenderSnapshot {Scene} outlines={Outlines}: {world.Frames.Count} frames, {world.Frames.NumericCount} numeric, "
                 + $"{snapshot.Instances.Count} instances, {snapshot.Outlines.Count} outlines, {snapshot.Outlines.Count * Unsafe.SizeOf<FrameOutline>()} bytes of outlines"
@@ -94,7 +94,7 @@ public class RenderSnapshotBenchmarks
     public void Build()
     {
         world.PublishRenderSnapshot();
-        world.RenderSnapshots.TryAcquireLatest(out _);
+        world.RenderSnapshots.AcquireLatest();
     }
 
     [GlobalSetup(Target = nameof(PlacePuffs))]

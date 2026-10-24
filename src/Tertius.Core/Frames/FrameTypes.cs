@@ -44,12 +44,12 @@ public record struct FrameBounds(Vector3 Radii)
 
     /// <summary>
     /// Where the line <paramref name="origin"/> + t · <paramref name="direction"/>, in frame coordinates, crosses the
-    /// bubble: it is inside for every t from <paramref name="entry"/> to <paramref name="exit"/>, and outside for every
+    /// bubble: it is inside for every t from Entry to Exit, and outside for every
     /// other t. The parameter t counts in lengths of <paramref name="direction"/>, so for a unit direction it is the
-    /// distance from <paramref name="origin"/> in meters, and it is negative behind the origin. False, with both values 0,
-    /// when the line passes beside the bubble or <paramref name="direction"/> is zero.
+    /// distance from <paramref name="origin"/> in meters, and it is negative behind the origin. Null when the line passes
+    /// beside the bubble or <paramref name="direction"/> is zero.
     /// </summary>
-    public readonly bool TryIntersectLine(Double3 origin, Double3 direction, out double entry, out double exit)
+    public readonly (double Entry, double Exit)? IntersectLine(Double3 origin, Double3 direction)
     {
         // Scaled by the radii, the ellipsoid is the unit sphere: |o + t·d|² = 1, or a·t² + b·t + c = 0.
         var radii = (Double3)Radii;
@@ -60,17 +60,12 @@ public record struct FrameBounds(Vector3 Radii)
             c = Double3.Dot(o, o) - 1;
         double discriminant = b * b - 4 * a * c;
         if (!(a > 0) || discriminant < 0)
-        {
-            entry = exit = 0;
-            return false;
-        }
+            return null;
 
         // The form that never subtracts two nearly equal numbers: q has the sign of b, and the roots are q/a and c/q.
         double q = -0.5 * (b + (b >= 0 ? Math.Sqrt(discriminant) : -Math.Sqrt(discriminant)));
         double t0 = q / a,
             t1 = q != 0 ? c / q : -t0;
-        entry = Math.Min(t0, t1);
-        exit = Math.Max(t0, t1);
-        return true;
+        return (Math.Min(t0, t1), Math.Max(t0, t1));
     }
 }

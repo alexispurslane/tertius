@@ -186,7 +186,8 @@ public sealed class OrbitSliceTests(OrbitRun run) : IClassFixture<OrbitRun>
     {
         double distance = run.World.Frames.Relative(run.Frame("sun"), run.Frame("ship")).Position.Length;
         run.World.PublishRenderSnapshot();
-        run.World.RenderSnapshots.TryAcquireLatest(out RenderSnapshot snapshot).Should().BeTrue();
+        run.World.RenderSnapshots.AcquireLatest().Should().NotBeNull();
+        RenderSnapshot snapshot = run.World.RenderSnapshots.ReadBuffer;
 
         // The sun's radius, 695,700 km, from Earth's distance, which runs from 147 to 152 million km over a year.
         distance.Should().BeInRange(1.47e11, 1.53e11);
@@ -223,7 +224,7 @@ public sealed class OrbitSliceTests(OrbitRun run) : IClassFixture<OrbitRun>
         script.Scene.Should().Be("orbit");
         script.Steps.Select(step => step.Value).OfType<CameraStep>().Should().NotBeEmpty();
         foreach (CameraStep step in script.Steps.Select(step => step.Value).OfType<CameraStep>())
-            run.Scene.TryGetEntity(step.Entity, out _).Should().BeTrue($"the scene has no entity {step.Entity}");
+            run.Scene.EntityOf(step.Entity).Should().NotBeNull($"the scene has no entity {step.Entity}");
     }
 }
 
@@ -290,7 +291,8 @@ public sealed class OrbitStartTests
         using World world = NewJoltWorld();
         DemoScenes.All.Single(s => s.Name == "orbit").Build(world, new NumberedResources());
         world.PublishRenderSnapshot();
-        world.RenderSnapshots.TryAcquireLatest(out RenderSnapshot snapshot).Should().BeTrue();
+        world.RenderSnapshots.AcquireLatest().Should().NotBeNull();
+        RenderSnapshot snapshot = world.RenderSnapshots.ReadBuffer;
 
         RenderInstance earth = snapshot.Instances.Single(instance => instance.BoundingRadius == 6.371e6f);
         RenderInstance sun = snapshot.Instances.Single(instance => instance.BoundingRadius == 6.957e8f);

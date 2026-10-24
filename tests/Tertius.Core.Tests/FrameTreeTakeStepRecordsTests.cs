@@ -319,21 +319,16 @@ public sealed class FrameTreeTakeStepRecordsTests
     /// <summary>Owner facts that move <paramref name="frame"/> under <paramref name="parent"/> when the pass asks about it.</summary>
     private readonly struct Mover(FrameTree frames, FrameHandle frame, FrameHandle parent) : IFrameOwnerFacts
     {
-        public bool TryGetHullRecord(FrameHandle asked, out FrameStepRecord record)
+        public FrameStepRecord? HullRecord(FrameHandle asked)
         {
             if (asked == frame)
                 frames.Reparent(frame, parent);
-            record = default;
-            return false;
+            return null;
         }
 
         public bool IsSkipped(FrameHandle asked) => false;
 
-        public bool TryGetTransformWrite(FrameHandle asked, out DPose pose)
-        {
-            pose = default;
-            return false;
-        }
+        public DPose? TransformWrite(FrameHandle asked) => null;
     }
 
     // The pass checks it with Contract.Assert, which compiles out of Release builds, so the test runs only in Debug.

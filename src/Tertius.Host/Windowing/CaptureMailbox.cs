@@ -36,12 +36,8 @@ public sealed class CaptureMailbox
         }
     }
 
-    /// <summary>Takes the sink of the capture that waits, if there is one. On the render thread.</summary>
-    public bool TryTake([NotNullWhen(true)] out ICaptureSink? sink)
-    {
-        sink = Interlocked.Exchange(ref pending, null);
-        return sink != null;
-    }
+    /// <summary>Takes the sink of the capture that waits. Null when none waits. On the render thread.</summary>
+    public ICaptureSink? Take() => Interlocked.Exchange(ref pending, null);
 
     /// <summary>Tells the waiting simulation thread that its sink has the pixels of the capture. On the render thread.</summary>
     public void Done() => handedOver.Release();

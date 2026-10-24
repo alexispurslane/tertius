@@ -329,7 +329,7 @@ internal static class ScriptJson
     /// <summary>The live entity with the scene id. Throws <see cref="JsonException"/> for an unknown id or an entity that is gone.</summary>
     private static Entity LiveEntity(string id, SceneInstance scene, World world)
     {
-        if (!scene.TryGetEntity(id, out Entity entity))
+        if (scene.EntityOf(id) is not { } entity)
             throw new JsonException($"No entity has the scene id '{id}'.");
         if (!world.IsAlive(entity))
             throw new JsonException($"The entity '{id}' is not alive.");
