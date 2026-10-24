@@ -56,7 +56,7 @@ public sealed class ResultTests
     [Fact]
     public void ASwitchReadsTheCaseThatTheResultHolds()
     {
-        string Describe(Result<int, Problem> parsed) =>
+        static string Describe(Result<int, Problem> parsed) =>
             parsed switch
             {
                 int number => $"number {number}",
@@ -111,6 +111,5 @@ public sealed class ResultTests
             int number => number,
             Problem => 0,
             null => 0,
-        }
-        + (parsed.Ok ?? 0);
+        } + (parsed.Ok ?? 0);
 }
