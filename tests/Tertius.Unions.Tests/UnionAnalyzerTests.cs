@@ -108,6 +108,27 @@ public class UnionAnalyzerTests
                        """)).Should().BeEmpty("the subtype Box is open to more subtypes");
 
     [Fact]
+    public async Task ABaseWithAnAbstractMemberIsNotReported() =>
+        (await Analyze("""
+                       public abstract class Pass { public abstract void Run(); }
+                       public sealed class Draw : Pass { public override void Run() { } }
+                       """)).Should().BeEmpty("its subtypes supply behavior through virtual dispatch, an open set");
+
+    [Fact]
+    public async Task ABaseWithAVirtualMemberIsNotReported() =>
+        (await Analyze("""
+                       public abstract record Shape { public virtual double Area => 0; }
+                       public sealed record Ball(double Radius) : Shape;
+                       """)).Should().BeEmpty("its subtypes supply behavior through virtual dispatch, an open set");
+
+    [Fact]
+    public async Task ABaseThatOnlyOverridesAnInheritedMemberIsReported() =>
+        (await Analyze("""
+                       public abstract record Shape { public override string ToString() => "shape"; }
+                       public sealed record Ball(double Radius) : Shape;
+                       """)).Should().Equal(["TU0004"], "an override supplies no behavior that the subtypes choose");
+
+    [Fact]
     public async Task AnAbstractRecordWithNoSubtypeIsNotReported() =>
         (await Analyze("""
                        public abstract record Shape;

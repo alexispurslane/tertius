@@ -8,8 +8,9 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace Tertius.Unions;
 
 /// <summary>
-/// Rule TU0004 for one compilation: an abstract class or record of this assembly, not <c>closed</c>, whose direct
-/// subtypes in the assembly are all sealed, with at least one. Every direct subtype that is sealed has no subtype of
+/// Rule TU0004 for one compilation: an abstract class or record of this assembly, not <c>closed</c>, with no abstract
+/// or virtual member of its own, whose direct subtypes in the assembly are all sealed, with at least one. A base with an
+/// abstract or virtual member is an open set that its callers use through virtual dispatch, not an algebraic data type. Every direct subtype that is sealed has no subtype of
 /// its own, so "all direct subtypes are sealed" is "all subtypes are sealed". The rule needs every subtype, so each
 /// type records itself under its base, and the end of the compilation reports.
 /// </summary>
@@ -37,10 +38,17 @@ internal sealed class SealedHierarchies
     private void Report(CompilationAnalysisContext context)
     {
         foreach (KeyValuePair<INamedTypeSymbol, bool> hierarchy in allSealed)
-            if (hierarchy.Value && !IsClosed(hierarchy.Key, context))
+            if (hierarchy.Value && !IsClosed(hierarchy.Key, context) && !DeclaresBehavior(hierarchy.Key))
                 context.ReportDiagnostic(Diagnostic.Create(ClosedSetRules.OpenHierarchy, hierarchy.Key.Locations[0],
                     hierarchy.Key.Name));
     }
+
+    /// <summary>
+    /// True for a type that declares an abstract or virtual member, which its subtypes implement. The virtual members that
+    /// the compiler writes for a record do not count, and neither does an override of an inherited member.
+    /// </summary>
+    private static bool DeclaresBehavior(INamedTypeSymbol type) =>
+        type.GetMembers().Any(member => !member.IsImplicitlyDeclared && (member.IsAbstract || member.IsVirtual));
 
     /// <summary>
     /// True for a type declared <c>closed</c>. Microsoft.CodeAnalysis 4.14 has no symbol property for it, so the rule

@@ -12,9 +12,6 @@ namespace Tertius.Physics.Tests.Precision;
 /// on top of its own motion. A Galilean shift must not change physics, so the scene's exact answer is known for every
 /// common velocity, and the measurement records how far the World on the real Jolt backend ends up from it.
 /// </summary>
-[SuppressMessage("Tertius.Unions", "TU0004",
-    Justification =
-        "An open set: the measurement calls each scene through its abstract members and never switches over the scenes. A new measurement adds a scene.")]
 internal abstract class DriftScene
 {
     /// <summary>The name of the measurement, which is also the name of its CSV file.</summary>

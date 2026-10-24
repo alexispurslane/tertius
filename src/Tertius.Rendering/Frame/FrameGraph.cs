@@ -70,9 +70,6 @@ internal sealed class FrameContext
 /// <see cref="Record"/> then records GPU work. Passes declare the images and buffers they touch through
 /// <see cref="FrameContext.Barriers"/> before they record, so the barriers between passes come from the uses.
 /// </summary>
-[SuppressMessage("Tertius.Unions", "TU0004",
-    Justification =
-        "An open set: the frame graph calls each pass through its virtual members and never switches over the passes. The renderer tests add passes of their own.")]
 internal abstract class RenderPass : IDisposable
 {
     public abstract string Name { get; }
