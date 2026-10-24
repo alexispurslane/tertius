@@ -261,7 +261,7 @@ public sealed class RenderSnapshotInterpolationTests
         /// </summary>
         public Vector3 MovingRelativeToCamera(int ticksOfMovement)
         {
-            Test.World.Snapshot.TryGetPoseIn(Camera, Test.Root, out DPose camera).Should().BeTrue();
+            DPose camera = Test.World.Snapshot.PoseIn(Camera, Test.Root).Found();
             return (StartOfMoving + new Double3(ticksOfMovement, 0, 0) - camera.Position).ToVector3();
         }
 

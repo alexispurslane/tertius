@@ -352,7 +352,9 @@ public sealed partial class FrameTree
     public bool IsAlive(FrameHandle frame) =>
         !frame.IsNull && poses.IsAlive(new(frame.Index, frame.Generation)) && owner[frame.Index] == frame.Entity;
 
-    public bool TryGetFrame(Entity frameOwner, out FrameHandle frame) => byOwner.TryGetValue(frameOwner, out frame);
+    /// <summary>The frame that <paramref name="frameOwner"/> owns, or null if it owns none.</summary>
+    public FrameHandle? OwnedFrame(Entity frameOwner) =>
+        byOwner.TryGetValue(frameOwner, out FrameHandle frame) ? frame : null;
 
     /// <summary>
     /// The semantic parent of a frame: the nearest ancestor that is not a numeric frame, or null for a root frame. Numeric

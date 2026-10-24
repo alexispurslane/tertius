@@ -222,6 +222,6 @@ public sealed class FrameTests
         frames.Destroy(child);
         Assert.False(frames.IsAlive(child));
         Assert.Throws<InvalidOperationException>(() => frames.LocalPose(child));
-        Assert.False(frames.TryGetFrame(new(2, 1), out _));
+        Assert.Null(frames.OwnedFrame(new(2, 1)));
     }
 }

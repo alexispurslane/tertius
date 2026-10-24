@@ -145,7 +145,7 @@ public sealed class Disembark(
         );
         if (friction == Double3.Zero)
             return null;
-        float mass = self.Snapshot.TryGetBody(self.Entity, out BodyFacts body) ? body.Mass : 0;
+        float mass = self.Snapshot.BodyOf(self.Entity)?.Mass ?? 0;
         self.Body.AddForce((frames.Relative(station, self.Frame).Rotation.Rotate(friction) * mass).ToVector3());
         return null;
     }

@@ -5,8 +5,8 @@ namespace Tertius.Simulation;
 /// <summary>
 /// A read-only view of the front snapshot: the state at the end of the previous tick. During a tick, any thread may
 /// read it. Lookups with a stale or null handle throw <see cref="StaleEntityException"/>, an
-/// <see cref="InvalidOperationException"/>. The <c>Try</c> methods and <see cref="HasComponent{T}"/> return false
-/// instead.
+/// <see cref="InvalidOperationException"/>. The reads that return a nullable value, such as <see cref="BodyOf"/> and
+/// <see cref="PoseIn"/>, and <see cref="HasComponent{T}"/> give null or false instead.
 /// </summary>
 /// <remarks>
 /// The snapshot of <see cref="Self.Snapshot"/> knows the entity that reads it, the asker, which entity queries with
@@ -54,7 +54,10 @@ public readonly struct Snapshot
     /// <summary>The entity's render row.</summary>
     public RenderData RenderOf(Entity entity) => World.Entities.FrontRender(entity);
 
-    /// <summary>True if the entity has a physics body.</summary>
+    /// <summary>
+    /// True if the entity has a physics body. It builds no <see cref="BodyFacts"/>, and unlike <see cref="BodyOf"/> it
+    /// throws for a stale entity.
+    /// </summary>
     public bool HasBody(Entity entity) => World.Entities.Body(entity) != null;
 
     /// <summary>
@@ -67,20 +70,17 @@ public readonly struct Snapshot
 
     /// <summary>
     /// The physics facts of the entity's body: its motion, mass, shape kind, bounding radius, center of mass, collision groups and mask,
-    /// and whether it is a sensor (see <see cref="BodyFacts"/>). False, with the default facts, for an entity that was not
+    /// and whether it is a sensor (see <see cref="BodyFacts"/>). Null for an entity that was not
     /// live at the end of the previous tick and for an entity without a body. It allocates nothing.
     /// </summary>
-    public bool TryGetBody(Entity entity, out BodyFacts facts)
+    public BodyFacts? BodyOf(Entity entity)
     {
         EntityTable entities = World.Entities;
         if (!entities.IsAlive(entity) || entities.Body(entity) is not { } body)
-        {
-            facts = default;
-            return false;
-        }
+            return null;
 
         ref readonly BodyCollision collision = ref entities.FrontCollision(entity);
-        facts = new(
+        return new BodyFacts(
             Motion: MotionOf(body, entities.OwnedFrame(entity)),
             Mass: body.Mass,
             ShapeKind: body.Shape.Kind,
@@ -90,7 +90,6 @@ public readonly struct Snapshot
             CollisionMask: collision.Mask,
             IsSensor: body.IsSensor
         );
-        return true;
     }
 
     /// <summary>
@@ -122,59 +121,38 @@ public readonly struct Snapshot
     /// </summary>
     public bool IsStanding(Entity entity) => World.IsStanding(entity);
 
-    /// <summary>The entity's pose in <paramref name="frame"/>, through the frame tree. False if either handle is stale.</summary>
-    public bool TryGetPoseIn(Entity entity, FrameHandle frame, out DPose pose)
-    {
-        if (!Live(entity, frame))
-        {
-            pose = default;
-            return false;
-        }
-
-        pose = FrameReads.PoseIn(frames: World.Frames, entity: entity, row: World.Entities.FrontRow(entity), to: frame);
-        return true;
-    }
+    /// <summary>The entity's pose in <paramref name="frame"/>, through the frame tree. Null if either handle is stale.</summary>
+    public DPose? PoseIn(Entity entity, FrameHandle frame) =>
+        Live(entity, frame)
+            ? FrameReads.PoseIn(frames: World.Frames, entity: entity, row: World.Entities.FrontRow(entity), to: frame)
+            : null;
 
     /// <summary>
     /// The entity's linear velocity relative to <paramref name="frame"/>, in its axes, through the frame tree in doubles.
-    /// False if either handle is stale.
+    /// Null if either handle is stale.
     /// </summary>
-    public bool TryGetVelocityIn(Entity entity, FrameHandle frame, out Double3 velocity)
-    {
-        if (!Live(entity, frame))
-        {
-            velocity = default;
-            return false;
-        }
-
-        velocity = FrameReads.VelocityIn(
-            frames: World.Frames,
-            entity: entity,
-            row: World.Entities.FrontRow(entity),
-            to: frame
-        );
-        return true;
-    }
+    public Double3? VelocityIn(Entity entity, FrameHandle frame) =>
+        Live(entity, frame)
+            ? FrameReads.VelocityIn(
+                frames: World.Frames,
+                entity: entity,
+                row: World.Entities.FrontRow(entity),
+                to: frame
+            )
+            : null;
 
     /// <summary>
-    /// The entity's angular velocity relative to <paramref name="frame"/>, in its axes. False if either handle is stale.
+    /// The entity's angular velocity relative to <paramref name="frame"/>, in its axes. Null if either handle is stale.
     /// </summary>
-    public bool TryGetAngularVelocityIn(Entity entity, FrameHandle frame, out Vector3 angularVelocity)
-    {
-        if (!Live(entity, frame))
-        {
-            angularVelocity = default;
-            return false;
-        }
-
-        angularVelocity = FrameReads.AngularVelocityIn(
-            frames: World.Frames,
-            entity: entity,
-            row: World.Entities.FrontRow(entity),
-            to: frame
-        );
-        return true;
-    }
+    public Vector3? AngularVelocityIn(Entity entity, FrameHandle frame) =>
+        Live(entity, frame)
+            ? FrameReads.AngularVelocityIn(
+                frames: World.Frames,
+                entity: entity,
+                row: World.Entities.FrontRow(entity),
+                to: frame
+            )
+            : null;
 
     private bool Live(Entity entity, FrameHandle frame) => World.IsAlive(entity) && World.Frames.IsAlive(frame);
 

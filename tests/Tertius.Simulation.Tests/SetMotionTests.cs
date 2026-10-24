@@ -90,7 +90,7 @@ public sealed class SetMotionTests
 
     private static BodyMotion FactsMotion(TestWorld test, Entity entity)
     {
-        test.World.Snapshot.TryGetBody(entity, out BodyFacts facts).Should().BeTrue();
+        BodyFacts facts = test.World.Snapshot.BodyOf(entity).Found();
         return facts.Motion;
     }
 
@@ -115,7 +115,7 @@ public sealed class SetMotionTests
                 {
                     if (seen.Count == 0)
                         self.Body.SetMotion(BodyMotion.Static);
-                    self.Snapshot.TryGetBody(self.Entity, out BodyFacts facts);
+                    BodyFacts facts = self.Snapshot.BodyOf(self.Entity) ?? default;
                     seen.Add((self.Snapshot.Frames.HullMotion(ship), facts.Motion));
                 }
             )
@@ -222,7 +222,7 @@ public sealed class SetMotionTests
                     BodyMotion? before = self.Body.NextStepMotion;
                     if (seen.Count == 0)
                         self.Body.SetMotion(BodyMotion.Static);
-                    self.Snapshot.TryGetBody(self.Entity, out BodyFacts facts);
+                    BodyFacts facts = self.Snapshot.BodyOf(self.Entity) ?? default;
                     seen.Add((before, self.Body.NextStepMotion, facts.Motion));
                 }
             )

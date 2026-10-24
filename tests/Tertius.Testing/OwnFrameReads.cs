@@ -20,19 +20,16 @@ public static class OwnFrameReads
         world.AngularVelocityIn(entity, OwnFrame(world, entity));
 
     public static DPose PoseInOwnFrame(this Snapshot snapshot, Entity entity) =>
-        snapshot.TryGetPoseIn(entity, OwnFrame(snapshot, entity), out DPose pose)
-            ? pose
-            : throw new InvalidOperationException($"{entity} has no pose in its frame.");
+        snapshot.PoseIn(entity, OwnFrame(snapshot, entity))
+            ?? throw new InvalidOperationException($"{entity} has no pose in its frame.");
 
     public static Vector3 VelocityInOwnFrame(this Snapshot snapshot, Entity entity) =>
-        snapshot.TryGetVelocityIn(entity, OwnFrame(snapshot, entity), out Double3 velocity)
-            ? velocity.ToVector3()
-            : throw new InvalidOperationException($"{entity} has no velocity in its frame.");
+        snapshot.VelocityIn(entity, OwnFrame(snapshot, entity))?.ToVector3()
+            ?? throw new InvalidOperationException($"{entity} has no velocity in its frame.");
 
     public static Vector3 AngularVelocityInOwnFrame(this Snapshot snapshot, Entity entity) =>
-        snapshot.TryGetAngularVelocityIn(entity, OwnFrame(snapshot, entity), out Vector3 velocity)
-            ? velocity
-            : throw new InvalidOperationException($"{entity} has no angular velocity in its frame.");
+        snapshot.AngularVelocityIn(entity, OwnFrame(snapshot, entity))
+            ?? throw new InvalidOperationException($"{entity} has no angular velocity in its frame.");
 
     private static FrameHandle OwnFrame(World world, Entity entity) =>
         world.GetFrame(entity) is { IsNull: false } frame ? frame : world.GetOwnedFrame(entity);
@@ -41,7 +38,7 @@ public static class OwnFrameReads
     {
         if (snapshot.FrameOf(entity) is { IsNull: false } frame)
             return frame;
-        return snapshot.Frames.TryGetFrame(entity, out FrameHandle own) ? own : FrameHandle.Null;
+        return snapshot.Frames.OwnedFrame(entity) ?? FrameHandle.Null;
     }
 
     public static DPose PoseInOwnFrame(this Self self) => self.PoseIn(self.Frame);

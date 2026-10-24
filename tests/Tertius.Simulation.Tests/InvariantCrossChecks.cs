@@ -441,8 +441,9 @@ internal static class InvariantCrossChecks
                 report(
                     $"The owner {owner} of {frame} is in {world.GetFrame(owner)} and the frame's parent is {parent}."
                 );
-            if (!world.Frames.TryGetFrame(owner, out FrameHandle byOwner) || byOwner != frame)
-                report($"The frame tree finds {byOwner} for the owner {owner} of {frame}.");
+            FrameHandle? byOwner = world.Frames.OwnedFrame(owner);
+            if (byOwner != frame)
+                report($"The frame tree finds {byOwner ?? FrameHandle.Null} for the owner {owner} of {frame}.");
 
             int depth = 0;
             for (FrameHandle up = parent; !up.IsNull; up = world.Frames.Parent(up))

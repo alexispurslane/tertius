@@ -317,7 +317,7 @@ public sealed class ShuttleTests : IDisposable
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e4f)));
         Entity hull = FreeHull(space, Vector3.Zero);
 
-        world.Snapshot.TryGetBody(hull, out BodyFacts facts).Should().BeTrue();
+        BodyFacts facts = world.Snapshot.BodyOf(hull).Found();
 
         Vector3 loft = Shuttle.Loft.MassOf(Shuttle.Mass).CenterOfMass;
         Vector3

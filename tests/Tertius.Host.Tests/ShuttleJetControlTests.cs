@@ -31,7 +31,7 @@ public sealed class ShuttleJetControlTests : IDisposable
     {
         get
         {
-            world.Snapshot.TryGetBody(shuttle, out BodyFacts facts).Should().BeTrue();
+            BodyFacts facts = world.Snapshot.BodyOf(shuttle).Found();
             return facts.CenterOfMass;
         }
     }

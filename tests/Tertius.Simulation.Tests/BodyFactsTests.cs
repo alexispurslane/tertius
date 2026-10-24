@@ -6,7 +6,7 @@ namespace Tertius.Simulation.Tests;
 
 /// <summary>
 /// The physics facts of another entity's body, which any component reads from the snapshot with
-/// <see cref="Snapshot.TryGetBody"/>: the body's motion, mass, shape kind and bounding radius, its collision groups and
+/// <see cref="Snapshot.BodyOf"/>: the body's motion, mass, shape kind and bounding radius, its collision groups and
 /// mask, and whether it is a sensor. Every test runs the real world on the real Jolt backend.
 /// </summary>
 public sealed class BodyFactsTests
@@ -65,7 +65,7 @@ public sealed class BodyFactsTests
 
     private static BodyFacts FactsOf(World world, Entity entity)
     {
-        world.Snapshot.TryGetBody(entity, out BodyFacts facts).Should().BeTrue($"{entity} has a body");
+        BodyFacts facts = world.Snapshot.BodyOf(entity).Found($"{entity} has a body");
         return facts;
     }
 
@@ -399,8 +399,7 @@ public sealed class BodyFactsTests
         using World world = NewWorld(out FrameHandle space);
         Entity plain = world.SpawnWith(space, new Metal());
 
-        world.Snapshot.TryGetBody(plain, out BodyFacts facts).Should().BeFalse();
-        facts.Should().Be(default(BodyFacts));
+        world.Snapshot.BodyOf(plain).Should().BeNull();
     }
 
     [Fact]
@@ -412,8 +411,7 @@ public sealed class BodyFactsTests
         Entity heir = Spawn(world: world, frame: space, body: new(Shape: new SphereShapeDesc(0.5f), Mass: 7));
         heir.Index.Should().Be(gone.Index, "the test needs the new body in the slot of the stale handle");
 
-        world.Snapshot.TryGetBody(gone, out BodyFacts facts).Should().BeFalse();
-        facts.Should().Be(default(BodyFacts));
+        world.Snapshot.BodyOf(gone).Should().BeNull();
         FactsOf(world, heir).Mass.Should().Be(7);
     }
 
@@ -439,14 +437,14 @@ public sealed class BodyFactsTests
         float total = 0;
         for (int warm = 0; warm < 1000; warm++)
             foreach (Entity entity in bodies)
-                if (world.Snapshot.TryGetBody(entity, out BodyFacts facts))
+                if (world.Snapshot.BodyOf(entity) is { } facts)
                     total += facts.Mass;
 
         long allocated = Allocations.Fewest(() =>
         {
             for (int i = 0; i < 10_000; i++)
                 foreach (Entity entity in bodies)
-                    if (world.Snapshot.TryGetBody(entity, out BodyFacts facts))
+                    if (world.Snapshot.BodyOf(entity) is { } facts)
                         total += facts.BoundingRadius;
         });
 
@@ -459,7 +457,6 @@ public sealed class BodyFactsTests
     {
         using World world = NewWorld(out _);
 
-        world.Snapshot.TryGetBody(Entity.Null, out BodyFacts facts).Should().BeFalse();
-        facts.Should().Be(default(BodyFacts));
+        world.Snapshot.BodyOf(Entity.Null).Should().BeNull();
     }
 }

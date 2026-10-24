@@ -83,7 +83,7 @@ public sealed class UnitRotationWorldTests
         FrameHandle inner = test.World.SpawnStaticFrame(outer, TestWorld.At(6.77e6, 0, 0), radius: 1e4f);
         Entity inside = test.World.SpawnAt(inner, new(0, 0, 1000));
 
-        test.World.Snapshot.TryGetPoseIn(inside, test.Root, out DPose inRoot).Should().BeTrue();
+        DPose inRoot = test.World.Snapshot.PoseIn(inside, test.Root).Found();
 
         // The inner frame is 6.77E6 m from the outer frame's origin, so a rotation of the outer frame that is not unit length
         // moves the entity by a large part of that distance.

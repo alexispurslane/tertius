@@ -254,7 +254,7 @@ public sealed class RendezvousAutopilot(Entity station, RendezvousPlan plan, dou
             return;
         }
 
-        if (!self.Snapshot.TryGetBody(self.Entity, out BodyFacts body) || body.Mass <= 0)
+        if (self.Snapshot.BodyOf(self.Entity) is not { } body || body.Mass <= 0)
         {
             Halt(self, "its hull has no mass");
             return;
@@ -264,8 +264,8 @@ public sealed class RendezvousAutopilot(Entity station, RendezvousPlan plan, dou
         Double3 position = pose.Position,
             velocity = self.VelocityIn(self.Frame),
             nose = pose.Rotation.Rotate(-Double3.UnitZ);
-        self.Snapshot.TryGetPoseIn(station, self.Frame, out DPose stationPose);
-        self.Snapshot.TryGetVelocityIn(station, self.Frame, out Double3 stationVelocity);
+        DPose stationPose = self.Snapshot.PoseIn(station, self.Frame) ?? default;
+        Double3 stationVelocity = self.Snapshot.VelocityIn(station, self.Frame) ?? default;
         Double3 center = stationPose.Position,
             axis = stationPose.Rotation.Rotate(Double3.UnitY);
         Double3 relative = velocity - stationVelocity;

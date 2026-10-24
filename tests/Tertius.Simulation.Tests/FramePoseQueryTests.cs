@@ -3,7 +3,7 @@ using AwesomeAssertions;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
-/// <c>Snapshot.TryGetPose</c> and <see cref="Snapshot.TryGetPoseIn"/>: an entity's pose in its own frame, and in any
+/// <see cref="Snapshot.PoseIn"/>: an entity's pose in its own frame, and in any
 /// other frame, composed through the frame tree. A turned frame at (100, 0, 0) is the fixture: a rotation of +90 degrees
 /// about +Y maps (x, y, z) to (z, y, -x), and its inverse maps (x, y, z) to (-z, y, x).
 /// </summary>
@@ -18,7 +18,7 @@ public sealed class FramePoseQueryTests
         FrameHandle turned = test.SpawnStaticFrame(TurnedPose);
         Entity entity = test.World.SpawnAt(turned, new(3, 4, 5));
 
-        test.World.Snapshot.TryGetPoseIn(entity, turned, out DPose pose).Should().BeTrue();
+        DPose pose = test.World.Snapshot.PoseIn(entity, turned).Found();
 
         pose.Position.Should().Be(new Double3(3, 4, 5));
     }
@@ -30,7 +30,7 @@ public sealed class FramePoseQueryTests
         FrameHandle turned = test.SpawnStaticFrame(TurnedPose);
         Entity entity = test.World.SpawnAt(turned, new(3, 4, 5));
 
-        test.World.Snapshot.TryGetPoseIn(entity, test.Root, out DPose pose).Should().BeTrue();
+        DPose pose = test.World.Snapshot.PoseIn(entity, test.Root).Found();
 
         // (3, 4, 5) turned by the frame is (5, 4, -3), and the frame sits 100 m along +X.
         PoseChecks.AssertNear(pose.Position, new(105, 4, -3));
@@ -44,7 +44,7 @@ public sealed class FramePoseQueryTests
         FrameHandle turned = test.SpawnStaticFrame(TurnedPose);
         Entity entity = test.SpawnAt(new(105, 4, -3));
 
-        test.World.Snapshot.TryGetPoseIn(entity, turned, out DPose pose).Should().BeTrue();
+        DPose pose = test.World.Snapshot.PoseIn(entity, turned).Found();
 
         // The inverse of the example above: (105, 4, -3) - (100, 0, 0) = (5, 4, -3), turned back to (3, 4, 5).
         PoseChecks.AssertNear(pose.Position, new(3, 4, 5));
@@ -58,7 +58,7 @@ public sealed class FramePoseQueryTests
         FrameHandle plain = test.SpawnStaticFrame(TestWorld.At(0, 0, 1000));
         Entity entity = test.World.SpawnAt(turned, new(3, 4, 5));
 
-        test.World.Snapshot.TryGetPoseIn(entity, plain, out DPose pose).Should().BeTrue();
+        DPose pose = test.World.Snapshot.PoseIn(entity, plain).Found();
 
         // (105, 4, -3) in the root, minus the plain frame's (0, 0, 1000), with no turn.
         PoseChecks.AssertNear(pose.Position, new(105, 4, -1003));
@@ -70,7 +70,7 @@ public sealed class FramePoseQueryTests
         using var test = new TestWorld();
         FrameHandle turned = test.SpawnStaticFrame(TurnedPose);
 
-        test.World.Snapshot.TryGetPoseIn(test.Root.Entity, turned, out DPose pose).Should().BeTrue();
+        DPose pose = test.World.Snapshot.PoseIn(test.Root.Entity, turned).Found();
 
         // The root frame's origin is at (-100, 0, 0) in the turned frame's parent axes, which the inverse turn maps to (0, 0, -100).
         PoseChecks.AssertNear(pose.Position, new(0, 0, -100));
@@ -84,8 +84,8 @@ public sealed class FramePoseQueryTests
         Entity rootOwner = test.Root.Entity;
 
         FrameHandle frame = test.World.Snapshot.FrameOf(entity);
-        test.World.Snapshot.TryGetPoseIn(entity, frame, out DPose pose).Should().BeTrue();
-        test.World.Snapshot.TryGetPoseIn(rootOwner, test.Root, out DPose ownerPose).Should().BeTrue();
+        DPose pose = test.World.Snapshot.PoseIn(entity, frame).Found();
+        DPose ownerPose = test.World.Snapshot.PoseIn(rootOwner, test.Root).Found();
 
         frame.Should().Be(test.Root);
         pose.Position.Should().Be(new Double3(7, 8, 9));
@@ -101,9 +101,7 @@ public sealed class FramePoseQueryTests
         Entity entity = test.SpawnAt(new(1, 2, 3));
         test.World.Destroy(gone.Entity);
 
-        test.World.Snapshot.TryGetPoseIn(entity, gone, out DPose pose).Should().BeFalse();
-
-        pose.Should().Be(default(DPose));
+        test.World.Snapshot.PoseIn(entity, gone).Should().BeNull();
     }
 
     [Fact]
@@ -113,8 +111,7 @@ public sealed class FramePoseQueryTests
         Entity gone = test.SpawnAt(new(1, 2, 3));
         test.World.Destroy(gone);
 
-        test.World.Snapshot.TryGetPoseIn(gone, test.Root, out _).Should().BeFalse();
-        test.World.Snapshot.TryGetVelocityIn(gone, test.Root, out Double3 velocity).Should().BeFalse();
-        velocity.Should().Be(Double3.Zero);
+        test.World.Snapshot.PoseIn(gone, test.Root).Should().BeNull();
+        test.World.Snapshot.VelocityIn(gone, test.Root).Should().BeNull();
     }
 }

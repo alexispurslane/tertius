@@ -243,7 +243,7 @@ public sealed class PhysicsOutputCheck
         for (int i = 0; i < output.HandOffs.Count; i++)
         {
             HandOff handOff = output.HandOffs[i];
-            if (brokenHandOffs.Contains(i) || !frames.TryGetFrame(handOff.Entity, out FrameHandle own))
+            if (brokenHandOffs.Contains(i) || frames.OwnedFrame(handOff.Entity) is not { } own)
                 continue;
             if (handOff.To == own || IsAncestorAfter(own, handOff.To, frames))
             {
@@ -324,7 +324,8 @@ public sealed class PhysicsOutputCheck
         where TFacts : IPhysicsOutputFacts
     {
         Entity entity = handOff.Entity;
-        bool ownsFrame = frames.TryGetFrame(entity, out FrameHandle own);
+        FrameHandle own = frames.OwnedFrame(entity) ?? FrameHandle.Null;
+        bool ownsFrame = !own.IsNull;
         FrameHandle current = ownsFrame ? frames.TreeParent(own) : facts.FrameOf(entity);
         if (current.IsNull)
             return $"{entity} is in no frame, so it leaves none";

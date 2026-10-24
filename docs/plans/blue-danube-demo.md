@@ -294,7 +294,7 @@ stateDiagram-v2
 Every read is in `self.Frame`, the frame of the shuttle's hull, which is `earth` after the hand-off of the climb, 178.4 km up, and does not turn:
 
 - The shuttle's position and velocity: `self.PoseIn(self.Frame)` and `self.VelocityIn(self.Frame)`.
-- The station's position, rotation and velocity: `self.Snapshot.TryGetPoseIn(station, self.Frame)` and `TryGetVelocityIn(station, self.Frame)`. The station's axis is its rotation applied to +Y.
+- The station's position, rotation and velocity: `self.Snapshot.PoseIn(station, self.Frame)` and `VelocityIn(station, self.Frame)`. The station's axis is its rotation applied to +Y.
 - Earth's G·M: from the point gravity of `self.Frame`, once, at the order.
 
 Both the shuttle and the station own frames. A frame and its owner are one entity: the frame tree row is exact, and the float transform row is filled from the frame's last step record (`World.MirrorFrameOwners`). That record keeps the instant velocity (ARCHITECTURE.md, "Rails components and motion intents"). So the two velocities mean the same thing. Their difference has no bias of half a step of gravity. The pods of the orbiting station's scene are plain bodies. Their reads are Jolt's chords, and they read 7 cm/s off for that reason.
@@ -904,11 +904,11 @@ stateDiagram-v2
 
 The autopilot reads and steers in the station's frame, whichever frame holds the shuttle:
 
-- The station's frame: `self.Snapshot.Frames.TryGetFrame(station, out stationFrame)`.
+- The station's frame: `self.Snapshot.Frames.OwnedFrame(station)`.
 - The shuttle's pose, velocity and angular velocity in the station's frame: `self.PoseIn(stationFrame)`, `self.VelocityIn(stationFrame)` and `self.AngularVelocityIn(stationFrame)`. Outside the bubble the engine converts them from the frame that holds the station, with the station's turn (ARCHITECTURE.md, "Hand-off", rule 5). Inside they are the hull's own rows.
 - The station's rate ω: minus `FrameTree.AngularVelocityRelative(FrameHandle.Null, stationFrame)`, the angular velocity of the virtual root relative to the station, which the frame tree gives in the station's axes. So the autopilot needs no pose of the station in the root.
 - Outside the bubble only, while `self.Frame` is the frame that holds the station: the shuttle's and the station's positions in `self.Frame`. They give the difference of the planet's gravity. The G·M comes from the point gravity of `self.Frame` (`KeplerOrbit.MuFrom`), as the rendezvous takes it.
-- The hull's mass and its center of mass in its own axes, from `self.Snapshot.TryGetBody`, `BodyFacts.Mass` and `BodyFacts.CenterOfMass`. The first build took the center of mass, `Shuttle.CenterOfMass`, through the constructor. Ticket ter-diu0 dropped that value for the engine's.
+- The hull's mass and its center of mass in its own axes, from `self.Snapshot.BodyOf`, `BodyFacts.Mass` and `BodyFacts.CenterOfMass`. The first build took the center of mass, `Shuttle.CenterOfMass`, through the constructor. Ticket ter-diu0 dropped that value for the engine's.
 
 Every write is relative to `self.Frame`, in its axes. The autopilot turns what it computed in the station's axes with the station frame's pose in `self.Frame`, `FrameTree.Relative(stationFrame, self.Frame)`. Inside the bubble that pose is the identity.
 
@@ -1558,7 +1558,7 @@ The exit reads and writes the station's frame, whichever frame holds the person.
 - The person's center and velocity in the station's frame: `self.PoseIn(station)` and `self.VelocityIn(station)`. In the cabin's frame the engine converts them through the static hull's frame.
 - The station's rate ω: the opposite of `FrameTree.AngularVelocityRelative(FrameHandle.Null, station)`, the virtual root's angular velocity relative to the station, in the station's axes. The virtual root does not turn, so this is the station's whole rate, whatever the frame that holds it does.
 - Whether the person stands: `self.Body.Standing`, from the last finished step.
-- The person's mass: `self.Snapshot.TryGetBody`.
+- The person's mass: `self.Snapshot.BodyOf`.
 - The walk: `self.Body.MoveCharacter`, in the axes of `self.Frame`, which `Walker.Step` writes. Each waypoint names its frame, so the way runs on across the hand-off from the cabin's frame to the station's.
 - The friction: `self.Body.AddForce`, the mass times the law's acceleration, turned from the station's axes into `self.Frame`'s with `FrameTree.Relative(station, self.Frame)`.
 
@@ -3198,7 +3198,7 @@ The scene `demo-surface` starts the person facing its first waypoint, along -X, 
 
 ```csharp
 double dt = self.DeltaTime, target = 0;
-if (snapshot.IsStanding(person) && snapshot.TryGetVelocityIn(person, self.Frame, out Double3 velocity))
+if (snapshot.IsStanding(person) && snapshot.VelocityIn(person, self.Frame) is { } velocity)
 {
     Double3 local = pose.Rotation.Conjugate().Rotate(velocity);
     double speed = Math.Sqrt(local.X * local.X + local.Z * local.Z);

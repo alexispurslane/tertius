@@ -41,7 +41,7 @@ public sealed class StateDumpTests
     {
         using World world = NewJoltWorld();
         SceneInstance scene = BoxOnFloor(world);
-        world.Frames.TryGetFrame(scene["ground"], out FrameHandle ground).Should().BeTrue();
+        FrameHandle ground = world.Frames.OwnedFrame(scene["ground"]).Found();
         // Every slow group gets a resting frame, however near the origin: the box and the floor under it.
         world.Frames.NumericOptions = EverySlowGroupRests;
         // The numeric update runs at the start of the first tick, in which the box falls by 3 mm.

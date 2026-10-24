@@ -114,7 +114,7 @@ public sealed class PhysicsFrameStateTests
         FrameStepRecord sent = StateSent(faults, ship);
         PoseChecks.AssertNear(sent.Motion.Pose.Position, new(0.1, 0, 0), 1e-6);
         test.World.PoseInOwnFrame(pilot).Position.Should().Be(new Double3(0, 1, 0));
-        test.World.Snapshot.TryGetPoseIn(pilot, test.Root, out DPose inRoot).Should().BeTrue();
+        DPose inRoot = test.World.Snapshot.PoseIn(pilot, test.Root).Found();
         PoseChecks.AssertNear(inRoot.Position, sent.Motion.Pose.Position + new Double3(0, 1, 0));
     }
 

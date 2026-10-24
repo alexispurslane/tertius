@@ -52,8 +52,8 @@ internal static class FrameReads
 
     private static FrameHandle OwnFrame(FrameTree frames, Entity entity)
     {
-        bool owns = frames.TryGetFrame(entity, out FrameHandle own);
-        Contract.Assert(owns);
-        return own;
+        FrameHandle? own = frames.OwnedFrame(entity);
+        Contract.Assert(own is not null);
+        return own.Value;
     }
 }

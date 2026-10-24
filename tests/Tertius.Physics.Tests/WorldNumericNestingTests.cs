@@ -108,7 +108,7 @@ public sealed class WorldNumericNestingTests
     private static (double World, double Snapshot, double Render) CrateX(Scene scene)
     {
         World world = scene.World;
-        world.Snapshot.TryGetPoseIn(scene.Crate, scene.Pod, out DPose inSnapshot).Should().BeTrue();
+        DPose inSnapshot = world.Snapshot.PoseIn(scene.Crate, scene.Pod).Found();
         world.RenderSnapshots.TryAcquireLatest(out RenderSnapshot render).Should().BeTrue();
         RenderInstance instance = render
             .Instances.Should()

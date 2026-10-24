@@ -155,7 +155,7 @@ A sketch of the API (the names are not final):
 ```csharp
 DPose pose = self.PoseIn(self.Frame);
 Double3 velocity = self.VelocityIn(self.Frame);
-bool found = self.Snapshot.TryGetVelocityIn(crate, self.Frame, out Double3 crateVelocity);
+Double3? crateVelocity = self.Snapshot.VelocityIn(crate, self.Frame);
 self.Body.SetVelocity(velocity + push);  // a Double3 relative to self.Frame
 // A velocity read in the body's semantic frame:
 //   FrameVelocity(row.PhysicsHome) + row.LocalVelocity
@@ -163,14 +163,14 @@ self.Body.SetVelocity(velocity + push);  // a Double3 relative to self.Frame
 //   local = (intent.Velocity - FrameVelocity(home)).ToVector3();
 ```
 
-A read in another frame converts through the frame tree in doubles, as `TryGetPoseIn` does today for poses. `FrameTree.ConvertVelocity` already does this for velocities, with the turn of each spinning frame on the path. A numeric frame on the path adds only its double position or velocity, because it has no rotation.
+A read in another frame converts through the frame tree in doubles, as `PoseIn` does today for poses. `FrameTree.ConvertVelocity` already does this for velocities, with the turn of each spinning frame on the path. A numeric frame on the path adds only its double position or velocity, because it has no rotation.
 
 Physics converts a write at the moment that it applies the request. The setter does not convert it. A sync point lies between those two moments, and it can drain the frame or move the body to another numeric frame. So the request keeps the velocity relative to `self.Frame`, and physics subtracts the frame velocity of the body's home at that moment. Spawn velocities work the same way, because a spawn also lands at a sync point.
 
 The API changes in these ways:
 
-- The reads without a frame go away: `Self.Pose`, `Self.Velocity`, `Self.AngularVelocity`, `World.GetPose`, `World.GetVelocity`, `World.GetAngularVelocity`, `Snapshot.PoseOf`, `Snapshot.VelocityOf`, `Snapshot.AngularVelocityOf` and `Snapshot.TryGetPose`.
-- Reads in a frame replace them: `PoseIn`, `VelocityIn` and `AngularVelocityIn` on `Self` and `World`, and `TryGetPoseIn`, `TryGetVelocityIn` and `TryGetAngularVelocityIn` on `Snapshot`. A velocity read returns a `Double3`. An angular velocity read returns a `Vector3`, because numeric frames do not rotate.
+- The reads without a frame go away: `Self.Pose`, `Self.Velocity`, `Self.AngularVelocity`, `World.GetPose`, `World.GetVelocity`, `World.GetAngularVelocity`, `Snapshot.PoseOf`, `Snapshot.VelocityOf`, `Snapshot.AngularVelocityOf` and the old `Snapshot.TryGetPose`.
+- Reads in a frame replace them: `PoseIn`, `VelocityIn` and `AngularVelocityIn` on `Self` and `World`, and the same three on `Snapshot`, which return null for a stale handle. A velocity read returns a `Double3`. An angular velocity read returns a `Vector3`, because numeric frames do not rotate.
 - `Self.Transform` is a writable reference, so it also reads without a frame. It becomes a setter relative to `self.Frame`.
 - `Self.SetVelocity` and `SpawnDesc.LinearVelocity` take a `Double3`.
 

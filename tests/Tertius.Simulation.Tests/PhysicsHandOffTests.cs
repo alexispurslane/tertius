@@ -191,7 +191,7 @@ public sealed class PhysicsHandOffTests
 
         faults.Outputs[0].HandOffs.Should().ContainSingle().Which.To.Should().Be(carrier);
         test.World.GetFrame(pilot).Should().Be(fighter);
-        test.World.Snapshot.TryGetPoseIn(pilot, test.Root, out DPose pilotInRoot).Should().BeTrue();
+        DPose pilotInRoot = test.World.Snapshot.PoseIn(pilot, test.Root).Found();
         // The carrier at 1000 m, the fighter 100 m inside it, and the pilot 1 m above the fighter's origin.
         PoseChecks.AssertNear(pilotInRoot.Position, new(1100, 1, 0));
     }

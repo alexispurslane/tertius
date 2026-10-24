@@ -205,7 +205,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     {
         if (BackJetPart.IsNull)
             BackJetPart = BackJet.Spawn(self);
-        float mass = self.Snapshot.TryGetBody(self.Entity, out BodyFacts body) ? body.Mass : 0;
+        float mass = self.Snapshot.BodyOf(self.Entity)?.Mass ?? 0;
         switch (State)
         {
             case Boarding:
@@ -342,8 +342,8 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     private void Fetch(Self self, Outbox outbox, float mass)
     {
         if (
-            !self.Snapshot.TryGetPoseIn(pen, self.Frame, out DPose penPose)
-            || !self.Snapshot.TryGetVelocityIn(pen, self.Frame, out Double3 penVelocity)
+            self.Snapshot.PoseIn(pen, self.Frame) is not { } penPose
+            || self.Snapshot.VelocityIn(pen, self.Frame) is not { } penVelocity
         )
         {
             State = new Stopped();
@@ -380,7 +380,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     /// </summary>
     private bool Take(Self self, Outbox outbox, CrateSpec offered)
     {
-        if (!self.Snapshot.TryGetPoseIn(pen, self.Frame, out DPose penPose))
+        if (self.Snapshot.PoseIn(pen, self.Frame) is not { } penPose)
             return false;
         Pose view = self.Render.ViewOffset;
         var grip = Pose.Compose(view.Inverse(), DPose.Compose(self.PoseIn(self.Frame).Inverse(), penPose).ToPose());

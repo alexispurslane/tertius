@@ -59,11 +59,11 @@ public sealed class Gait(Vector3 center) : IComponent
     {
         Entity person = self.AttachedTo;
         Snapshot snapshot = self.Snapshot;
-        if (person.IsNull || !snapshot.TryGetPoseIn(person, self.Frame, out DPose pose))
+        if (person.IsNull || snapshot.PoseIn(person, self.Frame) is not { } pose)
             return;
         double dt = self.DeltaTime,
             target = 0;
-        if (snapshot.IsStanding(person) && snapshot.TryGetVelocityIn(person, self.Frame, out Double3 velocity))
+        if (snapshot.IsStanding(person) && snapshot.VelocityIn(person, self.Frame) is { } velocity)
         {
             Double3 local = pose.Rotation.Conjugate().Rotate(velocity);
             double speed = Math.Sqrt(local.X * local.X + local.Z * local.Z);

@@ -942,7 +942,7 @@ A new writer, `World.FollowFramelessEntities`, at step 2 after `FollowOwners`. I
 | `World.Rehome` | Step 5 | Converts the row out of a dying frame. The motion intent converts beside it. |
 | `Attachments.Derive` | Step 7 | Reads the root's back row for the attached children |
 | `EntityTable.CopyDirtyRows`, the spatial index, the render snapshot | Steps 8 and 11 | Read the front row, as for every entity |
-| `Self.VelocityIn`, `Snapshot.TryGetVelocityIn` | Tick k + 1 | Read the front row, in the frame that the read names |
+| `Self.VelocityIn`, `Snapshot.VelocityIn` | Tick k + 1 | Read the front row, in the frame that the read names |
 
 #### The entities without body or frame that moved in the last step
 
