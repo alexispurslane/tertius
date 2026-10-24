@@ -1,0 +1,239 @@
+# C# style for Tertius
+
+This guide covers the code in `src`. The code in `tests` has its own guide, [tests/STYLE.md](tests/STYLE.md). The guide holds the rules that no tool enforces, and names the tool for the rules that one does. `.editorconfig` and `tools/cleanup.sh` own formatting, member layout, `using` order and the modern syntax fixes.
+
+When a reason can beat a rule, the rule says "prefer". When nothing beats a rule, it says "always" or "never". Most examples are real code from `src`. An example that starts with the comment `// Sketch` shows the form with made-up names.
+
+## Priorities
+
+When speed and a rule of this guide pull apart, use this order:
+
+1. Performance beats sloppiness. Do not accept slow code because it was easier to write.
+2. Consistency beats general performance. When another form is a little faster in theory, keep the form of this guide.
+3. Benchmarked performance where it matters beats consistency. Break a rule only where a profile or a benchmark shows that the spot costs real time, and say so in a comment.
+
+Example: a switch over the 184-byte `MotionIntent` copies the whole union first. A measurement found 2 to 5 ns per call, so its members keep their switches.
+
+## Data
+
+### Use pattern matching and destructuring
+
+Prefer pattern matching and destructuring over every other way to read data: over property chains, casts, `TryGetValue` chains and `is` tests with a body. A pattern states the shape that the code expects, and the compiler makes sure that a switch covers every case.
+
+```csharp
+internal MotionIntent Converted(in FrameMotion start, in FrameMotion end, double step) => this switch
+{
+    EndPose(var pose) => new(new EndPose(end.PoseToParent(pose))),
+    ...
+};
+```
+
+```csharp
+case Taking { Throw: var index }:
+    report = Use(self, outbox, index);
+    break;
+```
+
+### Choose the form of a closed set by the shape of its cases
+
+A closed set is a set of alternatives that the code knows in full.
+
+| Cases | Form | Example |
+|---|---|---|
+| Structs | A `[GeneratedUnion]` struct | `MotionIntent`, `RenderLight` |
+| Classes | A built-in `union` declaration | `public union ScriptStep(RunStep, PostStep, ...)` |
+| Records that carry data and no behavior | A `closed record` hierarchy | `ShapeDesc` |
+| Named values with no data | An `enum` | `BodyMotion` |
+
+The union analyzer enforces the first two rows (ARCHITECTURE.md, "Unions"). Never put a `Kind` enum beside fields that only some kinds use. Write a union with one case per kind.
+
+A union case is a positional `readonly record struct`, so that the generator stores its fields one by one:
+
+```csharp
+public readonly record struct EndPose(DPose Pose);
+public readonly record struct SteerTarget(DPose Pose);
+
+[GeneratedUnion(typeof(EndPose), typeof(MotionSample), typeof(SteerTarget))]
+public readonly partial struct MotionIntent;
+```
+
+A union with invariants checks them in factory methods, because a generated constructor cannot refuse a value.
+
+### Name a type only when it earns a name
+
+If a group of values appears in only a few places, use a tuple with named elements instead of a struct. Never use a tuple whose elements have no names: no `Item1`, and no `(int, double)` in a signature.
+
+```csharp
+(bool recorded, record) = this switch
+{
+    MotionSample sample => (true, sample),
+    EndPose(var end) => (true, KinematicRecord(stepStart, end, step)),
+    SteerTarget => (false, default(MotionSample)),
+    null => (false, default(MotionSample))
+};
+```
+
+When the group travels between modules, is stored, or appears in many places, give it a `readonly record struct`. Data that is used together goes into one struct, not into parallel arrays:
+
+```csharp
+internal readonly record struct Delivery(uint Recipient, int Event);
+private readonly record struct InboxRange(int Start, int Count);
+```
+
+Write a range as a start and a count, never as a prefix-sum array read at `[i]` and `[i + 1]`.
+
+### Put a function into the type that it belongs to
+
+A function of an orbit is an instance method of `KeplerOrbit`. Math about two bodies that takes no orbit is a static method of `KeplerOrbit`, such as `KeplerOrbit.Chord(position, velocity, mu, step)`. Never write a static helper class such as `KeplerMath`. This holds for demo code too: if the function belongs to an engine type, it goes into the engine.
+
+## Nulls
+
+`Nullable` is on, and warnings are errors (`Directory.Build.props`), so a nullable warning fails the build.
+
+Treat `T?` like `Maybe` in Haskell. A value is nullable only where "no value" is a real answer, such as a stale handle or a missing row. Null lives at the outer shell of a module: the shell tests for it once, in a form that the compiler's flow analysis understands, and passes a value that is not nullable inward. The business logic never sees a nullable type.
+
+```csharp
+// Sketch
+// The shell: a stale handle gives null.
+if (FindBody(entity) is not { } body)
+    return false;
+// The core: body is not nullable here, and every call below takes a Body, not a Body?.
+Push(body, impulse);
+return true;
+```
+
+Never use `!` to silence the compiler in business logic. Generated code that reads a reference slot is the one place for it. Never return null for an empty collection. Return an empty one.
+
+## Control flow
+
+### Switches
+
+These rules come from ARCHITECTURE.md, "Switches over closed sets". The build enforces the first one.
+
+- A switch over a closed set has no discard arm, so a new case fails the build.
+- A switch that chooses a value is a switch expression. A union switch ends in a `null` arm. The compiler never asks for that arm, and without it the empty value throws.
+- A switch statement names its quiet cases and throws `UnreachableException` in its default case. The cleanup deletes an empty default case, and a missing case then fails the build.
+
+```csharp
+case MouseButtonChanged or KeyChanged or MouseMoved or Scrolled or null:
+    // Every other input does nothing.
+    break;
+default:
+    throw new UnreachableException();
+```
+
+Watch the type of a switch expression. In `Case c => c.Moved(...), null => default`, the switch takes the type of the case, so `default` becomes a real case. Name the union in an arm, such as `Case c => new U(c.Moved(...))`.
+
+### Guards
+
+Write a list of early returns, not a chain of nested conditional expressions. A conditional expression is for one simple choice.
+
+```csharp
+if (!f.MultiDrawIndirect) return "multiDrawIndirect";
+if (!f.DrawIndirectFirstInstance) return "drawIndirectFirstInstance";
+if (!f.DepthClamp) return "depthClamp";
+```
+
+### Name the parts of a complex condition
+
+If a condition has more than one idea in it, give each idea a named local variable. Do this even if the code uses it once. If several places use the same idea, make it a method.
+
+Not this:
+
+```csharp
+return !double.IsFinite(point.X) || !double.IsFinite(point.Y) || !double.IsFinite(point.Z)
+    ? throw new ArgumentException($"Near needs a finite point, not {point}.", nameof(point))
+    : (QueryFilter)new NearPoint(frame, point, CheckRadius(radius));
+```
+
+This:
+
+```csharp
+bool finite = double.IsFinite(point.X) && double.IsFinite(point.Y) && double.IsFinite(point.Z);
+if (!finite)
+    throw new ArgumentException($"Near needs a finite point, not {point}.", nameof(point));
+return new NearPoint(frame, point, CheckRadius(radius));
+```
+
+### State machines
+
+If the state of a component, its changes, or its behavior per state is even a little complex, write a flat state machine:
+
+1. One union holds the current state, with one case per phase. Never nest one machine inside the phase of another.
+2. One pure static method gives the next state: `Next(state, event)`. It reads only its two arguments, and it is the whole table of changes. Only `Next` changes the case.
+3. The behavior per state dispatches by case: a switch that calls one method or overload per case.
+
+```csharp
+public static BoxPlayState? Next(BoxPlayState state, BoxPlayEvent change) => (state, change) switch
+{
+    (Idle, PlayWithBoxes) => new Shoving(WalkProgress.Start),
+    (Shoving, WalkDone) => new ToStand(WalkProgress.Start),
+    (Taking { Throw: var index }, Took { Copy: var held }) => new Aiming(index, held, 0),
+    ...
+    _ => null
+};
+```
+
+The table of `Next` ends in a discard arm, because the pairs of state and event are an open set. A unit test pins each row of `Next`, with no World.
+
+## Calls and construction
+
+Write C# that reads like Swift: each value at a call names its role.
+
+- If a constructor or a method takes more than 3 parameters, always name every argument at each call.
+- If more than 3 members need values, use an object initializer, or `required` and `init` members, instead of a long positional constructor.
+
+```csharp
+// Sketch
+var spec = new CrateSpec
+{
+    Size = new(1, 1, 1),
+    Mass = 20,
+    Friction = 0.6f,
+    Color = Palette.Wood,
+};
+
+Body body = world.Spawn(frame: station, pose: start, shape: crateShape, motion: BodyMotion.Dynamic);
+```
+
+The cleanup keeps named arguments: the Tertius profile leaves out the ReSharper step that removes them.
+
+## Polymorphism and composition
+
+- Prefer interfaces and generics over abstract classes and virtual methods. Where the code is hot, take the interface as a constrained type parameter with a struct argument, such as `void Step<TRule>(ref TRule rule) where TRule : struct, IRule`. The JIT then writes one copy per struct type, with direct calls and no boxing.
+- Prefer composition over inheritance: a type holds its parts and passes calls through to them. A primary constructor keeps the parts short to declare, such as `public sealed class Carry(CapsuleShapeDesc body) : IComponent`.
+- Never build an inheritance hierarchy more than 2 levels deep below `object`.
+- Use a default method in an interface for behavior that every implementation shares.
+- Use an extension member (a C# 14 `extension` block) for behavior that a type does not own.
+- An abstract base with abstract or virtual members is an open set. A switch never chooses among its subtypes.
+
+## Performance
+
+- Hot paths allocate nothing after warm-up. They use spans, `ref`, `in` and ref structs.
+- LINQ is the first choice outside hot paths. Deferred LINQ is 5 to 26 times slower than a loop on a hot path. There, build an API that reads like LINQ and allocates nothing, such as `foreach (ref Throttle each in events.Of<Throttle>())`.
+- Reflection runs only at load time, such as for blueprints.
+- Every expensive feature has a switch in its options, and its cost is measured.
+
+## Errors and contracts
+
+- A public API tests its arguments with guards that are always on and throw `ArgumentException` or a subtype.
+- Code that changes core state uses `Contract.Requires`, `Ensures` and `Assert` (`src/Tertius.Core/Contracts/Contract.cs`), which compile out of Release. Each such module lists its invariants and checks them in one `AssertInvariants` method.
+- A failed contract is a bug. Never catch one.
+- A state that only a bug produces fails a contract in Debug. Release skips it and records it in `World.Errors`.
+- Every member that takes an `Entity` checks its generation, in every build. A stale handle gives an explicit `null`, `false` or exception. No member between modules takes or returns a bare slot.
+
+## Names
+
+- Name a piece of state for what it holds, with its frame and units where they matter. Remove a variable that only exists as scratch for another one.
+- Use one name for one thing, in the code, its comments and the docs.
+- A read of a position or a velocity names its frame, such as `PoseIn(frame)`. A read about one step names that step, such as `HullMotionInStep`.
+
+## Comments
+
+- A doc comment says what a member means, in plain English. It points to the design doc section that gives the reason, such as `(docs/plans/rails-components.md, "The follow kind")`.
+- A comment gives the reason for the code, never a description of the code under it.
+- Every ordering rule has a comment that gives its reason.
+
+## Dependencies
+
+Prefer what ships with .NET, and libraries driven by attributes, such as System.Text.Json, over a hand-written model.
