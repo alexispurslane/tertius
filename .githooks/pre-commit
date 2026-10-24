@@ -42,7 +42,7 @@ project_of() {
 }
 
 # What to build and what to test. A change in src/Tertius.X runs every test in tests/Tertius.X.Tests. The tests of
-# src/Tertius.Demo live in tests/Tertius.Host.Tests, and the tests of analyzers/Tertius.Unions in tests/Tertius.Unions.Tests. A change in a test file runs only the test classes in that file,
+# src/Tertius.Demo live in tests/Tertius.Host.Tests, and the tests of analyzers/Tertius.X in tests/Tertius.X.Tests. A change in a test file runs only the test classes in that file,
 # unless its module already runs whole. tests/Tertius.Testing and the benchmarks only build: every module uses the
 # shared helpers, so a change there waits for the full run of tools/test-all.sh before the merge.
 declare -A build=() whole=() classes=()
