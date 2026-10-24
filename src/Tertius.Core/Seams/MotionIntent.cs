@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using Tertius.Frames.Rails;
 
 namespace Tertius;
@@ -23,47 +22,23 @@ public readonly record struct SteerTarget(DPose Pose);
 /// An end pose and a full sample are the motion itself, for a kinematic body or an entity without a body. A steer target is
 /// an input that physics integrates for a dynamic body. The empty union is the all-zero default: the entity has no motion
 /// intent in the step.
-/// This is a custom C# 15 union. <see cref="HasValue"/> and the <c>TryGetValue</c> methods let the compiler pattern-match
-/// it without boxing. <see cref="Value"/> boxes, so use it only for debugging.
+/// The union generator writes its union members (docs/plans/union-tooling.md). The three cases share the slot of their
+/// pose, and only a full sample fills the five slots of its velocities and accelerations.
 /// </summary>
-[Union]
-public readonly struct MotionIntent : IEquatable<MotionIntent>
+[GeneratedUnion(typeof(EndPose), typeof(MotionSample), typeof(SteerTarget))]
+public readonly partial struct MotionIntent
 {
-    private const byte KindNone = 0, KindEndPose = 1, KindSample = 2, KindSteer = 3;
-
-    // The three cases share one field. An end pose and a steer target fill only its pose, and leave every other field zero,
-    // so equality needs to compare only the kind and this field.
-    private readonly MotionSample sample;
-    private readonly byte kind;
-
-    public MotionIntent(EndPose end)
-    {
-        kind = KindEndPose;
-        sample = default(MotionSample) with { Pose = end.Pose };
-    }
-
-    public MotionIntent(MotionSample sample)
-    {
-        kind = KindSample;
-        this.sample = sample;
-    }
-
-    public MotionIntent(SteerTarget steer)
-    {
-        kind = KindSteer;
-        sample = default(MotionSample) with { Pose = steer.Pose };
-    }
-
-    /// <summary>False for the empty union: no motion intent.</summary>
-    public bool HasValue => kind != KindNone;
-
     /// <summary>
     /// The pose that physics aims the entity at, which every case gives. For an end pose and a full sample, it is the pose at
     /// the end of the step, where physics or the sync point puts the entity exactly. For a steer target, it is the pose that
     /// physics steers a dynamic body toward, which contacts and gravity can keep the body from. The empty union gives the
     /// default pose.
     /// </summary>
-    public DPose AimPose => sample.Pose;
+    public DPose AimPose =>
+        TryGetValue(out EndPose end) ? end.Pose
+        : TryGetValue(out MotionSample full) ? full.Pose
+        : TryGetValue(out SteerTarget steer) ? steer.Pose
+        : default;
 
     /// <summary>
     /// How a frame follows when it takes the record of this intent (docs/plans/rails-components.md, "The follow kind"):
@@ -71,38 +46,18 @@ public readonly struct MotionIntent : IEquatable<MotionIntent>
     /// <see cref="FollowKind.Static"/> for a steer target and the empty union, which give no record. It reads the case alone,
     /// so it copies no field (see <see cref="FrameTree.FollowKindInStep"/>).
     /// </summary>
-    internal FollowKind FollowKind => kind switch
-    {
-        KindSample => FollowKind.Rails,
-        KindEndPose => FollowKind.Kinematic,
-        _ => FollowKind.Static
-    };
-
-    public object? Value => kind switch
-    {
-        KindEndPose => new EndPose(sample.Pose),
-        KindSample => sample,
-        KindSteer => new SteerTarget(sample.Pose),
-        _ => null
-    };
-
-    public bool TryGetValue(out EndPose end)
-    {
-        end = new(sample.Pose);
-        return kind == KindEndPose;
-    }
-
-    public bool TryGetValue(out MotionSample value)
-    {
-        value = sample;
-        return kind == KindSample;
-    }
-
-    public bool TryGetValue(out SteerTarget steer)
-    {
-        steer = new(sample.Pose);
-        return kind == KindSteer;
-    }
+    /// <remarks>
+    /// This member, <see cref="AimPose"/> and <see cref="TryRecordFrom"/> run for every entity with an intent in every step,
+    /// so they test the cases with a type pattern without a designation or with <c>TryGetValue</c>, not with a switch
+    /// expression. A switch expression over a union, and a pattern that binds a value, first copy the whole union, 184
+    /// bytes, and the JIT keeps that copy. A bare type pattern reads only the kind, and <c>TryGetValue</c> reads the slots of
+    /// its own case (measured with <c>DOTNET_JitDisasm</c> on .NET 11 RC 1). The cost is that a new case does not fail the
+    /// build here: a new case must be added to these three members by hand.
+    /// </remarks>
+    internal FollowKind FollowKind =>
+        this is MotionSample ? FollowKind.Rails
+        : this is EndPose ? FollowKind.Kinematic
+        : FollowKind.Static;
 
     /// <summary>
     /// The step record of this intent, the entity's motion over a step that starts at <paramref name="stepStart"/> and lasts
@@ -114,21 +69,31 @@ public readonly struct MotionIntent : IEquatable<MotionIntent>
     /// </summary>
     public bool TryRecordFrom(in DPose stepStart, double step, out MotionSample record)
     {
-        switch (kind)
+        if (TryGetValue(out MotionSample sample))
         {
-            case KindSample:
-                record = sample;
-                return true;
-            case KindEndPose:
-                DPose end = sample.Pose;
-                Double3 chord = (end.Position - stepStart.Position) / step;
-                Double3 spin = stepStart.Rotation.AngularVelocityTo(end.Rotation, step);
-                record = new(end, chord, chord, Double3.Zero, spin, Double3.Zero);
-                return true;
-            default:
-                record = default;
-                return false;
+            record = sample;
+            return true;
         }
+
+        if (TryGetValue(out EndPose end))
+        {
+            record = KinematicRecord(stepStart, end.Pose, step);
+            return true;
+        }
+
+        record = default;
+        return false;
+    }
+
+    /// <summary>
+    /// The record of a move at a constant velocity from <paramref name="stepStart"/> to <paramref name="end"/> over a step
+    /// of <paramref name="step"/> seconds (see <see cref="TryRecordFrom"/>).
+    /// </summary>
+    private static MotionSample KinematicRecord(in DPose stepStart, DPose end, double step)
+    {
+        Double3 chord = (end.Position - stepStart.Position) / step;
+        Double3 spin = stepStart.Rotation.AngularVelocityTo(end.Rotation, step);
+        return new(end, chord, chord, Double3.Zero, spin, Double3.Zero);
     }
 
     /// <summary>
@@ -140,12 +105,12 @@ public readonly struct MotionIntent : IEquatable<MotionIntent>
     /// <paramref name="end"/> and keep their case, and the frames' motion gives them no velocity. A full sample converts by
     /// <see cref="MotionSample.Converted"/>. The empty union stays empty.
     /// </summary>
-    internal MotionIntent Converted(in FrameMotion start, in FrameMotion end, double step) => kind switch
+    internal MotionIntent Converted(in FrameMotion start, in FrameMotion end, double step) => this switch
     {
-        KindEndPose => new(new EndPose(end.PoseToParent(sample.Pose))),
-        KindSample => new(sample.Converted(start, end, step)),
-        KindSteer => new(new SteerTarget(end.PoseToParent(sample.Pose))),
-        _ => this
+        EndPose(var pose) => new(new EndPose(end.PoseToParent(pose))),
+        MotionSample sample => new(sample.Converted(start, end, step)),
+        SteerTarget(var pose) => new(new SteerTarget(end.PoseToParent(pose))),
+        null => this
     };
 
     /// <summary>
@@ -175,7 +140,7 @@ public readonly struct MotionIntent : IEquatable<MotionIntent>
             return MotionIntentRefusal.Attached;
         if (motion == BodyMotion.Character)
             return MotionIntentRefusal.Character;
-        return kind != KindSteer
+        return this is not SteerTarget
             ? motion is null or BodyMotion.Kinematic || ownsRootFrame
                 ? MotionIntentRefusal.None
                 : MotionIntentRefusal.NeedsKinematicBody
@@ -204,9 +169,12 @@ public readonly struct MotionIntent : IEquatable<MotionIntent>
     /// <summary>The words of <paramref name="refusal"/> of this motion intent for a body of <paramref name="motion"/>, or null for none.</summary>
     private string? Reason(MotionIntentRefusal refusal, BodyMotion? motion)
     {
-        string name = kind switch
+        string name = this switch
         {
-            KindEndPose => "an end pose", KindSample => "a full sample", _ => "a steer target"
+            EndPose => "an end pose",
+            MotionSample => "a full sample",
+            SteerTarget => "a steer target",
+            null => "no motion intent"
         };
         return refusal switch
         {
@@ -224,20 +192,6 @@ public readonly struct MotionIntent : IEquatable<MotionIntent>
                 $"has a {motion} body, so it cannot take a steer target: only a dynamic body takes one"
         };
     }
-
-    public bool Equals(MotionIntent other) => kind == other.kind && sample.Equals(other.sample);
-    public override bool Equals(object? obj) => obj is MotionIntent other && Equals(other);
-    public override int GetHashCode() => HashCode.Combine(kind, sample);
-    public static bool operator ==(MotionIntent a, MotionIntent b) => a.Equals(b);
-    public static bool operator !=(MotionIntent a, MotionIntent b) => !a.Equals(b);
-
-    public override string ToString() => this switch
-    {
-        EndPose end => $"MotionIntent({end})",
-        MotionSample full => $"MotionIntent({full})",
-        SteerTarget steer => $"MotionIntent({steer})",
-        null => "MotionIntent(none)"
-    };
 }
 
 /// <summary>Which rule of the guard refuses a motion intent (see <see cref="MotionIntent.RefusalFor"/>), or none.</summary>

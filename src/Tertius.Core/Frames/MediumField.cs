@@ -1,5 +1,4 @@
 using System.Numerics;
-using System.Runtime.CompilerServices;
 
 namespace Tertius;
 
@@ -31,44 +30,14 @@ public readonly record struct PlanetMedium(double Radius, float SurfaceDensity, 
 /// frame tree holds one per frame beside its gravity field, and it matches the gravity field in who sets it, when, which
 /// step it describes and where it is stored. Only puffs read a medium: physics reads none, and each body keeps its own
 /// damping.
-/// This is a custom C# 15 union, built as <see cref="GravityField"/> is. <see cref="HasValue"/> and the
-/// <c>TryGetValue</c> methods let the compiler pattern-match it without boxing. <see cref="Value"/> boxes, so use it only
-/// for debugging. The empty union is the all-zero default.
+/// The union generator writes its union members (docs/plans/union-tooling.md), as it does for
+/// <see cref="GravityField"/>. The empty union is the all-zero default, <see cref="None"/>, and its <c>HasValue</c> is false.
 /// </summary>
-[Union]
-public readonly struct MediumField : IEquatable<MediumField>
+[GeneratedUnion(typeof(UniformMedium), typeof(PlanetMedium))]
+public readonly partial struct MediumField
 {
-    private const byte KindNone = 0, KindUniform = 1, KindPlanet = 2;
-
     /// <summary>No medium: vacuum.</summary>
     public static MediumField None => default;
-
-    // The view of a case that the medium does not hold stays all zero, so equality needs to compare only the held case.
-    private readonly UniformMedium uniform;
-    private readonly PlanetMedium planet;
-    private readonly byte kind;
-
-    public MediumField(UniformMedium uniform)
-    {
-        kind = KindUniform;
-        this.uniform = uniform;
-    }
-
-    public MediumField(PlanetMedium planet)
-    {
-        kind = KindPlanet;
-        this.planet = planet;
-    }
-
-    /// <summary>False for the empty medium, which is vacuum.</summary>
-    public bool HasValue => kind != KindNone;
-
-    public object? Value => kind switch
-    {
-        KindUniform => uniform,
-        KindPlanet => planet,
-        _ => null
-    };
 
     /// <summary>
     /// True for a medium that the World accepts: every number is finite, the densities, the drags and the radius are 0 or
@@ -108,18 +77,6 @@ public readonly struct MediumField : IEquatable<MediumField>
     public static MediumField Planet(double radius, float surfaceDensity, float scaleHeight, float drag) =>
         new(new PlanetMedium(radius, surfaceDensity, scaleHeight, drag));
 
-    public bool TryGetValue(out UniformMedium value)
-    {
-        value = uniform;
-        return kind == KindUniform;
-    }
-
-    public bool TryGetValue(out PlanetMedium value)
-    {
-        value = planet;
-        return kind == KindPlanet;
-    }
-
     private static bool NotNegative(float value) => float.IsFinite(value) && value >= 0;
 
     private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
@@ -151,31 +108,5 @@ public readonly struct MediumField : IEquatable<MediumField>
         PlanetMedium { Radius: var radius, SurfaceDensity: var surface, ScaleHeight: var scale } =>
             surface * Math.Exp(-Math.Max(0, place.Length - radius) / scale),
         null => 0
-    };
-
-    public bool Equals(MediumField other) => kind == other.kind && kind switch
-    {
-        KindUniform => uniform == other.uniform,
-        KindPlanet => planet == other.planet,
-        _ => true
-    };
-
-    public override bool Equals(object? obj) => obj is MediumField other && Equals(other);
-
-    public override int GetHashCode() => kind switch
-    {
-        KindUniform => HashCode.Combine(kind, uniform),
-        KindPlanet => HashCode.Combine(kind, planet),
-        _ => 0
-    };
-
-    public static bool operator ==(MediumField a, MediumField b) => a.Equals(b);
-    public static bool operator !=(MediumField a, MediumField b) => !a.Equals(b);
-
-    public override string ToString() => this switch
-    {
-        UniformMedium u => $"MediumField({u})",
-        PlanetMedium p => $"MediumField({p})",
-        null => "MediumField(none)"
     };
 }

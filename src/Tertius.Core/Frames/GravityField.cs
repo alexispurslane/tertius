@@ -1,5 +1,4 @@
 using System.Numerics;
-using System.Runtime.CompilerServices;
 
 namespace Tertius;
 
@@ -21,44 +20,15 @@ public readonly record struct PointGravity(double Mu)
 /// <summary>
 /// The gravity field of one frame: <see cref="UniformGravity"/>, <see cref="PointGravity"/> or neither, which is no
 /// gravity. An object feels only the field of the frame that it is in.
-/// This is a custom C# 15 union. <see cref="HasValue"/> and the <c>TryGetValue</c> methods let the compiler pattern-match
-/// it without boxing. <see cref="Value"/> boxes, so use it only for debugging. The empty union is the all-zero default.
-/// A field holds the values of its own case and nothing else, so no field is a uniform field that also has a G·M.
+/// The union generator writes its union members (docs/plans/union-tooling.md). The empty union is the all-zero default,
+/// <see cref="None"/>, and its <c>HasValue</c> is false. A field holds the values of its own case and nothing else, so no
+/// field is a uniform field that also has a G·M.
 /// </summary>
-[Union]
-public readonly struct GravityField : IEquatable<GravityField>
+[GeneratedUnion(typeof(UniformGravity), typeof(PointGravity))]
+public readonly partial struct GravityField
 {
-    private const byte KindNone = 0, KindUniform = 1, KindPoint = 2;
-
     /// <summary>No gravity.</summary>
     public static GravityField None => default;
-
-    // The view of a case that the field does not hold stays all zero, so equality needs to compare only the held case.
-    private readonly UniformGravity uniform;
-    private readonly PointGravity point;
-    private readonly byte kind;
-
-    public GravityField(UniformGravity uniform)
-    {
-        kind = KindUniform;
-        this.uniform = uniform;
-    }
-
-    public GravityField(PointGravity point)
-    {
-        kind = KindPoint;
-        this.point = point;
-    }
-
-    /// <summary>False for the empty field, which is no gravity.</summary>
-    public bool HasValue => kind != KindNone;
-
-    public object? Value => kind switch
-    {
-        KindUniform => uniform,
-        KindPoint => point,
-        _ => null
-    };
 
     /// <summary>
     /// True for a field that physics can apply. No gravity is valid. A uniform field is valid with a finite acceleration,
@@ -86,18 +56,6 @@ public readonly struct GravityField : IEquatable<GravityField>
     /// <param name="mu">The standard gravitational parameter G·M, in m³/s².</param>
     public static GravityField Point(double mu) => new(new PointGravity(mu));
 
-    public bool TryGetValue(out UniformGravity value)
-    {
-        value = uniform;
-        return kind == KindUniform;
-    }
-
-    public bool TryGetValue(out PointGravity value)
-    {
-        value = point;
-        return kind == KindPoint;
-    }
-
     private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
 
     /// <summary>The acceleration at a point in frame coordinates.</summary>
@@ -123,30 +81,4 @@ public readonly struct GravityField : IEquatable<GravityField>
         double r = Math.Sqrt(r2);
         return position * (-mu / (r2 * r));
     }
-
-    public bool Equals(GravityField other) => kind == other.kind && kind switch
-    {
-        KindUniform => uniform == other.uniform,
-        KindPoint => point == other.point,
-        _ => true
-    };
-
-    public override bool Equals(object? obj) => obj is GravityField other && Equals(other);
-
-    public override int GetHashCode() => kind switch
-    {
-        KindUniform => HashCode.Combine(kind, uniform),
-        KindPoint => HashCode.Combine(kind, point),
-        _ => 0
-    };
-
-    public static bool operator ==(GravityField a, GravityField b) => a.Equals(b);
-    public static bool operator !=(GravityField a, GravityField b) => !a.Equals(b);
-
-    public override string ToString() => this switch
-    {
-        UniformGravity u => $"GravityField({u})",
-        PointGravity p => $"GravityField({p})",
-        null => "GravityField(none)"
-    };
 }
