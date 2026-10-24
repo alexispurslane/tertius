@@ -1,98 +1,61 @@
 # Tertius: notes for Claude
 
-ARCHITECTURE.md is the binding design. This file records what the user prefers, so that new work starts from those preferences instead of rediscovering them. The section "Where the user changed my proposals" matters most: those are places where my first instinct was not what the user wanted.
+ARCHITECTURE.md is the binding design, and the code and `tools/README.md` say how things work. This file holds only what they do not show: the user's rules for this project, the places where my first instinct was wrong, and the gotchas that cost time before.
 
-## Working in this repository
+## Workflow
 
 - Run every build and test command in the dev shell: `nix develop --command bash -c '<command>'`.
-- Build: `dotnet build Tertius.slnx`. Test one module: `dotnet test --project tests/Tertius.<Module>.Tests`.
-- Run every test module in Checked and Release with `bash tools/test-all.sh`. It takes `-c` for the configurations, `-m` for the modules, `-o` for the log folder, and `-- <dotnet test args>` for a filter. It prints one count line per module and the names of the failed tests, and it exits non-zero on any failure. `tools/README.md` gives the details.
-- Checked is the test configuration: Debug's contracts with Release's optimized code. It runs the tests about five times faster than Debug. Debug stays unoptimized for the debugger. The user chose this on 2026-10-22.
-- To open the project in JetBrains Rider, start Rider with `bash tools/rider.sh`, so that it uses the dev shell's SDK and variables. `tools/README.md` gives the one-time settings.
-- The tests use xUnit v3 on Microsoft.Testing.Platform, with AwesomeAssertions.
-- The double-precision Jolt library comes from `native/joltc.nix`. Read the Jolt pitfalls in project memory before you touch Jolt interop.
-- This project uses a CLI ticket system for task management. When you need it, run `tk help`. The tickets in `.tickets/` track what to do and in which order, and `tk ready` lists the work whose dependencies are done. Design docs live in `docs/plans/`, and each epic ticket names its design doc. When you start a ticket, run `tk start`. When its work is merged, run `tk close`. Commit ticket changes together with the work.
-- Do each epic or ticket on its own branch, named after the ticket, for example `ter-dtw2-vertical-slice`. Never commit work straight to main. The diff pane of the Claude desktop app shows a branch's changes against main, and the user reads the code there. When the ticket closes, merge the branch into main in this checkout. Then leave the checkout on main until the next epic branches off. Other sessions commit ticket notes in this checkout, and the user wants those commits on main.
-- At the end of every piece of work that shows on screen, send the user a few screenshots of the rendered game, so that they can see that it works. The user often follows the work from a phone and cannot open the game. Take them from the scene and the script that tested the work, with a headless run of the real renderer (`dotnet run --project src/Tertius.Demo -- --script scripts/<name>.json --headless --out <folder>`). Look at each image first. Send two to four of them with SendUserFile, each with a one-line caption that says what it shows.
-- Commit with git. Never push without the user's permission. This project stays on git, not jj. The user chose this, and it overrides the jj rule in their other agent configuration.
-- ARCHITECTURE.md is part of the public engine docs. The last step of every ticket that changes the engine updates ARCHITECTURE.md to match the code, before the merge into main. The review of the ticket makes sure that it matches. The user made this an official rule on 2026-10-18.
+- `bash tools/test-all.sh` runs every test module in Checked and Release. Checked is the test configuration: Debug's contracts with Release's optimized code. The script does not run in an agent's worktree, so such an agent runs `dotnet build Tertius.slnx -c <config>` and `dotnet test --project tests/Tertius.<Module>.Tests -c <config>` by hand, for both configurations.
+- Do each ticket or epic on its own branch, named after the ticket, such as `ter-dtw2-vertical-slice`. Never commit work straight to main. The user reads the code in the diff pane of the Claude desktop app, against main.
+- When the ticket closes, merge its branch into main in this checkout, and leave the checkout on main. Other sessions commit ticket notes in this checkout, and the user wants those on main.
+- Use git, not jj. This overrides the jj rule in the user's other agent configuration. Never push without the user's permission.
+- The last step of every ticket that changes the engine updates ARCHITECTURE.md to match the code, before the merge. It is part of the public engine docs.
+- At the end of every piece of work that shows on screen, send the user two to four screenshots of the rendered game. The user often follows from a phone and cannot run the game. Take them with a headless run of the real renderer, `dotnet run --project src/Tertius.Demo -- --script scripts/<name>.json --headless --out <folder>`. Look at each image first, and give each a one-line caption.
+- Read the Jolt pitfalls in project memory before you touch Jolt interop. The double-precision Jolt library comes from `native/joltc.nix`.
 
-## General architectural preferences
+## Priorities
 
-- The engine is a Caves of Qud style entity system. An entity is a handle (an index plus a generation) into struct-of-arrays tables for transform, physics and render data. It also has a list of component classes that share one interface.
-- Components change only their own entity. Entities talk to each other only through messages, because a component decides what a message means for its entity.
-- The language is C#. It has runtime code loading, reflection and late binding, and it can still be fast with spans, refs and ref structs. Use those performance features on hot paths.
-- The user likes type-safe variants: C# 15 unions for closed sets such as message targets. A standard union boxes struct cases. To avoid that, use a custom `[Union]` struct with `TryGetValue` methods.
-- Prefer simple, honest mechanisms over clever ones. When a feature is not needed yet, leave it out and say so. Examples are read-only "public facts" on entities and automatic event propagation into containers.
-- Reflection is fine at load time (blueprints are lists of component types instantiated through reflection), as long as the hot path pays nothing for it.
-- The engine must be fast. It has to handle space-scale scenes and dense immersive-sim interactions at once. Measure the cost of every rendering feature, and keep expensive ones switchable.
-- Small, focused classes are better than one large class. The user approved splitting the `World` class into subsystems as soon as it grew too big.
-- The user values determinism and wants reasons for every ordering rule.
-- Automatic engine machinery sits behind the state that it keeps coherent. The owner of that state (for numeric frames, `FrameTree`) grows one choke-point method that World calls once per sync point. That method calls internal pure predicates, which unit tests pin without physics or game objects, and then acts on its own state directly.
+When speed and a project-wide rule pull apart, use this order. The user set it on 2026-10-24.
 
-## Scope decisions
+1. Performance beats sloppiness. Do not accept slow code because it was easier to write.
+2. Consistency beats general performance. When another form is a little faster in theory, keep the uniform form, such as the switch rule.
+3. Benchmarked performance where it matters beats consistency. Break the uniform form only where a profile or a benchmark shows that the spot costs real time.
 
-- No multiplayer, ever. No time warp. Mods come later.
-- A frame acts on its contents with its linear (proper) acceleration and, if it turns, with its rotation terms: the centrifugal, Coriolis and Euler forces. The user decided on 2026-10-16 that every turning frame gets them (spin gravity, `docs/plans/spin-gravity.md`). A semantic frame still applies no tidal gravity to its contents.
-- A frame's bubble is an ellipsoid or a sphere, nothing else. In-universe, the engine is a creation of Orbis Tertius, so oddities like a ship's "wake" are acceptable.
-- Rendering uses deferred shading, multiple depth ranges and impostors captured at render time. It used Blinn-Phong to keep things simple, until the user decided on 2026-10-21 to move to a PBR BRDF (`ter-ptft`, in the rendering upgrade epic `ter-sglu`). Until that ticket is built, the code is still Blinn-Phong.
+An exception to a rule for speed needs a measurement of the cost in context first. Example: a switch over the 184-byte `MotionIntent` copies the union, but the copy costs 2 to 5 ns per call, so the switches stay.
 
-## Where the user changed my proposals
+## Design preferences
 
-| My proposal | What the user wanted | Notes |
-|---|---|---|
-| A command buffer for deferred structural changes | No command buffer. The user dislikes the pattern because it duplicates every operation. | Only creation and destruction wait for the sync point. Everything else applies at once. |
-| Parallel arrays `pairRecipients` and `pairEvents` | One array of `Delivery(Recipient, Event)` structs | Data that is used together goes in one struct. |
-| An n + 1 prefix array `inboxStart`, read as `[s]` and `[s + 1]` | One `InboxRange(Start, Count)` per slot | Explicit ranges are clearer than prefix sums. |
-| A chain of `TryGetValue` calls on the target union | A `switch` statement with pattern matching | Prefer pattern matching for variants. |
-| Copying each event per recipient at the serial sync point (the user's first idea) | The hybrid: store each event once, keep the per-recipient copy on the workers | The user accepted my performance argument here. Keep work off the serial sync point. |
-| Bepu with automatic frames, or float positions between frames | Jolt in double-precision mode with explicit frames only | The user found that Jolt's double mode costs only 5 to 10 percent. |
-| Impostors below 48 px, back to geometry above 64 px | Below 200 px, back above 300 px, with the recapture angle derived from the projected size | |
-| A `MotionDriver` enum on each frame (`Static`, `Kepler`, `Physics`) that says how the frame moves. It was my second proposal, after a boolean. | No driver. Every frame follows its owner, and the owner's components move it. A hull's motion is its body's `BodyMotion`, and the intent `Self.Body.SetMotion` changes it. | The user first agreed to the enum. The epic on rails components removed it on 2026-10-18, because a second value beside the body's motion can disagree with it. See `docs/plans/rails-components.md`. |
-| Frames separate from entities | Frames are entities with an extra handle into the frame tree. Frames are also a kind of scene graph that shares code with the normal scene graph. | Hence `FrameHandle` and the generic `PoseTree<TPose>`. |
-| A lock-free shared message list | Per-chunk outboxes merged in chunk order | This was my refinement of the user's per-entity worker idea. The user agreed. |
-| An entity table whose members take bare slot indices, with the generation check left to the caller | Handles everywhere: every way from an `Entity` to its data checks the generation, and stale handles give an explicit `null`, `false` or exception | Slots are a private storage index. No interface between modules takes or returns a bare slot. The user also rejected a "proof of liveness" marker type that lets later calls skip the check: every member that takes an `Entity` checks it, in every build. |
-| Ignore and report physics output that names a destroyed frame, in every build | A state that only a bug can produce fails a contract in Debug builds. Release builds skip it and record it in `World.Errors`. | Example: the proper destroy path rehomes every surviving body into the parent frame, in the same physics batch. So physics can never report a body in a dead frame. |
-| A hand-rolled JSON reader and type model (`TypeShape`), to keep comments and exact error positions | The built-in System.Text.Json, with its attributes and contract metadata (`JsonTypeInfo`). Content files are plain JSON with no comments. | Prefer a library with attribute-driven metaprogramming (like Serde) over a hand-rolled type model. Prefer what ships with .NET over an extra dependency, even at a small cost in features. |
-| A float gameplay velocity relative to the semantic frame, or `Double3` velocities stored in every row | A `Double3` that each read computes from the home's double frame velocity and Jolt's float local velocity | Storage stays one float vector per body, and reads are exact. |
-| Frameless reads such as `Self.Pose` and `Self.Velocity` beside reads in a frame | Every read of a position or velocity names its frame. Writes stay relative to `self.Frame`, and directions stay in its axes. | A read can be about any entity, but an entity writes only itself. |
-| A pure planner that returns a plan, plus a separate module that keeps numeric frames coherent | One choke-point method on `FrameTree` that calls internal pure predicates and acts directly | No plan object and no second module beside the owner of the state. |
-| Fake physics backends, kept in line with Jolt by a conformance suite | Every test uses the real World and the real Jolt backend. The only physics test double is a wrapper around real Jolt that injects faults. | A stand-in drifts from the code that it copies. A survey found 20 gaps between the stand-ins and the real code. See `docs/plans/real-physics-in-tests.md`. |
-| A library of static methods that take the orbit or the spin as an `in` parameter, such as `KeplerRails.StateAt(in KeplerOrbit orbit, ...)` | Every function lives in the struct that it belongs to: a function of an orbit is an instance method of `KeplerOrbit`, and two-body math that takes no orbit elements is a static method of `KeplerOrbit`, such as `KeplerOrbit.Chord(position, velocity, mu, step)`. No separate static class. | The user said so on 2026-10-18 for the rails library (ter-k8cg). |
-| The stored motion of a hull leads physics: step 4 of the writing tick's sync point stores a `SetMotion`, so `FrameTree.HullMotion` is the motion of the step in flight, and every reader reads it directly | The stored motion lags like the collision rows: it is the motion of the last finished step, and step 4 stores a change from the intents that the finished step applied. The motion of a step in flight is derived from the pending intent, with one read per question, named by the step it answers (`FrameTree.HullMotionInStep`, `World.NextStepHullMotion`) | For data flow consistency: the state that a tick reads describes the last finished step. The tree stays the only store, with no entity-table row beside it. The user decided this on 2026-10-18 for ter-ru5u. |
-| A sample table keyed by frame, with three buffers (written, applied and followed) beside the intents, that held the motion sample of each frame on rails | A motion intent in the entity's own intent, `PhysicsIntent.Move`, with the life of the intent: a custom `[Union]` of an end pose (`Self.MoveKinematic`), a full sample (`Self.MoveOnRails`) and a steer target (`Self.Body.SteerTo`). One guard, `World.MotionIntentProblem`, says which entity takes which case. After step 2 the frame tree row keeps the record of the last finished step: pose, instant velocity, angular velocity, the derived proper acceleration and a follow kind. | The user decided this on 2026-10-18 for ter-xdt8. A second store beside the intent kept a copy of the same motion with a life of its own. See `docs/plans/rails-components.md`, "Rails motion for every entity". |
-| In the air, a character's up turns to the felt gravity at once, in every step (fork F5 of `docs/plans/spin-gravity.md`) | In the air, up turns toward the felt gravity at a limited angular rate, one named backend option with a measured default | The user decided this on 2026-10-20 for ter-1b21. At the demo's ramp jolt, the felt gravity flips for one step. Under the instant rule, that turned a belted passenger's up 135 degrees in one tick. |
-| A seat that holds the up of a belted passenger, through a new engine hold that a component sets each tick | The belted passenger follows the same air rule as any character, and the demo accepts the tipping it gives | The user decided this on 2026-10-20 for ter-1b21. The engine gets no hold for a character's up. |
-| A test on main first: does the interior anchor of the orbiting station (ter-dhkf) keep a person who crosses the spinning station at 40 m/s in the station's own system? If it does, the station scene goes before numeric frames in turning frames (fork F7 of `docs/plans/spin-gravity.md`) | The block stays, with no test first: the station scene waits for numeric frames in turning frames | The user decided this on 2026-10-18. ter-vja8 later found that the anchor rule of ter-dhkf already keeps such a person on the floor, so the test would have passed. |
-| Lambert's problem and the propagation of a state in the demo's own guidance struct, so that the demo needs no engine change | Static methods of `KeplerOrbit` in Core, `KeplerOrbit.Propagate` and `KeplerOrbit.Lambert`, beside `KeplerOrbit.Chord` | The user decided this on 2026-10-20 for ter-tzf6. The rule for the rails library holds for demo needs too: two-body math with no orbit elements belongs to `KeplerOrbit`, even when that makes an engine change. |
-| One pilot value, `ShuttleLeg`, whose flyers each return the next leg, beside prose rules for the messages. Then a machine on two levels: legs, each with its own phases. | One flat finite state machine: one custom `[Union]` with every phase of the cycle, one pure `Next(state, event) → state`, and a `switch` from each state to its delegate. The events are the messages from other entities and the delegates' reports. Only `Next` changes the case. | The user proposed the machine and chose the flat table on 2026-10-20 for the live world's pilot (ter-qipk). The whole flight reads in one table, and unit tests pin every row with no World. The tug, the seat and the belt take the same shape. |
-| Exhaust plumes as glow shapes built from demo code: an emissive, transparent mesh on each jet that a demo component scales each tick, with no engine change | Real particles in the renderer: puffs that leave the emitter and stay behind in space, so that they draw a trail of the path, with additive blending. An engine epic comes first, and the demo's plumes wait for it. | The user decided this on 2026-10-21 for the demo's plumes (ter-4zt6, ter-6u2m), although the glow shapes were ready sooner. The user prefers the real mechanism over a look-alike, even at the cost of an engine epic. |
+- Prefer simple, honest mechanisms over clever ones. Leave out a feature that is not needed yet, and say so.
+- Prefer the real mechanism over a look-alike. If the real one needs an engine epic, the epic comes first. Example: the demo's exhaust plumes waited for real particles instead of glow meshes.
+- Keep one store for each piece of state. A second store beside it, such as a side table, a mirror row or a mode enum, can disagree with the first.
+- Stored state describes the last finished step, like the collision rows. A step in flight is a named, derived read of the pending intent.
+- Automatic machinery lives in one choke-point method on the owner of the state, which calls internal pure predicates and acts directly. Use no planner and no plan object.
+- Every read of a position or a velocity names its frame. An entity writes only itself, relative to `self.Frame`.
+- Handles everywhere. Every member that takes an `Entity` checks its generation, in every build. No interface between modules takes a bare slot.
+- A state that only a bug produces fails a contract in Debug, and Release records it in `World.Errors` and skips it.
+- A function goes into the struct that it belongs to, such as `KeplerOrbit.Lambert`, never into a static helper class. This holds for demo needs too. If that means an engine change, make the engine change.
+- A staged component is one flat state machine: one `[GeneratedUnion]` of every phase, one pure `Next(state, event)`, and a switch to delegates.
+- Data that is used together goes into one struct. Prefer an explicit `Range(Start, Count)` over a prefix-sum array.
+- Use no command buffer for deferred changes. Only creation and destruction wait for the sync point.
+- Prefer what ships with .NET, and libraries with attribute-driven metaprogramming, over a hand-rolled model.
+- The user values determinism and wants a reason for every ordering rule.
+- No multiplayer and no time warp, ever. Mods come later.
 
-## Code style
+## Gotchas
 
-- Prefer declarative code that states its intent. The user expected deferred LINQ to be as fast as loops. The benchmark showed LINQ is 5 to 26 times slower on hot paths. So give hot paths LINQ-like APIs that allocate nothing, such as `EventList.Of<T>()`, and use normal LINQ elsewhere.
-- Name each piece of state for what it holds, and remove variables that only exist as scratch for another variable.
-- A switch over a closed set (an enum, a custom `[Union]` struct or a `closed` record) has no discard arm, so a new member fails the build. A union switch ends in a `null` arm. ARCHITECTURE.md, "Switches over closed sets", has the rule and its three build settings.
-- When the user asks how something works, show the real code, with elisions marked `...` and a `where` list for every name in it.
-
-## Contracts
-
-Follow the global contracts rule. In this repository, the helper is `Tertius.Contract` in `src/Tertius.Core/Contracts/Contract.cs`. `Requires`, `Ensures` and `Assert` compile out of Release builds. `Invariant` is for `AssertInvariants` methods. `WorldOptions.DebugChecks` runs the world's invariant checks at the end of every sync point.
+- Deferred LINQ is 5 to 26 times slower than loops on hot paths. Hot paths use the allocation-free LINQ-like APIs, such as `EventList.Of<T>()`.
+- A union switch must end in a `null` arm, but the compiler never asks for it. Without the arm, the empty value throws.
+- In `Case c => c.Moved(...), null => default`, the switch takes the type of the case. So `default` becomes a real case, and the implicit conversion makes a union that holds it. Name the union in an arm, such as `Case c => new U(c.Moved(...))`.
+- A generated constructor cannot refuse a bad value. A union with invariants checks them in its factory methods.
+- `IComponent` methods take ref struct parameters, which no mocking library can substitute. Tests use small hand-written components.
+- The pre-commit hook builds and tests the changed modules, so a commit takes minutes. Its report of complex, long or duplicated code asks you to refactor the touched code in the same commit.
 
 ## Testing
 
-- Use red-green TDD. First write tests that define the core behavior, in the spirit of BDD but in xUnit. Then implement. Then use coverage and mutation testing (Stryker.NET with the MTP runner) to make sure that the tests are meaningful. Also add tests that lock in the decisions made along the way.
-- Mutation testing is not a gate on every epic. The user decided this on 2026-10-12, after a Stryker run over the whole vertical slice ran for hours. The rules:
-  - Every implementation brief asks for hand mutations: for each new test, the agent breaks the production line that the test protects, watches the test fail, and restores the line. The report names each mutation.
-  - Each epic still runs coverage on its changed lines, in the orchestrator, before the merge.
-  - Stryker.NET (MTP runner) runs on the core modules (Tertius.Core, Simulation, Physics) in the test-hardening epic ter-7e55, scoped to files, not on Host, Demo or the renderer.
-  - When an epic changes core logic a lot, a Stryker run on the changed lines of that core module only is fine. It takes minutes, not hours.
-  - The helpers in `tools/` run coverage and Stryker on changed lines or on whole files. `tools/README.md` gives the commands and the Stryker pitfalls.
-- Every test of physics runs the real World on the real Jolt backend. The shared project `tests/Tertius.Testing` holds the helpers: `FaultInjectingBackend` (real Jolt, plus edits of its input and output, exceptions on request, and records of the steps, the intents and the change batches), `WorldTesting`, and `Scenes`. That wrapper is the only physics test double. A test of a state that only a bug produces edits the output of one step with `EditOutput`. A test of a valid hand-off flies a ball into a bubble (`Scenes.ApproachToBubble`).
-- Use small hand-written test components for `IComponent`. Its methods take ref struct parameters, which no mocking library can substitute.
-- Most tests run single-threaded, so that they are deterministic and fast under mutation testing. A separate test covers parallel determinism.
-- Renderer tests are snapshot tests plus CPU tests. A snapshot test renders a scene headlessly and compares it with an approved reference image through the FLIP perceptual metric. A failure writes the actual image and a FLIP heat map next to the reference. An environment variable re-approves on purpose.
-- A snapshot proves only that nothing changed. So the first approval of every reference image is a real review against the scene description.
-- Some agents add or re-approve a reference image, or see a snapshot failure. Each such agent must open the reference, the actual image and the heat map with the Read tool. Its report describes what it saw.
-- Deterministic rendering for tests (alpha 1, fixed seeds, impostor captures forced or off, no temporal effects) is one easy switch in `RendererOptions`.
-- Everything else in the renderer that is C#, such as batching, culling, cascade fitting and impostor decisions, gets ordinary CPU tests.
+- Every test of physics runs the real World on the real Jolt backend. The only physics test double is `FaultInjectingBackend` in `tests/Tertius.Testing`, a wrapper around real Jolt. A test of a bug-only state edits one step's output with `EditOutput`. A test of a valid hand-off flies a ball into a bubble with `Scenes.ApproachToBubble`. Fake backends drifted from the real code before.
+- Mutation testing is not a gate on every epic, because a Stryker run over the whole vertical slice took hours.
+  - Every implementation brief asks for hand mutations. For each new test, the agent breaks the line that the test protects, watches the test fail, and restores the line. The report names each mutation. Mutation builds need `--no-incremental`.
+  - Each epic runs coverage on its changed lines before the merge.
+  - Stryker runs only on Core, Simulation and Physics, scoped to files or to changed lines.
+- A snapshot test proves only that nothing changed. So the first approval of a reference image is a real review against the scene description. If an agent adds or re-approves a reference image, or sees a snapshot fail, it opens three images with the Read tool. They are the reference, the actual image and the FLIP heat map, and its report describes them.
+- `WorldOptions.DebugChecks` runs the world's invariant checks at the end of every sync point. `RendererOptions` has one switch for deterministic rendering in tests.
