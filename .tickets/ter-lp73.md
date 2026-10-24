@@ -1,6 +1,6 @@
 ---
 id: ter-lp73
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-24T21:07:56Z
