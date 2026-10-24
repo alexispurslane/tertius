@@ -1,6 +1,6 @@
 ---
 id: ter-a3ya
-status: open
+status: closed
 deps: [ter-rnzy]
 links: []
 created: 2026-10-24T19:16:28Z
