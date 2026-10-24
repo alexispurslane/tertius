@@ -1,5 +1,6 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Tertius.Slop.Rules;
 
 namespace Tertius.Slop;
 
@@ -27,6 +28,32 @@ public sealed record SourceFile(string Path, SyntaxTree Tree)
 
     /// <summary>Every function in the file, in the order of the source.</summary>
     public IEnumerable<Function> Functions => Function.In(Tree.GetRoot());
+
+    /// <summary>The lines that hold code, from 1: the lines that <see cref="Sloc"/> counts.</summary>
+    public IReadOnlySet<int> CodeLines => Tree.GetRoot().DescendantTokens().LinesWithCode();
+
+    /// <summary>The lines that are not blank, from 1: the lines with code, comments or both.</summary>
+    public IReadOnlySet<int> TextLines =>
+        Tree.GetText().Lines.Where(line => !string.IsNullOrWhiteSpace(line.ToString()))
+            .Select(line => line.LineNumber + 1)
+            .ToHashSet();
+
+    /// <summary>
+    /// What the verbosity rules flag in the file, node by node in the order of the source and, at each node, rule by
+    /// rule in the order of <see cref="IRule.All"/>.
+    /// </summary>
+    public IEnumerable<Finding> Findings(RuleContext context) =>
+        from node in Tree.GetRoot().DescendantNodesAndSelf()
+        from rule in IRule.All
+        from span in rule.Find(node, context)
+        let lines = Tree.GetLineSpan(span)
+        select new Finding
+        {
+            Rule = rule.Id,
+            File = Path,
+            Line = lines.StartLinePosition.Line + 1,
+            EndLine = lines.EndLinePosition.Line + 1
+        };
 
     private bool HasGeneratedMarker =>
         Tree.GetRoot().GetLeadingTrivia().Any(trivia =>

@@ -45,7 +45,17 @@ public sealed record Function(SyntaxNode Node)
     public FunctionMeasure Measure(string file) =>
         new() { File = file, Line = Line, Name = Name, Complexity = Complexity, Sloc = Sloc };
 
-    private static bool IsFunction(SyntaxNode node) => node switch
+    /// <summary>The nodes that the function owns: its descendants, but not those of its local functions.</summary>
+    public IEnumerable<SyntaxNode> OwnNodes =>
+        Node.DescendantNodes(descendIntoChildren: node => node == Node || node is not LocalFunctionStatementSyntax)
+            .Where(node => node is not LocalFunctionStatementSyntax);
+
+    /// <summary>The function that holds <paramref name="node"/>, or null outside every function.</summary>
+    public static Function? Holding(SyntaxNode node) =>
+        node.Ancestors().FirstOrDefault(IsFunction) is { } function ? new Function(function) : null;
+
+    /// <summary>Whether <paramref name="node"/> is a function with code (the doc comment of this type lists the kinds).</summary>
+    public static bool IsFunction(SyntaxNode node) => node switch
     {
         BaseMethodDeclarationSyntax method => HasCode(method.Body, method.ExpressionBody),
         AccessorDeclarationSyntax accessor => HasCode(accessor.Body, accessor.ExpressionBody),

@@ -1,6 +1,6 @@
 ---
 id: ter-2x99
-status: open
+status: in_progress
 deps: [ter-4jhz]
 links: []
 created: 2026-10-24T16:22:41Z

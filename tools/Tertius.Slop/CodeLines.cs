@@ -12,12 +12,14 @@ internal static class CodeLines
         /// does not count. A token over several lines, such as a raw string, counts each of its lines. A token without
         /// text, such as the end of the file, holds no code.
         /// </summary>
-        public int CodeLineCount() =>
+        public int CodeLineCount() => tokens.LinesWithCode().Count;
+
+        /// <summary>The lines that hold part of a token, from 1, by the rule of <see cref="CodeLineCount"/>.</summary>
+        public IReadOnlySet<int> LinesWithCode() =>
             tokens.Where(token => !token.Span.IsEmpty)
                 .Select(token => token.GetLocation().GetLineSpan())
-                .SelectMany(span => Enumerable.Range(span.StartLinePosition.Line,
+                .SelectMany(span => Enumerable.Range(span.StartLinePosition.Line + 1,
                     span.EndLinePosition.Line - span.StartLinePosition.Line + 1))
-                .Distinct()
-                .Count();
+                .ToHashSet();
     }
 }
