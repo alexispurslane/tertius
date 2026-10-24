@@ -1548,7 +1548,7 @@ internal sealed partial class EntityTable
     {
         foreach (uint slot in syncDirty)
             scan.DirtyListed[slot] = true;
-        var frontPusherListed = new bool[slotCount];
+        bool[] frontPusherListed = new bool[slotCount];
         foreach (Entity pusher in frontPushers)
         {
             if (!IsAlive(pusher))
