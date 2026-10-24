@@ -37,7 +37,7 @@ public static class Program
 
         if (!Directory.Exists(Path.Combine(root, "src")))
         {
-            error.WriteLine($"Tertius.Slop: no src folder under {root}.");
+            error.WriteLine($"Tertius.Slop: no src folder under the root \"{root}\".");
             return 2;
         }
 

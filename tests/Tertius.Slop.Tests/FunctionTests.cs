@@ -98,7 +98,7 @@ public class FunctionTests
                          """).Select(function => function.Name).Should().Equal("Target.ToString", "Shape.Size");
 
     [Fact]
-    public void TheLineOfAFunctionIsTheLineOfItsNameAndNotOfItsAttributes() =>
+    public void TheLineOfAFunctionIsWhereItStartsAfterItsAttributes() =>
         Source.Functions("""
                          class C
                          {

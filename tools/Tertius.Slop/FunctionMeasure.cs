@@ -11,7 +11,7 @@ public readonly record struct FunctionMeasure
     /// <summary>The path of the file, relative to the root of the repository, with <c>/</c> between folders.</summary>
     public required string File { get; init; }
 
-    /// <summary>The line of the function's name, from 1.</summary>
+    /// <summary>The line where the function's declaration starts after its attributes, from 1.</summary>
     public required int Line { get; init; }
 
     /// <summary>The function's name, after the names of the types and functions that hold it, such as <c>World.Step</c>.</summary>

@@ -81,13 +81,22 @@ public sealed class ProgramTests : IDisposable
     }
 
     [Fact]
+    public void MoreThanAMetricAndARootPrintTheUsageAndFail()
+    {
+        int exit = Program.Run(["erosion", root, "extra"], output, error);
+
+        (exit, output.ToString()).Should().Be((2, ""));
+        error.ToString().Should().Contain("usage");
+    }
+
+    [Fact]
     public void WithoutARootTheCurrentFolderIsTheRoot()
     {
         // The tests run in their output folder, which has no src folder.
         int exit = Program.Run(["erosion"], output, error);
 
         exit.Should().Be(2);
-        error.ToString().Should().Contain("no src folder under .");
+        error.ToString().Should().Contain("no src folder under the root \".\"");
     }
 
     [Fact]
