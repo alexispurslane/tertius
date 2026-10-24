@@ -1,6 +1,6 @@
 ---
 id: ter-hxdc
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-24T20:05:42Z
