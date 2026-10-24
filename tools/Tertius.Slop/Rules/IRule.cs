@@ -20,7 +20,11 @@ public interface IRule
         new ExceptPassSilence(), new DefensiveFunctionNullableHeavy(), new UnnecessaryLambda(), new RedundantContinue(),
         new RedundantReturn(), new EmptyConstructor(), new ManualStrJoin(), new LongTupleUnpacking(),
         new LowUseShortFunction(), new SectionBannerComment(), new PassThroughMethod(), new SingleUseLocal(),
-        new CommentRepeatsCode(), new GuardRepeatsCallerCheck()
+        new CommentRepeatsCode(), new GuardRepeatsCallerCheck(), new DocCommentRepeatsName(), new LogAndRethrow(),
+        new MaterializeToLoop(), new SentinelReturn(), new SingleImplementationInterface(), new ForwardingClass(),
+        new ContractAndGuard(), new ConstantArgument(), new UnusedOptionalParameter(), new CommentedOutCode(),
+        new TodoWithoutTicket(), new Region(), new ConsoleOutput(), new VagueTypeName(), new StatementWall(),
+        new UnusedCode()
     ];
 
     /// <summary>The id.</summary>

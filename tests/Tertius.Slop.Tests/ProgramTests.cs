@@ -27,6 +27,9 @@ public sealed class ProgramTests : IDisposable
                                                                  }
                                                              }
                                                              """);
+        // A test uses the classes of the tests, so that the rule for code that nothing uses finds none of them.
+        Directory.CreateDirectory(Path.Combine(root, "tests"));
+        File.WriteAllText(Path.Combine(root, "tests", "Uses.cs"), "class Uses { void F() { new C(); new D(); } }");
     }
 
     public void Dispose()

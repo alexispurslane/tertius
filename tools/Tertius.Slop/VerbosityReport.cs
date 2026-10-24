@@ -44,7 +44,7 @@ public sealed record VerbosityReport
     /// <summary>The report of <paramref name="codebase"/>, with the clone lines of <paramref name="clones"/>.</summary>
     public static VerbosityReport Of(Codebase codebase, Clones clones)
     {
-        RuleContext context = RuleContext.Of(codebase.Files);
+        RuleContext context = RuleContext.Of(codebase);
         FileVerbosity[] files =
         [
             .. codebase.Files.AsParallel().AsOrdered().Select(file => FileVerbosity.Of(file, context, clones))

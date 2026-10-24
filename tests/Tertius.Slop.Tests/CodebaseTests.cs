@@ -95,6 +95,37 @@ public sealed class CodebaseTests : IDisposable
         Codebase.Under(root).Files.Select(file => file.Path).Should().Equal("src/A.cs");
     }
 
+    [Fact]
+    public void TheNamesOfTheTestsBenchmarksAndScriptsAreTheNamesOutsideSrc()
+    {
+        Write("src/Ship.cs", "static class Ship { }");
+        Write("tests/Tertius.Core.Tests/ShipTests.cs", "class ShipTests { void F() => Ship.Fly(); }");
+        Write("benchmarks/ShipBenchmarks.cs", "class ShipBenchmarks { void F() => Ship.Drift(); }");
+        Write("scripts/launch.json", """{ "do": "post", "event": "Launch" }""");
+
+        Codebase.Under(root).NamesOutside.Should().Contain(["Fly", "Drift", "Launch", "ShipTests"]);
+    }
+
+    [Fact]
+    public void TheNamesOutsideSrcMatchWithoutCase()
+    {
+        IReadOnlySet<string> names = Codebase.NamesIn("""{ "do": "run", "ticks": 60 }""");
+
+        (names.Contains("Run"), names.Contains("TICKS")).Should().Be((true, true));
+    }
+
+    [Fact]
+    public void TheToolsDocsAndBuildOutputOutsideSrcAreNotReadForNames()
+    {
+        Write("src/Ship.cs", "static class Ship { }");
+        Write("tools/Tool.cs", "class Tool { void F() => Ship.Sail(); }");
+        Write("docs/plans/ship.md", "Ship.Dock moves the ship.");
+        Write("tests/Tertius.Core.Tests/obj/Checked/Generated.cs", "class Generated { void F() => Ship.Hide(); }");
+        Write("tests/Tertius.Core.Tests/notes.txt", "Ship.Turn");
+
+        Codebase.Under(root).NamesOutside.Should().NotContain(["Sail", "Dock", "Hide", "Turn"]);
+    }
+
     private void Write(string path, string text)
     {
         string full = Path.Combine(root, path);

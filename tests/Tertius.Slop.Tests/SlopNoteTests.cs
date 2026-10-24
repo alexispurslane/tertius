@@ -37,9 +37,8 @@ public sealed class SlopNoteTests
     [Fact]
     public void ANoteTakesItsMeasuresFromTheReportOfTheTree()
     {
-        var codebase = new Codebase([
-            SourceFile.Parse("src/A.cs", "class A { int F(int a, int b) { if (a > b) m = a; else m = b; return m; } }")
-        ]);
+        Codebase codebase = Source.UsedByATest(
+            SourceFile.Parse("src/A.cs", "class A { int F(int a, int b) { if (a > b) m = a; else m = b; return m; } }"));
         SlopReport report = SlopReport.Of(codebase, Clones.FromReport(VerbosityReportTests.Report()));
 
         SlopNote note = SlopNote.Of(report: report, branch: "main", source: NoteSource.PrePush, measured: Noon);

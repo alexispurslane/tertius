@@ -26,7 +26,7 @@ public sealed class VerbosityReportTests
     public void TheVerbosityIsTheShareOfTheLinesOfCodeThatAreFlaggedOrCloned()
     {
         // The clone covers lines 4 to 6: line 5 is flagged too, and line 6 is blank.
-        var codebase = new Codebase([SourceFile.Parse("src/A.cs", MinMax)]);
+        Codebase codebase = Source.UsedByATest(SourceFile.Parse("src/A.cs", MinMax));
 
         VerbosityReport report =
             VerbosityReport.Of(codebase, Clones.FromReport(Report(("A.cs", 4, 6), ("B.cs", 1, 3))));
@@ -38,7 +38,7 @@ public sealed class VerbosityReportTests
     [Fact]
     public void TheBlankLinesInsideAFindingDoNotCount()
     {
-        var codebase = new Codebase([
+        Codebase codebase = Source.UsedByATest(
             SourceFile.Parse("src/A.cs", """
                                          class A
                                          {
@@ -52,8 +52,7 @@ public sealed class VerbosityReportTests
                                                  return m;
                                              }
                                          }
-                                         """)
-        ]);
+                                         """));
 
         VerbosityReport report = VerbosityReport.Of(codebase, Clones.FromReport(Report()));
 
@@ -63,7 +62,7 @@ public sealed class VerbosityReportTests
     [Fact]
     public void TheLinesOfARepeatingCommentCountAlthoughTheyHoldNoCode()
     {
-        var codebase = new Codebase([
+        Codebase codebase = Source.UsedByATest(
             SourceFile.Parse("src/A.cs", """
                                          class A
                                          {
@@ -74,8 +73,7 @@ public sealed class VerbosityReportTests
                                                  world.Add(body);
                                              }
                                          }
-                                         """)
-        ]);
+                                         """));
 
         VerbosityReport report = VerbosityReport.Of(codebase, Clones.FromReport(Report()));
 
@@ -85,7 +83,7 @@ public sealed class VerbosityReportTests
     [Fact]
     public void TheCloneLinesOfAFileOutsideTheCodebaseDoNotCount()
     {
-        var codebase = new Codebase([SourceFile.Parse("src/A.cs", MinMax)]);
+        Codebase codebase = Source.UsedByATest(SourceFile.Parse("src/A.cs", MinMax));
 
         VerbosityReport report =
             VerbosityReport.Of(codebase, Clones.FromReport(Report(("Other.cs", 1, 9), ("Another.cs", 1, 9))));
@@ -95,12 +93,12 @@ public sealed class VerbosityReportTests
 
     [Fact]
     public void ACodebaseWithNoCodeHasNoVerbosity() =>
-        VerbosityReport.Of(new([]), Clones.FromReport(Report())).Verbosity.Should().Be(0);
+        VerbosityReport.Of(new([], Codebase.NamesIn("")), Clones.FromReport(Report())).Verbosity.Should().Be(0);
 
     [Fact]
     public void TheReportCountsTheFindingsAndLinesOfEveryRuleIncludingTheRulesThatFoundNothing()
     {
-        var codebase = new Codebase([SourceFile.Parse("src/A.cs", MinMax)]);
+        Codebase codebase = Source.UsedByATest(SourceFile.Parse("src/A.cs", MinMax));
 
         VerbosityReport report = VerbosityReport.Of(codebase, Clones.FromReport(Report()));
 
@@ -113,7 +111,7 @@ public sealed class VerbosityReportTests
     [Fact]
     public void TheTextNamesOnlyTheRulesThatFoundSomething()
     {
-        var codebase = new Codebase([SourceFile.Parse("src/A.cs", MinMax)]);
+        Codebase codebase = Source.UsedByATest(SourceFile.Parse("src/A.cs", MinMax));
 
         string text = VerbosityReport.Of(codebase, Clones.FromReport(Report())).Describe();
 
@@ -123,7 +121,7 @@ public sealed class VerbosityReportTests
     [Fact]
     public void TheTopFindingsAreTheLongestFirstThenByFileAndLine()
     {
-        var codebase = new Codebase([
+        Codebase codebase = Source.UsedByATest(
             SourceFile.Parse("src/B.cs", "class B { int F() { return a ? x : x; } }"),
             SourceFile.Parse("src/A.cs", """
                                          class A
@@ -138,8 +136,7 @@ public sealed class VerbosityReportTests
                                                  return m;
                                              }
                                          }
-                                         """)
-        ]);
+                                         """));
 
         VerbosityReport report = VerbosityReport.Of(codebase, Clones.FromReport(Report()));
 
