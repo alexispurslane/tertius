@@ -844,10 +844,7 @@ public sealed class ImpostorManagerTests
             harness.Run(empty);
         harness.Manager.Status(Key(2)).Should().NotBeNull("the lifetime has not run out yet");
         harness.Run(empty);
-        harness
-            .Manager.Status(Key(2))
-            .Should()
-            .BeNull("a key without a tile is forgotten after its lifetime");
+        harness.Manager.Status(Key(2)).Should().BeNull("a key without a tile is forgotten after its lifetime");
         // The key with a tile is kept, so its capture can be reused.
         harness.Manager.Status(Key(1)).Should().NotBeNull("a key that holds a tile is kept");
         RenderSnapshot again = Snapshot();

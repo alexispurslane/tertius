@@ -92,8 +92,7 @@ public sealed class MotionIntentTests
             .BeNull("physics measures the motion of a dynamic body that it steers");
 
     [Fact]
-    public void NoMotionIntentGivesNoStepRecord() =>
-        default(MotionIntent).RecordFrom(Start, Step).Should().BeNull();
+    public void NoMotionIntentGivesNoStepRecord() => default(MotionIntent).RecordFrom(Start, Step).Should().BeNull();
 
     [Fact]
     public void TheStepStartsAtTheTeleportPoseWhenTheSameIntentTeleports()

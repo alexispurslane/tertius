@@ -157,7 +157,9 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
             blocks.Add(created);
             ulong first =
                 created.Space.Allocate(requirements.Size, alignment)
-                ?? throw new InvalidOperationException("A new block cannot hold an allocation smaller than half a block.");
+                ?? throw new InvalidOperationException(
+                    "A new block cannot hold an allocation smaller than half a block."
+                );
             liveAllocations++;
             return new(
                 memory: created.Memory,

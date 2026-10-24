@@ -192,7 +192,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                             Material: MaterialStore.Slot(assets.Red)
                         )
                     )
-                    ?.Tile ?? -1;
+                    ?.Tile
+                ?? -1;
 
             Tile(0).Should().BeGreaterThanOrEqualTo(0);
             Tile(1).Should().BeGreaterThanOrEqualTo(0).And.NotBe(Tile(0), "each part has its own capture");
@@ -502,7 +503,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                             Material: MaterialStore.Slot(materials[index])
                         )
                     )
-                    ?.Tile ?? -1;
+                    ?.Tile
+                ?? -1;
 
             Vector3 TileColor(int tile)
             {

@@ -64,10 +64,7 @@ public sealed class FreeListTests
             .Invoking(() => list.Allocate(8, 3))
             .Should()
             .ThrowExactly<ArgumentException>("the alignment is not a power of two");
-        FluentActions
-            .Invoking(() => list.Allocate(0, 16))
-            .Should()
-            .ThrowExactly<ArgumentOutOfRangeException>();
+        FluentActions.Invoking(() => list.Allocate(0, 16)).Should().ThrowExactly<ArgumentOutOfRangeException>();
         FluentActions.Invoking(() => list.Free(250, 16)).Should().ThrowExactly<ArgumentOutOfRangeException>();
     }
 

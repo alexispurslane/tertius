@@ -8,6 +8,5 @@ public static class NullableReads
     /// <paramref name="because"/> if the read is null.
     /// </summary>
     public static T Found<T>(this T? read, string because = "")
-        where T : struct =>
-        read ?? throw new InvalidOperationException($"The read gave null. {because}".TrimEnd());
+        where T : struct => read ?? throw new InvalidOperationException($"The read gave null. {because}".TrimEnd());
 }

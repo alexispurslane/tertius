@@ -21,15 +21,15 @@ public static class OwnFrameReads
 
     public static DPose PoseInOwnFrame(this Snapshot snapshot, Entity entity) =>
         snapshot.PoseIn(entity, OwnFrame(snapshot, entity))
-            ?? throw new InvalidOperationException($"{entity} has no pose in its frame.");
+        ?? throw new InvalidOperationException($"{entity} has no pose in its frame.");
 
     public static Vector3 VelocityInOwnFrame(this Snapshot snapshot, Entity entity) =>
         snapshot.VelocityIn(entity, OwnFrame(snapshot, entity))?.ToVector3()
-            ?? throw new InvalidOperationException($"{entity} has no velocity in its frame.");
+        ?? throw new InvalidOperationException($"{entity} has no velocity in its frame.");
 
     public static Vector3 AngularVelocityInOwnFrame(this Snapshot snapshot, Entity entity) =>
         snapshot.AngularVelocityIn(entity, OwnFrame(snapshot, entity))
-            ?? throw new InvalidOperationException($"{entity} has no angular velocity in its frame.");
+        ?? throw new InvalidOperationException($"{entity} has no angular velocity in its frame.");
 
     private static FrameHandle OwnFrame(World world, Entity entity) =>
         world.GetFrame(entity) is { IsNull: false } frame ? frame : world.GetOwnedFrame(entity);

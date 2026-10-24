@@ -531,7 +531,11 @@ public sealed class QueryFilterUnionTests
         Entity center = t.SpawnAt(new(4, 5, 6));
         var snapshot = new Snapshot(t.World, asker);
 
-        QueryFilter.Near(5).Center(snapshot).Should().Be((ship, new Double3(1, 2, 3)), "the asker's own frame and position");
+        QueryFilter
+            .Near(5)
+            .Center(snapshot)
+            .Should()
+            .Be((ship, new Double3(1, 2, 3)), "the asker's own frame and position");
         QueryFilter
             .Near(center, 5)
             .Center(snapshot)
@@ -554,11 +558,7 @@ public sealed class QueryFilterUnionTests
         FrameHandle gone = t.SpawnStaticFrame(TestWorld.At(100));
         t.World.Destroy(gone.Entity);
 
-        QueryFilter
-            .Near(t.Root.Entity, 5)
-            .Center(snapshot)
-            .Should()
-            .BeNull("the owner of a root frame is in no frame");
+        QueryFilter.Near(t.Root.Entity, 5).Center(snapshot).Should().BeNull("the owner of a root frame is in no frame");
         QueryFilter.Near(gone, default, 5).Center(snapshot).Should().BeNull("the frame of the point is gone");
         QueryFilter
             .Near(5)

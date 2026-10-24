@@ -289,7 +289,7 @@ internal sealed partial class RenderSnapshotBuilder
         }
 
         var view = Poses.Safe(entities.FrontRender(camera).ViewOffset).ToDPose();
-        DPose inFrame = DPose.Compose(entityPose, view);
+        var inFrame = DPose.Compose(entityPose, view);
         return (frame, home, inFrame, home == frame ? inFrame : DPose.Compose(homePose, view));
     }
 
