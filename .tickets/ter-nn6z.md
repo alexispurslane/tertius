@@ -1,6 +1,6 @@
 ---
 id: ter-nn6z
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-22T01:24:31Z

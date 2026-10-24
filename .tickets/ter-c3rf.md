@@ -1,6 +1,6 @@
 ---
 id: ter-c3rf
-status: in_progress
+status: closed
 deps: [ter-07e3, ter-297a, ter-mh11, ter-asoh, ter-kx3k, ter-m0db]
 links: []
 created: 2026-10-22T12:58:25Z
