@@ -84,12 +84,17 @@ internal static class UnionWriter
         text.AppendLine("    /// <summary>False only for the empty value, which holds no case.</summary>");
         text.AppendLine($"    public bool HasValue => {(union.HasZeroCase ? "true" : "kind != KindNone")};");
         text.AppendLine();
-        text.AppendLine("    /// <summary>The held case, boxed, or null for the empty value. For debugging only.</summary>");
-        text.AppendLine("    public object? Value => kind switch");
+        // A union with a zero case has no empty value, so its Value is never null. Only its constructors set the kind.
+        text.AppendLine(union.HasZeroCase
+            ? "    /// <summary>The held case, boxed. For debugging only.</summary>"
+            : "    /// <summary>The held case, boxed, or null for the empty value. For debugging only.</summary>");
+        text.AppendLine($"    public object{(union.HasZeroCase ? "" : "?")} Value => kind switch");
         text.AppendLine("    {");
         foreach (CaseModel c in union.Cases)
             text.AppendLine($"        {c.KindName} => {Read(union, c)},");
-        text.AppendLine("        _ => null");
+        text.AppendLine(union.HasZeroCase
+            ? "        _ => throw new global::System.Diagnostics.UnreachableException($\"The kind {kind} is no case.\")"
+            : "        _ => null");
         text.AppendLine("    };");
         foreach (CaseModel c in union.Cases)
         {

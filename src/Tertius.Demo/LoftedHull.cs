@@ -1,5 +1,4 @@
 using System.Numerics;
-using System.Runtime.CompilerServices;
 
 namespace Tertius.Demo;
 
@@ -65,7 +64,7 @@ public readonly record struct HullPane(string Id, Vector3 Center, Vector3[] Oute
 /// cell is narrower.
 /// </para>
 /// </remarks>
-public sealed class LoftedHull
+public sealed partial class LoftedHull
 {
     /// <summary>
     /// How far, relative to the lengths of two edges, two directions may be from parallel and still count as parallel. The
@@ -224,49 +223,18 @@ public sealed class LoftedHull
     private readonly record struct FrontPane(string Id, int FromCorner, int ToCorner);
 
     /// <summary>
-    /// A pane: a <see cref="CellPane"/> or a <see cref="FrontPane"/>. This is a custom C# 15 union, like
-    /// <see cref="ClipState"/>. The two cases keep their scene id in one place and their two numbers in two more.
+    /// A pane: a <see cref="CellPane"/> or a <see cref="FrontPane"/>. It is a generated union, like
+    /// <see cref="ClipState"/>, so the two cases share the slot of their scene id and the two slots of their numbers.
     /// </summary>
-    [Union]
-    private readonly struct PaneCut
+    [GeneratedUnion(typeof(CellPane), typeof(FrontPane), ZeroCase = typeof(CellPane))]
+    private readonly partial struct PaneCut
     {
-        private readonly bool front;
-
-        // The edge and the bay of a cell pane, or the two corners of a front pane.
-        private readonly int first, second;
-
-        public PaneCut(CellPane pane)
-        {
-            (Id, first, second) = (pane.Id, pane.Edge, pane.Bay);
-        }
-
-        public PaneCut(FrontPane pane)
-        {
-            (front, Id, first, second) = (true, pane.Id, pane.FromCorner, pane.ToCorner);
-        }
-
-        /// <summary>Always true: every value is a pane.</summary>
-        public bool HasValue => true;
-
         /// <summary>The pane's scene id, in either case.</summary>
-        public string Id { get; }
-
-        public object Value => front ? new FrontPane(Id, first, second) : new CellPane(Id, first, second);
-
-        public static implicit operator PaneCut(CellPane pane) => new(pane);
-        public static implicit operator PaneCut(FrontPane pane) => new(pane);
-
-        public bool TryGetValue(out CellPane value)
+        public string Id => this switch
         {
-            value = new(Id, first, second);
-            return !front;
-        }
-
-        public bool TryGetValue(out FrontPane value)
-        {
-            value = new(Id, first, second);
-            return front;
-        }
+            CellPane cell => cell.Id,
+            FrontPane front => front.Id
+        };
     }
 
     /// <summary>The doorway through a panel across <see cref="Axis"/>, 0 for X or 1 for Y.</summary>

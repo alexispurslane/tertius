@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using Tertius.Frames.Rails;
 using Tertius.Simulation;
 
@@ -54,134 +53,11 @@ public readonly record struct Halted;
 /// What a <see cref="RendezvousAutopilot"/> does, in the order of a flight: <see cref="Standby"/>, <see cref="Phasing"/>,
 /// <see cref="Transfer"/>, <see cref="Brake"/>, <see cref="Glide"/> and <see cref="Hold"/>, or <see cref="Halted"/> from
 /// any of them. Each case holds the data that it needs, so no state reads a value that only another state sets. The
-/// default value is <see cref="Standby"/>. This is a custom C# 15 union, like <see cref="AscentState"/>.
+/// default value is <see cref="Standby"/>. It is a generated union, like <see cref="AscentState"/>.
 /// </summary>
-[Union]
-public readonly struct RendezvousState : IEquatable<RendezvousState>
-{
-    private const byte KindStandby = 0,
-        KindPhasing = 1,
-        KindTransfer = 2,
-        KindBrake = 3,
-        KindGlide = 4,
-        KindHold = 5,
-        KindHalted = 6;
-
-    // The phasing and the transfer fill the transfer guidance, and only the transfer the arrival time. The brake, the glide
-    // and the hold fill the approach guidance. Every other field is zero, so equality compares every field.
-    private readonly TransferGuidance transfer;
-    private readonly double arrivalTime;
-    private readonly ApproachGuidance approach;
-    private readonly byte kind;
-
-    public RendezvousState(Standby standby)
-    {
-        kind = KindStandby;
-    }
-
-    public RendezvousState(Phasing phasing)
-    {
-        kind = KindPhasing;
-        transfer = phasing.Guidance;
-    }
-
-    public RendezvousState(Transfer transfer)
-    {
-        kind = KindTransfer;
-        this.transfer = transfer.Guidance;
-        arrivalTime = transfer.ArrivalTime;
-    }
-
-    public RendezvousState(Brake brake)
-    {
-        kind = KindBrake;
-        approach = brake.Guidance;
-    }
-
-    public RendezvousState(Glide glide)
-    {
-        kind = KindGlide;
-        approach = glide.Guidance;
-    }
-
-    public RendezvousState(Hold hold)
-    {
-        kind = KindHold;
-        approach = hold.Guidance;
-    }
-
-    public RendezvousState(Halted halted)
-    {
-        kind = KindHalted;
-    }
-
-    /// <summary>Always true: every value is a state, and the default value is <see cref="Standby"/>.</summary>
-    public bool HasValue => true;
-
-    public object Value => kind switch
-    {
-        KindPhasing => new Phasing(transfer),
-        KindTransfer => new Transfer(transfer, arrivalTime),
-        KindBrake => new Brake(approach),
-        KindGlide => new Glide(approach),
-        KindHold => new Hold(approach),
-        KindHalted => new Halted(),
-        _ => new Standby()
-    };
-
-    public bool TryGetValue(out Standby value)
-    {
-        value = default;
-        return kind == KindStandby;
-    }
-
-    public bool TryGetValue(out Phasing value)
-    {
-        value = new(transfer);
-        return kind == KindPhasing;
-    }
-
-    public bool TryGetValue(out Transfer value)
-    {
-        value = new(transfer, arrivalTime);
-        return kind == KindTransfer;
-    }
-
-    public bool TryGetValue(out Brake value)
-    {
-        value = new(approach);
-        return kind == KindBrake;
-    }
-
-    public bool TryGetValue(out Glide value)
-    {
-        value = new(approach);
-        return kind == KindGlide;
-    }
-
-    public bool TryGetValue(out Hold value)
-    {
-        value = new(approach);
-        return kind == KindHold;
-    }
-
-    public bool TryGetValue(out Halted value)
-    {
-        value = default;
-        return kind == KindHalted;
-    }
-
-    public bool Equals(RendezvousState other) =>
-        kind == other.kind && transfer == other.transfer && arrivalTime.Equals(other.arrivalTime) &&
-        approach == other.approach;
-
-    public override bool Equals(object? obj) => obj is RendezvousState other && Equals(other);
-    public override int GetHashCode() => HashCode.Combine(kind, transfer, arrivalTime, approach);
-    public static bool operator ==(RendezvousState a, RendezvousState b) => a.Equals(b);
-    public static bool operator !=(RendezvousState a, RendezvousState b) => !a.Equals(b);
-
-    public override string ToString() => $"RendezvousState({Value})";
-}
+[GeneratedUnion(typeof(Standby), typeof(Phasing), typeof(Transfer), typeof(Brake), typeof(Glide), typeof(Hold),
+    typeof(Halted), ZeroCase = typeof(Standby))]
+public readonly partial struct RendezvousState;
 
 /// <summary>
 /// The places, the time and the window of a rendezvous (docs/plans/blue-danube-demo.md, "The orbits, the window and the
@@ -431,7 +307,7 @@ public sealed class RendezvousAutopilot(Entity station, RendezvousPlan plan, dou
                 events.Add(new Translation
                     { Force = guidance.Push(position, relative, holdPoint, gravityDifference) * mass });
                 break;
-            case Standby or Phasing or Halted or null:
+            case Standby or Phasing or Halted:
                 break;
             default:
                 throw new UnreachableException($"The rendezvous state {State} has a case that the autopilot does not fly.");

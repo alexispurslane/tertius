@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Numerics;
-using System.Runtime.CompilerServices;
 using Tertius.Simulation;
 
 namespace Tertius.Demo;
@@ -52,157 +51,11 @@ public readonly record struct Stopped;
 /// <see cref="FastenBelt"/> leads to <see cref="Returning"/> and then <see cref="Strapped"/>, and from there a
 /// <see cref="LeaveShip"/> leads to <see cref="Unstrapped"/>, and on the wheel's floor a <see cref="PlayWithBoxes"/> to
 /// <see cref="PenAway"/>. The default value is
-/// <see cref="Boarding"/>. This is a custom C# 15 union, like <see cref="AscentState"/>.
+/// <see cref="Boarding"/>. It is a generated union, like <see cref="AscentState"/>.
 /// </summary>
-[Union]
-public readonly struct PassengerState : IEquatable<PassengerState>
-{
-    private const byte KindBoarding = 0,
-        KindSeated = 1,
-        KindFetching = 2,
-        KindHolding = 3,
-        KindStopped = 4,
-        KindReturning = 5,
-        KindStrapped = 6,
-        KindUnstrapped = 7,
-        KindPenAway = 8;
-
-    // A seated state fills the weightless ticks, and a holding, returning, strapped or unstrapped one the copy. Every other field is zero, so equality
-    // compares every field.
-    private readonly Entity copy;
-    private readonly int weightlessTicks;
-    private readonly byte kind;
-
-    public PassengerState(Boarding boarding)
-    {
-        kind = KindBoarding;
-    }
-
-    public PassengerState(Seated seated)
-    {
-        kind = KindSeated;
-        weightlessTicks = seated.WeightlessTicks;
-    }
-
-    public PassengerState(Fetching fetching)
-    {
-        kind = KindFetching;
-    }
-
-    public PassengerState(Holding holding)
-    {
-        kind = KindHolding;
-        copy = holding.Copy;
-    }
-
-    public PassengerState(Stopped stopped)
-    {
-        kind = KindStopped;
-    }
-
-    public PassengerState(Returning returning)
-    {
-        kind = KindReturning;
-        copy = returning.Copy;
-    }
-
-    public PassengerState(Strapped strapped)
-    {
-        kind = KindStrapped;
-        copy = strapped.Copy;
-    }
-
-    public PassengerState(Unstrapped unstrapped)
-    {
-        kind = KindUnstrapped;
-        copy = unstrapped.Copy;
-    }
-
-    public PassengerState(PenAway away)
-    {
-        kind = KindPenAway;
-    }
-
-    /// <summary>Always true: every value is a state, and the default value is <see cref="Boarding"/>.</summary>
-    public bool HasValue => true;
-
-    public object Value => kind switch
-    {
-        KindSeated => new Seated(weightlessTicks),
-        KindFetching => new Fetching(),
-        KindHolding => new Holding(copy),
-        KindStopped => new Stopped(),
-        KindReturning => new Returning(copy),
-        KindStrapped => new Strapped(copy),
-        KindUnstrapped => new Unstrapped(copy),
-        KindPenAway => new PenAway(),
-        _ => new Boarding()
-    };
-
-    public bool TryGetValue(out Boarding value)
-    {
-        value = default;
-        return kind == KindBoarding;
-    }
-
-    public bool TryGetValue(out Seated value)
-    {
-        value = new(weightlessTicks);
-        return kind == KindSeated;
-    }
-
-    public bool TryGetValue(out Fetching value)
-    {
-        value = default;
-        return kind == KindFetching;
-    }
-
-    public bool TryGetValue(out Holding value)
-    {
-        value = new(copy);
-        return kind == KindHolding;
-    }
-
-    public bool TryGetValue(out Stopped value)
-    {
-        value = default;
-        return kind == KindStopped;
-    }
-
-    public bool TryGetValue(out Returning value)
-    {
-        value = new(copy);
-        return kind == KindReturning;
-    }
-
-    public bool TryGetValue(out Strapped value)
-    {
-        value = new(copy);
-        return kind == KindStrapped;
-    }
-
-    public bool TryGetValue(out Unstrapped value)
-    {
-        value = new(copy);
-        return kind == KindUnstrapped;
-    }
-
-    public bool TryGetValue(out PenAway value)
-    {
-        value = default;
-        return kind == KindPenAway;
-    }
-
-    public bool Equals(PassengerState other) =>
-        kind == other.kind && weightlessTicks == other.weightlessTicks && copy == other.copy;
-
-    public override bool Equals(object? obj) => obj is PassengerState other && Equals(other);
-    public override int GetHashCode() => HashCode.Combine(kind, weightlessTicks, copy);
-    public static bool operator ==(PassengerState a, PassengerState b) => a.Equals(b);
-    public static bool operator !=(PassengerState a, PassengerState b) => !a.Equals(b);
-
-    public override string ToString() => $"PassengerState({Value})";
-}
+[GeneratedUnion(typeof(Boarding), typeof(Seated), typeof(Fetching), typeof(Holding), typeof(Stopped), typeof(Returning),
+    typeof(Strapped), typeof(Unstrapped), typeof(PenAway), ZeroCase = typeof(Boarding))]
+public readonly partial struct PassengerState;
 
 /// <summary>
 /// A passenger who rides out the climb at its seat, and in orbit floats to a loose pen and takes it. Told to fasten its
@@ -399,7 +252,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
                 return;
             case PenAway:
                 return;
-            case Stopped or null:
+            case Stopped:
                 Steer(self, outbox, Double3.Zero, mass);
                 return;
             default:

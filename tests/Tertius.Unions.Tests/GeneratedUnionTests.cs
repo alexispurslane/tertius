@@ -222,6 +222,18 @@ public class GeneratedUnionTests
         machine.ToString().Should().Be($"Machine({new Idle()})");
     }
 
+    /// <summary>A union with a zero case has no empty value, so its <c>Value</c> is never null, and its type says so.</summary>
+    [Fact]
+    public void TheValueOfAUnionWithAZeroCaseIsNeverNull()
+    {
+        var nullability = new System.Reflection.NullabilityInfoContext();
+
+        nullability.Create(typeof(Machine).GetProperty(nameof(Machine.Value))!).ReadState.Should()
+            .Be(System.Reflection.NullabilityState.NotNull);
+        nullability.Create(typeof(Label).GetProperty(nameof(Label.Value))!).ReadState.Should()
+            .Be(System.Reflection.NullabilityState.Nullable, "a union without a zero case has the empty value");
+    }
+
     [Fact]
     public void AUnionWithAZeroCaseHoldsItsOtherCases()
     {

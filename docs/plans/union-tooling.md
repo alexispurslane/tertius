@@ -54,7 +54,7 @@ The slots have no names of meaning: `slot0`, `slot1` and so on. A comment in the
 | A constructor per case | Stores the case and its kind. |
 | An implicit conversion per case | `RenderLight light = new PointRenderLight(...)`. |
 | `HasValue` | False only for the empty value. |
-| `Value` | The held case, boxed, or null. For debugging only. |
+| `Value` | The held case, boxed, or null for the empty value. For debugging only. A union with a `ZeroCase` has no empty value, so its `Value` is `object`, never null. |
 | `TryGetValue(out T)` per case | If the union holds the case, true and the case. Otherwise false and `default`. |
 | `IEquatable<T>`, `Equals`, `GetHashCode`, `==`, `!=` | The kind and the fields of the held case. Each field compares with its own `Equals`, so NaN equals NaN, as the records compare. |
 | `ToString` | `RenderLight(PointRenderLight { ... })`, or `RenderLight(none)`. |
