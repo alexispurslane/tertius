@@ -36,3 +36,9 @@ Forks to design twice when the ticket starts:
 - The hot path: the walk up from a frame to its semantic frame reads only whether each frame is numeric. A byte array of modes is denser than an array of unions that holds a MotionSample. Measure both before choosing (STYLE.md, "Priorities").
 - apartTime and numericBodies hold for every numeric mode: in each case, or in a row struct around the union.
 - A following frame has no plan between its creation and its first BeginStep: give it the plan of its first step at creation, or keep MotionSample? in the case.
+
+## Notes
+
+**2026-10-24T19:39:05Z**
+
+The user approved the design sketch above as it stands on 2026-10-24. Build from it. The forks that it lists stay open: design each one twice when the ticket starts, and let the user choose.

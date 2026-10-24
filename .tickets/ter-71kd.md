@@ -50,3 +50,9 @@ Forks to design twice when the ticket starts:
 - Whether Motion moves into the primary case. A root frame owner with no hull has no primary body but a static interior motion today.
 - Whether the role is a union of classes, or nullable state objects beside a role enum.
 - Whether the generator supports reference fields in shared slots (FrameWorld, CharacterVirtual), or the primary cases are classes in a built-in union.
+
+## Notes
+
+**2026-10-24T19:39:05Z**
+
+The user approved the design sketch above as it stands on 2026-10-24. Build from it. The forks that it lists stay open: design each one twice when the ticket starts, and let the user choose.

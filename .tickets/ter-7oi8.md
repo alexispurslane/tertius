@@ -31,3 +31,9 @@ public record struct KeplerOrbit(double SemiMajorAxis, double Eccentricity, doub
 The enum KeplerAttitude goes away. Only C# code in Demo builds orbits today, so no content JSON changes.
 
 Fork to decide when the ticket starts: what the empty attitude means. Today the default orbit has Spin with a zero quaternion as its tilt, which is not a rotation. Options: a ZeroCase that means no spin at the identity tilt, or no ZeroCase, so that an orbit without an attitude fails at its first read.
+
+## Notes
+
+**2026-10-24T19:39:05Z**
+
+The user approved the design sketch above as it stands on 2026-10-24. Build from it. The forks that it lists stay open: design each one twice when the ticket starts, and let the user choose.

@@ -28,3 +28,9 @@ internal sealed record Headless(VideoFile? Video);
 ```
 
 The UnreachableException in Run ("A script run has its script and its output folder") goes away, and so do the problem rows of ReadOptions that the type now refuses by shape: --speed with --headless, --video without --headless.
+
+## Notes
+
+**2026-10-24T19:39:05Z**
+
+The user approved the design sketch above as it stands on 2026-10-24. Build from it. The forks that it lists stay open: design each one twice when the ticket starts, and let the user choose.
