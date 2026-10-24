@@ -210,7 +210,7 @@ public struct Event
 
 A payload is an `unmanaged` struct that implements `IEventPayload` and is at most 48 bytes. `EventType<T>.Id` gives each payload type a dense integer the first time the type is used. The engine supports 512 event types. `EventMask` is a 512-bit set of event types.
 
-`Target` is a custom C# 15 union with three cases: `Entity`, `Topic` and `Broadcast`. It implements `HasValue` and `TryGetValue`, so pattern matching never boxes.
+`Target` is a union with three cases: `Entity`, `Topic` and `Broadcast`, whose members the union generator writes (see "Unions"). Its `HasValue` and `TryGetValue` let pattern matching run without boxing. It is 16 bytes: the entity's index and generation and the topic's id and generation share three 4-byte slots, beside the kind byte.
 
 ### Delivery
 
@@ -1277,4 +1277,4 @@ A closed set is an enum, a custom `[Union]` struct, a built-in `union` declarati
 - A switch expression over a union ends in a `null` arm for the empty value, never in a discard arm. A guarded arm does not count toward exhaustiveness, so a guarded case also gets an arm without a guard.
 - The build runs `IDE0010` as an error, and no other IDE rule. It reports an enum switch statement that does not name every member, and any switch statement without a default case.
 
-A switch that chooses a value is a switch expression. A switch statement stays only where statements are more natural: arms that run their own loops, return early or change several locals. No tool finds a missing case in a statement over a union, so such a statement names the cases that do nothing and throws `UnreachableException` in its default case. Open sets keep a discard arm: strings, numbers, the keys of Silk.NET, the transitions of a flat state machine, and the private kind tag inside each union struct.
+A switch that chooses a value is a switch expression. A switch statement stays only where statements are more natural: arms that run their own loops, return early or change several locals. No tool finds a missing case in a statement over a union, so such a statement names the cases that do nothing and throws `UnreachableException` in its default case. A large union read on a hot path is the one other exception: a switch expression over a union, and a pattern that binds a value, first copy the whole union, and the JIT keeps that copy. So `MotionIntent.FollowKind`, `AimPose` and `TryRecordFrom`, which run in every step and would copy 184 bytes, test the cases with a type pattern without a designation or with `TryGetValue`, and a new case of `MotionIntent` must be added to them by hand. Open sets keep a discard arm: strings, numbers, the keys of Silk.NET, the transitions of a flat state machine, and the private kind tag inside each union struct.

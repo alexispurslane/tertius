@@ -1,5 +1,4 @@
 using System.Numerics;
-using System.Runtime.CompilerServices;
 
 namespace Tertius;
 
@@ -21,48 +20,23 @@ public readonly record struct LitPuffs(Vector3 Albedo);
 /// all-zero default, and it holds no case. A look with the empty shading is not valid, so its emitter makes no puffs.
 /// </summary>
 /// <remarks>
-/// This is a custom C# 15 union. <see cref="HasValue"/> and the <c>TryGetValue</c> methods let the compiler pattern-match
-/// it without boxing. <see cref="Value"/> boxes, so use it only for debugging. Both cases keep their one color in the same
-/// place, because a value holds only one case, so the union is 16 bytes. Equality needs the same case and the same color,
-/// and counts a NaN as equal to a NaN, as <see cref="Vector3.Equals(Vector3)"/> does.
+/// The union generator writes its union members (docs/plans/union-tooling.md). Both cases keep their one color in the
+/// same slot, because a value holds only one case, so the union is 16 bytes. Equality needs the same case and the same
+/// color, and counts a NaN as equal to a NaN, as <see cref="Vector3.Equals(Vector3)"/> does.
 /// </remarks>
-[Union]
-public readonly struct PuffShading : IEquatable<PuffShading>
+[GeneratedUnion(typeof(GlowPuffs), typeof(LitPuffs))]
+public readonly partial struct PuffShading
 {
-    private const byte KindNone = 0, KindGlow = 1, KindLit = 2;
-
-    /// <summary>The radiance of <see cref="GlowPuffs"/> or the albedo of <see cref="LitPuffs"/>.</summary>
-    private readonly Vector3 color;
-
-    private readonly byte kind;
-
-    public PuffShading(GlowPuffs glow)
-    {
-        kind = KindGlow;
-        color = glow.Radiance;
-    }
-
-    public PuffShading(LitPuffs lit)
-    {
-        kind = KindLit;
-        color = lit.Albedo;
-    }
-
-    /// <summary>False for the default value, which holds no case.</summary>
-    public bool HasValue => kind != KindNone;
-
-    public object? Value => kind switch
-    {
-        KindGlow => new GlowPuffs(color),
-        KindLit => new LitPuffs(color),
-        _ => null
-    };
-
     /// <summary>
     /// Whether the shading holds a case, and every channel of its color is finite and 0 or more. An emitter whose look has
     /// a shading that is not valid makes no puffs.
     /// </summary>
-    public bool IsValid => kind != KindNone && IsChannel(color.X) && IsChannel(color.Y) && IsChannel(color.Z);
+    public bool IsValid => this switch
+    {
+        GlowPuffs(var radiance) => IsColor(radiance),
+        LitPuffs(var albedo) => IsColor(albedo),
+        null => false
+    };
 
     /// <summary>Glow puffs that emit <paramref name="radiance"/> at their birth, in linear RGB, in HDR units.</summary>
     public static PuffShading Glow(Vector3 radiance) => new(new GlowPuffs(radiance));
@@ -70,36 +44,11 @@ public readonly struct PuffShading : IEquatable<PuffShading>
     /// <summary>Lit puffs that scatter the share <paramref name="albedo"/> of the light that reaches them, in linear RGB.</summary>
     public static PuffShading Lit(Vector3 albedo) => new(new LitPuffs(albedo));
 
-    public bool TryGetValue(out GlowPuffs value)
-    {
-        value = kind == KindGlow ? new GlowPuffs(color) : default;
-        return kind == KindGlow;
-    }
-
-    public bool TryGetValue(out LitPuffs value)
-    {
-        value = kind == KindLit ? new LitPuffs(color) : default;
-        return kind == KindLit;
-    }
+    /// <summary>Whether every channel of <paramref name="color"/> is finite and 0 or more.</summary>
+    private static bool IsColor(Vector3 color) => IsChannel(color.X) && IsChannel(color.Y) && IsChannel(color.Z);
 
     /// <summary>Whether a channel is finite and 0 or more. A NaN fails the comparison, and the finite check leaves out an infinity.</summary>
     private static bool IsChannel(float channel) => channel >= 0 && float.IsFinite(channel);
-
-    // Vector3.Equals, not the operator ==. The operator follows IEEE 754, so it calls a NaN unequal to itself, and a shading
-    // that holds a NaN would not equal itself. Equals treats a NaN as equal to a NaN, which agrees with GetHashCode.
-    public bool Equals(PuffShading other) => kind == other.kind && color.Equals(other.color);
-    public override bool Equals(object? obj) => obj is PuffShading other && Equals(other);
-    public override int GetHashCode() => HashCode.Combine(kind, color);
-    public static bool operator ==(PuffShading a, PuffShading b) => a.Equals(b);
-    public static bool operator !=(PuffShading a, PuffShading b) => !a.Equals(b);
-
-    // A null arm and no discard arm: the compiler checks that every case has an arm, so a new case without one fails the build.
-    public override string ToString() => this switch
-    {
-        GlowPuffs glow => $"PuffShading({glow})",
-        LitPuffs lit => $"PuffShading({lit})",
-        null => "PuffShading(none)"
-    };
 }
 
 /// <summary>

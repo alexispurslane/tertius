@@ -1,5 +1,4 @@
 using System.Numerics;
-using System.Runtime.CompilerServices;
 
 namespace Tertius;
 
@@ -58,59 +57,15 @@ public readonly record struct QueryCapsule(float HalfHeight, float Radius);
 /// without allocating. The default value holds no shape, and every query refuses it.
 /// </summary>
 /// <remarks>
-/// This is a custom C# 15 union of <see cref="QuerySphere"/>, <see cref="QueryBox"/> and <see cref="QueryCapsule"/>.
-/// <see cref="HasValue"/> and the <c>TryGetValue</c> methods let the compiler pattern-match it without boxing.
-/// <see cref="Value"/> boxes, so use it only for debugging. The constructors do not check sizes: a sphere of radius 0 is
-/// a shape that holds a size that no query can use, and <see cref="Problem"/> says why, so that the query that gets it
-/// can name the shape. The cases share their fields: the radius of a sphere and of a capsule is one field. A case reads
-/// only its own fields, so the fields of the cases that a shape does not hold are zero and never matter.
+/// This is a union of <see cref="QuerySphere"/>, <see cref="QueryBox"/> and <see cref="QueryCapsule"/>, whose union
+/// members the union generator writes (docs/plans/union-tooling.md). The constructors do not check sizes: a sphere of
+/// radius 0 is a shape that holds a size that no query can use, and <see cref="Problem"/> says why, so that the query that
+/// gets it can name the shape. The cases share their slots by type: the radius of a sphere and the half height of a
+/// capsule share one float slot.
 /// </remarks>
-[Union]
-public readonly struct QueryShape : IEquatable<QueryShape>
+[GeneratedUnion(typeof(QuerySphere), typeof(QueryBox), typeof(QueryCapsule))]
+public readonly partial struct QueryShape
 {
-    private const byte KindNone = 0, KindSphere = 1, KindBox = 2, KindCapsule = 3;
-
-    private readonly byte kind;
-
-    /// <summary>The radius of <see cref="QuerySphere"/> and of <see cref="QueryCapsule"/>, in meters.</summary>
-    private readonly float radius;
-
-    /// <summary>The half extents of <see cref="QueryBox"/>, in meters.</summary>
-    private readonly Vector3 halfExtents;
-
-    /// <summary>The half height of <see cref="QueryCapsule"/>, in meters.</summary>
-    private readonly float halfHeight;
-
-    public QueryShape(QuerySphere sphere)
-    {
-        kind = KindSphere;
-        radius = sphere.Radius;
-    }
-
-    public QueryShape(QueryBox box)
-    {
-        kind = KindBox;
-        halfExtents = box.HalfExtents;
-    }
-
-    public QueryShape(QueryCapsule capsule)
-    {
-        kind = KindCapsule;
-        radius = capsule.Radius;
-        halfHeight = capsule.HalfHeight;
-    }
-
-    /// <summary>False for the default shape, which holds no sphere, box or capsule.</summary>
-    public bool HasValue => kind != KindNone;
-
-    public object? Value => kind switch
-    {
-        KindSphere => new QuerySphere(radius),
-        KindBox => new QueryBox(halfExtents),
-        KindCapsule => new QueryCapsule(halfHeight, radius),
-        _ => null
-    };
-
     /// <summary>The radius of the smallest sphere about the shape's center that holds the shape, in meters. 0 for the default shape.</summary>
     public double BoundingRadius => this switch
     {
@@ -120,34 +75,12 @@ public readonly struct QueryShape : IEquatable<QueryShape>
         null => 0
     };
 
-    public static implicit operator QueryShape(QuerySphere sphere) => new(sphere);
-    public static implicit operator QueryShape(QueryBox box) => new(box);
-    public static implicit operator QueryShape(QueryCapsule capsule) => new(capsule);
-
     public static QueryShape Sphere(float radius) => new(new QuerySphere(radius));
 
     public static QueryShape Box(Vector3 halfExtents) => new(new QueryBox(halfExtents));
 
     /// <summary>A capsule along +Y, with a total height of 2 · (<paramref name="halfHeight"/> + <paramref name="radius"/>). A half height of 0 makes a sphere.</summary>
     public static QueryShape Capsule(float halfHeight, float radius) => new(new QueryCapsule(halfHeight, radius));
-
-    public bool TryGetValue(out QuerySphere value)
-    {
-        value = kind == KindSphere ? new QuerySphere(radius) : default;
-        return kind == KindSphere;
-    }
-
-    public bool TryGetValue(out QueryBox value)
-    {
-        value = kind == KindBox ? new QueryBox(halfExtents) : default;
-        return kind == KindBox;
-    }
-
-    public bool TryGetValue(out QueryCapsule value)
-    {
-        value = kind == KindCapsule ? new QueryCapsule(halfHeight, radius) : default;
-        return kind == KindCapsule;
-    }
 
     /// <summary>
     /// Why no query can use this shape, or null when every query can: a radius or a half extent that is not finite and
@@ -168,35 +101,5 @@ public readonly struct QueryShape : IEquatable<QueryShape>
             $"is a capsule with a half height of {capsuleHalfHeight} m and a radius of {capsuleRadius} m, which need a finite radius of more than 0 and a finite half height of at least 0",
         QuerySphere or QueryBox or QueryCapsule => null,
         null => "is the default shape, which holds no sphere, box or capsule"
-    };
-
-    // The held case alone decides equality: the fields of the other cases are not compared.
-    public bool Equals(QueryShape other) => kind == other.kind && kind switch
-    {
-        KindSphere => radius.Equals(other.radius),
-        KindBox => halfExtents.Equals(other.halfExtents),
-        KindCapsule => radius.Equals(other.radius) && halfHeight.Equals(other.halfHeight),
-        _ => true
-    };
-
-    public override bool Equals(object? obj) => obj is QueryShape shape && Equals(shape);
-
-    public override int GetHashCode() => kind switch
-    {
-        KindSphere => HashCode.Combine(kind, radius),
-        KindBox => HashCode.Combine(kind, halfExtents),
-        KindCapsule => HashCode.Combine(kind, radius, halfHeight),
-        _ => 0
-    };
-
-    public static bool operator ==(QueryShape a, QueryShape b) => a.Equals(b);
-    public static bool operator !=(QueryShape a, QueryShape b) => !a.Equals(b);
-
-    public override string ToString() => this switch
-    {
-        QuerySphere sphere => $"QueryShape({sphere})",
-        QueryBox box => $"QueryShape({box})",
-        QueryCapsule capsule => $"QueryShape({capsule})",
-        null => "QueryShape(none)"
     };
 }

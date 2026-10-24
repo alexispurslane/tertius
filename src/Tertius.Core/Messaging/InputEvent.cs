@@ -1,5 +1,4 @@
 using System.Numerics;
-using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 
 namespace Tertius;
@@ -34,73 +33,15 @@ public readonly record struct Scrolled(Vector2 Delta);
 /// <see cref="EventTypeRegistry.MaxPayloadSize"/>.
 /// </summary>
 /// <remarks>
-/// This is a custom C# 15 union. <see cref="HasValue"/> and the <c>TryGetValue</c> methods let the compiler pattern-match
-/// it without boxing. <see cref="Value"/> boxes, so use it only for debugging. The default value holds no case: nothing
-/// sends it, and a component that matches the cases ignores it. The key case and the button case share their code and
-/// their flag, and the move case and the scroll case share their delta. A case reads only its own fields, so the fields
-/// of the cases that an event does not hold are zero and never matter.
+/// The union generator writes its union members (docs/plans/union-tooling.md). The default value holds no case: nothing
+/// sends it, and a component that matches the cases ignores it. The cases share their slots by type: the key case and the
+/// button case share their code and their flag, and the move case and the scroll case share their delta. It is 16 bytes.
 /// Scripts and recordings write an input event as JSON in the form of <see cref="InputEventJsonConverter"/>.
 /// </remarks>
-[Union]
+[GeneratedUnion(typeof(KeyChanged), typeof(MouseButtonChanged), typeof(MouseMoved), typeof(Scrolled))]
 [JsonConverter(typeof(InputEventJsonConverter))]
-public readonly struct InputEvent : IEventPayload, IEquatable<InputEvent>
+public readonly partial struct InputEvent : IEventPayload
 {
-    private const byte KindNone = 0, KindKey = 1, KindButton = 2, KindMove = 3, KindScroll = 4;
-
-    private readonly byte kind;
-
-    /// <summary>Whether the key or the button of <see cref="KeyChanged"/> and of <see cref="MouseButtonChanged"/> went down.</summary>
-    private readonly bool isDown;
-
-    /// <summary>The key or the button of <see cref="KeyChanged"/> and of <see cref="MouseButtonChanged"/>.</summary>
-    private readonly int code;
-
-    /// <summary>The movement or the scroll amount of <see cref="MouseMoved"/> and of <see cref="Scrolled"/>.</summary>
-    private readonly Vector2 delta;
-
-    public InputEvent(KeyChanged key)
-    {
-        kind = KindKey;
-        code = key.Code;
-        isDown = key.IsDown;
-    }
-
-    public InputEvent(MouseButtonChanged button)
-    {
-        kind = KindButton;
-        code = button.Code;
-        isDown = button.IsDown;
-    }
-
-    public InputEvent(MouseMoved moved)
-    {
-        kind = KindMove;
-        delta = moved.Delta;
-    }
-
-    public InputEvent(Scrolled scrolled)
-    {
-        kind = KindScroll;
-        delta = scrolled.Delta;
-    }
-
-    /// <summary>False for the default value, which holds no case.</summary>
-    public bool HasValue => kind != KindNone;
-
-    public object? Value => kind switch
-    {
-        KindKey => new KeyChanged(code, isDown),
-        KindButton => new MouseButtonChanged(code, isDown),
-        KindMove => new MouseMoved(delta),
-        KindScroll => new Scrolled(delta),
-        _ => null
-    };
-
-    public static implicit operator InputEvent(KeyChanged key) => new(key);
-    public static implicit operator InputEvent(MouseButtonChanged button) => new(button);
-    public static implicit operator InputEvent(MouseMoved moved) => new(moved);
-    public static implicit operator InputEvent(Scrolled scrolled) => new(scrolled);
-
     /// <summary>The key with the Silk.NET <c>Key</c> value <paramref name="code"/> went down.</summary>
     public static InputEvent KeyDown(int code) => new(new KeyChanged(code, true));
 
@@ -118,59 +59,4 @@ public readonly struct InputEvent : IEventPayload, IEquatable<InputEvent>
 
     /// <summary>The scroll moved by <paramref name="delta"/>.</summary>
     public static InputEvent Scroll(Vector2 delta) => new(new Scrolled(delta));
-
-    public bool TryGetValue(out KeyChanged value)
-    {
-        value = kind == KindKey ? new KeyChanged(code, isDown) : default;
-        return kind == KindKey;
-    }
-
-    public bool TryGetValue(out MouseButtonChanged value)
-    {
-        value = kind == KindButton ? new MouseButtonChanged(code, isDown) : default;
-        return kind == KindButton;
-    }
-
-    public bool TryGetValue(out MouseMoved value)
-    {
-        value = kind == KindMove ? new MouseMoved(delta) : default;
-        return kind == KindMove;
-    }
-
-    public bool TryGetValue(out Scrolled value)
-    {
-        value = kind == KindScroll ? new Scrolled(delta) : default;
-        return kind == KindScroll;
-    }
-
-    // The held case alone decides equality: the fields of the other cases are not compared. Vector2.Equals, not the operator
-    // ==, which follows IEEE 754 and calls a NaN unequal to itself: Equals treats a NaN as equal to a NaN, which agrees with
-    // GetHashCode, so an event that holds a NaN equals itself.
-    public bool Equals(InputEvent other) => kind == other.kind && kind switch
-    {
-        KindKey or KindButton => code == other.code && isDown == other.isDown,
-        KindMove or KindScroll => delta.Equals(other.delta),
-        _ => true
-    };
-
-    public override bool Equals(object? obj) => obj is InputEvent other && Equals(other);
-
-    public override int GetHashCode() => kind switch
-    {
-        KindKey or KindButton => HashCode.Combine(kind, code, isDown),
-        KindMove or KindScroll => HashCode.Combine(kind, delta),
-        _ => 0
-    };
-
-    public static bool operator ==(InputEvent a, InputEvent b) => a.Equals(b);
-    public static bool operator !=(InputEvent a, InputEvent b) => !a.Equals(b);
-
-    public override string ToString() => this switch
-    {
-        KeyChanged c => $"InputEvent({c})",
-        MouseButtonChanged c => $"InputEvent({c})",
-        MouseMoved c => $"InputEvent({c})",
-        Scrolled c => $"InputEvent({c})",
-        null => "InputEvent(none)"
-    };
 }
