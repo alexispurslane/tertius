@@ -1,6 +1,6 @@
 ---
 id: ter-ghts
-status: in_progress
+status: closed
 deps: [ter-2ku2]
 links: []
 created: 2026-10-24T16:40:01Z
