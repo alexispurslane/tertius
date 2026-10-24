@@ -199,7 +199,9 @@ internal ref struct EventCursor<TFilter> where TFilter : struct, IEventFilter
     private readonly int version;
 
     // Not readonly: a call on a readonly field of a generic struct type would copy the filter first.
+#pragma warning disable IDE0044
     private TFilter filter;
+#pragma warning restore IDE0044
     private int index;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

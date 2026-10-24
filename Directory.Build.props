@@ -15,10 +15,10 @@
       Switches over closed sets (docs/plans/code-quality-tooling.md, decision 14). CS8524 reports an enum switch expression
       that names every member but not unnamed values such as (E)7. Off, so such a switch needs no discard arm, and the
       compiler reports a missing member with CS8509. An unnamed value throws SwitchExpressionException. The build runs the
-      IDE analyzers for IDE0010, IDE0063 (a using block that can be a using declaration), and IDE0051, IDE0052 and
-      IDE0060 (unused private members and unused parameters) only.
+      IDE analyzers for IDE0010, IDE0063 (a using block that can be a using declaration), IDE0033 (Item1 on a named tuple),
+      and IDE0051, IDE0052, IDE0059 and IDE0060 (unused private members, values and parameters) only.
       AnalysisModeStyle=None turns off the style rules that latest-recommended turns on, and .editorconfig sets every
-      other IDE rule to suggestion, which a build does not report.
+      other IDE rule to suggestion or none, which a build does not report.
     -->
     <NoWarn>$(NoWarn);CS8524</NoWarn>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
@@ -50,6 +50,8 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Meziantou.Analyzer" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
+    <!-- The fixes of tools/cleanup.sh that no IDE rule has. .editorconfig turns on only the rules that the cleanup applies. -->
+    <PackageReference Include="Roslynator.Analyzers" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
     <AdditionalFiles Include="$(MSBuildThisFileDirectory)analyzers/CodeMetricsConfig.txt" />
   </ItemGroup>
   <!--

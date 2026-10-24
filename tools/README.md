@@ -247,7 +247,7 @@ The post-commit hook attaches the pending slop note to the new commit, under `re
 
 The pre-push hook does three things:
 
-1. It runs `tools/cleanup.sh` on the C# files that the pushed commits change. If the cleanup changes a file, the hook builds the solution and commits the result as "Clean up code before push". Then it stops the push, because git chose the commits to push before the hook ran. Push again to send the cleanup commit too.
+1. It runs `tools/cleanup.sh` on the C# files that the pushed commits change. If the cleanup changes a file, the hook builds the solution and commits the result as "Clean up code before push". Then it stops the push, because git chose the commits to push before the hook ran. Push again to send the cleanup commit too. If the cleanup fails, or the cleaned code does not build, the push stops and the changes stay uncommitted.
 2. It builds the docs site with `tools/docs.sh`. A DocFX error stops the push, and a link warning does not.
 3. It updates the slop history, and it never stops the push. For each pushed branch, it notes the pushed tip. It also notes each commit since the last push that changes C# code under `src` and has no note. Then it prints the metrics at the last push against now, and the commits that raised a metric the most. Last, it merges the remote's notes into `refs/notes/slop` and pushes them to the same remote.
 
@@ -270,10 +270,10 @@ If a file that the cleanup must clean holds uncommitted changes, the hook stops 
 
 ## Code cleanup
 
-`tools/cleanup.sh` formats and modernizes C# files in two passes:
+`tools/cleanup.sh` cleans up C# files in two steps:
 
-1. `dotnet format style` applies Roslyn's modernization fixes, such as collection expressions, primary constructors, pattern matching and static lambdas. `.editorconfig` lists them as the IDE rules at suggestion level, and the script reads the list from there.
-2. `jb cleanupcode` runs ReSharper's cleanup with the Tertius profile: syntax style, redundancies, member layout and formatting. It runs last, so its formatting wins.
+1. Roslyn, the C# compiler, makes every fix that changes the code but not its meaning. `dotnet format style` applies the IDE rules, such as redundant `this.` and `using` directives, auto properties, `readonly` fields, `var`, expression bodies, collection expressions, primary constructors and pattern matching. `dotnet format analyzers` applies the Roslynator rules (RCS), such as a get-only auto property for one with a private setter that only a constructor uses. `.editorconfig` lists both kinds of rules, each with its reason, and the script reads the list from there: every rule at suggestion or warning. One fix can make room for another, so the step repeats until it changes nothing, at most 3 times.
+2. CSharpier formats the files, with lines of at most 120 characters (`.csharpierrc.yaml`). It also sorts the `using` directives. It runs last, so its formatting wins.
 
 Run it in the dev shell:
 
@@ -281,11 +281,23 @@ Run it in the dev shell:
 bash tools/cleanup.sh
 ```
 
-With no argument, it cleans the C# files that differ from main, committed or not. `--all` cleans every C# file, which takes about 10 minutes. A list of files cleans only those files. ReSharper loads a solution with only the projects of the files, which takes 10 to 20 seconds.
+With no argument, it cleans the C# files that differ from main, committed or not. `--all` cleans every C# file. A list of files cleans only those files. For a list, `dotnet format` loads a solution with only the projects of the files.
 
-The cleanup reads its rules from two files. `.editorconfig` holds the Roslyn rules, the syntax style, the line length of 120 characters and the doc comment rules. `Tertius.slnx.DotSettings` holds the ReSharper profile and the member layout: members grouped by kind (constants, static fields and properties, instance fields, constructors, instance properties, everything else), with no sort inside a group. Rider reads both files, so its own cleanup with the Tertius profile gives the same result.
+Times on 2026-10-24, on an M-series Mac:
 
-The cleanup of the whole codebase is one commit. `.git-blame-ignore-revs` names it. Run this command once, so that `git blame` skips that commit:
+| Files | Nothing to fix | Something to fix |
+|---|---|---|
+| 1 file | about 20 s | about 33 s |
+| 20 files in 10 projects | about 36 s | about 64 s |
+| `--all` | about 70 s | about 3 minutes (the first cleanup with these rules) |
+
+Before Roslyn runs, the script builds the union generator and the style analyzer in Debug, because `dotnet format` loads that build. Without the generator, the generated members of the unions are missing, and the fixes misread the code.
+
+CSharpier 1.3.0 cannot parse the C# 15 `union` declaration and the `closed` modifier. `.csharpierignore` lists the files that hold them, and CSharpier leaves them as they are. Roslyn still fixes them. A file that CSharpier cannot parse and that is not in the list stops the cleanup with an error, and CSharpier leaves that file as it was.
+
+Some IDE rules stay off, each with its reason in `.editorconfig`. Two of them matter most. `IDE0004` (redundant casts) takes a cast to a C# 15 union for redundant and changes the meaning of the code. `IDE0045` and `IDE0046` write nested conditional expressions, which `TS0011` forbids. No rule orders the members of a type, so the cleanup leaves the order as the author wrote it (STYLE.md, "Member order").
+
+Each cleanup of the whole codebase is one commit, and `.git-blame-ignore-revs` names each one. Run this command once, so that `git blame` skips those commits:
 
 ```bash
 git config blame.ignoreRevsFile .git-blame-ignore-revs

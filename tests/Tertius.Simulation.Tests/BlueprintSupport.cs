@@ -116,7 +116,10 @@ public sealed class Labelled : IComponent
     internal int Internal = 2;
 
     public int Computed => 7;
+    // The blueprint tests need a property whose setter is private, so RCS1170 must not make it get-only.
+#pragma warning disable RCS1170
     public int Locked { get; private set; } = 1;
+#pragma warning restore RCS1170
 
     public int Priority => 0;
     public EventMask Wants => default;

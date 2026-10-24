@@ -93,7 +93,6 @@ public sealed class Walker(IReadOnlyList<Waypoint> path) : IComponent
             if (!frames.IsAlive(target.Frame))
             {
                 self.Log($"Walker stops: the frame {target.Frame} of waypoint {next} is gone.");
-                next = path.Length;
                 break;
             }
 

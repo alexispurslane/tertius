@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Runs before every push that pushes code (see tools/README.md, "Git hooks"):
-#   1. tools/cleanup.sh formats and modernizes the C# files that the pushed commits change. If it changes a file, the
-#      hook builds the solution, commits the result as one cleanup commit and stops the push, because git already
-#      chose the commits to push. Push again to send the cleanup commit too.
+#   1. tools/cleanup.sh fixes and formats the C# files that the pushed commits change: Roslyn's fixes, then CSharpier. If
+#      it changes a file, the hook builds the solution, commits the result as one cleanup commit and stops the push,
+#      because git already chose the commits to push. Cleaned code that does not build stops the push, and the changes
+#      stay uncommitted. Push again to send the cleanup commit too.
 #   2. tools/docs.sh builds the docs site. A DocFX error stops the push, and a link warning does not.
 #   3. The slop history (tools/Tertius.Slop): it notes each pushed commit that changes C# code under src and has no
 #      note, and the pushed tip, prints the metrics at the last push against now, and pushes refs/notes/slop to the
@@ -70,7 +71,7 @@ if [[ ${#files[@]} -gt 0 ]]; then
         fi
         git add -- "${files[@]}"
         git commit --no-verify --quiet -m "Clean up code before push" \
-            -m "tools/cleanup.sh (Roslyn modernization fixes, then ReSharper's cleanup) ran in the pre-push hook."
+            -m "tools/cleanup.sh (Roslyn fixes, then CSharpier) ran in the pre-push hook."
         count=$(git diff --name-only HEAD~1 HEAD | wc -l | tr -d ' ')
         echo "pre-push: the cleanup changed $count file(s) and committed them as $(git rev-parse --short HEAD)." >&2
         echo "pre-push: the push stopped, because it does not hold that commit. Push again." >&2
