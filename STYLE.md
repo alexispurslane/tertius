@@ -134,7 +134,14 @@ A function of an orbit is an instance method of `KeplerOrbit`. Math about two bo
 
 `Nullable` is on, and warnings are errors (`Directory.Build.props`), so a nullable warning fails the build.
 
-Treat `T?` like `Maybe` in Haskell. A value is nullable only where "no value" is a real answer, such as a stale handle or a missing row. Null lives at the outer shell of a module: the shell tests for it once, in a form that the compiler's flow analysis understands, and passes a value that is not nullable inward. The business logic never sees a nullable type.
+Treat `T?` like `Maybe` in Haskell. Null has two meanings, and only two:
+
+- A possibly-invalid result: an answer that correct code can get and must handle, such as a stale handle, a missing row or text that does not parse ("Expected failures").
+- A valid absence: a chosen state of having nothing, such as "no video" or "record nothing".
+
+Null never stands for one ordinary state among many, such as "the default mode" or "a semantic frame". Such a state is a case of a union or a member of an enum.
+
+Null lives at the outer shell of a module. The shell handles every null once, or replaces it with a default, in a form that the compiler's flow analysis understands, and passes a value that is not nullable inward. The business logic never sees a nullable type.
 
 ```csharp
 // Sketch
@@ -337,13 +344,30 @@ A default method called on a struct through a type parameter boxes the struct, b
 
 ### Expected failures
 
-A failure that can happen in correct code, such as a file that does not open or text that does not parse, is not a bug and not an argument error. A method that can fail this way is a `Try` method: it returns `bool` and gives its result in an `out` parameter, with `[NotNullWhen(true)]` or `[MaybeNullWhen(false)]` where the result is a reference. Do not write a result union for this. A method named `Try` and an upper-case letter has this shape (tool: TS0009).
+A failure that can happen in correct code, such as a file that does not open or text that does not parse, is not a bug and not an argument error. A method that can fail this way returns `T?`, and null is the failure. The caller handles it with a pattern at the shell, or coalesces it with `??` and `?.`.
 
 ```csharp
-public readonly bool TryGet<T>(out T payload) where T : unmanaged, IEventPayload
+// Sketch
+if (tree.StepRecordOf(frame) is not { } record)
+    return;
+DPose pose = snapshot.BodyOf(entity)?.Pose ?? DPose.Identity;
 ```
 
-If the caller needs the reason for a failure, the method gives it in a second `out` parameter. A method without `Try` in its name throws on such a failure, and its doc comment names the exception.
+If the caller needs the reason for a failure, the method returns `Result<T, TProblem>` (`src/Tertius.Core/Unions/Result.cs`): a value or a problem, never both. A switch handles both cases, and the compiler fails the build when it misses one. `.Ok` gives the value or null, and `.Problem` gives the problem or null, so a caller that only wants a fallback drops the problem on purpose. `Result` is a custom `[Union]` struct, so a struct value never boxes.
+
+```csharp
+// Sketch
+Result<Script, ScriptProblem> loaded = Script.Load(path);
+string report = loaded switch
+{
+    Script script => $"{script.Steps.Count} steps",
+    ScriptProblem problem => $"line {problem.Line}: {problem.Message}",
+    null => "nothing loaded",
+};
+Script script = Script.Load(path).Ok ?? Script.Empty;
+```
+
+Write no `Try` method of your own, with one exception. If a benchmark shows that the copy of a large struct in a `T?` costs real time ("Priorities"), a `Try` method with an `out` parameter may stay, with a comment that names the benchmark. The `Try` methods of .NET itself, such as `int.TryParse` and `Dictionary.TryGetValue`, stay usable at the shell. A method that cannot fail in correct code throws on a bad argument, and its doc comment names the exception.
 
 ### Disposal and ownership
 
