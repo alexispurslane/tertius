@@ -42,7 +42,8 @@ internal sealed class Fixes(string rule, Func<CodeFixProvider> fix)
         return await Applied(document, actions.Single());
     }
 
-    /// <summary>The number of fixes that the code fix offers for the first diagnostic of the rule in <paramref name="source"/>.</summary>
+    /// <summary>The number of fixes that the code fix offers for the first diagnostic of the rule in <paramref name="source"/>
+    /// .</summary>
     public async Task<int> Offered(string source)
     {
         CancellationToken cancel = TestContext.Current.CancellationToken;
@@ -50,7 +51,7 @@ internal sealed class Fixes(string rule, Func<CodeFixProvider> fix)
         Document document = DocumentOf(workspace, source);
         Diagnostic first = (await Diagnostics(document)).First();
         List<CodeAction> actions = [];
-        await fix().RegisterCodeFixesAsync(new CodeFixContext(document: document, diagnostic: first,
+        await fix().RegisterCodeFixesAsync(new(document: document, diagnostic: first,
             registerCodeFix: (action, _) => actions.Add(action), cancellationToken: cancel));
         return actions.Count;
     }
@@ -75,7 +76,7 @@ internal sealed class Fixes(string rule, Func<CodeFixProvider> fix)
         ImmutableArray<Diagnostic> diagnostics = await Diagnostics(document);
         CodeFixProvider provider = fix();
         List<CodeAction> actions = [];
-        await provider.RegisterCodeFixesAsync(new CodeFixContext(document: document, diagnostic: diagnostics.First(),
+        await provider.RegisterCodeFixesAsync(new(document: document, diagnostic: diagnostics.First(),
             registerCodeFix: (action, _) => actions.Add(action), cancellationToken: cancel));
         FixAllProvider fixAll = provider.GetFixAllProvider() ??
                                 throw new InvalidOperationException("The fix has no FixAllProvider.");

@@ -96,9 +96,9 @@ public readonly partial struct QueryShape
                                           || !float.IsFinite(boxHalfExtents.X + boxHalfExtents.Y + boxHalfExtents.Z) =>
             $"is a box with half extents of {boxHalfExtents} m, which are not all finite and more than 0",
         QueryCapsule { HalfHeight: var capsuleHalfHeight, Radius: var capsuleRadius } when !(capsuleRadius > 0) ||
-                                                                    !float.IsFinite(capsuleRadius)
-                                                                    || !(capsuleHalfHeight >= 0) ||
-                                                                    !float.IsFinite(capsuleHalfHeight) =>
+            !float.IsFinite(capsuleRadius)
+            || !(capsuleHalfHeight >= 0) ||
+            !float.IsFinite(capsuleHalfHeight) =>
             $"is a capsule with a half height of {capsuleHalfHeight} m and a radius of {capsuleRadius} m, which need a finite radius of more than 0 and a finite half height of at least 0",
         QuerySphere or QueryBox or QueryCapsule => null,
         null => "is the default shape, which holds no sphere, box or capsule"

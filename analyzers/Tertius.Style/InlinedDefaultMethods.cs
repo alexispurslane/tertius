@@ -62,7 +62,8 @@ internal sealed class InlinedDefaultMethods
 
     private void Report(CompilationAnalysisContext context)
     {
-        foreach (IMethodSymbol method in notInlined.Keys.Where(method => constrained.ContainsKey(method.ContainingType)))
+        foreach (IMethodSymbol method in
+                 notInlined.Keys.Where(method => constrained.ContainsKey(method.ContainingType)))
             context.ReportDiagnostic(Diagnostic.Create(StyleRules.DefaultMethodNotInlined, method.Locations[0],
                 $"{method.ContainingType.Name}.{method.Name}"));
     }

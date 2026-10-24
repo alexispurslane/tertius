@@ -1223,6 +1223,7 @@ public sealed partial class LoftedHull
             Vector3[] outer = [.. panel.OrderBy(From)];
             Vector3[] inner = [.. hole.OrderBy(p => p == hole[0] ? -1 : From(p))];
             double OuterAngle(int i) => i == outer.Length ? From(outer[0]) + Math.Tau : From(outer[i]);
+
             double InnerAngle(int j)
             {
                 if (j == inner.Length)
@@ -1231,6 +1232,7 @@ public sealed partial class LoftedHull
                     return 0;
                 return From(inner[j]);
             }
+
             Vector3 tangent = u;
             int a = 0, b = 0;
             while (a < outer.Length || b < inner.Length)

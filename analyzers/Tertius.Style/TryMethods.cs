@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -30,7 +31,7 @@ internal static class TryMethods
 
     /// <summary>True for <c>Try</c> and an upper-case letter at the start of a name, as in <c>TryGet</c>.</summary>
     private static bool IsTryName(string name) =>
-        name.Length > Prefix.Length && name.StartsWith(Prefix, System.StringComparison.Ordinal) &&
+        name.Length > Prefix.Length && name.StartsWith(Prefix, StringComparison.Ordinal) &&
         char.IsUpper(name[Prefix.Length]);
 
     private static bool HasTryShape(IMethodSymbol method) =>

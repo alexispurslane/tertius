@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Microsoft.CodeAnalysis;
 
 namespace Tertius.Style.Tests;
 
@@ -51,7 +52,8 @@ public sealed class NestedConditionalTests
                                       {
                                           public static int Pick(bool a, bool b, bool c, bool d) => (a ? b : c ? d : a) ? 1 : 2;
                                       }
-                                      """)).Should().Equal(["TS0011"], "the condition is not a branch, so its chain is its own");
+                                      """)).Should().Equal(["TS0011"],
+            "the condition is not a branch, so its chain is its own");
 
     [Fact]
     public async Task TheReportCoversTheOuterConditional()
@@ -63,7 +65,7 @@ public sealed class NestedConditionalTests
                               }
                               """;
 
-        Microsoft.CodeAnalysis.Diagnostic found = (await Analysis.Diagnostics("TS0011", source)).Single();
+        Diagnostic found = (await Analysis.Diagnostics("TS0011", source)).Single();
 
         source.Substring(found.Location.SourceSpan.Start, found.Location.SourceSpan.Length).Should()
             .Be("a ? 1 : b ? 2 : 3");

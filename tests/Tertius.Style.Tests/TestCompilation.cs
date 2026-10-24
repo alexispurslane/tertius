@@ -37,14 +37,13 @@ internal static class TestCompilation
     /// A library named <paramref name="assembly"/> of <paramref name="source"/> that references the built assemblies
     /// of <paramref name="libraries"/>, as a project references the assemblies of other projects.
     /// </summary>
-    public static CSharpCompilation Of(string source, string assembly, IEnumerable<CSharpCompilation> libraries)
-    {
-        return Checked(CSharpCompilation.Create(assemblyName: assembly, syntaxTrees: [Parsed(source)],
+    public static CSharpCompilation Of(string source, string assembly, IEnumerable<CSharpCompilation> libraries) =>
+        Checked(CSharpCompilation.Create(assemblyName: assembly, syntaxTrees: [Parsed(source)],
             references: [.. References, .. libraries.Select(Built)], options: Options));
-    }
 
     private static SyntaxTree Parsed(string source) =>
-        CSharpSyntaxTree.ParseText(text: source, options: Parse, cancellationToken: TestContext.Current.CancellationToken);
+        CSharpSyntaxTree.ParseText(text: source, options: Parse,
+            cancellationToken: TestContext.Current.CancellationToken);
 
     /// <summary><paramref name="compilation"/>, after a check that it has no compiler error.</summary>
     private static CSharpCompilation Checked(CSharpCompilation compilation)

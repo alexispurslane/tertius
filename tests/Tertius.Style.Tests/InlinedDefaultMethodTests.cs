@@ -150,7 +150,8 @@ public sealed class InlinedDefaultMethodTests
                                       {
                                           public static bool Two<T>(T filter) where T : struct, IFilter => filter.MatchesTwo(1);
                                       }
-                                      """)).Should().BeEmpty("no caller outside the interface can call a private method");
+                                      """)).Should()
+        .BeEmpty("no caller outside the interface can call a private method");
 
     // The code fix
 

@@ -50,7 +50,8 @@ public sealed class PropertyPatternFix : CodeFixProvider
                 { } model)
             return;
         foreach (Diagnostic diagnostic in context.Diagnostics)
-            if (Rewrite(root.FindNode(diagnostic.Location.SourceSpan, getInnermostNodeForTie: true), model, context.CancellationToken) is not null)
+            if (Rewrite(root.FindNode(diagnostic.Location.SourceSpan, getInnermostNodeForTie: true), model,
+                    context.CancellationToken) is not null)
                 context.RegisterCodeFix(CodeAction.Create(title: "Use a property pattern",
                     createChangedDocument: cancel =>
                         Rewritten(context.Document, [diagnostic.Location.SourceSpan], cancel),
@@ -99,6 +100,7 @@ public sealed class PropertyPatternFix : CodeFixProvider
                 return null;
             parts.Add($"{member}: {OneLine(element.Pattern)}");
         }
+
         if (pattern.PropertyPatternClause is { } properties)
             parts.AddRange(properties.Subpatterns.Select(OneLine));
         string braces = parts.Count == 0 ? "{ }" : $"{{ {string.Join(", ", parts)} }}";
@@ -119,6 +121,7 @@ public sealed class PropertyPatternFix : CodeFixProvider
             text.Append(token.Text);
             previous = token;
         }
+
         return text.ToString();
     }
 

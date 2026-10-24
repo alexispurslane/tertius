@@ -67,7 +67,8 @@ public sealed class InheritanceDepthTests
                                           public override int Read(ref Utf8JsonReader reader, System.Type type, JsonSerializerOptions options) => 0;
                                           public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options) { }
                                       }
-                                      """)).Should().BeEmpty("JsonConverter<T> derives from JsonConverter, which the code cannot change");
+                                      """)).Should()
+        .BeEmpty("JsonConverter<T> derives from JsonConverter, which the code cannot change");
 
     [Fact]
     public async Task TheLevelsOfAnAssemblyOutsideTheSolutionDoNotCount()

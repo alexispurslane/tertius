@@ -226,7 +226,7 @@ public sealed partial class World
         {
             bool ownsFrame = desc.AsFrame is not null;
             // The body of a frame owner is the frame's hull when the frame has a parent. A root frame has no hull.
-            BodyRole role = BodyRole.OwnsNoFrame;
+            var role = BodyRole.OwnsNoFrame;
             if (ownsFrame)
                 role = desc.Frame.IsNull ? BodyRole.OwnsRootFrame : BodyRole.Hull;
             if (body.Problem(role) is { } problem)

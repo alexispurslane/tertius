@@ -61,7 +61,7 @@ public sealed class InlineDefaultMethodFix : CodeFixProvider
             .. spans.Select(span => root.FindToken(span.Start).Parent?.FirstAncestorOrSelf<MethodDeclarationSyntax>())
                 .OfType<MethodDeclarationSyntax>().Distinct()
         ];
-        var marked = root.ReplaceNodes(methods, (_, current) => WithInlining(current, endOfLine));
+        CompilationUnitSyntax marked = root.ReplaceNodes(methods, (_, current) => WithInlining(current, endOfLine));
         return document.WithSyntaxRoot(WithUsing(marked, endOfLine));
     }
 

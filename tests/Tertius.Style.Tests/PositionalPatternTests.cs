@@ -223,7 +223,8 @@ public sealed class PositionalPatternTests
                                               return sum;
                                           }
                                       }
-                                      """)).Should().BeEmpty("KeyValuePair is a framework type that never reorders its fields");
+                                      """)).Should()
+        .BeEmpty("KeyValuePair is a framework type that never reorders its fields");
 
     [Fact]
     public async Task APositionalPatternOnAnObjectThroughITupleIsNotReported() =>
@@ -372,7 +373,8 @@ public sealed class PositionalPatternTests
                                                                                {
                                                                                    public static int Size(object value) => value is Line { From: Point(var x, var y), To: var to } ? x + y + to.X : 0;
                                                                                }
-                                                                               """, "the nested pattern waits for the next pass");
+                                                                               """,
+            "the nested pattern waits for the next pass");
 
     [Fact]
     public async Task TheFixAllRewritesEveryArmOfASwitch() =>
