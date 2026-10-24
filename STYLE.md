@@ -15,6 +15,42 @@ Slow code is never acceptable because it was easier to write. Within that, when 
 
 Example: a switch over the 184-byte `MotionIntent` copies the whole union first. A measurement found 2 to 5 ns per call. Three members read the union once per step for each entity with a motion intent. For 1,000 such entities, that is at most 15 µs per step, under 0.1 percent of the frame budget. That is not real time, so the members keep their switches.
 
+## Make illegal states unrepresentable
+
+Every value that a type allows is a valid state. When a value can be wrong, change the type, not the code that reads it. A contract or a guard that says which fields exist is a sign that the type allows a state that it must not allow.
+
+Signs of a type that allows an illegal state:
+
+- A field means something only for some values of another field. An example is a `Kind` enum beside fields that only some kinds use.
+- Another field says whether a nullable field holds a value, and `[MemberNotNullWhen]` or a contract guards it.
+- A sentinel value, such as `-1` or `BodyID.Invalid`, sits beside data that is valid only without the sentinel.
+- Parallel arrays hold entries that mean something only in some rows.
+- Options allow a combination that the code refuses, such as a scene and a script in one run.
+
+The fixes, in this order:
+
+1. A union with one case per state. Each case holds only its own fields. "Choose the form of a closed set by the shape of its cases" gives the form.
+2. A field that is never null, for data that always exists, set by a `required` member or the constructor.
+3. A factory method that refuses an invalid value, for a rule that a type cannot hold, such as a positive speed.
+
+Parse at the outer shell. Turn raw input into the precise type once, and pass the precise type inward. Code inside never tests again what the type already says. A contract stays only for a rule between several values that no type holds, such as two tables that stay in sync.
+
+```csharp
+// Sketch: before. A run with a scene and a script, or a script with no output folder, is a value of this type.
+internal sealed record Options(string? Script, string? Scene, string? Out, bool Headless, double Speed, string? Record,
+    VideoFile? Video);
+```
+
+```csharp
+// Sketch: after. Each case holds only its own fields, and a switch over RunOptions names both cases.
+internal union RunOptions(FreePlay, ScriptRun);
+internal sealed record FreePlay(string Scene, double Speed, string? Record);
+internal sealed record ScriptRun(string Script, string Out, ScriptDisplay Display);
+internal union ScriptDisplay(InWindow, Headless);
+internal sealed record InWindow(double Speed);
+internal sealed record Headless(VideoFile? Video);
+```
+
 ## Data
 
 ### Use pattern matching and destructuring
@@ -328,8 +364,13 @@ using var world = new World(new() { DisposePhysics = true },
 
 ## Comments
 
-- A doc comment says what a member means, in plain English. It points to the design doc section that gives the reason, such as `(docs/plans/rails-components.md, "The follow kind")`.
-- A comment gives the reason for the code, never a description of the code under it.
+One fact has one home. The model says how the parts work together. The model and the reasons for design decisions live in ARCHITECTURE.md or in a design doc in `docs/plans`. A comment points to them and never repeats them.
+
+- A doc comment says what a member is or does, in plain English, and the invariants that it keeps or needs.
+- If the reason belongs to the member alone, the doc comment gives it in one sentence. A reason that spans several members goes into the docs, and the comment points to its section, such as `(docs/plans/rails-components.md, "The follow kind")`.
+- The `<summary>` and `<remarks>` of a doc comment hold at most 50 words together. Each `<param>`, `<returns>` and `<typeparam>` holds at most 20 words.
+- A type that keeps invariants lists them in its doc comment as a `<list>`, one item per invariant, each at most 25 words. The list does not count toward the 50 words.
+- A comment in code gives the reason for the code, never a description of the code under it.
 - Every ordering rule has a comment that gives its reason.
 
 ## Dependencies

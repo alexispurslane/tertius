@@ -1,0 +1,10 @@
+{
+  "csharp-ls": {
+    "command": "${CLAUDE_PROJECT_DIR}/tools/csharp-ls.sh",
+    "extensionToLanguage": { ".cs": "csharp" },
+    "initializationOptions": { "csharp": { "analyzersEnabled": true } },
+    "settings": { "csharp": { "analyzersEnabled": true } },
+    "startupTimeout": 180000,
+    "requestTimeout": 120000
+  }
+}

@@ -37,6 +37,8 @@
             packages = [
               dotnet
               pkgs.roslyn-ls
+              # The language server of the Claude Code plugin in tools/claude-plugins (started by tools/csharp-ls.sh).
+              pkgs.csharp-ls
               pkgs.csharpier
               pkgs.cmake
               pkgs.ninja
