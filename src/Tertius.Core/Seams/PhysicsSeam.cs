@@ -141,8 +141,7 @@ public closed record ShapeDesc
                 return max;
             }
             default:
-                throw new NotSupportedException(
-                    $"The shape type {shape.GetType().Name} is not one of the six shape records.");
+                throw new UnreachableException();
         }
     }
 

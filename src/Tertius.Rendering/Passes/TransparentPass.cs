@@ -111,9 +111,11 @@ internal sealed unsafe class TransparentPass : RenderPass
                         vk.CmdDraw(commandBuffer: commandBuffer, vertexCount: 6, instanceCount: (uint)count,
                             firstVertex: 0, firstInstance: (uint)first);
                         break;
+                    case null:
+                        // The scene batcher adds a run of meshes or of puffs, never an empty run.
+                        throw new UnreachableException("A transparent run is empty.");
                     default:
-                        throw new UnreachableException(
-                            $"The transparent run {run} has a case that the pass does not draw.");
+                        throw new UnreachableException();
                 }
         }
 

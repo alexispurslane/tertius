@@ -302,8 +302,10 @@ public sealed class DockingAutopilot(Entity station) : IComponent
                     target: DemoStation.DockedRotation, targetTurn: 0, point: LandingPoint,
                     guidance: ApproachGuidance.ForMoveOut());
                 return null;
-            default:
+            case Standby or Docked or Halted:
                 throw new UnreachableException($"Fly returns at once in the docking state {State}.");
+            default:
+                throw new UnreachableException();
         }
     }
 

@@ -375,10 +375,11 @@ internal sealed class Router
                     foreach (Entity recipient in entities.LiveEntities)
                         AddDelivery(mine: mine, recipient: recipient, eventIndex: i, type: type);
                     break;
-                default:
+                case null:
                     // World.Post, Outbox.Send and Outbox.SendAfter refuse a target with no value.
-                    throw new UnreachableException(
-                        $"A routed event has the target {e.Target}, which names no recipient.");
+                    throw new UnreachableException("A routed event has no target.");
+                default:
+                    throw new UnreachableException();
             }
         }
     }
