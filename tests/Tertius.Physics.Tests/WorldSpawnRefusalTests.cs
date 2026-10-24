@@ -670,7 +670,7 @@ public sealed class WorldSpawnRefusalTests
         );
         Tick(world, 120);
 
-        backend.TryGetBodyFrame(ball, out _).Should().BeTrue();
+        backend.BodyFrameOf(ball).Should().NotBeNull();
         world.PoseInOwnFrame(ball).Position.Y.Should().BeApproximately(0.5, 0.01, "the ball fell to the floor");
         world.Errors.Should().BeEmpty();
     }
@@ -757,7 +757,7 @@ public sealed class WorldSpawnRefusalTests
             .Position.Y.Should()
             .BeApproximately(top + 0.5, 0.01, "the ball rests on the root frame's interior");
         backend.HasInterior(owner).Should().BeTrue();
-        backend.TryGetBodyFrame(owner, out _).Should().BeFalse("the owner of a root frame has no hull");
+        backend.BodyFrameOf(owner).Should().BeNull("the owner of a root frame has no hull");
         world.Errors.Should().BeEmpty();
     }
 }

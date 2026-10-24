@@ -435,7 +435,7 @@ public sealed partial class JoltPhysicsBackend
         {
             MoveFrame(record.OwnedFrame, plan.From, plan.To);
             // Jolt's velocity is the chord of the hull's first step in the new home now, so its frame's record takes the
-            // acceleration that made that chord, in the new home's axes (see TryHullRecord). The angular acceleration of the
+            // acceleration that made that chord, in the new home's axes (see HullRecordOf). The angular acceleration of the
             // update turns into the new home's axes, as the angular velocity does.
             record.StepAcceleration = plan.ChordAcceleration;
             record.AngularAcceleration = plan.AngularAcceleration;
@@ -1176,7 +1176,7 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// Reports the state of the body of <paramref name="record"/> after the step. A plain kinematic body that a motion intent
     /// aimed in the step, and that no hand-off moved, reports the step record of that motion intent (see
-    /// <see cref="TryAimedRecord"/>): the record's pose, exact in doubles with its rotation, where the snap put the body, and
+    /// <see cref="AimedRecordOf"/>): the record's pose, exact in doubles with its rotation, where the snap put the body, and
     /// the record's instant velocity at the end of the step, not Jolt's chord. As for every body, the linear velocity is
     /// that of the centre of mass relative to the home, which a read adds to the home's velocity after the sync point (see
     /// <see cref="FrameTree.HomeVelocityAfter"/>).
@@ -1184,7 +1184,7 @@ public sealed partial class JoltPhysicsBackend
     private void Report(FrameWorld world, BodyRecord record, PhysicsStepOutput output, bool track)
     {
         BodySnapshot s = ReadPrimary(record);
-        if (TryAimedRecord(record, out MotionSample aimed))
+        if (AimedRecordOf(record) is { } aimed)
         {
             Double3 center = s.CenterOfMass - s.Pose.Position;
             Double3 linear =
@@ -1236,7 +1236,7 @@ public sealed partial class JoltPhysicsBackend
     /// the tree again takes the velocity that it had (see
     /// <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3, in TurningMoment?)"/>).
     /// A record from <see cref="StepRecordOf"/> is relative to the home's instant velocity of every hand-off (see
-    /// <see cref="InstantHomeVelocity"/>; an awake dynamic hull's record converts to it, see <see cref="TryHullRecord"/>). So
+    /// <see cref="InstantHomeVelocity"/>; an awake dynamic hull's record converts to it, see <see cref="HullRecordOf"/>). So
     /// each record that physics releases adds the home's instant velocity past its chord (see
     /// <see cref="FrameTree.HomeInstantVelocityOverChord"/>), zero in a semantic home. A hull at the origin of its following
     /// frame rests there, so its record keeps just that term: the plan's instant velocity less the plan's chord, which is the

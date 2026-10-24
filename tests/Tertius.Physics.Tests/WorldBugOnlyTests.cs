@@ -74,8 +74,8 @@ public sealed class WorldBugOnlyTests
                 "failed to apply changes",
                 "the backend applied the rest of the batch, and it named the change that it skipped"
             );
-        faults.Jolt.TryGetBodyFrame(stranger, out _).Should().BeFalse("the failed creation left nothing behind");
-        faults.Jolt.TryGetBodyFrame(ball, out _).Should().BeTrue("the rest of the batch still applied");
+        faults.Jolt.BodyFrameOf(stranger).Should().BeNull("the failed creation left nothing behind");
+        faults.Jolt.BodyFrameOf(ball).Should().NotBeNull("the rest of the batch still applied");
         world.PoseInOwnFrame(ball).Position.Y.Should().BeApproximately(0.5, 0.01, "the ball fell to the floor");
 #endif
     }
@@ -157,9 +157,9 @@ public sealed class WorldBugOnlyTests
             .Which.Entity.Should()
             .Be(beyond, "the ray skipped the body of the entity that is not live");
         faults
-            .Jolt.TryGetBodyFrame(dead, out _)
+            .Jolt.BodyFrameOf(dead)
             .Should()
-            .BeTrue("the edit kept the body in Jolt, which is the bug that this test stands in for");
+            .NotBeNull("the edit kept the body in Jolt, which is the bug that this test stands in for");
 #endif
     }
 

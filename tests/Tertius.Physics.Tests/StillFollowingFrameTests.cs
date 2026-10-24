@@ -298,7 +298,7 @@ public sealed class StillFollowingFrameTests
     /// on in space at the drift's velocity plus its own, as it does without numeric frames, whichever step the hull stopped in.
     /// A ship that leaves in the step in which the hull stops hands off into the following frame while the frame's instant
     /// velocity in Jolt's stepping runs 1 km/s behind the plan's, so its record after the hand-off takes Jolt's chord there
-    /// back to the velocity that the hand-off carried (see JoltPhysicsBackend.TryHullRecord).
+    /// back to the velocity that the hand-off carried (see JoltPhysicsBackend.HullRecordOf).
     /// </summary>
     [Theory]
     [InlineData(false)]

@@ -6,9 +6,9 @@ public sealed class FreeListTests
     public void AllocationsAreAlignedAndDoNotOverlap()
     {
         var list = new FreeList(1024);
-        list.TryAllocate(10, 1, out ulong a).Should().BeTrue();
-        list.TryAllocate(100, 64, out ulong b).Should().BeTrue();
-        list.TryAllocate(32, 256, out ulong c).Should().BeTrue();
+        ulong a = list.Allocate(10, 1)!.Value;
+        ulong b = list.Allocate(100, 64)!.Value;
+        ulong c = list.Allocate(32, 256)!.Value;
         a.Should().Be(0ul);
         (b % 64).Should().Be(0ul);
         (c % 256).Should().Be(0ul);
@@ -23,8 +23,8 @@ public sealed class FreeListTests
         var list = new FreeList(4096);
         ulong[] offsets = new ulong[8];
         for (int i = 0; i < offsets.Length; i++)
-            list.TryAllocate(512, 16, out offsets[i]).Should().BeTrue();
-        list.TryAllocate(1, 1, out _).Should().BeFalse("the list is full");
+            offsets[i] = list.Allocate(512, 16)!.Value;
+        list.Allocate(1, 1).Should().BeNull("the list is full");
         list.FreeRangeCount.Should().Be(0);
 
         // Free in an order that exercises merging with the previous range, the next range and both.
@@ -32,7 +32,7 @@ public sealed class FreeListTests
             list.Free(offsets[i], 512);
         list.IsEmpty.Should().BeTrue();
         list.FreeRangeCount.Should().Be(1);
-        list.TryAllocate(4096, 16, out ulong whole).Should().BeTrue();
+        ulong whole = list.Allocate(4096, 16)!.Value;
         whole.Should().Be(0ul);
     }
 
@@ -40,11 +40,11 @@ public sealed class FreeListTests
     public void AlignmentGapsStayFreeAndAreReused()
     {
         var list = new FreeList(1024);
-        list.TryAllocate(8, 1, out ulong small).Should().BeTrue();
-        list.TryAllocate(256, 256, out ulong aligned).Should().BeTrue();
+        ulong small = list.Allocate(8, 1)!.Value;
+        ulong aligned = list.Allocate(256, 256)!.Value;
         aligned.Should().Be(256ul);
         // The gap from 8 to 256 is free and takes a later small allocation.
-        list.TryAllocate(200, 8, out ulong filler).Should().BeTrue();
+        ulong filler = list.Allocate(200, 8)!.Value;
         filler.Should().BeInRange(small + 8, aligned - 200);
         list.Free(aligned, 256);
         list.Free(filler, 200);
@@ -57,15 +57,15 @@ public sealed class FreeListTests
     public void DoubleFreeAndBadArgumentsThrow()
     {
         var list = new FreeList(256);
-        list.TryAllocate(64, 16, out ulong offset).Should().BeTrue();
+        ulong offset = list.Allocate(64, 16)!.Value;
         list.Free(offset, 64);
         FluentActions.Invoking(() => list.Free(offset, 64)).Should().ThrowExactly<InvalidOperationException>();
         FluentActions
-            .Invoking(() => list.TryAllocate(8, 3, out _))
+            .Invoking(() => list.Allocate(8, 3))
             .Should()
             .ThrowExactly<ArgumentException>("the alignment is not a power of two");
         FluentActions
-            .Invoking(() => list.TryAllocate(0, 16, out _))
+            .Invoking(() => list.Allocate(0, 16))
             .Should()
             .ThrowExactly<ArgumentOutOfRangeException>();
         FluentActions.Invoking(() => list.Free(250, 16)).Should().ThrowExactly<ArgumentOutOfRangeException>();
@@ -89,7 +89,7 @@ public sealed class FreeListTests
 
             ulong size = (ulong)random.Next(1, 4096);
             ulong alignment = 1ul << random.Next(0, 9);
-            if (list.TryAllocate(size, alignment, out ulong offset))
+            if (list.Allocate(size, alignment) is { } offset)
             {
                 (offset % alignment).Should().Be(0ul);
                 // One assertion per allocation, not per pair: this loop runs millions of comparisons.

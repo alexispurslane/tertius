@@ -18,7 +18,7 @@ namespace Tertius.Physics.Tests;
 /// ticket ter-zsku), and in a turning frame it adds the turn's part of the instant velocity on the body's semantic place and
 /// chord (<c>FrameTurn.InstantAtEnd</c>, from ticket ter-1bnq). The two compose in
 /// <c>JoltPhysicsBackend.InstantVelocity</c>,
-/// <c>HandedOffVelocities</c> and <c>TryHullRecord</c>, which these tests run together.
+/// <c>HandedOffVelocities</c> and <c>HullRecordOf</c>, which these tests run together.
 /// </para>
 /// </summary>
 public sealed class TurningFollowingFrameTests

@@ -238,7 +238,7 @@ public sealed class FaultInjectingBackendTests
             .Which.BodiesCreated.Select(create => create.Entity)
             .Should()
             .Equal(ball);
-        faults.Jolt.TryGetBodyFrame(ball, out FrameHandle frame).Should().BeTrue();
+        FrameHandle frame = faults.Jolt.BodyFrameOf(ball)!.Value;
         frame.Should().Be(ground);
     }
 

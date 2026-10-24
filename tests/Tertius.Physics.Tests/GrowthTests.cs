@@ -206,7 +206,7 @@ public sealed class GrowthTests
                     }
                 );
                 world.Tick();
-                faults.Jolt.TryGetBodyFrame(ball, out FrameHandle ballFrame).Should().BeTrue();
+                FrameHandle ballFrame = faults.Jolt.BodyFrameOf(ball)!.Value;
                 ballFrame.Should().Be(space);
                 break;
             case NewBody.Character:
@@ -219,7 +219,7 @@ public sealed class GrowthTests
                     }
                 );
                 world.Tick();
-                faults.Jolt.TryGetBodyFrame(person, out FrameHandle personFrame).Should().BeTrue();
+                FrameHandle personFrame = faults.Jolt.BodyFrameOf(person)!.Value;
                 personFrame.Should().Be(space);
                 // The sync point created the character's walking form, whose inner body grew the system. The space has no
                 // gravity, so the step turned the character into its rigid form, a dynamic body in the place of the inner body.
@@ -245,21 +245,21 @@ public sealed class GrowthTests
                     )
                 );
                 world.Tick();
-                faults.Jolt.TryGetBodyFrame(ship.Entity, out FrameHandle hullFrame).Should().BeTrue();
+                FrameHandle hullFrame = faults.Jolt.BodyFrameOf(ship.Entity)!.Value;
                 hullFrame.Should().Be(space);
                 faults.Jolt.HasInterior(ship.Entity).Should().BeTrue();
                 break;
             case NewBody.Interior:
                 heldBack.Should().NotBeNull("the edit held the creation of the owner back");
                 faults
-                    .Jolt.TryGetBodyFrame(heldBack.Value.Entity, out _)
+                    .Jolt.BodyFrameOf(heldBack.Value.Entity)
                     .Should()
-                    .BeFalse("the owner has no body in the backend yet");
+                    .BeNull("the owner has no body in the backend yet");
                 var batch = new PhysicsChanges();
                 batch.BodiesCreated.Add(heldBack.Value);
                 faults.Jolt.ApplyChanges(batch, world.Frames);
                 faults.Jolt.HasInterior(heldBack.Value.Entity).Should().BeTrue();
-                faults.Jolt.TryGetBodyFrame(heldBack.Value.Entity, out FrameHandle holdHullFrame).Should().BeTrue();
+                FrameHandle holdHullFrame = faults.Jolt.BodyFrameOf(heldBack.Value.Entity)!.Value;
                 holdHullFrame.Should().Be(space);
                 break;
             default:
@@ -317,7 +317,8 @@ public sealed class GrowthTests
 
         HandOffs(faults).Should().ContainSingle().Which.To.Should().Be(hangar);
         faults.Jolt.CapacityOf(hangar).Should().Be(16);
-        faults.Jolt.TryGetBodyFrame(flyer, out FrameHandle bodyFrame).Should().BeTrue("the body survives the hand-off");
+        faults.Jolt.BodyFrameOf(flyer).Should().NotBeNull("the body survives the hand-off");
+        FrameHandle bodyFrame = faults.Jolt.BodyFrameOf(flyer)!.Value;
         bodyFrame.Should().Be(hangar);
         world.GetFrame(flyer).Should().Be(hangar);
         world.VelocityInOwnFrame(flyer).X.Should().BeApproximately(-60, 0.01f, "the body flies on at the same speed");
@@ -480,7 +481,7 @@ public sealed class GrowthTests
 
         world.Destroy(stationOwner).Should().BeTrue();
 
-        faults.Jolt.TryGetBodyFrame(ship.Entity, out FrameHandle hullFrame).Should().BeTrue();
+        FrameHandle hullFrame = faults.Jolt.BodyFrameOf(ship.Entity)!.Value;
         hullFrame.Should().Be(space);
         world.Frames.Parent(ship).Should().Be(space);
         faults.Jolt.HasInterior(ship.Entity).Should().BeTrue();

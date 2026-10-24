@@ -23,8 +23,11 @@ internal sealed class FreeList
     /// <summary>The number of separate free ranges. A test hook for fragmentation.</summary>
     public int FreeRangeCount => free.Count;
 
-    /// <summary>Takes <paramref name="size"/> bytes at an offset that is a multiple of <paramref name="alignment"/>.</summary>
-    public bool TryAllocate(ulong size, ulong alignment, out ulong offset)
+    /// <summary>
+    /// Takes <paramref name="size"/> bytes at an offset that is a multiple of <paramref name="alignment"/> and returns the
+    /// offset. Null when no free range is large enough.
+    /// </summary>
+    public ulong? Allocate(ulong size, ulong alignment)
     {
         ArgumentOutOfRangeException.ThrowIfZero(size);
         if (alignment == 0 || (alignment & (alignment - 1)) != 0)
@@ -60,15 +63,13 @@ internal sealed class FreeList
             }
 
             FreeBytes -= size;
-            offset = aligned;
-            return true;
+            return aligned;
         }
 
-        offset = 0;
-        return false;
+        return null;
     }
 
-    /// <summary>Returns a range that <see cref="TryAllocate"/> handed out.</summary>
+    /// <summary>Returns a range that <see cref="Allocate"/> handed out.</summary>
     public void Free(ulong offset, ulong size)
     {
         if (size == 0 || offset + size > Capacity)
