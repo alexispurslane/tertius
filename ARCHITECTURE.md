@@ -210,7 +210,7 @@ public struct Event
 
 A payload is an `unmanaged` struct that implements `IEventPayload` and is at most 48 bytes. `EventType<T>.Id` gives each payload type a dense integer the first time the type is used. The engine supports 512 event types. `EventMask` is a 512-bit set of event types.
 
-`Target` is a custom C# 15 union with three cases: `Entity`, `Topic` and `Broadcast`. It implements `HasValue` and `TryGetValue`, so pattern matching never boxes.
+`Target` is a union with three cases: `Entity`, `Topic` and `Broadcast`, whose members the union generator writes (see "Unions"). Its `HasValue` and `TryGetValue` let pattern matching run without boxing. It is 16 bytes: the entity's index and generation and the topic's id and generation share three 4-byte slots, beside the kind byte.
 
 ### Delivery
 
