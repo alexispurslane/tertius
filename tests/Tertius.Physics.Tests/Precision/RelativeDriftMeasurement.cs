@@ -31,8 +31,10 @@ public class RelativeDriftMeasurement
 
         public override Entity[] Spawn(World world, FrameHandle space, Double3 start, Double3 common) =>
         [
-            SpawnBox(world: world, space: space, position: start - Double3.UnitX * HalfSeparation, velocity: common - Double3.UnitX * HalfRelativeSpeed),
-            SpawnBox(world: world, space: space, position: start + Double3.UnitX * HalfSeparation, velocity: common + Double3.UnitX * HalfRelativeSpeed)
+            SpawnBox(world: world, space: space, position: start - Double3.UnitX * HalfSeparation,
+                velocity: common - Double3.UnitX * HalfRelativeSpeed),
+            SpawnBox(world: world, space: space, position: start + Double3.UnitX * HalfSeparation,
+                velocity: common + Double3.UnitX * HalfRelativeSpeed)
         ];
 
         private static Entity SpawnBox(World world, FrameHandle space, Double3 position, Double3 velocity) =>

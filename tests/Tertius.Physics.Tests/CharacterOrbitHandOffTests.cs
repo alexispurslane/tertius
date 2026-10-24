@@ -88,7 +88,8 @@ public class CharacterOrbitHandOffTests
             Frame = sun,
             AsFrame = new(FrameBounds.Sphere(9.25e8f), GravityField.Point(EarthMu))
         }.OnKeplerOrbit(world, KeplerOrbit.Circular(1.496e11))));
-        var hull = new BodyDesc(Shape: new BoxShapeDesc(new(10, 4, 30)), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0,
+        var hull = new BodyDesc(Shape: new BoxShapeDesc(new(10, 4, 30)), Mass: 1e5f, LinearDamping: 0,
+            AngularDamping: 0,
             InteriorShape: new SphereShapeDesc(1));
         var cabin = new BoundingBox(new(-9.5f, -3.5f, -29.5f), new(9.5f, 3.5f, 29.5f));
         Entity shipOwner = world.Spawn(new()

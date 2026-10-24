@@ -49,7 +49,8 @@ public sealed class TestWorld : IDisposable
         bool debugChecks = true,
         Action<WorldOptions>? configure = null)
     {
-        World = Create(root: out FrameHandle root, maxDop: maxDegreeOfParallelism, physics: physics, chunkSize: chunkSize, debugChecks: debugChecks, configure: configure);
+        World = Create(root: out FrameHandle root, maxDop: maxDegreeOfParallelism, physics: physics,
+            chunkSize: chunkSize, debugChecks: debugChecks, configure: configure);
         Root = root;
     }
 
@@ -69,11 +70,12 @@ public sealed class TestWorld : IDisposable
         Action<WorldOptions>? configure = null)
     {
         faults = new(new(new() { WorkerThreads = 2 }));
-        return new(physics: faults, maxDegreeOfParallelism: maxDegreeOfParallelism, chunkSize: chunkSize, debugChecks: debugChecks, configure: options =>
-        {
-            options.DisposePhysics = true;
-            configure?.Invoke(options);
-        });
+        return new(physics: faults, maxDegreeOfParallelism: maxDegreeOfParallelism, chunkSize: chunkSize,
+            debugChecks: debugChecks, configure: options =>
+            {
+                options.DisposePhysics = true;
+                configure?.Invoke(options);
+            });
     }
 
     /// <summary>Spawns an entity with these components at the origin of <see cref="Root"/>. Outside a tick it is live at once.</summary>
@@ -186,7 +188,8 @@ internal static class TableSupport
     public static Entity SpawnLive(this EntityTable table, FrameHandle frame = default, double x = 0)
     {
         Entity entity = table.Reserve();
-        table.Activate(entity: entity, row: new() { Frame = frame, PhysicsHome = frame, Pose = TestWorld.At(x) }, render: new(), components: [], wants: [],
+        table.Activate(entity: entity, row: new() { Frame = frame, PhysicsHome = frame, Pose = TestWorld.At(x) },
+            render: new(), components: [], wants: [],
             body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
         return entity;
     }

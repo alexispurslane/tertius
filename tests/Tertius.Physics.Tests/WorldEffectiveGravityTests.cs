@@ -19,7 +19,9 @@ public class WorldEffectiveGravityTests
     private static readonly FrameSpin StationSpin = new(Tilt: DQuaternion.Identity, Rate: StationRate);
     private static readonly FrameSpec Station = new(FrameBounds.Sphere(150));
     private static readonly Double3 Rim = new(100, 0, 0);
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
+
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
+        Mass: 70);
 
     private static FrameHandle Space(World world) => world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
 

@@ -39,7 +39,8 @@ public sealed class SpinUp(double angularAcceleration, double startTime) : IComp
     /// <paramref name="place"/>: the rotation and the angular velocity there, and the mean angular acceleration over the step.
     /// </summary>
     public MotionSample SampleAt(Double3 place, double stepEnd, double step) =>
-        new(Pose: new(place, RotationAt(stepEnd)), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: AngularVelocityAt(stepEnd),
+        new(Pose: new(place, RotationAt(stepEnd)), ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
+            Acceleration: Double3.Zero, AngularVelocity: AngularVelocityAt(stepEnd),
             AngularAcceleration: (AngularVelocityAt(stepEnd) - AngularVelocityAt(stepEnd - step)) / step);
 
     private double Since(double time) => Math.Max(0, time - startTime);

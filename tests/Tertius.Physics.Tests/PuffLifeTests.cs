@@ -59,7 +59,8 @@ public class PuffLifeTests
         using World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         var pilot = new SelfPilot();
-        PuffTesting.SpawnEmitter(world: world, frame: space, place: Double3.Zero, emitter: PuffTesting.Jet(PuffTesting.Hot), pilot);
+        PuffTesting.SpawnEmitter(world: world, frame: space, place: Double3.Zero,
+            emitter: PuffTesting.Jet(PuffTesting.Hot), pilot);
         Tick(world, 3);
         Count(world).Should().Be(3);
 
@@ -89,7 +90,8 @@ public class PuffLifeTests
         Count(world).Should().Be(1, "its first step is the step of the next tick");
 
         // An emitter spawned between ticks is live before the next step, so it makes that step's puffs.
-        PuffTesting.SpawnEmitter(world: world, frame: space, place: Double3.Zero, emitter: PuffTesting.Jet(PuffTesting.Hot));
+        PuffTesting.SpawnEmitter(world: world, frame: space, place: Double3.Zero,
+            emitter: PuffTesting.Jet(PuffTesting.Hot));
         world.Tick();
         Count(world).Should().Be(3);
     }
@@ -136,7 +138,8 @@ public class PuffLifeTests
     /// <summary>A ship whose hull Jolt hands into the bubble of a carrier in the step of tick 20, with an emitter at rest in the ship.</summary>
     private static (FrameHandle Carrier, FrameHandle Ship) ShipFlyingIntoCarrier(World world, FrameHandle space)
     {
-        FrameHandle carrier = world.GetOwnedFrame(SpawnFrameOwner(world: world, parent: space, place: new(1000, 0, 0), radius: 500));
+        FrameHandle carrier =
+            world.GetOwnedFrame(SpawnFrameOwner(world: world, parent: space, place: new(1000, 0, 0), radius: 500));
         Scenes.Approach approach = Scenes.ApproachToBubble(world: world, into: carrier, tick: 20, ballRadius: 5);
         FrameHandle ship = world.GetOwnedFrame(world.Spawn(new()
         {
@@ -146,7 +149,8 @@ public class PuffLifeTests
             Body = new(Shape: new SphereShapeDesc(5), Layer: BodyLayer.FrameHull, LinearDamping: 0, AngularDamping: 0),
             AsFrame = new(FrameBounds.Sphere(10))
         }));
-        PuffTesting.SpawnEmitter(world: world, frame: ship, place: new(1, 0, 0), emitter: PuffTesting.Jet(PuffTesting.Hot, speed: 2));
+        PuffTesting.SpawnEmitter(world: world, frame: ship, place: new(1, 0, 0),
+            emitter: PuffTesting.Jet(PuffTesting.Hot, speed: 2));
         return (carrier, ship);
     }
 
@@ -176,8 +180,10 @@ public class PuffLifeTests
         using World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         FrameHandle dock = world.GetOwnedFrame(SpawnFrameOwner(world: world, parent: space, place: new(-50, 0, 0)));
-        FrameHandle ship = world.GetOwnedFrame(SpawnFrameOwner(world: world, parent: space, place: new(-40, 0, 0), radius: 10));
-        PuffTesting.SpawnEmitter(world: world, frame: ship, place: new(1, 0, 0), emitter: PuffTesting.Jet(PuffTesting.Hot, speed: 2));
+        FrameHandle ship =
+            world.GetOwnedFrame(SpawnFrameOwner(world: world, parent: space, place: new(-40, 0, 0), radius: 10));
+        PuffTesting.SpawnEmitter(world: world, frame: ship, place: new(1, 0, 0),
+            emitter: PuffTesting.Jet(PuffTesting.Hot, speed: 2));
         Tick(world, 3);
         Puff before = PuffTesting.Rows(world, ship)[0];
 
@@ -205,7 +211,8 @@ public class PuffLifeTests
                 MediumField.Planet(radius: 0, surfaceDensity: 1.225f, scaleHeight: 8500, drag: 2))
         }));
         Entity hull = PuffTesting.Hull(world: world, space: air, place: new(0, 150, 0), velocity: new(0, 100, 0));
-        Entity jet = PuffTesting.AttachEmitter(world: world, parent: hull, offset: new(0, -6, 0), emitter: PuffTesting.Jet(PuffTesting.Hot));
+        Entity jet = PuffTesting.AttachEmitter(world: world, parent: hull, offset: new(0, -6, 0),
+            emitter: PuffTesting.Jet(PuffTesting.Hot));
 
         Tick(world, 150);
 
@@ -228,7 +235,8 @@ public class PuffLifeTests
     {
         using World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        FrameHandle outer = world.GetOwnedFrame(SpawnFrameOwner(world: world, parent: space, place: new(10, 0, 0), radius: 1000));
+        FrameHandle outer =
+            world.GetOwnedFrame(SpawnFrameOwner(world: world, parent: space, place: new(10, 0, 0), radius: 1000));
         // The dying frame moves and turns in the frame that survives it.
         Entity owner = world.Spawn(new()
         {
@@ -240,7 +248,8 @@ public class PuffLifeTests
             AsFrame = new(FrameBounds.Sphere(30))
         });
         FrameHandle dying = world.GetOwnedFrame(owner);
-        PuffTesting.SpawnEmitter(world: world, frame: dying, place: new(2, 0, 1), emitter: PuffTesting.Jet(PuffTesting.Hot, speed: 3));
+        PuffTesting.SpawnEmitter(world: world, frame: dying, place: new(2, 0, 1),
+            emitter: PuffTesting.Jet(PuffTesting.Hot, speed: 3));
         Tick(world, 20);
         Puff puff = PuffTesting.Rows(world, dying)[5];
         // A small ball at the puff's place, with the puff's chord as its velocity, which the World rehomes with its row. It
@@ -274,7 +283,8 @@ public class PuffLifeTests
         var pilot = new SelfPilot();
         Entity hull = PuffTesting.Hull(world: world, space: space, velocity: new(7500, 0, 0), components: pilot);
         FrameHandle fast = world.GetOwnedFrame(hull);
-        PuffTesting.SpawnEmitter(world: world, frame: fast, place: new(1, 2, 3), emitter: PuffTesting.Jet(PuffTesting.Hot));
+        PuffTesting.SpawnEmitter(world: world, frame: fast, place: new(1, 2, 3),
+            emitter: PuffTesting.Jet(PuffTesting.Hot));
         Tick(world, 5);
         Entity beside = world.Spawn(new()
             { Frame = fast, Pose = new(PuffTesting.Rows(world, fast)[0].Place, DQuaternion.Identity) });
@@ -295,8 +305,10 @@ public class PuffLifeTests
         using World world = NewWorld(backend: out _);
         FrameHandle doomed = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         FrameHandle other = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        PuffTesting.SpawnEmitter(world: world, frame: doomed, place: Double3.Zero, emitter: PuffTesting.Jet(PuffTesting.Hot, speed: 1));
-        PuffTesting.SpawnEmitter(world: world, frame: other, place: Double3.Zero, emitter: PuffTesting.Jet(PuffTesting.Cold, speed: 1));
+        PuffTesting.SpawnEmitter(world: world, frame: doomed, place: Double3.Zero,
+            emitter: PuffTesting.Jet(PuffTesting.Hot, speed: 1));
+        PuffTesting.SpawnEmitter(world: world, frame: other, place: Double3.Zero,
+            emitter: PuffTesting.Jet(PuffTesting.Cold, speed: 1));
         Tick(world, 5);
         int hot = PuffTesting.Rows(world, doomed)[0].Look;
 
@@ -317,8 +329,10 @@ public class PuffLifeTests
         using World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         var pilot = new SelfPilot();
-        FrameHandle dying = world.GetOwnedFrame(SpawnFrameOwner(world: world, parent: space, place: new(100, 0, 0), components: pilot));
-        Entity emitter = PuffTesting.SpawnEmitter(world: world, frame: dying, place: new(0, 0, 4), emitter: PuffTesting.Jet(PuffTesting.Hot));
+        FrameHandle dying =
+            world.GetOwnedFrame(SpawnFrameOwner(world: world, parent: space, place: new(100, 0, 0), components: pilot));
+        Entity emitter = PuffTesting.SpawnEmitter(world: world, frame: dying, place: new(0, 0, 4),
+            emitter: PuffTesting.Jet(PuffTesting.Hot));
         Tick(world, 5);
 
         pilot.Once = self => self.Destroy();
@@ -351,7 +365,8 @@ public class PuffLifeTests
             world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), default, MediumField.Uniform(1.225f, 2)));
         Entity owner = SpawnFrameOwner(world: world, parent: space, place: new(50, 0, 0));
         FrameHandle bare = world.GetOwnedFrame(owner);
-        PuffTesting.SpawnEmitter(world: world, frame: bare, place: Double3.Zero, emitter: PuffTesting.Jet(PuffTesting.Hot, speed: 10));
+        PuffTesting.SpawnEmitter(world: world, frame: bare, place: Double3.Zero,
+            emitter: PuffTesting.Jet(PuffTesting.Hot, speed: 10));
         Tick(world, 5);
         PuffTesting.Rows(world, bare).Should().AllSatisfy(row => row.Chord.Should().Be(new Double3(0, 0, -10)),
             "the frame has no medium");
@@ -371,7 +386,8 @@ public class PuffLifeTests
     {
         using World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        PuffTesting.SpawnEmitter(world: world, frame: space, place: Double3.Zero, emitter: PuffTesting.Jet(PuffTesting.Hot, speed: 10));
+        PuffTesting.SpawnEmitter(world: world, frame: space, place: Double3.Zero,
+            emitter: PuffTesting.Jet(PuffTesting.Hot, speed: 10));
         Tick(world, 5);
         Puff before = PuffTesting.Rows(world, space)[0];
         before.Chord.Should().Be(new Double3(0, 0, -10));
@@ -393,7 +409,8 @@ public class PuffLifeTests
         var pilot = new SelfPilot { EveryTick = self => self.Render.Emitter = default };
         PuffLook brief = PuffTesting.Hot with { Life = 5.5f / 60 };
         // The spawn's emitter makes the one puff of step 0. Tick 0 writes the default over it.
-        PuffTesting.SpawnEmitter(world: world, frame: space, place: Double3.Zero, emitter: PuffTesting.Jet(brief), pilot);
+        PuffTesting.SpawnEmitter(world: world, frame: space, place: Double3.Zero, emitter: PuffTesting.Jet(brief),
+            pilot);
 
         Tick(world, 6);
         Count(world).Should().Be(1, "after 5 steps of its life it is 5 steps old, less than its life");
@@ -410,9 +427,11 @@ public class PuffLifeTests
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         FrameHandle a = world.GetOwnedFrame(SpawnFrameOwner(world: world, parent: space, place: new(-100, 0, 0)));
         FrameHandle b = world.GetOwnedFrame(SpawnFrameOwner(world: world, parent: space, place: new(100, 0, 0)));
-        PuffTesting.SpawnEmitter(world: world, frame: a, place: Double3.Zero, emitter: PuffTesting.Jet(PuffTesting.Hot, speed: 1));
+        PuffTesting.SpawnEmitter(world: world, frame: a, place: Double3.Zero,
+            emitter: PuffTesting.Jet(PuffTesting.Hot, speed: 1));
         Tick(world, 3);
-        PuffTesting.SpawnEmitter(world: world, frame: b, place: Double3.Zero, emitter: PuffTesting.Jet(PuffTesting.Hot, speed: 1));
+        PuffTesting.SpawnEmitter(world: world, frame: b, place: Double3.Zero,
+            emitter: PuffTesting.Jet(PuffTesting.Hot, speed: 1));
 
         Tick(world, 3);
 
@@ -429,7 +448,8 @@ public class PuffLifeTests
         using World world = NewWorld(backend: out _, configure: options => options.PuffCapacity = 0);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         Entity emitter =
-            PuffTesting.SpawnEmitter(world: world, frame: space, place: Double3.Zero, emitter: PuffTesting.Jet(PuffTesting.Hot, rate: 45));
+            PuffTesting.SpawnEmitter(world: world, frame: space, place: Double3.Zero,
+                emitter: PuffTesting.Jet(PuffTesting.Hot, rate: 45));
 
         Tick(world, 10);
 
@@ -462,8 +482,10 @@ public class PuffLifeTests
         });
         var thruster = new Thruster(1000) { Acceleration = 2, Direction = Vector3.UnitY };
         Entity hull = PuffTesting.Hull(world: world, space: ground, place: new(30, 3, 0), components: thruster);
-        PuffTesting.AttachEmitter(world: world, parent: hull, offset: new(0, -2, 0), emitter: new(Rate: 120, Speed: 20, Spread: 0.2f, Look: PuffTesting.Hot));
-        PuffTesting.SpawnEmitter(world: world, frame: world.GetOwnedFrame(hull), place: new(0, 1, 0), emitter: new(Rate: 30, Speed: 3, Spread: 1.5f, Look: PuffTesting.Cold));
+        PuffTesting.AttachEmitter(world: world, parent: hull, offset: new(0, -2, 0),
+            emitter: new(Rate: 120, Speed: 20, Spread: 0.2f, Look: PuffTesting.Hot));
+        PuffTesting.SpawnEmitter(world: world, frame: world.GetOwnedFrame(hull), place: new(0, 1, 0),
+            emitter: new(Rate: 30, Speed: 3, Spread: 1.5f, Look: PuffTesting.Cold));
         var changer = new SelfPilot
         {
             EveryTick = self => self.Render.Emitter = new(Rate: 60, Speed: 5, Spread: 0.1f,
@@ -547,8 +569,10 @@ public class PuffLifeTests
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         FrameHandle doomed = world.GetOwnedFrame(SpawnFrameOwner(world: world, parent: space, place: new(100, 0, 0)));
         FrameHandle kept = world.GetOwnedFrame(SpawnFrameOwner(world: world, parent: space, place: new(-100, 0, 0)));
-        PuffTesting.SpawnEmitter(world: world, frame: doomed, place: Double3.Zero, emitter: PuffTesting.Jet(PuffTesting.Hot));
-        PuffTesting.SpawnEmitter(world: world, frame: kept, place: Double3.Zero, emitter: PuffTesting.Jet(PuffTesting.Cold));
+        PuffTesting.SpawnEmitter(world: world, frame: doomed, place: Double3.Zero,
+            emitter: PuffTesting.Jet(PuffTesting.Hot));
+        PuffTesting.SpawnEmitter(world: world, frame: kept, place: Double3.Zero,
+            emitter: PuffTesting.Jet(PuffTesting.Cold));
         Tick(world, 4);
         int hot = PuffTesting.Rows(world, doomed)[0].Look;
         // The bug: the frame dies, and its range stays. The proper destroy path moves the range into the heir first.

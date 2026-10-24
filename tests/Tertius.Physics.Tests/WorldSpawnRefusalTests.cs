@@ -19,8 +19,10 @@ public class WorldSpawnRefusalTests
     private static (BodyDesc Body, string Word) Refused(string why) => why switch
     {
         "no shape" => (new(Shape: null!), "no shape"),
-        "a motion that BodyMotion does not define" => (new(Shape: new SphereShapeDesc(1), Motion: (BodyMotion)9), "BodyMotion"),
-        "a layer that BodyLayer does not define" => (new(Shape: new SphereShapeDesc(1), Layer: (BodyLayer)9), "BodyLayer"),
+        "a motion that BodyMotion does not define" => (new(Shape: new SphereShapeDesc(1), Motion: (BodyMotion)9),
+            "BodyMotion"),
+        "a layer that BodyLayer does not define" => (new(Shape: new SphereShapeDesc(1), Layer: (BodyLayer)9),
+            "BodyLayer"),
         "a box with a negative half extent" => (new(Shape: new BoxShapeDesc(new(1, -1, 1))), "half extents"),
         "a box with a negative convex radius" => (new(Shape: new BoxShapeDesc(new(1), -1)), "convex radius"),
         "a box with a half extent that is not a number" =>
@@ -28,24 +30,29 @@ public class WorldSpawnRefusalTests
         "a sphere without a radius" => (new(Shape: new SphereShapeDesc(0)), "radius"),
         "a capsule with a negative half height" => (new(Shape: new CapsuleShapeDesc(-1, 0.5f)), "half height"),
         "a capsule without a radius" => (new(Shape: new CapsuleShapeDesc(1, 0)), "radius"),
-        "a convex hull with three points" => (new(Shape: new ConvexHullShapeDesc([new(0, 0, 0), new(1, 0, 0), new(0, 1, 0)])),
+        "a convex hull with three points" => (
+            new(Shape: new ConvexHullShapeDesc([new(0, 0, 0), new(1, 0, 0), new(0, 1, 0)])),
             "4 points"),
         "a convex hull with a point that is not a number" => (
             new(Shape: new ConvexHullShapeDesc([.. Tetrahedron[..3], new(0, 0, float.NaN)])), "not finite"),
         "a convex hull with a convex radius that is not a number" => (
             new(Shape: new ConvexHullShapeDesc(Tetrahedron, float.NaN)), "convex radius"),
         "a convex hull whose points all coincide" => (
-            new(Shape: new ConvexHullShapeDesc([new(1, 1, 1), new(1, 1, 1), new(1, 1, 1), new(1, 1, 1)])), "convex hull"),
-        "a mesh without triangles" => (new(Shape: new MeshShapeDesc([new(0, 0, 0)], []), Motion: BodyMotion.Static), "multiple of 3"),
+            new(Shape: new ConvexHullShapeDesc([new(1, 1, 1), new(1, 1, 1), new(1, 1, 1), new(1, 1, 1)])),
+            "convex hull"),
+        "a mesh without triangles" => (new(Shape: new MeshShapeDesc([new(0, 0, 0)], []), Motion: BodyMotion.Static),
+            "multiple of 3"),
         "a mesh whose index count is not a multiple of 3" => (
             new(Shape: new MeshShapeDesc(Triangle.Vertices, [0, 2]), Motion: BodyMotion.Static), "multiple of 3"),
         "a mesh with an index outside its vertices" => (
             new(Shape: new MeshShapeDesc(Triangle.Vertices, [0, 2, 3]), Motion: BodyMotion.Static), "outside"),
         "a mesh with a vertex that is not a number" => (
-            new(Shape: new MeshShapeDesc([new(0, 0, 0), new(1, 0, 0), new(float.NaN, 0, 1)], [0, 2, 1]), Motion: BodyMotion.Static),
+            new(Shape: new MeshShapeDesc([new(0, 0, 0), new(1, 0, 0), new(float.NaN, 0, 1)], [0, 2, 1]),
+                Motion: BodyMotion.Static),
             "not finite"),
         "a mesh whose triangles are all degenerate" => (
-            new(Shape: new MeshShapeDesc([new(0, 0, 0), new(1, 0, 0), new(2, 0, 0)], [0, 1, 2]), Motion: BodyMotion.Static), "mesh"),
+            new(Shape: new MeshShapeDesc([new(0, 0, 0), new(1, 0, 0), new(2, 0, 0)], [0, 1, 2]),
+                Motion: BodyMotion.Static), "mesh"),
         "a compound without children" => (new(Shape: new CompoundShapeDesc([])), "child"),
         "a compound with a child that is not valid" => (
             new(Shape: new CompoundShapeDesc([
@@ -56,20 +63,25 @@ public class WorldSpawnRefusalTests
         "a dynamic body with a mesh" => (new(Shape: Triangle), "mesh"),
         "a kinematic body with a compound that holds a mesh" => (
             new(Shape: new CompoundShapeDesc([new(Triangle, Pose.Identity)]), Motion: BodyMotion.Kinematic), "mesh"),
-        "a character whose shape is not a capsule" => (new(Shape: new SphereShapeDesc(0.5f), Motion: BodyMotion.Character, Mass: 70),
+        "a character whose shape is not a capsule" => (
+            new(Shape: new SphereShapeDesc(0.5f), Motion: BodyMotion.Character, Mass: 70),
             "CapsuleShapeDesc"),
         "a dynamic body without mass" => (new(Shape: new SphereShapeDesc(1), Mass: 0), "mass"),
         "a dynamic body whose mass is not a number" => (new(Shape: new SphereShapeDesc(1), Mass: float.NaN), "mass"),
-        "a dynamic body whose mass is infinite" => (new(Shape: new SphereShapeDesc(1), Mass: float.PositiveInfinity), "mass"),
+        "a dynamic body whose mass is infinite" => (new(Shape: new SphereShapeDesc(1), Mass: float.PositiveInfinity),
+            "mass"),
         "a dynamic body whose mass is too small for a float to hold its inverse" => (
             new(Shape: new SphereShapeDesc(1), Mass: 1e-40f), "mass"),
         "a kinematic body whose mass is not a number" => (
             new(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Kinematic, Mass: float.NaN), "mass"),
-        "a static body with a negative mass" => (new(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Static, Mass: -1), "mass"),
+        "a static body with a negative mass" => (
+            new(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Static, Mass: -1), "mass"),
         "a character whose mass is too small for a float to hold its inverse" => (
             new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 1e-40f), "mass"),
-        "a body whose friction is not a number" => (new(Shape: new SphereShapeDesc(1), Friction: float.NaN), "friction"),
-        "a body whose restitution is infinite" => (new(Shape: new SphereShapeDesc(1), Restitution: float.PositiveInfinity),
+        "a body whose friction is not a number" =>
+            (new(Shape: new SphereShapeDesc(1), Friction: float.NaN), "friction"),
+        "a body whose restitution is infinite" => (
+            new(Shape: new SphereShapeDesc(1), Restitution: float.PositiveInfinity),
             "restitution"),
         "a body whose linear damping is not a number" => (new(Shape: new SphereShapeDesc(1), LinearDamping: float.NaN),
             "linear damping"),
@@ -83,7 +95,8 @@ public class WorldSpawnRefusalTests
             new(Shape: new SphereShapeDesc(1)) { CollisionMask = CollisionMask.Empty.InNone(CollisionGroup.Solid) },
             "none-of"),
         "a character that is a sensor" => (
-            new BodyDesc(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70) { IsSensor = true },
+            new BodyDesc(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70)
+                { IsSensor = true },
             "sensor"),
         _ => throw new ArgumentOutOfRangeException(nameof(why), why, null)
     };
@@ -214,7 +227,8 @@ public class WorldSpawnRefusalTests
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         int live = world.Stats.LiveEntities;
 
-        Action spawn = SpawnHull(world, space, new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Dynamic, Mass: 0));
+        Action spawn = SpawnHull(world, space,
+            new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Dynamic, Mass: 0));
 
         spawn.Should().Throw<ArgumentException>().WithMessage("*dynamic*mass*");
         world.Stats.LiveEntities.Should().Be(live, "nothing changed");
@@ -283,7 +297,8 @@ public class WorldSpawnRefusalTests
             case "a position that is not a number": pose = pose with { Position = new(double.NaN, 1, 0) }; break;
             case "an infinite position": pose = pose with { Position = new(0, double.PositiveInfinity, 0) }; break;
             case "the zero rotation of a default pose": pose = default; break;
-            case "a rotation that is not a number": pose = pose with { Rotation = new(X: double.NaN, Y: 0, Z: 0, W: 1) }; break;
+            case "a rotation that is not a number":
+                pose = pose with { Rotation = new(X: double.NaN, Y: 0, Z: 0, W: 1) }; break;
             case "a linear velocity that is not a number":
                 linear = new(float.NaN, 0, 0);
                 word = "linear velocity";

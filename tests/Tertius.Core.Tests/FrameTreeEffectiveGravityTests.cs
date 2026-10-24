@@ -36,11 +36,13 @@ public class FrameTreeEffectiveGravityTests
 
     public FrameTreeEffectiveGravityTests()
     {
-        space = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
+        space = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f));
     }
 
     private FrameHandle Station(GravityField? field = null) =>
-        frames.Create(frameOwner: new(nextOwner++, 1), parent: space, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e5f), field: field ?? StationField);
+        frames.Create(frameOwner: new(nextOwner++, 1), parent: space, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e5f), field: field ?? StationField);
 
     /// <summary>The intents of a step in which the owner of <paramref name="frame"/> wrote <paramref name="move"/>, relative to the frame's parent.</summary>
     private PhysicsIntent[] Intents(FrameHandle frame, MotionIntent move)
@@ -67,7 +69,8 @@ public class FrameTreeEffectiveGravityTests
     /// <see cref="SpinUpRate"/>.</summary>
     private static MotionIntent SpinningUp(double stepEnd) => new(new MotionSample(
         Pose: new(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, 0.5 * SpinUpRate * stepEnd * stepEnd)),
-        ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: new(0, SpinUpRate * stepEnd, 0), AngularAcceleration: new(0, SpinUpRate, 0)));
+        ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero,
+        AngularVelocity: new(0, SpinUpRate * stepEnd, 0), AngularAcceleration: new(0, SpinUpRate, 0)));
 
     private static void ExpectNear(Double3 actual, Double3 expected, double tolerance) =>
         Double3.Distance(actual, expected).Should().BeLessThan(tolerance, $"{actual} is not {expected}");
@@ -169,7 +172,8 @@ public class FrameTreeEffectiveGravityTests
             Entity = new(100, 1), Semantic = semantic, Home = semantic, Position = position, HomePosition = position,
             Velocity = velocity, Radius = 1, Mass = 1
         };
-        frames.UpdateNumericFrames(bodies: [body], dt: 0.1, step: 0.1, changes: new(), applyMoves: moves => home = moves.Single().To);
+        frames.UpdateNumericFrames(bodies: [body], dt: 0.1, step: 0.1, changes: new(),
+            applyMoves: moves => home = moves.Single().To);
         frames.Numeric(home).Should().Be(NumericMode.Falling);
         return home;
     }

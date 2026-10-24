@@ -1337,7 +1337,8 @@ internal sealed partial class EntityTable
         int count = ChunkCountFor(slotCount);
         if (copyParallelism != null && GameplayDirtyCount(count) >= parallelCopyThreshold)
         {
-            Parallel.For(fromInclusive: 0, toExclusive: count, parallelOptions: copyParallelism, body: copyChunk ??= CopyChunk);
+            Parallel.For(fromInclusive: 0, toExclusive: count, parallelOptions: copyParallelism,
+                body: copyChunk ??= CopyChunk);
             for (int c = 0; c < count; c++)
             {
                 ChunkBook book = books[c];

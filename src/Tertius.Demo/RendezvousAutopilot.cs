@@ -254,13 +254,16 @@ public sealed class RendezvousAutopilot(Entity station, RendezvousPlan plan, dou
         Double3 gravityDifference =
             KeplerOrbit.Acceleration(position, planetMu) - KeplerOrbit.Acceleration(center, planetMu);
 
-        if (State is Phasing phasing && InWindow(guidance: phasing.Guidance, position: position, center: center, stationVelocity: stationVelocity, axis: axis))
+        if (State is Phasing phasing && InWindow(guidance: phasing.Guidance, position: position, center: center,
+                stationVelocity: stationVelocity, axis: axis))
             State = new Transfer(phasing.Guidance, time + plan.TransferTime);
         bool coasts = State is Transfer current
-                      && current.Guidance.Coasts(shuttlePosition: position, stationPosition: center, stationVelocity: stationVelocity, axis: axis, arrivalDistance: plan.ArrivalDistance,
+                      && current.Guidance.Coasts(shuttlePosition: position, stationPosition: center,
+                          stationVelocity: stationVelocity, axis: axis, arrivalDistance: plan.ArrivalDistance,
                           timeLeft: current.ArrivalTime - time);
         if (State is Transfer transfer &&
-            BrakeStarts(transfer: transfer, time: time, coasts: coasts, distance: (position - arrivalPoint).Length, speed: relative.Length))
+            BrakeStarts(transfer: transfer, time: time, coasts: coasts, distance: (position - arrivalPoint).Length,
+                speed: relative.Length))
             State = new Brake(ApproachGuidance.ForBrake());
         if (State is Brake && (position - arrivalPoint).Length < BrakeEndDistance && relative.Length < BrakeEndSpeed)
             State = new Glide(ApproachGuidance.ForGlide());
@@ -278,34 +281,44 @@ public sealed class RendezvousAutopilot(Entity station, RendezvousPlan plan, dou
                     break;
                 }
 
-                TransferSteering steering = guidance.Steer(shuttlePosition: position, shuttleVelocity: velocity, stationPosition: center, stationVelocity: stationVelocity, axis: axis,
+                TransferSteering steering = guidance.Steer(shuttlePosition: position, shuttleVelocity: velocity,
+                    stationPosition: center, stationVelocity: stationVelocity, axis: axis,
                     arrivalDistance: plan.ArrivalDistance, timeLeft: arrivalTime - time);
                 if (steering.Burns)
                 {
-                    Face(events: ref events, nose: steering.ToGain, pose: pose, maxTurnRate: AttitudeAutopilot.MaxTurnRate);
+                    Face(events: ref events, nose: steering.ToGain, pose: pose,
+                        maxTurnRate: AttitudeAutopilot.MaxTurnRate);
                     Burn(events: ref events, push: steering.Push, nose: nose, mass: mass);
                 }
                 else
                 {
-                    Face(events: ref events, nose: steering.BrakeDirection, pose: pose, maxTurnRate: plan.WeightlessTurnRate);
+                    Face(events: ref events, nose: steering.BrakeDirection, pose: pose,
+                        maxTurnRate: plan.WeightlessTurnRate);
                     events.Add(new Translation { Force = steering.Push * mass });
                 }
 
                 break;
             case Brake { Guidance: var guidance }:
-                Double3 push = guidance.Push(position: position, velocity: relative, target: arrivalPoint, free: gravityDifference);
+                Double3 push = guidance.Push(position: position, velocity: relative, target: arrivalPoint,
+                    free: gravityDifference);
                 Face(events: ref events, nose: push, pose: pose, maxTurnRate: AttitudeAutopilot.MaxTurnRate);
                 Burn(events: ref events, push: push, nose: nose, mass: mass);
                 break;
             case Glide { Guidance: var guidance }:
                 Face(events: ref events, nose: -axis, pose: pose, maxTurnRate: AttitudeAutopilot.MaxTurnRate);
                 events.Add(new Translation
-                    { Force = guidance.Push(position: position, velocity: relative, target: holdPoint, free: gravityDifference) * mass });
+                {
+                    Force = guidance.Push(position: position, velocity: relative, target: holdPoint,
+                        free: gravityDifference) * mass
+                });
                 break;
             case Hold { Guidance: var guidance }:
                 Face(events: ref events, nose: -axis, pose: pose, maxTurnRate: AttitudeAutopilot.MaxTurnRate);
                 events.Add(new Translation
-                    { Force = guidance.Push(position: position, velocity: relative, target: holdPoint, free: gravityDifference) * mass });
+                {
+                    Force = guidance.Push(position: position, velocity: relative, target: holdPoint,
+                        free: gravityDifference) * mass
+                });
                 break;
             case Standby or Phasing or Halted:
                 break;
@@ -322,7 +335,8 @@ public sealed class RendezvousAutopilot(Entity station, RendezvousPlan plan, dou
     private bool InWindow(TransferGuidance guidance, Double3 position, Double3 center, Double3 stationVelocity,
         Double3 axis)
     {
-        Double3 arrival = guidance.Arrival(stationPosition: center, stationVelocity: stationVelocity, axis: axis, arrivalDistance: plan.ArrivalDistance, time: plan.TransferTime)
+        Double3 arrival = guidance.Arrival(stationPosition: center, stationVelocity: stationVelocity, axis: axis,
+                arrivalDistance: plan.ArrivalDistance, time: plan.TransferTime)
             .Point;
         double angle =
             TransferGuidance.TransferAngle(position, arrival, TransferGuidance.OrbitNormal(center, stationVelocity));

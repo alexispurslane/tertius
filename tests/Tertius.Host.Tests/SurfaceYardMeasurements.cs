@@ -300,8 +300,10 @@ internal sealed class YardMeasurements
         for (long tick = PushedTick + 1; tick <= EndTick; tick++)
             if (Asleep(At(tick - 1, body)) && !Asleep(At(tick, body)))
                 wakes++;
-        return new(Id: YardRecord.Bodies[body], AsleepWhenTheWalkStarts: Asleep(At(SettledTick, body)), AsleepAtTheEnd: Asleep(At(EndTick, body)), LargestMove: largest,
-            OffsetFromWhereStacked: (At(EndTick, body).Pose.Position - StackedPosition(level)).Length, SleepChanges: sleep, WakesAfterThePush: wakes);
+        return new(Id: YardRecord.Bodies[body], AsleepWhenTheWalkStarts: Asleep(At(SettledTick, body)),
+            AsleepAtTheEnd: Asleep(At(EndTick, body)), LargestMove: largest,
+            OffsetFromWhereStacked: (At(EndTick, body).Pose.Position - StackedPosition(level)).Length,
+            SleepChanges: sleep, WakesAfterThePush: wakes);
     }
 
     private PersonWalk MeasureWalk()
@@ -324,7 +326,9 @@ internal sealed class YardMeasurements
 
         double distance = (At(WalkedTick, YardRecord.Person).Pose.Position -
                            At(SettledTick, YardRecord.Person).Pose.Position).Length;
-        return new(TicksChecked: count, TicksNotStanding: [.. notStanding.Take(10)], LargestHeightError: heightError, LargestVerticalSpeed: verticalSpeed, FirstWalkDistance: distance, LargestReportedVerticalSpeed: reportedVerticalSpeed);
+        return new(TicksChecked: count, TicksNotStanding: [.. notStanding.Take(10)], LargestHeightError: heightError,
+            LargestVerticalSpeed: verticalSpeed, FirstWalkDistance: distance,
+            LargestReportedVerticalSpeed: reportedVerticalSpeed);
     }
 
     /// <summary>
@@ -387,7 +391,8 @@ internal sealed class YardMeasurements
         BodySample before = At(tick - 1, YardRecord.TopCrate), after = At(tick, YardRecord.TopCrate);
         Double3 acceleration = (after.Velocity - before.Velocity) / TickSeconds;
         Double3 expected = Field(before.Pose.Position);
-        return new(Tick: tick, Acceleration: acceleration, ExpectedAcceleration: expected, AccelerationError: (acceleration - expected).Length,
+        return new(Tick: tick, Acceleration: acceleration, ExpectedAcceleration: expected,
+            AccelerationError: (acceleration - expected).Length,
             AngularVelocityChange: (after.AngularVelocity - before.AngularVelocity).Length());
     }
 
@@ -437,7 +442,9 @@ internal sealed class YardMeasurements
                 .Max(tick => FloorTop - CornerExtremes(At(tick, YardRecord.TopCrate).Pose).LowestY);
         }
 
-        return new(FreeFlightTicks: flight, MeanAcceleration: mean, PushTick: push, TipTick: tip, LeaveTick: leave, Leaving: leaving, FloorTick: floor, MeasuredFallTime: measured, PredictedFallTime: predicted?.Time, PredictedCenterDrop: predicted?.CenterDrop,
+        return new(FreeFlightTicks: flight, MeanAcceleration: mean, PushTick: push, TipTick: tip, LeaveTick: leave,
+            Leaving: leaving, FloorTick: floor, MeasuredFallTime: measured, PredictedFallTime: predicted?.Time,
+            PredictedCenterDrop: predicted?.CenterDrop,
             LandingTick: landing, DeepestBelowFloor: deepest);
     }
 
@@ -451,7 +458,8 @@ internal sealed class YardMeasurements
             move = Math.Max(move, (At(tick, body).Pose.Position - start).Length);
         }
 
-        return new(Id: YardRecord.Bodies[body], LargestStep: step, LargestMove: move, AsleepAtTheEnd: Asleep(At(EndTick, body)));
+        return new(Id: YardRecord.Bodies[body], LargestStep: step, LargestMove: move,
+            AsleepAtTheEnd: Asleep(At(EndTick, body)));
     }
 
     private BodyHomes MeasureHomes(int body, FrameHandle surface)

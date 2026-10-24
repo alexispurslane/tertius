@@ -549,12 +549,16 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 }
 
                 locks.UnlockRead(read);
-                facts.Add(new(Id: id, UserData: bodies.GetUserData(id), Motion: bodies.GetMotionType(id), Layer: bodies.GetObjectLayer(id),
-                    Shape: bodies.GetShape(id)?.Handle ?? 0, Quality: bodies.GetMotionQuality(id), Position: position.ToDouble3(),
+                facts.Add(new(Id: id, UserData: bodies.GetUserData(id), Motion: bodies.GetMotionType(id),
+                    Layer: bodies.GetObjectLayer(id),
+                    Shape: bodies.GetShape(id)?.Handle ?? 0, Quality: bodies.GetMotionQuality(id),
+                    Position: position.ToDouble3(),
                     Rotation: bodies.GetRotation(id),
-                    LinearVelocity: linear, AngularVelocity: angular, Active: bodies.IsActive(id), Friction: bodies.GetFriction(id), Restitution: bodies.GetRestitution(id),
+                    LinearVelocity: linear, AngularVelocity: angular, Active: bodies.IsActive(id),
+                    Friction: bodies.GetFriction(id), Restitution: bodies.GetRestitution(id),
                     InverseMass: inverseMass,
-                    InverseInertia: inverseInertia, InertiaRotation: inertiaRotation, LinearDamping: linearDamping, AngularDamping: angularDamping, EnhancedInternalEdgeRemoval: edgeRemoval));
+                    InverseInertia: inverseInertia, InertiaRotation: inertiaRotation, LinearDamping: linearDamping,
+                    AngularDamping: angularDamping, EnhancedInternalEdgeRemoval: edgeRemoval));
             }
         }
 
@@ -949,7 +953,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     {
         BodyRecord? hull = OwnerRecord(frame);
         if ((hull is null || hull.Motion == BodyMotion.Kinematic) &&
-            frames.StepRecordInStep(frame: frame, stepIntents: stepIntents.Span, step: stepDt, record: out MotionSample move))
+            frames.StepRecordInStep(frame: frame, stepIntents: stepIntents.Span, step: stepDt,
+                record: out MotionSample move))
         {
             if (hull is { HasPrimary: true } && frames.InFollowingFrame(frame))
             {
@@ -973,8 +978,10 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         // A static hull, or a kinematic hull without a motion intent, that teleported in the step stands at the teleport's
         // pose in its home, the frame's tree parent, at rest.
         return hull is { HasPrimary: true } && hull.TeleportStep == stepIndex
-            ? new(Pose: hull.TeleportPose, ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero)
-            : new(Pose: frames.TreeLocalPose(frame), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
+            ? new(Pose: hull.TeleportPose, ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
+                Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero)
+            : new(Pose: frames.TreeLocalPose(frame), ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
+                Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
     }
 
     /// <summary>
@@ -985,7 +992,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     private FrameMotion MotionOf(FrameHandle frame)
     {
         MotionSample record = StepRecordOf(frame);
-        return new(Pose: record.Pose, Velocity: record.ChordVelocity, AngularVelocity: record.AngularVelocity, Acceleration: record.Acceleration,
+        return new(Pose: record.Pose, Velocity: record.ChordVelocity, AngularVelocity: record.AngularVelocity,
+            Acceleration: record.Acceleration,
             AngularAcceleration: record.AngularAcceleration);
     }
 
@@ -1029,7 +1037,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                                 (Double3)hull.FrameAcceleration.Turning * half;
             }
 
-            record = new(Pose: s.Pose, ChordVelocity: chord, Velocity: velocity, Acceleration: acceleration, AngularVelocity: s.Angular, AngularAcceleration: hull.AngularAcceleration);
+            record = new(Pose: s.Pose, ChordVelocity: chord, Velocity: velocity, Acceleration: acceleration,
+                AngularVelocity: s.Angular, AngularAcceleration: hull.AngularAcceleration);
             return true;
         }
 

@@ -292,7 +292,8 @@ public sealed partial class World
             if (physicsOutputCheck.IsSkipped(entity) || !Entities.OwnedFrame(entity).IsNull)
                 continue;
             Entities.SetBackTransform(entity,
-                PhysicsRow(home: state.Frame, pose: state.Pose, linearVelocity: state.LinearVelocity, angularVelocity: state.AngularVelocity));
+                PhysicsRow(home: state.Frame, pose: state.Pose, linearVelocity: state.LinearVelocity,
+                    angularVelocity: state.AngularVelocity));
             physicsTouched.Add(entity);
         }
 
@@ -302,7 +303,8 @@ public sealed partial class World
             if (physicsOutputCheck.IsSkipped(entity))
                 continue;
             Entities.SetBackTransform(entity,
-                PhysicsRow(home: handOff.To, pose: handOff.Pose, linearVelocity: handOff.LinearVelocity, angularVelocity: handOff.AngularVelocity));
+                PhysicsRow(home: handOff.To, pose: handOff.Pose, linearVelocity: handOff.LinearVelocity,
+                    angularVelocity: handOff.AngularVelocity));
             physicsTouched.Add(entity);
         }
 
@@ -364,7 +366,8 @@ public sealed partial class World
     private void FollowOwners(bool stepFailed)
     {
         var owners = new OwnerFacts(this);
-        Frames.TakeStepRecords(owners: ref owners, stepIntents: Entities.FrontIntents.Span, stepFailed: stepFailed, step: DeltaTime);
+        Frames.TakeStepRecords(owners: ref owners, stepIntents: Entities.FrontIntents.Span, stepFailed: stepFailed,
+            step: DeltaTime);
 
         Profile.Lap(3);
         // An anchor that teleported in the step left the origin of its following frame, for its step plan's place: a hull,
@@ -541,7 +544,8 @@ public sealed partial class World
     /// </summary>
     private void SkipBrokenPhysicsUpdates()
     {
-        physicsOutputCheck.Run(output: stepOutput, frames: Frames, stepIntents: Entities.FrontIntents.Span, facts: new PhysicsOutputFacts(Entities));
+        physicsOutputCheck.Run(output: stepOutput, frames: Frames, stepIntents: Entities.FrontIntents.Span,
+            facts: new PhysicsOutputFacts(Entities));
         foreach (PhysicsOutputFault fault in physicsOutputCheck.Faults)
         {
             // Only a bug in the backend produces a broken output.
@@ -578,8 +582,10 @@ public sealed partial class World
     {
         if (physicsOutputCheck.IsSkipped(contact.A) || physicsOutputCheck.IsSkipped(contact.B))
             return;
-        AddCollision(recipient: contact.A, other: contact.B, contactFrame: contact.Frame, point: contact.Point, normal: contact.Normal, impulse: contact.Impulse);
-        AddCollision(recipient: contact.B, other: contact.A, contactFrame: contact.Frame, point: contact.Point, normal: -contact.Normal, impulse: contact.Impulse);
+        AddCollision(recipient: contact.A, other: contact.B, contactFrame: contact.Frame, point: contact.Point,
+            normal: contact.Normal, impulse: contact.Impulse);
+        AddCollision(recipient: contact.B, other: contact.A, contactFrame: contact.Frame, point: contact.Point,
+            normal: -contact.Normal, impulse: contact.Impulse);
     }
 
     private void AddCollision(Entity recipient, Entity other, FrameHandle contactFrame, Double3 point, Vector3 normal,
@@ -609,8 +615,10 @@ public sealed partial class World
     {
         if (physicsOutputCheck.IsSkipped(ended.A) || physicsOutputCheck.IsSkipped(ended.B))
             return;
-        router.AddEngineEvent(Event.Create(target: new(ended.A), sender: Entity.Null, payload: new CollisionEnded { Other = ended.B }));
-        router.AddEngineEvent(Event.Create(target: new(ended.B), sender: Entity.Null, payload: new CollisionEnded { Other = ended.A }));
+        router.AddEngineEvent(Event.Create(target: new(ended.A), sender: Entity.Null,
+            payload: new CollisionEnded { Other = ended.B }));
+        router.AddEngineEvent(Event.Create(target: new(ended.B), sender: Entity.Null,
+            payload: new CollisionEnded { Other = ended.A }));
     }
 
     /// <summary>Applies the subscribe and unsubscribe requests of the chunks, in chunk order, for entities that are still live.</summary>

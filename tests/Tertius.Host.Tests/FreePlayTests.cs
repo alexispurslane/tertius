@@ -448,7 +448,8 @@ public sealed class FreePlayTests : IDisposable
         var output = new StringWriter();
         var error = new StringWriter();
 
-        int code = WindowHost.ReportRecord(record: record, freePlay: freePlay, code: ScriptCommand.Ok, output: output, error: error);
+        int code = WindowHost.ReportRecord(record: record, freePlay: freePlay, code: ScriptCommand.Ok, output: output,
+            error: error);
 
         code.Should().Be(ScriptCommand.Ok);
         output.ToString().Should().Be(RecordPath + Environment.NewLine);
@@ -464,7 +465,8 @@ public sealed class FreePlayTests : IDisposable
         var output = new StringWriter();
         var error = new StringWriter();
 
-        int code = WindowHost.ReportRecord(record: record, freePlay: freePlay, code: ScriptCommand.Ok, output: output, error: error);
+        int code = WindowHost.ReportRecord(record: record, freePlay: freePlay, code: ScriptCommand.Ok, output: output,
+            error: error);
 
         code.Should().Be(ScriptCommand.FileError);
         error.ToString().Should().Contain("Cannot write the record").And.Contain("taken");
@@ -479,7 +481,8 @@ public sealed class FreePlayTests : IDisposable
         (RecordTo record, FreePlay freePlay) = PlayThreeTicks(Path.Combine(taken, "record.json"));
         var error = new StringWriter();
 
-        int code = WindowHost.ReportRecord(record: record, freePlay: freePlay, code: ScriptCommand.InternalError, output: new StringWriter(), error: error);
+        int code = WindowHost.ReportRecord(record: record, freePlay: freePlay, code: ScriptCommand.InternalError,
+            output: new StringWriter(), error: error);
 
         code.Should().Be(ScriptCommand.InternalError);
         error.ToString().Should().Contain("Cannot write the record");

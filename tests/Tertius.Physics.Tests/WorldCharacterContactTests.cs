@@ -12,7 +12,8 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public class WorldCharacterContactTests
 {
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
+        Mass: 70);
 
     /// <summary>A heavy box, which the character cannot push: friction holds 0.5 · 500 kg · g, and a character pushes with 100 N.</summary>
     private static readonly BodyDesc HeavyBox = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 500);
@@ -34,7 +35,8 @@ public class WorldCharacterContactTests
             world.Spawn(KinematicDrift.Drifting(
                 new()
                 {
-                    Frame = ground, Pose = At(-40, 20), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Kinematic)
+                    Frame = ground, Pose = At(-40, 20),
+                    Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Kinematic)
                 },
                 world, new(0, 0, 0.1)));
         var boxLog = new CollisionLog();

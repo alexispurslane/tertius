@@ -45,7 +45,8 @@ public class MessagingTopicTests
         Topic second = Named("second");
         var inbox = new Recorder();
         t.World.Spawn(new() { Frame = t.Root, Components = [inbox], Subscriptions = [first, second] });
-        t.SpawnWith(SendOnce.Of(target: first, payload: new Ping { Value = 1 }), SendOnce.Of(target: second, payload: new Ping { Value = 2 }),
+        t.SpawnWith(SendOnce.Of(target: first, payload: new Ping { Value = 1 }),
+            SendOnce.Of(target: second, payload: new Ping { Value = 2 }),
             SendOnce.Of(target: first, payload: new Ping { Value = 3 }));
 
         t.Run(2);

@@ -306,12 +306,15 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
                 double euler = Double3.Cross((spin - lastSpin) / world.DeltaTime, seat).Length;
                 lastSpin = spin;
                 Double3[] hull = [.. corners.Select(pose.TransformPoint)];
-                Log.Add(new(Time: world.Time, State: autopilot.State, Added: recorder.TicksWithEvents > before, Frame: world.GetFrame(shuttle),
+                Log.Add(new(Time: world.Time, State: autopilot.State, Added: recorder.TicksWithEvents > before,
+                    Frame: world.GetFrame(shuttle),
                     CabinParent: world.Frames.Parent(cabin),
-                    Motion: world.Frames.HullMotion(cabin), Pose: pose, Velocity: world.VelocityIn(shuttle, StationFrame),
+                    Motion: world.Frames.HullMotion(cabin), Pose: pose,
+                    Velocity: world.VelocityIn(shuttle, StationFrame),
                     AngularVelocity: world.AngularVelocityIn(shuttle, StationFrame),
                     SeatEuler: euler, SeatGravity: world.Frames.FeltGravity(cabin, Shuttle.SeatStand),
-                    HullMinY: hull.Min(c => c.Y), HullMaxY: hull.Max(c => c.Y), HullMaxAbsX: hull.Max(c => Math.Abs(c.X)),
+                    HullMinY: hull.Min(c => c.Y), HullMaxY: hull.Max(c => c.Y),
+                    HullMaxAbsX: hull.Max(c => Math.Abs(c.X)),
                     HullMaxAbsZ: hull.Max(c => Math.Abs(c.Z))));
                 if (autopilot.State.Value is Docked)
                     docked++;
@@ -384,7 +387,8 @@ public sealed class DockingAutopilotTests(DockingAutopilotTests.DockingFlight fl
             World world, IComponent? watcher = null)
         {
             FrameHandle earth = RendezvousAutopilotTests.Earth(world);
-            Entity station = DemoStation.Spawn(world: world, parent: earth, scene: new(), resources: RenderResources.None);
+            Entity station =
+                DemoStation.Spawn(world: world, parent: earth, scene: new(), resources: RenderResources.None);
             (Double3 center, Double3 velocity, Double3 axis) =
                 RendezvousAutopilotTests.StationNow(world, station, earth);
             Double3 hold = center + axis * DemoStation.HoldPoint.Y;

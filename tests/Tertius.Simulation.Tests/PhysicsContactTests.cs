@@ -176,7 +176,8 @@ public class PhysicsContactTests
     {
         using var scene = new Scene();
         scene.Faults.EditOutput = output =>
-            output.Contacts.Add(new(A: scene.First, B: scene.Second, Frame: FrameHandle.Null, Point: new(1, 2, 3), Normal: Vector3.UnitX, Impulse: 5));
+            output.Contacts.Add(new(A: scene.First, B: scene.Second, Frame: FrameHandle.Null, Point: new(1, 2, 3),
+                Normal: Vector3.UnitX, Impulse: 5));
 
         Action tick = scene.Test.World.Tick;
 
@@ -190,7 +191,8 @@ public class PhysicsContactTests
         FrameHandle gone = scene.Test.SpawnStaticFrame(TestWorld.At(0, 0, 5000), radius: 10);
         scene.Test.World.Destroy(gone.Entity);
         scene.Faults.EditOutput = output =>
-            output.Contacts.Add(new(A: scene.First, B: scene.Second, Frame: gone, Point: new(1, 2, 3), Normal: Vector3.UnitX, Impulse: 5));
+            output.Contacts.Add(new(A: scene.First, B: scene.Second, Frame: gone, Point: new(1, 2, 3),
+                Normal: Vector3.UnitX, Impulse: 5));
 
         Action tick = scene.Test.World.Tick;
 
@@ -205,7 +207,8 @@ public class PhysicsContactTests
             { Frame = scene.Test.Root, Pose = TestWorld.At(0, 50), Body = WorldTesting.Ball() });
         scene.Test.World.Destroy(gone);
         scene.Faults.EditOutput = output =>
-            output.Contacts.Add(new(A: gone, B: scene.Second, Frame: scene.Test.Root, Point: new(1, 2, 3), Normal: Vector3.UnitX, Impulse: 5));
+            output.Contacts.Add(new(A: gone, B: scene.Second, Frame: scene.Test.Root, Point: new(1, 2, 3),
+                Normal: Vector3.UnitX, Impulse: 5));
 
         Action tick = scene.Test.World.Tick;
 
@@ -218,7 +221,8 @@ public class PhysicsContactTests
         using var scene = new Scene();
         Entity bodiless = scene.Test.SpawnAt(new(3, 0, 0));
         scene.Faults.EditOutput = output =>
-            output.Contacts.Add(new(A: scene.First, B: bodiless, Frame: scene.Test.Root, Point: new(1, 2, 3), Normal: Vector3.UnitX, Impulse: 5));
+            output.Contacts.Add(new(A: scene.First, B: bodiless, Frame: scene.Test.Root, Point: new(1, 2, 3),
+                Normal: Vector3.UnitX, Impulse: 5));
 
         Action tick = scene.Test.World.Tick;
 
@@ -230,7 +234,8 @@ public class PhysicsContactTests
     {
         using var scene = new Scene();
         scene.Faults.EditOutput = output =>
-            output.Contacts.Add(new(A: scene.First, B: scene.First, Frame: scene.Test.Root, Point: new(1, 2, 3), Normal: Vector3.UnitX, Impulse: 5));
+            output.Contacts.Add(new(A: scene.First, B: scene.First, Frame: scene.Test.Root, Point: new(1, 2, 3),
+                Normal: Vector3.UnitX, Impulse: 5));
 
         Action tick = scene.Test.World.Tick;
 

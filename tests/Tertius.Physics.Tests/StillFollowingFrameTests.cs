@@ -244,7 +244,8 @@ public class StillFollowingFrameTests
         Entity crate = world.Spawn(new()
         {
             Frame = world.GetOwnedFrame(owner), Pose = At(0, 15), LinearVelocity = new(0, 2, 0),
-            Body = new(Shape: new BoxShapeDesc(new(0.25f)), Mass: 2, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(0.25f)), Mass: 2, Restitution: 0, LinearDamping: 0,
+                AngularDamping: 0),
             AsFrame = ship ? new FrameSpec(FrameBounds.Sphere(0.1f)) : null
         });
         return (world, space, owner, crate);

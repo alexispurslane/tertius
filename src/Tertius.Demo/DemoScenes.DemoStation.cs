@@ -284,7 +284,8 @@ public static partial class DemoScenes
         public static ShapeDesc HullShape()
         {
             var wheel = (CompoundShapeDesc)RevolvedSolid
-                .Ring(innerRadius: CeilingRadius, outerRadius: FloorRadius + FloorThickness, halfWidth: HalfWidth, segments: Segments).Shape();
+                .Ring(innerRadius: CeilingRadius, outerRadius: FloorRadius + FloorThickness, halfWidth: HalfWidth,
+                    segments: Segments).Shape();
             return new CompoundShapeDesc([
                 .. wheel.Children,
                 .. Enumerable.Range(0, 4).Select(quarter => Box(Turned(SpokeSolid, quarter), Pose.Identity)),
@@ -390,7 +391,8 @@ public static partial class DemoScenes
         {
             KeplerOrbit orbit = Orbit;
             (Double3 place, Double3 velocity) = orbit.StateAt(world.Time, EarthMu);
-            RevolvedSolid floor = RevolvedSolid.Ring(innerRadius: FloorRadius, outerRadius: FloorRadius + FloorThickness, halfWidth: HalfWidth, segments: Segments);
+            RevolvedSolid floor = RevolvedSolid.Ring(innerRadius: FloorRadius,
+                outerRadius: FloorRadius + FloorThickness, halfWidth: HalfWidth, segments: Segments);
             MeshData floorMesh = floor.Mesh();
             ShapeDesc hull = HullShape();
             Entity station = world.Spawn(new()
@@ -403,7 +405,8 @@ public static partial class DemoScenes
                 Components = [new KeplerMotion { Orbit = orbit }],
                 Body = new(Shape: hull, Motion: BodyMotion.Kinematic, Mass: Mass, InteriorShape: MeshShape(floorMesh)),
                 AsFrame = new(FrameBounds.Sphere(Bubble), Medium: Air.Filling(BayAir)),
-                Render = Part(resources: resources, mesh: floorMesh, color: new(x: 0.62f, y: 0.63f, z: 0.66f, w: 1), boundingRadius: floor.Shape().BoundingRadius())
+                Render = Part(resources: resources, mesh: floorMesh, color: new(x: 0.62f, y: 0.63f, z: 0.66f, w: 1),
+                    boundingRadius: floor.Shape().BoundingRadius())
             });
             scene.Add("station", station);
             FrameHandle frame = world.GetOwnedFrame(station);
@@ -416,14 +419,17 @@ public static partial class DemoScenes
                     Frame = frame,
                     Pose = pose,
                     Body = new(Shape: bandShape, Motion: BodyMotion.Static),
-                    Render = Part(resources: resources, mesh: band.Mesh(), color: new(x: 0.7f, y: 0.71f, z: 0.74f, w: 1), boundingRadius: bandShape.BoundingRadius())
+                    Render = Part(resources: resources, mesh: band.Mesh(),
+                        color: new(x: 0.7f, y: 0.71f, z: 0.74f, w: 1), boundingRadius: bandShape.BoundingRadius())
                 }));
             }
 
-            RevolvedSolid wall = RevolvedSolid.Ring(innerRadius: CeilingRadius + CeilingThickness, outerRadius: FloorRadius,
+            RevolvedSolid wall = RevolvedSolid.Ring(innerRadius: CeilingRadius + CeilingThickness,
+                outerRadius: FloorRadius,
                 halfWidth: SideWallThickness / 2, segments: Segments);
             ShapeDesc wallShape = wall.Shape();
-            RenderData wallRender = Part(resources: resources, mesh: wall.Mesh(), color: new(x: 0.55f, y: 0.57f, z: 0.62f, w: 1),
+            RenderData wallRender = Part(resources: resources, mesh: wall.Mesh(),
+                color: new(x: 0.55f, y: 0.57f, z: 0.62f, w: 1),
                 boundingRadius: wallShape.BoundingRadius());
             foreach ((string id, double y) in new[]
                      {
@@ -448,7 +454,8 @@ public static partial class DemoScenes
                 Frame = frame,
                 Pose = DPose.Identity,
                 Body = new(Shape: spokeShape, Motion: BodyMotion.Static),
-                Render = Part(resources: resources, mesh: spokeMesh.Build(), color: new(x: 0.5f, y: 0.52f, z: 0.58f, w: 1), boundingRadius: spokeShape.BoundingRadius())
+                Render = Part(resources: resources, mesh: spokeMesh.Build(),
+                    color: new(x: 0.5f, y: 0.52f, z: 0.58f, w: 1), boundingRadius: spokeShape.BoundingRadius())
             }));
 
             Vector3 hubOwn = HubOwnHalf;
@@ -475,7 +482,8 @@ public static partial class DemoScenes
             // station's axes. Three stand near the slot, 8 m in from it, and one in the middle of the far end wall.
             Vector3 bay = HubHalf - new Vector3(HubWall);
             MaterialId lampMaterial =
-                resources.CreateMaterial(new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), SpecularIntensity: 0, Emissive: new(6, 5.4f, 4.5f)));
+                resources.CreateMaterial(new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), SpecularIntensity: 0,
+                    Emissive: new(6, 5.4f, 4.5f)));
             (Vector3 Wall, Vector3 Inward)[] lamps =
             [
                 (new(bay.X, bay.Y - 8, 0), -Vector3.UnitX),
@@ -496,7 +504,8 @@ public static partial class DemoScenes
                         Material = lampMaterial,
                         BoundingRadius = 0.85f,
                         Flags = RenderFlags.Visible | RenderFlags.NoImpostor,
-                        Light = new PointLightData(Offset: new(inward * 0.3f, Quaternion.Identity), Color: new(1, 0.9f, 0.75f),
+                        Light = new PointLightData(Offset: new(inward * 0.3f, Quaternion.Identity),
+                            Color: new(1, 0.9f, 0.75f),
                             Intensity: 100, Range: 20)
                     }
                 });

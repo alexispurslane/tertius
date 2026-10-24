@@ -60,7 +60,8 @@ public partial class NumericFrameStickOutGhostTests
         NumericMode rockMode = world.Frames.Numeric(world.PhysicsHomeOf(rock));
         Tick(world, 130);
         world.Errors.Should().BeEmpty();
-        return new(RockNews: rockLog.NewsOf(crate), RockPosition: world.PoseIn(rock, space).Position, RockVelocity: world.VelocityIn(rock, space),
+        return new(RockNews: rockLog.NewsOf(crate), RockPosition: world.PoseIn(rock, space).Position,
+            RockVelocity: world.VelocityIn(rock, space),
             CrateFrame: world.GetFrame(crate),
             RockHome: world.PhysicsHomeOf(rock), RockMode: rockMode);
     }
@@ -140,7 +141,8 @@ public partial class NumericFrameStickOutGhostTests
         world.PhysicsHomeOf(rock).Should().Be(world.PhysicsHomeOf(owner),
             "the rock may touch the ghost of the crate, which lives in the home of the station's hull");
         world.Errors.Should().BeEmpty();
-        return new(RockNews: rockLog.NewsOf(crate), RockPosition: world.PoseIn(rock, space).Position, RockVelocity: world.VelocityIn(rock, space),
+        return new(RockNews: rockLog.NewsOf(crate), RockPosition: world.PoseIn(rock, space).Position,
+            RockVelocity: world.VelocityIn(rock, space),
             CrateFrame: world.GetFrame(crate),
             RockHome: world.PhysicsHomeOf(rock), RockMode: rockMode);
     }
@@ -215,7 +217,8 @@ public partial class NumericFrameStickOutGhostTests
         world.GetFrame(rock).Should().Be(space, "the rock never touches the bubble");
         world.GetFrame(crate).Should().Be(ship, "the crate stays in the ship");
         world.Errors.Should().BeEmpty();
-        return new(RockNews: rockLog.NewsOf(crate), RockPosition: world.PoseIn(rock, space).Position, RockVelocity: world.VelocityIn(rock, space),
+        return new(RockNews: rockLog.NewsOf(crate), RockPosition: world.PoseIn(rock, space).Position,
+            RockVelocity: world.VelocityIn(rock, space),
             CrateFrame: world.GetFrame(crate),
             RockHome: world.PhysicsHomeOf(rock), RockMode: world.Frames.Numeric(world.PhysicsHomeOf(rock)));
     }

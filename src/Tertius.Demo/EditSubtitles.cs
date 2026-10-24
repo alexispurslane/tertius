@@ -56,11 +56,12 @@ public static class EditSubtitles
                 string rate = ReadoutText.Rate(stretch.Film.Every);
                 Event(text: text, from: frame, to: frame + 1, style: "Clock",
                     body: Boxed([ReadoutText.Clock(row.Tick)]) + "\\N" +
-                    Colored(stretch.Film.Every == 1 ? Gray : Amber, Boxed([rate])));
+                          Colored(stretch.Film.Every == 1 ? Gray : Amber, Boxed([rate])));
             }
 
             if (stretch.Film.Outlines)
-                Event(text: text, from: stretch.From, to: stretch.From + stretch.Count, style: "Legend", body: LegendText());
+                Event(text: text, from: stretch.From, to: stretch.From + stretch.Count, style: "Legend",
+                    body: LegendText());
         }
 
         foreach (EditPart part in cuts.Parts)
@@ -77,7 +78,8 @@ public static class EditSubtitles
             ReadoutRow first = rows[stretches[start].Film.FirstFrame];
             for (int index = start; index <= end; index++)
             for (int frame = stretches[index].From; frame < stretches[index].From + stretches[index].Count; frame++)
-                Event(text: text, from: frame, to: frame + 1, style: "Panel", body: Boxed(span.Panel(first, rows[frame])));
+                Event(text: text, from: frame, to: frame + 1, style: "Panel",
+                    body: Boxed(span.Panel(first, rows[frame])));
         }
 
         return text.ToString();

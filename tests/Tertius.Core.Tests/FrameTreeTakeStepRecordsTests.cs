@@ -28,7 +28,8 @@ public class FrameTreeTakeStepRecordsTests
 
     public FrameTreeTakeStepRecordsTests()
     {
-        ground = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f),
+        ground = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f),
             field: GravityField.Uniform(new(0, -G, 0)));
     }
 
@@ -39,7 +40,8 @@ public class FrameTreeTakeStepRecordsTests
     private FrameHandle Child(uint id, BodyMotion? motion)
     {
         FrameHandle frame =
-            frames.Create(frameOwner: new(id, 1), parent: ground, localPose: new(X(100), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(10));
+            frames.Create(frameOwner: new(id, 1), parent: ground, localPose: new(X(100), DQuaternion.Identity),
+                frameBounds: FrameBounds.Sphere(10));
         frames.SetHullMotion(frame, motion);
         frames.SetTreeLinearVelocity(frame, new(0, 0, 3));
         frames.SetAngularVelocity(frame, new(0, 0.2f, 0));
@@ -89,7 +91,8 @@ public class FrameTreeTakeStepRecordsTests
         FrameHandle ship = Child(2, BodyMotion.Kinematic);
         MotionSample released = Sample with { Pose = new(X(104), DQuaternion.Identity), Velocity = X(240) };
 
-        frames.TakeStepRecords(stepIntents: Moving(ship, new(Sample)), step: Step, owners: new StepOwners().WithHullRecord(ship, released));
+        frames.TakeStepRecords(stepIntents: Moving(ship, new(Sample)), step: Step,
+            owners: new StepOwners().WithHullRecord(ship, released));
 
         State(ship).Should().Be((released.Pose, released.Velocity, released.AngularVelocity.ToVector3(),
             FollowKind.Rails));
@@ -213,7 +216,8 @@ public class FrameTreeTakeStepRecordsTests
         frames.Numeric(pod).Should().Be(NumericMode.Falling);
         (DPose Pose, Double3 Velocity) before = (frames.TreeLocalPose(pod), frames.TreeLinearVelocity(pod));
 
-        frames.TakeStepRecords(stepIntents: [], step: Step, owners: new StepOwners().WithHullRecord(hull, Sample with { Pose = DPose.Identity }));
+        frames.TakeStepRecords(stepIntents: [], step: Step,
+            owners: new StepOwners().WithHullRecord(hull, Sample with { Pose = DPose.Identity }));
 
         (frames.TreeLocalPose(pod), frames.TreeLinearVelocity(pod)).Should()
             .Be(before, "the engine moves a numeric frame by its own rules");

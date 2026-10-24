@@ -81,7 +81,8 @@ public readonly struct Snapshot
         ref readonly BodyCollision collision = ref entities.FrontCollision(entity);
         facts = new(Motion: MotionOf(body, entities.OwnedFrame(entity)), Mass: body.Mass, ShapeKind: body.Shape.Kind,
             BoundingRadius: entities.BodyBoundingRadius(entity),
-            CenterOfMass: entities.BodyCenterOfMass(entity), CollisionGroups: collision.Groups, CollisionMask: collision.Mask, IsSensor: body.IsSensor);
+            CenterOfMass: entities.BodyCenterOfMass(entity), CollisionGroups: collision.Groups,
+            CollisionMask: collision.Mask, IsSensor: body.IsSensor);
         return true;
     }
 
@@ -139,7 +140,8 @@ public readonly struct Snapshot
             return false;
         }
 
-        velocity = FrameReads.VelocityIn(frames: World.Frames, entity: entity, row: World.Entities.FrontRow(entity), to: frame);
+        velocity = FrameReads.VelocityIn(frames: World.Frames, entity: entity, row: World.Entities.FrontRow(entity),
+            to: frame);
         return true;
     }
 
@@ -154,7 +156,8 @@ public readonly struct Snapshot
             return false;
         }
 
-        angularVelocity = FrameReads.AngularVelocityIn(frames: World.Frames, entity: entity, row: World.Entities.FrontRow(entity), to: frame);
+        angularVelocity = FrameReads.AngularVelocityIn(frames: World.Frames, entity: entity,
+            row: World.Entities.FrontRow(entity), to: frame);
         return true;
     }
 

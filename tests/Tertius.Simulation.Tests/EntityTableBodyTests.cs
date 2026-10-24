@@ -41,7 +41,8 @@ public class EntityTableBodyTests
         Entity reserved = table.Reserve();
 
         BodyEntities(table).Should().BeEmpty();
-        table.Activate(entity: reserved, row: new(), render: new(), components: [], wants: [], body: Ball, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
+        table.Activate(entity: reserved, row: new(), render: new(), components: [], wants: [], body: Ball,
+            bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
         BodyEntities(table).Should().Equal(reserved);
     }
 

@@ -34,8 +34,10 @@ internal sealed unsafe class ShadowMap : IDisposable
                 $"The shadow map size must be {MinimumSize} to {device.Properties.Limits.MaxImageDimension2D}.");
         Size = size;
         Format = ChooseFormat(device);
-        Image = GpuImage.Create(device: device, allocator: allocator, extent: new((uint)size, (uint)size), format: Format,
-            usage: ImageUsageFlags.DepthStencilAttachmentBit | ImageUsageFlags.SampledBit | ImageUsageFlags.TransferSrcBit, mipLevels: 1,
+        Image = GpuImage.Create(device: device, allocator: allocator, extent: new((uint)size, (uint)size),
+            format: Format,
+            usage: ImageUsageFlags.DepthStencilAttachmentBit | ImageUsageFlags.SampledBit |
+                   ImageUsageFlags.TransferSrcBit, mipLevels: 1,
             name: "sun shadow cascades", arrayLayers: ShadowCascades.Count);
         try
         {

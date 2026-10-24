@@ -21,7 +21,8 @@ public class ThrustDriftMeasurement
         private const float ThrustForce = 105;
         private const float Mass = 70;
 
-        private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
+        private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f),
+            Motion: BodyMotion.Character,
             Mass: Mass);
 
         public override string Measurement => "thrust-drift";

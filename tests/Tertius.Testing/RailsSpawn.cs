@@ -46,7 +46,8 @@ public static class RailsSpawn
     /// of the next tick, at the place of <paramref name="desc"/>.
     /// </summary>
     public static SpawnDesc Spinning(this SpawnDesc desc, World world, FrameSpin spin, bool firstMove = false) =>
-        With(desc: desc, pose: new(desc.Pose.Position, spin.RotationAt(world.Time)), velocity: Double3.Zero, angularVelocity: spin.AngularVelocity.ToVector3(),
+        With(desc: desc, pose: new(desc.Pose.Position, spin.RotationAt(world.Time)), velocity: Double3.Zero,
+            angularVelocity: spin.AngularVelocity.ToVector3(),
             firstMove: firstMove
                 ? new MotionIntent(spin.Sample(desc.Pose.Position, FirstStepEnd(world), world.DeltaTime))
                 : default,

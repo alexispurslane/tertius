@@ -24,7 +24,7 @@ public sealed class Codebase(IReadOnlyList<SourceFile> files)
         ]);
 
     private static FileSystemEnumerable<string> PathsUnder(string folder) =>
-        new(folder, (ref entry) => entry.ToFullPath(), new EnumerationOptions { RecurseSubdirectories = true })
+        new(folder, (ref entry) => entry.ToFullPath(), new() { RecurseSubdirectories = true })
         {
             ShouldRecursePredicate = (ref entry) => entry.FileName is not ("obj" or "bin"),
             ShouldIncludePredicate = (ref entry) =>

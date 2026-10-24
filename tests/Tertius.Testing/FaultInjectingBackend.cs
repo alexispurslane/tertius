@@ -179,18 +179,21 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
             entities[i] = edited[i].Entity;
         }
 
-        return new(tick: context.Tick, deltaTime: context.DeltaTime, time: context.Time, frames: context.Frames, intents: table, intentEntities: entities);
+        return new(tick: context.Tick, deltaTime: context.DeltaTime, time: context.Time, frames: context.Frames,
+            intents: table, intentEntities: entities);
     }
 
     public void CastRay(FrameHandle frame, Double3 origin, Double3 direction, double start, double end,
         IPhysicsQueryFilter filter,
         RayCastKind kind, List<RayCastHit> hits) =>
-        Jolt.CastRay(frame: frame, origin: origin, direction: direction, start: start, end: end, filter: filter, kind: kind, hits: hits);
+        Jolt.CastRay(frame: frame, origin: origin, direction: direction, start: start, end: end, filter: filter,
+            kind: kind, hits: hits);
 
     public void CastShape(FrameHandle frame, in QueryShape shape, in DPose start, Double3 direction,
         double startDistance, double endDistance,
         IPhysicsQueryFilter filter, List<ShapeCastHit> hits) =>
-        Jolt.CastShape(frame: frame, shape: shape, start: start, direction: direction, startDistance: startDistance, endDistance: endDistance, filter: filter, hits: hits);
+        Jolt.CastShape(frame: frame, shape: shape, start: start, direction: direction, startDistance: startDistance,
+            endDistance: endDistance, filter: filter, hits: hits);
 
     public void Overlap(FrameHandle frame, in QueryShape shape, in DPose pose, IPhysicsQueryFilter filter,
         List<Entity> entities) =>

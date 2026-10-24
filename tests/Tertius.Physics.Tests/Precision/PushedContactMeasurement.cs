@@ -66,7 +66,8 @@ public class PushedContactMeasurement
 
     private static readonly PairScene CharacterPushesCrate = new(
         Name: "character-pushes-crate",
-        Pusher: new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70, LinearDamping: 0, AngularDamping: 0),
+        Pusher: new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70, LinearDamping: 0,
+            AngularDamping: 0),
         Pushed: new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 20, LinearDamping: 0, AngularDamping: 0),
         Thrust: 105, PusherHalfDepth: 0.3, PushedHalfDepth: 0.5, StartGap: 0.02);
 
@@ -122,9 +123,11 @@ public class PushedContactMeasurement
         {
             Double3 start = direction * (-speed * RunTicks / 60.0 / 2);
             RunResult moving = Run(scene: scene, direction: direction, speed: speed, start: start);
-            lines.AddRange(moving.Rows(scene: scene.Name, direction: directionName, run: "moving", speed: speed, commonSpeed: speed));
+            lines.AddRange(moving.Rows(scene: scene.Name, direction: directionName, run: "moving", speed: speed,
+                commonSpeed: speed));
             RunResult control = Run(scene: scene, direction: direction, speed: 0, start: moving.FarthestPoint);
-            lines.AddRange(control.Rows(scene: scene.Name, direction: directionName, run: "distance-control", speed: speed, commonSpeed: 0));
+            lines.AddRange(control.Rows(scene: scene.Name, direction: directionName, run: "distance-control",
+                speed: speed, commonSpeed: 0));
         }
 
         File.WriteAllLines(path, lines);

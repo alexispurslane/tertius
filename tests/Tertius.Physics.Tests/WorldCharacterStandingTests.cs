@@ -10,7 +10,8 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public class WorldCharacterStandingTests
 {
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
+        Mass: 70);
 
     /// <summary>The height of the center of a person who stands on a floor whose top is at y = 0, plus 2 cm.</summary>
     private const double StandingHeight = 0.92;
@@ -313,7 +314,8 @@ public class WorldCharacterStandingTests
         world.Snapshot.IsStanding(person).Should().BeTrue();
         faults.EditNextOutput = output =>
         {
-            output.Contacts.Add(new(A: person, B: person, Frame: ground, Point: Double3.Zero, Normal: Vector3.UnitY, Impulse: 0));
+            output.Contacts.Add(new(A: person, B: person, Frame: ground, Point: Double3.Zero, Normal: Vector3.UnitY,
+                Impulse: 0));
             for (int i = 0; i < output.Characters.Count; i++)
                 if (output.Characters[i].Entity == person)
                     output.Characters[i] = new(person, Standing: false);

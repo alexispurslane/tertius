@@ -9,6 +9,7 @@ namespace Tertius.Rendering;
 internal sealed unsafe class GpuImage : IDisposable
 {
     private readonly VulkanDevice device;
+
     // The allocator of the image's memory, or null for an image that the GpuImage does not own, such as a swapchain image.
     private readonly DeviceAllocator? allocator;
     private readonly MemoryAllocation memory;
@@ -70,20 +71,25 @@ internal sealed unsafe class GpuImage : IDisposable
             SharingMode = SharingMode.Exclusive,
             InitialLayout = ImageLayout.Undefined
         };
-        device.Vk.CreateImage(device: device.Device, pCreateInfo: &info, pAllocator: null, pImage: out Image image).Check("vkCreateImage");
+        device.Vk.CreateImage(device: device.Device, pCreateInfo: &info, pAllocator: null, pImage: out Image image)
+            .Check("vkCreateImage");
         MemoryAllocation memory = default;
         bool allocated = false;
         try
         {
             device.Vk.GetImageMemoryRequirements(device.Device, image, out MemoryRequirements requirements);
-            memory = allocator.Allocate(requirements: requirements, usage: MemoryUsage.GpuOnly, linear: false, name: name);
+            memory = allocator.Allocate(requirements: requirements, usage: MemoryUsage.GpuOnly, linear: false,
+                name: name);
             allocated = true;
-            device.Vk.BindImageMemory(device: device.Device, image: image, memory: memory.Memory, memoryOffset: memory.Offset).Check("vkBindImageMemory");
+            device.Vk.BindImageMemory(device: device.Device, image: image, memory: memory.Memory,
+                memoryOffset: memory.Offset).Check("vkBindImageMemory");
             ImageViewType viewType = arrayLayers > 1 || arrayView ? ImageViewType.Type2DArray : ImageViewType.Type2D;
-            ImageView view = CreateView(device: device, image: image, format: format, aspect: aspect, type: viewType, baseMip: 0, mipLevels: mipLevels, baseLayer: 0, layers: arrayLayers);
+            ImageView view = CreateView(device: device, image: image, format: format, aspect: aspect, type: viewType,
+                baseMip: 0, mipLevels: mipLevels, baseLayer: 0, layers: arrayLayers);
             device.SetName(ObjectType.Image, image.Handle, name);
             device.SetName(ObjectType.ImageView, view.Handle, name);
-            return new(device: device, allocator: allocator, memory: memory, image: image, view: view, format: format, extent: extent, mipLevels: mipLevels, arrayLayers: arrayLayers, aspect: aspect,
+            return new(device: device, allocator: allocator, memory: memory, image: image, view: view, format: format,
+                extent: extent, mipLevels: mipLevels, arrayLayers: arrayLayers, aspect: aspect,
                 name: name);
         }
         catch
@@ -98,9 +104,11 @@ internal sealed unsafe class GpuImage : IDisposable
     /// <summary>Wraps an image owned by someone else, such as a swapchain image. Only the view is destroyed on dispose.</summary>
     public static GpuImage Wrap(VulkanDevice device, Image image, Format format, Extent2D extent, string name)
     {
-        ImageView view = CreateView(device: device, image: image, format: format, aspect: ImageAspectFlags.ColorBit, type: ImageViewType.Type2D, baseMip: 0, mipLevels: 1, baseLayer: 0, layers: 1);
+        ImageView view = CreateView(device: device, image: image, format: format, aspect: ImageAspectFlags.ColorBit,
+            type: ImageViewType.Type2D, baseMip: 0, mipLevels: 1, baseLayer: 0, layers: 1);
         device.SetName(ObjectType.ImageView, view.Handle, name);
-        return new(device: device, allocator: null, memory: default, image: image, view: view, format: format, extent: extent, mipLevels: 1, arrayLayers: 1, aspect: ImageAspectFlags.ColorBit, name: name);
+        return new(device: device, allocator: null, memory: default, image: image, view: view, format: format,
+            extent: extent, mipLevels: 1, arrayLayers: 1, aspect: ImageAspectFlags.ColorBit, name: name);
     }
 
     /// <summary>
@@ -111,7 +119,8 @@ internal sealed unsafe class GpuImage : IDisposable
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(layer, ArrayLayers);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(mipLevel, MipLevels);
-        ImageView view = CreateView(device: device, image: Handle, format: Format, aspect: Aspect, type: ImageViewType.Type2D, baseMip: mipLevel, mipLevels: 1, baseLayer: layer, layers: 1);
+        ImageView view = CreateView(device: device, image: Handle, format: Format, aspect: Aspect,
+            type: ImageViewType.Type2D, baseMip: mipLevel, mipLevels: 1, baseLayer: layer, layers: 1);
         device.SetName(ObjectType.ImageView, view.Handle, $"{Name} layer {layer}");
         return view;
     }
@@ -130,9 +139,11 @@ internal sealed unsafe class GpuImage : IDisposable
             Image = image,
             ViewType = type,
             Format = format,
-            SubresourceRange = new(aspectMask: aspect, baseMipLevel: baseMip, levelCount: mipLevels, baseArrayLayer: baseLayer, layerCount: layers)
+            SubresourceRange = new(aspectMask: aspect, baseMipLevel: baseMip, levelCount: mipLevels,
+                baseArrayLayer: baseLayer, layerCount: layers)
         };
-        device.Vk.CreateImageView(device: device.Device, pCreateInfo: &info, pAllocator: null, pView: out ImageView view).Check("vkCreateImageView");
+        device.Vk.CreateImageView(device: device.Device, pCreateInfo: &info, pAllocator: null,
+            pView: out ImageView view).Check("vkCreateImageView");
         return view;
     }
 

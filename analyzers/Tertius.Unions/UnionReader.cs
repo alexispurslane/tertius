@@ -108,7 +108,8 @@ internal static class UnionReader
         string hint = string.Join(".", new[] { space }.Concat(containers.Select(c => c.Split(' ').Last()))
             .Append(union.Name).Where(part => part != null)) + ".g.cs";
         return new(Namespace: space, Containers: new([.. containers]), Name: union.Name, IsReadOnly: union.IsReadOnly,
-            Cases: renumbered, Slots: new(ordered), HasZeroCase: zeroCase != null, HintName: hint.Replace('<', '{').Replace('>', '}'));
+            Cases: renumbered, Slots: new(ordered), HasZeroCase: zeroCase != null,
+            HintName: hint.Replace('<', '{').Replace('>', '}'));
     }
 
     /// <summary>

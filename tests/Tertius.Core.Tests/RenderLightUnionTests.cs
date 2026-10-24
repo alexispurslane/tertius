@@ -23,7 +23,8 @@ public class RenderLightUnionTests
     /// <summary>A point light and a spot light that share every field that both cases have, so that only the case tells them apart.</summary>
     private static readonly PointRenderLight Lamp = new(Position: Here, Color: Warm, Intensity: 4, Range: 10);
 
-    private static readonly SpotRenderLight Beam = new(Position: Here, Direction: Down, Color: Warm, Intensity: 4, Range: 10, InnerConeAngle: 0.3f, OuterConeAngle: 0.5f);
+    private static readonly SpotRenderLight Beam = new(Position: Here, Direction: Down, Color: Warm, Intensity: 4,
+        Range: 10, InnerConeAngle: 0.3f, OuterConeAngle: 0.5f);
 
     /// <summary>The names of the cases whose <c>TryGetValue</c> answers true for the light.</summary>
     private static string[] CasesHeld(RenderLight light)
@@ -103,7 +104,8 @@ public class RenderLightUnionTests
     {
         // Every field of each case differs from every other field, so a swap of two fields shows.
         var point = new PointRenderLight(Position: new(1, 2, 3), Color: new(4, 5, 6), Intensity: 7, Range: 8);
-        var spot = new SpotRenderLight(Position: new(1, 2, 3), Direction: new(4, 5, 6), Color: new(7, 8, 9), Intensity: 10, Range: 11, InnerConeAngle: 12, OuterConeAngle: 13);
+        var spot = new SpotRenderLight(Position: new(1, 2, 3), Direction: new(4, 5, 6), Color: new(7, 8, 9),
+            Intensity: 10, Range: 11, InnerConeAngle: 12, OuterConeAngle: 13);
 
         new RenderLight(point).TryGetValue(out PointRenderLight heldPoint).Should().BeTrue();
         heldPoint.Position.Should().Be(new Vector3(1, 2, 3));
@@ -186,11 +188,17 @@ public class RenderLightUnionTests
     {
         RenderLight[] first =
         [
-            new PointRenderLight(Position: Here, Color: Warm, Intensity: 4, Range: 10), new SpotRenderLight(Position: Here, Direction: Down, Color: Warm, Intensity: 4, Range: 10, InnerConeAngle: 0.3f, OuterConeAngle: 0.5f), default
+            new PointRenderLight(Position: Here, Color: Warm, Intensity: 4, Range: 10),
+            new SpotRenderLight(Position: Here, Direction: Down, Color: Warm, Intensity: 4, Range: 10,
+                InnerConeAngle: 0.3f, OuterConeAngle: 0.5f),
+            default
         ];
         RenderLight[] second =
         [
-            new PointRenderLight(Position: Here, Color: Warm, Intensity: 4, Range: 10), new SpotRenderLight(Position: Here, Direction: Down, Color: Warm, Intensity: 4, Range: 10, InnerConeAngle: 0.3f, OuterConeAngle: 0.5f), default
+            new PointRenderLight(Position: Here, Color: Warm, Intensity: 4, Range: 10),
+            new SpotRenderLight(Position: Here, Direction: Down, Color: Warm, Intensity: 4, Range: 10,
+                InnerConeAngle: 0.3f, OuterConeAngle: 0.5f),
+            default
         ];
 
         for (int i = 0; i < first.Length; i++)
@@ -234,7 +242,8 @@ public class RenderLightUnionTests
         // The point light and the spot light share position, color, intensity and range, so only the case can tell them apart.
         RenderLight point = Lamp;
         RenderLight spot = Beam;
-        RenderLight spotWithoutDirectionOrCone = new SpotRenderLight(Position: Here, Direction: default, Color: Warm, Intensity: 4, Range: 10, InnerConeAngle: 0, OuterConeAngle: 0);
+        RenderLight spotWithoutDirectionOrCone = new SpotRenderLight(Position: Here, Direction: default, Color: Warm,
+            Intensity: 4, Range: 10, InnerConeAngle: 0, OuterConeAngle: 0);
 
         (point == spot).Should().BeFalse();
         (point != spot).Should().BeTrue();
@@ -250,9 +259,12 @@ public class RenderLightUnionTests
     {
         RenderLight empty = default;
 
-        new RenderLight(new PointRenderLight(Position: default, Color: default, Intensity: 0, Range: 0)).Should().NotBe(empty);
-        new RenderLight(new SpotRenderLight(Position: default, Direction: default, Color: default, Intensity: 0, Range: 0, InnerConeAngle: 0, OuterConeAngle: 0)).Should().NotBe(empty);
-        (empty != new RenderLight(new PointRenderLight(Position: default, Color: default, Intensity: 0, Range: 0))).Should().BeTrue();
+        new RenderLight(new PointRenderLight(Position: default, Color: default, Intensity: 0, Range: 0)).Should()
+            .NotBe(empty);
+        new RenderLight(new SpotRenderLight(Position: default, Direction: default, Color: default, Intensity: 0,
+            Range: 0, InnerConeAngle: 0, OuterConeAngle: 0)).Should().NotBe(empty);
+        (empty != new RenderLight(new PointRenderLight(Position: default, Color: default, Intensity: 0, Range: 0)))
+            .Should().BeTrue();
     }
 
     [Fact]

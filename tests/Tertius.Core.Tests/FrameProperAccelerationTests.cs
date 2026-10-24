@@ -99,10 +99,12 @@ public class FrameProperAccelerationTests
         var thrust = new Double3(0, 3, 0);
         Double3 end = place + chord * Dt;
         Double3 gravity = Earth.AtPrecise(place);
-        var record = new MotionSample(Pose: new(end, DQuaternion.Identity), ChordVelocity: chord, Velocity: chord, Acceleration: gravity + thrust, AngularVelocity: Double3.Zero,
+        var record = new MotionSample(Pose: new(end, DQuaternion.Identity), ChordVelocity: chord, Velocity: chord,
+            Acceleration: gravity + thrust, AngularVelocity: Double3.Zero,
             AngularAcceleration: Double3.Zero);
 
-        frames.TakeStepRecords(stepIntents: Moving(ship, new PhysicsIntent { Frame = earth, Move = new(record) }), step: Dt);
+        frames.TakeStepRecords(stepIntents: Moving(ship, new PhysicsIntent { Frame = earth, Move = new(record) }),
+            step: Dt);
 
         Vector3 proper = frames.ProperAcceleration(ship);
         proper.X.Should().BeApproximately(0, 1e-9f);
@@ -118,7 +120,8 @@ public class FrameProperAccelerationTests
         FrameHandle ship = Frame(ground);
         frames.SetHullMotion(ship, BodyMotion.Dynamic);
         var jolt = new Vector3(0, 0, 120);
-        var rest = new MotionSample(Pose: DPose.Identity, ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
+        var rest = new MotionSample(Pose: DPose.Identity, ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
+            Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
             AngularAcceleration: Double3.Zero);
 
         frames.TakeStepRecords(stepIntents: [], step: Dt, owners: new StepOwners().WithHullRecord(ship, rest, jolt));
@@ -176,7 +179,8 @@ public class FrameProperAccelerationTests
 
         static MotionIntent SpinningUp(double stepEnd) => new(new MotionSample(
             Pose: new(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, 0.5 * spinUp * stepEnd * stepEnd)),
-            ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: new(0, spinUp * stepEnd, 0), AngularAcceleration: new(0, spinUp, 0)));
+            ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero,
+            AngularVelocity: new(0, spinUp * stepEnd, 0), AngularAcceleration: new(0, spinUp, 0)));
 
         RunStep(Moving(station, SpinningUp(1 * Dt)));
         frames.ProperAcceleration(room).Z.Should().Be(0, "the first step of a new frame assumes a steady turn");
@@ -231,7 +235,8 @@ public class FrameProperAccelerationTests
             Entity = new(1000, 1), Semantic = semantic, Home = semantic, Position = position, HomePosition = position,
             Velocity = velocity, Radius = 1, Mass = 1
         };
-        frames.UpdateNumericFrames(bodies: [body], dt: 0.1, step: 0.1, changes: new(), applyMoves: moves => home = moves.Single().To);
+        frames.UpdateNumericFrames(bodies: [body], dt: 0.1, step: 0.1, changes: new(),
+            applyMoves: moves => home = moves.Single().To);
         frames.IsNumeric(home).Should().BeTrue();
         return home;
     }

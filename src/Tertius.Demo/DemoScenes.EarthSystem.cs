@@ -54,20 +54,22 @@ public static partial class DemoScenes
                 Frame = surface,
                 Pose = new(new(0, PadTop - PadHalf.Y, 0), DQuaternion.Identity),
                 Body = new(Shape: new BoxShapeDesc(PadHalf), Motion: BodyMotion.Static),
-                Render = Drawn(resources: resources, mesh: Primitives.Box(PadHalf), color: new(x: 0.75f, y: 0.74f, z: 0.7f, w: 1), boundingRadius: PadHalf.Length()) with
-                {
-                    Flags = RenderFlags.Visible | RenderFlags.CastsShadow
-                }
+                Render = Drawn(resources: resources, mesh: Primitives.Box(PadHalf),
+                        color: new(x: 0.75f, y: 0.74f, z: 0.7f, w: 1), boundingRadius: PadHalf.Length()) with
+                    {
+                        Flags = RenderFlags.Visible | RenderFlags.CastsShadow
+                    }
             }));
             var mastHalf = new Vector3(0.3f, 5, 0.3f);
             scene.Add("mast", world.Spawn(new()
             {
                 Frame = surface,
                 Pose = new(new(5, PadTop + mastHalf.Y, -5), DQuaternion.Identity),
-                Render = Drawn(resources: resources, mesh: Primitives.Box(mastHalf), color: new(x: 0.8f, y: 0.15f, z: 0.1f, w: 1), boundingRadius: mastHalf.Length()) with
-                {
-                    Flags = RenderFlags.Visible | RenderFlags.CastsShadow
-                }
+                Render = Drawn(resources: resources, mesh: Primitives.Box(mastHalf),
+                        color: new(x: 0.8f, y: 0.15f, z: 0.1f, w: 1), boundingRadius: mastHalf.Length()) with
+                    {
+                        Flags = RenderFlags.Visible | RenderFlags.CastsShadow
+                    }
             }));
 
             // Where the Sun stands from Earth at the world's time, in earth's axes.

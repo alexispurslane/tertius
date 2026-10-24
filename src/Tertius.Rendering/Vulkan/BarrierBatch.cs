@@ -39,14 +39,17 @@ internal sealed unsafe class BarrierBatch
         {
             if ((next.Stages & ~current.Stages) == 0)
                 return;
-            AddImage(image: image, srcStages: current.Stages, srcAccess: AccessFlags2.None, dstStages: next.Stages, dstAccess: next.Access, oldLayout: current.Layout, newLayout: next.Layout, baseMip: 0,
+            AddImage(image: image, srcStages: current.Stages, srcAccess: AccessFlags2.None, dstStages: next.Stages,
+                dstAccess: next.Access, oldLayout: current.Layout, newLayout: next.Layout, baseMip: 0,
                 mipCount: image.MipLevels);
             image.State = new(current.Layout, current.Stages | next.Stages, current.Access | next.Access);
             return;
         }
 
-        AddImage(image: image, srcStages: current.Stages, srcAccess: current.Access & ResourceUses.WriteMask, dstStages: next.Stages, dstAccess: next.Access,
-            oldLayout: discard ? ImageLayout.Undefined : current.Layout, newLayout: next.Layout, baseMip: 0, mipCount: image.MipLevels);
+        AddImage(image: image, srcStages: current.Stages, srcAccess: current.Access & ResourceUses.WriteMask,
+            dstStages: next.Stages, dstAccess: next.Access,
+            oldLayout: discard ? ImageLayout.Undefined : current.Layout, newLayout: next.Layout, baseMip: 0,
+            mipCount: image.MipLevels);
         image.State = next;
     }
 
@@ -59,7 +62,8 @@ internal sealed unsafe class BarrierBatch
         PipelineStageFlags2 srcStages, AccessFlags2 srcAccess, PipelineStageFlags2 dstStages, AccessFlags2 dstAccess,
         uint baseLayer = 0, uint layerCount = 0)
     {
-        AddImage(image: image, srcStages: srcStages, srcAccess: srcAccess, dstStages: dstStages, dstAccess: dstAccess, oldLayout: oldLayout, newLayout: newLayout, baseMip: baseMip, mipCount: mipCount, baseLayer: baseLayer,
+        AddImage(image: image, srcStages: srcStages, srcAccess: srcAccess, dstStages: dstStages, dstAccess: dstAccess,
+            oldLayout: oldLayout, newLayout: newLayout, baseMip: baseMip, mipCount: mipCount, baseLayer: baseLayer,
             layerCount: layerCount);
     }
 
@@ -81,12 +85,14 @@ internal sealed unsafe class BarrierBatch
         {
             if ((next.Stages & ~current.Stages) == 0)
                 return;
-            AddBuffer(buffer: buffer, srcStages: current.Stages, srcAccess: AccessFlags2.None, dstStages: next.Stages, dstAccess: next.Access);
+            AddBuffer(buffer: buffer, srcStages: current.Stages, srcAccess: AccessFlags2.None, dstStages: next.Stages,
+                dstAccess: next.Access);
             buffer.State = new(ImageLayout.Undefined, current.Stages | next.Stages, current.Access | next.Access);
             return;
         }
 
-        AddBuffer(buffer: buffer, srcStages: current.Stages, srcAccess: current.Access & ResourceUses.WriteMask, dstStages: next.Stages, dstAccess: next.Access);
+        AddBuffer(buffer: buffer, srcStages: current.Stages, srcAccess: current.Access & ResourceUses.WriteMask,
+            dstStages: next.Stages, dstAccess: next.Access);
         buffer.State = next;
     }
 
@@ -134,7 +140,8 @@ internal sealed unsafe class BarrierBatch
             DstQueueFamilyIndex = Vk.QueueFamilyIgnored,
             Image = image.Handle,
             // A layer count of 0 means every layer from the base layer on.
-            SubresourceRange = new(aspectMask: image.Aspect, baseMipLevel: baseMip, levelCount: mipCount, baseArrayLayer: baseLayer,
+            SubresourceRange = new(aspectMask: image.Aspect, baseMipLevel: baseMip, levelCount: mipCount,
+                baseArrayLayer: baseLayer,
                 layerCount: layerCount == 0 ? image.ArrayLayers - baseLayer : layerCount)
         };
     }

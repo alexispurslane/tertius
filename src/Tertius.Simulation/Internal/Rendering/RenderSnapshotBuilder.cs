@@ -395,7 +395,8 @@ internal sealed partial class RenderSnapshotBuilder
             bool visible = (render.Flags & RenderFlags.Visible) != 0 && !render.Mesh.IsNone;
             if (!visible && !render.Light.HasValue)
                 continue;
-            if (!TryGetRenderPoses(entity: entity, current: out DPose current, previous: out DPose previous, dense: out int dense, place: out Vector3 place))
+            if (!TryGetRenderPoses(entity: entity, current: out DPose current, previous: out DPose previous,
+                    dense: out int dense, place: out Vector3 place))
                 continue;
 
             if (visible)
@@ -424,7 +425,8 @@ internal sealed partial class RenderSnapshotBuilder
                 {
                     DPose pose = LightPose(current, offset);
                     lights.AddRef() =
-                        new PointRenderLight(Position: (pose.Position - origin).ToVector3(), Color: color, Intensity: intensity, Range: range);
+                        new PointRenderLight(Position: (pose.Position - origin).ToVector3(), Color: color,
+                            Intensity: intensity, Range: range);
                     break;
                 }
                 case SpotLightData(var offset, var color, var intensity, var range, var innerConeAngle, var
@@ -434,7 +436,8 @@ internal sealed partial class RenderSnapshotBuilder
                     lights.AddRef() = new SpotRenderLight(
                         Position: (pose.Position - origin).ToVector3(),
                         Direction: pose.Rotation.Rotate(LightForward).ToVector3(),
-                        Color: color, Intensity: intensity, Range: range, InnerConeAngle: innerConeAngle, OuterConeAngle: outerConeAngle);
+                        Color: color, Intensity: intensity, Range: range, InnerConeAngle: innerConeAngle,
+                        OuterConeAngle: outerConeAngle);
                     break;
                 }
                 case null:

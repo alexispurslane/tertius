@@ -75,7 +75,8 @@ public sealed class CarryTests : IDisposable
             Pose = new(new(0, -0.5, 0), DQuaternion.Identity),
             Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Static)
         });
-        Entity person = SpawnPerson(frame: room, pose: new(new(0, 0.95, 0), DQuaternion.Identity), velocity: Vector3.Zero);
+        Entity person = SpawnPerson(frame: room, pose: new(new(0, 0.95, 0), DQuaternion.Identity),
+            velocity: Vector3.Zero);
         // The person lands on the floor.
         Ticks(30);
         return (room, person);
@@ -91,7 +92,8 @@ public sealed class CarryTests : IDisposable
     private (FrameHandle Space, Entity Person) FloatInSpace(Vector3 eye, CapsuleShapeDesc capsule)
     {
         FrameHandle space = NewSpace();
-        Entity person = SpawnPerson(frame: space, pose: new(Double3.Zero, DQuaternion.Identity), velocity: Vector3.Zero, eye: eye, capsule: capsule);
+        Entity person = SpawnPerson(frame: space, pose: new(Double3.Zero, DQuaternion.Identity), velocity: Vector3.Zero,
+            eye: eye, capsule: capsule);
         Ticks(3);
         return (space, person);
     }
@@ -134,7 +136,8 @@ public sealed class CarryTests : IDisposable
     private (FrameHandle Space, Entity First, Entity Second) FloatTwoInSpace()
     {
         FrameHandle space = NewSpace();
-        Entity first = SpawnPerson(frame: space, pose: At(-1), velocity: Vector3.Zero), second = SpawnPerson(frame: space, pose: At(1), velocity: Vector3.Zero);
+        Entity first = SpawnPerson(frame: space, pose: At(-1), velocity: Vector3.Zero),
+            second = SpawnPerson(frame: space, pose: At(1), velocity: Vector3.Zero);
         Ticks(3);
         return (space, first, second);
     }
@@ -536,7 +539,8 @@ public sealed class CarryTests : IDisposable
 
         var at = (world.Snapshot.PoseInOwnFrame(thrown).Position - world.Snapshot.PoseInOwnFrame(person).Position)
             .ToVector3();
-        ExpectStartsOnTheViewClearOfTheCapsule(at: at, eye: Eye, aim: new(0, MathF.Sin(pitch), -MathF.Cos(pitch)), capsule: Capsule);
+        ExpectStartsOnTheViewClearOfTheCapsule(at: at, eye: Eye, aim: new(0, MathF.Sin(pitch), -MathF.Cos(pitch)),
+            capsule: Capsule);
     }
 
     [Fact]
@@ -651,7 +655,9 @@ public sealed class CarryTests : IDisposable
         // quaternions turn the view a quarter turn about +X, which takes -Z to +Y or -Y, and then a quarter turn about +Y,
         // which leaves that direction where it is. Their components are exact in a float, so the aim is exact too.
         (FrameHandle space, Entity person) =
-            FloatLooking(up ? new(x: 0.5f, y: 0.5f, z: -0.5f, w: 0.5f) : new Quaternion(x: -0.5f, y: 0.5f, z: 0.5f, w: 0.5f));
+            FloatLooking(up
+                ? new(x: 0.5f, y: 0.5f, z: -0.5f, w: 0.5f)
+                : new Quaternion(x: -0.5f, y: 0.5f, z: 0.5f, w: 0.5f));
         Entity crate = SpawnCrate(space, new(0, 0, -1));
         Ticks(1);
         UseCrate(crate, person);
@@ -664,7 +670,8 @@ public sealed class CarryTests : IDisposable
         world.Errors.Should().BeEmpty();
         var at = (world.Snapshot.PoseInOwnFrame(thrown).Position - world.Snapshot.PoseInOwnFrame(person).Position)
             .ToVector3();
-        ExpectStartsOnTheViewClearOfTheCapsule(at: at, eye: Eye, aim: up ? Vector3.UnitY : -Vector3.UnitY, capsule: Capsule);
+        ExpectStartsOnTheViewClearOfTheCapsule(at: at, eye: Eye, aim: up ? Vector3.UnitY : -Vector3.UnitY,
+            capsule: Capsule);
     }
 
     [Fact]

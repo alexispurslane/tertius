@@ -34,8 +34,10 @@ public class PuffSnapshotTests
             AsFrame = new(FrameBounds.Sphere(20))
         });
         FrameHandle ship = world.GetOwnedFrame(hull);
-        PuffTesting.SpawnEmitter(world: world, frame: ship, place: new(0, 0, 6), emitter: new(Rate: 60, Speed: 4, Spread: 0.3f, Look: PuffTesting.Hot));
-        PuffTesting.SpawnEmitter(world: world, frame: space, place: new(-10, 0, 0), emitter: new(Rate: 30, Speed: 2, Spread: 0.5f, Look: PuffTesting.Cold));
+        PuffTesting.SpawnEmitter(world: world, frame: ship, place: new(0, 0, 6),
+            emitter: new(Rate: 60, Speed: 4, Spread: 0.3f, Look: PuffTesting.Hot));
+        PuffTesting.SpawnEmitter(world: world, frame: space, place: new(-10, 0, 0),
+            emitter: new(Rate: 30, Speed: 2, Spread: 0.5f, Look: PuffTesting.Cold));
         Entity camera = world.Spawn(new()
         {
             Frame = space,
@@ -122,8 +124,10 @@ public class PuffSnapshotTests
         });
         var thruster = new Thruster(1000) { Acceleration = 2, Direction = Vector3.UnitY };
         Entity hull = PuffTesting.Hull(world: world, space: ground, place: new(30, 3, 0), components: thruster);
-        PuffTesting.AttachEmitter(world: world, parent: hull, offset: new(0, -2, 0), emitter: new(Rate: 120, Speed: 20, Spread: 0.2f, Look: PuffTesting.Hot));
-        PuffTesting.SpawnEmitter(world: world, frame: world.GetOwnedFrame(hull), place: new(0, 1, 0), emitter: new(Rate: 30, Speed: 3, Spread: 1.5f, Look: PuffTesting.Cold));
+        PuffTesting.AttachEmitter(world: world, parent: hull, offset: new(0, -2, 0),
+            emitter: new(Rate: 120, Speed: 20, Spread: 0.2f, Look: PuffTesting.Hot));
+        PuffTesting.SpawnEmitter(world: world, frame: world.GetOwnedFrame(hull), place: new(0, 1, 0),
+            emitter: new(Rate: 30, Speed: 3, Spread: 1.5f, Look: PuffTesting.Cold));
         var changer = new SelfPilot
         {
             EveryTick = self => self.Render.Emitter = new(Rate: 60, Speed: 5, Spread: 0.1f,

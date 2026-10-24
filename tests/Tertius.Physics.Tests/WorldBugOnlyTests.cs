@@ -29,7 +29,8 @@ public class WorldBugOnlyTests
         world.Tick();
         var stranger = new Entity(999, 1);
         faults.EditNextChanges = changes => changes.BodiesCreated.Insert(0,
-            new(Entity: stranger, Frame: ground, Desc: new(Shape: new SphereShapeDesc(1), Mass: 0), Pose: At(5, 5), LinearVelocity: default, AngularVelocity: default));
+            new(Entity: stranger, Frame: ground, Desc: new(Shape: new SphereShapeDesc(1), Mass: 0), Pose: At(5, 5),
+                LinearVelocity: default, AngularVelocity: default));
         Entity ball = world.Spawn(new()
             { Frame = ground, Pose = At(0, 5), Body = new(Shape: new SphereShapeDesc(0.5f), Mass: 1) });
 
@@ -80,9 +81,13 @@ public class WorldBugOnlyTests
         var asker = new RayOnTick(onTick: 1);
         world.Spawn(new() { Frame = ground, Pose = At(0), Components = [asker] });
         Entity dead = world.Spawn(new()
-            { Frame = ground, Pose = At(10), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static) });
+        {
+            Frame = ground, Pose = At(10), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static)
+        });
         Entity beyond = world.Spawn(new()
-            { Frame = ground, Pose = At(20), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static) });
+        {
+            Frame = ground, Pose = At(20), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static)
+        });
         world.Tick();
         faults.EditNextChanges = changes => changes.BodiesDestroyed.Remove(dead);
         world.Destroy(dead);
@@ -122,7 +127,8 @@ public class WorldBugOnlyTests
         MotionIntent move = write switch
         {
             "end pose" => new(new EndPose(end)),
-            "full sample" => new(new MotionSample(Pose: end, ChordVelocity: new(60, 0, 0), Velocity: new(60, 0, 0), Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
+            "full sample" => new(new MotionSample(Pose: end, ChordVelocity: new(60, 0, 0), Velocity: new(60, 0, 0),
+                Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
                 AngularAcceleration: Double3.Zero)),
             _ => new(new SteerTarget(end))
         };
@@ -167,7 +173,8 @@ public class WorldBugOnlyTests
         {
             Frame = space,
             Pose = At(19),
-            Body = new(Shape: new BoxShapeDesc(new(2.5f)), Motion: BodyMotion.Static, InteriorShape: new SphereShapeDesc(0.1f)),
+            Body = new(Shape: new BoxShapeDesc(new(2.5f)), Motion: BodyMotion.Static,
+                InteriorShape: new SphereShapeDesc(0.1f)),
             AsFrame = new(FrameBounds.Sphere(11))
         });
         world.Tick();
@@ -179,7 +186,8 @@ public class WorldBugOnlyTests
         JoltPhysicsBackend.BodyFacts kept = GhostInDock();
         BodyRecord record = RecordOf(faults.Jolt, shuttle)!;
 
-        Action want = () => WantGhost(backend: faults.Jolt, record: record, frame: dock, pose: new(kept.Position, DQuaternion.Identity), linearVelocity: default,
+        Action want = () => WantGhost(backend: faults.Jolt, record: record, frame: dock,
+            pose: new(kept.Position, DQuaternion.Identity), linearVelocity: default,
             angularVelocity: default, role: BodyLayer.FrameHull);
 
 #if TERTIUS_CONTRACTS
@@ -214,7 +222,8 @@ public class WorldBugOnlyTests
         FrameHandle ground = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), gravity));
         Entity slab = world.Spawn(new()
         {
-            Frame = ground, Pose = At(0, -0.5), Body = new(Shape: new BoxShapeDesc(new(20, 0.5f, 20)), Motion: BodyMotion.Static)
+            Frame = ground, Pose = At(0, -0.5),
+            Body = new(Shape: new BoxShapeDesc(new(20, 0.5f, 20)), Motion: BodyMotion.Static)
         });
         FrameHandle home = world.GetOwnedFrame(world.Spawn(new()
             { Frame = ground, Pose = At(0, 5), AsFrame = new(FrameBounds.Sphere(20), gravity) }));

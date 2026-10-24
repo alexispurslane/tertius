@@ -89,7 +89,8 @@ public static partial class DemoScenes
             for (int i = 0; i < boxes.Length; i++)
                 yield return ($"stack-{i}",
                     new(
-                        Floor.OnFacet(facet: Facet, height: boxes[i].Height * BoxHalf + 0.002 * (boxes[i].Height - 1), y: StackY,
+                        Floor.OnFacet(facet: Facet, height: boxes[i].Height * BoxHalf + 0.002 * (boxes[i].Height - 1),
+                            y: StackY,
                             along: boxes[i].Along), Floor.FacetTurn(Facet)));
         }
 
@@ -98,7 +99,8 @@ public static partial class DemoScenes
 
         /// <summary>Where the box of throw <paramref name="index"/> rests before the person takes it: in front of the stand, on the side of its throw.</summary>
         public static DPose ThrowBoxPose(int index) =>
-            new(Floor.OnFacet(facet: Facet, height: BoxHalf, y: LaneY - 0.8, along: index == 0 ? 0.45 : -0.45), Floor.FacetTurn(Facet));
+            new(Floor.OnFacet(facet: Facet, height: BoxHalf, y: LaneY - 0.8, along: index == 0 ? 0.45 : -0.45),
+                Floor.FacetTurn(Facet));
 
         /// <summary>The unit direction of throw <paramref name="index"/> at the stand: 30 degrees above the floor, spinward for 0 and antispinward for 1.</summary>
         public static Double3 Aim(int index) =>
@@ -111,7 +113,8 @@ public static partial class DemoScenes
         /// </summary>
         public static Waypoint[] Shove(FrameHandle station) =>
         [
-            new(station, Floor.OnFacet(facet: Facet, height: Standing, y: 1)), new(station, Floor.OnFacet(facet: Facet, height: Standing, y: StackY + 0.9))
+            new(station, Floor.OnFacet(facet: Facet, height: Standing, y: 1)),
+            new(station, Floor.OnFacet(facet: Facet, height: Standing, y: StackY + 0.9))
         ];
 
         /// <summary>The walk to the stand, straight back along -Y.</summary>
@@ -148,10 +151,12 @@ public static partial class DemoScenes
 
         /// <summary>The play of the person in <paramref name="station"/>, the station's frame, with the boxes of
         /// <paramref name="scene"/>.</summary>
-        public static BoxPlay Play(SceneInstance scene, FrameHandle station) => new(station: station, shove: Shove(station),
+        public static BoxPlay Play(SceneInstance scene, FrameHandle station) => new(station: station,
+            shove: Shove(station),
             toStand: ToStand(station),
             throws: [new(scene[ThrowBoxId(0)], Aim(0)), new(scene[ThrowBoxId(1)], Aim(1))],
-            walkSpeed: StationExit.WalkSpeed, throwSpeed: ThrowSpeed, body: PersonBody, floor: Floor, rate: SpinStation.Rate);
+            walkSpeed: StationExit.WalkSpeed, throwSpeed: ThrowSpeed, body: PersonBody, floor: Floor,
+            rate: SpinStation.Rate);
 
         /// <summary>The place <paramref name="height"/> above the floor, <paramref name="along"/> meters spinward of the middle of
         /// <see cref="Facet"/> along the floor, at <paramref name="y"/>.</summary>
@@ -185,10 +190,11 @@ public static partial class DemoScenes
                 {
                     Frame = station,
                     Pose = new(mark - Floor.Normal(mark) * plate.X, Floor.FacetTurn(Floor.FacetIndex(mark))),
-                    Render = Drawn(resources: resources, mesh: Primitives.Box(plate), color: colors[i], boundingRadius: plate.Length()) with
-                    {
-                        Flags = RenderFlags.Visible | RenderFlags.NoImpostor
-                    }
+                    Render = Drawn(resources: resources, mesh: Primitives.Box(plate), color: colors[i],
+                            boundingRadius: plate.Length()) with
+                        {
+                            Flags = RenderFlags.Visible | RenderFlags.NoImpostor
+                        }
                 }));
             }
 

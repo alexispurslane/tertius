@@ -129,7 +129,8 @@ public sealed class ShuttleJetsTests
     {
         var jet = new Jet(Id: "jet", Place: new(1, 2, 3), Push: Double3.UnitY, MaxThrust: 1000);
         DQuaternion quarter = DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2);
-        ShouldBeNear(actual: jet.Force(quarter, 0.25f), expected: new(-250, 0, 0), tolerance: 1e-9, what: "the force of a jet turned a quarter about Z");
+        ShouldBeNear(actual: jet.Force(quarter, 0.25f), expected: new(-250, 0, 0), tolerance: 1e-9,
+            what: "the force of a jet turned a quarter about Z");
     }
 
     [Fact]
@@ -165,9 +166,11 @@ public sealed class ShuttleJetsTests
                     throttles[ShuttleJets.Translation(axis, negative)] = 1;
                     (Double3 force, Double3 torque) = Push(jets, throttles, center);
                     string name = jets.Pairs[ShuttleJets.Translation(axis, negative)].Name;
-                    ShouldBeNear(actual: force, expected: Axis(axis) * ((negative ? -1 : 1) * Shuttle.TranslationThrust),
+                    ShouldBeNear(actual: force,
+                        expected: Axis(axis) * ((negative ? -1 : 1) * Shuttle.TranslationThrust),
                         tolerance: 1e-9 * Shuttle.TranslationThrust, what: $"the force of {name}");
-                    ShouldBeNear(actual: torque, expected: Double3.Zero, tolerance: 1e-9 * Shuttle.TranslationThrust * 10,
+                    ShouldBeNear(actual: torque, expected: Double3.Zero,
+                        tolerance: 1e-9 * Shuttle.TranslationThrust * 10,
                         what: $"the torque of {name} about {center}");
                 }
         }
@@ -187,8 +190,10 @@ public sealed class ShuttleJetsTests
                 float[] throttles = Allocated(jets, torque, force);
                 throttles.Should().OnlyContain(throttle => throttle >= 0 && throttle <= 1);
                 (Double3 net, Double3 turn) = Push(jets, throttles, center);
-                ShouldBeNear(actual: net, expected: force, tolerance: 1e-6 * Shuttle.TranslationThrust, what: "the net force");
-                ShouldBeNear(actual: turn, expected: torque, tolerance: 1e-6 * MostTorque.Length, what: "the torque about the center of mass");
+                ShouldBeNear(actual: net, expected: force, tolerance: 1e-6 * Shuttle.TranslationThrust,
+                    what: "the net force");
+                ShouldBeNear(actual: turn, expected: torque, tolerance: 1e-6 * MostTorque.Length,
+                    what: "the torque about the center of mass");
             }
         }
     }
@@ -221,9 +226,11 @@ public sealed class ShuttleJetsTests
         throttles[ShuttleJets.Couple(0, negative: true)].Should().Be(1);
         throttles[ShuttleJets.Translation(1, negative: false)].Should().Be(1);
         (Double3 net, Double3 turn) = Push(jets, throttles, DemoCenter);
-        ShouldBeNear(actual: net, expected: new(force.X, Shuttle.TranslationThrust, force.Z), tolerance: 1e-6 * Shuttle.TranslationThrust,
+        ShouldBeNear(actual: net, expected: new(force.X, Shuttle.TranslationThrust, force.Z),
+            tolerance: 1e-6 * Shuttle.TranslationThrust,
             what: "the net force");
-        ShouldBeNear(actual: turn, expected: new(-MostTorque.X, torque.Y, torque.Z), tolerance: 1e-6 * MostTorque.Length, what: "the torque");
+        ShouldBeNear(actual: turn, expected: new(-MostTorque.X, torque.Y, torque.Z),
+            tolerance: 1e-6 * MostTorque.Length, what: "the torque");
     }
 
     /// <summary>
@@ -240,7 +247,8 @@ public sealed class ShuttleJetsTests
             Double3 torque = InertiaTimes(RandomDirection(random) * LargestAcceleration);
             float[] throttles = Allocated(jets, torque, Double3.Zero);
             (_, Double3 turn) = Push(jets, throttles, DemoCenter);
-            ShouldBeNear(actual: turn, expected: torque, tolerance: 1e-6 * MostTorque.Length, what: "the torque of the largest turn");
+            ShouldBeNear(actual: turn, expected: torque, tolerance: 1e-6 * MostTorque.Length,
+                what: "the torque of the largest turn");
         }
     }
 

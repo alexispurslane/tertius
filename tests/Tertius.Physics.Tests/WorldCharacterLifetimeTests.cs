@@ -15,7 +15,8 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public class WorldCharacterLifetimeTests
 {
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
+        Mass: 70);
 
     private static bool IsInner(JoltPhysicsBackend.BodyFacts facts) =>
         BodyUserData.Kind(facts.UserData) == BodyKind.CharacterInner;
@@ -92,7 +93,8 @@ public class WorldCharacterLifetimeTests
         var ballLog = new CollisionLog();
         Entity ball = world.Spawn(new()
         {
-            Frame = ground, Pose = At(4.6, 3.5), Body = new(Shape: new SphereShapeDesc(0.2f), Mass: 1), Components = [ballLog]
+            Frame = ground, Pose = At(4.6, 3.5), Body = new(Shape: new SphereShapeDesc(0.2f), Mass: 1),
+            Components = [ballLog]
         });
         Tick(world, 120);
 

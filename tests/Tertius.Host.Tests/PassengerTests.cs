@@ -20,7 +20,8 @@ namespace Tertius.Host.Tests;
 public sealed class PassengerTests : IDisposable
 {
     /// <summary>The pen of the demo. The world has no renderer, so the mesh and the material are only numbers.</summary>
-    private static readonly CrateSpec Pen = new(HalfExtents: DemoSurface.PenHalf, Mass: DemoSurface.PenMass, Mesh: new(11), Material: new(5));
+    private static readonly CrateSpec Pen = new(HalfExtents: DemoSurface.PenHalf, Mass: DemoSurface.PenMass,
+        Mesh: new(11), Material: new(5));
 
     private static readonly Double3 PenPlace = new(-1, 0, 0);
 
@@ -50,7 +51,8 @@ public sealed class PassengerTests : IDisposable
             : burn != null
                 ? [new Unpark(), burn, new MainEngine(Shuttle.Mass * Shuttle.ThrustAcceleration)]
                 : [];
-        Entity shuttle = Shuttle.Park(world: world, frame: frame, pose: WorldTesting.At(0, belly + Shuttle.Hull.Y), components: engine);
+        Entity shuttle = Shuttle.Park(world: world, frame: frame, pose: WorldTesting.At(0, belly + Shuttle.Hull.Y),
+            components: engine);
         cabin = world.GetOwnedFrame(shuttle);
         pen = world.Spawn(Pen.Spawn(cabin, new(PenPlace, DQuaternion.Identity), penVelocity));
         person = world.Spawn(new()
@@ -71,7 +73,8 @@ public sealed class PassengerTests : IDisposable
             burn: burn);
 
     /// <summary>Tells the passenger to fasten its belt, as the script does.</summary>
-    private void FastenBelt() => world.Post(Event.Create(target: person, sender: Entity.Null, payload: new FastenBelt()));
+    private void FastenBelt() =>
+        world.Post(Event.Create(target: person, sender: Entity.Null, payload: new FastenBelt()));
 
     /// <summary>The passenger floats to the pen and takes it, is told to fasten its belt, and floats back to its seat and straps in.</summary>
     private void TakeThePenAndStrapIn()

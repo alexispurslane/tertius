@@ -121,12 +121,15 @@ internal sealed class LaunchLog
             ? world.PoseIn(holding.Copy, cabin)
             : null;
         DPose inEarth = world.PoseIn(shuttle, earth);
-        Ticks.Add(new(Tick: world.TickNumber, Frame: world.GetFrame(shuttle), Position: inEarth.Position, Velocity: world.VelocityIn(shuttle, earth),
+        Ticks.Add(new(Tick: world.TickNumber, Frame: world.GetFrame(shuttle), Position: inEarth.Position,
+            Velocity: world.VelocityIn(shuttle, earth),
             Rotation: inEarth.Rotation,
-            AngularVelocity: world.AngularVelocityIn(shuttle, earth), GroundPosition: world.PoseIn(shuttle, surface).Position,
+            AngularVelocity: world.AngularVelocityIn(shuttle, earth),
+            GroundPosition: world.PoseIn(shuttle, surface).Position,
             GroundVelocity: world.VelocityIn(shuttle, surface),
             GroundRotation: world.PoseIn(scene["earth-surface"], earth).Rotation, Ascent: ascent,
-            CabinAcceleration: world.Frames.ProperAcceleration(cabin), PersonFrame: world.GetFrame(person), PersonInCabin: world.PoseIn(person, cabin).Position,
+            CabinAcceleration: world.Frames.ProperAcceleration(cabin), PersonFrame: world.GetFrame(person),
+            PersonInCabin: world.PoseIn(person, cabin).Position,
             Passenger: passenger,
             Pen: penLives
                 ? (world.PoseIn(pen, cabin).Position, world.VelocityIn(pen, cabin), world.PoseIn(pen, cabin).Rotation)

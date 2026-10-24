@@ -20,7 +20,8 @@ public class HandOffTests
     /// <summary>A world on the fault-injecting backend with no numeric frames.</summary>
     private static World
         NewWorldWithoutNumericFrames(out FaultInjectingBackend faults, List<string>? warnings = null) =>
-        NewWorldWithFaults(faults: out faults, warnings: warnings, configure: options => options.NumericFrames = WithoutNumericFrames);
+        NewWorldWithFaults(faults: out faults, warnings: warnings,
+            configure: options => options.NumericFrames = WithoutNumericFrames);
 
     private static Double3 ToParentVelocity(FrameMotionData frame, Double3 positionInFrame, Double3 velocityInFrame) =>
         frame.Pose.TransformDirection(velocityInFrame) + frame.Velocity + Double3.Cross(frame.AngularVelocity,
@@ -43,7 +44,8 @@ public class HandOffTests
         new(Shape: new SphereShapeDesc(radius), Mass: 1, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>A static floor of <paramref name="half"/> m to each side, 1 m thick.</summary>
-    private static BodyDesc FloorBody(float half) => new(Shape: new BoxShapeDesc(new(half, 0.5f, half)), Motion: BodyMotion.Static);
+    private static BodyDesc FloorBody(float half) =>
+        new(Shape: new BoxShapeDesc(new(half, 0.5f, half)), Motion: BodyMotion.Static);
 
     private static FrameHandle Space(World world, float radius = 1e7f) =>
         world.CreateRootFrame(new(FrameBounds.Sphere(radius)));
@@ -68,7 +70,8 @@ public class HandOffTests
     /// </summary>
     private static HandOff? TickUntilHandedOff(World world, FaultInjectingBackend faults, Entity entity, int limit,
         out Placed before) =>
-        TickUntilHandedOff(world: world, faults: faults, entity: entity, limit: limit, before: out before, startInParent: out _);
+        TickUntilHandedOff(world: world, faults: faults, entity: entity, limit: limit, before: out before,
+            startInParent: out _);
 
     /// <summary>
     /// Like the overload above, and <paramref name="startInParent"/> is the entity's place before the last tick in the
@@ -173,7 +176,8 @@ public class HandOffTests
         const double mu = 3.986004418e14;
         FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(mu)));
         KeplerOrbit orbit = KeplerOrbit.Circular(7_000_000, phase: 0.3, spinRate: 0.15);
-        var hull = new BodyDesc(Shape: new BoxShapeDesc(new(4)), Motion: BodyMotion.Kinematic, InteriorShape: new SphereShapeDesc(1));
+        var hull = new BodyDesc(Shape: new BoxShapeDesc(new(4)), Motion: BodyMotion.Kinematic,
+            InteriorShape: new SphereShapeDesc(1));
         FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = planet,
@@ -183,7 +187,8 @@ public class HandOffTests
         Entity ball = world.Spawn(new()
             { Frame = station, Pose = At(0, 3, 10), LinearVelocity = new Vector3(0, 1, 8), Body = BallBody(0.2f) });
 
-        HandOff? exit = TickUntilHandedOff(world: world, faults: faults, entity: ball, limit: 400, before: out Placed before);
+        HandOff? exit = TickUntilHandedOff(world: world, faults: faults, entity: ball, limit: 400,
+            before: out Placed before);
         exit.Should().NotBeNull();
         exit!.Value.From.Should().Be(station);
         exit.Value.To.Should().Be(planet);
@@ -213,8 +218,11 @@ public class HandOffTests
         FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f), GravityField.Point(mu)));
         // Periapsis at t = 0 and apoapsis at half the 31.4 s period. The station turns at 0.389 rad/s at periapsis and
         // at 0.113 rad/s at apoapsis.
-        var orbit = new KeplerOrbit(SemiMajorAxis: 5000, Eccentricity: 0.3, Inclination: 0, LongitudeOfAscendingNode: 0, ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: 0, Epoch: 0, AxialTilt: DQuaternion.Identity, SpinRate: 0, SpinPhaseAtEpoch: 0, Attitude: KeplerAttitude.FacesParent);
-        var hull = new BodyDesc(Shape: new BoxShapeDesc(new(4)), Motion: BodyMotion.Kinematic, InteriorShape: new SphereShapeDesc(1));
+        var orbit = new KeplerOrbit(SemiMajorAxis: 5000, Eccentricity: 0.3, Inclination: 0, LongitudeOfAscendingNode: 0,
+            ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: 0, Epoch: 0, AxialTilt: DQuaternion.Identity, SpinRate: 0,
+            SpinPhaseAtEpoch: 0, Attitude: KeplerAttitude.FacesParent);
+        var hull = new BodyDesc(Shape: new BoxShapeDesc(new(4)), Motion: BodyMotion.Kinematic,
+            InteriorShape: new SphereShapeDesc(1));
         FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = planet,
@@ -229,7 +237,8 @@ public class HandOffTests
         Entity ball = world.Spawn(new()
             { Frame = station, Pose = At(0, 0, 10), LinearVelocity = new Vector3(0, 0, 3), Body = BallBody(0.2f) });
 
-        HandOff? exit = TickUntilHandedOff(world: world, faults: faults, entity: ball, limit: 1200, before: out Placed before, startInParent: out Double3 startInPlanet);
+        HandOff? exit = TickUntilHandedOff(world: world, faults: faults, entity: ball, limit: 1200,
+            before: out Placed before, startInParent: out Double3 startInPlanet);
         exit.Should().NotBeNull();
         world.Time.Should().BeInRange(orbit.Period(mu) / 2 - 0.5, orbit.Period(mu) / 2 + 0.5);
         world.GetFrame(ball).Should().Be(planet);
@@ -273,12 +282,15 @@ public class HandOffTests
             using World world = numericFrames ? NewWorldWithFaults(faults: out _) : NewWorldWithoutNumericFrames(out _);
             const double mu = 5e9;
             FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f), GravityField.Point(mu)));
-            var orbit = new KeplerOrbit(SemiMajorAxis: 5000, Eccentricity: 0.3, Inclination: 0, LongitudeOfAscendingNode: 0, ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: 0, Epoch: 0, AxialTilt: DQuaternion.Identity, SpinRate: 0, SpinPhaseAtEpoch: 0,
+            var orbit = new KeplerOrbit(SemiMajorAxis: 5000, Eccentricity: 0.3, Inclination: 0,
+                LongitudeOfAscendingNode: 0, ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: 0, Epoch: 0,
+                AxialTilt: DQuaternion.Identity, SpinRate: 0, SpinPhaseAtEpoch: 0,
                 Attitude: KeplerAttitude.FacesParent);
             FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
             {
                 Frame = planet,
-                Body = new(Shape: new BoxShapeDesc(new(4)), Motion: BodyMotion.Kinematic, InteriorShape: new SphereShapeDesc(1)),
+                Body = new(Shape: new BoxShapeDesc(new(4)), Motion: BodyMotion.Kinematic,
+                    InteriorShape: new SphereShapeDesc(1)),
                 AsFrame = new(FrameBounds.Sphere(25))
             }.OnKeplerOrbit(world, orbit, firstMove: true)));
             BodyDesc ballBody = BallBody(0.2f);
@@ -422,7 +434,8 @@ public class HandOffTests
         var cockpitFloor = new CompoundShapeDesc([
             new(new BoxShapeDesc(new(1, 0.1f, 1)), new(new(0, -0.9f, 0), Quaternion.Identity))
         ]);
-        var fighterHull = new BodyDesc(Shape: new BoxShapeDesc(new(2, 1, 4)), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
+        var fighterHull = new BodyDesc(Shape: new BoxShapeDesc(new(2, 1, 4)), Mass: 1000, LinearDamping: 0,
+            AngularDamping: 0,
             InteriorShape: cockpitFloor);
         Entity fighterOwner = world.Spawn(new()
         {

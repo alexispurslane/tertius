@@ -21,7 +21,8 @@ public sealed class EditCommandTests : IDisposable
 
     private static readonly TitleCard Card = new(1, [new("Tertius", 96)]);
 
-    private static readonly CutList Cuts = new(Parts: [new("a", "Earth", "The walk.")], Trims: [new("a", Head: 30, Tail: 10)], Panels: [],
+    private static readonly CutList Cuts = new(Parts: [new("a", "Earth", "The walk.")],
+        Trims: [new("a", Head: 30, Tail: 10)], Panels: [],
         Opening: Card, Closing: Card);
 
     private readonly string folder = HostTesting.NewFolder();
@@ -80,7 +81,10 @@ public sealed class EditCommandTests : IDisposable
 
     private int Edit(StringWriter output, StringWriter error, params string[] extra) =>
         EditCommand.Run(
-            args: ["--edit", VideoPath, "--script", ScriptPath, "--master", MasterPath, "--readouts", LogPath, .. extra],
+            args:
+            [
+                "--edit", VideoPath, "--script", ScriptPath, "--master", MasterPath, "--readouts", LogPath, .. extra
+            ],
             cuts: Cuts, output: output, error: error);
 
     [Fact]
@@ -197,7 +201,8 @@ public sealed class EditCommandTests : IDisposable
         // 0.505 s is 30.3 frames. The card rounds it to 30 frames, so the video must hold 30 frames of the card, not 31.
         CutList cuts = Cuts with { Opening = Card with { Seconds = 0.505 } };
 
-        EditCommand.Run(args: ["--edit", VideoPath, "--script", ScriptPath, "--master", MasterPath, "--readouts", LogPath],
+        EditCommand.Run(
+                args: ["--edit", VideoPath, "--script", ScriptPath, "--master", MasterPath, "--readouts", LogPath],
                 cuts: cuts, output: new StringWriter(), error: new StringWriter())
             .Should().Be(ScriptCommand.Ok);
 

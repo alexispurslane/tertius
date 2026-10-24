@@ -60,6 +60,7 @@ internal static unsafe class QueueSubmission
             SignalSemaphoreInfoCount = signal.Handle != 0 ? 1u : 0u,
             PSignalSemaphoreInfos = &signalInfo
         };
-        device.Vk.QueueSubmit2(queue: device.Queue, submitCount: 1, pSubmits: &submit, fence: frame.Fence).Check("vkQueueSubmit2");
+        device.Vk.QueueSubmit2(queue: device.Queue, submitCount: 1, pSubmits: &submit, fence: frame.Fence)
+            .Check("vkQueueSubmit2");
     }
 }

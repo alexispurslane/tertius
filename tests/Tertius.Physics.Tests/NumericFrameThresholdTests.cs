@@ -28,7 +28,8 @@ public class NumericFrameThresholdTests
     private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: CrateMass, LinearDamping: 0,
         AngularDamping: 0);
 
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
+        Mass: 70);
 
     /// <summary>A root frame without gravity, with a bubble of 1,000 km.</summary>
     private static FrameHandle Space(World world) => world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));

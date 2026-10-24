@@ -25,7 +25,8 @@ public sealed class EditSubtitlesTests
         .. FilmsOf.SelectMany(film => Enumerable.Range(0, film.Frames).Select(k => (film, k)))
             .Select((frame, index) => new ReadoutRow(Frame: $"{frame.film.Name}-{frame.k:000000}",
                 Tick: frame.film.FirstTick + (frame.k + 1L) * frame.film.Every,
-                Position: new(DemoScenes.EarthRadius + 200e3, 0, 0), Speed: 1000 + index, ToStation: 2e6, Axis: 0, Felt: 0))
+                Position: new(DemoScenes.EarthRadius + 200e3, 0, 0), Speed: 1000 + index, ToStation: 2e6, Axis: 0,
+                Felt: 0))
     ];
 
     private static readonly TitleCard Card = new(2,

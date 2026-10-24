@@ -199,7 +199,8 @@ internal static class ShadowCascades
         {
             float near = i == 0 ? DepthRanges.NearPlane : BlendStart(i - 1);
             float far = Splits[i];
-            (float centerDepth, float radius) = BoundingSphere(near: near, far: far, tanHalfX: camera.TanHalfX, tanHalfY: camera.TanHalfY);
+            (float centerDepth, float radius) = BoundingSphere(near: near, far: far, tanHalfX: camera.TanHalfX,
+                tanHalfY: camera.TanHalfY);
             float texel = 2f * radius / (mapSize - 2 * MarginTexels);
             float halfExtent = 0.5f * texel * mapSize;
 
@@ -217,7 +218,8 @@ internal static class ShadowCascades
             cascade.TexelSize = texel;
             cascade.NearDepth = near;
             cascade.FarDepth = far;
-            cascade.ViewProjection = ViewProjection(light: light, center: center, halfExtent: halfExtent, depthHalfRange: cascade.DepthHalfRange);
+            cascade.ViewProjection = ViewProjection(light: light, center: center, halfExtent: halfExtent,
+                depthHalfRange: cascade.DepthHalfRange);
         }
     }
 

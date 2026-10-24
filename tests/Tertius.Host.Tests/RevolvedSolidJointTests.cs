@@ -36,10 +36,12 @@ public sealed class RevolvedSolidJointTests
     /// </summary>
     private const double Sideways = 0.0005;
 
-    private static readonly RevolvedSolid Ring = RevolvedSolid.Ring(innerRadius: RingInner, outerRadius: 20.5f, halfWidth: 2, segments: RingSegments);
+    private static readonly RevolvedSolid Ring = RevolvedSolid.Ring(innerRadius: RingInner, outerRadius: 20.5f,
+        halfWidth: 2, segments: RingSegments);
 
     private static readonly RevolvedSolid
-        Torus = RevolvedSolid.Torus(majorRadius: TorusMajor, minorRadius: TorusMinor, segments: TorusSegments, sides: TorusSides);
+        Torus = RevolvedSolid.Torus(majorRadius: TorusMajor, minorRadius: TorusMinor, segments: TorusSegments,
+            sides: TorusSides);
 
     public enum Floor
     {
@@ -117,7 +119,8 @@ public sealed class RevolvedSolidJointTests
         Double3 along = (next - corner).Normalized();
         Double3 point = corner + 0.020 * along + new Double3(0, 0.3, 0);
 
-        double side = Landing(solid: Ring, floor: floor, point: point, down: Radial(Math.PI / RingSegments), away: along);
+        double side = Landing(solid: Ring, floor: floor, point: point, down: Radial(Math.PI / RingSegments),
+            away: along);
 
         side.Should().BeInRange(-Sideways, Sideways,
             "the facet is level, and edge removal drops the contact with the neighbor facet's edge");

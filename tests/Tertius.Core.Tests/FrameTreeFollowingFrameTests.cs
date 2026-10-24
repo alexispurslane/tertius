@@ -47,7 +47,8 @@ public class FrameTreeFollowingFrameTests
 
     public FrameTreeFollowingFrameTests()
     {
-        earth = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f),
+        earth = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f),
             field: GravityField.Point(EarthMu));
     }
 
@@ -58,7 +59,8 @@ public class FrameTreeFollowingFrameTests
     private FrameHandle Station(uint id, KeplerOrbit orbit, FrameHandle parent = default)
     {
         FrameHandle space = parent.IsNull ? earth : parent;
-        FrameHandle frame = frames.Create(frameOwner: new(id, 1), parent: space, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(40));
+        FrameHandle frame = frames.Create(frameOwner: new(id, 1), parent: space, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(40));
         frames.SetHullMotion(frame, BodyMotion.Kinematic);
         double mu = KeplerOrbit.MuFrom(frames.Gravity(space));
         (Double3 place, Double3 velocity) = orbit.StateAt(Start, mu);
@@ -108,7 +110,8 @@ public class FrameTreeFollowingFrameTests
             record = AtOrigin(sample);
         }
 
-        frames.TakeStepRecords(stepIntents: intents, step: Step, owners: new StepOwners().WithHullRecord(station, record));
+        frames.TakeStepRecords(stepIntents: intents, step: Step,
+            owners: new StepOwners().WithHullRecord(station, record));
         return sample;
     }
 
@@ -305,7 +308,8 @@ public class FrameTreeFollowingFrameTests
         MotionSample next = Low.Sample(EarthMu, Start + 2 * Step, Step);
         Double3 velocity = frames.LinearVelocity(orbit);
 
-        (_, FrameMotion end) = frames.MotionRelativeInStep(of: orbit, to: earth, stepIntents: Moving(station, new(next)), step: Step);
+        (_, FrameMotion end) =
+            frames.MotionRelativeInStep(of: orbit, to: earth, stepIntents: Moving(station, new(next)), step: Step);
 
         end.Pose.Position.Should().Be(next.Pose.Position);
         end.Velocity.Should().Be(next.Velocity);
@@ -318,7 +322,8 @@ public class FrameTreeFollowingFrameTests
     {
         FrameHandle station = Station(10, Low);
         FrameHandle orbit = Update(Hull(station))[0].Home;
-        var pushed = new MotionSample(Pose: frames.LocalPose(station), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: new(1, 2, 3), AngularVelocity: Double3.Zero,
+        var pushed = new MotionSample(Pose: frames.LocalPose(station), ChordVelocity: Double3.Zero,
+            Velocity: Double3.Zero, Acceleration: new(1, 2, 3), AngularVelocity: Double3.Zero,
             AngularAcceleration: Double3.Zero);
         Double3 velocity = frames.LinearVelocity(orbit);
 
@@ -355,7 +360,8 @@ public class FrameTreeFollowingFrameTests
             frames.TreeLocalPose(orbit).Position.Should().Be(end.Position);
             frames.LinearVelocity(orbit).Should().Be((end.Position - start.Position) / Step, "the plan's chord");
             frames.TakeStepRecords(stepIntents: intents, step: Step, owners: new StepOwners().WithHullRecord(station,
-                new(Pose: new(Double3.Zero, end.Rotation), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
+                new(Pose: new(Double3.Zero, end.Rotation), ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
+                    Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
                     AngularAcceleration: Double3.Zero)));
         }
     }
@@ -419,10 +425,12 @@ public class FrameTreeFollowingFrameTests
         frames.AdvanceNumericFrames(Step);
         Double3 landed = frames.TreeLocalPose(orbit).Position;
         // Physics put the hull at the teleport's place in the following frame where the step started, at rest there.
-        var record = new MotionSample(Pose: new(teleport.Position - landed, teleport.Rotation), ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
+        var record = new MotionSample(Pose: new(teleport.Position - landed, teleport.Rotation),
+            ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
             Acceleration: Double3.Zero,
             AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
-        frames.TakeStepRecords(stepIntents: intents, step: Step, owners: new StepOwners().WithHullRecord(station, record));
+        frames.TakeStepRecords(stepIntents: intents, step: Step,
+            owners: new StepOwners().WithHullRecord(station, record));
         changes.Clear();
 
         frames.JumpFollowingFrame(orbit, changes);
@@ -452,7 +460,8 @@ public class FrameTreeFollowingFrameTests
         // new frame does not take it. The chord moves the place where the record says the step started, and the gravity
         // there, so the station's proper acceleration is not zero.
         MotionSample sample = Low.Sample(EarthMu, Start, Step) with { ChordVelocity = new(7_000, 100, 200) };
-        frames.TakeStepRecords(stepIntents: Moving(station, new(sample)), step: Step, owners: new StepOwners().WithHullRecord(station, sample));
+        frames.TakeStepRecords(stepIntents: Moving(station, new(sample)), step: Step,
+            owners: new StepOwners().WithHullRecord(station, sample));
 
         FrameHandle orbit = Update(Hull(station))[0].Home;
 
@@ -482,13 +491,15 @@ public class FrameTreeFollowingFrameTests
     {
         FrameHandle station = Station(10, Low);
         MotionSample sample = Low.Sample(EarthMu, Start, Step);
-        frames.TakeStepRecords(stepIntents: Moving(station, new(sample)), step: Step, owners: new StepOwners().WithHullRecord(station, sample));
+        frames.TakeStepRecords(stepIntents: Moving(station, new(sample)), step: Step,
+            owners: new StepOwners().WithHullRecord(station, sample));
 
         FrameHandle orbit = Update(Hull(station))[0].Home;
         frames.Update();
         frames.BeginStep(Moving(station, new(Low.Sample(EarthMu, Start + Step, Step))), Step, lastStepFailed: false);
 
-        (frames.LinearVelocity(orbit) - KeplerOrbit.Chord(position: sample.Pose.Position, velocity: sample.Velocity, mu: EarthMu, step: Step)).Length
+        (frames.LinearVelocity(orbit) - KeplerOrbit.Chord(position: sample.Pose.Position, velocity: sample.Velocity,
+                mu: EarthMu, step: Step)).Length
             .Should().BeLessThan(1e-6, "the orbit's chord over the step that ended, to its jerk");
         (frames.HomeAcceleration(orbit, earth) - GravityField.Point(EarthMu).AtPrecise(sample.Pose.Position)).Length
             .Should().BeLessThan(1e-4,
@@ -507,7 +518,8 @@ public class FrameTreeFollowingFrameTests
     {
         FrameHandle station = Station(10, Low);
         Double3 place = new(6.8e6, 0, 0), velocity = new(0, 2_000, 0);
-        var record = new MotionSample(Pose: new(place, DQuaternion.Identity), ChordVelocity: velocity, Velocity: velocity, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
+        var record = new MotionSample(Pose: new(place, DQuaternion.Identity), ChordVelocity: velocity,
+            Velocity: velocity, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
             AngularAcceleration: Double3.Zero);
         frames.TakeStepRecords(stepIntents: Moving(station, new(new EndPose(record.Pose))), step: Step,
             owners: new StepOwners().WithHullRecord(station, record));
@@ -536,24 +548,31 @@ public class FrameTreeFollowingFrameTests
     [Fact]
     public void ANewFollowingFrameReadsItsAnchorsAccelerationWithTheParentsProperAccelerationAsTheStepThatEndedFoundIt()
     {
-        FrameHandle space = frames.Create(frameOwner: new(20, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f),
+        FrameHandle space = frames.Create(frameOwner: new(20, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f),
             field: GravityField.None);
-        FrameHandle ship = frames.Create(frameOwner: new(21, 1), parent: space, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e6f));
+        FrameHandle ship = frames.Create(frameOwner: new(21, 1), parent: space, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e6f));
         Double3 place = new(1_000, 0, 0), velocity = new(0, 0, 2_000);
-        FrameHandle station = frames.Create(frameOwner: new(22, 1), parent: ship, localPose: new(place - velocity * Step, DQuaternion.Identity),
+        FrameHandle station = frames.Create(frameOwner: new(22, 1), parent: ship,
+            localPose: new(place - velocity * Step, DQuaternion.Identity),
             frameBounds: FrameBounds.Sphere(40));
         frames.SetHullMotion(station, BodyMotion.Kinematic);
         frames.SetTreeLinearVelocity(station, velocity);
         var thrust = new Double3(10, 0, 0);
-        var shipRecord = new MotionSample(Pose: new(thrust * (Step * Step), DQuaternion.Identity), ChordVelocity: thrust * Step,
-            Velocity: thrust * Step, Acceleration: thrust, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
-        var record = new MotionSample(Pose: new(place, DQuaternion.Identity), ChordVelocity: velocity, Velocity: velocity, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
+        var shipRecord = new MotionSample(Pose: new(thrust * (Step * Step), DQuaternion.Identity),
+            ChordVelocity: thrust * Step,
+            Velocity: thrust * Step, Acceleration: thrust, AngularVelocity: Double3.Zero,
+            AngularAcceleration: Double3.Zero);
+        var record = new MotionSample(Pose: new(place, DQuaternion.Identity), ChordVelocity: velocity,
+            Velocity: velocity, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
             AngularAcceleration: Double3.Zero);
         // The ship has no hull, so it takes its owner's full sample, and physics released the record of the station's hull.
         var intents = new PhysicsIntent[station.Entity.Index + 1];
         intents[ship.Entity.Index] = new() { Frame = space, Move = new(shipRecord) };
         intents[station.Entity.Index] = new() { Frame = ship, Move = new(new EndPose(record.Pose)) };
-        frames.TakeStepRecords(stepIntents: intents, step: Step, owners: new StepOwners().WithHullRecord(station, record));
+        frames.TakeStepRecords(stepIntents: intents, step: Step,
+            owners: new StepOwners().WithHullRecord(station, record));
         frames.ProperAcceleration(ship).Should().Be(thrust.ToVector3(), "the ship's value changes at this step 2");
         frames.ProperAcceleration(station).Should().Be(Vector3.Zero,
             "the anchor kept a steady velocity in a ship whose value was zero in the step");
@@ -585,13 +604,16 @@ public class FrameTreeFollowingFrameTests
     public void ANewFollowingFrameInATurningParentReadsItsAnchorsAccelerationWithTheParentsRotationTerms(
         bool spinningUp)
     {
-        FrameHandle space = frames.Create(frameOwner: new(20, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f),
+        FrameHandle space = frames.Create(frameOwner: new(20, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f),
             field: GravityField.None);
-        FrameHandle spinning = frames.Create(frameOwner: new(21, 1), parent: space, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e8f));
+        FrameHandle spinning = frames.Create(frameOwner: new(21, 1), parent: space, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e8f));
         var spin = new FrameSpin(Tilt: DQuaternion.Identity, Rate: 0.31321);
         Double3 start = new(1_000, 0, 0), velocity = new(0, 0, 2_000);
         FrameHandle station =
-            frames.Create(frameOwner: new(22, 1), parent: spinning, localPose: new(start, DQuaternion.Identity), frameBounds: FrameBounds.Sphere(40));
+            frames.Create(frameOwner: new(22, 1), parent: spinning, localPose: new(start, DQuaternion.Identity),
+                frameBounds: FrameBounds.Sphere(40));
         frames.SetHullMotion(station, BodyMotion.Kinematic);
         frames.SetTreeLinearVelocity(station, velocity);
 
@@ -600,9 +622,11 @@ public class FrameTreeFollowingFrameTests
             var intents = new PhysicsIntent[station.Entity.Index + 1];
             double t = k * Step;
             MotionSample turning = spinningUp
-                ? new(Pose: new(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, 0.25 * t * t)), ChordVelocity: Double3.Zero,
+                ? new(Pose: new(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, 0.25 * t * t)),
+                    ChordVelocity: Double3.Zero,
                     Velocity: Double3.Zero,
-                    Acceleration: Double3.Zero, AngularVelocity: new(0, 0.5 * t, 0), AngularAcceleration: new(0, 0.5, 0))
+                    Acceleration: Double3.Zero, AngularVelocity: new(0, 0.5 * t, 0),
+                    AngularAcceleration: new(0, 0.5, 0))
                 : spin.Sample(Double3.Zero, t, Step);
             intents[spinning.Entity.Index] = new() { Frame = space, Move = new(turning) };
             intents[station.Entity.Index] = new()
@@ -619,9 +643,11 @@ public class FrameTreeFollowingFrameTests
             PhysicsIntent[] intents = IntentsOf(k);
             frames.Update();
             frames.BeginStep(intents, Step, lastStepFailed: false);
-            var record = new MotionSample(Pose: new(start + velocity * (k * Step), DQuaternion.Identity), ChordVelocity: velocity, Velocity: velocity,
+            var record = new MotionSample(Pose: new(start + velocity * (k * Step), DQuaternion.Identity),
+                ChordVelocity: velocity, Velocity: velocity,
                 Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
-            frames.TakeStepRecords(stepIntents: intents, step: Step, owners: new StepOwners().WithHullRecord(station, record));
+            frames.TakeStepRecords(stepIntents: intents, step: Step,
+                owners: new StepOwners().WithHullRecord(station, record));
         }
 
         frames.Turns(spinning).Turns.Should().BeTrue();
@@ -646,20 +672,25 @@ public class FrameTreeFollowingFrameTests
     [Fact]
     public void AFrameInTheSlotOfADestroyedFrameKeepsNoProperAccelerationOfTheDeadFrameAsTheStepFoundIt()
     {
-        FrameHandle space = frames.Create(frameOwner: new(20, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f),
+        FrameHandle space = frames.Create(frameOwner: new(20, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f),
             field: GravityField.None);
-        FrameHandle dead = frames.Create(frameOwner: new(21, 1), parent: space, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e6f));
+        FrameHandle dead = frames.Create(frameOwner: new(21, 1), parent: space, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e6f));
         var thrust = new Double3(10, 0, 0);
-        var record = new MotionSample(Pose: DPose.Identity, ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: thrust, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
+        var record = new MotionSample(Pose: DPose.Identity, ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
+            Acceleration: thrust, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
         var intents = new PhysicsIntent[dead.Entity.Index + 1];
         intents[dead.Entity.Index] = new() { Frame = space, Move = new(record) };
         for (int step = 0; step < 2; step++)
             frames.TakeStepRecords(stepIntents: intents, step: Step);
         frames.Destroy(dead);
-        FrameHandle ship = frames.Create(frameOwner: new(22, 1), parent: space, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e6f));
+        FrameHandle ship = frames.Create(frameOwner: new(22, 1), parent: space, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e6f));
         ship.Index.Should().Be(dead.Index, "the new frame takes the slot of the dead one");
         var velocity = new Double3(0, 0, 2_000);
-        FrameHandle station = frames.Create(frameOwner: new(23, 1), parent: ship, localPose: new(new(1_000, 0, 0), DQuaternion.Identity),
+        FrameHandle station = frames.Create(frameOwner: new(23, 1), parent: ship,
+            localPose: new(new(1_000, 0, 0), DQuaternion.Identity),
             frameBounds: FrameBounds.Sphere(40));
         frames.SetHullMotion(station, BodyMotion.Kinematic);
         frames.SetTreeLinearVelocity(station, velocity);
@@ -688,15 +719,17 @@ public class FrameTreeFollowingFrameTests
         An_following_frame_jumps_with_its_anchors_teleport_and_its_other_contents_keep_their_places_and_velocities_in_earth()
     {
         FrameHandle station = Station(10, Low);
-        FrameHandle pod = frames.Create(frameOwner: new(11, 1), parent: earth, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1));
+        FrameHandle pod = frames.Create(frameOwner: new(11, 1), parent: earth, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1));
         frames.SetHullMotion(pod, BodyMotion.Dynamic);
         (Double3 place, Double3 velocity) = StateAt(Low, Start);
         frames.SetLocalPose(pod, new(place + new Double3(5, 0, 0), DQuaternion.Identity));
         frames.SetTreeLinearVelocity(pod, velocity + new Double3(0, 1, 0));
-        NumericBody podHull = Crate(id: 11, position: place + new Double3(5, 0, 0), velocity: velocity + new Double3(0, 1, 0)) with
-        {
-            OwnedFrame = pod
-        };
+        NumericBody podHull =
+            Crate(id: 11, position: place + new Double3(5, 0, 0), velocity: velocity + new Double3(0, 1, 0)) with
+            {
+                OwnedFrame = pod
+            };
         NumericBody[] after = Update(Hull(station), podHull);
         FrameHandle orbit = after[0].Home;
         after[1].Home.Should().Be(orbit, "the pod's hull joins the following frame");
@@ -712,7 +745,8 @@ public class FrameTreeFollowingFrameTests
         MotionSample record = AtOrigin(sample) with { Pose = new(offset, sample.Pose.Rotation) };
         // Physics released the pod's record where the pod stands, with its velocity in the following frame.
         Double3 podTreeVelocity = frames.TreeLinearVelocity(pod);
-        var podRecord = new MotionSample(Pose: frames.TreeLocalPose(pod), ChordVelocity: podTreeVelocity, Velocity: podTreeVelocity, Acceleration: Double3.Zero,
+        var podRecord = new MotionSample(Pose: frames.TreeLocalPose(pod), ChordVelocity: podTreeVelocity,
+            Velocity: podTreeVelocity, Acceleration: Double3.Zero,
             AngularVelocity: frames.AngularVelocity(pod), AngularAcceleration: Double3.Zero);
         frames.TakeStepRecords(stepIntents: intents, step: Step,
             owners: new StepOwners().WithHullRecord(station, record).WithHullRecord(pod, podRecord));
@@ -753,12 +787,14 @@ public class FrameTreeFollowingFrameTests
     {
         FrameHandle station = Station(10, Low);
         (Double3 place, Double3 velocity) = StateAt(Low, Start);
-        NumericBody[] together = Update(Hull(station), Crate(id: 11, position: place + new Double3(5, 0, 0), velocity: velocity));
+        NumericBody[] together = Update(Hull(station),
+            Crate(id: 11, position: place + new Double3(5, 0, 0), velocity: velocity));
         FrameHandle orbit = together[0].Home;
         together[1].Home.Should().Be(orbit);
 
         // 5 km away: beyond the radii, 2 s of the relative speed and the split margin.
-        NumericBody[] after = Update(Hull(station), Crate(id: 11, position: place + new Double3(5_000, 0, 0), velocity: velocity, home: orbit));
+        NumericBody[] after = Update(Hull(station),
+            Crate(id: 11, position: place + new Double3(5_000, 0, 0), velocity: velocity, home: orbit));
 
         after[0].Home.Should().Be(orbit);
         after[1].Home.Should().NotBe(orbit, "only the hull's group keeps a following frame");
@@ -770,10 +806,14 @@ public class FrameTreeFollowingFrameTests
     {
         // A circular orbit of 1 km in a field of 1e-9 m³/s² moves at 1 µm/s. The fast body is a character, which always
         // thrusts, so at 60 m/s it would fall in a frame of its own.
-        FrameHandle space = frames.Create(frameOwner: new(2, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e7f),
+        FrameHandle space = frames.Create(frameOwner: new(2, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e7f),
             field: GravityField.Point(1e-9));
         FrameHandle station = Station(10, KeplerOrbit.Circular(1_000), space);
-        NumericBody character = Crate(id: 11, position: new(1_000, 3, 0), velocity: new(60, 0, 0), home: space) with { Character = true };
+        NumericBody character = Crate(id: 11, position: new(1_000, 3, 0), velocity: new(60, 0, 0), home: space) with
+        {
+            Character = true
+        };
         NumericFrameRules.BodyMode(character, thrusts: true, frames.NumericOptions).Should().Be(NumericMode.Falling,
             "alone, a character at 60 m/s needs a falling frame");
 
@@ -815,14 +855,16 @@ public class FrameTreeFollowingFrameTests
         Update(Hull(station));
         (Double3 place, _) = StateAt(Far, Start);
         FrameHandle raft =
-            Update(Hull(station), Crate(id: 11, position: place + new Double3(0, 20, 0), velocity: Double3.Zero, isStatic: true))[1].Home;
+            Update(Hull(station),
+                Crate(id: 11, position: place + new Double3(0, 20, 0), velocity: Double3.Zero, isStatic: true))[1].Home;
         frames.Numeric(raft).Should().Be(NumericMode.Resting, "the static body lies past the create distance");
         frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(station.Entity, raft));
 
         // The hull flies on along its orbit, 6.31 km/s past the static body, 19 km in 3 s: beyond the reach of 2 s of that
         // speed and the split margin.
         Sync(station, Far, Start + 3);
-        Update(Hull(station), Crate(id: 11, position: place + new Double3(0, 20, 0), velocity: Double3.Zero, home: raft, isStatic: true));
+        Update(Hull(station),
+            Crate(id: 11, position: place + new Double3(0, 20, 0), velocity: Double3.Zero, home: raft, isStatic: true));
 
         frames.AnchorGhosts.IsEmpty.Should().BeTrue();
     }
@@ -835,7 +877,8 @@ public class FrameTreeFollowingFrameTests
         FrameHandle second = Station(11, Low with { MeanAnomalyAtEpoch = Low.MeanAnomalyAtEpoch + 1e-6 });
         (Double3 place, Double3 velocity) = StateAt(Low, Start);
 
-        NumericBody[] after = Update(Hull(first), Hull(second), Crate(id: 12, position: place + new Double3(0, 3, 0), velocity: velocity));
+        NumericBody[] after = Update(Hull(first), Hull(second),
+            Crate(id: 12, position: place + new Double3(0, 3, 0), velocity: velocity));
 
         frames.Numeric(after[0].Home).Should().Be(NumericMode.Following);
         frames.Numeric(after[1].Home).Should().Be(NumericMode.Following);
@@ -849,7 +892,8 @@ public class FrameTreeFollowingFrameTests
     {
         // 10,000 km out in a field of 1e-9 m³/s², the hull is slow but far: past the create distance of 2^23 m (about
         // 8,389 km), so it lives in a following frame. Then it moves to an orbit of 1 km, within the leave distance of 2^22 m.
-        FrameHandle space = frames.Create(frameOwner: new(2, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e8f),
+        FrameHandle space = frames.Create(frameOwner: new(2, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e8f),
             field: GravityField.Point(1e-9));
         FrameHandle station = Station(10, KeplerOrbit.Circular(1e7), space);
         FrameHandle orbit = Update(Hull(station))[0].Home;
@@ -971,7 +1015,8 @@ public class FrameTreeFollowingFrameTests
     {
         FrameHandle station = Station(10, Low);
         (Double3 place, Double3 velocity) = StateAt(Low, Start);
-        NumericBody[] after = Update(Hull(station), Crate(id: 11, position: place + new Double3(5, 0, 0), velocity: velocity));
+        NumericBody[] after = Update(Hull(station),
+            Crate(id: 11, position: place + new Double3(5, 0, 0), velocity: velocity));
         FrameHandle orbit = after[0].Home;
         after[1].Home.Should().Be(orbit);
 
@@ -990,7 +1035,8 @@ public class FrameTreeFollowingFrameTests
         FrameHandle orbit = Update(Hull(station))[0].Home;
         (Double3 place, _) = StateAt(Far, Start);
         FrameHandle raft =
-            Update(Hull(station), Crate(id: 11, position: place + new Double3(0, 20, 0), velocity: Double3.Zero, isStatic: true))[1].Home;
+            Update(Hull(station),
+                Crate(id: 11, position: place + new Double3(0, 20, 0), velocity: Double3.Zero, isStatic: true))[1].Home;
         frames.Numeric(raft).Should().Be(NumericMode.Resting, "the static body lies past the create distance");
         frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(station.Entity, raft));
 
@@ -1008,7 +1054,8 @@ public class FrameTreeFollowingFrameTests
         Update(Hull(station));
         (Double3 place, _) = StateAt(Far, Start);
         FrameHandle raft =
-            Update(Hull(station), Crate(id: 11, position: place + new Double3(0, 20, 0), velocity: Double3.Zero, isStatic: true))[1].Home;
+            Update(Hull(station),
+                Crate(id: 11, position: place + new Double3(0, 20, 0), velocity: Double3.Zero, isStatic: true))[1].Home;
         frames.Numeric(raft).Should().Be(NumericMode.Resting, "the static body lies past the create distance");
         frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(station.Entity, raft));
 
@@ -1022,13 +1069,15 @@ public class FrameTreeFollowingFrameTests
     public void Destroying_the_semantic_frame_of_a_following_frame_dissolves_it_and_drops_the_ghosts_of_its_hull()
     {
         // Earth is a semantic child of the sun, which has no gravity of its own here.
-        FrameHandle sun = frames.Create(frameOwner: new(3, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
+        FrameHandle sun = frames.Create(frameOwner: new(3, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f));
         frames.Reparent(earth, sun);
         FrameHandle station = Station(10, Far);
         FrameHandle orbit = Update(Hull(station))[0].Home;
         (Double3 place, _) = StateAt(Far, Start);
         FrameHandle raft =
-            Update(Hull(station), Crate(id: 11, position: place + new Double3(0, 20, 0), velocity: Double3.Zero, isStatic: true))[1].Home;
+            Update(Hull(station),
+                Crate(id: 11, position: place + new Double3(0, 20, 0), velocity: Double3.Zero, isStatic: true))[1].Home;
         frames.Numeric(raft).Should().Be(NumericMode.Resting, "the static body lies past the create distance");
         frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(station.Entity, raft));
 

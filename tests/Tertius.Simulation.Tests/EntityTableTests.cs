@@ -31,7 +31,8 @@ public class EntityTableTests
         EntityTable table = TableSupport.NewTable();
         Entity entity = table.Reserve();
 
-        table.Activate(entity: entity, row: RowAt(2), render: new(), components: [new Recorder()], wants: [EventMask.Of<Ping>()], body: null, bodyCenterOfMass: Vector3.Zero,
+        table.Activate(entity: entity, row: RowAt(2), render: new(), components: [new Recorder()],
+            wants: [EventMask.Of<Ping>()], body: null, bodyCenterOfMass: Vector3.Zero,
             ownedFrame: FrameHandle.Null);
 
         table.IsAlive(entity).Should().BeTrue();

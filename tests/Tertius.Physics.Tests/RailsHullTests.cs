@@ -14,11 +14,15 @@ public class RailsHullTests
 {
     /// <summary>A sample at (1, 2, 3) with no motion.</summary>
     private static readonly MotionSample Parked =
-        new(Pose: new(new(1, 2, 3), DQuaternion.Identity), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
+        new(Pose: new(new(1, 2, 3), DQuaternion.Identity), ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
+            Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
             AngularAcceleration: Double3.Zero);
 
     private static readonly KeplerOrbit Orbit = KeplerOrbit.Circular(5_000, phase: 0.3, spinRate: 0.2);
-    private static readonly FrameSpin Spin = new(Tilt: DQuaternion.FromAxisAngle(Double3.UnitZ, 0.4), Rate: 0.5, PhaseAtEpoch: 0.1);
+
+    private static readonly FrameSpin Spin = new(Tilt: DQuaternion.FromAxisAngle(Double3.UnitZ, 0.4), Rate: 0.5,
+        PhaseAtEpoch: 0.1);
+
     private static readonly Double3 SpinPlace = new(4_000, 300, -200);
 
     /// <summary>A far orbit of 9,000 km at 47 m/s round the point gravity of an <see cref="Scenes.AsteroidSpace"/>, past 2^23 m.</summary>

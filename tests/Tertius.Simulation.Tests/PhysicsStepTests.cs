@@ -76,7 +76,8 @@ public class PhysicsStepTests
     [Fact]
     public void TheWorldLeavesThePhysicsBackendUndisposedByDefault()
     {
-        World world = NewWorld(backend: out JoltPhysicsBackend backend, configure: options => options.DisposePhysics = false);
+        World world = NewWorld(backend: out JoltPhysicsBackend backend,
+            configure: options => options.DisposePhysics = false);
         using (backend)
         {
             world.Dispose();
@@ -90,7 +91,8 @@ public class PhysicsStepTests
     [Fact]
     public void TheWorldDisposesThePhysicsBackendWhenAsked()
     {
-        World world = NewWorld(backend: out JoltPhysicsBackend backend, configure: options => options.DisposePhysics = true);
+        World world = NewWorld(backend: out JoltPhysicsBackend backend,
+            configure: options => options.DisposePhysics = true);
 
         world.Dispose();
 

@@ -14,7 +14,8 @@ public class ShapeTests
         // A mesh floor: two triangles, wound so that they face up.
         var meshFloor = new MeshShapeDesc([new(-20, 0, -20), new(20, 0, -20), new(20, 0, 20), new(-20, 0, 20)],
             [0, 2, 1, 0, 3, 2]);
-        world.Spawn(new() { Frame = ground, Pose = DPose.Identity, Body = new(Shape: meshFloor, Motion: BodyMotion.Static) });
+        world.Spawn(new()
+            { Frame = ground, Pose = DPose.Identity, Body = new(Shape: meshFloor, Motion: BodyMotion.Static) });
 
         var shapes = new ShapeDesc[]
         {

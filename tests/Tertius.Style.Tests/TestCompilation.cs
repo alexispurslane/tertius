@@ -28,8 +28,12 @@ internal static class TestCompilation
     /// </summary>
     public static CSharpCompilation Of(string source)
     {
-        CSharpCompilation compilation = CSharpCompilation.Create(assemblyName: "Probe",
-            syntaxTrees: [CSharpSyntaxTree.ParseText(text: source, options: Parse, cancellationToken: TestContext.Current.CancellationToken)],
+        var compilation = CSharpCompilation.Create(assemblyName: "Probe",
+            syntaxTrees:
+            [
+                CSharpSyntaxTree.ParseText(text: source, options: Parse,
+                    cancellationToken: TestContext.Current.CancellationToken)
+            ],
             references: References, options: Options);
         compilation.GetDiagnostics(TestContext.Current.CancellationToken)
             .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)

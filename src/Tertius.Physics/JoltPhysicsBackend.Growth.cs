@@ -95,7 +95,8 @@ public sealed partial class JoltPhysicsBackend
             };
             from.GetRPosition(id, out RVector3 position);
             from.GetLinearAndAngularVelocity(id, out Vector3 linear, out Vector3 angular);
-            using BodyCreationSettings settings = Settings(spec: spec, position: position, rotation: from.GetRotation(id), linearVelocity: linear, angularVelocity: angular);
+            using BodyCreationSettings settings = Settings(spec: spec, position: position,
+                rotation: from.GetRotation(id), linearVelocity: linear, angularVelocity: angular);
             if (to.CreateBodyWithID(id, settings) is null)
                 throw new InvalidOperationException(
                     $"Jolt refused to move {id} into the grown system of {world.Frame}.");
@@ -118,7 +119,8 @@ public sealed partial class JoltPhysicsBackend
             Vector3 velocity = old.LinearVelocity;
             BodyID oldInner = old.InnerBodyID;
             old.Dispose();
-            CharacterVirtual renewed = NewCharacter(record: member, system: larger, position: position, rotation: rotation, linearVelocity: velocity);
+            CharacterVirtual renewed = NewCharacter(record: member, system: larger, position: position,
+                rotation: rotation, linearVelocity: velocity);
             member.Character = renewed;
             growthCharacters[i] = (member, renewed);
             renamedBodies[oldInner.ID] = renewed.InnerBodyID.ID;

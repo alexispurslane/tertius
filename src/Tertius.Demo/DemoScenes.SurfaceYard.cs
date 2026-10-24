@@ -61,7 +61,8 @@ public static partial class DemoScenes
     private static SceneInstance SurfaceYard(World world, IRenderResources resources)
     {
         var scene = new SceneInstance();
-        FrameHandle surface = EarthSurface(world: world, resources: resources, scene: scene, floorHalfExtents: YardFloorHalfExtents);
+        FrameHandle surface = EarthSurface(world: world, resources: resources, scene: scene,
+            floorHalfExtents: YardFloorHalfExtents);
 
         MeshId crateMesh = resources.CreateMesh(Primitives.Box(new(YardCrateHalfSize)));
         var heavy = new CrateSpec(HalfExtents: new(YardCrateHalfSize), Mass: HeavyCrateMass, Mesh: crateMesh,
@@ -93,7 +94,8 @@ public static partial class DemoScenes
             Frame = surface,
             Pose = new(new(0, EarthRadius + 0.95, YardPersonStartZ), DQuaternion.Identity),
             Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: YardPersonMass),
-            Render = Drawn(resources: resources, mesh: Primitives.Box(new(0.3f, 0.9f, 0.3f)), color: new(x: 0.2f, y: 0.45f, z: 0.8f, w: 1),
+            Render = Drawn(resources: resources, mesh: Primitives.Box(new(0.3f, 0.9f, 0.3f)),
+                color: new(x: 0.2f, y: 0.45f, z: 0.8f, w: 1),
                 boundingRadius: 1),
             Components = [new PersonControl(new(0, 0.75f, 0)), new Carry(capsule)],
             Subscriptions = [Topics.Input]
@@ -152,7 +154,8 @@ public static partial class DemoScenes
             Frame = surface,
             Pose = new(new(0, EarthRadius - floorHalfExtents.Y, 0), DQuaternion.Identity),
             Body = new(Shape: new BoxShapeDesc(floorHalfExtents), Motion: BodyMotion.Static),
-            Render = Drawn(resources: resources, mesh: Primitives.Box(floorHalfExtents), color: new(x: 0.4f, y: 0.4f, z: 0.38f, w: 1),
+            Render = Drawn(resources: resources, mesh: Primitives.Box(floorHalfExtents),
+                color: new(x: 0.4f, y: 0.4f, z: 0.38f, w: 1),
                 boundingRadius: MathF.Ceiling(floorHalfExtents.Length()))
         }));
     }

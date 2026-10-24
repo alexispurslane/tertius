@@ -115,7 +115,8 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
         carried = spec;
         outbox.Send(crate, new CrateTaken());
         copy = self.Spawn(
-            spec.HeldCopy(frame: self.Frame, holder: self.Entity, view: self.Render.ViewOffset, grip: new(Hold, Quaternion.Identity)));
+            spec.HeldCopy(frame: self.Frame, holder: self.Entity, view: self.Render.ViewOffset,
+                grip: new(Hold, Quaternion.Identity)));
     }
 
     private void Throw(Self self, Outbox outbox)
@@ -125,7 +126,8 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
             MaxThrowSpeed * (self.Tick - chargeStart) * self.DeltaTime / ChargeSeconds);
         // The view and its direction, in the person's axes.
         Pose view = self.Render.ViewOffset;
-        Release(self: self, outbox: outbox, carried: carried, copy: copy, body: body, eye: view.Position, aim: Vector3.Transform(-Vector3.UnitZ, view.Rotation),
+        Release(self: self, outbox: outbox, carried: carried, copy: copy, body: body, eye: view.Position,
+            aim: Vector3.Transform(-Vector3.UnitZ, view.Rotation),
             turn: view.Rotation, speed: speed);
         copy = Entity.Null;
     }
@@ -136,7 +138,8 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
     /// bounding sphere touching <paramref name="body"/>, the thrower's capsule, with a gap of <see cref="ThrowGap"/>.
     /// </summary>
     public static Vector3 ThrowStart(CapsuleShapeDesc body, CrateSpec carried, Vector3 eye, Vector3 aim) =>
-        eye + aim * Clearance(eye: eye, aim: aim, halfHeight: body.HalfHeight, radius: body.Radius + carried.BoundingRadius + ThrowGap);
+        eye + aim * Clearance(eye: eye, aim: aim, halfHeight: body.HalfHeight,
+            radius: body.Radius + carried.BoundingRadius + ThrowGap);
 
     /// <summary>
     /// Throws <paramref name="carried"/> from the hands of the thrower of <paramref name="self"/>, whose capsule is
@@ -158,7 +161,8 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
         Double3 velocity = self.VelocityIn(self.Frame);
         DPose thrower = pose with { Position = pose.Position + velocity * self.DeltaTime };
         Vector3 throwVelocity = thrower.Rotation.Rotate(aim) * speed;
-        DPose start = DPose.Compose(thrower, new Pose(ThrowStart(body: body, carried: carried, eye: eye, aim: aim), turn).ToDPose());
+        DPose start = DPose.Compose(thrower,
+            new Pose(ThrowStart(body: body, carried: carried, eye: eye, aim: aim), turn).ToDPose());
         Entity crate = self.Spawn(carried.Spawn(self.Frame, start, velocity + throwVelocity, more));
         self.Body.AddImpulse(-carried.Mass * throwVelocity);
         outbox.Send(copy, new Destroy());

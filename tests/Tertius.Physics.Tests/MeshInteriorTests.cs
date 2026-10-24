@@ -69,7 +69,8 @@ public class MeshInteriorTests
     private static SpawnDesc Ship(FrameHandle space, BodyMotion motion) => new()
     {
         Frame = space,
-        Body = new(Shape: new BoxShapeDesc(new(5, 3, 5)), Motion: motion, Mass: 1000, LinearDamping: 0, AngularDamping: 0,
+        Body = new(Shape: new BoxShapeDesc(new(5, 3, 5)), Motion: motion, Mass: 1000, LinearDamping: 0,
+            AngularDamping: 0,
             InteriorShape: MeshFloor),
         AsFrame = new(FrameBounds.Sphere(30), GravityField.Uniform(new(0, -Pull, 0)))
     };
@@ -99,7 +100,8 @@ public class MeshInteriorTests
         Tick(world, 3);
         Entity ball = DropBall(world, owner);
         Tick(world, SettleTicks);
-        return new(World: world, Faults: faults, Space: space, Owner: owner, Ship: world.GetOwnedFrame(owner), Ball: ball);
+        return new(World: world, Faults: faults, Space: space, Owner: owner, Ship: world.GetOwnedFrame(owner),
+            Ball: ball);
     }
 
     private static FrameHandle PlainSpace(World world) => world.CreateRootFrame(new(FrameBounds.Sphere(1e8f)));

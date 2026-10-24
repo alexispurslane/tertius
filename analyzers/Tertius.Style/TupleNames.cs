@@ -37,7 +37,8 @@ internal static class TupleNames
         };
         if (type is null || UnnamedTuple(type) is not { } tuple)
             return;
-        context.ReportDiagnostic(Diagnostic.Create(StyleRules.UnnamedTupleElement, Identifier(context.Node).GetLocation(),
+        context.ReportDiagnostic(Diagnostic.Create(StyleRules.UnnamedTupleElement,
+            Identifier(context.Node).GetLocation(),
             tuple.ToDisplayString()));
     }
 

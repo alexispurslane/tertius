@@ -102,7 +102,8 @@ public sealed partial class FrameTree
             int parent = parents[dense];
             while (parent >= 0 && numeric[ids[parent]] != NumericMode.None)
                 parent = parents[parent];
-            BeginTurn(id: id, parent: parent < 0 ? -1 : ids[parent], treeRotation: locals[dense].Rotation, stepIntents: stepIntents, step: step, lastStepFailed: lastStepFailed);
+            BeginTurn(id: id, parent: parent < 0 ? -1 : ids[parent], treeRotation: locals[dense].Rotation,
+                stepIntents: stepIntents, step: step, lastStepFailed: lastStepFailed);
         }
 
         // Every frame that the list held took its new turn as its last turn in the pass.
@@ -158,7 +159,8 @@ public sealed partial class FrameTree
         BodyMotion? stored = parent < 0 ? null : hullMotion[id];
         FollowKind kind = FollowKindOf(HullMotionInStep(stored, slot, stepIntents), slot, stepIntents);
         DQuaternion start = treeRotation;
-        if (TeleportsAt(slot: slot, stepIntents: stepIntents, hull: stored.HasValue, kind: kind, pose: out DPose teleport) &&
+        if (TeleportsAt(slot: slot, stepIntents: stepIntents, hull: stored.HasValue, kind: kind,
+                pose: out DPose teleport) &&
             teleport.Rotation != treeRotation)
         {
             start = teleport.Rotation.Normalized();
@@ -273,7 +275,8 @@ public sealed partial class FrameTree
     private FrameMotion AngularLevel(FrameHandle frame)
     {
         int id = Node(frame).Id;
-        return new(Pose: TreeLocalPose(frame), Velocity: Double3.Zero, AngularVelocity: angularVelocity[id], Acceleration: Double3.Zero, AngularAcceleration: angularAcceleration[id]);
+        return new(Pose: TreeLocalPose(frame), Velocity: Double3.Zero, AngularVelocity: angularVelocity[id],
+            Acceleration: Double3.Zero, AngularAcceleration: angularAcceleration[id]);
     }
 
     /// <summary>Grows the stores of the turns to <paramref name="size"/> slots, each new slot with no turn (see

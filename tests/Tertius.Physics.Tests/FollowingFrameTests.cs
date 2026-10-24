@@ -372,10 +372,14 @@ public class FollowingFrameTests
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(2e7f), GravityField.Point(4e10)));
         Entity ball = world.Spawn(new SpawnDesc
         {
-            Frame = space, Body = new(Shape: new SphereShapeDesc(2), Motion: BodyMotion.Kinematic, Mass: 1e4f, Restitution: 0)
+            Frame = space,
+            Body = new(Shape: new SphereShapeDesc(2), Motion: BodyMotion.Kinematic, Mass: 1e4f, Restitution: 0)
         }.OnKeplerOrbit(world, FarOrbit, firstMove: true));
         Entity rock = world.Spawn(new()
-            { Frame = space, Pose = At(1e7 + 8, 0, -100), Body = new(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Static) });
+        {
+            Frame = space, Pose = At(1e7 + 8, 0, -100),
+            Body = new(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Static)
+        });
         Entity crate = world.Spawn(new() { Frame = space, Pose = At(1e7, 0, -100), Body = Crate, Components = [log] });
         return (space, ball, rock, crate);
     }

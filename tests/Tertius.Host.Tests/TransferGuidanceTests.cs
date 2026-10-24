@@ -45,7 +45,8 @@ public sealed class TransferGuidanceTests
     public void TheArrivalPointLiesAlongTheStationsAxisFromItsPlaceAfterTheTime()
     {
         (Double3 point, Double3 stationVelocity) =
-            Guidance.Arrival(stationPosition: Station.Position, stationVelocity: Station.Velocity, axis: Axis, arrivalDistance: ArrivalDistance, time: TransferTime);
+            Guidance.Arrival(stationPosition: Station.Position, stationVelocity: Station.Velocity, axis: Axis,
+                arrivalDistance: ArrivalDistance, time: TransferTime);
 
         (Double3 position, Double3 velocity) =
             KeplerOrbit.Circular(StationRadius, phase: Degrees(3.8)).StateAt(TransferTime, Mu);
@@ -56,12 +57,15 @@ public sealed class TransferGuidanceTests
     [Fact]
     public void TheVelocityToGainPutsTheShuttleOnAPathThatReachesTheArrivalPointWhenTheTimeIsUp()
     {
-        TransferSteering steering = Guidance.Steer(shuttlePosition: Shuttle.Position, shuttleVelocity: Shuttle.Velocity, stationPosition: Station.Position,
+        TransferSteering steering = Guidance.Steer(shuttlePosition: Shuttle.Position, shuttleVelocity: Shuttle.Velocity,
+            stationPosition: Station.Position,
             stationVelocity: Station.Velocity, axis: Axis, arrivalDistance: ArrivalDistance, timeLeft: TransferTime);
 
         (Double3 landing, _) =
-            KeplerOrbit.Propagate(position: Shuttle.Position, velocity: Shuttle.Velocity + steering.ToGain, mu: Mu, time: TransferTime);
-        (Double3 point, _) = Guidance.Arrival(stationPosition: Station.Position, stationVelocity: Station.Velocity, axis: Axis, arrivalDistance: ArrivalDistance, time: TransferTime);
+            KeplerOrbit.Propagate(position: Shuttle.Position, velocity: Shuttle.Velocity + steering.ToGain, mu: Mu,
+                time: TransferTime);
+        (Double3 point, _) = Guidance.Arrival(stationPosition: Station.Position, stationVelocity: Station.Velocity,
+            axis: Axis, arrivalDistance: ArrivalDistance, time: TransferTime);
         Double3.Distance(landing, point).Should().BeLessThan(1e-3);
         steering.ToGain.Length.Should().BeInRange(55, 65, "the departure burn of the design costs 60.0 m/s");
     }
@@ -69,13 +73,16 @@ public sealed class TransferGuidanceTests
     [Fact]
     public void TheBrakesDirectionOpposesTheShuttlesVelocityRelativeToTheStationAtTheArrivalPoint()
     {
-        TransferSteering steering = Guidance.Steer(shuttlePosition: Shuttle.Position, shuttleVelocity: Shuttle.Velocity, stationPosition: Station.Position,
+        TransferSteering steering = Guidance.Steer(shuttlePosition: Shuttle.Position, shuttleVelocity: Shuttle.Velocity,
+            stationPosition: Station.Position,
             stationVelocity: Station.Velocity, axis: Axis, arrivalDistance: ArrivalDistance, timeLeft: TransferTime);
 
         (_, Double3 atArrival) =
-            KeplerOrbit.Propagate(position: Shuttle.Position, velocity: Shuttle.Velocity + steering.ToGain, mu: Mu, time: TransferTime);
+            KeplerOrbit.Propagate(position: Shuttle.Position, velocity: Shuttle.Velocity + steering.ToGain, mu: Mu,
+                time: TransferTime);
         (_, Double3 stationVelocity) =
-            Guidance.Arrival(stationPosition: Station.Position, stationVelocity: Station.Velocity, axis: Axis, arrivalDistance: ArrivalDistance, time: TransferTime);
+            Guidance.Arrival(stationPosition: Station.Position, stationVelocity: Station.Velocity, axis: Axis,
+                arrivalDistance: ArrivalDistance, time: TransferTime);
         Double3.Distance(steering.BrakeDirection, -(atArrival - stationVelocity).Normalized()).Should()
             .BeLessThan(1e-9);
     }
@@ -84,7 +91,8 @@ public sealed class TransferGuidanceTests
     [Fact]
     public void FarFromTheNeededVelocityTheBurnPushesAtTheBurnAccelerationTowardIt()
     {
-        TransferSteering steering = Guidance.Steer(shuttlePosition: Shuttle.Position, shuttleVelocity: Shuttle.Velocity, stationPosition: Station.Position,
+        TransferSteering steering = Guidance.Steer(shuttlePosition: Shuttle.Position, shuttleVelocity: Shuttle.Velocity,
+            stationPosition: Station.Position,
             stationVelocity: Station.Velocity, axis: Axis, arrivalDistance: ArrivalDistance, timeLeft: TransferTime);
 
         steering.Burns.Should().BeTrue();
@@ -141,24 +149,29 @@ public sealed class TransferGuidanceTests
         double timeLeft, bool coasts)
     {
         Double3 normal = TransferGuidance.OrbitNormal(Station.Position, Station.Velocity);
-        Double3 arrival = Guidance.Arrival(stationPosition: Station.Position, stationVelocity: Station.Velocity, axis: Axis, arrivalDistance: ArrivalDistance, time: timeLeft).Point;
+        Double3 arrival = Guidance.Arrival(stationPosition: Station.Position, stationVelocity: Station.Velocity,
+            axis: Axis, arrivalDistance: ArrivalDistance, time: timeLeft).Point;
         Double3 inPlane = (arrival - normal * Double3.Dot(arrival, normal)).Normalized();
         Double3 shuttle = DQuaternion.FromAxisAngle(normal, -Degrees(aheadDegrees)).Rotate(inPlane) * ParkingRadius;
         double expected = aheadDegrees >= 0 ? Degrees(aheadDegrees) : 2 * Math.PI + Degrees(aheadDegrees);
         TransferGuidance.TransferAngle(shuttle, arrival, normal).Should()
             .BeApproximately(expected, 1e-5, "the arrival point lies 1,500 m off the plane");
 
-        Guidance.Coasts(shuttlePosition: shuttle, stationPosition: Station.Position, stationVelocity: Station.Velocity, axis: Axis, arrivalDistance: ArrivalDistance, timeLeft: timeLeft).Should()
+        Guidance.Coasts(shuttlePosition: shuttle, stationPosition: Station.Position, stationVelocity: Station.Velocity,
+                axis: Axis, arrivalDistance: ArrivalDistance, timeLeft: timeLeft).Should()
             .Be(coasts);
     }
 
     /// <summary>The steering of the demo's window for a shuttle whose velocity lies <paramref name="short"/> m/s short of the needed velocity, along the velocity to gain.</summary>
     private static TransferSteering SteeringShortBy(double @short)
     {
-        TransferSteering first = Guidance.Steer(shuttlePosition: Shuttle.Position, shuttleVelocity: Shuttle.Velocity, stationPosition: Station.Position, stationVelocity: Station.Velocity,
+        TransferSteering first = Guidance.Steer(shuttlePosition: Shuttle.Position, shuttleVelocity: Shuttle.Velocity,
+            stationPosition: Station.Position, stationVelocity: Station.Velocity,
             axis: Axis, arrivalDistance: ArrivalDistance, timeLeft: TransferTime);
         Double3 velocity = Shuttle.Velocity + first.ToGain - first.ToGain.Normalized() * @short;
-        return Guidance.Steer(shuttlePosition: Shuttle.Position, shuttleVelocity: velocity, stationPosition: Station.Position, stationVelocity: Station.Velocity, axis: Axis, arrivalDistance: ArrivalDistance,
+        return Guidance.Steer(shuttlePosition: Shuttle.Position, shuttleVelocity: velocity,
+            stationPosition: Station.Position, stationVelocity: Station.Velocity, axis: Axis,
+            arrivalDistance: ArrivalDistance,
             timeLeft: TransferTime);
     }
 }

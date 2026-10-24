@@ -130,7 +130,8 @@ internal static class SyncSampler
         var providers = new List<EventPipeProvider>
         {
             new(name: "Microsoft-DotNETCore-SampleProfiler", eventLevel: EventLevel.Informational),
-            new(name: "Microsoft-Windows-DotNETRuntime", eventLevel: EventLevel.Informational, keywords: (long)0x10 /* JIT */ | 0x8 /* Loader */)
+            new(name: "Microsoft-Windows-DotNETRuntime", eventLevel: EventLevel.Informational,
+                keywords: (long)0x10 /* JIT */ | 0x8 /* Loader */)
         };
         using (EventPipeSession session = client.StartEventPipeSession(providers, requestRundown: true))
         {

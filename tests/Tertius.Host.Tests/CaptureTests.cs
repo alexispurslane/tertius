@@ -40,7 +40,8 @@ public sealed class CaptureTests : IDisposable
         try
         {
             using var playback = new HeadlessPlayback(renderer, script.Window, images);
-            return ScriptRunner.Run(script: script, world: world, scene: build(world, renderer), outputFolder: output, playback: playback);
+            return ScriptRunner.Run(script: script, world: world, scene: build(world, renderer), outputFolder: output,
+                playback: playback);
         }
         finally
         {
@@ -53,7 +54,8 @@ public sealed class CaptureTests : IDisposable
     public void ACaptureWritesAPngOfTheScriptsWindowSizeIntoTheOutputFolder()
     {
         RunResult result = Run(
-            json: """{ "scene": "lit-box", "window": { "width": 320, "height": 180 }, "steps": [ { "do": "capture", "name": "front" } ] }""",
+            json:
+            """{ "scene": "lit-box", "window": { "width": 320, "height": 180 }, "steps": [ { "do": "capture", "name": "front" } ] }""",
             newWorld: NewWorld, build: LitBox, output: folder);
 
         result.Captures.Should().Equal("front");
@@ -65,7 +67,8 @@ public sealed class CaptureTests : IDisposable
     [Fact]
     public void AScriptWithoutAWindowCapturesAt1280By720()
     {
-        Run(json: """{ "scene": "lit-box", "steps": [ { "do": "capture", "name": "front" } ] }""", newWorld: NewWorld, build: LitBox, output: folder);
+        Run(json: """{ "scene": "lit-box", "steps": [ { "do": "capture", "name": "front" } ] }""", newWorld: NewWorld,
+            build: LitBox, output: folder);
 
         Png image = Png.Load(Path.Combine(folder, "front.png"));
         (image.Width, image.Height).Should().Be((1280, 720));
@@ -75,7 +78,8 @@ public sealed class CaptureTests : IDisposable
     public void ACaptureShowsTheSceneThroughTheCamera()
     {
         Run(
-            json: """{ "scene": "lit-box", "window": { "width": 320, "height": 180 }, "steps": [ { "do": "capture", "name": "front" } ] }""",
+            json:
+            """{ "scene": "lit-box", "window": { "width": 320, "height": 180 }, "steps": [ { "do": "capture", "name": "front" } ] }""",
             newWorld: NewWorld, build: LitBox, output: folder);
 
         Png image = Png.Load(Path.Combine(folder, "front.png"));
@@ -87,9 +91,9 @@ public sealed class CaptureTests : IDisposable
     public void ACameraStepChangesTheViewOfTheCapturesAfterIt()
     {
         Run(json: """
-            { "scene": "lit-box", "window": { "width": 320, "height": 180 },
-              "steps": [ { "do": "capture", "name": "before" }, { "do": "camera", "entity": "away" }, { "do": "capture", "name": "after" } ] }
-            """, newWorld: NewWorld, build: LitBox, output: folder);
+                  { "scene": "lit-box", "window": { "width": 320, "height": 180 },
+                    "steps": [ { "do": "capture", "name": "before" }, { "do": "camera", "entity": "away" }, { "do": "capture", "name": "after" } ] }
+                  """, newWorld: NewWorld, build: LitBox, output: folder);
 
         Png.Load(Path.Combine(folder, "before.png")).IsRed(160, 90).Should().BeTrue();
         Png.Load(Path.Combine(folder, "after.png")).IsRed(160, 90).Should()
@@ -100,9 +104,9 @@ public sealed class CaptureTests : IDisposable
     public void ACaptureShowsTheStateAfterTheTicksBeforeIt()
     {
         Run(json: """
-            { "scene": "lit-drop", "window": { "width": 320, "height": 180 },
-              "steps": [ { "do": "capture", "name": "start" }, { "do": "run", "ticks": 90 }, { "do": "capture", "name": "landed" } ] }
-            """, newWorld: NewJoltWorld, build: LitDrop, output: folder);
+                  { "scene": "lit-drop", "window": { "width": 320, "height": 180 },
+                    "steps": [ { "do": "capture", "name": "start" }, { "do": "run", "ticks": 90 }, { "do": "capture", "name": "landed" } ] }
+                  """, newWorld: NewJoltWorld, build: LitDrop, output: folder);
 
         int high = RowOfHeight(3, 180), low = RowOfHeight(0.5, 180);
         Png start = Png.Load(Path.Combine(folder, "start.png"));
@@ -136,7 +140,8 @@ public sealed class CaptureTests : IDisposable
         string images = Path.Combine(folder, "images");
 
         Run(
-            json: """{ "scene": "lit-box", "window": { "width": 32, "height": 32 }, "steps": [ { "do": "capture", "name": "now" } ] }""",
+            json:
+            """{ "scene": "lit-box", "window": { "width": 32, "height": 32 }, "steps": [ { "do": "capture", "name": "now" } ] }""",
             world: world, build: LitBox, output: null, images: new(images));
 
         File.Exists(Path.Combine(images, "now.png")).Should()
@@ -195,7 +200,8 @@ public sealed class CaptureTests : IDisposable
 
         Action run = () =>
             Run(
-                json: """{ "scene": "lit-box", "window": { "width": 32, "height": 32 }, "steps": [ { "do": "run", "ticks": 2 }, { "do": "capture", "name": "now" } ] }""",
+                json:
+                """{ "scene": "lit-box", "window": { "width": 32, "height": 32 }, "steps": [ { "do": "run", "ticks": 2 }, { "do": "capture", "name": "now" } ] }""",
                 world: world, build: (w, resources) =>
                 {
                     SceneInstance scene = LitBox(w, resources);

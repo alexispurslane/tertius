@@ -35,8 +35,8 @@ public sealed class OrbitRun : IDisposable
             new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
         Scene = DemoScenes.All.Single(s => s.Name == "orbit").Build(World, RenderResources.None);
         Result = ScriptRunner.Run(script: Script.Parse("""
-                                               { "scene": "orbit", "steps": [ { "do": "dump", "name": "before" }, { "do": "run", "ticks": 1200 }, { "do": "dump", "name": "after" } ] }
-                                               """), world: World, scene: Scene);
+                                                       { "scene": "orbit", "steps": [ { "do": "dump", "name": "before" }, { "do": "run", "ticks": 1200 }, { "do": "dump", "name": "after" } ] }
+                                                       """), world: World, scene: Scene);
     }
 
     public World World { get; }
@@ -306,7 +306,8 @@ public sealed class OrbitSliceImageTests : IDisposable
         VulkanRenderer renderer = GpuTesting.Headless(16, 16);
         try
         {
-            ScriptRunner.Run(script: script, world: world, scene: DemoScenes.All.Single(s => s.Name == "orbit").Build(world, renderer),
+            ScriptRunner.Run(script: script, world: world,
+                scene: DemoScenes.All.Single(s => s.Name == "orbit").Build(world, renderer),
                 outputFolder: folder, playback: new HeadlessPlayback(renderer, script.Window, new PngFolder(folder)));
         }
         finally
@@ -367,7 +368,8 @@ public sealed class OrbitSliceImageTests : IDisposable
         VulkanRenderer renderer = GpuTesting.Headless(16, 16);
         try
         {
-            ScriptRunner.Run(script: script, world: world, scene: DemoScenes.All.Single(s => s.Name == "orbit").Build(world, renderer),
+            ScriptRunner.Run(script: script, world: world,
+                scene: DemoScenes.All.Single(s => s.Name == "orbit").Build(world, renderer),
                 outputFolder: folder, playback: new HeadlessPlayback(renderer, script.Window, new PngFolder(folder)));
         }
         finally

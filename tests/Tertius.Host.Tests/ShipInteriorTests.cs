@@ -25,7 +25,8 @@ public sealed class ShipInteriorTests
         static double Shared(float min0, float max0, float min1, float max1) =>
             Math.Max(0, (double)Math.Min(max0, max1) - Math.Max(min0, min1));
 
-        return Shared(min0: a.Min.X, max0: a.Max.X, min1: b.Min.X, max1: b.Max.X) * Shared(min0: a.Min.Y, max0: a.Max.Y, min1: b.Min.Y, max1: b.Max.Y) *
+        return Shared(min0: a.Min.X, max0: a.Max.X, min1: b.Min.X, max1: b.Max.X) *
+               Shared(min0: a.Min.Y, max0: a.Max.Y, min1: b.Min.Y, max1: b.Max.Y) *
                Shared(min0: a.Min.Z, max0: a.Max.Z, min1: b.Min.Z, max1: b.Max.Z);
     }
 

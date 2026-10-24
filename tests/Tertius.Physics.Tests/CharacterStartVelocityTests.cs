@@ -67,7 +67,8 @@ public class CharacterPressedWeightTests
     [Fact]
     public void ACharacterThatDoesNotStandHandsJoltItsWholeWeightWithTheCoriolisTerm()
     {
-        JoltPhysicsBackend.PressedWeight(weight: Weight, standing: false, up: Up, normal: SteepNormal).Should().Be(Weight,
+        JoltPhysicsBackend.PressedWeight(weight: Weight, standing: false, up: Up, normal: SteepNormal).Should().Be(
+            Weight,
             "nothing holds a character that does not stand, so Jolt presses its steep ground with the part of the whole input along the face's normal");
     }
 

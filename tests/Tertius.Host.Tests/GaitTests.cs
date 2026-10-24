@@ -151,7 +151,8 @@ public sealed class GaitTests : IDisposable
         Entity person = Person(frame: ground, position: new(0, 0.95, 0), view: Quaternion.Identity);
         Entity body = DrawnBody(person);
 
-        Lifts(body: body, person: person, frame: ground, ticks: 120).Should().AllSatisfy(lift => Math.Abs(lift).Should().BeLessThan(1e-6));
+        Lifts(body: body, person: person, frame: ground, ticks: 120).Should()
+            .AllSatisfy(lift => Math.Abs(lift).Should().BeLessThan(1e-6));
     }
 
     /// <summary>The person drifts at 2 m/s along -Z with no floor under it, in a frame with no gravity, so it takes no steps.</summary>
@@ -159,10 +160,12 @@ public sealed class GaitTests : IDisposable
     public void TheBodyDoesNotBobWhileThePersonFloats()
     {
         FrameHandle space = Ground(world, 0);
-        Entity person = Person(frame: space, position: Double3.Zero, view: Quaternion.Identity, velocity: new(0, 0, -2));
+        Entity person = Person(frame: space, position: Double3.Zero, view: Quaternion.Identity,
+            velocity: new(0, 0, -2));
         Entity body = DrawnBody(person);
 
-        Lifts(body: body, person: person, frame: space, ticks: 120).Should().AllSatisfy(lift => Math.Abs(lift).Should().BeLessThan(1e-6));
+        Lifts(body: body, person: person, frame: space, ticks: 120).Should()
+            .AllSatisfy(lift => Math.Abs(lift).Should().BeLessThan(1e-6));
     }
 
     /// <summary>After the walk stops, the bob dies away within half a second, wherever in its step the person stopped.</summary>

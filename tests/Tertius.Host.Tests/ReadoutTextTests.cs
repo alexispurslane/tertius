@@ -15,7 +15,8 @@ public sealed class ReadoutTextTests
     /// <summary>A row of the person at <paramref name="altitude"/> above Earth's mean radius, on the X axis.</summary>
     private static ReadoutRow At(double altitude, long tick = 0, double speed = 0, double toStation = 0,
         double axis = 0, double felt = 0) =>
-        new(Frame: "f-000000", Tick: tick, Position: new(DemoScenes.EarthRadius + altitude, 0, 0), Speed: speed, ToStation: toStation, Axis: axis, Felt: felt);
+        new(Frame: "f-000000", Tick: tick, Position: new(DemoScenes.EarthRadius + altitude, 0, 0), Speed: speed,
+            ToStation: toStation, Axis: axis, Felt: felt);
 
     [Theory]
     [InlineData(0.0, "0.0 m/s")]
@@ -114,8 +115,10 @@ public sealed class ReadoutTextTests
     {
         // A circle at 200 km takes 2π √(r³ / GM) = 5,301.0 s, 88.4 min. A quarter turn in 1,350 s is a turn in 5,400 s, 90.0 min.
         double r = DemoScenes.EarthRadius + 200e3;
-        var start = new ReadoutRow(Frame: "orbit-000000", Tick: 1000, Position: new(r, 0, 0), Speed: 0, ToStation: 0, Axis: 0, Felt: 0);
-        var row = new ReadoutRow(Frame: "night-000010", Tick: 1000 + 1350 * 60, Position: new(0, 0, r), Speed: 0, ToStation: 0, Axis: 0, Felt: 0);
+        var start = new ReadoutRow(Frame: "orbit-000000", Tick: 1000, Position: new(r, 0, 0), Speed: 0, ToStation: 0,
+            Axis: 0, Felt: 0);
+        var row = new ReadoutRow(Frame: "night-000010", Tick: 1000 + 1350 * 60, Position: new(0, 0, r), Speed: 0,
+            ToStation: 0, Axis: 0, Felt: 0);
 
         string[] panel = CheckPanels.ParkingOrbit(start, row);
 
@@ -126,8 +129,10 @@ public sealed class ReadoutTextTests
     public void TheParkingOrbitPanelShowsMeasuringForTheRunsPeriodInTheFirst10Seconds()
     {
         double r = DemoScenes.EarthRadius + 200e3;
-        var start = new ReadoutRow(Frame: "orbit-000000", Tick: 1000, Position: new(r, 0, 0), Speed: 0, ToStation: 0, Axis: 0, Felt: 0);
-        var row = new ReadoutRow(Frame: "orbit-000599", Tick: 1599, Position: new(r, 100, 0), Speed: 0, ToStation: 0, Axis: 0, Felt: 0);
+        var start = new ReadoutRow(Frame: "orbit-000000", Tick: 1000, Position: new(r, 0, 0), Speed: 0, ToStation: 0,
+            Axis: 0, Felt: 0);
+        var row = new ReadoutRow(Frame: "orbit-000599", Tick: 1599, Position: new(r, 100, 0), Speed: 0, ToStation: 0,
+            Axis: 0, Felt: 0);
         ReadoutRow later = row with { Tick = 1600 };
 
         CheckPanels.ParkingOrbit(start, row)[2].TrimEnd().Should().EndWith("run measuring");

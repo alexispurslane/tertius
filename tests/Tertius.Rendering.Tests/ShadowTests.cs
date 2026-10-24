@@ -54,7 +54,8 @@ public sealed class ShadowTests
             snapshot.Camera.PreviousRotation = camera;
             const float ground = -3f;
             var box = new Vector3(0, ground + 0.75f, -8);
-            snapshot.Instances.Add(Gpu.Instance(mesh: kit.Plane, material: kit.Ground, position: new(0, ground, -15), scale: new(30, 1, 30),
+            snapshot.Instances.Add(Gpu.Instance(mesh: kit.Plane, material: kit.Ground, position: new(0, ground, -15),
+                scale: new(30, 1, 30),
                 flags: Caster));
             // Turned so that its sunlit +X face looks toward the camera.
             snapshot.Instances.Add(Gpu.Instance(mesh: kit.Box, material: kit.White, position: box, scale: new(1.5f),
@@ -66,7 +67,8 @@ public sealed class ShadowTests
             Vector3 eclipsed = new(4f, ground, -10f);
             snapshot.Sun.AngularRadius = 0f;
             snapshot.Instances.Add(RenderInstance.Create(mesh: kit.Sphere, material: kit.White,
-                position: new Vector3(28f, ground, -10f) + Vector3.Normalize(sun) * 2_200f, rotation: Quaternion.Identity, scale: new(20f), boundingRadius: 0,
+                position: new Vector3(28f, ground, -10f) + Vector3.Normalize(sun) * 2_200f,
+                rotation: Quaternion.Identity, scale: new(20f), boundingRadius: 0,
                 hemisphere: HemisphereUp.Even, flags: RenderFlags.CastsShadow, entityIndex: 0, part: 0));
 
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "shadow-box");
@@ -116,13 +118,18 @@ public sealed class ShadowTests
             snapshot.Camera.PreviousRotation = camera;
             snapshot.Camera.VerticalFov = fov;
             snapshot.Instances.Add(Gpu.Instance(mesh: kit.Box, material: kit.White, position: box, scale: new(10f)));
-            snapshot.Instances.Add(RenderInstance.Create(mesh: kit.Sphere, material: kit.White, position: new(0, 0, -5_000), rotation: Quaternion.Identity,
-                scale: new(1_000f), boundingRadius: 0, hemisphere: HemisphereUp.Even, flags: Caster, entityIndex: 0, part: 0));
+            snapshot.Instances.Add(RenderInstance.Create(mesh: kit.Sphere, material: kit.White,
+                position: new(0, 0, -5_000), rotation: Quaternion.Identity,
+                scale: new(1_000f), boundingRadius: 0, hemisphere: HemisphereUp.Even, flags: Caster, entityIndex: 0,
+                part: 0));
 
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "far-caster-inside");
 
             // The box's face toward the camera faces the sun at 45 degrees, so the sun lights it.
-            float face = image.MeanLuma(Gpu.Project(point: box + new Vector3(0, 0, 5f), cameraRotation: camera, width: width, height: height, fov: fov), 2);
+            float face =
+                image.MeanLuma(
+                    Gpu.Project(point: box + new Vector3(0, 0, 5f), cameraRotation: camera, width: width,
+                        height: height, fov: fov), 2);
             face.Should().BeGreaterThan(0.3f, "a bounding sphere does not shadow what lies inside it");
         }
         finally
@@ -155,13 +162,18 @@ public sealed class ShadowTests
             snapshot.Camera.VerticalFov = fov;
             // No ambient light, so that the low sun alone lights the ground and the shadow shows plainly.
             snapshot.Ambient = default;
-            snapshot.Instances.Add(Gpu.Instance(mesh: kit.Plane, material: kit.Ground, position: new(0, ground, -3_000f),
+            snapshot.Instances.Add(Gpu.Instance(mesh: kit.Plane, material: kit.Ground,
+                position: new(0, ground, -3_000f),
                 scale: new(3_000f, 1, 3_000f)));
-            snapshot.Instances.Add(Gpu.Instance(mesh: kit.Sphere, material: kit.White, position: center, scale: new(150f), flags: Caster));
+            snapshot.Instances.Add(Gpu.Instance(mesh: kit.Sphere, material: kit.White, position: center,
+                scale: new(150f), flags: Caster));
 
-            Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "mapped-caster-far-shadow");
+            Capture image =
+                Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "mapped-caster-far-shadow");
 
-            Vector2 Pixel(Vector3 p) => Gpu.Project(point: p, cameraRotation: camera, width: width, height: height, fov: fov);
+            Vector2 Pixel(Vector3 p) =>
+                Gpu.Project(point: p, cameraRotation: camera, width: width, height: height, fov: fov);
+
             Gpu.ViewDepth(shadow, camera).Should()
                 .BeGreaterThan(ShadowCascades.Distance, "the shadow lies beyond the maps");
             float shadowed = image.MeanLuma(Pixel(shadow), 2);
@@ -193,9 +205,11 @@ public sealed class ShadowTests
             snapshot.Camera.VerticalFov = fov;
             float ground = -1_500f * MathF.Tan(20f * MathF.PI / 180f);
             var box = new Vector3(0, ground + 20f, -1_500f);
-            snapshot.Instances.Add(Gpu.Instance(mesh: kit.Plane, material: kit.Ground, position: new(0, ground, -1_500f), scale: new(2_500f, 1, 2_500f),
+            snapshot.Instances.Add(Gpu.Instance(mesh: kit.Plane, material: kit.Ground,
+                position: new(0, ground, -1_500f), scale: new(2_500f, 1, 2_500f),
                 flags: Caster));
-            snapshot.Instances.Add(Gpu.Instance(mesh: kit.Box, material: kit.White, position: box, scale: new(40f), flags: Caster));
+            snapshot.Instances.Add(Gpu.Instance(mesh: kit.Box, material: kit.White, position: box, scale: new(40f),
+                flags: Caster));
 
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "shadow-1500m");
             renderer.LastFrameStats.ShadowCascades.Should().Be(4);
@@ -206,8 +220,11 @@ public sealed class ShadowTests
             float depth = Gpu.ViewDepth(shadowPoint, camera);
             depth.Should().BeInRange(ShadowCascades.Split(2), ShadowCascades.BlendStart(3),
                 "the sample is in the last cascade");
-            float shadowed = image.MeanLuma(Gpu.Project(point: shadowPoint, cameraRotation: camera, width: width, height: height, fov: fov), 2);
-            float lit = image.MeanLuma(Gpu.Project(point: litPoint, cameraRotation: camera, width: width, height: height, fov: fov), 2);
+            float shadowed =
+                image.MeanLuma(
+                    Gpu.Project(point: shadowPoint, cameraRotation: camera, width: width, height: height, fov: fov), 2);
+            float lit = image.MeanLuma(
+                Gpu.Project(point: litPoint, cameraRotation: camera, width: width, height: height, fov: fov), 2);
             lit.Should().BeGreaterThan(0.3f, "the ground on the sunward side is lit");
             shadowed.Should().BeLessThan(0.5f * lit, "the last cascade shadows at {0:F0} m", depth);
         }
@@ -236,19 +253,25 @@ public sealed class ShadowTests
             snapshot.Camera.PreviousRotation = camera;
             snapshot.Camera.VerticalFov = fov;
             const float ground = -300f;
-            snapshot.Instances.Add(Gpu.Instance(mesh: kit.Plane, material: kit.Ground, position: new(0, ground, -2_500f), scale: new(3_000f, 1, 3_000f),
+            snapshot.Instances.Add(Gpu.Instance(mesh: kit.Plane, material: kit.Ground,
+                position: new(0, ground, -2_500f), scale: new(3_000f, 1, 3_000f),
                 flags: Caster));
             // Its bounding sphere reaches within 1 km of the camera, so it is a caster.
-            snapshot.Instances.Add(Gpu.Instance(mesh: kit.Box, material: kit.White, position: new(0, ground + 20f, -2_250f),
+            snapshot.Instances.Add(Gpu.Instance(mesh: kit.Box, material: kit.White,
+                position: new(0, ground + 20f, -2_250f),
                 scale: new(10f, 40f, 1_500f), flags: Caster));
             // A second wall entirely beyond 2 km is not in the shadow maps. It casts a far shadow instead: the sphere of its
             // bounding radius, 173 m.
-            snapshot.Instances.Add(Gpu.Instance(mesh: kit.Box, material: kit.White, position: new(-600f, ground + 20f, -2_600f),
+            snapshot.Instances.Add(Gpu.Instance(mesh: kit.Box, material: kit.White,
+                position: new(-600f, ground + 20f, -2_600f),
                 scale: new(10f, 40f, 200f), flags: Caster));
 
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "shadow-2km-cutoff");
             renderer.LastFrameStats.ShadowCasters.Should().Be(2, "the wall beyond 2 km is not in the shadow maps");
-            float Luma(Vector3 p) => image.MeanLuma(Gpu.Project(point: p, cameraRotation: camera, width: width, height: height, fov: fov), 1);
+
+            float Luma(Vector3 p) =>
+                image.MeanLuma(Gpu.Project(point: p, cameraRotation: camera, width: width, height: height, fov: fov),
+                    1);
 
             foreach (float z in (float[])[1_550f, 1_600f, 1_650f, 1_700f, 1_750f])
             {
@@ -295,7 +318,8 @@ public sealed class ShadowTests
 
             // A low and a high view cover every cascade. In the reference the ground casts no shadow, so its lit
             // pixels cannot have acne; with self-shadowing they must come out the same.
-            foreach ((string name, float heightAboveGround, float pitch) in (ReadOnlySpan<(string Name, float HeightAboveGround, float Pitch)>)
+            foreach ((string name, float heightAboveGround, float pitch) in (
+                         ReadOnlySpan<(string Name, float HeightAboveGround, float Pitch)>)
                      [("low", 2f, 0.3f), ("high", 120f, 0.35f)])
             {
                 Quaternion camera = Gpu.PitchDown(pitch);
@@ -305,11 +329,13 @@ public sealed class ShadowTests
                     RenderSnapshot snapshot = Gpu.Snapshot(sun);
                     snapshot.Camera.Rotation = camera;
                     snapshot.Camera.PreviousRotation = camera;
-                    snapshot.Instances.Add(Gpu.Instance(mesh: kit.Plane, material: kit.Ground, position: new(0, -heightAboveGround, -1_000f),
+                    snapshot.Instances.Add(Gpu.Instance(mesh: kit.Plane, material: kit.Ground,
+                        position: new(0, -heightAboveGround, -1_000f),
                         scale: new(1_500f, 1, 1_500f),
                         flags: groundCasts ? Caster : RenderFlags.None));
                     // Something else casts, so the cascades are drawn in both images.
-                    snapshot.Instances.Add(Gpu.Instance(mesh: kit.Box, material: kit.White, position: new(-40f, -heightAboveGround + 1f, -30f),
+                    snapshot.Instances.Add(Gpu.Instance(mesh: kit.Box, material: kit.White,
+                        position: new(-40f, -heightAboveGround + 1f, -30f),
                         scale: new(2f), flags: Caster));
                     return snapshot;
                 }
@@ -389,11 +415,13 @@ public sealed class ShadowTests
                     snapshot.Camera.Rotation = camera;
                     snapshot.Camera.PreviousRotation = camera;
                     snapshot.Camera.VerticalFov = fov;
-                    snapshot.Instances.Add(Gpu.Instance(mesh: kit.Plane, material: kit.Ground, position: new(0, -cameraHeight, -400f),
+                    snapshot.Instances.Add(Gpu.Instance(mesh: kit.Plane, material: kit.Ground,
+                        position: new(0, -cameraHeight, -400f),
                         scale: new(800f, 1, 800f), flags: Caster));
                     if (wall)
                         snapshot.Instances.Add(Gpu.Instance(mesh: kit.Box, material: kit.White,
-                            position: new(wallX, -cameraHeight + wallHeight / 2, -230f), scale: new(4f, wallHeight, 420f),
+                            position: new(wallX, -cameraHeight + wallHeight / 2, -230f),
+                            scale: new(4f, wallHeight, 420f),
                             flags: Caster));
                     return snapshot;
                 }
@@ -406,7 +434,8 @@ public sealed class ShadowTests
             Quaternion low = Gpu.PitchDown(12f * MathF.PI / 180f);
             const float rightWall = 8f;
             float shadowCenterX = rightWall - 2f - 0.5f * wallHeight / MathF.Tan(elevation);
-            (Capture image, Capture reference) = Render(name: "shadow-seams", cameraHeight: 20f, pitch: 12f * MathF.PI / 180f, wallX: rightWall);
+            (Capture image, Capture reference) = Render(name: "shadow-seams", cameraHeight: 20f,
+                pitch: 12f * MathF.PI / 180f, wallX: rightWall);
             int seamsCrossed = 0;
             float previousDepth = 0;
             for (float z = 30f; z <= 420f; z += 2.5f)
@@ -429,7 +458,8 @@ public sealed class ShadowTests
             // darken several meters of it.
             Quaternion high = Gpu.PitchDown(25f * MathF.PI / 180f);
             const float leftWall = -8f;
-            (Capture side, Capture sideReference) = Render(name: "shadow-sunlit-side", cameraHeight: 60f, pitch: 25f * MathF.PI / 180f, wallX: leftWall);
+            (Capture side, Capture sideReference) = Render(name: "shadow-sunlit-side", cameraHeight: 60f,
+                pitch: 25f * MathF.PI / 180f, wallX: leftWall);
             foreach (float z in (float[])[80f, 150f, 250f, 320f, 400f])
             foreach (float distance in (float[])[1.5f, 3f, 6f])
             {
@@ -461,21 +491,27 @@ public sealed class ShadowTests
             snapshot.Camera.Rotation = camera;
             snapshot.Camera.PreviousRotation = camera;
             const float ground = -4f;
-            snapshot.Instances.Add(Gpu.Instance(mesh: kit.Plane, material: kit.Ground, position: new(0, ground, -10f), scale: new(20f, 1, 20f),
+            snapshot.Instances.Add(Gpu.Instance(mesh: kit.Plane, material: kit.Ground, position: new(0, ground, -10f),
+                scale: new(20f, 1, 20f),
                 flags: Caster));
             // An invisible caster (CastsShadow without Visible): only its shadow shows where it is. It moved from
             // x = -3 to x = +3 during the tick.
-            var pole = RenderInstance.Create(mesh: kit.Box, material: kit.White, position: new(3f, ground + 1.5f, -8f), rotation: Quaternion.Identity,
-                scale: new(1f, 3f, 1f), boundingRadius: 0f, hemisphere: HemisphereUp.Along(Vector3.UnitY), flags: Caster);
+            var pole = RenderInstance.Create(mesh: kit.Box, material: kit.White, position: new(3f, ground + 1.5f, -8f),
+                rotation: Quaternion.Identity,
+                scale: new(1f, 3f, 1f), boundingRadius: 0f, hemisphere: HemisphereUp.Along(Vector3.UnitY),
+                flags: Caster);
             pole.PreviousPosition = new(-3f, ground + 1.5f, -8f);
             snapshot.Instances.Add(pole);
 
-            Capture start = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "shadow-caster-alpha0", alpha: 0f);
-            Capture end = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "shadow-caster-alpha1", alpha: 1f);
+            Capture start = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "shadow-caster-alpha0",
+                alpha: 0f);
+            Capture end = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "shadow-caster-alpha1",
+                alpha: 1f);
             renderer.LastFrameStats.VisibleInstances.Should().Be(1, "the pole is not Visible");
             renderer.LastFrameStats.ShadowCasters.Should().Be(2, "the pole casts a shadow all the same");
 
-            Vector2 Pixel(float x) => Gpu.Project(point: ShadowOnGround(new(x, ground + 1.5f, -8f), sun, ground), cameraRotation: camera,
+            Vector2 Pixel(float x) => Gpu.Project(point: ShadowOnGround(new(x, ground + 1.5f, -8f), sun, ground),
+                cameraRotation: camera,
                 width: width, height: height);
 
             start.Luma(Pixel(-3f)).Should().BeLessThan(0.5f * end.Luma(Pixel(-3f)),
@@ -499,7 +535,8 @@ public sealed class ShadowTests
             RenderSnapshot snapshot = Gpu.Snapshot(new(0.2f, 1f, 0.1f));
 
             RenderInstance Box(Vector3 position, RenderFlags flags) =>
-                RenderInstance.Create(mesh: kit.Box, material: kit.White, position: position, rotation: Quaternion.Identity, scale: Vector3.One, boundingRadius: 0f,
+                RenderInstance.Create(mesh: kit.Box, material: kit.White, position: position,
+                    rotation: Quaternion.Identity, scale: Vector3.One, boundingRadius: 0f,
                     hemisphere: HemisphereUp.Along(Vector3.UnitY), flags: flags);
 
             snapshot.Instances.Add(Box(new(0, 0, -10), RenderFlags.Visible | Caster)); // selected
@@ -560,13 +597,15 @@ public sealed class ShadowTests
         {
             var kit = Kit.Create(renderer);
             RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 1f, 0.2f));
-            snapshot.Instances.Add(Gpu.Instance(mesh: kit.Box, material: kit.White, position: new(0, 0, -5), scale: Vector3.One));
+            snapshot.Instances.Add(Gpu.Instance(mesh: kit.Box, material: kit.White, position: new(0, 0, -5),
+                scale: Vector3.One));
             renderer.Render(snapshot, 1f);
             renderer.LastFrameStats.ShadowCascades.Should().Be(0, "nothing casts a shadow");
             renderer.LastFrameStats.IndirectDrawCalls.Should().Be(1);
             renderer.LastScene.Constants.ShadowCascadeCount.Should().Be(0u);
 
-            snapshot.Instances[0] = Gpu.Instance(mesh: kit.Box, material: kit.White, position: new(0, 0, -5), scale: Vector3.One, flags: Caster);
+            snapshot.Instances[0] = Gpu.Instance(mesh: kit.Box, material: kit.White, position: new(0, 0, -5),
+                scale: Vector3.One, flags: Caster);
             renderer.Render(snapshot, 1f);
             renderer.LastFrameStats.ShadowCascades.Should().Be(4);
             renderer.LastScene.Constants.ShadowCascadeCount.Should().Be(ShadowCascades.Count);
@@ -620,7 +659,8 @@ public sealed class ShadowTests
         snapshot.Camera.Rotation = rotation;
         snapshot.Camera.PreviousRotation = rotation;
         snapshot.Camera.PreviousPosition = (previousEye - eye).ToVector3();
-        snapshot.Instances.Add(Gpu.Instance(mesh: kit.Box, material: kit.White, position: (casterInFrame - eye).ToVector3(), scale: Vector3.One,
+        snapshot.Instances.Add(Gpu.Instance(mesh: kit.Box, material: kit.White,
+            position: (casterInFrame - eye).ToVector3(), scale: Vector3.One,
             flags: Caster));
         renderer.Render(snapshot, alpha);
         renderer.LastScene.ShadowCascadeCount.Should().Be(ShadowCascades.Count, "a caster is in range of the sun");
@@ -683,7 +723,8 @@ public sealed class ShadowTests
                 // Interpolated frames inside the tick must agree too: alpha moves the eye, not the grid.
                 foreach (float alpha in (float[])[0.37f, 1f])
                 {
-                    PreparedScene scene = RenderTick(renderer: renderer, kit: kit, tick: tick + 1, frameId: 1, eye: eyes[tick],
+                    PreparedScene scene = RenderTick(renderer: renderer, kit: kit, tick: tick + 1, frameId: 1,
+                        eye: eyes[tick],
                         previousEye: eyes[Math.Max(tick - 1, 0)], rotation: rotations[tick], alpha: alpha,
                         casterInFrame: new(0, -2, -10));
                     texels ??= [.. Enumerable.Range(0, ShadowCascades.Count).Select(i => scene.Cascades[i].TexelSize)];
@@ -723,7 +764,8 @@ public sealed class ShadowTests
             foreach (long tick in (long[])[1, 2, 4, 7])
             foreach (float alpha in (float[])[0.5f, 1f])
             {
-                PreparedScene scene = RenderTick(renderer: renderer, kit: kit, tick: tick, frameId: 1, eye: EyeAt(tick), previousEye: EyeAt(tick - 1),
+                PreparedScene scene = RenderTick(renderer: renderer, kit: kit, tick: tick, frameId: 1, eye: EyeAt(tick),
+                    previousEye: EyeAt(tick - 1),
                     rotation: Quaternion.Identity, alpha: alpha,
                     casterInFrame: surface + new Double3(0, -2, -10));
                 Vector2[][] current = Fractions(scene: scene, eye: EyeAt(tick), pointsInFrame: points, size: size);
@@ -762,17 +804,20 @@ public sealed class ShadowTests
             foreach ((long tick, long frame) in ((long Tick, long Frame)[])
                      [(1, 1), (2, 1), (3, 2), (4, 2), (6, 2), (7, 1), (8, 1)])
             {
-                PreparedScene scene = RenderTick(renderer: renderer, kit: kit, tick: tick, frameId: frame, eye: Eye(tick, frame), previousEye: Eye(tick - 1, frame),
+                PreparedScene scene = RenderTick(renderer: renderer, kit: kit, tick: tick, frameId: frame,
+                    eye: Eye(tick, frame), previousEye: Eye(tick - 1, frame),
                     rotation: Quaternion.Identity, alpha: 1f,
                     casterInFrame: new Double3(0, -2, -10) - FrameOrigin(frame));
 
                 // The grid passes through the origin of the frame the camera is in: it falls on a texel corner.
-                Vector2[] origin = Fractions(scene: scene, eye: Eye(tick, frame), pointsInFrame: [Double3.Zero], size: size)[0];
+                Vector2[] origin = Fractions(scene: scene, eye: Eye(tick, frame), pointsInFrame: [Double3.Zero],
+                    size: size)[0];
                 for (int i = 0; i < ShadowCascades.Count; i++)
                     FractionDistance(origin[i], Vector2.Zero).Should().BeLessThan(0.01f,
                         "on tick {0} the grid of cascade {1} passes through the origin of frame {2}", tick, i, frame);
 
-                Vector2[][] current = Fractions(scene: scene, eye: Eye(tick, frame), pointsInFrame: InFrame(frame), size: size);
+                Vector2[][] current = Fractions(scene: scene, eye: Eye(tick, frame), pointsInFrame: InFrame(frame),
+                    size: size);
                 if (frame == 2 && lastOnGround != null)
                 {
                     // Stepping into the ship moved the grid to the ship's origin, which is not a whole number of texels away.
@@ -807,7 +852,8 @@ public sealed class ShadowTests
             var scene = TestScene.Create(renderer);
             Capture shadowed = Gpu.RenderAndCapture(renderer: renderer, snapshot: scene.Snapshot(), name: "scene");
             Capture unshadowed =
-                Gpu.RenderAndCapture(renderer: renderer, snapshot: scene.Snapshot(shadows: false), name: "scene-without-shadow-maps");
+                Gpu.RenderAndCapture(renderer: renderer, snapshot: scene.Snapshot(shadows: false),
+                    name: "scene-without-shadow-maps");
             // The ground under the middle of the tall box's shadow: from there, the sun is behind the box.
             Vector3 ground = TestScene.TallBox + new Vector3(0, -1f, 0) -
                              TestScene.SunDirection * (1f / TestScene.SunDirection.Y);
@@ -815,7 +861,8 @@ public sealed class ShadowTests
             shadowed.MeanLuma(pixel, 2).Should().BeLessThan(0.6f * unshadowed.MeanLuma(pixel, 2),
                 "the ground behind the tall box is in its shadow");
             // On the sunward side of the box the ground is the same with and without shadow maps.
-            Vector2 sunward = Gpu.Project(point: TestScene.TallBox + new Vector3(1.5f, -1f, -1.2f), width: width, height: height);
+            Vector2 sunward = Gpu.Project(point: TestScene.TallBox + new Vector3(1.5f, -1f, -1.2f), width: width,
+                height: height);
             MathF.Abs(shadowed.MeanLuma(sunward, 1) - unshadowed.MeanLuma(sunward, 1)).Should()
                 .BeLessThan(0.01f, "the sunward side is lit");
         }

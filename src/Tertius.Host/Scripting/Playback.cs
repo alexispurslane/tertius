@@ -43,7 +43,8 @@ public sealed class HeadlessPlayback : IPlayback, IDisposable
     /// folder of the video cannot be made.
     /// </summary>
     /// <exception cref="ArgumentException"><paramref name="target"/> is the default value, which holds no case.</exception>
-    public HeadlessPlayback(IRenderer renderer, ScriptWindow size, CaptureTarget target) : this(renderer: renderer, size: size, target: target,
+    public HeadlessPlayback(IRenderer renderer, ScriptWindow size, CaptureTarget target) : this(renderer: renderer,
+        size: size, target: target,
         startVideo: FfmpegVideoSink.Start)
     {
     }

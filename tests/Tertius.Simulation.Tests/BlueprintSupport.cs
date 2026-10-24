@@ -145,7 +145,8 @@ internal static class BlueprintSamples
         Blueprints blueprints = into ?? new Blueprints();
         blueprints.Register(new(
             Name: "soldier",
-            Components: [
+            Components:
+            [
                 new(typeof(Health), Fields(("Max", 120), ("Current", 120f), ("Side", "Rebel"))),
                 new(typeof(Weapon), Fields(("Damage", 5.0), ("Range", 30)))
             ],
@@ -153,7 +154,8 @@ internal static class BlueprintSamples
             Render: new RenderData { Mesh = new(4), Flags = RenderFlags.Visible }));
         blueprints.Register(new(
             Name: "officer",
-            Components: [
+            Components:
+            [
                 new(typeof(Radio)),
                 new(typeof(Health), Fields(("Max", 150f), ("Name", "Boss"), ("Armor", 3)))
             ],

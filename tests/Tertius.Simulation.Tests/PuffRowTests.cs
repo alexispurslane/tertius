@@ -25,7 +25,11 @@ public class PuffRowTests
         var frame = new FrameHandle(new(3, 1), 2, 1);
         Puff[] rows = [new() { Place = new(1, 2, 3), Chord = new(4, 5, 6), Age = 0.25f, Look = 1 }];
         PuffRange[] ranges = [new(frame, 0, 1)];
-        PuffLook[] looks = [default, new(Life: 2, StartRadius: 0.5f, EndRadius: 3, TemperatureRatio: 3, Shading: PuffShading.Glow(Vector3.One))];
+        PuffLook[] looks =
+        [
+            default,
+            new(Life: 2, StartRadius: 0.5f, EndRadius: 3, TemperatureRatio: 3, Shading: PuffShading.Glow(Vector3.One))
+        ];
 
         var view = new PuffView(rows: rows, ranges: ranges, looks: looks, step: 1 / 60.0);
 

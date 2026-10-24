@@ -43,7 +43,8 @@ public class StaticBodyGhostBenchmarks
         FrameHandle station = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), gravity));
         world.Spawn(new()
         {
-            Frame = station, Pose = At(0, -0.5, 0), Body = new(Shape: new BoxShapeDesc(new(100, 0.5f, 80)), Motion: BodyMotion.Static)
+            Frame = station, Pose = At(0, -0.5, 0),
+            Body = new(Shape: new BoxShapeDesc(new(100, 0.5f, 80)), Motion: BodyMotion.Static)
         });
         var prop = new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static);
         for (int i = 0; i < Props; i++)

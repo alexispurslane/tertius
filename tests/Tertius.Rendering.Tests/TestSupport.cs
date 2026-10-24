@@ -91,7 +91,8 @@ internal static class Gpu
 
     /// <summary>The pixel of a camera-relative point for a camera with any rotation and vertical field of view.</summary>
     public static Vector2 Project(Vector3 point, Quaternion cameraRotation, int width, int height, float fov = Fov) =>
-        Project(point: Vector3.Transform(point, Quaternion.Conjugate(cameraRotation)), width: width, height: height, fov: fov);
+        Project(point: Vector3.Transform(point, Quaternion.Conjugate(cameraRotation)), width: width, height: height,
+            fov: fov);
 
     /// <summary>A camera turned down by <paramref name="pitch"/> radians from looking along −Z.</summary>
     public static Quaternion PitchDown(float pitch) => Quaternion.CreateFromAxisAngle(Vector3.UnitX, -pitch);
@@ -108,7 +109,8 @@ internal static class Gpu
     public static RenderInstance Instance(MeshId mesh, MaterialId material, Vector3 position, Vector3 scale,
         Quaternion? rotation = null, RenderFlags flags = RenderFlags.None, float radius = 0, uint entity = 0,
         ushort part = 0) =>
-        RenderInstance.Create(mesh: mesh, material: material, position: position, rotation: rotation ?? Quaternion.Identity, scale: scale, boundingRadius: radius,
+        RenderInstance.Create(mesh: mesh, material: material, position: position,
+            rotation: rotation ?? Quaternion.Identity, scale: scale, boundingRadius: radius,
             hemisphere: HemisphereUp.Along(Vector3.UnitY),
             flags: flags | RenderFlags.Visible, entityIndex: entity, part: part);
 
@@ -162,7 +164,8 @@ internal sealed class Capture(int width, int height, byte[] rgba)
     public void Save(string path)
     {
         using FileStream stream = File.Create(path);
-        new ImageWriter().WritePng(data: Rgba, width: Width, height: Height, components: StbImageWriteSharp.ColorComponents.RedGreenBlueAlpha, dest: stream);
+        new ImageWriter().WritePng(data: Rgba, width: Width, height: Height,
+            components: StbImageWriteSharp.ColorComponents.RedGreenBlueAlpha, dest: stream);
     }
 
     /// <summary>Color in [0, 1] (display-encoded, as stored).</summary>

@@ -14,7 +14,8 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public class WorldContactEndTests
 {
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
+        Mass: 70);
 
     /// <summary>A heavy box, which a character cannot push: friction holds 0.5 · 500 kg · g, and a character pushes with 100 N.</summary>
     private static readonly BodyDesc HeavyBox = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 500);
@@ -181,14 +182,19 @@ public class WorldContactEndTests
             backend);
         FrameHandle space = Ground(world, 0);
         Entity wall = world.Spawn(new()
-            { Frame = space, Pose = At(1.01), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static) });
+        {
+            Frame = space, Pose = At(1.01), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static)
+        });
         var log = new CollisionLog();
         var pilot = new Pilot();
         world.Spawn(new() { Frame = space, Body = Ball(), Components = [log, pilot] });
         Tick(world, 10);
         for (int i = 0; i < 15; i++)
             world.Spawn(new()
-                { Frame = space, Pose = At(3 * i, -100), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static) });
+            {
+                Frame = space, Pose = At(3 * i, -100),
+                Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static)
+            });
         Tick(world, 10);
         warnings.Count(warning => warning.Contains("so it grew")).Should().Be(2);
         log.Seen.Should().BeEmpty("the ball has not touched the wall yet");
@@ -211,7 +217,9 @@ public class WorldContactEndTests
         using World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
         world.Spawn(new()
-            { Frame = space, Pose = At(1.055), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static) });
+        {
+            Frame = space, Pose = At(1.055), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static)
+        });
         var log = new CollisionLog();
         world.Spawn(new() { Frame = space, LinearVelocity = new Vector3(1, 0, 0), Body = Ball(), Components = [log] });
 
@@ -286,7 +294,9 @@ public class WorldContactEndTests
         using World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
         Entity wall = world.Spawn(new()
-            { Frame = space, Pose = At(1.0508), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static) });
+        {
+            Frame = space, Pose = At(1.0508), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static)
+        });
         var log = new CollisionLog();
         world.Spawn(
             new() { Frame = space, LinearVelocity = new Vector3(0.1f, 0, 0), Body = Ball(), Components = [log] });
@@ -594,7 +604,10 @@ public class WorldContactEndTests
         // One batch of 15 static crates far below the floor grows the ground's system twice.
         for (int i = 0; i < 15; i++)
             world.Spawn(new()
-                { Frame = ground, Pose = At(3 * i, -100), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static) });
+            {
+                Frame = ground, Pose = At(3 * i, -100),
+                Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static)
+            });
         Tick(world, 10);
 
         warnings.Count(warning => warning.Contains("so it grew")).Should().Be(2);

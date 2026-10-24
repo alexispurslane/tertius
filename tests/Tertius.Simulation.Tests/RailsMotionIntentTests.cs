@@ -23,7 +23,8 @@ public class RailsMotionIntentTests
     private const double FarStartTime = 1e9 + 0.1;
 
     /// <summary>A kinematic box of 1 m, the hull of a frame on rails.</summary>
-    private static readonly BodyDesc KinematicHull = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Kinematic);
+    private static readonly BodyDesc KinematicHull =
+        new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Kinematic);
     // ---- The life of a full sample ------------------------------------------------------------------------------
 
     [Theory]
@@ -454,12 +455,14 @@ public class RailsMotionIntentTests
 
     /// <summary>A sample whose place is the tick number along X, so that a test can tell which tick wrote it.</summary>
     private static MotionSample SampleOfTick(long tick) =>
-        new(Pose: new(new(tick, 0, 0), DQuaternion.Identity), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
+        new(Pose: new(new(tick, 0, 0), DQuaternion.Identity), ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
+            Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
             AngularAcceleration: Double3.Zero);
 
     /// <summary>A sample of a frame that stands still at <paramref name="place"/>, unturned.</summary>
     private static MotionSample StillAt(Double3 place) =>
-        new(Pose: new(place, DQuaternion.Identity), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
+        new(Pose: new(place, DQuaternion.Identity), ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
+            Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
 
     /// <summary>
     /// <see cref="SampleOfTick"/> of tick 0 with a value that is not a finite number in <paramref name="field"/>. The fields

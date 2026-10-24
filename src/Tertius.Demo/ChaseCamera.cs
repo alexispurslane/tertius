@@ -171,7 +171,8 @@ public sealed class ChaseCamera(double behind, double above, double ahead, Vecto
             View(toSubject.Rotate(forward), toSubject.Rotate(up)));
 
         // The free distance along the whole arm, from the eye where the step that runs now ends.
-        self.Physics.CastRayAll(from: pose.Position + subjectVelocity * dt + eye, direction: back, length: length + WallGap, query: default, tag: RayTag);
+        self.Physics.CastRayAll(from: pose.Position + subjectVelocity * dt + eye, direction: back,
+            length: length + WallGap, query: default, tag: RayTag);
     }
 
     /// <summary>
@@ -292,7 +293,8 @@ public sealed class ChaseCamera(double behind, double above, double ahead, Vecto
         Double3 x = Double3.Cross(up, z).Normalized();
         Double3 y = Double3.Cross(z, x);
         // System.Numerics puts the turned axes in the rows.
-        var axes = new Matrix4x4(m11: (float)x.X, m12: (float)x.Y, m13: (float)x.Z, m14: 0, m21: (float)y.X, m22: (float)y.Y, m23: (float)y.Z, m24: 0,
+        var axes = new Matrix4x4(m11: (float)x.X, m12: (float)x.Y, m13: (float)x.Z, m14: 0, m21: (float)y.X,
+            m22: (float)y.Y, m23: (float)y.Z, m24: 0,
             m31: (float)z.X, m32: (float)z.Y, m33: (float)z.Z, m34: 0, m41: 0, m42: 0, m43: 0, m44: 1);
         return Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(axes));
     }

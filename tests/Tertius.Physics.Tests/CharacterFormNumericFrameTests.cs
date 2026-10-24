@@ -35,7 +35,8 @@ public class CharacterFormNumericFrameTests
     private static readonly KeplerOrbit LowOrbit = KeplerOrbit.Circular(6.8e6, phase: 0.4);
 
     /// <summary>A kinematic hull that its frame's Kepler orbit moves: a box of 4 m.</summary>
-    private static readonly BodyDesc Core = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Kinematic, Mass: 1e4f,
+    private static readonly BodyDesc Core = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Kinematic,
+        Mass: 1e4f,
         Restitution: 0);
 
     /// <summary>
@@ -98,7 +99,8 @@ public class CharacterFormNumericFrameTests
         });
         FrameHandle ship = world.GetOwnedFrame(hull);
         var pilot = new Pilot();
-        Scenes.Approach approach = Scenes.ApproachToBubble(world: world, into: ship, tick: 30, ballRadius: PersonRadius);
+        Scenes.Approach approach =
+            Scenes.ApproachToBubble(world: world, into: ship, tick: 30, ballRadius: PersonRadius);
         Entity person = world.Spawn(new()
         {
             Frame = space, Pose = approach.Pose, LinearVelocity = approach.Velocity, Body = Person, Components = [pilot]

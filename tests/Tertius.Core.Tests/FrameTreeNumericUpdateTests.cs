@@ -32,7 +32,8 @@ public class FrameTreeNumericUpdateTests
 
     public FrameTreeNumericUpdateTests()
     {
-        ground = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
+        ground = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f));
     }
 
     private static Double3 X(double x) => new(x, 0, 0);
@@ -206,7 +207,8 @@ public class FrameTreeNumericUpdateTests
     public void A_falling_frame_that_reaches_a_static_body_hands_its_body_to_the_static_bodys_system()
     {
         FrameHandle pod = Update(0.1, Body(id: 11, x: 0, vx: 7_700))[0].Home;
-        NumericBody[] after = Update(0.1, Body(id: 10, x: 3) with { Static = true }, Body(id: 11, x: 0, vx: 7_700, home: pod));
+        NumericBody[] after = Update(0.1, Body(id: 10, x: 3) with { Static = true },
+            Body(id: 11, x: 0, vx: 7_700, home: pod));
         after[1].Home.Should().Be(ground);
         moves.Should().Equal(new NumericMove(new(11, 1), pod, ground));
         frames.IsAlive(pod).Should().BeFalse("the falling frame lost its only member");
@@ -419,7 +421,8 @@ public class FrameTreeNumericUpdateTests
     [Fact]
     public void A_fixed_hull_in_a_numeric_frame_goes_back_to_its_semantic_frame_with_its_frame()
     {
-        FrameHandle hull = frames.Create(frameOwner: new(20, 1), parent: ground, localPose: new(X(50), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(50));
+        FrameHandle hull = frames.Create(frameOwner: new(20, 1), parent: ground,
+            localPose: new(X(50), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(50));
         frames.SetHullMotion(hull, BodyMotion.Dynamic);
         frames.SetTreeLinearVelocity(hull, X(60));
         NumericBody owner = Body(id: 20, x: 50, vx: 60, character: true) with { OwnedFrame = hull };
@@ -443,7 +446,8 @@ public class FrameTreeNumericUpdateTests
     [InlineData(null)]
     public void A_frame_without_a_dynamic_hull_under_a_numeric_frame_breaks_an_invariant(BodyMotion? motion)
     {
-        FrameHandle hull = frames.Create(frameOwner: new(20, 1), parent: ground, localPose: new(X(50), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(50));
+        FrameHandle hull = frames.Create(frameOwner: new(20, 1), parent: ground,
+            localPose: new(X(50), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(50));
         frames.SetHullMotion(hull, BodyMotion.Dynamic);
         Update(0.1, Body(id: 20, x: 50, vx: 60, character: true) with { OwnedFrame = hull });
         frames.Numeric(frames.TreeParent(hull)).Should().Be(NumericMode.Falling);
@@ -505,7 +509,8 @@ public class FrameTreeNumericUpdateTests
     public void Members_that_come_together_again_restart_the_split_clock()
     {
         FrameHandle pod =
-            Update(0.1, Body(id: 10, x: 0, vx: 60, character: true), Body(id: 11, x: 1, vx: 60, character: true))[0].Home;
+            Update(0.1, Body(id: 10, x: 0, vx: 60, character: true), Body(id: 11, x: 1, vx: 60, character: true))[0]
+                .Home;
         frames.Numeric(pod).Should().Be(NumericMode.Falling);
         NumericBody near = Body(id: 10, x: 0, vx: 60, home: pod, character: true),
             far = Body(id: 11, x: 100, vx: 60, home: pod, character: true);
@@ -551,7 +556,8 @@ public class FrameTreeNumericUpdateTests
     [Fact]
     public void Bodies_of_two_semantic_frames_never_link()
     {
-        FrameHandle other = frames.Create(frameOwner: new(2, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
+        FrameHandle other = frames.Create(frameOwner: new(2, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f));
         NumericBody[] after = Update(0.1, Body(id: 10, x: 0, vx: 60, character: true),
             Body(id: 11, x: 0, vx: 60, character: true) with { Semantic = other, Home = other });
         after[0].Home.Should().NotBe(after[1].Home);
@@ -573,7 +579,8 @@ public class FrameTreeNumericUpdateTests
     [Fact]
     public void A_drain_and_a_recenter_keep_the_pose_and_velocity_of_a_ship_frame_in_its_semantic_frame()
     {
-        FrameHandle hull = frames.Create(frameOwner: new(20, 1), parent: ground, localPose: new(X(50), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(50));
+        FrameHandle hull = frames.Create(frameOwner: new(20, 1), parent: ground,
+            localPose: new(X(50), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(50));
         frames.SetHullMotion(hull, BodyMotion.Dynamic);
         frames.SetTreeLinearVelocity(hull, X(60));
         FrameHandle pod = Update(0.1, Body(id: 20, x: 50, vx: 60, character: true) with { OwnedFrame = hull })[0].Home;
@@ -612,7 +619,8 @@ public class FrameTreeNumericUpdateTests
     [Fact]
     public void A_moving_owner_takes_its_frame_into_its_new_home()
     {
-        FrameHandle hull = frames.Create(frameOwner: new(20, 1), parent: ground, localPose: new(X(50), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(50));
+        FrameHandle hull = frames.Create(frameOwner: new(20, 1), parent: ground,
+            localPose: new(X(50), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(50));
         frames.SetHullMotion(hull, BodyMotion.Dynamic);
         FrameHandle home = Update(0.1, Body(id: 20, x: 50, vx: 60, character: true) with { OwnedFrame = hull })[0].Home;
         frames.Numeric(home).Should().Be(NumericMode.Falling);
@@ -663,7 +671,8 @@ public class FrameTreeNumericUpdateTests
     {
         const double place = 3L << 30;
         // A falling pod and a resting raft share one nest.
-        NumericBody[] first = Update(0.1, Body(id: 10, x: place, vx: 60, character: true), Body(id: 11, x: place + 1e8));
+        NumericBody[] first = Update(0.1, Body(id: 10, x: place, vx: 60, character: true),
+            Body(id: 11, x: place + 1e8));
         FrameHandle pod = first[0].Home, raft = first[1].Home;
         FrameHandle nest = frames.TreeParent(pod);
         frames.TreeParent(raft).Should().Be(nest);
@@ -727,9 +736,11 @@ public class FrameTreeNumericUpdateTests
     public void A_semantic_frame_that_dies_takes_its_numeric_frames_with_it_and_its_ship_frames_keep_their_places()
     {
         DQuaternion turned = DQuaternion.FromAxisAngle(new(0, 1, 0), 0.5);
-        FrameHandle station = frames.Create(frameOwner: new(2, 1), parent: ground, localPose: new(X(1_000), turned), frameBounds: FrameBounds.Sphere(1e6f));
+        FrameHandle station = frames.Create(frameOwner: new(2, 1), parent: ground, localPose: new(X(1_000), turned),
+            frameBounds: FrameBounds.Sphere(1e6f));
         frames.SetAngularVelocity(station, new(0, 0.1f, 0));
-        FrameHandle hull = frames.Create(frameOwner: new(20, 1), parent: station, localPose: new(X(50), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(50));
+        FrameHandle hull = frames.Create(frameOwner: new(20, 1), parent: station,
+            localPose: new(X(50), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(50));
         frames.SetHullMotion(hull, BodyMotion.Dynamic);
         frames.SetTreeLinearVelocity(hull, X(60));
         NumericBody owner = Body(id: 20, x: 50, vx: 60, character: true) with

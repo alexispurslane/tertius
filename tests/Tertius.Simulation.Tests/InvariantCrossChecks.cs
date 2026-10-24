@@ -100,10 +100,13 @@ internal static class InvariantCrossChecks
         history.Checks++;
 
         CheckRows(world, live, Report);
-        CheckMembership(world: world, topics: topics, live: live, frames: frames, history: history, reachable: reachable, report: Report);
-        CheckTopics(world: world, topics: topics, frames: frames, history: history, reachable: reachable, report: Report);
+        CheckMembership(world: world, topics: topics, live: live, frames: frames, history: history,
+            reachable: reachable, report: Report);
+        CheckTopics(world: world, topics: topics, frames: frames, history: history, reachable: reachable,
+            report: Report);
         CheckAttachments(world: world, live: live, history: history, reachable: reachable, report: Report);
-        CheckSpatialIndex(world: world, live: live, frames: frames, history: history, reachable: reachable, sampler: sampler, report: Report);
+        CheckSpatialIndex(world: world, live: live, frames: frames, history: history, reachable: reachable,
+            sampler: sampler, report: Report);
         CheckFrames(world: world, live: live, frames: frames, report: Report);
         if (inboxesCurrent)
             CheckInboxes(world: world, topics: topics, live: live, history: history, report: Report);

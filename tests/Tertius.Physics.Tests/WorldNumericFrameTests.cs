@@ -36,7 +36,8 @@ public class WorldNumericFrameTests
     private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0,
         AngularDamping: 0);
 
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
+        Mass: 70);
 
     private static readonly BodyDesc Hull = new(Shape: new BoxShapeDesc(new(5)), Mass: 1e4f, LinearDamping: 0,
         AngularDamping: 0,
@@ -315,7 +316,8 @@ public class WorldNumericFrameTests
             DPose start = self.PoseAtNextStepStartIn(self.Frame);
             Double3 chord = velocity + gravity * (dt / 2);
             Double3 end = velocity + gravity * dt;
-            self.MoveOnRails(new(Pose: new(start.Position + chord * dt, start.Rotation), ChordVelocity: chord, Velocity: end, Acceleration: gravity, AngularVelocity: Double3.Zero,
+            self.MoveOnRails(new(Pose: new(start.Position + chord * dt, start.Rotation), ChordVelocity: chord,
+                Velocity: end, Acceleration: gravity, AngularVelocity: Double3.Zero,
                 AngularAcceleration: Double3.Zero));
             velocity = end;
         }
@@ -471,7 +473,8 @@ public class WorldNumericFrameTests
     {
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 0);
-        (Entity wall, Entity crate) = CrateThatThrustsAtAWall(world: world, ground: ground, wallComponents: [], crateComponents: []);
+        (Entity wall, Entity crate) =
+            CrateThatThrustsAtAWall(world: world, ground: ground, wallComponents: [], crateComponents: []);
         Tick(world, OnsetTicks);
         InFallingFrame(world, crate).Should()
             .BeTrue("the crate thrusts at 60 m/s, and the wall is beyond the reach of the merge test");
@@ -507,7 +510,8 @@ public class WorldNumericFrameTests
         FrameHandle ground = Ground(world, 0);
         var wallLog = new CollisionLog();
         var crateLog = new CollisionLog();
-        (Entity wall, Entity crate) = CrateThatThrustsAtAWall(world: world, ground: ground, wallComponents: [wallLog], crateComponents: [crateLog]);
+        (Entity wall, Entity crate) = CrateThatThrustsAtAWall(world: world, ground: ground, wallComponents: [wallLog],
+            crateComponents: [crateLog]);
         Tick(world, OnsetTicks);
         InFallingFrame(world, crate).Should()
             .BeTrue("the crate thrusts at 60 m/s, and the wall is beyond the reach of the merge test");

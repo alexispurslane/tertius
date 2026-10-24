@@ -93,7 +93,8 @@ public class WorldSpinFrameTests
             // Frame hulls touch only each other and static bodies, so the thing that rests on the platform's hull is the
             // hull of another frame: a small ship with a dynamic hull. Both bubbles are small, so neither frame enters
             // the other, and the ship's hull rests on the platform's hull in the ground frame.
-            var platform = new BodyDesc(Shape: new BoxShapeDesc(new(10, 0.5f, 10)), Motion: BodyMotion.Kinematic, Friction: 1,
+            var platform = new BodyDesc(Shape: new BoxShapeDesc(new(10, 0.5f, 10)), Motion: BodyMotion.Kinematic,
+                Friction: 1,
                 InteriorShape: new SphereShapeDesc(0.05f));
             SpawnTurntable(world: world, parent: ground, bubble: 0.1f, hull: platform);
             Entity ship = world.Spawn(new()
@@ -132,7 +133,8 @@ public class WorldSpinFrameTests
             FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
             // The carousel's spawn carries its first motion intent, so it turns from the ball's first step, and the ball's
             // spawn velocity relative to it holds the velocity of the ground under it.
-            FrameHandle carousel = world.GetOwnedFrame(SpawnTurntable(world: world, parent: space, bubble: 25, firstMove: true));
+            FrameHandle carousel =
+                world.GetOwnedFrame(SpawnTurntable(world: world, parent: space, bubble: 25, firstMove: true));
             // The ball drifts out along +Z of the carousel at 5 m/s. In space it moves at 5 m/s outward plus ω × r = 5 m/s
             // along the ground, on a straight line, and leaves the bubble after about 2.4 s.
             Entity ball = world.Spawn(new()

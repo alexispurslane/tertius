@@ -31,7 +31,8 @@ public sealed class PlumeTests : IDisposable
     /// <paramref name="components"/>, and fits its jets.</summary>
     private void Launch(FrameHandle frame, DQuaternion turn, params IComponent[] components)
     {
-        shuttle = Shuttle.Park(world: world, frame: frame, pose: new(Double3.Zero, turn), components: [new Unpark(), .. components]);
+        shuttle = Shuttle.Park(world: world, frame: frame, pose: new(Double3.Zero, turn),
+            components: [new Unpark(), .. components]);
         Shuttle.FitJets(world, shuttle);
     }
 
@@ -200,7 +201,8 @@ public sealed class PlumeTests : IDisposable
 
         Tick(world, 2);
 
-        ShouldBeNear(actual: ExhaustOf(Control.MainEnginePart, space), expected: turn.Rotate(Double3.UnitZ), tolerance: 1e-6,
+        ShouldBeNear(actual: ExhaustOf(Control.MainEnginePart, space), expected: turn.Rotate(Double3.UnitZ),
+            tolerance: 1e-6,
             because: "the main engine blows aft");
         for (int pair = 0; pair < ShuttleJets.PairCount; pair++)
         {
@@ -238,7 +240,8 @@ public sealed class PlumeTests : IDisposable
         // The box is no character, so the jet's lever turns it: the force is in its axes as they are now.
         DQuaternion now = world.PoseIn(body, space).Rotation;
         EmitterOf(person.Jet).Should().Be(BackJet.Plume.At(force.Length() / PersonControl.ThrustForce));
-        ShouldBeNear(actual: ExhaustOf(person.Jet, space), expected: -now.Rotate(((Double3)force).Normalized()), tolerance: 1e-6,
+        ShouldBeNear(actual: ExhaustOf(person.Jet, space), expected: -now.Rotate(((Double3)force).Normalized()),
+            tolerance: 1e-6,
             because: "the back jet blows against its force");
     }
 

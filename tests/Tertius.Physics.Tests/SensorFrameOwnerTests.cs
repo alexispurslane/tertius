@@ -307,7 +307,8 @@ public class SensorFrameOwnerTests
     public void TheInvariantsFindAnInteriorWhoseJoltMotionDoesNotFollowTheHulls()
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
-        Scene scene = ShipAndSensor(world: world, hull: BodyMotion.Kinematic, sensor: BodyMotion.Static, place: Place.Parent);
+        Scene scene = ShipAndSensor(world: world, hull: BodyMotion.Kinematic, sensor: BodyMotion.Static,
+            place: Place.Parent);
         world.Tick();
         FrameHandle ship = world.GetOwnedFrame(scene.Owner);
         JoltPhysicsBackend.BodyFacts interior = faults.Jolt.BodiesIn(ship)

@@ -213,7 +213,8 @@ internal sealed class ImpostorManager : IInstanceProcessor
         }
 
         ref State state = ref states[slot];
-        status = new(Impostor: state.Impostor, Tile: state.Tile, CapturedFrame: state.CapturedFrame, ProjectedHeight: state.Height);
+        status = new(Impostor: state.Impostor, Tile: state.Tile, CapturedFrame: state.CapturedFrame,
+            ProjectedHeight: state.Height);
         return true;
     }
 
@@ -613,7 +614,8 @@ internal sealed class ImpostorManager : IInstanceProcessor
         {
             Vector3 position = instance.Position;
             Vector3 sun = HasSun
-                ? sunRadiance * Eclipse.SunVisibility(position: position, sunDirection: SunDirection, sunAngularRadius: sunAngularRadius, occluders: occluders)
+                ? sunRadiance * Eclipse.SunVisibility(position: position, sunDirection: SunDirection,
+                    sunAngularRadius: sunAngularRadius, occluders: occluders)
                 : Vector3.Zero;
             Vector3 local = Vector3.Zero, direction = Vector3.Zero;
             Quaternion inverse = Quaternion.Conjugate(instance.Rotation);

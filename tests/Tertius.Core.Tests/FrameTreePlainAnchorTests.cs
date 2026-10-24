@@ -26,8 +26,10 @@ public class FrameTreePlainAnchorTests
 
     public FrameTreePlainAnchorTests()
     {
-        space = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
-        earth = frames.Create(frameOwner: new(2, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f),
+        space = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f));
+        earth = frames.Create(frameOwner: new(2, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f),
             field: GravityField.Point(EarthMu));
     }
 
@@ -57,7 +59,10 @@ public class FrameTreePlainAnchorTests
 
     /// <summary>A dynamic crate of 1 m and 10 kg, as <see cref="Ball"/> places it.</summary>
     private NumericBody Crate(uint id, Double3 position, Double3 velocity, FrameHandle home = default) =>
-        Ball(id: id, position: position, velocity: velocity, home: home) with { Radius = 1, Mass = 10, Kinematic = false };
+        Ball(id: id, position: position, velocity: velocity, home: home) with
+        {
+            Radius = 1, Mass = 10, Kinematic = false
+        };
 
     /// <summary>The intents of a step in which only <paramref name="ball"/> wrote one: <paramref name="move"/>, relative to its semantic frame.</summary>
     private static PhysicsIntent[] Moving(in NumericBody ball, in MotionIntent move, DPose? teleport = null)
@@ -189,10 +194,12 @@ public class FrameTreePlainAnchorTests
     public void
         The_following_frames_of_plain_anchors_go_with_their_semantic_frame_and_take_the_anchor_ghosts_with_them()
     {
-        FrameHandle room = frames.Create(frameOwner: new(3, 1), parent: space, localPose: new(new(0, 5, 0), DQuaternion.Identity),
+        FrameHandle room = frames.Create(frameOwner: new(3, 1), parent: space,
+            localPose: new(new(0, 5, 0), DQuaternion.Identity),
             frameBounds: FrameBounds.Sphere(1e3f));
         NumericBody first = Update(Ball(id: 10, position: Double3.Zero, velocity: new(2_000, 0, 0), semantic: room))[0];
-        NumericBody[] both = Update(first, Ball(id: 11, position: new(3, 0, 0), velocity: new(2_000, 0, 0), home: first.Home, semantic: room));
+        NumericBody[] both = Update(first,
+            Ball(id: 11, position: new(3, 0, 0), velocity: new(2_000, 0, 0), home: first.Home, semantic: room));
         FrameHandle firstHome = both[0].Home, secondHome = both[1].Home;
         secondHome.Should().NotBe(firstHome, "each anchor has a following frame of its own");
         // The first frame keeps a ghost of the second anchor.
@@ -219,7 +226,8 @@ public class FrameTreePlainAnchorTests
     public void A_following_frame_that_goes_alone_takes_the_anchor_ghosts_of_its_anchor_from_the_frames_that_stay()
     {
         NumericBody first = Update(Ball(id: 10, position: Double3.Zero, velocity: new(2_000, 0, 0)))[0];
-        NumericBody[] both = Update(first, Ball(id: 11, position: new(3, 0, 0), velocity: new(2_000, 0, 0), home: first.Home));
+        NumericBody[] both = Update(first,
+            Ball(id: 11, position: new(3, 0, 0), velocity: new(2_000, 0, 0), home: first.Home));
         FrameHandle firstHome = both[0].Home, secondHome = both[1].Home;
         frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(both[1].Entity, firstHome));
 
@@ -261,7 +269,8 @@ public class FrameTreePlainAnchorTests
         NumericBody first = Update(Ball(id: 10, position: Double3.Zero, velocity: new(2_000, 0, 0)))[0];
         FrameHandle home = first.Home;
 
-        NumericBody[] after = Update(first, Ball(id: 11, position: new(3, 0, 0), velocity: new(2_000, 0, 0), home: home));
+        NumericBody[] after = Update(first,
+            Ball(id: 11, position: new(3, 0, 0), velocity: new(2_000, 0, 0), home: home));
 
         after[0].Home.Should().Be(home, "the first anchor keeps its frame");
         after[1].Home.Should().NotBe(home);
@@ -280,11 +289,15 @@ public class FrameTreePlainAnchorTests
     [Fact]
     public void The_following_frame_of_a_plain_anchor_jumps_to_it_and_the_frames_in_it_keep_their_places_in_space()
     {
-        FrameHandle pod = frames.Create(frameOwner: new(12, 1), parent: space, localPose: new(new(0, 2, 0), DQuaternion.Identity),
+        FrameHandle pod = frames.Create(frameOwner: new(12, 1), parent: space,
+            localPose: new(new(0, 2, 0), DQuaternion.Identity),
             frameBounds: FrameBounds.Sphere(1));
         frames.SetHullMotion(pod, BodyMotion.Dynamic);
         frames.SetTreeLinearVelocity(pod, new(2_000, 0.5, 0));
-        NumericBody podHull = Crate(id: 12, position: new(0, 2, 0), velocity: new(2_000, 0.5, 0)) with { OwnedFrame = pod };
+        NumericBody podHull = Crate(id: 12, position: new(0, 2, 0), velocity: new(2_000, 0.5, 0)) with
+        {
+            OwnedFrame = pod
+        };
         NumericBody[] after = Update(Ball(id: 10, position: Double3.Zero, velocity: new(2_000, 0, 0)), podHull);
         FrameHandle home = after[0].Home;
         frames.TreeParent(pod).Should().Be(home, "the pod's frame hangs in the following frame");
@@ -360,9 +373,11 @@ public class FrameTreePlainAnchorTests
             .BeFalse("a slow, near kinematic body is no anchor");
         NumericFrameRules.IsAnchor(Crate(id: 11, position: Double3.Zero, velocity: new(2_000, 0, 0)), options).Should()
             .BeFalse("a dynamic body is no anchor");
-        NumericFrameRules.IsAnchor(Crate(id: 11, position: Double3.Zero, velocity: Double3.Zero) with { Static = true }, options).Should()
+        NumericFrameRules.IsAnchor(Crate(id: 11, position: Double3.Zero, velocity: Double3.Zero) with { Static = true },
+                options).Should()
             .BeTrue();
-        NumericFrameRules.IsAnchor(Crate(id: 11, position: Double3.Zero, velocity: Double3.Zero) with { Fixed = true }, options).Should()
+        NumericFrameRules.IsAnchor(Crate(id: 11, position: Double3.Zero, velocity: Double3.Zero) with { Fixed = true },
+                options).Should()
             .BeTrue();
     }
 
@@ -375,7 +390,10 @@ public class FrameTreePlainAnchorTests
     {
         var options = new NumericFrameOptions();
         FrameHandle home = Update(Ball(id: 10, position: Double3.Zero, velocity: new(2_000, 0, 0)))[0].Home;
-        NumericBody follower = Ball(id: 11, position: Double3.Zero, velocity: new(2_000, 0, 0), home: home) with { HomeMode = NumericMode.Following };
+        NumericBody follower = Ball(id: 11, position: Double3.Zero, velocity: new(2_000, 0, 0), home: home) with
+        {
+            HomeMode = NumericMode.Following
+        };
         NumericBody crate = Crate(id: 12, position: new(0, 2, 0), velocity: new(2_000, 0, 0));
 
         NumericGroup own = NumericFrameRules.Summarize([crate, follower with { AnchorsHome = true }], [], options);
@@ -398,12 +416,16 @@ public class FrameTreePlainAnchorTests
         A_kinematic_body_alone_needs_a_following_frame_by_the_speeds_of_a_free_body_and_else_takes_the_speeds_of_its_frame()
     {
         var options = new NumericFrameOptions();
-        NumericFrameRules.BodyMode(Ball(id: 10, position: Double3.Zero, velocity: new(2_000, 0, 0)), thrusts: true, options).Should()
+        NumericFrameRules
+            .BodyMode(Ball(id: 10, position: Double3.Zero, velocity: new(2_000, 0, 0)), thrusts: true, options).Should()
             .Be(NumericMode.Following);
-        NumericFrameRules.BodyMode(Ball(id: 10, position: Double3.Zero, velocity: new(60, 0, 0)), thrusts: true, options).Should().Be(
-            NumericMode.Falling,
-            "below 1,000 m/s the kinematic body takes the speeds of a body that thrusts");
-        NumericFrameRules.BodyMode(Ball(id: 10, position: Double3.Zero, velocity: new(60, 0, 0)), thrusts: false, options).Should()
+        NumericFrameRules
+            .BodyMode(Ball(id: 10, position: Double3.Zero, velocity: new(60, 0, 0)), thrusts: true, options).Should()
+            .Be(
+                NumericMode.Falling,
+                "below 1,000 m/s the kinematic body takes the speeds of a body that thrusts");
+        NumericFrameRules
+            .BodyMode(Ball(id: 10, position: Double3.Zero, velocity: new(60, 0, 0)), thrusts: false, options).Should()
             .Be(NumericMode.None);
     }
 }

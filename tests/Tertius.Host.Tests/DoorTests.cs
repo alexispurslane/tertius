@@ -234,7 +234,8 @@ public sealed class DoorTests : IDisposable
         {
             Frame = room,
             Pose = new(new(-5, 2, 3), DQuaternion.Identity),
-            Body = new(Shape: new BoxShapeDesc(new(width / 2, 0.5f, 0.5f)), Motion: BodyMotion.Static) { IsSensor = true },
+            Body = new(Shape: new BoxShapeDesc(new(width / 2, 0.5f, 0.5f)), Motion: BodyMotion.Static)
+                { IsSensor = true },
             Components = [new Sensor { Topic = Doorway }]
         });
     }

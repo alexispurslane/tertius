@@ -106,9 +106,11 @@ public sealed class TurningGroundHandOffRun : IDisposable
         for (int tick = 0; tick < 120; tick++)
         {
             World.Tick();
-            Ticks.Add(new(Tick: World.TickNumber, Frame: World.GetFrame(Hull), Position: World.PoseIn(Hull, Earth).Position,
+            Ticks.Add(new(Tick: World.TickNumber, Frame: World.GetFrame(Hull),
+                Position: World.PoseIn(Hull, Earth).Position,
                 Rotation: World.PoseIn(Hull, Earth).Rotation,
-                AngularVelocity: World.AngularVelocityIn(Hull, Earth), CabinAcceleration: World.Frames.ProperAcceleration(Cabin), CrateFrame: World.GetFrame(Crate),
+                AngularVelocity: World.AngularVelocityIn(Hull, Earth),
+                CabinAcceleration: World.Frames.ProperAcceleration(Cabin), CrateFrame: World.GetFrame(Crate),
                 CrateInCabin: World.PoseIn(Crate, Cabin).Position));
         }
     }

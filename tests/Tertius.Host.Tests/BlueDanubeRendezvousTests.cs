@@ -49,7 +49,8 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
         Earth = World.GetOwnedFrame(Scene["earth"]);
         Mu = KeplerOrbit.MuFrom(World.Frames.Gravity(Earth));
         var recorder = new Recorder(this);
-        ScriptRunner.Run(script: full with { Steps = [.. full.Steps.Take(last + 1)] }, world: World, scene: Scene, outputFolder: null,
+        ScriptRunner.Run(script: full with { Steps = [.. full.Steps.Take(last + 1)] }, world: World, scene: Scene,
+            outputFolder: null,
             playback: recorder);
         // The playback asks before each tick, so the run records the state after the last tick itself.
         recorder.WaitForTick();
@@ -117,18 +118,23 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
         PassengerState passenger = World.GetComponent<Passenger>(person)!.State;
         DPose personPose = World.PoseIn(person, cabin);
         Double3 inStation = World.PoseIn(person, StationFrame).Position;
-        Ticks.Add(new(Tick: World.TickNumber, Time: World.Time, Position: pose.Position, Velocity: World.VelocityIn(shuttle, Earth),
+        Ticks.Add(new(Tick: World.TickNumber, Time: World.Time, Position: pose.Position,
+            Velocity: World.VelocityIn(shuttle, Earth),
             Nose: pose.Rotation.Rotate(-Double3.UnitZ),
-            StationCenter: stationPose.Position, StationVelocity: World.VelocityIn(station, Earth), Axis: stationPose.Rotation.Rotate(Double3.UnitY),
-            Rendezvous: World.GetComponent<RendezvousAutopilot>(shuttle)!.State, Passenger: passenger, CabinAcceleration: World.Frames.ProperAcceleration(cabin),
+            StationCenter: stationPose.Position, StationVelocity: World.VelocityIn(station, Earth),
+            Axis: stationPose.Rotation.Rotate(Double3.UnitY),
+            Rendezvous: World.GetComponent<RendezvousAutopilot>(shuttle)!.State, Passenger: passenger,
+            CabinAcceleration: World.Frames.ProperAcceleration(cabin),
             ShuttleFrame: World.GetFrame(shuttle),
             PenFromHand: PenFromHand(passenger, cabin), PersonUp: personPose.Rotation.Rotate(Double3.UnitY),
             InShadow: BlueDanube.InEarthsShadow(World, Scene),
             ToSun: World.PoseIn(Scene["sun"], Earth).Position.Normalized(),
             Docking: World.GetComponent<DockingAutopilot>(shuttle)!.State,
-            InStation: World.PoseIn(shuttle, StationFrame), PersonInCabin: personPose.Position, PersonStanding: World.IsStanding(person),
+            InStation: World.PoseIn(shuttle, StationFrame), PersonInCabin: personPose.Position,
+            PersonStanding: World.IsStanding(person),
             CabinParent: World.Frames.Parent(cabin), HullMotion: World.Frames.HullMotion(cabin),
-            Exit: World.GetComponent<Disembark>(person)!.State, PersonFrame: World.GetFrame(person), PersonInStation: inStation,
+            Exit: World.GetComponent<Disembark>(person)!.State, PersonFrame: World.GetFrame(person),
+            PersonInStation: inStation,
             PersonVelocityInStation: World.VelocityIn(person, StationFrame),
             PersonFeltGravity: World.Frames.FeltGravity(StationFrame, inStation).Length,
             PersonHeading: WalkHeading.Yaw(World.GetRender(person).ViewOffset.Rotation),
@@ -166,12 +172,15 @@ public sealed class BlueDanubeRendezvousRun : IDisposable
         FrameHandle cabin = World.GetOwnedFrame(Scene["shuttle"]);
         DPose personPose = World.PoseIn(person, cabin);
         Entity copy = CopyOf(World.GetComponent<Passenger>(person)!.State);
-        return new(Name: name, View: World.PoseIn(World.Camera, cabin), Station: World.PoseIn(Scene["station"], cabin).Position, Person: personPose,
+        return new(Name: name, View: World.PoseIn(World.Camera, cabin),
+            Station: World.PoseIn(Scene["station"], cabin).Position, Person: personPose,
             Eye: personPose.TransformPoint(World.GetRender(person).ViewOffset.Position),
-            Pen: !copy.IsNull && World.IsAlive(copy) ? World.PoseIn(copy, cabin).Position : null, VerticalFov: World.VerticalFov,
+            Pen: !copy.IsNull && World.IsAlive(copy) ? World.PoseIn(copy, cabin).Position : null,
+            VerticalFov: World.VerticalFov,
             Sun: World.PoseIn(Scene["sun"], cabin).Position, Moon: World.PoseIn(Scene["moon"], cabin).Position,
             EarthCenter: World.PoseIn(Scene["earth"], cabin).Position,
-            ViewInStation: World.PoseIn(World.Camera, StationFrame), ShuttleInStation: World.PoseIn(Scene["shuttle"], StationFrame));
+            ViewInStation: World.PoseIn(World.Camera, StationFrame),
+            ShuttleInStation: World.PoseIn(Scene["shuttle"], StationFrame));
     }
 
     /// <summary>A playback that records the state before each tick and what each frame's camera sees, and draws nothing.</summary>
@@ -461,7 +470,8 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
     private double TransferCost(RendezvousTick window)
     {
         var guidance = new TransferGuidance(run.Mu);
-        (Double3 arrival, Double3 stationAtArrival) = guidance.Arrival(stationPosition: window.StationCenter, stationVelocity: window.StationVelocity,
+        (Double3 arrival, Double3 stationAtArrival) = guidance.Arrival(stationPosition: window.StationCenter,
+            stationVelocity: window.StationVelocity,
             axis: window.Axis,
             arrivalDistance: RendezvousPlan.Demo.ArrivalDistance, time: RendezvousPlan.Demo.TransferTime);
         (Double3 departure, Double3 atArrival) = KeplerOrbit.Lambert(from: window.Position, to: arrival,

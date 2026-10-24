@@ -22,7 +22,8 @@ public class WorldCollisionGroupTests
     private static double Height(World world, Entity entity, FrameHandle frame) =>
         world.PoseIn(entity, frame).Position.Y;
 
-    private static BodyDesc StaticBox(Vector3 halfExtents) => new(Shape: new BoxShapeDesc(halfExtents), Motion: BodyMotion.Static);
+    private static BodyDesc StaticBox(Vector3 halfExtents) =>
+        new(Shape: new BoxShapeDesc(halfExtents), Motion: BodyMotion.Static);
 
     [Fact]
     public void TwoGroupsThatDoNotNameEachOtherPassThroughEachOtherWhileAThirdGroupHitsBoth()
@@ -97,9 +98,11 @@ public class WorldCollisionGroupTests
         // no body near it in its own group can wake it: only the change itself can.
         Spawn(world: world, frame: ground, pose: At(0, -0.5),
             body: StaticBox(new(50, 0.5f, 50)) with { CollisionMask = InAnySolid.InAny(debris).InAny(glass) });
-        Spawn(world: world, frame: ground, pose: At(0, 2), body: StaticBox(new(1, 0.25f, 1)) with { CollisionMask = InAnySolid.InAny(debris) });
+        Spawn(world: world, frame: ground, pose: At(0, 2),
+            body: StaticBox(new(1, 0.25f, 1)) with { CollisionMask = InAnySolid.InAny(debris) });
         var pilot = new Pilot();
-        Entity ball = Spawn(world: world, frame: ground, pose: At(0, 2.75), body: Ball() with { CollisionGroups = CollisionGroups.Of(debris) },
+        Entity ball = Spawn(world: world, frame: ground, pose: At(0, 2.75),
+            body: Ball() with { CollisionGroups = CollisionGroups.Of(debris) },
             pilot);
         Tick(world, 120);
         Height(world, ball, ground).Should().BeApproximately(2.75, 0.02, "the ball rests on the shelf");
@@ -215,7 +218,8 @@ public class WorldCollisionGroupTests
         Entity owner = world.Spawn(new() { Frame = space, AsFrame = new(FrameBounds.Sphere(10)) });
         FrameHandle bubble = world.GetOwnedFrame(owner);
         var pilot = new Pilot();
-        Entity block = Spawn(world: world, frame: bubble, pose: At(10), body: new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic), pilot);
+        Entity block = Spawn(world: world, frame: bubble, pose: At(10),
+            body: new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic), pilot);
         Entity ball = world.Spawn(new()
             { Frame = space, Pose = At(16), LinearVelocity = new(-5, 0, 0), Body = Ball(0.25f) });
         world.Tick();
@@ -250,7 +254,8 @@ public class WorldCollisionGroupTests
             theBallJoinsSolid ? (glassy, solid) : (solid, glassy);
         using World world = NewWorld(backend: out _);
         var pilot = new Pilot();
-        (FrameHandle ground, Entity owner, Entity ball) = BallInABubble(world: world, groups: spawned.Groups, mask: spawned.Mask, pilot: pilot);
+        (FrameHandle ground, Entity owner, Entity ball) =
+            BallInABubble(world: world, groups: spawned.Groups, mask: spawned.Mask, pilot: pilot);
 
         pilot.Once = body => body.SetCollision(changed.Groups, changed.Mask);
         Tick(world, 3);
@@ -289,7 +294,8 @@ public class WorldCollisionGroupTests
         var pilot = new Pilot();
         var doom = new DestroySelf();
         (FrameHandle ground, _, Entity ball) =
-            BallInABubble(world: world, groups: CollisionGroups.Of(CollisionGroup.Solid), mask: InAnySolid, pilot: pilot, doom);
+            BallInABubble(world: world, groups: CollisionGroups.Of(CollisionGroup.Solid), mask: InAnySolid,
+                pilot: pilot, doom);
 
         pilot.Once = body => body.SetCollision(CollisionGroups.Of(glass), CollisionMask.Empty.InAny(glass));
         Tick(world, ticksFromIntentToDeath);
@@ -563,7 +569,8 @@ public class WorldCollisionGroupTests
             Body = StaticBox(new(5, 0.5f, 5)),
             AsFrame = new(FrameBounds.Sphere(1))
         });
-        Entity ball = Spawn(world: world, frame: ground, pose: At(3, 2), body: Ball() with { CollisionMask = CollisionMask.Empty });
+        Entity ball = Spawn(world: world, frame: ground, pose: At(3, 2),
+            body: Ball() with { CollisionMask = CollisionMask.Empty });
 
         Tick(world, 60);
 

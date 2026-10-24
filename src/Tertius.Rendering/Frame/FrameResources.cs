@@ -32,7 +32,8 @@ internal sealed unsafe class FrameResources : IDisposable
             Flags = CommandPoolCreateFlags.TransientBit,
             QueueFamilyIndex = device.QueueFamily
         };
-        vk.CreateCommandPool(device: device.Device, pCreateInfo: &poolInfo, pAllocator: null, pCommandPool: out CommandPool pool).Check("vkCreateCommandPool");
+        vk.CreateCommandPool(device: device.Device, pCreateInfo: &poolInfo, pAllocator: null,
+            pCommandPool: out CommandPool pool).Check("vkCreateCommandPool");
         CommandPool = pool;
         var allocateInfo = new CommandBufferAllocateInfo
         {
@@ -48,22 +49,31 @@ internal sealed unsafe class FrameResources : IDisposable
 
         var fenceInfo = new FenceCreateInfo
             { SType = StructureType.FenceCreateInfo, Flags = FenceCreateFlags.SignaledBit };
-        vk.CreateFence(device: device.Device, pCreateInfo: &fenceInfo, pAllocator: null, pFence: out Fence fence).Check("vkCreateFence");
+        vk.CreateFence(device: device.Device, pCreateInfo: &fenceInfo, pAllocator: null, pFence: out Fence fence)
+            .Check("vkCreateFence");
         Fence = fence;
         var semaphoreInfo = new SemaphoreCreateInfo { SType = StructureType.SemaphoreCreateInfo };
-        vk.CreateSemaphore(device: device.Device, pCreateInfo: &semaphoreInfo, pAllocator: null, pSemaphore: out Semaphore acquired).Check("vkCreateSemaphore");
+        vk.CreateSemaphore(device: device.Device, pCreateInfo: &semaphoreInfo, pAllocator: null,
+            pSemaphore: out Semaphore acquired).Check("vkCreateSemaphore");
         ImageAvailable = acquired;
         device.SetName(ObjectType.Semaphore, acquired.Handle, $"frame {index} image available");
 
-        Constants = GpuBuffer.Create(device: device, allocator: allocator, size: (ulong)Unsafe.SizeOf<GpuFrameConstants>(),
+        Constants = GpuBuffer.Create(device: device, allocator: allocator,
+            size: (ulong)Unsafe.SizeOf<GpuFrameConstants>(),
             usage: BufferUsageFlags.UniformBufferBit,
             memoryUsage: MemoryUsage.Upload, name: $"frame {index} constants");
-        Instances = new(device: device, allocator: allocator, usage: BufferUsageFlags.StorageBufferBit, name: $"frame {index} instances", capacity: 1024);
-        Commands = new(device: device, allocator: allocator, usage: BufferUsageFlags.IndirectBufferBit, name: $"frame {index} indirect", capacity: 256);
-        Lights = new(device: device, allocator: allocator, usage: BufferUsageFlags.StorageBufferBit, name: $"frame {index} lights", capacity: 64);
-        Occluders = new(device: device, allocator: allocator, usage: BufferUsageFlags.StorageBufferBit, name: $"frame {index} occluders", capacity: 16);
-        Outlines = new(device: device, allocator: allocator, usage: BufferUsageFlags.StorageBufferBit, name: $"frame {index} outlines", capacity: 16);
-        Puffs = new(device: device, allocator: allocator, usage: BufferUsageFlags.StorageBufferBit, name: $"frame {index} puffs", capacity: 256);
+        Instances = new(device: device, allocator: allocator, usage: BufferUsageFlags.StorageBufferBit,
+            name: $"frame {index} instances", capacity: 1024);
+        Commands = new(device: device, allocator: allocator, usage: BufferUsageFlags.IndirectBufferBit,
+            name: $"frame {index} indirect", capacity: 256);
+        Lights = new(device: device, allocator: allocator, usage: BufferUsageFlags.StorageBufferBit,
+            name: $"frame {index} lights", capacity: 64);
+        Occluders = new(device: device, allocator: allocator, usage: BufferUsageFlags.StorageBufferBit,
+            name: $"frame {index} occluders", capacity: 16);
+        Outlines = new(device: device, allocator: allocator, usage: BufferUsageFlags.StorageBufferBit,
+            name: $"frame {index} outlines", capacity: 16);
+        Puffs = new(device: device, allocator: allocator, usage: BufferUsageFlags.StorageBufferBit,
+            name: $"frame {index} puffs", capacity: 256);
         Staging = new(device, allocator, $"frame {index}");
 
         FrameSet = layouts.AllocateFrameSet();
@@ -108,12 +118,14 @@ internal sealed unsafe class FrameResources : IDisposable
         constants.Params.X = exposure;
         Constants.Write(new ReadOnlySpan<GpuFrameConstants>(in constants));
         if (Instances.Write(scene.Instances.AsSpan(0, scene.InstanceCount)))
-            layouts.WriteBuffer(set: FrameSet, binding: 1, type: DescriptorType.StorageBuffer, buffer: Instances.Buffer);
+            layouts.WriteBuffer(set: FrameSet, binding: 1, type: DescriptorType.StorageBuffer,
+                buffer: Instances.Buffer);
         Commands.Write(scene.Commands.AsSpan(0, scene.CommandCount));
         if (Lights.Write(scene.Lights.AsSpan(0, scene.LightCount)))
             layouts.WriteBuffer(set: FrameSet, binding: 3, type: DescriptorType.StorageBuffer, buffer: Lights.Buffer);
         if (Occluders.Write(scene.Occluders.AsSpan(0, scene.OccluderCount)))
-            layouts.WriteBuffer(set: FrameSet, binding: 4, type: DescriptorType.StorageBuffer, buffer: Occluders.Buffer);
+            layouts.WriteBuffer(set: FrameSet, binding: 4, type: DescriptorType.StorageBuffer,
+                buffer: Occluders.Buffer);
         if (Outlines.Write(scene.Outlines.AsSpan(0, scene.OutlineCount)))
             layouts.WriteBuffer(set: FrameSet, binding: 6, type: DescriptorType.StorageBuffer, buffer: Outlines.Buffer);
         if (Puffs.Write(scene.Puffs.AsSpan(0, scene.PuffCount)))
@@ -125,12 +137,14 @@ internal sealed unsafe class FrameResources : IDisposable
     {
         if (materialVersion != materials.Version)
         {
-            layouts.WriteBuffer(set: FrameSet, binding: 2, type: DescriptorType.StorageBuffer, buffer: materials.Buffer);
+            layouts.WriteBuffer(set: FrameSet, binding: 2, type: DescriptorType.StorageBuffer,
+                buffer: materials.Buffer);
             materialVersion = materials.Version;
         }
 
         for (; texturesWritten < textures.Count; texturesWritten++)
-            layouts.WriteImage(set: TextureSet, binding: 0, arrayElement: (uint)texturesWritten, image: textures[texturesWritten]);
+            layouts.WriteImage(set: TextureSet, binding: 0, arrayElement: (uint)texturesWritten,
+                image: textures[texturesWritten]);
     }
 
     public void Dispose()
@@ -168,7 +182,8 @@ internal sealed class HostArray<T> : IDisposable where T : unmanaged
         this.usage = usage;
         this.name = name;
         Capacity = Math.Max(capacity, 1);
-        Buffer = GpuBuffer.Create(device: device, allocator: allocator, size: (ulong)(Capacity * sizeof(T)), usage: usage, memoryUsage: MemoryUsage.Upload, name: name);
+        Buffer = GpuBuffer.Create(device: device, allocator: allocator, size: (ulong)(Capacity * sizeof(T)),
+            usage: usage, memoryUsage: MemoryUsage.Upload, name: name);
     }
 
     public GpuBuffer Buffer { get; private set; }
@@ -184,7 +199,8 @@ internal sealed class HostArray<T> : IDisposable where T : unmanaged
             while (capacity < data.Length)
                 capacity *= 2;
             Buffer.Dispose();
-            Buffer = GpuBuffer.Create(device: device, allocator: allocator, size: (ulong)(capacity * sizeof(T)), usage: usage, memoryUsage: MemoryUsage.Upload,
+            Buffer = GpuBuffer.Create(device: device, allocator: allocator, size: (ulong)(capacity * sizeof(T)),
+                usage: usage, memoryUsage: MemoryUsage.Upload,
                 name: name);
             Capacity = capacity;
             replaced = true;

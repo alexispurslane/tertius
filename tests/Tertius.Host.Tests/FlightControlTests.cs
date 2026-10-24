@@ -29,7 +29,8 @@ public sealed class FlightControlTests : IDisposable
     public void Dispose() => world.Dispose();
 
     private void Launch(params IComponent[] components) =>
-        shuttle = Shuttle.Park(world: world, frame: space, pose: DPose.Identity, components: [new Unpark(), .. components]);
+        shuttle = Shuttle.Park(world: world, frame: space, pose: DPose.Identity,
+            components: [new Unpark(), .. components]);
 
     /// <summary>Launches the shuttle with <paramref name="components"/> and gives it the shuttle's actuators (see
     /// <see cref="Shuttle.FitActuators"/>).</summary>
@@ -324,7 +325,8 @@ public sealed class FlightControlTests : IDisposable
     {
         using World orbit = RendezvousAutopilotTests.NewWorld();
         FrameHandle earth = RendezvousAutopilotTests.Earth(orbit);
-        Entity station = DemoScenes.DemoStation.Spawn(world: orbit, parent: earth, scene: new(), resources: RenderResources.None);
+        Entity station =
+            DemoScenes.DemoStation.Spawn(world: orbit, parent: earth, scene: new(), resources: RenderResources.None);
         (Double3 center, Double3 velocity, Double3 axis) = RendezvousAutopilotTests.StationNow(orbit, station, earth);
         var recorder = new RendezvousAutopilotTests.Recorder();
         Double3 position = center + axis * 130;
@@ -337,7 +339,8 @@ public sealed class FlightControlTests : IDisposable
             AsFrame = new(new(Shuttle.Bubble)),
             Components =
             [
-                new AscentAutopilot(maxThrust: Shuttle.Mass * Shuttle.ThrustAcceleration, orbitRadius: DemoScenes.OrbitRadius, climbHeight: -1,
+                new AscentAutopilot(maxThrust: Shuttle.Mass * Shuttle.ThrustAcceleration,
+                    orbitRadius: DemoScenes.OrbitRadius, climbHeight: -1,
                     plane: new(earth, -Double3.UnitX)),
                 recorder
             ]
@@ -398,7 +401,8 @@ public sealed class FlightControlTests : IDisposable
             AsFrame = new(new(Shuttle.Bubble)),
             Components =
             [
-                new AscentAutopilot(maxThrust: Shuttle.Mass * Shuttle.ThrustAcceleration, orbitRadius: Shuttle.ParkingOrbitRadius, climbHeight: climbHeight,
+                new AscentAutopilot(maxThrust: Shuttle.Mass * Shuttle.ThrustAcceleration,
+                    orbitRadius: Shuttle.ParkingOrbitRadius, climbHeight: climbHeight,
                     plane: new(planet, -Double3.UnitX)),
                 recorder
             ]
@@ -443,7 +447,8 @@ public sealed class FlightControlTests : IDisposable
     {
         double r = Shuttle.ParkingOrbitRadius;
         AscentRecorder recorder =
-            AscentInATurnedFrame(place: new(0, 0, r), velocity: new Double3(-1, 1, 0).Normalized() * 2e3, climbHeight: 1e6);
+            AscentInATurnedFrame(place: new(0, 0, r), velocity: new Double3(-1, 1, 0).Normalized() * 2e3,
+                climbHeight: 1e6);
 
         world.GetComponent<AscentAutopilot>(shuttle)!.State.Value.Should().BeOfType<Ramp>();
         Angle(NoseInPlaneAxes(recorder), recorder.Velocity).Should().BeLessThan(1e-6);
@@ -458,8 +463,10 @@ public sealed class FlightControlTests : IDisposable
     public void TheAscentAutopilotReadsItsStateInTheFrameOfItsPlane()
     {
         double r = Shuttle.ParkingOrbitRadius;
-        AscentRecorder recorder = AscentInATurnedFrame(place: new(0, 0, r), velocity: new(0, Math.Sqrt(DemoScenes.EarthMu / r) - 5, 1));
-        var guidance = new AscentGuidance(Mu: DemoScenes.EarthMu, OrbitRadius: Shuttle.ParkingOrbitRadius, MaxAcceleration: Shuttle.ThrustAcceleration,
+        AscentRecorder recorder = AscentInATurnedFrame(place: new(0, 0, r),
+            velocity: new(0, Math.Sqrt(DemoScenes.EarthMu / r) - 5, 1));
+        var guidance = new AscentGuidance(Mu: DemoScenes.EarthMu, OrbitRadius: Shuttle.ParkingOrbitRadius,
+            MaxAcceleration: Shuttle.ThrustAcceleration,
             PlaneNormal: -Double3.UnitX);
         Double3 acceleration = guidance.Acceleration(recorder.Position, recorder.Velocity);
 

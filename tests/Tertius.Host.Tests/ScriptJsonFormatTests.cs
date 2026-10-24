@@ -163,7 +163,8 @@ public class ScriptJsonFormatTests
         };
 
         string written =
-            JsonSerializer.Serialize(new EventRecord(Tick: 1, Event: "Nudge", To: target, From: null, Payload: new()), ScriptJson.Dumps(new()));
+            JsonSerializer.Serialize(new EventRecord(Tick: 1, Event: "Nudge", To: target, From: null, Payload: new()),
+                ScriptJson.Dumps(new()));
 
         written.Should().Be(expected.ReplaceLineEndings("\n"));
     }

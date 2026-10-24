@@ -48,7 +48,8 @@ public sealed class WheelFloorTests
     [Fact]
     public void TheSpinwardDistanceCrossesTheAngleZeroTheShortWay()
     {
-        Double3 before = Floor.OnFacet(facet: Floor.Segments - 1, height: 0, y: 0), after = Floor.OnFacet(facet: 0, height: 0, y: 0);
+        Double3 before = Floor.OnFacet(facet: Floor.Segments - 1, height: 0, y: 0),
+            after = Floor.OnFacet(facet: 0, height: 0, y: 0);
 
         Floor.Spinward(before, after).Should().BeApproximately(Floor.Facet * Floor.Radius, 1e-9);
         Floor.Spinward(after, before).Should().BeApproximately(-Floor.Facet * Floor.Radius, 1e-9);

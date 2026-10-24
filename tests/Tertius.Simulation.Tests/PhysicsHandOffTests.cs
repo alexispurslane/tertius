@@ -117,7 +117,8 @@ public class PhysicsHandOffTests
     {
         using var scene = new Scene();
         // Each tick, one sender tells each frame's topic the tick. A message sent in tick t reaches its recipients in tick t + 1.
-        scene.Test.SpawnWith(SendEvery.Of(target: scene.Station.Topic, payloadAt: tick => new Ping { Value = 200 + (int)tick }));
+        scene.Test.SpawnWith(SendEvery.Of(target: scene.Station.Topic,
+            payloadAt: tick => new Ping { Value = 200 + (int)tick }));
 
         scene.Test.Run(4);
 
@@ -130,7 +131,8 @@ public class PhysicsHandOffTests
     public void AnEntityNoLongerHearsTheTopicOfItsOldFrameAfterTheHandOff()
     {
         using var scene = new Scene(handOffOnTick: 1);
-        scene.Test.SpawnWith(SendEvery.Of(target: scene.Test.Root.Topic, payloadAt: tick => new Ping { Value = 100 + (int)tick }));
+        scene.Test.SpawnWith(SendEvery.Of(target: scene.Test.Root.Topic,
+            payloadAt: tick => new Ping { Value = 100 + (int)tick }));
 
         scene.Test.Run(4);
 
@@ -143,7 +145,8 @@ public class PhysicsHandOffTests
     public void AnEntityHearsItsOldFramesTopicUntilTheSyncPointOfTheHandOffAndNotFromThenOn()
     {
         using var scene = new Scene(handOffOnTick: 2);
-        scene.Test.SpawnWith(SendEvery.Of(target: scene.Test.Root.Topic, payloadAt: tick => new Ping { Value = 100 + (int)tick }));
+        scene.Test.SpawnWith(SendEvery.Of(target: scene.Test.Root.Topic,
+            payloadAt: tick => new Ping { Value = 100 + (int)tick }));
 
         scene.Test.Run(5);
 
@@ -200,7 +203,8 @@ public class PhysicsHandOffTests
         Entity gone = test.World.Spawn(new() { Frame = test.Root, Body = TestWorld.Ball });
         test.World.Destroy(gone);
         faults.EditOutput = output =>
-            output.HandOffs.Add(new(Entity: gone, From: test.Root, To: station, Pose: TestWorld.At(9), LinearVelocity: default, AngularVelocity: default));
+            output.HandOffs.Add(new(Entity: gone, From: test.Root, To: station, Pose: TestWorld.At(9),
+                LinearVelocity: default, AngularVelocity: default));
 
         Action tick = test.World.Tick;
 
@@ -214,7 +218,8 @@ public class PhysicsHandOffTests
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
         Entity bodiless = test.SpawnAt(new(3, 0, 0));
         faults.EditOutput = output =>
-            output.HandOffs.Add(new(Entity: bodiless, From: test.Root, To: station, Pose: TestWorld.At(9), LinearVelocity: default, AngularVelocity: default));
+            output.HandOffs.Add(new(Entity: bodiless, From: test.Root, To: station, Pose: TestWorld.At(9),
+                LinearVelocity: default, AngularVelocity: default));
 
         Action tick = test.World.Tick;
 
@@ -229,7 +234,8 @@ public class PhysicsHandOffTests
         test.World.Destroy(gone.Entity);
         Entity ball = test.World.Spawn(new() { Frame = test.Root, Pose = TestWorld.At(3), Body = TestWorld.Ball });
         faults.EditOutput = output =>
-            output.HandOffs.Add(new(Entity: ball, From: test.Root, To: gone, Pose: TestWorld.At(9), LinearVelocity: default, AngularVelocity: default));
+            output.HandOffs.Add(new(Entity: ball, From: test.Root, To: gone, Pose: TestWorld.At(9),
+                LinearVelocity: default, AngularVelocity: default));
 
         Action tick = test.World.Tick;
 
@@ -243,7 +249,8 @@ public class PhysicsHandOffTests
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
         FrameHandle dock = test.SpawnStaticFrame(TestWorld.At(-500), radius: 100);
         Entity ball = test.World.Spawn(new() { Frame = test.Root, Pose = TestWorld.At(3), Body = TestWorld.Ball });
-        faults.EditOutput = output => output.HandOffs.Add(new(Entity: ball, From: dock, To: station, Pose: TestWorld.At(9), LinearVelocity: default, AngularVelocity: default));
+        faults.EditOutput = output => output.HandOffs.Add(new(Entity: ball, From: dock, To: station,
+            Pose: TestWorld.At(9), LinearVelocity: default, AngularVelocity: default));
 
         Action tick = test.World.Tick;
 
@@ -257,7 +264,8 @@ public class PhysicsHandOffTests
         Entity islandOwner = SpawnRootWithBody(test);
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
         faults.EditOutput = output =>
-            output.HandOffs.Add(new(Entity: islandOwner, From: test.Root, To: station, Pose: TestWorld.At(9), LinearVelocity: default, AngularVelocity: default));
+            output.HandOffs.Add(new(Entity: islandOwner, From: test.Root, To: station, Pose: TestWorld.At(9),
+                LinearVelocity: default, AngularVelocity: default));
 
         Action tick = test.World.Tick;
 
@@ -270,7 +278,8 @@ public class PhysicsHandOffTests
         using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         Entity ball = test.World.Spawn(new() { Frame = test.Root, Pose = TestWorld.At(3), Body = TestWorld.Ball });
         faults.EditOutput = output =>
-            output.HandOffs.Add(new(Entity: ball, From: test.Root, To: test.Root, Pose: TestWorld.At(9), LinearVelocity: default, AngularVelocity: default));
+            output.HandOffs.Add(new(Entity: ball, From: test.Root, To: test.Root, Pose: TestWorld.At(9),
+                LinearVelocity: default, AngularVelocity: default));
 
         Action tick = test.World.Tick;
 
@@ -286,8 +295,10 @@ public class PhysicsHandOffTests
         Entity ball = test.World.Spawn(new() { Frame = test.Root, Pose = TestWorld.At(3), Body = TestWorld.Ball });
         faults.EditOutput = output =>
         {
-            output.HandOffs.Add(new(Entity: ball, From: test.Root, To: station, Pose: TestWorld.At(9), LinearVelocity: default, AngularVelocity: default));
-            output.HandOffs.Add(new(Entity: ball, From: test.Root, To: dock, Pose: TestWorld.At(9), LinearVelocity: default, AngularVelocity: default));
+            output.HandOffs.Add(new(Entity: ball, From: test.Root, To: station, Pose: TestWorld.At(9),
+                LinearVelocity: default, AngularVelocity: default));
+            output.HandOffs.Add(new(Entity: ball, From: test.Root, To: dock, Pose: TestWorld.At(9),
+                LinearVelocity: default, AngularVelocity: default));
         };
 
         Action tick = test.World.Tick;
@@ -303,8 +314,10 @@ public class PhysicsHandOffTests
         Entity second = SpawnFighter(test, TestWorld.At(100), out FrameHandle secondFrame);
         faults.EditOutput = output =>
         {
-            output.HandOffs.Add(new(Entity: first, From: test.Root, To: secondFrame, Pose: TestWorld.At(-100), LinearVelocity: default, AngularVelocity: default));
-            output.HandOffs.Add(new(Entity: second, From: test.Root, To: firstFrame, Pose: TestWorld.At(100), LinearVelocity: default, AngularVelocity: default));
+            output.HandOffs.Add(new(Entity: first, From: test.Root, To: secondFrame, Pose: TestWorld.At(-100),
+                LinearVelocity: default, AngularVelocity: default));
+            output.HandOffs.Add(new(Entity: second, From: test.Root, To: firstFrame, Pose: TestWorld.At(100),
+                LinearVelocity: default, AngularVelocity: default));
         };
 
         Action tick = test.World.Tick;
@@ -319,7 +332,8 @@ public class PhysicsHandOffTests
         Entity fighterOwner = SpawnFighter(test, TestWorld.At(0), out FrameHandle fighter);
         FrameHandle cockpit = test.World.SpawnStaticFrame(fighter, TestWorld.At(1), radius: 2);
         faults.EditOutput = output =>
-            output.HandOffs.Add(new(Entity: fighterOwner, From: test.Root, To: cockpit, Pose: TestWorld.At(0), LinearVelocity: default, AngularVelocity: default));
+            output.HandOffs.Add(new(Entity: fighterOwner, From: test.Root, To: cockpit, Pose: TestWorld.At(0),
+                LinearVelocity: default, AngularVelocity: default));
 
         Action tick = test.World.Tick;
 
@@ -336,7 +350,8 @@ public class PhysicsHandOffTests
         Entity owner = SpawnFrameWithHull(test, motion, out FrameHandle frame);
         FrameHandle yard = test.SpawnStaticFrame(TestWorld.At(5), radius: 100);
         faults.EditOutput = output =>
-            output.HandOffs.Add(new(Entity: owner, From: test.Root, To: yard, Pose: TestWorld.At(-5), LinearVelocity: default, AngularVelocity: default));
+            output.HandOffs.Add(new(Entity: owner, From: test.Root, To: yard, Pose: TestWorld.At(-5),
+                LinearVelocity: default, AngularVelocity: default));
 
         Action tick = test.World.Tick;
 
@@ -716,8 +731,10 @@ public class PhysicsHandOffTests
         var log = new Recorder(EventMask.Of<Ping>());
         using var scene = new RefusedHandOffScene(report, log);
         // Each tick, one sender tells each frame's topic the tick. A message sent in tick t reaches its recipients in tick t + 1.
-        scene.Test.SpawnWith(SendEvery.Of<Ping>(target: scene.Test.Root.Topic, payloadAt: tick => new Ping { Value = 100 + (int)tick }));
-        scene.Test.SpawnWith(SendEvery.Of<Ping>(target: scene.Cockpit.Topic, payloadAt: tick => new Ping { Value = 200 + (int)tick }));
+        scene.Test.SpawnWith(SendEvery.Of<Ping>(target: scene.Test.Root.Topic, payloadAt: tick => new Ping { Value =
+ 100 + (int)tick }));
+        scene.Test.SpawnWith(SendEvery.Of<Ping>(target: scene.Cockpit.Topic, payloadAt: tick => new Ping { Value =
+ 200 + (int)tick }));
 
         scene.Test.Run(3);
 

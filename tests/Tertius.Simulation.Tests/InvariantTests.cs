@@ -112,7 +112,8 @@ public class InvariantTests(ITestOutputHelper output)
     {
         using var test = new TestWorld();
         bool mesh = why == "a kinematic motion for a mesh hull";
-        FrameHandle dock = StaticFrame(test, new(Shape: mesh ? Ramp : new BoxShapeDesc(new(2)), Motion: BodyMotion.Static, Mass: 0));
+        FrameHandle dock = StaticFrame(test,
+            new(Shape: mesh ? Ramp : new BoxShapeDesc(new(2)), Motion: BodyMotion.Static, Mass: 0));
         test.World.AssertInvariants();
 
         test.World.Frames.SetHullMotion(dock, why switch

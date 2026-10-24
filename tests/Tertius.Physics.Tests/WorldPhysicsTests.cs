@@ -55,7 +55,10 @@ public class WorldPhysicsTests
         // A level load: one batch of 15 static crates, far below the floor, grows the ground's system twice.
         for (int i = 0; i < 15; i++)
             world.Spawn(new()
-                { Frame = ground, Pose = At(3 * i, -100), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static) });
+            {
+                Frame = ground, Pose = At(3 * i, -100),
+                Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static)
+            });
         Tick(world, 10);
 
         warnings.Count(warning => warning.Contains("so it grew")).Should().Be(2);
@@ -241,7 +244,8 @@ public class WorldPhysicsTests
         var log = new CollisionLog();
         Entity crate = world.Spawn(new()
         {
-            Frame = ground, Pose = At(0, 0.5), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10), Components = [log]
+            Frame = ground, Pose = At(0, 0.5), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10),
+            Components = [log]
         });
         world.Spawn(new()
         {

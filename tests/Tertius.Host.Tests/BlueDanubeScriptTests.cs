@@ -62,7 +62,8 @@ public sealed class BlueDanubeScriptTests
         using World world = NewJoltWorld();
         SceneInstance scene = DemoScenes.All.Single(s => s.Name == script.Scene).Build(world, RenderResources.None);
 
-        RunResult result = ScriptRunner.Run(script: script, world: world, scene: scene, outputFolder: null, playback: new StopsAtOnce());
+        RunResult result = ScriptRunner.Run(script: script, world: world, scene: scene, outputFolder: null,
+            playback: new StopsAtOnce());
 
         result.Stopped.Should().BeTrue();
         world.TickNumber.Should().Be(0);
@@ -105,7 +106,8 @@ public sealed class BlueDanubeScriptTests
     [Fact]
     public void TheGeneratorReportsAFileErrorWhenItCannotWriteTheScript()
     {
-        string path = Path.Combine(path1: Path.GetTempPath(), path2: Guid.NewGuid().ToString("N"), path3: "no-such-folder",
+        string path = Path.Combine(path1: Path.GetTempPath(), path2: Guid.NewGuid().ToString("N"),
+            path3: "no-such-folder",
             path4: "blue-danube.json");
         var output = new StringWriter();
         var error = new StringWriter();

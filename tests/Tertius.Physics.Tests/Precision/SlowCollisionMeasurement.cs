@@ -100,20 +100,25 @@ public sealed class SlowCollisionMeasurement
         foreach (double approach in ApproachSpeeds)
         foreach (float restitution in Restitutions)
         {
-            PairRun reference = Run(speed: 0, direction: Double3.UnitX, origin: Double3.Zero, approach: approach, restitution: restitution);
+            PairRun reference = Run(speed: 0, direction: Double3.UnitX, origin: Double3.Zero, approach: approach,
+                restitution: restitution);
             foreach (Direction direction in Directions)
             foreach (double speed in Speeds)
             {
                 PairRun run = speed == 0
                     ? reference
-                    : Run(speed: speed, direction: direction.Unit, origin: direction.Unit * (-speed * Ticks * (1f / 60) / 2), approach: approach,
+                    : Run(speed: speed, direction: direction.Unit,
+                        origin: direction.Unit * (-speed * Ticks * (1f / 60) / 2), approach: approach,
                         restitution: restitution);
-                Write(csv: csv, kind: "speed", direction: direction, speed: speed, approach: approach, restitution: restitution, run: run, reference: reference);
+                Write(csv: csv, kind: "speed", direction: direction, speed: speed, approach: approach,
+                    restitution: restitution, run: run, reference: reference);
                 rowSets++;
                 if (speed == 0)
                     continue;
-                PairRun control = Run(speed: 0, direction: direction.Unit, origin: direction.Unit * run.LargestDistance, approach: approach, restitution: restitution);
-                Write(csv: csv, kind: "distance-control", direction: direction, speed: 0, approach: approach, restitution: restitution, run: control, reference: reference);
+                PairRun control = Run(speed: 0, direction: direction.Unit, origin: direction.Unit * run.LargestDistance,
+                    approach: approach, restitution: restitution);
+                Write(csv: csv, kind: "distance-control", direction: direction, speed: 0, approach: approach,
+                    restitution: restitution, run: control, reference: reference);
                 rowSets++;
             }
         }
@@ -193,13 +198,15 @@ public sealed class SlowCollisionMeasurement
             int collisions = logA.Seen.Count(seen => seen.Other == b);
             int ended = logA.Ended.Count(seen => seen.Other == b);
             reports.Add(new(MovedA: poseA.Position - startA, MovedB: poseB.Position - startB,
-                Relative: world.VelocityIn(a, space) - world.VelocityIn(b, space), Collisions: collisions, Ended: ended, LargestOverlap: largestOverlap,
+                Relative: world.VelocityIn(a, space) - world.VelocityIn(b, space), Collisions: collisions, Ended: ended,
+                LargestOverlap: largestOverlap,
                 LargestTilt: largestTilt));
         }
 
         (long Tick, Entity Other, float Impulse) first = logA.Seen.FirstOrDefault(seen => seen.Other == b);
         bool hit = logA.Seen.Any(seen => seen.Other == b);
-        return new(Reports: [.. reports], FirstCollisionTick: hit ? first.Tick : -1, FirstImpulse: hit ? first.Impulse : 0, LargestDistance: largest,
+        return new(Reports: [.. reports], FirstCollisionTick: hit ? first.Tick : -1,
+            FirstImpulse: hit ? first.Impulse : 0, LargestDistance: largest,
             Warnings: warnings.Count + world.Errors.Count);
     }
 }

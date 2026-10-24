@@ -34,10 +34,12 @@ public class InstantVelocityTests
             AngularDamping: 0);
 
     /// <summary>A ball of radius 0.2 m that nothing slows down and that does not bounce.</summary>
-    private static readonly BodyDesc Ball = new(Shape: new SphereShapeDesc(0.2f), Mass: 1, Restitution: 0, LinearDamping: 0,
+    private static readonly BodyDesc Ball = new(Shape: new SphereShapeDesc(0.2f), Mass: 1, Restitution: 0,
+        LinearDamping: 0,
         AngularDamping: 0);
 
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
+        Mass: 70);
 
     /// <summary>A root frame without gravity.</summary>
     private static FrameHandle Space(World world) =>
@@ -152,7 +154,8 @@ public class InstantVelocityTests
         for (int tick = 1; tick <= 90; tick++)
         {
             world.Tick();
-            (world.PoseInOwnFrame(crate).Position - Path(start: start, velocity: velocity, acceleration: Down, t: tick * dt)).Length
+            (world.PoseInOwnFrame(crate).Position -
+             Path(start: start, velocity: velocity, acceleration: Down, t: tick * dt)).Length
                 .Should().BeLessThan(1e-4, "the crate is on its parabola after {0} ticks", tick);
         }
 
@@ -180,7 +183,8 @@ public class InstantVelocityTests
         for (int tick = 1; tick <= 90; tick++)
         {
             world.Tick();
-            (world.PoseInOwnFrame(crate).Position - Path(start: from, velocity: velocity, acceleration: Down, t: tick * dt)).Length
+            (world.PoseInOwnFrame(crate).Position -
+             Path(start: from, velocity: velocity, acceleration: Down, t: tick * dt)).Length
                 .Should().BeLessThan(1e-4, "the crate is on the parabola of its new velocity after {0} ticks", tick);
         }
 
@@ -205,7 +209,8 @@ public class InstantVelocityTests
         for (int tick = 1; tick <= 60; tick++)
         {
             world.Tick();
-            (world.PoseInOwnFrame(crate).Position - Path(start: top, velocity: Double3.Zero, acceleration: Down, t: tick * dt)).Length
+            (world.PoseInOwnFrame(crate).Position -
+             Path(start: top, velocity: Double3.Zero, acceleration: Down, t: tick * dt)).Length
                 .Should().BeLessThan(1e-4, "the crate falls from rest after {0} ticks", tick);
         }
 
@@ -229,7 +234,8 @@ public class InstantVelocityTests
         for (int tick = 1; tick <= 60; tick++)
         {
             world.Tick();
-            (world.PoseInOwnFrame(person).Position - Path(start: top, velocity: Double3.Zero, acceleration: Down, t: tick * dt)).Length
+            (world.PoseInOwnFrame(person).Position -
+             Path(start: top, velocity: Double3.Zero, acceleration: Down, t: tick * dt)).Length
                 .Should().BeLessThan(1e-4, "the character falls from rest after {0} ticks", tick);
         }
 
@@ -326,13 +332,15 @@ public class InstantVelocityTests
             world.Tick();
             tick++;
             if (world.GetFrame(ball) == room)
-                (world.PoseInOwnFrame(ball).Position - Path(start: roomStart, velocity: roomVelocity, acceleration: Down, t: tick * dt - entered)).Length
+                (world.PoseInOwnFrame(ball).Position - Path(start: roomStart, velocity: roomVelocity,
+                        acceleration: Down, t: tick * dt - entered)).Length
                     .Should().BeLessThan(1e-4, "the ball is on its parabola in the room at tick {0}", tick);
         }
 
         world.GetFrame(ball).Should().Be(space, "the ball leaves the room");
         double left = tick * dt;
-        Double3 exitPosition = roomPose.TransformPoint(Path(start: roomStart, velocity: roomVelocity, acceleration: Down, t: left - entered));
+        Double3 exitPosition = roomPose.TransformPoint(Path(start: roomStart, velocity: roomVelocity,
+            acceleration: Down, t: left - entered));
         Double3 exitVelocity = roomPose.TransformDirection(roomVelocity + Down * (left - entered));
 
         // Out in space again, it moves on a straight line with its instant velocity at the hand-off.
@@ -391,7 +399,8 @@ public class InstantVelocityTests
                 world.Frames.Numeric(world.PhysicsHomeOf(ball)).Should().Be(NumericMode.Falling,
                     "from its thirtieth tick until it enters the room, the ball falls in a numeric frame (tick {0})",
                     tick);
-            (world.PoseIn(ball, ground).Position - Path(start: start, velocity: velocity, acceleration: acceleration, t: tick * dt)).Length
+            (world.PoseIn(ball, ground).Position -
+             Path(start: start, velocity: velocity, acceleration: acceleration, t: tick * dt)).Length
                 .Should().BeLessThan(1e-4, "the ball is on the parabola of its spawn after {0} ticks", tick);
         }
 
@@ -420,7 +429,8 @@ public class InstantVelocityTests
         for (int tick = 1; tick <= 60; tick++)
         {
             world.Tick();
-            (world.Frames.LocalPose(ship).Position - Path(start: start, velocity: velocity, acceleration: Down, t: tick * dt)).Length
+            (world.Frames.LocalPose(ship).Position -
+             Path(start: start, velocity: velocity, acceleration: Down, t: tick * dt)).Length
                 .Should().BeLessThan(1e-4, "the ship is on its parabola after {0} ticks", tick);
         }
 
@@ -443,7 +453,8 @@ public class InstantVelocityTests
         }));
         world.Spawn(new()
         {
-            Frame = building, Pose = At(0, -0.5), Body = new(Shape: new BoxShapeDesc(new(15, 0.5f, 15)), Motion: BodyMotion.Static)
+            Frame = building, Pose = At(0, -0.5),
+            Body = new(Shape: new BoxShapeDesc(new(15, 0.5f, 15)), Motion: BodyMotion.Static)
         });
         var pilot = new Pilot { EveryTick = body => body.MoveCharacter(new(4, 0, 0)) };
         world.Spawn(new() { Frame = building, Pose = At(0, 0.95), Body = Person, Components = [pilot] });
@@ -465,7 +476,8 @@ public class InstantVelocityTests
         FrameHandle space = Space(world);
         // Jolt slows a spin by its angular damping: ω(t) = ω₀ e^(−k t), so the cube turns by |ω₀| (1 − e^(−k t)) / k.
         const float damping = 0.05f;
-        var cubeBody = new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: damping);
+        var cubeBody = new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0,
+            AngularDamping: damping);
         var pilot = new Pilot();
         Entity cube = world.Spawn(new()
         {
@@ -518,7 +530,8 @@ public class InstantVelocityTests
         for (int tick = 1; tick <= 60; tick++)
         {
             world.Tick();
-            (world.PoseInOwnFrame(person).Position - Path(start: from, velocity: velocity, acceleration: Down, t: tick * dt)).Length
+            (world.PoseInOwnFrame(person).Position -
+             Path(start: from, velocity: velocity, acceleration: Down, t: tick * dt)).Length
                 .Should()
                 .BeLessThan(1e-4, "the character is on the parabola of its new velocity after {0} ticks", tick);
         }
@@ -545,7 +558,8 @@ public class InstantVelocityTests
         for (int tick = 1; tick <= 50; tick++)
         {
             world.Tick();
-            (world.PoseInOwnFrame(person).Position - Path(start: standing, velocity: new(0, jumpSpeed, 0), acceleration: Down, t: tick * dt)).Length
+            (world.PoseInOwnFrame(person).Position - Path(start: standing, velocity: new(0, jumpSpeed, 0),
+                    acceleration: Down, t: tick * dt)).Length
                 .Should().BeLessThan(1e-4, "the character is on the parabola of its jump after {0} ticks", tick);
         }
 

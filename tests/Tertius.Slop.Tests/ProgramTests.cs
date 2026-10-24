@@ -18,15 +18,15 @@ public sealed class ProgramTests : IDisposable
     {
         Directory.CreateDirectory(Path.Combine(root, "src"));
         File.WriteAllText(Path.Combine(root, "src", "C.cs"), """
-                                                            class C
-                                                            {
-                                                                int F(int x)
-                                                                {
-                                                                    if (x > 0) return 1;
-                                                                    return 0;
-                                                                }
-                                                            }
-                                                            """);
+                                                             class C
+                                                             {
+                                                                 int F(int x)
+                                                                 {
+                                                                     if (x > 0) return 1;
+                                                                     return 0;
+                                                                 }
+                                                             }
+                                                             """);
     }
 
     public void Dispose()
@@ -42,7 +42,7 @@ public sealed class ProgramTests : IDisposable
         int exit = Program.Run(["erosion", root], output, error);
 
         exit.Should().Be(0);
-        using var json = JsonDocument.Parse(output.ToString());
+        using JsonDocument json = JsonDocument.Parse(output.ToString());
         JsonElement report = json.RootElement;
         (report.GetProperty("erosion").GetDouble(), report.GetProperty("totalMass").GetDouble(),
                 report.GetProperty("highCcMass").GetDouble(), report.GetProperty("functionCount").GetInt32(),
@@ -56,10 +56,12 @@ public sealed class ProgramTests : IDisposable
     {
         Program.Run(["erosion", root], output, error);
 
-        using var json = JsonDocument.Parse(output.ToString());
-        JsonElement top = json.RootElement.GetProperty("topFunctions").EnumerateArray().Should().ContainSingle().Subject;
+        using JsonDocument json = JsonDocument.Parse(output.ToString());
+        JsonElement top = json.RootElement.GetProperty("topFunctions").EnumerateArray().Should().ContainSingle()
+            .Subject;
         (top.GetProperty("file").GetString(), top.GetProperty("line").GetInt32(), top.GetProperty("name").GetString(),
-                top.GetProperty("cc").GetInt32(), top.GetProperty("sloc").GetInt32(), top.GetProperty("mass").GetDouble())
+                top.GetProperty("cc").GetInt32(), top.GetProperty("sloc").GetInt32(),
+                top.GetProperty("mass").GetDouble())
             .Should().Be(("src/C.cs", 3, "C.F", 2, 5, 2 * Math.Sqrt(5)));
     }
 

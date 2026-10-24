@@ -405,10 +405,12 @@ public class QueryFilterUnionTests
         QueryFilter filter = QueryFilter.Near(5);
 
         PassesOf(t: t, filter: filter, entity: close, asker: asker).Should().BeTrue();
-        PassesOf(t: t, filter: filter, entity: asker, asker: asker).Should().BeTrue("the asker is at distance 0 from itself");
+        PassesOf(t: t, filter: filter, entity: asker, asker: asker).Should()
+            .BeTrue("the asker is at distance 0 from itself");
         PassesOf(t: t, filter: filter, entity: onTheEdge, asker: asker).Should().BeTrue();
         PassesOf(t: t, filter: filter, entity: far, asker: asker).Should().BeFalse();
-        PassesOf(t: t, filter: filter, entity: otherFrame, asker: asker).Should().BeFalse("it is close in numbers but in another frame");
+        PassesOf(t: t, filter: filter, entity: otherFrame, asker: asker).Should()
+            .BeFalse("it is close in numbers but in another frame");
     }
 
     [Fact]

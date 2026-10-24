@@ -21,7 +21,8 @@ public class IntentTests
 
     /// <summary>A dynamic cube with sides of <c>2 · half</c> m that nothing slows down.</summary>
     private static BodyDesc Box(float half, float mass = 1f) =>
-        new(Shape: new BoxShapeDesc(new(half)), Motion: BodyMotion.Dynamic, Mass: mass, Restitution: 0, LinearDamping: 0,
+        new(Shape: new BoxShapeDesc(new(half)), Motion: BodyMotion.Dynamic, Mass: mass, Restitution: 0,
+            LinearDamping: 0,
             AngularDamping: 0);
 
     /// <summary>
@@ -55,7 +56,8 @@ public class IntentTests
         using (world)
         {
             var pilot = new Pilot();
-            Entity box = Spawn(world: world, frame: space, body: Box(0.5f), pose: At(0, 0, 0), pilot: pilot, velocity: new(3, 0, 0),
+            Entity box = Spawn(world: world, frame: space, body: Box(0.5f), pose: At(0, 0, 0), pilot: pilot,
+                velocity: new(3, 0, 0),
                 angularVelocity: new(0, 1, 0));
             Tick(world, 3);
             var target = new DPose(new(100, 5, -7), DQuaternion.FromAxisAngle(Double3.UnitX, 0.5));
@@ -79,7 +81,8 @@ public class IntentTests
         {
             var moverPilot = new SelfPilot();
             var boxPilot = new SelfPilot();
-            Entity mover = Spawn(world: world, frame: space, body: new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic), pose: At(0, 0, 0),
+            Entity mover = Spawn(world: world, frame: space,
+                body: new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic), pose: At(0, 0, 0),
                 pilot: moverPilot);
             Entity box = Spawn(world: world, frame: space, body: Box(0.5f), pose: At(0, 10, 0), pilot: boxPilot);
             world.Tick();
@@ -144,7 +147,8 @@ public class IntentTests
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         var pilot = new SelfPilot();
-        Entity mover = Spawn(world: world, frame: space, body: new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic), pose: At(0, 0, 0), pilot: pilot);
+        Entity mover = Spawn(world: world, frame: space,
+            body: new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic), pose: At(0, 0, 0), pilot: pilot);
         var end = new DPose(new(0.5, 0, 0.25), DQuaternion.FromAxisAngle(Double3.UnitY, 0.3));
 
         Send(world, pilot, self => self.MoveKinematic(end));
@@ -170,7 +174,9 @@ public class IntentTests
         using (world)
         {
             var pilot = new SelfPilot();
-            Entity mover = Spawn(world: world, frame: space, body: new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic), pose: At(0, 0, 0), pilot: pilot);
+            Entity mover = Spawn(world: world, frame: space,
+                body: new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic), pose: At(0, 0, 0),
+                pilot: pilot);
             var target = new DPose(new(0.5, 0, 0.25), DQuaternion.FromAxisAngle(Double3.UnitY, 0.3));
             Send(world, pilot, self => self.MoveKinematic(target));
             world.Tick();

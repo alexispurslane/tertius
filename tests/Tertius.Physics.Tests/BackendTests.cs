@@ -19,7 +19,8 @@ public class BackendTests
         var changes = new PhysicsChanges();
         var output = new PhysicsStepOutput();
         FrameHandle space =
-            frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e6f), field: default);
+            frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
+                frameBounds: FrameBounds.Sphere(1e6f), field: default);
         changes.FramesCreated.Add(space);
         using var backend = new JoltPhysicsBackend(new() { WorkerThreads = 2 });
         backend.ApplyChanges(changes, frames);
@@ -58,7 +59,9 @@ public class BackendTests
         using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 0);
         Entity box = world.Spawn(new()
-            { Frame = ground, Pose = At(5), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static) });
+        {
+            Frame = ground, Pose = At(5), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static)
+        });
         world.Tick();
         var filter = new AcceptsEveryEntity();
         QueryShape unusable = QueryShape.Sphere(0);
@@ -66,14 +69,17 @@ public class BackendTests
         var shapeHits = new List<ShapeCastHit>();
         var overlapped = new List<Entity>();
 
-        backend.Invoking(b => b.CastShape(frame: ground, shape: unusable, start: DPose.Identity, direction: Double3.UnitX, startDistance: 0, endDistance: 10, filter: filter, hits: shapeHits))
+        backend.Invoking(b => b.CastShape(frame: ground, shape: unusable, start: DPose.Identity,
+                direction: Double3.UnitX, startDistance: 0, endDistance: 10, filter: filter, hits: shapeHits))
             .Should().Throw<ArgumentException>().WithParameterName("shape")
             .WithMessage("*is a sphere with a radius of 0 m*");
-        backend.Invoking(b => b.Overlap(frame: ground, shape: unusable, pose: DPose.Identity, filter: filter, entities: overlapped))
+        backend.Invoking(b =>
+                b.Overlap(frame: ground, shape: unusable, pose: DPose.Identity, filter: filter, entities: overlapped))
             .Should().Throw<ArgumentException>().WithParameterName("shape")
             .WithMessage("*is a sphere with a radius of 0 m*");
 
-        backend.CastShape(frame: ground, shape: usable, start: DPose.Identity, direction: Double3.UnitX, startDistance: 0, endDistance: 10, filter: filter, hits: shapeHits);
+        backend.CastShape(frame: ground, shape: usable, start: DPose.Identity, direction: Double3.UnitX,
+            startDistance: 0, endDistance: 10, filter: filter, hits: shapeHits);
         backend.Overlap(frame: ground, shape: usable, pose: At(5), filter: filter, entities: overlapped);
         shapeHits.Should().ContainSingle().Which.Entity.Should().Be(box);
         overlapped.Should().Equal(box);
@@ -149,5 +155,6 @@ public class BackendTests
     }
 
     private static PhysicsStepContext Context(FrameTree frames, float dt) =>
-        new(tick: 0, deltaTime: dt, time: 0, frames: frames, intents: ReadOnlyMemory<PhysicsIntent>.Empty, intentEntities: ReadOnlyMemory<Entity>.Empty);
+        new(tick: 0, deltaTime: dt, time: 0, frames: frames, intents: ReadOnlyMemory<PhysicsIntent>.Empty,
+            intentEntities: ReadOnlyMemory<Entity>.Empty);
 }

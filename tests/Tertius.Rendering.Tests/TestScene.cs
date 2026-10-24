@@ -52,32 +52,40 @@ internal sealed class TestScene
             Sphere = renderer.CreateMesh(Primitives.Sphere(1f, 64, 32)),
             Plane = renderer.CreateMesh(Primitives.Plane(1f, 10f))
         };
-        TextureId groundChecker = renderer.CreateTexture(TestTextures.Checker(size: 256, tiles: 8, a: (200, 200, 200), b: (90, 90, 95)));
-        TextureId boxChecker = renderer.CreateTexture(TestTextures.Checker(size: 256, tiles: 4, a: (230, 180, 60), b: (60, 90, 170)));
+        TextureId groundChecker =
+            renderer.CreateTexture(TestTextures.Checker(size: 256, tiles: 8, a: (200, 200, 200), b: (90, 90, 95)));
+        TextureId boxChecker =
+            renderer.CreateTexture(TestTextures.Checker(size: 256, tiles: 4, a: (230, 180, 60), b: (60, 90, 170)));
         TextureId tiles = renderer.CreateTexture(TestTextures.BeveledTiles(size: 256, tiles: 8));
         TextureId boxTiles = renderer.CreateTexture(TestTextures.BeveledTiles(size: 256, tiles: 4));
         scene.Ground = renderer.CreateMaterial(new(BaseColor: Vector4.One, SpecularIntensity: 0.5f, Gloss: 0.45f,
             Albedo: groundChecker, Normal: tiles, SpecularGloss: TextureId.None));
         scene.Textured = renderer.CreateMaterial(new(BaseColor: Vector4.One, SpecularIntensity: 0.6f, Gloss: 0.6f,
             Albedo: boxChecker, Normal: boxTiles, SpecularGloss: TextureId.None));
-        scene.Red = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.75f, y: 0.06f, z: 0.05f, w: 1), gloss: 0.85f) with
-        {
-            SpecularIntensity = 1f
-        });
+        scene.Red = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.75f, y: 0.06f, z: 0.05f, w: 1), gloss: 0.85f) with
+            {
+                SpecularIntensity = 1f
+            });
         scene.Blue = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.1f, y: 0.25f, z: 0.8f, w: 1), gloss: 0.2f));
         scene.White = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), gloss: 0.5f));
         scene.Orange = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.9f, y: 0.4f, z: 0.08f, w: 1), gloss: 0.7f));
-        scene.Glass = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.2f, y: 0.9f, z: 0.3f, w: 0.45f), gloss: 0.9f) with
-        {
-            SpecularIntensity = 1f
-        });
+        scene.Glass = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.2f, y: 0.9f, z: 0.3f, w: 0.45f), gloss: 0.9f) with
+            {
+                SpecularIntensity = 1f
+            });
         scene.Station = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.7f, y: 0.7f, z: 0.75f, w: 1), gloss: 0.3f));
-        scene.PlanetMaterial = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.25f, y: 0.4f, z: 0.6f, w: 1), gloss: 0.1f) with
-        {
-            SpecularIntensity = 0.2f
-        });
+        scene.PlanetMaterial = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.25f, y: 0.4f, z: 0.6f, w: 1), gloss: 0.1f) with
+            {
+                SpecularIntensity = 0.2f
+            });
         scene.StarMaterial =
-            renderer.CreateMaterial(MaterialDesc.Color(new(x: 1, y: 1, z: 1, w: 1)) with { Emissive = new(60f, 55f, 45f) });
+            renderer.CreateMaterial(MaterialDesc.Color(new(x: 1, y: 1, z: 1, w: 1)) with
+            {
+                Emissive = new(60f, 55f, 45f)
+            });
         return scene;
     }
 
@@ -88,7 +96,8 @@ internal sealed class TestScene
         RenderFlags caster = shadows ? RenderFlags.CastsShadow : RenderFlags.None;
 
         // Near range.
-        instances.Add(Gpu.Instance(mesh: Plane, material: Ground, position: new(0, -1.5f, -40f), scale: new(40f, 1f, 40f), flags: caster));
+        instances.Add(Gpu.Instance(mesh: Plane, material: Ground, position: new(0, -1.5f, -40f),
+            scale: new(40f, 1f, 40f), flags: caster));
         instances.Add(Gpu.Instance(mesh: Box, material: Textured, position: TexturedBox, scale: new(1.8f),
             rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.6f), flags: caster));
         instances.Add(Gpu.Instance(mesh: Box, material: White, position: TallBox, scale: new(1.2f, 2f, 1.2f),
@@ -96,8 +105,10 @@ internal sealed class TestScene
         instances.Add(Gpu.Instance(mesh: Box, material: Orange, position: new(3.8f, -1.0f, -9f), scale: new(1f),
             rotation: Quaternion.CreateFromYawPitchRoll(0.4f, 0f, 0f), flags: caster));
         instances.Add(Gpu.Instance(mesh: Sphere, material: Red, position: RedSphere, scale: new(0.8f), flags: caster));
-        instances.Add(Gpu.Instance(mesh: Sphere, material: Blue, position: BlueSphere, scale: new(0.6f), flags: caster));
-        instances.Add(Gpu.Instance(mesh: Sphere, material: Glass, position: GreenGlass, scale: new(0.5f), flags: RenderFlags.Transparent));
+        instances.Add(Gpu.Instance(mesh: Sphere, material: Blue, position: BlueSphere, scale: new(0.6f),
+            flags: caster));
+        instances.Add(Gpu.Instance(mesh: Sphere, material: Glass, position: GreenGlass, scale: new(0.5f),
+            flags: RenderFlags.Transparent));
 
         // Middle range: a 1 km station turned so one face catches the sun.
         instances.Add(Gpu.Instance(mesh: Box, material: Station, position: StationCenter, scale: new(1_000f),
@@ -105,9 +116,11 @@ internal sealed class TestScene
 
         // Far range.
         // The planet casts a far shadow: an eclipse of the sun for whatever lies behind it.
-        instances.Add(Gpu.Instance(mesh: Sphere, material: PlanetMaterial, position: PlanetCenter, scale: new(PlanetRadius),
+        instances.Add(Gpu.Instance(mesh: Sphere, material: PlanetMaterial, position: PlanetCenter,
+            scale: new(PlanetRadius),
             flags: RenderFlags.Celestial | RenderFlags.CastsShadow));
-        instances.Add(Gpu.Instance(mesh: Sphere, material: StarMaterial, position: StarCenter, scale: new(StarRadius), flags: RenderFlags.Celestial));
+        instances.Add(Gpu.Instance(mesh: Sphere, material: StarMaterial, position: StarCenter, scale: new(StarRadius),
+            flags: RenderFlags.Celestial));
 
         snapshot.Lights.Add(new PointRenderLight(
             Position: new(-0.4f, 0.4f, -4.4f),

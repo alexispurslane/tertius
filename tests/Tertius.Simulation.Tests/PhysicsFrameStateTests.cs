@@ -26,7 +26,8 @@ public class PhysicsFrameStateTests
             LinearVelocity = velocity,
             AngularVelocity = spin,
             AsFrame = new(FrameBounds.Sphere(20)),
-            Body = new(Shape: new BoxShapeDesc(new(10)), Layer: BodyLayer.FrameHull, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(10)), Layer: BodyLayer.FrameHull, LinearDamping: 0,
+                AngularDamping: 0),
             Components = components
         });
         ship = test.World.GetOwnedFrame(owner);
@@ -43,7 +44,8 @@ public class PhysicsFrameStateTests
         using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         // The ship moves and spins. A force that acts in the step of tick 1 gives it a proper acceleration.
         var pilot = new Pilot { Once = body => body.AddForce(new(0, -2, 0)) };
-        SpawnShip(test: test, parent: test.Root, ship: out FrameHandle ship, pose: TestWorld.At(1, 2, 3), velocity: new(1, 2, 3), spin: new(0, 0.5f, 0), pilot);
+        SpawnShip(test: test, parent: test.Root, ship: out FrameHandle ship, pose: TestWorld.At(1, 2, 3),
+            velocity: new(1, 2, 3), spin: new(0, 0.5f, 0), pilot);
 
         test.Run(2);
 
@@ -61,7 +63,8 @@ public class PhysicsFrameStateTests
     public void TheOwnerOfAPhysicsFrameMirrorsTheFrameStateAtOnce()
     {
         using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
-        Entity owner = SpawnShip(test: test, parent: test.Root, ship: out FrameHandle ship, pose: TestWorld.At(1, 2, 3), velocity: new(1, 2, 3),
+        Entity owner = SpawnShip(test: test, parent: test.Root, ship: out FrameHandle ship, pose: TestWorld.At(1, 2, 3),
+            velocity: new(1, 2, 3),
             spin: new(0, 0.5f, 0));
 
         test.Run(1);
@@ -101,7 +104,8 @@ public class PhysicsFrameStateTests
         SpawnShip(test: test, parent: test.Root, ship: out FrameHandle gone);
         test.World.Destroy(gone.Entity);
         faults.EditNextOutput = output =>
-            output.Frames.Add(StepRecords.Of(frame: gone, pose: TestWorld.At(5, 6, 7), velocity: Double3.Zero, angularVelocity: Vector3.Zero, measured: Vector3.Zero));
+            output.Frames.Add(StepRecords.Of(frame: gone, pose: TestWorld.At(5, 6, 7), velocity: Double3.Zero,
+                angularVelocity: Vector3.Zero, measured: Vector3.Zero));
 
         Action tick = test.World.Tick;
 
@@ -114,7 +118,8 @@ public class PhysicsFrameStateTests
         using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         FrameHandle drifter = SpawnBodilessPhysicsFrame(test);
         faults.EditNextOutput = output =>
-            output.Frames.Add(StepRecords.Of(frame: drifter, pose: TestWorld.At(5, 6, 7), velocity: Double3.Zero, angularVelocity: Vector3.Zero, measured: Vector3.Zero));
+            output.Frames.Add(StepRecords.Of(frame: drifter, pose: TestWorld.At(5, 6, 7), velocity: Double3.Zero,
+                angularVelocity: Vector3.Zero, measured: Vector3.Zero));
 
         Action tick = test.World.Tick;
 
@@ -127,7 +132,8 @@ public class PhysicsFrameStateTests
         using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         FrameHandle raft = SpawnRootPhysicsFrameWithBody(test);
         faults.EditNextOutput = output =>
-            output.Frames.Add(StepRecords.Of(frame: raft, pose: TestWorld.At(1000), velocity: new(5, 0, 0), angularVelocity: Vector3.Zero, measured: Vector3.Zero));
+            output.Frames.Add(StepRecords.Of(frame: raft, pose: TestWorld.At(1000), velocity: new(5, 0, 0),
+                angularVelocity: Vector3.Zero, measured: Vector3.Zero));
 
         Action tick = test.World.Tick;
 
@@ -224,7 +230,8 @@ public class PhysicsFrameStateTests
     {
         using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         FrameHandle carrier = test.SpawnStaticFrame(TestWorld.At(1000), radius: 500);
-        Entity fighterOwner = SpawnShip(test: test, parent: test.Root, ship: out FrameHandle fighter, pose: TestWorld.At(1100),
+        Entity fighterOwner = SpawnShip(test: test, parent: test.Root, ship: out FrameHandle fighter,
+            pose: TestWorld.At(1100),
             velocity: new(6, 0, 0));
 
         test.Run(1);
@@ -264,7 +271,8 @@ public class PhysicsFrameStateTests
         using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         // The dock dies at the sync point of tick 0, the same one that applies the state of the shuttle.
         FrameHandle dock = SpawnDockThatDiesInTick0(test);
-        SpawnShip(test: test, parent: dock, ship: out FrameHandle shuttle, pose: TestWorld.At(5), velocity: new(2, 0, 0));
+        SpawnShip(test: test, parent: dock, ship: out FrameHandle shuttle, pose: TestWorld.At(5),
+            velocity: new(2, 0, 0));
 
         test.Run(1);
 
@@ -290,7 +298,8 @@ public class PhysicsFrameStateTests
         using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         List<PhysicsChanges> batches = faults.AppliedChanges;
         FrameHandle dock = SpawnDockThatDiesInTick0(test);
-        Entity shuttleOwner = SpawnShip(test: test, parent: dock, ship: out FrameHandle shuttle, pose: TestWorld.At(5), velocity: new(2, 0, 0));
+        Entity shuttleOwner = SpawnShip(test: test, parent: dock, ship: out FrameHandle shuttle, pose: TestWorld.At(5),
+            velocity: new(2, 0, 0));
 
         test.Run(1);
 

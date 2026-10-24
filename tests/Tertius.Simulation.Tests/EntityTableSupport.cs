@@ -20,7 +20,8 @@ internal static class EntityTableSupport
         params IComponent[] components)
     {
         Entity entity = table.Reserve();
-        table.Activate(entity: entity, row: RowAt(x), render: new(), components: components, wants: [.. components.Select(c => c.Wants)], body: body, bodyCenterOfMass: Vector3.Zero,
+        table.Activate(entity: entity, row: RowAt(x), render: new(), components: components,
+            wants: [.. components.Select(c => c.Wants)], body: body, bodyCenterOfMass: Vector3.Zero,
             ownedFrame: FrameHandle.Null);
         return entity;
     }

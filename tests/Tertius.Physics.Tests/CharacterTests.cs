@@ -14,14 +14,18 @@ public class CharacterTests
 {
     // The capsule center rests 0.9 m above the floor, plus Jolt's character padding.
     private const double StandingHeight = 0.9;
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
+
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
+        Mass: 70);
 
     /// <summary>A dynamic cube with sides of <c>2 · half</c> m that nothing slows down and that does not bounce.</summary>
     private static BodyDesc Box(float half, float mass = 1f) =>
-        new(Shape: new BoxShapeDesc(new(half)), Motion: BodyMotion.Dynamic, Mass: mass, Restitution: 0, LinearDamping: 0,
+        new(Shape: new BoxShapeDesc(new(half)), Motion: BodyMotion.Dynamic, Mass: mass, Restitution: 0,
+            LinearDamping: 0,
             AngularDamping: 0);
 
-    private static BodyDesc StaticBox(Vector3 halfExtents) => new(Shape: new BoxShapeDesc(halfExtents), Motion: BodyMotion.Static);
+    private static BodyDesc StaticBox(Vector3 halfExtents) =>
+        new(Shape: new BoxShapeDesc(halfExtents), Motion: BodyMotion.Static);
 
     /// <summary>A world with a root frame of 9.81 m/s² of gravity along -Y and a floor whose top is at y = 0.</summary>
     private static (World World, FrameHandle Ground) WorldWithFloor()
@@ -75,7 +79,8 @@ public class CharacterTests
         using (world)
         {
             var pilot = new Pilot();
-            Entity person = SpawnPerson(world: world, frame: ground, pose: At(0, StandingHeight + 0.02, 0), pilot: pilot);
+            Entity person = SpawnPerson(world: world, frame: ground, pose: At(0, StandingHeight + 0.02, 0),
+                pilot: pilot);
             Tick(world, 10);
             // The vertical part of a desired velocity is ignored under gravity.
             Send(world, pilot, body => body.MoveCharacter(new(3, 5, 0)));
@@ -107,7 +112,8 @@ public class CharacterTests
         using (world)
         {
             var pilot = new Pilot();
-            Entity person = SpawnPerson(world: world, frame: ground, pose: At(0, StandingHeight + 0.02, 0), pilot: pilot);
+            Entity person = SpawnPerson(world: world, frame: ground, pose: At(0, StandingHeight + 0.02, 0),
+                pilot: pilot);
             Tick(world, 20);
             double floor = world.PoseInOwnFrame(person).Position.Y;
             Send(world, pilot, body => body.Jump(5));
@@ -472,7 +478,8 @@ public class CharacterTests
             Pose = new(new(radius - 0.5, 0, 0), slabRotation),
             Body = StaticBox(new(20, 0.5f, 20))
         });
-        Entity person = SpawnPerson(world: world, frame: planet, pose: new(new(radius + StandingHeight + 0.1, 0, 0), DQuaternion.Identity));
+        Entity person = SpawnPerson(world: world, frame: planet,
+            pose: new(new(radius + StandingHeight + 0.1, 0, 0), DQuaternion.Identity));
         Tick(world, 60);
         DPose pose = world.PoseInOwnFrame(person);
         (pose.Position.X - radius).Should().BeInRange(StandingHeight - 0.01, StandingHeight + 0.05);

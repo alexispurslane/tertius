@@ -18,7 +18,8 @@ public class PuffTableTests
 
     private static readonly PuffLook Brief = Hot with { Life = 0.25f };
 
-    internal static PuffEmitter Jet(PuffLook look, float rate = 60, float speed = 10) => new(Rate: rate, Speed: speed, Spread: 0, Look: look);
+    internal static PuffEmitter Jet(PuffLook look, float rate = 60, float speed = 10) =>
+        new(Rate: rate, Speed: speed, Spread: 0, Look: look);
 
     internal static Entity SpawnEmitter(World world, FrameHandle frame, Double3 place, PuffEmitter emitter,
         params IComponent[] components) =>
@@ -153,7 +154,8 @@ public class PuffTableTests
     {
         using TestWorld test = TestWorld.OnJolt(faults: out _);
         // 45 puffs per second gather 0.75 of a puff in each step, so most steps make none.
-        Entity emitter = SpawnEmitter(world: test.World, frame: test.Root, place: Double3.Zero, emitter: Jet(Hot, rate: 45));
+        Entity emitter = SpawnEmitter(world: test.World, frame: test.Root, place: Double3.Zero,
+            emitter: Jet(Hot, rate: 45));
 
         test.Run(1);
         test.World.Puffs.Count.Should().Be(0);
@@ -266,8 +268,10 @@ public class PuffTableTests
         }));
         for (int i = 0; i < 4; i++)
         {
-            SpawnEmitter(world: test.World, frame: air, place: new(i, 0, 0), emitter: new(Rate: 70, Speed: 6, Spread: 0.6f, Look: Hot));
-            SpawnEmitter(world: test.World, frame: test.Root, place: new(0, i, 0), emitter: new(Rate: 50, Speed: 3, Spread: 0.2f, Look: Brief));
+            SpawnEmitter(world: test.World, frame: air, place: new(i, 0, 0),
+                emitter: new(Rate: 70, Speed: 6, Spread: 0.6f, Look: Hot));
+            SpawnEmitter(world: test.World, frame: test.Root, place: new(0, i, 0),
+                emitter: new(Rate: 50, Speed: 3, Spread: 0.2f, Look: Brief));
         }
 
         var changer = new SelfPilot

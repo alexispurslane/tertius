@@ -480,7 +480,8 @@ public class MotionChangeTests
             "at 7.5 km/s the hull has a following frame of its own");
 
         // Engines on.
-        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Dynamic, remove: world.GetComponent<KeplerMotion>(owner)!);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Dynamic,
+            remove: world.GetComponent<KeplerMotion>(owner)!);
         world.Tick();
         world.Frames.Numeric(world.Frames.TreeParent(station)).Should().Be(NumericMode.Falling,
             "the following frame falls on without its anchor's samples");
@@ -560,7 +561,8 @@ public class MotionChangeTests
         world.Frames.TreeParent(ship).Should()
             .Be(planet, "a slow hull near the planet's origin needs no numeric frame");
 
-        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Dynamic, remove: world.GetComponent<KeplerMotion>(owner));
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Dynamic,
+            remove: world.GetComponent<KeplerMotion>(owner));
         Tick(world, 2);
 
         Hull(world, backend, owner).Motion.Should().Be(MotionType.Dynamic);
@@ -691,7 +693,10 @@ public class MotionChangeTests
         int room = (int)faults.Jolt.CapacityOf(planet) - faults.Jolt.BodiesIn(planet).Count;
         for (int i = 0; i <= room; i++)
             world.Spawn(new()
-                { Frame = planet, Pose = At(3 * i, -100), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static) });
+            {
+                Frame = planet, Pose = At(3 * i, -100),
+                Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static)
+            });
         ApplyThePendingChangesWithoutAStep(world, faults);
 
         faults.Jolt.CapacityOf(planet).Should().Be(16);
@@ -805,7 +810,8 @@ public class MotionChangeTests
     public void AMotionInTheTreeThatAHullCannotTakeComesOnlyFromABug(ImpossibleChange change)
     {
         var warnings = new List<string>();
-        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults, warnings: warnings, debugChecks: false);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults, warnings: warnings,
+            debugChecks: false);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         var ramp = new MeshShapeDesc([new(-5, 0, -5), new(5, 0, -5), new(5, 2, 5), new(-5, 2, 5)], [0, 2, 1, 0, 3, 2]);
         BodyDesc desc = change == ImpossibleChange.MasslessToDynamic

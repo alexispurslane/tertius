@@ -38,7 +38,9 @@ public class KeplerFrameTests
         KeplerOrbit.Circular(radius, spinRate: spinRate);
 
     private static KeplerOrbit Ellipse(double semiMajorAxis, double eccentricity) =>
-        new(SemiMajorAxis: semiMajorAxis, Eccentricity: eccentricity, Inclination: 0, LongitudeOfAscendingNode: 0, ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: 0, Epoch: 0, AxialTilt: DQuaternion.Identity, SpinRate: 0, SpinPhaseAtEpoch: 0);
+        new(SemiMajorAxis: semiMajorAxis, Eccentricity: eccentricity, Inclination: 0, LongitudeOfAscendingNode: 0,
+            ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: 0, Epoch: 0, AxialTilt: DQuaternion.Identity, SpinRate: 0,
+            SpinPhaseAtEpoch: 0);
 
     private static TestWorld NewWorld(double startTime = 0)
     {
@@ -53,7 +55,8 @@ public class KeplerFrameTests
 
     private static Entity SpawnKeplerFrame(TestWorld test, KeplerOrbit orbit, FrameHandle parent = default,
         GravityField gravity = default,
-        params IComponent[] components) => SpawnKeplerFrame(test: test, orbit: orbit, firstMove: false, parent: parent, gravity: gravity, components);
+        params IComponent[] components) => SpawnKeplerFrame(test: test, orbit: orbit, firstMove: false, parent: parent,
+        gravity: gravity, components);
 
     private static Entity SpawnKeplerFrame(TestWorld test, KeplerOrbit orbit, bool firstMove,
         FrameHandle parent = default,
@@ -124,7 +127,8 @@ public class KeplerFrameTests
     {
         const double a = 1000, e = 0.5;
         using TestWorld test = NewWorld(startTime: -1.0 / 64);
-        FrameHandle comet = test.World.GetOwnedFrame(SpawnKeplerFrame(test: test, orbit: Ellipse(a, e), firstMove: true));
+        FrameHandle comet =
+            test.World.GetOwnedFrame(SpawnKeplerFrame(test: test, orbit: Ellipse(a, e), firstMove: true));
 
         test.Run(1);
 
@@ -154,7 +158,8 @@ public class KeplerFrameTests
     {
         using TestWorld test = NewWorld();
         // One turn per period: a quarter turn after a quarter period.
-        FrameHandle planet = test.World.GetOwnedFrame(SpawnKeplerFrame(test: test, orbit: Circle(1000, spinRate: MeanMotion)));
+        FrameHandle planet =
+            test.World.GetOwnedFrame(SpawnKeplerFrame(test: test, orbit: Circle(1000, spinRate: MeanMotion)));
 
         test.Run(TicksPerQuarterPeriod);
 
@@ -181,7 +186,8 @@ public class KeplerFrameTests
     public void AnEntityInASpinningKeplerFrameTurnsWithTheFrame()
     {
         using TestWorld test = NewWorld();
-        FrameHandle planet = test.World.GetOwnedFrame(SpawnKeplerFrame(test: test, orbit: Circle(1000, spinRate: MeanMotion)));
+        FrameHandle planet =
+            test.World.GetOwnedFrame(SpawnKeplerFrame(test: test, orbit: Circle(1000, spinRate: MeanMotion)));
         Entity lander = test.World.SpawnAt(planet, new(10, 0, 0));
 
         test.Run(TicksPerQuarterPeriod);

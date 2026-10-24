@@ -30,7 +30,8 @@ public class NumericFrameUpdateBenchmarks
     public void Setup()
     {
         uint next = 1;
-        FrameHandle space = frames.Create(frameOwner: new(next++, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
+        FrameHandle space = frames.Create(frameOwner: new(next++, 1), parent: FrameHandle.Null,
+            localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
         var list = new List<NumericBody>();
         for (int r = 0; r < Rocks; r++)
         {
@@ -51,7 +52,8 @@ public class NumericFrameUpdateBenchmarks
 
         for (int b = 0; b < Bubbles; b++)
         {
-            FrameHandle station = frames.Create(frameOwner: new(next++, 1), parent: space, localPose: new(new(100 * b, 50, 0), DQuaternion.Identity),
+            FrameHandle station = frames.Create(frameOwner: new(next++, 1), parent: space,
+                localPose: new(new(100 * b, 50, 0), DQuaternion.Identity),
                 frameBounds: FrameBounds.Sphere(40));
             for (int c = 0; c < 10; c++)
             {
@@ -93,7 +95,8 @@ public class NumericFrameUpdateBenchmarks
     public void Update()
     {
         changes.Clear();
-        frames.UpdateNumericFrames(bodies: bodies, dt: 1.0 / 60, step: 1.0 / 60, changes: changes, applyMoves: applyMoves);
+        frames.UpdateNumericFrames(bodies: bodies, dt: 1.0 / 60, step: 1.0 / 60, changes: changes,
+            applyMoves: applyMoves);
     }
 }
 
@@ -130,15 +133,20 @@ public class NumericFramePlaceBenchmarks
     public void Setup()
     {
         uint next = 1;
-        FrameHandle space = frames.Create(frameOwner: new(next++, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
+        FrameHandle space = frames.Create(frameOwner: new(next++, 1), parent: FrameHandle.Null,
+            localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
         var list = new List<NumericBody>();
         var ships = new Double3[Ships];
         for (int s = 0; s < Ships; s++)
         {
             ships[s] = new(80 * s, 0, 0);
-            FrameHandle ship = frames.Create(frameOwner: new(next++, 1), parent: space, localPose: new(ships[s], DQuaternion.Identity),
+            FrameHandle ship = frames.Create(frameOwner: new(next++, 1), parent: space,
+                localPose: new(ships[s], DQuaternion.Identity),
                 frameBounds: FrameBounds.Sphere(40));
-            list.Add(Body(id: next++, frame: ship, position: Double3.Zero, velocity: new(60, 0, 0)) with { Character = true });
+            list.Add(Body(id: next++, frame: ship, position: Double3.Zero, velocity: new(60, 0, 0)) with
+            {
+                Character = true
+            });
             foreach (Double3 axis in Axes)
                 list.Add(Body(id: next++, frame: ship, position: axis * 39.5, velocity: Double3.Zero));
         }
@@ -188,6 +196,7 @@ public class NumericFramePlaceBenchmarks
     public void Update()
     {
         changes.Clear();
-        frames.UpdateNumericFrames(bodies: bodies, dt: 1.0 / 60, step: 1.0 / 60, changes: changes, applyMoves: applyMoves);
+        frames.UpdateNumericFrames(bodies: bodies, dt: 1.0 / 60, step: 1.0 / 60, changes: changes,
+            applyMoves: applyMoves);
     }
 }

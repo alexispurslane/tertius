@@ -537,7 +537,8 @@ public class AttachmentsSubsystemTests
     private static Entity BodyRoot(EntityTable entities, FrameHandle frame)
     {
         Entity entity = entities.Reserve();
-        entities.Activate(entity: entity, row: new() { Frame = frame, PhysicsHome = frame }, render: new(), components: [], wants: [], body: TestWorld.Ball,
+        entities.Activate(entity: entity, row: new() { Frame = frame, PhysicsHome = frame }, render: new(),
+            components: [], wants: [], body: TestWorld.Ball,
             bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
         return entity;
     }

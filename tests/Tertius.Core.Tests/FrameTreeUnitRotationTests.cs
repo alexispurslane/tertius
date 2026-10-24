@@ -39,7 +39,8 @@ public class FrameTreeUnitRotationTests
     };
 
     /// <summary>A rotation about +Z by a quarter turn, scaled so that its length is <paramref name="length"/>.</summary>
-    private static DQuaternion Scaled(double length) => new(X: 0, Y: 0, Z: Math.Sqrt(0.5) * length, W: Math.Sqrt(0.5) * length);
+    private static DQuaternion Scaled(double length) =>
+        new(X: 0, Y: 0, Z: Math.Sqrt(0.5) * length, W: Math.Sqrt(0.5) * length);
 
     /// <summary>The root frame "earth" and the frame "ship" in it, at the place of a ship in a low orbit.</summary>
     private sealed class OrbitingShip
@@ -50,8 +51,10 @@ public class FrameTreeUnitRotationTests
 
         public OrbitingShip()
         {
-            Earth = Frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
-            Ship = Frames.Create(frameOwner: new(2, 1), parent: Earth, localPose: new(InOrbit, DQuaternion.FromAxisAngle(Double3.UnitX, 0.4)),
+            Earth = Frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
+                frameBounds: FrameBounds.Sphere(1e9f));
+            Ship = Frames.Create(frameOwner: new(2, 1), parent: Earth,
+                localPose: new(InOrbit, DQuaternion.FromAxisAngle(Double3.UnitX, 0.4)),
                 frameBounds: FrameBounds.Sphere(100));
             Frames.Update();
         }
@@ -148,7 +151,8 @@ public class FrameTreeUnitRotationTests
     {
         var test = new OrbitingShip();
 
-        Action create = () => test.Frames.Create(frameOwner: new(3, 1), parent: test.Earth, localPose: new(InOrbit, rotation), frameBounds: FrameBounds.Sphere(10));
+        Action create = () => test.Frames.Create(frameOwner: new(3, 1), parent: test.Earth,
+            localPose: new(InOrbit, rotation), frameBounds: FrameBounds.Sphere(10));
 
         create.Should().Throw<ContractException>(why).WithMessage("Precondition*");
     }

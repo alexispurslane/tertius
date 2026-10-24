@@ -93,7 +93,8 @@ internal sealed unsafe class MaterialStore : IDisposable
                 barriers.Buffer(replacement, BufferUse.TransferDestination);
                 barriers.Flush(device.Vk, commandBuffer);
                 var copy = new BufferCopy(0, 0, (ulong)Count * (ulong)sizeof(GpuMaterial));
-                device.Vk.CmdCopyBuffer(commandBuffer: commandBuffer, srcBuffer: Buffer.Handle, dstBuffer: replacement.Handle, regionCount: 1, pRegions: &copy);
+                device.Vk.CmdCopyBuffer(commandBuffer: commandBuffer, srcBuffer: Buffer.Handle,
+                    dstBuffer: replacement.Handle, regionCount: 1, pRegions: &copy);
             }
 
             releases.Retire(Buffer, frame);
@@ -118,7 +119,8 @@ internal sealed unsafe class MaterialStore : IDisposable
         barriers.Buffer(Buffer, BufferUse.TransferDestination);
         barriers.Flush(device.Vk, commandBuffer);
         var region = new BufferCopy(stage.Offset, (ulong)first * (ulong)sizeof(GpuMaterial), stage.Size);
-        device.Vk.CmdCopyBuffer(commandBuffer: commandBuffer, srcBuffer: stage.Buffer.Handle, dstBuffer: Buffer.Handle, regionCount: 1, pRegions: &region);
+        device.Vk.CmdCopyBuffer(commandBuffer: commandBuffer, srcBuffer: stage.Buffer.Handle, dstBuffer: Buffer.Handle,
+            regionCount: 1, pRegions: &region);
         Count += added;
     }
 

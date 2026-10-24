@@ -208,7 +208,8 @@ public class RailsFollowTests
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Scenes.AsteroidSpace(world);
         // The frame's first motion intent puts it on its rails from its first step, so it falls freely from its spawn on.
-        FrameHandle frame = world.GetOwnedFrame(Bodyless(world: world, space: space, orbit: FastStill, firstMove: true));
+        FrameHandle frame =
+            world.GetOwnedFrame(Bodyless(world: world, space: space, orbit: FastStill, firstMove: true));
         // A ball of 1 m whose center is 4.5 m from the frame's origin sticks out of the bubble of 5 m. The frame has no
         // gravity, falls freely and does not turn, so the ball rests in it, and its ghost in space moves with the frame's origin.
         Entity ball = world.Spawn(new() { Frame = frame, Pose = At(0, 4.5), Body = Ball(1) });
@@ -301,7 +302,9 @@ public class RailsFollowTests
     {
         using World world = NewWorld(backend: out _);
         FrameHandle space = Scenes.AsteroidSpace(world);
-        Entity owner = withBody ? Hull(world: world, space: space, orbit: Slow) : Bodyless(world: world, space: space, orbit: Slow);
+        Entity owner = withBody
+            ? Hull(world: world, space: space, orbit: Slow)
+            : Bodyless(world: world, space: space, orbit: Slow);
 
         Tick(world, 2);
 
@@ -551,7 +554,8 @@ public class RailsFollowTests
         Entity entity = owner switch
         {
             "a dynamic hull" => Scenes.ShipWithInterior(world: world, space: space, position: new(1000, 0, 0)).Hull,
-            "a kinematic hull on rails" or "a static hull that teleported" => Hull(world: world, space: space, orbit: Slow),
+            "a kinematic hull on rails" or "a static hull that teleported" => Hull(world: world, space: space,
+                orbit: Slow),
             _ => Bodyless(world: world, space: space, orbit: Slow)
         };
         FrameHandle frame = world.GetOwnedFrame(entity);
@@ -597,7 +601,8 @@ public class RailsFollowTests
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Ground(world, 9.81f);
-        Scenes.ShipScene ship = Scenes.ShipWithInterior(world: world, space: space, position: new(0, 1000, 0), bubbleRadius: 20);
+        Scenes.ShipScene ship =
+            Scenes.ShipWithInterior(world: world, space: space, position: new(0, 1000, 0), bubbleRadius: 20);
         // A crate whose center is 19.8 m from the ship's origin sticks out of the bubble. The ship falls freely, so the
         // crate floats in it.
         Entity crate = world.Spawn(new() { Frame = ship.Interior, Pose = At(0, 19.8), Body = Cube() });
@@ -621,7 +626,8 @@ public class RailsFollowTests
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         const float g = 9.81f;
         FrameHandle space = Ground(world, g);
-        Scenes.ShipScene ship = Scenes.ShipWithInterior(world: world, space: space, position: new(0, 1000, 0), bubbleRadius: 20);
+        Scenes.ShipScene ship =
+            Scenes.ShipWithInterior(world: world, space: space, position: new(0, 1000, 0), bubbleRadius: 20);
         // The ball drifts out along +X at 2 m/s in the falling ship, where it floats.
         Entity ball = world.Spawn(new()
             { Frame = ship.Interior, Pose = At(17), LinearVelocity = new(2, 0, 0), Body = Ball(0.2f) });

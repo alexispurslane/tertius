@@ -37,7 +37,11 @@ public sealed class AirlockTests : IDisposable
         {
             Frame = room,
             Pose = new(new(x, 1, 1.5), DQuaternion.Identity),
-            Components = [new Airlock(innerDoor: innerDoor, outerDoor: outerDoor, cycleSeconds: cycleSeconds, outerOpenAtStart: outerOpenAtStart)]
+            Components =
+            [
+                new Airlock(innerDoor: innerDoor, outerDoor: outerDoor, cycleSeconds: cycleSeconds,
+                    outerOpenAtStart: outerOpenAtStart)
+            ]
         });
         return (innerDoor, outerDoor, cycler);
     }
@@ -58,7 +62,8 @@ public sealed class AirlockTests : IDisposable
 
     private void Use() => Use(airlock);
 
-    private void Use(Entity of) => world.Post(Event.Create(target: of, sender: Entity.Null, payload: new Use { User = Entity.Null }));
+    private void Use(Entity of) =>
+        world.Post(Event.Create(target: of, sender: Entity.Null, payload: new Use { User = Entity.Null }));
 
     private double Height(Entity door) => world.Snapshot.PoseInOwnFrame(door).Position.Y - 1;
 

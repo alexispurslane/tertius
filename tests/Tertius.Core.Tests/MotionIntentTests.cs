@@ -197,10 +197,13 @@ public class MotionIntentTests
         var spin = new Double3(0, rate, 0);
         DQuaternion endAxes = DQuaternion.FromAxisAngle(Double3.UnitY, 0.7);
         DQuaternion startAxes = DQuaternion.FromAxisAngle(Double3.UnitY, 0.7 - rate * Step);
-        var start = new FrameMotion(Pose: new(Double3.Zero, startAxes), Velocity: Double3.Zero, AngularVelocity: spin, Acceleration: Double3.Zero, AngularAcceleration: Double3.Zero);
-        var end = new FrameMotion(Pose: new(Double3.Zero, endAxes), Velocity: Double3.Zero, AngularVelocity: spin, Acceleration: Double3.Zero, AngularAcceleration: Double3.Zero);
+        var start = new FrameMotion(Pose: new(Double3.Zero, startAxes), Velocity: Double3.Zero, AngularVelocity: spin,
+            Acceleration: Double3.Zero, AngularAcceleration: Double3.Zero);
+        var end = new FrameMotion(Pose: new(Double3.Zero, endAxes), Velocity: Double3.Zero, AngularVelocity: spin,
+            Acceleration: Double3.Zero, AngularAcceleration: Double3.Zero);
         var place = new Double3(100, 0, 0);
-        var atRest = new MotionSample(Pose: new(place, DQuaternion.Identity), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero,
+        var atRest = new MotionSample(Pose: new(place, DQuaternion.Identity), ChordVelocity: Double3.Zero,
+            Velocity: Double3.Zero, Acceleration: Double3.Zero,
             AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
 
         new MotionIntent(atRest).Converted(start, end, Step).TryGetValue(out MotionSample sample).Should().BeTrue();

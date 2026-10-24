@@ -34,7 +34,8 @@ public class UnitRotationWorldTests
     };
 
     private static TestWorld NewWorld() =>
-        new(physics: new JoltPhysicsBackend(JoltBackendOptions.Unpaced), configure: options => options.DisposePhysics = true);
+        new(physics: new JoltPhysicsBackend(JoltBackendOptions.Unpaced),
+            configure: options => options.DisposePhysics = true);
 
     /// <summary>How far the square of the length of <paramref name="rotation"/> is from 1.</summary>
     private static double Excess(DQuaternion rotation) => Math.Abs(rotation.LengthSquared - 1);

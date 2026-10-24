@@ -89,8 +89,10 @@ public class BlueprintInheritanceTests
     public void AChildCanSetAnInheritedFieldToNull()
     {
         var blueprints = new Blueprints();
-        blueprints.Register(new(Name: "parent", Components: [new(typeof(Labelled), Fields(("Label", "parent label")))]));
-        blueprints.Register(new(Name: "child", Components: [new(typeof(Labelled), Fields(("Label", null)))], Parent: "parent"));
+        blueprints.Register(new(Name: "parent",
+            Components: [new(typeof(Labelled), Fields(("Label", "parent label")))]));
+        blueprints.Register(new(Name: "child", Components: [new(typeof(Labelled), Fields(("Label", null)))],
+            Parent: "parent"));
 
         ((Labelled)blueprints.Instantiate("child")[0]).Label.Should().BeNull();
     }
@@ -101,7 +103,8 @@ public class BlueprintInheritanceTests
         var blueprints = new Blueprints();
         blueprints.Register(new(Name: "a", Components: [new(typeof(Labelled), Fields(("Label", "a"), ("Level", 1)))]));
         blueprints.Register(new(Name: "b", Components: [new(typeof(Labelled), Fields(("Level", 2)))], Parent: "a"));
-        blueprints.Register(new(Name: "c", Components: [new(typeof(Radio)), new(typeof(Labelled), Fields(("Marks", new[] { 7 })))],
+        blueprints.Register(new(Name: "c",
+            Components: [new(typeof(Radio)), new(typeof(Labelled), Fields(("Marks", new[] { 7 })))],
             Parent: "b"));
 
         IComponent[] components = blueprints.Instantiate("c");
@@ -147,7 +150,8 @@ public class BlueprintInheritanceTests
     {
         var blueprints = new Blueprints();
         blueprints.Register(new(Name: "parent", Components: [], Render: new RenderData { Mesh = new(1) }));
-        blueprints.Register(new(Name: "child", Components: [], Render: new RenderData { Mesh = new(9) }, Parent: "parent"));
+        blueprints.Register(new(Name: "child", Components: [], Render: new RenderData { Mesh = new(9) },
+            Parent: "parent"));
 
         blueprints.Resolve("child").Render!.Value.Mesh.Should().Be(new MeshId(9));
     }

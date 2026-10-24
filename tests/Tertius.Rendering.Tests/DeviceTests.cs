@@ -65,8 +65,10 @@ public sealed class DeviceTests
             inTurned.Camera.Rotation = inTurned.Camera.PreviousRotation = Quaternion.Conjugate(turn) * view;
             inTurned.RootRotation = inTurned.PreviousRootRotation = Quaternion.Conjugate(turn);
 
-            HashSet<(int X, int Y)> rootStars = Stars(Gpu.RenderAndCapture(renderer: renderer, snapshot: inRoot, name: "stars-root"));
-            HashSet<(int X, int Y)> turnedStars = Stars(Gpu.RenderAndCapture(renderer: renderer, snapshot: inTurned, name: "stars-turned"));
+            HashSet<(int X, int Y)> rootStars =
+                Stars(Gpu.RenderAndCapture(renderer: renderer, snapshot: inRoot, name: "stars-root"));
+            HashSet<(int X, int Y)> turnedStars =
+                Stars(Gpu.RenderAndCapture(renderer: renderer, snapshot: inTurned, name: "stars-turned"));
 
             rootStars.Count.Should().BeGreaterThan(10);
             // Rounding can move a star's edge by a pixel.
@@ -100,7 +102,8 @@ public sealed class DeviceTests
                 MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
                 MaterialId material = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.3f, z: 0.2f, w: 1)));
                 RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 1, 0.5f));
-                snapshot.Instances.Add(Gpu.Instance(mesh: box, material: material, position: new(0, 0, -4), scale: Vector3.One));
+                snapshot.Instances.Add(Gpu.Instance(mesh: box, material: material, position: new(0, 0, -4),
+                    scale: Vector3.One));
                 for (int i = 0; i < 8; i++)
                     renderer.Render(snapshot, 1f);
                 renderer.LastFrameStats.NearCommands.Should().Be(1, "with {0} frames in flight", framesInFlight);

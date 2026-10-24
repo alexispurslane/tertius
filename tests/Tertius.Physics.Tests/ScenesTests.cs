@@ -43,7 +43,8 @@ public class ScenesTests
     {
         using World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        Scenes.ShipScene ship = Scenes.ShipWithInterior(world: world, space: space, position: new(100, 200, 300), bubbleRadius: 30);
+        Scenes.ShipScene ship =
+            Scenes.ShipWithInterior(world: world, space: space, position: new(100, 200, 300), bubbleRadius: 30);
 
         Tick(world, 60);
 

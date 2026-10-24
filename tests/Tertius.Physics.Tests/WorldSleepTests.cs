@@ -52,7 +52,8 @@ public class WorldSleepTests
             Pose = new(start, ball ? DQuaternion.Identity : tilt),
             Body = ball
                 ? new(Shape: new SphereShapeDesc(0.5f), Mass: 1, LinearDamping: 0, AngularDamping: 0)
-                : new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Mass: 1, Friction: 0, LinearDamping: 0, AngularDamping: 0)
+                : new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Mass: 1, Friction: 0, LinearDamping: 0,
+                    AngularDamping: 0)
         });
         double a = (ball ? 5.0 / 7.0 : 1.0) * g * Math.Sin(theta);
         double seconds = Math.Min(20, Math.Sqrt(2 * 50 / a));
@@ -80,7 +81,10 @@ public class WorldSleepTests
         FrameHandle ground = Ground(world, g);
         Floor(world, ground, top: -10);
         world.Spawn(new()
-            { Frame = ground, Pose = At(0, -0.5), Body = new(Shape: new BoxShapeDesc(new(2, 0.5f, 2)), Motion: BodyMotion.Static) });
+        {
+            Frame = ground, Pose = At(0, -0.5),
+            Body = new(Shape: new BoxShapeDesc(new(2, 0.5f, 2)), Motion: BodyMotion.Static)
+        });
         Entity box = world.Spawn(new()
             { Frame = ground, Pose = At(2.1, 0.5), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 1) });
 

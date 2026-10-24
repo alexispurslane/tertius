@@ -121,7 +121,8 @@ internal sealed partial class SpatialIndex
         moved.CopyTo(movedForWorkers);
         movedCount = moved.Length;
         int items = Math.Min(movedCount, ParallelItems);
-        Parallel.For(fromInclusive: 0, toExclusive: items, parallelOptions: workers, body: findItemMoves ??= FindItemMoves);
+        Parallel.For(fromInclusive: 0, toExclusive: items, parallelOptions: workers,
+            body: findItemMoves ??= FindItemMoves);
         for (int item = 0; item < items; item++)
             Apply(moves.AsSpan(ItemStart(item, items), movesPerItem[item]));
     }

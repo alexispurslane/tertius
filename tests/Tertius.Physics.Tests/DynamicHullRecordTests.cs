@@ -61,7 +61,8 @@ public class DynamicHullRecordTests
 
     /// <summary>A ship in low orbit, 400 km above Earth, which falls in a numeric frame of its own within its first ticks.</summary>
     private static Entity ShipInOrbit(World world, FrameHandle earth) =>
-        Ship(world: world, frame: earth, start: new(OrbitRadius, 0, 0), velocity: new(0, 0, OrbitSpeed), hull: Hull, bubble: 20);
+        Ship(world: world, frame: earth, start: new(OrbitRadius, 0, 0), velocity: new(0, 0, OrbitSpeed), hull: Hull,
+            bubble: 20);
 
     /// <summary>
     /// A station of 10 m whose frame physics drives, with a bubble of 200 m and the gravity <paramref name="stationGravity"/>
@@ -95,7 +96,8 @@ public class DynamicHullRecordTests
         Vector3 stationGravity, float shipDamping = 0, float shipAngularDamping = 0, Vector3 shipSpin = default)
     {
         FrameHandle station = TurnedStation(world, frame, stationGravity);
-        Entity ship = Ship(world: world, frame: frame, start: new(260, 0, 0), velocity: Approach, hull: ShipHull(shipDamping, shipAngularDamping), bubble: 10,
+        Entity ship = Ship(world: world, frame: frame, start: new(260, 0, 0), velocity: Approach,
+            hull: ShipHull(shipDamping, shipAngularDamping), bubble: 10,
             spin: shipSpin);
         return (station, ship, world.GetOwnedFrame(ship));
     }
@@ -156,12 +158,14 @@ public class DynamicHullRecordTests
             AsFrame = new(FrameBounds.Sphere(20))
         }.OnKeplerOrbit(placed, orbit));
         (Double3 start, Double3 startVelocity) = orbit.StateAt(alone.Time, EarthMu);
-        Entity aloneShip = Ship(world: alone, frame: aloneEarth, start: start, velocity: startVelocity, hull: Hull, bubble: 20);
+        Entity aloneShip = Ship(world: alone, frame: aloneEarth, start: start, velocity: startVelocity, hull: Hull,
+            bubble: 20);
         Tick(placed, 3);
         Tick(alone, 3);
         placed.Frames.Numeric(placed.PhysicsHomeOf(placedShip)).Should().Be(NumericMode.Following);
 
-        placed.SetMotionNextTick(owner: placedShip, motion: BodyMotion.Dynamic, remove: placed.GetComponent<KeplerMotion>(placedShip));
+        placed.SetMotionNextTick(owner: placedShip, motion: BodyMotion.Dynamic,
+            remove: placed.GetComponent<KeplerMotion>(placedShip));
         Tick(placed, 60);
         Tick(alone, 60);
         InFallingFrame(placed, placedShip).Should().BeTrue();
@@ -236,7 +240,8 @@ public class DynamicHullRecordTests
     {
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
         FrameHandle ground = Ground(world, 9.81f);
-        (FrameHandle station, _, FrameHandle shipFrame) = ShipThatFliesIntoAStation(world: world, frame: ground, stationGravity: StationGravity);
+        (FrameHandle station, _, FrameHandle shipFrame) =
+            ShipThatFliesIntoAStation(world: world, frame: ground, stationGravity: StationGravity);
 
         TickUntil(world, () => world.Frames.Parent(shipFrame) == station, 70);
 
@@ -253,7 +258,8 @@ public class DynamicHullRecordTests
     {
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        (FrameHandle station, _, FrameHandle shipFrame) = ShipThatFliesIntoAStation(world: world, frame: space, stationGravity: Vector3.Zero,
+        (FrameHandle station, _, FrameHandle shipFrame) = ShipThatFliesIntoAStation(world: world, frame: space,
+            stationGravity: Vector3.Zero,
             shipAngularDamping: 0.1f, shipSpin: new(0.5f, 0, 0));
 
         TickUntil(world, () => world.Frames.Parent(shipFrame) == station, 80);
@@ -281,7 +287,8 @@ public class DynamicHullRecordTests
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         FrameHandle station = TurnedStation(world, space, Vector3.Zero);
-        FrameHandle shipFrame = world.GetOwnedFrame(Ship(world: world, frame: station, start: new(150, 0, 0), velocity: new(60, 0, 0),
+        FrameHandle shipFrame = world.GetOwnedFrame(Ship(world: world, frame: station, start: new(150, 0, 0),
+            velocity: new(60, 0, 0),
             hull: ShipHull(0, 0.1f), bubble: 10, spin: new(0.5f, 0, 0)));
 
         TickUntil(world, () => world.Frames.Parent(shipFrame) == space, 120);

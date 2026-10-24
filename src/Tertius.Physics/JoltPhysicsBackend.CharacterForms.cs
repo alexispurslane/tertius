@@ -199,7 +199,8 @@ public sealed partial class JoltPhysicsBackend
         RemovePrimary(record);
         record.Motion = BodyMotion.Dynamic;
         record.Standing = false;
-        CreatePrimary(record: record, frame: frame, pose: pose, linearVelocity: velocity, angularVelocity: Vector3.Zero, upFromGravity: false);
+        CreatePrimary(record: record, frame: frame, pose: pose, linearVelocity: velocity, angularVelocity: Vector3.Zero,
+            upFromGravity: false);
         if (record.InstantVelocityStep == stepIndex)
             spawnedRigid.Add(record);
         Contract.Ensures(record.Motion == BodyMotion.Dynamic && record.Character is null && record.Body.IsValid &&
@@ -221,7 +222,8 @@ public sealed partial class JoltPhysicsBackend
         FrameHandle frame = record.Frame;
         RemovePrimary(record);
         record.Motion = BodyMotion.Character;
-        CreatePrimary(record: record, frame: frame, pose: s.Pose, linearVelocity: s.Linear, angularVelocity: Vector3.Zero, upFromGravity: false);
+        CreatePrimary(record: record, frame: frame, pose: s.Pose, linearVelocity: s.Linear,
+            angularVelocity: Vector3.Zero, upFromGravity: false);
         Contract.Assert(record.Character is not null && record.HasPrimary);
         record.Character.RefreshContacts(layer: PrimaryLayer(record), physicsSystem: record.World.System);
         Contract.Ensures(record.Motion == BodyMotion.Character && record.Character is not null &&
@@ -268,7 +270,8 @@ public sealed partial class JoltPhysicsBackend
             RMatrix4x4 transform = Matrix4x4.CreateFromQuaternion(bodies.GetRotation(member.Body));
             transform.Translation = position;
             rigidCharacterContacts.Clear();
-            world.System.NarrowPhaseQuery.CollideShape(shape: shapes.Get(member.Desc.Shape), scale: Vector3.One, centerOfMassTransform: transform, settings: settings,
+            world.System.NarrowPhaseQuery.CollideShape(shape: shapes.Get(member.Desc.Shape), scale: Vector3.One,
+                centerOfMassTransform: transform, settings: settings,
                 baseOffset: position,
                 collectorType: CollisionCollectorType.AllHit, results: rigidCharacterContacts);
             world.NoteRigidCharacterContacts(member.Body, rigidCharacterContacts);

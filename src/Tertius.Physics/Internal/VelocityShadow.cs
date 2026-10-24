@@ -37,7 +37,8 @@ internal readonly record struct ShadowTracking(Double3 Chord, Double3 Place, Vec
     /// own velocity does when it moves.
     /// </summary>
     public ShadowTracking Moved(Double3 offset, Double3 velocity) =>
-        new(Chord: Chord + velocity, Place: Place + offset, JoltTarget: (JoltTarget + velocity).ToVector3(), Step: Step);
+        new(Chord: Chord + velocity, Place: Place + offset, JoltTarget: (JoltTarget + velocity).ToVector3(),
+            Step: Step);
 }
 
 /// <summary>
