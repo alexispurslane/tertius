@@ -121,7 +121,7 @@ public sealed class CameraInShipCrateInEarthTests : IDisposable
             DQuaternion shipTurn = world.Frames.Relative(ship, earth).Rotation.Normalized().Conjugate();
             foreach (Entity crate in crates)
             {
-                world.Snapshot.TryGetPoseIn(crate, ship, out DPose pose).Should().BeTrue();
+                DPose pose = world.Snapshot.PoseIn(crate, ship).Found();
                 worstPosition = Math.Max(worstPosition, Double3.Distance(pose.Position, TruthInShipAxes(crate)));
                 DQuaternion truth = (shipTurn * world.Snapshot.PoseInOwnFrame(crate).Rotation).Normalized();
                 // Two unit quaternions turn the same way when their dot product is 1 or -1.

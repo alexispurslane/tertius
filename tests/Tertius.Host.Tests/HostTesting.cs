@@ -217,9 +217,8 @@ public static class HostTesting
         using World world = NewJoltWorld();
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e4f)));
         Entity hull = DemoScenes.Shuttle.Park(world: world, frame: space, pose: DPose.Identity);
-        return world.Snapshot.TryGetBody(hull, out BodyFacts facts)
-            ? facts.CenterOfMass
-            : throw new InvalidOperationException("The shuttle's hull has a body.");
+        return world.Snapshot.BodyOf(hull)?.CenterOfMass
+            ?? throw new InvalidOperationException("The shuttle's hull has a body.");
     });
 
     public static readonly Scene ProbesScene = new("probes", (world, _) => Probes(world));

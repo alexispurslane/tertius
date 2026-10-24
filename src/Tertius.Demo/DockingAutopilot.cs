@@ -269,9 +269,9 @@ public sealed class DockingAutopilot(Entity station) : IComponent
             return null;
         FrameTree frames = self.Snapshot.Frames;
         // A destroyed station's frame is gone with it, so the lookup of its frame covers a station that is gone.
-        if (!frames.TryGetFrame(station, out FrameHandle stationFrame))
+        if (frames.OwnedFrame(station) is not { } stationFrame)
             return new Lost("its station is gone or owns no frame");
-        if (!self.Snapshot.TryGetBody(self.Entity, out BodyFacts body) || body.Mass <= 0)
+        if (self.Snapshot.BodyOf(self.Entity) is not { } body || body.Mass <= 0)
             return new Lost("its hull has no mass");
         bool inside = self.Frame == stationFrame;
         if (!inside && self.Frame != self.Snapshot.FrameOf(station))

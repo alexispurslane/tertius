@@ -36,7 +36,7 @@ public sealed class FrameFollowCamera(FrameHandle reference, Double3 offset, Dou
         if (
             subject.IsNull
             || !self.Snapshot.Frames.IsAlive(reference)
-            || !self.Snapshot.TryGetPoseIn(subject, reference, out DPose pose)
+            || self.Snapshot.PoseIn(subject, reference) is not { } pose
         )
             return;
         DQuaternion toSubject = pose.Rotation.Conjugate();

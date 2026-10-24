@@ -161,11 +161,11 @@ public sealed class LifecycleFrameTests
     public void WhatWasInsideAChildFrameKeepsItsPlaceInSpace()
     {
         using var s = new ShipScene();
-        s.T.World.Snapshot.TryGetPoseIn(s.Passenger, s.T.Root, out DPose before).Should().BeTrue();
+        DPose before = s.T.World.Snapshot.PoseIn(s.Passenger, s.T.Root).Found();
 
         s.DestroyTheShip();
 
-        s.T.World.Snapshot.TryGetPoseIn(s.Passenger, s.T.Root, out DPose after).Should().BeTrue();
+        DPose after = s.T.World.Snapshot.PoseIn(s.Passenger, s.T.Root).Found();
         ShouldBeNear(after.Position, before.Position);
     }
 
@@ -288,7 +288,7 @@ public sealed class LifecycleFrameTests
         using var t = new TestWorld();
 
         t.World.PoseIn(t.Root.Entity, t.Root).Should().Be(DPose.Identity);
-        t.World.Snapshot.TryGetPoseIn(t.Root.Entity, t.Root, out DPose pose).Should().BeTrue();
+        DPose pose = t.World.Snapshot.PoseIn(t.Root.Entity, t.Root).Found();
         pose.Position.Should().Be(Double3.Zero);
     }
 
@@ -451,7 +451,7 @@ public sealed class LifecycleFrameTests
         );
 
         t.World.GetFrame(passenger).Should().Be(pod);
-        t.World.Snapshot.TryGetPoseIn(passenger, t.Root, out DPose inRoot).Should().BeTrue();
+        DPose inRoot = t.World.Snapshot.PoseIn(passenger, t.Root).Found();
         // The pod turned with the inner frame, so the passenger's x = 1 offset became z = -1 beside the pod at x = 115.
         ShouldBeNear(inRoot.Position, new(115, 0, -1));
     }
@@ -520,7 +520,7 @@ public sealed class LifecycleFrameTests
                 v: Double3.Zero
             );
             PodSpinBefore = T.World.Frames.AngularVelocityRelative(Pod, T.Root);
-            T.World.Snapshot.TryGetPoseIn(Passenger, T.Root, out DPose passengerInRoot).Should().BeTrue();
+            DPose passengerInRoot = T.World.Snapshot.PoseIn(Passenger, T.Root).Found();
             PassengerInRootBefore = passengerInRoot;
         }
 
@@ -600,7 +600,7 @@ public sealed class LifecycleFrameTests
         s.DestroyTheMoon();
 
         s.T.World.GetFrame(s.Passenger).Should().Be(s.Pod);
-        s.T.World.Snapshot.TryGetPoseIn(s.Passenger, s.T.Root, out DPose after).Should().BeTrue();
+        DPose after = s.T.World.Snapshot.PoseIn(s.Passenger, s.T.Root).Found();
         ShouldBeNear(after.Position, s.PassengerInRootBefore.Position, 1e-6);
     }
 

@@ -48,7 +48,7 @@ public sealed class FrameMotionTests
         test.Run(3);
 
         test.World.PoseInOwnFrame(passenger).Position.Should().Be(new Double3(1, 0, 0));
-        test.World.Snapshot.TryGetPoseIn(passenger, test.Root, out DPose inRoot).Should().BeTrue();
+        DPose inRoot = test.World.Snapshot.PoseIn(passenger, test.Root).Found();
         inRoot.Position.Should().Be(new Double3(1, 6, 0));
     }
 
@@ -83,7 +83,7 @@ public sealed class FrameMotionTests
         test.Run(1);
 
         // The quarter turn about +Y maps the frame's +X to the root's -Z.
-        test.World.Snapshot.TryGetPoseIn(passenger, test.Root, out DPose inRoot).Should().BeTrue();
+        DPose inRoot = test.World.Snapshot.PoseIn(passenger, test.Root).Found();
         PoseChecks.AssertNear(inRoot.Position, new(10, 0, -1));
         PoseChecks.AssertSameRotation(inRoot.Rotation, PoseChecks.QuarterTurnAboutY);
     }
@@ -109,7 +109,7 @@ public sealed class FrameMotionTests
         test.Run(3);
 
         // 100 + 3 m for the outer frame, 10 m for the inner frame inside it, 5 m for the passenger inside that.
-        test.World.Snapshot.TryGetPoseIn(passenger, test.Root, out DPose inRoot).Should().BeTrue();
+        DPose inRoot = test.World.Snapshot.PoseIn(passenger, test.Root).Found();
         PoseChecks.AssertNear(inRoot.Position, new(103, 10, 5));
         test.World.Frames.LocalPose(inner).Position.Should().Be(new Double3(0, 10, 0));
     }

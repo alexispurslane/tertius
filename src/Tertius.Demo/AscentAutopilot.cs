@@ -121,7 +121,7 @@ public sealed class AscentAutopilot(double maxThrust, double orbitRadius, double
             if (!events.Of<Ignition>().Any())
                 return;
             double mu = KeplerOrbit.MuFrom(self.Snapshot.Frames.Gravity(plane.Frame));
-            if (mu <= 0 || !self.Snapshot.TryGetBody(self.Entity, out BodyFacts body) || body.Mass <= 0)
+            if (mu <= 0 || self.Snapshot.BodyOf(self.Entity) is not { } body || body.Mass <= 0)
             {
                 self.Log(
                     "AscentAutopilot stays parked: the frame of its plane has no point gravity to climb in, or its hull has no mass."

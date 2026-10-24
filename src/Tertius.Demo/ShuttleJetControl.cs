@@ -95,7 +95,7 @@ public sealed class ShuttleJetControl : IComponent
                 mainThrust,
                 "The thrust of an engine must be positive and finite."
             );
-        if (!world.Snapshot.TryGetBody(hull, out BodyFacts body))
+        if (world.Snapshot.BodyOf(hull) is not { } body)
             throw new ArgumentException(
                 $"The jets need a live hull with a body, whose center of mass they are placed for, not {hull}.",
                 nameof(hull)

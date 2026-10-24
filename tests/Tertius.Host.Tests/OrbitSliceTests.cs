@@ -121,8 +121,8 @@ public sealed class OrbitSliceTests(OrbitRun run) : IClassFixture<OrbitRun>
     public void TheChaseCameraRidesBehindAndAboveTheShipAndLooksAtItsCenter()
     {
         FrameHandle earth = run.Frame("earth");
-        run.World.Snapshot.TryGetPoseIn(run.Scene["ship"], earth, out DPose ship).Should().BeTrue();
-        run.World.Snapshot.TryGetPoseIn(run.Scene["chase"], earth, out DPose chase).Should().BeTrue();
+        DPose ship = run.World.Snapshot.PoseIn(run.Scene["ship"], earth).Found();
+        DPose chase = run.World.Snapshot.PoseIn(run.Scene["chase"], earth).Found();
 
         // In the ship's own axes, the camera is at (0, 12, 70) m, and it looks along -(0, 12, 70) / sqrt(5,044), at the
         // ship's center. The ship's rotation comes from Jolt as floats, so the 71 m offset carries about 5 µm of rounding.

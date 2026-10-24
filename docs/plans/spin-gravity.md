@@ -695,7 +695,7 @@ where
 
 Today a ghost converts Jolt's chord with the instant rule at the end point. In a turning frame a chord spans a turn of ω `dt`, so at the spike's floor, at 31.3 m/s and 60 Hz, the ghost's velocity is off by about 8 cm/s in direction.
 
-The reads in a frame, such as `VelocityIn` and `Snapshot.TryGetVelocityIn`, keep the instant rule, which they use today. For a body they read the velocity of the transform row, which is Jolt's chord. So in a turning frame a read in another frame is off by up to ω `dt` |v| / 2 in direction: 8 cm/s at the spike's floor at 31.3 m/s and 60 Hz. The read keeps its rule for a named reason: that error is of the order of the half step of acceleration by which every body velocity that a tick reads lags the instant velocity, 0.08 m/s under 9.81 m/s² at 60 Hz. The chord rule would need the poses at the start of the last finished step, which no read in a tick holds. A read in the body's own semantic frame converts nothing and has no such error.
+The reads in a frame, such as `VelocityIn` and `Snapshot.VelocityIn`, keep the instant rule, which they use today. For a body they read the velocity of the transform row, which is Jolt's chord. So in a turning frame a read in another frame is off by up to ω `dt` |v| / 2 in direction: 8 cm/s at the spike's floor at 31.3 m/s and 60 Hz. The read keeps its rule for a named reason: that error is of the order of the half step of acceleration by which every body velocity that a tick reads lags the instant velocity, 0.08 m/s under 9.81 m/s² at 60 Hz. The chord rule would need the poses at the start of the last finished step, which no read in a tick holds. A read in the body's own semantic frame converts nothing and has no such error.
 
 ## Numeric frames inside turning frames
 

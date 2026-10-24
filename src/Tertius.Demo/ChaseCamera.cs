@@ -126,7 +126,7 @@ public sealed class ChaseCamera(double behind, double above, double ahead, Vecto
         Entity subject = self.AttachedTo;
         Snapshot snapshot = self.Snapshot;
         FrameHandle here = self.Frame;
-        if (subject.IsNull || !snapshot.TryGetPoseIn(subject, here, out DPose pose))
+        if (subject.IsNull || snapshot.PoseIn(subject, here) is not { } pose)
             return;
         double dt = self.DeltaTime;
         ReadAnswers(ref events, subject);
@@ -249,9 +249,7 @@ public sealed class ChaseCamera(double behind, double above, double ahead, Vecto
         Double3 offset = Across(pose.Rotation.Rotate((Double3)self.AttachOffset.Position), up);
         heading =
             offset.Length > 1e-9 ? -offset.Normalized() : Across(pose.Rotation.Rotate(-Double3.UnitZ), up).Normalized();
-        subjectVelocity = snapshot.TryGetVelocityIn(subject, self.Frame, out Double3 velocity)
-            ? velocity
-            : Double3.Zero;
+        subjectVelocity = snapshot.VelocityIn(subject, self.Frame) ?? Double3.Zero;
         lastPosition = pose.Position - subjectVelocity * self.DeltaTime;
         arm = Math.Sqrt(behind * behind + above * above);
         swingRate = 0;

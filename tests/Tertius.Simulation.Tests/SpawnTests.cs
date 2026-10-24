@@ -320,7 +320,7 @@ public sealed class SpawnTests
                                 AsFrame = new(FrameBounds.Sphere(50)),
                             }
                         );
-                    else if (self.Tick == 1 && self.Snapshot.Frames.TryGetFrame(bay, out FrameHandle frame))
+                    else if (self.Tick == 1 && self.Snapshot.Frames.OwnedFrame(bay) is { } frame)
                         visitor = self.Spawn(new() { Frame = frame });
                 }
             )

@@ -49,12 +49,13 @@ public sealed class StaleHandleWorldTests
         [nameof(World.Unsubscribe)] = (world, entity) => world.Unsubscribe(entity, AnyTopic),
         ["Snapshot.IsAlive"] = (world, entity) => world.Snapshot.IsAlive(entity),
         // The first live frame is the root, so the frame is live and only the entity can make the answer false.
-        [nameof(Snapshot.TryGetPoseIn)] = (world, entity) =>
-            world.Snapshot.TryGetPoseIn(entity, world.Frames.AtDense(0), out _),
-        [nameof(Snapshot.TryGetVelocityIn)] = (world, entity) =>
-            world.Snapshot.TryGetVelocityIn(entity, world.Frames.AtDense(0), out _),
-        [nameof(Snapshot.TryGetAngularVelocityIn)] = (world, entity) =>
-            world.Snapshot.TryGetAngularVelocityIn(entity, world.Frames.AtDense(0), out _),
+        [nameof(Snapshot.PoseIn)] = (world, entity) =>
+            world.Snapshot.PoseIn(entity, world.Frames.AtDense(0)) is not null,
+        [nameof(Snapshot.VelocityIn)] = (world, entity) =>
+            world.Snapshot.VelocityIn(entity, world.Frames.AtDense(0)) is not null,
+        [nameof(Snapshot.AngularVelocityIn)] = (world, entity) =>
+            world.Snapshot.AngularVelocityIn(entity, world.Frames.AtDense(0)) is not null,
+        [nameof(Snapshot.BodyOf)] = (world, entity) => world.Snapshot.BodyOf(entity) is not null,
     };
 
     /// <summary>A world in which <paramref name="stale"/> was destroyed and <paramref name="successor"/> took its slot.</summary>
@@ -385,7 +386,7 @@ public sealed class StaleHandleWorldTests
                     Snapshot snapshot = self.Snapshot;
                     staleIsAlive = snapshot.IsAlive(stale);
                     successorIsAlive = snapshot.IsAlive(successor);
-                    stalePoseFound = snapshot.TryGetPoseIn(stale, self.Frame, out _);
+                    stalePoseFound = snapshot.PoseIn(stale, self.Frame) is not null;
                 }
             )
         );

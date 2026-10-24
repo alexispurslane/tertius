@@ -87,7 +87,7 @@ public sealed class SpinFrameTests
 
         test.Run(TicksPerSecond);
 
-        test.World.Snapshot.TryGetPoseIn(tower, test.Root, out DPose inRoot).Should().BeTrue();
+        DPose inRoot = test.World.Snapshot.PoseIn(tower, test.Root).Found();
         PoseChecks.AssertNear(inRoot.Position, new(0, 0, -10), 1e-9);
     }
 
@@ -221,7 +221,7 @@ public sealed class SpinFrameTests
         test.World.Frames.AngularVelocity(ground).Y.Should().BeApproximately(0, 1e-6f);
         // The tower stands 10 m along the frame's +Z, which the lean leaves at the parent's +Z. A quarter turn about +X then
         // takes +Z to -Y.
-        test.World.Snapshot.TryGetPoseIn(tower, test.Root, out DPose inRoot).Should().BeTrue();
+        DPose inRoot = test.World.Snapshot.PoseIn(tower, test.Root).Found();
         PoseChecks.AssertNear(inRoot.Position, new(0, -10, 0), 1e-9);
     }
 

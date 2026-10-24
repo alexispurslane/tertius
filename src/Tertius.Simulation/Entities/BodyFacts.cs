@@ -4,7 +4,7 @@ namespace Tertius.Simulation;
 
 /// <summary>
 /// The physics facts of an entity's body that any component can read from the snapshot with
-/// <see cref="Snapshot.TryGetBody"/>, for example to decide whether it can push, lift or stand on another entity.
+/// <see cref="Snapshot.BodyOf"/>, for example to decide whether it can push, lift or stand on another entity.
 /// </summary>
 /// <param name="Motion">
 /// How the body moved in the last finished step, the step that ran during the previous tick. A body that owns no frame has

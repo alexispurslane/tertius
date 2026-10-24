@@ -362,7 +362,7 @@ public static partial class DemoScenes
             string prefix = ""
         )
         {
-            if (!world.Snapshot.TryGetBody(cabin.Entity, out BodyFacts hull))
+            if (world.Snapshot.BodyOf(cabin.Entity) is not { } hull)
                 throw new ArgumentException(
                     $"The frame {cabin} has no owner with a body, so it has no hull for the nozzle.",
                     nameof(cabin)

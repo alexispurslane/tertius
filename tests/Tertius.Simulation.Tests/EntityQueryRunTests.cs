@@ -20,7 +20,7 @@ public sealed class EntityQueryRunTests
 
     /// <summary>The x of an entity's position in its frame, from the snapshot, as a predicate reads it. NaN for an entity in no frame.</summary>
     private static double X(Snapshot snapshot, Entity entity) =>
-        snapshot.TryGetPoseIn(entity, snapshot.FrameOf(entity), out DPose pose) ? pose.Position.X : double.NaN;
+        snapshot.PoseIn(entity, snapshot.FrameOf(entity))?.Position.X ?? double.NaN;
 
     private static (QueryIndex Index, int Count) PlanOf(FoundEntities run)
     {

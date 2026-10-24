@@ -129,7 +129,7 @@ public sealed class WorldFrameReadTests
 
         DPose pose = world.PoseIn(ball, turning);
 
-        world.Snapshot.TryGetPoseIn(ball, turning, out DPose expected).Should().BeTrue();
+        DPose expected = world.Snapshot.PoseIn(ball, turning).Found();
         pose.Should().Be(expected);
         TestPrecision
             .RoughlyEqual(
@@ -170,7 +170,7 @@ public sealed class WorldFrameReadTests
             .RoughlyEqual(velocity, expected, 1e-12)
             .Should()
             .BeTrue($"the read gave {velocity}, not {expected}");
-        world.Snapshot.TryGetVelocityIn(ball, turning, out Double3 fromSnapshot).Should().BeTrue();
+        Double3 fromSnapshot = world.Snapshot.VelocityIn(ball, turning).Found();
         fromSnapshot.Should().Be(velocity);
     }
 
@@ -200,7 +200,7 @@ public sealed class WorldFrameReadTests
             .RoughlyEqual(omega, expected.ToVector3(), 1e-5f)
             .Should()
             .BeTrue($"the read gave {omega}, not {expected}");
-        world.Snapshot.TryGetAngularVelocityIn(ball, turning, out Vector3 fromSnapshot).Should().BeTrue();
+        Vector3 fromSnapshot = world.Snapshot.AngularVelocityIn(ball, turning).Found();
         fromSnapshot.Should().Be(omega);
     }
 
@@ -268,10 +268,10 @@ public sealed class WorldFrameReadTests
         FrameHandle stale = StaleFrame(world, space);
         Snapshot snapshot = world.Snapshot;
 
-        snapshot.TryGetPoseIn(ball, stale, out _).Should().BeFalse();
-        snapshot.TryGetVelocityIn(ball, stale, out _).Should().BeFalse();
-        snapshot.TryGetAngularVelocityIn(ball, stale, out _).Should().BeFalse();
-        snapshot.TryGetVelocityIn(ball, space, out _).Should().BeTrue();
+        snapshot.PoseIn(ball, stale).Should().BeNull();
+        snapshot.VelocityIn(ball, stale).Should().BeNull();
+        snapshot.AngularVelocityIn(ball, stale).Should().BeNull();
+        snapshot.VelocityIn(ball, space).Should().NotBeNull();
     }
 
     [Fact]

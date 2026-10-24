@@ -255,7 +255,7 @@ public sealed class WorldNumericClusteringTests
                 AsFrame = new(FrameBounds.Sphere(20)),
             }
         );
-        world.Frames.TryGetFrame(owner, out FrameHandle ship).Should().BeTrue();
+        FrameHandle ship = world.Frames.OwnedFrame(owner).Found();
         // Thrown out of the ship along its Z axis at 3 m/s, from beside the hull.
         Entity crate = world.Spawn(
             new()

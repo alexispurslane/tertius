@@ -312,7 +312,7 @@ public sealed class WorldNumericFrameTests
                 AsFrame = new(FrameBounds.Sphere(5)),
             }
         );
-        FrameHandle ship = world.Frames.TryGetFrame(owner, out FrameHandle own) ? own : FrameHandle.Null;
+        FrameHandle ship = world.Frames.OwnedFrame(owner) ?? FrameHandle.Null;
 
         Tick(world, 5);
 
@@ -484,7 +484,7 @@ public sealed class WorldNumericFrameTests
                 AsFrame = new(FrameBounds.Sphere(20)),
             }
         );
-        world.Frames.TryGetFrame(owner, out FrameHandle ship).Should().BeTrue();
+        FrameHandle ship = world.Frames.OwnedFrame(owner).Found();
         Entity cargo = world.Spawn(
             new()
             {
@@ -533,7 +533,7 @@ public sealed class WorldNumericFrameTests
                 AsFrame = new(FrameBounds.Sphere(20)),
             }
         );
-        world.Frames.TryGetFrame(owner, out FrameHandle ship).Should().BeTrue();
+        FrameHandle ship = world.Frames.OwnedFrame(owner).Found();
         Tick(world, 2);
         InFallingFrame(world, owner).Should().BeTrue();
 

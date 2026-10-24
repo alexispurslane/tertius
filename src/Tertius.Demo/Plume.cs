@@ -52,7 +52,7 @@ public readonly record struct Plume(PuffLook Look, float FullRate, float Speed, 
         Entity parent = self.AttachedTo;
         if (parent.IsNull)
             return self.PoseIn(self.Frame).Rotation;
-        if (!self.Snapshot.TryGetPoseIn(parent, self.Frame, out DPose pose))
+        if (self.Snapshot.PoseIn(parent, self.Frame) is not { } pose)
             throw new InvalidOperationException($"The part {self.Entity} has no live parent to push.");
         return pose.Rotation;
     }

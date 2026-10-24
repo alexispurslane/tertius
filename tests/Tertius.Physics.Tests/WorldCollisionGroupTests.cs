@@ -512,7 +512,7 @@ public sealed class WorldCollisionGroupTests
 
     private static BodyFacts FactsOf(World world, Entity entity)
     {
-        world.Snapshot.TryGetBody(entity, out BodyFacts facts).Should().BeTrue($"{entity} has a body");
+        BodyFacts facts = world.Snapshot.BodyOf(entity).Found($"{entity} has a body");
         return facts;
     }
 

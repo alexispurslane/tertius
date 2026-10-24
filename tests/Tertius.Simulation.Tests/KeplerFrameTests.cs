@@ -212,7 +212,7 @@ public sealed class KeplerFrameTests
         test.Run(TicksPerQuarterPeriod);
 
         test.World.PoseInOwnFrame(lander).Position.Should().Be(new Double3(10, 0, 0));
-        test.World.Snapshot.TryGetPoseIn(lander, test.Root, out DPose inRoot).Should().BeTrue();
+        DPose inRoot = test.World.Snapshot.PoseIn(lander, test.Root).Found();
         // The frame has no spin, so the lander's 10 m along +X stays along +X: (0, 0, -1000) + (10, 0, 0).
         PoseChecks.AssertNear(inRoot.Position, new(10, 0, -1000), 1e-6);
     }
@@ -229,7 +229,7 @@ public sealed class KeplerFrameTests
         test.Run(TicksPerQuarterPeriod);
 
         // The quarter turn maps +X to -Z: the lander's 10 m along +X are now 10 m along -Z, from (0, 0, -1000).
-        test.World.Snapshot.TryGetPoseIn(lander, test.Root, out DPose inRoot).Should().BeTrue();
+        DPose inRoot = test.World.Snapshot.PoseIn(lander, test.Root).Found();
         PoseChecks.AssertNear(inRoot.Position, new(0, 0, -1010), 1e-6);
     }
 
@@ -278,7 +278,7 @@ public sealed class KeplerFrameTests
         test.Run(TicksPerQuarterPeriod);
 
         PoseChecks.AssertNear(test.World.Frames.LocalPose(moon).Position, new(-10, 0, 0), 1e-6);
-        test.World.Snapshot.TryGetPoseIn(base_, test.Root, out DPose inRoot).Should().BeTrue();
+        DPose inRoot = test.World.Snapshot.PoseIn(base_, test.Root).Found();
         PoseChecks.AssertNear(inRoot.Position, new(-10, 0, -1000), 1e-6);
     }
 
