@@ -113,7 +113,10 @@ public sealed class TestWorld : IDisposable
         bool debugChecks = true, Action<WorldOptions>? configure = null)
     {
         var options = new WorldOptions
-            { MaxDegreeOfParallelism = maxDop, ChunkSize = chunkSize, DebugChecks = debugChecks };
+        {
+            MaxDegreeOfParallelism = maxDop, ChunkSize = chunkSize, InitialCapacity = WorldTesting.TestCapacity,
+            DebugChecks = debugChecks
+        };
         configure?.Invoke(options);
         var world = new World(options, physics);
         root = world.CreateRootFrame(new(FrameBounds.Sphere(1e12f)));

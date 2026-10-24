@@ -28,8 +28,9 @@ namespace Tertius.Simulation;
 /// also ends a reservation that never became live). Invariants, checked by <see cref="AssertInvariants"/>:
 /// <list type="bullet">
 /// <item>A Free slot below <see cref="SlotCount"/> is in the free list once. A Reserved slot is in one chunk's spawn
-/// pool or handed out for a spawn that is not live yet. Every slot from <see cref="SlotCount"/> up is fresh, with
-/// generation 0; every other slot has a generation of 1 or more.</item>
+/// pool or handed out for a spawn that is not live yet. Every slot from <see cref="SlotCount"/> up is fresh: free, with
+/// generation 0, no body, no emitter and every column clear. The table checks this when it first takes the slot, and not in
+/// <see cref="AssertInvariants"/>, which costs O(slots in use). Every other slot has a generation of 1 or more.</item>
 /// <item>Releasing a slot increments its generation, so every handle to the old entity is stale.</item>
 /// <item>Every column, the table's own and the added ones, has <see cref="Capacity"/> entries, and every entry of a
 /// slot that is not live is clear. A released slot carries no stale data.</item>
@@ -595,7 +596,7 @@ internal sealed partial class EntityTable
             Grow(end);
             for (int slot = slotCountAtTickStart; slot < end; slot++)
             {
-                generation[slot] = 1;
+                TakeFreshSlot((uint)slot);
                 state[slot] = SlotState.Reserved;
             }
         }
@@ -1411,7 +1412,7 @@ internal sealed partial class EntityTable
 
     // ---- Invariants -----------------------------------------------------------------------------------------------
 
-    /// <summary>Checks every invariant in the class comment. O(capacity). Outside the gameplay part of a tick.</summary>
+    /// <summary>Checks every invariant in the class comment. O(slots in use). Outside the gameplay part of a tick.</summary>
     internal void AssertInvariants()
     {
         Contract.Invariant(!GameplayRunning);
@@ -1420,14 +1421,14 @@ internal sealed partial class EntityTable
         Contract.Invariant(generation.Length == Capacity && state.Length == Capacity &&
                            bodySlots.WordCount == BodySlots.WordsFor(Capacity));
 
-        bool[] inFreeList = new bool[Capacity];
+        bool[] inFreeList = new bool[slotCount];
         foreach (uint slot in freeSlots)
         {
             Contract.Invariant(slot < (uint)slotCount && state[slot] == SlotState.Free && !inFreeList[slot]);
             inFreeList[slot] = true;
         }
 
-        bool[] inIntentList = new bool[Capacity];
+        bool[] inIntentList = new bool[slotCount];
         foreach (Entity entity in frontIntentEntities.AsSpan())
         {
             // An entity that died since the swap leaves the list when the list is next read.
@@ -1439,7 +1440,7 @@ internal sealed partial class EntityTable
             }
         }
 
-        bool[] frontMotionChangerListed = new bool[Capacity];
+        bool[] frontMotionChangerListed = new bool[slotCount];
         foreach (Entity changer in frontMotionChangers)
         {
             if (!IsAlive(changer))
@@ -1448,11 +1449,11 @@ internal sealed partial class EntityTable
             frontMotionChangerListed[changer.Index] = true;
         }
 
-        bool[] dirtyListed = new bool[Capacity];
-        bool[] intentWriterListed = new bool[Capacity];
-        bool[] pusherListed = new bool[Capacity];
-        bool[] motionChangerListed = new bool[Capacity];
-        bool[] pooled = new bool[Capacity];
+        bool[] dirtyListed = new bool[slotCount];
+        bool[] intentWriterListed = new bool[slotCount];
+        bool[] pusherListed = new bool[slotCount];
+        bool[] motionChangerListed = new bool[slotCount];
+        bool[] pooled = new bool[slotCount];
         int pooledCount = 0;
         // The lists of a copy on the workers are empty outside CopyDirtyRows, which joins and empties them.
         Contract.Invariant(componentCopies.Count == 0);
@@ -1509,7 +1510,7 @@ internal sealed partial class EntityTable
 
         foreach (uint slot in syncDirty)
             dirtyListed[slot] = true;
-        bool[] frontPusherListed = new bool[Capacity];
+        bool[] frontPusherListed = new bool[slotCount];
         foreach (Entity pusher in frontPushers)
         {
             if (!IsAlive(pusher))
@@ -1520,20 +1521,10 @@ internal sealed partial class EntityTable
             frontPusherListed[p] = true;
         }
 
-        bool[] movedListed = new bool[Capacity];
+        bool[] movedListed = new bool[slotCount];
         foreach (Entity entity in moved)
             if (IsAlive(entity))
                 movedListed[entity.Index] = true;
-
-        // The slots from slotCount on were never used: free, of generation 0, without a body, and clear in every column.
-        // One pass over each array checks them all, so a large capacity adds little to the check.
-        Contract.Invariant(IsDefault(state.AsSpan(slotCount)) && IsDefault(generation.AsSpan(slotCount)));
-        for (int slot = slotCount; slot < Capacity && slot % 64 != 0; slot++)
-            Contract.Invariant(!bodySlots.Contains((uint)slot));
-        for (int word = BodySlots.WordsFor(slotCount); word < bodySlots.WordCount; word++)
-            Contract.Invariant(bodySlots.Word(word) == 0);
-        foreach (IColumn column in columns)
-            Contract.Invariant(column.IsClear(slotCount, Capacity - slotCount));
 
         int liveSlots = 0, reserved = 0, indexed = 0;
         for (int slot = 0; slot < slotCount; slot++)
@@ -1643,6 +1634,22 @@ internal sealed partial class EntityTable
 
     private int ChunkCountFor(int slots) => (slots + chunkSize - 1) / chunkSize;
 
+    /// <summary>Gives the slot that was never used, past the old <see cref="SlotCount"/>, its first generation.</summary>
+    private void TakeFreshSlot(uint slot)
+    {
+        // Checked here and not in AssertInvariants: a scan of every unused slot made the check O(capacity) per tick.
+        Contract.Requires(IsFresh(slot));
+        generation[slot] = 1;
+    }
+
+    /// <summary>True if the slot is free, of generation 0, without a body or an emitter, and clear in every column.</summary>
+    private bool IsFresh(uint slot)
+    {
+        bool clearInEveryColumn = columns.TrueForAll(column => column.IsClear((int)slot, 1));
+        bool noBits = !bodySlots.Contains(slot) && !emitterSlots.Contains(slot);
+        return state[slot] == SlotState.Free && generation[slot] == 0 && noBits && clearInEveryColumn;
+    }
+
     private SlotColumn<T> AddSlotColumn<T>()
     {
         var column = new SlotColumn<T>(Capacity);
@@ -1662,7 +1669,7 @@ internal sealed partial class EntityTable
         {
             slot = (uint)slotCount++;
             Grow(slotCount);
-            generation[slot] = 1;
+            TakeFreshSlot(slot);
         }
 
         state[slot] = SlotState.Reserved;

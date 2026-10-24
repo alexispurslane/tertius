@@ -95,7 +95,10 @@ public sealed class NumericFrameAnchorTests
     private static World NewWorld(bool numericFrames, int threads, out FaultInjectingBackend faults)
     {
         faults = new(new(new() { WorkerThreads = threads }));
-        var options = new WorldOptions { MaxDegreeOfParallelism = threads, DebugChecks = true, DisposePhysics = true };
+        var options = new WorldOptions
+        {
+            MaxDegreeOfParallelism = threads, InitialCapacity = TestCapacity, DebugChecks = true, DisposePhysics = true
+        };
         if (!numericFrames)
             options.NumericFrames = WithoutNumericFrames;
         return new(options, faults);

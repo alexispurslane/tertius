@@ -415,7 +415,10 @@ public sealed class SpinStationLandingTests
     private static List<string> LandingTrace(int threads)
     {
         var backend = new JoltPhysicsBackend(new() { WorkerThreads = threads });
-        var options = new WorldOptions { MaxDegreeOfParallelism = threads, DebugChecks = true, DisposePhysics = true };
+        var options = new WorldOptions
+        {
+            MaxDegreeOfParallelism = threads, InitialCapacity = TestCapacity, DebugChecks = true, DisposePhysics = true
+        };
         options.NumericFrames = NumericFrameTesting.EveryGroupFalls with { LookaheadTime = 0 };
         using var world = new World(options, backend);
         Station station = SpawnStation(world);

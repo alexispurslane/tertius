@@ -343,8 +343,10 @@ public sealed class WorldCharacterStandingTests
     public void TheStepAfterABrokenStepSetsTheStandingStateThatItReports()
     {
         var faults = new FaultInjectingBackend(new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 }));
-        using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics =
- true }, faults);
+        using var world = new World(new WorldOptions
+        {
+            MaxDegreeOfParallelism = 1, InitialCapacity = TestCapacity, DebugChecks = true, DisposePhysics = true
+        }, faults);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         Entity person = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, StandingHeight), Body = Person });

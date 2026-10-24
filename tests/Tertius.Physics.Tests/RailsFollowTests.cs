@@ -126,21 +126,25 @@ public sealed class RailsFollowTests
         });
     }
 
-    [Fact]
-    public void
-        AFastKinematicHullStandsExactlyOnItsOrbitInsideItsFollowingFrameAtEverySyncPointFromTheSecondAfterItsSpawn()
+    /// <summary>The ten minutes of the fast hull on rails (tests/STYLE.md, "Long tests").</summary>
+    public sealed class FastHullForTenMinutes
     {
-        using World world = NewWorld(backend: out _);
-        FrameHandle space = Scenes.AsteroidSpace(world);
-        Entity owner = Hull(world: world, space: space, orbit: Fast);
-
-        AssertOnItsOrbitForTenMinutes(world: world, owner: owner, space: space, orbit: Fast, eachSyncPoint: () =>
+        [Fact]
+        public void
+            AFastKinematicHullStandsExactlyOnItsOrbitInsideItsFollowingFrameAtEverySyncPointFromTheSecondAfterItsSpawn()
         {
-            FrameHandle home = world.PhysicsHomeOf(owner);
-            if (world.Frames.Numeric(home) != NumericMode.Following)
-                world.Frames.Numeric(home).Should().Be(NumericMode.Following,
-                    "a fast hull lives in a following frame of its own");
-        });
+            using World world = NewWorld(backend: out _);
+            FrameHandle space = Scenes.AsteroidSpace(world);
+            Entity owner = Hull(world: world, space: space, orbit: Fast);
+
+            AssertOnItsOrbitForTenMinutes(world: world, owner: owner, space: space, orbit: Fast, eachSyncPoint: () =>
+            {
+                FrameHandle home = world.PhysicsHomeOf(owner);
+                if (world.Frames.Numeric(home) != NumericMode.Following)
+                    world.Frames.Numeric(home).Should().Be(NumericMode.Following,
+                        "a fast hull lives in a following frame of its own");
+            });
+        }
     }
 
     [Fact]

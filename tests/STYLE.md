@@ -30,6 +30,21 @@ away.Should().Be(default(AwayFrom), "the slot that the two cases share holds the
 - A setup that many tests share goes into a helper in `tests/Tertius.Testing`, such as `Scenes` or `WorldTesting`. The name of the helper says what it builds.
 - A test that locks in a decision tests the behavior that depends on the decision, not the constant that encodes it.
 
+## Long tests
+
+xUnit runs the test classes at the same time, but the tests of one class one after another. So a test or a theory that runs for seconds, such as ten minutes of ticks, goes into a nested class of its own inside its class. The nested class keeps the outer class's private helpers, and it runs beside the rest of the class. Its doc comment names what it holds and points here.
+
+```csharp
+/// <summary>The ten minutes of the fast hull on rails (tests/STYLE.md, "Long tests").</summary>
+public sealed class FastHullForTenMinutes
+{
+    [Fact]
+    public void
+        AFastKinematicHullStandsExactlyOnItsOrbitInsideItsFollowingFrameAtEverySyncPointFromTheSecondAfterItsSpawn()
+    ...
+}
+```
+
 ## Test doubles
 
 - Every test of physics runs the real World on the real Jolt backend. Never write a fake backend: a fake drifts from the code that it copies.

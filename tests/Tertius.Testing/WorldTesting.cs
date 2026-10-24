@@ -11,6 +11,12 @@ namespace Tertius.Testing;
 /// </summary>
 public static class WorldTesting
 {
+    /// <summary>
+    /// The entity capacity that test worlds start with. A test world holds a few entities, and the tables grow when it
+    /// needs more. The default of 1,024 made every per-slot pass of the invariant checks cover a thousand empty slots.
+    /// </summary>
+    public const int TestCapacity = 64;
+
     public static DPose At(double x, double y = 0, double z = 0) => new(new(x, y, z), DQuaternion.Identity);
 
     /// <summary>
@@ -54,7 +60,10 @@ public static class WorldTesting
 
     private static WorldOptions NewOptions(bool debugChecks, Action<WorldOptions>? configure)
     {
-        var options = new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = debugChecks, DisposePhysics = true };
+        var options = new WorldOptions
+        {
+            MaxDegreeOfParallelism = 1, InitialCapacity = TestCapacity, DebugChecks = debugChecks, DisposePhysics = true
+        };
         configure?.Invoke(options);
         return options;
     }

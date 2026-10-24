@@ -79,7 +79,10 @@ public sealed class NumericFrameOrbitTests
     private static World NewWorld(bool numericFrames, int threads, out FaultInjectingBackend faults)
     {
         faults = new(new(new() { WorkerThreads = threads }));
-        var options = new WorldOptions { MaxDegreeOfParallelism = threads, DebugChecks = true, DisposePhysics = true };
+        var options = new WorldOptions
+        {
+            MaxDegreeOfParallelism = threads, InitialCapacity = TestCapacity, DebugChecks = true, DisposePhysics = true
+        };
         if (!numericFrames)
             options.NumericFrames = WithoutNumericFrames;
         return new(options, faults);
@@ -120,42 +123,48 @@ public sealed class NumericFrameOrbitTests
 
     // ---- The hull alone ------------------------------------------------------------------------------------------
 
-    /// <summary>
-    /// The station's hull, alone on its orbit at 7.66 km/s, gets a following frame at the first sync point and rests in it, and
-    /// the station's frame hangs at its origin. Every read of the hull in earth is the orbit's state: the place to the last
-    /// bit, over ten minutes, and the velocity to within the float that the row keeps of the frame's small velocity in K.
-    /// Without numeric frames the hull stays in earth's own system, and the row keeps the whole velocity as a float.
-    /// </summary>
-    [Fact]
-    public void AKeplerStationsHullAloneAtOrbitalSpeedRestsInAFollowingFrameAndEveryReadInEarthIsTheOrbitsState()
+    /// <summary>The ten minutes of the station alone on its orbit (tests/STYLE.md, "Long tests").</summary>
+    public sealed class KeplerStationAloneForTenMinutes
     {
-        using World world = NewWorld(numericFrames: true, threads: 1, out _);
-        Station station = KeplerStation(world);
-        world.Tick();
-        FrameHandle home = world.PhysicsHomeOf(station.Owner);
-        world.Frames.Numeric(home).Should().Be(NumericMode.Following);
-        world.Frames.TreeParent(home).Should().Be(station.Earth);
-        world.Frames.TreeParent(station.Frame).Should().Be(home, "the frame hangs under its hull's home");
-        world.Frames.Parent(station.Frame).Should().Be(station.Earth, "gameplay sees the semantic tree");
-        world.GetFrame(station.Owner).Should().Be(station.Earth);
-
-        double worstVelocity = 0;
-        for (int tick = 0; tick < 36_000; tick++)
+        /// <summary>
+        /// The station's hull, alone on its orbit at 7.66 km/s, gets a following frame at the first sync point and
+        /// rests in it, and the station's frame hangs at its origin. Every read of the hull in earth is the orbit's
+        /// state: the place to the last bit, over ten minutes, and the velocity to within the float that the row keeps
+        /// of the frame's small velocity in K. Without numeric frames the hull stays in earth's own system, and the row
+        /// keeps the whole velocity as a float.
+        /// </summary>
+        [Fact]
+        public void AKeplerStationsHullAloneAtOrbitalSpeedRestsInAFollowingFrameAndEveryReadInEarthIsTheOrbitsState()
         {
+            using World world = NewWorld(numericFrames: true, threads: 1, out _);
+            Station station = KeplerStation(world);
             world.Tick();
-            (Double3 position, Double3 velocity) = station.StateAt(world.Time);
-            DPose pose = world.PoseIn(station.Owner, station.Earth);
-            if (pose.Position != position)
-                pose.Position.Should().Be(position, "at tick {0} the hull is where its orbit is", world.TickNumber);
-            worstVelocity = Math.Max(worstVelocity, (world.VelocityIn(station.Owner, station.Earth) - velocity).Length);
-        }
+            FrameHandle home = world.PhysicsHomeOf(station.Owner);
+            world.Frames.Numeric(home).Should().Be(NumericMode.Following);
+            world.Frames.TreeParent(home).Should().Be(station.Earth);
+            world.Frames.TreeParent(station.Frame).Should().Be(home, "the frame hangs under its hull's home");
+            world.Frames.Parent(station.Frame).Should().Be(station.Earth, "gameplay sees the semantic tree");
+            world.GetFrame(station.Owner).Should().Be(station.Earth);
 
-        world.PhysicsHomeOf(station.Owner).Should().Be(home, "the hull keeps its following frame");
-        worstVelocity.Should()
-            .BeLessThan(1e-8, "the row keeps the frame's velocity relative to K, about 7 cm/s, as a float");
-        world.PoseIn(station.Owner, station.Earth).Rotation.Should()
-            .Be(station.Orbit.RotationAt(world.Time, Scenes.EarthMu));
-        world.Errors.Should().BeEmpty();
+            double worstVelocity = 0;
+            for (int tick = 0; tick < 36_000; tick++)
+            {
+                world.Tick();
+                (Double3 position, Double3 velocity) = station.StateAt(world.Time);
+                DPose pose = world.PoseIn(station.Owner, station.Earth);
+                if (pose.Position != position)
+                    pose.Position.Should().Be(position, "at tick {0} the hull is where its orbit is", world.TickNumber);
+                worstVelocity = Math.Max(worstVelocity,
+                    (world.VelocityIn(station.Owner, station.Earth) - velocity).Length);
+            }
+
+            world.PhysicsHomeOf(station.Owner).Should().Be(home, "the hull keeps its following frame");
+            worstVelocity.Should()
+                .BeLessThan(1e-8, "the row keeps the frame's velocity relative to K, about 7 cm/s, as a float");
+            world.PoseIn(station.Owner, station.Earth).Rotation.Should()
+                .Be(station.Orbit.RotationAt(world.Time, Scenes.EarthMu));
+            world.Errors.Should().BeEmpty();
+        }
     }
 
     /// <summary>

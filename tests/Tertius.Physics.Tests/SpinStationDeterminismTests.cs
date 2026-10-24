@@ -24,7 +24,10 @@ public sealed class SpinStationDeterminismTests
     private static List<string> Trace(int threads)
     {
         var backend = new JoltPhysicsBackend(new() { WorkerThreads = threads });
-        var options = new WorldOptions { MaxDegreeOfParallelism = threads, DebugChecks = true, DisposePhysics = true };
+        var options = new WorldOptions
+        {
+            MaxDegreeOfParallelism = threads, InitialCapacity = TestCapacity, DebugChecks = true, DisposePhysics = true
+        };
         options.NumericFrames = NumericFrameTesting.EveryGroupFalls with { CreateSpeed = 10, LeaveSpeed = 4 };
         using var world = new World(options, backend);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));

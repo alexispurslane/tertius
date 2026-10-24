@@ -265,58 +265,64 @@ public sealed class SpinStationBodyTests
         world.Errors.Should().BeEmpty();
     }
 
-    [Fact]
-    public void ACrateWithTheDefaultDampingInFreeMotionKeepsItsShadowForTenMinutesAndFollowsItsExpectedPath()
+    /// <summary>The ten minutes of the damped crate in free motion (tests/STYLE.md, "Long tests").</summary>
+    public sealed class DampedCrateForTenMinutes
     {
-        // Jolt's damping changes the velocity by 8.3e-4 of its value in each step at 60 Hz, far beyond the rounding that the
-        // shadow allows, so the shadow expects the damped velocity (docs/plans/spin-gravity.md, fork O3). Then every update
-        // after the first starts from the shadow, which the chain of its places shows: each place is the one before plus the
-        // new chord times the step, exactly, where an update that started from Jolt's place would break the chain.
-        // The damping draws a crate without a floor into the station's turn, and the centrifugal term then carries it outward
-        // at a rate that grows with its distance from the axis: at the spike's 0.31321 rad/s the distance grows by e in 16 s,
-        // so the crate would leave any bubble in 10 minutes. At 0.02 rad/s it grows by e in about 200 s, and in a run of this
-        // test it went from 30 m to 514 m in 10 minutes.
-        using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
-        Station station = SpawnStation(world: world, firstMove: false, bubble: 2000, rate: 0.02);
-        var place = new Double3(30, 0, 0);
-        Entity crate = SpawnIn(world: world, station: station, body: Crate, place: place);
-        var path = new ExpectedPath(place: station.Pose(world).TransformPoint(place), damping: Crate.LinearDamping,
-            dt: world.DeltaTime);
-        double dt = world.DeltaTime;
-        // In its first step the station holds still, and the crate with it. Its second step is the first that turns, whose
-        // update starts from Jolt's state and writes the first shadow.
-        world.Tick();
-
-        double worst = 0;
-        int broken = 0, missing = 0;
-        ShadowTracking? last = null;
-        for (int tick = 1; tick < 600 * world.Options.TickRate; tick++)
+        [Fact]
+        public void ACrateWithTheDefaultDampingInFreeMotionKeepsItsShadowForTenMinutesAndFollowsItsExpectedPath()
         {
-            DPose start = station.Pose(world);
+            // Jolt's damping changes the velocity by 8.3e-4 of its value in each step at 60 Hz, far beyond the rounding
+            // that the shadow allows, so the shadow expects the damped velocity (docs/plans/spin-gravity.md, fork O3).
+            // Then every update after the first starts from the shadow, which the chain of its places shows: each place
+            // is the one before plus the new chord times the step, exactly, where an update that started from Jolt's
+            // place would break the chain. The damping draws a crate without a floor into the station's turn, and the
+            // centrifugal term then carries it outward at a rate that grows with its distance from the axis: at the
+            // spike's 0.31321 rad/s the distance grows by e in 16 s, so the crate would leave any bubble in 10 minutes.
+            // At 0.02 rad/s it grows by e in about 200 s, and in a run of this test it went from 30 m to 514 m in 10
+            // minutes.
+            using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
+            Station station = SpawnStation(world: world, firstMove: false, bubble: 2000, rate: 0.02);
+            var place = new Double3(30, 0, 0);
+            Entity crate = SpawnIn(world: world, station: station, body: Crate, place: place);
+            var path = new ExpectedPath(place: station.Pose(world).TransformPoint(place), damping: Crate.LinearDamping,
+                dt: world.DeltaTime);
+            double dt = world.DeltaTime;
+            // In its first step the station holds still, and the crate with it. Its second step is the first that
+            // turns, whose update starts from Jolt's state and writes the first shadow.
             world.Tick();
-            path.Step(start, station.Pose(world));
-            worst = Math.Max(worst, Double3.Distance(world.PoseIn(crate, station.Space).Position, path.Place));
-            if (!backend.ShadowOf(crate).TryGetValue(out ShadowTracking shadow))
+
+            double worst = 0;
+            int broken = 0, missing = 0;
+            ShadowTracking? last = null;
+            for (int tick = 1; tick < 600 * world.Options.TickRate; tick++)
             {
-                missing++;
-                last = null;
-                continue;
+                DPose start = station.Pose(world);
+                world.Tick();
+                path.Step(start, station.Pose(world));
+                worst = Math.Max(worst, Double3.Distance(world.PoseIn(crate, station.Space).Position, path.Place));
+                if (!backend.ShadowOf(crate).TryGetValue(out ShadowTracking shadow))
+                {
+                    missing++;
+                    last = null;
+                    continue;
+                }
+
+                if (last is { } before &&
+                    (shadow.Step != before.Step + 1 || shadow.Place != before.Place + shadow.Chord * dt))
+                    broken++;
+                last = shadow;
             }
 
-            if (last is { } before &&
-                (shadow.Step != before.Step + 1 || shadow.Place != before.Place + shadow.Chord * dt))
-                broken++;
-            last = shadow;
+            missing.Should().Be(0, "a dynamic body in a turning frame keeps a shadow after every update");
+            broken.Should()
+                .Be(0, "every update after the first starts from the shadow, and none takes the contact branch");
+            worst.Should().BeLessThan(1e-3);
+            Double3 inStation = world.PoseIn(crate, station.Frame).Position;
+            Math.Sqrt(inStation.X * inStation.X + inStation.Z * inStation.Z).Should().BeGreaterThan(300,
+                "the damping drew the crate into the turn, and it drifted outward");
+            world.GetFrame(crate).Should().Be(station.Frame);
+            world.Errors.Should().BeEmpty();
         }
-
-        missing.Should().Be(0, "a dynamic body in a turning frame keeps a shadow after every update");
-        broken.Should().Be(0, "every update after the first starts from the shadow, and none takes the contact branch");
-        worst.Should().BeLessThan(1e-3);
-        Double3 inStation = world.PoseIn(crate, station.Frame).Position;
-        Math.Sqrt(inStation.X * inStation.X + inStation.Z * inStation.Z).Should().BeGreaterThan(300,
-            "the damping drew the crate into the turn, and it drifted outward");
-        world.GetFrame(crate).Should().Be(station.Frame);
-        world.Errors.Should().BeEmpty();
     }
 
     [Fact]

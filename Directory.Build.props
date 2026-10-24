@@ -26,6 +26,13 @@
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <InvariantGlobalization>true</InvariantGlobalization>
     <TieredPGO>true</TieredPGO>
+    <!--
+      A test process compiles every method fully optimized from the start. With tiering, the runtime waits for 100 ms
+      without new compiles before it optimizes hot code, and a test run that starts new tests all the time seldom gets
+      that pause: World.Tick stayed unoptimized for most of a Physics run. On 2026-10-24 this cut the Physics tests from
+      78 to 40 CPU-seconds of user time.
+    -->
+    <TieredCompilation Condition="$(MSBuildProjectName.EndsWith('.Tests'))">false</TieredCompilation>
     <ServerGarbageCollector>false</ServerGarbageCollector>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
     <RootNamespace>$(MSBuildProjectName)</RootNamespace>
